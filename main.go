@@ -1,0 +1,95 @@
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"github.com/PuerkitoBio/goquery"
+	"github.com/ericsperano/yfh/core"
+	"github.com/ericsperano/yfh/fs"
+	"github.com/geziyor/geziyor"
+	"github.com/geziyor/geziyor/client"
+	"github.com/geziyor/geziyor/export"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
+type Product struct {
+	gorm.Model
+	Code  string
+	Price uint
+}
+
+func main() {
+	config := core.Config{
+		LeagueID:  22030,
+		CachePath: "./cache",
+	}
+	fsman, err := fs.NewFSManager(&config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	//fmt.Printf("fsman=%+v\n", fsman)
+	data, err := fsman.DownloadTeamForDate(7, 2021, 10, 28)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Downloaded in: %+v\n", data.Path(&config))
+
+	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	if err != nil {
+		panic("failed to connect database")
+	}
+
+	// Migrate the schema
+	db.AutoMigrate(&Product{})
+
+	url := "https://hockey.fantasysports.yahoo.com/hockey/22030/7/team?pspid=782206472&activity=myteam&date=2021-11-02&stat1=S&stat2=D"
+	//url = "http://quotes.toscrape.com/"
+	geziyor.NewGeziyor(&geziyor.Options{
+		StartURLs: []string{url},
+		ParseFunc: quotesParse2,
+		Exporters: []export.Exporter{&export.JSON{FileName: "/dev/stdout"}},
+	}).Start()
+
+	// Create
+	db.Create(&Product{Code: "D42", Price: 100})
+
+	// Read
+	var product Product
+	db.First(&product, 1)                 // find product with integer primary key
+	db.First(&product, "code = ?", "D42") // find product with code D42
+
+	// Update - update product's price to 200
+	db.Model(&product).Update("Price", 200)
+	// Update - update multiple fields
+	db.Model(&product).Updates(Product{Price: 200, Code: "F42"}) // non-zero fields
+	db.Model(&product).Updates(map[string]interface{}{"Price": 200, "Code": "F42"})
+
+	// Delete - delete product
+	db.Delete(&product, 1)
+}
+
+func quotesParse2(g *geziyor.Geziyor, r *client.Response) {
+	r.HTMLDoc.Find("div.quote").Each(func(i int, s *goquery.Selection) {
+		g.Exports <- map[string]interface{}{
+			"text":   s.Find("span.text").Text(),
+			"author": s.Find("small.author").Text(),
+		}
+	})
+	if href, ok := r.HTMLDoc.Find("li.next > a").Attr("href"); ok {
+		g.Get(r.JoinURL(href), quotesParse)
+	}
+}
+
+func quotesParse(g *geziyor.Geziyor, r *client.Response) {
+	r.HTMLDoc.Find("div.quote").Each(func(i int, s *goquery.Selection) {
+		g.Exports <- map[string]interface{}{
+			"text":   s.Find("span.text").Text(),
+			"author": s.Find("small.author").Text(),
+		}
+	})
+	if href, ok := r.HTMLDoc.Find("li.next > a").Attr("href"); ok {
+		g.Get(r.JoinURL(href), quotesParse)
+	}
+}
