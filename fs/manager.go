@@ -1,8 +1,11 @@
 package fs
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path"
 	"strconv"
@@ -27,6 +30,10 @@ func NewDownloadTeamForDateData(team int, year int, month int, day int) *Downloa
 		Day:       day,
 		Timestamp: time.Now(),
 	}
+}
+
+func (d *DownloadedTeamForDateData) URL(config *core.Config) string {
+	return fmt.Sprintf("https://hockey.fantasysports.yahoo.com/hockey/%d/%d/team?date=%d-%d-%d", config.LeagueID, d.Team, d.Year, d.Month, d.Day)
 }
 
 func (d *DownloadedTeamForDateData) Dir(config *core.Config) string {
@@ -65,6 +72,7 @@ func (fsm *FSManager) GetDownloads(team int, year int, month int, day int) []*Do
 	return downloads
 }
 
+// https://developer.yahoo.com/api/
 func (fsm *FSManager) DownloadTeamForDate(team int, year int, month int, day int) (*DownloadedTeamForDateData, error) {
 	data := NewDownloadTeamForDateData(team, year, month, day)
 	dir := data.Dir(fsm.Config)
@@ -75,6 +83,32 @@ func (fsm *FSManager) DownloadTeamForDate(team int, year int, month int, day int
 		}
 	} else {
 		fmt.Printf("CachePath already exists: %s\n", dir)
+	}
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+
+				//InsecureSkipVerify: true,
+			},
+		},
+	}
+	url := data.URL(fsm.Config)
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	out, err := os.Create(data.Path(fsm.Config))
+	if err != nil {
+		return nil, err
+	}
+	defer out.Close()
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return nil, err
 	}
 	return data, nil
 }
