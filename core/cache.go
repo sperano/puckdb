@@ -224,12 +224,21 @@ func (c *Cache) FindGameNHL() ([]*CachedFileInfo, error) {
 	return c.FindFile(GameNHLFilename)
 }
 
+func (c *Cache) FindTeam(teamID int) ([]*CachedFileInfo, error) {
+	return c.FindFile(fmt.Sprintf("team-%d.xml", teamID))
+}
+
 func (c *Cache) LeagueURL() string {
 	return fmt.Sprintf("%s/league/%d.l.%d", BaseAPIURL, GameConst, c.Config.LeagueID)
 }
 
 func (c *Cache) GameNHLURL() string {
 	return fmt.Sprintf("%s/game/nhl", BaseAPIURL)
+}
+
+func (c *Cache) TeamURL(teamID int) string {
+	return fmt.Sprintf("%s/team/%d.l.%d.t.%d", BaseAPIURL, GameConst, c.Config.LeagueID, teamID)
+
 }
 
 func (c *Cache) DownloadLeague() error {
@@ -239,6 +248,12 @@ func (c *Cache) DownloadLeague() error {
 
 func (c *Cache) DownloadGameNHL() error {
 	_, err := c.DownloadFile(c.GameNHLURL(), GameNHLFilename)
+	return err
+}
+
+func (c *Cache) DownloadTeam(teamID int) error {
+	filename := fmt.Sprintf("team-%d.xml", teamID)
+	_, err := c.DownloadFile(c.TeamURL(teamID), filename)
 	return err
 }
 

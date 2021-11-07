@@ -15,15 +15,16 @@ type Config struct {
 }
 
 func (c *Config) String() string {
-	return fmt.Sprintf("LeagueID: %d\n", c.LeagueID)
+	return fmt.Sprintf("LeagueID: %d\nTotalTeams: %d\nCache Path: %s\n", c.LeagueID, c.TotalTeams, c.CachePath)
 }
 
 var config Config
 
 func init() {
 	config = Config{
-		LeagueID:  22030,
-		CachePath: "./cache",
+		LeagueID:   22030,
+		TotalTeams: 10,
+		CachePath:  "./cache",
 	}
 }
 

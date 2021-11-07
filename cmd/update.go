@@ -48,12 +48,33 @@ func checkLeague(cache *core.Cache) error {
 	return nil
 }
 
-func DoUpdate(cache *core.Cache) error {
+func checkTeam(cache *core.Cache, teamID int) error {
+	cfis, err := cache.FindTeam(teamID)
+	if err != nil {
+		return err
+	}
+	if force || len(cfis) == 0 {
+		fmt.Printf("Downloading team %d file...\n", teamID)
+		if err = cache.DownloadTeam(teamID); err != nil {
+			return err
+		}
+		return checkLeague(cache)
+	}
+	fmt.Printf("%s for team %d. Latest='%s'\n", english.Plural(len(cfis), "team file", ""), teamID, cfis[0].Time)
+	return nil
+}
+
+func DoUpdate(config *core.Config, cache *core.Cache) error {
 	if err := checkGameNHL(cache); err != nil {
 		return err
 	}
 	if err := checkLeague(cache); err != nil {
 		return err
+	}
+	for i := 1; i <= config.TotalTeams; i++ {
+		if err := checkTeam(cache, i); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -64,11 +85,11 @@ var updateCmd = &cobra.Command{
 	Long:  `Update all the local copies of what is available on the Internet`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		config := core.GetConfig()
-		fmt.Printf("Config:\n%s", config)
+		fmt.Printf("Config:\n---\n%s---\n", config)
 		cache, err := core.NewCache(config)
 		if err != nil {
 			log.Fatal(err)
 		}
-		return DoUpdate(cache)
+		return DoUpdate(config, cache)
 	},
 }
