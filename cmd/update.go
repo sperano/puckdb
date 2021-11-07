@@ -64,7 +64,7 @@ var updateCmd = &cobra.Command{
 	Long:  `Update all the local copies of what is available on the Internet`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		config := core.GetConfig()
-		log.Printf("config=%v", config)
+		fmt.Printf("Config:\n%s", config)
 		cache, err := core.NewCache(config)
 		if err != nil {
 			log.Fatal(err)
