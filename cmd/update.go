@@ -58,10 +58,13 @@ func checkTeam(cache *core.Cache, teamID int) error {
 		if err = cache.DownloadTeam(teamID); err != nil {
 			return err
 		}
-		return checkLeague(cache)
+		return checkTeam(cache, teamID)
 	}
 	fmt.Printf("%s for team %d. Latest='%s'\n", english.Plural(len(cfis), "team file", ""), teamID, cfis[0].Time)
-	return nil
+	//return cache.DownloadTeamStats(teamID, "2021-11-06")
+	return cache.DownloadTeamRoster(teamID, "2011-11-05")
+	//return nil
+	//return nil
 }
 
 func DoUpdate(config *core.Config, cache *core.Cache) error {
