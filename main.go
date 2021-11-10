@@ -1,8 +1,6 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/PuerkitoBio/goquery"
 	"github.com/ericsperano/yfh/cmd"
 	"github.com/geziyor/geziyor"
@@ -16,34 +14,8 @@ type Product struct {
 	Price uint
 }
 
-func GetHTTPClient() (*http.Client, error) {
-	return nil, nil
-	/*
-		//resp, err := client.Get("https://fantasysports.yahooapis.com/fantasy/v2/game/nhl")
-		//resp, err := client.Get("https://fantasysports.yahooapis.com/fantasy/v2/league/411.l.1005")
-		resp, err := client.Get("https://fantasysports.yahooapis.com/fantasy/v2/team/411.l.1005.t.7")
-		if err != nil {
-			log.Fatalln(err)
-		}
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		//Convert the body to type string
-		sb := string(body)
-		fmt.Printf("\n%s\n", sb)
-	*/
-}
-
 func main() {
 	cmd.Execute()
-	/*
-		client, err := GetHTTPClient()
-		if err != nil {
-			log.Fatal(err)
-		}
-		_ = client
-	*/
 	/*
 
 		fsman, err := fs.NewFSManager(&config)

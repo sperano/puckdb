@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/dustin/go-humanize/english"
 	"github.com/ericsperano/yfh/core"
@@ -61,10 +62,38 @@ func checkTeam(cache *core.Cache, teamID int) error {
 		return checkTeam(cache, teamID)
 	}
 	fmt.Printf("%s for team %d. Latest='%s'\n", english.Plural(len(cfis), "team file", ""), teamID, cfis[0].Time)
-	//return cache.DownloadTeamStats(teamID, "2021-11-06")
-	return cache.DownloadTeamRoster(teamID, "2011-11-05")
-	//return nil
-	//return nil
+	return nil
+}
+
+func checkRosters(config *core.Config, cache *core.Cache, teamID int) error {
+	now := time.Now()
+	t := time.Date(config.SeasonStartYear, cache.Config.SeasonStartMonth, config.SeasonStartDay, 0, 0, 0, 0, time.UTC)
+	for {
+		if err := checkRoster(config, cache, teamID, t); err != nil {
+			return err
+		}
+		t = t.AddDate(0, 0, 1)
+		if t.Day() == now.Day() && t.Month() == now.Month() && t.Year() == now.Year() {
+			break
+		}
+	}
+	return nil
+}
+
+func checkRoster(config *core.Config, cache *core.Cache, teamID int, date time.Time) error {
+	cfis, err := cache.FindTeamRoster(teamID, date)
+	if err != nil {
+		return err
+	}
+	if force || len(cfis) == 0 {
+		fmt.Printf("Downloading team %d roster for %s...\n", teamID, date)
+		if err = cache.DownloadTeamRoster(teamID, date); err != nil {
+			return err
+		}
+		return checkRoster(config, cache, teamID, date)
+	}
+	fmt.Printf("%s for team %d on %s. Latest='%s'\n", english.Plural(len(cfis), "team file", ""), teamID, date, cfis[0].Time)
+	return nil
 }
 
 func DoUpdate(config *core.Config, cache *core.Cache) error {
@@ -76,6 +105,9 @@ func DoUpdate(config *core.Config, cache *core.Cache) error {
 	}
 	for i := 1; i <= config.TotalTeams; i++ {
 		if err := checkTeam(cache, i); err != nil {
+			return err
+		}
+		if err := checkRosters(config, cache, i); err != nil {
 			return err
 		}
 	}
@@ -93,6 +125,17 @@ var updateCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
-		return DoUpdate(config, cache)
+		game, err := cache.GetFantasyGame()
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("%s\n", game)
+		team, err := cache.GetTeam(7)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("%s\n", team)
+		//return DoUpdate(config, cache)
+		return nil
 	},
 }

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/chzyer/readline"
+	"github.com/ericsperano/yfh/model"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/yahoo"
 )
@@ -24,7 +26,7 @@ const GameConst = 411
 const BaseAPIURL = "https://fantasysports.yahooapis.com/fantasy/v2"
 const OAuth2ClientID = "***REMOVED***"
 const OAuth2ClientSecret = "***REMOVED***"
-const GameNHLFilename = "game-nhl.xml"
+const GameNHLFilename = "game-nhl"
 
 func ParseTimestamp(timestamp string) (time.Time, error) {
 	i, err := strconv.ParseInt(timestamp, 10, 64)
@@ -70,32 +72,42 @@ type CachedFileInfo struct {
 	Time time.Time
 }
 
+func (c *CachedFileInfo) Filename() string {
+	return fmt.Sprintf("%s_%d.xml", c.Name, c.Time.Unix())
+}
+
 type Cache struct {
 	Config     *Config
 	httpClient *http.Client
+}
+
+func createDirIfNotExists(path string, mode os.FileMode) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		fmt.Printf("mkdir %s\n", path)
+		if err := os.MkdirAll(path, mode); err != nil {
+			return err
+		}
+	} else {
+		//fmt.Printf("path already exists: %s\n", path)
+	}
+	return nil
 }
 
 func NewCache(config *Config) (*Cache, error) {
 	if config.CachePath == "" {
 		return nil, errors.New("CachePath is empty")
 	}
-	if _, err := os.Stat(config.CachePath); os.IsNotExist(err) {
-		fmt.Printf("Creating CachePath: %s\n", config.CachePath)
-		if err := os.MkdirAll(config.CachePath, 0755); err != nil {
-			return nil, err
-		}
-	} else {
-		fmt.Printf("Cache path already exists: %s\n", config.CachePath)
+	if err := createDirIfNotExists(config.CachePath, 0755); err != nil {
+		return nil, err
 	}
 	for teamID := 1; teamID <= config.TotalTeams; teamID++ {
-		dir := path.Join(config.CachePath, fmt.Sprintf("team-%d", teamID))
-		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			fmt.Printf("Creating team path: %s\n", dir)
-			if err := os.MkdirAll(dir, 0755); err != nil {
-				return nil, err
-			}
-		} else {
-			fmt.Printf("Team cache path already exists: %s\n", dir)
+		dir := path.Join(config.CachePath, fmt.Sprintf("team-%02d", teamID))
+		if err := createDirIfNotExists(dir, 0755); err != nil {
+			return nil, err
+		}
+		dir = path.Join(dir, "rosters")
+		if err := createDirIfNotExists(dir, 0755); err != nil {
+			return nil, err
 		}
 	}
 	return &Cache{
@@ -160,7 +172,7 @@ func (c *Cache) ReadDir(path string) ([]*CachedFileInfo, error) {
 							return nil, err
 						}
 						cfi := &CachedFileInfo{
-							Name: fmt.Sprintf("%s.%s", name, tokens[1]),
+							Name: name, //fmt.Sprintf("%s.%s", name, tokens[1]),
 							Time: time,
 						}
 						cfis = append(cfis, cfi)
@@ -226,20 +238,73 @@ func (c *Cache) DownloadFile(url string, dest string) (*CachedFileInfo, error) {
 }
 
 func (c *Cache) FindLeague() ([]*CachedFileInfo, error) {
-	return c.FindFile(c.Config.CachePath, "league.xml") // TODO constants
+	return c.FindFile(c.Config.CachePath, "league") // TODO constants
 }
 
 func (c *Cache) FindGameNHL() ([]*CachedFileInfo, error) {
 	return c.FindFile(c.Config.CachePath, GameNHLFilename)
 }
 
-func (c *Cache) FindTeam(teamID int) ([]*CachedFileInfo, error) {
-	return c.FindFile(c.Config.CachePath, fmt.Sprintf("team-%d.xml", teamID))
+func (c *Cache) GetFantasyGame() (*model.FantasyGame, error) {
+	cfis, err := c.FindGameNHL()
+	if err != nil {
+		return nil, err
+	}
+	if len(cfis) > 0 {
+		cfi := cfis[0]
+		p := path.Join(c.Config.CachePath, cfi.Filename())
+		//p := path.Join(c.Config.CachePath, "game-nhl_1636531916.xml")
+		xmlFile, err := os.Open(p)
+		if err != nil {
+			return nil, err
+		}
+		defer xmlFile.Close()
+		byteValue, err := ioutil.ReadAll(xmlFile)
+		if err != nil {
+			return nil, err
+		}
+		// we initialize our Users array
+		var fantasy model.FantasyContent
+		xml.Unmarshal(byteValue, &fantasy)
+		return &fantasy.Game, nil
+	}
+	return nil, nil // TODO
 }
 
-func (c *Cache) FindTeamRoster(teamID int, date string) ([]*CachedFileInfo, error) {
-	dir := path.Join(c.Config.CachePath, fmt.Sprintf("team-%d", teamID))
-	return c.FindFile(dir, fmt.Sprintf("roster-%d-%s.xml", teamID, date))
+func (c *Cache) FindTeam(teamID int) ([]*CachedFileInfo, error) {
+	teamIDStr := fmt.Sprintf("team-%02d", teamID)
+	dir := path.Join(c.Config.CachePath, teamIDStr)
+	return c.FindFile(dir, teamIDStr)
+}
+
+func (c *Cache) GetTeam(teamID int) (*model.Team, error) {
+	cfis, err := c.FindTeam(teamID)
+	if err != nil {
+		return nil, err
+	}
+	if len(cfis) > 0 {
+		cfi := cfis[0]
+		p := path.Join(c.Config.CachePath, fmt.Sprintf("team-%02d", teamID), cfi.Filename())
+		xmlFile, err := os.Open(p)
+		if err != nil {
+			return nil, err
+		}
+		defer xmlFile.Close()
+		byteValue, err := ioutil.ReadAll(xmlFile)
+		if err != nil {
+			return nil, err
+		}
+		// we initialize our Users array
+		var fantasy model.FantasyContent
+		xml.Unmarshal(byteValue, &fantasy)
+		return &fantasy.Team, nil
+	}
+	return nil, nil // TODO
+}
+
+func (c *Cache) FindTeamRoster(teamID int, date time.Time) ([]*CachedFileInfo, error) {
+	dir := path.Join(c.Config.CachePath, fmt.Sprintf("team-%02d", teamID), "rosters")
+	return c.FindFile(dir, fmt.Sprintf("roster-%02d-%2d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day()))
 }
 
 func (c *Cache) LeagueURL() string {
@@ -254,9 +319,9 @@ func (c *Cache) TeamURL(teamID int) string {
 	return fmt.Sprintf("%s/team/%d.l.%d.t.%d", BaseAPIURL, GameConst, c.Config.LeagueID, teamID)
 }
 
-func (c *Cache) RosterURL(teamID int, date string) string {
+func (c *Cache) RosterURL(teamID int, date time.Time) string {
 	//https://fantasysports.yahooapis.com/fantasy/v2/team/***REMOVED***.t.1/stats;type=season
-	return fmt.Sprintf("%s/team/%d.l.%d.t.%d/roster;date=%s/players", BaseAPIURL, GameConst, c.Config.LeagueID, teamID, date)
+	return fmt.Sprintf("%s/team/%d.l.%d.t.%d/roster;date=%d-%02d-%02d/players", BaseAPIURL, GameConst, c.Config.LeagueID, teamID, date.Year(), date.Month(), date.Day())
 }
 
 func (c *Cache) DownloadLeague() error {
@@ -270,13 +335,14 @@ func (c *Cache) DownloadGameNHL() error {
 }
 
 func (c *Cache) DownloadTeam(teamID int) error {
-	filename := fmt.Sprintf("team-%d.xml", teamID)
+	teamIDStr := fmt.Sprintf("team-%02d", teamID)
+	filename := path.Join(teamIDStr, fmt.Sprintf("%s.xml", teamIDStr))
 	_, err := c.DownloadFile(c.TeamURL(teamID), filename)
 	return err
 }
 
-func (c *Cache) DownloadTeamRoster(teamID int, date string) error {
-	filename := fmt.Sprintf("team-%d/roster-%d-%s.xml", teamID, teamID, date)
+func (c *Cache) DownloadTeamRoster(teamID int, date time.Time) error {
+	filename := fmt.Sprintf("team-%02d/rosters/roster-%02d-%d-%02d-%02d.xml", teamID, teamID, date.Year(), date.Month(), date.Day())
 	_, err := c.DownloadFile(c.RosterURL(teamID, date), filename)
 	return err
 }

@@ -22,9 +22,12 @@ var config Config
 
 func init() {
 	config = Config{
-		LeagueID:   22030,
-		TotalTeams: 10,
-		CachePath:  "./cache",
+		LeagueID:         22030,
+		TotalTeams:       10,
+		CachePath:        "./cache",
+		SeasonStartYear:  2021,
+		SeasonStartMonth: 10,
+		SeasonStartDay:   12,
 	}
 }
 

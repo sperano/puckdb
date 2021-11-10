@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ericsperano/yfh/cmd/cache"
+
 	"github.com/spf13/cobra"
 )
 
@@ -20,4 +22,8 @@ func Execute() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func init() {
+	rootCmd.AddCommand(cache.CacheCmd)
 }
