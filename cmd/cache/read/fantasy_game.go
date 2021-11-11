@@ -2,7 +2,6 @@ package read
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/ericsperano/yfh/core"
 	"github.com/spf13/cobra"
@@ -20,14 +19,23 @@ var fantasyGameCmd = &cobra.Command{
 		config := core.GetConfig()
 		cache, err := core.NewCache(config)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		game, err := cache.GetFantasyGame()
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
-		fmt.Printf("ID:   %d\n", game.ID)
-		fmt.Printf("Key:  %d\n", game.Key)
+		fmt.Print("=== FantasyGame ===\n")
+		fmt.Printf("ID:                    %d\n", game.ID)
+		fmt.Printf("Key:                   %d\n", game.Key)
+		fmt.Printf("Name:                  %s\n", game.Name)
+		fmt.Printf("Code:                  %s\n", game.Code)
+		fmt.Printf("Type:                  %s\n", game.Type)
+		fmt.Printf("URL:                   %s\n", game.URL)
+		fmt.Printf("Season:                %d\n", game.Season)
+		fmt.Printf("Is Registration Over:  %v\n", game.IsRegistrationOver)
+		fmt.Printf("Is Game Over:          %v\n", game.IsGameOver)
+		fmt.Printf("Is Offseason:          %v\n", game.IsOffseason)
 		return nil
 	},
 }

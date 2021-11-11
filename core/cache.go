@@ -87,7 +87,7 @@ func createDirIfNotExists(path string, mode os.FileMode) error {
 		if err := os.MkdirAll(path, mode); err != nil {
 			return err
 		}
-	} else {
+		//} else {
 		//fmt.Printf("path already exists: %s\n", path)
 	}
 	return nil
@@ -298,6 +298,31 @@ func (c *Cache) GetTeam(teamID int) (*model.Team, error) {
 		var fantasy model.FantasyContent
 		xml.Unmarshal(byteValue, &fantasy)
 		return &fantasy.Team, nil
+	}
+	return nil, nil // TODO
+}
+
+func (c *Cache) GetRoster(teamID int, date time.Time) (*model.Roster, error) {
+	cfis, err := c.FindTeamRoster(teamID, date)
+	if err != nil {
+		return nil, err
+	}
+	if len(cfis) > 0 {
+		cfi := cfis[0]
+		p := path.Join(c.Config.CachePath, fmt.Sprintf("team-%02d", teamID), cfi.Filename())
+		xmlFile, err := os.Open(p)
+		if err != nil {
+			return nil, err
+		}
+		defer xmlFile.Close()
+		byteValue, err := ioutil.ReadAll(xmlFile)
+		if err != nil {
+			return nil, err
+		}
+		// we initialize our Users array
+		var fantasy model.FantasyContent
+		xml.Unmarshal(byteValue, &fantasy)
+		return &fantasy.Roster, nil
 	}
 	return nil, nil // TODO
 }

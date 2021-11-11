@@ -2,7 +2,6 @@ package model
 
 import (
 	"encoding/xml"
-	"fmt"
 )
 
 type TeamLogo struct {
@@ -26,15 +25,4 @@ type Team struct {
 	WaiverPriority int `xml:"waiver_priority"`
 	NumberOfMoves  int `xml:"number_of_moves"`
 	NumberOfTrades int `xml:"number_of_trades"`
-}
-
-func (t *Team) String() string {
-	str := fmt.Sprintf("%-10s%d\n%-10s%s\n%-10s%s\n%-10s%s\nTeam Logos:\n", "ID:", t.ID, "Key:", t.Key, "Name:", t.Name, "URL:", t.URL)
-	for _, logo := range t.TeamLogos.Slice {
-		str += fmt.Sprintf("  Size:  %s\n  URL:   %s\n", logo.Size, logo.URL)
-	}
-	str += fmt.Sprintf("Waiver priority: %d\n", t.WaiverPriority)
-	str += fmt.Sprintf("Number of moves: %d\n", t.NumberOfMoves)
-	str += fmt.Sprintf("Number of trades: %d\n", t.NumberOfTrades)
-	return str
 }
