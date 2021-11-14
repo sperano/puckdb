@@ -23,11 +23,6 @@ func main() {
 			log.Fatal(err)
 		}
 		//fmt.Printf("fsman=%+v\n", fsman)
-		//	data, err := fsman.DownloadTeamForDate(7, 2021, 10, 28)
-		if err = fsman.Ensure(); err != nil {
-			log.Fatal(err)
-		}
-		//fmt.Printf("Downloaded in: %+v\n", data.Path(&config))
 
 		db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 		if err != nil {

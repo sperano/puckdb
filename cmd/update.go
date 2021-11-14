@@ -129,12 +129,12 @@ var updateCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("%s\n", game)
+		fmt.Printf("%v\n", game)
 		team, err := cache.GetTeam(7)
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("%s\n", team)
+		fmt.Printf("%v\n", team)
 		//return DoUpdate(config, cache)
 		return nil
 	},
