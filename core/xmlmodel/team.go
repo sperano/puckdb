@@ -2,7 +2,6 @@ package xmlmodel
 
 import (
 	"encoding/xml"
-	"time"
 )
 
 type PlayerName struct {
@@ -14,11 +13,48 @@ type PlayerName struct {
 	ASCIILast  string   `xml:"ascii_last"`
 }
 
+type PlayerHeadshot struct {
+	XMLName xml.Name `xml:"headshot"`
+	URL     string   `xml:"url"`
+	Size    string   `xml:"size"`
+}
+
+type PlayerSelectedPosition struct {
+	XMLName      xml.Name `xml:"selected_position"`
+	CoverageType string   `xml:"coverage_type"`
+	Date         string   `xml:"date"`
+	Position     string   `xml:"position"`
+	IsFlex       bool     `xml:"is_flex"`
+}
+
+/*
+<>
+<position>C</position>
+<position>Util</position>
+</>
+*/
+
 type Player struct {
-	XMLName   xml.Name `xml:"player"`
-	PlayerKey string   `xml:"player_key"`
-	PlayerID  int      `xml:"player_id"`
-	Name      PlayerName
+	XMLName                  xml.Name `xml:"player"`
+	Key                      string   `xml:"player_key"`
+	ID                       int      `xml:"player_id"`
+	Name                     PlayerName
+	EditorialPlayerKey       string `xml:"editorial_player_key"`
+	EditorialTeamKey         string `xml:"editorial_team_key"`
+	EditorialTeamFullName    string `xml:"editorial_team_full_name"`
+	EditorialTeamAbbr        string `xml:"editorial_team_abbr"`
+	UniformNumber            int    `xml:"uniform_number"`
+	DisplayPosition          string `xml:"display_position"`
+	Headshot                 PlayerHeadshot
+	ImageURL                 string   `xml:"image_url"`
+	IsUndroppable            bool     `xml:"is_undroppable"`
+	PositionType             string   `xml:"position_type"`
+	PrimaryPosition          string   `xml:"primary_position"`
+	EligiblePositions        []string `xml:"eligible_positions>position"`
+	HasPlayerNotes           bool     `xml:"has_player_notes"`
+	PlayerNotesLastTimestamp int      `xml:"player_notes_last_timestamp"`
+	SelectedPosition         PlayerSelectedPosition
+	IsEditable               bool `xml:"is_editable"`
 }
 
 type Players struct {
@@ -29,12 +65,10 @@ type Players struct {
 
 type Roster struct {
 	XMLName      xml.Name `xml:"roster"`
-	CoverageType string
-	Date         time.Time
-	IsEditable   bool
+	CoverageType string   `xml:"coverage_type"`
+	Date         string   `xml:"date"`
+	IsEditable   bool     `xml:"is_editable"`
 	Players      Players
-	//		Slice   []TeamLogo `xml:"team_logo"`
-
 }
 
 type TeamLogo struct {
@@ -46,6 +80,23 @@ type TeamLogo struct {
 type TeamLogos struct {
 	XMLName xml.Name   `xml:"team_logos"`
 	Slice   []TeamLogo `xml:"team_logo"`
+}
+
+type Manager struct {
+	XMLName        xml.Name `xml:"manager"`
+	ID             int      `xml:"manager_id"`
+	Nickname       string   `xml:"nickname"`
+	GUID           string   `xml:"guid"`
+	IsCurrentLogin bool     `xml:"is_current_login"`
+	EMail          string   `xml:"email"`
+	ImageURL       string   `xml:"image_url"`
+	FeloScore      int      `xml:"felo_score"`
+	FeloTier       string   `xml:"felo_tier"`
+}
+
+type Managers struct {
+	XMLName xml.Name  `xml:"managers"`
+	Slice   []Manager `xml:"manager"`
 }
 
 type Team struct {
@@ -65,22 +116,10 @@ type Team struct {
 	   <coverage_value>5</coverage_value>
 	   <value>0</value>
 	  </roster_adds>
-	  <league_scoring_type>roto</league_scoring_type>
-	  <draft_position>5</draft_position>
-	  <has_draft_grade>0</has_draft_grade>
-	  <managers>
-	   <manager>
-	    <manager_id>7</manager_id>
-	    <nickname>Owner</nickname>
-	    <guid>EXAMPLEGUID0000000000000000</guid>
-	    <is_current_login>1</is_current_login>
-	    <email>owner@example.com</email>
-	    <image_url>https://s.yimg.com/ag/images/9cdf6123-35bb-42bd-ac8d-b5445b89728b_64sq.jpg</image_url>
-	    <felo_score>667</felo_score>
-	    <felo_tier>silver</felo_tier>
-	   </manager>
-	  </managers>
-
 	*/
-	Roster Roster
+	LeagueScoringType string `xml:"league_scoring_type"`
+	DraftPosition     int    `xml:"draft_position"`
+	HasDraftGrade     bool   `xml:"has_draft_grade"`
+	Managers          Managers
+	Roster            Roster
 }
