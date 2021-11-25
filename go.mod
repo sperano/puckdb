@@ -11,6 +11,7 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/oauth2 v0.0.0-20211028175245-ba495a64dcb5
+	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/gorm v1.22.2
 )
 

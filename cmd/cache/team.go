@@ -186,7 +186,7 @@ var teamCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		config := core.GetConfig()
+		config := core.GetConfig(common.ConfigPath)
 		cache, err := core.NewCache(config)
 		if err != nil {
 			return err

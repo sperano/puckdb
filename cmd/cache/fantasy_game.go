@@ -3,6 +3,7 @@ package cache
 import (
 	"fmt"
 
+	"github.com/ericsperano/yfh/cmd/common"
 	"github.com/ericsperano/yfh/core"
 	"github.com/spf13/cobra"
 )
@@ -16,7 +17,7 @@ var fantasyGameCmd = &cobra.Command{
 	Short: "foo",
 	Long:  `foo`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		config := core.GetConfig()
+		config := core.GetConfig(common.ConfigPath)
 		cache, err := core.NewCache(config)
 		if err != nil {
 			return err

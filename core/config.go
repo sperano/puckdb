@@ -1,33 +1,35 @@
 package core
 
 import (
+	"io/ioutil"
+	"log"
 	"time"
+
+	"gopkg.in/yaml.v2"
 )
 
 type Config struct {
-	LeagueID         int
-	TotalTeams       int
-	CachePath        string
-	SeasonStartYear  int
-	SeasonStartMonth time.Month
-	SeasonStartDay   int
+	LeagueID         int        `yaml:"league_id"`
+	TotalTeams       int        `yaml:"total_teams"`
+	CachePath        string     `yaml:"cache_path"`
+	SeasonStartYear  int        `yaml:"season_start_year"`
+	SeasonStartMonth time.Month `yaml:"season_start_month"`
+	SeasonStartDay   int        `yaml:"season_start_day"`
 }
 
 var config Config
 
-func init() {
-	// TODO!!!
-	config = Config{
-		LeagueID:         22030,
-		TotalTeams:       10,
-		CachePath:        "./cache",
-		SeasonStartYear:  2021,
-		SeasonStartMonth: 10,
-		SeasonStartDay:   12,
+func GetConfig(path string) *Config {
+	if config.LeagueID == 0 {
+		yamlFile, err := ioutil.ReadFile(path)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		err = yaml.Unmarshal(yamlFile, &config)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
-}
-
-func GetConfig() *Config {
 	return &config
 }
 
