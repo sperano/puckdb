@@ -196,7 +196,7 @@ var teamCmd = &cobra.Command{
 			return &ErrInvalidTeam{TeamID: teamID}
 		}
 		date, _ := common.GetDate(config, args[1])
-		team, err := cache.GetTeamRoster(teamID, date)
+		team, err := cache.GetRoster(teamID, date)
 		if err != nil {
 			return err
 		}
