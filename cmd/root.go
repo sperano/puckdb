@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/ericsperano/yfh/cmd/cache"
+	"github.com/ericsperano/yfh/cmd/db"
 
 	"github.com/spf13/cobra"
 )
@@ -11,9 +12,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "yfh",
 	Short: "Yahoo Fantasy Hockey Cloner",
-	Long: `A Fast and Flexible Static Site Generator built with
-				  love by spf13 and friends in Go.
-				  Complete documentation is available at http://hugo.spf13.com`,
+	Long:  "",
 }
 
 func Execute() {
@@ -24,4 +23,5 @@ func Execute() {
 
 func init() {
 	rootCmd.AddCommand(cache.CacheCmd)
+	rootCmd.AddCommand(db.DBCmd)
 }

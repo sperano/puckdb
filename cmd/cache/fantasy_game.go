@@ -1,4 +1,4 @@
-package read
+package cache
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	ReadCmd.AddCommand(fantasyGameCmd)
+	CacheCmd.AddCommand(fantasyGameCmd)
 }
 
 var fantasyGameCmd = &cobra.Command{

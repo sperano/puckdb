@@ -1,13 +1,13 @@
-package read
+package cache
 
 import (
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/dustin/go-humanize/english"
+	"github.com/ericsperano/yfh/cmd/common"
 	"github.com/ericsperano/yfh/core"
 	"github.com/ericsperano/yfh/core/xmlmodel"
 	"github.com/muesli/termenv"
@@ -40,7 +40,7 @@ func init() {
 	colorPalettePlayerName = ColorPalette{term.Color("#11dd99"), term.Color("#11dd99"), term.Color("#22cc77")}
 	colorPalettePlayerHeadshot = ColorPalette{term.Color("#dd9911"), term.Color("#aa7733"), term.Color("#cc7722")}
 	colorPalettePlayerSelectedPosition = ColorPalette{term.Color("#9911dd"), term.Color("#6633aa"), term.Color("#7722cc")}
-	ReadCmd.AddCommand(teamCmd)
+	CacheCmd.AddCommand(teamCmd)
 }
 
 func getKeyStr(key string, colorPalette *ColorPalette) string {
@@ -180,7 +180,7 @@ var teamCmd = &cobra.Command{
 		if _, err := strconv.Atoi(args[0]); err != nil {
 			return err
 		}
-		if _, _, err := GetMonthDayPair(args[1]); err != nil {
+		if _, _, err := common.GetMonthDayPair(args[1]); err != nil {
 			return err
 		}
 		return nil
@@ -195,7 +195,7 @@ var teamCmd = &cobra.Command{
 		if teamID < 0 || teamID > config.TotalTeams {
 			return &ErrInvalidTeam{TeamID: teamID}
 		}
-		date, _ := GetDate(config, args[1])
+		date, _ := common.GetDate(config, args[1])
 		team, err := cache.GetTeamRoster(teamID, date)
 		if err != nil {
 			return err
@@ -203,36 +203,4 @@ var teamCmd = &cobra.Command{
 		printTeamStandard(team)
 		return nil
 	},
-}
-
-func GetMonthDayPair(arg string) (time.Month, int, error) {
-	tokens := strings.Split(arg, "-")
-	if len(tokens) != 2 {
-		return 0, 0, errors.New("expected MM-DD")
-	}
-	monthNo, err := strconv.Atoi(tokens[0])
-	if err != nil {
-		return 0, 0, err
-	}
-	if monthNo < 1 || monthNo > 12 {
-		return 0, 0, fmt.Errorf("invalid month: %d", monthNo)
-	}
-	month := time.Month(monthNo)
-	day, err := strconv.Atoi(tokens[1])
-	if err != nil {
-		return month, 0, err
-	}
-	return month, day, nil
-}
-
-func GetDate(config *core.Config, arg string) (time.Time, error) {
-	month, day, err := GetMonthDayPair(arg)
-	if err != nil {
-		return time.Time{}, err
-	}
-	year := config.SeasonStartYear
-	if month < config.SeasonStartMonth {
-		year++
-	}
-	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC), nil
 }

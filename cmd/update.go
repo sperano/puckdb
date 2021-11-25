@@ -1,20 +1,11 @@
 package cmd
 
-import (
-	"fmt"
-	"log"
-	"time"
-
-	"github.com/dustin/go-humanize/english"
-	"github.com/ericsperano/yfh/core"
-	"github.com/spf13/cobra"
-)
-
+/*
 var force bool
 
 func init() {
 	updateCmd.PersistentFlags().BoolVarP(&force, "force", "f", false, "Always download new copies")
-	rootCmd.AddCommand(updateCmd)
+	//rootCmd.AddCommand(updateCmd)
 }
 
 func checkGameNHL(cache *core.Cache) error {
@@ -120,7 +111,7 @@ var updateCmd = &cobra.Command{
 	Long:  `Update all the local copies of what is available on the Internet`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		config := core.GetConfig()
-		fmt.Printf("Config:\n---\n%s---\n", config)
+		fmt.Printf("Config:\n---\n%+v---\n", config)
 		cache, err := core.NewCache(config)
 		if err != nil {
 			log.Fatal(err)
@@ -139,3 +130,4 @@ var updateCmd = &cobra.Command{
 		return nil
 	},
 }
+*/

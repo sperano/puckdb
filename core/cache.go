@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -26,46 +25,19 @@ const GameConst = 411
 const BaseAPIURL = "https://fantasysports.yahooapis.com/fantasy/v2"
 const OAuth2ClientID = "***REMOVED***"
 const OAuth2ClientSecret = "***REMOVED***"
-const GameNHLFilename = "game-nhl"
+const GameNHLFilename = "game-nhl" // TODO rename fantasy game
+
+const timetstampFormat = "20060102030405"
+
+var ErrNoFileFound = errors.New("no file found")
 
 func ParseTimestamp(timestamp string) (time.Time, error) {
-	i, err := strconv.ParseInt(timestamp, 10, 64)
-	if err != nil {
-		return time.Now(), err
-	}
-	return time.Unix(i, 0), nil
+	return time.Parse(timetstampFormat, timestamp)
 }
 
-/*
-type DownloadedTeamForDateData struct {
-	Team      int
-	Year      int
-	Month     int
-	Day       int
-	Timestamp time.Time
+func GetTimestamp(time time.Time) string {
+	return time.Format(timetstampFormat)
 }
-
-func NewDownloadTeamForDateData(team int, year int, month int, day int) *DownloadedTeamForDateData {
-	return &DownloadedTeamForDateData{
-		Team:      team,
-		Year:      year,
-		Month:     month,
-		Day:       day,
-		Timestamp: time.Now(),
-	}
-}
-*/
-
-/*
-func (d *DownloadedTeamForDateData) Dir(config *core.Config) string {
-	return path.Join(config.CachePath, strconv.Itoa(d.Year), strconv.Itoa(d.Month), strconv.Itoa(d.Day))
-}
-
-func (d *DownloadedTeamForDateData) Path(config *core.Config) string {
-	return path.Join(d.Dir(config), fmt.Sprintf("%d-%d.html", d.Team, time.Now().Unix()))
-}
-
-*/
 
 type CachedFileInfo struct {
 	Name string
@@ -73,7 +45,7 @@ type CachedFileInfo struct {
 }
 
 func (c *CachedFileInfo) Filename() string {
-	return fmt.Sprintf("%s_%d.xml", c.Name, c.Time.Unix())
+	return fmt.Sprintf("%s_%s.xml", c.Name, GetTimestamp(c.Time))
 }
 
 type Cache struct {
@@ -87,8 +59,6 @@ func createDirIfNotExists(path string, mode os.FileMode) error {
 		if err := os.MkdirAll(path, mode); err != nil {
 			return err
 		}
-		//} else {
-		//fmt.Printf("path already exists: %s\n", path)
 	}
 	return nil
 }
@@ -190,7 +160,7 @@ func (c *Cache) ReadDir(path string) ([]*CachedFileInfo, error) {
 	return cfis, nil
 }
 
-func (c *Cache) FindFile(dir string, name string) ([]*CachedFileInfo, error) {
+func (c *Cache) find(dir string, name string) ([]*CachedFileInfo, error) {
 	files := []*CachedFileInfo{}
 	cfis, err := c.ReadDir(dir)
 	if err != nil {
@@ -237,16 +207,16 @@ func (c *Cache) DownloadFile(url string, dest string) (*CachedFileInfo, error) {
 	return &cfi, nil
 }
 
-func (c *Cache) FindLeague() ([]*CachedFileInfo, error) {
-	return c.FindFile(c.Config.CachePath, "league") // TODO constants
+func (c *Cache) has(filename string) (bool, error) {
+	cfis, err := c.find(c.Config.CachePath, filename)
+	if err != nil {
+		return false, err
+	}
+	return len(cfis) > 0, nil
 }
 
-func (c *Cache) FindGameNHL() ([]*CachedFileInfo, error) {
-	return c.FindFile(c.Config.CachePath, GameNHLFilename)
-}
-
-func (c *Cache) GetFantasyGame() (*xmlmodel.FantasyGame, error) {
-	cfis, err := c.FindGameNHL()
+func (c *Cache) get(finder finderFunc) ([]byte, error) {
+	cfis, err := finder()
 	if err != nil {
 		return nil, err
 	}
@@ -258,21 +228,50 @@ func (c *Cache) GetFantasyGame() (*xmlmodel.FantasyGame, error) {
 			return nil, err
 		}
 		defer xmlFile.Close()
-		byteValue, err := ioutil.ReadAll(xmlFile)
+		data, err := ioutil.ReadAll(xmlFile)
 		if err != nil {
 			return nil, err
 		}
-		var fantasy xmlmodel.FantasyContent
-		xml.Unmarshal(byteValue, &fantasy)
-		return &fantasy.Game, nil
+		return data, nil
 	}
-	return nil, nil // TODO
+	return nil, ErrNoFileFound
 }
+
+//////////////////////////////////////////////////////////////////////////////
+// FANTASY GAME
+//////////////////////////////////////////////////////////////////////////////
+
+func (c *Cache) HasFantasyGame() (bool, error) {
+	return c.has(GameNHLFilename)
+}
+
+type finderFunc func() ([]*CachedFileInfo, error)
+
+func (c *Cache) FindFantasyGame() ([]*CachedFileInfo, error) {
+	return c.find(c.Config.CachePath, GameNHLFilename)
+}
+
+func (c *Cache) GetFantasyGame() (*xmlmodel.FantasyGame, error) {
+	data, err := c.get(c.FindFantasyGame)
+	if err != nil {
+		return nil, err
+	}
+	var fantasy xmlmodel.FantasyContent
+	xml.Unmarshal(data, &fantasy)
+	return &fantasy.Game, nil
+}
+
+/*
+func (c *Cache) FindLeague() ([]*CachedFileInfo, error) {
+	return c.FindFile(c.Config.CachePath, "league") // TODO constants
+}
+
+*/
 
 func (c *Cache) FindTeam(teamID int) ([]*CachedFileInfo, error) {
 	teamIDStr := fmt.Sprintf("team-%02d", teamID)
 	dir := path.Join(c.Config.CachePath, teamIDStr)
-	return c.FindFile(dir, teamIDStr)
+	return c.find(dir, teamIDStr)
 }
 
 func (c *Cache) GetTeam(teamID int) (*xmlmodel.Team, error) {
@@ -332,7 +331,7 @@ func (c *Cache) GetTeamRoster(teamID int, date time.Time) (*xmlmodel.Team, error
 func (c *Cache) FindTeamRoster(teamID int, date time.Time) ([]*CachedFileInfo, error) {
 	dir := path.Join(c.Config.CachePath, fmt.Sprintf("team-%02d", teamID), "rosters")
 	name := fmt.Sprintf("roster-%02d-%2d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day())
-	return c.FindFile(dir, name)
+	return c.find(dir, name)
 }
 
 func (c *Cache) LeagueURL() string {

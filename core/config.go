@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -14,13 +13,10 @@ type Config struct {
 	SeasonStartDay   int
 }
 
-func (c *Config) String() string {
-	return fmt.Sprintf("LeagueID: %d\nTotalTeams: %d\nCache Path: %s\n", c.LeagueID, c.TotalTeams, c.CachePath)
-}
-
 var config Config
 
 func init() {
+	// TODO!!!
 	config = Config{
 		LeagueID:         22030,
 		TotalTeams:       10,
@@ -33,4 +29,8 @@ func init() {
 
 func GetConfig() *Config {
 	return &config
+}
+
+func (c *Config) GetSeasonStart() time.Time {
+	return time.Date(c.SeasonStartYear, c.SeasonStartMonth, c.SeasonStartDay, 0, 0, 0, 0, time.UTC)
 }
