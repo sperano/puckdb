@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"fmt"
+
 	"github.com/ericsperano/yfh/cmd/common"
 	"github.com/ericsperano/yfh/core"
 	"github.com/spf13/cobra"
@@ -28,55 +30,76 @@ func init() {
 			if err != nil {
 				return err
 			}
+			db, err := core.NewDB(config)
+			if err != nil {
+				return err
+			}
 			do_all := true
 			if fantasyGameExplicit || leagueExplicit || teamExplicit != 0 {
 				do_all = false
 			}
-			_ = dates
-			_ = cache
-			_ = do_all
-			/*
-				// check fantasy game
-				if do_all || fantasyGameExplicit {
-					if has, err := cache.HasFantasyGame(); err != nil {
-						return err
-					} else {
-						if force || !has {
-							if _, err := cache.DownloadFantasyGame(); err != nil {
-								return err
-							}
-						} else {
-							if cfis, err := cache.FindFantasyGame(); err != nil {
-								return err
-							} else {
-								fmt.Printf("%s: Latest='%s'\n", english.Plural(len(cfis), "fantasy game file", ""), cfis[0].Time)
-							}
+			// check fantasy game
+			if do_all || fantasyGameExplicit {
+				if has, err := db.HasFantasyGame(); err != nil {
+					return err
+				} else {
+					if force || !has {
+						xmlfg, err := cache.GetFantasyGame()
+						if err != nil {
+							return err
 						}
+						if err := db.Create(xmlfg.ToGormModel()).Error; err != nil {
+							return err
+						}
+						fmt.Println("Fantasy game imported.")
+					} else {
+						fmt.Println("Fantasy game already imported,")
 					}
 				}
-				// check league
-				if do_all || leagueExplicit {
-					if has, err := cache.HasLeague(); err != nil {
-						return err
-					} else {
-						if force || !has {
-							if _, err := cache.DownloadLeague(); err != nil {
-								return err
-							}
-						} else {
-							if cfis, err := cache.FindLeague(); err != nil {
-								return err
-							} else {
-								fmt.Printf("%s: Latest='%s'\n", english.Plural(len(cfis), "league file", ""), cfis[0].Time)
-							}
+			}
+			// check league
+			if do_all || leagueExplicit {
+				if has, err := db.HasLeague(); err != nil {
+					return err
+				} else {
+					if force || !has {
+						xmll, err := cache.GetLeague()
+						if err != nil {
+							return err
 						}
+						if err := db.Create(xmll.ToGormModel()).Error; err != nil {
+							return err
+						}
+						fmt.Println("League imported.")
+					} else {
+						fmt.Println("League already imported,")
 					}
 				}
-				// check team
-				if do_all || teamExplicit > 0 {
-					for teamID := 1; teamID <= config.TotalTeams; teamID++ {
-						if teamExplicit == 0 || teamExplicit == teamID {
-							for _, date := range dates {
+			}
+			// check team
+			if do_all || teamExplicit > 0 {
+				for teamID := 1; teamID <= config.TotalTeams; teamID++ {
+					if teamExplicit == 0 || teamExplicit == teamID {
+						for _, date := range dates {
+							xmlroster, err := cache.GetRoster(teamID, date)
+							if err != nil {
+								return err
+							}
+							for _, xmlplayer := range xmlroster.Roster.Players.Slice {
+								if has, err := db.HasPlayer(xmlplayer.ID); err != nil {
+									return err
+								} else {
+									if force || !has {
+										if err := db.Create(xmlplayer.ToGormModel()).Error; err != nil {
+											return err
+										}
+										fmt.Printf("Player %s imported.\n", xmlplayer.Name.Full)
+									} else {
+										fmt.Printf("Player %s already imported.\n", xmlplayer.Name.Full)
+									}
+								}
+							}
+							/*
 								if has, err := cache.HasRoster(teamID, date); err != nil {
 									return err
 								} else {
@@ -92,11 +115,11 @@ func init() {
 										}
 									}
 								}
-							}
+							*/
 						}
 					}
 				}
-			*/
+			}
 			return nil
 		},
 	}

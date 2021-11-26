@@ -2,6 +2,8 @@ package xmlmodel
 
 import (
 	"encoding/xml"
+
+	"github.com/ericsperano/yfh/core/model"
 )
 
 type PlayerName struct {
@@ -55,6 +57,13 @@ type Player struct {
 	PlayerNotesLastTimestamp int      `xml:"player_notes_last_timestamp"`
 	SelectedPosition         PlayerSelectedPosition
 	IsEditable               bool `xml:"is_editable"`
+}
+
+func (p *Player) ToGormModel() *model.Player {
+	return &model.Player{
+		ID:  p.ID,
+		Key: p.Key,
+	}
 }
 
 type Players struct {

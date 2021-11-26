@@ -291,12 +291,15 @@ func (c *Cache) FindLeague() ([]*CachedFileInfo, error) {
 	return c.find("", FilenameLeague)
 }
 
-// TODO
-/*
 func (c *Cache) GetLeague() (*xmlmodel.League, error) {
-	return nil, nil
+	data, err := c.get("", FilenameLeague)
+	if err != nil {
+		return nil, err
+	}
+	var fantasy xmlmodel.FantasyContent
+	xml.Unmarshal(data, &fantasy)
+	return &fantasy.League, nil
 }
-*/
 
 //////////////////////////////////////////////////////////////////////////////
 // ROSTER

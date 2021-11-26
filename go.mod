@@ -12,7 +12,8 @@ require (
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/oauth2 v0.0.0-20211028175245-ba495a64dcb5
 	gopkg.in/yaml.v2 v2.4.0
-	gorm.io/gorm v1.22.2
+	gorm.io/driver/sqlite v1.2.6
+	gorm.io/gorm v1.22.3
 )
 
 require (
@@ -37,6 +38,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/mattn/go-sqlite3 v1.14.9 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.11.0 // indirect
