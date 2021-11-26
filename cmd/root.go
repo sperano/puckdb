@@ -30,7 +30,7 @@ func init() {
 	rootCmd.AddCommand(db.DBCmd)
 
 	home := os.Getenv("HOME")
-	rootCmd.PersistentFlags().StringVarP(&common.ConfigPath, "config", "c", path.Join(home, "yfh.yaml"), "Config file path")
+	rootCmd.PersistentFlags().StringVarP(&common.ConfigPath, "config", "c", path.Join(home, ".yfh.yaml"), "Config file path")
 
 	var configCmd = &cobra.Command{
 		Use:   "config",
