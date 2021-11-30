@@ -2,75 +2,11 @@ package xmlmodel
 
 import (
 	"encoding/xml"
+	"strings"
+	"time"
 
 	"github.com/ericsperano/yfh/core/model"
 )
-
-type PlayerName struct {
-	XMLName    xml.Name `xml:"name"`
-	Full       string   `xml:"full"`
-	First      string   `xml:"first"`
-	Last       string   `xml:"last"`
-	ASCIIFirst string   `xml:"ascii_first"`
-	ASCIILast  string   `xml:"ascii_last"`
-}
-
-type PlayerHeadshot struct {
-	XMLName xml.Name `xml:"headshot"`
-	URL     string   `xml:"url"`
-	Size    string   `xml:"size"`
-}
-
-type PlayerSelectedPosition struct {
-	XMLName      xml.Name `xml:"selected_position"`
-	CoverageType string   `xml:"coverage_type"`
-	Date         string   `xml:"date"`
-	Position     string   `xml:"position"`
-	IsFlex       bool     `xml:"is_flex"`
-}
-
-/*
-<>
-<position>C</position>
-<position>Util</position>
-</>
-*/
-
-type Player struct {
-	XMLName                  xml.Name `xml:"player"`
-	Key                      string   `xml:"player_key"`
-	ID                       int      `xml:"player_id"`
-	Name                     PlayerName
-	EditorialPlayerKey       string `xml:"editorial_player_key"`
-	EditorialTeamKey         string `xml:"editorial_team_key"`
-	EditorialTeamFullName    string `xml:"editorial_team_full_name"`
-	EditorialTeamAbbr        string `xml:"editorial_team_abbr"`
-	UniformNumber            int    `xml:"uniform_number"`
-	DisplayPosition          string `xml:"display_position"`
-	Headshot                 PlayerHeadshot
-	ImageURL                 string   `xml:"image_url"`
-	IsUndroppable            bool     `xml:"is_undroppable"`
-	PositionType             string   `xml:"position_type"`
-	PrimaryPosition          string   `xml:"primary_position"`
-	EligiblePositions        []string `xml:"eligible_positions>position"`
-	HasPlayerNotes           bool     `xml:"has_player_notes"`
-	PlayerNotesLastTimestamp int      `xml:"player_notes_last_timestamp"`
-	SelectedPosition         PlayerSelectedPosition
-	IsEditable               bool `xml:"is_editable"`
-}
-
-func (p *Player) ToGormModel() *model.Player {
-	return &model.Player{
-		ID:  p.ID,
-		Key: p.Key,
-	}
-}
-
-type Players struct {
-	XMLName xml.Name `xml:"players"`
-	Slice   []Player `xml:"player"`
-	Count   int      `xml:"count,attr"`
-}
 
 type Roster struct {
 	XMLName      xml.Name `xml:"roster"`
@@ -78,6 +14,20 @@ type Roster struct {
 	Date         string   `xml:"date"`
 	IsEditable   bool     `xml:"is_editable"`
 	Players      Players
+}
+
+func (r *Roster) ToGormModel(xmlplayer *Player) (*model.RosterPlayer, error) {
+	date, err := time.Parse("2006-01-02", r.Date)
+	if err != nil {
+		return nil, err
+	}
+	return &model.RosterPlayer{
+		PlayerID:          uint(xmlplayer.ID),
+		Month:             date.Month(),
+		Day:               uint8(date.Day()),
+		EligiblePositions: strings.Join(xmlplayer.EligiblePositions, " "),
+		SelectedPosition:  xmlplayer.SelectedPosition.Position,
+	}, nil
 }
 
 type TeamLogo struct {

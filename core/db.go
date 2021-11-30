@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ericsperano/yfh/core/model"
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -15,7 +15,9 @@ type DB struct {
 }
 
 func NewDB(config *Config) (*DB, error) {
-	orm, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	dsn := "host=localhost user=yfh password=foo dbname=yfh port=5432 sslmode=disable TimeZone=America/Los_Angeles"
+	orm, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	//orm, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
@@ -23,6 +25,7 @@ func NewDB(config *Config) (*DB, error) {
 	orm.AutoMigrate(&model.FantasyGame{})
 	orm.AutoMigrate(&model.League{})
 	orm.AutoMigrate(&model.Player{})
+	orm.AutoMigrate(&model.RosterPlayer{})
 	db := DB{
 		config: config,
 		orm:    orm,
@@ -47,7 +50,7 @@ func (db *DB) HasFantasyGame() (bool, error) {
 
 func (db *DB) HasLeague() (bool, error) {
 	var league model.League
-	if err := db.orm.First(&league).Error; err != nil {
+	if err := db.orm.Take(&league).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
 		}
@@ -58,7 +61,7 @@ func (db *DB) HasLeague() (bool, error) {
 
 func (db *DB) HasPlayer(id int) (bool, error) {
 	var player model.Player
-	if err := db.orm.First(&player, id).Error; err != nil {
+	if err := db.orm.Take(&player, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
 		}
@@ -67,6 +70,15 @@ func (db *DB) HasPlayer(id int) (bool, error) {
 	return true, nil
 }
 
-func (db *DB) HasRoster(teamID int, month time.Month, day int) (bool, error) {
-	return false, nil
+func (db *DB) HasRosterPlayer(teamID int, playerID int, month time.Month, day int) (bool, error) {
+	/*
+		var rplayer model.RosterPlayer
+		if err := db.orm.Take(&rplayer, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, nil
+			}
+			return false, err
+		}
+	*/
+	return true, nil
 }

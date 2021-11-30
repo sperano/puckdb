@@ -15,6 +15,7 @@ func init() {
 	var fantasyGameExplicit bool
 	var leagueExplicit bool
 	var teamExplicit int
+	var verbose bool
 
 	var importCmd = &cobra.Command{
 		Use:   "import",
@@ -53,7 +54,9 @@ func init() {
 						}
 						fmt.Println("Fantasy game imported.")
 					} else {
-						fmt.Println("Fantasy game already imported,")
+						if verbose {
+							fmt.Println("Fantasy game already imported.")
+						}
 					}
 				}
 			}
@@ -72,7 +75,9 @@ func init() {
 						}
 						fmt.Println("League imported.")
 					} else {
-						fmt.Println("League already imported,")
+						if verbose {
+							fmt.Println("League already imported.")
+						}
 					}
 				}
 			}
@@ -86,16 +91,44 @@ func init() {
 								return err
 							}
 							for _, xmlplayer := range xmlroster.Roster.Players.Slice {
+								// check player object first
 								if has, err := db.HasPlayer(xmlplayer.ID); err != nil {
 									return err
 								} else {
 									if force || !has {
-										if err := db.Create(xmlplayer.ToGormModel()).Error; err != nil {
+										if model, err := xmlplayer.ToGormModel(); err != nil {
 											return err
+										} else {
+											if err := db.Create(model).Error; err != nil {
+												return err
+											}
+											fmt.Printf("Player %s imported.\n", xmlplayer.Name.Full)
 										}
-										fmt.Printf("Player %s imported.\n", xmlplayer.Name.Full)
 									} else {
-										fmt.Printf("Player %s already imported.\n", xmlplayer.Name.Full)
+										if verbose {
+											fmt.Printf("Player %s already imported.\n", xmlplayer.Name.Full)
+										}
+									}
+								}
+								month := date.Month()
+								day := date.Day()
+								if has, err := db.HasRosterPlayer(teamID, xmlplayer.ID, month, day); err != nil {
+									return err
+								} else {
+									if force || !has {
+										if model, err := xmlroster.Roster.ToGormModel(&xmlplayer); err != nil {
+											return err
+										} else {
+											if err := db.Create(model).Error; err != nil {
+												return err
+											}
+											fmt.Printf("Roster for %s  on %d-%d imported.\n", xmlplayer.Name.Full, month, day)
+										}
+
+									} else {
+										if verbose {
+											fmt.Printf("Roster for %s on %d-%d already imported.\n", xmlplayer.Name.Full, month, date)
+										}
 									}
 								}
 							}
@@ -129,5 +162,6 @@ func init() {
 	importCmd.PersistentFlags().BoolVarP(&fantasyGameExplicit, "fantasy-game", "g", false, "Specifically for fantasy game")
 	importCmd.PersistentFlags().BoolVarP(&leagueExplicit, "league", "l", false, "Specifically for league")
 	importCmd.PersistentFlags().IntVarP(&teamExplicit, "team", "t", 0, "Specifically for team")
+	importCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "More verbose output")
 	CacheCmd.AddCommand(importCmd)
 }

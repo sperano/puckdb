@@ -5,3 +5,11 @@ cache_path: "./cache"
 season_start_year: 2021
 season_start_month: 10
 season_start_day: 12
+db:
+  host: localhost 
+  port: 5432
+  name: yfh
+  user: yfh 
+  password: foo
+  timezone: America/Los_Angeles
+  ssl: false
