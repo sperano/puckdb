@@ -1,6 +1,6 @@
 ---
 league_id: 22030
-cache_path: "./cache"
+cache_path: "../cache"
 season_start_year: 2021
 season_start_month: 10
 season_start_day: 12
