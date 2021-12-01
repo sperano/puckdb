@@ -79,15 +79,11 @@ func printAttrInt(indentLevel int, attr string, value int, colorPalette *ColorPa
 }
 
 func printHeader(indentLevel int, title string, suffix string, colorPalette *ColorPalette) {
-	const gradient = "░░▒▒▓▓█ "
+	const gradient = "░░▒▒▓▓█ 🏒"
 	fmt.Println(strings.Repeat("  ", indentLevel) + termenv.String(gradient).Foreground(colorPalette.Lo).String() + termenv.String(title).Foreground(colorPalette.Attr).String() + " " + suffix)
 }
 
 func printTeamStandard(team *xmlmodel.Team) {
-	//const gradientColor = "#787844"
-
-	//leftP := termenv.String("(").Foreground(term.Color(teamColorLo)).String()
-	//rightP := termenv.String(")").Foreground(term.Color(teamColorLo)).String()
 	printHeader(0, "Team", getKeyStr(team.Key, &colorPaletteTeam), &colorPaletteTeam)
 	printAttrInt(0, "ID", team.ID, &colorPaletteTeam)
 	printAttrString(0, "Key", team.Key, &colorPaletteTeam)
@@ -170,8 +166,8 @@ func (e *ErrInvalidTeam) Error() string {
 
 var teamCmd = &cobra.Command{
 	Use:   "team",
-	Short: "foo",
-	Long:  `foo`,
+	Short: "displays the data parsed from the downloaded xml",
+	Long:  `Displays the data parsed from the downloaded xml`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 2 {
 			// TODO const for yfh
@@ -192,7 +188,14 @@ var teamCmd = &cobra.Command{
 			return err
 		}
 		teamID, _ := strconv.Atoi(args[0])
-		if teamID < 0 || teamID > config.TotalTeams {
+		found := false
+		for _, id := range config.TeamIDs {
+			if id == teamID {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return &ErrInvalidTeam{TeamID: teamID}
 		}
 		date, _ := common.GetDate(config, args[1])

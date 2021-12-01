@@ -20,7 +20,7 @@ type FantasyGame struct {
 	IsOffseason        bool     `xml:"is_offseason"`
 }
 
-func (fg *FantasyGame) ToGormModel() *model.FantasyGame {
+func (fg *FantasyGame) ToFantasyGameModel() *model.FantasyGame {
 	return &model.FantasyGame{
 		ID:                 fg.ID,
 		Key:                fg.Key,

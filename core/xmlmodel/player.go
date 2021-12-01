@@ -106,15 +106,16 @@ type Player struct {
 	IsEditable               bool `xml:"is_editable"`
 }
 
-func (p *Player) ToGormModel() (*model.Player, error) {
+func (p *Player) ToPlayerModel() (*model.Player, error) {
 	if err := p.Name.Validate(); err != nil {
 		return nil, err
 	}
 	return &model.Player{
-		ID:        p.ID,
-		Key:       p.Key,
-		FirstName: p.Name.First,
-		LastName:  p.Name.Last,
+		ID:                 p.ID,
+		Key:                p.Key,
+		FirstName:          p.Name.First,
+		LastName:           p.Name.Last,
+		EditorialPlayerKey: p.EditorialPlayerKey,
 	}, nil
 }
 

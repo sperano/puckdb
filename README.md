@@ -48,3 +48,10 @@ update and import always check for fantasy_game (is it downloaded, is it importe
 `yfh db team 7 11-20` display the data in the database for the team on this date.
 
 `yfh db player 342` display the data in the database for the player.
+
+
+## Jupyterhub 
+
+https://towardsdatascience.com/heres-how-to-run-sql-in-jupyter-notebooks-f26eb90f3259
+
+

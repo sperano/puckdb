@@ -72,11 +72,14 @@ func NewCache(config *Config) (*Cache, error) {
 	cache := &Cache{
 		Config: config,
 	}
-	for teamID := 1; teamID <= config.TotalTeams; teamID++ {
+	for _, teamID := range config.TeamIDs {
 		dir := path.Join(config.CachePath, cache.GetTeamDir(teamID))
 		if err := createDirIfNotExists(dir, 0755); err != nil {
 			return nil, err
 		}
+	}
+	if err := createDirIfNotExists(path.Join(config.CachePath, "games"), 0755); err != nil {
+		return nil, err
 	}
 	return cache, nil
 }
@@ -338,4 +341,37 @@ func (c *Cache) GetRoster(teamID int, date time.Time) (*xmlmodel.Team, error) {
 	var fantasy xmlmodel.FantasyContent
 	xml.Unmarshal(data, &fantasy)
 	return &fantasy.Team, nil
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Games List
+//////////////////////////////////////////////////////////////////////////////
+func (c *Cache) GetGamesListFilename(date time.Time) string {
+	return fmt.Sprintf("games-list-%4d-%02d-%02d", date.Year(), date.Month(), date.Day())
+}
+
+func (c *Cache) HasGamesList(date time.Time) (bool, error) {
+	return c.has("games", c.GetGamesListFilename(date))
+}
+
+func (c *Cache) GamesListURL(date time.Time) string {
+	return fmt.Sprintf("https://sports.yahoo.com/nhl/scoreboard/?confId=&dateRange=%d-%d-%d&schedState=2", date.Year(), date.Month(), date.Day())
+}
+
+func (c *Cache) DownloadGamesList(date time.Time) (*CachedFileInfo, error) {
+	p := path.Join("games", c.GetGamesListFilename(date))
+	return c.download(c.GamesListURL(date), p)
+}
+
+func (c *Cache) FindGamesList(date time.Time) ([]*CachedFileInfo, error) {
+	return c.find("games", c.GetGamesListFilename(date))
+}
+
+func (c *Cache) GetGamesList(date time.Time) (*xmlmodel.Team, error) {
+	data, err := c.get("games", c.GetGamesListFilename(date))
+	if err != nil {
+		return nil, err
+	}
+	_ = data
+	return nil, nil
 }

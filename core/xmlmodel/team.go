@@ -16,20 +16,6 @@ type Roster struct {
 	Players      Players
 }
 
-func (r *Roster) ToGormModel(xmlplayer *Player) (*model.RosterPlayer, error) {
-	date, err := time.Parse("2006-01-02", r.Date)
-	if err != nil {
-		return nil, err
-	}
-	return &model.RosterPlayer{
-		PlayerID:          uint(xmlplayer.ID),
-		Month:             date.Month(),
-		Day:               uint8(date.Day()),
-		EligiblePositions: strings.Join(xmlplayer.EligiblePositions, " "),
-		SelectedPosition:  xmlplayer.SelectedPosition.Position,
-	}, nil
-}
-
 type TeamLogo struct {
 	XMLName xml.Name `xml:"team_logo"`
 	Size    string   `xml:"size"`
@@ -81,4 +67,46 @@ type Team struct {
 	HasDraftGrade     bool   `xml:"has_draft_grade"`
 	Managers          Managers
 	Roster            Roster
+}
+
+func (t *Team) ToTeamModel() *model.Team {
+	man := t.Managers.Slice[0]
+	return &model.Team{
+		ID:                    t.ID,
+		Key:                   t.Key,
+		Name:                  t.Name,
+		IsOwnedByCurrentLogin: t.IsOwnedByCurrentLogin,
+		URL:                   t.URL,
+		DraftPosition:         t.DraftPosition,
+		HasDraftGrade:         t.HasDraftGrade,
+		Manager: model.Manager{
+			ManagerID: man.ID,
+			Nickname:  man.Nickname,
+			GUID:      man.GUID,
+			EMail:     man.EMail,
+			ImageURL:  man.ImageURL,
+		},
+	}
+}
+
+func (t *Team) ToRosterPlayerModel(xmlplayer *Player) (*model.RosterPlayer, error) {
+	date, err := time.Parse("2006-01-02", t.Roster.Date)
+	if err != nil {
+		return nil, err
+	}
+	return &model.RosterPlayer{
+		PlayerID:          uint(xmlplayer.ID),
+		Month:             date.Month(),
+		Day:               uint8(date.Day()),
+		EligiblePositions: strings.Join(xmlplayer.EligiblePositions, " "),
+		SelectedPosition:  xmlplayer.SelectedPosition.Position,
+		FeloScore:         t.Managers.Slice[0].FeloScore,
+		FeloTier:          t.Managers.Slice[0].FeloTier,
+		WaiverPriority:    t.WaiverPriority,
+		NumberOfMoves:     t.NumberOfMoves,
+		NumberOfTrades:    t.NumberOfTrades,
+		EditorialTeamKey:  xmlplayer.EditorialTeamKey,
+		EditorialTeamAbbr: xmlplayer.EditorialTeamAbbr,
+		UniformNumber:     xmlplayer.UniformNumber,
+	}, nil
 }

@@ -27,7 +27,7 @@ type League struct {
 	Season                int      `xml:"season"`
 }
 
-func (l *League) ToGormModel() *model.League {
+func (l *League) ToLeagueModel() *model.League {
 	return &model.League{
 		ID:                    l.ID,
 		Key:                   l.Key,

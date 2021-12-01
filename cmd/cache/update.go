@@ -73,7 +73,7 @@ func init() {
 			}
 			// check team
 			if do_all || teamExplicit > 0 {
-				for teamID := 1; teamID <= config.TotalTeams; teamID++ {
+				for _, teamID := range config.TeamIDs {
 					if teamExplicit == 0 || teamExplicit == teamID {
 						for _, date := range dates {
 							if has, err := cache.HasRoster(teamID, date); err != nil {
@@ -95,6 +95,26 @@ func init() {
 					}
 				}
 			}
+			if do_all {
+				for _, date := range dates {
+					if has, err := cache.HasGamesList(date); err != nil {
+						return err
+					} else {
+						if force || !has {
+							if _, err := cache.DownloadGamesList(date); err != nil {
+								return err
+							}
+						} else {
+							if cfis, err := cache.FindGamesList(date); err != nil {
+								return err
+							} else {
+								fmt.Printf("%s on %d-%d: Latest='%s'\n", english.Plural(len(cfis), "games list file", ""), date.Month(), date.Day(), cfis[0].Time)
+							}
+						}
+					}
+				}
+			}
+
 			return nil
 		},
 	}

@@ -15,16 +15,16 @@ type ConfigDatabase struct {
 	User     string `yaml:"user"`
 	Password string `yaml:"password"`
 	Timezone string `yaml:"timezone"`
-	SSL      bool   `yaml:"ssl"`
+	SSLMode  string `yaml:"ssl_mode"`
 }
 
 type Config struct {
 	LeagueID         int            `yaml:"league_id"`
-	TotalTeams       int            `yaml:"total_teams"`
 	CachePath        string         `yaml:"cache_path"`
 	SeasonStartYear  int            `yaml:"season_start_year"`
 	SeasonStartMonth time.Month     `yaml:"season_start_month"`
 	SeasonStartDay   int            `yaml:"season_start_day"`
+	TeamIDs          []int          `yaml:"team_ids"`
 	Database         ConfigDatabase `yaml:"db"`
 }
 

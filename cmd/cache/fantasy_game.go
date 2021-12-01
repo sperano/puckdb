@@ -14,8 +14,8 @@ func init() {
 
 var fantasyGameCmd = &cobra.Command{
 	Use:   "fantasy-game",
-	Short: "foo",
-	Long:  `foo`,
+	Short: "displays the data parsed from the downloaded xml",
+	Long:  `Displays the data parsed from the downloaded xml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		config := core.GetConfig(common.ConfigPath)
 		cache, err := core.NewCache(config)

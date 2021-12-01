@@ -1,10 +1,20 @@
 ---
 league_id: 22030
-total_teams: 10
 cache_path: "./cache"
 season_start_year: 2021
 season_start_month: 10
 season_start_day: 12
+team_ids:
+- 1
+- 2
+- 3
+- 4
+- 6
+- 7
+- 8
+- 9
+- 10
+- 11
 db:
   host: localhost 
   port: 5432
@@ -12,4 +22,4 @@ db:
   user: yfh 
   password: foo
   timezone: America/Los_Angeles
-  ssl: false
+  ssl_mode: disable

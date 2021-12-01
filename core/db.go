@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ericsperano/yfh/core/model"
@@ -14,9 +15,13 @@ type DB struct {
 	orm    *gorm.DB
 }
 
+func GetDSN(config *ConfigDatabase) string {
+	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s",
+		config.Host, config.User, config.Password, config.Name, config.Port, config.SSLMode, config.Timezone)
+}
+
 func NewDB(config *Config) (*DB, error) {
-	dsn := "host=localhost user=yfh password=foo dbname=yfh port=5432 sslmode=disable TimeZone=America/Los_Angeles"
-	orm, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	orm, err := gorm.Open(postgres.Open(GetDSN(&config.Database)), &gorm.Config{})
 	//orm, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	if err != nil {
 		return nil, err
@@ -25,6 +30,7 @@ func NewDB(config *Config) (*DB, error) {
 	orm.AutoMigrate(&model.FantasyGame{})
 	orm.AutoMigrate(&model.League{})
 	orm.AutoMigrate(&model.Player{})
+	orm.AutoMigrate(&model.Team{})
 	orm.AutoMigrate(&model.RosterPlayer{})
 	db := DB{
 		config: config,
@@ -71,14 +77,23 @@ func (db *DB) HasPlayer(id int) (bool, error) {
 }
 
 func (db *DB) HasRosterPlayer(teamID int, playerID int, month time.Month, day int) (bool, error) {
-	/*
-		var rplayer model.RosterPlayer
-		if err := db.orm.Take(&rplayer, id).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return false, nil
-			}
-			return false, err
+	var rplayers []model.RosterPlayer
+	if err := db.orm.Where("team_id=? AND player_id=? AND month=? AND day=?", teamID, playerID, month, day).Find(&rplayers).Error; err != nil {
+		return false, err
+	}
+	//if len(rplayers) > 0 {
+	//	fmt.Printf("%+v\n", rplayers[0])
+	//}
+	return len(rplayers) > 0, nil
+}
+
+func (db *DB) HasTeam(id int) (bool, error) {
+	var team model.Team
+	if err := db.orm.Take(&team, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
 		}
-	*/
+		return false, err
+	}
 	return true, nil
 }
