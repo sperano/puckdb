@@ -2,11 +2,14 @@ package cache
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/dustin/go-humanize/english"
 	"github.com/ericsperano/yfh/cmd/common"
 	"github.com/ericsperano/yfh/core"
+	"github.com/gocolly/colly"
 	"github.com/spf13/cobra"
+	"github.com/yookoala/realpath"
 )
 
 func init() {
@@ -111,6 +114,30 @@ func init() {
 								fmt.Printf("%s on %d-%d: Latest='%s'\n", english.Plural(len(cfis), "games list file", ""), date.Month(), date.Day(), cfis[0].Time)
 							}
 						}
+					}
+					if cfis, err := cache.FindGamesList(date); err != nil {
+						return err
+					} else {
+						//c := colly.NewCollector(colly.Debugger(&debug.LogDebugger{}))
+						c := colly.NewCollector()
+						t := &http.Transport{}
+						t.RegisterProtocol("file", http.NewFileTransport(http.Dir("/")))
+						c.WithTransport(t)
+
+						c.OnHTML("div[class=scoreboard] a[href]", func(e *colly.HTMLElement) {
+							fmt.Printf("ALLO %v\n", e.Attr("href"))
+							//fmt.Println(e)
+						})
+						//p, err := realpath.Realpath(path.Join(config.CachePath, "games", cfis[0].Filename()))
+						_ = cfis
+						p, err := realpath.Realpath("./games.html")
+						if err != nil {
+							return err
+						}
+						p = "file://" + p
+						fmt.Println(p)
+						c.Visit(p)
+						c.Wait()
 					}
 				}
 			}

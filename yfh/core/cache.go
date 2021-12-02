@@ -73,7 +73,7 @@ func NewCache(config *Config) (*Cache, error) {
 		Config: config,
 	}
 	for _, teamID := range config.TeamIDs {
-		dir := path.Join(config.CachePath, cache.GetTeamDir(teamID))
+		dir := path.Join(config.CachePath, GetTeamDir(teamID))
 		if err := createDirIfNotExists(dir, 0755); err != nil {
 			return nil, err
 		}
@@ -119,16 +119,14 @@ func (c *Cache) HttpClient() (*http.Client, error) {
 	return c.httpClient, nil
 }
 
-func (c *Cache) readdir(path string) ([]*CachedFileInfo, error) {
+func readdir(path string) ([]*CachedFileInfo, error) {
 	fileinfos, err := ioutil.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
 	cfis := []*CachedFileInfo{}
 	for _, fileinfo := range fileinfos {
-		if fileinfo.IsDir() {
-
-		} else {
+		if !fileinfo.IsDir() {
 			name := fileinfo.Name()
 			if strings.Contains(name, "_") {
 				tokens := strings.Split(name, "_")
@@ -136,15 +134,15 @@ func (c *Cache) readdir(path string) ([]*CachedFileInfo, error) {
 					name = tokens[0]
 					tokens := strings.Split(tokens[1], ".")
 					if len(tokens) == 2 {
-						time, err := ParseTimestamp(tokens[0])
-						if err != nil {
-							return nil, err
+						if time, err := ParseTimestamp(tokens[0]); err != nil {
+							log.Printf("Not a valid timestamp: %s", tokens[0])
+						} else {
+							cfi := &CachedFileInfo{
+								Name: name,
+								Time: time,
+							}
+							cfis = append(cfis, cfi)
 						}
-						cfi := &CachedFileInfo{
-							Name: name, //fmt.Sprintf("%s.%s", name, tokens[1]),
-							Time: time,
-						}
-						cfis = append(cfis, cfi)
 					} else {
 						log.Printf("More then two tokens in second _ token, ignoring: %s", name)
 					}
@@ -166,7 +164,7 @@ func (c *Cache) find(dir string, name string) ([]*CachedFileInfo, error) {
 		dir = path.Join(c.Config.CachePath, dir)
 	}
 	files := []*CachedFileInfo{}
-	cfis, err := c.readdir(dir)
+	cfis, err := readdir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -307,16 +305,16 @@ func (c *Cache) GetLeague() (*xmlmodel.League, error) {
 //////////////////////////////////////////////////////////////////////////////
 // ROSTER
 //////////////////////////////////////////////////////////////////////////////
-func (c *Cache) GetTeamDir(teamID int) string {
+func GetTeamDir(teamID int) string {
 	return fmt.Sprintf("team-%02d", teamID)
 }
 
-func (c *Cache) GetRosterFilename(teamID int, date time.Time) string {
+func GetRosterFilename(teamID int, date time.Time) string {
 	return fmt.Sprintf("roster-%02d-%2d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day())
 }
 
 func (c *Cache) HasRoster(teamID int, date time.Time) (bool, error) {
-	return c.has(c.GetTeamDir(teamID), c.GetRosterFilename(teamID, date))
+	return c.has(GetTeamDir(teamID), GetRosterFilename(teamID, date))
 }
 
 func (c *Cache) RosterURL(teamID int, date time.Time) string {
@@ -325,16 +323,16 @@ func (c *Cache) RosterURL(teamID int, date time.Time) string {
 }
 
 func (c *Cache) DownloadRoster(teamID int, date time.Time) (*CachedFileInfo, error) {
-	p := path.Join(c.GetTeamDir(teamID), c.GetRosterFilename(teamID, date))
+	p := path.Join(GetTeamDir(teamID), GetRosterFilename(teamID, date))
 	return c.download(c.RosterURL(teamID, date), p)
 }
 
 func (c *Cache) FindRoster(teamID int, date time.Time) ([]*CachedFileInfo, error) {
-	return c.find(c.GetTeamDir(teamID), c.GetRosterFilename(teamID, date))
+	return c.find(GetTeamDir(teamID), GetRosterFilename(teamID, date))
 }
 
 func (c *Cache) GetRoster(teamID int, date time.Time) (*xmlmodel.Team, error) {
-	data, err := c.get(c.GetTeamDir(teamID), c.GetRosterFilename(teamID, date))
+	data, err := c.get(GetTeamDir(teamID), GetRosterFilename(teamID, date))
 	if err != nil {
 		return nil, err
 	}
