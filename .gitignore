@@ -15,5 +15,8 @@
 # vendor/
 # Eric Addition:
 test.db
-yfh
+/yfh
+#cache/games
 /data
+STAR_spe_quebec.crt
+***REMOVED***.key
