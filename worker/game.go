@@ -33,7 +33,7 @@ func EnsureRecentGame(ctx context.Context, yfh *core.YFH, date time.Time, gameLi
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("Found %s for %s in github", english.Plural(len(gitfiles), "game", ""), gameName)
+	log.Debugf("Found %s for %s in github", english.Plural(len(gitfiles), "game", ""), gameName)
 	if len(gitfiles) == 0 {
 		// download it if none are found then add it in github
 		content, err := Download(ctx, yfh, core.GameURL(gameLink))
@@ -139,7 +139,7 @@ func importGamesPipeline(ctx context.Context, yfh *core.YFH, filename string, da
 		count := 0
 		for game := range core.FanIn(ctx, gamesStages...) {
 			count++
-			log.Infof("Game import-checked: %s\n", game.Name)
+			log.Infof("Game imported: %s", game.Name)
 		}
 		if count == 0 {
 			log.Warnf("%04d-%02d-%02d has no games", date.Year(), date.Month(), date.Day())
@@ -215,7 +215,7 @@ func doImportGame(ctx context.Context, yfh *core.YFH, date time.Time, gamelink s
 		Name:            gamelink[5 : len(gamelink)-1],
 		GithubTimestamp: gitfile.Time, // TODO not good timezone?
 	}
-	log.Infof("Ensuring game %04d-%02d-%02d %d (%d) - %d (%d)", date.Year(), date.Month(), date.Day(),
+	log.Debugf("Ensuring game %04d-%02d-%02d %d (%d) - %d (%d)", date.Year(), date.Month(), date.Day(),
 		homeTeamID, homeTeamScore, awayTeamID, awayTeamScore)
 	if err := yfh.GormDB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "date"}, {Name: "home_team_id"}, {Name: "away_team_id"}}, // TODO constants

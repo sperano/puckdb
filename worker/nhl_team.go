@@ -21,7 +21,7 @@ func EnsureNHLTeam(ctx context.Context, db *gorm.DB, teamInfo *xmlmodel.TeamInfo
 		},
 		Name: teamInfo.Conference,
 	}
-	log.Infof("Ensuring conference %s in db", teamInfo.Conference)
+	log.Debugf("Ensuring conference %s in db", teamInfo.Conference)
 	if err := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"name"}),
@@ -35,14 +35,14 @@ func EnsureNHLTeam(ctx context.Context, db *gorm.DB, teamInfo *xmlmodel.TeamInfo
 		Name:            teamInfo.Division,
 		NHLConferenceID: conf.ID,
 	}
-	log.Infof("Ensuring division %s in db", teamInfo.Division)
+	log.Debugf("Ensuring division %s in db", teamInfo.Division)
 	if err := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"name"}),
 	}).Create(&div).Error; err != nil {
 		return err
 	}
-	log.Infof("Ensuring team %s in db", team.Name)
+	log.Debugf("Ensuring team %s in db", team.Name)
 	return db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"name"}),

@@ -114,7 +114,7 @@ func (w *Worker) Consume(delivery rmq.Delivery) {
 	if err := delivery.Ack(); err != nil {
 		log.Errorf("Failed to ack %s: %s", task.String(), err)
 	} else {
-		log.Infof("Acked %s", task.String())
+		log.Debugf("Acked %s", task.String())
 	}
 }
 

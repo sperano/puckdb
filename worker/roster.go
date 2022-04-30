@@ -22,7 +22,7 @@ func EnsureRecentRoster(ctx context.Context, yfh *core.YFH, teamID int, date tim
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("Found %s for team %02d on %04d-%02d-%02d in github", english.Plural(len(gitfiles), "roster", ""), teamID,
+	log.Debugf("Found %s for team %02d on %04d-%02d-%02d in github", english.Plural(len(gitfiles), "roster", ""), teamID,
 		date.Year(), date.Month(), date.Day())
 	if len(gitfiles) == 0 {
 		// download it if none are found then add it in github
@@ -141,7 +141,7 @@ func importRostersPipeline(ctx context.Context, yfh *core.YFH, date time.Time) e
 	}
 	go func() {
 		for rosterPlayers := range core.FanIn(ctx, rostersStages...) {
-			log.Infof("Rosters import-checked: team %02d %04d-%02d-%02d\n", rosterPlayers[0].TeamID, date.Year(), date.Month(), date.Day())
+			log.Infof("Rosters imported: team %02d %04d-%02d-%02d", rosterPlayers[0].TeamID, date.Year(), date.Month(), date.Day())
 		}
 		log.Infof("Imported all rosters for %04d-%02d-%02d", date.Year(), date.Month(), date.Day())
 	}()
@@ -198,7 +198,7 @@ func doImportRoster(ctx context.Context, yfh *core.YFH, teamID int, date time.Ti
 			Name:            gamelink[5 : len(gamelink)-1],
 			GithubTimestamp: gitfile.Time, // TODO not good timezone?
 		}
-		log.Infof("Ensuring game %04d-%02d-%02d %d (%d) - %d (%d)", date.Year(), date.Month(), date.Day(),
+		log.Debugf("Ensuring game %04d-%02d-%02d %d (%d) - %d (%d)", date.Year(), date.Month(), date.Day(),
 			homeTeamID, homeTeamScore, awayTeamID, awayTeamScore)
 		if err := yfh.GormDB.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "date"}, {Name: "home_team_id"}, {Name: "away_team_id"}}, // TODO constants

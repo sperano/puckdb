@@ -71,7 +71,7 @@ func SaveToken(ctx context.Context, yfh *YFH, token *oauth2.Token) error {
 
 func LoadToken(ctx context.Context, yfh *YFH) (*oauth2.Token, error) {
 	key := getRedisKeyForToken(GetCtxUser(ctx))
-	log.Infof("Loading token for %s", key)
+	log.Debugf("Loading token for %s", key)
 	status := yfh.RedisClient.Get(ctx, key)
 	if err := status.Err(); err != nil {
 		return nil, err

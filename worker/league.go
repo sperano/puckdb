@@ -17,7 +17,7 @@ func EnsureRecentLeague(ctx context.Context, yfh *core.YFH) (*core.GithubFile, e
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("Found %s in github", english.Plural(len(gitfiles), "fantasy game file", ""))
+	log.Debugf("Found %s in github", english.Plural(len(gitfiles), "fantasy game file", ""))
 	if len(gitfiles) == 0 {
 		content, err := Download(ctx, yfh, core.YahooLeagueURL(viper.GetInt(core.FlagLeagueID)))
 		if err != nil {

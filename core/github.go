@@ -155,7 +155,7 @@ func (g *GithubClient) ReadFile(ctx context.Context, filepath string) ([]byte, e
 		return nil, err
 	}
 	if data != nil {
-		log.Infof("Found file content for %s in cache", filepath)
+		log.Debugf("Found file content for %s in cache", filepath)
 		log.Trace(string(data))
 		return data, nil
 	}
