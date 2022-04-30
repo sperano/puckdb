@@ -12,8 +12,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-const FlagMaxRostersImporter = "max_rosters_importer"
-
 /**
  * Ensure there is a file in github for a given roster for a given team on a given day
  */
@@ -131,7 +129,7 @@ func importRosterStage(ctx context.Context, yfh *core.YFH, date time.Time, teamI
 }
 
 func importRostersPipeline(ctx context.Context, yfh *core.YFH, date time.Time) error {
-	maxRostersImporter := viper.GetInt(FlagMaxRostersImporter)
+	maxRostersImporter := viper.GetInt(core.FlagMaxRostersImporter)
 	errcs := make([]<-chan error, maxRostersImporter)
 
 	teamIDs := RostersGenerator()

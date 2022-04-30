@@ -21,5 +21,5 @@ const Version = "0.5.5"
 func LogIntro() {
 	log.Infof("Yahoo Fantasy Hockey version %s", Version)
 	PrintEnv()
-	log.Info(english.Plural(runtime.NumCPU(), "cpu", ""))
+	log.Info(english.Plural(runtime.NumCPU(), "CPU", ""))
 }

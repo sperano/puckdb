@@ -20,8 +20,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const FlagMaxGamesImporter = "max_games_importer"
-
 /**
  * Ensure there is a file in github for a given game on a given day
  */
@@ -127,7 +125,7 @@ func EnsureNHL(ctx context.Context, db *gorm.DB, game *xmlmodel.Game) error {
 }
 
 func importGamesPipeline(ctx context.Context, yfh *core.YFH, filename string, date time.Time) error {
-	maxGamesImporter := viper.GetInt(FlagMaxGamesImporter)
+	maxGamesImporter := viper.GetInt(core.FlagMaxGamesImporter)
 	errcs := make([]<-chan error, maxGamesImporter)
 
 	gamelinks := GameListGenerator(filename)
@@ -188,7 +186,6 @@ func doImportGame(ctx context.Context, yfh *core.YFH, date time.Time, gamelink s
 		return nil, nil
 	}
 	log.Debug(pp.Sprint(game))
-
 	if err := EnsureNHL(ctx, yfh.GormDB, game); err != nil {
 		return nil, fmt.Errorf("EnsureNHL (%s) -> %w", gamelink, err)
 	}

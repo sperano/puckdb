@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type GithubCache interface {
@@ -27,7 +28,7 @@ type RedisGithubCache struct {
 func NewRedisGithubCache(redisClient *redis.Client) *RedisGithubCache {
 	return &RedisGithubCache{
 		RedisClient: redisClient,
-		Duration:    120 * time.Minute,
+		Duration:    time.Duration(viper.GetInt(FlagRedisCacheDuration)) * time.Minute,
 	}
 }
 

@@ -19,7 +19,6 @@ import (
 
 const FlagWorkerPort = "worker_port"
 const FlagWorkerTLSEnabled = "worker_tls_enabled"
-const FlagRedisCacheDuration = "redis_cache_duration"
 
 func setupRouter(yfh *core.YFH) *gin.Engine {
 	r := gin.Default()
@@ -59,6 +58,7 @@ func init() {
 			defer yfh.Close()
 			go worker.StarWorkerQueue(yfh)
 			go func() {
+				log.Infof("Redis Cache Duration: %d Minutes", viper.GetInt(core.FlagRedisCacheDuration))
 				listen := fmt.Sprintf(":%d", viper.GetInt(FlagWorkerPort))
 				r := setupRouter(yfh)
 				if viper.GetBool(FlagWorkerTLSEnabled) {
@@ -85,8 +85,8 @@ func init() {
 	core.SetupViperPostgres(flags)
 	core.FIntP(flags, FlagWorkerPort, "p", 8788, "Default port")
 	core.FBool(flags, FlagWorkerTLSEnabled, false, "Enable TLS Mode")
-	core.FInt(flags, FlagRedisCacheDuration, 60, "The duration a key stays in the Redis cache (in minutes)")
-	core.FInt(flags, worker.FlagMaxGamesImporter, runtime.NumCPU(), "Max number of games importer goroutines")
-	core.FInt(flags, worker.FlagMaxRostersImporter, runtime.NumCPU(), "Max number of rosters importer goroutines")
+	core.FInt(flags, core.FlagRedisCacheDuration, 60, "The duration a key stays in the Redis cache (in minutes)")
+	core.FInt(flags, core.FlagMaxGamesImporter, runtime.NumCPU(), "Max number of games importer goroutines")
+	core.FInt(flags, core.FlagMaxRostersImporter, runtime.NumCPU(), "Max number of rosters importer goroutines")
 	rootCmd.AddCommand(cmd)
 }
