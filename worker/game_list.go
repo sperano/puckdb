@@ -23,7 +23,7 @@ func EnsureRecentGamesList(ctx context.Context, yfh *core.YFH, date time.Time) (
 	if err != nil {
 		return nil, fmt.Errorf("EnsureRecentGamesList: %w", err)
 	}
-	log.Infof("Found %s for %d-%02d-%02d in github", english.Plural(len(gitfiles), "game list", ""), date.Year(), date.Month(), date.Day())
+	log.Debugf("Found %s for %d-%02d-%02d in github", english.Plural(len(gitfiles), "game list", ""), date.Year(), date.Month(), date.Day())
 	if len(gitfiles) == 0 {
 		// download it if none are found then add it in github
 		content, err := Download(ctx, yfh, core.GamesListURL(date))

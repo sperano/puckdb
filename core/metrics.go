@@ -134,3 +134,13 @@ func CreateMetricPlayerStats(monitor *ginmetrics.Monitor) {
 		Description: "The number of player stats",
 	})
 }
+
+const MetricRosterPlayers = "yfh_roster_players"
+
+func CreateMetricRosterPlayers(monitor *ginmetrics.Monitor) {
+	monitor.AddMetric(&ginmetrics.Metric{
+		Type:        ginmetrics.Gauge,
+		Name:        MetricRosterPlayers,
+		Description: "The number of roster players",
+	})
+}

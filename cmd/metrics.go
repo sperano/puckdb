@@ -33,6 +33,7 @@ func setupMetricsRouter(yfh *core.YFH) *gin.Engine {
 	core.CreateMetricPlayers(monitor)
 	core.CreateMetricGames(monitor)
 	core.CreateMetricPlayerStats(monitor)
+	core.CreateMetricRosterPlayers(monitor)
 
 	monitor.SetMetricPath("/metrics")
 	monitor.Use(r)
@@ -81,6 +82,7 @@ func init() {
 				doMetrics(yfh, &model.Player{}, core.MetricPlayers)
 				doMetrics(yfh, &model.Game{}, core.MetricGames)
 				doMetrics(yfh, &model.PlayerStats{}, core.MetricPlayerStats)
+				doMetrics(yfh, &model.RosterPlayer{}, core.MetricRosterPlayers)
 			})
 			if viper.GetBool(FlagMetricsTLSEnabled) {
 				return r.RunTLS(listen, viper.GetString(FlagTLSCertificate), viper.GetString(FlagTLSKey))
