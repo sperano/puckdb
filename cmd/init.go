@@ -44,11 +44,7 @@ func init() {
 		},
 	}
 	flags := initCmd.Flags()
-
-	//core.SetupViperConfig(flags)
 	core.SetupViperLogLevel(flags)
-	//core.SetupViperRedis(flags)
 	core.SetupViperPostgres(flags)
-
 	rootCmd.AddCommand(initCmd)
 }

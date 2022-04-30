@@ -29,8 +29,7 @@ func SetupViperLogLevel(flags *flag.FlagSet) {
 		arr = append(arr, k)
 	}
 	sort.Strings(arr)
-	flags.StringP(FlagLogLevel, "L", "info", fmt.Sprintf("Log Level: %s", arr))
-	viper.BindPFlag(FlagLogLevel, flags.Lookup(FlagLogLevel))
+	FStringP(flags, FlagLogLevel, "L", "info", fmt.Sprintf("Log Level: %s", arr))
 }
 
 func SetLogLevel() {

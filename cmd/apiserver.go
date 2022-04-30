@@ -38,16 +38,11 @@ func init() {
 		},
 	}
 	flags := cmd.Flags()
-
 	core.SetupViperConfig(flags)
 	core.SetupViperLogLevel(flags)
 	core.SetupViperRedis(flags)
-	flags.IntP(FlagAPIPort, "p", 8787, "Default port")
-	viper.BindPFlag(FlagAPIPort, flags.Lookup(FlagAPIPort))
-	flags.Bool(FlagAPITLSEnabled, false, "Enable TLS Mode")
-	viper.BindPFlag(FlagAPITLSEnabled, flags.Lookup(FlagAPITLSEnabled))
-	flags.String(apiserver.FlagUIURL, "", "Default UI URL")
-	viper.BindPFlag(apiserver.FlagUIURL, flags.Lookup(apiserver.FlagUIURL))
-
+	core.FIntP(flags, FlagAPIPort, "p", 8787, "Default port")
+	core.FBool(flags, FlagAPITLSEnabled, false, "Enable TLS Mode")
+	core.FString(flags, apiserver.FlagUIURL, "", "Default UI URL")
 	rootCmd.AddCommand(cmd)
 }

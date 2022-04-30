@@ -24,7 +24,7 @@ func EnsureRecentRoster(ctx context.Context, yfh *core.YFH, teamID int, date tim
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("Found %s for team %02d on %04d-0%02d-%02d in github", english.Plural(len(gitfiles), "roster", ""), teamID,
+	log.Infof("Found %s for team %02d on %04d-%02d-%02d in github", english.Plural(len(gitfiles), "roster", ""), teamID,
 		date.Year(), date.Month(), date.Day())
 	if len(gitfiles) == 0 {
 		// download it if none are found then add it in github
@@ -200,7 +200,8 @@ func doImportRoster(ctx context.Context, yfh *core.YFH, teamID int, date time.Ti
 			Name:            gamelink[5 : len(gamelink)-1],
 			GithubTimestamp: gitfile.Time, // TODO not good timezone?
 		}
-		log.Infof("Ensuring game %s %d (%d) - %d (%d)", date, homeTeamID, homeTeamScore, awayTeamID, awayTeamScore)
+		log.Infof("Ensuring game %04d-%02d-%02d %d (%d) - %d (%d)", date.Year(), date.Month(), date.Day(),
+			homeTeamID, homeTeamScore, awayTeamID, awayTeamScore)
 		if err := yfh.GormDB.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "date"}, {Name: "home_team_id"}, {Name: "away_team_id"}}, // TODO constants
 			// TODO move that list elsewhere

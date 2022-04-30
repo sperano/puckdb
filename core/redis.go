@@ -23,14 +23,9 @@ const FlagRedisPassword = "redis_password"
 const FlagRedisDB = "redis_db"
 
 func SetupViperRedis(flags *flag.FlagSet) {
-	flags.String(FlagRedisURL, "localhost:6379", "Redis url")
-	viper.BindPFlag(FlagRedisURL, flags.Lookup(FlagRedisURL))
-
-	flags.String(FlagRedisPassword, "", "Redis password")
-	viper.BindPFlag(FlagRedisPassword, flags.Lookup(FlagRedisPassword))
-
-	flags.Int(FlagRedisDB, 0, "Redis db") // TODO 1 should be managed by pulumi_home
-	viper.BindPFlag(FlagRedisDB, flags.Lookup(FlagRedisDB))
+	FString(flags, FlagRedisURL, "localhost:6379", "Redis url")
+	FString(flags, FlagRedisPassword, "", "Redis password")
+	FInt(flags, FlagRedisDB, 0, "Redis db") // TODO 1 should be managed by pulumi_home
 }
 
 func NewRedisClient() *redis.Client {

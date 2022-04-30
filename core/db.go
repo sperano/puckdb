@@ -21,26 +21,13 @@ const FlagPostgresSSLMode = "postgres_ssl_mode"
 const FlagPostgresTimeZone = "postgres_time_zone"
 
 func SetupViperPostgres(flags *flag.FlagSet) {
-	flags.String(FlagPostgresHost, "localhost", "Postgres host")
-	viper.BindPFlag(FlagPostgresHost, flags.Lookup(FlagPostgresHost))
-
-	flags.String(FlagPostgresUser, "yfh", "Postgres user")
-	viper.BindPFlag(FlagPostgresUser, flags.Lookup(FlagPostgresUser))
-
-	flags.String(FlagPostgresPassword, "", "Postgres password")
-	viper.BindPFlag(FlagPostgresPassword, flags.Lookup(FlagPostgresPassword))
-
-	flags.String(FlagPostgresDatabase, "yfh", "Postgres database")
-	viper.BindPFlag(FlagPostgresDatabase, flags.Lookup(FlagPostgresDatabase))
-
-	flags.Int(FlagPostgresPort, 5432, "Postgres port")
-	viper.BindPFlag(FlagPostgresPort, flags.Lookup(FlagPostgresPort))
-
-	flags.String(FlagPostgresSSLMode, "disable", "Postgres SSL mode")
-	viper.BindPFlag(FlagPostgresSSLMode, flags.Lookup(FlagPostgresSSLMode))
-
-	flags.String(FlagPostgresTimeZone, "America/Los_Angeles", "Postgres time zone")
-	viper.BindPFlag(FlagPostgresTimeZone, flags.Lookup(FlagPostgresTimeZone))
+	FString(flags, FlagPostgresHost, "localhost", "Postgres host")
+	FString(flags, FlagPostgresUser, "yfh", "Postgres user")
+	FString(flags, FlagPostgresPassword, "", "Postgres password")
+	FString(flags, FlagPostgresDatabase, "yfh", "Postgres database")
+	FInt(flags, FlagPostgresPort, 5432, "Postgres port")
+	FString(flags, FlagPostgresSSLMode, "disable", "Postgres SSL mode")
+	FString(flags, FlagPostgresTimeZone, "America/Los_Angeles", "Postgres time zone")
 }
 
 func GetDSN() string {

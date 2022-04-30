@@ -22,32 +22,17 @@ const FlagSeasonEndMonth = "season_end_month"
 const FlagSeasonEndDay = "season_end_day"
 
 func SetupViperConfig(flags *flag.FlagSet) {
-	flags.Int(FlagLeagueID, 0, "Yahoo league ID")
-	viper.BindPFlag(FlagLeagueID, flags.Lookup(FlagLeagueID))
-
-	flags.String(FlagTeamIDs, "", "List of team IDs, seperated by commas")
-	viper.BindPFlag(FlagTeamIDs, flags.Lookup(FlagTeamIDs))
-
-	flags.Int(FlagSeasonStartYear, 2021, "Season start year")
-	viper.BindPFlag(FlagSeasonStartYear, flags.Lookup(FlagSeasonStartYear))
-	flags.Int(FlagSeasonStartMonth, 10, "Season start month")
-	viper.BindPFlag(FlagSeasonStartMonth, flags.Lookup(FlagSeasonStartMonth))
-	flags.Int(FlagSeasonStartDay, 12, "Season start day")
-	viper.BindPFlag(FlagSeasonStartDay, flags.Lookup(FlagSeasonStartDay))
-
-	flags.Int(FlagSeasonEndYear, 2022, "Season end year")
-	viper.BindPFlag(FlagSeasonEndYear, flags.Lookup(FlagSeasonEndYear))
-	flags.Int(FlagSeasonEndMonth, 4, "Season end month")
-	viper.BindPFlag(FlagSeasonEndMonth, flags.Lookup(FlagSeasonEndMonth))
-	flags.Int(FlagSeasonEndDay, 29, "Season end day")
-	viper.BindPFlag(FlagSeasonEndDay, flags.Lookup(FlagSeasonEndDay))
-
-	flags.String(FlagYahooOAuth2ClientID, "", "Yahoo! OAuth2 Client ID")
-	viper.BindPFlag(FlagYahooOAuth2ClientID, flags.Lookup(FlagYahooOAuth2ClientID))
-	flags.String(FlagYahooOAuth2ClientSecret, "", "Yahoo! OAuth2 Client Secret")
-	viper.BindPFlag(FlagYahooOAuth2ClientSecret, flags.Lookup(FlagYahooOAuth2ClientSecret))
-	flags.String(FlagYahooOAuth2ClientRedirect, "", "Yahoo! Oauth2 Client Redirect")
-	viper.BindPFlag(FlagYahooOAuth2ClientRedirect, flags.Lookup(FlagYahooOAuth2ClientRedirect))
+	FInt(flags, FlagLeagueID, 0, "Yahoo league ID")
+	FString(flags, FlagTeamIDs, "", "List of team IDs, seperated by commas")
+	FInt(flags, FlagSeasonStartYear, 2021, "Season start year")
+	FInt(flags, FlagSeasonStartMonth, 10, "Season start month")
+	FInt(flags, FlagSeasonStartDay, 12, "Season start day")
+	FInt(flags, FlagSeasonEndYear, 2022, "Season end year")
+	FInt(flags, FlagSeasonEndMonth, 4, "Season end month")
+	FInt(flags, FlagSeasonEndDay, 29, "Season end day")
+	FString(flags, FlagYahooOAuth2ClientID, "", "Yahoo! OAuth2 Client ID")
+	FString(flags, FlagYahooOAuth2ClientSecret, "", "Yahoo! OAuth2 Client Secret")
+	FString(flags, FlagYahooOAuth2ClientRedirect, "", "Yahoo! Oauth2 Client Redirect")
 }
 
 func GetLeagueID() int {

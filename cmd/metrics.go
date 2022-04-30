@@ -89,15 +89,11 @@ func init() {
 		},
 	}
 	flags := cmd.Flags()
-
 	core.SetupViperConfig(flags)
 	core.SetupViperLogLevel(flags)
 	core.SetupViperRedis(flags)
 	core.SetupViperPostgres(flags)
-	flags.IntP(FlagMetricsPort, "p", 8789, "Default port")
-	viper.BindPFlag(FlagMetricsPort, flags.Lookup(FlagMetricsPort))
-	flags.Bool(FlagMetricsTLSEnabled, false, "Enable TLS Mode")
-	viper.BindPFlag(FlagMetricsTLSEnabled, flags.Lookup(FlagAPITLSEnabled))
-
+	core.FIntP(flags, FlagMetricsPort, "p", 8789, "Default port")
+	core.FBool(flags, FlagMetricsTLSEnabled, false, "Enable TLS Mode")
 	rootCmd.AddCommand(cmd)
 }

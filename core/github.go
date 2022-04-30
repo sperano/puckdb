@@ -26,8 +26,7 @@ const DataRepoOwner = "ericsperano"
 const DataRepoName = "yahoo-fantasy-hockey-data"
 
 func SetupViperGithubAccessToken(flags *flag.FlagSet) {
-	flags.String(FlagGithubAccessToken, "", "Github access token")
-	viper.BindPFlag(FlagGithubAccessToken, flags.Lookup(FlagGithubAccessToken))
+	FString(flags, FlagGithubAccessToken, "", "Github access token")
 }
 
 type RepositoriesService interface {
