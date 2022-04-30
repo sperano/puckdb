@@ -7,7 +7,6 @@ import (
 
 	"github.com/dustin/go-humanize/english"
 	"github.com/ericsperano/yfh/core"
-	"github.com/ericsperano/yfh/core/model"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -38,15 +37,7 @@ func EnsureRecentLeague(ctx context.Context, yfh *core.YFH) (*core.GithubFile, e
 }
 
 func HandleImportLeague(ctx context.Context, yfh *core.YFH) error {
-	var count int64
-	yfh.GormDB.Model(&model.League{}).Count(&count)
-	log.Debugf("Count: %d", count)
-	if count > 0 {
-		log.Infof("Already has %s in the database", english.Plural(int(count), "league", ""))
-		return nil
-	}
-	log.Info("No league found in the database")
-	// check if the game list is in the github cache first
+	// check if the league is in the github cache first
 	gitfile, err := EnsureRecentLeague(ctx, yfh)
 	if err != nil {
 		return err
@@ -55,11 +46,11 @@ func HandleImportLeague(ctx context.Context, yfh *core.YFH) error {
 	if err != nil {
 		return err
 	}
-	obj, err := fantasy.League.ToLeagueModel()
+	league, err := fantasy.League.ToLeagueModel()
 	if err != nil {
 		return err
 	}
-	obj.GithubTimestamp = gitfile.Time
-	log.Info("Creating fantasy game in database")
-	return yfh.GormDB.Create(&obj).Error
+	league.GithubTimestamp = gitfile.Time
+	log.Debugf("Ensuring league")
+	return league.Ensure(yfh.GormDB)
 }

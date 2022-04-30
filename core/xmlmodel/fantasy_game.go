@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 
 	"github.com/ericsperano/yfh/core/model"
+	"gorm.io/gorm"
 )
 
 type FantasyGame struct {
@@ -22,7 +23,9 @@ type FantasyGame struct {
 
 func (fg *FantasyGame) ToFantasyGameModel() *model.FantasyGame {
 	return &model.FantasyGame{
-		ID:                 fg.ID,
+		Model: gorm.Model{
+			ID: uint(fg.ID),
+		},
 		Key:                fg.Key,
 		Name:               fg.Name,
 		Code:               fg.Code,

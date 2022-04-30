@@ -40,7 +40,10 @@ func init() {
 			if err != nil {
 				return err
 			}
-			return core.DoMigration(orm)
+			if err := core.DoMigration(orm); err != nil {
+				return err
+			}
+			return core.EnsureNHL(orm)
 		},
 	}
 	flags := initCmd.Flags()

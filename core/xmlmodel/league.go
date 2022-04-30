@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ericsperano/yfh/core/model"
+	"gorm.io/gorm"
 )
 
 type League struct {
@@ -38,7 +39,9 @@ func (l *League) ToLeagueModel() (*model.League, error) {
 		return nil, err
 	}
 	return &model.League{
-		ID:                    l.ID,
+		Model: gorm.Model{
+			ID: uint(l.ID),
+		},
 		Key:                   l.Key,
 		Name:                  l.Name,
 		URL:                   l.URL,

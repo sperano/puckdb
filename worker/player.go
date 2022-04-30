@@ -9,7 +9,6 @@ import (
 	"github.com/ericsperano/yfh/core/xmlmodel"
 	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 func EnsureNHLPlayers(ctx context.Context, db *gorm.DB, players []xmlmodel.PlayerInfo) error {
@@ -19,10 +18,7 @@ func EnsureNHLPlayers(ctx context.Context, db *gorm.DB, players []xmlmodel.Playe
 			return fmt.Errorf("error while converting player model %s (%s %s) -> %w", pi.PlayerID, pi.FirstName, pi.LastName, err)
 		}
 		log.Debugf("Ensuring %s %s in db", player.FirstName, player.LastName)
-		if err := db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "id"}},
-			DoUpdates: clause.AssignmentColumns(model.PlayerUpdateCols),
-		}).Create(&player).Error; err != nil {
+		if err := player.Ensure(db); err != nil {
 			return err
 		}
 	}

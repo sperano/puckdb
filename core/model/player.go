@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var PlayerUpdateCols = []string{
@@ -33,10 +34,15 @@ type Player struct {
 	ImageLarge    string
 	NHLTeamID     uint
 	NHLTeam       NHLTeam
-
 	//PrimaryPositionID PositionID `json:"primary_position_id"`
 	//EditorialPlayerKey string
+}
 
+func (p *Player) Ensure(db *gorm.DB) error {
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns(PlayerUpdateCols),
+	}).Create(p).Error
 }
 
 var PlayerStatsUpdateCols = []string{
@@ -76,6 +82,13 @@ type PlayerStats struct {
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	DeletedAt         gorm.DeletedAt `gorm:"index"`
+}
+
+func (ps *PlayerStats) Ensure(db *gorm.DB) error {
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "date"}, {Name: "player_id"}}, // TODO constants
+		DoUpdates: clause.AssignmentColumns(PlayerStatsUpdateCols),
+	}).Create(ps).Error
 }
 
 func MaybeSetStatUInt(ptr *uint, str string) error {

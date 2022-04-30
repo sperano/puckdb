@@ -16,7 +16,6 @@ import (
 	"github.com/k0kubun/pp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -114,16 +113,6 @@ func GetGameXMLModel(ctx context.Context, yfh *core.YFH, date time.Time, gameLin
 	return &game, gitfile, nil
 }
 
-func EnsureNHL(ctx context.Context, db *gorm.DB, game *xmlmodel.Game) error {
-	if err := EnsureNHLTeam(ctx, db, game.HomeTeam()); err != nil {
-		return fmt.Errorf("error with home team -> %w", err)
-	}
-	if err := EnsureNHLTeam(ctx, db, game.AwayTeam()); err != nil {
-		return fmt.Errorf("error with away team -> %w", err)
-	}
-	return EnsureNHLPlayers(ctx, db, game.Players())
-}
-
 func importGamesPipeline(ctx context.Context, yfh *core.YFH, filename string, date time.Time) error {
 	maxGamesImporter := viper.GetInt(core.FlagMaxGamesImporter)
 	errcs := make([]<-chan error, maxGamesImporter)
@@ -186,7 +175,7 @@ func doImportGame(ctx context.Context, yfh *core.YFH, date time.Time, gamelink s
 		return nil, nil
 	}
 	log.Debug(pp.Sprint(game))
-	if err := EnsureNHL(ctx, yfh.GormDB, game); err != nil {
+	if err := EnsureNHLPlayers(ctx, yfh.GormDB, game.Players()); err != nil {
 		return nil, fmt.Errorf("EnsureNHL (%s) -> %w", gamelink, err)
 	}
 	homeTeamID, err := game.HomeTeam().TeamID.ID()
@@ -217,11 +206,7 @@ func doImportGame(ctx context.Context, yfh *core.YFH, date time.Time, gamelink s
 	}
 	log.Debugf("Ensuring game %04d-%02d-%02d %d (%d) - %d (%d)", date.Year(), date.Month(), date.Day(),
 		homeTeamID, homeTeamScore, awayTeamID, awayTeamScore)
-	if err := yfh.GormDB.Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "date"}, {Name: "home_team_id"}, {Name: "away_team_id"}}, // TODO constants
-		// TODO move that list elsewhere
-		DoUpdates: clause.AssignmentColumns([]string{"home_team_score", "away_team_score", "state", "name", "github_timestamp"}),
-	}).Create(&newGame).Error; err != nil {
+	if err := newGame.Ensure(yfh.GormDB); err != nil {
 		return nil, err
 	}
 	stats, err := game.PlayerStats()

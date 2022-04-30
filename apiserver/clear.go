@@ -16,6 +16,9 @@ func ClearDB(ctx context.Context, yfh *core.YFH) error {
 	if err := core.DoMigration(yfh.GormDB); err != nil {
 		return err
 	}
+	if err := core.EnsureNHL(yfh.GormDB); err != nil {
+		return err
+	}
 	core.Publish(yfh.Queue, &core.Task{
 		Type: core.TaskInitMeta,
 	})

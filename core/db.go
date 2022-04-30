@@ -124,61 +124,161 @@ func DropEverything(db *gorm.DB) error {
 	return nil
 }
 
-/*
-
-func (db *DB) Create(value interface{}) (tx *gorm.DB) {
-	return db.orm.Create(value)
-}
-
-func (db *DB) HasFantasyGame() (bool, error) {
-	var fantasyGame model.FantasyGame
-	if err := db.orm.First(&fantasyGame).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-		return false, err
+func newNHLConference(db *gorm.DB, id uint, name string) error {
+	conf := model.NHLConference{
+		Model: gorm.Model{
+			ID: id,
+		},
+		Name: name,
 	}
-	return true, nil
+	return conf.Ensure(db)
 }
 
-func (db *DB) HasLeague() (bool, error) {
-	var league model.League
-	if err := db.orm.Take(&league).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-		return false, err
+func newNHLDivision(db *gorm.DB, id uint, confID uint, name string) error {
+	conf := model.NHLDivision{
+		Model: gorm.Model{
+			ID: id,
+		},
+		NHLConferenceID: confID,
+		Name:            name,
 	}
-	return true, nil
+	return conf.Ensure(db)
 }
 
-func (db *DB) HasPlayer(id int) (bool, error) {
-	var player model.Player
-	if err := db.orm.Take(&player, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-		return false, err
+func newNHLTeam(db *gorm.DB, id uint, confID uint, divisionID uint, city string, name string) error {
+	team := model.NHLTeam{
+		Model: gorm.Model{
+			ID: id,
+		},
+		NHLConferenceID: confID,
+		NHLDivisionID:   divisionID,
+		City:            city,
+		Name:            name,
 	}
-	return true, nil
+	return team.Ensure(db)
 }
 
-func (db *DB) HasRosterPlayer(teamID int, playerID int, month time.Month, day int) (bool, error) {
-	var rplayers []model.RosterPlayer
-	if err := db.orm.Where("team_id=? AND player_id=? AND month=? AND day=?", teamID, playerID, month, day).Find(&rplayers).Error; err != nil {
-		return false, err
-	}
-	return len(rplayers) > 0, nil
-}
+const CONF_EASTERN = 1
+const CONF_WESTERN = 2
+const DIV_ATLANTIC = 2
+const DIV_CENTRAL = 3
+const DIV_PACIFIC = 4
+const DIV_METROPOLITAN = 7
 
-func (db *DB) HasTeam(id int) (bool, error) {
-	var team model.Team
-	if err := db.orm.Take(&team, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-		return false, err
+func EnsureNHL(db *gorm.DB) error {
+	if err := newNHLConference(db, CONF_EASTERN, "Eastern"); err != nil {
+		return err
 	}
-	return true, nil
+	if err := newNHLConference(db, CONF_WESTERN, "Western"); err != nil {
+		return err
+	}
+	if err := newNHLDivision(db, DIV_ATLANTIC, CONF_EASTERN, "Atlantic"); err != nil {
+		return err
+	}
+	if err := newNHLDivision(db, DIV_CENTRAL, CONF_WESTERN, "Central"); err != nil {
+		return err
+	}
+	if err := newNHLDivision(db, DIV_PACIFIC, CONF_WESTERN, "Pacific"); err != nil {
+		return err
+	}
+	if err := newNHLDivision(db, DIV_METROPOLITAN, CONF_EASTERN, "Metropolitan"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 1, CONF_EASTERN, DIV_ATLANTIC, "Boston", "Bruins"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 2, CONF_EASTERN, DIV_ATLANTIC, "Buffalo", "Sabres"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 3, CONF_WESTERN, DIV_PACIFIC, "Calgary", "Flames"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 4, CONF_WESTERN, DIV_CENTRAL, "Chicago", "Blackhawks"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 5, CONF_EASTERN, DIV_ATLANTIC, "Detroit", "Red Wings"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 6, CONF_WESTERN, DIV_PACIFIC, "Edmonton", "Oilers"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 7, CONF_EASTERN, DIV_METROPOLITAN, "Carolina", "Hurricanes"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 8, CONF_WESTERN, DIV_PACIFIC, "Los Angeles", "Kings"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 9, CONF_WESTERN, DIV_CENTRAL, "Dallas", "Stars"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 10, CONF_EASTERN, DIV_ATLANTIC, "Montreal", "Canadiens"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 11, CONF_EASTERN, DIV_METROPOLITAN, "New Jersey", "Devils"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 12, CONF_EASTERN, DIV_METROPOLITAN, "New York", "Islanders"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 13, CONF_EASTERN, DIV_METROPOLITAN, "New York", "Rangers"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 14, CONF_EASTERN, DIV_ATLANTIC, "Ottawa", "Senators"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 15, CONF_EASTERN, DIV_METROPOLITAN, "Philadelphia", "Flyers"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 16, CONF_EASTERN, DIV_METROPOLITAN, "Pittsburgh", "Penguins"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 17, CONF_WESTERN, DIV_CENTRAL, "Colorado", "Avalanche"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 18, CONF_WESTERN, DIV_PACIFIC, "San Jose", "Sharks"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 19, CONF_WESTERN, DIV_CENTRAL, "St. Louis", "Blues"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 20, CONF_EASTERN, DIV_ATLANTIC, "Tampa Bay", "Lightning"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 21, CONF_EASTERN, DIV_ATLANTIC, "Toronto", "Maple Leafs"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 22, CONF_WESTERN, DIV_PACIFIC, "Vancouver", "Canucks"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 23, CONF_EASTERN, DIV_METROPOLITAN, "Washington", "Capitals"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 24, CONF_WESTERN, DIV_CENTRAL, "Arizona", "Coyotes"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 25, CONF_WESTERN, DIV_PACIFIC, "Anaheim", "Ducks"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 26, CONF_EASTERN, DIV_ATLANTIC, "Florida", "Panthers"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 27, CONF_WESTERN, DIV_CENTRAL, "Nashville", "Predators"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 28, CONF_WESTERN, DIV_CENTRAL, "Winnipeg", "Jets"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 29, CONF_EASTERN, DIV_METROPOLITAN, "Columbus", "Blue Jackets"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 30, CONF_WESTERN, DIV_CENTRAL, "Minnesota", "Wild"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 58, CONF_WESTERN, DIV_PACIFIC, "Vegas", "Golden Knights"); err != nil {
+		return err
+	}
+	if err := newNHLTeam(db, 59, CONF_WESTERN, DIV_PACIFIC, "Seattle", "Kraken"); err != nil {
+		return err
+	}
+	return nil
 }
-*/

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Game struct {
@@ -20,4 +21,12 @@ type Game struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	DeletedAt       gorm.DeletedAt `gorm:"index"`
+}
+
+func (g *Game) Ensure(db *gorm.DB) error {
+	return db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "date"}, {Name: "home_team_id"}, {Name: "away_team_id"}}, // TODO constants
+		// TODO move that list elsewhere
+		DoUpdates: clause.AssignmentColumns([]string{"home_team_score", "away_team_score", "state", "name", "github_timestamp"}),
+	}).Create(g).Error
 }

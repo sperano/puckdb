@@ -7,7 +7,6 @@ import (
 
 	"github.com/dustin/go-humanize/english"
 	"github.com/ericsperano/yfh/core"
-	"github.com/ericsperano/yfh/core/model"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,15 +36,7 @@ func EnsureRecentFantasyGame(ctx context.Context, yfh *core.YFH) (*core.GithubFi
 }
 
 func HandleImportFantasyGame(ctx context.Context, yfh *core.YFH) error {
-	var count int64
-	yfh.GormDB.Model(&model.FantasyGame{}).Count(&count)
-	log.Debugf("Count: %d", count)
-	if count > 0 {
-		log.Infof("Already has %s in the database", english.Plural(int(count), "fantasy game", ""))
-		return nil
-	}
-	log.Info("No fantasy game found in the database")
-	// check if the game list is in the github cache first
+	// check if the fantasy game is in the github cache first
 	gitfile, err := EnsureRecentFantasyGame(ctx, yfh)
 	if err != nil {
 		return err
@@ -54,8 +45,8 @@ func HandleImportFantasyGame(ctx context.Context, yfh *core.YFH) error {
 	if err != nil {
 		return err
 	}
-	obj := fantasy.Game.ToFantasyGameModel()
-	obj.GithubTimestamp = gitfile.Time
-	log.Info("Creating fantasy game in database")
-	return yfh.GormDB.Create(&obj).Error
+	fg := fantasy.Game.ToFantasyGameModel()
+	fg.GithubTimestamp = gitfile.Time
+	log.Debugf("Ensuring fantasy game")
+	return fg.Ensure(yfh.GormDB)
 }

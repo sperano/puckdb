@@ -7,7 +7,6 @@ import (
 
 	"github.com/dustin/go-humanize/english"
 	"github.com/ericsperano/yfh/core"
-	"github.com/ericsperano/yfh/core/model"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -26,7 +25,7 @@ func EnsureRecentTeam(ctx context.Context, yfh *core.YFH, teamID int) (*core.Git
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Found %s in github", english.Plural(len(gitfiles), "fantasy game file", ""))
+	log.Debugf("Found %s in github", english.Plural(len(gitfiles), "team file", ""))
 	if len(gitfiles) == 0 {
 		content, err := Download(ctx, yfh, core.YahooTeamURL(viper.GetInt(core.FlagLeagueID), teamID))
 		if err != nil {
@@ -47,17 +46,7 @@ func EnsureRecentTeam(ctx context.Context, yfh *core.YFH, teamID int) (*core.Git
 }
 
 func HandleImportTeam(ctx context.Context, yfh *core.YFH, teamID int) error {
-	var count int64
-	if err := yfh.GormDB.Find(&model.Team{}, "id=?", teamID).Count(&count).Error; err != nil {
-		return err
-	}
-	log.Debugf("Count: %d", count)
-	if count > 0 {
-		log.Infof("Already has %s in the database for id %d", english.Plural(int(count), "team", ""), teamID)
-		return nil
-	}
-	log.Infof("No team found in the database for id %d", teamID)
-	// check if the game list is in the github cache first
+	// check if the team is in the github cache first
 	gitfile, err := EnsureRecentTeam(ctx, yfh, teamID)
 	if err != nil {
 		return err
@@ -66,8 +55,8 @@ func HandleImportTeam(ctx context.Context, yfh *core.YFH, teamID int) error {
 	if err != nil {
 		return err
 	}
-	obj := fantasy.Team.ToTeamModel()
-	obj.GithubTimestamp = gitfile.Time
-	log.Infof("Creating team in database for id %d", teamID)
-	return yfh.GormDB.Create(&obj).Error
+	team := fantasy.Team.ToTeamModel()
+	team.GithubTimestamp = gitfile.Time
+	log.Debugf("Ensuring team: %02d", team.ID)
+	return team.Ensure(yfh.GormDB)
 }

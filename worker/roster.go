@@ -48,56 +48,6 @@ func EnsureRecentRoster(ctx context.Context, yfh *core.YFH, teamID int, date tim
 	return gitfiles[0], nil
 }
 
-/*
-
-func findJSON(content []byte, gameLink string) (string, error) {
-	const prefix = "root.App.main = "
-	for _, line := range strings.Split(string(content), "\n") {
-		if strings.HasPrefix(line, prefix) {
-			// found it, parsing it
-			return line[len(prefix) : len(line)-1], nil
-		}
-	}
-	return "", fmt.Errorf("couldn't find json data in %s", gameLink)
-}
-
-func GetGameXMLModel(ctx context.Context, yfh *core.YFH, date time.Time, gameLink string) (*xmlmodel.Game, *core.GithubFile, error) {
-	gitfile, err := EnsureRecentGame(ctx, yfh, date, gameLink)
-	if err != nil {
-		return nil, nil, err
-	}
-	content, err := yfh.Github.ReadFile(ctx, path.Join(core.GameDir(date), gitfile.Filename()))
-	if err != nil {
-		return nil, nil, err
-	}
-	// find the json data in the file
-	jsonData, err := findJSON(content, gameLink)
-	if err != nil {
-		return nil, nil, err
-	}
-	var game xmlmodel.Game
-	if err := json.Unmarshal([]byte(jsonData), &game); err != nil {
-		// one "valid" error is that the game was postponed
-		if game.IsPostponed() {
-			log.Warnf("Game %s was postponed", gameLink)
-		} else {
-			return nil, nil, err
-		}
-	}
-	return &game, gitfile, nil
-}
-
-func EnsureNHL(ctx context.Context, db *gorm.DB, game *xmlmodel.Game) error {
-	if err := EnsureNHLTeam(ctx, db, game.HomeTeam()); err != nil {
-		return fmt.Errorf("error with home team -> %w", err)
-	}
-	if err := EnsureNHLTeam(ctx, db, game.AwayTeam()); err != nil {
-		return fmt.Errorf("error with away team -> %w", err)
-	}
-	return EnsureNHLPlayers(ctx, db, game.Players())
-}
-*/
-
 func RostersGenerator() <-chan int {
 	out := make(chan int)
 	go func() {
@@ -153,86 +103,26 @@ func importRostersPipeline(ctx context.Context, yfh *core.YFH, date time.Time) e
 }
 
 func doImportRoster(ctx context.Context, yfh *core.YFH, teamID int, date time.Time) ([]*model.RosterPlayer, error) {
-	// check if the game list is in the github cache first
+	// check if the roster is in the github cache first
 	gitfile, err := EnsureRecentRoster(ctx, yfh, teamID, date)
 	if err != nil {
 		return nil, err
 	}
 	fantasy, err := yfh.Github.ParseXML(ctx, path.Join(core.RostersDir(teamID), gitfile.Filename()))
-
-	_ = fantasy
-
-	/*
-		game, gitfile, err := GetGameXMLModel(ctx, yfh, date, gamelink)
-		if err != nil {
-			return nil, fmt.Errorf("GetGamesXMLModel (%s) -> %w", gamelink, err)
-		}
-		if !game.IsRegularSeason() {
-			log.Warnf("Not a regular season game: %s", gamelink)
-			return nil, nil
-		}
-		log.Debug(pp.Sprint(game))
-
-		if err := EnsureNHL(ctx, yfh.GormDB, game); err != nil {
-			return nil, fmt.Errorf("EnsureNHL (%s) -> %w", gamelink, err)
-		}
-		homeTeamID, err := game.HomeTeam().TeamID.Id()
-		if err != nil {
+	if err != nil {
+		return nil, err
+	}
+	models, err := fantasy.Team.ToRosterPlayersModel()
+	if err != nil {
+		return nil, err
+	}
+	for _, rp := range models {
+		log.Debugf("Ensuring player roster %04d-%02d-%02d team:%02d player:%d %s", date.Year(), date.Month(), date.Day(), rp.TeamID, rp.PlayerID, rp.SelectedPosition)
+		if err := rp.Ensure(yfh.GormDB); err != nil {
 			return nil, err
 		}
-		homeTeamScore, err := game.HomeTeamScore()
-		if err != nil {
-			return nil, err
-		}
-		awayTeamID, err := game.AwayTeam().TeamID.Id()
-		if err != nil {
-			return nil, err
-		}
-		awayTeamScore, err := game.AwayTeamScore()
-		if err != nil {
-			return nil, err
-		}
-		newGame := model.Game{
-			Date:            date,
-			HomeTeamID:      homeTeamID,
-			HomeTeamScore:   uint(homeTeamScore),
-			AwayTeamID:      awayTeamID,
-			AwayTeamScore:   uint(awayTeamScore),
-			State:           game.GetState(),
-			Name:            gamelink[5 : len(gamelink)-1],
-			GithubTimestamp: gitfile.Time, // TODO not good timezone?
-		}
-		log.Debugf("Ensuring game %04d-%02d-%02d %d (%d) - %d (%d)", date.Year(), date.Month(), date.Day(),
-			homeTeamID, homeTeamScore, awayTeamID, awayTeamScore)
-		if err := yfh.GormDB.Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "date"}, {Name: "home_team_id"}, {Name: "away_team_id"}}, // TODO constants
-			// TODO move that list elsewhere
-			DoUpdates: clause.AssignmentColumns([]string{"home_team_score", "away_team_score", "state", "name", "github_timestamp"}),
-		}).Create(&newGame).Error; err != nil {
-			return nil, err
-		}
-		stats, err := game.PlayerStats()
-		if err != nil {
-			return nil, err
-		}
-		for _, ps := range stats {
-			playerStats, err := ps.ToPlayerStatsModel()
-			if err != nil {
-				return nil, err
-			}
-			playerStats.Date = date
-			logPlayerStats(date, playerStats)
-
-			if err := yfh.GormDB.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "date"}, {Name: "player_id"}}, // TODO constants
-				DoUpdates: clause.AssignmentColumns(model.PlayerStatsUpdateCols),
-			}).Create(&playerStats).Error; err != nil {
-				return nil, err
-			}
-		}
-		return &newGame, nil
-	*/
-	return nil, nil
+	}
+	return models, nil
 }
 
 func HandleImportRoster(ctx context.Context, yfh *core.YFH, teamID int, date time.Time) error {
