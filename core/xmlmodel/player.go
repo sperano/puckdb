@@ -86,12 +86,12 @@ type Player struct {
 	Key                      string   `xml:"player_key"`
 	ID                       int      `xml:"player_id"`
 	Name                     PlayerName
-	EditorialPlayerKey       string `xml:"editorial_player_key"`
-	EditorialTeamKey         string `xml:"editorial_team_key"`
-	EditorialTeamFullName    string `xml:"editorial_team_full_name"`
-	EditorialTeamAbbr        string `xml:"editorial_team_abbr"`
-	UniformNumber            int    `xml:"uniform_number"`
-	DisplayPosition          string `xml:"display_position"`
+	EditorialPlayerKey       string    `xml:"editorial_player_key"`
+	EditorialTeamKey         NHLTeamID `xml:"editorial_team_key"`
+	EditorialTeamFullName    string    `xml:"editorial_team_full_name"`
+	EditorialTeamAbbr        string    `xml:"editorial_team_abbr"`
+	UniformNumber            int       `xml:"uniform_number"`
+	DisplayPosition          string    `xml:"display_position"`
 	Headshot                 PlayerHeadshot
 	ImageURL                 string   `xml:"image_url"`
 	IsUndroppable            bool     `xml:"is_undroppable"`
@@ -104,62 +104,8 @@ type Player struct {
 	IsEditable               bool `xml:"is_editable"`
 }
 
-/*
-func (p *Player) ToPlayerModel() (*model.Player, error) {
-	if err := p.Name.Validate(); err != nil {
-		return nil, err
-	}
-	return &model.Player{
-		ID:        p.ID,
-		Key:       p.Key,
-		FirstName: p.Name.First,
-		LastName:  p.Name.Last,
-		//EditorialPlayerKey: p.EditorialPlayerKey,
-	}, nil
-}
-*/
-
-/*
-func (p *Player) ToPlayerStatsModel() (*model.PlayerStats, error) {
-	if err := p.Name.Validate(); err != nil {
-		return nil, err
-	}
-	return &model.PlayerStats{
-		PlayerID: p.ID,
-		GoalAgainst: p.,
-		ShotsAgainst:      uint
-		Saves             uint
-		SavePercentage    uint
-		GoalieTimeOnIce   time.Time
-		Goals             uint
-		Assists           uint
-		PlusMinus         uint
-		PenaltyMinutes    uint
-		ShotsOnGoal       uint
-		FaceoffsWon       uint
-		FaceoffsLost      uint
-		Hits              uint
-		Blocks            uint
-		TimeOnIce         time.Time
-		FaceOffPercentage uint
-		Shifts            uint
-		TakeAways         uint
-		GiveAways         uint
-
-		ID:        p.ID,
-		Key:       p.Key,
-		FirstName: p.Name.First,
-		LastName:  p.Name.Last,
-		//EditorialPlayerKey: p.EditorialPlayerKey,
-	}, nil
-}
-
-*/
-
 type Players struct {
 	XMLName xml.Name `xml:"players"`
 	Slice   []Player `xml:"player"`
 	Count   int      `xml:"count,attr"`
 }
-
-//if model, err := xmlroster.ToGormModel(xmlplayer); err != nil {

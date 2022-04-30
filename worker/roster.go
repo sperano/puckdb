@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"path"
 	"time"
 
 	"github.com/dustin/go-humanize/english"
@@ -157,7 +158,10 @@ func doImportRoster(ctx context.Context, yfh *core.YFH, teamID int, date time.Ti
 	if err != nil {
 		return nil, err
 	}
-	_ = gitfile
+	fantasy, err := yfh.Github.ParseXML(ctx, path.Join(core.RostersDir(teamID), gitfile.Filename()))
+
+	_ = fantasy
+
 	/*
 		game, gitfile, err := GetGameXMLModel(ctx, yfh, date, gamelink)
 		if err != nil {

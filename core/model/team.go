@@ -7,7 +7,7 @@ import (
 )
 
 type Manager struct {
-	ManagerID       int
+	ManagerID       uint
 	Nickname        string
 	GUID            string
 	EMail           string

@@ -176,7 +176,7 @@ func HandleImportGames(ctx context.Context, yfh *core.YFH, date time.Time) error
 }
 
 func doImportGame(ctx context.Context, yfh *core.YFH, date time.Time, gamelink string) (*model.Game, error) {
-	log.Debugf("URL: %s", gamelink)
+	log.Tracef("URL: %s", gamelink)
 	game, gitfile, err := GetGameXMLModel(ctx, yfh, date, gamelink)
 	if err != nil {
 		return nil, fmt.Errorf("GetGamesXMLModel (%s) -> %w", gamelink, err)
@@ -189,7 +189,7 @@ func doImportGame(ctx context.Context, yfh *core.YFH, date time.Time, gamelink s
 	if err := EnsureNHL(ctx, yfh.GormDB, game); err != nil {
 		return nil, fmt.Errorf("EnsureNHL (%s) -> %w", gamelink, err)
 	}
-	homeTeamID, err := game.HomeTeam().TeamID.Id()
+	homeTeamID, err := game.HomeTeam().TeamID.ID()
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func doImportGame(ctx context.Context, yfh *core.YFH, date time.Time, gamelink s
 	if err != nil {
 		return nil, err
 	}
-	awayTeamID, err := game.AwayTeam().TeamID.Id()
+	awayTeamID, err := game.AwayTeam().TeamID.ID()
 	if err != nil {
 		return nil, err
 	}

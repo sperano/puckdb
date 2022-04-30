@@ -83,7 +83,7 @@ func (t *Team) ToTeamModel() *model.Team {
 		DraftPosition:         t.DraftPosition,
 		HasDraftGrade:         t.HasDraftGrade,
 		Manager: model.Manager{
-			ManagerID: man.ID,
+			ManagerID: uint(man.ID),
 			Nickname:  man.Nickname,
 			GUID:      man.GUID,
 			EMail:     man.EMail,
@@ -92,24 +92,26 @@ func (t *Team) ToTeamModel() *model.Team {
 	}
 }
 
-func (t *Team) ToRosterPlayerModel(xmlplayer *Player) (*model.RosterPlayer, error) {
+func (t *Team) ToRosterPlayersModel() ([]*model.RosterPlayer, error) {
 	date, err := time.Parse("2006-01-02", t.Roster.Date)
 	if err != nil {
 		return nil, err
 	}
-	return &model.RosterPlayer{
-		PlayerID:          uint(xmlplayer.ID),
-		Month:             date.Month(),
-		Day:               uint8(date.Day()),
-		EligiblePositions: strings.Join(xmlplayer.EligiblePositions, " "),
-		SelectedPosition:  xmlplayer.SelectedPosition.Position,
-		FeloScore:         t.Managers.Slice[0].FeloScore,
-		FeloTier:          t.Managers.Slice[0].FeloTier,
-		WaiverPriority:    t.WaiverPriority,
-		NumberOfMoves:     t.NumberOfMoves,
-		NumberOfTrades:    t.NumberOfTrades,
-		EditorialTeamKey:  xmlplayer.EditorialTeamKey,
-		EditorialTeamAbbr: xmlplayer.EditorialTeamAbbr,
-		UniformNumber:     xmlplayer.UniformNumber,
-	}, nil
+	players := []*model.RosterPlayer{}
+	for _, p := range t.Roster.Players.Slice {
+		nhlid, err := p.EditorialTeamKey.ID()
+		if err != nil {
+			return nil, err
+		}
+		player := &model.RosterPlayer{
+			TeamID:            uint(t.ID),
+			PlayerID:          uint(p.ID),
+			NHLTeamID:         nhlid,
+			Date:              date,
+			EligiblePositions: strings.Join(p.EligiblePositions, " "),
+			SelectedPosition:  p.SelectedPosition.Position,
+		}
+		players = append(players, player)
+	}
+	return players, nil
 }

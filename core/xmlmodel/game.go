@@ -22,7 +22,7 @@ type GameLink struct {
 
 type PlayerID string
 
-func (p PlayerID) Id() (uint, error) {
+func (p PlayerID) ID() (uint, error) {
 	tokens := strings.Split(string(p), ".")
 	if len(tokens) != 3 {
 		return 0, fmt.Errorf("invalid PlayerID: %s", p)
@@ -36,7 +36,7 @@ func (p PlayerID) Id() (uint, error) {
 
 type GameID string
 
-func (g GameID) Id() (uint, error) {
+func (g GameID) ID() (uint, error) {
 	tokens := strings.Split(string(g), ".")
 	if len(tokens) != 3 {
 		return 0, fmt.Errorf("invalid GameID: %s", g)
@@ -50,7 +50,7 @@ func (g GameID) Id() (uint, error) {
 
 type PositionID string
 
-func (p PositionID) Id() (uint, error) {
+func (p PositionID) ID() (uint, error) {
 	tokens := strings.Split(string(p), ".")
 	if len(tokens) != 3 {
 		return 0, fmt.Errorf("invalid PositionID: %s", p)
@@ -64,7 +64,7 @@ func (p PositionID) Id() (uint, error) {
 
 type NHLTeamID string
 
-func (t NHLTeamID) Id() (uint, error) {
+func (t NHLTeamID) ID() (uint, error) {
 	tokens := strings.Split(string(t), ".")
 	if len(tokens) != 3 {
 		return 0, fmt.Errorf("invalid NHLTeamID: %s", t)
@@ -90,7 +90,7 @@ type PlayerInfo struct {
 }
 
 func (p *PlayerInfo) ToPlayerModel() (*model.Player, error) {
-	id, err := p.PlayerID.Id()
+	id, err := p.PlayerID.ID()
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (p *PlayerInfo) ToPlayerModel() (*model.Player, error) {
 	} else {
 		log.Warnf("Empty uniform number for %s %s\n", p.FirstName, p.LastName)
 	}
-	nid, err := p.NHLTeam.Id()
+	nid, err := p.NHLTeam.ID()
 	if err != nil {
 		return nil, err
 	}
@@ -157,12 +157,12 @@ func (ps *PlayerStats) ToPlayerStatsModel() (*model.PlayerStats, error) {
 	log.Debugf("player stats source=%+v", ps)
 
 	playerStats := &model.PlayerStats{}
-	id, err := ps.PlayerID.Id()
+	id, err := ps.PlayerID.ID()
 	if err != nil {
 		return nil, err
 	}
 	playerStats.PlayerID = id
-	id, err = ps.NHLTeamID.Id()
+	id, err = ps.NHLTeamID.ID()
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ type TeamInfo struct {
 }
 
 func (t *TeamInfo) ToNHLTeamModel() (*model.NHLTeam, error) {
-	id, err := t.TeamID.Id()
+	id, err := t.TeamID.ID()
 	if err != nil {
 		return nil, err
 	}
