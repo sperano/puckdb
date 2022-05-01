@@ -72,7 +72,7 @@ func SetupRouter(yfh *core.YFH) *gin.Engine {
 	r.DELETE("/cache/teams/:team_id", HandleInvalidateCacheTeam(yfh))
 	r.DELETE("/cache/:date/games", HandleInvalidateCacheGame(yfh))
 	r.DELETE("/cache/:date/games/:game", HandleInvalidateCacheGame(yfh))
-	//r.DELETE("/cache/:date/rosters", HandleInvalidateCacheGame(yfh))
+	//r.DELETE("/cache/:date/rosters", HandleInvalidateCacheRosters(yfh))
 	//r.DELETE("/cache/:date/rosters/:team_id", HandleInvalidateCacheGame(yfh))
 
 	r.DELETE("/db", HandleClearDB(yfh))

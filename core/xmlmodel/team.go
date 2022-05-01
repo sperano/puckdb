@@ -2,7 +2,6 @@ package xmlmodel
 
 import (
 	"encoding/xml"
-	"strings"
 	"time"
 
 	"github.com/ericsperano/yfh/core/model"
@@ -103,13 +102,25 @@ func (t *Team) ToRosterPlayersModel() ([]*model.RosterPlayer, error) {
 		if err != nil {
 			return nil, err
 		}
+		sp, err := model.ParseRosterPosition(p.SelectedPosition.Position)
+		if err != nil {
+			return nil, err
+		}
+		var elig model.RosterPosition
+		for _, epStr := range p.EligiblePositions {
+			pos, err := model.ParseRosterPosition(epStr)
+			if err != nil {
+				return nil, err
+			}
+			elig |= pos
+		}
 		player := &model.RosterPlayer{
 			TeamID:            uint(t.ID),
 			PlayerID:          uint(p.ID),
 			NHLTeamID:         nhlid,
 			Date:              date,
-			EligiblePositions: strings.Join(p.EligiblePositions, " "),
-			SelectedPosition:  p.SelectedPosition.Position,
+			EligiblePositions: elig,
+			SelectedPosition:  sp,
 		}
 		players = append(players, player)
 	}
