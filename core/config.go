@@ -39,14 +39,14 @@ func GetLeagueID() int {
 	return viper.GetInt(FlagLeagueID)
 }
 
-func GetTeamIds() []int {
-	ids := []int{}
+func GetTeamIDs() []uint {
+	ids := []uint{}
 	for _, tok := range strings.Split(viper.GetString(FlagTeamIDs), ",") {
 		i, err := strconv.Atoi(tok)
 		if err != nil {
 			log.Fatal(err)
 		}
-		ids = append(ids, i)
+		ids = append(ids, uint(i))
 	}
 	return ids
 }

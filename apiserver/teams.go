@@ -42,7 +42,7 @@ func HandleGetTeams(yfh *core.YFH) func(c *gin.Context) {
 		var teams []*Team
 		var err error
 		var team *Team
-		for _, id := range core.GetTeamIds() {
+		for _, id := range core.GetTeamIDs() {
 			team, err = getTeam(ctx, yfh, id)
 			if err != nil {
 				break
@@ -57,7 +57,7 @@ func HandleGetTeams(yfh *core.YFH) func(c *gin.Context) {
 	}
 }
 
-func getTeam(ctx context.Context, yfh *core.YFH, teamID int) (*Team, error) {
+func getTeam(ctx context.Context, yfh *core.YFH, teamID uint) (*Team, error) {
 	files, err := yfh.Github.FindTeam(ctx, teamID)
 	if err != nil {
 		return nil, err

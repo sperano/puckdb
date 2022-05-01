@@ -66,7 +66,7 @@ func (w *Worker) Consume(delivery rmq.Delivery) {
 		var teamID int
 		teamID, err = strconv.Atoi(task.Data[core.TaskDataTeamID])
 		if err == nil {
-			err = HandleImportTeam(ctx, w.YFH, teamID)
+			err = HandleImportTeam(ctx, w.YFH, uint(teamID))
 		}
 	case core.TaskImportGames:
 		var date time.Time
@@ -87,7 +87,7 @@ func (w *Worker) Consume(delivery rmq.Delivery) {
 			var date time.Time
 			date, err = getDateParam(task)
 			if err == nil {
-				err = HandleImportRoster(ctx, w.YFH, teamID, date)
+				err = HandleImportRoster(ctx, w.YFH, uint(teamID), date)
 			}
 		}
 	case core.TaskImportRosters:

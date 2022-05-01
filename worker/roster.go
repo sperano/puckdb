@@ -13,10 +13,32 @@ import (
 	"github.com/spf13/viper"
 )
 
+func DownloadAndSaveRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*core.GithubFile, error) {
+	var gitfiles []*core.GithubFile
+	// download it if none are found then add it in github
+	content, err := Download(ctx, yfh, core.RosterURL(teamID, date))
+	if err != nil {
+		return nil, err
+	}
+	if err := yfh.Github.CreateRoster(ctx, teamID, date, content); err != nil {
+		return nil, err
+	}
+	// get the gitfile for what we just cre ated, it's from the cache so it's quick
+	gitfiles, err = yfh.Github.FindRoster(ctx, teamID, date)
+	if err != nil {
+		return nil, err
+	}
+	if len(gitfiles) == 0 {
+		return nil, fmt.Errorf("should have found at least one file for roster of team %02d on %04d-0%02d-%02d in github", teamID,
+			date.Year(), date.Month(), date.Day())
+	}
+	return gitfiles[0], nil
+}
+
 /**
  * Ensure there is a file in github for a given roster for a given team on a given day
  */
-func EnsureRecentRoster(ctx context.Context, yfh *core.YFH, teamID int, date time.Time) (*core.GithubFile, error) {
+func EnsureRecentRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*core.GithubFile, error) {
 	log.Debugf("EnsureRecentRoster date: %4d-%02d-%02d team: %d", date.Year(), date.Month(), date.Day(), teamID)
 	// fetch the files in github for the roster for that team on that date
 	gitfiles, err := yfh.Github.FindRoster(ctx, teamID, date)
@@ -48,18 +70,18 @@ func EnsureRecentRoster(ctx context.Context, yfh *core.YFH, teamID int, date tim
 	return gitfiles[0], nil
 }
 
-func RostersGenerator() <-chan int {
-	out := make(chan int)
+func RostersGenerator() <-chan uint {
+	out := make(chan uint)
 	go func() {
 		defer close(out)
-		for _, id := range core.GetTeamIds() {
+		for _, id := range core.GetTeamIDs() {
 			out <- id
 		}
 	}()
 	return out
 }
 
-func importRosterStage(ctx context.Context, yfh *core.YFH, date time.Time, teamIDs <-chan int) (<-chan []*model.RosterPlayer, <-chan error) {
+func importRosterStage(ctx context.Context, yfh *core.YFH, date time.Time, teamIDs <-chan uint) (<-chan []*model.RosterPlayer, <-chan error) {
 	out := make(chan []*model.RosterPlayer)
 	errc := make(chan error, 1)
 	go func() {
@@ -102,30 +124,39 @@ func importRostersPipeline(ctx context.Context, yfh *core.YFH, date time.Time) e
 	return nil
 }
 
-func doImportRoster(ctx context.Context, yfh *core.YFH, teamID int, date time.Time) ([]*model.RosterPlayer, error) {
+func doImportRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) ([]*model.RosterPlayer, error) {
 	// check if the roster is in the github cache first
 	gitfile, err := EnsureRecentRoster(ctx, yfh, teamID, date)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("EnsureRecentRoster teamID=%02d date=%4d-%02d-%02d error=%w",
+			teamID, date.Year(), date.Month(), date.Day(), err)
 	}
 	fantasy, err := yfh.Github.ParseXML(ctx, path.Join(core.RostersDir(teamID), gitfile.Filename()))
 	if err != nil {
-		return nil, err
+		log.Warnf("Can't parse the roster file for teamID=%02d date=%4d-%02d-%02d error=%w",
+			teamID, date.Year(), date.Month(), date.Day(), err)
+
+		return nil, fmt.Errorf("ParseXML teamID=%02d date=%4d-%02d-%02d error=%w",
+			teamID, date.Year(), date.Month(), date.Day(), err)
+
 	}
 	models, err := fantasy.Team.ToRosterPlayersModel()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ToRosterPlayersModel teamID=%02d date=%4d-%02d-%02d error=%w",
+			teamID, date.Year(), date.Month(), date.Day(), err)
 	}
 	for _, rp := range models {
-		log.Debugf("Ensuring player roster %04d-%02d-%02d team:%02d player:%d %s", date.Year(), date.Month(), date.Day(), rp.TeamID, rp.PlayerID, rp.SelectedPosition)
+		log.Debugf("Ensuring player roster %04d-%02d-%02d team:%02d player:%d %s",
+			date.Year(), date.Month(), date.Day(), rp.TeamID, rp.PlayerID, rp.SelectedPosition)
 		if err := rp.Ensure(yfh.GormDB); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("RosterPlayerModel playerID=%d teamID=%02d date=%4d-%02d-%02d error=%w",
+				rp.PlayerID, teamID, date.Year(), date.Month(), date.Day(), err)
 		}
 	}
 	return models, nil
 }
 
-func HandleImportRoster(ctx context.Context, yfh *core.YFH, teamID int, date time.Time) error {
+func HandleImportRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) error {
 	_, err := doImportRoster(ctx, yfh, teamID, date)
 	return err
 }

@@ -12,7 +12,7 @@ import (
 )
 
 func HandleImportTeams(ctx context.Context, yfh *core.YFH) error {
-	for _, teamID := range core.GetTeamIds() {
+	for _, teamID := range core.GetTeamIDs() {
 		if err := HandleImportTeam(ctx, yfh, teamID); err != nil {
 			return err
 		}
@@ -20,7 +20,7 @@ func HandleImportTeams(ctx context.Context, yfh *core.YFH) error {
 	return nil
 }
 
-func EnsureRecentTeam(ctx context.Context, yfh *core.YFH, teamID int) (*core.GithubFile, error) {
+func EnsureRecentTeam(ctx context.Context, yfh *core.YFH, teamID uint) (*core.GithubFile, error) {
 	gitfiles, err := yfh.Github.FindTeam(ctx, teamID)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func EnsureRecentTeam(ctx context.Context, yfh *core.YFH, teamID int) (*core.Git
 	return gitfiles[0], nil
 }
 
-func HandleImportTeam(ctx context.Context, yfh *core.YFH, teamID int) error {
+func HandleImportTeam(ctx context.Context, yfh *core.YFH, teamID uint) error {
 	// check if the team is in the github cache first
 	gitfile, err := EnsureRecentTeam(ctx, yfh, teamID)
 	if err != nil {
