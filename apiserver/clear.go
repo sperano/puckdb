@@ -34,7 +34,11 @@ func HandleClearDB(yfh *core.YFH) func(*gin.Context) {
 }
 
 func ClearCache(ctx context.Context, yfh *core.YFH) error {
-	keys := yfh.RedisClient.Keys(ctx, "yfh*")
+	return ClearCacheWithFilter(ctx, yfh, "yfh*")
+}
+
+func ClearCacheWithFilter(ctx context.Context, yfh *core.YFH, filter string) error {
+	keys := yfh.RedisClient.Keys(ctx, filter)
 	if err := keys.Err(); err != nil {
 		return err
 	}

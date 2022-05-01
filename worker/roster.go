@@ -48,23 +48,26 @@ func EnsureRecentRoster(ctx context.Context, yfh *core.YFH, teamID uint, date ti
 	log.Debugf("Found %s for team %02d on %04d-%02d-%02d in github", english.Plural(len(gitfiles), "roster", ""), teamID,
 		date.Year(), date.Month(), date.Day())
 	if len(gitfiles) == 0 {
-		// download it if none are found then add it in github
-		content, err := Download(ctx, yfh, core.RosterURL(teamID, date))
-		if err != nil {
-			return nil, err
-		}
-		if err := yfh.Github.CreateRoster(ctx, teamID, date, content); err != nil {
-			return nil, err
-		}
-		// get the gitfile for what we just cre ated, it's from the cache so it's quick
-		gitfiles, err = yfh.Github.FindRoster(ctx, teamID, date)
-		if err != nil {
-			return nil, err
-		}
-		if len(gitfiles) == 0 {
-			return nil, fmt.Errorf("should have found at least one file for roster of team %02d on %04d-0%02d-%02d in github", teamID,
-				date.Year(), date.Month(), date.Day())
-		}
+		/*
+			// download it if none are found then add it in github
+			content, err := Download(ctx, yfh, core.RosterURL(teamID, date))
+			if err != nil {
+				return nil, err
+			}
+			if err := yfh.Github.CreateRoster(ctx, teamID, date, content); err != nil {
+				return nil, err
+			}
+			// get the gitfile for what we just cre ated, it's from the cache so it's quick
+			gitfiles, err = yfh.Github.FindRoster(ctx, teamID, date)
+			if err != nil {
+				return nil, err
+			}
+			if len(gitfiles) == 0 {
+				return nil, fmt.Errorf("should have found at least one file for roster of team %02d on %04d-0%02d-%02d in github", teamID,
+					date.Year(), date.Month(), date.Day())
+			}
+		*/
+		return DownloadAndSaveRoster(ctx, yfh, teamID, date)
 	}
 	// return the latest
 	return gitfiles[0], nil
@@ -133,12 +136,17 @@ func doImportRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.T
 	}
 	fantasy, err := yfh.Github.ParseXML(ctx, path.Join(core.RostersDir(teamID), gitfile.Filename()))
 	if err != nil {
-		log.Warnf("Can't parse the roster file for teamID=%02d date=%4d-%02d-%02d error=%w",
+		log.Warnf("Can't parse the roster file for teamID=%02d date=%4d-%02d-%02d error=%s",
 			teamID, date.Year(), date.Month(), date.Day(), err)
-
-		return nil, fmt.Errorf("ParseXML teamID=%02d date=%4d-%02d-%02d error=%w",
-			teamID, date.Year(), date.Month(), date.Day(), err)
-
+		// let's try to download and parse it again
+		gitfile, err = DownloadAndSaveRoster(ctx, yfh, teamID, date)
+		if err != nil {
+			return nil, err
+		}
+		fantasy, err = yfh.Github.ParseXML(ctx, path.Join(core.RostersDir(teamID), gitfile.Filename()))
+		if err != nil {
+			return nil, err
+		}
 	}
 	models, err := fantasy.Team.ToRosterPlayersModel()
 	if err != nil {

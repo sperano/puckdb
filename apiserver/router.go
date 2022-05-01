@@ -33,6 +33,14 @@ func Publish(ctx *gin.Context, yfh *core.YFH, task *core.Task) {
 	}
 }
 
+func HandleInvalidateCache(yfh *core.YFH, filter string) func(c *gin.Context) {
+	return func(ctx *gin.Context) {
+		if err := ClearCacheWithFilter(ctx, yfh, filter); err != nil {
+			HandleError(ctx, http.StatusInternalServerError, err)
+		}
+	}
+}
+
 func SetupRouter(yfh *core.YFH) *gin.Engine {
 	r := gin.Default()
 	//r.SetTrustedProxies(nil)
@@ -52,8 +60,11 @@ func SetupRouter(yfh *core.YFH) *gin.Engine {
 	r.POST("/clear/cache", HandleClearCache(yfh))
 
 	r.GET("/fantasy_game", HandleGetFantasyGame(yfh))
+	r.DELETE("/cache/fantasy_game", HandleInvalidateCache(yfh, "yfh-fantasy-game*"))
 	r.GET("/league", HandleGetLeague(yfh))
+	r.DELETE("/cache/league", HandleInvalidateCache(yfh, "yfh-league*"))
 	r.GET("/teams", HandleGetTeams(yfh))
+	r.DELETE("/cache/teams", HandleInvalidateCache(yfh, "yfh-team-*"))
 	r.GET("/nhl/teams", HandleGetNHLTeams(yfh))
 	r.GET("/nhl/divisions", HandleGetNHLDivisions(yfh))
 	r.GET("/nhl/conferences", HandleGetNHLConferences(yfh))
