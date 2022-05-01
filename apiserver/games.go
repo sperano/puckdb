@@ -22,7 +22,7 @@ func HandleImportGames(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context
 			Type: core.TaskImportGames,
 			Data: map[string]string{
 				core.TaskDataUser: DefaultUser,
-				core.TaskDataDate: ctx.Param("date"),
+				core.TaskDataDate: ctx.Param("date"), // TODO constants
 			},
 		})
 	}
@@ -34,7 +34,7 @@ func HandleImportGame(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context)
 			Type: core.TaskImportGame,
 			Data: map[string]string{
 				core.TaskDataUser:     DefaultUser,
-				core.TaskDataDate:     ctx.Param("date"),
+				core.TaskDataDate:     ctx.Param("date"), // TODO constants
 				core.TaskDataGameLink: fmt.Sprintf("%s/nhl/%s/", core.BaseSportsURL, ctx.Param("game")),
 			},
 		})
@@ -52,6 +52,20 @@ func HandleGetGames(yfh *core.YFH) func(c *gin.Context) {
 				HandleError(ctx, http.StatusInternalServerError, err)
 			}
 		} else {
+			HandleError(ctx, http.StatusInternalServerError, err)
+		}
+	}
+}
+
+func HandleInvalidateCacheGame(yfh *core.YFH) func(*gin.Context) {
+	return func(ctx *gin.Context) {
+		date, err := core.ParseShortTimestamp(ctx.Param("date"))
+		if err != nil {
+			HandleError(ctx, http.StatusInternalServerError, err)
+			return
+		}
+		filter := fmt.Sprintf("yfh-games/%04d/%02d/%02d/%s*", date.Year(), date.Month(), date.Day(), ctx.Param("game"))
+		if err := ClearCacheWithFilter(ctx, yfh, filter); err != nil {
 			HandleError(ctx, http.StatusInternalServerError, err)
 		}
 	}

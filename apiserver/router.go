@@ -66,15 +66,21 @@ func SetupRouter(yfh *core.YFH) *gin.Engine {
 	r.GET("/:date/games", HandleGetGames(yfh))
 
 	r.DELETE("/cache", HandleClearCache(yfh))
-	r.DELETE("/db", HandleClearDB(yfh))
 	r.DELETE("/cache/fantasy_game", HandleInvalidateCache(yfh, "yfh-fantasy-game*"))
 	r.DELETE("/cache/league", HandleInvalidateCache(yfh, "yfh-league*"))
 	r.DELETE("/cache/teams", HandleInvalidateCache(yfh, "yfh-team-*"))
+	r.DELETE("/cache/teams/:team_id", HandleInvalidateCacheTeam(yfh))
+	r.DELETE("/cache/:date/games", HandleInvalidateCacheGame(yfh))
+	r.DELETE("/cache/:date/games/:game", HandleInvalidateCacheGame(yfh))
+	//r.DELETE("/cache/:date/rosters", HandleInvalidateCacheGame(yfh))
+	//r.DELETE("/cache/:date/rosters/:team_id", HandleInvalidateCacheGame(yfh))
+
+	r.DELETE("/db", HandleClearDB(yfh))
 
 	r.POST("/import/fantasy_game", HandleImportFantasyGame(yfh, Publish))
 	r.POST("/import/league", HandleImportLeague(yfh, Publish))
 	r.POST("/import/teams", HandleImportTeams(yfh, Publish))
-	r.POST("/import/team/:team_id", HandleImportTeam(yfh, Publish))
+	r.POST("/import/teams/:team_id", HandleImportTeam(yfh, Publish))
 	r.POST("/import/:date/games", HandleImportGames(yfh, Publish))
 	r.POST("/import/:date/games/:game", HandleImportGame(yfh, Publish))
 	r.POST("/import/:date/rosters/:team_id", HandleImportRoster(yfh, Publish))

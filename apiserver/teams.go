@@ -2,7 +2,9 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/ericsperano/yfh/core"
 	"github.com/ericsperano/yfh/core/model"
@@ -34,6 +36,20 @@ func HandleImportTeam(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context)
 				core.TaskDataTeamID: ctx.Param(core.TaskDataTeamID),
 			},
 		})
+	}
+}
+
+func HandleInvalidateCacheTeam(yfh *core.YFH) func(*gin.Context) {
+	return func(ctx *gin.Context) {
+		teamID, err := strconv.Atoi(ctx.Param(core.TaskDataTeamID))
+		if err != nil {
+			HandleError(ctx, http.StatusInternalServerError, err)
+			return
+		}
+		filter := fmt.Sprintf("yfh-team-%02d*", teamID)
+		if err := ClearCacheWithFilter(ctx, yfh, filter); err != nil {
+			HandleError(ctx, http.StatusInternalServerError, err)
+		}
 	}
 }
 
