@@ -16,7 +16,7 @@ func PrintEnv() {
 }
 
 // TODO publish with a tag with this version too
-const Version = "0.5.13"
+const Version = "0.5.14"
 
 func LogIntro() {
 	log.Infof("Yahoo Fantasy Hockey version %s", Version)
