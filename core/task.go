@@ -22,6 +22,10 @@ const TaskDataTeamID = "team_id"
 const TaskDataDate = "date"
 const TaskDataGameLink = "game_link"
 
+const TaskComputeAll = "compute_all"
+const TaskComputeForDate = "compute_for_date"
+const TaskComputeForDateAndTeam = "compute_for_date_and_team"
+
 type Task struct {
 	Type string
 	Data map[string]string

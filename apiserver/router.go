@@ -41,6 +41,41 @@ func HandleInvalidateCache(yfh *core.YFH, filter string) func(c *gin.Context) {
 	}
 }
 
+func HandleCompute(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {
+	return func(ctx *gin.Context) {
+		date := ctx.Param("date")
+		if len(date) == 0 {
+			publish(ctx, yfh, &core.Task{
+				Type: core.TaskComputeAll,
+				Data: map[string]string{
+					core.TaskDataUser: DefaultUser,
+				},
+			})
+			return
+		}
+		teamID := ctx.Param("team_id")
+		if len(teamID) == 0 {
+			publish(ctx, yfh, &core.Task{
+				Type: core.TaskComputeForDate,
+				Data: map[string]string{
+					core.TaskDataUser: DefaultUser,
+					core.TaskDataDate: date,
+				},
+			})
+			return
+		}
+		publish(ctx, yfh, &core.Task{
+			Type: core.TaskComputeForDateAndTeam,
+			Data: map[string]string{
+				core.TaskDataUser:   DefaultUser,
+				core.TaskDataDate:   date,
+				core.TaskDataTeamID: teamID,
+			},
+		})
+
+	}
+}
+
 func SetupRouter(yfh *core.YFH) *gin.Engine {
 	r := gin.Default()
 	//r.SetTrustedProxies(nil)
@@ -86,6 +121,10 @@ func SetupRouter(yfh *core.YFH) *gin.Engine {
 	r.POST("/import/:date/rosters/:team_id", HandleImportRoster(yfh, Publish))
 	r.POST("/import/:date/rosters", HandleImportRosters(yfh, Publish))
 	r.POST("/import/all", HandleImportAll(yfh, Publish))
+
+	r.POST("/compute", HandleCompute(yfh, Publish))
+	r.POST("/compute/:date", HandleCompute(yfh, Publish))
+	r.POST("/compute/:date/:team_id", HandleCompute(yfh, Publish))
 
 	yahoo := r.Group("/yahoo")
 	yahoo.GET("/login", HandleYahooLogin)

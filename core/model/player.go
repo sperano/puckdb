@@ -54,12 +54,7 @@ var PlayerStatsUpdateCols = []string{
 	"hits", "blocks", "time_on_ice", "face_off_percentage", "shifts", "take_aways", "give_aways",
 }
 
-type PlayerStats struct {
-	Date              time.Time `gorm:"primaryKey"`
-	PlayerID          uint      `gorm:"primaryKey"`
-	Player            Player
-	NHLTeamID         uint `gorm:"index"`
-	NHLTeam           NHLTeam
+type Stats struct {
 	GoalAgainst       uint
 	ShotsAgainst      uint
 	Saves             uint
@@ -79,9 +74,17 @@ type PlayerStats struct {
 	Shifts            uint
 	TakeAways         uint
 	GiveAways         uint
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	DeletedAt         gorm.DeletedAt `gorm:"index"`
+}
+type PlayerStats struct {
+	Date      time.Time `gorm:"primaryKey"`
+	PlayerID  uint      `gorm:"primaryKey"`
+	Player    Player
+	NHLTeamID uint `gorm:"index"`
+	NHLTeam   NHLTeam
+	Stats
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
 func (ps *PlayerStats) Ensure(db *gorm.DB) error {
