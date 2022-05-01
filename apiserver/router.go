@@ -56,19 +56,20 @@ func SetupRouter(yfh *core.YFH) *gin.Engine {
 		ctx.String(http.StatusOK, "pong")
 	})
 
-	r.POST("/clear/db", HandleClearDB(yfh))
-	r.POST("/clear/cache", HandleClearCache(yfh))
-
 	r.GET("/fantasy_game", HandleGetFantasyGame(yfh))
-	r.DELETE("/cache/fantasy_game", HandleInvalidateCache(yfh, "yfh-fantasy-game*"))
 	r.GET("/league", HandleGetLeague(yfh))
-	r.DELETE("/cache/league", HandleInvalidateCache(yfh, "yfh-league*"))
+	r.GET("/players", HandleGetPlayers(yfh))
 	r.GET("/teams", HandleGetTeams(yfh))
-	r.DELETE("/cache/teams", HandleInvalidateCache(yfh, "yfh-team-*"))
 	r.GET("/nhl/teams", HandleGetNHLTeams(yfh))
 	r.GET("/nhl/divisions", HandleGetNHLDivisions(yfh))
 	r.GET("/nhl/conferences", HandleGetNHLConferences(yfh))
 	r.GET("/:date/games", HandleGetGames(yfh))
+
+	r.DELETE("/cache", HandleClearCache(yfh))
+	r.DELETE("/db", HandleClearDB(yfh))
+	r.DELETE("/cache/fantasy_game", HandleInvalidateCache(yfh, "yfh-fantasy-game*"))
+	r.DELETE("/cache/league", HandleInvalidateCache(yfh, "yfh-league*"))
+	r.DELETE("/cache/teams", HandleInvalidateCache(yfh, "yfh-team-*"))
 
 	r.POST("/import/fantasy_game", HandleImportFantasyGame(yfh, Publish))
 	r.POST("/import/league", HandleImportLeague(yfh, Publish))
@@ -83,8 +84,6 @@ func SetupRouter(yfh *core.YFH) *gin.Engine {
 	yahoo := r.Group("/yahoo")
 	yahoo.GET("/login", HandleYahooLogin)
 	yahoo.GET("/authenticated", HandleYahooAuthenticated(yfh))
-
-	r.GET("/players", HandleGetPlayers(yfh))
 
 	r.GET("/debug", func(ctx *gin.Context) {
 		ctxV := context.WithValue(ctx, core.CtxUser, DefaultUser)
