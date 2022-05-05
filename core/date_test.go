@@ -10,7 +10,7 @@ import (
 
 func TestGetMonthDayPairSuccess(t *testing.T) {
 	t.Parallel()
-	du := DateUtils{30, time.October, 2021}
+	du := DateUtils{30, time.October, 2021, 30, time.October, 2021}
 	month, day, err := du.GetMonthDayPair("09-30")
 	assert.Nil(t, err)
 	assert.Equal(t, time.September, month)
@@ -19,7 +19,7 @@ func TestGetMonthDayPairSuccess(t *testing.T) {
 
 func TestGetMonthDayPairErrUnexpectedMonthDayPair(t *testing.T) {
 	t.Parallel()
-	du := DateUtils{30, time.October, 2021}
+	du := DateUtils{30, time.October, 2021, 30, time.October, 2021}
 	month, day, err := du.GetMonthDayPair("0930")
 	assert.Equal(t, ErrUnexpectedMonthDayPair, err)
 	assert.Equal(t, time.Month(0), month)
@@ -32,7 +32,7 @@ func TestGetMonthDayPairErrUnexpectedMonthDayPair(t *testing.T) {
 
 func TestGetMonthDayPairMonthIsNotAnInt(t *testing.T) {
 	t.Parallel()
-	du := DateUtils{30, time.October, 2021}
+	du := DateUtils{30, time.October, 2021, 30, time.October, 2021}
 	month, day, err := du.GetMonthDayPair("aa-30")
 	assert.Equal(t, time.Month(0), month)
 	assert.Equal(t, 0, day)
@@ -42,7 +42,7 @@ func TestGetMonthDayPairMonthIsNotAnInt(t *testing.T) {
 
 func TestGetMonthDayPairErrInvalidMonth(t *testing.T) {
 	t.Parallel()
-	du := DateUtils{30, time.October, 2021}
+	du := DateUtils{30, time.October, 2021, 30, time.October, 2021}
 	month, day, err := du.GetMonthDayPair("15-30")
 	assert.Equal(t, time.Month(0), month)
 	assert.Equal(t, 0, day)
@@ -51,7 +51,7 @@ func TestGetMonthDayPairErrInvalidMonth(t *testing.T) {
 
 func TestGetMonthDayPairDayIsNotAnInt(t *testing.T) {
 	t.Parallel()
-	du := DateUtils{30, time.October, 2021}
+	du := DateUtils{30, time.October, 2021, 30, time.October, 2021}
 	month, day, err := du.GetMonthDayPair("10-aa")
 	assert.Equal(t, time.October, month)
 	assert.Equal(t, 0, day)
@@ -61,13 +61,7 @@ func TestGetMonthDayPairDayIsNotAnInt(t *testing.T) {
 
 func TestGetDateSuccessFirstHalf(t *testing.T) {
 	t.Parallel()
-	/*
-		config := core.Config{
-			SeasonStartYear:  2021,
-			SeasonStartMonth: 10,
-		}
-	*/
-	du := DateUtils{30, time.October, 2021}
+	du := DateUtils{30, time.October, 2021, 30, time.October, 2021}
 	tm, err := du.GetDate("11-30")
 	assert.Nil(t, err)
 	assert.Equal(t, time.November, tm.Month())
@@ -77,7 +71,7 @@ func TestGetDateSuccessFirstHalf(t *testing.T) {
 
 func TestGetDateSuccessSecondHalf(t *testing.T) {
 	t.Parallel()
-	du := DateUtils{30, time.October, 2021}
+	du := DateUtils{30, time.October, 2021, 30, time.October, 2021}
 	tm, err := du.GetDate("02-20")
 	assert.Nil(t, err)
 	assert.Equal(t, time.February, tm.Month())
@@ -92,7 +86,7 @@ func assertDate(t *testing.T, date time.Time, year int, month time.Month, day in
 }
 
 func TestGetDateRangeWithFromAndTo(t *testing.T) {
-	du := DateUtils{30, time.October, 2021}
+	du := DateUtils{30, time.October, 2021, 30, time.October, 2021}
 	dates, err := du.GetDateRange("11-01", "11-05")
 	assert.Nil(t, err)
 	assert.Equal(t, 4, len(dates))
@@ -103,7 +97,7 @@ func TestGetDateRangeWithFromAndTo(t *testing.T) {
 }
 
 func TestGetDateRangeWithTo(t *testing.T) {
-	du := DateUtils{30, time.October, 2021}
+	du := DateUtils{30, time.October, 2021, 30, time.October, 2021}
 	dates, err := du.GetDateRange("", "11-05")
 	assert.Nil(t, err)
 	assert.Equal(t, 6, len(dates))
@@ -116,7 +110,7 @@ func TestGetDateRangeWithTo(t *testing.T) {
 }
 
 func TestGetDateRangeWithFrom(t *testing.T) {
-	du := DateUtils{30, time.October, 2021}
+	du := DateUtils{30, time.October, 2021, 30, time.October, 2021}
 	now := time.Now().AddDate(0, 0, -1)
 	dates, err := du.GetDateRange("", "")
 	assert.Nil(t, err)

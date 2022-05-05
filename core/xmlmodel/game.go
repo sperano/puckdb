@@ -128,6 +128,7 @@ type PlayersStore struct {
 	Players map[PlayerID]PlayerInfo `json:"players"`
 }
 
+// TODO wins!!!!
 type PlayerStats struct {
 	PlayerID          PlayerID
 	NHLTeamID         NHLTeamID
@@ -168,6 +169,7 @@ func (ps *PlayerStats) ToPlayerStatsModel() (*model.PlayerStats, error) {
 	}
 	playerStats.NHLTeamID = id
 
+	// TODO check that we calculate the same faceoff percentage and save percentage
 	if err := model.MaybeSetStatUInt(&playerStats.GoalAgainst, ps.GoalAgainst); err != nil {
 		return nil, err
 	}
@@ -177,16 +179,13 @@ func (ps *PlayerStats) ToPlayerStatsModel() (*model.PlayerStats, error) {
 	if err := model.MaybeSetStatUInt(&playerStats.Saves, ps.Saves); err != nil {
 		return nil, err
 	}
-	if err := model.MaybeSetStatPercentage(&playerStats.SavePercentage, ps.SavePercentage); err != nil {
-		return nil, err
-	}
 	if err := model.MaybeSetStatUInt(&playerStats.GoalieTimeOnIce, ps.GoalieTimeOnIce); err != nil {
 		return nil, err
 	}
-	if err := model.MaybeSetStatUInt(&playerStats.Goals, ps.GoalieTimeOnIce); err != nil {
+	if err := model.MaybeSetStatUInt(&playerStats.Goals, ps.Goals); err != nil {
 		return nil, err
 	}
-	if err := model.MaybeSetStatUInt(&playerStats.Assists, ps.GoalieTimeOnIce); err != nil {
+	if err := model.MaybeSetStatUInt(&playerStats.Assists, ps.Assists); err != nil {
 		return nil, err
 	}
 	if err := model.MaybeSetStatInt(&playerStats.PlusMinus, ps.PlusMinus); err != nil {
@@ -211,9 +210,6 @@ func (ps *PlayerStats) ToPlayerStatsModel() (*model.PlayerStats, error) {
 		return nil, err
 	}
 	if err := model.MaybeSetStatUInt(&playerStats.TimeOnIce, ps.TimeOnIce); err != nil {
-		return nil, err
-	}
-	if err := model.MaybeSetStatPercentage(&playerStats.FaceOffPercentage, ps.FaceOffPercentage); err != nil {
 		return nil, err
 	}
 	if err := model.MaybeSetStatUInt(&playerStats.Shifts, ps.Shifts); err != nil {

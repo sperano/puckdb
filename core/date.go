@@ -18,10 +18,17 @@ type DateUtils struct {
 	StartDay   int
 	StartMonth time.Month
 	StartYear  int
+	EndDay     int
+	EndMonth   time.Month
+	EndYear    int
 }
 
 func (du *DateUtils) GetStart() time.Time {
 	return time.Date(du.StartYear, du.StartMonth, du.StartDay, 0, 0, 0, 0, time.UTC)
+}
+
+func (du *DateUtils) GetEnd() time.Time {
+	return time.Date(du.EndYear, du.EndMonth, du.EndDay, 0, 0, 0, 0, time.UTC)
 }
 
 func (du *DateUtils) GetMonthDayPair(arg string) (time.Month, int, error) {
@@ -59,7 +66,11 @@ func (du *DateUtils) GetDate(arg string) (time.Time, error) {
 func (du *DateUtils) GetDateRange(from string, to string) ([]time.Time, error) {
 	dates := []time.Time{}
 	fromDate := du.GetStart()
-	toDate := time.Now()
+	toDate := du.GetEnd()
+	now := time.Now()
+	if now.Before(toDate) {
+		toDate = now
+	}
 	var err error
 	if len(from) > 0 {
 		if fromDate, err = du.GetDate(from); err != nil {
@@ -112,6 +123,10 @@ func GetDateRange(from string, to string) ([]time.Time, error) {
 		StartDay:   viper.GetInt(FlagSeasonStartDay),
 		StartMonth: time.Month(viper.GetInt(FlagSeasonStartMonth)),
 		StartYear:  viper.GetInt(FlagSeasonStartYear),
+		// TODO this is ugly:
+		EndDay:   viper.GetInt(FlagSeasonEndDay),
+		EndMonth: time.Month(viper.GetInt(FlagSeasonEndMonth)),
+		EndYear:  viper.GetInt(FlagSeasonEndYear),
 	}
 	return du.GetDateRange(from, to)
 }

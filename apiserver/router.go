@@ -43,8 +43,9 @@ func HandleInvalidateCache(yfh *core.YFH, filter string) func(c *gin.Context) {
 
 func HandleCompute(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {
 	return func(ctx *gin.Context) {
+		teamID := ctx.Param("team_id")
 		date := ctx.Param("date")
-		if len(date) == 0 {
+		if len(date) == 0 && len(teamID) == 0 {
 			publish(ctx, yfh, &core.Task{
 				Type: core.TaskComputeAll,
 				Data: map[string]string{
@@ -53,7 +54,16 @@ func HandleCompute(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {
 			})
 			return
 		}
-		teamID := ctx.Param("team_id")
+		if len(date) == 0 {
+			publish(ctx, yfh, &core.Task{
+				Type: core.TaskComputeForTeam,
+				Data: map[string]string{
+					core.TaskDataUser:   DefaultUser,
+					core.TaskDataTeamID: teamID,
+				},
+			})
+			return
+		}
 		if len(teamID) == 0 {
 			publish(ctx, yfh, &core.Task{
 				Type: core.TaskComputeForDate,
@@ -123,7 +133,8 @@ func SetupRouter(yfh *core.YFH) *gin.Engine {
 	r.POST("/import/all", HandleImportAll(yfh, Publish))
 
 	r.POST("/compute", HandleCompute(yfh, Publish))
-	r.POST("/compute/:date", HandleCompute(yfh, Publish))
+	r.POST("/compute-team/:team_id", HandleCompute(yfh, Publish))
+	r.POST("/compute-date/:date", HandleCompute(yfh, Publish))
 	r.POST("/compute/:date/:team_id", HandleCompute(yfh, Publish))
 
 	yahoo := r.Group("/yahoo")

@@ -98,6 +98,12 @@ func (w *Worker) Consume(delivery rmq.Delivery) {
 		}
 	case core.TaskImportAll:
 		err = HandleImportAll(ctx, w.YFH)
+	case core.TaskComputeForTeam:
+		var teamID int
+		teamID, err = strconv.Atoi(task.Data[core.TaskDataTeamID])
+		if err == nil {
+			err = HandleComputeForTeam(ctx, w.YFH, uint(teamID))
+		}
 	default:
 		log.Warnf("No handler for %s", task.String())
 		// TODO metrics for this error

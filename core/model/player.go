@@ -2,7 +2,6 @@ package model
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -49,39 +48,42 @@ var PlayerStatsUpdateCols = []string{
 	//"date",
 	//"player_id",
 	"nhl_team_id",
-	"goal_against", "shots_against", "saves", "save_percentage", "goalie_time_on_ice",
+	"goal_against", "shots_against", "saves", "goalie_time_on_ice",
 	"goals", "assists", "plus_minus", "penalty_minutes", "shots_on_goal", "faceoffs_won", "faceoffs_lost",
-	"hits", "blocks", "time_on_ice", "face_off_percentage", "shifts", "take_aways", "give_aways",
+	"hits", "blocks", "time_on_ice", "shifts", "take_aways", "give_aways",
 }
 
-type Stats struct {
-	GoalAgainst       uint
-	ShotsAgainst      uint
-	Saves             uint
-	SavePercentage    uint
-	GoalieTimeOnIce   uint
-	Goals             uint
-	Assists           uint
-	PlusMinus         int
-	PenaltyMinutes    uint
-	ShotsOnGoal       uint
-	FaceoffsWon       uint
-	FaceoffsLost      uint
-	Hits              uint
-	Blocks            uint
-	TimeOnIce         uint
-	FaceOffPercentage uint
-	Shifts            uint
-	TakeAways         uint
-	GiveAways         uint
+type StatsSkater struct {
+	Goals          uint
+	Assists        uint
+	PlusMinus      int
+	PenaltyMinutes uint
+	ShotsOnGoal    uint
+	FaceoffsWon    uint
+	FaceoffsLost   uint
+	Hits           uint
+	Blocks         uint
+	TimeOnIce      uint
+	Shifts         uint
+	TakeAways      uint
+	GiveAways      uint
 }
+
+type StatsGoaler struct {
+	GoalAgainst     uint
+	ShotsAgainst    uint
+	Saves           uint
+	GoalieTimeOnIce uint
+}
+
 type PlayerStats struct {
 	Date      time.Time `gorm:"primaryKey"`
 	PlayerID  uint      `gorm:"primaryKey"`
 	Player    Player
 	NHLTeamID uint `gorm:"index"`
 	NHLTeam   NHLTeam
-	Stats
+	StatsGoaler
+	StatsSkater
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
@@ -114,8 +116,4 @@ func MaybeSetStatInt(ptr *int, str string) error {
 		}
 	}
 	return nil
-}
-
-func MaybeSetStatPercentage(ptr *uint, str string) error {
-	return MaybeSetStatUInt(ptr, strings.ReplaceAll(str, ".", ""))
 }

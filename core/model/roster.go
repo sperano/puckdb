@@ -12,13 +12,13 @@ type RosterPosition int
 
 const (
 	BN   RosterPosition = 1
-	IR   RosterPosition = BN * 2
-	C    RosterPosition = IR * 2
-	LW   RosterPosition = C * 2
-	RW   RosterPosition = LW * 2
-	D    RosterPosition = RW * 2
-	Util RosterPosition = D * 2
-	G    RosterPosition = Util * 2
+	IR   RosterPosition = 2
+	C    RosterPosition = 4
+	LW   RosterPosition = 8
+	RW   RosterPosition = 16
+	D    RosterPosition = 32
+	Util RosterPosition = 64
+	G    RosterPosition = 128
 )
 
 var _pos_labels = []string{"BN", "IR", "C", "LW", "RW", "D", "Util", "G"}

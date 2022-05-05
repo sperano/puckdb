@@ -31,7 +31,6 @@ func logPlayerStats(date time.Time, playerStats *model.PlayerStats) {
 		playerStats.GoalAgainst,
 		playerStats.ShotsAgainst,
 		playerStats.Saves,
-		playerStats.SavePercentage,
 		playerStats.GoalieTimeOnIce,
 		playerStats.Goals,
 		playerStats.Assists,
@@ -43,7 +42,6 @@ func logPlayerStats(date time.Time, playerStats *model.PlayerStats) {
 		playerStats.Hits,
 		playerStats.Blocks,
 		playerStats.TimeOnIce,
-		playerStats.FaceOffPercentage,
 		playerStats.Shifts,
 		playerStats.TakeAways,
 		playerStats.GiveAways)

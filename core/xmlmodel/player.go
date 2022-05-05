@@ -74,13 +74,6 @@ type PlayerSelectedPosition struct {
 	IsFlex       bool     `xml:"is_flex"`
 }
 
-/*
-<>
-<position>C</position>
-<position>Util</position>
-</>
-*/
-
 type Player struct {
 	XMLName                  xml.Name `xml:"player"`
 	Key                      string   `xml:"player_key"`
