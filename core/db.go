@@ -85,6 +85,9 @@ func DoMigration(db *gorm.DB) error {
 	if err := db.AutoMigrate(&model.Standing{}); err != nil {
 		return err
 	}
+	if err := db.AutoMigrate(&model.TeamStats{}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -122,6 +125,9 @@ func DropEverything(db *gorm.DB) error {
 		return err
 	}
 	if err := migrator.DropTable(&model.Standing{}); err != nil {
+		return err
+	}
+	if err := migrator.DropTable(&model.TeamStats{}); err != nil {
 		return err
 	}
 	if err := migrator.DropTable(&model.Meta{}); err != nil {

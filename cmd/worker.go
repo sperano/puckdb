@@ -88,5 +88,6 @@ func init() {
 	core.FInt(flags, core.FlagRedisCacheDuration, 60, "The duration a key stays in the Redis cache (in minutes)")
 	core.FInt(flags, core.FlagMaxGamesImporter, runtime.NumCPU(), "Max number of games importer goroutines")
 	core.FInt(flags, core.FlagMaxRostersImporter, runtime.NumCPU(), "Max number of rosters importer goroutines")
+	core.FInt(flags, core.FlagMaxTeamStatsImporter, runtime.NumCPU(), "Max number of team stats importer goroutines")
 	rootCmd.AddCommand(cmd)
 }

@@ -50,6 +50,7 @@ func ParseRosterPosition(str string) (RosterPosition, error) {
 }
 
 // TODO better name than date
+// mais surtout better name than RosterPlayer
 type RosterPlayer struct {
 	Date              time.Time `gorm:"primaryKey"`
 	TeamID            uint      `gorm:"primaryKey"`
@@ -66,6 +67,7 @@ type RosterPlayer struct {
 }
 
 func (rp *RosterPlayer) Ensure(db *gorm.DB) error {
+	// first make sure that the player exists because it's a foreign key later
 	p := Player{
 		Model: gorm.Model{
 			ID: uint(rp.PlayerID),
@@ -79,6 +81,7 @@ func (rp *RosterPlayer) Ensure(db *gorm.DB) error {
 	}).Create(&p).Error; err != nil {
 		return err
 	}
+	// now do it for the roster player
 	return db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "date"}, {Name: "team_id"}, {Name: "player_id"}}, // TODO constants
 		// TODO move that list elsewhere

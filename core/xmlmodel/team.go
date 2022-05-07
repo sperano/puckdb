@@ -126,3 +126,7 @@ func (t *Team) ToRosterPlayersModel() ([]*model.RosterPlayer, error) {
 	}
 	return players, nil
 }
+
+func (t *Team) ToTeamStatsModel() (*model.TeamStats, error) {
+	return nil, nil
+}

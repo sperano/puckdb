@@ -6,6 +6,7 @@ import (
 
 	"github.com/ericsperano/yfh/core"
 	"github.com/ericsperano/yfh/core/model"
+	log "github.com/sirupsen/logrus"
 )
 
 func HandleComputeForTeam(ctx context.Context, yfh *core.YFH, teamID uint) error {
@@ -20,11 +21,13 @@ func HandleComputeForTeam(ctx context.Context, yfh *core.YFH, teamID uint) error
 		return err
 	}
 	db := yfh.GormDB
+	standing := model.Standing{TeamID: teamID}
+
 	for _, date := range dates {
 		dateStr := fmt.Sprintf("%d-%02d-%02d", date.Year(), date.Month(), date.Day())
 		//var rosterItems []model.RosterPlayer
 		//,SUM(assists),
-		var statsSkaters []model.StatsSkater
+		var statsSkaters model.StatsSkater
 		query := `SELECT SUM(goals) AS goals, SUM(assists) AS assists, SUM(plus_minus) AS plus_minus, 
 		SUM(penalty_minutes) AS penalty_minutes, SUM(shots_on_goal) AS shots_on_goal, 
 		SUM(faceoffs_won) AS faceoofs_won, SUM(faceoffs_lost) AS faceoffs_lost, SUM(hits) AS hits, 
@@ -36,7 +39,7 @@ func HandleComputeForTeam(ctx context.Context, yfh *core.YFH, teamID uint) error
 		if db.Error != nil {
 			return db.Error
 		}
-		var statsGoalers []model.StatsGoaler
+		var statsGoalers model.StatsGoaler
 		query = `SELECT SUM(goal_against) AS goal_against, SUM(shots_against) AS shot_against, 
 		SUM(saves) AS saves, SUM(goalie_time_on_ice) goalie_time_on_ice
 		FROM roster_players rp JOIN player_stats ps ON rp.player_id=ps.player_id AND rp.date=ps.date
@@ -45,7 +48,14 @@ func HandleComputeForTeam(ctx context.Context, yfh *core.YFH, teamID uint) error
 		if db.Error != nil {
 			return db.Error
 		}
-		fmt.Printf("%s teamID=%d skaters=%v goalers=%v\n", dateStr, teamID, statsSkaters, statsGoalers)
+		standing.Date = date
+		standing.AddSkatersStats(&statsSkaters)
+		standing.AddGoalersStats(&statsGoalers)
+		log.Infof("%s teamID=%d skaters=%v goalers=%v\n", dateStr, teamID, statsSkaters, statsGoalers)
+		if err := db.Create(&standing).Error; err != nil {
+			return err
+		}
+
 	}
 	return nil
 }

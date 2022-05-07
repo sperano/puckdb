@@ -29,7 +29,7 @@ func DownloadAndSaveRoster(ctx context.Context, yfh *core.YFH, teamID uint, date
 		return nil, err
 	}
 	if len(gitfiles) == 0 {
-		return nil, fmt.Errorf("should have found at least one file for roster of team %02d on %04d-0%02d-%02d in github", teamID,
+		return nil, fmt.Errorf("should have found at least one file for roster of team roster %02d on %04d-0%02d-%02d in github", teamID,
 			date.Year(), date.Month(), date.Day())
 	}
 	return gitfiles[0], nil
@@ -45,28 +45,9 @@ func EnsureRecentRoster(ctx context.Context, yfh *core.YFH, teamID uint, date ti
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Found %s for team %02d on %04d-%02d-%02d in github", english.Plural(len(gitfiles), "roster", ""), teamID,
+	log.Debugf("Found %s for team %02d roster on %04d-%02d-%02d in github", english.Plural(len(gitfiles), "roster", ""), teamID,
 		date.Year(), date.Month(), date.Day())
 	if len(gitfiles) == 0 {
-		/*
-			// download it if none are found then add it in github
-			content, err := Download(ctx, yfh, core.RosterURL(teamID, date))
-			if err != nil {
-				return nil, err
-			}
-			if err := yfh.Github.CreateRoster(ctx, teamID, date, content); err != nil {
-				return nil, err
-			}
-			// get the gitfile for what we just cre ated, it's from the cache so it's quick
-			gitfiles, err = yfh.Github.FindRoster(ctx, teamID, date)
-			if err != nil {
-				return nil, err
-			}
-			if len(gitfiles) == 0 {
-				return nil, fmt.Errorf("should have found at least one file for roster of team %02d on %04d-0%02d-%02d in github", teamID,
-					date.Year(), date.Month(), date.Day())
-			}
-		*/
 		return DownloadAndSaveRoster(ctx, yfh, teamID, date)
 	}
 	// return the latest

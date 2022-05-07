@@ -14,6 +14,7 @@ const TaskImportRosters = "import_rosters"
 const TaskImportRoster = "import_roster"
 const TaskImportTeams = "import_teams"
 const TaskImportTeam = "import_team"
+const TaskImportTeamStats = "import_team_stats"
 const TaskImportAll = "import_all"
 const TaskInitMeta = "init_meta"
 

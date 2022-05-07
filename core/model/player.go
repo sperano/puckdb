@@ -45,8 +45,6 @@ func (p *Player) Ensure(db *gorm.DB) error {
 }
 
 var PlayerStatsUpdateCols = []string{
-	//"date",
-	//"player_id",
 	"nhl_team_id",
 	"goal_against", "shots_against", "saves", "goalie_time_on_ice",
 	"goals", "assists", "plus_minus", "penalty_minutes", "shots_on_goal", "faceoffs_won", "faceoffs_lost",

@@ -238,33 +238,6 @@ func (g *GithubClient) CreateLeague(ctx context.Context, content []byte) error {
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// Roster
-//////////////////////////////////////////////////////////////////////////////
-const RosterExtension = "xml"
-
-func GetRosterFilename(teamID uint, date time.Time) string {
-	return fmt.Sprintf("roster-%02d-%4d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day())
-}
-
-func GithubFindRoster(ctx context.Context, yfh *YFH, teamID uint, date time.Time) ([]*GithubFile, error) {
-	dir := GetTeamDir(teamID)
-	fn := GetRosterFilename(teamID, date)
-	return yfh.Github.Find(ctx, dir, fn, RosterExtension)
-}
-
-func YahooRosterURL(teamID int, date time.Time) string {
-	//https://fantasysports.yahooapis.com/fantasy/v2/team/***REMOVED***.t.1/stats;type=season
-	return fmt.Sprintf("%s/team/%d.l.%d.t.%d/roster;date=%d-%02d-%02d/players", BaseAPIURL, GameConst, viper.GetInt(FlagLeagueID), teamID, date.Year(), date.Month(), date.Day())
-}
-
-func GithubCreateRoster(ctx context.Context, yfh *YFH, teamID uint, date time.Time, content []byte) error {
-	fn := GetGithubFilename(GetRosterFilename(teamID, date), RosterExtension, time.Now())
-	p := path.Join(GetTeamDir(teamID), fn)
-	msg := fmt.Sprintf("New roster file for team %d on %s", teamID, GetShortTimestamp(date))
-	return yfh.Github.CreateFile(ctx, p, msg, content)
-}
-
-//////////////////////////////////////////////////////////////////////////////
 // TEAM
 //////////////////////////////////////////////////////////////////////////////
 
@@ -352,7 +325,7 @@ func (g *GithubClient) CreateGame(ctx context.Context, date time.Time, gameLink 
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// Roster
+// ROSTER
 //////////////////////////////////////////////////////////////////////////////
 const RostersExtension = "xml"
 
@@ -360,12 +333,12 @@ func RostersDir(teamID uint) string {
 	return fmt.Sprintf("rosters/%02d", teamID)
 }
 
-func RosterPath(teamID uint, date time.Time) string {
-	return path.Join(RostersDir(teamID), RosterFilename(teamID, date))
-}
-
 func RosterFilename(teamID uint, date time.Time) string {
 	return fmt.Sprintf("rosters-%02d-%4d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day())
+}
+
+func RosterPath(teamID uint, date time.Time) string {
+	return path.Join(RostersDir(teamID), RosterFilename(teamID, date))
 }
 
 func RosterURL(teamID uint, date time.Time) string {
@@ -381,6 +354,39 @@ func (g *GithubClient) CreateRoster(ctx context.Context, teamID uint, date time.
 	fn := GetGithubFilename(RosterFilename(teamID, date), RostersExtension, time.Now())
 	p := path.Join(RostersDir(teamID), fn)
 	msg := fmt.Sprintf("New file for roster team %02d on %4d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day())
+	return g.CreateFile(ctx, p, msg, content)
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// TEAM STATS
+//////////////////////////////////////////////////////////////////////////////
+const TeamStatsExtension = "xml"
+
+func TeamStatsDir(teamID uint) string {
+	return fmt.Sprintf("team-stats/%02d", teamID)
+}
+
+func TeamStatsFilename(teamID uint, date time.Time) string {
+	return fmt.Sprintf("team-%02d-stats-%4d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day())
+}
+
+func TeamStatsPath(teamID uint, date time.Time) string {
+	return path.Join(TeamStatsDir(teamID), TeamStatsFilename(teamID, date))
+}
+
+func TeamStatsURL(teamID uint, date time.Time) string {
+	//https://fantasysports.yahooapis.com/fantasy/v2/team/253.l.1004.t.10/stats;type=date;date=2011-07-06
+	return fmt.Sprintf("%s/team/%d.l.%d.t.%d/stats;type=date;date=%d-%02d-%02d", BaseAPIURL, GameConst, GetLeagueID(), teamID, date.Year(), date.Month(), date.Day())
+}
+
+func (g *GithubClient) FindTeamStats(ctx context.Context, teamID uint, date time.Time) ([]*GithubFile, error) {
+	return g.Find(ctx, TeamStatsDir(teamID), TeamStatsFilename(teamID, date), TeamStatsExtension)
+}
+
+func (g *GithubClient) CreateTeamStats(ctx context.Context, teamID uint, date time.Time, content []byte) error {
+	fn := GetGithubFilename(TeamStatsFilename(teamID, date), TeamStatsExtension, time.Now())
+	p := path.Join(TeamStatsDir(teamID), fn)
+	msg := fmt.Sprintf("New file for team #%2d stats on %4d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day())
 	return g.CreateFile(ctx, p, msg, content)
 }
 
