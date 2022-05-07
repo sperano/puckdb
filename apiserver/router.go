@@ -126,6 +126,8 @@ func SetupRouter(yfh *core.YFH) *gin.Engine {
 	r.POST("/import/league", HandleImportLeague(yfh, Publish))
 	r.POST("/import/teams", HandleImportTeams(yfh, Publish))
 	r.POST("/import/teams/:team_id", HandleImportTeam(yfh, Publish))
+	r.POST("/import/teams/:team_id/summary/:date", HandleImportTeamSummary(yfh, Publish))
+	r.POST("/import/teams/:team_id/summaries", HandleImportTeamSummaries(yfh, Publish))
 	r.POST("/import/:date/games", HandleImportGames(yfh, Publish))
 	r.POST("/import/:date/games/:game", HandleImportGame(yfh, Publish))
 	r.POST("/import/:date/rosters/:team_id", HandleImportRoster(yfh, Publish))

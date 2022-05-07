@@ -8,7 +8,7 @@ import (
 const FlagRedisCacheDuration = "redis_cache_duration"
 const FlagMaxGamesImporter = "max_games_importer"
 const FlagMaxRostersImporter = "max_rosters_importer"
-const FlagMaxTeamStatsImporter = "max_team_stats_importer"
+const FlagMaxTeamSummariesImporter = "max_team_summaries_importer"
 
 func FBool(flags *flag.FlagSet, flag string, value bool, help string) {
 	flags.Bool(flag, value, help)

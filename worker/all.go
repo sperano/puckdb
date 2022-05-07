@@ -54,6 +54,15 @@ func HandleImportAll(ctx context.Context, yfh *core.YFH) error {
 		}); err != nil {
 			return err
 		}
+		if err := core.Publish(yfh.Queue, &core.Task{
+			Type: core.TaskImportTeamSummaries,
+			Data: map[string]string{
+				core.TaskDataUser: ctx.Value(core.CtxUser).(string),
+				core.TaskDataDate: core.GetShortTimestamp(date),
+			},
+		}); err != nil {
+			return err
+		}
 	}
 	return nil
 }

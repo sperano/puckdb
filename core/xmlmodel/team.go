@@ -127,6 +127,6 @@ func (t *Team) ToRosterPlayersModel() ([]*model.RosterPlayer, error) {
 	return players, nil
 }
 
-func (t *Team) ToTeamStatsModel() (*model.TeamStats, error) {
+func (t *Team) ToTeamSummaryModel() (*model.TeamSummary, error) {
 	return nil, nil
 }

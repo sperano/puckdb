@@ -85,38 +85,27 @@ func getTeam(ctx context.Context, yfh *core.YFH, teamID uint) (*Team, error) {
 	return &Team{Team: team, GithubFiles: files}, nil
 }
 
-func HandleGetNHLTeams(yfh *core.YFH) func(c *gin.Context) {
+func HandleImportTeamSummary(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {
 	return func(ctx *gin.Context) {
-		var teams []*model.NHLTeam
-		result := yfh.GormDB.Preload("NHLDivision").Preload("NHLConference").Find(&teams)
-		if result.Error == nil {
-			ctx.JSON(http.StatusOK, teams)
-		} else {
-			HandleError(ctx, http.StatusInternalServerError, result.Error)
-		}
+		publish(ctx, yfh, &core.Task{
+			Type: core.TaskImportTeamSummary,
+			Data: map[string]string{
+				core.TaskDataUser:   DefaultUser,
+				core.TaskDataTeamID: ctx.Param(core.TaskDataTeamID),
+				core.TaskDataDate:   ctx.Param("date"),
+			},
+		})
 	}
 }
 
-func HandleGetNHLConferences(yfh *core.YFH) func(c *gin.Context) {
+func HandleImportTeamSummaries(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {
 	return func(ctx *gin.Context) {
-		var confs []*model.NHLConference
-		result := yfh.GormDB.Find(&confs)
-		if result.Error == nil {
-			ctx.JSON(http.StatusOK, confs)
-		} else {
-			HandleError(ctx, http.StatusInternalServerError, result.Error)
-		}
-	}
-}
-
-func HandleGetNHLDivisions(yfh *core.YFH) func(c *gin.Context) {
-	return func(ctx *gin.Context) {
-		var divisions []*model.NHLDivision
-		result := yfh.GormDB.Preload("NHLConference").Find(&divisions)
-		if result.Error == nil {
-			ctx.JSON(http.StatusOK, divisions)
-		} else {
-			HandleError(ctx, http.StatusInternalServerError, result.Error)
-		}
+		publish(ctx, yfh, &core.Task{
+			Type: core.TaskImportTeamSummaries,
+			Data: map[string]string{
+				core.TaskDataUser: DefaultUser,
+				core.TaskDataDate: ctx.Param("date"),
+			},
+		})
 	}
 }

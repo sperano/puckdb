@@ -96,6 +96,22 @@ func (w *Worker) Consume(delivery rmq.Delivery) {
 		if err == nil {
 			err = HandleImportRosters(ctx, w.YFH, date)
 		}
+	case core.TaskImportTeamSummary:
+		var teamID int
+		teamID, err = strconv.Atoi(task.Data[core.TaskDataTeamID])
+		if err == nil {
+			var date time.Time
+			date, err = getDateParam(task)
+			if err == nil {
+				err = HandleImportTeamSummary(ctx, w.YFH, uint(teamID), date)
+			}
+		}
+	case core.TaskImportTeamSummaries:
+		var date time.Time
+		date, err = getDateParam(task)
+		if err == nil {
+			err = HandleImportTeamSummaries(ctx, w.YFH, date)
+		}
 	case core.TaskImportAll:
 		err = HandleImportAll(ctx, w.YFH)
 	case core.TaskComputeForTeam:

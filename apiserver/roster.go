@@ -12,7 +12,7 @@ func HandleImportRoster(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Contex
 			Data: map[string]string{
 				core.TaskDataUser:   DefaultUser,
 				core.TaskDataTeamID: ctx.Param(core.TaskDataTeamID),
-				"date":              ctx.Param("date"),
+				core.TaskDataDate:   ctx.Param("date"),
 			},
 		})
 	}
@@ -24,7 +24,7 @@ func HandleImportRosters(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Conte
 			Type: core.TaskImportRosters,
 			Data: map[string]string{
 				core.TaskDataUser: DefaultUser,
-				"date":            ctx.Param("date"),
+				core.TaskDataDate: ctx.Param("date"),
 			},
 		})
 	}

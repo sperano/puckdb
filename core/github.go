@@ -21,7 +21,6 @@ import (
 )
 
 const FlagGithubAccessToken = "github_access_token"
-const DataPath = "data"
 const DataRepoOwner = "ericsperano"
 const DataRepoName = "yahoo-fantasy-hockey-data"
 
@@ -66,9 +65,8 @@ func (g *GithubClient) ReadDir(ctx context.Context, dir string) ([]*GithubFile, 
 		return files, nil
 	}
 	log.Infof("No directory contents found for %s in cache", dir)
-	d := path.Join(DataPath, dir)
 	opts := github.RepositoryContentGetOptions{}
-	_, dirContent, resp, err := g.Repositories.GetContents(ctx, "ericsperano", "yahoo-fantasy-hockey-data", d, &opts)
+	_, dirContent, resp, err := g.Repositories.GetContents(ctx, "ericsperano", "yahoo-fantasy-hockey-data", dir, &opts)
 	if err != nil {
 		gerr, ok := err.(*github.ErrorResponse)
 		if !ok {
@@ -122,16 +120,14 @@ func (g *GithubClient) Has(ctx context.Context, dir string, filename string, ext
 }
 
 func (g *GithubClient) CreateFile(ctx context.Context, filepath string, message string, content []byte) error {
-	p := path.Join(DataPath, filepath)
-
-	log.Infof("Importing %s", p)
+	log.Infof("Importing %s", filepath)
 	opts := github.RepositoryContentFileOptions{
 		Message: &message,
 		Content: content,
 	}
 	retries := 10
 	for {
-		if _, _, err := g.Repositories.CreateFile(ctx, DataRepoOwner, DataRepoName, p, &opts); err == nil {
+		if _, _, err := g.Repositories.CreateFile(ctx, DataRepoOwner, DataRepoName, filepath, &opts); err == nil {
 			break
 		} else {
 			log.Warnf("g.Repositories.CreateFile: %s (will start retry #%d)", err, 11-retries)
@@ -160,9 +156,8 @@ func (g *GithubClient) ReadFile(ctx context.Context, filepath string) ([]byte, e
 		return data, nil
 	}
 	log.Infof("No file content found for %s in cache", filepath)
-	p := path.Join(DataPath, filepath)
-	log.Infof("Reading %s", p)
-	c, _, err := g.Repositories.DownloadContents(ctx, DataRepoOwner, DataRepoName, p, nil)
+	log.Infof("Reading %s", filepath)
+	c, _, err := g.Repositories.DownloadContents(ctx, DataRepoOwner, DataRepoName, filepath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +213,7 @@ func (g *GithubClient) CreateFantasyGame(ctx context.Context, content []byte) er
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// League
+// LEAGUE
 //////////////////////////////////////////////////////////////////////////////
 const LeagueDirectory = "league"
 const LeagueFilename = LeagueDirectory
@@ -238,7 +233,7 @@ func (g *GithubClient) CreateLeague(ctx context.Context, content []byte) error {
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// TEAM
+// TEAMS
 //////////////////////////////////////////////////////////////////////////////
 
 func YahooTeamURL(leagueID int, teamID uint) string {
@@ -247,7 +242,7 @@ func YahooTeamURL(leagueID int, teamID uint) string {
 }
 
 func GetTeamDir(teamID uint) string {
-	return fmt.Sprintf("team-%02d", teamID)
+	return fmt.Sprintf("teams/team-%02d", teamID)
 }
 
 func GetTeamFilename(teamID uint) string {
@@ -358,34 +353,34 @@ func (g *GithubClient) CreateRoster(ctx context.Context, teamID uint, date time.
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// TEAM STATS
+// TEAM SUMMARY
 //////////////////////////////////////////////////////////////////////////////
-const TeamStatsExtension = "xml"
+const TeamSummaryExtension = "xml"
 
-func TeamStatsDir(teamID uint) string {
-	return fmt.Sprintf("team-stats/%02d", teamID)
+func TeamSummaryDir(teamID uint) string {
+	return fmt.Sprintf("summaries/team-%02d", teamID)
 }
 
-func TeamStatsFilename(teamID uint, date time.Time) string {
-	return fmt.Sprintf("team-%02d-stats-%4d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day())
+func TeamSummaryFilename(teamID uint, date time.Time) string {
+	return fmt.Sprintf("team-%02d-summary-%4d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day())
 }
 
-func TeamStatsPath(teamID uint, date time.Time) string {
-	return path.Join(TeamStatsDir(teamID), TeamStatsFilename(teamID, date))
+func TeamSummaryPath(teamID uint, date time.Time) string {
+	return path.Join(TeamSummaryDir(teamID), TeamSummaryFilename(teamID, date))
 }
 
-func TeamStatsURL(teamID uint, date time.Time) string {
+func TeamSummaryURL(teamID uint, date time.Time) string {
 	//https://fantasysports.yahooapis.com/fantasy/v2/team/253.l.1004.t.10/stats;type=date;date=2011-07-06
 	return fmt.Sprintf("%s/team/%d.l.%d.t.%d/stats;type=date;date=%d-%02d-%02d", BaseAPIURL, GameConst, GetLeagueID(), teamID, date.Year(), date.Month(), date.Day())
 }
 
-func (g *GithubClient) FindTeamStats(ctx context.Context, teamID uint, date time.Time) ([]*GithubFile, error) {
-	return g.Find(ctx, TeamStatsDir(teamID), TeamStatsFilename(teamID, date), TeamStatsExtension)
+func (g *GithubClient) FindTeamSummary(ctx context.Context, teamID uint, date time.Time) ([]*GithubFile, error) {
+	return g.Find(ctx, TeamSummaryDir(teamID), TeamSummaryFilename(teamID, date), TeamSummaryExtension)
 }
 
-func (g *GithubClient) CreateTeamStats(ctx context.Context, teamID uint, date time.Time, content []byte) error {
-	fn := GetGithubFilename(TeamStatsFilename(teamID, date), TeamStatsExtension, time.Now())
-	p := path.Join(TeamStatsDir(teamID), fn)
+func (g *GithubClient) CreateTeamSummary(ctx context.Context, teamID uint, date time.Time, content []byte) error {
+	fn := GetGithubFilename(TeamSummaryFilename(teamID, date), TeamSummaryExtension, time.Now())
+	p := path.Join(TeamSummaryDir(teamID), fn)
 	msg := fmt.Sprintf("New file for team #%2d stats on %4d-%02d-%02d", teamID, date.Year(), date.Month(), date.Day())
 	return g.CreateFile(ctx, p, msg, content)
 }
