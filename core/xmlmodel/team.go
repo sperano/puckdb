@@ -2,6 +2,7 @@ package xmlmodel
 
 import (
 	"encoding/xml"
+	"fmt"
 	"time"
 
 	"github.com/ericsperano/yfh/core/model"
@@ -44,6 +45,23 @@ type Managers struct {
 	Slice   []Manager `xml:"manager"`
 }
 
+type Stat struct {
+	XMLName xml.Name `xml:"stat"`
+	StatID  string   `xml:"stat_id"`
+	Value   string   `xml:"value"`
+}
+
+type Stats struct {
+	XMLName xml.Name `xml:"stats"`
+	Slice   []Stat   `xml:"stat"`
+}
+type TeamStats struct {
+	XMLName      xml.Name `xml:"team_stats"`
+	CoverageType string   `xml:"coverage_type"`
+	Date         string   `xml:"date"`
+	Stats        Stats    `xml:"stats"`
+}
+
 type Team struct {
 	XMLName               xml.Name `xml:"team"`
 	Key                   string   `xml:"team_key"`
@@ -67,6 +85,7 @@ type Team struct {
 	HasDraftGrade     bool   `xml:"has_draft_grade"`
 	Managers          Managers
 	Roster            Roster
+	TeamStats         TeamStats
 }
 
 func (t *Team) ToTeamModel() *model.Team {
@@ -128,5 +147,34 @@ func (t *Team) ToRosterPlayersModel() ([]*model.RosterPlayer, error) {
 }
 
 func (t *Team) ToTeamSummaryModel() (*model.TeamSummary, error) {
-	return nil, nil
+	fmt.Printf("coverage_type=%s date=%s\n", t.TeamStats.CoverageType, t.TeamStats.Date)
+	for _, s := range t.TeamStats.Stats.Slice {
+		fmt.Printf("stat_id=%s value=%s\n", s.StatID, s.Value)
+	}
+	ts := model.TeamSummary{
+		//Date:
+		TeamID: uint(t.ID),
+		StatsGoaler: model.StatsGoaler{
+			GoalAgainst:     0,
+			ShotsAgainst:    0,
+			Saves:           0,
+			GoalieTimeOnIce: 0,
+		},
+		StatsSkater: model.StatsSkater{
+			Goals:          0,
+			Assists:        0,
+			PlusMinus:      0,
+			PenaltyMinutes: 0,
+			ShotsOnGoal:    0,
+			FaceoffsWon:    0,
+			FaceoffsLost:   0,
+			Hits:           0,
+			Blocks:         0,
+			TimeOnIce:      0,
+			Shifts:         0,
+			TakeAways:      0,
+			GiveAways:      0,
+		},
+	}
+	return &ts, nil
 }

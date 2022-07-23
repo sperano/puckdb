@@ -134,8 +134,7 @@ func doImportTeamSummary(ctx context.Context, yfh *core.YFH, teamID uint, date t
 		return nil, fmt.Errorf("ToTeamSummaryModel teamID=%02d date=%4d-%02d-%02d error=%w",
 			teamID, date.Year(), date.Month(), date.Day(), err)
 	}
-	log.Debugf("Ensuring team summary %04d-%02d-%02d team:%02d",
-		date.Year(), date.Month(), date.Day(), model.TeamID)
+	log.Debugf("Ensuring team summary %04d-%02d-%02d team:%02d", date.Year(), date.Month(), date.Day(), model.TeamID)
 	if err := model.Ensure(yfh.GormDB); err != nil {
 		return nil, fmt.Errorf("TeamSummaryModel teamID=%02d date=%4d-%02d-%02d error=%w",
 			teamID, date.Year(), date.Month(), date.Day(), err)
