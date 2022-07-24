@@ -17,7 +17,7 @@ jobs:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
           SLACK_CHANNEL: "#dev"
           SLACK_USERNAME: "github-yahoo-fantasy-hockey"
-          SLACK_TITLE: ${GITHUB_SHA}
+          SLACK_TITLE: ${{ env.GITHUB_SHA }}
       - name: Install buildx
         id: buildx
         uses: crazy-max/ghaction-docker-buildx@v1
