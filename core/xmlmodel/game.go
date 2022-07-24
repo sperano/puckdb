@@ -6,19 +6,13 @@ import (
 	"strings"
 
 	"github.com/ericsperano/yfh/core/model"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
 // TODO not really an xml, it's parsed from html differently
 
 const GamePostPoned = "postponed"
-
-/*
-type GameLink struct {
-	URL string
-}
-*/
 
 type PlayerID string
 
@@ -101,7 +95,7 @@ func (p *PlayerInfo) ToPlayerModel() (*model.Player, error) {
 			return nil, err
 		}
 	} else {
-		log.Warnf("Empty uniform number for %s %s\n", p.FirstName, p.LastName)
+		log.Warn().Msgf("Empty uniform number for %s %s", p.FirstName, p.LastName)
 	}
 	nid, err := p.NHLTeam.ID()
 	if err != nil {
@@ -155,7 +149,7 @@ type PlayerStats struct {
 }
 
 func (ps *PlayerStats) ToPlayerStatsModel() (*model.PlayerStats, error) {
-	log.Debugf("player stats source=%+v", ps)
+	log.Debug().Msgf("player stats source=%+v", ps)
 
 	playerStats := &model.PlayerStats{}
 	id, err := ps.PlayerID.ID()

@@ -6,7 +6,7 @@ import (
 
 	"github.com/ericsperano/yfh/core"
 	"github.com/gin-gonic/gin"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 func ClearDB(ctx context.Context, yfh *core.YFH) error {
@@ -47,7 +47,7 @@ func ClearCacheWithFilter(ctx context.Context, yfh *core.YFH, filter string) err
 		return err
 	}
 	for _, key := range result {
-		log.Debugf("Clearing key %s", key)
+		log.Debug().Str("key", key).Msg("Clearing")
 		if err := yfh.RedisClient.Del(ctx, key).Err(); err != nil {
 			return err
 		}

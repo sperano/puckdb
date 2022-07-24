@@ -4,23 +4,25 @@ import (
 	"fmt"
 	"sort"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
 const FlagLogLevel = "log_level"
 
-var LogLevels map[string]log.Level
+var LogLevels map[string]zerolog.Level
 
 func init() {
-	LogLevels = make(map[string]log.Level)
-	LogLevels["debug"] = log.DebugLevel
-	LogLevels["info"] = log.InfoLevel
-	LogLevels["warn"] = log.WarnLevel
-	LogLevels["error"] = log.ErrorLevel
-	LogLevels["fatal"] = log.FatalLevel
-	LogLevels["trace"] = log.TraceLevel
+	LogLevels = make(map[string]zerolog.Level)
+	LogLevels["debug"] = zerolog.DebugLevel
+	LogLevels["info"] = zerolog.InfoLevel
+	LogLevels["warn"] = zerolog.WarnLevel
+	LogLevels["error"] = zerolog.ErrorLevel
+	LogLevels["fatal"] = zerolog.FatalLevel
+	//LogLevels["trace"] = zerolog.TraceLevel
 }
 
 func SetupViperLogLevel(flags *flag.FlagSet) {
@@ -36,7 +38,7 @@ func SetLogLevel() {
 	s := viper.GetString(FlagLogLevel)
 	lvl, found := LogLevels[s]
 	if !found {
-		log.Fatalf("Invalid log level: %s", s)
+		log.Fatal().Msgf("Invalid log level: %s", s)
 	}
-	log.SetLevel(lvl)
+	zerolog.SetGlobalLevel(lvl)
 }

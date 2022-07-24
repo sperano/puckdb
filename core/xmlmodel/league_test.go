@@ -29,7 +29,7 @@ func TestToLeagueModel(t *testing.T) {
 	}
 	l, err := xmlleague.ToLeagueModel()
 	assert.Nil(t, err)
-	assert.Equal(t, 22030, l.ID)
+	assert.Equal(t, 22030, int(l.ID))
 	assert.Equal(t, "postdraft", l.DraftStatus)
 	assert.Equal(t, "2021-11-26", l.EditKey)
 	assert.Equal(t, 2022, l.EndDate.Year())

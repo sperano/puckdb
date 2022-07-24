@@ -9,7 +9,7 @@ import (
 	"github.com/ericsperano/yfh/core/model"
 	"github.com/gin-gonic/gin"
 	"github.com/penglongli/gin-metrics/ginmetrics"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -47,11 +47,11 @@ func setupMetricsRouter(yfh *core.YFH) *gin.Engine {
 func doMetrics(yfh *core.YFH, model interface{}, metrics string) {
 	var count int64
 	if err := yfh.GormDB.Model(model).Count(&count).Error; err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err)
 	}
-	log.Debugf("%T count=%d", model, count)
+	log.Debug().Int64("count", count).Str("model.Type", fmt.Sprintf("%T", model))
 	if err := ginmetrics.GetMonitor().GetMetric(metrics).SetGaugeValue(nil, float64(count)); err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/adjust/rmq/v4"
 	"github.com/go-redis/redis/v8"
+	"github.com/spf13/viper"
 	"gorm.io/gorm"
 )
 
@@ -29,7 +30,7 @@ type YFH struct {
 	RedisClient   *redis.Client
 	RmqConnection rmq.Connection
 	Queue         rmq.Queue
-	Github        *GithubClient
+	Local         *LocalClient
 	GormDB        *gorm.DB
 }
 
@@ -45,10 +46,7 @@ func NewYFH() (*YFH, error) {
 	yfh.RmqConnection = rmqConnection
 	yfh.Queue = queue
 
-	redisCache := NewRedisGithubCache(yfh.RedisClient)
-	ghClient := Init3rdPartyGithubClient()
-	yfh.Github = NewGithubClient(redisCache, ghClient.Repositories)
-	//ghClient.Repositories.
+	yfh.Local = NewLocalClient(viper.GetString(FlagDataPath))
 	db, err := OpenGorm()
 	if err != nil {
 		return nil, err

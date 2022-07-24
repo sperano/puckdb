@@ -12,8 +12,8 @@ import (
 )
 
 type Game struct {
-	Game        model.Game
-	GithubFiles []*core.GithubFile
+	Game       model.Game
+	LocalFiles []*core.LocalFile
 }
 
 func HandleImportGames(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {
@@ -79,11 +79,11 @@ func getGames(ctx context.Context, yfh *core.YFH, date time.Time) ([]*Game, erro
 	}
 	games2 := []*Game{} //  make([]*Game, len(games))
 	for _, g := range games {
-		files, err := yfh.Github.FindGame(ctx, date, g.Name)
+		files, err := yfh.Local.FindGame(ctx, date, g.Name)
 		if err != nil {
 			return nil, err
 		}
-		games2 = append(games2, &Game{Game: g, GithubFiles: files})
+		games2 = append(games2, &Game{Game: g, LocalFiles: files})
 	}
 	return games2, nil
 }

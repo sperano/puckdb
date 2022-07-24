@@ -10,7 +10,7 @@ import (
 	"github.com/go-redsync/redsync/v4"
 	"github.com/go-redsync/redsync/v4/redis/goredis/v8"
 	"github.com/penglongli/gin-metrics/ginmetrics"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	flag "github.com/spf13/pflag"
 
 	"github.com/spf13/viper"
@@ -66,7 +66,7 @@ func Publish(queue rmq.Queue, task *Task) error {
 	if err != nil {
 		return err
 	}
-	log.Debugf("Publishing: %s", string(taskBytes))
+	log.Debug().Msgf("Publishing: %s", string(taskBytes))
 	if err = queue.PublishBytes(taskBytes); err != nil {
 		return fmt.Errorf("error while publishing %+v to the queue: %w", task, err)
 	}

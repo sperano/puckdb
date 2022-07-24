@@ -6,7 +6,7 @@ import (
 
 	"github.com/ericsperano/yfh/core"
 	"github.com/ericsperano/yfh/core/model"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -31,6 +31,7 @@ func HandleImportAll(ctx context.Context, yfh *core.YFH) error {
 	if err := HandleImportTeams(ctx, yfh); err != nil {
 		return err
 	}
+	// TODO TODO TODO BIG PROBLEM HERE TODO TODO TODO
 	dates, err := core.GetDateRange("", "")
 	if err != nil {
 		return err
@@ -87,7 +88,7 @@ func InitMeta(ctx context.Context, db *gorm.DB, mtype model.MetaType, day *time.
 }
 
 func HandleInitMeta(ctx context.Context, db *gorm.DB) error {
-	log.Info("Initializing meta...")
+	log.Info().Msg("Initializing meta...")
 	if err := InitMeta(ctx, db, model.MetaFantasyGame, nil); err != nil {
 		return err
 	}

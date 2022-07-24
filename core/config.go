@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -44,7 +44,7 @@ func GetTeamIDs() []uint {
 	for _, tok := range strings.Split(viper.GetString(FlagTeamIDs), ",") {
 		i, err := strconv.Atoi(tok)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err)
 		}
 		ids = append(ids, uint(i))
 	}

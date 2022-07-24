@@ -12,8 +12,8 @@ import (
 )
 
 type Team struct {
-	Team        model.Team
-	GithubFiles []*core.GithubFile
+	Team       model.Team
+	LocalFiles []*core.LocalFile
 }
 
 func HandleImportTeams(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {
@@ -74,7 +74,7 @@ func HandleGetTeams(yfh *core.YFH) func(c *gin.Context) {
 }
 
 func getTeam(ctx context.Context, yfh *core.YFH, teamID uint) (*Team, error) {
-	files, err := yfh.Github.FindTeam(ctx, teamID)
+	files, err := yfh.Local.FindTeam(ctx, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func getTeam(ctx context.Context, yfh *core.YFH, teamID uint) (*Team, error) {
 	if result := yfh.GormDB.First(&team, teamID); result.Error != nil {
 		return nil, result.Error
 	}
-	return &Team{Team: team, GithubFiles: files}, nil
+	return &Team{Team: team, LocalFiles: files}, nil
 }
 
 func HandleImportTeamSummary(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {

@@ -1,25 +1,16 @@
 package core
 
 import (
-	"os"
 	"runtime"
 
 	"github.com/dustin/go-humanize/english"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
-func PrintEnv() {
-	// TODO sort
-	for _, e := range os.Environ() {
-		log.Trace(e)
-	}
-}
-
 // TODO publish with a tag with this version too
-const Version = "0.5.21"
+const Version = "0.6.0-dev"
 
 func LogIntro() {
-	log.Infof("Yahoo Fantasy Hockey version %s", Version)
-	PrintEnv()
-	log.Info(english.Plural(runtime.NumCPU(), "CPU", ""))
+	log.Info().Str("Version", Version).Msgf("Yahoo Fantasy Hockey version %s", Version)
+	log.Info().Int("CPUs", runtime.NumCPU()).Msg(english.Plural(runtime.NumCPU(), "CPU", ""))
 }

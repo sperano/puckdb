@@ -14,7 +14,7 @@ import (
 	"github.com/dustin/go-humanize/english"
 	"github.com/ericsperano/yfh/core"
 	"github.com/penglongli/gin-metrics/ginmetrics"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 type Worker struct {
@@ -36,7 +36,7 @@ func unmarshalTask(delivery rmq.Delivery) (*core.Task, error) {
 		}
 		return nil, err
 	}
-	log.Infof("Consuming %s", task.String())
+	log.Info().Str("task", task.String()).Msg("Consuming")
 	ginmetrics.GetMonitor().GetMetric(core.MetricTaskConsumed).Inc([]string{task.Type})
 	return &task, nil
 }
@@ -48,7 +48,7 @@ func getDateParam(task *core.Task) (time.Time, error) {
 func (w *Worker) Consume(delivery rmq.Delivery) {
 	task, err := unmarshalTask(delivery)
 	if err != nil {
-		log.Error(err)
+		log.Error().Err(err)
 		return
 	}
 	ctx := context.WithValue(context.Background(), core.CtxUser, task.Data[core.TaskDataUser])
@@ -121,22 +121,22 @@ func (w *Worker) Consume(delivery rmq.Delivery) {
 			err = HandleComputeForTeam(ctx, w.YFH, uint(teamID))
 		}
 	default:
-		log.Warnf("No handler for %s", task.String())
+		log.Warn().Str("task", task.String()).Msg("No handler found")
 		// TODO metrics for this error
 	}
 	endTime := time.Now()
 	elapseMS := endTime.Sub(startTime).Milliseconds()
-	log.Infof("Worker spent %s", english.Plural(int(elapseMS), "millisecond", ""))
+	log.Info().Msgf("Worker spent %s", english.Plural(int(elapseMS), "millisecond", ""))
 	if err := ginmetrics.GetMonitor().GetMetric(core.MetricElapseTime).Add(nil, float64(elapseMS)); err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err)
 	}
 	if err != nil {
-		log.Errorf("%s: %s", task.Type, err)
+		log.Error().Str("task.Type", task.Type).Err(err)
 	}
 	if err := delivery.Ack(); err != nil {
-		log.Errorf("Failed to ack %s: %s", task.String(), err)
+		log.Error().Str("task", task.String()).Err(err).Msg("Failed to ack")
 	} else {
-		log.Debugf("Acked %s", task.String())
+		log.Debug().Str("task", task.String()).Msg("Acked")
 	}
 }
 
@@ -157,7 +157,7 @@ func StarWorkerQueue(yfh *core.YFH) error {
 	)
 
 	go logErrors(yfh.ErrChan)
-	log.Infof("Worker queue started")
+	log.Info().Msg("Worker queue started")
 	if err := yfh.Queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func StarWorkerQueue(yfh *core.YFH) error {
 		os.Exit(1)
 	}()
 	<-yfh.RmqConnection.StopAllConsuming() // wait for all Consume() calls to finish
-	log.Infof("Shutting down worker queue")
+	log.Info().Msg("Shutting down worker queue")
 	return nil
 }
 
@@ -182,16 +182,16 @@ func logErrors(errChan <-chan error) {
 		switch err := err.(type) {
 		case *rmq.HeartbeatError:
 			if err.Count == rmq.HeartbeatErrorLimit {
-				log.Errorf("heartbeat error (limit): %s", err)
+				log.Error().Err(err).Msg("Heartbeat error (limit)")
 			} else {
-				log.Errorf("heartbeat error: %s", err)
+				log.Error().Err(err).Msg("Heartbeat error")
 			}
 		case *rmq.ConsumeError:
-			log.Errorf("Consume error: %s", err)
+			log.Error().Err(err).Msg("Consume error")
 		case *rmq.DeliveryError:
-			log.Errorf("Delivery error: %s %s", err.Delivery, err)
+			log.Error().Err(err).Msg("Delivery error")
 		default:
-			log.Errorf("Other error: %s", err)
+			log.Error().Err(err).Msg("Other error")
 		}
 	}
 }

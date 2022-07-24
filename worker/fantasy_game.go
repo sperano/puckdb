@@ -7,46 +7,45 @@ import (
 
 	"github.com/dustin/go-humanize/english"
 	"github.com/ericsperano/yfh/core"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
-func EnsureRecentFantasyGame(ctx context.Context, yfh *core.YFH) (*core.GithubFile, error) {
-	gitfiles, err := yfh.Github.FindFantasyGame(ctx)
+func EnsureRecentFantasyGame(ctx context.Context, yfh *core.YFH) (*core.LocalFile, error) {
+	files, err := yfh.Local.FindFantasyGame(ctx)
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Found %s in github", english.Plural(len(gitfiles), "fantasy game file", ""))
-	if len(gitfiles) == 0 {
+	log.Debug().Msgf("Found %s files", english.Plural(len(files), "fantasy game file", ""))
+	if len(files) == 0 {
 		content, err := Download(ctx, yfh, core.YahooFantasyGameURL())
 		if err != nil {
 			return nil, err
 		}
-		if err := yfh.Github.CreateFantasyGame(ctx, content); err != nil {
+		if err := yfh.Local.CreateFantasyGame(ctx, content); err != nil {
 			return nil, err
 		}
-		gitfiles, err = yfh.Github.FindFantasyGame(ctx)
+		files, err = yfh.Local.FindFantasyGame(ctx)
 		if err != nil {
 			return nil, err
 		}
-		if len(gitfiles) == 0 {
+		if len(files) == 0 {
 			return nil, errors.New("should have found at least one file for fantasy games")
 		}
 	}
-	return gitfiles[0], nil
+	return files[0], nil
 }
 
 func HandleImportFantasyGame(ctx context.Context, yfh *core.YFH) error {
-	// check if the fantasy game is in the github cache first
-	gitfile, err := EnsureRecentFantasyGame(ctx, yfh)
+	file, err := EnsureRecentFantasyGame(ctx, yfh)
 	if err != nil {
 		return err
 	}
-	fantasy, err := yfh.Github.ParseXML(ctx, path.Join(core.FantasyGameDirectory, gitfile.Filename()))
+	fantasy, err := yfh.Local.ParseXML(ctx, path.Join(core.FantasyGameDirectory, file.Filename()))
 	if err != nil {
 		return err
 	}
 	fg := fantasy.Game.ToFantasyGameModel()
-	fg.GithubTimestamp = gitfile.Time
-	log.Debugf("Ensuring fantasy game")
+	fg.GithubTimestamp = file.Time
+	log.Debug().Msg("Ensuring fantasy game")
 	return fg.Ensure(yfh.GormDB)
 }

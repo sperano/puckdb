@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/ericsperano/yfh/core"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
 )
 
@@ -37,7 +37,7 @@ func NewHTTPClient(ctx context.Context, yfh *core.YFH) (*HTTPClient, error) {
 }
 
 func (c *HTTPClient) Download(url string) ([]byte, error) {
-	log.Infof("Downloading %s", url)
+	log.Info().Str("url", url).Msg("Downloading")
 	resp, err := c.Client.Get(url)
 	if err != nil {
 		return nil, err
@@ -46,6 +46,6 @@ func (c *HTTPClient) Download(url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Trace(string(body))
+	log.Debug().Msg(string(body))
 	return body, nil
 }

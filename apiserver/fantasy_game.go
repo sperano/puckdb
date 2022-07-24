@@ -12,7 +12,7 @@ import (
 
 type FantasyGame struct {
 	FantasyGame model.FantasyGame
-	GithubFiles []*core.GithubFile
+	LocalFiles  []*core.LocalFile
 }
 
 func HandleImportFantasyGame(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {
@@ -30,13 +30,13 @@ func HandleImportFantasyGame(yfh *core.YFH, publish TaskPublisherFn) func(*gin.C
 // because we still want to have the github files, if any
 func HandleGetFantasyGame(yfh *core.YFH) func(c *gin.Context) {
 	return func(ctx *gin.Context) {
-		if files, err := yfh.Github.FindFantasyGame(ctx); err == nil {
+		if files, err := yfh.Local.FindFantasyGame(ctx); err == nil {
 			var fantasyGame model.FantasyGame
 			result := yfh.GormDB.First(&fantasyGame)
 			if result.Error == nil {
 				ctx.JSON(http.StatusOK, &FantasyGame{
 					FantasyGame: fantasyGame,
-					GithubFiles: files,
+					LocalFiles:  files,
 				})
 			} else {
 				if errors.Is(result.Error, gorm.ErrRecordNotFound) {

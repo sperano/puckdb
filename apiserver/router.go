@@ -9,13 +9,13 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/penglongli/gin-metrics/ginmetrics"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 const DefaultUser = "eric"
 
 func HandleError(ctx *gin.Context, code int, err error) {
-	log.Error(err.Error())
+	log.Error().Err(err)
 	ctx.JSON(code, gin.H{
 		"error": err.Error(),
 	})

@@ -12,7 +12,7 @@ import (
 	"github.com/ericsperano/yfh/worker"
 	"github.com/gin-gonic/gin"
 	"github.com/penglongli/gin-metrics/ginmetrics"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -58,7 +58,8 @@ func init() {
 			defer yfh.Close()
 			go worker.StarWorkerQueue(yfh)
 			go func() {
-				log.Infof("Redis Cache Duration: %d Minutes", viper.GetInt(core.FlagRedisCacheDuration))
+				dur := viper.GetInt(core.FlagRedisCacheDuration)
+				log.Info().Int("duration", dur).Msgf("Redis Cache Duration: %d Minutes", dur)
 				listen := fmt.Sprintf(":%d", viper.GetInt(FlagWorkerPort))
 				r := setupRouter(yfh)
 				if viper.GetBool(FlagWorkerTLSEnabled) {
@@ -73,13 +74,13 @@ func init() {
 			c := make(chan os.Signal, 2)
 			signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 			<-c // block until signal received
-			log.Info("Shutting down gin server")
+			log.Info().Msg("Shutting down gin server")
 			return nil
 		},
 	}
 	flags := cmd.Flags()
 	core.SetupViperConfig(flags)
-	core.SetupViperGithubAccessToken(flags)
+	core.SetupViperDataPath(flags)
 	core.SetupViperLogLevel(flags)
 	core.SetupViperRedis(flags)
 	core.SetupViperPostgres(flags)

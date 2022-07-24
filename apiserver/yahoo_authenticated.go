@@ -4,7 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
+
 	"github.com/spf13/viper"
 
 	"github.com/ericsperano/yfh/core"
@@ -16,7 +17,7 @@ const FlagUIURL = "ui_url"
 func HandleYahooAuthenticated(yfh *core.YFH) func(c *gin.Context) {
 	return func(ctx *gin.Context) {
 		code := ctx.Query("code")
-		log.Debugf("code=%s", code)
+		log.Debug().Str("code", code)
 		ctxV := context.WithValue(ctx, core.CtxUser, DefaultUser)
 		err := exchangeCode(ctxV, yfh, DefaultUser, code)
 		if err == nil {

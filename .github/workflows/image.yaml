@@ -24,3 +24,9 @@ jobs:
           --tag ericsperano/yfh:latest \
           --tag ericsperano/yfh:${{github.sha}} \
           --platform linux/amd64,linux/arm64 .
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: "#dev"
+          SLACK_USERNAME: "github"

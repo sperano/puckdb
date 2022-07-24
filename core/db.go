@@ -3,7 +3,7 @@ package core
 import (
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 
 	"github.com/ericsperano/yfh/core/model"
 	flag "github.com/spf13/pflag"
@@ -43,12 +43,12 @@ func GetDSN() string {
 
 func OpenGorm() (db *gorm.DB, err error) {
 	dsn := GetDSN()
-	log.Debugf("DSN: %s", dsn)
+	log.Debug().Str("DSN", dsn)
 	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
 }
 
 func DoMigration(db *gorm.DB) error {
-	log.Info("Starting database migration")
+	log.Info().Msg("Starting database migration")
 	if err := db.AutoMigrate(&model.Meta{}); err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func DoMigration(db *gorm.DB) error {
 }
 
 func DropEverything(db *gorm.DB) error {
-	log.Info("Dropping all tables")
+	log.Info().Msg("Dropping all tables")
 	migrator := db.Migrator()
 	if err := migrator.DropTable(&model.NHLTeam{}); err != nil {
 		return err

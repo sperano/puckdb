@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGithubFileInfoFilename(t *testing.T) {
+func TestLocalFileInfoFilename(t *testing.T) {
 	t.Parallel()
 	now, _ := ParseTimestamp("20210930024225")
-	f := GithubFile{
+	f := LocalFile{
 		Name:      "foo",
 		Extension: "xml",
 		Time:      now,
@@ -20,9 +20,9 @@ func TestGithubFileInfoFilename(t *testing.T) {
 	assert.Equal(t, exp, f.Filename())
 }
 
-func TestGithubParseFilenameSuccess(t *testing.T) {
+func TestLocalParseFilenameSuccess(t *testing.T) {
 	t.Parallel()
-	file := ParseGithubFilename("foo_20210930024225.xml")
+	file := ParseLocalFilename("foo_20210930024225.xml")
 	assert.NotNil(t, file)
 	assert.Equal(t, "foo", file.Name)
 	assert.Equal(t, "xml", file.Extension)
@@ -34,16 +34,16 @@ func TestGithubParseFilenameSuccess(t *testing.T) {
 	assert.Equal(t, 25, file.Time.Second())
 }
 
-func TestGithubParseFilenameIgnores(t *testing.T) {
+func TestLocalParseFilenameIgnores(t *testing.T) {
 	t.Parallel()
 	// no underscores
-	assert.Nil(t, ParseGithubFilename("foo20210930024225.xml"))
+	assert.Nil(t, ParseLocalFilename("foo20210930024225.xml"))
 	// more than one underscore
-	assert.Nil(t, ParseGithubFilename("foo_foo_20210930024225.xml"))
+	assert.Nil(t, ParseLocalFilename("foo_foo_20210930024225.xml"))
 	// no dots
-	assert.Nil(t, ParseGithubFilename("foo_20210930024225xml"))
+	assert.Nil(t, ParseLocalFilename("foo_20210930024225xml"))
 	// more than one dot
-	assert.Nil(t, ParseGithubFilename("foo_20210930024225.xml.bkp"))
+	assert.Nil(t, ParseLocalFilename("foo_20210930024225.xml.bkp"))
 	// invalid timestamp
-	assert.Nil(t, ParseGithubFilename("foo_2021093lol0024225.xml"))
+	assert.Nil(t, ParseLocalFilename("foo_2021093lol0024225.xml"))
 }

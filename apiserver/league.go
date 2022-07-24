@@ -11,8 +11,8 @@ import (
 )
 
 type League struct {
-	League      model.League
-	GithubFiles []*core.GithubFile
+	League     model.League
+	LocalFiles []*core.LocalFile
 }
 
 func HandleImportLeague(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {
@@ -28,13 +28,13 @@ func HandleImportLeague(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Contex
 
 func HandleGetLeague(yfh *core.YFH) func(c *gin.Context) {
 	return func(ctx *gin.Context) {
-		if files, err := yfh.Github.FindLeague(ctx); err == nil {
+		if files, err := yfh.Local.FindLeague(ctx); err == nil {
 			var league model.League
 			result := yfh.GormDB.First(&league)
 			if result.Error == nil {
 				ctx.JSON(http.StatusOK, &League{
-					League:      league,
-					GithubFiles: files,
+					League:     league,
+					LocalFiles: files,
 				})
 			} else {
 				if errors.Is(result.Error, gorm.ErrRecordNotFound) {

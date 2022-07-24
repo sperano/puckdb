@@ -22,7 +22,7 @@ func TestToFantasyGameModel(t *testing.T) {
 	}
 	fg := xmlfg.ToFantasyGameModel()
 	assert.Equal(t, "nhl", fg.Code)
-	assert.Equal(t, 411, fg.ID)
+	assert.Equal(t, 411, int(fg.ID))
 	assert.True(t, fg.IsGameOver)
 	assert.True(t, fg.IsOffseason)
 	assert.True(t, fg.IsRegistrationOver)

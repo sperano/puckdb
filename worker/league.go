@@ -7,42 +7,41 @@ import (
 
 	"github.com/dustin/go-humanize/english"
 	"github.com/ericsperano/yfh/core"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
-func EnsureRecentLeague(ctx context.Context, yfh *core.YFH) (*core.GithubFile, error) {
-	gitfiles, err := yfh.Github.FindLeague(ctx)
+func EnsureRecentLeague(ctx context.Context, yfh *core.YFH) (*core.LocalFile, error) {
+	files, err := yfh.Local.FindLeague(ctx)
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Found %s in github", english.Plural(len(gitfiles), "fantasy game file", ""))
-	if len(gitfiles) == 0 {
+	log.Debug().Msgf("Found %s", english.Plural(len(files), "fantasy game file", ""))
+	if len(files) == 0 {
 		content, err := Download(ctx, yfh, core.YahooLeagueURL(viper.GetInt(core.FlagLeagueID)))
 		if err != nil {
 			return nil, err
 		}
-		if err := yfh.Github.CreateLeague(ctx, content); err != nil {
+		if err := yfh.Local.CreateLeague(ctx, content); err != nil {
 			return nil, err
 		}
-		gitfiles, err = yfh.Github.FindLeague(ctx)
+		files, err = yfh.Local.FindLeague(ctx)
 		if err != nil {
 			return nil, err
 		}
-		if len(gitfiles) == 0 {
+		if len(files) == 0 {
 			return nil, errors.New("should have found at least one file for fantasy games")
 		}
 	}
-	return gitfiles[0], nil
+	return files[0], nil
 }
 
 func HandleImportLeague(ctx context.Context, yfh *core.YFH) error {
-	// check if the league is in the github cache first
-	gitfile, err := EnsureRecentLeague(ctx, yfh)
+	file, err := EnsureRecentLeague(ctx, yfh)
 	if err != nil {
 		return err
 	}
-	fantasy, err := yfh.Github.ParseXML(ctx, path.Join(core.LeagueDirectory, gitfile.Filename()))
+	fantasy, err := yfh.Local.ParseXML(ctx, path.Join(core.LeagueDirectory, file.Filename()))
 	if err != nil {
 		return err
 	}
@@ -50,7 +49,7 @@ func HandleImportLeague(ctx context.Context, yfh *core.YFH) error {
 	if err != nil {
 		return err
 	}
-	league.GithubTimestamp = gitfile.Time
-	log.Debugf("Ensuring league")
+	league.GithubTimestamp = file.Time
+	log.Debug().Msg("Ensuring league")
 	return league.Ensure(yfh.GormDB)
 }

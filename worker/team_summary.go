@@ -9,49 +9,58 @@ import (
 	"github.com/dustin/go-humanize/english"
 	"github.com/ericsperano/yfh/core"
 	"github.com/ericsperano/yfh/core/model"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
-func DownloadAndSaveTeamSummary(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*core.GithubFile, error) {
-	var gitfiles []*core.GithubFile
-	// download it if none are found then add it in github
+func DownloadAndSaveTeamSummary(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*core.LocalFile, error) {
+	var files []*core.LocalFile
+	// download it if none are found then save it locally
 	content, err := Download(ctx, yfh, core.TeamSummaryURL(teamID, date))
 	if err != nil {
 		return nil, err
 	}
-	if err := yfh.Github.CreateTeamSummary(ctx, teamID, date, content); err != nil {
+	if err := yfh.Local.CreateTeamSummary(ctx, teamID, date, content); err != nil {
 		return nil, err
 	}
-	// get the gitfile for what we just cre ated, it's from the cache so it's quick
-	gitfiles, err = yfh.Github.FindTeamSummary(ctx, teamID, date)
+	files, err = yfh.Local.FindTeamSummary(ctx, teamID, date)
 	if err != nil {
 		return nil, err
 	}
-	if len(gitfiles) == 0 {
-		return nil, fmt.Errorf("should have found at least one file for roster of team summary %02d on %04d-0%02d-%02d in github", teamID,
+	if len(files) == 0 {
+		return nil, fmt.Errorf("should have found at least one file for roster of team summary %02d on %04d-0%02d-%02d", teamID,
 			date.Year(), date.Month(), date.Day())
 	}
-	return gitfiles[0], nil
+	return files[0], nil
+}
+
+func getDateStr(date time.Time) string {
+	return fmt.Sprintf("%4d-%02d-%02d", date.Year(), date.Month(), date.Day())
 }
 
 /**
- * Ensure there is a file in github for a given roster for a given team on a given day
+ * Ensure there is a file for a given roster for a given team on a given day
  */
-func EnsureRecentTeamSummary(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*core.GithubFile, error) {
-	log.Debugf("EnsureTeamSummary date: %4d-%02d-%02d team: %d", date.Year(), date.Month(), date.Day(), teamID)
-	// fetch the files in github for the roster for that team on that date
-	gitfiles, err := yfh.Github.FindTeamSummary(ctx, teamID, date)
+func EnsureRecentTeamSummary(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*core.LocalFile, error) {
+	log.Debug().
+		Str("date", getDateStr(date)).
+		Uint("team", teamID).
+		Msg("EnsureTeamSummary")
+	// find the files for the roster for that team on that date
+	files, err := yfh.Local.FindTeamSummary(ctx, teamID, date)
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Found %s for team #%02d stats on %04d-%02d-%02d in github", english.Plural(len(gitfiles), "roster", ""), teamID,
-		date.Year(), date.Month(), date.Day())
-	if len(gitfiles) == 0 {
+	log.Debug().
+		Str("date", getDateStr(date)).
+		Uint("team", teamID).
+		Msg(fmt.Sprintf("Found %s", english.Plural(len(files), "roster", "")))
+
+	if len(files) == 0 {
 		return DownloadAndSaveTeamSummary(ctx, yfh, teamID, date)
 	}
 	// return the latest
-	return gitfiles[0], nil
+	return files[0], nil
 }
 
 func TeamSummaryGenerator() <-chan uint {
@@ -98,9 +107,15 @@ func importTeamSummaryPipeline(ctx context.Context, yfh *core.YFH, date time.Tim
 	}
 	go func() {
 		for teamStats := range core.FanIn(ctx, teamStatsStages...) {
-			log.Infof("Team summary imported: team %02d %04d-%02d-%02d", teamStats.TeamID, date.Year(), date.Month(), date.Day())
+			log.Info().
+				Str("date", getDateStr(date)).
+				Uint("team", teamStats.TeamID).
+				Msg("Team summary imported")
 		}
-		log.Infof("Imported all rosters for %04d-%02d-%02d", date.Year(), date.Month(), date.Day())
+		log.Info().
+			Str("date", getDateStr(date)).
+			Msg("All rosters imported")
+
 	}()
 	if err := core.WaitForPipeline(errcs...); err != nil {
 		return err
@@ -109,22 +124,25 @@ func importTeamSummaryPipeline(ctx context.Context, yfh *core.YFH, date time.Tim
 }
 
 func doImportTeamSummary(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*model.TeamSummary, error) {
-	// check if the roster is in the github cache first
-	gitfile, err := EnsureRecentTeamSummary(ctx, yfh, teamID, date)
+	file, err := EnsureRecentTeamSummary(ctx, yfh, teamID, date)
 	if err != nil {
 		return nil, fmt.Errorf("EnsureRecentTeamSummary teamID=%02d date=%4d-%02d-%02d error=%w",
 			teamID, date.Year(), date.Month(), date.Day(), err)
 	}
-	fantasy, err := yfh.Github.ParseXML(ctx, path.Join(core.TeamSummaryDir(teamID), gitfile.Filename()))
+	fantasy, err := yfh.Local.ParseXML(ctx, path.Join(core.TeamSummaryDir(teamID), file.Filename()))
 	if err != nil {
-		log.Warnf("Can't parse the team summary file for teamID=%02d date=%4d-%02d-%02d error=%s",
-			teamID, date.Year(), date.Month(), date.Day(), err)
+		log.Info().
+			Str("date", getDateStr(date)).
+			Uint("team", teamID).
+			Err(err).
+			Msg("Can't parse the team summary file")
+
 		// let's try to download and parse it again
-		gitfile, err = DownloadAndSaveTeamSummary(ctx, yfh, teamID, date)
+		file, err = DownloadAndSaveTeamSummary(ctx, yfh, teamID, date)
 		if err != nil {
 			return nil, err
 		}
-		fantasy, err = yfh.Github.ParseXML(ctx, path.Join(core.TeamSummaryDir(teamID), gitfile.Filename()))
+		fantasy, err = yfh.Local.ParseXML(ctx, path.Join(core.TeamSummaryDir(teamID), file.Filename()))
 		if err != nil {
 			return nil, err
 		}
@@ -134,7 +152,10 @@ func doImportTeamSummary(ctx context.Context, yfh *core.YFH, teamID uint, date t
 		return nil, fmt.Errorf("ToTeamSummaryModel teamID=%02d date=%4d-%02d-%02d error=%w",
 			teamID, date.Year(), date.Month(), date.Day(), err)
 	}
-	log.Debugf("Ensuring team summary %04d-%02d-%02d team:%02d", date.Year(), date.Month(), date.Day(), model.TeamID)
+	log.Debug().
+		Str("date", getDateStr(date)).
+		Uint("team", model.TeamID).
+		Msg("Ensuring team summary")
 	if err := model.Ensure(yfh.GormDB); err != nil {
 		return nil, fmt.Errorf("TeamSummaryModel teamID=%02d date=%4d-%02d-%02d error=%w",
 			teamID, date.Year(), date.Month(), date.Day(), err)

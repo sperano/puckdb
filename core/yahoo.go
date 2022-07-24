@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
+
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/yahoo"
@@ -65,13 +66,13 @@ func SaveToken(ctx context.Context, yfh *YFH, token *oauth2.Token) error {
 		return err
 	}
 	key := getRedisKeyForToken(GetCtxUser(ctx))
-	log.Infof("Saving token for %s: %s", key, s)
+	log.Info().Str("key", key).Str("token", s).Msg("Saving")
 	return yfh.RedisClient.Set(ctx, key, s, 0).Err()
 }
 
 func LoadToken(ctx context.Context, yfh *YFH) (*oauth2.Token, error) {
 	key := getRedisKeyForToken(GetCtxUser(ctx))
-	log.Debugf("Loading token for %s", key)
+	log.Debug().Str("key", key).Msg("Loading token")
 	status := yfh.RedisClient.Get(ctx, key)
 	if err := status.Err(); err != nil {
 		return nil, err

@@ -6,7 +6,7 @@ import (
 
 	"github.com/bsm/redislock"
 	"github.com/ericsperano/yfh/core"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -30,10 +30,10 @@ func init() {
 			ctx := context.Background()
 			lock, err := locker.Obtain(ctx, lockName, 60*time.Second, nil)
 			if err == redislock.ErrNotObtained {
-				log.Warn("Could not obtain a lock, Another process is probably doing the database migration")
+				log.Warn().Msg("Could not obtain a lock, Another process is probably doing the database migration")
 				return nil
 			} else if err != nil {
-				log.Fatalln(err)
+				log.Fatal().Err(err)
 			}
 			defer lock.Release(ctx)
 			orm, err := core.OpenGorm()

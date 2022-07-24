@@ -14,45 +14,44 @@ import (
 	"github.com/ericsperano/yfh/core/model"
 	"github.com/ericsperano/yfh/core/xmlmodel"
 	"github.com/k0kubun/pp"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 	"gorm.io/gorm/clause"
 )
 
 /**
- * Ensure there is a file in github for a given game on a given day
+ * Ensure there is a file for a given game on a given day
  */
-func EnsureRecentGame(ctx context.Context, yfh *core.YFH, date time.Time, gameLink string) (*core.GithubFile, error) {
-	log.Debugf("EnsureRecentGame date: %4d-%02d-%02d", date.Year(), date.Month(), date.Day())
+func EnsureRecentGame(ctx context.Context, yfh *core.YFH, date time.Time, gameLink string) (*core.LocalFile, error) {
+	log.Debug().Str("date", getDateStr(date)).Msg("EnsureRecentGame")
 	tokens := strings.Split(gameLink, "/")
 	gameName := tokens[len(tokens)-2]
-	log.Debugf("Game name: %s", gameName)
-	// fetch the files in github for the game on that date
-	gitfiles, err := yfh.Github.FindGame(ctx, date, gameName)
+	log.Debug().Str("Game", gameName)
+	// find the files for the game on that date
+	files, err := yfh.Local.FindGame(ctx, date, gameName)
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Found %s for %s in github", english.Plural(len(gitfiles), "game", ""), gameName)
-	if len(gitfiles) == 0 {
-		// download it if none are found then add it in github
+	log.Debug().Str("Game", gameName).Msgf("Found %s", english.Plural(len(files), "game", ""))
+	if len(files) == 0 {
+		// download it if none are found then save it locally
 		content, err := Download(ctx, yfh, core.GameURL(gameLink))
 		if err != nil {
 			return nil, err
 		}
-		if err := yfh.Github.CreateGame(ctx, date, gameName, content); err != nil {
+		if err := yfh.Local.CreateGame(ctx, date, gameName, content); err != nil {
 			return nil, err
 		}
-		// get the gitfile for what we just created, it's from the cache so it's quick
-		gitfiles, err = yfh.Github.FindGame(ctx, date, gameName)
+		files, err = yfh.Local.FindGame(ctx, date, gameName)
 		if err != nil {
 			return nil, err
 		}
-		if len(gitfiles) == 0 {
+		if len(files) == 0 {
 			return nil, fmt.Errorf("should have found at least one file for game %s", gameName)
 		}
 	}
 	// return the latest
-	return gitfiles[0], nil
+	return files[0], nil
 }
 
 func importGameStage(ctx context.Context, yfh *core.YFH, date time.Time, gamelinks <-chan string) (<-chan *model.Game, <-chan error) {
@@ -87,12 +86,12 @@ func findJSON(content []byte, gameLink string) (string, error) {
 	return "", fmt.Errorf("couldn't find json data in %s", gameLink)
 }
 
-func GetGameXMLModel(ctx context.Context, yfh *core.YFH, date time.Time, gameLink string) (*xmlmodel.Game, *core.GithubFile, error) {
-	gitfile, err := EnsureRecentGame(ctx, yfh, date, gameLink)
+func GetGameXMLModel(ctx context.Context, yfh *core.YFH, date time.Time, gameLink string) (*xmlmodel.Game, *core.LocalFile, error) {
+	file, err := EnsureRecentGame(ctx, yfh, date, gameLink)
 	if err != nil {
 		return nil, nil, err
 	}
-	content, err := yfh.Github.ReadFile(ctx, path.Join(core.GameDir(date), gitfile.Filename()))
+	content, err := yfh.Local.ReadFile(ctx, path.Join(core.GameDir(date), file.Filename()))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -105,12 +104,12 @@ func GetGameXMLModel(ctx context.Context, yfh *core.YFH, date time.Time, gameLin
 	if err := json.Unmarshal([]byte(jsonData), &game); err != nil {
 		// one "valid" error is that the game was postponed
 		if game.IsPostponed() {
-			log.Warnf("Game %s was postponed", gameLink)
+			log.Warn().Str("game", gameLink).Msg("Game was postponed")
 		} else {
 			return nil, nil, err
 		}
 	}
-	return &game, gitfile, nil
+	return &game, file, nil
 }
 
 func importGamesPipeline(ctx context.Context, yfh *core.YFH, filename string, date time.Time) error {
@@ -128,12 +127,13 @@ func importGamesPipeline(ctx context.Context, yfh *core.YFH, filename string, da
 		count := 0
 		for game := range core.FanIn(ctx, gamesStages...) {
 			count++
-			log.Infof("Game imported: %s", game.Name)
+			log.Info().Str("game", game.Name).Msg("Game imported")
 		}
+		ds := getDateStr(date)
 		if count == 0 {
-			log.Warnf("%04d-%02d-%02d has no games", date.Year(), date.Month(), date.Day())
+			log.Warn().Str("date", ds).Msgf("%s has no games", ds)
 		} else {
-			log.Infof("%s on %04d-%02d-%02d", english.Plural(count, "game", ""), date.Year(), date.Month(), date.Day())
+			log.Info().Str("date", ds).Msgf("%s on %s", english.Plural(count, "game", ""), ds)
 		}
 	}()
 	if err := core.WaitForPipeline(errcs...); err != nil {
@@ -146,18 +146,17 @@ func importGamesPipeline(ctx context.Context, yfh *core.YFH, filename string, da
  * This function handle importing all games for a specific day
  */
 func HandleImportGames(ctx context.Context, yfh *core.YFH, date time.Time) error {
-	// check if the game list is in the github cache first
-	gitfile, err := EnsureRecentGamesList(ctx, yfh, date)
+	file, err := EnsureRecentGamesList(ctx, yfh, date)
 	if err != nil {
 		return err
 	}
 	// get a local tmp copy of the games list for parsing
-	localFilename, err := yfh.Github.GetTmpCopy(ctx, "games-list", path.Join(core.GameDir(date), gitfile.Filename()))
+	localFilename, err := yfh.Local.GetTmpCopy(ctx, "games-list", path.Join(core.GameDir(date), file.Filename()))
 	if err != nil {
 		return err
 	}
 	defer func() {
-		log.Debugf("Removing tmp file: %s", localFilename)
+		log.Debug().Str("file", localFilename).Msg("Removing tmp file")
 		os.Remove(localFilename)
 	}()
 	// let's parse the games list to find individual games
@@ -165,16 +164,16 @@ func HandleImportGames(ctx context.Context, yfh *core.YFH, date time.Time) error
 }
 
 func doImportGame(ctx context.Context, yfh *core.YFH, date time.Time, gamelink string) (*model.Game, error) {
-	log.Tracef("URL: %s", gamelink)
-	game, gitfile, err := GetGameXMLModel(ctx, yfh, date, gamelink)
+	log.Debug().Str("game", gamelink).Msg("doImportGame")
+	game, file, err := GetGameXMLModel(ctx, yfh, date, gamelink)
 	if err != nil {
 		return nil, fmt.Errorf("GetGamesXMLModel (%s) -> %w", gamelink, err)
 	}
 	if !game.IsRegularSeason() {
-		log.Warnf("Not a regular season game: %s", gamelink)
+		log.Warn().Str("game", gamelink).Msg("Not a regular season game")
 		return nil, nil
 	}
-	log.Debug(pp.Sprint(game))
+	log.Debug().Msg(pp.Sprint(game))
 	if err := EnsureNHLPlayers(ctx, yfh.GormDB, game.Players()); err != nil {
 		return nil, fmt.Errorf("EnsureNHL (%s) -> %w", gamelink, err)
 	}
@@ -202,10 +201,14 @@ func doImportGame(ctx context.Context, yfh *core.YFH, date time.Time, gamelink s
 		AwayTeamScore:   uint(awayTeamScore),
 		State:           game.GetState(),
 		Name:            gamelink[5 : len(gamelink)-1],
-		GithubTimestamp: gitfile.Time, // TODO not good timezone?
+		GithubTimestamp: file.Time, // TODO not good timezone?
 	}
-	log.Debugf("Ensuring game %04d-%02d-%02d %d (%d) - %d (%d)", date.Year(), date.Month(), date.Day(),
-		homeTeamID, homeTeamScore, awayTeamID, awayTeamScore)
+	log.Debug().
+		Str("date", getDateStr(date)).
+		Uint("homeTeamID", homeTeamID).
+		Int("homeTeamScore", homeTeamScore).
+		Uint("awayTeamID", awayTeamID).
+		Int("awayTeamScore", awayTeamScore)
 	if err := newGame.Ensure(yfh.GormDB); err != nil {
 		return nil, err
 	}

@@ -6,7 +6,7 @@ import (
 
 	"github.com/ericsperano/yfh/core"
 	"github.com/ericsperano/yfh/core/model"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 func HandleComputeForTeam(ctx context.Context, yfh *core.YFH, teamID uint) error {
@@ -28,10 +28,10 @@ func HandleComputeForTeam(ctx context.Context, yfh *core.YFH, teamID uint) error
 		//var rosterItems []model.RosterPlayer
 		//,SUM(assists),
 		var statsSkaters model.StatsSkater
-		query := `SELECT SUM(goals) AS goals, SUM(assists) AS assists, SUM(plus_minus) AS plus_minus, 
-		SUM(penalty_minutes) AS penalty_minutes, SUM(shots_on_goal) AS shots_on_goal, 
-		SUM(faceoffs_won) AS faceoofs_won, SUM(faceoffs_lost) AS faceoffs_lost, SUM(hits) AS hits, 
-		SUM(blocks) AS blocks, SUM(time_on_ice) AS time_on_ice,	SUM(shifts) AS shifts, 
+		query := `SELECT SUM(goals) AS goals, SUM(assists) AS assists, SUM(plus_minus) AS plus_minus,
+		SUM(penalty_minutes) AS penalty_minutes, SUM(shots_on_goal) AS shots_on_goal,
+		SUM(faceoffs_won) AS faceoofs_won, SUM(faceoffs_lost) AS faceoffs_lost, SUM(hits) AS hits,
+		SUM(blocks) AS blocks, SUM(time_on_ice) AS time_on_ice,	SUM(shifts) AS shifts,
 		SUM(take_aways) AS take_aways, SUM(give_aways) AS give_aways
 		FROM roster_players rp JOIN player_stats ps ON rp.player_id=ps.player_id AND rp.date=ps.date
 		WHERE rp.date=? AND rp.team_id=? AND selected_position>? AND selected_position<?`
@@ -40,7 +40,7 @@ func HandleComputeForTeam(ctx context.Context, yfh *core.YFH, teamID uint) error
 			return db.Error
 		}
 		var statsGoalers model.StatsGoaler
-		query = `SELECT SUM(goal_against) AS goal_against, SUM(shots_against) AS shot_against, 
+		query = `SELECT SUM(goal_against) AS goal_against, SUM(shots_against) AS shot_against,
 		SUM(saves) AS saves, SUM(goalie_time_on_ice) goalie_time_on_ice
 		FROM roster_players rp JOIN player_stats ps ON rp.player_id=ps.player_id AND rp.date=ps.date
 		WHERE rp.date=? AND rp.team_id=? AND selected_position=?`
@@ -51,7 +51,11 @@ func HandleComputeForTeam(ctx context.Context, yfh *core.YFH, teamID uint) error
 		standing.Date = date
 		standing.AddSkatersStats(&statsSkaters)
 		standing.AddGoalersStats(&statsGoalers)
-		log.Infof("%s teamID=%d skaters=%v goalers=%v\n", dateStr, teamID, statsSkaters, statsGoalers)
+		log.Info().
+			Str("date", dateStr).
+			Uint("teamID", teamID).
+			Str("skaters", fmt.Sprintf("%v", statsSkaters)).
+			Str("goalers", fmt.Sprintf("%v", statsGoalers))
 		if err := db.Create(&standing).Error; err != nil {
 			return err
 		}

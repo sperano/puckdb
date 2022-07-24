@@ -2,10 +2,10 @@ package xmlmodel
 
 import (
 	"encoding/xml"
-	"fmt"
 	"time"
 
 	"github.com/ericsperano/yfh/core/model"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
@@ -147,9 +147,11 @@ func (t *Team) ToRosterPlayersModel() ([]*model.RosterPlayer, error) {
 }
 
 func (t *Team) ToTeamSummaryModel() (*model.TeamSummary, error) {
-	fmt.Printf("coverage_type=%s date=%s\n", t.TeamStats.CoverageType, t.TeamStats.Date)
+	log.Debug().
+		Str("Coverage ty[e", t.TeamStats.CoverageType).
+		Str("Date", t.TeamStats.Date)
 	for _, s := range t.TeamStats.Stats.Slice {
-		fmt.Printf("stat_id=%s value=%s\n", s.StatID, s.Value)
+		log.Debug().Str("StatID", s.StatID).Str("Value", s.Value)
 	}
 	ts := model.TeamSummary{
 		//Date:

@@ -9,49 +9,49 @@ import (
 	"github.com/dustin/go-humanize/english"
 	"github.com/ericsperano/yfh/core"
 	"github.com/ericsperano/yfh/core/model"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
-func DownloadAndSaveRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*core.GithubFile, error) {
-	var gitfiles []*core.GithubFile
-	// download it if none are found then add it in github
+func DownloadAndSaveRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*core.LocalFile, error) {
+	var files []*core.LocalFile
+	// download it if none are found then save it locally
 	content, err := Download(ctx, yfh, core.RosterURL(teamID, date))
 	if err != nil {
 		return nil, err
 	}
-	if err := yfh.Github.CreateRoster(ctx, teamID, date, content); err != nil {
+	if err := yfh.Local.CreateRoster(ctx, teamID, date, content); err != nil {
 		return nil, err
 	}
-	// get the gitfile for what we just cre ated, it's from the cache so it's quick
-	gitfiles, err = yfh.Github.FindRoster(ctx, teamID, date)
+	// get the file for what we just created
+	files, err = yfh.Local.FindRoster(ctx, teamID, date)
 	if err != nil {
 		return nil, err
 	}
-	if len(gitfiles) == 0 {
-		return nil, fmt.Errorf("should have found at least one file for roster of team roster %02d on %04d-0%02d-%02d in github", teamID,
+	if len(files) == 0 {
+		return nil, fmt.Errorf("should have found at least one file for roster of team roster %02d on %04d-0%02d-%02d", teamID,
 			date.Year(), date.Month(), date.Day())
 	}
-	return gitfiles[0], nil
+	return files[0], nil
 }
 
 /**
- * Ensure there is a file in github for a given roster for a given team on a given day
+ * Ensure there is a file for a given roster for a given team on a given day
  */
-func EnsureRecentRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*core.GithubFile, error) {
-	log.Debugf("EnsureRecentRoster date: %4d-%02d-%02d team: %d", date.Year(), date.Month(), date.Day(), teamID)
-	// fetch the files in github for the roster for that team on that date
-	gitfiles, err := yfh.Github.FindRoster(ctx, teamID, date)
+func EnsureRecentRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) (*core.LocalFile, error) {
+	ds := getDateStr(date)
+	log.Debug().Str("date", ds).Uint("teamID", teamID).Msg("EnsureRecentRoster")
+	// find the files for the roster for that team on that date
+	files, err := yfh.Local.FindRoster(ctx, teamID, date)
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Found %s for team %02d roster on %04d-%02d-%02d in github", english.Plural(len(gitfiles), "roster", ""), teamID,
-		date.Year(), date.Month(), date.Day())
-	if len(gitfiles) == 0 {
+	log.Debug().Str("date", ds).Uint("teamID", teamID).Msgf("Found %s", english.Plural(len(files), "roster", ""))
+	if len(files) == 0 {
 		return DownloadAndSaveRoster(ctx, yfh, teamID, date)
 	}
 	// return the latest
-	return gitfiles[0], nil
+	return files[0], nil
 }
 
 func RostersGenerator() <-chan uint {
@@ -97,10 +97,11 @@ func importRostersPipeline(ctx context.Context, yfh *core.YFH, date time.Time) e
 		errcs[i] = errc
 	}
 	go func() {
+		ds := getDateStr(date)
 		for rosterPlayers := range core.FanIn(ctx, rostersStages...) {
-			log.Infof("Rosters imported: team %02d %04d-%02d-%02d", rosterPlayers[0].TeamID, date.Year(), date.Month(), date.Day())
+			log.Info().Str("date", ds).Uint("teamID", rosterPlayers[0].TeamID).Msg("Rosters imported")
 		}
-		log.Infof("Imported all rosters for %04d-%02d-%02d", date.Year(), date.Month(), date.Day())
+		log.Info().Str("date", ds).Msg("Imported all rosters")
 	}()
 	if err := core.WaitForPipeline(errcs...); err != nil {
 		return err
@@ -109,22 +110,20 @@ func importRostersPipeline(ctx context.Context, yfh *core.YFH, date time.Time) e
 }
 
 func doImportRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.Time) ([]*model.RosterPlayer, error) {
-	// check if the roster is in the github cache first
-	gitfile, err := EnsureRecentRoster(ctx, yfh, teamID, date)
+	ds := getDateStr(date)
+	file, err := EnsureRecentRoster(ctx, yfh, teamID, date)
 	if err != nil {
-		return nil, fmt.Errorf("EnsureRecentRoster teamID=%02d date=%4d-%02d-%02d error=%w",
-			teamID, date.Year(), date.Month(), date.Day(), err)
+		return nil, fmt.Errorf("EnsureRecentRoster teamID=%02d date=%s error=%w", teamID, ds, err)
 	}
-	fantasy, err := yfh.Github.ParseXML(ctx, path.Join(core.RostersDir(teamID), gitfile.Filename()))
+	fantasy, err := yfh.Local.ParseXML(ctx, path.Join(core.RostersDir(teamID), file.Filename()))
 	if err != nil {
-		log.Warnf("Can't parse the roster file for teamID=%02d date=%4d-%02d-%02d error=%s",
-			teamID, date.Year(), date.Month(), date.Day(), err)
+		log.Warn().Str("date", ds).Uint("teamID", teamID).Err(err).Msg("Can't parse the roster file")
 		// let's try to download and parse it again
-		gitfile, err = DownloadAndSaveRoster(ctx, yfh, teamID, date)
+		file, err = DownloadAndSaveRoster(ctx, yfh, teamID, date)
 		if err != nil {
 			return nil, err
 		}
-		fantasy, err = yfh.Github.ParseXML(ctx, path.Join(core.RostersDir(teamID), gitfile.Filename()))
+		fantasy, err = yfh.Local.ParseXML(ctx, path.Join(core.RostersDir(teamID), file.Filename()))
 		if err != nil {
 			return nil, err
 		}
@@ -135,8 +134,8 @@ func doImportRoster(ctx context.Context, yfh *core.YFH, teamID uint, date time.T
 			teamID, date.Year(), date.Month(), date.Day(), err)
 	}
 	for _, rp := range models {
-		log.Debugf("Ensuring player roster %04d-%02d-%02d team:%02d player:%d %s",
-			date.Year(), date.Month(), date.Day(), rp.TeamID, rp.PlayerID, rp.SelectedPosition)
+		log.Debug().Str("date", ds).Uint("teamID", rp.TeamID).Uint("playerID", rp.PlayerID).Int("pos", int(rp.SelectedPosition)).
+			Msg("Ensuring player roster")
 		if err := rp.Ensure(yfh.GormDB); err != nil {
 			return nil, fmt.Errorf("RosterPlayerModel playerID=%d teamID=%02d date=%4d-%02d-%02d error=%w",
 				rp.PlayerID, teamID, date.Year(), date.Month(), date.Day(), err)

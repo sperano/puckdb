@@ -7,7 +7,7 @@ import (
 
 	"github.com/ericsperano/yfh/core/model"
 	"github.com/ericsperano/yfh/core/xmlmodel"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
@@ -17,7 +17,7 @@ func EnsureNHLPlayers(ctx context.Context, db *gorm.DB, players []xmlmodel.Playe
 		if err != nil {
 			return fmt.Errorf("error while converting player model %s (%s %s) -> %w", pi.PlayerID, pi.FirstName, pi.LastName, err)
 		}
-		log.Debugf("Ensuring %s %s in db", player.FirstName, player.LastName)
+		log.Debug().Msgf("Ensuring %s %s in db", player.FirstName, player.LastName)
 		if err := player.Ensure(db); err != nil {
 			return err
 		}
@@ -26,23 +26,26 @@ func EnsureNHLPlayers(ctx context.Context, db *gorm.DB, players []xmlmodel.Playe
 }
 
 func logPlayerStats(date time.Time, playerStats *model.PlayerStats) {
-	log.Debugf("Ensuring player stats %4d-%02d-%02d pid=%d nhl_team_id=%d ga=%d sa=%d sv=%d sp=%d gtoi=%d g=%d a=%d +-=%d pim=%d sog=%d fw=%d fl=%d h=%d b=%d toi=%d fop=%d sh=%d taw=%d gaw=%d",
-		date.Year(), date.Month(), date.Day(), playerStats.PlayerID, playerStats.NHLTeamID,
-		playerStats.GoalAgainst,
-		playerStats.ShotsAgainst,
-		playerStats.Saves,
-		playerStats.GoalieTimeOnIce,
-		playerStats.Goals,
-		playerStats.Assists,
-		playerStats.PlusMinus,
-		playerStats.PenaltyMinutes,
-		playerStats.ShotsOnGoal,
-		playerStats.FaceoffsWon,
-		playerStats.FaceoffsLost,
-		playerStats.Hits,
-		playerStats.Blocks,
-		playerStats.TimeOnIce,
-		playerStats.Shifts,
-		playerStats.TakeAways,
-		playerStats.GiveAways)
+	log.Debug().
+		Str("date", getDateStr(date)).
+		Uint("pid", playerStats.PlayerID).
+		Uint("nhl_team_id", playerStats.NHLTeamID).
+		Uint("ga", playerStats.GoalAgainst).
+		Uint("sa", playerStats.ShotsAgainst).
+		Uint("sv", playerStats.Saves).
+		Uint("gtoi", playerStats.GoalieTimeOnIce).
+		Uint("g", playerStats.Goals).
+		Uint("a", playerStats.Assists).
+		Int("+-", playerStats.PlusMinus).
+		Uint("pim", playerStats.PenaltyMinutes).
+		Uint("sog", playerStats.ShotsOnGoal).
+		Uint("fw", playerStats.FaceoffsWon).
+		Uint("fl", playerStats.FaceoffsLost).
+		Uint("h", playerStats.Hits).
+		Uint("b", playerStats.Blocks).
+		Uint("toi", playerStats.TimeOnIce).
+		Uint("sh", playerStats.Shifts).
+		Uint("taw", playerStats.TakeAways).
+		Uint("gaw", playerStats.GiveAways).
+		Msg("Ensuring player stats")
 }
