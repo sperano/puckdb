@@ -18,6 +18,8 @@ jobs:
           SLACK_CHANNEL: "#dev"
           SLACK_USERNAME: "github-yahoo-fantasy-hockey"
           SLACK_TITLE: ${{ env.GITHUB_SHA }}
+      - name: test env
+        run: echo "GITHUB_SHA=${GITHUB_SHA}"
       - name: Install buildx
         id: buildx
         uses: crazy-max/ghaction-docker-buildx@v1
