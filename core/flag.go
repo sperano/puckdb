@@ -5,7 +5,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-const FlagRedisCacheDuration = "redis_cache_duration"
+// const FlagRedisCacheDuration = "redis_cache_duration"
 const FlagMaxGamesImporter = "max_games_importer"
 const FlagMaxRostersImporter = "max_rosters_importer"
 const FlagMaxTeamSummariesImporter = "max_team_summaries_importer"

@@ -15,7 +15,7 @@ func EnsureRecentFantasyGame(ctx context.Context, yfh *core.YFH) (*core.LocalFil
 	if err != nil {
 		return nil, err
 	}
-	log.Debug().Msgf("Found %s files", english.Plural(len(files), "fantasy game file", ""))
+	log.Debug().Msgf("Found %s", english.Plural(len(files), "fantasy game file", ""))
 	if len(files) == 0 {
 		content, err := Download(ctx, yfh, core.YahooFantasyGameURL())
 		if err != nil {
