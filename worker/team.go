@@ -12,6 +12,7 @@ import (
 )
 
 func HandleImportTeams(ctx context.Context, yfh *core.YFH) error {
+	log.Debug().Msg("HandleImportTeams")
 	for _, teamID := range core.GetTeamIDs() {
 		if err := HandleImportTeam(ctx, yfh, teamID); err != nil {
 			return err
@@ -46,6 +47,7 @@ func EnsureRecentTeam(ctx context.Context, yfh *core.YFH, teamID uint) (*core.Lo
 }
 
 func HandleImportTeam(ctx context.Context, yfh *core.YFH, teamID uint) error {
+	log.Debug().Uint("teamID", teamID).Msg("HandleImportTeam")
 	file, err := EnsureRecentTeam(ctx, yfh, teamID)
 	if err != nil {
 		return err

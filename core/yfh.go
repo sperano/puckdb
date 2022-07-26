@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"time"
 
 	"github.com/adjust/rmq/v4"
 	"github.com/go-redis/redis/v8"
@@ -69,30 +68,4 @@ func NewRMQConnectionAndQueue(name string, redisClient *redis.Client, errChan ch
 		return nil, nil, err
 	}
 	return connection, queue, nil
-}
-
-const TimetstampFormat = "20060102030405"
-
-const ShortTimetstampFormat = "2006-01-02"
-
-func ParseTimestamp(timestamp string) (time.Time, error) {
-	return time.Parse(TimetstampFormat, timestamp)
-}
-
-func GetTimestamp(time time.Time) string {
-	return time.Format(TimetstampFormat)
-}
-
-func ParseShortTimestamp(timestamp string) (time.Time, error) {
-	return time.Parse(ShortTimetstampFormat, timestamp)
-}
-
-func GetShortTimestamp(time time.Time) string {
-	return time.Format(ShortTimetstampFormat)
-}
-
-func DoEvery(d time.Duration, f func(time.Time)) {
-	for x := range time.Tick(d) {
-		f(x)
-	}
 }

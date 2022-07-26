@@ -54,8 +54,8 @@ func (w *Worker) Consume(delivery rmq.Delivery) {
 	ctx := context.WithValue(context.Background(), core.CtxUser, task.Data[core.TaskDataUser])
 	startTime := time.Now()
 	switch task.Type {
-	case core.TaskInitMeta:
-		err = HandleInitMeta(ctx, w.YFH.GormDB)
+	// case core.TaskInitMeta:
+	// 	err = HandleInitMeta(ctx, w.YFH.GormDB)
 	case core.TaskImportFantasyGame:
 		err = HandleImportFantasyGame(ctx, w.YFH)
 	case core.TaskImportLeague:

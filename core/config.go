@@ -3,7 +3,6 @@ package core
 import (
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	flag "github.com/spf13/pflag"
@@ -14,22 +13,14 @@ const GameConst = 411
 
 const FlagLeagueID = "league_id"
 const FlagTeamIDs = "team_ids"
-const FlagSeasonStartYear = "season_start_year"
-const FlagSeasonStartMonth = "season_start_month"
-const FlagSeasonStartDay = "season_start_day"
-const FlagSeasonEndYear = "season_end_year"
-const FlagSeasonEndMonth = "season_end_month"
-const FlagSeasonEndDay = "season_end_day"
+const FlagSeasonStart = "season_start"
+const FlagSeasonEnd = "season_end"
 
 func SetupViperConfig(flags *flag.FlagSet) {
 	FInt(flags, FlagLeagueID, 0, "Yahoo league ID")
 	FString(flags, FlagTeamIDs, "", "List of team IDs, seperated by commas")
-	FInt(flags, FlagSeasonStartYear, 2021, "Season start year")
-	FInt(flags, FlagSeasonStartMonth, 10, "Season start month")
-	FInt(flags, FlagSeasonStartDay, 12, "Season start day")
-	FInt(flags, FlagSeasonEndYear, 2022, "Season end year")
-	FInt(flags, FlagSeasonEndMonth, 5, "Season end month")
-	FInt(flags, FlagSeasonEndDay, 1, "Season end day")
+	FString(flags, FlagSeasonStart, "2021-10-12", "Season start")
+	FString(flags, FlagSeasonEnd, "2022-5-1", "Season end")
 	FString(flags, FlagYahooOAuth2ClientID, "", "Yahoo! OAuth2 Client ID")
 	FString(flags, FlagYahooOAuth2ClientSecret, "", "Yahoo! OAuth2 Client Secret")
 	FString(flags, FlagYahooOAuth2ClientRedirect, "", "Yahoo! Oauth2 Client Redirect")
@@ -51,19 +42,19 @@ func GetTeamIDs() []uint {
 	return ids
 }
 
-func GetSeasonStart() time.Time {
-	y := viper.GetInt(FlagSeasonStartYear)
-	m := time.Month(viper.GetInt(FlagSeasonStartMonth))
-	d := viper.GetInt(FlagSeasonStartDay)
-	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
-}
+// func GetSeasonStart() time.Time {
+// 	y := viper.GetInt(FlagSeasonStartYear)
+// 	m := time.Month(viper.GetInt(FlagSeasonStartMonth))
+// 	d := viper.GetInt(FlagSeasonStartDay)
+// 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+// }
 
-func GetSeasonEnd() time.Time {
-	y := viper.GetInt(FlagSeasonEndYear)
-	m := time.Month(viper.GetInt(FlagSeasonEndMonth))
-	d := viper.GetInt(FlagSeasonEndDay)
-	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
-}
+// func GetSeasonEnd() time.Time {
+// 	y := viper.GetInt(FlagSeasonEndYear)
+// 	m := time.Month(viper.GetInt(FlagSeasonEndMonth))
+// 	d := viper.GetInt(FlagSeasonEndDay)
+// 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+// }
 
 /*
 type Config struct {

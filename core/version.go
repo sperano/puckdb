@@ -8,7 +8,7 @@ import (
 )
 
 // TODO publish with a tag with this version too
-const Version = "0.6.0-dev"
+const Version = "0.6.1"
 
 func LogIntro() {
 	log.Info().Str("Version", Version).Msgf("Yahoo Fantasy Hockey version %s", Version)

@@ -16,7 +16,7 @@ func HandleComputeForTeam(ctx context.Context, yfh *core.YFH, teamID uint) error
 	// 	NHLTeamID uint
 	// 	model.Stats
 	// }
-	dates, err := core.GetDateRange("", "")
+	dates, err := core.GetViperSeasonDateRange()
 	if err != nil {
 		return err
 	}
