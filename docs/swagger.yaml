@@ -1,0 +1,18 @@
+info:
+  contact: {}
+paths:
+  /cache:
+    delete:
+      responses: {}
+      summary: Clear the redis cache
+  /db:
+    delete:
+      responses: {}
+      summary: Destroy and re-create the database
+  /fantasy_game:
+    get:
+      responses: {}
+  /league:
+    get:
+      responses: {}
+swagger: "2.0"

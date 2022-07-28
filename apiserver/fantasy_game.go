@@ -28,6 +28,7 @@ func HandleImportFantasyGame(yfh *core.YFH, publish TaskPublisherFn) func(*gin.C
 
 // TODO maybe not return a 404 for a not found
 // because we still want to have the github files, if any
+// @Router /fantasy_game [get]
 func HandleGetFantasyGame(yfh *core.YFH) func(c *gin.Context) {
 	return func(ctx *gin.Context) {
 		if files, err := yfh.Local.FindFantasyGame(ctx); err == nil {

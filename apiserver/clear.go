@@ -25,6 +25,8 @@ func ClearDB(ctx context.Context, yfh *core.YFH) error {
 	return nil
 }
 
+// @Summary Destroy and re-create the database
+// @Router /db [delete]
 func HandleClearDB(yfh *core.YFH) func(*gin.Context) {
 	return func(ctx *gin.Context) {
 		if err := ClearDB(ctx, yfh); err != nil {
@@ -55,6 +57,8 @@ func ClearCacheWithFilter(ctx context.Context, yfh *core.YFH, filter string) err
 	return nil
 }
 
+// @Summary Clear the redis cache
+// @Router /cache [delete]
 func HandleClearCache(yfh *core.YFH) func(*gin.Context) {
 	return func(ctx *gin.Context) {
 		if err := ClearCache(ctx, yfh); err != nil {

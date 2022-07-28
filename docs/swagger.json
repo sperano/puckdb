@@ -1,0 +1,30 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/cache": {
+            "delete": {
+                "summary": "Clear the redis cache",
+                "responses": {}
+            }
+        },
+        "/db": {
+            "delete": {
+                "summary": "Destroy and re-create the database",
+                "responses": {}
+            }
+        },
+        "/fantasy_game": {
+            "get": {
+                "responses": {}
+            }
+        },
+        "/league": {
+            "get": {
+                "responses": {}
+            }
+        }
+    }
+}

@@ -26,6 +26,7 @@ func HandleImportLeague(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Contex
 	}
 }
 
+// @Router /league [get]
 func HandleGetLeague(yfh *core.YFH) func(c *gin.Context) {
 	return func(ctx *gin.Context) {
 		if files, err := yfh.Local.FindLeague(ctx); err == nil {

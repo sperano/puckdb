@@ -6,10 +6,14 @@ import (
 	"net/http"
 
 	"github.com/ericsperano/yfh/core"
+	docs "github.com/ericsperano/yfh/docs"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/penglongli/gin-metrics/ginmetrics"
 	"github.com/rs/zerolog/log"
+
+	swaggerfiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 const DefaultUser = "eric"
@@ -89,6 +93,8 @@ func HandleCompute(yfh *core.YFH, publish TaskPublisherFn) func(*gin.Context) {
 func SetupRouter(yfh *core.YFH) *gin.Engine {
 	r := gin.Default()
 	//r.SetTrustedProxies(nil)
+	//docs.SwaggerInfo.BasePath = "/api/v1"
+	docs.SwaggerInfo.BasePath = "/"
 	r.Use(cors.Default())
 
 	// configure metrics middleware
@@ -101,6 +107,7 @@ func SetupRouter(yfh *core.YFH) *gin.Engine {
 		ctx.String(http.StatusOK, "pong")
 	})
 
+	//v1 := r.Group("/api/v1")
 	r.GET("/fantasy_game", HandleGetFantasyGame(yfh))
 	r.GET("/league", HandleGetLeague(yfh))
 	r.GET("/players", HandleGetPlayers(yfh))
@@ -154,5 +161,7 @@ func SetupRouter(yfh *core.YFH) *gin.Engine {
 		data["oauth2_token"] = token
 		ctx.JSON(http.StatusOK, data)
 	})
+
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 	return r
 }
