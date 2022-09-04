@@ -11,15 +11,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Slack Notification
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          SLACK_CHANNEL: "#dev"
-          SLACK_USERNAME: "github-yahoo-fantasy-hockey"
-          SLACK_TITLE: ${{ env.GITHUB_SHA }}
-      - name: test env
-        run: echo "GITHUB_SHA=${GITHUB_SHA}"
       - name: Install buildx
         id: buildx
         uses: crazy-max/ghaction-docker-buildx@v1
@@ -30,6 +21,7 @@ jobs:
       - name: Build the image
         run: |
           docker buildx build --push \
+          --build-arg GITHUB_TOKEN=${{ secrets.MY_GITHUB_TOKEN }} \
           --tag ericsperano/yfh:latest \
           --tag ericsperano/yfh:${{github.sha}} \
           --platform linux/amd64,linux/arm64 .
