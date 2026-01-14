@@ -1,0 +1,383 @@
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+scalar Int64
+scalar Time
+
+type Season {
+	start: Time!
+	end: Time!
+	gameKey: Int!
+	leagues: [League!]!
+}
+
+type NHLConference {
+	id: Int!
+	name: String!
+	divisions: [NHLDivision!]!
+}
+
+type NHLDivision {
+	id: Int!
+	name: String!
+	conference: NHLConference!
+	teams: [NHLTeam!]!
+}
+
+type NHLTeam {
+	id: Int!
+	city: String!
+	name: String!
+	nhlHomeLink: String!
+	yahooHomeLink: String!
+	division: NHLDivision!
+	smallLogoURL: String!
+	largeLogoURL: String!
+	abbreviation: String!
+}
+
+type LocalFile {
+	path: String!
+	type: String!
+}
+
+type Configuration {
+	apiTLSEnabled: Boolean!
+	apiPort: Int!
+	dataPath: String!
+	leagueID: Int!
+	logLevel: String!
+	metricsPort: Int!
+	metricsRefreshInterval: Int!
+	metricsTLSEnabled: Boolean!
+	postgresDB: String!
+	postgresHost: String!
+	postgresPassword: String!
+	postgresPort: Int!
+	postgresSSLMode: String!
+	postgresTimeZone: String!
+	postgresUser: String!
+	redisDB: String!
+	redisPassword: String!
+	redisURL: String!
+	seasons: String!
+	teamIDs: [Int!]!
+	temporalHostPort: String!
+	temporalNamespace: String!
+	tlsCertificate: String!
+	tlsKey: String!
+	uiURL: String!
+	workerPort: Int!
+	workerTLSEnabled: Boolean!
+	yahooOAuth2ClientID: String!
+	yahooOAuth2ClientRedirect: String!
+	yahooOAuth2ClientSecret: String!
+}
+
+type OAuth2Token {
+	accessToken: String!
+	tokenType: String!
+	refreshToken: String!
+	expiry: String!
+}
+
+type DBStats {
+	nhlConferences: Int!
+	nhlDivisions: Int!
+	nhlTeams: Int!
+	fantasyGames: Int!
+	leagues: Int!
+	players: Int!
+	playerStats: Int!
+	games: Int!
+	teams: Int!
+	rosterPlayers: Int!
+	standings: Int!
+	teamSummaries: Int!
+}
+
+type LocalStats {
+	fantasyGames: Int!
+	leagues: Int!
+	gamesLists: Int!
+	games: Int!
+	teams: Int!
+	rosters: Int!
+	teamsSummaries: Int!
+	# Standings: Int!
+}
+
+#type Status {
+#	Version: String!
+#	Configuration: Configuration!
+#	DBStats: DBStats!
+#	LocalStats: LocalStats!
+#	GameKey: Int!
+#	SeasonStart: Time!
+#	SeasonEnd: Time!
+#	CurrentUser: String!
+#	OAuth2Token: OAuth2Token
+#}
+
+type FantasyGame {
+	id: Int!
+	key: Int!
+	name: String!
+	code: String!
+	type: String!
+	url: String!
+	season: Int!
+	isRegistrationOver: Boolean!
+	isGameOver: Boolean!
+	isOffSeason: Boolean!
+	localFile: LocalFile!
+	createdAt: Time!
+	updatedAt: Time!
+}
+
+type League {
+	id: Int!
+	key: String!
+	name: String!
+	url: String!
+	logoURL: String!
+	draftStatus: String!
+	numTeams: Int!
+	editKey: String!
+	LeagueUpdateTimestamp: Int64!
+	scoringType: String!
+	leagueType: String!
+	isProLeague: Boolean!
+	isCashLeague: Boolean!
+	startDate: Time!
+	endDate: Time!
+	gameCode: String!
+	season: Int!
+	localFile: LocalFile!
+	createdAt: Time!
+	updatedAt: Time!
+}
+
+type Manager  {
+	ManagerID: Int!
+	Nickname: String!
+	GUID: String!
+	EMail: String!
+	ImageURL: String!
+}
+
+type Team {
+	ID: Int!
+	Key: String!
+	Name: String!
+	IsOwnedByCurrentLogin: Boolean!
+	URL: String!
+	DraftPosition: Int!
+	HasDraftGrade: Boolean!
+	Manager: Manager!
+	#GithubTimestamp       time.Time
+}
+
+type Game {
+	ID: Int!
+	Date: Time!
+	HomeTeam: NHLTeam!
+	HomeTeamScore1: Int!
+	HomeTeamScore2: Int!
+	HomeTeamScore3: Int!
+	HomeTeamScoreO: Int!
+	HomeTeamScoreSO: Int!
+	AwayTeam: NHLTeam!
+	AwayTeamScore1: Int!
+	AwayTeamScore2: Int!
+	AwayTeamScore3: Int!
+	AwayTeamScoreO: Int!
+	AwayTeamScoreSO: Int!
+	State: String!
+	LocalFile: LocalFile
+	CreatedAt: Time!
+	UpdatedAt: Time!
+}
+
+type Player {
+	id: Int!
+	firstName: String!
+	lastName: String!
+	uniformNumber: Int!
+	homeURL: String!
+	imageSmall: String!
+	imageMedium: String!
+	imageLarge: String!
+	nhlTeam: NHLTeam
+	localFile: LocalFile!
+	createdAt: Time!
+	updatedAt: Time!
+}
+
+type PlayerStats {
+	Goals: Int!
+	Assists: Int!
+	PlusMinus: Int!
+	PenaltyMinutes: Int!
+	ShotsOnGoal: Int!
+	FaceoffsWon: Int!
+	FaceoffsLost: Int!
+	Hits: Int!
+	TimeOnIce: Int!
+	Shifts: Int!
+	TakeAways: Int!
+	GiveAways: Int!
+	GoalAgainst: Int!
+	ShotsAgainst: Int!
+	Saves: Int!
+	GoalieTimeOnIce: Int!
+}
+
+type PlayerWithStats {
+	Player: Player!
+	Stats: PlayerStats!
+}
+
+type NHLStandingsTeamStats {
+	GamesPlayed: Int!
+	Wins: Int!
+	OvertimeWins: Int!
+	ShootoutWins: Int!
+	Losses: Int!
+	OvertimeLosses: Int!
+	ShootoutLosses: Int!
+	GoalsFor: Int!
+	GoalsAgainst: Int!
+}
+
+type NHLTeamStanding {
+	NHLTeam: NHLTeam!
+	Away: NHLStandingsTeamStats!
+	Home: NHLStandingsTeamStats!
+}
+
+type RosterPlayer {
+	Date: Time!
+	Team: Team!
+	Player: Player!
+	NHLTeam: NHLTeam!
+	EligiblePositions: [String!]!
+	SelectedPosition:  String!
+	CreatedAt: Time!
+	UpdatedAt: Time!
+}
+
+enum TemporalWorkflowStatus {
+	UNSPECIFIED,
+	RUNNING,
+	COMPLETED,
+	FAILED,
+	CANCELED,
+	TERMINATED,
+	CONTINUED_AS_NEW,
+	TIMED_OUT
+}
+
+type WorkflowResult {
+	status: TemporalWorkflowStatus!
+	failureReason: String
+}
+
+type WorkflowProgress {
+	total: Int!
+	completed: Int!
+}
+
+type Query {
+	buildNumber: Int!
+
+    nhlConferences: [NHLConference!]!
+    nhlDivisions: [NHLDivision!]!
+    nhlTeams(allstars: Boolean!): [NHLTeam]
+    nhlTeam(teamID: Int!): NHLTeam
+
+	currentFantasyGameKey: Int!
+
+	seasons: [Season!]!
+	league(season: Int!, id: Int!): League
+
+	downloadEverythingResult: WorkflowResult!
+	downloadEverythingForSeasonResult(season: Int!): WorkflowResult!
+	downloadEverythingProgress: WorkflowProgress
+	downloadEverythingForSeasonProgress(season: Int!): WorkflowProgress
+
+	extractUniquePlayersResult: WorkflowResult!
+	extractUniquePlayersProgress: WorkflowProgress
+
+	#    nhlStandings: [NHLTeamStanding!]
+#    fantasyGameLocalFiles(season: Int!): [LocalFile!]
+#    leagueLocalFiles(season: Int!): [LocalFile!]
+#    teams: [Team!]!
+#    team(teamID: Int!): Team!
+#    players: [Player!]
+#	playersStats(fromDate: String = "", toDate: String = ""): [PlayerWithStats!]
+#    player(playerID: Int!): Player!
+#    games: [Game!]
+#    configuration: Configuration!
+#    dbStats: DBStats!
+#    localStats: LocalStats!
+#    status: Status!
+#    localFile(season: Int!, path: String!): String!
+#    lastGameDayImported: String!
+#	lastRostersDayImported: String!
+#
+#	rosterPlayers(teamID: Int!, date: String!): [RosterPlayer!]
+}
+
+
+type Mutation {
+	# TODO should this really be available in a mutation?
+    clearDatabase: Boolean! # drop, create, init
+    dropDatabase: Boolean! # deletes all the tables
+    createDatabase: Boolean! # creates all the tables
+    initDatabase: Boolean! # creates the NHL objects
+    clearCache: Boolean! # deletes all the keys in the redis cache
+
+	importEverything: Boolean!
+	cancelImportEverything: Boolean!
+
+	importEverythingForSeason(season: Int!): Boolean!
+	cancelImportEverythingForSeason(season: Int!): Boolean!
+
+	downloadEverything: Boolean!
+	cancelDownloadEverything: Boolean!
+
+	downloadEverythingForSeason(season: Int!): Boolean!
+	cancelDownloadEverythingForSeason(season: Int!): Boolean!
+
+	importGamesForSeason(season: Int!): Boolean!
+	cancelImportGamesForSeason(season: Int!): Boolean!
+
+	importGamesForDay(year: Int!, month: Int!, day: Int!): Boolean!
+	cancelImportGamesForDay(year: Int!, month: Int!, day: Int!): Boolean!
+
+	importLeague(season: Int!, leagueID: Int!): League!
+	importTeam(season: Int!, leagueID: Int!, teamID: Int!): Team!
+
+	extractUniquePlayers: Boolean!
+	cancelExtractUniquePlayers: Boolean!
+
+#    deleteLeague: Boolean!
+#    importLeague(force: Boolean! = false): String!
+#
+#	importTeam(teamID: Int!, force: Boolean! = false): String!
+#    importTeams(force: Boolean! = false): String!
+#
+#	importGamesOnDate(date: String!, force: Boolean! = false): String!
+#	importGamesDateRange(start: String, end: String, force: Boolean! = false): String!
+#
+#	importRosterPlayersOnDate(date: String!, teamID: Int, force: Boolean! = false): String!
+#	importRosterPlayersDateRange(start: String, end: String, teamID: Int, force: Boolean! = false): String!
+#
+#	importTeamSummariesOnDate(date: String!, teamID: Int, force: Boolean! = false): String!
+#	importTeamSummariesDateRange(start: String, end: String, teamID: Int, force: Boolean! = false): String!
+#
+#	importAllOnDate(date: String!, force: Boolean! = false): String!
+#	importAllDateRange(start: String, end: String, force: Boolean! = false): String!
+}

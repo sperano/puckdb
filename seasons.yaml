@@ -1,0 +1,36 @@
+- start: 2021-10-12
+  end: 2022-04-29
+  game_key: 411
+  leagues:
+  - league_id: 22030
+    team_ids: [1, 2, 3, 4, 6, 7, 8, 9, 10, 11]
+- start: 2022-10-07
+  end: 2023-04-13
+  game_key: 419
+  leagues:
+  - league_id: 1003
+    team_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+- start: 2023-10-10
+  end: 2024-04-18
+  game_key: 427
+  leagues:
+  - league_id: 6067
+    team_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  - league_id: 84757
+    team_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+- start: 2024-10-04
+  end: 2025-04-17
+  game_key: 453
+  leagues:
+  - league_id: 6249
+    team_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+  - league_id: 31771
+    team_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+- start: 2025-10-07
+  end: 2026-04-16
+  game_key: 465
+  leagues:
+  - league_id: 16709
+    team_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  - league_id: 3769
+    team_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]

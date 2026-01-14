@@ -1,0 +1,64 @@
+name: build
+
+#https://docs.github.com/en/actions/advanced-guides/storing-workflow-data-as-artifacts
+
+on:
+  push:
+    branches: [main, dev-actions]
+jobs:
+  build-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to docker hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Build the image
+        run: |
+          docker buildx build --push \
+          --build-arg GITHUB_TOKEN=${{ secrets.MY_GITHUB_TOKEN }} \
+          --build-arg GITHUB_RUN_NUMBER=${{github.run_number}} \
+          --tag ericsperano/yfh:latest \
+          --tag ericsperano/yfh:${{github.sha}} \
+          --tag ericsperano/yfh:build-${{github.run_number}} \
+          --platform linux/amd64,linux/arm64 .
+      - name: Notify slack
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: "#dev"
+          SLACK_USERNAME: "github"
+          SLACK_MESSAGE: "YFH Image build"
+  build-git:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to docker hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Build the image
+        run: |
+          docker buildx build --push \
+          --build-arg GITHUB_TOKEN=${{ secrets.MY_GITHUB_TOKEN }} \
+          --tag ericsperano/yfh-git:latest \
+          --tag ericsperano/yfh-git:${{github.sha}} \
+          --tag ericsperano/yfh-git:build-${{github.run_number}} \
+          --platform linux/amd64,linux/arm64 \
+          -f Dockerfile.git .
+      - name: Notify slack
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: "#dev"
+          SLACK_USERNAME: "github"
+          SLACK_MESSAGE: "YFH GIT Image build"

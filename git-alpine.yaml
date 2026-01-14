@@ -1,0 +1,37 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: git-alpine
+  labels:
+    app: git-alpine
+spec:
+  containers:
+  - name: git-alpine
+    image: ericsperano/yfh-git:latest
+    #command: ["/usr/bin/git", "-C", "/mnt/yfh-data", "status"]
+    command: ["/usr/bin/tail", "-f", "/dev/null"]
+    imagePullPolicy: Always
+    resources:
+      limits:
+        memory: 512Mi
+        cpu: "1"
+      requests:
+        memory: 256Mi
+        cpu: "0.2"
+    volumeMounts:
+    - name: yfh-data
+      mountPath: /mnt/yfh-data
+    - name: secrets
+      mountPath: /mnt/secrets
+  volumes:
+  - name: yfh-data
+    nfs:
+      server: acidbunny.***REMOVED***
+      path: "/volume1/YFHDATA"
+  - name: secrets
+    secret:
+      secretName: yfh
+      items:
+      - key: netrc
+        path: netrc

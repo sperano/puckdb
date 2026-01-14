@@ -1,0 +1,9 @@
+FROM alpine/git:latest
+
+RUN git config --global --add safe.directory /mnt/yfh-data/cache \
+  && git config --global user.email "owner@example.com" \
+  && git config --global user.name "Éric Spérano"
+
+COPY git.sh /usr/local/bin/git.sh
+
+ENTRYPOINT [ "/usr/local/bin/git.sh" ]

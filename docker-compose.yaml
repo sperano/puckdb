@@ -1,0 +1,77 @@
+services:
+    db:
+        image: postgres:16-alpine
+        environment:
+        - POSTGRES_DB=yfh2022
+        - POSTGRES_USER=yfh
+        - POSTGRES_PASSWORD=foo
+        command: postgres -c 'max_connections=500'
+        volumes:
+        - ./.data/db:/var/lib/postgresql/data
+        ports:
+        - "5432:5432"
+
+    postgresql:
+        container_name: temporal-postgresql
+        environment:
+            POSTGRES_PASSWORD: temporal
+            POSTGRES_USER: temporal
+        image: postgres:${POSTGRESQL_VERSION}
+        volumes:
+            - ./.data/temporal-db:/var/lib/postgresql/data
+        deploy:
+            resources:
+                limits:
+                    memory: 512M
+
+    redis:
+        image: redis:6.2.13
+        ports:
+        - "6379:6379"
+        command: /bin/sh -c 'redis-server --appendonly yes --requirepass redis'
+
+    temporal:
+        container_name: temporal
+        depends_on:
+            - postgresql
+            - db
+        environment:
+            - DB=postgresql
+            - DB_PORT=5432
+            - POSTGRES_USER=temporal
+            - POSTGRES_PWD=temporal
+            - POSTGRES_SEEDS=postgresql
+            - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+        image: temporalio/auto-setup:${TEMPORAL_VERSION}
+        ports:
+            - "7233:7233"
+        volumes:
+            - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+        deploy:
+            resources:
+                limits:
+                    memory: 2G
+                reservations:
+                    memory: 1G
+
+    temporal-admin-tools:
+        container_name: temporal-admin-tools
+        depends_on:
+            - temporal
+        environment:
+            - TEMPORAL_CLI_ADDRESS=temporal:7233
+        image: temporalio/admin-tools:${TEMPORAL_VERSION}
+        stdin_open: true
+        tty: true
+
+    temporal-ui:
+        container_name: temporal-ui
+        depends_on:
+            - temporal
+        environment:
+            - TEMPORAL_ADDRESS=temporal:7233
+            - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+            - TEMPORAL_NOTIFY_ON_NEW_VERSION=false
+        image: temporalio/ui:${TEMPORAL_UI_VERSION}
+        ports:
+            - "8080:8080"
