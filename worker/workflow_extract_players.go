@@ -2,11 +2,9 @@ package worker
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -32,6 +30,7 @@ func WorkflowIDEnrichPlayers() string {
 	return "enrich-players"
 }
 
+/*
 // ExtractUniquePlayersWorkflow orchestrates the entire player extraction process.
 // It extracts players from all Yahoo games and NHL boxscores in parallel,
 // merges the results, enriches with NHL API data, and saves to the database.
@@ -126,7 +125,9 @@ func ExtractUniquePlayersWorkflow(ctx workflow.Context) (int, error) {
 	log.Info().Int("final_count", savedCount).Msg("ExtractUniquePlayersWorkflow complete")
 	return savedCount, nil
 }
+*/
 
+/*
 // ExtractPlayersForSeasonWorkflow extracts players from both Yahoo and boxscores for one season.
 // It runs Yahoo and Boxscore extraction in parallel, merges the results, and stores in Redis.
 // Returns a BatchResult with the Redis key to avoid large serialization payloads.
@@ -180,6 +181,7 @@ func ExtractPlayersForSeasonWorkflow(ctx workflow.Context, season config.Season)
 
 	return result, nil
 }
+*/
 
 // EnrichPlayersWorkflow enriches partial players with NHL API data.
 // It processes players in batches to parallelize API calls.

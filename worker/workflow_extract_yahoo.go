@@ -2,12 +2,6 @@ package worker
 
 import (
 	"time"
-
-	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/date"
-	"go.temporal.io/sdk/temporal"
-	"go.temporal.io/sdk/workflow"
 )
 
 const (
@@ -16,6 +10,7 @@ const (
 	YahooDayBatchSize = 30
 )
 
+/*
 // ExtractYahooPlayersForSeasonWorkflow extracts players from Yahoo game files for one season.
 // Results are stored in Redis and merged at the end to keep workflow history small.
 func ExtractYahooPlayersForSeasonWorkflow(ctx workflow.Context, season config.Season) (map[int64]PartialPlayer, error) {
@@ -92,6 +87,7 @@ func ExtractYahooPlayersForSeasonWorkflow(ctx workflow.Context, season config.Se
 
 	return allPlayers, nil
 }
+*/
 
 // batchDates splits a date range into batches of the given size
 func batchDates(dates []time.Time, batchSize int) [][]time.Time {

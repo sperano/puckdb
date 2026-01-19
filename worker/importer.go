@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/cache"
-	"github.com/sperano/yfh/database"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/database"
 )
 
 // doDownload ensures a file is downloaded and cached.

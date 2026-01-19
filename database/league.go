@@ -2,7 +2,7 @@ package database
 
 import (
 	"fmt"
-	gqlmodel "github.com/sperano/yfh/graph/model"
+	gqlmodel "github.com/sperano/puckdb/graph/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"strconv"

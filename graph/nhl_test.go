@@ -3,7 +3,7 @@ package graph
 import (
 	"testing"
 
-	"github.com/sperano/yfh/sqlcdb"
+	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/stretchr/testify/assert"
 )
 

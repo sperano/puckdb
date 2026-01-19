@@ -1,6 +1,6 @@
 FROM alpine/git:latest
 
-RUN git config --global --add safe.directory /mnt/yfh-data/cache \
+RUN git config --global --add safe.directory /mnt/puckdb-data/cache \
   && git config --global user.email "owner@example.com" \
   && git config --global user.name "Éric Spérano"
 

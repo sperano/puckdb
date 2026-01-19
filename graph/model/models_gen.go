@@ -57,6 +57,12 @@ type DBStats struct {
 	TeamSummaries  int `json:"teamSummaries"`
 }
 
+type DownloadAllInput struct {
+	StartSeason       *int `json:"startSeason,omitempty"`
+	EndSeason         *int `json:"endSeason,omitempty"`
+	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`
+}
+
 type FantasyGame struct {
 	ID                 int        `json:"id"`
 	Key                int        `json:"key"`
@@ -253,6 +259,12 @@ type Season struct {
 	Leagues []*League `json:"leagues"`
 }
 
+type SeasonProgress struct {
+	StartYear int `json:"startYear"`
+	Total     int `json:"total"`
+	Completed int `json:"completed"`
+}
+
 type Team struct {
 	ID                    int      `json:"ID"`
 	Key                   string   `json:"Key"`
@@ -265,8 +277,9 @@ type Team struct {
 }
 
 type WorkflowProgress struct {
-	Total     int `json:"total"`
-	Completed int `json:"completed"`
+	Total     int               `json:"total"`
+	Completed int               `json:"completed"`
+	Seasons   []*SeasonProgress `json:"seasons,omitempty"`
 }
 
 type WorkflowResult struct {

@@ -1,16 +1,16 @@
 package cmd
 
 import (
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/database"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/database"
 	"github.com/spf13/cobra"
 )
 
 func cmdDrop() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "drop",
-		Short: "Drop all the tables",
-		Long:  `Drop all the tables`,
+		Short: "Drop database tables",
+		Long:  `Drop all database tables. Use with caution.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
 			if err := config.BindPostgresFlags(flags); err != nil {

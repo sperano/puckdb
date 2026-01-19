@@ -13,10 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/yfh/cache"
-	"github.com/sperano/yfh/database"
-	"github.com/sperano/yfh/redis"
-	"github.com/sperano/yfh/sqlcdb"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/sqlcdb"
 )
 
 const (

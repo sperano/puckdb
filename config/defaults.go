@@ -3,7 +3,7 @@ package config
 import "errors"
 
 const (
-	DefaultTemporalNamespace = "yfh"
+	DefaultTemporalNamespace = "puckdb"
 	DefaultUser              = "eric"
 	DefaultLogLevel          = "info"
 )

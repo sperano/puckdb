@@ -2,7 +2,7 @@ package http
 
 import (
 	"fmt"
-	"github.com/sperano/yfh/cache"
+	"github.com/sperano/puckdb/cache"
 	"time"
 )
 

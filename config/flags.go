@@ -52,6 +52,7 @@ const (
 	FlagMaxIdleDBConns               = "max-idle-db-conns"
 	FlagTemporalRetryInitialInterval = "temporal-retry-initial-interval"
 	FlagTemporalRetryMaxAttempts     = "temporal-retry-max-attempts"
+	FlagMaxSeasonConcurrency         = "max-season-concurrency"
 )
 
 // const FlagInteractive = "interactive"
@@ -114,7 +115,7 @@ func BindTemporalFlags(flags *flag.FlagSet) error {
 
 func InitTemporalRetryFlags(flags *flag.FlagSet) {
 	flags.Int(FlagTemporalRetryInitialInterval, 5, "Initial interval in seconds between activity retries")
-	flags.Int(FlagTemporalRetryMaxAttempts, 3, "Maximum number of activity retry attempts")
+	flags.Int(FlagTemporalRetryMaxAttempts, 10, "Maximum number of activity retry attempts")
 }
 
 func BindTemporalRetryFlags(flags *flag.FlagSet) error {
@@ -122,6 +123,14 @@ func BindTemporalRetryFlags(flags *flag.FlagSet) error {
 		return err
 	}
 	return viper.BindPFlag(FlagTemporalRetryMaxAttempts, flags.Lookup(FlagTemporalRetryMaxAttempts))
+}
+
+func InitMaxSeasonConcurrencyFlag(flags *flag.FlagSet) {
+	flags.Int(FlagMaxSeasonConcurrency, 10, "Maximum number of seasons to download concurrently")
+}
+
+func BindMaxSeasonConcurrencyFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagMaxSeasonConcurrency, flags.Lookup(FlagMaxSeasonConcurrency))
 }
 
 func InitRedisFlags(flags *flag.FlagSet) {
@@ -142,9 +151,9 @@ func BindRedisFlags(flags *flag.FlagSet) error {
 
 func InitPostgresFlags(flags *flag.FlagSet) {
 	flags.String(FlagPostgresHost, "localhost", "Postgres host")
-	flags.String(FlagPostgresUser, "yfh", "Postgres user")
+	flags.String(FlagPostgresUser, "puckdb", "Postgres user")
 	flags.String(FlagPostgresPassword, "", "Postgres password")
-	flags.String(FlagPostgresDatabase, "yfh", "Postgres database")
+	flags.String(FlagPostgresDatabase, "puckdb", "Postgres database")
 	flags.Int(FlagPostgresPort, 5432, "Postgres port")
 	flags.String(FlagPostgresSSLMode, "disable", "Postgres SSL mode")
 	flags.String(FlagPostgresTimeZone, "America/Los_Angeles", "Postgres time zone")
@@ -232,6 +241,40 @@ func InitPrintFlag(cmd *cobra.Command) {
 	cmd.Flags().BoolP(FlagPrint, "p", false, "Only print the games, do not download them")
 }
 
+// Season range flags for filtering by season year
+const (
+	FlagSeasonYear     = "season"
+	FlagFromSeasonYear = "from-season"
+	FlagToSeasonYear   = "to-season"
+)
+
+func InitSeasonRangeFlags(flags *flag.FlagSet) {
+	flags.Int(FlagSeasonYear, 0, "Season year (e.g., 2024). Sets both from and to season.")
+	flags.Int(FlagFromSeasonYear, 0, "Start season year for range (e.g., 2020)")
+	flags.Int(FlagToSeasonYear, 0, "End season year for range (e.g., 2024)")
+}
+
+func BindSeasonRangeFlags(flags *flag.FlagSet) error {
+	if err := viper.BindPFlag(FlagSeasonYear, flags.Lookup(FlagSeasonYear)); err != nil {
+		return err
+	}
+	if err := viper.BindPFlag(FlagFromSeasonYear, flags.Lookup(FlagFromSeasonYear)); err != nil {
+		return err
+	}
+	return viper.BindPFlag(FlagToSeasonYear, flags.Lookup(FlagToSeasonYear))
+}
+
+// GetSeasonRange returns start and end season years from flags.
+// If --season is set, it returns that value for both.
+// Otherwise returns --from-season and --to-season (0 means not set).
+func GetSeasonRange() (start, end int) {
+	season := viper.GetInt(FlagSeasonYear)
+	if season > 0 {
+		return season, season
+	}
+	return viper.GetInt(FlagFromSeasonYear), viper.GetInt(FlagToSeasonYear)
+}
+
 func getTeamIDs(teamIDs string) []uint {
 	tokens := strings.Split(teamIDs, ",")
 	ids := make([]uint, len(tokens))
@@ -247,7 +290,7 @@ func getTeamIDs(teamIDs string) []uint {
 
 func SetupViper() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.SetEnvPrefix("yfh")
+	viper.SetEnvPrefix("puckdb")
 	viper.AutomaticEnv()
 	viper.AddConfigPath(".")
 	viper.SetConfigName(".env")

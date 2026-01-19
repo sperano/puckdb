@@ -4,14 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/yfh/auth"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/http"
-	"github.com/sperano/yfh/redis"
+	"github.com/sperano/puckdb/auth"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/redis"
 )
+
+const nhlAPITimeout = 30 * time.Second
+
+// newNHLClient creates an NHL API client with the configured timeout.
+func newNHLClient() *nhl.Client {
+	cfg := nhl.NewClientConfig(nhl.WithConfigTimeout(nhlAPITimeout))
+	return nhl.NewClientWithConfig(cfg)
+}
 
 func DownloadFromYahoo(url string) ([]byte, error) {
 	redisClient := redis.NewClient()
@@ -28,7 +37,7 @@ func downloadFromYahooImpl(redisClient redis.Client, url string) ([]byte, error)
 
 func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
 	log.Info().Str("gameid", gameid.String()).Msg("Downloading boxscore NHL API")
-	client := nhl.NewClient()
+	client := newNHLClient()
 	boxscore, err := client.Boxscore(context.Background(), gameid)
 	if err != nil {
 		return nil, err

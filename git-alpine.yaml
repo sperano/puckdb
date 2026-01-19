@@ -8,8 +8,8 @@ metadata:
 spec:
   containers:
   - name: git-alpine
-    image: ericsperano/yfh-git:latest
-    #command: ["/usr/bin/git", "-C", "/mnt/yfh-data", "status"]
+    image: ericsperano/puckdb-git:latest
+    #command: ["/usr/bin/git", "-C", "/mnt/puckdb-data", "status"]
     command: ["/usr/bin/tail", "-f", "/dev/null"]
     imagePullPolicy: Always
     resources:
@@ -20,18 +20,18 @@ spec:
         memory: 256Mi
         cpu: "0.2"
     volumeMounts:
-    - name: yfh-data
-      mountPath: /mnt/yfh-data
+    - name: puckdb-data
+      mountPath: /mnt/puckdb-data
     - name: secrets
       mountPath: /mnt/secrets
   volumes:
-  - name: yfh-data
+  - name: puckdb-data
     nfs:
       server: acidbunny.***REMOVED***
       path: "/volume1/YFHDATA"
   - name: secrets
     secret:
-      secretName: yfh
+      secretName: puckdb
       items:
       - key: netrc
         path: netrc

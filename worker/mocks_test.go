@@ -3,12 +3,10 @@ package worker
 import (
 	"context"
 	"os"
-	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/yfh/cache"
-	"github.com/sperano/yfh/sqlcdb"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -91,105 +89,12 @@ func (m *MockNHLClient) DailySchedule(ctx context.Context, date nhl.GameDate) (*
 	return args.Get(0).(*nhl.DailySchedule), args.Error(1)
 }
 
-// MockRedisClient implements redis.Client for testing.
-type MockRedisClient struct {
-	mock.Mock
-}
-
-func (m *MockRedisClient) Del(ctx context.Context, keys ...string) *redis.IntCmd {
-	args := make([]any, 0, len(keys)+1)
-	args = append(args, ctx)
-	for _, k := range keys {
-		args = append(args, k)
-	}
-	result := m.Called(args...)
-	if result.Get(0) == nil {
-		return nil
-	}
-	return result.Get(0).(*redis.IntCmd)
-}
-
-func (m *MockRedisClient) Get(ctx context.Context, key string) *redis.StringCmd {
-	args := m.Called(ctx, key)
+func (m *MockNHLClient) SeasonStandingManifest(ctx context.Context) ([]nhl.SeasonInfo, error) {
+	args := m.Called(ctx)
 	if args.Get(0) == nil {
-		return nil
+		return nil, args.Error(1)
 	}
-	return args.Get(0).(*redis.StringCmd)
-}
-
-func (m *MockRedisClient) Keys(ctx context.Context, pattern string) *redis.StringSliceCmd {
-	args := m.Called(ctx, pattern)
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(*redis.StringSliceCmd)
-}
-
-func (m *MockRedisClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd {
-	args := m.Called(ctx, key, value, expiration)
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(*redis.StatusCmd)
-}
-
-func (m *MockRedisClient) TTL(ctx context.Context, key string) *redis.DurationCmd {
-	args := m.Called(ctx, key)
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(*redis.DurationCmd)
-}
-
-func (m *MockRedisClient) Close() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
-// redislock.RedisClient interface methods
-func (m *MockRedisClient) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.BoolCmd {
-	args := m.Called(ctx, key, value, expiration)
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(*redis.BoolCmd)
-}
-
-func (m *MockRedisClient) Eval(ctx context.Context, script string, keys []string, scriptArgs ...interface{}) *redis.Cmd {
-	args := m.Called(ctx, script, keys, scriptArgs)
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(*redis.Cmd)
-}
-
-func (m *MockRedisClient) EvalSha(ctx context.Context, sha1 string, keys []string, scriptArgs ...interface{}) *redis.Cmd {
-	args := m.Called(ctx, sha1, keys, scriptArgs)
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(*redis.Cmd)
-}
-
-func (m *MockRedisClient) ScriptExists(ctx context.Context, scripts ...string) *redis.BoolSliceCmd {
-	args := make([]any, 0, len(scripts)+1)
-	args = append(args, ctx)
-	for _, s := range scripts {
-		args = append(args, s)
-	}
-	result := m.Called(args...)
-	if result.Get(0) == nil {
-		return nil
-	}
-	return result.Get(0).(*redis.BoolSliceCmd)
-}
-
-func (m *MockRedisClient) ScriptLoad(ctx context.Context, script string) *redis.StringCmd {
-	args := m.Called(ctx, script)
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(*redis.StringCmd)
+	return args.Get(0).([]nhl.SeasonInfo), args.Error(1)
 }
 
 // MockPlayerUpserter implements PlayerUpserter for testing.

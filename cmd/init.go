@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"context"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/database"
-	"github.com/sperano/yfh/redis"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/redis"
 	"time"
 
 	"github.com/bsm/redislock"
@@ -16,8 +16,8 @@ func cmdInit() *cobra.Command {
 	const lockName = "yfh-init"
 	var cmd = &cobra.Command{
 		Use:   "init",
-		Short: "Do the migration and other init container duties",
-		Long:  `Do the migration and other init container duties`,
+		Short: "Initialize database",
+		Long:  `Run database migrations and seed NHL data. Uses Redis lock to prevent concurrent migrations.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
 			if err := config.BindRedisFlags(flags); err != nil {

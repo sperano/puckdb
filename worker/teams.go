@@ -2,14 +2,13 @@ package worker
 
 import (
 	"context"
-	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/cache"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/database"
-	"github.com/sperano/yfh/date"
-	"github.com/sperano/yfh/http"
-	"go.temporal.io/sdk/workflow"
 	"time"
+
+	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/http"
+	"go.temporal.io/sdk/workflow"
 )
 
 func DownloadTeam(ctx context.Context, season int, gameKey int, leagueID int, teamID int) error {
@@ -45,16 +44,19 @@ func importTeamImpl(ctx context.Context, fs cache.FileSystem, season int, gameKe
 	return *t, err
 }
 
-func DownloadRosterForTeamWorkflow(ctx workflow.Context, season config.Season, league config.League, teamid int) error {
-	log.Info().Int("season", season.StartYear()).Int("leagueID", league.LeagueID).Int("teamID", teamid).Msg("Downloading rosters")
-	dateRange, err := date.DateRangeToToday(season.Start, season.End, time.Now())
-	if err != nil {
-		return err
+func DownloadRosterForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, gameKey, leagueID, teamID int) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Downloading rosters", "gameKey", gameKey, "leagueID", leagueID, "teamID", teamID)
+
+	end := endDate
+	if end.After(time.Now()) {
+		end = time.Now()
 	}
+
 	futures := make([]workflow.Future, 0)
-	for _, day := range dateRange {
+	for day := startDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		future := workflow.ExecuteActivity(ctx, DownloadRosterForTeamOnDay, season.GameKey, league.LeagueID, teamid, day)
+		future := workflow.ExecuteActivity(ctx, DownloadRosterForTeamOnDay, gameKey, leagueID, teamID, day)
 		futures = append(futures, future)
 	}
 	for _, f := range futures {
@@ -65,16 +67,20 @@ func DownloadRosterForTeamWorkflow(ctx workflow.Context, season config.Season, l
 	return nil
 }
 
-func ImportRosterForTeamWorkflow(ctx workflow.Context, season config.Season, league config.League, teamid int) error {
-	log.Info().Int("season", season.StartYear()).Int("leagueID", league.LeagueID).Int("teamID", teamid).Msg("Importing rosters")
-	dateRange, err := date.DateRangeToToday(season.Start, season.End, time.Now())
-	if err != nil {
-		return err
+/*
+func ImportRosterForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, gameKey, leagueID, teamID int) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Importing rosters", "gameKey", gameKey, "leagueID", leagueID, "teamID", teamID)
+
+	end := endDate
+	if end.After(time.Now()) {
+		end = time.Now()
 	}
+
 	futures := make([]workflow.Future, 0)
-	for _, day := range dateRange {
+	for day := startDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		future := workflow.ExecuteActivity(ctx, ImportRosterForTeamOnDay, season.GameKey, league.LeagueID, teamid, day)
+		future := workflow.ExecuteActivity(ctx, ImportRosterForTeamOnDay, gameKey, leagueID, teamID, day)
 		futures = append(futures, future)
 	}
 	for _, f := range futures {
@@ -84,6 +90,7 @@ func ImportRosterForTeamWorkflow(ctx workflow.Context, season config.Season, lea
 	}
 	return nil
 }
+*/
 
 func DownloadRosterForTeamOnDay(ctx context.Context, gameKey int, leagueID int, teamID int, day time.Time) error {
 	fs := cache.NewSimpleCache()
@@ -118,16 +125,19 @@ func importRosterForTeamOnDayImpl(ctx context.Context, fs cache.FileSystem, game
 	return r, err
 }
 
-func DownloadTeamSummariesForTeamWorkflow(ctx workflow.Context, season config.Season, league config.League, teamid int) error {
-	log.Info().Int("season", season.StartYear()).Int("leagueID", league.LeagueID).Int("teamID", teamid).Msg("Downloading team summaries")
-	dateRange, err := date.DateRangeToToday(season.Start, season.End, time.Now())
-	if err != nil {
-		return err
+func DownloadTeamSummariesForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, gameKey, leagueID, teamID int) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Downloading team summaries", "gameKey", gameKey, "leagueID", leagueID, "teamID", teamID)
+
+	end := endDate
+	if end.After(time.Now()) {
+		end = time.Now()
 	}
+
 	futures := make([]workflow.Future, 0)
-	for _, day := range dateRange {
+	for day := startDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		future := workflow.ExecuteActivity(ctx, DownloadTeamSummaryForTeamOnDay, season.GameKey, league.LeagueID, teamid, day)
+		future := workflow.ExecuteActivity(ctx, DownloadTeamSummaryForTeamOnDay, gameKey, leagueID, teamID, day)
 		futures = append(futures, future)
 	}
 	for _, f := range futures {
@@ -138,16 +148,20 @@ func DownloadTeamSummariesForTeamWorkflow(ctx workflow.Context, season config.Se
 	return nil
 }
 
-func ImportTeamSummariesForTeamWorkflow(ctx workflow.Context, season config.Season, league config.League, teamid int) error {
-	log.Info().Int("season", season.StartYear()).Int("leagueID", league.LeagueID).Int("teamID", teamid).Msg("Importing team summaries")
-	dateRange, err := date.DateRangeToToday(season.Start, season.End, time.Now())
-	if err != nil {
-		return err
+/*
+func ImportTeamSummariesForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, gameKey, leagueID, teamID int) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Importing team summaries", "gameKey", gameKey, "leagueID", leagueID, "teamID", teamID)
+
+	end := endDate
+	if end.After(time.Now()) {
+		end = time.Now()
 	}
+
 	futures := make([]workflow.Future, 0)
-	for _, day := range dateRange {
+	for day := startDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		future := workflow.ExecuteActivity(ctx, ImportTeamSummaryForTeamOnDay, season.GameKey, league.LeagueID, teamid, day)
+		future := workflow.ExecuteActivity(ctx, ImportTeamSummaryForTeamOnDay, gameKey, leagueID, teamID, day)
 		futures = append(futures, future)
 	}
 	for _, f := range futures {
@@ -157,6 +171,7 @@ func ImportTeamSummariesForTeamWorkflow(ctx workflow.Context, season config.Seas
 	}
 	return nil
 }
+*/
 
 func DownloadTeamSummaryForTeamOnDay(ctx context.Context, gameKey int, leagueID int, teamID int, day time.Time) error {
 	fs := cache.NewSimpleCache()
@@ -191,6 +206,7 @@ func importTeamSummaryForTeamOnDayImpl(ctx context.Context, fs cache.FileSystem,
 	return *ts, err
 }
 
+/*
 func ImportTeamWorkflow(ctx workflow.Context, season int, leagueID int, teamID int) (database.Team, error) {
 	var team database.Team
 	gkey, err := getGameKey(season)
@@ -201,3 +217,4 @@ func ImportTeamWorkflow(ctx workflow.Context, season int, leagueID int, teamID i
 	err = workflow.ExecuteActivity(ctx, ImportTeam, season, gkey, leagueID, teamID).Get(ctx, &team)
 	return team, err
 }
+*/

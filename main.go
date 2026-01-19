@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/cmd"
+	"github.com/sperano/puckdb/cmd"
 )
 
 func main() {

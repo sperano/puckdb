@@ -6,7 +6,7 @@ import (
 	"github.com/bsm/redislock"
 	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
+	"github.com/sperano/puckdb/config"
 	"github.com/spf13/viper"
 	"time"
 )

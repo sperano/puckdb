@@ -10,8 +10,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/yfh/cache"
-	"github.com/sperano/yfh/redis"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/redis"
 )
 
 // ExtractBoxscorePlayersForDayActivity extracts players from all boxscore files for one day.

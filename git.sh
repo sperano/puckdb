@@ -1,6 +1,6 @@
 #!/bin/sh -e
 install -m 600 /mnt/secrets/netrc /root/.netrc
-DIR=/mnt/yfh-data/cache
+DIR=/mnt/puckdb-data/cache
 OUT=$(git -C $DIR status --porcelain)
 if [ -z "$OUT" ]; then
   echo "Nothing to do"

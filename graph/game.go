@@ -3,8 +3,8 @@ package graph
 import (
 	"context"
 
-	"github.com/sperano/yfh/database"
-	"github.com/sperano/yfh/graph/model"
+	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/graph/model"
 )
 
 func Games() ([]*model.Game, error) {

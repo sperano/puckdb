@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	gqlmodel "github.com/sperano/yfh/graph/model"
+	gqlmodel "github.com/sperano/puckdb/graph/model"
 	"gorm.io/gorm"
 )
 

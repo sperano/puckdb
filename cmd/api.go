@@ -16,13 +16,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/database"
-	"github.com/sperano/yfh/graph"
-	"github.com/sperano/yfh/graph/generated"
-	handlers "github.com/sperano/yfh/http"
-	"github.com/sperano/yfh/redis"
-	"github.com/sperano/yfh/temporal"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/graph"
+	"github.com/sperano/puckdb/graph/generated"
+	handlers "github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/temporal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -37,8 +37,8 @@ const (
 func cmdAPI() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "api",
-		Short: "Run as an HTTP server to handle the REST api and the /graphql endpoint",
-		Long:  `Run as an HTTP server to handle the REST api and the /graphql endpoint`,
+		Short: "Start HTTP/GraphQL server",
+		Long:  `Start the HTTP server with GraphQL endpoint and Yahoo OAuth handlers`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
 			if err := config.BindYahooOAuth2Flags(flags); err != nil {

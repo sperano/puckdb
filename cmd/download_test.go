@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sperano/yfh/graph/model"
+	"github.com/sperano/puckdb/graph/model"
 )
 
 func TestGraphQLClient_DownloadEverything(t *testing.T) {

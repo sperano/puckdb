@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/redis"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 )
 
 func cmdSignout() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "signout",
-		Short: "Remove the OAuth token from Redis",
-		Long:  `Sign out by removing the Yahoo OAuth2 token from Redis`,
+		Short: "Remove OAuth token",
+		Long:  `Remove Yahoo OAuth2 token from Redis.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
 			return config.BindRedisFlags(flags)

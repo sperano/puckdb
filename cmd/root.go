@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
+	"github.com/sperano/puckdb/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -14,9 +14,9 @@ import (
 
 func Root() *cobra.Command {
 	var rootCmd = &cobra.Command{
-		Use:           "yfh",
-		Short:         "Yahoo Fantasy Hockey",
-		Long:          `Yahoo Fantasy Hockey executable that can be run in many modes (apiserver, worker, etc.)`,
+		Use:           "puckdb",
+		Short:         "PuckDB CLI",
+		Long:          `PuckDB imports NHL hockey data and Yahoo fantasy league data`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -26,7 +26,7 @@ func Root() *cobra.Command {
 	flags := rootCmd.PersistentFlags()
 	config.InitLogLevelFlag(flags, config.DefaultLogLevel)
 
-	rootCmd.AddCommand(cmdAPI(), cmdCheck(), cmdDownload(), cmdDrop(), cmdImport(), cmdInit(), cmdInfo(), cmdWorker(), cmdYahoo())
+	rootCmd.AddCommand(cmdAPI(), cmdCancel(), cmdCheck(), cmdDownload(), cmdDrop(), cmdImport(), cmdInit(), cmdInfo(), cmdWorker(), cmdYahoo())
 
 	cobra.OnInitialize(func() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})

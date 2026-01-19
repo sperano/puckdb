@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/cache"
-	"github.com/sperano/yfh/http"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/http"
 	"go.temporal.io/sdk/temporal"
 	"gorm.io/gorm"
 )
 
 const (
-	RoutinesPerStage = 4
+	RoutinesPerStage = 2
 )
 
 // recoverPanic sends any panic as an error to the provided channel
@@ -44,6 +44,9 @@ type PipelineConfig[ID any, Parsed any] struct {
 	Importer   func(db *gorm.DB, day time.Time, id ID, parsed Parsed) error
 	// FSFactory allows injecting a custom FileSystem for testing. Defaults to cache.NewSimpleCache.
 	FSFactory func() cache.FileSystem
+	// ContinueOnError when true, logs download/parse errors and continues processing other items
+	// instead of failing the entire pipeline. Useful for Yahoo game pages that may return 404.
+	ContinueOnError bool
 }
 
 // getFS returns the FileSystem to use, defaulting to cache.NewSimpleCache if not set
@@ -91,6 +94,11 @@ func DownloadStage[ID any, Parsed any](config PipelineConfig[ID, Parsed]) StageF
 				if !lfs.Exists(file) {
 					content, err := config.Downloader(item.ID)
 					if err != nil {
+						// If ContinueOnError is set, log and skip this item
+						if config.ContinueOnError {
+							log.Warn().Err(err).Str("id", config.IDName(item.ID)).Msg("Download failed, skipping")
+							continue
+						}
 						// Wrap non-retryable client errors (4xx except 404) as non-retryable
 						// 404 is retryable because Yahoo Sports sometimes returns intermittent 404s
 						var httpErr *http.HTTPError
@@ -135,6 +143,11 @@ func ParseStage[ID any, Parsed any](config PipelineConfig[ID, Parsed]) StageFunc
 				file := lfs.New(config.FileType, item.Day, item.ID)
 				parsed, err := config.Parser(lfs, file)
 				if err != nil {
+					// If ContinueOnError is set, log and skip this item
+					if config.ContinueOnError {
+						log.Warn().Err(err).Str("id", config.IDName(item.ID)).Msg("Parse failed, skipping")
+						continue
+					}
 					errc <- err
 					return
 				}

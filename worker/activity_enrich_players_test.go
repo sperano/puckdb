@@ -7,8 +7,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v8"
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -282,7 +283,7 @@ func TestEnrichPlayerBatchImpl_EmptyBatch(t *testing.T) {
 	deps := EnrichDeps{
 		FS:      &MockFileSystem{},
 		NHL:     &MockNHLClient{},
-		Redis:   &MockRedisClient{},
+		Redis:   &redis.MockClient{},
 		Queries: NewMockPlayerUpserter(),
 	}
 
@@ -312,11 +313,11 @@ func TestEnrichPlayerBatchImpl_SinglePlayer(t *testing.T) {
 	// Setup mocks
 	mockFS := &MockFileSystem{}
 	mockNHL := &MockNHLClient{}
-	mockRedis := &MockRedisClient{}
+	mockRedis := &redis.MockClient{}
 	mockDB := NewMockPlayerUpserter()
 
 	// Mock Redis Get to return the encoded players
-	redisCmd := redis.NewStringCmd(ctx)
+	redisCmd := goredis.NewStringCmd(ctx)
 	redisCmd.SetVal(buf.String())
 	mockRedis.On("Get", ctx, "test-key").Return(redisCmd)
 

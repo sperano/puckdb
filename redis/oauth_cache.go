@@ -9,7 +9,7 @@ import (
 
 	redis_ "github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/auth"
+	"github.com/sperano/puckdb/auth"
 	"golang.org/x/oauth2"
 )
 

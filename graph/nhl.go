@@ -8,10 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/database"
-	"github.com/sperano/yfh/graph/model"
-	"github.com/sperano/yfh/sqlcdb"
+	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/sqlcdb"
 	"gorm.io/gorm"
 )
 
@@ -95,6 +94,7 @@ func sqlcSingleTeamRowToGQL(row sqlcdb.GetNHLTeamRow) *model.NHLTeam {
 	}
 }
 
+/*
 func toGqlSeasons(seasons []config.Season) []*model.Season {
 	gqlSeasons := make([]*model.Season, len(seasons))
 	for i, s := range seasons {
@@ -106,6 +106,7 @@ func toGqlSeasons(seasons []config.Season) []*model.Season {
 	}
 	return gqlSeasons
 }
+*/
 
 func nhlTeams(ctx context.Context, q *sqlcdb.Queries, allstars bool) ([]*model.NHLTeam, error) {
 	teams, err := q.GetAllNHLTeams(ctx, allstars)

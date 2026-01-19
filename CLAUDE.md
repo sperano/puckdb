@@ -4,16 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Yahoo Fantasy Hockey (YFH) is a Go application that imports and manages fantasy hockey data from Yahoo's Fantasy Sports API. It stores data in PostgreSQL and uses Temporal for workflow orchestration.
+PuckDB is a Go application that imports and manages fantasy hockey data from Yahoo's Fantasy Sports API. It stores data in PostgreSQL and uses Temporal for workflow orchestration.
 
 ## Common Commands
 
 ### Build and Run
 ```bash
-go build -o yfh .                    # Build the binary
-./yfh api                            # Run as HTTP/GraphQL server
-./yfh worker                         # Run as Temporal worker
-./yfh info                           # Display configuration info
+go build -o puckdb .                 # Build the binary
+./puckdb api                         # Run as HTTP/GraphQL server
+./puckdb worker                      # Run as Temporal worker
+./puckdb info                        # Display configuration info
 ```
 
 ### Testing
@@ -48,7 +48,7 @@ Uses Cobra for CLI, Viper for configuration, and pflags for flags.
 ### Core Packages
 - **worker/** - Temporal workflows and activities for importing data from Yahoo
   - Key workflows: `ImportEverythingWorkflow`, `ImportLeagueWorkflow`, `ImportGamesForSeasonWorkflow`
-  - Task queue name: `yfh-tasks`
+  - Task queue name: `puckdb-tasks`
 - **graph/** - GraphQL resolvers and schema. Resolver methods are in `resolver.go` and `schema.resolvers.go`
 - **database/** - GORM models and queries for PostgreSQL
 - **cache/** - File-based caching and XML parsing for Yahoo API responses

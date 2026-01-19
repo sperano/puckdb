@@ -3,9 +3,9 @@ package http
 import (
 	"context"
 	"fmt"
-	"github.com/sperano/yfh/auth"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/redis"
+	"github.com/sperano/puckdb/auth"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/redis"
 	"golang.org/x/oauth2"
 	"net/http"
 

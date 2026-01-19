@@ -9,11 +9,10 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/yfh/cache"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/database"
-	"github.com/sperano/yfh/date"
-	"github.com/sperano/yfh/http"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/http"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/workflow"
 	"gorm.io/gorm"
@@ -26,8 +25,9 @@ var gamePipelineConfig = PipelineConfig[cache.GameLink, *cache.Game]{
 	Downloader: func(link cache.GameLink) ([]byte, error) {
 		return http.DownloadPublic(http.YahooGameURL(link))
 	},
-	Parser:   cache.ParseGameHTML,
-	Importer: importGameToDB,
+	Parser:          cache.ParseGameHTML,
+	Importer:        importGameToDB,
+	ContinueOnError: true, // Yahoo game pages may return 404 for some games
 }
 
 // boxscorePipelineConfig configures the pipeline for NHL boxscore data
@@ -37,8 +37,9 @@ var boxscorePipelineConfig = PipelineConfig[nhl.GameID, nhl.Boxscore]{
 	Downloader: func(id nhl.GameID) ([]byte, error) {
 		return DownloadBoxscore(id)
 	},
-	Parser:   parseBoxscore,
-	Importer: importBoxscoreToDB,
+	Parser:          parseBoxscore,
+	Importer:        importBoxscoreToDB,
+	ContinueOnError: true, // NHL API may rate limit or have transient failures
 }
 
 // DailyDataConfig configures downloading and parsing daily data files
@@ -129,7 +130,9 @@ func parseBoxscore(fs cache.FileSystem, file cache.File) (nhl.Boxscore, error) {
 	return nhl.Boxscore{}, nil
 }
 
-// parseDailySchedule parses a daily schedule JSON file from cache
+// parseDailySchedule parses a daily schedule JSON file from cache.
+// Only returns completed games (FINAL, OFF) to avoid boxscore errors
+// for games that haven't finished yet (missing/incomplete data).
 func parseDailySchedule(fs cache.FileSystem, file cache.File) ([]nhl.GameID, error) {
 	content, err := fs.Read(file)
 	if err != nil {
@@ -139,9 +142,16 @@ func parseDailySchedule(fs cache.FileSystem, file cache.File) ([]nhl.GameID, err
 	if err := json.Unmarshal(content, &schedule); err != nil {
 		return nil, err
 	}
-	ids := make([]nhl.GameID, len(schedule.Games))
-	for i, g := range schedule.Games {
-		ids[i] = nhl.GameID(g.ID)
+	ids := make([]nhl.GameID, 0, len(schedule.Games))
+	for _, g := range schedule.Games {
+		if !g.GameState.IsFinal() {
+			log.Debug().
+				Str("gameid", g.ID.String()).
+				Str("state", g.GameState.String()).
+				Msg("Skipping incomplete game")
+			continue
+		}
+		ids = append(ids, g.ID)
 	}
 	return ids, nil
 }
@@ -168,7 +178,7 @@ var dailyScheduleConfig = DailyDataConfig[nhl.GameID]{
 	FileType: cache.DailyScheduleFileType,
 	LogMsg:   "Checking daily schedule for the day",
 	Download: func(ctx context.Context, day time.Time) ([]byte, error) {
-		client := nhl.NewClient()
+		client := newNHLClient()
 		schedule, err := client.DailySchedule(ctx, nhl.FromDate(day))
 		if err != nil {
 			return nil, err
@@ -208,7 +218,29 @@ func DownloadDailySchedule(ctx context.Context, day time.Time) error {
 	if err != nil {
 		return err
 	}
-	return RunDownloadPipeline(ctx, boxscorePipelineConfig, day, gameIDs)
+	// Filter out preseason games - they often have missing data (e.g., empty periodType)
+	// that causes marshal errors
+	filtered := filterRegularSeasonGames(gameIDs)
+	return RunDownloadPipeline(ctx, boxscorePipelineConfig, day, filtered)
+}
+
+// filterRegularSeasonGames filters out preseason games from the list.
+// Preseason games often have missing/invalid data that causes parsing errors.
+func filterRegularSeasonGames(gameIDs []nhl.GameID) []nhl.GameID {
+	result := make([]nhl.GameID, 0, len(gameIDs))
+	for _, id := range gameIDs {
+		gameType, err := id.GameType()
+		if err != nil {
+			log.Warn().Str("gameid", id.String()).Err(err).Msg("Skipping game with invalid ID")
+			continue
+		}
+		if nhl.GameType(gameType) == nhl.GameTypePreseason {
+			log.Debug().Str("gameid", id.String()).Msg("Skipping preseason game")
+			continue
+		}
+		result = append(result, id)
+	}
+	return result
 }
 
 func DownloadGameDay(ctx context.Context, day time.Time) error {
@@ -238,6 +270,7 @@ func ImportGamesForDayWorkflow(ctx workflow.Context, day time.Time) error {
 	return nil
 }
 
+/*
 // TODO: merge into generic function with ImportGamesForSeasonWorkflow
 func DownloadGamesForSeasonWorkflow(ctx workflow.Context, season config.Season) error {
 	log.Info().Int("season", season.StartYear()).Msg("Downloading games for season")
@@ -282,3 +315,4 @@ func ImportGamesForSeasonWorkflow(ctx workflow.Context, season config.Season) er
 	}
 	return nil
 }
+*/

@@ -4,14 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/sperano/yfh/cache"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/database"
-	"github.com/sperano/yfh/graph/model"
-	"github.com/sperano/yfh/http"
-	"github.com/sperano/yfh/redis"
-	"github.com/sperano/yfh/temporal"
-	"github.com/sperano/yfh/worker"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/temporal"
+	"github.com/sperano/puckdb/worker"
 	temporalEnums "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 )
@@ -76,6 +75,7 @@ func clearCache(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+/*
 func (r *Resolver) importLeague(ctx context.Context, season int, leagueID int) (*model.League, error) {
 	opts := workflowOptions(worker.WorkflowIDImportLeague(season, leagueID))
 	future, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ImportLeagueWorkflow, season, leagueID)
@@ -109,6 +109,7 @@ func (r *Resolver) importEverything(ctx context.Context) (bool, error) {
 	}
 	return true, nil
 }
+*/
 
 func (r *Resolver) cancelImportEverything(ctx context.Context) (bool, error) {
 	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDImportEverything, ""); err != nil {
@@ -117,6 +118,7 @@ func (r *Resolver) cancelImportEverything(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+/*
 func (r *Resolver) importEverythingForSeason(ctx context.Context, season int) (bool, error) {
 	seasons, err := config.GetSeasonsConfig()
 	if err != nil {
@@ -133,6 +135,7 @@ func (r *Resolver) importEverythingForSeason(ctx context.Context, season int) (b
 	}
 	return true, nil
 }
+*/
 
 func (r *Resolver) cancelImportEverythingForSeason(ctx context.Context, season int) (bool, error) {
 	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDImportEverythingForSeason(season), ""); err != nil {
@@ -141,6 +144,7 @@ func (r *Resolver) cancelImportEverythingForSeason(ctx context.Context, season i
 	return true, nil
 }
 
+/*
 func (r *Resolver) downloadEverything(ctx context.Context) (bool, error) {
 	opts := workflowOptions(worker.WorkflowIDDownloadEverything)
 	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.DownloadEverythingWorkflow); err != nil {
@@ -148,6 +152,7 @@ func (r *Resolver) downloadEverything(ctx context.Context) (bool, error) {
 	}
 	return true, nil
 }
+*/
 
 func (r *Resolver) cancelDownloadEverything(ctx context.Context) (bool, error) {
 	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDDownloadEverything, ""); err != nil {
@@ -156,6 +161,7 @@ func (r *Resolver) cancelDownloadEverything(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+/*
 func (r *Resolver) downloadEverythingForSeason(ctx context.Context, season int) (bool, error) {
 	seasons, err := config.GetSeasonsConfig()
 	if err != nil {
@@ -172,6 +178,7 @@ func (r *Resolver) downloadEverythingForSeason(ctx context.Context, season int) 
 	}
 	return true, nil
 }
+*/
 
 func (r *Resolver) cancelDownloadEverythingForSeason(ctx context.Context, season int) (bool, error) {
 	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDDownloadEverythingForSeason(season), ""); err != nil {
@@ -180,6 +187,7 @@ func (r *Resolver) cancelDownloadEverythingForSeason(ctx context.Context, season
 	return true, nil
 }
 
+/*
 func (r *Resolver) importGamesForSeason(ctx context.Context, season int) (bool, error) {
 	seasons, err := config.GetSeasonsConfig()
 	if err != nil {
@@ -196,6 +204,7 @@ func (r *Resolver) importGamesForSeason(ctx context.Context, season int) (bool, 
 	}
 	return true, nil
 }
+*/
 
 func (r *Resolver) cancelImportGamesForSeason(ctx context.Context, season int) (bool, error) {
 	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDImportGamesForSeason(season), ""); err != nil {
@@ -284,6 +293,7 @@ func currentFantasyGameKey(_ context.Context) (int, error) {
 	return fantasy.Game.Key, nil
 }
 
+/*
 func seasons(_ context.Context) ([]*model.Season, error) {
 	ss, err := config.GetSeasonsConfig()
 	if err != nil {
@@ -291,6 +301,7 @@ func seasons(_ context.Context) ([]*model.Season, error) {
 	}
 	return toGqlSeasons(ss), nil
 }
+*/
 
 func league(ctx context.Context, season int, id int) (*model.League, error) {
 	db := database.FromContext(ctx)
@@ -301,6 +312,7 @@ func league(ctx context.Context, season int, id int) (*model.League, error) {
 	return dbLeague.GraphQLModel(), nil
 }
 
+/*
 func leagues(ctx context.Context, year int) ([]*model.League, error) {
 	ss, err := config.GetSeasonsConfig()
 	if err != nil {
@@ -324,7 +336,9 @@ func leagues(ctx context.Context, year int) ([]*model.League, error) {
 	}
 	return leagues, nil
 }
+*/
 
+/*
 func (r *Resolver) extractUniquePlayers(ctx context.Context) (bool, error) {
 	opts := workflowOptions(worker.WorkflowIDExtractUniquePlayers)
 	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ExtractUniquePlayersWorkflow); err != nil {
@@ -332,9 +346,25 @@ func (r *Resolver) extractUniquePlayers(ctx context.Context) (bool, error) {
 	}
 	return true, nil
 }
+*/
 
 func (r *Resolver) cancelExtractUniquePlayers(ctx context.Context) (bool, error) {
 	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDExtractUniquePlayers, ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) downloadAll(ctx context.Context, input *model.DownloadAllInput) (bool, error) {
+	opts := workflowOptions(worker.WorkflowIDDownloadAll)
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.DownloadAllWorkflow, input); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) cancelDownloadAll(ctx context.Context) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDDownloadAll, ""); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -346,6 +376,14 @@ func (r *Resolver) extractUniquePlayersResult(ctx context.Context) (*model.Workf
 
 func (r *Resolver) extractUniquePlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
 	return r.queryWorkflowProgress(ctx, worker.WorkflowIDExtractUniquePlayers)
+}
+
+func (r *Resolver) downloadAllResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadAll)
+}
+
+func (r *Resolver) downloadAllProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadAll)
 }
 
 func (r *Resolver) downloadEverythingResult(ctx context.Context) (*model.WorkflowResult, error) {
@@ -406,10 +444,23 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 		return nil, err
 	}
 
-	return &model.WorkflowProgress{
+	result := &model.WorkflowProgress{
 		Total:     progress.Total,
 		Completed: progress.Completed,
-	}, nil
+	}
+
+	if len(progress.Seasons) > 0 {
+		result.Seasons = make([]*model.SeasonProgress, len(progress.Seasons))
+		for i, s := range progress.Seasons {
+			result.Seasons[i] = &model.SeasonProgress{
+				StartYear: s.StartYear,
+				Total:     s.Total,
+				Completed: s.Completed,
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func ptrString(s string) *string {

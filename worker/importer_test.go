@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sperano/yfh/cache"
+	"github.com/sperano/puckdb/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

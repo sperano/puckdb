@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/cache"
-	"github.com/sperano/yfh/redis"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/redis"
 )
 
 // ExtractYahooPlayersForDayActivity extracts players from all Yahoo game files for one day.

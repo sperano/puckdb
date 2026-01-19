@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/sqlcdb"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )

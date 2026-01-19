@@ -11,11 +11,11 @@ WORKDIR /src
 
 RUN bash -c "/bin/echo 'machine github.com login ericsperano password ${GITHUB_TOKEN}' > /root/.netrc" \
     && GOOS=linux GOARCH=${TARGETARCH} CGO_ENABLED=0 go build \
-    -ldflags "-X github.com/ericsperano/yfh/config.BuildNumber=${GITHUB_RUN_NUMBER}" \
+    -ldflags "-X github.com/ericsperano/puckdb/config.BuildNumber=${GITHUB_RUN_NUMBER}" \
     && rm /root/.netrc
 
 FROM scratch
-COPY --from=build /src/yfh /
+COPY --from=build /src/puckdb /
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 EXPOSE 8787
-ENTRYPOINT [ "/yfh" ]
+ENTRYPOINT [ "/puckdb" ]

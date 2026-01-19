@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/temporal"
-	workers "github.com/sperano/yfh/worker"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/temporal"
+	workers "github.com/sperano/puckdb/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/worker"
@@ -33,8 +33,8 @@ import (
 func cmdWorker() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "worker",
-		Short: "Run as a worker",
-		Long:  `Run as a worker process`,
+		Short: "Start Temporal worker",
+		Long:  `Start the Temporal worker to process import workflows`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
 			if err := config.BindYahooOAuth2Flags(flags); err != nil {
@@ -67,6 +67,9 @@ func cmdWorker() *cobra.Command {
 			if err := config.BindSkipPreseasonFlag(flags); err != nil {
 				return err
 			}
+			if err := config.BindMaxSeasonConcurrencyFlag(flags); err != nil {
+				return err
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -91,29 +94,31 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.DownloadTeam)
 			w.RegisterActivity(workers.DownloadRosterForTeamOnDay)
 			w.RegisterActivity(workers.DownloadTeamSummaryForTeamOnDay)
+			w.RegisterActivity(workers.FetchSeasonsDataActivity)
 
 			// Import workflows
-			w.RegisterWorkflow(workers.ImportLeagueWorkflow)
-			w.RegisterWorkflow(workers.ImportTeamWorkflow)
-			w.RegisterWorkflow(workers.ImportGamesForSeasonWorkflow)
+			// w.RegisterWorkflow(workers.ImportLeagueWorkflow)      // commented out: depends on getGameKey
+			// w.RegisterWorkflow(workers.ImportTeamWorkflow)        // commented out: depends on getGameKey
+			// w.RegisterWorkflow(workers.ImportGamesForSeasonWorkflow)  // commented out: uses old Season struct
 			w.RegisterWorkflow(workers.ImportGamesForDayWorkflow)
-			w.RegisterWorkflow(workers.ImportRosterForTeamWorkflow)
-			w.RegisterWorkflow(workers.ImportTeamSummariesForTeamWorkflow)
-			w.RegisterWorkflow(workers.ImportEverythingWorkflow)
-			w.RegisterWorkflow(workers.ImportEverythingForSeasonWorkflow)
+			// w.RegisterWorkflow(workers.ImportRosterForTeamWorkflow)       // commented out: uses old Season struct
+			// w.RegisterWorkflow(workers.ImportTeamSummariesForTeamWorkflow) // commented out: uses old Season struct
+			// w.RegisterWorkflow(workers.ImportEverythingWorkflow)          // commented out: uses old Season struct
+			// w.RegisterWorkflow(workers.ImportEverythingForSeasonWorkflow) // commented out: uses old Season struct
 
 			// DownloadFromYahoo workflows
-			w.RegisterWorkflow(workers.DownloadGamesForSeasonWorkflow)
+			// w.RegisterWorkflow(workers.DownloadGamesForSeasonWorkflow)      // commented out: uses old Season struct
 			w.RegisterWorkflow(workers.DownloadRosterForTeamWorkflow)
 			w.RegisterWorkflow(workers.DownloadTeamSummariesForTeamWorkflow)
-			w.RegisterWorkflow(workers.DownloadEverythingWorkflow)
-			w.RegisterWorkflow(workers.DownloadEverythingForSeasonWorkflow)
+			// w.RegisterWorkflow(workers.DownloadEverythingWorkflow)          // commented out: uses old Season struct
+			// w.RegisterWorkflow(workers.DownloadEverythingForSeasonWorkflow) // commented out: uses old Season struct
+			w.RegisterWorkflow(workers.DownloadAllWorkflow)
 
 			// Player extraction workflows
-			w.RegisterWorkflow(workers.ExtractUniquePlayersWorkflow)
-			w.RegisterWorkflow(workers.ExtractPlayersForSeasonWorkflow)
-			w.RegisterWorkflow(workers.ExtractYahooPlayersForSeasonWorkflow)
-			w.RegisterWorkflow(workers.ExtractBoxscorePlayersForSeasonWorkflow)
+			// w.RegisterWorkflow(workers.ExtractUniquePlayersWorkflow)        // commented out: uses old Season struct
+			// w.RegisterWorkflow(workers.ExtractPlayersForSeasonWorkflow)     // commented out: uses old Season struct
+			// w.RegisterWorkflow(workers.ExtractYahooPlayersForSeasonWorkflow)  // commented out: uses old Season struct
+			// w.RegisterWorkflow(workers.ExtractBoxscorePlayersForSeasonWorkflow) // commented out: uses old Season struct
 			w.RegisterWorkflow(workers.EnrichPlayersWorkflow)
 
 			// Player extraction activities
@@ -124,7 +129,7 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.MergeSeasonPlayersActivity)
 			w.RegisterActivity(workers.MergeAllSeasonsActivity)
 			w.RegisterActivity(workers.MergePlayerBatchesFromRedisActivity)
-			w.RegisterActivity(workers.StoreSeasonResultActivity)
+			// w.RegisterActivity(workers.StoreSeasonResultActivity) // commented out
 			w.RegisterActivity(workers.StoreEnrichmentPlayersActivity)
 			w.RegisterActivity(workers.MergeAllSeasonsFromRedisActivity)
 			w.RegisterActivity(workers.EnrichPlayerBatchActivity)
@@ -161,5 +166,6 @@ func cmdWorker() *cobra.Command {
 	config.InitWorkerPortFlag(flags)
 	config.InitWorkerTLSEnabledFlag(flags)
 	config.InitSkipPreseasonFlag(flags)
+	config.InitMaxSeasonConcurrencyFlag(flags)
 	return cmd
 }

@@ -14,7 +14,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/sperano/yfh/graph/model"
+	"github.com/sperano/puckdb/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -182,6 +182,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		CancelDownloadAll                 func(childComplexity int) int
 		CancelDownloadEverything          func(childComplexity int) int
 		CancelDownloadEverythingForSeason func(childComplexity int, season int) int
 		CancelExtractUniquePlayers        func(childComplexity int) int
@@ -192,6 +193,7 @@ type ComplexityRoot struct {
 		ClearCache                        func(childComplexity int) int
 		ClearDatabase                     func(childComplexity int) int
 		CreateDatabase                    func(childComplexity int) int
+		DownloadAll                       func(childComplexity int, input *model.DownloadAllInput) int
 		DownloadEverything                func(childComplexity int) int
 		DownloadEverythingForSeason       func(childComplexity int, season int) int
 		DropDatabase                      func(childComplexity int) int
@@ -297,6 +299,8 @@ type ComplexityRoot struct {
 	Query struct {
 		BuildNumber                         func(childComplexity int) int
 		CurrentFantasyGameKey               func(childComplexity int) int
+		DownloadAllProgress                 func(childComplexity int) int
+		DownloadAllResult                   func(childComplexity int) int
 		DownloadEverythingForSeasonProgress func(childComplexity int, season int) int
 		DownloadEverythingForSeasonResult   func(childComplexity int, season int) int
 		DownloadEverythingProgress          func(childComplexity int) int
@@ -329,6 +333,12 @@ type ComplexityRoot struct {
 		Start   func(childComplexity int) int
 	}
 
+	SeasonProgress struct {
+		Completed func(childComplexity int) int
+		StartYear func(childComplexity int) int
+		Total     func(childComplexity int) int
+	}
+
 	Team struct {
 		DraftPosition         func(childComplexity int) int
 		HasDraftGrade         func(childComplexity int) int
@@ -342,6 +352,7 @@ type ComplexityRoot struct {
 
 	WorkflowProgress struct {
 		Completed func(childComplexity int) int
+		Seasons   func(childComplexity int) int
 		Total     func(childComplexity int) int
 	}
 
@@ -373,6 +384,8 @@ type MutationResolver interface {
 	ImportTeam(ctx context.Context, season int, leagueID int, teamID int) (*model.Team, error)
 	ExtractUniquePlayers(ctx context.Context) (bool, error)
 	CancelExtractUniquePlayers(ctx context.Context) (bool, error)
+	DownloadAll(ctx context.Context, input *model.DownloadAllInput) (bool, error)
+	CancelDownloadAll(ctx context.Context) (bool, error)
 }
 type NHLConferenceResolver interface {
 	Divisions(ctx context.Context, obj *model.NHLConference) ([]*model.NHLDivision, error)
@@ -395,6 +408,8 @@ type QueryResolver interface {
 	DownloadEverythingForSeasonProgress(ctx context.Context, season int) (*model.WorkflowProgress, error)
 	ExtractUniquePlayersResult(ctx context.Context) (*model.WorkflowResult, error)
 	ExtractUniquePlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
+	DownloadAllResult(ctx context.Context) (*model.WorkflowResult, error)
+	DownloadAllProgress(ctx context.Context) (*model.WorkflowProgress, error)
 }
 type SeasonResolver interface {
 	Leagues(ctx context.Context, obj *model.Season) ([]*model.League, error)
@@ -1168,6 +1183,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Manager.Nickname(childComplexity), true
 
+	case "Mutation.cancelDownloadAll":
+		if e.complexity.Mutation.CancelDownloadAll == nil {
+			break
+		}
+
+		return e.complexity.Mutation.CancelDownloadAll(childComplexity), true
+
 	case "Mutation.cancelDownloadEverything":
 		if e.complexity.Mutation.CancelDownloadEverything == nil {
 			break
@@ -1257,6 +1279,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.CreateDatabase(childComplexity), true
+
+	case "Mutation.downloadAll":
+		if e.complexity.Mutation.DownloadAll == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_downloadAll_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DownloadAll(childComplexity, args["input"].(*model.DownloadAllInput)), true
 
 	case "Mutation.downloadEverything":
 		if e.complexity.Mutation.DownloadEverything == nil {
@@ -1813,6 +1847,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.CurrentFantasyGameKey(childComplexity), true
 
+	case "Query.downloadAllProgress":
+		if e.complexity.Query.DownloadAllProgress == nil {
+			break
+		}
+
+		return e.complexity.Query.DownloadAllProgress(childComplexity), true
+
+	case "Query.downloadAllResult":
+		if e.complexity.Query.DownloadAllResult == nil {
+			break
+		}
+
+		return e.complexity.Query.DownloadAllResult(childComplexity), true
+
 	case "Query.downloadEverythingForSeasonProgress":
 		if e.complexity.Query.DownloadEverythingForSeasonProgress == nil {
 			break
@@ -2006,6 +2054,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Season.Start(childComplexity), true
 
+	case "SeasonProgress.completed":
+		if e.complexity.SeasonProgress.Completed == nil {
+			break
+		}
+
+		return e.complexity.SeasonProgress.Completed(childComplexity), true
+
+	case "SeasonProgress.startYear":
+		if e.complexity.SeasonProgress.StartYear == nil {
+			break
+		}
+
+		return e.complexity.SeasonProgress.StartYear(childComplexity), true
+
+	case "SeasonProgress.total":
+		if e.complexity.SeasonProgress.Total == nil {
+			break
+		}
+
+		return e.complexity.SeasonProgress.Total(childComplexity), true
+
 	case "Team.DraftPosition":
 		if e.complexity.Team.DraftPosition == nil {
 			break
@@ -2069,6 +2138,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.WorkflowProgress.Completed(childComplexity), true
 
+	case "WorkflowProgress.seasons":
+		if e.complexity.WorkflowProgress.Seasons == nil {
+			break
+		}
+
+		return e.complexity.WorkflowProgress.Seasons(childComplexity), true
+
 	case "WorkflowProgress.total":
 		if e.complexity.WorkflowProgress.Total == nil {
 			break
@@ -2097,7 +2173,9 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e, 0, 0, make(chan graphql.DeferredResult)}
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputDownloadAllInput,
+	)
 	first := true
 
 	switch rc.Operation.Operation {
@@ -2480,9 +2558,16 @@ type WorkflowResult {
 	failureReason: String
 }
 
+type SeasonProgress {
+	startYear: Int!
+	total: Int!
+	completed: Int!
+}
+
 type WorkflowProgress {
 	total: Int!
 	completed: Int!
+	seasons: [SeasonProgress!]
 }
 
 type Query {
@@ -2506,6 +2591,9 @@ type Query {
 	extractUniquePlayersResult: WorkflowResult!
 	extractUniquePlayersProgress: WorkflowProgress
 
+	downloadAllResult: WorkflowResult!
+	downloadAllProgress: WorkflowProgress
+
 	#    nhlStandings: [NHLTeamStanding!]
 #    fantasyGameLocalFiles(season: Int!): [LocalFile!]
 #    leagueLocalFiles(season: Int!): [LocalFile!]
@@ -2526,6 +2614,12 @@ type Query {
 #	rosterPlayers(teamID: Int!, date: String!): [RosterPlayer!]
 }
 
+
+input DownloadAllInput {
+	startSeason: Int
+	endSeason: Int
+	seasonConcurrency: Int
+}
 
 type Mutation {
 	# TODO should this really be available in a mutation?
@@ -2558,6 +2652,9 @@ type Mutation {
 
 	extractUniquePlayers: Boolean!
 	cancelExtractUniquePlayers: Boolean!
+
+	downloadAll(input: DownloadAllInput): Boolean!
+	cancelDownloadAll: Boolean!
 
 #    deleteLeague: Boolean!
 #    importLeague(force: Boolean! = false): String!
@@ -2764,6 +2861,38 @@ func (ec *executionContext) field_Mutation_cancelImportGamesForSeason_argsSeason
 	}
 
 	var zeroVal int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_downloadAll_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_downloadAll_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_downloadAll_argsInput(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.DownloadAllInput, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["input"]
+	if !ok {
+		var zeroVal *model.DownloadAllInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalODownloadAllInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadAllInput(ctx, tmp)
+	}
+
+	var zeroVal *model.DownloadAllInput
 	return zeroVal, nil
 }
 
@@ -5701,7 +5830,7 @@ func (ec *executionContext) _FantasyGame_localFile(ctx context.Context, field gr
 	}
 	res := resTmp.(*model.LocalFile)
 	fc.Result = res
-	return ec.marshalNLocalFile2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLocalFile(ctx, field.Selections, res)
+	return ec.marshalNLocalFile2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLocalFile(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_FantasyGame_localFile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5927,7 +6056,7 @@ func (ec *executionContext) _Game_HomeTeam(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.(*model.NHLTeam)
 	fc.Result = res
-	return ec.marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
+	return ec.marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Game_HomeTeam(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6211,7 +6340,7 @@ func (ec *executionContext) _Game_AwayTeam(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.(*model.NHLTeam)
 	fc.Result = res
-	return ec.marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
+	return ec.marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Game_AwayTeam(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6536,7 +6665,7 @@ func (ec *executionContext) _Game_LocalFile(ctx context.Context, field graphql.C
 	}
 	res := resTmp.(*model.LocalFile)
 	fc.Result = res
-	return ec.marshalOLocalFile2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLocalFile(ctx, field.Selections, res)
+	return ec.marshalOLocalFile2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLocalFile(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Game_LocalFile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -7422,7 +7551,7 @@ func (ec *executionContext) _League_localFile(ctx context.Context, field graphql
 	}
 	res := resTmp.(*model.LocalFile)
 	fc.Result = res
-	return ec.marshalNLocalFile2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLocalFile(ctx, field.Selections, res)
+	return ec.marshalNLocalFile2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLocalFile(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_League_localFile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -9012,7 +9141,7 @@ func (ec *executionContext) _Mutation_importLeague(ctx context.Context, field gr
 	}
 	res := resTmp.(*model.League)
 	fc.Result = res
-	return ec.marshalNLeague2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLeague(ctx, field.Selections, res)
+	return ec.marshalNLeague2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLeague(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_importLeague(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -9109,7 +9238,7 @@ func (ec *executionContext) _Mutation_importTeam(ctx context.Context, field grap
 	}
 	res := resTmp.(*model.Team)
 	fc.Result = res
-	return ec.marshalNTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐTeam(ctx, field.Selections, res)
+	return ec.marshalNTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTeam(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_importTeam(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -9242,6 +9371,105 @@ func (ec *executionContext) fieldContext_Mutation_cancelExtractUniquePlayers(_ c
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_downloadAll(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_downloadAll(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DownloadAll(rctx, fc.Args["input"].(*model.DownloadAllInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_downloadAll(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_downloadAll_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelDownloadAll(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelDownloadAll(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CancelDownloadAll(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_cancelDownloadAll(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _NHLConference_id(ctx context.Context, field graphql.CollectedField, obj *model.NHLConference) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_NHLConference_id(ctx, field)
 	if err != nil {
@@ -9358,7 +9586,7 @@ func (ec *executionContext) _NHLConference_divisions(ctx context.Context, field 
 	}
 	res := resTmp.([]*model.NHLDivision)
 	fc.Result = res
-	return ec.marshalNNHLDivision2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLDivisionᚄ(ctx, field.Selections, res)
+	return ec.marshalNNHLDivision2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLDivisionᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_NHLConference_divisions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -9500,7 +9728,7 @@ func (ec *executionContext) _NHLDivision_conference(ctx context.Context, field g
 	}
 	res := resTmp.(*model.NHLConference)
 	fc.Result = res
-	return ec.marshalNNHLConference2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLConference(ctx, field.Selections, res)
+	return ec.marshalNNHLConference2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLConference(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_NHLDivision_conference(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -9552,7 +9780,7 @@ func (ec *executionContext) _NHLDivision_teams(ctx context.Context, field graphq
 	}
 	res := resTmp.([]*model.NHLTeam)
 	fc.Result = res
-	return ec.marshalNNHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeamᚄ(ctx, field.Selections, res)
+	return ec.marshalNNHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeamᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_NHLDivision_teams(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -10232,7 +10460,7 @@ func (ec *executionContext) _NHLTeam_division(ctx context.Context, field graphql
 	}
 	res := resTmp.(*model.NHLDivision)
 	fc.Result = res
-	return ec.marshalNNHLDivision2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLDivision(ctx, field.Selections, res)
+	return ec.marshalNNHLDivision2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLDivision(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_NHLTeam_division(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -10418,7 +10646,7 @@ func (ec *executionContext) _NHLTeamStanding_NHLTeam(ctx context.Context, field 
 	}
 	res := resTmp.(*model.NHLTeam)
 	fc.Result = res
-	return ec.marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
+	return ec.marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_NHLTeamStanding_NHLTeam(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -10482,7 +10710,7 @@ func (ec *executionContext) _NHLTeamStanding_Away(ctx context.Context, field gra
 	}
 	res := resTmp.(*model.NHLStandingsTeamStats)
 	fc.Result = res
-	return ec.marshalNNHLStandingsTeamStats2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLStandingsTeamStats(ctx, field.Selections, res)
+	return ec.marshalNNHLStandingsTeamStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLStandingsTeamStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_NHLTeamStanding_Away(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -10546,7 +10774,7 @@ func (ec *executionContext) _NHLTeamStanding_Home(ctx context.Context, field gra
 	}
 	res := resTmp.(*model.NHLStandingsTeamStats)
 	fc.Result = res
-	return ec.marshalNNHLStandingsTeamStats2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLStandingsTeamStats(ctx, field.Selections, res)
+	return ec.marshalNNHLStandingsTeamStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLStandingsTeamStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_NHLTeamStanding_Home(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -11135,7 +11363,7 @@ func (ec *executionContext) _Player_nhlTeam(ctx context.Context, field graphql.C
 	}
 	res := resTmp.(*model.NHLTeam)
 	fc.Result = res
-	return ec.marshalONHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
+	return ec.marshalONHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Player_nhlTeam(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -11199,7 +11427,7 @@ func (ec *executionContext) _Player_localFile(ctx context.Context, field graphql
 	}
 	res := resTmp.(*model.LocalFile)
 	fc.Result = res
-	return ec.marshalNLocalFile2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLocalFile(ctx, field.Selections, res)
+	return ec.marshalNLocalFile2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLocalFile(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Player_localFile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12041,7 +12269,7 @@ func (ec *executionContext) _PlayerWithStats_Player(ctx context.Context, field g
 	}
 	res := resTmp.(*model.Player)
 	fc.Result = res
-	return ec.marshalNPlayer2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐPlayer(ctx, field.Selections, res)
+	return ec.marshalNPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐPlayer(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PlayerWithStats_Player(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12111,7 +12339,7 @@ func (ec *executionContext) _PlayerWithStats_Stats(ctx context.Context, field gr
 	}
 	res := resTmp.(*model.PlayerStats)
 	fc.Result = res
-	return ec.marshalNPlayerStats2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐPlayerStats(ctx, field.Selections, res)
+	return ec.marshalNPlayerStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐPlayerStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PlayerWithStats_Stats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12233,7 +12461,7 @@ func (ec *executionContext) _Query_nhlConferences(ctx context.Context, field gra
 	}
 	res := resTmp.([]*model.NHLConference)
 	fc.Result = res
-	return ec.marshalNNHLConference2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLConferenceᚄ(ctx, field.Selections, res)
+	return ec.marshalNNHLConference2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLConferenceᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_nhlConferences(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12285,7 +12513,7 @@ func (ec *executionContext) _Query_nhlDivisions(ctx context.Context, field graph
 	}
 	res := resTmp.([]*model.NHLDivision)
 	fc.Result = res
-	return ec.marshalNNHLDivision2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLDivisionᚄ(ctx, field.Selections, res)
+	return ec.marshalNNHLDivision2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLDivisionᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_nhlDivisions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12336,7 +12564,7 @@ func (ec *executionContext) _Query_nhlTeams(ctx context.Context, field graphql.C
 	}
 	res := resTmp.([]*model.NHLTeam)
 	fc.Result = res
-	return ec.marshalONHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
+	return ec.marshalONHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_nhlTeams(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12408,7 +12636,7 @@ func (ec *executionContext) _Query_nhlTeam(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.(*model.NHLTeam)
 	fc.Result = res
-	return ec.marshalONHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
+	return ec.marshalONHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_nhlTeam(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12527,7 +12755,7 @@ func (ec *executionContext) _Query_seasons(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.([]*model.Season)
 	fc.Result = res
-	return ec.marshalNSeason2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐSeasonᚄ(ctx, field.Selections, res)
+	return ec.marshalNSeason2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_seasons(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12578,7 +12806,7 @@ func (ec *executionContext) _Query_league(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.(*model.League)
 	fc.Result = res
-	return ec.marshalOLeague2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLeague(ctx, field.Selections, res)
+	return ec.marshalOLeague2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLeague(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_league(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12675,7 +12903,7 @@ func (ec *executionContext) _Query_downloadEverythingResult(ctx context.Context,
 	}
 	res := resTmp.(*model.WorkflowResult)
 	fc.Result = res
-	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
+	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_downloadEverythingResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12725,7 +12953,7 @@ func (ec *executionContext) _Query_downloadEverythingForSeasonResult(ctx context
 	}
 	res := resTmp.(*model.WorkflowResult)
 	fc.Result = res
-	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
+	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_downloadEverythingForSeasonResult(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12783,7 +13011,7 @@ func (ec *executionContext) _Query_downloadEverythingProgress(ctx context.Contex
 	}
 	res := resTmp.(*model.WorkflowProgress)
 	fc.Result = res
-	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
+	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_downloadEverythingProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12798,6 +13026,8 @@ func (ec *executionContext) fieldContext_Query_downloadEverythingProgress(_ cont
 				return ec.fieldContext_WorkflowProgress_total(ctx, field)
 			case "completed":
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+			case "seasons":
+				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -12830,7 +13060,7 @@ func (ec *executionContext) _Query_downloadEverythingForSeasonProgress(ctx conte
 	}
 	res := resTmp.(*model.WorkflowProgress)
 	fc.Result = res
-	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
+	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_downloadEverythingForSeasonProgress(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12845,6 +13075,8 @@ func (ec *executionContext) fieldContext_Query_downloadEverythingForSeasonProgre
 				return ec.fieldContext_WorkflowProgress_total(ctx, field)
 			case "completed":
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+			case "seasons":
+				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -12891,7 +13123,7 @@ func (ec *executionContext) _Query_extractUniquePlayersResult(ctx context.Contex
 	}
 	res := resTmp.(*model.WorkflowResult)
 	fc.Result = res
-	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
+	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_extractUniquePlayersResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12938,7 +13170,7 @@ func (ec *executionContext) _Query_extractUniquePlayersProgress(ctx context.Cont
 	}
 	res := resTmp.(*model.WorkflowProgress)
 	fc.Result = res
-	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
+	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_extractUniquePlayersProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12953,6 +13185,107 @@ func (ec *executionContext) fieldContext_Query_extractUniquePlayersProgress(_ co
 				return ec.fieldContext_WorkflowProgress_total(ctx, field)
 			case "completed":
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+			case "seasons":
+				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_downloadAllResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_downloadAllResult(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().DownloadAllResult(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.WorkflowResult)
+	fc.Result = res
+	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_downloadAllResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "status":
+				return ec.fieldContext_WorkflowResult_status(ctx, field)
+			case "failureReason":
+				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_downloadAllProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_downloadAllProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().DownloadAllProgress(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.WorkflowProgress)
+	fc.Result = res
+	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_downloadAllProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "total":
+				return ec.fieldContext_WorkflowProgress_total(ctx, field)
+			case "completed":
+				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+			case "seasons":
+				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -13161,7 +13494,7 @@ func (ec *executionContext) _RosterPlayer_Team(ctx context.Context, field graphq
 	}
 	res := resTmp.(*model.Team)
 	fc.Result = res
-	return ec.marshalNTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐTeam(ctx, field.Selections, res)
+	return ec.marshalNTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTeam(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_RosterPlayer_Team(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -13223,7 +13556,7 @@ func (ec *executionContext) _RosterPlayer_Player(ctx context.Context, field grap
 	}
 	res := resTmp.(*model.Player)
 	fc.Result = res
-	return ec.marshalNPlayer2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐPlayer(ctx, field.Selections, res)
+	return ec.marshalNPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐPlayer(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_RosterPlayer_Player(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -13293,7 +13626,7 @@ func (ec *executionContext) _RosterPlayer_NHLTeam(ctx context.Context, field gra
 	}
 	res := resTmp.(*model.NHLTeam)
 	fc.Result = res
-	return ec.marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
+	return ec.marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_RosterPlayer_NHLTeam(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -13665,7 +13998,7 @@ func (ec *executionContext) _Season_leagues(ctx context.Context, field graphql.C
 	}
 	res := resTmp.([]*model.League)
 	fc.Result = res
-	return ec.marshalNLeague2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLeagueᚄ(ctx, field.Selections, res)
+	return ec.marshalNLeague2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLeagueᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Season_leagues(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -13718,6 +14051,138 @@ func (ec *executionContext) fieldContext_Season_leagues(_ context.Context, field
 				return ec.fieldContext_League_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type League", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SeasonProgress_startYear(ctx context.Context, field graphql.CollectedField, obj *model.SeasonProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SeasonProgress_startYear(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.StartYear, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SeasonProgress_startYear(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SeasonProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SeasonProgress_total(ctx context.Context, field graphql.CollectedField, obj *model.SeasonProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SeasonProgress_total(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Total, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SeasonProgress_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SeasonProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SeasonProgress_completed(ctx context.Context, field graphql.CollectedField, obj *model.SeasonProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SeasonProgress_completed(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Completed, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SeasonProgress_completed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SeasonProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -14059,7 +14524,7 @@ func (ec *executionContext) _Team_Manager(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.(*model.Manager)
 	fc.Result = res
-	return ec.marshalNManager2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐManager(ctx, field.Selections, res)
+	return ec.marshalNManager2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐManager(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Team_Manager(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14175,6 +14640,55 @@ func (ec *executionContext) fieldContext_WorkflowProgress_completed(_ context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _WorkflowProgress_seasons(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_WorkflowProgress_seasons(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Seasons, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.SeasonProgress)
+	fc.Result = res
+	return ec.marshalOSeasonProgress2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonProgressᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_WorkflowProgress_seasons(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "startYear":
+				return ec.fieldContext_SeasonProgress_startYear(ctx, field)
+			case "total":
+				return ec.fieldContext_SeasonProgress_total(ctx, field)
+			case "completed":
+				return ec.fieldContext_SeasonProgress_completed(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SeasonProgress", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _WorkflowResult_status(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowResult) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_WorkflowResult_status(ctx, field)
 	if err != nil {
@@ -14203,7 +14717,7 @@ func (ec *executionContext) _WorkflowResult_status(ctx context.Context, field gr
 	}
 	res := resTmp.(model.TemporalWorkflowStatus)
 	fc.Result = res
-	return ec.marshalNTemporalWorkflowStatus2githubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐTemporalWorkflowStatus(ctx, field.Selections, res)
+	return ec.marshalNTemporalWorkflowStatus2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTemporalWorkflowStatus(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_WorkflowResult_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -16033,6 +16547,47 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(_ context.Context
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputDownloadAllInput(ctx context.Context, obj interface{}) (model.DownloadAllInput, error) {
+	var it model.DownloadAllInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"startSeason", "endSeason", "seasonConcurrency"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "startSeason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startSeason"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartSeason = data
+		case "endSeason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endSeason"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndSeason = data
+		case "seasonConcurrency":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("seasonConcurrency"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SeasonConcurrency = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -17007,6 +17562,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "cancelExtractUniquePlayers":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_cancelExtractUniquePlayers(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "downloadAll":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_downloadAll(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelDownloadAll":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelDownloadAll(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -18018,6 +18587,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "downloadAllResult":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_downloadAllResult(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "downloadAllProgress":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_downloadAllProgress(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -18208,6 +18818,55 @@ func (ec *executionContext) _Season(ctx context.Context, sel ast.SelectionSet, o
 	return out
 }
 
+var seasonProgressImplementors = []string{"SeasonProgress"}
+
+func (ec *executionContext) _SeasonProgress(ctx context.Context, sel ast.SelectionSet, obj *model.SeasonProgress) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, seasonProgressImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SeasonProgress")
+		case "startYear":
+			out.Values[i] = ec._SeasonProgress_startYear(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "total":
+			out.Values[i] = ec._SeasonProgress_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completed":
+			out.Values[i] = ec._SeasonProgress_completed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var teamImplementors = []string{"Team"}
 
 func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj *model.Team) graphql.Marshaler {
@@ -18303,6 +18962,8 @@ func (ec *executionContext) _WorkflowProgress(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "seasons":
+			out.Values[i] = ec._WorkflowProgress_seasons(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -18770,11 +19431,11 @@ func (ec *executionContext) marshalNInt642string(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNLeague2githubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLeague(ctx context.Context, sel ast.SelectionSet, v model.League) graphql.Marshaler {
+func (ec *executionContext) marshalNLeague2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLeague(ctx context.Context, sel ast.SelectionSet, v model.League) graphql.Marshaler {
 	return ec._League(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNLeague2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLeagueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.League) graphql.Marshaler {
+func (ec *executionContext) marshalNLeague2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLeagueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.League) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -18798,7 +19459,7 @@ func (ec *executionContext) marshalNLeague2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNLeague2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLeague(ctx, sel, v[i])
+			ret[i] = ec.marshalNLeague2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLeague(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -18818,7 +19479,7 @@ func (ec *executionContext) marshalNLeague2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNLeague2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLeague(ctx context.Context, sel ast.SelectionSet, v *model.League) graphql.Marshaler {
+func (ec *executionContext) marshalNLeague2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLeague(ctx context.Context, sel ast.SelectionSet, v *model.League) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -18828,7 +19489,7 @@ func (ec *executionContext) marshalNLeague2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgra
 	return ec._League(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNLocalFile2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLocalFile(ctx context.Context, sel ast.SelectionSet, v *model.LocalFile) graphql.Marshaler {
+func (ec *executionContext) marshalNLocalFile2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLocalFile(ctx context.Context, sel ast.SelectionSet, v *model.LocalFile) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -18838,7 +19499,7 @@ func (ec *executionContext) marshalNLocalFile2ᚖgithubᚗcomᚋsperanoᚋyfhᚋ
 	return ec._LocalFile(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNManager2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐManager(ctx context.Context, sel ast.SelectionSet, v *model.Manager) graphql.Marshaler {
+func (ec *executionContext) marshalNManager2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐManager(ctx context.Context, sel ast.SelectionSet, v *model.Manager) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -18848,7 +19509,7 @@ func (ec *executionContext) marshalNManager2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgr
 	return ec._Manager(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNNHLConference2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLConferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NHLConference) graphql.Marshaler {
+func (ec *executionContext) marshalNNHLConference2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLConferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NHLConference) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -18872,7 +19533,7 @@ func (ec *executionContext) marshalNNHLConference2ᚕᚖgithubᚗcomᚋsperano�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNNHLConference2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLConference(ctx, sel, v[i])
+			ret[i] = ec.marshalNNHLConference2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLConference(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -18892,7 +19553,7 @@ func (ec *executionContext) marshalNNHLConference2ᚕᚖgithubᚗcomᚋsperano�
 	return ret
 }
 
-func (ec *executionContext) marshalNNHLConference2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLConference(ctx context.Context, sel ast.SelectionSet, v *model.NHLConference) graphql.Marshaler {
+func (ec *executionContext) marshalNNHLConference2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLConference(ctx context.Context, sel ast.SelectionSet, v *model.NHLConference) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -18902,7 +19563,7 @@ func (ec *executionContext) marshalNNHLConference2ᚖgithubᚗcomᚋsperanoᚋyf
 	return ec._NHLConference(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNNHLDivision2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLDivisionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NHLDivision) graphql.Marshaler {
+func (ec *executionContext) marshalNNHLDivision2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLDivisionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NHLDivision) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -18926,7 +19587,7 @@ func (ec *executionContext) marshalNNHLDivision2ᚕᚖgithubᚗcomᚋsperanoᚋy
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNNHLDivision2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLDivision(ctx, sel, v[i])
+			ret[i] = ec.marshalNNHLDivision2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLDivision(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -18946,7 +19607,7 @@ func (ec *executionContext) marshalNNHLDivision2ᚕᚖgithubᚗcomᚋsperanoᚋy
 	return ret
 }
 
-func (ec *executionContext) marshalNNHLDivision2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLDivision(ctx context.Context, sel ast.SelectionSet, v *model.NHLDivision) graphql.Marshaler {
+func (ec *executionContext) marshalNNHLDivision2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLDivision(ctx context.Context, sel ast.SelectionSet, v *model.NHLDivision) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -18956,7 +19617,7 @@ func (ec *executionContext) marshalNNHLDivision2ᚖgithubᚗcomᚋsperanoᚋyfh�
 	return ec._NHLDivision(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNNHLStandingsTeamStats2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLStandingsTeamStats(ctx context.Context, sel ast.SelectionSet, v *model.NHLStandingsTeamStats) graphql.Marshaler {
+func (ec *executionContext) marshalNNHLStandingsTeamStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLStandingsTeamStats(ctx context.Context, sel ast.SelectionSet, v *model.NHLStandingsTeamStats) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -18966,7 +19627,7 @@ func (ec *executionContext) marshalNNHLStandingsTeamStats2ᚖgithubᚗcomᚋsper
 	return ec._NHLStandingsTeamStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNNHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeamᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NHLTeam) graphql.Marshaler {
+func (ec *executionContext) marshalNNHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeamᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NHLTeam) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -18990,7 +19651,7 @@ func (ec *executionContext) marshalNNHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋyfh�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx, sel, v[i])
+			ret[i] = ec.marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -19010,7 +19671,7 @@ func (ec *executionContext) marshalNNHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋyfh�
 	return ret
 }
 
-func (ec *executionContext) marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx context.Context, sel ast.SelectionSet, v *model.NHLTeam) graphql.Marshaler {
+func (ec *executionContext) marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx context.Context, sel ast.SelectionSet, v *model.NHLTeam) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -19020,7 +19681,7 @@ func (ec *executionContext) marshalNNHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgr
 	return ec._NHLTeam(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPlayer2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐPlayer(ctx context.Context, sel ast.SelectionSet, v *model.Player) graphql.Marshaler {
+func (ec *executionContext) marshalNPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐPlayer(ctx context.Context, sel ast.SelectionSet, v *model.Player) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -19030,7 +19691,7 @@ func (ec *executionContext) marshalNPlayer2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgra
 	return ec._Player(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPlayerStats2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐPlayerStats(ctx context.Context, sel ast.SelectionSet, v *model.PlayerStats) graphql.Marshaler {
+func (ec *executionContext) marshalNPlayerStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐPlayerStats(ctx context.Context, sel ast.SelectionSet, v *model.PlayerStats) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -19040,7 +19701,7 @@ func (ec *executionContext) marshalNPlayerStats2ᚖgithubᚗcomᚋsperanoᚋyfh�
 	return ec._PlayerStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSeason2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐSeasonᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Season) graphql.Marshaler {
+func (ec *executionContext) marshalNSeason2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Season) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -19064,7 +19725,7 @@ func (ec *executionContext) marshalNSeason2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSeason2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐSeason(ctx, sel, v[i])
+			ret[i] = ec.marshalNSeason2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeason(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -19084,7 +19745,7 @@ func (ec *executionContext) marshalNSeason2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNSeason2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐSeason(ctx context.Context, sel ast.SelectionSet, v *model.Season) graphql.Marshaler {
+func (ec *executionContext) marshalNSeason2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeason(ctx context.Context, sel ast.SelectionSet, v *model.Season) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -19092,6 +19753,16 @@ func (ec *executionContext) marshalNSeason2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgra
 		return graphql.Null
 	}
 	return ec._Season(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSeasonProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonProgress(ctx context.Context, sel ast.SelectionSet, v *model.SeasonProgress) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SeasonProgress(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -19141,11 +19812,11 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
-func (ec *executionContext) marshalNTeam2githubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐTeam(ctx context.Context, sel ast.SelectionSet, v model.Team) graphql.Marshaler {
+func (ec *executionContext) marshalNTeam2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTeam(ctx context.Context, sel ast.SelectionSet, v model.Team) graphql.Marshaler {
 	return ec._Team(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐTeam(ctx context.Context, sel ast.SelectionSet, v *model.Team) graphql.Marshaler {
+func (ec *executionContext) marshalNTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTeam(ctx context.Context, sel ast.SelectionSet, v *model.Team) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -19155,13 +19826,13 @@ func (ec *executionContext) marshalNTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraph
 	return ec._Team(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNTemporalWorkflowStatus2githubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐTemporalWorkflowStatus(ctx context.Context, v interface{}) (model.TemporalWorkflowStatus, error) {
+func (ec *executionContext) unmarshalNTemporalWorkflowStatus2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTemporalWorkflowStatus(ctx context.Context, v interface{}) (model.TemporalWorkflowStatus, error) {
 	var res model.TemporalWorkflowStatus
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNTemporalWorkflowStatus2githubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐTemporalWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v model.TemporalWorkflowStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNTemporalWorkflowStatus2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTemporalWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v model.TemporalWorkflowStatus) graphql.Marshaler {
 	return v
 }
 
@@ -19180,11 +19851,11 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalNWorkflowResult2githubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v model.WorkflowResult) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkflowResult2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v model.WorkflowResult) graphql.Marshaler {
 	return ec._WorkflowResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowResult) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -19473,21 +20144,45 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalOLeague2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLeague(ctx context.Context, sel ast.SelectionSet, v *model.League) graphql.Marshaler {
+func (ec *executionContext) unmarshalODownloadAllInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadAllInput(ctx context.Context, v interface{}) (*model.DownloadAllInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputDownloadAllInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalInt(*v)
+	return res
+}
+
+func (ec *executionContext) marshalOLeague2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLeague(ctx context.Context, sel ast.SelectionSet, v *model.League) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._League(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOLocalFile2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐLocalFile(ctx context.Context, sel ast.SelectionSet, v *model.LocalFile) graphql.Marshaler {
+func (ec *executionContext) marshalOLocalFile2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLocalFile(ctx context.Context, sel ast.SelectionSet, v *model.LocalFile) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._LocalFile(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalONHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx context.Context, sel ast.SelectionSet, v []*model.NHLTeam) graphql.Marshaler {
+func (ec *executionContext) marshalONHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx context.Context, sel ast.SelectionSet, v []*model.NHLTeam) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -19514,7 +20209,7 @@ func (ec *executionContext) marshalONHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋyfh�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalONHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx, sel, v[i])
+			ret[i] = ec.marshalONHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -19528,11 +20223,58 @@ func (ec *executionContext) marshalONHLTeam2ᚕᚖgithubᚗcomᚋsperanoᚋyfh�
 	return ret
 }
 
-func (ec *executionContext) marshalONHLTeam2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐNHLTeam(ctx context.Context, sel ast.SelectionSet, v *model.NHLTeam) graphql.Marshaler {
+func (ec *executionContext) marshalONHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐNHLTeam(ctx context.Context, sel ast.SelectionSet, v *model.NHLTeam) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._NHLTeam(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSeasonProgress2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonProgressᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SeasonProgress) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSeasonProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonProgress(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
@@ -19551,7 +20293,7 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋyfhᚋgraphᚋmodelᚐWorkflowProgress(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowProgress) graphql.Marshaler {
+func (ec *executionContext) marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowProgress) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

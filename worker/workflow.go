@@ -4,19 +4,20 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/date"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/graph/model"
 	"github.com/spf13/viper"
+	"go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
 const (
-	TaskQueueName                = "yfh-tasks"
+	TaskQueueName                = "puckdb-tasks"
 	defaultTimeout               = 30 * time.Minute
 	WorkflowIDImportEverything   = "import-everything"
 	WorkflowIDDownloadEverything = "download-everything"
+	WorkflowIDDownloadAll        = "download-all"
 )
 
 func WorkflowIDImportLeague(season int, leagueID int) string {
@@ -35,6 +36,7 @@ func WorkflowIDImportGamesForSeason(season int) string {
 	return fmt.Sprintf("import-games-for-season-%d", season)
 }
 
+/*
 func WorkflowIDImportRostersForTeam(season config.Season, league config.League, teamid int) string {
 	return fmt.Sprintf("import-rosters-%d-%d-%d", season.StartYear(), league.LeagueID, teamid)
 }
@@ -42,17 +44,18 @@ func WorkflowIDImportRostersForTeam(season config.Season, league config.League, 
 func WorkflowIDImportTeamSummariesForTeam(season config.Season, league config.League, teamid int) string {
 	return fmt.Sprintf("import-team-summary-%d-%d-%d", season.StartYear(), league.LeagueID, teamid)
 }
+*/
 
 func WorkflowIDDownloadGamesForSeason(season int) string {
 	return fmt.Sprintf("download-games-for-season-%d", season)
 }
 
-func WorkflowIDDownloadRostersForTeam(season config.Season, league config.League, teamid int) string {
-	return fmt.Sprintf("download-rosters-%d-%d-%d", season.StartYear(), league.LeagueID, teamid)
+func WorkflowIDDownloadRostersForTeam(startYear int, league config.League, teamid int) string {
+	return fmt.Sprintf("download-rosters-%d-%d-%d", startYear, league.LeagueID, teamid)
 }
 
-func WorkflowIDDownloadTeamSummariesForTeam(season config.Season, league config.League, teamid int) string {
-	return fmt.Sprintf("download-team-summary-%d-%d-%d", season.StartYear(), league.LeagueID, teamid)
+func WorkflowIDDownloadTeamSummariesForTeam(startYear int, league config.League, teamid int) string {
+	return fmt.Sprintf("download-team-summary-%d-%d-%d", startYear, league.LeagueID, teamid)
 }
 
 func WorkflowIDDownloadEverythingForSeason(season int) string {
@@ -77,24 +80,151 @@ func defaultActivityOptions() workflow.ActivityOptions {
 	return workflow.ActivityOptions{
 		StartToCloseTimeout: 3 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval: time.Duration(initialInterval) * time.Second,
-			MaximumAttempts: maxAttempts,
+			InitialInterval:    time.Duration(initialInterval) * time.Second,
+			MaximumAttempts:    maxAttempts,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    60 * time.Second,
 		},
 	}
 }
 
-func getGameKey(season int) (int, error) {
-	seasons, err := config.GetSeasonsConfig()
-	if err != nil {
-		return 0, err
+const defaultSeasonConcurrency = 3
+
+func DownloadAllWorkflow(ctx workflow.Context, input *model.DownloadAllInput) error {
+	logger := workflow.GetLogger(ctx)
+
+	maxConcurrency := viper.GetInt(config.FlagMaxSeasonConcurrency)
+	if maxConcurrency <= 0 {
+		maxConcurrency = 10
 	}
-	seasonObj, err := seasons.Get(season)
-	if err != nil {
-		return 0, err
+
+	concurrency := defaultSeasonConcurrency
+	if input.SeasonConcurrency != nil && *input.SeasonConcurrency > 0 {
+		concurrency = *input.SeasonConcurrency
 	}
-	return seasonObj.GameKey, nil
+	if concurrency > maxConcurrency {
+		logger.Warn("Requested concurrency exceeds maximum, capping",
+			"requested", concurrency,
+			"max", maxConcurrency)
+		concurrency = maxConcurrency
+	}
+
+	logger.Info("DownloadAllWorkflow started",
+		"startSeason", input.StartSeason,
+		"endSeason", input.EndSeason,
+		"concurrency", concurrency)
+
+	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
+
+	var seasons []SeasonInfo
+	if err := workflow.ExecuteActivity(ctx, FetchSeasonsDataActivity, input).Get(ctx, &seasons); err != nil {
+		return err
+	}
+
+	tracker := NewProgressTrackerWithSeasons(seasons)
+	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+		return err
+	}
+
+	return processWithWorkerPool(ctx, logger, tracker, seasons, concurrency)
 }
 
+// seasonWork tracks all futures for a single season
+type seasonWork struct {
+	season           SeasonInfo
+	futures          []workflow.Future
+	completedCount   int
+	pendingIndices   map[int]bool // indices of futures not yet added to selector
+}
+
+// processWithWorkerPool implements true worker pool semantics:
+// - Maintains exactly `concurrency` seasons in flight at any time
+// - Starts a new season immediately when one completes
+func processWithWorkerPool(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, seasons []SeasonInfo, concurrency int) error {
+	if len(seasons) == 0 {
+		return nil
+	}
+
+	// Track active seasons (startYear -> work)
+	active := make(map[int]*seasonWork)
+	// Queue of pending seasons
+	pending := make([]SeasonInfo, len(seasons))
+	copy(pending, seasons)
+
+	// Start initial batch of seasons (up to concurrency)
+	for i := 0; i < concurrency && len(pending) > 0; i++ {
+		season := pending[0]
+		pending = pending[1:]
+		startSeasonWork(ctx, logger, active, season)
+	}
+
+	var firstErr error
+
+	// Process until all work is done
+	for len(active) > 0 {
+		selector := workflow.NewSelector(ctx)
+
+		// Add all incomplete futures from all active seasons to selector
+		for startYear, work := range active {
+			year := startYear
+			sw := work
+			for idx := range sw.pendingIndices {
+				futureIdx := idx
+				f := sw.futures[futureIdx]
+				selector.AddFuture(f, func(f workflow.Future) {
+					if err := f.Get(ctx, nil); err != nil && firstErr == nil {
+						firstErr = err
+					}
+					sw.completedCount++
+					delete(sw.pendingIndices, futureIdx)
+					tracker.IncrementSeason(year)
+				})
+			}
+		}
+
+		// Wait for any future to complete
+		selector.Select(ctx)
+
+		if firstErr != nil {
+			return firstErr
+		}
+
+		// Check if any season is fully complete
+		for startYear, work := range active {
+			if work.completedCount == len(work.futures) {
+				logger.Info("Season completed", "startYear", startYear)
+				delete(active, startYear)
+
+				// Start next pending season immediately
+				if len(pending) > 0 {
+					nextSeason := pending[0]
+					pending = pending[1:]
+					startSeasonWork(ctx, logger, active, nextSeason)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// startSeasonWork initializes work for a season and adds it to active map
+func startSeasonWork(ctx workflow.Context, logger log.Logger, active map[int]*seasonWork, season SeasonInfo) {
+	logger.Info("Starting season", "startYear", season.StartYear)
+	futures := collectDownloadFuturesForSeason(ctx, season)
+	pendingIndices := make(map[int]bool, len(futures))
+	for i := range futures {
+		pendingIndices[i] = true
+	}
+	active[season.StartYear] = &seasonWork{
+		season:         season,
+		futures:        futures,
+		completedCount: 0,
+		pendingIndices: pendingIndices,
+	}
+}
+
+/*
 func DownloadEverythingWorkflow(ctx workflow.Context) error {
 	log.Info().Msg("DownloadFromYahoo everything!")
 	seasons, err := config.GetSeasonsConfig()
@@ -113,7 +243,9 @@ func DownloadEverythingWorkflow(ctx workflow.Context) error {
 
 	return tracker.WaitAll(ctx, futures)
 }
+*/
 
+/*
 func DownloadEverythingForSeasonWorkflow(ctx workflow.Context, season config.Season) error {
 	log.Info().Int("season", season.StartYear()).Msg("DownloadFromYahoo everything for season!")
 
@@ -128,14 +260,15 @@ func DownloadEverythingForSeasonWorkflow(ctx workflow.Context, season config.Sea
 
 	return tracker.WaitAll(ctx, futures)
 }
+*/
 
 // countDaysInSeason returns the number of days from season start to min(season end, today).
-func countDaysInSeason(season config.Season) int {
-	end := season.End
+func countDaysInSeason(season SeasonInfo) int {
+	end := season.EndDate
 	if end.After(time.Now()) {
 		end = time.Now()
 	}
-	days := int(end.Sub(season.Start).Hours()/24) + 1
+	days := int(end.Sub(season.StartDate).Hours()/24) + 1
 	if days < 0 {
 		return 0
 	}
@@ -143,16 +276,27 @@ func countDaysInSeason(season config.Season) int {
 }
 
 // countDownloadTasksForSeason counts the total number of download tasks for a single season.
-func countDownloadTasksForSeason(season config.Season) int {
-	activitiesPerDay := 2 // DownloadGameDay + DownloadDailySchedule
-	count := countDaysInSeason(season) * activitiesPerDay
-	for _, league := range season.Leagues {
-		count++ // DownloadLeague
+func countDownloadTasksForSeason(season SeasonInfo) int {
+	days := countDaysInSeason(season)
+	// Check if the season is in the Yahoo config
+	yahooConfig, err := config.GetSeasonsConfig()
+	if err != nil {
+		return days
+	}
+	yahooCfg, inYahoo := yahooConfig[season.StartYear]
+	if !inYahoo {
+		return days
+	}
+	count := days * 2
+	// Add league and team downloads (Yahoo)
+	for _, league := range yahooCfg.Leagues {
+		count++                          // DownloadLeague
 		count += len(league.TeamIDs) * 3 // DownloadTeam + 2 child workflows per team
 	}
 	return count
 }
 
+/*
 // countDownloadTasks counts the total number of download tasks across all seasons.
 func countDownloadTasks(seasons config.Seasons) int {
 	total := 0
@@ -161,33 +305,57 @@ func countDownloadTasks(seasons config.Seasons) int {
 	}
 	return total
 }
+*/
 
 // collectDownloadFuturesForSeason collects all download futures for a single season.
-func collectDownloadFuturesForSeason(ctx workflow.Context, season config.Season) []workflow.Future {
+func collectDownloadFuturesForSeason(ctx workflow.Context, season SeasonInfo) []workflow.Future {
 	futures := make([]workflow.Future, 0, countDownloadTasksForSeason(season))
 
 	// Spawn per-day activities for granular progress tracking
-	dateRange, err := date.DateRangeToToday(season.Start, season.End, time.Now())
-	if err == nil {
-		for _, day := range dateRange {
-			ctxa := workflow.WithActivityOptions(ctx, defaultActivityOptions())
-			futures = append(futures, workflow.ExecuteActivity(ctxa, DownloadGameDay, day))
-			futures = append(futures, workflow.ExecuteActivity(ctxa, DownloadDailySchedule, day))
-		}
+	end := season.EndDate
+	if end.After(time.Now()) {
+		end = time.Now()
+	}
+	for day := season.StartDate; !day.After(end); day = day.AddDate(0, 0, 1) {
+		ctxa := workflow.WithActivityOptions(ctx, defaultActivityOptions())
+		futures = append(futures, workflow.ExecuteActivity(ctxa, DownloadDailySchedule, day))
 	}
 
-	for _, league := range season.Leagues {
+	// Only process Yahoo activities if the season is in Yahoo config
+	yahooConfig, err := config.GetSeasonsConfig()
+	if err != nil {
+		return futures
+	}
+	yahooCfg, inYahoo := yahooConfig[season.StartYear]
+	if !inYahoo {
+		return futures
+	}
+
+	// Add DownloadGameDay for each day (Yahoo)
+	end = season.EndDate
+	if end.After(time.Now()) {
+		end = time.Now()
+	}
+	for day := season.StartDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		ctxa := workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		future := workflow.ExecuteActivity(ctxa, DownloadLeague, season.StartYear(), season.GameKey, league.LeagueID)
+		futures = append(futures, workflow.ExecuteActivity(ctxa, DownloadGameDay, day))
+	}
+
+	// Add league and team downloads (Yahoo)
+	for _, league := range yahooCfg.Leagues {
+		ctxa := workflow.WithActivityOptions(ctx, defaultActivityOptions())
+		future := workflow.ExecuteActivity(ctxa, DownloadLeague, season.StartYear, yahooCfg.GameKey, league.LeagueID)
 		futures = append(futures, future)
 		for _, teamid := range league.TeamIDs {
-			future := workflow.ExecuteActivity(ctxa, DownloadTeam, season.StartYear(), season.GameKey, league.LeagueID, teamid)
+			future := workflow.ExecuteActivity(ctxa, DownloadTeam, season.StartYear, yahooCfg.GameKey, league.LeagueID, teamid)
 			futures = append(futures, future)
-			ctxo := withChildOptions(ctx, WorkflowIDDownloadRostersForTeam(season, league, teamid))
-			future = workflow.ExecuteChildWorkflow(ctxo, DownloadRosterForTeamWorkflow, season, league, teamid)
+			ctxo := withChildOptions(ctx, WorkflowIDDownloadRostersForTeam(season.StartYear, league, teamid))
+			future = workflow.ExecuteChildWorkflow(ctxo, DownloadRosterForTeamWorkflow,
+				season.StartDate, season.EndDate, yahooCfg.GameKey, league.LeagueID, teamid)
 			futures = append(futures, future)
-			ctxo = withChildOptions(ctx, WorkflowIDDownloadTeamSummariesForTeam(season, league, teamid))
-			future = workflow.ExecuteChildWorkflow(ctxo, DownloadTeamSummariesForTeamWorkflow, season, league, teamid)
+			ctxo = withChildOptions(ctx, WorkflowIDDownloadTeamSummariesForTeam(season.StartYear, league, teamid))
+			future = workflow.ExecuteChildWorkflow(ctxo, DownloadTeamSummariesForTeamWorkflow,
+				season.StartDate, season.EndDate, yahooCfg.GameKey, league.LeagueID, teamid)
 			futures = append(futures, future)
 		}
 	}
@@ -195,6 +363,7 @@ func collectDownloadFuturesForSeason(ctx workflow.Context, season config.Season)
 	return futures
 }
 
+/*
 // collectDownloadFutures collects all download futures across all seasons.
 func collectDownloadFutures(ctx workflow.Context, seasons config.Seasons) []workflow.Future {
 	futures := make([]workflow.Future, 0, countDownloadTasks(seasons))
@@ -203,7 +372,9 @@ func collectDownloadFutures(ctx workflow.Context, seasons config.Seasons) []work
 	}
 	return futures
 }
+*/
 
+/*
 func ImportEverythingWorkflow(ctx workflow.Context) error {
 	log.Info().Msg("Import everything!")
 	seasons, err := config.GetSeasonsConfig()
@@ -239,7 +410,9 @@ func ImportEverythingWorkflow(ctx workflow.Context) error {
 	}
 	return nil
 }
+*/
 
+/*
 func ImportEverythingForSeasonWorkflow(ctx workflow.Context, season config.Season) error {
 	log.Info().Int("season", season.StartYear()).Msg("Import everything for season!")
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
@@ -272,6 +445,7 @@ func ImportEverythingForSeasonWorkflow(ctx workflow.Context, season config.Seaso
 	}
 	return nil
 }
+*/
 
 //func ImportTeams(ctx workflow.Context, force bool) (string, error) {
 //	return "", config.ErrNotImplementedYet

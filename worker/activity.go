@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/date"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/date"
 	"time"
 )
 

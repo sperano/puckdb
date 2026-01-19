@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sperano/yfh/cache"
+	"github.com/sperano/puckdb/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -104,10 +104,6 @@ func TestPipelineItem_Structure(t *testing.T) {
 	assert.Equal(t, day, item.Day)
 	assert.Equal(t, 42, item.ID)
 	assert.Equal(t, "parsed content", item.Parsed)
-}
-
-func TestRoutinesPerStageConstant(t *testing.T) {
-	assert.Equal(t, 4, RoutinesPerStage)
 }
 
 func TestRecoverPanic_NoPanic(t *testing.T) {
@@ -398,4 +394,115 @@ func TestParseStage_ParseError(t *testing.T) {
 
 	assert.Error(t, gotError)
 	assert.Contains(t, gotError.Error(), "parse error")
+}
+
+func TestDownloadStage_ContinueOnError(t *testing.T) {
+	ctx := context.Background()
+	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
+
+	mockFS := NewMockFileSystem()
+	mockFile := MockFile{DirVal: "test", NameVal: "file", ExtVal: "html"}
+
+	mockFS.On("New", cache.FileType(0), mock.Anything).Return(mockFile)
+	mockFS.On("MkdirAll", "test", os.FileMode(0755)).Return(nil)
+	mockFS.On("Exists", mockFile).Return(false)
+	mockFS.On("Write", mockFile, []byte("content")).Return(nil)
+
+	downloadCount := 0
+	config := PipelineConfig[int, string]{
+		FileType: 0,
+		IDName:   func(id int) string { return fmt.Sprintf("%d", id) },
+		Downloader: func(id int) ([]byte, error) {
+			downloadCount++
+			if id == 1 {
+				return nil, errors.New("download failed")
+			}
+			return []byte("content"), nil
+		},
+		FSFactory: func() cache.FileSystem {
+			return mockFS
+		},
+		ContinueOnError: true,
+	}
+
+	// Create input channel with 2 items
+	in := make(chan *PipelineItem[int, string], 2)
+	in <- &PipelineItem[int, string]{Day: day, ID: 1}
+	in <- &PipelineItem[int, string]{Day: day, ID: 2}
+	close(in)
+
+	// Run stage
+	stageFn := DownloadStage(config)
+	out, errc := stageFn(ctx, in)
+
+	// Collect results
+	var items []*PipelineItem[int, string]
+	for item := range out {
+		items = append(items, item)
+	}
+
+	// Check for errors - should be none since we continue on error
+	for err := range errc {
+		assert.NoError(t, err)
+	}
+
+	// First item failed, second succeeded
+	assert.Equal(t, 2, downloadCount, "both items should have been attempted")
+	assert.Len(t, items, 1, "only successful item should pass through")
+	assert.Equal(t, 2, items[0].ID)
+}
+
+func TestParseStage_ContinueOnError(t *testing.T) {
+	ctx := context.Background()
+	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
+
+	mockFS := NewMockFileSystem()
+	mockFile := MockFile{DirVal: "test", NameVal: "file", ExtVal: "html"}
+
+	mockFS.On("New", cache.FileType(0), mock.Anything).Return(mockFile)
+
+	parseCount := 0
+	config := PipelineConfig[int, string]{
+		FileType: 0,
+		IDName:   func(id int) string { return fmt.Sprintf("%d", id) },
+		Parser: func(fs cache.FileSystem, file cache.File) (string, error) {
+			parseCount++
+			// First call fails, second succeeds
+			if parseCount == 1 {
+				return "", errors.New("parse error")
+			}
+			return "parsed", nil
+		},
+		FSFactory: func() cache.FileSystem {
+			return mockFS
+		},
+		ContinueOnError: true,
+	}
+
+	// Create input channel with 2 items
+	in := make(chan *PipelineItem[int, string], 2)
+	in <- &PipelineItem[int, string]{Day: day, ID: 1}
+	in <- &PipelineItem[int, string]{Day: day, ID: 2}
+	close(in)
+
+	// Run stage
+	stageFn := ParseStage(config)
+	out, errc := stageFn(ctx, in)
+
+	// Collect results
+	var items []*PipelineItem[int, string]
+	for item := range out {
+		items = append(items, item)
+	}
+
+	// Check for errors - should be none since we continue on error
+	for err := range errc {
+		assert.NoError(t, err)
+	}
+
+	// First item failed, second succeeded
+	assert.Equal(t, 2, parseCount, "both items should have been attempted")
+	assert.Len(t, items, 1, "only successful item should pass through")
+	assert.Equal(t, 2, items[0].ID)
+	assert.Equal(t, "parsed", items[0].Parsed)
 }

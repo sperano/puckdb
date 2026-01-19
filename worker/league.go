@@ -2,13 +2,14 @@ package worker
 
 import (
 	"context"
+
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/cache"
-	"github.com/sperano/yfh/database"
-	"github.com/sperano/yfh/http"
-	"go.temporal.io/sdk/workflow"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/http"
 )
 
+/*
 func ImportLeagueWorkflow(ctx workflow.Context, season int, leagueID int) (database.League, error) {
 	var league database.League
 	gkey, err := getGameKey(season)
@@ -19,6 +20,7 @@ func ImportLeagueWorkflow(ctx workflow.Context, season int, leagueID int) (datab
 	err = workflow.ExecuteActivity(ctx, ImportLeague, season, gkey, leagueID).Get(ctx, &league)
 	return league, err
 }
+*/
 
 func DownloadLeague(ctx context.Context, season int, gameKey int, leagueID int) error {
 	fs := cache.NewSimpleCache()

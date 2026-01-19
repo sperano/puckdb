@@ -1,3 +1,3 @@
 package temporal
 
-const QueueTasks = "yfh-tasks"
+const QueueTasks = "puckdb-tasks"

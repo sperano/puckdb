@@ -8,8 +8,8 @@ import (
 	"net/http"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/redis"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/redis"
 	"golang.org/x/oauth2"
 )
 

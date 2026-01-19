@@ -1,14 +1,5 @@
 package worker
 
-import (
-	"time"
-
-	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/date"
-	"go.temporal.io/sdk/temporal"
-	"go.temporal.io/sdk/workflow"
-)
 
 const (
 	// BoxscoreDayBatchSize controls how many days are processed per activity
@@ -16,6 +7,7 @@ const (
 	BoxscoreDayBatchSize = 30
 )
 
+/*
 // ExtractBoxscorePlayersForSeasonWorkflow extracts players from NHL boxscore files for one season.
 // Results are stored in Redis and merged at the end to keep workflow history small.
 func ExtractBoxscorePlayersForSeasonWorkflow(ctx workflow.Context, season config.Season) (map[int64]PartialPlayer, error) {
@@ -92,3 +84,4 @@ func ExtractBoxscorePlayersForSeasonWorkflow(ctx workflow.Context, season config
 
 	return allPlayers, nil
 }
+*/

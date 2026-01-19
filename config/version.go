@@ -11,5 +11,5 @@ var (
 )
 
 func LogIntro() {
-	log.Info().Int("CPUs", runtime.NumCPU()).Str("build", BuildNumber).Msgf("Yahoo Fantasy Hockey")
+	log.Info().Int("CPUs", runtime.NumCPU()).Str("build", BuildNumber).Msgf("PuckDB")
 }

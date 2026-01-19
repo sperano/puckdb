@@ -7,21 +7,25 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/graph/model"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/graph/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 const (
-	FlagAPIServerAddr    = "api-server-addr"
-	FlagSeason           = "season"
-	DefaultAPIServerAddr = "http://localhost:8080"
-	workflowPollInterval = 2 * time.Second
-	workflowPollTimeout  = 30 * time.Minute
+	FlagAPIServerAddr      = "api-server-addr"
+	FlagMonitor            = "monitor"
+	FlagSeasonConcurrency  = "season-concurrency"
+	DefaultAPIServerAddr   = "http://localhost:8080"
+	workflowPollInterval   = 2 * time.Second
+	workflowPollTimeout    = 30 * time.Minute
 )
 
 // GraphQL request/response types
@@ -117,6 +121,51 @@ func (c *GraphQLClient) DownloadEverything(ctx context.Context) (bool, error) {
 	return result.DownloadEverything, nil
 }
 
+// DownloadAll triggers the downloadAll mutation with optional season range
+func (c *GraphQLClient) DownloadAll(ctx context.Context, input *model.DownloadAllInput) (bool, error) {
+	const mutation = `mutation($input: DownloadAllInput) { downloadAll(input: $input) }`
+
+	resp, err := c.Execute(ctx, mutation, map[string]any{"input": input})
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		DownloadAll bool `json:"downloadAll"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.DownloadAll, nil
+}
+
+// GetDownloadAllStatus queries both workflow result and progress in a single request
+func (c *GraphQLClient) GetDownloadAllStatus(ctx context.Context) (*WorkflowStatus, error) {
+	const query = `query {
+		downloadAllResult { status failureReason }
+		downloadAllProgress { total completed seasons { startYear total completed } }
+	}`
+
+	resp, err := c.Execute(ctx, query, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		DownloadAllResult   *model.WorkflowResult   `json:"downloadAllResult"`
+		DownloadAllProgress *model.WorkflowProgress `json:"downloadAllProgress"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &WorkflowStatus{
+		Result:   result.DownloadAllResult,
+		Progress: result.DownloadAllProgress,
+	}, nil
+}
+
 // WorkflowStatus combines result and progress from a workflow query
 type WorkflowStatus struct {
 	Result   *model.WorkflowResult
@@ -197,20 +246,30 @@ func (c *GraphQLClient) GetDownloadEverythingForSeasonStatus(ctx context.Context
 func cmdDownload() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "download",
-		Short: "Trigger downloadEverything workflow via GraphQL API",
-		Long:  `Connects to the API server and triggers the downloadEverything mutation, then monitors the workflow until completion. Use --season to download only a specific season.`,
+		Short: "Download NHL and Yahoo data",
+		Long: `Trigger download workflow via GraphQL API and monitor until completion.
+Use --season for a specific season, or --from-season/--to-season for a range.
+Use --monitor to watch an existing workflow without triggering a new one.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
 			if err := viper.BindPFlag(FlagAPIServerAddr, flags.Lookup(FlagAPIServerAddr)); err != nil {
 				return err
 			}
-			return viper.BindPFlag(FlagSeason, flags.Lookup(FlagSeason))
+			if err := config.BindSeasonRangeFlags(flags); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag(FlagMonitor, flags.Lookup(FlagMonitor)); err != nil {
+				return err
+			}
+			return viper.BindPFlag(FlagSeasonConcurrency, flags.Lookup(FlagSeasonConcurrency))
 		},
 		RunE: runDownload,
 	}
 	flags := cmd.Flags()
 	flags.String(FlagAPIServerAddr, DefaultAPIServerAddr, "API server address (e.g., http://localhost:8080)")
-	flags.Int(FlagSeason, 0, "Season year to download (e.g., 2024). If not specified, downloads all seasons.")
+	config.InitSeasonRangeFlags(flags)
+	flags.Bool(FlagMonitor, false, "Skip triggering workflow, only monitor existing workflow")
+	flags.Int(FlagSeasonConcurrency, 0, "Number of seasons to process concurrently (default: 3)")
 	return cmd
 }
 
@@ -227,24 +286,28 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 
 	client := NewGraphQLClient(apiAddr)
 	ctx := cmd.Context()
-	season := viper.GetInt(FlagSeason)
 
-	var started bool
-	var err error
-	var getStatus statusFetcher
-
-	if season > 0 {
-		log.Info().Str("server", apiAddr).Int("season", season).Msg("Triggering downloadEverythingForSeason workflow")
-		started, err = client.DownloadEverythingForSeason(ctx, season)
-		getStatus = func(ctx context.Context) (*WorkflowStatus, error) {
-			return client.GetDownloadEverythingForSeasonStatus(ctx, season)
-		}
-	} else {
-		log.Info().Str("server", apiAddr).Msg("Triggering downloadEverything workflow")
-		started, err = client.DownloadEverything(ctx)
-		getStatus = client.GetDownloadEverythingStatus
+	if viper.GetBool(FlagMonitor) {
+		log.Info().Str("server", apiAddr).Msg("Monitoring existing downloadAll workflow")
+		return monitorWorkflow(ctx, cmd, client.GetDownloadAllStatus)
 	}
 
+	// Build input from flags
+	input := buildDownloadAllInput()
+
+	logEvent := log.Info().Str("server", apiAddr)
+	if input.StartSeason != nil {
+		logEvent = logEvent.Int("startSeason", *input.StartSeason)
+	}
+	if input.EndSeason != nil {
+		logEvent = logEvent.Int("endSeason", *input.EndSeason)
+	}
+	if input.SeasonConcurrency != nil {
+		logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
+	}
+	logEvent.Msg("Triggering downloadAll workflow")
+
+	started, err := client.DownloadAll(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to trigger download: %w", err)
 	}
@@ -255,8 +318,25 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 		log.Info().Msg("Workflow started successfully")
 	}
 
-	// Monitor the workflow
-	return monitorWorkflow(ctx, cmd, getStatus)
+	return monitorWorkflow(ctx, cmd, client.GetDownloadAllStatus)
+}
+
+func buildDownloadAllInput() *model.DownloadAllInput {
+	input := &model.DownloadAllInput{}
+
+	start, end := config.GetSeasonRange()
+	if start > 0 {
+		input.StartSeason = &start
+	}
+	if end > 0 {
+		input.EndSeason = &end
+	}
+
+	if concurrency := viper.GetInt(FlagSeasonConcurrency); concurrency > 0 {
+		input.SeasonConcurrency = &concurrency
+	}
+
+	return input
 }
 
 func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFetcher) error {
@@ -270,18 +350,13 @@ func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFe
 	timeout := time.After(workflowPollTimeout)
 
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return fmt.Errorf("workflow monitoring timed out after %v", workflowPollTimeout)
-		case <-ticker.C:
-			status, err := getStatus(ctx)
-			if err != nil {
-				log.Warn().Err(err).Msg("Failed to get status, retrying...")
-				continue
-			}
-
+		status, err := getStatus(ctx)
+		if err != nil {
+			sp.mu.Lock()
+			sp.lineCount++ // account for the log line we're about to print
+			sp.mu.Unlock()
+			log.Warn().Err(err).Msg("Failed to get status, retrying...")
+		} else {
 			sp.mu.Lock()
 			sp.message = formatStatusMessage(status)
 			sp.mu.Unlock()
@@ -309,15 +384,100 @@ func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFe
 				log.Debug().Msg("Workflow status unspecified")
 			}
 		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			return fmt.Errorf("workflow monitoring timed out after %v", workflowPollTimeout)
+		case <-ticker.C:
+			// continue to next iteration
+		}
 	}
 }
 
+const progressBarWidth = 40
+
 func formatStatusMessage(status *WorkflowStatus) string {
-	if status.Progress != nil && status.Progress.Total > 0 {
-		pct := float64(status.Progress.Completed) / float64(status.Progress.Total) * 100
-		return fmt.Sprintf("%.0f%% (%d/%d)", pct, status.Progress.Completed, status.Progress.Total)
+	if status.Progress == nil || status.Progress.Total == 0 {
+		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
 	}
-	return fmt.Sprintf("Workflow status: %s", status.Result.Status)
+
+	// Sort seasons by startYear
+	seasons := make([]*model.SeasonProgress, len(status.Progress.Seasons))
+	copy(seasons, status.Progress.Seasons)
+	sort.Slice(seasons, func(i, j int) bool {
+		return seasons[i].StartYear < seasons[j].StartYear
+	})
+
+	// Collect active seasons (> 0% and < 100%)
+	type progressLine struct {
+		label     string
+		completed int
+		total     int
+	}
+	var activeSeasons []progressLine
+
+	for _, season := range seasons {
+		if season.Total > 0 {
+			pct := float64(season.Completed) / float64(season.Total) * 100
+			if pct > 0 && pct < 100 {
+				activeSeasons = append(activeSeasons, progressLine{
+					label:     fmt.Sprintf("%d", season.StartYear),
+					completed: season.Completed,
+					total:     season.Total,
+				})
+			}
+		}
+	}
+
+	// Add total line
+	allLines := append(activeSeasons, progressLine{
+		label:     "Total",
+		completed: status.Progress.Completed,
+		total:     status.Progress.Total,
+	})
+
+	// Calculate max widths for alignment
+	maxLabelWidth := 0
+	maxCountWidth := 0
+	for _, line := range allLines {
+		if len(line.label) > maxLabelWidth {
+			maxLabelWidth = len(line.label)
+		}
+		countStr := fmt.Sprintf("%d/%d", line.completed, line.total)
+		if len(countStr) > maxCountWidth {
+			maxCountWidth = len(countStr)
+		}
+	}
+
+	// Format lines with aligned columns
+	var lines []string
+	for _, line := range allLines {
+		pct := float64(line.completed) / float64(line.total) * 100
+		pctTrunc := int(pct) // truncate, never round up to 100%
+		countStr := fmt.Sprintf("%d/%d", line.completed, line.total)
+		bar := renderProgressBar(pct, progressBarWidth)
+		lines = append(lines, fmt.Sprintf("%*s: %*s %s %3d%%",
+			maxLabelWidth, line.label,
+			maxCountWidth, countStr,
+			bar,
+			pctTrunc))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func renderProgressBar(pct float64, width int) string {
+	filled := int(pct / 100.0 * float64(width))
+	if filled > width {
+		filled = width
+	}
+	if filled < 0 {
+		filled = 0
+	}
+	empty := width - filled
+	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
 }
 
 // ExtractUniquePlayers triggers the extractUniquePlayers mutation
@@ -368,8 +528,8 @@ func (c *GraphQLClient) GetExtractUniquePlayersStatus(ctx context.Context) (*Wor
 func cmdImport() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "import",
-		Short: "Import commands for extracting and processing data",
-		Long:  `Import commands for extracting and processing data from Yahoo and NHL sources.`,
+		Short: "Extract and process downloaded data",
+		Long:  `Extract and process data from downloaded NHL and Yahoo files.`,
 	}
 
 	cmd.AddCommand(cmdImportPlayers())
@@ -379,8 +539,8 @@ func cmdImport() *cobra.Command {
 func cmdImportPlayers() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "players",
-		Short: "Extract unique players from downloaded data",
-		Long:  `Triggers the extractUniquePlayers workflow via GraphQL API to extract and merge player data from Yahoo and NHL sources.`,
+		Short: "Extract and merge player data",
+		Long:  `Extract unique players from NHL boxscores and Yahoo rosters, then merge into unified player records.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
 			return viper.BindPFlag(FlagAPIServerAddr, flags.Lookup(FlagAPIServerAddr))

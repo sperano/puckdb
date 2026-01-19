@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/redis"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,7 +13,7 @@ import (
 
 func TestExtractYahooPlayersForDayBatchImpl_EmptyDays(t *testing.T) {
 	ctx := context.Background()
-	mockRedis := &MockRedisClient{}
+	mockRedis := &redis.MockClient{}
 
 	input := BatchInput{
 		Days:       []time.Time{},
@@ -31,7 +32,7 @@ func TestExtractYahooPlayersForDayBatchImpl_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	mockRedis := &MockRedisClient{}
+	mockRedis := &redis.MockClient{}
 
 	// Use a day in the past that won't have any cache files
 	day := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)

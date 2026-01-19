@@ -284,9 +284,16 @@ type WorkflowResult {
 	failureReason: String
 }
 
+type SeasonProgress {
+	startYear: Int!
+	total: Int!
+	completed: Int!
+}
+
 type WorkflowProgress {
 	total: Int!
 	completed: Int!
+	seasons: [SeasonProgress!]
 }
 
 type Query {
@@ -310,6 +317,9 @@ type Query {
 	extractUniquePlayersResult: WorkflowResult!
 	extractUniquePlayersProgress: WorkflowProgress
 
+	downloadAllResult: WorkflowResult!
+	downloadAllProgress: WorkflowProgress
+
 	#    nhlStandings: [NHLTeamStanding!]
 #    fantasyGameLocalFiles(season: Int!): [LocalFile!]
 #    leagueLocalFiles(season: Int!): [LocalFile!]
@@ -330,6 +340,12 @@ type Query {
 #	rosterPlayers(teamID: Int!, date: String!): [RosterPlayer!]
 }
 
+
+input DownloadAllInput {
+	startSeason: Int
+	endSeason: Int
+	seasonConcurrency: Int
+}
 
 type Mutation {
 	# TODO should this really be available in a mutation?
@@ -362,6 +378,9 @@ type Mutation {
 
 	extractUniquePlayers: Boolean!
 	cancelExtractUniquePlayers: Boolean!
+
+	downloadAll(input: DownloadAllInput): Boolean!
+	cancelDownloadAll: Boolean!
 
 #    deleteLeague: Boolean!
 #    importLeague(force: Boolean! = false): String!

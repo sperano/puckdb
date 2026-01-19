@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/redis"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -232,7 +233,7 @@ func TestExtractTeamPlayers_OverwritesPreviousPlayer(t *testing.T) {
 
 func TestExtractBoxscorePlayersForDayBatchImpl_EmptyDays(t *testing.T) {
 	ctx := context.Background()
-	mockRedis := &MockRedisClient{}
+	mockRedis := &redis.MockClient{}
 
 	input := BatchInput{
 		Days:       []time.Time{},
@@ -251,7 +252,7 @@ func TestExtractBoxscorePlayersForDayBatchImpl_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	mockRedis := &MockRedisClient{}
+	mockRedis := &redis.MockClient{}
 
 	// Use a day in the past that won't have any cache files
 	day := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)

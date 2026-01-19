@@ -1,0 +1,61 @@
+package worker
+
+import (
+	"context"
+	"time"
+
+	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/graph/model"
+)
+
+const dateFormat = "2006-01-02"
+
+// SeasonInfo represents season metadata for Temporal serialization.
+// This is a local copy of nhl.SeasonInfo to ensure proper serialization.
+type SeasonInfo struct {
+	StartYear int       `json:"startYear"`
+	StartDate time.Time `json:"startDate"`
+	EndDate   time.Time `json:"endDate"`
+}
+
+// FetchSeasonsDataActivity fetches season data from the NHL API and filters by input range.
+func FetchSeasonsDataActivity(ctx context.Context, input *model.DownloadAllInput) ([]SeasonInfo, error) {
+	client := nhl.NewClient()
+	return fetchSeasonsDataImpl(ctx, client, input)
+}
+
+func fetchSeasonsDataImpl(ctx context.Context, client NHLClient, input *model.DownloadAllInput) ([]SeasonInfo, error) {
+	seasons, err := client.SeasonStandingManifest(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []SeasonInfo
+	for _, s := range seasons {
+		startYear := s.ID.StartYear()
+
+		if input.StartSeason != nil && startYear < *input.StartSeason {
+			continue
+		}
+		if input.EndSeason != nil && startYear > *input.EndSeason {
+			continue
+		}
+
+		startDate, err := time.Parse(dateFormat, s.StandingsStart)
+		if err != nil {
+			continue
+		}
+		endDate, err := time.Parse(dateFormat, s.StandingsEnd)
+		if err != nil {
+			continue
+		}
+
+		result = append(result, SeasonInfo{
+			StartYear: startYear,
+			StartDate: startDate,
+			EndDate:   endDate,
+		})
+	}
+
+	return result, nil
+}

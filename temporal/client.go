@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
+	"github.com/sperano/puckdb/config"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/client"
 	zerologadapter "logur.dev/adapter/zerolog"

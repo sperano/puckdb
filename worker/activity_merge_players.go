@@ -8,8 +8,7 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/yfh/config"
-	"github.com/sperano/yfh/redis"
+	"github.com/sperano/puckdb/redis"
 )
 
 // playerMatchKey creates a lookup key from name and sweater number for matching
@@ -200,6 +199,7 @@ func mergePlayerBatchesFromRedisImpl(
 	return merged, nil
 }
 
+/*
 // StoreSeasonResultActivity stores a merged season result in Redis.
 // Returns a BatchResult with the Redis key for later retrieval.
 func StoreSeasonResultActivity(
@@ -239,6 +239,7 @@ func storeSeasonResultImpl(
 
 	return BatchResult{RedisKey: key, PlayerCount: len(players)}, nil
 }
+*/
 
 // StoreEnrichmentPlayersActivity stores merged players in Redis for enrichment.
 // Returns the Redis key for retrieval by enrichment activities.

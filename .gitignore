@@ -15,10 +15,10 @@
 # vendor/
 # Eric Addition:
 test.db
-/yfh
+/puckdb
 #cache/games
 /.data
 STAR_spe_quebec.crt
 ***REMOVED***.key
-yfh-check.log
+puckdb-check.log
 .env
