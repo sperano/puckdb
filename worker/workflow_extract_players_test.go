@@ -2,7 +2,6 @@ package worker
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -30,32 +29,6 @@ func TestWorkflowIDExtractPlayersForSeason(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := WorkflowIDExtractPlayersForSeason(tt.season)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestWorkflowIDExtractYahooPlayersForSeason(t *testing.T) {
-	tests := []struct {
-		name     string
-		season   int
-		expected string
-	}{
-		{
-			name:     "2023 season",
-			season:   2023,
-			expected: "extract-yahoo-players-season-2023",
-		},
-		{
-			name:     "2022 season",
-			season:   2022,
-			expected: "extract-yahoo-players-season-2022",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDExtractYahooPlayersForSeason(tt.season)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -90,53 +63,6 @@ func TestWorkflowIDExtractBoxscorePlayersForSeason(t *testing.T) {
 func TestWorkflowIDEnrichPlayers(t *testing.T) {
 	result := WorkflowIDEnrichPlayers()
 	assert.Equal(t, "enrich-players", result)
-}
-
-// Tests for batchDates
-
-func TestBatchDates_EmptyInput(t *testing.T) {
-	dates := []time.Time{}
-	batches := batchDates(dates, 10)
-	assert.Len(t, batches, 0)
-}
-
-func TestBatchDates_SingleBatch(t *testing.T) {
-	dates := []time.Time{
-		time.Date(2023, 11, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2023, 11, 2, 0, 0, 0, 0, time.UTC),
-		time.Date(2023, 11, 3, 0, 0, 0, 0, time.UTC),
-	}
-	batches := batchDates(dates, 5)
-	assert.Len(t, batches, 1)
-	assert.Equal(t, dates, batches[0])
-}
-
-func TestBatchDates_MultipleBatches(t *testing.T) {
-	dates := []time.Time{
-		time.Date(2023, 11, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2023, 11, 2, 0, 0, 0, 0, time.UTC),
-		time.Date(2023, 11, 3, 0, 0, 0, 0, time.UTC),
-		time.Date(2023, 11, 4, 0, 0, 0, 0, time.UTC),
-		time.Date(2023, 11, 5, 0, 0, 0, 0, time.UTC),
-	}
-	batches := batchDates(dates, 2)
-	assert.Len(t, batches, 3)
-	assert.Len(t, batches[0], 2)
-	assert.Len(t, batches[1], 2)
-	assert.Len(t, batches[2], 1) // Partial batch
-}
-
-func TestBatchDates_ExactFit(t *testing.T) {
-	dates := []time.Time{
-		time.Date(2023, 11, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2023, 11, 2, 0, 0, 0, 0, time.UTC),
-		time.Date(2023, 11, 3, 0, 0, 0, 0, time.UTC),
-		time.Date(2023, 11, 4, 0, 0, 0, 0, time.UTC),
-	}
-	batches := batchDates(dates, 2)
-	assert.Len(t, batches, 2)
-	assert.Len(t, batches[0], 2)
-	assert.Len(t, batches[1], 2)
 }
 
 func TestWorkflowIDExtractUniquePlayersConstant(t *testing.T) {

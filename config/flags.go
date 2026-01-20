@@ -53,6 +53,9 @@ const (
 	FlagTemporalRetryInitialInterval = "temporal-retry-initial-interval"
 	FlagTemporalRetryMaxAttempts     = "temporal-retry-max-attempts"
 	FlagMaxSeasonConcurrency         = "max-season-concurrency"
+	FlagMaxYahooPlayerID             = "max-yahoo-player-id"
+	FlagYahooPlayerBatchSize         = "yahoo-player-batch-size"
+	FlagYahooPlayersPerExecution     = "yahoo-players-per-execution"
 )
 
 // const FlagInteractive = "interactive"
@@ -131,6 +134,30 @@ func InitMaxSeasonConcurrencyFlag(flags *flag.FlagSet) {
 
 func BindMaxSeasonConcurrencyFlag(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagMaxSeasonConcurrency, flags.Lookup(FlagMaxSeasonConcurrency))
+}
+
+func InitMaxYahooPlayerIDFlag(flags *flag.FlagSet) {
+	flags.Int(FlagMaxYahooPlayerID, 35000, "Maximum Yahoo player ID to scan when importing players")
+}
+
+func BindMaxYahooPlayerIDFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagMaxYahooPlayerID, flags.Lookup(FlagMaxYahooPlayerID))
+}
+
+func InitYahooPlayerBatchSizeFlag(flags *flag.FlagSet) {
+	flags.Int(FlagYahooPlayerBatchSize, 50, "Batch size for downloading Yahoo players")
+}
+
+func BindYahooPlayerBatchSizeFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagYahooPlayerBatchSize, flags.Lookup(FlagYahooPlayerBatchSize))
+}
+
+func InitYahooPlayersPerExecutionFlag(flags *flag.FlagSet) {
+	flags.Int(FlagYahooPlayersPerExecution, 5000, "Players to process per workflow execution before ContinueAsNew")
+}
+
+func BindYahooPlayersPerExecutionFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagYahooPlayersPerExecution, flags.Lookup(FlagYahooPlayersPerExecution))
 }
 
 func InitRedisFlags(flags *flag.FlagSet) {

@@ -18,10 +18,6 @@ func WorkflowIDExtractPlayersForSeason(season int) string {
 	return fmt.Sprintf("extract-players-season-%d", season)
 }
 
-func WorkflowIDExtractYahooPlayersForSeason(season int) string {
-	return fmt.Sprintf("extract-yahoo-players-season-%d", season)
-}
-
 func WorkflowIDExtractBoxscorePlayersForSeason(season int) string {
 	return fmt.Sprintf("extract-boxscore-players-season-%d", season)
 }

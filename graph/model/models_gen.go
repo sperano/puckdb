@@ -57,7 +57,7 @@ type DBStats struct {
 	TeamSummaries  int `json:"teamSummaries"`
 }
 
-type DownloadAllInput struct {
+type DownloadSeasonsInput struct {
 	StartSeason       *int `json:"startSeason,omitempty"`
 	EndSeason         *int `json:"endSeason,omitempty"`
 	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`

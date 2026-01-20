@@ -39,6 +39,19 @@ func NewProgressTracker(total int) *ProgressTracker {
 	}
 }
 
+// NewProgressTrackerWithOffset creates a ProgressTracker that reports cumulative progress.
+// Used with ContinueAsNew to track progress across multiple workflow executions.
+// - batchSize: number of items in this execution
+// - offset: completed count from previous executions
+// - grandTotal: total items across all executions
+func NewProgressTrackerWithOffset(batchSize int, offset int, grandTotal int) *ProgressTracker {
+	return &ProgressTracker{
+		progress:     WorkflowProgress{Total: grandTotal, Completed: offset},
+		seasonIndex:  make(map[int]int),
+		futureToYear: make(map[int]int),
+	}
+}
+
 // NewProgressTrackerWithSeasons creates a ProgressTracker that tracks per-season progress.
 func NewProgressTrackerWithSeasons(seasons []SeasonInfo) *ProgressTracker {
 	total := 0
@@ -193,6 +206,65 @@ func (p *ProgressTracker) WaitAllWithResults(ctx workflow.Context, futures []wor
 // Increment manually increments the completed count by 1.
 func (p *ProgressTracker) Increment() {
 	p.progress.Completed++
+}
+
+// ActivityStarter is a function that starts an activity for a given index and returns a future.
+type ActivityStarter func(ctx workflow.Context, index int) workflow.Future
+
+// RunWorkerPool runs activities with a fixed concurrency, always keeping `concurrency` activities in flight.
+// As each activity completes, immediately starts the next one until all `total` items are processed.
+func (p *ProgressTracker) RunWorkerPool(ctx workflow.Context, total int, concurrency int, startActivity ActivityStarter) error {
+	if total == 0 {
+		return nil
+	}
+
+	nextIndex := 0
+	var firstErr error
+
+	// Track active futures by index
+	active := make(map[int]workflow.Future)
+
+	// Start initial batch
+	for len(active) < concurrency && nextIndex < total {
+		idx := nextIndex
+		active[idx] = startActivity(ctx, idx)
+		nextIndex++
+	}
+
+	// Process until all work is done
+	for len(active) > 0 {
+		// Create a new selector each iteration (required for Temporal determinism)
+		selector := workflow.NewSelector(ctx)
+
+		// Add all active futures to selector
+		for idx, future := range active {
+			capturedIdx := idx
+			capturedFuture := future
+			selector.AddFuture(capturedFuture, func(f workflow.Future) {
+				if err := f.Get(ctx, nil); err != nil && firstErr == nil {
+					firstErr = err
+				}
+				p.Increment()
+				delete(active, capturedIdx)
+			})
+		}
+
+		// Wait for any future to complete
+		selector.Select(ctx)
+
+		if firstErr != nil {
+			return firstErr
+		}
+
+		// Start new activities to replace completed ones
+		for len(active) < concurrency && nextIndex < total {
+			idx := nextIndex
+			active[idx] = startActivity(ctx, idx)
+			nextIndex++
+		}
+	}
+
+	return nil
 }
 
 // getResultPtr returns a pointer to the element at index i in the slice.

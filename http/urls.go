@@ -2,7 +2,6 @@ package http
 
 import (
 	"fmt"
-	"github.com/sperano/puckdb/cache"
 	"time"
 )
 
@@ -34,11 +33,6 @@ func YahooTeamSummaryURL(gameKey int, leagueID int, teamID int, date time.Time) 
 	return fmt.Sprintf("%s/team/%d.l.%d.t.%d/stats;type=date;date=%d-%02d-%02d", baseAPIURL, gameKey, leagueID, teamID, date.Year(), date.Month(), date.Day())
 }
 
-func YahooGamesListURL(date time.Time) string {
-	// https://sports.yahoo.com/nhl/scoreboard/?confId=&dateRange=2022-4-9&schedState=2
-	return fmt.Sprintf("%s/nhl/scoreboard/?confId=&dateRange=%4d-%02d-%02d&schedState=2", baseSportsURL, date.Year(), date.Month(), date.Day())
-}
-
-func YahooGameURL(gameLink cache.GameLink) string {
-	return baseSportsURL + string(gameLink)
+func YahooPlayerURL(playerID int) string {
+	return fmt.Sprintf("%s/nhl/players/%d/", baseSportsURL, playerID)
 }

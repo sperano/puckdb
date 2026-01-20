@@ -19,12 +19,12 @@ type SeasonInfo struct {
 }
 
 // FetchSeasonsDataActivity fetches season data from the NHL API and filters by input range.
-func FetchSeasonsDataActivity(ctx context.Context, input *model.DownloadAllInput) ([]SeasonInfo, error) {
+func FetchSeasonsDataActivity(ctx context.Context, input *model.DownloadSeasonsInput) ([]SeasonInfo, error) {
 	client := nhl.NewClient()
 	return fetchSeasonsDataImpl(ctx, client, input)
 }
 
-func fetchSeasonsDataImpl(ctx context.Context, client NHLClient, input *model.DownloadAllInput) ([]SeasonInfo, error) {
+func fetchSeasonsDataImpl(ctx context.Context, client NHLClient, input *model.DownloadSeasonsInput) ([]SeasonInfo, error) {
 	seasons, err := client.SeasonStandingManifest(ctx)
 	if err != nil {
 		return nil, err

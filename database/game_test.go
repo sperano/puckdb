@@ -284,29 +284,3 @@ func TestDiffGame(t *testing.T) {
 	assertDiff(t, diffs[15], "SourceVersion", fileTS1, fileTS2)
 }
 
-func TestDiffGameLink_Same(t *testing.T) {
-	t.Parallel()
-	gl1 := []string{"link1", "link2"}
-	diffs := DiffGameLinks(gl1, gl1)
-	assert.Empty(t, diffs)
-}
-
-func TestDiffGameLink_PreviousHasMore(t *testing.T) {
-	t.Parallel()
-	gl1 := []string{"link1", "link2"}
-	gl2 := []string{"link3"}
-	diffs := DiffGameLinks(gl1, gl2)
-	assert.Equal(t, 2, len(diffs))
-	assertDiff(t, diffs[0], "GameLink", "link1", "link3")
-	assertDiff(t, diffs[1], "GameLink", "link2", "")
-}
-
-func TestDiffGameLink_CurrentHasMore(t *testing.T) {
-	t.Parallel()
-	gl1 := []string{"link1"}
-	gl2 := []string{"link3", "link2"}
-	diffs := DiffGameLinks(gl1, gl2)
-	assert.Equal(t, 2, len(diffs))
-	assertDiff(t, diffs[0], "GameLink", "link1", "link3")
-	assertDiff(t, diffs[1], "GameLink", "", "link2")
-}

@@ -306,19 +306,14 @@ type Query {
 
 	currentFantasyGameKey: Int!
 
-	seasons: [Season!]!
-	league(season: Int!, id: Int!): League
-
-	downloadEverythingResult: WorkflowResult!
-	downloadEverythingForSeasonResult(season: Int!): WorkflowResult!
-	downloadEverythingProgress: WorkflowProgress
-	downloadEverythingForSeasonProgress(season: Int!): WorkflowProgress
-
 	extractUniquePlayersResult: WorkflowResult!
 	extractUniquePlayersProgress: WorkflowProgress
 
-	downloadAllResult: WorkflowResult!
-	downloadAllProgress: WorkflowProgress
+	downloadSeasonsResult: WorkflowResult!
+	downloadSeasonsProgress: WorkflowProgress
+
+	downloadYahooPlayersResult: WorkflowResult!
+	downloadYahooPlayersProgress: WorkflowProgress
 
 	#    nhlStandings: [NHLTeamStanding!]
 #    fantasyGameLocalFiles(season: Int!): [LocalFile!]
@@ -341,7 +336,7 @@ type Query {
 }
 
 
-input DownloadAllInput {
+input DownloadSeasonsInput {
 	startSeason: Int
 	endSeason: Int
 	seasonConcurrency: Int
@@ -355,48 +350,15 @@ type Mutation {
     initDatabase: Boolean! # creates the NHL objects
     clearCache: Boolean! # deletes all the keys in the redis cache
 
-	importEverything: Boolean!
-	cancelImportEverything: Boolean!
+	downloadSeaosns(input: DownloadSeasonsInput): Boolean!
+	cancelDownloadSeasons: Boolean!
 
-	importEverythingForSeason(season: Int!): Boolean!
-	cancelImportEverythingForSeason(season: Int!): Boolean!
-
-	downloadEverything: Boolean!
-	cancelDownloadEverything: Boolean!
-
-	downloadEverythingForSeason(season: Int!): Boolean!
-	cancelDownloadEverythingForSeason(season: Int!): Boolean!
-
-	importGamesForSeason(season: Int!): Boolean!
-	cancelImportGamesForSeason(season: Int!): Boolean!
-
-	importGamesForDay(year: Int!, month: Int!, day: Int!): Boolean!
-	cancelImportGamesForDay(year: Int!, month: Int!, day: Int!): Boolean!
+	downloadYahooPlayers: Boolean!
+	cancelDownloadYahooPlayers: Boolean!
 
 	importLeague(season: Int!, leagueID: Int!): League!
 	importTeam(season: Int!, leagueID: Int!, teamID: Int!): Team!
 
 	extractUniquePlayers: Boolean!
 	cancelExtractUniquePlayers: Boolean!
-
-	downloadAll(input: DownloadAllInput): Boolean!
-	cancelDownloadAll: Boolean!
-
-#    deleteLeague: Boolean!
-#    importLeague(force: Boolean! = false): String!
-#
-#	importTeam(teamID: Int!, force: Boolean! = false): String!
-#    importTeams(force: Boolean! = false): String!
-#
-#	importGamesOnDate(date: String!, force: Boolean! = false): String!
-#	importGamesDateRange(start: String, end: String, force: Boolean! = false): String!
-#
-#	importRosterPlayersOnDate(date: String!, teamID: Int, force: Boolean! = false): String!
-#	importRosterPlayersDateRange(start: String, end: String, teamID: Int, force: Boolean! = false): String!
-#
-#	importTeamSummariesOnDate(date: String!, teamID: Int, force: Boolean! = false): String!
-#	importTeamSummariesDateRange(start: String, end: String, teamID: Int, force: Boolean! = false): String!
-#
-#	importAllOnDate(date: String!, force: Boolean! = false): String!
-#	importAllDateRange(start: String, end: String, force: Boolean! = false): String!
 }

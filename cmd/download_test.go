@@ -225,10 +225,10 @@ func TestGraphQLClient_Execute(t *testing.T) {
 			defer server.Close()
 
 			client := NewGraphQLClient(server.URL)
-			_, err := client.Execute(context.Background(), "query { test }", nil)
+			_, err := client.execute(context.Background(), "query { test }", nil)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Execute() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("execute() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

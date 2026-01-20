@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -104,7 +101,6 @@ func cmdCheck() *cobra.Command {
 		Long:  `Verify system status (cache, database)`,
 	}
 	cmd.AddCommand(cmdCheckCache())
-	cmd.AddCommand(cmdCheckParsing())
 	// cmd.AddCommand(cmdCheckDB())      // commented out: uses old Season struct
 	return cmd
 }
@@ -112,7 +108,6 @@ func cmdCheck() *cobra.Command {
 const (
 	FlagVerbose    = "verbose"
 	FlagIncomplete = "incomplete"
-	FlagDelete     = "delete"
 )
 
 func cmdCheckCache() *cobra.Command {
@@ -251,9 +246,8 @@ func getAllStats(ctx context.Context) ([]cacheStats, error) {
 			// Always check NHL API files
 			stats := checkNHLSeasonCache(fs, s)
 
-			// If season is in Yahoo config, also check Yahoo files
+			// If season is in Yahoo config, also check Yahoo fantasy files
 			if yahooCfg, ok := yahooConfig[s.StartYear()]; ok {
-				stats = append(stats, checkYahooGamesCache(fs, s)...)
 				stats = append(stats, checkYahooSeasonCache(fs, s, yahooCfg)...)
 			}
 
@@ -299,33 +293,6 @@ func checkNHLSeasonCache(fs *cache.SimpleFS, season simpleSeason) []cacheStats {
 		fileType:   cache.BoxscoreFileType,
 		expected:   expectedBoxscores,
 		found:      foundBoxscores,
-	})
-
-	return stats
-}
-
-// checkYahooGamesCache checks Yahoo game files (games list, games)
-func checkYahooGamesCache(fs *cache.SimpleFS, season simpleSeason) []cacheStats {
-	stats := make([]cacheStats, 0)
-	seasonYear := season.StartYear()
-	daysInSeason := countDays(season.start, season.end)
-
-	// Count games list files (1 per day)
-	gamesListStats := countGamesListFilesSimple(fs, season)
-	stats = append(stats, cacheStats{
-		seasonYear: seasonYear,
-		fileType:   cache.GamesListFileType,
-		expected:   daysInSeason,
-		found:      gamesListStats,
-	})
-
-	// Count game files (depends on games-list files)
-	expectedGames, foundGames := countGameFilesSimple(fs, season)
-	stats = append(stats, cacheStats{
-		seasonYear: seasonYear,
-		fileType:   cache.GameFileType,
-		expected:   expectedGames,
-		found:      foundGames,
 	})
 
 	return stats
@@ -479,62 +446,6 @@ func countTeamSummaryFiles(fs *cache.SimpleFS, nhlSeason simpleSeason, cfg confi
 	return count
 }
 
-// NHL season variants for API-based checks
-
-func countGamesListFilesSimple(fs *cache.SimpleFS, season simpleSeason) int {
-	count := 0
-	current := season.start
-	end := season.end
-	if end.After(time.Now()) {
-		end = time.Now()
-	}
-
-	for !current.After(end) {
-		file := fs.New(cache.GamesListFileType, current)
-		if fs.Exists(file) {
-			count++
-		}
-		current = current.AddDate(0, 0, 1)
-	}
-	return count
-}
-
-func countGameFilesSimple(fs *cache.SimpleFS, season simpleSeason) (expected int, found int) {
-	current := season.start
-	end := season.end
-	if end.After(time.Now()) {
-		end = time.Now()
-	}
-
-	for !current.After(end) {
-		gamesListFile := fs.New(cache.GamesListFileType, current)
-		if !fs.Exists(gamesListFile) {
-			current = current.AddDate(0, 0, 1)
-			continue
-		}
-
-		gameLinks, err := cache.ParseGamesList(fs, gamesListFile)
-		if err != nil {
-			log.Warn().Err(err).Time("date", current).Msg("Error parsing games-list file")
-			current = current.AddDate(0, 0, 1)
-			continue
-		}
-
-		expected += len(gameLinks)
-
-		for _, link := range gameLinks {
-			gameFile := fs.New(cache.GameFileType, current, link)
-			if fs.Exists(gameFile) {
-				found++
-			}
-		}
-
-		current = current.AddDate(0, 0, 1)
-	}
-
-	return expected, found
-}
-
 func countDailyScheduleFilesSimple(fs *cache.SimpleFS, season simpleSeason) int {
 	count := 0
 	current := season.start
@@ -587,25 +498,6 @@ func countBoxscoreFilesSimple(fs *cache.SimpleFS, season simpleSeason) (expected
 	}
 
 	return expected, found
-}
-
-func countFilesInDir(dir string, prefix string) int {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return 0
-	}
-
-	count := 0
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if len(prefix) > 0 && len(name) >= len(prefix) && name[:len(prefix)] == prefix {
-			count++
-		}
-	}
-	return count
 }
 
 func printCacheStatsVerbose(stats []cacheStats, incompleteOnly bool) {
@@ -698,8 +590,6 @@ type seasonFileStats struct {
 	year        int
 	dailySched  [2]int // [expected, found]
 	boxscore    [2]int
-	gamesList   [2]int // Yahoo - may be empty
-	game        [2]int // Yahoo - may be empty
 	league      [2]int // Yahoo - may be empty
 	team        [2]int // Yahoo - may be empty
 	roster      [2]int // Yahoo - may be empty
@@ -710,7 +600,7 @@ type seasonFileStats struct {
 func (s seasonFileStats) totalExpected() int {
 	total := s.dailySched[0] + s.boxscore[0]
 	if s.hasYahoo {
-		total += s.gamesList[0] + s.game[0] + s.league[0] + s.team[0] + s.roster[0] + s.teamSummary[0]
+		total += s.league[0] + s.team[0] + s.roster[0] + s.teamSummary[0]
 	}
 	return total
 }
@@ -718,7 +608,7 @@ func (s seasonFileStats) totalExpected() int {
 func (s seasonFileStats) totalFound() int {
 	total := s.dailySched[1] + s.boxscore[1]
 	if s.hasYahoo {
-		total += s.gamesList[1] + s.game[1] + s.league[1] + s.team[1] + s.roster[1] + s.teamSummary[1]
+		total += s.league[1] + s.team[1] + s.roster[1] + s.teamSummary[1]
 	}
 	return total
 }
@@ -736,8 +626,6 @@ const (
 	colSeason = iota
 	colDailySched
 	colBoxscore
-	colGamesList
-	colGame
 	colLeague
 	colTeam
 	colRoster
@@ -748,7 +636,7 @@ const (
 )
 
 var columnHeaders = [numColumns]string{
-	"Season", "DailySch", "Boxscore", "GamesList", "Game", "League", "Team", "Roster", "Summary", "Total", "%",
+	"Season", "DailySch", "Boxscore", "League", "Team", "Roster", "Summary", "Total", "%",
 }
 
 func printCacheStatsCompact(stats []cacheStats, incompleteOnly bool) {
@@ -766,12 +654,6 @@ func printCacheStatsCompact(stats []cacheStats, incompleteOnly bool) {
 			sf.dailySched = [2]int{s.expected, s.found}
 		case cache.BoxscoreFileType:
 			sf.boxscore = [2]int{s.expected, s.found}
-		case cache.GamesListFileType:
-			sf.gamesList = [2]int{s.expected, s.found}
-			sf.hasYahoo = true
-		case cache.GameFileType:
-			sf.game = [2]int{s.expected, s.found}
-			sf.hasYahoo = true
 		case cache.LeagueFileType:
 			sf.league = [2]int{s.expected, s.found}
 			sf.hasYahoo = true
@@ -804,17 +686,13 @@ func printCacheStatsCompact(stats []cacheStats, incompleteOnly bool) {
 	}
 
 	// Calculate totals
-	var totDS, totBx, totGL, totGm, totLg, totTm, totRs, totTS [2]int
+	var totDS, totBx, totLg, totTm, totRs, totTS [2]int
 	for _, sf := range seasonMap {
 		totDS[0] += sf.dailySched[0]
 		totDS[1] += sf.dailySched[1]
 		totBx[0] += sf.boxscore[0]
 		totBx[1] += sf.boxscore[1]
 		if sf.hasYahoo {
-			totGL[0] += sf.gamesList[0]
-			totGL[1] += sf.gamesList[1]
-			totGm[0] += sf.game[0]
-			totGm[1] += sf.game[1]
 			totLg[0] += sf.league[0]
 			totLg[1] += sf.league[1]
 			totTm[0] += sf.team[0]
@@ -826,8 +704,8 @@ func printCacheStatsCompact(stats []cacheStats, incompleteOnly bool) {
 		}
 	}
 
-	grandTotalExp := totDS[0] + totBx[0] + totGL[0] + totGm[0] + totLg[0] + totTm[0] + totRs[0] + totTS[0]
-	grandTotalFound := totDS[1] + totBx[1] + totGL[1] + totGm[1] + totLg[1] + totTm[1] + totRs[1] + totTS[1]
+	grandTotalExp := totDS[0] + totBx[0] + totLg[0] + totTm[0] + totRs[0] + totTS[0]
+	grandTotalFound := totDS[1] + totBx[1] + totLg[1] + totTm[1] + totRs[1] + totTS[1]
 	grandPct := float64(0)
 	if grandTotalExp > 0 {
 		grandPct = float64(grandTotalFound) / float64(grandTotalExp) * 100
@@ -853,8 +731,6 @@ func printCacheStatsCompact(stats []cacheStats, incompleteOnly bool) {
 		row.cols[colBoxscore] = formatCountPair(sf.boxscore[1], sf.boxscore[0])
 
 		if sf.hasYahoo {
-			row.cols[colGamesList] = formatCountPair(sf.gamesList[1], sf.gamesList[0])
-			row.cols[colGame] = formatCountPair(sf.game[1], sf.game[0])
 			row.cols[colLeague] = formatCountPair(sf.league[1], sf.league[0])
 			row.cols[colTeam] = formatCountPair(sf.team[1], sf.team[0])
 			row.cols[colRoster] = formatCountPair(sf.roster[1], sf.roster[0])
@@ -872,8 +748,6 @@ func printCacheStatsCompact(stats []cacheStats, incompleteOnly bool) {
 	totalsRow.cols[colDailySched] = formatCountPair(totDS[1], totDS[0])
 	totalsRow.cols[colBoxscore] = formatCountPair(totBx[1], totBx[0])
 	if hasAnyYahoo {
-		totalsRow.cols[colGamesList] = formatCountPair(totGL[1], totGL[0])
-		totalsRow.cols[colGame] = formatCountPair(totGm[1], totGm[0])
 		totalsRow.cols[colLeague] = formatCountPair(totLg[1], totLg[0])
 		totalsRow.cols[colTeam] = formatCountPair(totTm[1], totTm[0])
 		totalsRow.cols[colRoster] = formatCountPair(totRs[1], totRs[0])
@@ -901,7 +775,7 @@ func printCacheStatsCompact(stats []cacheStats, incompleteOnly bool) {
 	}
 
 	// Determine which columns to show
-	showCol := [numColumns]bool{true, true, true, hasAnyYahoo, hasAnyYahoo, hasAnyYahoo, hasAnyYahoo, hasAnyYahoo, hasAnyYahoo, true, true}
+	showCol := [numColumns]bool{true, true, true, hasAnyYahoo, hasAnyYahoo, hasAnyYahoo, hasAnyYahoo, true, true}
 
 	// Print report
 	fmt.Println()
@@ -966,246 +840,6 @@ func formatCountPair(found, expected int) string {
 	return fmt.Sprintf("%d/%d", found, expected)
 }
 
-// ////////////////////////////////////////////////////////////////////////////
-// PARSING CHECK
-// ////////////////////////////////////////////////////////////////////////////
-
-func cmdCheckParsing() *cobra.Command {
-	var cmd = &cobra.Command{
-		Use:   "parsing",
-		Short: "Check game HTML parsing",
-		Long: `Attempt to parse all game list and game HTML files and report any failures.
-Use --season to check a specific season, or --from-season/--to-season for a range.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			if err := viper.BindPFlag(config.FlagDataPath, flags.Lookup(config.FlagDataPath)); err != nil {
-				return err
-			}
-			if err := viper.BindPFlag(FlagDelete, flags.Lookup(FlagDelete)); err != nil {
-				return err
-			}
-			return config.BindSeasonRangeFlags(flags)
-		},
-		RunE: runCheckParsing,
-	}
-	flags := cmd.Flags()
-	config.InitDataPathFlag(flags)
-	config.InitSeasonRangeFlags(flags)
-	flags.Bool(FlagDelete, false, "Delete files that fail to parse")
-	return cmd
-}
-
-// parseFailure represents a file that failed to parse
-type parseFailure struct {
-	filePath string
-	fileType string
-	err      error
-	deleted  bool
-}
-
-// gameFilePattern matches game HTML files but not games-list files
-// Game files look like: team-team-YYYYMMDDXX.html
-var gameFilePattern = regexp.MustCompile(`^[a-z]+-[a-z]+-.*\.html$`)
-
-const numParsingWorkers = 16
-
-func runCheckParsing(cmd *cobra.Command, _ []string) error {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
-
-	if viper.GetString(config.FlagDataPath) == "" {
-		return fmt.Errorf("data-path is required")
-	}
-
-	deleteOnFail := viper.GetBool(FlagDelete)
-
-	sp := newSpinner(cmd.OutOrStdout(), "Checking file parsing...")
-	sp.Start()
-
-	seasons, err := fetchSeasonsFromNHL(cmd.Context())
-	if err != nil {
-		sp.Stop()
-		return err
-	}
-
-	if len(seasons) == 0 {
-		sp.Stop()
-		return fmt.Errorf("no seasons found matching the specified range")
-	}
-
-	fs := cache.NewSimpleCache()
-
-	var allFailures []parseFailure
-	var totalGamesListChecked, totalGamesChecked int
-
-	for _, season := range seasons {
-		gamesListFailures, gamesListChecked := checkGamesListParsing(fs, season, deleteOnFail)
-		gameFailures, gamesChecked := checkGameParsing(fs, season, deleteOnFail)
-
-		allFailures = append(allFailures, gamesListFailures...)
-		allFailures = append(allFailures, gameFailures...)
-		totalGamesListChecked += gamesListChecked
-		totalGamesChecked += gamesChecked
-	}
-
-	sp.Stop()
-
-	// Count deleted files
-	deletedCount := 0
-	for _, f := range allFailures {
-		if f.deleted {
-			deletedCount++
-		}
-	}
-
-	// Print results
-	fmt.Println()
-	fmt.Println("Parsing Check Complete")
-	fmt.Println("======================")
-	fmt.Printf("Games list files checked: %d\n", totalGamesListChecked)
-	fmt.Printf("Game files checked:       %d\n", totalGamesChecked)
-	fmt.Printf("Total failures:           %d\n", len(allFailures))
-	if deleteOnFail {
-		fmt.Printf("Files deleted:            %d\n", deletedCount)
-	}
-	fmt.Println()
-
-	if len(allFailures) > 0 {
-		fmt.Println("Failed files:")
-		for _, f := range allFailures {
-			deletedSuffix := ""
-			if f.deleted {
-				deletedSuffix = " (deleted)"
-			}
-			fmt.Printf("  [%s] %s%s\n", f.fileType, f.filePath, deletedSuffix)
-			fmt.Printf("         %v\n", f.err)
-		}
-		fmt.Println()
-	}
-
-	return nil
-}
-
-func checkGamesListParsing(fs *cache.SimpleFS, season simpleSeason, deleteOnFail bool) (failures []parseFailure, checked int) {
-	current := season.start
-	end := season.end
-	if end.After(time.Now()) {
-		end = time.Now()
-	}
-
-	for !current.After(end) {
-		file := fs.New(cache.GamesListFileType, current)
-		if fs.Exists(file) {
-			checked++
-			_, err := cache.ParseGamesList(fs, file)
-			if err != nil {
-				filePath := fs.FullPath(file)
-				failure := parseFailure{
-					filePath: filePath,
-					fileType: "games-list",
-					err:      err,
-				}
-				if deleteOnFail {
-					if rmErr := os.Remove(filePath); rmErr == nil {
-						failure.deleted = true
-					}
-				}
-				failures = append(failures, failure)
-			}
-		}
-		current = current.AddDate(0, 0, 1)
-	}
-
-	return failures, checked
-}
-
-func checkGameParsing(fs *cache.SimpleFS, season simpleSeason, deleteOnFail bool) (failures []parseFailure, checked int) {
-	// Walk the games directory for this season
-	gamesDir := filepath.Join(fs.RootPath, fmt.Sprintf("%d/games", season.StartYear()))
-
-	// Collect all game file paths
-	var filePaths []string
-	err := filepath.Walk(gamesDir, func(filePath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil // Skip files we can't access
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		// Only process HTML files that match game file pattern (not games-list files)
-		fileName := filepath.Base(filePath)
-		if !gameFilePattern.MatchString(fileName) {
-			return nil
-		}
-
-		filePaths = append(filePaths, filePath)
-		return nil
-	})
-
-	if err != nil {
-		log.Warn().Err(err).Int("season", season.StartYear()).Msg("Error walking games directory")
-		return nil, 0
-	}
-
-	if len(filePaths) == 0 {
-		return nil, 0
-	}
-
-	// Process files in parallel
-	jobs := make(chan string, len(filePaths))
-	results := make(chan *parseFailure, len(filePaths))
-
-	// Start workers
-	var wg sync.WaitGroup
-	for i := 0; i < numParsingWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for filePath := range jobs {
-				gameFile := &simpleFile{path: filePath, rootPath: fs.RootPath}
-				_, parseErr := cache.ParseGameHTML(fs, gameFile)
-				if parseErr != nil {
-					failure := &parseFailure{
-						filePath: filePath,
-						fileType: "game",
-						err:      parseErr,
-					}
-					if deleteOnFail {
-						if rmErr := os.Remove(filePath); rmErr == nil {
-							failure.deleted = true
-						}
-					}
-					results <- failure
-				} else {
-					results <- nil
-				}
-			}
-		}()
-	}
-
-	// Send jobs
-	for _, fp := range filePaths {
-		jobs <- fp
-	}
-	close(jobs)
-
-	// Wait for workers and close results
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	// Collect results
-	checked = len(filePaths)
-	for result := range results {
-		if result != nil {
-			failures = append(failures, *result)
-		}
-	}
-
-	return failures, checked
-}
 
 /*
 // ////////////////////////////////////////////////////////////////////////////
@@ -1608,27 +1242,6 @@ func checkSeasonParsing(fs *cache.SimpleFS, season config.Season, deleteOnFail b
 	return
 }
 */
-
-// simpleFile implements cache.File for direct path access
-type simpleFile struct {
-	path     string
-	rootPath string
-}
-
-func (f *simpleFile) Dir() string {
-	relPath, _ := filepath.Rel(f.rootPath, f.path)
-	return filepath.Dir(relPath)
-}
-
-func (f *simpleFile) Name() string {
-	base := filepath.Base(f.path)
-	ext := filepath.Ext(base)
-	return base[:len(base)-len(ext)]
-}
-
-func (f *simpleFile) Ext() string {
-	return filepath.Ext(f.path)[1:] // Remove the leading dot
-}
 
 func printDBStats(stats []dbStats) {
 	// Group by season

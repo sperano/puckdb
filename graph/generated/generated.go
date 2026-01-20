@@ -182,29 +182,19 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CancelDownloadAll                 func(childComplexity int) int
-		CancelDownloadEverything          func(childComplexity int) int
-		CancelDownloadEverythingForSeason func(childComplexity int, season int) int
-		CancelExtractUniquePlayers        func(childComplexity int) int
-		CancelImportEverything            func(childComplexity int) int
-		CancelImportEverythingForSeason   func(childComplexity int, season int) int
-		CancelImportGamesForDay           func(childComplexity int, year int, month int, day int) int
-		CancelImportGamesForSeason        func(childComplexity int, season int) int
-		ClearCache                        func(childComplexity int) int
-		ClearDatabase                     func(childComplexity int) int
-		CreateDatabase                    func(childComplexity int) int
-		DownloadAll                       func(childComplexity int, input *model.DownloadAllInput) int
-		DownloadEverything                func(childComplexity int) int
-		DownloadEverythingForSeason       func(childComplexity int, season int) int
-		DropDatabase                      func(childComplexity int) int
-		ExtractUniquePlayers              func(childComplexity int) int
-		ImportEverything                  func(childComplexity int) int
-		ImportEverythingForSeason         func(childComplexity int, season int) int
-		ImportGamesForDay                 func(childComplexity int, year int, month int, day int) int
-		ImportGamesForSeason              func(childComplexity int, season int) int
-		ImportLeague                      func(childComplexity int, season int, leagueID int) int
-		ImportTeam                        func(childComplexity int, season int, leagueID int, teamID int) int
-		InitDatabase                      func(childComplexity int) int
+		CancelDownloadSeasons      func(childComplexity int) int
+		CancelDownloadYahooPlayers func(childComplexity int) int
+		CancelExtractUniquePlayers func(childComplexity int) int
+		ClearCache                 func(childComplexity int) int
+		ClearDatabase              func(childComplexity int) int
+		CreateDatabase             func(childComplexity int) int
+		DownloadSeaosns            func(childComplexity int, input *model.DownloadSeasonsInput) int
+		DownloadYahooPlayers       func(childComplexity int) int
+		DropDatabase               func(childComplexity int) int
+		ExtractUniquePlayers       func(childComplexity int) int
+		ImportLeague               func(childComplexity int, season int, leagueID int) int
+		ImportTeam                 func(childComplexity int, season int, leagueID int, teamID int) int
+		InitDatabase               func(childComplexity int) int
 	}
 
 	NHLConference struct {
@@ -297,22 +287,18 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		BuildNumber                         func(childComplexity int) int
-		CurrentFantasyGameKey               func(childComplexity int) int
-		DownloadAllProgress                 func(childComplexity int) int
-		DownloadAllResult                   func(childComplexity int) int
-		DownloadEverythingForSeasonProgress func(childComplexity int, season int) int
-		DownloadEverythingForSeasonResult   func(childComplexity int, season int) int
-		DownloadEverythingProgress          func(childComplexity int) int
-		DownloadEverythingResult            func(childComplexity int) int
-		ExtractUniquePlayersProgress        func(childComplexity int) int
-		ExtractUniquePlayersResult          func(childComplexity int) int
-		League                              func(childComplexity int, season int, id int) int
-		NhlConferences                      func(childComplexity int) int
-		NhlDivisions                        func(childComplexity int) int
-		NhlTeam                             func(childComplexity int, teamID int) int
-		NhlTeams                            func(childComplexity int, allstars bool) int
-		Seasons                             func(childComplexity int) int
+		BuildNumber                  func(childComplexity int) int
+		CurrentFantasyGameKey        func(childComplexity int) int
+		DownloadSeasonsProgress      func(childComplexity int) int
+		DownloadSeasonsResult        func(childComplexity int) int
+		DownloadYahooPlayersProgress func(childComplexity int) int
+		DownloadYahooPlayersResult   func(childComplexity int) int
+		ExtractUniquePlayersProgress func(childComplexity int) int
+		ExtractUniquePlayersResult   func(childComplexity int) int
+		NhlConferences               func(childComplexity int) int
+		NhlDivisions                 func(childComplexity int) int
+		NhlTeam                      func(childComplexity int, teamID int) int
+		NhlTeams                     func(childComplexity int, allstars bool) int
 	}
 
 	RosterPlayer struct {
@@ -368,24 +354,14 @@ type MutationResolver interface {
 	CreateDatabase(ctx context.Context) (bool, error)
 	InitDatabase(ctx context.Context) (bool, error)
 	ClearCache(ctx context.Context) (bool, error)
-	ImportEverything(ctx context.Context) (bool, error)
-	CancelImportEverything(ctx context.Context) (bool, error)
-	ImportEverythingForSeason(ctx context.Context, season int) (bool, error)
-	CancelImportEverythingForSeason(ctx context.Context, season int) (bool, error)
-	DownloadEverything(ctx context.Context) (bool, error)
-	CancelDownloadEverything(ctx context.Context) (bool, error)
-	DownloadEverythingForSeason(ctx context.Context, season int) (bool, error)
-	CancelDownloadEverythingForSeason(ctx context.Context, season int) (bool, error)
-	ImportGamesForSeason(ctx context.Context, season int) (bool, error)
-	CancelImportGamesForSeason(ctx context.Context, season int) (bool, error)
-	ImportGamesForDay(ctx context.Context, year int, month int, day int) (bool, error)
-	CancelImportGamesForDay(ctx context.Context, year int, month int, day int) (bool, error)
+	DownloadSeaosns(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
+	CancelDownloadSeasons(ctx context.Context) (bool, error)
+	DownloadYahooPlayers(ctx context.Context) (bool, error)
+	CancelDownloadYahooPlayers(ctx context.Context) (bool, error)
 	ImportLeague(ctx context.Context, season int, leagueID int) (*model.League, error)
 	ImportTeam(ctx context.Context, season int, leagueID int, teamID int) (*model.Team, error)
 	ExtractUniquePlayers(ctx context.Context) (bool, error)
 	CancelExtractUniquePlayers(ctx context.Context) (bool, error)
-	DownloadAll(ctx context.Context, input *model.DownloadAllInput) (bool, error)
-	CancelDownloadAll(ctx context.Context) (bool, error)
 }
 type NHLConferenceResolver interface {
 	Divisions(ctx context.Context, obj *model.NHLConference) ([]*model.NHLDivision, error)
@@ -400,16 +376,12 @@ type QueryResolver interface {
 	NhlTeams(ctx context.Context, allstars bool) ([]*model.NHLTeam, error)
 	NhlTeam(ctx context.Context, teamID int) (*model.NHLTeam, error)
 	CurrentFantasyGameKey(ctx context.Context) (int, error)
-	Seasons(ctx context.Context) ([]*model.Season, error)
-	League(ctx context.Context, season int, id int) (*model.League, error)
-	DownloadEverythingResult(ctx context.Context) (*model.WorkflowResult, error)
-	DownloadEverythingForSeasonResult(ctx context.Context, season int) (*model.WorkflowResult, error)
-	DownloadEverythingProgress(ctx context.Context) (*model.WorkflowProgress, error)
-	DownloadEverythingForSeasonProgress(ctx context.Context, season int) (*model.WorkflowProgress, error)
 	ExtractUniquePlayersResult(ctx context.Context) (*model.WorkflowResult, error)
 	ExtractUniquePlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
-	DownloadAllResult(ctx context.Context) (*model.WorkflowResult, error)
-	DownloadAllProgress(ctx context.Context) (*model.WorkflowProgress, error)
+	DownloadSeasonsResult(ctx context.Context) (*model.WorkflowResult, error)
+	DownloadSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error)
+	DownloadYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
+	DownloadYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
 }
 type SeasonResolver interface {
 	Leagues(ctx context.Context, obj *model.Season) ([]*model.League, error)
@@ -1183,31 +1155,19 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Manager.Nickname(childComplexity), true
 
-	case "Mutation.cancelDownloadAll":
-		if e.complexity.Mutation.CancelDownloadAll == nil {
+	case "Mutation.cancelDownloadSeasons":
+		if e.complexity.Mutation.CancelDownloadSeasons == nil {
 			break
 		}
 
-		return e.complexity.Mutation.CancelDownloadAll(childComplexity), true
+		return e.complexity.Mutation.CancelDownloadSeasons(childComplexity), true
 
-	case "Mutation.cancelDownloadEverything":
-		if e.complexity.Mutation.CancelDownloadEverything == nil {
+	case "Mutation.cancelDownloadYahooPlayers":
+		if e.complexity.Mutation.CancelDownloadYahooPlayers == nil {
 			break
 		}
 
-		return e.complexity.Mutation.CancelDownloadEverything(childComplexity), true
-
-	case "Mutation.cancelDownloadEverythingForSeason":
-		if e.complexity.Mutation.CancelDownloadEverythingForSeason == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_cancelDownloadEverythingForSeason_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.CancelDownloadEverythingForSeason(childComplexity, args["season"].(int)), true
+		return e.complexity.Mutation.CancelDownloadYahooPlayers(childComplexity), true
 
 	case "Mutation.cancelExtractUniquePlayers":
 		if e.complexity.Mutation.CancelExtractUniquePlayers == nil {
@@ -1215,49 +1175,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.CancelExtractUniquePlayers(childComplexity), true
-
-	case "Mutation.cancelImportEverything":
-		if e.complexity.Mutation.CancelImportEverything == nil {
-			break
-		}
-
-		return e.complexity.Mutation.CancelImportEverything(childComplexity), true
-
-	case "Mutation.cancelImportEverythingForSeason":
-		if e.complexity.Mutation.CancelImportEverythingForSeason == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_cancelImportEverythingForSeason_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.CancelImportEverythingForSeason(childComplexity, args["season"].(int)), true
-
-	case "Mutation.cancelImportGamesForDay":
-		if e.complexity.Mutation.CancelImportGamesForDay == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_cancelImportGamesForDay_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.CancelImportGamesForDay(childComplexity, args["year"].(int), args["month"].(int), args["day"].(int)), true
-
-	case "Mutation.cancelImportGamesForSeason":
-		if e.complexity.Mutation.CancelImportGamesForSeason == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_cancelImportGamesForSeason_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.CancelImportGamesForSeason(childComplexity, args["season"].(int)), true
 
 	case "Mutation.clearCache":
 		if e.complexity.Mutation.ClearCache == nil {
@@ -1280,36 +1197,24 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateDatabase(childComplexity), true
 
-	case "Mutation.downloadAll":
-		if e.complexity.Mutation.DownloadAll == nil {
+	case "Mutation.downloadSeaosns":
+		if e.complexity.Mutation.DownloadSeaosns == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_downloadAll_args(context.TODO(), rawArgs)
+		args, err := ec.field_Mutation_downloadSeaosns_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.DownloadAll(childComplexity, args["input"].(*model.DownloadAllInput)), true
+		return e.complexity.Mutation.DownloadSeaosns(childComplexity, args["input"].(*model.DownloadSeasonsInput)), true
 
-	case "Mutation.downloadEverything":
-		if e.complexity.Mutation.DownloadEverything == nil {
+	case "Mutation.downloadYahooPlayers":
+		if e.complexity.Mutation.DownloadYahooPlayers == nil {
 			break
 		}
 
-		return e.complexity.Mutation.DownloadEverything(childComplexity), true
-
-	case "Mutation.downloadEverythingForSeason":
-		if e.complexity.Mutation.DownloadEverythingForSeason == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_downloadEverythingForSeason_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.DownloadEverythingForSeason(childComplexity, args["season"].(int)), true
+		return e.complexity.Mutation.DownloadYahooPlayers(childComplexity), true
 
 	case "Mutation.dropDatabase":
 		if e.complexity.Mutation.DropDatabase == nil {
@@ -1324,49 +1229,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.ExtractUniquePlayers(childComplexity), true
-
-	case "Mutation.importEverything":
-		if e.complexity.Mutation.ImportEverything == nil {
-			break
-		}
-
-		return e.complexity.Mutation.ImportEverything(childComplexity), true
-
-	case "Mutation.importEverythingForSeason":
-		if e.complexity.Mutation.ImportEverythingForSeason == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_importEverythingForSeason_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.ImportEverythingForSeason(childComplexity, args["season"].(int)), true
-
-	case "Mutation.importGamesForDay":
-		if e.complexity.Mutation.ImportGamesForDay == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_importGamesForDay_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.ImportGamesForDay(childComplexity, args["year"].(int), args["month"].(int), args["day"].(int)), true
-
-	case "Mutation.importGamesForSeason":
-		if e.complexity.Mutation.ImportGamesForSeason == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_importGamesForSeason_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.ImportGamesForSeason(childComplexity, args["season"].(int)), true
 
 	case "Mutation.importLeague":
 		if e.complexity.Mutation.ImportLeague == nil {
@@ -1847,57 +1709,33 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.CurrentFantasyGameKey(childComplexity), true
 
-	case "Query.downloadAllProgress":
-		if e.complexity.Query.DownloadAllProgress == nil {
+	case "Query.downloadSeasonsProgress":
+		if e.complexity.Query.DownloadSeasonsProgress == nil {
 			break
 		}
 
-		return e.complexity.Query.DownloadAllProgress(childComplexity), true
+		return e.complexity.Query.DownloadSeasonsProgress(childComplexity), true
 
-	case "Query.downloadAllResult":
-		if e.complexity.Query.DownloadAllResult == nil {
+	case "Query.downloadSeasonsResult":
+		if e.complexity.Query.DownloadSeasonsResult == nil {
 			break
 		}
 
-		return e.complexity.Query.DownloadAllResult(childComplexity), true
+		return e.complexity.Query.DownloadSeasonsResult(childComplexity), true
 
-	case "Query.downloadEverythingForSeasonProgress":
-		if e.complexity.Query.DownloadEverythingForSeasonProgress == nil {
+	case "Query.downloadYahooPlayersProgress":
+		if e.complexity.Query.DownloadYahooPlayersProgress == nil {
 			break
 		}
 
-		args, err := ec.field_Query_downloadEverythingForSeasonProgress_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
+		return e.complexity.Query.DownloadYahooPlayersProgress(childComplexity), true
 
-		return e.complexity.Query.DownloadEverythingForSeasonProgress(childComplexity, args["season"].(int)), true
-
-	case "Query.downloadEverythingForSeasonResult":
-		if e.complexity.Query.DownloadEverythingForSeasonResult == nil {
+	case "Query.downloadYahooPlayersResult":
+		if e.complexity.Query.DownloadYahooPlayersResult == nil {
 			break
 		}
 
-		args, err := ec.field_Query_downloadEverythingForSeasonResult_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.DownloadEverythingForSeasonResult(childComplexity, args["season"].(int)), true
-
-	case "Query.downloadEverythingProgress":
-		if e.complexity.Query.DownloadEverythingProgress == nil {
-			break
-		}
-
-		return e.complexity.Query.DownloadEverythingProgress(childComplexity), true
-
-	case "Query.downloadEverythingResult":
-		if e.complexity.Query.DownloadEverythingResult == nil {
-			break
-		}
-
-		return e.complexity.Query.DownloadEverythingResult(childComplexity), true
+		return e.complexity.Query.DownloadYahooPlayersResult(childComplexity), true
 
 	case "Query.extractUniquePlayersProgress":
 		if e.complexity.Query.ExtractUniquePlayersProgress == nil {
@@ -1912,18 +1750,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.ExtractUniquePlayersResult(childComplexity), true
-
-	case "Query.league":
-		if e.complexity.Query.League == nil {
-			break
-		}
-
-		args, err := ec.field_Query_league_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.League(childComplexity, args["season"].(int), args["id"].(int)), true
 
 	case "Query.nhlConferences":
 		if e.complexity.Query.NhlConferences == nil {
@@ -1962,13 +1788,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.NhlTeams(childComplexity, args["allstars"].(bool)), true
-
-	case "Query.seasons":
-		if e.complexity.Query.Seasons == nil {
-			break
-		}
-
-		return e.complexity.Query.Seasons(childComplexity), true
 
 	case "RosterPlayer.CreatedAt":
 		if e.complexity.RosterPlayer.CreatedAt == nil {
@@ -2174,7 +1993,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
-		ec.unmarshalInputDownloadAllInput,
+		ec.unmarshalInputDownloadSeasonsInput,
 	)
 	first := true
 
@@ -2580,19 +2399,14 @@ type Query {
 
 	currentFantasyGameKey: Int!
 
-	seasons: [Season!]!
-	league(season: Int!, id: Int!): League
-
-	downloadEverythingResult: WorkflowResult!
-	downloadEverythingForSeasonResult(season: Int!): WorkflowResult!
-	downloadEverythingProgress: WorkflowProgress
-	downloadEverythingForSeasonProgress(season: Int!): WorkflowProgress
-
 	extractUniquePlayersResult: WorkflowResult!
 	extractUniquePlayersProgress: WorkflowProgress
 
-	downloadAllResult: WorkflowResult!
-	downloadAllProgress: WorkflowProgress
+	downloadSeasonsResult: WorkflowResult!
+	downloadSeasonsProgress: WorkflowProgress
+
+	downloadYahooPlayersResult: WorkflowResult!
+	downloadYahooPlayersProgress: WorkflowProgress
 
 	#    nhlStandings: [NHLTeamStanding!]
 #    fantasyGameLocalFiles(season: Int!): [LocalFile!]
@@ -2615,7 +2429,7 @@ type Query {
 }
 
 
-input DownloadAllInput {
+input DownloadSeasonsInput {
 	startSeason: Int
 	endSeason: Int
 	seasonConcurrency: Int
@@ -2629,50 +2443,17 @@ type Mutation {
     initDatabase: Boolean! # creates the NHL objects
     clearCache: Boolean! # deletes all the keys in the redis cache
 
-	importEverything: Boolean!
-	cancelImportEverything: Boolean!
+	downloadSeaosns(input: DownloadSeasonsInput): Boolean!
+	cancelDownloadSeasons: Boolean!
 
-	importEverythingForSeason(season: Int!): Boolean!
-	cancelImportEverythingForSeason(season: Int!): Boolean!
-
-	downloadEverything: Boolean!
-	cancelDownloadEverything: Boolean!
-
-	downloadEverythingForSeason(season: Int!): Boolean!
-	cancelDownloadEverythingForSeason(season: Int!): Boolean!
-
-	importGamesForSeason(season: Int!): Boolean!
-	cancelImportGamesForSeason(season: Int!): Boolean!
-
-	importGamesForDay(year: Int!, month: Int!, day: Int!): Boolean!
-	cancelImportGamesForDay(year: Int!, month: Int!, day: Int!): Boolean!
+	downloadYahooPlayers: Boolean!
+	cancelDownloadYahooPlayers: Boolean!
 
 	importLeague(season: Int!, leagueID: Int!): League!
 	importTeam(season: Int!, leagueID: Int!, teamID: Int!): Team!
 
 	extractUniquePlayers: Boolean!
 	cancelExtractUniquePlayers: Boolean!
-
-	downloadAll(input: DownloadAllInput): Boolean!
-	cancelDownloadAll: Boolean!
-
-#    deleteLeague: Boolean!
-#    importLeague(force: Boolean! = false): String!
-#
-#	importTeam(teamID: Int!, force: Boolean! = false): String!
-#    importTeams(force: Boolean! = false): String!
-#
-#	importGamesOnDate(date: String!, force: Boolean! = false): String!
-#	importGamesDateRange(start: String, end: String, force: Boolean! = false): String!
-#
-#	importRosterPlayersOnDate(date: String!, teamID: Int, force: Boolean! = false): String!
-#	importRosterPlayersDateRange(start: String, end: String, teamID: Int, force: Boolean! = false): String!
-#
-#	importTeamSummariesOnDate(date: String!, teamID: Int, force: Boolean! = false): String!
-#	importTeamSummariesDateRange(start: String, end: String, teamID: Int, force: Boolean! = false): String!
-#
-#	importAllOnDate(date: String!, force: Boolean! = false): String!
-#	importAllDateRange(start: String, end: String, force: Boolean! = false): String!
 }
 `, BuiltIn: false},
 }
@@ -2682,399 +2463,35 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // region    ***************************** args.gotpl *****************************
 
-func (ec *executionContext) field_Mutation_cancelDownloadEverythingForSeason_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Mutation_downloadSeaosns_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_cancelDownloadEverythingForSeason_argsSeason(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["season"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_cancelDownloadEverythingForSeason_argsSeason(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["season"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
-	if tmp, ok := rawArgs["season"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_cancelImportEverythingForSeason_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_cancelImportEverythingForSeason_argsSeason(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["season"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_cancelImportEverythingForSeason_argsSeason(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["season"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
-	if tmp, ok := rawArgs["season"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_cancelImportGamesForDay_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_cancelImportGamesForDay_argsYear(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["year"] = arg0
-	arg1, err := ec.field_Mutation_cancelImportGamesForDay_argsMonth(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["month"] = arg1
-	arg2, err := ec.field_Mutation_cancelImportGamesForDay_argsDay(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["day"] = arg2
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_cancelImportGamesForDay_argsYear(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["year"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("year"))
-	if tmp, ok := rawArgs["year"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_cancelImportGamesForDay_argsMonth(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["month"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("month"))
-	if tmp, ok := rawArgs["month"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_cancelImportGamesForDay_argsDay(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["day"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("day"))
-	if tmp, ok := rawArgs["day"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_cancelImportGamesForSeason_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_cancelImportGamesForSeason_argsSeason(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["season"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_cancelImportGamesForSeason_argsSeason(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["season"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
-	if tmp, ok := rawArgs["season"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_downloadAll_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_downloadAll_argsInput(ctx, rawArgs)
+	arg0, err := ec.field_Mutation_downloadSeaosns_argsInput(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
 	args["input"] = arg0
 	return args, nil
 }
-func (ec *executionContext) field_Mutation_downloadAll_argsInput(
+func (ec *executionContext) field_Mutation_downloadSeaosns_argsInput(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (*model.DownloadAllInput, error) {
+) (*model.DownloadSeasonsInput, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["input"]
 	if !ok {
-		var zeroVal *model.DownloadAllInput
+		var zeroVal *model.DownloadSeasonsInput
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalODownloadAllInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadAllInput(ctx, tmp)
+		return ec.unmarshalODownloadSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadSeasonsInput(ctx, tmp)
 	}
 
-	var zeroVal *model.DownloadAllInput
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_downloadEverythingForSeason_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_downloadEverythingForSeason_argsSeason(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["season"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_downloadEverythingForSeason_argsSeason(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["season"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
-	if tmp, ok := rawArgs["season"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_importEverythingForSeason_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_importEverythingForSeason_argsSeason(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["season"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_importEverythingForSeason_argsSeason(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["season"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
-	if tmp, ok := rawArgs["season"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_importGamesForDay_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_importGamesForDay_argsYear(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["year"] = arg0
-	arg1, err := ec.field_Mutation_importGamesForDay_argsMonth(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["month"] = arg1
-	arg2, err := ec.field_Mutation_importGamesForDay_argsDay(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["day"] = arg2
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_importGamesForDay_argsYear(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["year"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("year"))
-	if tmp, ok := rawArgs["year"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_importGamesForDay_argsMonth(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["month"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("month"))
-	if tmp, ok := rawArgs["month"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_importGamesForDay_argsDay(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["day"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("day"))
-	if tmp, ok := rawArgs["day"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_importGamesForSeason_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_importGamesForSeason_argsSeason(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["season"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_importGamesForSeason_argsSeason(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["season"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
-	if tmp, ok := rawArgs["season"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
+	var zeroVal *model.DownloadSeasonsInput
 	return zeroVal, nil
 }
 
@@ -3252,129 +2669,6 @@ func (ec *executionContext) field_Query___type_argsName(
 	}
 
 	var zeroVal string
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Query_downloadEverythingForSeasonProgress_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Query_downloadEverythingForSeasonProgress_argsSeason(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["season"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Query_downloadEverythingForSeasonProgress_argsSeason(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["season"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
-	if tmp, ok := rawArgs["season"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Query_downloadEverythingForSeasonResult_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Query_downloadEverythingForSeasonResult_argsSeason(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["season"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Query_downloadEverythingForSeasonResult_argsSeason(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["season"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
-	if tmp, ok := rawArgs["season"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Query_league_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Query_league_argsSeason(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["season"] = arg0
-	arg1, err := ec.field_Query_league_argsID(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg1
-	return args, nil
-}
-func (ec *executionContext) field_Query_league_argsSeason(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["season"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
-	if tmp, ok := rawArgs["season"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Query_league_argsID(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (int, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["id"]
-	if !ok {
-		var zeroVal int
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
-	if tmp, ok := rawArgs["id"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
-	}
-
-	var zeroVal int
 	return zeroVal, nil
 }
 
@@ -8497,8 +7791,8 @@ func (ec *executionContext) fieldContext_Mutation_clearCache(_ context.Context, 
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_importEverything(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_importEverything(ctx, field)
+func (ec *executionContext) _Mutation_downloadSeaosns(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_downloadSeaosns(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -8511,7 +7805,7 @@ func (ec *executionContext) _Mutation_importEverything(ctx context.Context, fiel
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ImportEverything(rctx)
+		return ec.resolvers.Mutation().DownloadSeaosns(rctx, fc.Args["input"].(*model.DownloadSeasonsInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8528,95 +7822,7 @@ func (ec *executionContext) _Mutation_importEverything(ctx context.Context, fiel
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_importEverything(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_cancelImportEverything(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_cancelImportEverything(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelImportEverything(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_cancelImportEverything(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_importEverythingForSeason(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_importEverythingForSeason(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ImportEverythingForSeason(rctx, fc.Args["season"].(int))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_importEverythingForSeason(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_downloadSeaosns(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -8633,15 +7839,15 @@ func (ec *executionContext) fieldContext_Mutation_importEverythingForSeason(ctx 
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_importEverythingForSeason_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_downloadSeaosns_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_cancelImportEverythingForSeason(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_cancelImportEverythingForSeason(ctx, field)
+func (ec *executionContext) _Mutation_cancelDownloadSeasons(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelDownloadSeasons(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -8654,7 +7860,7 @@ func (ec *executionContext) _Mutation_cancelImportEverythingForSeason(ctx contex
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelImportEverythingForSeason(rctx, fc.Args["season"].(int))
+		return ec.resolvers.Mutation().CancelDownloadSeasons(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8671,62 +7877,7 @@ func (ec *executionContext) _Mutation_cancelImportEverythingForSeason(ctx contex
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_cancelImportEverythingForSeason(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_cancelImportEverythingForSeason_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_downloadEverything(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_downloadEverything(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DownloadEverything(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_downloadEverything(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_cancelDownloadSeasons(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -8739,8 +7890,8 @@ func (ec *executionContext) fieldContext_Mutation_downloadEverything(_ context.C
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_cancelDownloadEverything(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_cancelDownloadEverything(ctx, field)
+func (ec *executionContext) _Mutation_downloadYahooPlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_downloadYahooPlayers(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -8753,7 +7904,7 @@ func (ec *executionContext) _Mutation_cancelDownloadEverything(ctx context.Conte
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelDownloadEverything(rctx)
+		return ec.resolvers.Mutation().DownloadYahooPlayers(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8770,7 +7921,7 @@ func (ec *executionContext) _Mutation_cancelDownloadEverything(ctx context.Conte
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_cancelDownloadEverything(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_downloadYahooPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -8783,8 +7934,8 @@ func (ec *executionContext) fieldContext_Mutation_cancelDownloadEverything(_ con
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_downloadEverythingForSeason(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_downloadEverythingForSeason(ctx, field)
+func (ec *executionContext) _Mutation_cancelDownloadYahooPlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelDownloadYahooPlayers(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -8797,7 +7948,7 @@ func (ec *executionContext) _Mutation_downloadEverythingForSeason(ctx context.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DownloadEverythingForSeason(rctx, fc.Args["season"].(int))
+		return ec.resolvers.Mutation().CancelDownloadYahooPlayers(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8814,7 +7965,7 @@ func (ec *executionContext) _Mutation_downloadEverythingForSeason(ctx context.Co
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_downloadEverythingForSeason(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_cancelDownloadYahooPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -8823,292 +7974,6 @@ func (ec *executionContext) fieldContext_Mutation_downloadEverythingForSeason(ct
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
 		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_downloadEverythingForSeason_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_cancelDownloadEverythingForSeason(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_cancelDownloadEverythingForSeason(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelDownloadEverythingForSeason(rctx, fc.Args["season"].(int))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_cancelDownloadEverythingForSeason(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_cancelDownloadEverythingForSeason_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_importGamesForSeason(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_importGamesForSeason(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ImportGamesForSeason(rctx, fc.Args["season"].(int))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_importGamesForSeason(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_importGamesForSeason_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_cancelImportGamesForSeason(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_cancelImportGamesForSeason(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelImportGamesForSeason(rctx, fc.Args["season"].(int))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_cancelImportGamesForSeason(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_cancelImportGamesForSeason_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_importGamesForDay(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_importGamesForDay(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ImportGamesForDay(rctx, fc.Args["year"].(int), fc.Args["month"].(int), fc.Args["day"].(int))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_importGamesForDay(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_importGamesForDay_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_cancelImportGamesForDay(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_cancelImportGamesForDay(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelImportGamesForDay(rctx, fc.Args["year"].(int), fc.Args["month"].(int), fc.Args["day"].(int))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_cancelImportGamesForDay(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_cancelImportGamesForDay_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
 	}
 	return fc, nil
 }
@@ -9359,105 +8224,6 @@ func (ec *executionContext) _Mutation_cancelExtractUniquePlayers(ctx context.Con
 }
 
 func (ec *executionContext) fieldContext_Mutation_cancelExtractUniquePlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_downloadAll(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_downloadAll(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DownloadAll(rctx, fc.Args["input"].(*model.DownloadAllInput))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_downloadAll(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_downloadAll_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_cancelDownloadAll(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_cancelDownloadAll(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelDownloadAll(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_cancelDownloadAll(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -12727,374 +11493,6 @@ func (ec *executionContext) fieldContext_Query_currentFantasyGameKey(_ context.C
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_seasons(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_seasons(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Seasons(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.Season)
-	fc.Result = res
-	return ec.marshalNSeason2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_seasons(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "start":
-				return ec.fieldContext_Season_start(ctx, field)
-			case "end":
-				return ec.fieldContext_Season_end(ctx, field)
-			case "gameKey":
-				return ec.fieldContext_Season_gameKey(ctx, field)
-			case "leagues":
-				return ec.fieldContext_Season_leagues(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Season", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_league(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_league(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().League(rctx, fc.Args["season"].(int), fc.Args["id"].(int))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.League)
-	fc.Result = res
-	return ec.marshalOLeague2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLeague(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_league(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_League_id(ctx, field)
-			case "key":
-				return ec.fieldContext_League_key(ctx, field)
-			case "name":
-				return ec.fieldContext_League_name(ctx, field)
-			case "url":
-				return ec.fieldContext_League_url(ctx, field)
-			case "logoURL":
-				return ec.fieldContext_League_logoURL(ctx, field)
-			case "draftStatus":
-				return ec.fieldContext_League_draftStatus(ctx, field)
-			case "numTeams":
-				return ec.fieldContext_League_numTeams(ctx, field)
-			case "editKey":
-				return ec.fieldContext_League_editKey(ctx, field)
-			case "LeagueUpdateTimestamp":
-				return ec.fieldContext_League_LeagueUpdateTimestamp(ctx, field)
-			case "scoringType":
-				return ec.fieldContext_League_scoringType(ctx, field)
-			case "leagueType":
-				return ec.fieldContext_League_leagueType(ctx, field)
-			case "isProLeague":
-				return ec.fieldContext_League_isProLeague(ctx, field)
-			case "isCashLeague":
-				return ec.fieldContext_League_isCashLeague(ctx, field)
-			case "startDate":
-				return ec.fieldContext_League_startDate(ctx, field)
-			case "endDate":
-				return ec.fieldContext_League_endDate(ctx, field)
-			case "gameCode":
-				return ec.fieldContext_League_gameCode(ctx, field)
-			case "season":
-				return ec.fieldContext_League_season(ctx, field)
-			case "localFile":
-				return ec.fieldContext_League_localFile(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_League_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_League_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type League", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_league_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_downloadEverythingResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_downloadEverythingResult(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().DownloadEverythingResult(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(*model.WorkflowResult)
-	fc.Result = res
-	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_downloadEverythingResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "status":
-				return ec.fieldContext_WorkflowResult_status(ctx, field)
-			case "failureReason":
-				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_downloadEverythingForSeasonResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_downloadEverythingForSeasonResult(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().DownloadEverythingForSeasonResult(rctx, fc.Args["season"].(int))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(*model.WorkflowResult)
-	fc.Result = res
-	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_downloadEverythingForSeasonResult(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "status":
-				return ec.fieldContext_WorkflowResult_status(ctx, field)
-			case "failureReason":
-				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_downloadEverythingForSeasonResult_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_downloadEverythingProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_downloadEverythingProgress(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().DownloadEverythingProgress(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.WorkflowProgress)
-	fc.Result = res
-	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_downloadEverythingProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "total":
-				return ec.fieldContext_WorkflowProgress_total(ctx, field)
-			case "completed":
-				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
-			case "seasons":
-				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_downloadEverythingForSeasonProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_downloadEverythingForSeasonProgress(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().DownloadEverythingForSeasonProgress(rctx, fc.Args["season"].(int))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.WorkflowProgress)
-	fc.Result = res
-	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_downloadEverythingForSeasonProgress(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "total":
-				return ec.fieldContext_WorkflowProgress_total(ctx, field)
-			case "completed":
-				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
-			case "seasons":
-				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_downloadEverythingForSeasonProgress_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Query_extractUniquePlayersResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_extractUniquePlayersResult(ctx, field)
 	if err != nil {
@@ -13194,8 +11592,8 @@ func (ec *executionContext) fieldContext_Query_extractUniquePlayersProgress(_ co
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_downloadAllResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_downloadAllResult(ctx, field)
+func (ec *executionContext) _Query_downloadSeasonsResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_downloadSeasonsResult(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -13208,7 +11606,7 @@ func (ec *executionContext) _Query_downloadAllResult(ctx context.Context, field 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().DownloadAllResult(rctx)
+		return ec.resolvers.Query().DownloadSeasonsResult(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -13225,7 +11623,7 @@ func (ec *executionContext) _Query_downloadAllResult(ctx context.Context, field 
 	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_downloadAllResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_downloadSeasonsResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -13244,8 +11642,8 @@ func (ec *executionContext) fieldContext_Query_downloadAllResult(_ context.Conte
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_downloadAllProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_downloadAllProgress(ctx, field)
+func (ec *executionContext) _Query_downloadSeasonsProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_downloadSeasonsProgress(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -13258,7 +11656,7 @@ func (ec *executionContext) _Query_downloadAllProgress(ctx context.Context, fiel
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().DownloadAllProgress(rctx)
+		return ec.resolvers.Query().DownloadSeasonsProgress(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -13272,7 +11670,106 @@ func (ec *executionContext) _Query_downloadAllProgress(ctx context.Context, fiel
 	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_downloadAllProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_downloadSeasonsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "total":
+				return ec.fieldContext_WorkflowProgress_total(ctx, field)
+			case "completed":
+				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+			case "seasons":
+				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_downloadYahooPlayersResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_downloadYahooPlayersResult(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().DownloadYahooPlayersResult(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.WorkflowResult)
+	fc.Result = res
+	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_downloadYahooPlayersResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "status":
+				return ec.fieldContext_WorkflowResult_status(ctx, field)
+			case "failureReason":
+				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_downloadYahooPlayersProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_downloadYahooPlayersProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().DownloadYahooPlayersProgress(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.WorkflowProgress)
+	fc.Result = res
+	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_downloadYahooPlayersProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -16547,8 +15044,8 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(_ context.Context
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputDownloadAllInput(ctx context.Context, obj interface{}) (model.DownloadAllInput, error) {
-	var it model.DownloadAllInput
+func (ec *executionContext) unmarshalInputDownloadSeasonsInput(ctx context.Context, obj interface{}) (model.DownloadSeasonsInput, error) {
+	var it model.DownloadSeasonsInput
 	asMap := map[string]interface{}{}
 	for k, v := range obj.(map[string]interface{}) {
 		asMap[k] = v
@@ -17454,86 +15951,30 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "importEverything":
+		case "downloadSeaosns":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_importEverything(ctx, field)
+				return ec._Mutation_downloadSeaosns(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "cancelImportEverything":
+		case "cancelDownloadSeasons":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_cancelImportEverything(ctx, field)
+				return ec._Mutation_cancelDownloadSeasons(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "importEverythingForSeason":
+		case "downloadYahooPlayers":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_importEverythingForSeason(ctx, field)
+				return ec._Mutation_downloadYahooPlayers(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "cancelImportEverythingForSeason":
+		case "cancelDownloadYahooPlayers":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_cancelImportEverythingForSeason(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "downloadEverything":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_downloadEverything(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "cancelDownloadEverything":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_cancelDownloadEverything(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "downloadEverythingForSeason":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_downloadEverythingForSeason(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "cancelDownloadEverythingForSeason":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_cancelDownloadEverythingForSeason(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "importGamesForSeason":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_importGamesForSeason(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "cancelImportGamesForSeason":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_cancelImportGamesForSeason(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "importGamesForDay":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_importGamesForDay(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "cancelImportGamesForDay":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_cancelImportGamesForDay(ctx, field)
+				return ec._Mutation_cancelDownloadYahooPlayers(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -17562,20 +16003,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "cancelExtractUniquePlayers":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_cancelExtractUniquePlayers(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "downloadAll":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_downloadAll(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "cancelDownloadAll":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_cancelDownloadAll(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -18423,129 +16850,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "seasons":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_seasons(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "league":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_league(ctx, field)
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "downloadEverythingResult":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_downloadEverythingResult(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "downloadEverythingForSeasonResult":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_downloadEverythingForSeasonResult(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "downloadEverythingProgress":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_downloadEverythingProgress(ctx, field)
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "downloadEverythingForSeasonProgress":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_downloadEverythingForSeasonProgress(ctx, field)
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "extractUniquePlayersResult":
 			field := field
 
@@ -18587,7 +16891,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "downloadAllResult":
+		case "downloadSeasonsResult":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -18596,7 +16900,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_downloadAllResult(ctx, field)
+				res = ec._Query_downloadSeasonsResult(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -18609,7 +16913,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "downloadAllProgress":
+		case "downloadSeasonsProgress":
 			field := field
 
 			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
@@ -18618,7 +16922,48 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_downloadAllProgress(ctx, field)
+				res = ec._Query_downloadSeasonsProgress(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "downloadYahooPlayersResult":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_downloadYahooPlayersResult(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "downloadYahooPlayersProgress":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_downloadYahooPlayersProgress(ctx, field)
 				return res
 			}
 
@@ -19701,60 +18046,6 @@ func (ec *executionContext) marshalNPlayerStats2ᚖgithubᚗcomᚋsperanoᚋpuck
 	return ec._PlayerStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSeason2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Season) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNSeason2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeason(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNSeason2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeason(ctx context.Context, sel ast.SelectionSet, v *model.Season) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._Season(ctx, sel, v)
-}
-
 func (ec *executionContext) marshalNSeasonProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonProgress(ctx context.Context, sel ast.SelectionSet, v *model.SeasonProgress) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -20144,11 +18435,11 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) unmarshalODownloadAllInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadAllInput(ctx context.Context, v interface{}) (*model.DownloadAllInput, error) {
+func (ec *executionContext) unmarshalODownloadSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadSeasonsInput(ctx context.Context, v interface{}) (*model.DownloadSeasonsInput, error) {
 	if v == nil {
 		return nil, nil
 	}
-	res, err := ec.unmarshalInputDownloadAllInput(ctx, v)
+	res, err := ec.unmarshalInputDownloadSeasonsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -20166,13 +18457,6 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	}
 	res := graphql.MarshalInt(*v)
 	return res
-}
-
-func (ec *executionContext) marshalOLeague2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLeague(ctx context.Context, sel ast.SelectionSet, v *model.League) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return ec._League(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOLocalFile2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐLocalFile(ctx context.Context, sel ast.SelectionSet, v *model.LocalFile) graphql.Marshaler {

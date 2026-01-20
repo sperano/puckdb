@@ -17,7 +17,7 @@ const (
 	defaultTimeout               = 30 * time.Minute
 	WorkflowIDImportEverything   = "import-everything"
 	WorkflowIDDownloadEverything = "download-everything"
-	WorkflowIDDownloadAll        = "download-all"
+	WorkflowIDDownloadSeasons    = "download-all"
 )
 
 func WorkflowIDImportLeague(season int, leagueID int) string {
@@ -26,14 +26,6 @@ func WorkflowIDImportLeague(season int, leagueID int) string {
 
 func WorkflowIDImportTeam(season int, leagueID int, teamID int) string {
 	return fmt.Sprintf("team-%d-%d", season, leagueID)
-}
-
-func WorkflowIDImportGamesForDay(year int, month int, day int) string {
-	return fmt.Sprintf("import-games-for-day-%d-%d-%d", year, month, day)
-}
-
-func WorkflowIDImportGamesForSeason(season int) string {
-	return fmt.Sprintf("import-games-for-season-%d", season)
 }
 
 /*
@@ -90,7 +82,7 @@ func defaultActivityOptions() workflow.ActivityOptions {
 
 const defaultSeasonConcurrency = 3
 
-func DownloadAllWorkflow(ctx workflow.Context, input *model.DownloadAllInput) error {
+func DownloadSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
 	maxConcurrency := viper.GetInt(config.FlagMaxSeasonConcurrency)
@@ -131,10 +123,10 @@ func DownloadAllWorkflow(ctx workflow.Context, input *model.DownloadAllInput) er
 
 // seasonWork tracks all futures for a single season
 type seasonWork struct {
-	season           SeasonInfo
-	futures          []workflow.Future
-	completedCount   int
-	pendingIndices   map[int]bool // indices of futures not yet added to selector
+	season         SeasonInfo
+	futures        []workflow.Future
+	completedCount int
+	pendingIndices map[int]bool // indices of futures not yet added to selector
 }
 
 // processWithWorkerPool implements true worker pool semantics:
@@ -329,16 +321,6 @@ func collectDownloadFuturesForSeason(ctx workflow.Context, season SeasonInfo) []
 	yahooCfg, inYahoo := yahooConfig[season.StartYear]
 	if !inYahoo {
 		return futures
-	}
-
-	// Add DownloadGameDay for each day (Yahoo)
-	end = season.EndDate
-	if end.After(time.Now()) {
-		end = time.Now()
-	}
-	for day := season.StartDate; !day.After(end); day = day.AddDate(0, 0, 1) {
-		ctxa := workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		futures = append(futures, workflow.ExecuteActivity(ctxa, DownloadGameDay, day))
 	}
 
 	// Add league and team downloads (Yahoo)

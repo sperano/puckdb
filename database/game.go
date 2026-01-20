@@ -131,26 +131,6 @@ func (g *Game) GraphQLModel() *gqlmodel.Game {
 	}
 }
 
-func DiffGameLinks(previous []string, current []string) []DifferentAttr {
-	diffs := make([]DifferentAttr, 0)
-	for i := 0; i < min(len(current), len(previous)); i++ {
-		if previous[i] != current[i] {
-			diffs = append(diffs, &Different[string]{name: "GameLink", previous: previous[i], current: current[i]})
-		}
-	}
-	if len(previous) < len(current) {
-		for i := len(previous); i < len(current); i++ {
-			diffs = append(diffs, &Different[string]{name: "GameLink", previous: "", current: current[i]})
-		}
-	}
-	if len(previous) > len(current) {
-		for i := len(current); i < len(previous); i++ {
-			diffs = append(diffs, &Different[string]{name: "GameLink", previous: previous[i], current: ""})
-		}
-	}
-	return diffs
-}
-
 func DiffGame(current *Game, previous *Game) []DifferentAttr {
 	//reflect.ValueOf()
 	// TODO more reflection!

@@ -40,64 +40,24 @@ func (r *mutationResolver) ClearCache(ctx context.Context) (bool, error) {
 	return clearCache(ctx)
 }
 
-// ImportEverything is the resolver for the importEverything field.
-func (r *mutationResolver) ImportEverything(ctx context.Context) (bool, error) {
-	return false, fmt.Errorf("not implemented")
+// DownloadSeaosns is the resolver for the downloadSeaosns field.
+func (r *mutationResolver) DownloadSeaosns(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+	return r.Resolver.downloadSeasons(ctx, input)
 }
 
-// CancelImportEverything is the resolver for the cancelImportEverything field.
-func (r *mutationResolver) CancelImportEverything(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelImportEverything(ctx)
+// CancelDownloadSeasons is the resolver for the cancelDownloadSeasons field.
+func (r *mutationResolver) CancelDownloadSeasons(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelDownloadSeasons(ctx)
 }
 
-// ImportEverythingForSeason is the resolver for the importEverythingForSeason field.
-func (r *mutationResolver) ImportEverythingForSeason(ctx context.Context, season int) (bool, error) {
-	return false, fmt.Errorf("not implemented")
+// DownloadYahooPlayers is the resolver for the downloadYahooPlayers field.
+func (r *mutationResolver) DownloadYahooPlayers(ctx context.Context) (bool, error) {
+	return r.Resolver.downloadYahooPlayers(ctx)
 }
 
-// CancelImportEverythingForSeason is the resolver for the cancelImportEverythingForSeason field.
-func (r *mutationResolver) CancelImportEverythingForSeason(ctx context.Context, season int) (bool, error) {
-	return r.Resolver.cancelImportEverythingForSeason(ctx, season)
-}
-
-// DownloadEverything is the resolver for the downloadEverything field.
-func (r *mutationResolver) DownloadEverything(ctx context.Context) (bool, error) {
-	return false, fmt.Errorf("not implemented")
-}
-
-// CancelDownloadEverything is the resolver for the cancelDownloadEverything field.
-func (r *mutationResolver) CancelDownloadEverything(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelDownloadEverything(ctx)
-}
-
-// DownloadEverythingForSeason is the resolver for the downloadEverythingForSeason field.
-func (r *mutationResolver) DownloadEverythingForSeason(ctx context.Context, season int) (bool, error) {
-	return false, fmt.Errorf("not implemented")
-}
-
-// CancelDownloadEverythingForSeason is the resolver for the cancelDownloadEverythingForSeason field.
-func (r *mutationResolver) CancelDownloadEverythingForSeason(ctx context.Context, season int) (bool, error) {
-	return r.Resolver.cancelDownloadEverythingForSeason(ctx, season)
-}
-
-// ImportGamesForSeason is the resolver for the importGamesForSeason field.
-func (r *mutationResolver) ImportGamesForSeason(ctx context.Context, season int) (bool, error) {
-	return false, fmt.Errorf("not implemented")
-}
-
-// CancelImportGamesForSeason is the resolver for the cancelImportGamesForSeason field.
-func (r *mutationResolver) CancelImportGamesForSeason(ctx context.Context, season int) (bool, error) {
-	return r.Resolver.cancelImportGamesForSeason(ctx, season)
-}
-
-// ImportGamesForDay is the resolver for the importGamesForDay field.
-func (r *mutationResolver) ImportGamesForDay(ctx context.Context, year int, month int, day int) (bool, error) {
-	return r.Resolver.importGamesForDay(ctx, year, month, day)
-}
-
-// CancelImportGamesForDay is the resolver for the cancelImportGamesForDay field.
-func (r *mutationResolver) CancelImportGamesForDay(ctx context.Context, year int, month int, day int) (bool, error) {
-	return r.Resolver.cancelImportGamesForDay(ctx, year, month, day)
+// CancelDownloadYahooPlayers is the resolver for the cancelDownloadYahooPlayers field.
+func (r *mutationResolver) CancelDownloadYahooPlayers(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelDownloadYahooPlayers(ctx)
 }
 
 // ImportLeague is the resolver for the importLeague field.
@@ -118,16 +78,6 @@ func (r *mutationResolver) ExtractUniquePlayers(ctx context.Context) (bool, erro
 // CancelExtractUniquePlayers is the resolver for the cancelExtractUniquePlayers field.
 func (r *mutationResolver) CancelExtractUniquePlayers(ctx context.Context) (bool, error) {
 	return r.Resolver.cancelExtractUniquePlayers(ctx)
-}
-
-// DownloadAll is the resolver for the downloadAll field.
-func (r *mutationResolver) DownloadAll(ctx context.Context, input *model.DownloadAllInput) (bool, error) {
-	return r.Resolver.downloadAll(ctx, input)
-}
-
-// CancelDownloadAll is the resolver for the cancelDownloadAll field.
-func (r *mutationResolver) CancelDownloadAll(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelDownloadAll(ctx)
 }
 
 // Divisions is the resolver for the divisions field.
@@ -174,36 +124,6 @@ func (r *queryResolver) CurrentFantasyGameKey(ctx context.Context) (int, error) 
 	return currentFantasyGameKey(ctx)
 }
 
-// Seasons is the resolver for the seasons field.
-func (r *queryResolver) Seasons(ctx context.Context) ([]*model.Season, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// League is the resolver for the league field.
-func (r *queryResolver) League(ctx context.Context, season int, id int) (*model.League, error) {
-	return league(ctx, season, id)
-}
-
-// DownloadEverythingResult is the resolver for the downloadEverythingResult field.
-func (r *queryResolver) DownloadEverythingResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.downloadEverythingResult(ctx)
-}
-
-// DownloadEverythingForSeasonResult is the resolver for the downloadEverythingForSeasonResult field.
-func (r *queryResolver) DownloadEverythingForSeasonResult(ctx context.Context, season int) (*model.WorkflowResult, error) {
-	return r.Resolver.downloadEverythingForSeasonResult(ctx, season)
-}
-
-// DownloadEverythingProgress is the resolver for the downloadEverythingProgress field.
-func (r *queryResolver) DownloadEverythingProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.Resolver.downloadEverythingProgress(ctx)
-}
-
-// DownloadEverythingForSeasonProgress is the resolver for the downloadEverythingForSeasonProgress field.
-func (r *queryResolver) DownloadEverythingForSeasonProgress(ctx context.Context, season int) (*model.WorkflowProgress, error) {
-	return r.Resolver.downloadEverythingForSeasonProgress(ctx, season)
-}
-
 // ExtractUniquePlayersResult is the resolver for the extractUniquePlayersResult field.
 func (r *queryResolver) ExtractUniquePlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
 	return r.Resolver.extractUniquePlayersResult(ctx)
@@ -214,14 +134,24 @@ func (r *queryResolver) ExtractUniquePlayersProgress(ctx context.Context) (*mode
 	return r.Resolver.extractUniquePlayersProgress(ctx)
 }
 
-// DownloadAllResult is the resolver for the downloadAllResult field.
-func (r *queryResolver) DownloadAllResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.downloadAllResult(ctx)
+// DownloadSeasonsResult is the resolver for the downloadSeasonsResult field.
+func (r *queryResolver) DownloadSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.downloadSeasonsResult(ctx)
 }
 
-// DownloadAllProgress is the resolver for the downloadAllProgress field.
-func (r *queryResolver) DownloadAllProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.Resolver.downloadAllProgress(ctx)
+// DownloadSeasonsProgress is the resolver for the downloadSeasonsProgress field.
+func (r *queryResolver) DownloadSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.Resolver.downloadSeasonsProgress(ctx)
+}
+
+// DownloadYahooPlayersResult is the resolver for the downloadYahooPlayersResult field.
+func (r *queryResolver) DownloadYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.downloadYahooPlayersResult(ctx)
+}
+
+// DownloadYahooPlayersProgress is the resolver for the downloadYahooPlayersProgress field.
+func (r *queryResolver) DownloadYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.Resolver.downloadYahooPlayersProgress(ctx)
 }
 
 // Leagues is the resolver for the leagues field.
@@ -249,3 +179,18 @@ type nHLConferenceResolver struct{ *Resolver }
 type nHLDivisionResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type seasonResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	func (r *queryResolver) Seasons(ctx context.Context) ([]*model.Season, error) {
+	return nil, fmt.Errorf("TODO not implemented")
+}
+func (r *queryResolver) League(ctx context.Context, season int, id int) (*model.League, error) {
+	return league(ctx, season, id)
+}
+*/

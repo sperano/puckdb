@@ -89,73 +89,6 @@ func TestWorkflowIDImportTeam(t *testing.T) {
 	}
 }
 
-func TestWorkflowIDImportGamesForDay(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		year     int
-		month    int
-		day      int
-		expected string
-	}{
-		{
-			name:     "basic date",
-			year:     2023,
-			month:    11,
-			day:      15,
-			expected: "import-games-for-day-2023-11-15",
-		},
-		{
-			name:     "single digit month and day",
-			year:     2023,
-			month:    1,
-			day:      5,
-			expected: "import-games-for-day-2023-1-5",
-		},
-		{
-			name:     "end of year",
-			year:     2023,
-			month:    12,
-			day:      31,
-			expected: "import-games-for-day-2023-12-31",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDImportGamesForDay(tt.year, tt.month, tt.day)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestWorkflowIDImportGamesForSeason(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		season   int
-		expected string
-	}{
-		{
-			name:     "2023 season",
-			season:   2023,
-			expected: "import-games-for-season-2023",
-		},
-		{
-			name:     "2022 season",
-			season:   2022,
-			expected: "import-games-for-season-2022",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDImportGamesForSeason(tt.season)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestWorkflowIDDownloadGamesForSeason(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -269,7 +202,6 @@ func (s *DownloadAllWorkflowTestSuite) TestDownloadAllWorkflow_Success() {
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
 	// Mock activities that collectDownloadFuturesForSeason calls
 	s.env.OnActivity(DownloadDailySchedule, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(DownloadGameDay, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(DownloadLeague, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(DownloadTeam, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnWorkflow(DownloadRosterForTeamWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -304,7 +236,6 @@ func (s *DownloadAllWorkflowTestSuite) TestDownloadAllWorkflow_ActivityError() {
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
 	s.env.OnActivity(DownloadDailySchedule, mock.Anything, mock.Anything).Return(expectedErr)
-	s.env.OnActivity(DownloadGameDay, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(DownloadLeague, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(DownloadTeam, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnWorkflow(DownloadRosterForTeamWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()

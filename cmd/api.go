@@ -129,6 +129,7 @@ func setupAPIRouter(redisClient redis.Client, resolver *graph.Resolver) *chi.Mux
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("pong"))
 	})
+	r.Get("/", homeHandler)
 	// GraphQL
 	r.Route(graphQLPath, func(r chi.Router) {
 		r.Get("/", playgroundHandler().ServeHTTP)
@@ -167,6 +168,28 @@ func graphqlHandler(resolver *graph.Resolver) http.Handler {
 
 func playgroundHandler() http.Handler {
 	return playground.Handler("GraphQL", graphQLPath+"/query")
+}
+
+const homeHTML = `<!DOCTYPE html>
+<html>
+<head>
+    <title>PuckDB</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+    </style>
+</head>
+<body>
+    <h1>PuckDB</h1>
+    <ul>
+        <li><a href="/yahoo/login">Yahoo Login</a></li>
+        <li><a href="/graphql">GraphQL Console</a></li>
+    </ul>
+</body>
+</html>`
+
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(homeHTML))
 }
 
 func aroundResponsesLogger(ctx context.Context, next graphql.ResponseHandler) *graphql.Response {

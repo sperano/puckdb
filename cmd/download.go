@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/signal"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -20,12 +23,14 @@ import (
 )
 
 const (
-	FlagAPIServerAddr      = "api-server-addr"
-	FlagMonitor            = "monitor"
-	FlagSeasonConcurrency  = "season-concurrency"
-	DefaultAPIServerAddr   = "http://localhost:8080"
-	workflowPollInterval   = 2 * time.Second
-	workflowPollTimeout    = 30 * time.Minute
+	FlagAPIServerAddr     = "api-server-addr"
+	FlagMonitor           = "monitor"
+	FlagSeasonConcurrency = "season-concurrency"
+	FlagSkipYahooPlayers  = "skip-yahoo-players"
+	DefaultAPIServerAddr  = "http://localhost:8080"
+	workflowPollInterval  = 2 * time.Second
+	workflowPollTimeout   = 30 * time.Minute
+	yahooPlayersTimeout   = 4 * time.Hour
 )
 
 // GraphQL request/response types
@@ -57,8 +62,8 @@ func NewGraphQLClient(endpoint string) *GraphQLClient {
 	}
 }
 
-// Execute sends a GraphQL request and returns the response
-func (c *GraphQLClient) Execute(ctx context.Context, query string, variables map[string]any) (*graphQLResponse, error) {
+// execute sends a GraphQL request and returns the response
+func (c *GraphQLClient) execute(ctx context.Context, query string, variables map[string]any) (*graphQLResponse, error) {
 	reqBody := graphQLRequest{
 		Query:     query,
 		Variables: variables,
@@ -106,7 +111,7 @@ func (c *GraphQLClient) Execute(ctx context.Context, query string, variables map
 func (c *GraphQLClient) DownloadEverything(ctx context.Context) (bool, error) {
 	const mutation = `mutation { downloadEverything }`
 
-	resp, err := c.Execute(ctx, mutation, nil)
+	resp, err := c.execute(ctx, mutation, nil)
 	if err != nil {
 		return false, err
 	}
@@ -121,48 +126,48 @@ func (c *GraphQLClient) DownloadEverything(ctx context.Context) (bool, error) {
 	return result.DownloadEverything, nil
 }
 
-// DownloadAll triggers the downloadAll mutation with optional season range
-func (c *GraphQLClient) DownloadAll(ctx context.Context, input *model.DownloadAllInput) (bool, error) {
-	const mutation = `mutation($input: DownloadAllInput) { downloadAll(input: $input) }`
+// DownloadSeasons triggers the downloadSeasons mutation with an optional season range.
+func (c *GraphQLClient) DownloadSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+	const mutation = `mutation($input: DownloadSeasonsInput) { downloadSeasons(input: $input) }`
 
-	resp, err := c.Execute(ctx, mutation, map[string]any{"input": input})
+	resp, err := c.execute(ctx, mutation, map[string]any{"input": input})
 	if err != nil {
 		return false, err
 	}
 
 	var result struct {
-		DownloadAll bool `json:"downloadAll"`
+		DownloadSeasons bool `json:"downloadSeasons"`
 	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return false, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return result.DownloadAll, nil
+	return result.DownloadSeasons, nil
 }
 
-// GetDownloadAllStatus queries both workflow result and progress in a single request
-func (c *GraphQLClient) GetDownloadAllStatus(ctx context.Context) (*WorkflowStatus, error) {
+// GetDownloadSeasonsStatus queries both workflow result and progress in a single request.
+func (c *GraphQLClient) GetDownloadSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
-		downloadAllResult { status failureReason }
-		downloadAllProgress { total completed seasons { startYear total completed } }
+		downloadSeasonsResult { status failureReason }
+		downloadSeasonsProgress { total completed seasons { startYear total completed } }
 	}`
 
-	resp, err := c.Execute(ctx, query, nil)
+	resp, err := c.execute(ctx, query, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var result struct {
-		DownloadAllResult   *model.WorkflowResult   `json:"downloadAllResult"`
-		DownloadAllProgress *model.WorkflowProgress `json:"downloadAllProgress"`
+		DownloadSeasonsResult   *model.WorkflowResult   `json:"downloadSeasonsResult"`
+		DownloadSeasonsProgress *model.WorkflowProgress `json:"downloadSeasonsProgress"`
 	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	return &WorkflowStatus{
-		Result:   result.DownloadAllResult,
-		Progress: result.DownloadAllProgress,
+		Result:   result.DownloadSeasonsResult,
+		Progress: result.DownloadSeasonsProgress,
 	}, nil
 }
 
@@ -172,14 +177,14 @@ type WorkflowStatus struct {
 	Progress *model.WorkflowProgress
 }
 
-// GetDownloadEverythingStatus queries both workflow result and progress in a single request
+// GetDownloadEverythingStatus queries both workflow result and progress in a single request.
 func (c *GraphQLClient) GetDownloadEverythingStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		downloadEverythingResult { status failureReason }
 		downloadEverythingProgress { total completed }
 	}`
 
-	resp, err := c.Execute(ctx, query, nil)
+	resp, err := c.execute(ctx, query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +207,7 @@ func (c *GraphQLClient) GetDownloadEverythingStatus(ctx context.Context) (*Workf
 func (c *GraphQLClient) DownloadEverythingForSeason(ctx context.Context, season int) (bool, error) {
 	const mutation = `mutation($season: Int!) { downloadEverythingForSeason(season: $season) }`
 
-	resp, err := c.Execute(ctx, mutation, map[string]any{"season": season})
+	resp, err := c.execute(ctx, mutation, map[string]any{"season": season})
 	if err != nil {
 		return false, err
 	}
@@ -217,14 +222,97 @@ func (c *GraphQLClient) DownloadEverythingForSeason(ctx context.Context, season 
 	return result.DownloadEverythingForSeason, nil
 }
 
-// GetDownloadEverythingForSeasonStatus queries both workflow result and progress for a specific season
+// DownloadYahooPlayers triggers the downloadYahooPlayers mutation
+func (c *GraphQLClient) DownloadYahooPlayers(ctx context.Context) (bool, error) {
+	const mutation = `mutation { downloadYahooPlayers }`
+
+	resp, err := c.execute(ctx, mutation, nil)
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		DownloadYahooPlayers bool `json:"downloadYahooPlayers"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.DownloadYahooPlayers, nil
+}
+
+// GetDownloadYahooPlayersStatus queries both workflow result and progress
+func (c *GraphQLClient) GetDownloadYahooPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
+	const query = `query {
+		downloadYahooPlayersResult { status failureReason }
+		downloadYahooPlayersProgress { total completed }
+	}`
+
+	resp, err := c.execute(ctx, query, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		DownloadYahooPlayersResult   *model.WorkflowResult   `json:"downloadYahooPlayersResult"`
+		DownloadYahooPlayersProgress *model.WorkflowProgress `json:"downloadYahooPlayersProgress"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &WorkflowStatus{
+		Result:   result.DownloadYahooPlayersResult,
+		Progress: result.DownloadYahooPlayersProgress,
+	}, nil
+}
+
+// CancelDownloadYahooPlayers cancels the downloadYahooPlayers workflow
+func (c *GraphQLClient) CancelDownloadYahooPlayers(ctx context.Context) (bool, error) {
+	const mutation = `mutation { cancelDownloadYahooPlayers }`
+
+	resp, err := c.execute(ctx, mutation, nil)
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		CancelDownloadYahooPlayers bool `json:"cancelDownloadYahooPlayers"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.CancelDownloadYahooPlayers, nil
+}
+
+// CancelDownloadSeasons cancels the downloadSeasons workflow
+func (c *GraphQLClient) CancelDownloadSeasons(ctx context.Context) (bool, error) {
+	const mutation = `mutation { cancelDownloadSeasons }`
+
+	resp, err := c.execute(ctx, mutation, nil)
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		CancelDownloadSeasons bool `json:"cancelDownloadSeasons"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.CancelDownloadSeasons, nil
+}
+
+// GetDownloadEverythingForSeasonStatus queries both workflow result and progress for a specific season.
 func (c *GraphQLClient) GetDownloadEverythingForSeasonStatus(ctx context.Context, season int) (*WorkflowStatus, error) {
 	const query = `query($season: Int!) {
 		downloadEverythingForSeasonResult(season: $season) { status failureReason }
 		downloadEverythingForSeasonProgress(season: $season) { total completed }
 	}`
 
-	resp, err := c.Execute(ctx, query, map[string]any{"season": season})
+	resp, err := c.execute(ctx, query, map[string]any{"season": season})
 	if err != nil {
 		return nil, err
 	}
@@ -261,6 +349,9 @@ Use --monitor to watch an existing workflow without triggering a new one.`,
 			if err := viper.BindPFlag(FlagMonitor, flags.Lookup(FlagMonitor)); err != nil {
 				return err
 			}
+			if err := viper.BindPFlag(FlagSkipYahooPlayers, flags.Lookup(FlagSkipYahooPlayers)); err != nil {
+				return err
+			}
 			return viper.BindPFlag(FlagSeasonConcurrency, flags.Lookup(FlagSeasonConcurrency))
 		},
 		RunE: runDownload,
@@ -269,12 +360,52 @@ Use --monitor to watch an existing workflow without triggering a new one.`,
 	flags.String(FlagAPIServerAddr, DefaultAPIServerAddr, "API server address (e.g., http://localhost:8080)")
 	config.InitSeasonRangeFlags(flags)
 	flags.Bool(FlagMonitor, false, "Skip triggering workflow, only monitor existing workflow")
+	flags.Bool(FlagSkipYahooPlayers, false, "Skip downloading Yahoo player pages")
 	flags.Int(FlagSeasonConcurrency, 0, "Number of seasons to process concurrently (default: 3)")
 	return cmd
 }
 
-// statusFetcher is a function type for fetching workflow status (result + progress)
+// statusFetcher is a function type for fetching workflow status (result and progress)
 type statusFetcher func(ctx context.Context) (*WorkflowStatus, error)
+
+// workflowType identifies the workflow now running for cancel handling
+type workflowType int
+
+const (
+	workflowNone workflowType = iota
+	workflowYahooPlayers
+	workflowDownloadSeasons
+)
+
+// downloadState tracks the current workflow for signal handling
+type downloadState struct {
+	client  *GraphQLClient
+	current workflowType
+}
+
+func (s *downloadState) cancel(_ context.Context) {
+	// Use a fresh context to cancel since the original may be canceled.
+	cancelCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	switch s.current {
+	case workflowYahooPlayers:
+		log.Info().Msg("Canceling downloadYahooPlayers workflow...")
+		if _, err := s.client.CancelDownloadYahooPlayers(cancelCtx); err != nil {
+			log.Error().Err(err).Msg("Failed to cancel downloadYahooPlayers workflow")
+		} else {
+			log.Info().Msg("downloadYahooPlayers workflow canceled")
+		}
+	case workflowDownloadSeasons:
+		log.Info().Msg("Canceling downloadSeasons workflow...")
+		if _, err := s.client.CancelDownloadSeasons(cancelCtx); err != nil {
+			log.Error().Err(err).Msg("Failed to cancel downloadSeasons workflow")
+		} else {
+			log.Info().Msg("downloadSeasons workflow canceled")
+		}
+	case workflowNone:
+	}
+}
 
 func runDownload(cmd *cobra.Command, _ []string) error {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
@@ -285,15 +416,50 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 	}
 
 	client := NewGraphQLClient(apiAddr)
-	ctx := cmd.Context()
+	state := &downloadState{client: client, current: workflowNone}
+
+	// Set up signal handling for Ctrl+C
+	ctx, cancel := context.WithCancel(cmd.Context())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		fmt.Println() // newline after ^C
+		log.Warn().Msg("Interrupt received, canceling workflow...")
+		state.cancel(ctx)
+		cancel()
+	}()
+	defer signal.Stop(sigChan)
 
 	if viper.GetBool(FlagMonitor) {
-		log.Info().Str("server", apiAddr).Msg("Monitoring existing downloadAll workflow")
-		return monitorWorkflow(ctx, cmd, client.GetDownloadAllStatus)
+		log.Info().Str("server", apiAddr).Msg("Monitoring existing downloadSeasons workflow")
+		state.current = workflowDownloadSeasons
+		return monitorWorkflow(ctx, cmd, client.GetDownloadSeasonsStatus, workflowPollTimeout)
 	}
 
-	// Build input from flags
-	input := buildDownloadAllInput()
+	// Step 1: Download Yahoo players (unless skipped)
+	if !viper.GetBool(FlagSkipYahooPlayers) {
+		if err := runDownloadYahooPlayers(ctx, cmd, client, state); err != nil {
+			if ctx.Err() != nil {
+				return fmt.Errorf("workflow canceled by user")
+			}
+			return err
+		}
+	} else {
+		log.Info().Msg("Skipping Yahoo players download")
+	}
+
+	// Check if context was canceled during Yahoo players download
+	if ctx.Err() != nil {
+		return fmt.Errorf("workflow canceled by user")
+	}
+
+	// Step 2: Download all season data
+	state.current = workflowDownloadSeasons
+	input := buildDownloadSeasonsInput()
 
 	logEvent := log.Info().Str("server", apiAddr)
 	if input.StartSeason != nil {
@@ -305,10 +471,13 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 	if input.SeasonConcurrency != nil {
 		logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
 	}
-	logEvent.Msg("Triggering downloadAll workflow")
+	logEvent.Msg("Triggering downloadSeasons workflow")
 
-	started, err := client.DownloadAll(ctx, input)
+	started, err := client.DownloadSeasons(ctx, input)
 	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
 		return fmt.Errorf("failed to trigger download: %w", err)
 	}
 
@@ -318,11 +487,40 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 		log.Info().Msg("Workflow started successfully")
 	}
 
-	return monitorWorkflow(ctx, cmd, client.GetDownloadAllStatus)
+	if err := monitorWorkflow(ctx, cmd, client.GetDownloadSeasonsStatus, workflowPollTimeout); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
+		return err
+	}
+	return nil
 }
 
-func buildDownloadAllInput() *model.DownloadAllInput {
-	input := &model.DownloadAllInput{}
+func runDownloadYahooPlayers(ctx context.Context, cmd *cobra.Command, client *GraphQLClient, state *downloadState) error {
+	state.current = workflowYahooPlayers
+	log.Info().Msg("Triggering downloadYahooPlayers workflow")
+
+	started, err := client.DownloadYahooPlayers(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to trigger downloadYahooPlayers: %w", err)
+	}
+
+	if !started {
+		log.Warn().Msg("Yahoo players workflow was not started (may already be running)")
+	} else {
+		log.Info().Msg("Yahoo players workflow started successfully")
+	}
+
+	if err := monitorWorkflow(ctx, cmd, client.GetDownloadYahooPlayersStatus, yahooPlayersTimeout); err != nil {
+		return fmt.Errorf("downloadYahooPlayers failed: %w", err)
+	}
+
+	log.Info().Msg("Yahoo players download completed")
+	return nil
+}
+
+func buildDownloadSeasonsInput() *model.DownloadSeasonsInput {
+	input := &model.DownloadSeasonsInput{}
 
 	start, end := config.GetSeasonRange()
 	if start > 0 {
@@ -339,7 +537,7 @@ func buildDownloadAllInput() *model.DownloadAllInput {
 	return input
 }
 
-func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFetcher) error {
+func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFetcher, pollTimeout time.Duration) error {
 	sp := newSpinner(cmd.OutOrStdout(), "Monitoring workflow...")
 	sp.Start()
 	defer sp.Stop()
@@ -347,7 +545,7 @@ func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFe
 	ticker := time.NewTicker(workflowPollInterval)
 	defer ticker.Stop()
 
-	timeout := time.After(workflowPollTimeout)
+	timeout := time.After(pollTimeout)
 
 	for {
 		status, err := getStatus(ctx)
@@ -389,7 +587,7 @@ func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFe
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timeout:
-			return fmt.Errorf("workflow monitoring timed out after %v", workflowPollTimeout)
+			return fmt.Errorf("workflow monitoring timed out after %v", pollTimeout)
 		case <-ticker.C:
 			// continue to next iteration
 		}
@@ -458,7 +656,7 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		pctTrunc := int(pct) // truncate, never round up to 100%
 		countStr := fmt.Sprintf("%d/%d", line.completed, line.total)
 		bar := renderProgressBar(pct, progressBarWidth)
-		lines = append(lines, fmt.Sprintf("%*s: %*s %s %3d%%",
+		lines = append(lines, fmt.Sprintf("%*s: %*s %s %3d%% ",
 			maxLabelWidth, line.label,
 			maxCountWidth, countStr,
 			bar,
@@ -484,7 +682,7 @@ func renderProgressBar(pct float64, width int) string {
 func (c *GraphQLClient) ExtractUniquePlayers(ctx context.Context) (bool, error) {
 	const mutation = `mutation { extractUniquePlayers }`
 
-	resp, err := c.Execute(ctx, mutation, nil)
+	resp, err := c.execute(ctx, mutation, nil)
 	if err != nil {
 		return false, err
 	}
@@ -506,7 +704,7 @@ func (c *GraphQLClient) GetExtractUniquePlayersStatus(ctx context.Context) (*Wor
 		extractUniquePlayersProgress { total completed }
 	}`
 
-	resp, err := c.Execute(ctx, query, nil)
+	resp, err := c.execute(ctx, query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -576,5 +774,5 @@ func runImportPlayers(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Monitor the workflow
-	return monitorWorkflow(ctx, cmd, client.GetExtractUniquePlayersStatus)
+	return monitorWorkflow(ctx, cmd, client.GetExtractUniquePlayersStatus, workflowPollTimeout)
 }

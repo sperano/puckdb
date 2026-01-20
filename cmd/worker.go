@@ -9,27 +9,6 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
-//func setupRouter() *chi.Mux {
-//	r := chi.NewRouter()
-//	r.Use(handlers.ChiLogger)
-//	//r.SetTrustedProxies(nil)
-//	//r.Use(cors.Default())
-//
-//	// configure metrics middleware
-//	//monitor := ginmetrics.GetMonitor()
-//
-//	//core.CreateRandomMetric(monitor)
-//	//if err := core.CreateMetricDownload(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//monitor.SetMetricPath("/metrics")
-//	//monitor.Use(r)
-//	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-//		_, _ = w.Write([]byte("pong"))
-//	})
-//	return r
-//}
-
 func cmdWorker() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "worker",
@@ -70,6 +49,15 @@ func cmdWorker() *cobra.Command {
 			if err := config.BindMaxSeasonConcurrencyFlag(flags); err != nil {
 				return err
 			}
+			if err := config.BindMaxYahooPlayerIDFlag(flags); err != nil {
+				return err
+			}
+			if err := config.BindYahooPlayerBatchSizeFlag(flags); err != nil {
+				return err
+			}
+			if err := config.BindYahooPlayersPerExecutionFlag(flags); err != nil {
+				return err
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -82,37 +70,32 @@ func cmdWorker() *cobra.Command {
 
 			// Import activities
 			w.RegisterActivity(workers.ImportLeague)
-			w.RegisterActivity(workers.ImportGameDay)
 			w.RegisterActivity(workers.ImportTeam)
 			w.RegisterActivity(workers.ImportRosterForTeamOnDay)
 			w.RegisterActivity(workers.ImportTeamSummaryForTeamOnDay)
 
 			// DownloadFromYahoo activities
 			w.RegisterActivity(workers.DownloadLeague)
-			w.RegisterActivity(workers.DownloadGameDay)
 			w.RegisterActivity(workers.DownloadDailySchedule)
 			w.RegisterActivity(workers.DownloadTeam)
 			w.RegisterActivity(workers.DownloadRosterForTeamOnDay)
 			w.RegisterActivity(workers.DownloadTeamSummaryForTeamOnDay)
+			w.RegisterActivity(workers.DownloadYahooPlayer)
 			w.RegisterActivity(workers.FetchSeasonsDataActivity)
 
 			// Import workflows
 			// w.RegisterWorkflow(workers.ImportLeagueWorkflow)      // commented out: depends on getGameKey
 			// w.RegisterWorkflow(workers.ImportTeamWorkflow)        // commented out: depends on getGameKey
 			// w.RegisterWorkflow(workers.ImportGamesForSeasonWorkflow)  // commented out: uses old Season struct
-			w.RegisterWorkflow(workers.ImportGamesForDayWorkflow)
 			// w.RegisterWorkflow(workers.ImportRosterForTeamWorkflow)       // commented out: uses old Season struct
 			// w.RegisterWorkflow(workers.ImportTeamSummariesForTeamWorkflow) // commented out: uses old Season struct
 			// w.RegisterWorkflow(workers.ImportEverythingWorkflow)          // commented out: uses old Season struct
 			// w.RegisterWorkflow(workers.ImportEverythingForSeasonWorkflow) // commented out: uses old Season struct
 
-			// DownloadFromYahoo workflows
-			// w.RegisterWorkflow(workers.DownloadGamesForSeasonWorkflow)      // commented out: uses old Season struct
 			w.RegisterWorkflow(workers.DownloadRosterForTeamWorkflow)
 			w.RegisterWorkflow(workers.DownloadTeamSummariesForTeamWorkflow)
-			// w.RegisterWorkflow(workers.DownloadEverythingWorkflow)          // commented out: uses old Season struct
-			// w.RegisterWorkflow(workers.DownloadEverythingForSeasonWorkflow) // commented out: uses old Season struct
-			w.RegisterWorkflow(workers.DownloadAllWorkflow)
+			w.RegisterWorkflow(workers.DownloadSeasonsWorkflow)
+			w.RegisterWorkflow(workers.DownloadYahooPlayersWorkflow)
 
 			// Player extraction workflows
 			// w.RegisterWorkflow(workers.ExtractUniquePlayersWorkflow)        // commented out: uses old Season struct
@@ -122,8 +105,6 @@ func cmdWorker() *cobra.Command {
 			w.RegisterWorkflow(workers.EnrichPlayersWorkflow)
 
 			// Player extraction activities
-			w.RegisterActivity(workers.ExtractYahooPlayersForDayActivity)
-			w.RegisterActivity(workers.ExtractYahooPlayersForDayBatchActivity)
 			w.RegisterActivity(workers.ExtractBoxscorePlayersForDayActivity)
 			w.RegisterActivity(workers.ExtractBoxscorePlayersForDayBatchActivity)
 			w.RegisterActivity(workers.MergeSeasonPlayersActivity)
@@ -134,20 +115,6 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.MergeAllSeasonsFromRedisActivity)
 			w.RegisterActivity(workers.EnrichPlayerBatchActivity)
 
-			//go func() {
-			//	// dur := viper.GetInt(config.FlagRedisCacheDuration)
-			//	// log.Info().Int("duration", dur).Msgf("Redis Cache Duration: %d Minutes", dur)
-			//	listen := fmt.Sprintf(":%d", viper.GetInt(config.FlagWorkerPort))
-			//	r := setupRouter()
-			//	if viper.GetBool(config.FlagWorkerTLSEnabled) {
-			//		if err := http.ListenAndServeTLS(listen, viper.GetString(config.FlagTLSCertificate), viper.GetString(config.FlagTLSKey), r); err != nil {
-			//			panic(err)
-			//		}
-			//	}
-			//	if err := http.ListenAndServe(listen, r); err != nil {
-			//		panic(err)
-			//	}
-			//}()
 			err = w.Run(worker.InterruptCh())
 			if err != nil {
 				return err
@@ -167,5 +134,8 @@ func cmdWorker() *cobra.Command {
 	config.InitWorkerTLSEnabledFlag(flags)
 	config.InitSkipPreseasonFlag(flags)
 	config.InitMaxSeasonConcurrencyFlag(flags)
+	config.InitMaxYahooPlayerIDFlag(flags)
+	config.InitYahooPlayerBatchSizeFlag(flags)
+	config.InitYahooPlayersPerExecutionFlag(flags)
 	return cmd
 }
