@@ -170,31 +170,31 @@ func TestWorkflowIDImportEverythingForSeason(t *testing.T) {
 	}
 }
 
-// Workflow test suite for DownloadAll workflows
-type DownloadAllWorkflowTestSuite struct {
+// Workflow test suite for DownloadSeasons workflows
+type DownloadSeasonsWorkflowTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 	env *testsuite.TestWorkflowEnvironment
 }
 
-func (s *DownloadAllWorkflowTestSuite) SetupTest() {
+func (s *DownloadSeasonsWorkflowTestSuite) SetupTest() {
 	s.env = s.NewTestWorkflowEnvironment()
-	s.env.RegisterWorkflow(DownloadAllWorkflow)
+	s.env.RegisterWorkflow(DownloadSeasonsWorkflow)
 	s.env.RegisterWorkflow(DownloadRosterForTeamWorkflow)
 	s.env.RegisterWorkflow(DownloadTeamSummariesForTeamWorkflow)
 }
 
-func (s *DownloadAllWorkflowTestSuite) AfterTest(suiteName, testName string) {
+func (s *DownloadSeasonsWorkflowTestSuite) AfterTest(suiteName, testName string) {
 	s.env.AssertExpectations(s.T())
 }
 
-func TestDownloadAllWorkflowTestSuite(t *testing.T) {
-	suite.Run(t, new(DownloadAllWorkflowTestSuite))
+func TestDownloadSeasonsWorkflowTestSuite(t *testing.T) {
+	suite.Run(t, new(DownloadSeasonsWorkflowTestSuite))
 }
 
-// Test DownloadAllWorkflow with mocked activities
-func (s *DownloadAllWorkflowTestSuite) TestDownloadAllWorkflow_Success() {
-	input := &model.DownloadAllInput{}
+// Test DownloadSeasonsWorkflow with mocked activities
+func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_Success() {
+	input := &model.DownloadSeasonsInput{}
 	seasons := []SeasonInfo{
 		{StartYear: 2023, StartDate: mustParseDate("2024-04-14"), EndDate: mustParseDate("2024-04-15")},
 	}
@@ -207,28 +207,28 @@ func (s *DownloadAllWorkflowTestSuite) TestDownloadAllWorkflow_Success() {
 	s.env.OnWorkflow(DownloadRosterForTeamWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnWorkflow(DownloadTeamSummariesForTeamWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
-	s.env.ExecuteWorkflow(DownloadAllWorkflow, input)
+	s.env.ExecuteWorkflow(DownloadSeasonsWorkflow, input)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
 }
 
-// Test DownloadAllWorkflow handles activity error
-func (s *DownloadAllWorkflowTestSuite) TestDownloadAllWorkflow_FetchSeasonsError() {
-	input := &model.DownloadAllInput{}
+// Test DownloadSeasonsWorkflow handles activity error
+func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_FetchSeasonsError() {
+	input := &model.DownloadSeasonsInput{}
 	expectedErr := errors.New("failed to fetch seasons")
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(nil, expectedErr)
 
-	s.env.ExecuteWorkflow(DownloadAllWorkflow, input)
+	s.env.ExecuteWorkflow(DownloadSeasonsWorkflow, input)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
 }
 
-// Test DownloadAllWorkflow handles activity error
-func (s *DownloadAllWorkflowTestSuite) TestDownloadAllWorkflow_ActivityError() {
-	input := &model.DownloadAllInput{}
+// Test DownloadSeasonsWorkflow handles activity error
+func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_ActivityError() {
+	input := &model.DownloadSeasonsInput{}
 	seasons := []SeasonInfo{
 		{StartYear: 2023, StartDate: mustParseDate("2024-04-14"), EndDate: mustParseDate("2024-04-15")},
 	}
@@ -241,20 +241,20 @@ func (s *DownloadAllWorkflowTestSuite) TestDownloadAllWorkflow_ActivityError() {
 	s.env.OnWorkflow(DownloadRosterForTeamWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnWorkflow(DownloadTeamSummariesForTeamWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
-	s.env.ExecuteWorkflow(DownloadAllWorkflow, input)
+	s.env.ExecuteWorkflow(DownloadSeasonsWorkflow, input)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
 }
 
-// Test DownloadAllWorkflow with no seasons
-func (s *DownloadAllWorkflowTestSuite) TestDownloadAllWorkflow_NoSeasons() {
-	input := &model.DownloadAllInput{}
+// Test DownloadSeasonsWorkflow with no seasons
+func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_NoSeasons() {
+	input := &model.DownloadSeasonsInput{}
 	seasons := []SeasonInfo{}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
 
-	s.env.ExecuteWorkflow(DownloadAllWorkflow, input)
+	s.env.ExecuteWorkflow(DownloadSeasonsWorkflow, input)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
