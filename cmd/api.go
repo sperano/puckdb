@@ -68,6 +68,8 @@ func cmdAPI() *cobra.Command {
 			return viper.BindPFlag(config.FlagTLSKey, flags.Lookup(config.FlagTLSKey))
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			config.LogFlagValues()
+
 			// the oauth2 token for yahoo authentication is cached in redis
 			redisClient := redis.NewClient()
 			defer func() { _ = redisClient.Close() }()

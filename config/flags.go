@@ -3,11 +3,12 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/spf13/cobra"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -17,8 +18,6 @@ const (
 	FlagAPIPort                      = "api-port"
 	FlagAPITLSEnabled                = "api-tls-enabled"
 	FlagDataPath                     = "data-path"
-	FlagDate                         = "date"   // this is for choosing a specific date
-	FlagLeague                       = "league" // this is for choosing an individual league in a season
 	FlagLogLevel                     = "log-level"
 	FlagMetricsPort                  = "metrics-port"
 	FlagMetricsRefreshInterval       = "metrics-refresh-interval"
@@ -30,14 +29,11 @@ const (
 	FlagPostgresPort                 = "postgres-port"
 	FlagPostgresSSLMode              = "postgres-ssl-mode"
 	FlagPostgresTimeZone             = "postgres-time-zone"
-	FlagPrint                        = "print"
 	FlagRedisURL                     = "redis-url"
 	FlagRedisPassword                = "redis-password"
 	FlagRedisDB                      = "redis-db"
-	FlagSeason                       = "season"  // this is for choosing an individual season
 	FlagSeasons                      = "seasons" // this is for the league config file
 	FlagSkipPreseason                = "skip-preseason"
-	FlagTeam                         = "team" // this is for choosing an individual team
 	FlagTemporalHostPort             = "temporal-hostport"
 	FlagTemporalNamespace            = "temporal-namespace"
 	FlagTLSCertificate               = "tls-certificate"
@@ -260,14 +256,6 @@ func InitTLSKey(flags *flag.FlagSet) {
 	flags.String(FlagTLSKey, "", "TLS Key")
 }
 
-func BindPrintFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagPrint, flags.Lookup(FlagPrint))
-}
-
-func InitPrintFlag(cmd *cobra.Command) {
-	cmd.Flags().BoolP(FlagPrint, "p", false, "Only print the games, do not download them")
-}
-
 // Season range flags for filtering by season year
 const (
 	FlagSeasonYear     = "season"
@@ -326,6 +314,40 @@ func SetupViper() {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
 		if !errors.As(err, &configFileNotFoundError) {
 			log.Warn().Msgf("error reading env file: %s", err.Error())
+		}
+	}
+}
+
+// sensitiveFlags contains flag names that should not be logged
+var sensitiveFlags = map[string]bool{
+	FlagPostgresPassword:        true,
+	FlagRedisPassword:           true,
+	FlagYahooOAuth2ClientSecret: true,
+	FlagTLSKey:                  true,
+}
+
+// LogFlagValues logs all viper settings at debug level, redacting sensitive values
+func LogFlagValues() {
+	settings := viper.AllSettings()
+	if len(settings) == 0 {
+		return
+	}
+
+	// Collect and sort keys for consistent output
+	keys := make([]string, 0, len(settings))
+	for k := range settings {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		// Convert underscore back to hyphen for flag name lookup
+		flagName := strings.ReplaceAll(key, "_", "-")
+		value := settings[key]
+		if sensitiveFlags[flagName] {
+			log.Debug().Str("flag", flagName).Str("value", "[REDACTED]").Msg("config")
+		} else {
+			log.Debug().Str("flag", flagName).Interface("value", value).Msg("config")
 		}
 	}
 }

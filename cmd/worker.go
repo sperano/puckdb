@@ -61,6 +61,8 @@ func cmdWorker() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			config.LogFlagValues()
+
 			tclient, err := temporal.NewClient()
 			if err != nil {
 				return err

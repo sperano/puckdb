@@ -57,7 +57,7 @@ type GraphQLClient struct {
 // NewGraphQLClient creates a new GraphQL client
 func NewGraphQLClient(endpoint string) *GraphQLClient {
 	return &GraphQLClient{
-		endpoint:   endpoint + "/graphql/query",
+		endpoint:   strings.TrimSuffix(endpoint, "/") + "/graphql/query",
 		httpClient: &http.Client{Timeout: 60 * time.Second},
 	}
 }
@@ -79,6 +79,8 @@ func (c *GraphQLClient) execute(ctx context.Context, query string, variables map
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+
+	log.Debug().Str("url", c.endpoint).Msg("Submitting GraphQL query")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
