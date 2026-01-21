@@ -52,6 +52,11 @@ const (
 	FlagMaxYahooPlayerID             = "max-yahoo-player-id"
 	FlagYahooPlayerBatchSize         = "yahoo-player-batch-size"
 	FlagYahooPlayersPerExecution     = "yahoo-players-per-execution"
+
+	// Provisioner flags for db-provision command
+	FlagProvisionerHost     = "provisioner-host"
+	FlagProvisionerUser     = "provisioner-user"
+	FlagProvisionerPassword = "provisioner-password"
 )
 
 // const FlagInteractive = "interactive"
@@ -154,6 +159,22 @@ func InitYahooPlayersPerExecutionFlag(flags *flag.FlagSet) {
 
 func BindYahooPlayersPerExecutionFlag(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagYahooPlayersPerExecution, flags.Lookup(FlagYahooPlayersPerExecution))
+}
+
+func InitProvisionerFlags(flags *flag.FlagSet) {
+	flags.String(FlagProvisionerHost, "", "PostgreSQL host for provisioner connection")
+	flags.String(FlagProvisionerUser, "", "PostgreSQL user with CREATE DATABASE privileges")
+	flags.String(FlagProvisionerPassword, "", "PostgreSQL provisioner password")
+}
+
+func BindProvisionerFlags(flags *flag.FlagSet) error {
+	if err := viper.BindPFlag(FlagProvisionerHost, flags.Lookup(FlagProvisionerHost)); err != nil {
+		return err
+	}
+	if err := viper.BindPFlag(FlagProvisionerUser, flags.Lookup(FlagProvisionerUser)); err != nil {
+		return err
+	}
+	return viper.BindPFlag(FlagProvisionerPassword, flags.Lookup(FlagProvisionerPassword))
 }
 
 func InitRedisFlags(flags *flag.FlagSet) {
@@ -321,6 +342,7 @@ func SetupViper() {
 // sensitiveFlags contains flag names that should not be logged
 var sensitiveFlags = map[string]bool{
 	FlagPostgresPassword:        true,
+	FlagProvisionerPassword:     true,
 	FlagRedisPassword:           true,
 	FlagYahooOAuth2ClientSecret: true,
 	FlagTLSKey:                  true,
