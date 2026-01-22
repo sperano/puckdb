@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/redis"
 	"golang.org/x/oauth2"
 )
@@ -48,7 +50,8 @@ type Client interface {
 }
 
 type GenericClient struct {
-	Client *http.Client
+	Client   *http.Client
+	apiLabel string
 }
 
 // UserAgent is used for public requests to avoid being blocked as a bot
@@ -61,16 +64,23 @@ func (c *GenericClient) Download(url string) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", UserAgent)
+
+	start := time.Now()
 	resp, err := c.Client.Do(req)
 	if err != nil {
+		metrics.ObserveHTTP(c.apiLabel, 0, time.Since(start), 0)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
+	duration := time.Since(start)
 	if err != nil {
+		metrics.ObserveHTTP(c.apiLabel, resp.StatusCode, duration, 0)
 		return nil, err
 	}
+
+	metrics.ObserveHTTP(c.apiLabel, resp.StatusCode, duration, len(body))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		log.Error().
@@ -112,7 +122,7 @@ func NewYahooClient(ctx context.Context, redisClient redis.Client) (Client, erro
 			return nil, err
 		}
 	}
-	return &GenericClient{Client: oauth2.NewClient(ctx, tokenSource)}, nil
+	return &GenericClient{Client: oauth2.NewClient(ctx, tokenSource), apiLabel: "yahoo"}, nil
 }
 
 func DownloadYahoo(ctx context.Context, redisClient redis.Client, url string) ([]byte, error) {
@@ -128,6 +138,6 @@ func DownloadYahoo(ctx context.Context, redisClient redis.Client, url string) ([
 // DownloadPublic downloads from public pages without OAuth2 authentication.
 // Use this for public sports.yahoo.com pages that don't require authentication.
 func DownloadPublic(url string) ([]byte, error) {
-	client := &GenericClient{Client: &http.Client{}}
+	client := &GenericClient{Client: &http.Client{}, apiLabel: "public"}
 	return client.Download(url)
 }

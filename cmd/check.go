@@ -272,7 +272,7 @@ func getAllStats(ctx context.Context) ([]cacheStats, error) {
 }
 
 // checkNHLSeasonCache checks NHL API files (daily schedule, boxscores)
-func checkNHLSeasonCache(fs *cache.SimpleFS, season simpleSeason) []cacheStats {
+func checkNHLSeasonCache(fs cache.FileSystem, season simpleSeason) []cacheStats {
 	stats := make([]cacheStats, 0)
 	seasonYear := season.StartYear()
 	daysInSeason := countDays(season.start, season.end)
@@ -299,7 +299,7 @@ func checkNHLSeasonCache(fs *cache.SimpleFS, season simpleSeason) []cacheStats {
 }
 
 // checkYahooSeasonCache checks Yahoo fantasy files (leagues, teams, rosters, summaries)
-func checkYahooSeasonCache(fs *cache.SimpleFS, nhlSeason simpleSeason, yahooCfg config.Season) []cacheStats {
+func checkYahooSeasonCache(fs cache.FileSystem, nhlSeason simpleSeason, yahooCfg config.Season) []cacheStats {
 	stats := make([]cacheStats, 0)
 	seasonYear := nhlSeason.startYear
 	daysInSeason := countDays(nhlSeason.start, nhlSeason.end)
@@ -378,7 +378,7 @@ func countDays(start, end time.Time) int {
 	return int(end.Sub(start).Hours()/24) + 1
 }
 
-func countLeagueFiles(fs *cache.SimpleFS, seasonYear int, cfg config.Season) int {
+func countLeagueFiles(fs cache.FileSystem, seasonYear int, cfg config.Season) int {
 	count := 0
 	for _, league := range cfg.Leagues {
 		file := cache.LeagueFile{Season: seasonYear, LeagueID: league.LeagueID}
@@ -389,7 +389,7 @@ func countLeagueFiles(fs *cache.SimpleFS, seasonYear int, cfg config.Season) int
 	return count
 }
 
-func countTeamFiles(fs *cache.SimpleFS, seasonYear int, cfg config.Season) int {
+func countTeamFiles(fs cache.FileSystem, seasonYear int, cfg config.Season) int {
 	count := 0
 	for _, league := range cfg.Leagues {
 		for _, teamID := range league.TeamIDs {
@@ -402,7 +402,7 @@ func countTeamFiles(fs *cache.SimpleFS, seasonYear int, cfg config.Season) int {
 	return count
 }
 
-func countRosterFiles(fs *cache.SimpleFS, nhlSeason simpleSeason, cfg config.Season) int {
+func countRosterFiles(fs cache.FileSystem, nhlSeason simpleSeason, cfg config.Season) int {
 	count := 0
 	current := nhlSeason.start
 	end := nhlSeason.end
@@ -424,7 +424,7 @@ func countRosterFiles(fs *cache.SimpleFS, nhlSeason simpleSeason, cfg config.Sea
 	return count
 }
 
-func countTeamSummaryFiles(fs *cache.SimpleFS, nhlSeason simpleSeason, cfg config.Season) int {
+func countTeamSummaryFiles(fs cache.FileSystem, nhlSeason simpleSeason, cfg config.Season) int {
 	count := 0
 	current := nhlSeason.start
 	end := nhlSeason.end
@@ -446,7 +446,7 @@ func countTeamSummaryFiles(fs *cache.SimpleFS, nhlSeason simpleSeason, cfg confi
 	return count
 }
 
-func countDailyScheduleFilesSimple(fs *cache.SimpleFS, season simpleSeason) int {
+func countDailyScheduleFilesSimple(fs cache.FileSystem, season simpleSeason) int {
 	count := 0
 	current := season.start
 	end := season.end
@@ -464,7 +464,7 @@ func countDailyScheduleFilesSimple(fs *cache.SimpleFS, season simpleSeason) int 
 	return count
 }
 
-func countBoxscoreFilesSimple(fs *cache.SimpleFS, season simpleSeason) (expected int, found int) {
+func countBoxscoreFilesSimple(fs cache.FileSystem, season simpleSeason) (expected int, found int) {
 	current := season.start
 	end := season.end
 	if end.After(time.Now()) {
@@ -1154,7 +1154,7 @@ type parseResult struct {
 */
 
 /*
-func checkSeasonParsing(fs *cache.SimpleFS, season config.Season, deleteOnFail bool) (checked, failed, deleted int, failures []string) {
+func checkSeasonParsing(fs cache.FileSystem, season config.Season, deleteOnFail bool) (checked, failed, deleted int, failures []string) {
 	// Walk the games directory for this season to collect all file paths
 	gamesDir := filepath.Join(fs.RootPath, fmt.Sprintf("%d/games", season.StartYear()))
 

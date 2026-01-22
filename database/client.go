@@ -73,8 +73,8 @@ func OpenPGXPool(ctx context.Context) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("parse pgx config: %w", err)
 	}
 
-	poolConfig.MaxConns = int32(viper.GetInt(config.FlagMaxOpenDBConns))
-	poolConfig.MinConns = int32(viper.GetInt(config.FlagMaxIdleDBConns))
+	poolConfig.MaxConns = int32(viper.GetInt(config.FlagPostgresMaxOpenConns))
+	poolConfig.MinConns = int32(viper.GetInt(config.FlagPostgresMaxIdleConns))
 	poolConfig.MaxConnLifetime = 5 * time.Minute
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
@@ -107,8 +107,8 @@ func OpenGorm() (*gorm.DB, error) {
 	}
 	sqldb, err := db.DB()
 	if err == nil {
-		sqldb.SetMaxIdleConns(viper.GetInt(config.FlagMaxIdleDBConns))
-		sqldb.SetMaxOpenConns(viper.GetInt(config.FlagMaxOpenDBConns))
+		sqldb.SetMaxIdleConns(viper.GetInt(config.FlagPostgresMaxIdleConns))
+		sqldb.SetMaxOpenConns(viper.GetInt(config.FlagPostgresMaxOpenConns))
 		sqldb.SetConnMaxLifetime(5 * time.Minute) // TODO config
 	} else {
 		log.Warn().Msg(err.Error())

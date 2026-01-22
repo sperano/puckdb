@@ -44,8 +44,8 @@ const (
 	FlagYahooOAuth2ClientSecret      = "yahoo-oauth2-client-secret"
 	FlagYahooHostname                = "yahoo-hostname"
 	FlagYahooLogToken                = "yahoo-log-token"
-	FlagMaxOpenDBConns               = "max-open-db-conns"
-	FlagMaxIdleDBConns               = "max-idle-db-conns"
+	FlagPostgresMaxOpenConns         = "postgres-max-open-conns"
+	FlagPostgresMaxIdleConns         = "postgres-max-idle-conns"
 	FlagTemporalRetryInitialInterval = "temporal-retry-initial-interval"
 	FlagTemporalRetryMaxAttempts     = "temporal-retry-max-attempts"
 	FlagMaxSeasonConcurrency         = "max-season-concurrency"
@@ -201,8 +201,8 @@ func InitPostgresFlags(flags *flag.FlagSet) {
 	flags.Int(FlagPostgresPort, 5432, "Postgres port")
 	flags.String(FlagPostgresSSLMode, "disable", "Postgres SSL mode")
 	flags.String(FlagPostgresTimeZone, "America/Los_Angeles", "Postgres time zone")
-	flags.Int(FlagMaxIdleDBConns, 100, "Maximum idle database connections")
-	flags.Int(FlagMaxOpenDBConns, 100, "Maximum open database connections")
+	flags.Int(FlagPostgresMaxIdleConns, 2, "Maximum idle database connections")
+	flags.Int(FlagPostgresMaxOpenConns, 5, "Maximum open database connections")
 }
 
 func BindPostgresFlags(flags *flag.FlagSet) error {
@@ -224,10 +224,10 @@ func BindPostgresFlags(flags *flag.FlagSet) error {
 	if err := viper.BindPFlag(FlagPostgresSSLMode, flags.Lookup(FlagPostgresSSLMode)); err != nil {
 		return err
 	}
-	if err := viper.BindPFlag(FlagMaxIdleDBConns, flags.Lookup(FlagMaxIdleDBConns)); err != nil {
+	if err := viper.BindPFlag(FlagPostgresMaxIdleConns, flags.Lookup(FlagPostgresMaxIdleConns)); err != nil {
 		return err
 	}
-	if err := viper.BindPFlag(FlagMaxOpenDBConns, flags.Lookup(FlagMaxOpenDBConns)); err != nil {
+	if err := viper.BindPFlag(FlagPostgresMaxOpenConns, flags.Lookup(FlagPostgresMaxOpenConns)); err != nil {
 		return err
 	}
 	return viper.BindPFlag(FlagPostgresTimeZone, flags.Lookup(FlagPostgresTimeZone))

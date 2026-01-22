@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/temporal"
 	workers "github.com/sperano/puckdb/worker"
 	"github.com/spf13/cobra"
@@ -62,6 +65,10 @@ func cmdWorker() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.LogFlagValues()
+
+			// Start metrics HTTP server
+			metricsAddr := fmt.Sprintf(":%d", viper.GetInt(config.FlagWorkerPort))
+			go metrics.StartServer(metricsAddr)
 
 			tclient, err := temporal.NewClient()
 			if err != nil {

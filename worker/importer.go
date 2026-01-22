@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/metrics"
 )
 
 // doDownload ensures a file is downloaded and cached.
@@ -19,26 +21,33 @@ func doDownload(ctx context.Context, file cache.File, url string) error {
 
 // doDownloadImpl is the testable implementation.
 func doDownloadImpl(ctx context.Context, fs cache.FileSystem, file cache.File, url string) error {
+	fileType := reflect.TypeOf(file).Name()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 			if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
+				metrics.IncDownload(fileType, "error")
 				return fmt.Errorf("%s: %w", file.Dir(), err)
 			}
 			if fs.Exists(file) {
 				log.Info().Str("file", cache.Path(file)).Msg("Already downloaded")
+				metrics.IncDownload(fileType, "hit")
 				return nil
 			}
 			content, err := DownloadFromYahoo(url)
 			if err != nil {
+				metrics.IncDownload(fileType, "error")
 				return fmt.Errorf("%s: %w", url, err)
 			}
 			if err := saveToCache(fs, file, content); err != nil {
+				metrics.IncDownload(fileType, "error")
 				return fmt.Errorf("%s: %w", cache.Path(file), err)
 			}
 			log.Info().Str("file", cache.Path(file)).Msg("Downloaded")
+			metrics.IncDownload(fileType, "miss")
 			return nil
 		}
 	}

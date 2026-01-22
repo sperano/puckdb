@@ -11,6 +11,7 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/metrics"
 	"gorm.io/gorm"
 )
 
@@ -67,14 +68,23 @@ func downloadSchedule(ctx context.Context, fs cache.FileSystem, day time.Time) (
 
 	if !fs.Exists(file) {
 		client := newNHLClient()
+
+		start := time.Now()
 		schedule, err := client.DailySchedule(ctx, nhl.FromDate(day))
+		duration := time.Since(start)
+
 		if err != nil {
+			metrics.ObserveHTTP("nhl", 0, duration, 0)
 			return nil, fmt.Errorf("download schedule: %w", err)
 		}
+
 		content, err := json.Marshal(schedule)
 		if err != nil {
 			return nil, fmt.Errorf("marshal schedule: %w", err)
 		}
+
+		metrics.ObserveHTTP("nhl", 200, duration, len(content))
+
 		if err := fs.Write(file, content); err != nil {
 			return nil, fmt.Errorf("save schedule: %w", err)
 		}

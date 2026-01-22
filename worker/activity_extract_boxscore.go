@@ -198,7 +198,7 @@ func extractBoxscorePlayersForDayBatchImpl(
 }
 
 // getBoxscoreFilesForDay returns boxscore files for a specific day.
-func getBoxscoreFilesForDay(fs *cache.SimpleFS, day time.Time) ([]cache.File, error) {
+func getBoxscoreFilesForDay(fs cache.FileSystem, day time.Time) ([]cache.File, error) {
 	// First get the daily schedule to know which game IDs exist
 	scheduleFile := fs.New(cache.DailyScheduleFileType, day)
 	if !fs.Exists(scheduleFile) {

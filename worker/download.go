@@ -11,6 +11,7 @@ import (
 	"github.com/sperano/puckdb/auth"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/redis"
 )
 
@@ -38,13 +39,21 @@ func downloadFromYahooImpl(redisClient redis.Client, url string) ([]byte, error)
 func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
 	log.Info().Str("gameid", gameid.String()).Msg("Downloading boxscore NHL API")
 	client := newNHLClient()
+
+	start := time.Now()
 	boxscore, err := client.Boxscore(context.Background(), gameid)
+	duration := time.Since(start)
+
 	if err != nil {
+		metrics.ObserveHTTP("nhl", 0, duration, 0)
 		return nil, err
 	}
+
 	data, err := json.Marshal(boxscore)
 	if err != nil {
 		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
 	}
+
+	metrics.ObserveHTTP("nhl", 200, duration, len(data))
 	return data, nil
 }
