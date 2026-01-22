@@ -350,7 +350,7 @@ type Mutation {
     initDatabase: Boolean! # creates the NHL objects
     clearCache: Boolean! # deletes all the keys in the redis cache
 
-	downloadSeaosns(input: DownloadSeasonsInput): Boolean!
+	downloadSeasons(input: DownloadSeasonsInput): Boolean!
 	cancelDownloadSeasons: Boolean!
 
 	downloadYahooPlayers: Boolean!

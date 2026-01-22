@@ -8,10 +8,15 @@ import (
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/metrics"
 	"go.temporal.io/sdk/workflow"
 )
 
 func DownloadTeam(ctx context.Context, season int, gameKey int, leagueID int, teamID int) error {
+	start := time.Now()
+	defer func() {
+		metrics.ObserveActivityDuration("DownloadTeam", time.Since(start))
+	}()
 	fs := cache.NewSimpleCache()
 	return downloadTeamImpl(ctx, fs, season, gameKey, leagueID, teamID)
 }
@@ -93,6 +98,10 @@ func ImportRosterForTeamWorkflow(ctx workflow.Context, startDate, endDate time.T
 */
 
 func DownloadRosterForTeamOnDay(ctx context.Context, gameKey int, leagueID int, teamID int, day time.Time) error {
+	start := time.Now()
+	defer func() {
+		metrics.ObserveActivityDuration("DownloadRosterForTeamOnDay", time.Since(start))
+	}()
 	fs := cache.NewSimpleCache()
 	return downloadRosterForTeamOnDayImpl(ctx, fs, gameKey, leagueID, teamID, day)
 }
@@ -174,6 +183,10 @@ func ImportTeamSummariesForTeamWorkflow(ctx workflow.Context, startDate, endDate
 */
 
 func DownloadTeamSummaryForTeamOnDay(ctx context.Context, gameKey int, leagueID int, teamID int, day time.Time) error {
+	start := time.Now()
+	defer func() {
+		metrics.ObserveActivityDuration("DownloadTeamSummaryForTeamOnDay", time.Since(start))
+	}()
 	fs := cache.NewSimpleCache()
 	return downloadTeamSummaryForTeamOnDayImpl(ctx, fs, gameKey, leagueID, teamID, day)
 }

@@ -2,11 +2,13 @@ package worker
 
 import (
 	"context"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/metrics"
 )
 
 /*
@@ -23,6 +25,10 @@ func ImportLeagueWorkflow(ctx workflow.Context, season int, leagueID int) (datab
 */
 
 func DownloadLeague(ctx context.Context, season int, gameKey int, leagueID int) error {
+	start := time.Now()
+	defer func() {
+		metrics.ObserveActivityDuration("DownloadLeague", time.Since(start))
+	}()
 	fs := cache.NewSimpleCache()
 	return downloadLeagueImpl(ctx, fs, season, gameKey, leagueID)
 }

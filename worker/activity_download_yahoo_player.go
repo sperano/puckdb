@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/metrics"
 )
 
 // DownloadYahooPlayer downloads a Yahoo player page and saves it to cache.
@@ -22,23 +24,30 @@ func DownloadYahooPlayer(ctx context.Context, playerID int) error {
 
 // downloadYahooPlayerImpl is the testable implementation.
 func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID int) error {
+	start := time.Now()
+	defer func() {
+		metrics.ObserveActivityDuration("DownloadYahooPlayer", time.Since(start))
+	}()
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
+	// Check if missing player file already exists (most common case)
+	missingFile := fs.New(cache.MissingYahooPlayerFileType, playerID)
+	if fs.Exists(missingFile) {
+		log.Debug().Int("playerID", playerID).Msg("Yahoo player already marked as missing")
+		metrics.IncDownload("YahooPlayer", "hit")
+		return nil
+	}
+
 	// Check if player file already exists
 	playerFile := fs.New(cache.YahooPlayerFileType, playerID)
 	if fs.Exists(playerFile) {
 		log.Debug().Int("playerID", playerID).Msg("Yahoo player already cached")
-		return nil
-	}
-
-	// Check if missing player file already exists
-	missingFile := fs.New(cache.MissingYahooPlayerFileType, playerID)
-	if fs.Exists(missingFile) {
-		log.Debug().Int("playerID", playerID).Msg("Yahoo player already marked as missing")
+		metrics.IncDownload("YahooPlayer", "hit")
 		return nil
 	}
 
@@ -46,9 +55,11 @@ func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID 
 
 	// Ensure directories exist
 	if err := fs.MkdirAll(playerFile.Dir(), 0755); err != nil {
+		metrics.IncDownload("YahooPlayer", "error")
 		return fmt.Errorf("mkdir player dir: %w", err)
 	}
 	if err := fs.MkdirAll(missingFile.Dir(), 0755); err != nil {
+		metrics.IncDownload("YahooPlayer", "error")
 		return fmt.Errorf("mkdir missing dir: %w", err)
 	}
 
@@ -61,19 +72,24 @@ func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID 
 			if httpErr.StatusCode == 404 {
 				// Save as missing player
 				if writeErr := fs.Write(missingFile, []byte("404 Not Found")); writeErr != nil {
+					metrics.IncDownload("YahooPlayer", "error")
 					return fmt.Errorf("save missing player: %w", writeErr)
 				}
 				log.Info().Int("playerID", playerID).Msg("Saved as missing Yahoo player")
+				metrics.IncDownload("YahooPlayer", "miss")
 				return nil
 			}
 		}
+		metrics.IncDownload("YahooPlayer", "error")
 		return fmt.Errorf("download player %d: %w", playerID, err)
 	}
 
 	// Save successful download
 	if err := fs.Write(playerFile, content); err != nil {
+		metrics.IncDownload("YahooPlayer", "error")
 		return fmt.Errorf("save player: %w", err)
 	}
 	log.Info().Int("playerID", playerID).Str("path", cache.Path(playerFile)).Msg("Saved Yahoo player")
+	metrics.IncDownload("YahooPlayer", "miss")
 	return nil
 }

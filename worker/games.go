@@ -33,6 +33,11 @@ func getDB() (*gorm.DB, error) {
 
 // DownloadDailySchedule downloads the NHL schedule for a day and all boxscores.
 func DownloadDailySchedule(ctx context.Context, day time.Time) error {
+	start := time.Now()
+	defer func() {
+		metrics.ObserveActivityDuration("DownloadDailySchedule", time.Since(start))
+	}()
+
 	fs := cache.NewSimpleCache()
 
 	// Download schedule

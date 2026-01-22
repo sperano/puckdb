@@ -40,8 +40,8 @@ func (r *mutationResolver) ClearCache(ctx context.Context) (bool, error) {
 	return clearCache(ctx)
 }
 
-// DownloadSeaosns is the resolver for the downloadSeaosns field.
-func (r *mutationResolver) DownloadSeaosns(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+// DownloadSeasons is the resolver for the downloadSeasons field.
+func (r *mutationResolver) DownloadSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
 	return r.Resolver.downloadSeasons(ctx, input)
 }
 
@@ -179,18 +179,3 @@ type nHLConferenceResolver struct{ *Resolver }
 type nHLDivisionResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type seasonResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *queryResolver) Seasons(ctx context.Context) ([]*model.Season, error) {
-	return nil, fmt.Errorf("TODO not implemented")
-}
-func (r *queryResolver) League(ctx context.Context, season int, id int) (*model.League, error) {
-	return league(ctx, season, id)
-}
-*/

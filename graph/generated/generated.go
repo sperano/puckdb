@@ -188,7 +188,7 @@ type ComplexityRoot struct {
 		ClearCache                 func(childComplexity int) int
 		ClearDatabase              func(childComplexity int) int
 		CreateDatabase             func(childComplexity int) int
-		DownloadSeaosns            func(childComplexity int, input *model.DownloadSeasonsInput) int
+		DownloadSeasons            func(childComplexity int, input *model.DownloadSeasonsInput) int
 		DownloadYahooPlayers       func(childComplexity int) int
 		DropDatabase               func(childComplexity int) int
 		ExtractUniquePlayers       func(childComplexity int) int
@@ -354,7 +354,7 @@ type MutationResolver interface {
 	CreateDatabase(ctx context.Context) (bool, error)
 	InitDatabase(ctx context.Context) (bool, error)
 	ClearCache(ctx context.Context) (bool, error)
-	DownloadSeaosns(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
+	DownloadSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
 	CancelDownloadSeasons(ctx context.Context) (bool, error)
 	DownloadYahooPlayers(ctx context.Context) (bool, error)
 	CancelDownloadYahooPlayers(ctx context.Context) (bool, error)
@@ -1197,17 +1197,17 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateDatabase(childComplexity), true
 
-	case "Mutation.downloadSeaosns":
-		if e.complexity.Mutation.DownloadSeaosns == nil {
+	case "Mutation.downloadSeasons":
+		if e.complexity.Mutation.DownloadSeasons == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_downloadSeaosns_args(context.TODO(), rawArgs)
+		args, err := ec.field_Mutation_downloadSeasons_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.DownloadSeaosns(childComplexity, args["input"].(*model.DownloadSeasonsInput)), true
+		return e.complexity.Mutation.DownloadSeasons(childComplexity, args["input"].(*model.DownloadSeasonsInput)), true
 
 	case "Mutation.downloadYahooPlayers":
 		if e.complexity.Mutation.DownloadYahooPlayers == nil {
@@ -2443,7 +2443,7 @@ type Mutation {
     initDatabase: Boolean! # creates the NHL objects
     clearCache: Boolean! # deletes all the keys in the redis cache
 
-	downloadSeaosns(input: DownloadSeasonsInput): Boolean!
+	downloadSeasons(input: DownloadSeasonsInput): Boolean!
 	cancelDownloadSeasons: Boolean!
 
 	downloadYahooPlayers: Boolean!
@@ -2463,17 +2463,17 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // region    ***************************** args.gotpl *****************************
 
-func (ec *executionContext) field_Mutation_downloadSeaosns_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Mutation_downloadSeasons_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_downloadSeaosns_argsInput(ctx, rawArgs)
+	arg0, err := ec.field_Mutation_downloadSeasons_argsInput(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
 	args["input"] = arg0
 	return args, nil
 }
-func (ec *executionContext) field_Mutation_downloadSeaosns_argsInput(
+func (ec *executionContext) field_Mutation_downloadSeasons_argsInput(
 	ctx context.Context,
 	rawArgs map[string]interface{},
 ) (*model.DownloadSeasonsInput, error) {
@@ -7791,8 +7791,8 @@ func (ec *executionContext) fieldContext_Mutation_clearCache(_ context.Context, 
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_downloadSeaosns(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_downloadSeaosns(ctx, field)
+func (ec *executionContext) _Mutation_downloadSeasons(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_downloadSeasons(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -7805,7 +7805,7 @@ func (ec *executionContext) _Mutation_downloadSeaosns(ctx context.Context, field
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DownloadSeaosns(rctx, fc.Args["input"].(*model.DownloadSeasonsInput))
+		return ec.resolvers.Mutation().DownloadSeasons(rctx, fc.Args["input"].(*model.DownloadSeasonsInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7822,7 +7822,7 @@ func (ec *executionContext) _Mutation_downloadSeaosns(ctx context.Context, field
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_downloadSeaosns(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_downloadSeasons(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -7839,7 +7839,7 @@ func (ec *executionContext) fieldContext_Mutation_downloadSeaosns(ctx context.Co
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_downloadSeaosns_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_downloadSeasons_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -15951,9 +15951,9 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "downloadSeaosns":
+		case "downloadSeasons":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_downloadSeaosns(ctx, field)
+				return ec._Mutation_downloadSeasons(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

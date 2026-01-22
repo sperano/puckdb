@@ -61,6 +61,15 @@ var (
 	}, []string{"file_type", "result"})
 )
 
+// Activity metrics
+var (
+	activityDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "puckdb_activity_duration_seconds",
+		Help:    "Duration of Temporal activities in seconds",
+		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
+	}, []string{"activity"})
+)
+
 // ObserveFSOp records a filesystem operation duration and optionally bytes
 func ObserveFSOp(operation, fileType string, duration time.Duration, bytes int) {
 	fsOpDuration.WithLabelValues(operation, fileType).Observe(duration.Seconds())
@@ -81,6 +90,11 @@ func ObserveHTTP(api string, statusCode int, duration time.Duration, bytes int) 
 // result should be "hit", "miss", or "error"
 func IncDownload(fileType, result string) {
 	downloadTotal.WithLabelValues(fileType, result).Inc()
+}
+
+// ObserveActivityDuration records a Temporal activity's total duration
+func ObserveActivityDuration(activity string, duration time.Duration) {
+	activityDuration.WithLabelValues(activity).Observe(duration.Seconds())
 }
 
 // StartServer starts the Prometheus metrics HTTP server
