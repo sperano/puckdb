@@ -68,7 +68,7 @@ func (c *GenericClient) Download(url string) ([]byte, error) {
 	start := time.Now()
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		metrics.ObserveHTTP(c.apiLabel, 0, time.Since(start), 0)
+		metrics.ObserveHTTP(c.apiLabel, req.Method, 0, time.Since(start), 0)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -76,11 +76,11 @@ func (c *GenericClient) Download(url string) ([]byte, error) {
 	body, err := io.ReadAll(resp.Body)
 	duration := time.Since(start)
 	if err != nil {
-		metrics.ObserveHTTP(c.apiLabel, resp.StatusCode, duration, 0)
+		metrics.ObserveHTTP(c.apiLabel, req.Method, resp.StatusCode, duration, 0)
 		return nil, err
 	}
 
-	metrics.ObserveHTTP(c.apiLabel, resp.StatusCode, duration, len(body))
+	metrics.ObserveHTTP(c.apiLabel, req.Method, resp.StatusCode, duration, len(body))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		log.Error().

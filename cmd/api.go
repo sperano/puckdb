@@ -21,6 +21,7 @@ import (
 	"github.com/sperano/puckdb/graph"
 	"github.com/sperano/puckdb/graph/generated"
 	handlers "github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/redis"
 	"github.com/sperano/puckdb/temporal"
 	"github.com/spf13/cobra"
@@ -111,6 +112,7 @@ func cmdAPI() *cobra.Command {
 
 func setupAPIRouter(redisClient redis.Client, resolver *graph.Resolver) *chi.Mux {
 	r := chi.NewRouter()
+	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(handlers.ChiLogger)
 
 	r.Use(database.Middleware)

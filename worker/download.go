@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/auth"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/http"
+	puckhttp "github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/redis"
 )
@@ -33,7 +34,7 @@ func DownloadFromYahoo(url string) ([]byte, error) {
 // downloadFromYahooImpl is the testable implementation.
 func downloadFromYahooImpl(redisClient redis.Client, url string) ([]byte, error) {
 	ctx := context.WithValue(context.Background(), auth.CtxUser, config.DefaultUser)
-	return http.DownloadYahoo(ctx, redisClient, url)
+	return puckhttp.DownloadYahoo(ctx, redisClient, url)
 }
 
 func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
@@ -45,7 +46,7 @@ func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
 	duration := time.Since(start)
 
 	if err != nil {
-		metrics.ObserveHTTP("nhl", 0, duration, 0)
+		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
 		return nil, err
 	}
 
@@ -54,6 +55,6 @@ func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
 		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
 	}
 
-	metrics.ObserveHTTP("nhl", 200, duration, len(data))
+	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
 	return data, nil
 }

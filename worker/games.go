@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -71,7 +72,9 @@ func downloadSchedule(ctx context.Context, fs cache.FileSystem, day time.Time) (
 		return nil, fmt.Errorf("mkdir: %w", err)
 	}
 
-	if !fs.Exists(file) {
+	if fs.Exists(file) {
+		metrics.IncDownload("DailySchedule", "hit")
+	} else {
 		client := newNHLClient()
 
 		start := time.Now()
@@ -79,21 +82,25 @@ func downloadSchedule(ctx context.Context, fs cache.FileSystem, day time.Time) (
 		duration := time.Since(start)
 
 		if err != nil {
-			metrics.ObserveHTTP("nhl", 0, duration, 0)
+			metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
+			metrics.IncDownload("DailySchedule", "error")
 			return nil, fmt.Errorf("download schedule: %w", err)
 		}
 
 		content, err := json.Marshal(schedule)
 		if err != nil {
+			metrics.IncDownload("DailySchedule", "error")
 			return nil, fmt.Errorf("marshal schedule: %w", err)
 		}
 
-		metrics.ObserveHTTP("nhl", 200, duration, len(content))
+		metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(content))
 
 		if err := fs.Write(file, content); err != nil {
+			metrics.IncDownload("DailySchedule", "error")
 			return nil, fmt.Errorf("save schedule: %w", err)
 		}
 		log.Info().Str("path", cache.Path(file)).Msg("Saved schedule")
+		metrics.IncDownload("DailySchedule", "miss")
 	}
 
 	// Parse schedule
@@ -123,22 +130,27 @@ func downloadBoxscoreToCache(ctx context.Context, fs cache.FileSystem, day time.
 	file := fs.New(cache.BoxscoreFileType, day, id)
 	if fs.Exists(file) {
 		log.Debug().Str("gameid", id.String()).Msg("Boxscore already cached")
+		metrics.IncDownload("Boxscore", "hit")
 		return nil
 	}
 
 	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
+		metrics.IncDownload("Boxscore", "error")
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
 	content, err := DownloadBoxscore(id)
 	if err != nil {
+		metrics.IncDownload("Boxscore", "error")
 		return fmt.Errorf("download: %w", err)
 	}
 
 	if err := fs.Write(file, content); err != nil {
+		metrics.IncDownload("Boxscore", "error")
 		return fmt.Errorf("save: %w", err)
 	}
 	log.Info().Str("gameid", id.String()).Str("path", cache.Path(file)).Msg("Saved boxscore")
+	metrics.IncDownload("Boxscore", "miss")
 	return nil
 }
 

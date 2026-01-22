@@ -49,9 +49,10 @@ const (
 	FlagTemporalRetryInitialInterval = "temporal-retry-initial-interval"
 	FlagTemporalRetryMaxAttempts     = "temporal-retry-max-attempts"
 	FlagMaxSeasonConcurrency         = "max-season-concurrency"
-	FlagMaxYahooPlayerID             = "max-yahoo-player-id"
-	FlagYahooPlayerBatchSize         = "yahoo-player-batch-size"
-	FlagYahooPlayersPerExecution     = "yahoo-players-per-execution"
+	FlagMaxYahooPlayerID              = "max-yahoo-player-id"
+	FlagYahooPlayerBatchSize          = "yahoo-player-batch-size"
+	FlagYahooPlayerActivityBatchSize  = "yahoo-player-activity-batch-size"
+	FlagYahooPlayersPerExecution      = "yahoo-players-per-execution"
 
 	// Provisioner flags for db-provision command
 	FlagProvisionerHost     = "provisioner-host"
@@ -146,11 +147,19 @@ func BindMaxYahooPlayerIDFlag(flags *flag.FlagSet) error {
 }
 
 func InitYahooPlayerBatchSizeFlag(flags *flag.FlagSet) {
-	flags.Int(FlagYahooPlayerBatchSize, 50, "Batch size for downloading Yahoo players")
+	flags.Int(FlagYahooPlayerBatchSize, 50, "Number of concurrent activities for downloading Yahoo players")
 }
 
 func BindYahooPlayerBatchSizeFlag(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagYahooPlayerBatchSize, flags.Lookup(FlagYahooPlayerBatchSize))
+}
+
+func InitYahooPlayerActivityBatchSizeFlag(flags *flag.FlagSet) {
+	flags.Int(FlagYahooPlayerActivityBatchSize, 100, "Number of players to process per activity")
+}
+
+func BindYahooPlayerActivityBatchSizeFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagYahooPlayerActivityBatchSize, flags.Lookup(FlagYahooPlayerActivityBatchSize))
 }
 
 func InitYahooPlayersPerExecutionFlag(flags *flag.FlagSet) {

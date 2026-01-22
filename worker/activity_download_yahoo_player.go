@@ -22,6 +22,23 @@ func DownloadYahooPlayer(ctx context.Context, playerID int) error {
 	return downloadYahooPlayerImpl(ctx, fs, playerID)
 }
 
+// DownloadYahooPlayerBatch downloads a range of Yahoo player pages.
+// Processes players from startID to endID (inclusive).
+func DownloadYahooPlayerBatch(ctx context.Context, startID, endID int) error {
+	fs := cache.NewSimpleCache()
+	for playerID := startID; playerID <= endID; playerID++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if err := downloadYahooPlayerImpl(ctx, fs, playerID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // downloadYahooPlayerImpl is the testable implementation.
 func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID int) error {
 	start := time.Now()

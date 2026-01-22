@@ -58,6 +58,9 @@ func cmdWorker() *cobra.Command {
 			if err := config.BindYahooPlayerBatchSizeFlag(flags); err != nil {
 				return err
 			}
+			if err := config.BindYahooPlayerActivityBatchSizeFlag(flags); err != nil {
+				return err
+			}
 			if err := config.BindYahooPlayersPerExecutionFlag(flags); err != nil {
 				return err
 			}
@@ -90,6 +93,7 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.DownloadRosterForTeamOnDay)
 			w.RegisterActivity(workers.DownloadTeamSummaryForTeamOnDay)
 			w.RegisterActivity(workers.DownloadYahooPlayer)
+			w.RegisterActivity(workers.DownloadYahooPlayerBatch)
 			w.RegisterActivity(workers.FetchSeasonsDataActivity)
 
 			// Import workflows
@@ -145,6 +149,7 @@ func cmdWorker() *cobra.Command {
 	config.InitMaxSeasonConcurrencyFlag(flags)
 	config.InitMaxYahooPlayerIDFlag(flags)
 	config.InitYahooPlayerBatchSizeFlag(flags)
+	config.InitYahooPlayerActivityBatchSizeFlag(flags)
 	config.InitYahooPlayersPerExecutionFlag(flags)
 	return cmd
 }

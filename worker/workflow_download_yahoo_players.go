@@ -30,6 +30,7 @@ func DownloadYahooPlayersWorkflow(ctx workflow.Context, input *DownloadYahooPlay
 
 	maxPlayerID := viper.GetInt(config.FlagMaxYahooPlayerID)
 	concurrency := viper.GetInt(config.FlagYahooPlayerBatchSize)
+	activityBatchSize := viper.GetInt(config.FlagYahooPlayerActivityBatchSize)
 	playersPerExecution := viper.GetInt(config.FlagYahooPlayersPerExecution)
 
 	// Calculate this execution's range
@@ -37,28 +38,37 @@ func DownloadYahooPlayersWorkflow(ctx workflow.Context, input *DownloadYahooPlay
 	if endID > maxPlayerID {
 		endID = maxPlayerID
 	}
-	batchSize := endID - startID + 1
+	totalPlayers := endID - startID + 1
+
+	// Calculate number of activity batches needed
+	numActivityBatches := (totalPlayers + activityBatchSize - 1) / activityBatchSize
 
 	logger.Info("DownloadYahooPlayersWorkflow started",
 		"startID", startID,
 		"endID", endID,
 		"maxPlayerID", maxPlayerID,
 		"concurrency", concurrency,
+		"activityBatchSize", activityBatchSize,
+		"numActivityBatches", numActivityBatches,
 		"totalCompleted", totalCompleted)
 
-	// Track progress for this execution, reporting cumulative total
-	tracker := NewProgressTrackerWithOffset(batchSize, totalCompleted, maxPlayerID)
+	// Track progress by activity batches, but report player counts to user
+	tracker := NewProgressTrackerWithOffset(numActivityBatches, totalCompleted, maxPlayerID)
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
 
 	activityCtx := workflow.WithActivityOptions(ctx, defaultActivityOptions())
-	startActivity := func(ctx workflow.Context, index int) workflow.Future {
-		playerID := startID + index
-		return workflow.ExecuteActivity(activityCtx, DownloadYahooPlayer, playerID)
+	startActivity := func(ctx workflow.Context, batchIndex int) workflow.Future {
+		batchStartID := startID + (batchIndex * activityBatchSize)
+		batchEndID := batchStartID + activityBatchSize - 1
+		if batchEndID > endID {
+			batchEndID = endID
+		}
+		return workflow.ExecuteActivity(activityCtx, DownloadYahooPlayerBatch, batchStartID, batchEndID)
 	}
 
-	if err := tracker.RunWorkerPool(ctx, batchSize, concurrency, startActivity); err != nil {
+	if err := tracker.RunWorkerPool(ctx, numActivityBatches, concurrency, startActivity); err != nil {
 		return err
 	}
 
@@ -67,7 +77,7 @@ func DownloadYahooPlayersWorkflow(ctx workflow.Context, input *DownloadYahooPlay
 		return workflow.NewContinueAsNewError(ctx, DownloadYahooPlayersWorkflow,
 			&DownloadYahooPlayersInput{
 				StartPlayerID:  endID + 1,
-				TotalCompleted: totalCompleted + batchSize,
+				TotalCompleted: totalCompleted + totalPlayers,
 			})
 	}
 

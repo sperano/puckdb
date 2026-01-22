@@ -3,6 +3,7 @@ package metrics
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -38,13 +39,13 @@ var (
 	}, []string{"operation", "file_type"})
 )
 
-// HTTP metrics
+// HTTP metrics for outbound requests (to external APIs)
 var (
 	httpRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "puckdb_http_request_duration_seconds",
 		Help:    "Duration of HTTP requests in seconds",
 		Buckets: httpBuckets,
-	}, []string{"api", "status_code"})
+	}, []string{"api", "method", "status_code"})
 
 	httpResponseBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "puckdb_http_response_bytes",
@@ -79,8 +80,8 @@ func ObserveFSOp(operation, fileType string, duration time.Duration, bytes int) 
 }
 
 // ObserveHTTP records an HTTP request duration and response size
-func ObserveHTTP(api string, statusCode int, duration time.Duration, bytes int) {
-	httpRequestDuration.WithLabelValues(api, fmt.Sprintf("%d", statusCode)).Observe(duration.Seconds())
+func ObserveHTTP(api, method string, statusCode int, duration time.Duration, bytes int) {
+	httpRequestDuration.WithLabelValues(api, method, fmt.Sprintf("%d", statusCode)).Observe(duration.Seconds())
 	if bytes > 0 {
 		httpResponseBytes.WithLabelValues(api).Observe(float64(bytes))
 	}
@@ -95,6 +96,33 @@ func IncDownload(fileType, result string) {
 // ObserveActivityDuration records a Temporal activity's total duration
 func ObserveActivityDuration(activity string, duration time.Duration) {
 	activityDuration.WithLabelValues(activity).Observe(duration.Seconds())
+}
+
+// HTTPMetricsMiddleware returns middleware that records HTTP request metrics.
+func HTTPMetricsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		ww := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(ww, r)
+
+		duration := time.Since(start)
+		path := strings.TrimSuffix(r.URL.Path, "/")
+		if path == "" {
+			path = "/"
+		}
+		ObserveHTTP(path, r.Method, ww.statusCode, duration, 0)
+	})
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
 }
 
 // StartServer starts the Prometheus metrics HTTP server
