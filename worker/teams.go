@@ -12,11 +12,15 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-func DownloadTeam(ctx context.Context, season int, gameKey int, leagueID int, teamID int) error {
+func DownloadTeam(ctx context.Context, season int, leagueID int, teamID int) error {
 	start := time.Now()
 	defer func() {
 		metrics.ObserveActivityDuration("DownloadTeam", time.Since(start))
 	}()
+	gameKey, err := GetGameKeyForSeason(season)
+	if err != nil {
+		return err
+	}
 	fs := cache.NewSimpleCache()
 	return downloadTeamImpl(ctx, fs, season, gameKey, leagueID, teamID)
 }
@@ -29,7 +33,11 @@ func downloadTeamImpl(ctx context.Context, fs cache.FileSystem, season int, game
 	return doDownloadImpl(ctx, fs, file, url)
 }
 
-func ImportTeam(ctx context.Context, season int, gameKey int, leagueID int, teamID int) (database.Team, error) {
+func ImportTeam(ctx context.Context, season int, leagueID int, teamID int) (database.Team, error) {
+	gameKey, err := GetGameKeyForSeason(season)
+	if err != nil {
+		return database.Team{}, err
+	}
 	fs := cache.NewSimpleCache()
 	return importTeamImpl(ctx, fs, season, gameKey, leagueID, teamID)
 }
@@ -49,9 +57,9 @@ func importTeamImpl(ctx context.Context, fs cache.FileSystem, season int, gameKe
 	return *t, err
 }
 
-func DownloadRosterForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, gameKey, leagueID, teamID int) error {
+func DownloadRosterForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, season, leagueID, teamID int) error {
 	logger := workflow.GetLogger(ctx)
-	logger.Info("Downloading rosters", "gameKey", gameKey, "leagueID", leagueID, "teamID", teamID)
+	logger.Info("Downloading rosters", "season", season, "leagueID", leagueID, "teamID", teamID)
 
 	end := endDate
 	if end.After(time.Now()) {
@@ -61,7 +69,7 @@ func DownloadRosterForTeamWorkflow(ctx workflow.Context, startDate, endDate time
 	futures := make([]workflow.Future, 0)
 	for day := startDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		future := workflow.ExecuteActivity(ctx, DownloadRosterForTeamOnDay, gameKey, leagueID, teamID, day)
+		future := workflow.ExecuteActivity(ctx, DownloadRosterForTeamOnDay, season, leagueID, teamID, day)
 		futures = append(futures, future)
 	}
 	for _, f := range futures {
@@ -97,11 +105,15 @@ func ImportRosterForTeamWorkflow(ctx workflow.Context, startDate, endDate time.T
 }
 */
 
-func DownloadRosterForTeamOnDay(ctx context.Context, gameKey int, leagueID int, teamID int, day time.Time) error {
+func DownloadRosterForTeamOnDay(ctx context.Context, season int, leagueID int, teamID int, day time.Time) error {
 	start := time.Now()
 	defer func() {
 		metrics.ObserveActivityDuration("DownloadRosterForTeamOnDay", time.Since(start))
 	}()
+	gameKey, err := GetGameKeyForSeason(season)
+	if err != nil {
+		return err
+	}
 	fs := cache.NewSimpleCache()
 	return downloadRosterForTeamOnDayImpl(ctx, fs, gameKey, leagueID, teamID, day)
 }
@@ -114,7 +126,11 @@ func downloadRosterForTeamOnDayImpl(ctx context.Context, fs cache.FileSystem, ga
 	return doDownloadImpl(ctx, fs, file, url)
 }
 
-func ImportRosterForTeamOnDay(ctx context.Context, gameKey int, leagueID int, teamID int, day time.Time) (database.RosterPlayers, error) {
+func ImportRosterForTeamOnDay(ctx context.Context, season int, leagueID int, teamID int, day time.Time) (database.RosterPlayers, error) {
+	gameKey, err := GetGameKeyForSeason(season)
+	if err != nil {
+		return nil, err
+	}
 	fs := cache.NewSimpleCache()
 	return importRosterForTeamOnDayImpl(ctx, fs, gameKey, leagueID, teamID, day)
 }
@@ -134,9 +150,9 @@ func importRosterForTeamOnDayImpl(ctx context.Context, fs cache.FileSystem, game
 	return r, err
 }
 
-func DownloadTeamSummariesForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, gameKey, leagueID, teamID int) error {
+func DownloadTeamSummariesForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, season, leagueID, teamID int) error {
 	logger := workflow.GetLogger(ctx)
-	logger.Info("Downloading team summaries", "gameKey", gameKey, "leagueID", leagueID, "teamID", teamID)
+	logger.Info("Downloading team summaries", "season", season, "leagueID", leagueID, "teamID", teamID)
 
 	end := endDate
 	if end.After(time.Now()) {
@@ -146,7 +162,7 @@ func DownloadTeamSummariesForTeamWorkflow(ctx workflow.Context, startDate, endDa
 	futures := make([]workflow.Future, 0)
 	for day := startDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		future := workflow.ExecuteActivity(ctx, DownloadTeamSummaryForTeamOnDay, gameKey, leagueID, teamID, day)
+		future := workflow.ExecuteActivity(ctx, DownloadTeamSummaryForTeamOnDay, season, leagueID, teamID, day)
 		futures = append(futures, future)
 	}
 	for _, f := range futures {
@@ -182,11 +198,15 @@ func ImportTeamSummariesForTeamWorkflow(ctx workflow.Context, startDate, endDate
 }
 */
 
-func DownloadTeamSummaryForTeamOnDay(ctx context.Context, gameKey int, leagueID int, teamID int, day time.Time) error {
+func DownloadTeamSummaryForTeamOnDay(ctx context.Context, season int, leagueID int, teamID int, day time.Time) error {
 	start := time.Now()
 	defer func() {
 		metrics.ObserveActivityDuration("DownloadTeamSummaryForTeamOnDay", time.Since(start))
 	}()
+	gameKey, err := GetGameKeyForSeason(season)
+	if err != nil {
+		return err
+	}
 	fs := cache.NewSimpleCache()
 	return downloadTeamSummaryForTeamOnDayImpl(ctx, fs, gameKey, leagueID, teamID, day)
 }
@@ -199,7 +219,11 @@ func downloadTeamSummaryForTeamOnDayImpl(ctx context.Context, fs cache.FileSyste
 	return doDownloadImpl(ctx, fs, file, url)
 }
 
-func ImportTeamSummaryForTeamOnDay(ctx context.Context, gameKey int, leagueID int, teamID int, day time.Time) (database.TeamSummary, error) {
+func ImportTeamSummaryForTeamOnDay(ctx context.Context, season int, leagueID int, teamID int, day time.Time) (database.TeamSummary, error) {
+	gameKey, err := GetGameKeyForSeason(season)
+	if err != nil {
+		return database.TeamSummary{}, err
+	}
 	fs := cache.NewSimpleCache()
 	return importTeamSummaryForTeamOnDayImpl(ctx, fs, gameKey, leagueID, teamID, day)
 }

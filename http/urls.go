@@ -14,6 +14,10 @@ func YahooFantasyGameURL() string {
 	return fmt.Sprintf("%s/game/nhl", baseAPIURL)
 }
 
+func YahooFantasyGameBySeasonURL(season int) string {
+	return fmt.Sprintf("%s/games;game_codes=nhl;seasons=%d", baseAPIURL, season)
+}
+
 func YahooLeagueURL(gameKey int, leagueID int) string {
 	return fmt.Sprintf("%s/league/%d.l.%d/settings", baseAPIURL, gameKey, leagueID)
 }

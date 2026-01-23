@@ -65,16 +65,16 @@ func DownloadDailySchedule(ctx context.Context, day time.Time) error {
 
 // downloadSchedule downloads and parses the daily schedule.
 func downloadSchedule(ctx context.Context, fs cache.FileSystem, day time.Time) ([]nhl.GameID, error) {
-	log.Info().Time("day", day).Msg("Downloading daily schedule")
-
 	file := fs.New(cache.DailyScheduleFileType, day)
 	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
 		return nil, fmt.Errorf("mkdir: %w", err)
 	}
 
 	if fs.Exists(file) {
+		log.Debug().Time("day", day).Msg("Daily schedule cache hit")
 		metrics.IncDownload("DailySchedule", "hit")
 	} else {
+		log.Info().Time("day", day).Msg("Downloading daily schedule")
 		client := newNHLClient()
 
 		start := time.Now()

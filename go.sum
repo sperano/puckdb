@@ -845,8 +845,6 @@ github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9
 github.com/sosodev/duration v1.3.1 h1:qtHBDMQ6lvMQsL15g4aopM4HEfOaYuhWBw3NPTtlqq4=
 github.com/sosodev/duration v1.3.1/go.mod h1:RQIBBX0+fMLc/D9+Jb/fwvVmo0eZvDDEERAikUR6SDg=
 github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
-github.com/sperano/nhl-api-go v0.0.0-20260109224714-8d734d37dba4 h1:vYTOs8EeRaG7e/vLO8MRVoCOHB7G1amHe0POKM+RUDg=
-github.com/sperano/nhl-api-go v0.0.0-20260109224714-8d734d37dba4/go.mod h1:b9yzggYciaRaRHh9HXlcUtiHwNe6ZVcMck75AffkFn0=
 github.com/sperano/nhl-api-go v0.0.0-20260123004037-1e9e39635027 h1:QdZGmDpQG4SJbIw/a3FvY5DIbN5jPnKlAyuaActE/QU=
 github.com/sperano/nhl-api-go v0.0.0-20260123004037-1e9e39635027/go.mod h1:b9yzggYciaRaRHh9HXlcUtiHwNe6ZVcMck75AffkFn0=
 github.com/spf13/afero v1.6.0 h1:xoax2sJ2DT8S8xA2paPFjDCScCNeWsg75VG0DLRreiY=

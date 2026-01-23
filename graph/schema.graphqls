@@ -8,7 +8,6 @@ scalar Time
 type Season {
 	start: Time!
 	end: Time!
-	gameKey: Int!
 	leagues: [League!]!
 }
 

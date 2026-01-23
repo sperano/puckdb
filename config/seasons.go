@@ -3,10 +3,17 @@ package config
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
+)
+
+var (
+	cachedSeasons SeasonsMap
+	seasonsOnce   sync.Once
+	seasonsErr    error
 )
 
 type League struct {
@@ -15,7 +22,6 @@ type League struct {
 }
 
 type Season struct {
-	GameKey int      `yaml:"game_key"`
 	Leagues []League `yaml:"leagues"`
 }
 
@@ -46,7 +52,10 @@ func getSeasons(path string) (SeasonsMap, error) {
 }
 
 func GetSeasonsConfig() (SeasonsMap, error) {
-	paramSeasons := viper.GetString(FlagSeasons)
-	log.Debug().Str("path", paramSeasons).Msg("Loading seasons")
-	return getSeasons(paramSeasons)
+	seasonsOnce.Do(func() {
+		paramSeasons := viper.GetString(FlagSeasons)
+		log.Debug().Str("path", paramSeasons).Msg("Loading seasons")
+		cachedSeasons, seasonsErr = getSeasons(paramSeasons)
+	})
+	return cachedSeasons, seasonsErr
 }

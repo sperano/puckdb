@@ -255,7 +255,6 @@ type RosterPlayer struct {
 type Season struct {
 	Start   time.Time `json:"start"`
 	End     time.Time `json:"end"`
-	GameKey int       `json:"gameKey"`
 	Leagues []*League `json:"leagues"`
 }
 

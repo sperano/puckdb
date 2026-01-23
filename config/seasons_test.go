@@ -21,7 +21,6 @@ func TestGetSeasons(t *testing.T) {
 	season2021, ok := seasons[2021]
 	assert.True(t, ok)
 	assert.Equal(t, 1, len(season2021.Leagues))
-	assert.Equal(t, 123, season2021.GameKey)
 	assert.Equal(t, 22030, season2021.Leagues[0].LeagueID)
 	assert.Equal(t, []int{1, 2, 3, 4, 6, 7, 8, 9, 10, 11}, season2021.Leagues[0].TeamIDs)
 
@@ -29,7 +28,6 @@ func TestGetSeasons(t *testing.T) {
 	season2022, ok := seasons[2022]
 	assert.True(t, ok)
 	assert.Equal(t, 2, len(season2022.Leagues))
-	assert.Equal(t, 456, season2022.GameKey)
 	assert.Equal(t, 1003, season2022.Leagues[0].LeagueID)
 	assert.Equal(t, []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, season2022.Leagues[0].TeamIDs)
 	assert.Equal(t, 12345, season2022.Leagues[1].LeagueID)
@@ -61,7 +59,7 @@ func TestSeasonsMapAccess(t *testing.T) {
 	// Test direct map access
 	season, ok := seasons[2021]
 	assert.True(t, ok)
-	assert.Equal(t, 123, season.GameKey)
+	assert.Equal(t, 1, len(season.Leagues))
 
 	// Test non-existent season
 	_, ok = seasons[9999]

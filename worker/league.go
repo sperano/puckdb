@@ -11,24 +11,15 @@ import (
 	"github.com/sperano/puckdb/metrics"
 )
 
-/*
-func ImportLeagueWorkflow(ctx workflow.Context, season int, leagueID int) (database.League, error) {
-	var league database.League
-	gkey, err := getGameKey(season)
-	if err != nil {
-		return league, err
-	}
-	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-	err = workflow.ExecuteActivity(ctx, ImportLeague, season, gkey, leagueID).Get(ctx, &league)
-	return league, err
-}
-*/
-
-func DownloadLeague(ctx context.Context, season int, gameKey int, leagueID int) error {
+func DownloadLeague(ctx context.Context, season int, leagueID int) error {
 	start := time.Now()
 	defer func() {
 		metrics.ObserveActivityDuration("DownloadLeague", time.Since(start))
 	}()
+	gameKey, err := GetGameKeyForSeason(season)
+	if err != nil {
+		return err
+	}
 	fs := cache.NewSimpleCache()
 	return downloadLeagueImpl(ctx, fs, season, gameKey, leagueID)
 }
@@ -41,7 +32,11 @@ func downloadLeagueImpl(ctx context.Context, fs cache.FileSystem, season int, ga
 	return doDownloadImpl(ctx, fs, file, url)
 }
 
-func ImportLeague(ctx context.Context, season int, gameKey int, leagueID int) (database.League, error) {
+func ImportLeague(ctx context.Context, season int, leagueID int) (database.League, error) {
+	gameKey, err := GetGameKeyForSeason(season)
+	if err != nil {
+		return database.League{}, err
+	}
 	fs := cache.NewSimpleCache()
 	return importLeagueImpl(ctx, fs, season, gameKey, leagueID)
 }

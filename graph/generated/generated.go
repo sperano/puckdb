@@ -314,7 +314,6 @@ type ComplexityRoot struct {
 
 	Season struct {
 		End     func(childComplexity int) int
-		GameKey func(childComplexity int) int
 		Leagues func(childComplexity int) int
 		Start   func(childComplexity int) int
 	}
@@ -1852,13 +1851,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Season.End(childComplexity), true
 
-	case "Season.gameKey":
-		if e.complexity.Season.GameKey == nil {
-			break
-		}
-
-		return e.complexity.Season.GameKey(childComplexity), true
-
 	case "Season.leagues":
 		if e.complexity.Season.Leagues == nil {
 			break
@@ -2101,7 +2093,6 @@ scalar Time
 type Season {
 	start: Time!
 	end: Time!
-	gameKey: Int!
 	leagues: [League!]!
 }
 
@@ -12423,50 +12414,6 @@ func (ec *executionContext) fieldContext_Season_end(_ context.Context, field gra
 	return fc, nil
 }
 
-func (ec *executionContext) _Season_gameKey(ctx context.Context, field graphql.CollectedField, obj *model.Season) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Season_gameKey(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.GameKey, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Season_gameKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Season",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Season_leagues(ctx context.Context, field graphql.CollectedField, obj *model.Season) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Season_leagues(ctx, field)
 	if err != nil {
@@ -17096,11 +17043,6 @@ func (ec *executionContext) _Season(ctx context.Context, sel ast.SelectionSet, o
 			}
 		case "end":
 			out.Values[i] = ec._Season_end(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "gameKey":
-			out.Values[i] = ec._Season_gameKey(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

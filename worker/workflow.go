@@ -326,18 +326,18 @@ func collectDownloadFuturesForSeason(ctx workflow.Context, season SeasonInfo) []
 	// Add league and team downloads (Yahoo)
 	for _, league := range yahooCfg.Leagues {
 		ctxa := workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		future := workflow.ExecuteActivity(ctxa, DownloadLeague, season.StartYear, yahooCfg.GameKey, league.LeagueID)
+		future := workflow.ExecuteActivity(ctxa, DownloadLeague, season.StartYear, league.LeagueID)
 		futures = append(futures, future)
 		for _, teamid := range league.TeamIDs {
-			future := workflow.ExecuteActivity(ctxa, DownloadTeam, season.StartYear, yahooCfg.GameKey, league.LeagueID, teamid)
+			future := workflow.ExecuteActivity(ctxa, DownloadTeam, season.StartYear, league.LeagueID, teamid)
 			futures = append(futures, future)
 			ctxo := withChildOptions(ctx, WorkflowIDDownloadRostersForTeam(season.StartYear, league, teamid))
 			future = workflow.ExecuteChildWorkflow(ctxo, DownloadRosterForTeamWorkflow,
-				season.StartDate, season.EndDate, yahooCfg.GameKey, league.LeagueID, teamid)
+				season.StartDate, season.EndDate, season.StartYear, league.LeagueID, teamid)
 			futures = append(futures, future)
 			ctxo = withChildOptions(ctx, WorkflowIDDownloadTeamSummariesForTeam(season.StartYear, league, teamid))
 			future = workflow.ExecuteChildWorkflow(ctxo, DownloadTeamSummariesForTeamWorkflow,
-				season.StartDate, season.EndDate, yahooCfg.GameKey, league.LeagueID, teamid)
+				season.StartDate, season.EndDate, season.StartYear, league.LeagueID, teamid)
 			futures = append(futures, future)
 		}
 	}
