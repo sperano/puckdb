@@ -53,7 +53,7 @@ func getSeasons(path string) (SeasonsMap, error) {
 
 func GetSeasonsConfig() (SeasonsMap, error) {
 	seasonsOnce.Do(func() {
-		paramSeasons := viper.GetString(FlagSeasons)
+		paramSeasons := viper.GetString(FlagYahooSeasons)
 		log.Debug().Str("path", paramSeasons).Msg("Loading seasons")
 		cachedSeasons, seasonsErr = getSeasons(paramSeasons)
 	})

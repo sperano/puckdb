@@ -22,7 +22,7 @@ func cmdInfo() *cobra.Command {
 		Long:  `Display current configuration values and Yahoo OAuth token status.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
-			if err := viper.BindPFlag(config.FlagSeasons, flags.Lookup(config.FlagSeasons)); err != nil {
+			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
 				return err
 			}
 			if err := config.BindYahooOAuth2Flags(flags); err != nil {
@@ -113,7 +113,7 @@ func cmdInfoImpl(w io.Writer, redisClient redis.Client) error {
 	x = viper.GetString(config.FlagRedisPassword)
 	log.Info().Msgf("Redis Password:                %s", strings.Repeat("*", len(x)))
 	log.Info().Msgf("Redis URL:                     %s", viper.GetString(config.FlagRedisURL))
-	log.Info().Msgf("Seasons:                       %s", viper.GetString(config.FlagSeasons))
+	log.Info().Msgf("Seasons:                       %s", viper.GetString(config.FlagYahooSeasons))
 	log.Info().Msgf("Temporal Host/Port:            %s", viper.GetString(config.FlagTemporalHostPort))
 	log.Info().Msgf("Temporal Namespace:            %s", viper.GetString(config.FlagTemporalNamespace))
 	log.Info().Msgf("Temporal Retry Initial:        %ds", viper.GetInt(config.FlagTemporalRetryInitialInterval))

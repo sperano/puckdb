@@ -22,7 +22,7 @@ func cmdWorker() *cobra.Command {
 			if err := config.BindYahooOAuth2Flags(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagSeasons, flags.Lookup(config.FlagSeasons)); err != nil {
+			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
 				return err
 			}
 			if err := viper.BindPFlag(config.FlagDataPath, flags.Lookup(config.FlagDataPath)); err != nil {

@@ -32,7 +32,7 @@ const (
 	FlagRedisURL                     = "redis-url"
 	FlagRedisPassword                = "redis-password"
 	FlagRedisDB                      = "redis-db"
-	FlagSeasons                      = "seasons" // this is for the league config file
+	FlagYahooSeasons                 = "yahoo-seasons"
 	FlagSkipPreseason                = "skip-preseason"
 	FlagTemporalHostPort             = "temporal-hostport"
 	FlagTemporalNamespace            = "temporal-namespace"
@@ -49,10 +49,10 @@ const (
 	FlagTemporalRetryInitialInterval = "temporal-retry-initial-interval"
 	FlagTemporalRetryMaxAttempts     = "temporal-retry-max-attempts"
 	FlagMaxSeasonConcurrency         = "max-season-concurrency"
-	FlagMaxYahooPlayerID              = "max-yahoo-player-id"
-	FlagYahooPlayerBatchSize          = "yahoo-player-batch-size"
-	FlagYahooPlayerActivityBatchSize  = "yahoo-player-activity-batch-size"
-	FlagYahooPlayersPerExecution      = "yahoo-players-per-execution"
+	FlagMaxYahooPlayerID             = "max-yahoo-player-id"
+	FlagYahooPlayerBatchSize         = "yahoo-player-batch-size"
+	FlagYahooPlayerActivityBatchSize = "yahoo-player-activity-batch-size"
+	FlagYahooPlayersPerExecution     = "yahoo-players-per-execution"
 
 	// Provisioner flags for db-provision command
 	FlagProvisionerHost     = "provisioner-host"
@@ -67,12 +67,12 @@ func InitLogLevelFlag(flags *flag.FlagSet, defaultLevel string) {
 }
 
 func InitSeasonsFlag(cmd *cobra.Command, flags *flag.FlagSet, persistent bool) {
-	flags.StringP(FlagSeasons, "S", "seasons.yaml", "Seasons config file")
+	flags.StringP(FlagYahooSeasons, "S", "yahoo-seasons.yaml", "Yahoo seasons config file")
 	var err error
 	if persistent {
-		err = cmd.MarkPersistentFlagRequired(FlagSeasons)
+		err = cmd.MarkPersistentFlagRequired(FlagYahooSeasons)
 	} else {
-		err = cmd.MarkFlagRequired(FlagSeasons)
+		err = cmd.MarkFlagRequired(FlagYahooSeasons)
 	}
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to mark flag as required")

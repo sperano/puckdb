@@ -71,6 +71,34 @@ var (
 	}, []string{"activity"})
 )
 
+// Cache statistics gauges
+var (
+	cacheFilesExpected = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_cache_files_expected",
+		Help: "Expected number of cache files",
+	}, []string{"season", "file_type"})
+
+	cacheFilesFound = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_cache_files_found",
+		Help: "Actual number of cache files found",
+	}, []string{"season", "file_type"})
+
+	cacheCompletenessPercent = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_cache_completeness_percent",
+		Help: "Cache completeness percentage (found/expected * 100)",
+	}, []string{"season", "file_type"})
+
+	cacheLastUpdated = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "puckdb_cache_stats_last_updated_timestamp",
+		Help: "Unix timestamp of last cache stats update",
+	})
+
+	cacheComputeDuration = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "puckdb_cache_stats_compute_duration_seconds",
+		Help: "Time taken to compute cache statistics",
+	})
+)
+
 // ObserveFSOp records a filesystem operation duration and optionally bytes
 func ObserveFSOp(operation, fileType string, duration time.Duration, bytes int) {
 	fsOpDuration.WithLabelValues(operation, fileType).Observe(duration.Seconds())
@@ -138,4 +166,25 @@ func StartServer(addr string) {
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Error().Err(err).Msg("Metrics server error")
 	}
+}
+
+// SetCacheStats updates cache statistics gauges for a season and file type
+func SetCacheStats(season, fileType string, expected, found int) {
+	cacheFilesExpected.WithLabelValues(season, fileType).Set(float64(expected))
+	cacheFilesFound.WithLabelValues(season, fileType).Set(float64(found))
+	if expected > 0 {
+		cacheCompletenessPercent.WithLabelValues(season, fileType).Set(float64(found) / float64(expected) * 100)
+	} else {
+		cacheCompletenessPercent.WithLabelValues(season, fileType).Set(0)
+	}
+}
+
+// SetCacheStatsTimestamp records when cache stats were last computed
+func SetCacheStatsTimestamp() {
+	cacheLastUpdated.Set(float64(time.Now().Unix()))
+}
+
+// SetCacheComputeDuration records how long the stats computation took
+func SetCacheComputeDuration(d time.Duration) {
+	cacheComputeDuration.Set(d.Seconds())
 }
