@@ -242,7 +242,6 @@ func (r *Resolver) downloadEverythingForSeasonProgress(ctx context.Context, seas
 }
 
 func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string) (*model.WorkflowProgress, error) {
-	// Use a longer timeout for workflow queries (default is 10s which can be too short)
 	queryTimeout := 30 * time.Second
 	queryCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
@@ -271,10 +270,41 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 				Total:     s.Total,
 				Completed: s.Completed,
 			}
+
+			// For incomplete seasons, try to get real-time progress from child workflow
+			if s.Completed < s.Total {
+				childProgress := r.queryChildSeasonProgress(ctx, s.StartYear)
+				if childProgress != nil && childProgress.Completed > s.Completed {
+					result.Seasons[i].Completed = childProgress.Completed
+					// Update the aggregate total
+					result.Completed += childProgress.Completed - s.Completed
+				}
+			}
 		}
 	}
 
 	return result, nil
+}
+
+// queryChildSeasonProgress queries a child season workflow for its progress.
+// Returns nil if the child workflow doesn't exist or can't be queried.
+func (r *Resolver) queryChildSeasonProgress(ctx context.Context, startYear int) *worker.WorkflowProgress {
+	childTimeout := 5 * time.Second
+	childCtx, cancel := context.WithTimeout(ctx, childTimeout)
+	defer cancel()
+
+	childWorkflowID := worker.WorkflowIDDownloadSeason(startYear)
+	response, err := r.TemporalClient.QueryWorkflow(childCtx, childWorkflowID, "", worker.ProgressQueryName)
+	if err != nil {
+		return nil
+	}
+
+	var childProgress worker.WorkflowProgress
+	if err := response.Get(&childProgress); err != nil {
+		return nil
+	}
+
+	return &childProgress
 }
 
 func ptrString(s string) *string {
