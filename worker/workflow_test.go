@@ -180,6 +180,7 @@ type DownloadSeasonsWorkflowTestSuite struct {
 func (s *DownloadSeasonsWorkflowTestSuite) SetupTest() {
 	s.env = s.NewTestWorkflowEnvironment()
 	s.env.RegisterWorkflow(DownloadSeasonsWorkflow)
+	s.env.RegisterWorkflow(DownloadSeasonWorkflow)
 	s.env.RegisterWorkflow(DownloadRosterForTeamWorkflow)
 	s.env.RegisterWorkflow(DownloadTeamSummariesForTeamWorkflow)
 }
