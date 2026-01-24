@@ -15,9 +15,9 @@ import (
 func temporalOptions() client.Options {
 	logger := logur.LoggerToKV(zerologadapter.New(log.Logger))
 	return client.Options{
-		HostPort: viper.GetString(config.FlagTemporalHostPort),
-		//Namespace: viper.GetString(config.FlagTemporalNamespace), TODO
-		Logger: logger,
+		HostPort:  viper.GetString(config.FlagTemporalHostPort),
+		Namespace: viper.GetString(config.FlagTemporalNamespace),
+		Logger:    logger,
 		ConnectionOptions: client.ConnectionOptions{
 			DialOptions: []grpc.DialOption{
 				grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
