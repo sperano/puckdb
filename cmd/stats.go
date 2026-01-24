@@ -19,7 +19,7 @@ const (
 	FlagStatsPort            = "port"
 	FlagStatsRefreshInterval = "refresh-interval"
 
-	defaultStatsPort            = 8790
+	defaultStatsPort            = 8788
 	defaultStatsRefreshInterval = 5 * time.Minute
 )
 
