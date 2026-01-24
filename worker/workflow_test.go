@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -193,7 +194,7 @@ func TestDownloadSeasonsWorkflowTestSuite(t *testing.T) {
 	suite.Run(t, new(DownloadSeasonsWorkflowTestSuite))
 }
 
-// Test DownloadSeasonsWorkflow with mocked activities
+// Test DownloadSeasonsWorkflow with mocked child workflows
 func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_Success() {
 	input := &model.DownloadSeasonsInput{}
 	seasons := []SeasonInfo{
@@ -201,12 +202,8 @@ func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_Success()
 	}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
-	// Mock activities that collectDownloadFuturesForSeason calls
-	s.env.OnActivity(DownloadDailySchedule, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(DownloadLeague, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(DownloadTeam, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnWorkflow(DownloadRosterForTeamWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnWorkflow(DownloadTeamSummariesForTeamWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	// Mock the child workflow for each season
+	s.env.OnWorkflow(DownloadSeasonWorkflow, mock.Anything, mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(DownloadSeasonsWorkflow, input)
 
@@ -227,20 +224,17 @@ func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_FetchSeas
 	s.Error(s.env.GetWorkflowError())
 }
 
-// Test DownloadSeasonsWorkflow handles activity error
-func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_ActivityError() {
+// Test DownloadSeasonsWorkflow handles child workflow error
+func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_ChildWorkflowError() {
 	input := &model.DownloadSeasonsInput{}
 	seasons := []SeasonInfo{
 		{StartYear: 2023, StartDate: mustParseDate("2024-04-14"), EndDate: mustParseDate("2024-04-15")},
 	}
-	expectedErr := errors.New("activity failed")
+	expectedErr := errors.New("child workflow failed")
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
-	s.env.OnActivity(DownloadDailySchedule, mock.Anything, mock.Anything).Return(expectedErr)
-	s.env.OnActivity(DownloadLeague, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnActivity(DownloadTeam, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnWorkflow(DownloadRosterForTeamWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	s.env.OnWorkflow(DownloadTeamSummariesForTeamWorkflow, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	// Mock the child workflow to return an error
+	s.env.OnWorkflow(DownloadSeasonWorkflow, mock.Anything, mock.Anything).Return(expectedErr)
 
 	s.env.ExecuteWorkflow(DownloadSeasonsWorkflow, input)
 
@@ -434,6 +428,54 @@ func TestWorkflowIDConstants(t *testing.T) {
 	assert.Equal(t, "import-everything", WorkflowIDImportEverything)
 	assert.Equal(t, "download-everything", WorkflowIDDownloadEverything)
 	assert.Equal(t, "puckdb-tasks", TaskQueueName)
+}
+
+func TestWorkflowIDDownloadRostersForTeam(t *testing.T) {
+	t.Parallel()
+	league := config.League{LeagueID: 12345, TeamIDs: []int{1, 2, 3}}
+
+	tests := []struct {
+		name      string
+		startYear int
+		league    config.League
+		teamID    int
+		expected  string
+	}{
+		{"basic case", 2023, league, 1, "download-rosters-2023-12345-1"},
+		{"different team", 2023, league, 5, "download-rosters-2023-12345-5"},
+		{"different year", 2022, league, 3, "download-rosters-2022-12345-3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := WorkflowIDDownloadRostersForTeam(tt.startYear, tt.league, tt.teamID)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestWorkflowIDDownloadTeamSummariesForTeam(t *testing.T) {
+	t.Parallel()
+	league := config.League{LeagueID: 12345, TeamIDs: []int{1, 2, 3}}
+
+	tests := []struct {
+		name      string
+		startYear int
+		league    config.League
+		teamID    int
+		expected  string
+	}{
+		{"basic case", 2023, league, 1, "download-team-summary-2023-12345-1"},
+		{"different team", 2023, league, 5, "download-team-summary-2023-12345-5"},
+		{"different year", 2022, league, 3, "download-team-summary-2022-12345-3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := WorkflowIDDownloadTeamSummariesForTeam(tt.startYear, tt.league, tt.teamID)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
 
 /*
