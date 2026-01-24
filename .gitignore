@@ -23,3 +23,4 @@ STAR_spe_quebec.crt
 puckdb-check.log
 .env
 yahoo-seasons.yaml
+tls

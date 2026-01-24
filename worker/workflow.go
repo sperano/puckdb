@@ -118,27 +118,26 @@ func DownloadSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsI
 		return err
 	}
 
-	return processWithWorkerPool(ctx, logger, tracker, seasons, concurrency)
+	return processWithChildWorkflows(ctx, logger, tracker, seasons, concurrency)
 }
 
-// seasonWork tracks all futures for a single season
-type seasonWork struct {
-	season         SeasonInfo
-	futures        []workflow.Future
-	completedCount int
-	pendingIndices map[int]bool // indices of futures not yet added to selector
+// childWorkflowWork tracks a child workflow for a single season
+type childWorkflowWork struct {
+	season SeasonInfo
+	future workflow.ChildWorkflowFuture
 }
 
-// processWithWorkerPool implements true worker pool semantics:
+// processWithChildWorkflows spawns child workflows for each season.
+// Each season runs in its own child workflow, isolating workflow history.
 // - Maintains exactly `concurrency` seasons in flight at any time
 // - Starts a new season immediately when one completes
-func processWithWorkerPool(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, seasons []SeasonInfo, concurrency int) error {
+func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, seasons []SeasonInfo, concurrency int) error {
 	if len(seasons) == 0 {
 		return nil
 	}
 
-	// Track active seasons (startYear -> work)
-	active := make(map[int]*seasonWork)
+	// Track active child workflows (startYear -> work)
+	active := make(map[int]*childWorkflowWork)
 	// Queue of pending seasons
 	pending := make([]SeasonInfo, len(seasons))
 	copy(pending, seasons)
@@ -147,7 +146,7 @@ func processWithWorkerPool(ctx workflow.Context, logger log.Logger, tracker *Pro
 	for i := 0; i < concurrency && len(pending) > 0; i++ {
 		season := pending[0]
 		pending = pending[1:]
-		startSeasonWork(ctx, logger, active, season)
+		startSeasonChildWorkflow(ctx, logger, active, season)
 	}
 
 	var firstErr error
@@ -156,63 +155,56 @@ func processWithWorkerPool(ctx workflow.Context, logger log.Logger, tracker *Pro
 	for len(active) > 0 {
 		selector := workflow.NewSelector(ctx)
 
-		// Add all incomplete futures from all active seasons to selector
+		// Add all active child workflow futures to selector
 		for startYear, work := range active {
 			year := startYear
 			sw := work
-			for idx := range sw.pendingIndices {
-				futureIdx := idx
-				f := sw.futures[futureIdx]
-				selector.AddFuture(f, func(f workflow.Future) {
-					if err := f.Get(ctx, nil); err != nil && firstErr == nil {
-						firstErr = err
-					}
-					sw.completedCount++
-					delete(sw.pendingIndices, futureIdx)
-					tracker.IncrementSeason(year)
-				})
-			}
-		}
-
-		// Wait for any future to complete
-		selector.Select(ctx)
-
-		if firstErr != nil {
-			return firstErr
-		}
-
-		// Check if any season is fully complete
-		for startYear, work := range active {
-			if work.completedCount == len(work.futures) {
-				logger.Info("Season completed", "startYear", startYear)
-				delete(active, startYear)
+			selector.AddFuture(sw.future, func(f workflow.Future) {
+				if err := f.Get(ctx, nil); err != nil && firstErr == nil {
+					firstErr = err
+				}
+				logger.Info("Season completed", "startYear", year)
+				// Mark all tasks for this season as complete
+				markSeasonComplete(tracker, year)
+				delete(active, year)
 
 				// Start next pending season immediately
 				if len(pending) > 0 {
 					nextSeason := pending[0]
 					pending = pending[1:]
-					startSeasonWork(ctx, logger, active, nextSeason)
+					startSeasonChildWorkflow(ctx, logger, active, nextSeason)
 				}
-			}
+			})
+		}
+
+		// Wait for any child workflow to complete
+		selector.Select(ctx)
+
+		if firstErr != nil {
+			return firstErr
 		}
 	}
 
 	return nil
 }
 
-// startSeasonWork initializes work for a season and adds it to active map
-func startSeasonWork(ctx workflow.Context, logger log.Logger, active map[int]*seasonWork, season SeasonInfo) {
-	logger.Info("Starting season", "startYear", season.StartYear)
-	futures := collectDownloadFuturesForSeason(ctx, season)
-	pendingIndices := make(map[int]bool, len(futures))
-	for i := range futures {
-		pendingIndices[i] = true
+// startSeasonChildWorkflow spawns a child workflow for a season
+func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, active map[int]*childWorkflowWork, season SeasonInfo) {
+	logger.Info("Starting season child workflow", "startYear", season.StartYear)
+	ctxo := withChildOptions(ctx, WorkflowIDDownloadSeason(season.StartYear))
+	future := workflow.ExecuteChildWorkflow(ctxo, DownloadSeasonWorkflow, &DownloadSeasonInput{Season: season})
+	active[season.StartYear] = &childWorkflowWork{
+		season: season,
+		future: future,
 	}
-	active[season.StartYear] = &seasonWork{
-		season:         season,
-		futures:        futures,
-		completedCount: 0,
-		pendingIndices: pendingIndices,
+}
+
+// markSeasonComplete sets all tasks for a season as completed in the tracker
+func markSeasonComplete(tracker *ProgressTracker, startYear int) {
+	if idx, ok := tracker.seasonIndex[startYear]; ok {
+		remaining := tracker.progress.Seasons[idx].Total - tracker.progress.Seasons[idx].Completed
+		tracker.progress.Seasons[idx].Completed = tracker.progress.Seasons[idx].Total
+		tracker.progress.Completed += remaining
 	}
 }
 
@@ -299,51 +291,6 @@ func countDownloadTasks(seasons config.Seasons) int {
 }
 */
 
-// collectDownloadFuturesForSeason collects all download futures for a single season.
-func collectDownloadFuturesForSeason(ctx workflow.Context, season SeasonInfo) []workflow.Future {
-	futures := make([]workflow.Future, 0, countDownloadTasksForSeason(season))
-
-	// Spawn per-day activities for granular progress tracking
-	end := season.EndDate
-	if end.After(time.Now()) {
-		end = time.Now()
-	}
-	for day := season.StartDate; !day.After(end); day = day.AddDate(0, 0, 1) {
-		ctxa := workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		futures = append(futures, workflow.ExecuteActivity(ctxa, DownloadDailySchedule, day))
-	}
-
-	// Only process Yahoo activities if the season is in Yahoo config
-	yahooConfig, err := config.GetSeasonsConfig()
-	if err != nil {
-		return futures
-	}
-	yahooCfg, inYahoo := yahooConfig[season.StartYear]
-	if !inYahoo {
-		return futures
-	}
-
-	// Add league and team downloads (Yahoo)
-	for _, league := range yahooCfg.Leagues {
-		ctxa := workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		future := workflow.ExecuteActivity(ctxa, DownloadLeague, season.StartYear, league.LeagueID)
-		futures = append(futures, future)
-		for _, teamid := range league.TeamIDs {
-			future := workflow.ExecuteActivity(ctxa, DownloadTeam, season.StartYear, league.LeagueID, teamid)
-			futures = append(futures, future)
-			ctxo := withChildOptions(ctx, WorkflowIDDownloadRostersForTeam(season.StartYear, league, teamid))
-			future = workflow.ExecuteChildWorkflow(ctxo, DownloadRosterForTeamWorkflow,
-				season.StartDate, season.EndDate, season.StartYear, league.LeagueID, teamid)
-			futures = append(futures, future)
-			ctxo = withChildOptions(ctx, WorkflowIDDownloadTeamSummariesForTeam(season.StartYear, league, teamid))
-			future = workflow.ExecuteChildWorkflow(ctxo, DownloadTeamSummariesForTeamWorkflow,
-				season.StartDate, season.EndDate, season.StartYear, league.LeagueID, teamid)
-			futures = append(futures, future)
-		}
-	}
-
-	return futures
-}
 
 /*
 // collectDownloadFutures collects all download futures across all seasons.
