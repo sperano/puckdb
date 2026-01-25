@@ -51,7 +51,7 @@ func YahooLandedHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func YahooAuthenticatedHandler(redisClient redis.Client) http.HandlerFunc {
-	successURL := fmt.Sprintf("https://%s:%d/yahoo/landed", viper.GetString(config.FlagYahooHostname), viper.GetInt(config.FlagAPIPort))
+	successURL := fmt.Sprintf("%s/yahoo/landed", viper.GetString(config.FlagPublicURL))
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		setNoCacheHeaders(w)

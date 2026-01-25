@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
@@ -20,12 +21,12 @@ func OauthConfig() (*oauth2.Config, error) {
 	if len(clientSecret) == 0 {
 		return nil, empty(FlagYahooOAuth2ClientSecret)
 	}
-	hostname := viper.GetString(FlagYahooHostname)
-	if len(hostname) == 0 {
-		return nil, empty(FlagYahooHostname)
+	publicURL := viper.GetString(FlagPublicURL)
+	if len(publicURL) == 0 {
+		return nil, empty(FlagPublicURL)
 	}
-	redirectURL := fmt.Sprintf("https://%s:%d/yahoo/authenticated", hostname, viper.GetInt(FlagAPIPort))
-	log.Info().Msgf("OAuth2 Redirect URL: %s", redirectURL)
+	redirectURL := fmt.Sprintf("%s/yahoo/authenticated", publicURL)
+	log.Debug().Msgf("OAuth2 Redirect URL: %s", redirectURL)
 	return &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,

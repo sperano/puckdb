@@ -88,8 +88,7 @@ func cmdAPI() *cobra.Command {
 			}
 
 			listen := fmt.Sprintf(":%d", viper.GetInt(config.FlagAPIPort))
-			log.Info().Msgf("Go to https://%s:%d/yahoo/login to authenticate with Yahoo", viper.GetString(config.FlagYahooHostname), viper.GetInt(config.FlagAPIPort))
-			log.Info().Msgf("Go to https://%s:%d/graphql for the GraphQL console", viper.GetString(config.FlagYahooHostname), viper.GetInt(config.FlagAPIPort))
+			log.Info().Msgf("Go to %s/ to authenticate with Yahoo or to access the GraphQL console", viper.GetString(config.FlagPublicURL))
 			r := setupAPIRouter(redisClient, resolver)
 			if viper.GetBool(config.FlagAPITLSEnabled) {
 				return http.ListenAndServeTLS(listen, viper.GetString(config.FlagTLSCertificate), viper.GetString(config.FlagTLSKey), r)

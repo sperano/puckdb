@@ -121,7 +121,7 @@ func cmdInfoImpl(w io.Writer, redisClient redis.Client) error {
 	log.Info().Msgf("TLS Certificate:               %s", viper.GetString(config.FlagTLSCertificate))
 	log.Info().Msgf("TLS Key:                       %s", viper.GetString(config.FlagTLSKey))
 	log.Info().Msgf("Yahoo! Oauth2 Client ID:       %s", viper.GetString(config.FlagYahooOAuth2ClientID))
-	log.Info().Msgf("Yahoo! Hostname:               %s", viper.GetString(config.FlagYahooHostname))
+	log.Info().Msgf("Public URL:                    %s", viper.GetString(config.FlagPublicURL))
 	x = viper.GetString(config.FlagYahooOAuth2ClientSecret)
 	log.Info().Msgf("Yahoo! Oauth2 Client Secret:   %s", strings.Repeat("*", len(x)))
 	log.Info().Msgf("Worker Port:                   %d", viper.GetInt(config.FlagWorkerPort))

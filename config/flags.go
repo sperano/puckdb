@@ -42,7 +42,7 @@ const (
 	FlagWorkerTLSEnabled             = "worker-tls-enabled"
 	FlagYahooOAuth2ClientID          = "yahoo-oauth2-client-id"
 	FlagYahooOAuth2ClientSecret      = "yahoo-oauth2-client-secret"
-	FlagYahooHostname                = "yahoo-hostname"
+	FlagPublicURL                    = "public-url"
 	FlagYahooLogToken                = "yahoo-log-token"
 	FlagPostgresMaxOpenConns         = "postgres-max-open-conns"
 	FlagPostgresMaxIdleConns         = "postgres-max-idle-conns"
@@ -82,7 +82,7 @@ func InitSeasonsFlag(cmd *cobra.Command, flags *flag.FlagSet, persistent bool) {
 func InitYahooOAuth2Flags(flags *flag.FlagSet) {
 	flags.String(FlagYahooOAuth2ClientID, "", "Yahoo! OAuth2 Client ID")
 	flags.String(FlagYahooOAuth2ClientSecret, "", "Yahoo! OAuth2 Client Secret")
-	flags.String(FlagYahooHostname, "", "Hostname used to create login and authentication URLs")
+	flags.String(FlagPublicURL, "", "Public URL for OAuth callbacks (e.g., https://localhost:8787 or http://api.example.com)")
 	flags.Bool(FlagYahooLogToken, false, "Log the token after succesful authentication (for debugging)")
 }
 
@@ -93,7 +93,7 @@ func BindYahooOAuth2Flags(flags *flag.FlagSet) error {
 	if err := viper.BindPFlag(FlagYahooOAuth2ClientSecret, flags.Lookup(FlagYahooOAuth2ClientSecret)); err != nil {
 		return err
 	}
-	if err := viper.BindPFlag(FlagYahooHostname, flags.Lookup(FlagYahooHostname)); err != nil {
+	if err := viper.BindPFlag(FlagPublicURL, flags.Lookup(FlagPublicURL)); err != nil {
 		return err
 	}
 	return viper.BindPFlag(FlagYahooLogToken, flags.Lookup(FlagYahooLogToken))
