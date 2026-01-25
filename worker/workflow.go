@@ -68,14 +68,15 @@ func withChildOptions(ctx workflow.Context, id string) workflow.Context {
 
 func defaultActivityOptions() workflow.ActivityOptions {
 	initialInterval := viper.GetInt(config.FlagTemporalRetryInitialInterval)
+	maxInterval := viper.GetInt(config.FlagTemporalRetryMaxInterval)
 	maxAttempts := viper.GetInt32(config.FlagTemporalRetryMaxAttempts)
 	return workflow.ActivityOptions{
 		StartToCloseTimeout: 3 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Duration(initialInterval) * time.Second,
+			MaximumInterval:    time.Duration(maxInterval) * time.Second,
 			MaximumAttempts:    maxAttempts,
 			BackoffCoefficient: 2.0,
-			MaximumInterval:    60 * time.Second,
 		},
 	}
 }

@@ -47,6 +47,7 @@ const (
 	FlagPostgresMaxOpenConns         = "postgres-max-open-conns"
 	FlagPostgresMaxIdleConns         = "postgres-max-idle-conns"
 	FlagTemporalRetryInitialInterval = "temporal-retry-initial-interval"
+	FlagTemporalRetryMaxInterval     = "temporal-retry-max-interval"
 	FlagTemporalRetryMaxAttempts     = "temporal-retry-max-attempts"
 	FlagMaxSeasonConcurrency         = "max-season-concurrency"
 	FlagMaxYahooPlayerID             = "max-yahoo-player-id"
@@ -119,12 +120,16 @@ func BindTemporalFlags(flags *flag.FlagSet) error {
 }
 
 func InitTemporalRetryFlags(flags *flag.FlagSet) {
-	flags.Int(FlagTemporalRetryInitialInterval, 5, "Initial interval in seconds between activity retries")
-	flags.Int(FlagTemporalRetryMaxAttempts, 10, "Maximum number of activity retry attempts")
+	flags.Int(FlagTemporalRetryInitialInterval, 30, "Initial interval in seconds between activity retries")
+	flags.Int(FlagTemporalRetryMaxInterval, 300, "Maximum interval in seconds between activity retries (for rate limit recovery)")
+	flags.Int(FlagTemporalRetryMaxAttempts, 20, "Maximum number of activity retry attempts (0 for unlimited)")
 }
 
 func BindTemporalRetryFlags(flags *flag.FlagSet) error {
 	if err := viper.BindPFlag(FlagTemporalRetryInitialInterval, flags.Lookup(FlagTemporalRetryInitialInterval)); err != nil {
+		return err
+	}
+	if err := viper.BindPFlag(FlagTemporalRetryMaxInterval, flags.Lookup(FlagTemporalRetryMaxInterval)); err != nil {
 		return err
 	}
 	return viper.BindPFlag(FlagTemporalRetryMaxAttempts, flags.Lookup(FlagTemporalRetryMaxAttempts))

@@ -117,6 +117,7 @@ func cmdInfoImpl(w io.Writer, redisClient redis.Client) error {
 	log.Info().Msgf("Temporal Host/Port:            %s", viper.GetString(config.FlagTemporalHostPort))
 	log.Info().Msgf("Temporal Namespace:            %s", viper.GetString(config.FlagTemporalNamespace))
 	log.Info().Msgf("Temporal Retry Initial:        %ds", viper.GetInt(config.FlagTemporalRetryInitialInterval))
+	log.Info().Msgf("Temporal Retry Max Interval:   %ds", viper.GetInt(config.FlagTemporalRetryMaxInterval))
 	log.Info().Msgf("Temporal Retry Max Attempts:   %d", viper.GetInt(config.FlagTemporalRetryMaxAttempts))
 	log.Info().Msgf("TLS Certificate:               %s", viper.GetString(config.FlagTLSCertificate))
 	log.Info().Msgf("TLS Key:                       %s", viper.GetString(config.FlagTLSKey))
