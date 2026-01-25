@@ -21,12 +21,12 @@ func OauthConfig() (*oauth2.Config, error) {
 	if len(clientSecret) == 0 {
 		return nil, empty(FlagYahooOAuth2ClientSecret)
 	}
-	publicURL := viper.GetString(FlagPublicURL)
-	if len(publicURL) == 0 {
-		return nil, empty(FlagPublicURL)
+	// public-url is only needed for OAuth login flow, not for using existing tokens
+	var redirectURL string
+	if publicURL := viper.GetString(FlagPublicURL); len(publicURL) > 0 {
+		redirectURL = fmt.Sprintf("%s/yahoo/authenticated", publicURL)
+		log.Debug().Msgf("OAuth2 Redirect URL: %s", redirectURL)
 	}
-	redirectURL := fmt.Sprintf("%s/yahoo/authenticated", publicURL)
-	log.Debug().Msgf("OAuth2 Redirect URL: %s", redirectURL)
 	return &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
