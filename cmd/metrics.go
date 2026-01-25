@@ -1,137 +1,634 @@
 package cmd
 
-//import (
-//	"fmt"
-//	"github.com/ericsperano/yfh/apiserver"
-//	"github.com/ericsperano/yfh/cmd/common"
-//	"github.com/ericsperano/yfh/config"
-//	"github.com/go-chi/chi/v5"
-//	"net/http"
-//	"time"
-//
-//	"github.com/spf13/cobra"
-//	"github.com/spf13/viper"
-//)
-//
-//func setupMetricsRouter() *chi.Mux {
-//	r := chi.NewRouter()
-//	r.Use(apiserver.ChiLogger)
-//	//r.SetTrustedProxies(nil)
-//	//r.Use(cors.Default())
-//
-//	// configure metrics middleware
-//	//monitor := ginmetrics.GetMonitor()
-//	//if err := core.CreateMetricNHLConferences(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//if err := core.CreateMetricNHLDivisions(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//if err := core.CreateMetricNHLTeams(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//if err := core.CreateMetricFantasyGames(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//if err := core.CreateMetricLeagues(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//if err := core.CreateMetricTeams(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//if err := core.CreateMetricPlayers(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//if err := core.CreateMetricGames(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//if err := core.CreateMetricPlayerStats(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//if err := core.CreateMetricRosterPlayers(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//if err := core.CreateMetricStandings(monitor); err != nil {
-//	//	log.Fatal().Msg(err.Error())
-//	//}
-//	//monitor.SetMetricPath("/metrics")
-//	//monitor.Use(r)
-//	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-//		_, _ = w.Write([]byte("pong"))
-//	})
-//	return r
-//}
-//
-////func doMetrics(yfh *core.YFH, model interface{}, metrics string) {
-////	var count int64
-////	if err := yfh.GormDB.Model(model).Count(&count).Error; err != nil {
-////		log.Fatal().Err(err)
-////	}
-////	log.Debug().Int64("count", count).Str("model.Type", fmt.Sprintf("%T", model))
-////	if err := ginmetrics.GetMonitor().GetMetric(metrics).SetGaugeValue(nil, float64(count)); err != nil {
-////		log.Fatal().Err(err)
-////	}
-////}
-//
-//func init() {
-//	var cmd = &cobra.Command{
-//		Use:   "metrics",
-//		Short: "Run as a global metrics server",
-//		Long:  `Run as a global metrics server`,
-//		PreRunE: func(cmd *cobra.Command, args []string) error {
-//			flags := cmd.Flags()
-//			if err := viper.BindPFlag(config.FlagLogLevel, flags.Lookup(config.FlagLogLevel)); err != nil {
-//				return err
-//			}
-//			if err := viper.BindPFlag(config.FlagDataPath, flags.Lookup(config.FlagDataPath)); err != nil {
-//				return err
-//			}
-//			if err := config.BindPostgresFlags(flags); err != nil {
-//				return err
-//			}
-//			if err := viper.BindPFlag(config.FlagMetricsPort, flags.Lookup(config.FlagMetricsPort)); err != nil {
-//				return err
-//			}
-//			if err := viper.BindPFlag(config.FlagMetricsTLSEnabled, flags.Lookup(config.FlagMetricsTLSEnabled)); err != nil {
-//				return err
-//			}
-//			return viper.BindPFlag(config.FlagMetricsRefreshInterval, flags.Lookup(config.FlagMetricsRefreshInterval))
-//		},
-//		RunE: func(cmd *cobra.Command, args []string) error {
-//			config.SetLogLevel()
-//			common.LogIntro()
-//			config.ViperEnvFile()
-//
-//			listen := fmt.Sprintf(":%d", viper.GetInt(config.FlagMetricsPort))
-//			r := setupMetricsRouter()
-//			go func() {
-//				for _ = range time.Tick(5 * time.Second) {
-//					//doMetrics(yfh, &model.NHLConference{}, config.MetricNHLConferences)
-//					//doMetrics(yfh, &model.NHLDivision{}, config.MetricNHLDivisions)
-//					//doMetrics(yfh, &model.NHLTeam{}, config.MetricNHLTeams)
-//					//doMetrics(yfh, &model.FantasyGame{}, config.MetricFantasyGames)
-//					//doMetrics(yfh, &model.League{}, config.MetricLeagues)
-//					//doMetrics(yfh, &model.Team{}, config.MetricTeams)
-//					//doMetrics(yfh, &model.Player{}, config.MetricPlayers)
-//					//doMetrics(yfh, &model.Game{}, config.MetricGames)
-//					//doMetrics(yfh, &model.PlayerStats{}, config.MetricPlayerStats)
-//					//doMetrics(yfh, &model.RosterPlayer{}, config.MetricRosterPlayers)
-//					//doMetrics(yfh, &model.Standing{}, config.MetricStandings)
-//				}
-//			}()
-//			if viper.GetBool(config.FlagMetricsTLSEnabled) {
-//				return http.ListenAndServeTLS(listen, viper.GetString(config.FlagTLSCertificate), viper.GetString(config.FlagTLSKey), r)
-//			}
-//			return http.ListenAndServe(listen, r)
-//		},
-//	}
-//	flags := cmd.Flags()
-//	config.InitLogLevelFlag(flags, config.DefaultLogLevel) // TODO should be in root command!
-//	config.InitDataPathFlag(flags)
-//	config.InitPostgresFlags(flags)
-//	config.InitSeasonsFlag(cmd, flags, false)
-//	config.InitMetricsPortFlag(flags)
-//	config.InitMetricsTLSEnabledFlag(flags)
-//	config.InitMetricsRefreshIntervalFlag(flags)
-//	rootCmd.AddCommand(cmd)
-//}
+import (
+	"context"
+	"fmt"
+	"io/fs"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/rs/zerolog/log"
+	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/redis"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+const (
+	FlagMetricsPort          = "port"
+	FlagCacheIntervalSeconds = "cache-interval-seconds"
+	FlagRedisIntervalSeconds = "redis-interval-seconds"
+	FlagDBIntervalSeconds    = "db-interval-seconds"
+
+	defaultMetricsPort          = 8788
+	defaultCacheIntervalSeconds = 300 // 5 minutes
+	defaultRedisIntervalSeconds = 60  // 1 minute
+	defaultDBIntervalSeconds    = 300 // 5 minutes
+)
+
+// cacheMetrics holds statistics for a single file type within a season
+type cacheMetrics struct {
+	seasonYear int
+	fileType   cache.FileType
+	expected   int
+	found      int
+}
+
+func (s cacheMetrics) percentage() float64 {
+	if s.expected == 0 {
+		return 0
+	}
+	return float64(s.found) / float64(s.expected) * 100
+}
+
+type seasonResult struct {
+	stats []cacheMetrics
+	err   error
+	year  int
+}
+
+// simpleSeason represents a season with just dates for NHL API-based checks
+type simpleSeason struct {
+	startYear int
+	start     time.Time
+	end       time.Time
+}
+
+func (s simpleSeason) StartYear() int {
+	return s.startYear
+}
+
+func cmdMetrics() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use:   "metrics",
+		Short: "Expose cache, Redis, and database metrics as Prometheus metrics",
+		Long: `Run a metrics server that periodically computes various metrics
+and exposes them via /metrics endpoint for Prometheus scraping.
+
+Collectors:
+  - Cache: File cache completeness statistics (requires --data-path)
+  - Redis: OAuth token existence check (requires --redis-url)
+  - Database: Table row counts (requires --postgres-* flags)
+
+Each collector runs independently at its own interval.`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			flags := cmd.Flags()
+			if err := viper.BindPFlag(config.FlagDataPath, flags.Lookup(config.FlagDataPath)); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag(FlagMetricsPort, flags.Lookup(FlagMetricsPort)); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag(FlagCacheIntervalSeconds, flags.Lookup(FlagCacheIntervalSeconds)); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag(FlagRedisIntervalSeconds, flags.Lookup(FlagRedisIntervalSeconds)); err != nil {
+				return err
+			}
+			if err := viper.BindPFlag(FlagDBIntervalSeconds, flags.Lookup(FlagDBIntervalSeconds)); err != nil {
+				return err
+			}
+			if err := config.BindRedisFlags(flags); err != nil {
+				return err
+			}
+			if err := config.BindPostgresFlags(flags); err != nil {
+				return err
+			}
+			return config.BindSeasonRangeFlags(flags)
+		},
+		RunE: runMetrics,
+	}
+	flags := cmd.Flags()
+	config.InitDataPathFlag(flags)
+	config.InitSeasonRangeFlags(flags)
+	config.InitRedisFlags(flags)
+	config.InitPostgresFlags(flags)
+	flags.StringP(config.FlagYahooSeasons, "S", "yahoo-seasons.yaml", "Yahoo seasons config file (optional, enables Yahoo file checks)")
+	flags.Int(FlagMetricsPort, defaultMetricsPort, "Port for metrics endpoint")
+	flags.Int(FlagCacheIntervalSeconds, defaultCacheIntervalSeconds, "Interval in seconds for cache metrics collection")
+	flags.Int(FlagRedisIntervalSeconds, defaultRedisIntervalSeconds, "Interval in seconds for Redis metrics collection")
+	flags.Int(FlagDBIntervalSeconds, defaultDBIntervalSeconds, "Interval in seconds for database metrics collection")
+	return cmd
+}
+
+func runMetrics(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+	port := viper.GetInt(FlagMetricsPort)
+	cacheInterval := time.Duration(viper.GetInt(FlagCacheIntervalSeconds)) * time.Second
+	redisInterval := time.Duration(viper.GetInt(FlagRedisIntervalSeconds)) * time.Second
+	dbInterval := time.Duration(viper.GetInt(FlagDBIntervalSeconds)) * time.Second
+
+	log.Info().
+		Int("port", port).
+		Dur("cache_interval", cacheInterval).
+		Dur("redis_interval", redisInterval).
+		Dur("db_interval", dbInterval).
+		Msg("Starting metrics server")
+
+	// Start collectors with independent intervals
+	go runCacheCollector(ctx, cacheInterval)
+	go runRedisCollector(ctx, redisInterval)
+	go runDatabaseCollector(ctx, dbInterval)
+
+	// Start metrics server (blocks)
+	addr := fmt.Sprintf(":%d", port)
+	metrics.StartServer(addr)
+	return nil
+}
+
+// runCacheCollector periodically collects cache file metrics
+func runCacheCollector(ctx context.Context, interval time.Duration) {
+	log.Info().Dur("interval", interval).Msg("Starting cache collector")
+
+	// Collect immediately on startup
+	if err := computeAndUpdateCacheMetrics(ctx); err != nil {
+		log.Error().Err(err).Msg("Initial cache metrics computation failed")
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := computeAndUpdateCacheMetrics(ctx); err != nil {
+				log.Error().Err(err).Msg("Cache metrics computation failed")
+			}
+		}
+	}
+}
+
+// runRedisCollector periodically checks Redis for OAuth token existence
+func runRedisCollector(ctx context.Context, interval time.Duration) {
+	log.Info().Dur("interval", interval).Msg("Starting Redis collector")
+
+	redisClient := redis.NewClient()
+	defer redisClient.Close()
+
+	// Collect immediately on startup
+	collectRedisMetrics(ctx, redisClient)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			collectRedisMetrics(ctx, redisClient)
+		}
+	}
+}
+
+// runDatabaseCollector periodically collects database table row counts
+func runDatabaseCollector(ctx context.Context, interval time.Duration) {
+	log.Info().Dur("interval", interval).Msg("Starting database collector")
+
+	// Collect immediately on startup
+	if err := collectDatabaseMetrics(ctx); err != nil {
+		log.Error().Err(err).Msg("Initial database metrics collection failed")
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := collectDatabaseMetrics(ctx); err != nil {
+				log.Error().Err(err).Msg("Database metrics collection failed")
+			}
+		}
+	}
+}
+
+func collectRedisMetrics(ctx context.Context, redisClient redis.Client) {
+	hasToken, err := redis.HasValidToken(ctx, redisClient, config.DefaultUser)
+	if err != nil {
+		log.Error().Err(err).Str("user", config.DefaultUser).Msg("Failed to check OAuth token")
+		return
+	}
+	metrics.SetRedisOAuthTokenValid(config.DefaultUser, hasToken)
+	metrics.SetRedisMetricsTimestamp()
+	log.Debug().Str("user", config.DefaultUser).Bool("has_token", hasToken).Msg("Redis metrics updated")
+}
+
+func collectDatabaseMetrics(ctx context.Context) error {
+	db, err := database.OpenGorm()
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get sql.DB: %w", err)
+	}
+	defer sqlDB.Close()
+
+	tables := []string{"players", "nhl_teams", "nhl_divisions", "nhl_conferences", "games", "leagues", "teams"}
+	for _, table := range tables {
+		var count int64
+		if err := db.Table(table).Count(&count).Error; err != nil {
+			log.Warn().Err(err).Str("table", table).Msg("Failed to count rows")
+			continue
+		}
+		metrics.SetDBTableRowCount(table, count)
+	}
+
+	metrics.SetDBMetricsTimestamp()
+	log.Debug().Msg("Database metrics updated")
+	return nil
+}
+
+func computeAndUpdateCacheMetrics(ctx context.Context) error {
+	start := time.Now()
+
+	cacheData, err := getAllMetrics(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Update Prometheus gauges per season and file type
+	for _, s := range cacheData {
+		season := fmt.Sprintf("%d", s.seasonYear)
+		fileType := cache.FileTypeName(s.fileType)
+		metrics.SetCacheMetrics(season, fileType, s.expected, s.found)
+	}
+
+	// Compute and set totals
+	var totalExpected, totalFound int
+	for _, s := range cacheData {
+		totalExpected += s.expected
+		totalFound += s.found
+	}
+	metrics.SetCacheMetrics("total", "all", totalExpected, totalFound)
+
+	// Calculate disk usage
+	dataPath := viper.GetString(config.FlagDataPath)
+	if dataPath != "" {
+		diskSize, err := calculateDirSize(dataPath)
+		if err != nil {
+			log.Warn().Err(err).Str("path", dataPath).Msg("Failed to calculate cache disk size")
+		} else {
+			metrics.SetCacheDiskSizeBytes(diskSize)
+		}
+	}
+
+	metrics.SetCacheMetricsTimestamp()
+	metrics.SetCacheComputeDuration(time.Since(start))
+
+	seasonCount := countUniqueSeasons(cacheData)
+	log.Info().
+		Int("seasons", seasonCount).
+		Int("total_expected", totalExpected).
+		Int("total_found", totalFound).
+		Dur("duration", time.Since(start)).
+		Msg("Cache metrics updated")
+
+	return nil
+}
+
+// calculateDirSize calculates the total size of a directory, excluding .git
+func calculateDirSize(path string) (int64, error) {
+	var size int64
+	err := filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		// Skip .git directory
+		if d.IsDir() && d.Name() == ".git" {
+			return filepath.SkipDir
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			size += info.Size()
+		}
+		return nil
+	})
+	return size, err
+}
+
+func countUniqueSeasons(cacheData []cacheMetrics) int {
+	seen := make(map[int]bool)
+	for _, s := range cacheData {
+		seen[s.seasonYear] = true
+	}
+	return len(seen)
+}
+
+// fetchSeasonsFromNHL fetches season metadata from the NHL API
+func fetchSeasonsFromNHL(ctx context.Context) ([]simpleSeason, error) {
+	client := nhl.NewClient()
+	seasons, err := client.SeasonStandingManifest(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch seasons from NHL API: %w", err)
+	}
+
+	startFilter, endFilter := config.GetSeasonRange()
+
+	var result []simpleSeason
+	for _, s := range seasons {
+		startYear := s.ID.StartYear()
+
+		if startFilter > 0 && startYear < startFilter {
+			continue
+		}
+		if endFilter > 0 && startYear > endFilter {
+			continue
+		}
+
+		start, err := time.Parse("2006-01-02", s.StandingsStart)
+		if err != nil {
+			log.Warn().Err(err).Int("season", startYear).Msg("Failed to parse standings start")
+			continue
+		}
+		end, err := time.Parse("2006-01-02", s.StandingsEnd)
+		if err != nil {
+			log.Warn().Err(err).Int("season", startYear).Msg("Failed to parse standings end")
+			continue
+		}
+
+		result = append(result, simpleSeason{
+			startYear: startYear,
+			start:     start,
+			end:       end,
+		})
+	}
+
+	return result, nil
+}
+
+// getAllMetrics gathers cache statistics for all seasons
+func getAllMetrics(ctx context.Context) ([]cacheMetrics, error) {
+	if viper.GetString(config.FlagDataPath) == "" {
+		return nil, fmt.Errorf("data-path is required")
+	}
+
+	// Fetch seasons from NHL API based on season flags
+	seasons, err := fetchSeasonsFromNHL(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(seasons) == 0 {
+		return nil, fmt.Errorf("no seasons found matching the specified range")
+	}
+
+	// Load Yahoo config (optional - for checking Yahoo files)
+	yahooConfig, _ := config.GetSeasonsConfig()
+
+	results := make(chan seasonResult, len(seasons))
+	var wg sync.WaitGroup
+
+	for _, season := range seasons {
+		wg.Add(1)
+		go func(s simpleSeason) {
+			defer wg.Done()
+			fs := cache.NewSimpleCache()
+
+			// Always check NHL API files
+			cacheData := checkNHLSeasonCache(fs, s)
+
+			// If season is in Yahoo config, also check Yahoo fantasy files
+			if yahooCfg, ok := yahooConfig[s.StartYear()]; ok {
+				cacheData = append(cacheData, checkYahooSeasonCache(fs, s, yahooCfg)...)
+			}
+
+			results <- seasonResult{stats: cacheData, err: nil, year: s.StartYear()}
+		}(season)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	allMetrics := make([]cacheMetrics, 0)
+	for result := range results {
+		if result.err != nil {
+			log.Warn().Err(result.err).Int("season", result.year).Msg("Error checking season")
+			continue
+		}
+		allMetrics = append(allMetrics, result.stats...)
+	}
+	return allMetrics, nil
+}
+
+// checkNHLSeasonCache checks NHL API files (daily schedule, boxscores)
+func checkNHLSeasonCache(fs cache.FileSystem, season simpleSeason) []cacheMetrics {
+	cacheData := make([]cacheMetrics, 0)
+	seasonYear := season.StartYear()
+	daysInSeason := countDays(season.start, season.end)
+
+	// Count daily schedule files (1 per day)
+	dailyScheduleCount := countDailyScheduleFilesSimple(fs, season)
+	cacheData = append(cacheData, cacheMetrics{
+		seasonYear: seasonYear,
+		fileType:   cache.DailyScheduleFileType,
+		expected:   daysInSeason,
+		found:      dailyScheduleCount,
+	})
+
+	// Count boxscore files (depends on daily-schedule files)
+	expectedBoxscores, foundBoxscores := countBoxscoreFilesSimple(fs, season)
+	cacheData = append(cacheData, cacheMetrics{
+		seasonYear: seasonYear,
+		fileType:   cache.BoxscoreFileType,
+		expected:   expectedBoxscores,
+		found:      foundBoxscores,
+	})
+
+	return cacheData
+}
+
+// checkYahooSeasonCache checks Yahoo fantasy files (leagues, teams, rosters, summaries)
+func checkYahooSeasonCache(fs cache.FileSystem, nhlSeason simpleSeason, yahooCfg config.Season) []cacheMetrics {
+	cacheData := make([]cacheMetrics, 0)
+	seasonYear := nhlSeason.startYear
+	daysInSeason := countDays(nhlSeason.start, nhlSeason.end)
+
+	// Count leagues
+	leagueCount := countLeagueFiles(fs, seasonYear, yahooCfg)
+	cacheData = append(cacheData, cacheMetrics{
+		seasonYear: seasonYear,
+		fileType:   cache.LeagueFileType,
+		expected:   len(yahooCfg.Leagues),
+		found:      leagueCount,
+	})
+
+	// Count teams
+	totalTeams := 0
+	for _, league := range yahooCfg.Leagues {
+		totalTeams += len(league.TeamIDs)
+	}
+	teamCount := countTeamFiles(fs, seasonYear, yahooCfg)
+	cacheData = append(cacheData, cacheMetrics{
+		seasonYear: seasonYear,
+		fileType:   cache.TeamFileType,
+		expected:   totalTeams,
+		found:      teamCount,
+	})
+
+	// Count rosters (1 per team per day)
+	expectedRosters := totalTeams * daysInSeason
+	rosterCount := countRosterFiles(fs, nhlSeason, yahooCfg)
+	cacheData = append(cacheData, cacheMetrics{
+		seasonYear: seasonYear,
+		fileType:   cache.RosterFileType,
+		expected:   expectedRosters,
+		found:      rosterCount,
+	})
+
+	// Count team summaries (1 per team per day)
+	expectedSummaries := totalTeams * daysInSeason
+	summaryCount := countTeamSummaryFiles(fs, nhlSeason, yahooCfg)
+	cacheData = append(cacheData, cacheMetrics{
+		seasonYear: seasonYear,
+		fileType:   cache.TeamSummaryFileType,
+		expected:   expectedSummaries,
+		found:      summaryCount,
+	})
+
+	return cacheData
+}
+
+func countDays(start, end time.Time) int {
+	if end.After(time.Now()) {
+		end = time.Now()
+	}
+	return int(end.Sub(start).Hours()/24) + 1
+}
+
+func countLeagueFiles(fs cache.FileSystem, seasonYear int, cfg config.Season) int {
+	count := 0
+	for _, league := range cfg.Leagues {
+		file := cache.LeagueFile{Season: seasonYear, LeagueID: league.LeagueID}
+		if fs.Exists(file) {
+			count++
+		}
+	}
+	return count
+}
+
+func countTeamFiles(fs cache.FileSystem, seasonYear int, cfg config.Season) int {
+	count := 0
+	for _, league := range cfg.Leagues {
+		for _, teamID := range league.TeamIDs {
+			file := cache.TeamFile{Season: seasonYear, LeagueID: league.LeagueID, TeamID: teamID}
+			if fs.Exists(file) {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+func countRosterFiles(fs cache.FileSystem, nhlSeason simpleSeason, cfg config.Season) int {
+	count := 0
+	current := nhlSeason.start
+	end := nhlSeason.end
+	if end.After(time.Now()) {
+		end = time.Now()
+	}
+
+	for !current.After(end) {
+		for _, league := range cfg.Leagues {
+			for _, teamID := range league.TeamIDs {
+				file := fs.New(cache.RosterFileType, current, league.LeagueID, teamID)
+				if fs.Exists(file) {
+					count++
+				}
+			}
+		}
+		current = current.AddDate(0, 0, 1)
+	}
+	return count
+}
+
+func countTeamSummaryFiles(fs cache.FileSystem, nhlSeason simpleSeason, cfg config.Season) int {
+	count := 0
+	current := nhlSeason.start
+	end := nhlSeason.end
+	if end.After(time.Now()) {
+		end = time.Now()
+	}
+
+	for !current.After(end) {
+		for _, league := range cfg.Leagues {
+			for _, teamID := range league.TeamIDs {
+				file := fs.New(cache.TeamSummaryFileType, current, league.LeagueID, teamID)
+				if fs.Exists(file) {
+					count++
+				}
+			}
+		}
+		current = current.AddDate(0, 0, 1)
+	}
+	return count
+}
+
+func countDailyScheduleFilesSimple(fs cache.FileSystem, season simpleSeason) int {
+	count := 0
+	current := season.start
+	end := season.end
+	if end.After(time.Now()) {
+		end = time.Now()
+	}
+
+	for !current.After(end) {
+		file := fs.New(cache.DailyScheduleFileType, current)
+		if fs.Exists(file) {
+			count++
+		}
+		current = current.AddDate(0, 0, 1)
+	}
+	return count
+}
+
+func countBoxscoreFilesSimple(fs cache.FileSystem, season simpleSeason) (expected int, found int) {
+	current := season.start
+	end := season.end
+	if end.After(time.Now()) {
+		end = time.Now()
+	}
+
+	for !current.After(end) {
+		dailyScheduleFile := fs.New(cache.DailyScheduleFileType, current)
+		if !fs.Exists(dailyScheduleFile) {
+			current = current.AddDate(0, 0, 1)
+			continue
+		}
+
+		gameIDs, err := cache.ParseDailySchedule(fs, dailyScheduleFile)
+		if err != nil {
+			log.Warn().Err(err).Time("date", current).Msg("Error parsing daily-schedule file")
+			current = current.AddDate(0, 0, 1)
+			continue
+		}
+
+		expected += len(gameIDs)
+
+		for _, gameID := range gameIDs {
+			boxscoreFile := fs.New(cache.BoxscoreFileType, current, gameID)
+			if fs.Exists(boxscoreFile) {
+				found++
+			}
+		}
+
+		current = current.AddDate(0, 0, 1)
+	}
+
+	return expected, found
+}

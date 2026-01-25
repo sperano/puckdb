@@ -97,6 +97,37 @@ var (
 		Name: "puckdb_cache_stats_compute_duration_seconds",
 		Help: "Time taken to compute cache statistics",
 	})
+
+	cacheDiskSizeBytes = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "puckdb_cache_disk_size_bytes",
+		Help: "Total disk space used by cache directory in bytes",
+	})
+)
+
+// Redis metrics
+var (
+	redisOAuthTokenValid = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_redis_oauth_token_valid",
+		Help: "Whether a valid OAuth token exists for a user (1=valid, 0=missing/expired)",
+	}, []string{"user"})
+
+	redisLastUpdated = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "puckdb_redis_last_updated_timestamp",
+		Help: "Unix timestamp of last Redis metrics update",
+	})
+)
+
+// Database metrics
+var (
+	dbTableRowCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_db_table_row_count",
+		Help: "Number of rows in database tables",
+	}, []string{"table"})
+
+	dbLastUpdated = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "puckdb_db_last_updated_timestamp",
+		Help: "Unix timestamp of last database metrics update",
+	})
 )
 
 // ObserveFSOp records a filesystem operation duration and optionally bytes
@@ -168,8 +199,8 @@ func StartServer(addr string) {
 	}
 }
 
-// SetCacheStats updates cache statistics gauges for a season and file type
-func SetCacheStats(season, fileType string, expected, found int) {
+// SetCacheMetrics updates cache statistics gauges for a season and file type
+func SetCacheMetrics(season, fileType string, expected, found int) {
 	cacheFilesExpected.WithLabelValues(season, fileType).Set(float64(expected))
 	cacheFilesFound.WithLabelValues(season, fileType).Set(float64(found))
 	if expected > 0 {
@@ -179,12 +210,41 @@ func SetCacheStats(season, fileType string, expected, found int) {
 	}
 }
 
-// SetCacheStatsTimestamp records when cache stats were last computed
-func SetCacheStatsTimestamp() {
+// SetCacheMetricsTimestamp records when cache metrics were last computed
+func SetCacheMetricsTimestamp() {
 	cacheLastUpdated.Set(float64(time.Now().Unix()))
 }
 
 // SetCacheComputeDuration records how long the stats computation took
 func SetCacheComputeDuration(d time.Duration) {
 	cacheComputeDuration.Set(d.Seconds())
+}
+
+// SetCacheDiskSizeBytes records the total disk space used by the cache
+func SetCacheDiskSizeBytes(bytes int64) {
+	cacheDiskSizeBytes.Set(float64(bytes))
+}
+
+// SetRedisOAuthTokenValid records whether a user has a valid OAuth token
+func SetRedisOAuthTokenValid(user string, valid bool) {
+	val := 0.0
+	if valid {
+		val = 1.0
+	}
+	redisOAuthTokenValid.WithLabelValues(user).Set(val)
+}
+
+// SetRedisMetricsTimestamp records when Redis metrics were last computed
+func SetRedisMetricsTimestamp() {
+	redisLastUpdated.Set(float64(time.Now().Unix()))
+}
+
+// SetDBTableRowCount records the row count for a database table
+func SetDBTableRowCount(table string, count int64) {
+	dbTableRowCount.WithLabelValues(table).Set(float64(count))
+}
+
+// SetDBMetricsTimestamp records when database metrics were last computed
+func SetDBMetricsTimestamp() {
+	dbLastUpdated.Set(float64(time.Now().Unix()))
 }

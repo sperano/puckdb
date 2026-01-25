@@ -142,7 +142,7 @@ If --seasons config file is provided, Yahoo files are also checked.`,
 	return cmd
 }
 
-// cacheStats, seasonResult, simpleSeason, and related functions are defined in stats.go
+// cacheMetrics, seasonResult, simpleSeason, and related functions are defined in metrics.go
 
 func runCheckCache(cmd *cobra.Command, _ []string) error {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
@@ -150,7 +150,7 @@ func runCheckCache(cmd *cobra.Command, _ []string) error {
 	sp := newSpinner(cmd.OutOrStdout(), "Counting cache files...")
 	sp.Start()
 
-	allStats, err := getAllStats(cmd.Context())
+	allMetrics, err := getAllMetrics(cmd.Context())
 	sp.Stop()
 
 	if err != nil {
@@ -159,21 +159,21 @@ func runCheckCache(cmd *cobra.Command, _ []string) error {
 
 	incompleteOnly := viper.GetBool(FlagIncomplete)
 	if viper.GetBool(FlagVerbose) {
-		printCacheStatsVerbose(allStats, incompleteOnly)
+		printCacheMetricsVerbose(allMetrics, incompleteOnly)
 	} else {
-		printCacheStatsCompact(allStats, incompleteOnly)
+		printCacheMetricsCompact(allMetrics, incompleteOnly)
 	}
 	return nil
 }
 
 // countDays, countLeagueFiles, countTeamFiles, countRosterFiles,
 // countTeamSummaryFiles, countDailyScheduleFilesSimple, countBoxscoreFilesSimple
-// are defined in stats.go
+// are defined in metrics.go
 
-func printCacheStatsVerbose(stats []cacheStats, incompleteOnly bool) {
+func printCacheMetricsVerbose(cacheData []cacheMetrics, incompleteOnly bool) {
 	// Group by season
-	seasonMap := make(map[int][]cacheStats)
-	for _, s := range stats {
+	seasonMap := make(map[int][]cacheMetrics)
+	for _, s := range cacheData {
 		seasonMap[s.seasonYear] = append(seasonMap[s.seasonYear], s)
 	}
 
@@ -309,10 +309,10 @@ var columnHeaders = [numColumns]string{
 	"Season", "DailySch", "Boxscore", "League", "Team", "Roster", "Summary", "Total", "%",
 }
 
-func printCacheStatsCompact(stats []cacheStats, incompleteOnly bool) {
+func printCacheMetricsCompact(cacheData []cacheMetrics, incompleteOnly bool) {
 	// Build seasonFileStats for each season
 	seasonMap := make(map[int]*seasonFileStats)
-	for _, s := range stats {
+	for _, s := range cacheData {
 		sf, ok := seasonMap[s.seasonYear]
 		if !ok {
 			sf = &seasonFileStats{year: s.seasonYear}

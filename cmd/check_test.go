@@ -8,13 +8,13 @@ import (
 	"github.com/spf13/viper"
 )
 
-func BenchmarkGetAllStats(b *testing.B) {
+func BenchmarkGetAllMetrics(b *testing.B) {
 	viper.Set(config.FlagDataPath, "../test-data/cache")
 	viper.Set(config.FlagSeasonYear, 2022)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := getAllStats(context.Background())
+		_, err := getAllMetrics(context.Background())
 		if err != nil {
 			b.Fatal(err)
 		}
