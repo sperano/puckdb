@@ -17,6 +17,7 @@ import (
 	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"gorm.io/gorm"
 )
 
 const (
@@ -193,10 +194,20 @@ func runRedisCollector(ctx context.Context, interval time.Duration) {
 func runDatabaseCollector(ctx context.Context, interval time.Duration) {
 	log.Info().Dur("interval", interval).Msg("Starting database collector")
 
-	// Collect immediately on startup
-	if err := collectDatabaseMetrics(ctx); err != nil {
-		log.Error().Err(err).Msg("Initial database metrics collection failed")
+	db, err := database.OpenGorm()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to open database for metrics collector")
+		return
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get sql.DB for metrics collector")
+		return
+	}
+	defer sqlDB.Close()
+
+	// Collect immediately on startup
+	collectDatabaseMetrics(db)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -205,14 +216,13 @@ func runDatabaseCollector(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := collectDatabaseMetrics(ctx); err != nil {
-				log.Error().Err(err).Msg("Database metrics collection failed")
-			}
+			collectDatabaseMetrics(db)
 		}
 	}
 }
 
 func collectRedisMetrics(ctx context.Context, redisClient redis.Client) {
+	start := time.Now()
 	hasToken, err := redis.HasValidToken(ctx, redisClient, config.DefaultUser)
 	if err != nil {
 		log.Error().Err(err).Str("user", config.DefaultUser).Msg("Failed to check OAuth token")
@@ -220,21 +230,18 @@ func collectRedisMetrics(ctx context.Context, redisClient redis.Client) {
 	}
 	metrics.SetRedisOAuthTokenValid(config.DefaultUser, hasToken)
 	metrics.SetRedisMetricsTimestamp()
-	log.Debug().Str("user", config.DefaultUser).Bool("has_token", hasToken).Msg("Redis metrics updated")
+	log.Info().
+		Str("user", config.DefaultUser).
+		Bool("has_token", hasToken).
+		Dur("duration", time.Since(start)).
+		Msg("Redis metrics updated")
 }
 
-func collectDatabaseMetrics(ctx context.Context) error {
-	db, err := database.OpenGorm()
-	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		return fmt.Errorf("failed to get sql.DB: %w", err)
-	}
-	defer sqlDB.Close()
+func collectDatabaseMetrics(db *gorm.DB) {
+	start := time.Now()
 
 	tables := []string{"players", "nhl_teams", "nhl_divisions", "nhl_conferences", "games", "leagues", "teams"}
+	var totalRows int64
 	for _, table := range tables {
 		var count int64
 		if err := db.Table(table).Count(&count).Error; err != nil {
@@ -242,11 +249,15 @@ func collectDatabaseMetrics(ctx context.Context) error {
 			continue
 		}
 		metrics.SetDBTableRowCount(table, count)
+		totalRows += count
 	}
 
 	metrics.SetDBMetricsTimestamp()
-	log.Debug().Msg("Database metrics updated")
-	return nil
+	log.Info().
+		Int("tables", len(tables)).
+		Int64("total_rows", totalRows).
+		Dur("duration", time.Since(start)).
+		Msg("Database metrics updated")
 }
 
 func computeAndUpdateCacheMetrics(ctx context.Context) error {
