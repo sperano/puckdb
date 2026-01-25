@@ -193,7 +193,6 @@ func StartServer(addr string) {
 		w.Write([]byte("ok"))
 	})
 
-	log.Info().Str("addr", addr).Msg("Starting metrics server")
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Error().Err(err).Msg("Metrics server error")
 	}

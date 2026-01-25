@@ -128,9 +128,9 @@ func runMetrics(cmd *cobra.Command, _ []string) error {
 
 	log.Info().
 		Int("port", port).
-		Dur("cache_interval", cacheInterval).
-		Dur("redis_interval", redisInterval).
-		Dur("db_interval", dbInterval).
+		Dur("cache_interval_ms", cacheInterval).
+		Dur("redis_interval_ms", redisInterval).
+		Dur("db_interval_ms", dbInterval).
 		Msg("Starting metrics server")
 
 	// Start collectors with independent intervals
