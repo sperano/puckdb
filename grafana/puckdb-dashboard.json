@@ -535,7 +535,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "puckdb_cache_completeness_percent{job=~\"$job\", season=\"total\", file_type=\"all\"}",
+          "expr": "max(puckdb_cache_completeness_percent{job=~\"$job\", season=\"total\", file_type=\"all\"})",
           "legendFormat": "Total",
           "refId": "A"
         }

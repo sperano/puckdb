@@ -15,7 +15,6 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
@@ -133,7 +132,7 @@ func setupAPIRouter(redisClient redis.Client, resolver *graph.Resolver) *chi.Mux
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("pong"))
 	})
-	r.Handle("/metrics", promhttp.Handler())
+	r.Handle("/metrics", metrics.HandlerFor(metrics.APIRegistry))
 	r.Get("/", homeHandler)
 	// GraphQL
 	r.Route(graphQLPath, func(r chi.Router) {

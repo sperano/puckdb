@@ -71,7 +71,7 @@ func cmdWorker() *cobra.Command {
 
 			// Start metrics HTTP server
 			metricsAddr := fmt.Sprintf(":%d", viper.GetInt(config.FlagWorkerPort))
-			go metrics.StartServer(metricsAddr)
+			go metrics.StartWorkerServer(metricsAddr)
 
 			tclient, err := temporal.NewClient()
 			if err != nil {
