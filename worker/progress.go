@@ -8,9 +8,10 @@ import (
 
 // SeasonProgress represents the progress for a single season.
 type SeasonProgress struct {
-	StartYear int `json:"startYear"`
-	Total     int `json:"total"`
-	Completed int `json:"completed"`
+	StartYear int  `json:"startYear"`
+	Total     int  `json:"total"`
+	Completed int  `json:"completed"`
+	Started   bool `json:"started"`
 }
 
 // WorkflowProgress represents the progress of a workflow.
@@ -90,6 +91,13 @@ func (p *ProgressTracker) IncrementSeason(startYear int) {
 	p.progress.Completed++
 	if idx, ok := p.seasonIndex[startYear]; ok {
 		p.progress.Seasons[idx].Completed++
+	}
+}
+
+// MarkSeasonStarted marks a season as started (child workflow spawned).
+func (p *ProgressTracker) MarkSeasonStarted(startYear int) {
+	if idx, ok := p.seasonIndex[startYear]; ok {
+		p.progress.Seasons[idx].Started = true
 	}
 }
 

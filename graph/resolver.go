@@ -269,10 +269,11 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 				StartYear: s.StartYear,
 				Total:     s.Total,
 				Completed: s.Completed,
+				Started:   s.Started,
 			}
 
-			// For incomplete seasons, try to get real-time progress from child workflow
-			if s.Completed < s.Total {
+			// For started but incomplete seasons, try to get real-time progress from child workflow
+			if s.Started && s.Completed < s.Total {
 				childProgress := r.queryChildSeasonProgress(ctx, s.StartYear)
 				if childProgress != nil && childProgress.Completed > s.Completed {
 					result.Seasons[i].Completed = childProgress.Completed

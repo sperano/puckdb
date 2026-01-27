@@ -121,6 +121,8 @@ Each collector runs independently at its own interval.`,
 }
 
 func runMetrics(cmd *cobra.Command, _ []string) error {
+	config.LogFlagValues()
+
 	ctx := cmd.Context()
 	port := viper.GetInt(FlagMetricsPort)
 	cacheInterval := time.Duration(viper.GetInt(FlagCacheIntervalSeconds)) * time.Second

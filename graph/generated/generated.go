@@ -321,6 +321,7 @@ type ComplexityRoot struct {
 	SeasonProgress struct {
 		Completed func(childComplexity int) int
 		StartYear func(childComplexity int) int
+		Started   func(childComplexity int) int
 		Total     func(childComplexity int) int
 	}
 
@@ -1879,6 +1880,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.SeasonProgress.StartYear(childComplexity), true
 
+	case "SeasonProgress.started":
+		if e.complexity.SeasonProgress.Started == nil {
+			break
+		}
+
+		return e.complexity.SeasonProgress.Started(childComplexity), true
+
 	case "SeasonProgress.total":
 		if e.complexity.SeasonProgress.Total == nil {
 			break
@@ -2372,6 +2380,7 @@ type SeasonProgress {
 	startYear: Int!
 	total: Int!
 	completed: Int!
+	started: Boolean!
 }
 
 type WorkflowProgress {
@@ -12632,6 +12641,50 @@ func (ec *executionContext) fieldContext_SeasonProgress_completed(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _SeasonProgress_started(ctx context.Context, field graphql.CollectedField, obj *model.SeasonProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SeasonProgress_started(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Started, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SeasonProgress_started(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SeasonProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Team_ID(ctx context.Context, field graphql.CollectedField, obj *model.Team) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Team_ID(ctx, field)
 	if err != nil {
@@ -13126,6 +13179,8 @@ func (ec *executionContext) fieldContext_WorkflowProgress_seasons(_ context.Cont
 				return ec.fieldContext_SeasonProgress_total(ctx, field)
 			case "completed":
 				return ec.fieldContext_SeasonProgress_completed(ctx, field)
+			case "started":
+				return ec.fieldContext_SeasonProgress_started(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SeasonProgress", field.Name)
 		},
@@ -17128,6 +17183,11 @@ func (ec *executionContext) _SeasonProgress(ctx context.Context, sel ast.Selecti
 			}
 		case "completed":
 			out.Values[i] = ec._SeasonProgress_completed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "started":
+			out.Values[i] = ec._SeasonProgress_started(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

@@ -287,6 +287,7 @@ type SeasonProgress {
 	startYear: Int!
 	total: Int!
 	completed: Int!
+	started: Boolean!
 }
 
 type WorkflowProgress {

@@ -147,7 +147,7 @@ func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker 
 	for i := 0; i < concurrency && len(pending) > 0; i++ {
 		season := pending[0]
 		pending = pending[1:]
-		startSeasonChildWorkflow(ctx, logger, active, season)
+		startSeasonChildWorkflow(ctx, logger, tracker, active, season)
 	}
 
 	var firstErr error
@@ -173,7 +173,7 @@ func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker 
 				if len(pending) > 0 {
 					nextSeason := pending[0]
 					pending = pending[1:]
-					startSeasonChildWorkflow(ctx, logger, active, nextSeason)
+					startSeasonChildWorkflow(ctx, logger, tracker, active, nextSeason)
 				}
 			})
 		}
@@ -190,8 +190,9 @@ func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker 
 }
 
 // startSeasonChildWorkflow spawns a child workflow for a season
-func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, active map[int]*childWorkflowWork, season SeasonInfo) {
+func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, active map[int]*childWorkflowWork, season SeasonInfo) {
 	logger.Info("Starting season child workflow", "startYear", season.StartYear)
+	tracker.MarkSeasonStarted(season.StartYear)
 	ctxo := withChildOptions(ctx, WorkflowIDDownloadSeason(season.StartYear))
 	future := workflow.ExecuteChildWorkflow(ctxo, DownloadSeasonWorkflow, &DownloadSeasonInput{Season: season})
 	active[season.StartYear] = &childWorkflowWork{
