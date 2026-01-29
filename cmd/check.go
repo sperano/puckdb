@@ -92,6 +92,16 @@ func (s *spinner) Stop() {
 	})
 }
 
+// PrintAbove clears the spinner, runs the given function to print output,
+// then continues rendering below that output. The printed content becomes permanent.
+func (s *spinner) PrintAbove(fn func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clearLines()
+	s.lineCount = 0
+	fn()
+}
+
 func cmdCheck() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "check",

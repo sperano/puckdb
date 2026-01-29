@@ -200,6 +200,29 @@ func (r *Resolver) downloadYahooPlayersProgress(ctx context.Context) (*model.Wor
 	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadYahooPlayers)
 }
 
+func (r *Resolver) downloadPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+	opts := workflowOptions(worker.WorkflowIDDownloadPlayers)
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.DownloadPlayersWorkflow, input); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) cancelDownloadPlayers(ctx context.Context) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDDownloadPlayers, ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) downloadPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadPlayers)
+}
+
+func (r *Resolver) downloadPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadPlayers)
+}
+
 func (r *Resolver) downloadEverythingResult(ctx context.Context) (*model.WorkflowResult, error) {
 	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadEverything)
 }

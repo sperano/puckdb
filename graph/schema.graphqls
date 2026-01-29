@@ -315,6 +315,9 @@ type Query {
 	downloadYahooPlayersResult: WorkflowResult!
 	downloadYahooPlayersProgress: WorkflowProgress
 
+	downloadPlayersResult: WorkflowResult!
+	downloadPlayersProgress: WorkflowProgress
+
 	#    nhlStandings: [NHLTeamStanding!]
 #    fantasyGameLocalFiles(season: Int!): [LocalFile!]
 #    leagueLocalFiles(season: Int!): [LocalFile!]
@@ -355,6 +358,9 @@ type Mutation {
 
 	downloadYahooPlayers: Boolean!
 	cancelDownloadYahooPlayers: Boolean!
+
+	downloadPlayers(input: DownloadSeasonsInput): Boolean!
+	cancelDownloadPlayers: Boolean!
 
 	importLeague(season: Int!, leagueID: Int!): League!
 	importTeam(season: Int!, leagueID: Int!, teamID: Int!): Team!

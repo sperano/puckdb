@@ -60,6 +60,16 @@ func (r *mutationResolver) CancelDownloadYahooPlayers(ctx context.Context) (bool
 	return r.Resolver.cancelDownloadYahooPlayers(ctx)
 }
 
+// DownloadPlayers is the resolver for the downloadPlayers field.
+func (r *mutationResolver) DownloadPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+	return r.Resolver.downloadPlayers(ctx, input)
+}
+
+// CancelDownloadPlayers is the resolver for the cancelDownloadPlayers field.
+func (r *mutationResolver) CancelDownloadPlayers(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelDownloadPlayers(ctx)
+}
+
 // ImportLeague is the resolver for the importLeague field.
 func (r *mutationResolver) ImportLeague(ctx context.Context, season int, leagueID int) (*model.League, error) {
 	return nil, fmt.Errorf("not implemented")
@@ -152,6 +162,16 @@ func (r *queryResolver) DownloadYahooPlayersResult(ctx context.Context) (*model.
 // DownloadYahooPlayersProgress is the resolver for the downloadYahooPlayersProgress field.
 func (r *queryResolver) DownloadYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
 	return r.Resolver.downloadYahooPlayersProgress(ctx)
+}
+
+// DownloadPlayersResult is the resolver for the downloadPlayersResult field.
+func (r *queryResolver) DownloadPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.downloadPlayersResult(ctx)
+}
+
+// DownloadPlayersProgress is the resolver for the downloadPlayersProgress field.
+func (r *queryResolver) DownloadPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.Resolver.downloadPlayersProgress(ctx)
 }
 
 // Leagues is the resolver for the leagues field.

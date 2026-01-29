@@ -182,12 +182,14 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		CancelDownloadPlayers      func(childComplexity int) int
 		CancelDownloadSeasons      func(childComplexity int) int
 		CancelDownloadYahooPlayers func(childComplexity int) int
 		CancelExtractUniquePlayers func(childComplexity int) int
 		ClearCache                 func(childComplexity int) int
 		ClearDatabase              func(childComplexity int) int
 		CreateDatabase             func(childComplexity int) int
+		DownloadPlayers            func(childComplexity int, input *model.DownloadSeasonsInput) int
 		DownloadSeasons            func(childComplexity int, input *model.DownloadSeasonsInput) int
 		DownloadYahooPlayers       func(childComplexity int) int
 		DropDatabase               func(childComplexity int) int
@@ -289,6 +291,8 @@ type ComplexityRoot struct {
 	Query struct {
 		BuildNumber                  func(childComplexity int) int
 		CurrentFantasyGameKey        func(childComplexity int) int
+		DownloadPlayersProgress      func(childComplexity int) int
+		DownloadPlayersResult        func(childComplexity int) int
 		DownloadSeasonsProgress      func(childComplexity int) int
 		DownloadSeasonsResult        func(childComplexity int) int
 		DownloadYahooPlayersProgress func(childComplexity int) int
@@ -358,6 +362,8 @@ type MutationResolver interface {
 	CancelDownloadSeasons(ctx context.Context) (bool, error)
 	DownloadYahooPlayers(ctx context.Context) (bool, error)
 	CancelDownloadYahooPlayers(ctx context.Context) (bool, error)
+	DownloadPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
+	CancelDownloadPlayers(ctx context.Context) (bool, error)
 	ImportLeague(ctx context.Context, season int, leagueID int) (*model.League, error)
 	ImportTeam(ctx context.Context, season int, leagueID int, teamID int) (*model.Team, error)
 	ExtractUniquePlayers(ctx context.Context) (bool, error)
@@ -382,6 +388,8 @@ type QueryResolver interface {
 	DownloadSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error)
 	DownloadYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
 	DownloadYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
+	DownloadPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
+	DownloadPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
 }
 type SeasonResolver interface {
 	Leagues(ctx context.Context, obj *model.Season) ([]*model.League, error)
@@ -1155,6 +1163,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Manager.Nickname(childComplexity), true
 
+	case "Mutation.cancelDownloadPlayers":
+		if e.complexity.Mutation.CancelDownloadPlayers == nil {
+			break
+		}
+
+		return e.complexity.Mutation.CancelDownloadPlayers(childComplexity), true
+
 	case "Mutation.cancelDownloadSeasons":
 		if e.complexity.Mutation.CancelDownloadSeasons == nil {
 			break
@@ -1196,6 +1211,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.CreateDatabase(childComplexity), true
+
+	case "Mutation.downloadPlayers":
+		if e.complexity.Mutation.DownloadPlayers == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_downloadPlayers_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DownloadPlayers(childComplexity, args["input"].(*model.DownloadSeasonsInput)), true
 
 	case "Mutation.downloadSeasons":
 		if e.complexity.Mutation.DownloadSeasons == nil {
@@ -1708,6 +1735,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.CurrentFantasyGameKey(childComplexity), true
+
+	case "Query.downloadPlayersProgress":
+		if e.complexity.Query.DownloadPlayersProgress == nil {
+			break
+		}
+
+		return e.complexity.Query.DownloadPlayersProgress(childComplexity), true
+
+	case "Query.downloadPlayersResult":
+		if e.complexity.Query.DownloadPlayersResult == nil {
+			break
+		}
+
+		return e.complexity.Query.DownloadPlayersResult(childComplexity), true
 
 	case "Query.downloadSeasonsProgress":
 		if e.complexity.Query.DownloadSeasonsProgress == nil {
@@ -2408,6 +2449,9 @@ type Query {
 	downloadYahooPlayersResult: WorkflowResult!
 	downloadYahooPlayersProgress: WorkflowProgress
 
+	downloadPlayersResult: WorkflowResult!
+	downloadPlayersProgress: WorkflowProgress
+
 	#    nhlStandings: [NHLTeamStanding!]
 #    fantasyGameLocalFiles(season: Int!): [LocalFile!]
 #    leagueLocalFiles(season: Int!): [LocalFile!]
@@ -2449,6 +2493,9 @@ type Mutation {
 	downloadYahooPlayers: Boolean!
 	cancelDownloadYahooPlayers: Boolean!
 
+	downloadPlayers(input: DownloadSeasonsInput): Boolean!
+	cancelDownloadPlayers: Boolean!
+
 	importLeague(season: Int!, leagueID: Int!): League!
 	importTeam(season: Int!, leagueID: Int!, teamID: Int!): Team!
 
@@ -2462,6 +2509,38 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_downloadPlayers_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_downloadPlayers_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_downloadPlayers_argsInput(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.DownloadSeasonsInput, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["input"]
+	if !ok {
+		var zeroVal *model.DownloadSeasonsInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalODownloadSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadSeasonsInput(ctx, tmp)
+	}
+
+	var zeroVal *model.DownloadSeasonsInput
+	return zeroVal, nil
+}
 
 func (ec *executionContext) field_Mutation_downloadSeasons_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -7978,6 +8057,105 @@ func (ec *executionContext) fieldContext_Mutation_cancelDownloadYahooPlayers(_ c
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_downloadPlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_downloadPlayers(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DownloadPlayers(rctx, fc.Args["input"].(*model.DownloadSeasonsInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_downloadPlayers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_downloadPlayers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelDownloadPlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelDownloadPlayers(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CancelDownloadPlayers(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_cancelDownloadPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_importLeague(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_importLeague(ctx, field)
 	if err != nil {
@@ -11770,6 +11948,105 @@ func (ec *executionContext) _Query_downloadYahooPlayersProgress(ctx context.Cont
 }
 
 func (ec *executionContext) fieldContext_Query_downloadYahooPlayersProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "total":
+				return ec.fieldContext_WorkflowProgress_total(ctx, field)
+			case "completed":
+				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+			case "seasons":
+				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_downloadPlayersResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_downloadPlayersResult(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().DownloadPlayersResult(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.WorkflowResult)
+	fc.Result = res
+	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_downloadPlayersResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "status":
+				return ec.fieldContext_WorkflowResult_status(ctx, field)
+			case "failureReason":
+				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_downloadPlayersProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_downloadPlayersProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().DownloadPlayersProgress(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.WorkflowProgress)
+	fc.Result = res
+	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_downloadPlayersProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -15981,6 +16258,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "downloadPlayers":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_downloadPlayers(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelDownloadPlayers":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelDownloadPlayers(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "importLeague":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_importLeague(ctx, field)
@@ -16966,6 +17257,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_downloadYahooPlayersProgress(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "downloadPlayersResult":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_downloadPlayersResult(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "downloadPlayersProgress":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_downloadPlayersProgress(ctx, field)
 				return res
 			}
 
