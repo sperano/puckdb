@@ -9,7 +9,6 @@ import (
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
-	"go.temporal.io/sdk/workflow"
 )
 
 func DownloadTeam(ctx context.Context, season int, leagueID int, teamID int) error {
@@ -57,6 +56,7 @@ func importTeamImpl(ctx context.Context, fs cache.FileSystem, season int, gameKe
 	return *t, err
 }
 
+/*
 func DownloadRosterForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, season, leagueID, teamID int) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Downloading rosters", "season", season, "leagueID", leagueID, "teamID", teamID)
@@ -79,6 +79,7 @@ func DownloadRosterForTeamWorkflow(ctx workflow.Context, startDate, endDate time
 	}
 	return nil
 }
+*/
 
 /*
 func ImportRosterForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, gameKey, leagueID, teamID int) error {
@@ -150,6 +151,7 @@ func importRosterForTeamOnDayImpl(ctx context.Context, fs cache.FileSystem, game
 	return r, err
 }
 
+/*
 func DownloadTeamSummariesForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, season, leagueID, teamID int) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Downloading team summaries", "season", season, "leagueID", leagueID, "teamID", teamID)
@@ -172,6 +174,7 @@ func DownloadTeamSummariesForTeamWorkflow(ctx workflow.Context, startDate, endDa
 	}
 	return nil
 }
+*/
 
 /*
 func ImportTeamSummariesForTeamWorkflow(ctx workflow.Context, startDate, endDate time.Time, gameKey, leagueID, teamID int) error {

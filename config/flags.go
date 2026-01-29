@@ -54,6 +54,9 @@ const (
 	FlagYahooPlayerBatchSize         = "yahoo-player-batch-size"
 	FlagYahooPlayerActivityBatchSize = "yahoo-player-activity-batch-size"
 	FlagYahooPlayersPerExecution     = "yahoo-players-per-execution"
+	FlagGameIDCacheTTL               = "game-id-cache-ttl"
+	FlagYahooDownloadSleepMin        = "yahoo-download-sleep-min"
+	FlagYahooDownloadSleepMax        = "yahoo-download-sleep-max"
 
 	// Provisioner flags for db-provision command
 	FlagProvisionerHost     = "provisioner-host"
@@ -173,6 +176,26 @@ func InitYahooPlayersPerExecutionFlag(flags *flag.FlagSet) {
 
 func BindYahooPlayersPerExecutionFlag(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagYahooPlayersPerExecution, flags.Lookup(FlagYahooPlayersPerExecution))
+}
+
+func InitGameIDCacheTTLFlag(flags *flag.FlagSet) {
+	flags.Int(FlagGameIDCacheTTL, 3600, "TTL in seconds for game ID cache in Redis")
+}
+
+func BindGameIDCacheTTLFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagGameIDCacheTTL, flags.Lookup(FlagGameIDCacheTTL))
+}
+
+func InitYahooDownloadSleepFlags(flags *flag.FlagSet) {
+	flags.Int(FlagYahooDownloadSleepMin, 5, "Minimum seconds to sleep after each Yahoo API download")
+	flags.Int(FlagYahooDownloadSleepMax, 15, "Maximum seconds to sleep after each Yahoo API download")
+}
+
+func BindYahooDownloadSleepFlags(flags *flag.FlagSet) error {
+	if err := viper.BindPFlag(FlagYahooDownloadSleepMin, flags.Lookup(FlagYahooDownloadSleepMin)); err != nil {
+		return err
+	}
+	return viper.BindPFlag(FlagYahooDownloadSleepMax, flags.Lookup(FlagYahooDownloadSleepMax))
 }
 
 func InitProvisionerFlags(flags *flag.FlagSet) {

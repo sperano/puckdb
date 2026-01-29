@@ -45,8 +45,9 @@ func downloadFromYahooImpl(redisClient redis.Client, url string) ([]byte, error)
 }
 
 // GetGameKeyForSeason fetches the Yahoo Fantasy game key for a given NHL season.
-// Results are cached in memory since game keys never change.
+// Results are cached in memory and on disk since game keys never change.
 func GetGameKeyForSeason(season int) (int, error) {
+	// Check memory cache first
 	gameKeyCacheMu.RLock()
 	if key, ok := gameKeyCache[season]; ok {
 		gameKeyCacheMu.RUnlock()
@@ -54,31 +55,17 @@ func GetGameKeyForSeason(season int) (int, error) {
 	}
 	gameKeyCacheMu.RUnlock()
 
-	url := puckhttp.YahooFantasyGameBySeasonURL(season)
-	content, err := DownloadFromYahoo(url)
+	fs := cache.NewSimpleCache()
+	gameKey, err := cache.GetGameKey(fs, season, DownloadFromYahoo, sleepAfterYahooDownload)
 	if err != nil {
-		return 0, fmt.Errorf("fetch game key for season %d: %w", season, err)
+		return 0, err
 	}
 
-	fantasy, err := cache.ParseXML(content)
-	if err != nil {
-		return 0, fmt.Errorf("parse game key response for season %d: %w", season, err)
-	}
-
-	var gameKey int
-	if len(fantasy.Games) > 0 {
-		gameKey = fantasy.Games[0].Key
-	} else if fantasy.Game.Key != 0 {
-		gameKey = fantasy.Game.Key
-	} else {
-		return 0, fmt.Errorf("no game key found for season %d", season)
-	}
-
+	// Update memory cache
 	gameKeyCacheMu.Lock()
 	gameKeyCache[season] = gameKey
 	gameKeyCacheMu.Unlock()
 
-	log.Info().Int("season", season).Int("game_key", gameKey).Msg("Fetched Yahoo game key")
 	return gameKey, nil
 }
 

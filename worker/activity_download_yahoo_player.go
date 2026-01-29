@@ -94,6 +94,7 @@ func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID 
 				}
 				log.Info().Int("playerID", playerID).Msg("Saved as missing Yahoo player")
 				metrics.IncDownload("YahooPlayer", "miss")
+				sleepAfterYahooDownload()
 				return nil
 			}
 		}
@@ -108,5 +109,6 @@ func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID 
 	}
 	log.Info().Int("playerID", playerID).Str("path", cache.Path(playerFile)).Msg("Saved Yahoo player")
 	metrics.IncDownload("YahooPlayer", "miss")
+	sleepAfterYahooDownload()
 	return nil
 }

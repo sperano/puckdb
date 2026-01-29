@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -182,8 +181,6 @@ func (s *DownloadSeasonsWorkflowTestSuite) SetupTest() {
 	s.env = s.NewTestWorkflowEnvironment()
 	s.env.RegisterWorkflow(DownloadSeasonsWorkflow)
 	s.env.RegisterWorkflow(DownloadSeasonWorkflow)
-	s.env.RegisterWorkflow(DownloadRosterForTeamWorkflow)
-	s.env.RegisterWorkflow(DownloadTeamSummariesForTeamWorkflow)
 }
 
 func (s *DownloadSeasonsWorkflowTestSuite) AfterTest(suiteName, testName string) {
@@ -430,6 +427,7 @@ func TestWorkflowIDConstants(t *testing.T) {
 	assert.Equal(t, "puckdb-tasks", TaskQueueName)
 }
 
+/*
 func TestWorkflowIDDownloadRostersForTeam(t *testing.T) {
 	t.Parallel()
 	league := config.League{LeagueID: 12345, TeamIDs: []int{1, 2, 3}}
@@ -477,6 +475,7 @@ func TestWorkflowIDDownloadTeamSummariesForTeam(t *testing.T) {
 		})
 	}
 }
+*/
 
 /*
 func TestWorkflowIDsAreUnique(t *testing.T) {
@@ -522,8 +521,6 @@ func (s *WorkflowTestSuite) SetupTest() {
 	s.env = s.NewTestWorkflowEnvironment()
 	// Register all workflows that may be called as child workflows
 	s.env.RegisterWorkflow(DownloadGamesForSeasonWorkflow)
-	s.env.RegisterWorkflow(DownloadRosterForTeamWorkflow)
-	s.env.RegisterWorkflow(DownloadTeamSummariesForTeamWorkflow)
 	s.env.RegisterWorkflow(ImportGamesForSeasonWorkflow)
 	s.env.RegisterWorkflow(ImportRosterForTeamWorkflow)
 	s.env.RegisterWorkflow(ImportTeamSummariesForTeamWorkflow)

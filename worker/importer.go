@@ -3,13 +3,17 @@ package worker
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"reflect"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/spf13/viper"
 )
 
 // doDownload ensures a file is downloaded and cached.
@@ -48,6 +52,7 @@ func doDownloadImpl(ctx context.Context, fs cache.FileSystem, file cache.File, u
 			}
 			log.Info().Str("file", cache.Path(file)).Msg("Downloaded")
 			metrics.IncDownload(fileType, "miss")
+			sleepAfterYahooDownload()
 			return nil
 		}
 	}
@@ -102,4 +107,24 @@ func saveToCache(fs cache.FileSystem, file cache.File, content []byte) error {
 	}
 	log.Info().Msgf("Saved %s", cache.Path(file))
 	return nil
+}
+
+// sleepAfterYahooDownload sleeps for a random duration between min and max after a Yahoo API download.
+func sleepAfterYahooDownload() {
+	minSeconds := viper.GetInt(config.FlagYahooDownloadSleepMin)
+	maxSeconds := viper.GetInt(config.FlagYahooDownloadSleepMax)
+	if maxSeconds <= 0 {
+		return
+	}
+	if minSeconds < 0 {
+		minSeconds = 0
+	}
+	if minSeconds >= maxSeconds {
+		minSeconds = maxSeconds
+	}
+	sleepSeconds := minSeconds + rand.Intn(maxSeconds-minSeconds+1)
+	if sleepSeconds > 0 {
+		log.Debug().Int("seconds", sleepSeconds).Msg("Sleeping after Yahoo download")
+		time.Sleep(time.Duration(sleepSeconds) * time.Second)
+	}
 }

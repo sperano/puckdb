@@ -42,13 +42,6 @@ func WorkflowIDDownloadGamesForSeason(season int) string {
 	return fmt.Sprintf("download-games-for-season-%d", season)
 }
 
-func WorkflowIDDownloadRostersForTeam(startYear int, league config.League, teamid int) string {
-	return fmt.Sprintf("download-rosters-%d-%d-%d", startYear, league.LeagueID, teamid)
-}
-
-func WorkflowIDDownloadTeamSummariesForTeam(startYear int, league config.League, teamid int) string {
-	return fmt.Sprintf("download-team-summary-%d-%d-%d", startYear, league.LeagueID, teamid)
-}
 
 func WorkflowIDDownloadEverythingForSeason(season int) string {
 	return fmt.Sprintf("download-everything-for-season-%d", season)
@@ -86,6 +79,12 @@ const defaultSeasonConcurrency = 3
 func DownloadSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
+	// Register query handler immediately so progress queries work from workflow start
+	tracker := NewProgressTracker(0)
+	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+		return err
+	}
+
 	maxConcurrency := viper.GetInt(config.FlagMaxSeasonConcurrency)
 	if maxConcurrency <= 0 {
 		maxConcurrency = 10
@@ -114,10 +113,8 @@ func DownloadSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsI
 		return err
 	}
 
-	tracker := NewProgressTrackerWithSeasons(seasons)
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
-		return err
-	}
+	// Update tracker with actual season data now that we know the seasons
+	tracker.InitializeWithSeasons(seasons)
 
 	return processWithChildWorkflows(ctx, logger, tracker, seasons, concurrency)
 }
@@ -262,22 +259,23 @@ func countDaysInSeason(season SeasonInfo) int {
 }
 
 // countDownloadTasksForSeason counts the total number of download tasks for a single season.
+// Each day is a child workflow that counts as 1 task, plus one-time league/team downloads.
 func countDownloadTasksForSeason(season SeasonInfo) int {
 	days := countDaysInSeason(season)
 	// Check if the season is in the Yahoo config
 	yahooConfig, err := config.GetSeasonsConfig()
 	if err != nil {
-		return days
+		return days // Just daily child workflows
 	}
 	yahooCfg, inYahoo := yahooConfig[season.StartYear]
 	if !inYahoo {
-		return days
+		return days // Just daily child workflows
 	}
-	count := days * 2
-	// Add league and team downloads (Yahoo)
+	count := days // One child workflow per day
+	// Add league and team downloads (one-time per season)
 	for _, league := range yahooCfg.Leagues {
-		count++                          // DownloadLeague
-		count += len(league.TeamIDs) * 3 // DownloadTeam + 2 child workflows per team
+		count++                      // DownloadLeague
+		count += len(league.TeamIDs) // DownloadTeam per team
 	}
 	return count
 }

@@ -103,6 +103,9 @@ Each collector runs independently at its own interval.`,
 			if err := config.BindPostgresFlags(flags); err != nil {
 				return err
 			}
+			if err := config.BindGameIDCacheTTLFlag(flags); err != nil {
+				return err
+			}
 			return config.BindSeasonRangeFlags(flags)
 		},
 		RunE: runMetrics,
@@ -112,6 +115,7 @@ Each collector runs independently at its own interval.`,
 	config.InitSeasonRangeFlags(flags)
 	config.InitRedisFlags(flags)
 	config.InitPostgresFlags(flags)
+	config.InitGameIDCacheTTLFlag(flags)
 	flags.StringP(config.FlagYahooSeasons, "S", "yahoo-seasons.yaml", "Yahoo seasons config file (optional, enables Yahoo file checks)")
 	flags.Int(FlagMetricsPort, defaultMetricsPort, "Port for metrics endpoint")
 	flags.Int(FlagCacheIntervalSeconds, defaultCacheIntervalSeconds, "Interval in seconds for cache metrics collection")
@@ -410,9 +414,11 @@ func getAllMetrics(ctx context.Context) ([]cacheMetrics, error) {
 		go func(s simpleSeason) {
 			defer wg.Done()
 			fs := cache.NewSimpleCache()
+			redisClient := redis.NewClient()
+			defer redisClient.Close()
 
 			// Always check NHL API files
-			cacheData := checkNHLSeasonCache(fs, s)
+			cacheData := checkNHLSeasonCache(context.Background(), fs, redisClient, s)
 
 			// If season is in Yahoo config, also check Yahoo fantasy files
 			if yahooCfg, ok := yahooConfig[s.StartYear()]; ok {
@@ -440,7 +446,7 @@ func getAllMetrics(ctx context.Context) ([]cacheMetrics, error) {
 }
 
 // checkNHLSeasonCache checks NHL API files (daily schedule, boxscores)
-func checkNHLSeasonCache(fs cache.FileSystem, season simpleSeason) []cacheMetrics {
+func checkNHLSeasonCache(ctx context.Context, fs cache.FileSystem, redisClient redis.Client, season simpleSeason) []cacheMetrics {
 	cacheData := make([]cacheMetrics, 0)
 	seasonYear := season.StartYear()
 	daysInSeason := countDays(season.start, season.end)
@@ -455,7 +461,7 @@ func checkNHLSeasonCache(fs cache.FileSystem, season simpleSeason) []cacheMetric
 	})
 
 	// Count boxscore files (depends on daily-schedule files)
-	expectedBoxscores, foundBoxscores := countBoxscoreFilesSimple(fs, season)
+	expectedBoxscores, foundBoxscores := countBoxscoreFilesSimple(ctx, fs, redisClient, season)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
 		fileType:   cache.BoxscoreFileType,
@@ -610,7 +616,7 @@ func countDailyScheduleFilesSimple(fs cache.FileSystem, season simpleSeason) int
 	return count
 }
 
-func countBoxscoreFilesSimple(fs cache.FileSystem, season simpleSeason) (expected int, found int) {
+func countBoxscoreFilesSimple(ctx context.Context, fs cache.FileSystem, redisClient redis.Client, season simpleSeason) (expected int, found int) {
 	current := season.start
 	end := season.end
 	if end.After(time.Now()) {
@@ -624,7 +630,7 @@ func countBoxscoreFilesSimple(fs cache.FileSystem, season simpleSeason) (expecte
 			continue
 		}
 
-		gameIDs, err := cache.ParseDailySchedule(fs, dailyScheduleFile)
+		gameIDs, err := cache.GetGameIds(ctx, fs, redisClient, dailyScheduleFile)
 		if err != nil {
 			log.Warn().Err(err).Time("date", current).Msg("Error parsing daily-schedule file")
 			current = current.AddDate(0, 0, 1)
