@@ -104,7 +104,7 @@ func collectDownloadFuturesForSeasonImpl(ctx workflow.Context, season SeasonInfo
 
 	// Check Yahoo config for this season
 	var teamIDs []TeamInfo
-	yahooConfig, err := config.GetSeasonsConfig()
+	yahooConfig, err := config.GetYahooSeasonsConfig()
 	if err == nil {
 		if yahooCfg, inYahoo := yahooConfig[season.StartYear]; inYahoo {
 			// Add league and team downloads (one-time per season)

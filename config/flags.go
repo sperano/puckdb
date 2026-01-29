@@ -217,7 +217,7 @@ func BindProvisionerFlags(flags *flag.FlagSet) error {
 func InitRedisFlags(flags *flag.FlagSet) {
 	flags.String(FlagRedisURL, "localhost:6379", "Redis url")
 	flags.String(FlagRedisPassword, "", "Redis password")
-	flags.Int(FlagRedisDB, 0, "Redis db") // TODO 1 should be managed by pulumi_home
+	flags.Int(FlagRedisDB, 0, "Redis db")
 }
 
 func BindRedisFlags(flags *flag.FlagSet) error {

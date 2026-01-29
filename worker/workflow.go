@@ -42,7 +42,6 @@ func WorkflowIDDownloadGamesForSeason(season int) string {
 	return fmt.Sprintf("download-games-for-season-%d", season)
 }
 
-
 func WorkflowIDDownloadEverythingForSeason(season int) string {
 	return fmt.Sprintf("download-everything-for-season-%d", season)
 }
@@ -210,7 +209,7 @@ func markSeasonComplete(tracker *ProgressTracker, startYear int) {
 /*
 func DownloadEverythingWorkflow(ctx workflow.Context) error {
 	log.Info().Msg("DownloadFromYahoo everything!")
-	seasons, err := config.GetSeasonsConfig()
+	seasons, err := config.GetYahooSeasonsConfig()
 	if err != nil {
 		return err
 	}
@@ -263,7 +262,7 @@ func countDaysInSeason(season SeasonInfo) int {
 func countDownloadTasksForSeason(season SeasonInfo) int {
 	days := countDaysInSeason(season)
 	// Check if the season is in the Yahoo config
-	yahooConfig, err := config.GetSeasonsConfig()
+	yahooConfig, err := config.GetYahooSeasonsConfig()
 	if err != nil {
 		return days // Just daily child workflows
 	}
@@ -291,7 +290,6 @@ func countDownloadTasks(seasons config.Seasons) int {
 }
 */
 
-
 /*
 // collectDownloadFutures collects all download futures across all seasons.
 func collectDownloadFutures(ctx workflow.Context, seasons config.Seasons) []workflow.Future {
@@ -306,7 +304,7 @@ func collectDownloadFutures(ctx workflow.Context, seasons config.Seasons) []work
 /*
 func ImportEverythingWorkflow(ctx workflow.Context) error {
 	log.Info().Msg("Import everything!")
-	seasons, err := config.GetSeasonsConfig()
+	seasons, err := config.GetYahooSeasonsConfig()
 	if err != nil {
 		return err
 	}

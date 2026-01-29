@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	cachedSeasons SeasonsMap
+	cachedSeasons YahooSeasonsMap
 	seasonsOnce   sync.Once
 	seasonsErr    error
 )
@@ -34,28 +34,28 @@ func (s Season) GetLeague(leagueID int) (League, error) {
 	return League{}, fmt.Errorf("league not found: %d", leagueID)
 }
 
-// SeasonsMap is a map of seasons keyed by start year
-type SeasonsMap map[int]Season
+// YahooSeasonsMap is a map of seasons keyed by start year
+type YahooSeasonsMap map[int]Season
 
-func getSeasons(path string) (SeasonsMap, error) {
-	log.Debug().Str("path", path).Msgf("Opening config file")
+func getYahooSeasons(path string) (YahooSeasonsMap, error) {
+	log.Debug().Str("path", path).Msgf("Opening yahoo seasons config file")
 	yamlFile, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("can't read seasons config file %s: %w", path, err)
+		return nil, fmt.Errorf("can't read yahoo seasons config file %s: %w", path, err)
 	}
-	var seasons SeasonsMap
+	var seasons YahooSeasonsMap
 	err = yaml.Unmarshal(yamlFile, &seasons)
 	if err != nil {
-		return nil, fmt.Errorf("can't unmarshal seasons config file %s: %w", path, err)
+		return nil, fmt.Errorf("can't unmarshal yahoo seasons config file %s: %w", path, err)
 	}
 	return seasons, nil
 }
 
-func GetSeasonsConfig() (SeasonsMap, error) {
+func GetYahooSeasonsConfig() (YahooSeasonsMap, error) {
 	seasonsOnce.Do(func() {
 		paramSeasons := viper.GetString(FlagYahooSeasons)
-		log.Debug().Str("path", paramSeasons).Msg("Loading seasons")
-		cachedSeasons, seasonsErr = getSeasons(paramSeasons)
+		log.Debug().Str("path", paramSeasons).Msg("Loading yahoo seasons config")
+		cachedSeasons, seasonsErr = getYahooSeasons(paramSeasons)
 	})
 	return cachedSeasons, seasonsErr
 }
