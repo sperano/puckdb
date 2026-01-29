@@ -269,7 +269,10 @@ func collectDatabaseMetrics(db *gorm.DB) {
 func computeAndUpdateCacheMetrics(ctx context.Context) error {
 	start := time.Now()
 
-	cacheData, err := getAllMetrics(ctx)
+	redisClient := redis.NewClient()
+	defer redisClient.Close()
+
+	cacheData, err := getAllMetrics(ctx, redisClient)
 	if err != nil {
 		return err
 	}
@@ -388,7 +391,7 @@ func fetchSeasonsFromNHL(ctx context.Context) ([]simpleSeason, error) {
 }
 
 // getAllMetrics gathers cache statistics for all seasons
-func getAllMetrics(ctx context.Context) ([]cacheMetrics, error) {
+func getAllMetrics(ctx context.Context, redisClient redis.Client) ([]cacheMetrics, error) {
 	if viper.GetString(config.FlagDataPath) == "" {
 		return nil, fmt.Errorf("data-path is required")
 	}
@@ -404,7 +407,7 @@ func getAllMetrics(ctx context.Context) ([]cacheMetrics, error) {
 	}
 
 	// Load Yahoo config (optional - for checking Yahoo files)
-	yahooConfig, _ := config.GetSeasonsConfig()
+	yahooConfig, _ := config.GetYahooSeasonsConfig()
 
 	results := make(chan seasonResult, len(seasons))
 	var wg sync.WaitGroup
@@ -414,8 +417,6 @@ func getAllMetrics(ctx context.Context) ([]cacheMetrics, error) {
 		go func(s simpleSeason) {
 			defer wg.Done()
 			fs := cache.NewSimpleCache()
-			redisClient := redis.NewClient()
-			defer redisClient.Close()
 
 			// Always check NHL API files
 			cacheData := checkNHLSeasonCache(context.Background(), fs, redisClient, s)
@@ -637,6 +638,9 @@ func countBoxscoreFilesSimple(ctx context.Context, fs cache.FileSystem, redisCli
 			continue
 		}
 
+		// Filter out preseason games
+		gameIDs = filterRegularSeasonGames(gameIDs)
+
 		expected += len(gameIDs)
 
 		for _, gameID := range gameIDs {
@@ -650,4 +654,21 @@ func countBoxscoreFilesSimple(ctx context.Context, fs cache.FileSystem, redisCli
 	}
 
 	return expected, found
+}
+
+// filterRegularSeasonGames filters out preseason games from a list of game IDs.
+func filterRegularSeasonGames(gameIDs []nhl.GameID) []nhl.GameID {
+	result := make([]nhl.GameID, 0, len(gameIDs))
+	for _, id := range gameIDs {
+		gameType, err := id.GameType()
+		if err != nil {
+			log.Warn().Str("gameid", id.String()).Err(err).Msg("Skipping game with invalid ID")
+			continue
+		}
+		if nhl.GameType(gameType) == nhl.GameTypePreseason {
+			continue
+		}
+		result = append(result, id)
+	}
+	return result
 }

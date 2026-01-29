@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -139,6 +140,9 @@ If --seasons config file is provided, Yahoo files are also checked.`,
 			if err := viper.BindPFlag(FlagIncomplete, flags.Lookup(FlagIncomplete)); err != nil {
 				return err
 			}
+			if err := config.BindRedisFlags(flags); err != nil {
+				return err
+			}
 			return config.BindSeasonRangeFlags(flags)
 		},
 		RunE: runCheckCache,
@@ -146,6 +150,7 @@ If --seasons config file is provided, Yahoo files are also checked.`,
 	flags := cmd.Flags()
 	config.InitDataPathFlag(flags)
 	config.InitSeasonRangeFlags(flags)
+	config.InitRedisFlags(flags)
 	flags.StringP(config.FlagYahooSeasons, "S", "yahoo-seasons.yaml", "Yahoo seasons config file (optional, enables Yahoo file checks)")
 	flags.BoolP(FlagVerbose, "v", false, "Show detailed output per season")
 	flags.BoolP(FlagIncomplete, "i", false, "Only show seasons with less than 100% completion")
@@ -157,10 +162,13 @@ If --seasons config file is provided, Yahoo files are also checked.`,
 func runCheckCache(cmd *cobra.Command, _ []string) error {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
 
+	redisClient := redis.NewClient()
+	defer redisClient.Close()
+
 	sp := newSpinner(cmd.OutOrStdout(), "Counting cache files...")
 	sp.Start()
 
-	allMetrics, err := getAllMetrics(cmd.Context())
+	allMetrics, err := getAllMetrics(cmd.Context(), redisClient)
 	sp.Stop()
 
 	if err != nil {
@@ -564,7 +572,7 @@ func (s dbStats) percentage() float64 {
 func runCheckDB(cmd *cobra.Command, args []string) error {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
 
-	seasons, err := config.GetSeasonsConfig()
+	seasons, err := config.GetYahooSeasonsConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load seasons config: %w", err)
 	}
@@ -747,7 +755,7 @@ type seasonParseResult struct {
 func runCheckParsing(cmd *cobra.Command, _ []string) error {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
 
-	seasons, err := config.GetSeasonsConfig()
+	seasons, err := config.GetYahooSeasonsConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load seasons config: %w", err)
 	}
