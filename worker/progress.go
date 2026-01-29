@@ -55,9 +55,19 @@ func NewProgressTrackerWithOffset(batchSize int, offset int, grandTotal int) *Pr
 
 // NewProgressTrackerWithSeasons creates a ProgressTracker that tracks per-season progress.
 func NewProgressTrackerWithSeasons(seasons []SeasonInfo) *ProgressTracker {
+	tracker := &ProgressTracker{
+		seasonIndex:  make(map[int]int),
+		futureToYear: make(map[int]int),
+	}
+	tracker.InitializeWithSeasons(seasons)
+	return tracker
+}
+
+// InitializeWithSeasons sets up per-season progress tracking.
+// Can be called after RegisterQueryHandler to update progress state once seasons are known.
+func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo) {
 	total := 0
 	seasonProgress := make([]SeasonProgress, len(seasons))
-	seasonIndex := make(map[int]int)
 
 	for i, season := range seasons {
 		count := countDownloadTasksForSeason(season)
@@ -66,18 +76,14 @@ func NewProgressTrackerWithSeasons(seasons []SeasonInfo) *ProgressTracker {
 			Total:     count,
 			Completed: 0,
 		}
-		seasonIndex[season.StartYear] = i
+		p.seasonIndex[season.StartYear] = i
 		total += count
 	}
 
-	return &ProgressTracker{
-		progress: WorkflowProgress{
-			Total:     total,
-			Completed: 0,
-			Seasons:   seasonProgress,
-		},
-		seasonIndex:  seasonIndex,
-		futureToYear: make(map[int]int),
+	p.progress = WorkflowProgress{
+		Total:     total,
+		Completed: 0,
+		Seasons:   seasonProgress,
 	}
 }
 

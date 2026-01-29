@@ -64,6 +64,12 @@ func cmdWorker() *cobra.Command {
 			if err := config.BindYahooPlayersPerExecutionFlag(flags); err != nil {
 				return err
 			}
+			if err := config.BindGameIDCacheTTLFlag(flags); err != nil {
+				return err
+			}
+			if err := config.BindYahooDownloadSleepFlags(flags); err != nil {
+				return err
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -105,11 +111,11 @@ func cmdWorker() *cobra.Command {
 			// w.RegisterWorkflow(workers.ImportEverythingWorkflow)          // commented out: uses old Season struct
 			// w.RegisterWorkflow(workers.ImportEverythingForSeasonWorkflow) // commented out: uses old Season struct
 
-			w.RegisterWorkflow(workers.DownloadRosterForTeamWorkflow)
-			w.RegisterWorkflow(workers.DownloadTeamSummariesForTeamWorkflow)
 			w.RegisterWorkflow(workers.DownloadSeasonsWorkflow)
 			w.RegisterWorkflow(workers.DownloadSeasonWorkflow)
+			w.RegisterWorkflow(workers.DownloadDayWorkflow)
 			w.RegisterWorkflow(workers.DownloadYahooPlayersWorkflow)
+			w.RegisterWorkflow(workers.DownloadPlayersWorkflow)
 
 			// Player extraction workflows
 			// w.RegisterWorkflow(workers.ExtractUniquePlayersWorkflow)        // commented out: uses old Season struct
@@ -119,8 +125,9 @@ func cmdWorker() *cobra.Command {
 			w.RegisterWorkflow(workers.EnrichPlayersWorkflow)
 
 			// Player extraction activities
-			w.RegisterActivity(workers.ExtractBoxscorePlayersForDayActivity)
-			w.RegisterActivity(workers.ExtractBoxscorePlayersForDayBatchActivity)
+			//w.RegisterActivity(workers.ExtractBoxscorePlayersForDayActivity)
+			//w.RegisterActivity(workers.ExtractBoxscorePlayersForDayBatchActivity)
+			w.RegisterActivity(workers.ExtractPlayerIDsForSeasonActivity)
 			w.RegisterActivity(workers.MergeSeasonPlayersActivity)
 			w.RegisterActivity(workers.MergeAllSeasonsActivity)
 			w.RegisterActivity(workers.MergePlayerBatchesFromRedisActivity)
@@ -152,5 +159,7 @@ func cmdWorker() *cobra.Command {
 	config.InitYahooPlayerBatchSizeFlag(flags)
 	config.InitYahooPlayerActivityBatchSizeFlag(flags)
 	config.InitYahooPlayersPerExecutionFlag(flags)
+	config.InitGameIDCacheTTLFlag(flags)
+	config.InitYahooDownloadSleepFlags(flags)
 	return cmd
 }
