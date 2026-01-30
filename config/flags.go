@@ -58,6 +58,12 @@ const (
 	FlagYahooDownloadSleepMin        = "yahoo-download-sleep-min"
 	FlagYahooDownloadSleepMax        = "yahoo-download-sleep-max"
 
+	// Worker concurrency flags
+	FlagWorkerMaxWorkflowPollers        = "worker-max-workflow-pollers"
+	FlagWorkerMaxActivityPollers        = "worker-max-activity-pollers"
+	FlagWorkerMaxWorkflowExecution      = "worker-max-workflow-execution"
+	FlagWorkerMaxActivityExecution      = "worker-max-activity-execution"
+
 	// Provisioner flags for db-provision command
 	FlagProvisionerHost     = "provisioner-host"
 	FlagProvisionerUser     = "provisioner-user"
@@ -276,6 +282,26 @@ func InitWorkerPortFlag(flags *flag.FlagSet) {
 
 func InitWorkerTLSEnabledFlag(flags *flag.FlagSet) {
 	flags.Bool(FlagWorkerTLSEnabled, false, "Enable TLS Mode")
+}
+
+func InitWorkerConcurrencyFlags(flags *flag.FlagSet) {
+	flags.Int(FlagWorkerMaxWorkflowPollers, 2, "Max concurrent workflow task pollers")
+	flags.Int(FlagWorkerMaxActivityPollers, 2, "Max concurrent activity task pollers")
+	flags.Int(FlagWorkerMaxWorkflowExecution, 50, "Max concurrent workflow task executions")
+	flags.Int(FlagWorkerMaxActivityExecution, 50, "Max concurrent activity executions")
+}
+
+func BindWorkerConcurrencyFlags(flags *flag.FlagSet) error {
+	if err := viper.BindPFlag(FlagWorkerMaxWorkflowPollers, flags.Lookup(FlagWorkerMaxWorkflowPollers)); err != nil {
+		return err
+	}
+	if err := viper.BindPFlag(FlagWorkerMaxActivityPollers, flags.Lookup(FlagWorkerMaxActivityPollers)); err != nil {
+		return err
+	}
+	if err := viper.BindPFlag(FlagWorkerMaxWorkflowExecution, flags.Lookup(FlagWorkerMaxWorkflowExecution)); err != nil {
+		return err
+	}
+	return viper.BindPFlag(FlagWorkerMaxActivityExecution, flags.Lookup(FlagWorkerMaxActivityExecution))
 }
 
 func InitSkipPreseasonFlag(flags *flag.FlagSet) {

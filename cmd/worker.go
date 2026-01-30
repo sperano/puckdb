@@ -70,6 +70,9 @@ func cmdWorker() *cobra.Command {
 			if err := config.BindYahooDownloadSleepFlags(flags); err != nil {
 				return err
 			}
+			if err := config.BindWorkerConcurrencyFlags(flags); err != nil {
+				return err
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -84,7 +87,12 @@ func cmdWorker() *cobra.Command {
 				return err
 			}
 			defer tclient.Close()
-			w := worker.New(tclient, workers.TaskQueueName, worker.Options{})
+			w := worker.New(tclient, workers.TaskQueueName, worker.Options{
+				MaxConcurrentWorkflowTaskPollers:       viper.GetInt(config.FlagWorkerMaxWorkflowPollers),
+				MaxConcurrentActivityTaskPollers:       viper.GetInt(config.FlagWorkerMaxActivityPollers),
+				MaxConcurrentWorkflowTaskExecutionSize: viper.GetInt(config.FlagWorkerMaxWorkflowExecution),
+				MaxConcurrentActivityExecutionSize:     viper.GetInt(config.FlagWorkerMaxActivityExecution),
+			})
 
 			// Import activities
 			w.RegisterActivity(workers.ImportLeague)
@@ -161,5 +169,6 @@ func cmdWorker() *cobra.Command {
 	config.InitYahooPlayersPerExecutionFlag(flags)
 	config.InitGameIDCacheTTLFlag(flags)
 	config.InitYahooDownloadSleepFlags(flags)
+	config.InitWorkerConcurrencyFlags(flags)
 	return cmd
 }

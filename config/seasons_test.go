@@ -38,7 +38,7 @@ func TestGetSeasons_FileNotFound(t *testing.T) {
 	t.Parallel()
 	seasons, err := getYahooSeasons("foo")
 	assert.Nil(t, seasons)
-	assert.True(t, strings.HasPrefix(err.Error(), "can't read seasons config file foo: "))
+	assert.True(t, strings.HasPrefix(err.Error(), "can't read yahoo seasons config file foo: "))
 	assert.True(t, errors.Is(err, os.ErrNotExist))
 }
 
@@ -46,7 +46,7 @@ func TestGetSeasons_UnmarshallErr(t *testing.T) {
 	t.Parallel()
 	seasons, err := getYahooSeasons("../test-data/cache/2022/teams/team-07/team-07_20221025112231.xml")
 	assert.Nil(t, seasons)
-	assert.True(t, strings.HasPrefix(err.Error(), "can't unmarshal seasons config file ../test-data/cache/2022/teams/team-07/team-07_20221025112231.xml: "))
+	assert.True(t, strings.HasPrefix(err.Error(), "can't unmarshal yahoo seasons config file ../test-data/cache/2022/teams/team-07/team-07_20221025112231.xml: "))
 }
 
 func TestSeasonsMapAccess(t *testing.T) {
