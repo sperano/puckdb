@@ -6,67 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Tests for WorkflowID functions
-
-func TestWorkflowIDExtractPlayersForSeason(t *testing.T) {
-	tests := []struct {
-		name     string
-		season   int
-		expected string
-	}{
-		{
-			name:     "2023 season",
-			season:   2023,
-			expected: "extract-players-season-2023",
-		},
-		{
-			name:     "2022 season",
-			season:   2022,
-			expected: "extract-players-season-2022",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDExtractPlayersForSeason(tt.season)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestWorkflowIDExtractBoxscorePlayersForSeason(t *testing.T) {
-	tests := []struct {
-		name     string
-		season   int
-		expected string
-	}{
-		{
-			name:     "2023 season",
-			season:   2023,
-			expected: "extract-boxscore-players-season-2023",
-		},
-		{
-			name:     "2022 season",
-			season:   2022,
-			expected: "extract-boxscore-players-season-2022",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDExtractBoxscorePlayersForSeason(tt.season)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestWorkflowIDEnrichPlayers(t *testing.T) {
 	result := WorkflowIDEnrichPlayers()
 	assert.Equal(t, "enrich-players", result)
-}
-
-func TestWorkflowIDExtractUniquePlayersConstant(t *testing.T) {
-	assert.Equal(t, "extract-unique-players", WorkflowIDExtractUniquePlayers)
 }
 
 // Tests for splitIntoBatches

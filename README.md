@@ -20,7 +20,7 @@ docker-compose up -d
 go build -o puckdb .
 
 # Initialize database
-./puckdb init
+./puckdb db init
 
 # Run the API server (GraphQL at localhost:8080/graphql)
 ./puckdb api
@@ -29,7 +29,7 @@ go build -o puckdb .
 ./puckdb worker
 
 # Trigger a download
-./puckdb download
+./puckdb wf download
 ```
 
 ## Commands
@@ -38,9 +38,17 @@ go build -o puckdb .
 |---------|-------------|
 | `api` | HTTP server with GraphQL endpoint and Yahoo OAuth2 |
 | `worker` | Temporal worker for download/import workflows |
-| `download` | Trigger download workflow via GraphQL |
-| `check cache` | Verify cache completeness |
 | `info` | Display configuration |
+| `metrics` | Prometheus metrics server for cache/Redis/database stats |
+| `cache-check` | Verify cache completeness |
+| `db init` | Initialize database (migrations + seed NHL data) |
+| `db drop` | Drop all database tables |
+| `db provision` | Create database and user on shared PostgreSQL |
+| `wf download` | Trigger download workflow via GraphQL |
+| `wf cancel` | Cancel running Temporal workflows |
+| `yahoo signout` | Clear OAuth2 token from Redis |
+
+`wf` is an alias for `workflow`.
 
 ## Infrastructure
 

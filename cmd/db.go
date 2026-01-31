@@ -4,21 +4,109 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/bsm/redislock"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
+func cmdDB() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "db",
+		Short: "Database operations",
+		Long:  `Database management commands: init, drop, provision.`,
+	}
+	cmd.AddCommand(cmdDBInit(), cmdDBDrop(), cmdDBProvision())
+	return cmd
+}
+
+func cmdDBInit() *cobra.Command {
+	const lockName = "yfh-init"
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Initialize database",
+		Long:  `Run database migrations and seed NHL data. Uses Redis lock to prevent concurrent migrations.`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			flags := cmd.Flags()
+			if err := config.BindRedisFlags(flags); err != nil {
+				return err
+			}
+			return config.BindPostgresFlags(flags)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+
+			db, err := database.OpenGorm()
+			if err != nil {
+				return err
+			}
+			redisClient := redis.NewClient()
+			defer func() { _ = redisClient.Close() }()
+
+			locker := redislock.New(redisClient)
+			lock, err := locker.Obtain(ctx, lockName, 60*time.Second, nil)
+			if err == redislock.ErrNotObtained {
+				log.Warn().Msg("Could not obtain a lock, Another process is probably doing the database migration")
+				return nil
+			} else if err != nil {
+				log.Fatal().Err(err)
+			}
+			defer func() {
+				if err := lock.Release(ctx); err != nil {
+					log.Error().Msg(err.Error())
+				}
+			}()
+			if err := database.DoMigration(db); err != nil {
+				return err
+			}
+
+			// Seed NHL data using SQLC
+			pool, err := database.OpenPGXPool(ctx)
+			if err != nil {
+				return err
+			}
+			defer pool.Close()
+			q := database.NewQueries(pool)
+			return database.EnsureNHLWithSQLC(ctx, q)
+		},
+	}
+	flags := cmd.Flags()
+	config.InitPostgresFlags(flags)
+	config.InitRedisFlags(flags)
+	return cmd
+}
+
+func cmdDBDrop() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "drop",
+		Short: "Drop database tables",
+		Long:  `Drop all database tables. Use with caution.`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return config.BindPostgresFlags(cmd.Flags())
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			db, err := database.OpenGorm()
+			if err != nil {
+				return err
+			}
+			return database.DropEverything(db)
+		},
+	}
+	config.InitPostgresFlags(cmd.Flags())
+	return cmd
+}
+
 const dbProvisionLockName = "puckdb:db-provision"
 
 func cmdDBProvision() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "db-provision",
+		Use:   "provision",
 		Short: "Create database and user on shared PostgreSQL",
 		Long: `Provisions the database and user on a shared PostgreSQL server.
 Uses provisioner credentials to create the target database and user.

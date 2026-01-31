@@ -140,13 +140,6 @@ func currentFantasyGameKey(_ context.Context) (int, error) {
 	return fantasy.Game.Key, nil
 }
 
-func (r *Resolver) cancelExtractUniquePlayers(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDExtractUniquePlayers, ""); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
 func (r *Resolver) downloadSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
 	opts := workflowOptions(worker.WorkflowIDDownloadSeasons)
 	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.DownloadSeasonsWorkflow, input); err != nil {
@@ -180,14 +173,6 @@ func (r *Resolver) downloadDay(ctx context.Context, input model.DownloadDayInput
 		return false, err
 	}
 	return true, nil
-}
-
-func (r *Resolver) extractUniquePlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDExtractUniquePlayers)
-}
-
-func (r *Resolver) extractUniquePlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDExtractUniquePlayers)
 }
 
 func (r *Resolver) downloadSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {

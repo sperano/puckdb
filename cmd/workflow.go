@@ -12,21 +12,30 @@ import (
 	"go.temporal.io/api/workflowservice/v1"
 )
 
-func cmdCancel() *cobra.Command {
-	var cmd = &cobra.Command{
+func cmdWorkflow() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "workflow",
+		Aliases: []string{"wf"},
+		Short:   "Workflow operations",
+		Long:    `Workflow management commands: download, cancel.`,
+	}
+	cmd.AddCommand(cmdDownload(), cmdWorkflowCancel())
+	return cmd
+}
+
+func cmdWorkflowCancel() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "cancel",
 		Short: "Cancel open workflows",
 		Long:  `Cancel all open Temporal workflows, falling back to terminate if needed`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			return config.BindTemporalFlags(flags)
+			return config.BindTemporalFlags(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cancelAllWorkflows(cmd.Context())
 		},
 	}
-	flags := cmd.Flags()
-	config.InitTemporalFlags(flags)
+	config.InitTemporalFlags(cmd.Flags())
 	return cmd
 }
 

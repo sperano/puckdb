@@ -185,7 +185,6 @@ type ComplexityRoot struct {
 		CancelDownloadPlayers      func(childComplexity int) int
 		CancelDownloadSeasons      func(childComplexity int) int
 		CancelDownloadYahooPlayers func(childComplexity int) int
-		CancelExtractUniquePlayers func(childComplexity int) int
 		ClearDatabase              func(childComplexity int) int
 		CreateDatabase             func(childComplexity int) int
 		DownloadDay                func(childComplexity int, input model.DownloadDayInput) int
@@ -193,7 +192,6 @@ type ComplexityRoot struct {
 		DownloadSeasons            func(childComplexity int, input *model.DownloadSeasonsInput) int
 		DownloadYahooPlayers       func(childComplexity int) int
 		DropDatabase               func(childComplexity int) int
-		ExtractUniquePlayers       func(childComplexity int) int
 		FlushRedisDb               func(childComplexity int) int
 		ImportLeague               func(childComplexity int, season int, leagueID int) int
 		ImportTeam                 func(childComplexity int, season int, leagueID int, teamID int) int
@@ -298,8 +296,6 @@ type ComplexityRoot struct {
 		DownloadSeasonsResult        func(childComplexity int) int
 		DownloadYahooPlayersProgress func(childComplexity int) int
 		DownloadYahooPlayersResult   func(childComplexity int) int
-		ExtractUniquePlayersProgress func(childComplexity int) int
-		ExtractUniquePlayersResult   func(childComplexity int) int
 		NhlConferences               func(childComplexity int) int
 		NhlDivisions                 func(childComplexity int) int
 		NhlTeam                      func(childComplexity int, teamID int) int
@@ -370,8 +366,6 @@ type MutationResolver interface {
 	CancelDownloadPlayers(ctx context.Context) (bool, error)
 	ImportLeague(ctx context.Context, season int, leagueID int) (*model.League, error)
 	ImportTeam(ctx context.Context, season int, leagueID int, teamID int) (*model.Team, error)
-	ExtractUniquePlayers(ctx context.Context) (bool, error)
-	CancelExtractUniquePlayers(ctx context.Context) (bool, error)
 }
 type NHLConferenceResolver interface {
 	Divisions(ctx context.Context, obj *model.NHLConference) ([]*model.NHLDivision, error)
@@ -386,8 +380,6 @@ type QueryResolver interface {
 	NhlTeams(ctx context.Context, allstars bool) ([]*model.NHLTeam, error)
 	NhlTeam(ctx context.Context, teamID int) (*model.NHLTeam, error)
 	CurrentFantasyGameKey(ctx context.Context) (int, error)
-	ExtractUniquePlayersResult(ctx context.Context) (*model.WorkflowResult, error)
-	ExtractUniquePlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
 	DownloadSeasonsResult(ctx context.Context) (*model.WorkflowResult, error)
 	DownloadSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error)
 	DownloadYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
@@ -1188,13 +1180,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CancelDownloadYahooPlayers(childComplexity), true
 
-	case "Mutation.cancelExtractUniquePlayers":
-		if e.complexity.Mutation.CancelExtractUniquePlayers == nil {
-			break
-		}
-
-		return e.complexity.Mutation.CancelExtractUniquePlayers(childComplexity), true
-
 	case "Mutation.clearDatabase":
 		if e.complexity.Mutation.ClearDatabase == nil {
 			break
@@ -1258,13 +1243,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.DropDatabase(childComplexity), true
-
-	case "Mutation.extractUniquePlayers":
-		if e.complexity.Mutation.ExtractUniquePlayers == nil {
-			break
-		}
-
-		return e.complexity.Mutation.ExtractUniquePlayers(childComplexity), true
 
 	case "Mutation.flushRedisDB":
 		if e.complexity.Mutation.FlushRedisDb == nil {
@@ -1793,20 +1771,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.DownloadYahooPlayersResult(childComplexity), true
-
-	case "Query.extractUniquePlayersProgress":
-		if e.complexity.Query.ExtractUniquePlayersProgress == nil {
-			break
-		}
-
-		return e.complexity.Query.ExtractUniquePlayersProgress(childComplexity), true
-
-	case "Query.extractUniquePlayersResult":
-		if e.complexity.Query.ExtractUniquePlayersResult == nil {
-			break
-		}
-
-		return e.complexity.Query.ExtractUniquePlayersResult(childComplexity), true
 
 	case "Query.nhlConferences":
 		if e.complexity.Query.NhlConferences == nil {
@@ -2473,9 +2437,6 @@ type Query {
 
 	currentFantasyGameKey: Int!
 
-	extractUniquePlayersResult: WorkflowResult!
-	extractUniquePlayersProgress: WorkflowProgress
-
 	downloadSeasonsResult: WorkflowResult!
 	downloadSeasonsProgress: WorkflowProgress
 
@@ -2539,8 +2500,6 @@ type Mutation {
 	importLeague(season: Int!, leagueID: Int!): League!
 	importTeam(season: Int!, leagueID: Int!, teamID: Int!): Team!
 
-	extractUniquePlayers: Boolean!
-	cancelExtractUniquePlayers: Boolean!
 }
 `, BuiltIn: false},
 }
@@ -8453,94 +8412,6 @@ func (ec *executionContext) fieldContext_Mutation_importTeam(ctx context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_extractUniquePlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_extractUniquePlayers(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ExtractUniquePlayers(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_extractUniquePlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_cancelExtractUniquePlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_cancelExtractUniquePlayers(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelExtractUniquePlayers(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_cancelExtractUniquePlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _NHLConference_id(ctx context.Context, field graphql.CollectedField, obj *model.NHLConference) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_NHLConference_id(ctx, field)
 	if err != nil {
@@ -11793,105 +11664,6 @@ func (ec *executionContext) fieldContext_Query_currentFantasyGameKey(_ context.C
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_extractUniquePlayersResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_extractUniquePlayersResult(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().ExtractUniquePlayersResult(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(*model.WorkflowResult)
-	fc.Result = res
-	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_extractUniquePlayersResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "status":
-				return ec.fieldContext_WorkflowResult_status(ctx, field)
-			case "failureReason":
-				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_extractUniquePlayersProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_extractUniquePlayersProgress(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().ExtractUniquePlayersProgress(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.WorkflowProgress)
-	fc.Result = res
-	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_extractUniquePlayersProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "total":
-				return ec.fieldContext_WorkflowProgress_total(ctx, field)
-			case "completed":
-				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
-			case "seasons":
-				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
 	}
 	return fc, nil
@@ -16540,20 +16312,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "extractUniquePlayers":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_extractUniquePlayers(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "cancelExtractUniquePlayers":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_cancelExtractUniquePlayers(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -17388,47 +17146,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "extractUniquePlayersResult":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_extractUniquePlayersResult(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "extractUniquePlayersProgress":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_extractUniquePlayersProgress(ctx, field)
 				return res
 			}
 

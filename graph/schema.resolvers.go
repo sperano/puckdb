@@ -85,16 +85,6 @@ func (r *mutationResolver) ImportTeam(ctx context.Context, season int, leagueID 
 	return nil, fmt.Errorf("not implemented")
 }
 
-// ExtractUniquePlayers is the resolver for the extractUniquePlayers field.
-func (r *mutationResolver) ExtractUniquePlayers(ctx context.Context) (bool, error) {
-	return false, fmt.Errorf("not implemented")
-}
-
-// CancelExtractUniquePlayers is the resolver for the cancelExtractUniquePlayers field.
-func (r *mutationResolver) CancelExtractUniquePlayers(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelExtractUniquePlayers(ctx)
-}
-
 // Divisions is the resolver for the divisions field.
 func (r *nHLConferenceResolver) Divisions(ctx context.Context, obj *model.NHLConference) ([]*model.NHLDivision, error) {
 	return divisions(ctx, obj)
@@ -137,16 +127,6 @@ func (r *queryResolver) NhlTeam(ctx context.Context, teamID int) (*model.NHLTeam
 // CurrentFantasyGameKey is the resolver for the currentFantasyGameKey field.
 func (r *queryResolver) CurrentFantasyGameKey(ctx context.Context) (int, error) {
 	return currentFantasyGameKey(ctx)
-}
-
-// ExtractUniquePlayersResult is the resolver for the extractUniquePlayersResult field.
-func (r *queryResolver) ExtractUniquePlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.extractUniquePlayersResult(ctx)
-}
-
-// ExtractUniquePlayersProgress is the resolver for the extractUniquePlayersProgress field.
-func (r *queryResolver) ExtractUniquePlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.Resolver.extractUniquePlayersProgress(ctx)
 }
 
 // DownloadSeasonsResult is the resolver for the downloadSeasonsResult field.
@@ -204,15 +184,3 @@ type nHLConferenceResolver struct{ *Resolver }
 type nHLDivisionResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type seasonResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *mutationResolver) ClearCache(ctx context.Context) (bool, error) {
-	return clearCache(ctx)
-}
-*/

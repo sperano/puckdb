@@ -41,15 +41,18 @@ Schema is at `graph/schema.graphqls`. Generated code goes to `graph/generated/` 
 ### CLI Commands (cmd/)
 - **api** - HTTP server with GraphQL at `/graphql`, playground at `/graphql/`, and Yahoo OAuth2 at `/yahoo/*`
 - **worker** - Temporal worker that processes download/import workflows; exposes `/metrics` endpoint
-- **download** - CLI client that triggers download workflows via GraphQL and monitors progress
-- **check cache** - Verifies cache file completeness against expected counts from NHL API
-- **cancel** - Cancels running Temporal workflows
-- **db-provision** - Creates database and user on shared PostgreSQL (uses Redis lock)
-- **import players** - Triggers player extraction workflow
-- **init** - Database initialization (creates tables)
-- **drop** - Database cleanup (drops tables)
 - **info** - Displays current configuration
-- **signout** - Clears OAuth2 token from Redis
+- **metrics** - Exposes Prometheus metrics for cache, Redis, and database
+- **cache-check** - Verifies cache file completeness against expected counts from NHL API
+- **db** - Database operations
+  - **db init** - Database initialization (creates tables, seeds NHL data)
+  - **db drop** - Database cleanup (drops tables)
+  - **db provision** - Creates database and user on shared PostgreSQL (uses Redis lock)
+- **workflow** (alias: **wf**) - Workflow operations
+  - **workflow download** - Triggers download workflows via GraphQL and monitors progress
+  - **workflow cancel** - Cancels running Temporal workflows
+- **yahoo** - Yahoo OAuth operations
+  - **yahoo signout** - Clears OAuth2 token from Redis
 
 Uses Cobra for CLI, Viper for configuration, and pflags for flags.
 
@@ -95,7 +98,6 @@ Uses Cobra for CLI, Viper for configuration, and pflags for flags.
 **Mutations:**
 - `downloadSeasons(input)` / `cancelDownloadSeasons` - Download NHL and Yahoo season data
 - `downloadYahooPlayers` / `cancelDownloadYahooPlayers` - Download Yahoo player pages
-- `extractUniquePlayers` / `cancelExtractUniquePlayers` - Extract and merge player records
 - `importLeague`, `importTeam` - Import specific league/team data
 - `clearDatabase`, `dropDatabase`, `createDatabase`, `initDatabase` - DB management
 

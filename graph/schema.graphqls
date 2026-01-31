@@ -308,9 +308,6 @@ type Query {
 
 	currentFantasyGameKey: Int!
 
-	extractUniquePlayersResult: WorkflowResult!
-	extractUniquePlayersProgress: WorkflowProgress
-
 	downloadSeasonsResult: WorkflowResult!
 	downloadSeasonsProgress: WorkflowProgress
 
@@ -374,6 +371,4 @@ type Mutation {
 	importLeague(season: Int!, leagueID: Int!): League!
 	importTeam(season: Int!, leagueID: Int!, teamID: Int!): Team!
 
-	extractUniquePlayers: Boolean!
-	cancelExtractUniquePlayers: Boolean!
 }
