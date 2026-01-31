@@ -2,16 +2,19 @@ package worker
 
 import (
 	"reflect"
+	"time"
 
 	"go.temporal.io/sdk/workflow"
 )
 
 // SeasonProgress represents the progress for a single season.
 type SeasonProgress struct {
-	StartYear int  `json:"startYear"`
-	Total     int  `json:"total"`
-	Completed int  `json:"completed"`
-	Started   bool `json:"started"`
+	StartYear   int    `json:"startYear"`
+	Total       int    `json:"total"`
+	Completed   int    `json:"completed"`
+	Started     bool   `json:"started"`
+	StartedAt   string `json:"startedAt,omitempty"`   // RFC3339 timestamp
+	CompletedAt string `json:"completedAt,omitempty"` // RFC3339 timestamp
 }
 
 // WorkflowProgress represents the progress of a workflow.
@@ -104,6 +107,14 @@ func (p *ProgressTracker) IncrementSeason(startYear int) {
 func (p *ProgressTracker) MarkSeasonStarted(startYear int) {
 	if idx, ok := p.seasonIndex[startYear]; ok {
 		p.progress.Seasons[idx].Started = true
+		p.progress.Seasons[idx].StartedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+}
+
+// MarkSeasonCompleted marks a season as completed with timestamp.
+func (p *ProgressTracker) MarkSeasonCompleted(startYear int) {
+	if idx, ok := p.seasonIndex[startYear]; ok {
+		p.progress.Seasons[idx].CompletedAt = time.Now().UTC().Format(time.RFC3339)
 	}
 }
 

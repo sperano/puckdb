@@ -26,7 +26,7 @@ func DownloadTeam(ctx context.Context, season int, leagueID int, teamID int) err
 
 // downloadTeamImpl is the testable implementation.
 func downloadTeamImpl(ctx context.Context, fs cache.FileSystem, season int, gameKey int, leagueID int, teamID int) error {
-	log.Info().Int("season", season).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("DownloadFromYahoo Team")
+	log.Debug().Int("season", season).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("DownloadFromYahoo Team")
 	file := fs.New(cache.TeamFileType, season, leagueID, teamID)
 	url := http.YahooTeamURL(gameKey, leagueID, teamID)
 	return doDownloadImpl(ctx, fs, file, url)

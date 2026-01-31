@@ -520,14 +520,20 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 		return monitorWorkflow(ctx, cmd, client.GetDownloadSeasonsStatus, workflowPollTimeout)
 	}
 
+	totalStart := time.Now()
+	var yahooPlayersDuration, seasonsDuration, playersDuration time.Duration
+
 	// Step 1: Download Yahoo players (unless skipped)
 	if !viper.GetBool(FlagSkipYahooPlayers) {
+		stepStart := time.Now()
 		if err := runDownloadYahooPlayers(ctx, cmd, client, state); err != nil {
 			if ctx.Err() != nil {
 				return fmt.Errorf("workflow canceled by user")
 			}
 			return err
 		}
+		yahooPlayersDuration = time.Since(stepStart)
+		log.Info().Dur("duration", yahooPlayersDuration).Msg("Yahoo players download completed")
 	} else {
 		log.Info().Msg("Skipping Yahoo players download")
 	}
@@ -541,6 +547,7 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 
 	// Step 2: Download all season data (unless skipped)
 	if !viper.GetBool(FlagSkipSeasons) {
+		stepStart := time.Now()
 		state.current = workflowDownloadSeasons
 
 		logEvent := log.Info().Str("server", apiAddr)
@@ -575,7 +582,8 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 			}
 			return err
 		}
-		log.Info().Msg("Seasons download completed")
+		seasonsDuration = time.Since(stepStart)
+		log.Info().Dur("duration", seasonsDuration).Msg("Seasons download completed")
 	} else {
 		log.Info().Msg("Skipping seasons download")
 	}
@@ -586,12 +594,24 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Step 3: Download players (extract player IDs from boxscores)
+	stepStart := time.Now()
 	if err := runDownloadPlayers(ctx, cmd, client, state, input); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
 		return err
 	}
+	playersDuration = time.Since(stepStart)
+	log.Info().Dur("duration", playersDuration).Msg("Players download completed")
+
+	// Log final summary
+	totalDuration := time.Since(totalStart)
+	log.Info().
+		Dur("yahooPlayers", yahooPlayersDuration).
+		Dur("seasons", seasonsDuration).
+		Dur("players", playersDuration).
+		Dur("total", totalDuration).
+		Msg("Download completed")
 
 	return nil
 }
@@ -615,7 +635,6 @@ func runDownloadYahooPlayers(ctx context.Context, cmd *cobra.Command, client *Gr
 		return fmt.Errorf("downloadYahooPlayers failed: %w", err)
 	}
 
-	log.Info().Msg("Yahoo players download completed")
 	return nil
 }
 
@@ -638,7 +657,6 @@ func runDownloadPlayers(ctx context.Context, cmd *cobra.Command, client *GraphQL
 		return fmt.Errorf("downloadPlayers failed: %w", err)
 	}
 
-	log.Info().Msg("Players download completed")
 	return nil
 }
 

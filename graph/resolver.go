@@ -318,10 +318,12 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 		result.Seasons = make([]*model.SeasonProgress, len(progress.Seasons))
 		for i, s := range progress.Seasons {
 			result.Seasons[i] = &model.SeasonProgress{
-				StartYear: s.StartYear,
-				Total:     s.Total,
-				Completed: s.Completed,
-				Started:   s.Started,
+				StartYear:   s.StartYear,
+				Total:       s.Total,
+				Completed:   s.Completed,
+				Started:     s.Started,
+				StartedAt:   ptrStringIfNotEmpty(s.StartedAt),
+				CompletedAt: ptrStringIfNotEmpty(s.CompletedAt),
 			}
 
 			// For started but incomplete seasons, try to get real-time progress from child workflow
@@ -361,6 +363,13 @@ func (r *Resolver) queryChildSeasonProgress(ctx context.Context, startYear int) 
 }
 
 func ptrString(s string) *string {
+	return &s
+}
+
+func ptrStringIfNotEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
 	return &s
 }
 

@@ -264,10 +264,12 @@ type Season struct {
 }
 
 type SeasonProgress struct {
-	StartYear int  `json:"startYear"`
-	Total     int  `json:"total"`
-	Completed int  `json:"completed"`
-	Started   bool `json:"started"`
+	StartYear   int     `json:"startYear"`
+	Total       int     `json:"total"`
+	Completed   int     `json:"completed"`
+	Started     bool    `json:"started"`
+	StartedAt   *string `json:"startedAt,omitempty"`
+	CompletedAt *string `json:"completedAt,omitempty"`
 }
 
 type Team struct {

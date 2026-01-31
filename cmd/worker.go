@@ -52,6 +52,9 @@ func cmdWorker() *cobra.Command {
 			if err := config.BindMaxSeasonConcurrencyFlag(flags); err != nil {
 				return err
 			}
+			if err := config.BindDayConcurrencyFlag(flags); err != nil {
+				return err
+			}
 			if err := config.BindMaxYahooPlayerIDFlag(flags); err != nil {
 				return err
 			}
@@ -164,6 +167,7 @@ func cmdWorker() *cobra.Command {
 	config.InitWorkerTLSEnabledFlag(flags)
 	config.InitSkipPreseasonFlag(flags)
 	config.InitMaxSeasonConcurrencyFlag(flags)
+	config.InitDayConcurrencyFlag(flags)
 	config.InitMaxYahooPlayerIDFlag(flags)
 	config.InitYahooPlayerBatchSizeFlag(flags)
 	config.InitYahooPlayerActivityBatchSizeFlag(flags)

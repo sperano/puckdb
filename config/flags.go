@@ -50,6 +50,7 @@ const (
 	FlagTemporalRetryMaxInterval     = "temporal-retry-max-interval"
 	FlagTemporalRetryMaxAttempts     = "temporal-retry-max-attempts"
 	FlagMaxSeasonConcurrency         = "max-season-concurrency"
+	FlagDayConcurrency               = "day-concurrency"
 	FlagMaxYahooPlayerID             = "max-yahoo-player-id"
 	FlagYahooPlayerBatchSize         = "yahoo-player-batch-size"
 	FlagYahooPlayerActivityBatchSize = "yahoo-player-activity-batch-size"
@@ -150,6 +151,14 @@ func InitMaxSeasonConcurrencyFlag(flags *flag.FlagSet) {
 
 func BindMaxSeasonConcurrencyFlag(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagMaxSeasonConcurrency, flags.Lookup(FlagMaxSeasonConcurrency))
+}
+
+func InitDayConcurrencyFlag(flags *flag.FlagSet) {
+	flags.Int(FlagDayConcurrency, 20, "Number of days to download concurrently within each season")
+}
+
+func BindDayConcurrencyFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagDayConcurrency, flags.Lookup(FlagDayConcurrency))
 }
 
 func InitMaxYahooPlayerIDFlag(flags *flag.FlagSet) {

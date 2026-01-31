@@ -288,6 +288,8 @@ type SeasonProgress {
 	total: Int!
 	completed: Int!
 	started: Boolean!
+	startedAt: String
+	completedAt: String
 }
 
 type WorkflowProgress {

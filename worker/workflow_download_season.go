@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/config"
+	"github.com/spf13/viper"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -64,17 +65,36 @@ func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) er
 		end = time.Now()
 	}
 
-	// Process all days using DownloadDayActivity
-	for day := season.StartDate; !day.After(end); day = day.AddDate(0, 0, 1) {
+	// Calculate number of days to process
+	numDays := int(end.Sub(season.StartDate).Hours()/24) + 1
+	if numDays < 0 {
+		numDays = 0
+	}
+
+	// Get day concurrency from config
+	dayConcurrency := viper.GetInt(config.FlagDayConcurrency)
+	if dayConcurrency <= 0 {
+		dayConcurrency = 20
+	}
+
+	logger.Info("Processing days in parallel",
+		"numDays", numDays,
+		"concurrency", dayConcurrency)
+
+	// Process days in parallel using RunWorkerPool
+	startDate := season.StartDate
+	startYear := season.StartYear
+	err = tracker.RunWorkerPool(ctx, numDays, dayConcurrency, func(ctx workflow.Context, i int) workflow.Future {
+		day := startDate.AddDate(0, 0, i)
 		dayInput := &DownloadDayInput{
 			Day:       day,
-			StartYear: season.StartYear,
+			StartYear: startYear,
 			TeamIDs:   teamIDs,
 		}
-		if err := workflow.ExecuteActivity(ctx, DownloadDayActivity, dayInput).Get(ctx, nil); err != nil {
-			return err
-		}
-		tracker.Increment()
+		return workflow.ExecuteActivity(ctx, DownloadDayActivity, dayInput)
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("DownloadSeasonWorkflow completed",
