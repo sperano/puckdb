@@ -189,6 +189,7 @@ type ComplexityRoot struct {
 		ClearCache                 func(childComplexity int) int
 		ClearDatabase              func(childComplexity int) int
 		CreateDatabase             func(childComplexity int) int
+		DownloadDay                func(childComplexity int, input model.DownloadDayInput) int
 		DownloadPlayers            func(childComplexity int, input *model.DownloadSeasonsInput) int
 		DownloadSeasons            func(childComplexity int, input *model.DownloadSeasonsInput) int
 		DownloadYahooPlayers       func(childComplexity int) int
@@ -360,6 +361,7 @@ type MutationResolver interface {
 	ClearCache(ctx context.Context) (bool, error)
 	DownloadSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
 	CancelDownloadSeasons(ctx context.Context) (bool, error)
+	DownloadDay(ctx context.Context, input model.DownloadDayInput) (bool, error)
 	DownloadYahooPlayers(ctx context.Context) (bool, error)
 	CancelDownloadYahooPlayers(ctx context.Context) (bool, error)
 	DownloadPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
@@ -1212,6 +1214,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateDatabase(childComplexity), true
 
+	case "Mutation.downloadDay":
+		if e.complexity.Mutation.DownloadDay == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_downloadDay_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DownloadDay(childComplexity, args["input"].(model.DownloadDayInput)), true
+
 	case "Mutation.downloadPlayers":
 		if e.complexity.Mutation.DownloadPlayers == nil {
 			break
@@ -2034,6 +2048,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputDownloadDayInput,
 		ec.unmarshalInputDownloadSeasonsInput,
 	)
 	first := true
@@ -2479,6 +2494,11 @@ input DownloadSeasonsInput {
 	seasonConcurrency: Int
 }
 
+input DownloadDayInput {
+	season: Int!
+	day: String!  # Format: "2024-01-15"
+}
+
 type Mutation {
 	# TODO should this really be available in a mutation?
     clearDatabase: Boolean! # drop, create, init
@@ -2489,6 +2509,8 @@ type Mutation {
 
 	downloadSeasons(input: DownloadSeasonsInput): Boolean!
 	cancelDownloadSeasons: Boolean!
+
+	downloadDay(input: DownloadDayInput!): Boolean!
 
 	downloadYahooPlayers: Boolean!
 	cancelDownloadYahooPlayers: Boolean!
@@ -2509,6 +2531,38 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_downloadDay_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_downloadDay_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_downloadDay_argsInput(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (model.DownloadDayInput, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["input"]
+	if !ok {
+		var zeroVal model.DownloadDayInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNDownloadDayInput2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadDayInput(ctx, tmp)
+	}
+
+	var zeroVal model.DownloadDayInput
+	return zeroVal, nil
+}
 
 func (ec *executionContext) field_Mutation_downloadPlayers_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -7965,6 +8019,61 @@ func (ec *executionContext) fieldContext_Mutation_cancelDownloadSeasons(_ contex
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_downloadDay(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_downloadDay(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DownloadDay(rctx, fc.Args["input"].(model.DownloadDayInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_downloadDay(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_downloadDay_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -15323,6 +15432,40 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(_ context.Context
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputDownloadDayInput(ctx context.Context, obj interface{}) (model.DownloadDayInput, error) {
+	var it model.DownloadDayInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"season", "day"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "season":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Season = data
+		case "day":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("day"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Day = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputDownloadSeasonsInput(ctx context.Context, obj interface{}) (model.DownloadSeasonsInput, error) {
 	var it model.DownloadSeasonsInput
 	asMap := map[string]interface{}{}
@@ -16240,6 +16383,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "cancelDownloadSeasons":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_cancelDownloadSeasons(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "downloadDay":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_downloadDay(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -18046,6 +18196,11 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNDownloadDayInput2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadDayInput(ctx context.Context, v interface{}) (model.DownloadDayInput, error) {
+	res, err := ec.unmarshalInputDownloadDayInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v interface{}) (int, error) {

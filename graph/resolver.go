@@ -161,6 +161,26 @@ func (r *Resolver) cancelDownloadSeasons(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+func (r *Resolver) downloadDay(ctx context.Context, input model.DownloadDayInput) (bool, error) {
+	day, err := time.Parse("2006-01-02", input.Day)
+	if err != nil {
+		return false, err
+	}
+
+	workflowID := worker.WorkflowIDDownloadDay(input.Season, day)
+	opts := workflowOptions(workflowID)
+
+	workerInput := &worker.DownloadDayWorkflowInput{
+		Day:       day,
+		StartYear: input.Season,
+	}
+
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.DownloadDayWorkflow, workerInput); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (r *Resolver) extractUniquePlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
 	return r.getWorkflowResult(ctx, worker.WorkflowIDExtractUniquePlayers)
 }

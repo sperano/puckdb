@@ -345,6 +345,11 @@ input DownloadSeasonsInput {
 	seasonConcurrency: Int
 }
 
+input DownloadDayInput {
+	season: Int!
+	day: String!  # Format: "2024-01-15"
+}
+
 type Mutation {
 	# TODO should this really be available in a mutation?
     clearDatabase: Boolean! # drop, create, init
@@ -355,6 +360,8 @@ type Mutation {
 
 	downloadSeasons(input: DownloadSeasonsInput): Boolean!
 	cancelDownloadSeasons: Boolean!
+
+	downloadDay(input: DownloadDayInput!): Boolean!
 
 	downloadYahooPlayers: Boolean!
 	cancelDownloadYahooPlayers: Boolean!

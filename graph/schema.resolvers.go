@@ -50,6 +50,11 @@ func (r *mutationResolver) CancelDownloadSeasons(ctx context.Context) (bool, err
 	return r.Resolver.cancelDownloadSeasons(ctx)
 }
 
+// DownloadDay is the resolver for the downloadDay field.
+func (r *mutationResolver) DownloadDay(ctx context.Context, input model.DownloadDayInput) (bool, error) {
+	return r.Resolver.downloadDay(ctx, input)
+}
+
 // DownloadYahooPlayers is the resolver for the downloadYahooPlayers field.
 func (r *mutationResolver) DownloadYahooPlayers(ctx context.Context) (bool, error) {
 	return r.Resolver.downloadYahooPlayers(ctx)

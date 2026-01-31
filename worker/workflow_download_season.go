@@ -8,34 +8,101 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+// daysPerExecution is the number of days to process before ContinueAsNew.
+// This prevents workflow history from growing too large.
+const daysPerExecution = 100
+
 // DownloadSeasonInput contains parameters for downloading a single season.
 type DownloadSeasonInput struct {
-	Season SeasonInfo
+	Season  SeasonInfo
+	StartDay time.Time  // Day to start from (zero = beginning of season, downloads league/team data)
+	TeamIDs  []TeamInfo // Pre-computed team IDs for Yahoo downloads (computed on first execution)
 }
 
 // DownloadSeasonWorkflow downloads all data for a single season.
-// This isolates the workflow history for each season, preventing the parent
-// workflow from exceeding Temporal's history limit.
+// Uses ContinueAsNew after processing daysPerExecution days to avoid history bloat.
 func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) error {
 	logger := workflow.GetLogger(ctx)
 	season := input.Season
 
-	logger.Info("DownloadSeasonWorkflow started",
-		"startYear", season.StartYear,
-		"startDate", season.StartDate,
-		"endDate", season.EndDate)
-
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 
-	total := countDownloadTasksForSeason(season)
-	tracker := NewProgressTracker(total)
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
-		return err
+	// Determine start day and whether this is the first execution
+	startDay := input.StartDay
+	teamIDs := input.TeamIDs
+	isFirstExecution := startDay.IsZero()
+
+	if isFirstExecution {
+		startDay = season.StartDate
 	}
 
-	futures := collectDownloadFuturesForSeasonImpl(ctx, season)
+	logger.Info("DownloadSeasonWorkflow started",
+		"startYear", season.StartYear,
+		"startDay", startDay.Format("2006-01-02"),
+		"endDate", season.EndDate.Format("2006-01-02"),
+		"isFirstExecution", isFirstExecution)
 
-	return tracker.WaitAll(ctx, futures)
+	// On first execution, download league and team data and compute teamIDs
+	if isFirstExecution {
+		teamIDs = nil
+		yahooConfig, err := config.GetYahooSeasonsConfig()
+		if err == nil {
+			if yahooCfg, inYahoo := yahooConfig[season.StartYear]; inYahoo {
+				for _, league := range yahooCfg.Leagues {
+					// Download league
+					if err := workflow.ExecuteActivity(ctx, DownloadLeague, season.StartYear, league.LeagueID).Get(ctx, nil); err != nil {
+						return err
+					}
+					// Download teams
+					for _, teamid := range league.TeamIDs {
+						if err := workflow.ExecuteActivity(ctx, DownloadTeam, season.StartYear, league.LeagueID, teamid).Get(ctx, nil); err != nil {
+							return err
+						}
+						teamIDs = append(teamIDs, TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
+					}
+				}
+			}
+		}
+	}
+
+	// Determine end of this execution batch
+	end := season.EndDate
+	if end.After(time.Now()) {
+		end = time.Now()
+	}
+
+	// Process days sequentially using DownloadDayActivity
+	daysProcessed := 0
+	currentDay := startDay
+	for !currentDay.After(end) && daysProcessed < daysPerExecution {
+		dayInput := &DownloadDayInput{
+			Day:       currentDay,
+			StartYear: season.StartYear,
+			TeamIDs:   teamIDs,
+		}
+		if err := workflow.ExecuteActivity(ctx, DownloadDayActivity, dayInput).Get(ctx, nil); err != nil {
+			return err
+		}
+		daysProcessed++
+		currentDay = currentDay.AddDate(0, 0, 1)
+	}
+
+	// If more days remain, ContinueAsNew
+	if !currentDay.After(end) {
+		logger.Info("ContinueAsNew for remaining days",
+			"nextStartDay", currentDay.Format("2006-01-02"),
+			"daysProcessed", daysProcessed)
+		return workflow.NewContinueAsNewError(ctx, DownloadSeasonWorkflow, &DownloadSeasonInput{
+			Season:   season,
+			StartDay: currentDay,
+			TeamIDs:  teamIDs,
+		})
+	}
+
+	logger.Info("DownloadSeasonWorkflow completed",
+		"startYear", season.StartYear,
+		"totalDaysProcessed", daysProcessed)
+	return nil
 }
 
 // WorkflowIDDownloadSeason returns the workflow ID for a single season download.
@@ -48,7 +115,15 @@ func WorkflowIDDownloadDay(startYear int, day time.Time) string {
 	return fmt.Sprintf("download-day-%d-%s", startYear, day.Format("2006-01-02"))
 }
 
-// DownloadDayInput contains parameters for downloading all data for a single day.
+// DownloadDayWorkflowInput contains parameters for the DownloadDayWorkflow.
+// The workflow looks up Yahoo config itself to determine which teams to download.
+type DownloadDayWorkflowInput struct {
+	Day       time.Time
+	StartYear int
+}
+
+// DownloadDayInput contains parameters for DownloadDayActivity.
+// TeamIDs are pre-computed by the parent workflow.
 type DownloadDayInput struct {
 	Day       time.Time
 	StartYear int
@@ -63,12 +138,27 @@ type TeamInfo struct {
 
 // DownloadDayWorkflow downloads all data for a single day.
 // This includes NHL boxscores and Yahoo rosters/summaries for all configured teams.
-func DownloadDayWorkflow(ctx workflow.Context, input *DownloadDayInput) error {
+// It looks up the Yahoo config to determine which teams to download.
+func DownloadDayWorkflow(ctx workflow.Context, input *DownloadDayWorkflowInput) error {
 	logger := workflow.GetLogger(ctx)
+
+	// Look up Yahoo config for this season
+	var teamIDs []TeamInfo
+	yahooConfig, err := config.GetYahooSeasonsConfig()
+	if err == nil {
+		if yahooCfg, inYahoo := yahooConfig[input.StartYear]; inYahoo {
+			for _, league := range yahooCfg.Leagues {
+				for _, teamid := range league.TeamIDs {
+					teamIDs = append(teamIDs, TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
+				}
+			}
+		}
+	}
+
 	logger.Info("DownloadDayWorkflow started",
 		"day", input.Day.Format("2006-01-02"),
 		"startYear", input.StartYear,
-		"numTeams", len(input.TeamIDs))
+		"numTeams", len(teamIDs))
 
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 
@@ -78,7 +168,7 @@ func DownloadDayWorkflow(ctx workflow.Context, input *DownloadDayInput) error {
 	}
 
 	// Download Yahoo rosters and summaries for each team
-	for _, team := range input.TeamIDs {
+	for _, team := range teamIDs {
 		if err := workflow.ExecuteActivity(ctx, DownloadRosterForTeamOnDay,
 			input.StartYear, team.LeagueID, team.TeamID, input.Day).Get(ctx, nil); err != nil {
 			return err
@@ -92,45 +182,3 @@ func DownloadDayWorkflow(ctx workflow.Context, input *DownloadDayInput) error {
 	return nil
 }
 
-// collectDownloadFuturesForSeasonImpl collects all download futures for a single season.
-// This is the implementation used by DownloadSeasonWorkflow.
-func collectDownloadFuturesForSeasonImpl(ctx workflow.Context, season SeasonInfo) []workflow.Future {
-	futures := make([]workflow.Future, 0, countDownloadTasksForSeason(season))
-
-	end := season.EndDate
-	if end.After(time.Now()) {
-		end = time.Now()
-	}
-
-	// Check Yahoo config for this season
-	var teamIDs []TeamInfo
-	yahooConfig, err := config.GetYahooSeasonsConfig()
-	if err == nil {
-		if yahooCfg, inYahoo := yahooConfig[season.StartYear]; inYahoo {
-			// Add league and team downloads (one-time per season)
-			for _, league := range yahooCfg.Leagues {
-				ctxa := workflow.WithActivityOptions(ctx, defaultActivityOptions())
-				future := workflow.ExecuteActivity(ctxa, DownloadLeague, season.StartYear, league.LeagueID)
-				futures = append(futures, future)
-				for _, teamid := range league.TeamIDs {
-					future := workflow.ExecuteActivity(ctxa, DownloadTeam, season.StartYear, league.LeagueID, teamid)
-					futures = append(futures, future)
-					teamIDs = append(teamIDs, TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
-				}
-			}
-		}
-	}
-
-	// Spawn per-day child workflows for granular progress tracking
-	for day := season.StartDate; !day.After(end); day = day.AddDate(0, 0, 1) {
-		ctxo := withChildOptions(ctx, WorkflowIDDownloadDay(season.StartYear, day))
-		input := &DownloadDayInput{
-			Day:       day,
-			StartYear: season.StartYear,
-			TeamIDs:   teamIDs,
-		}
-		futures = append(futures, workflow.ExecuteChildWorkflow(ctxo, DownloadDayWorkflow, input))
-	}
-
-	return futures
-}

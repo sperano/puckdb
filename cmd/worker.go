@@ -109,6 +109,7 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.DownloadYahooPlayer)
 			w.RegisterActivity(workers.DownloadYahooPlayerBatch)
 			w.RegisterActivity(workers.FetchSeasonsDataActivity)
+			w.RegisterActivity(workers.DownloadDayActivity)
 
 			// Import workflows
 			// w.RegisterWorkflow(workers.ImportLeagueWorkflow)      // commented out: depends on getGameKey

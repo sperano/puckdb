@@ -57,6 +57,11 @@ type DBStats struct {
 	TeamSummaries  int `json:"teamSummaries"`
 }
 
+type DownloadDayInput struct {
+	Season int    `json:"season"`
+	Day    string `json:"day"`
+}
+
 type DownloadSeasonsInput struct {
 	StartSeason       *int `json:"startSeason,omitempty"`
 	EndSeason         *int `json:"endSeason,omitempty"`
