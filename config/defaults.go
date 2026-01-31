@@ -120,9 +120,9 @@ const (
 
 // GraphQL resolver timeout defaults
 const (
-	DefaultQueryTimeout        = 30 * time.Second
-	DefaultChildWorkflowTimeout = 5 * time.Second
-	DefaultWorkflowTaskTimeout = 60 * time.Second
+	DefaultQueryTimeout         = 30 * time.Second
+	DefaultChildWorkflowTimeout = 1 * time.Second
+	DefaultWorkflowTaskTimeout  = 60 * time.Second
 )
 
 // Database connection defaults
@@ -141,7 +141,7 @@ const (
 	DefaultWorkflowExecutionTimeout    = 30 * time.Minute
 	DefaultActivityStartToCloseTimeout = 3 * time.Minute
 	DefaultBackoffCoefficient          = 2.0
-	DefaultSeasonConcurrency           = 3
+	DefaultSeasonConcurrency           = 5
 )
 
 // Time constants

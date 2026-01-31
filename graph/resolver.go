@@ -307,6 +307,14 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 
 	if len(progress.Seasons) > 0 {
 		result.Seasons = make([]*model.SeasonProgress, len(progress.Seasons))
+
+		// Identify seasons that need child workflow queries
+		type childQuery struct {
+			index     int
+			startYear int
+		}
+		var queries []childQuery
+
 		for i, s := range progress.Seasons {
 			result.Seasons[i] = &model.SeasonProgress{
 				StartYear:   s.StartYear,
@@ -317,13 +325,36 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 				CompletedAt: ptrStringIfNotEmpty(s.CompletedAt),
 			}
 
-			// For started but incomplete seasons, try to get real-time progress from child workflow
+			// Mark started but incomplete seasons for parallel querying
 			if s.Started && s.Completed < s.Total {
-				childProgress := r.queryChildSeasonProgress(ctx, s.StartYear)
-				if childProgress != nil && childProgress.Completed > s.Completed {
-					result.Seasons[i].Completed = childProgress.Completed
-					// Update the aggregate total
-					result.Completed += childProgress.Completed - s.Completed
+				queries = append(queries, childQuery{index: i, startYear: s.StartYear})
+			}
+		}
+
+		// Query child workflows in parallel
+		if len(queries) > 0 {
+			type childResult struct {
+				index    int
+				progress *worker.WorkflowProgress
+			}
+			results := make(chan childResult, len(queries))
+
+			for _, q := range queries {
+				go func(idx, year int) {
+					results <- childResult{
+						index:    idx,
+						progress: r.queryChildSeasonProgress(ctx, year),
+					}
+				}(q.index, q.startYear)
+			}
+
+			// Collect results
+			for range queries {
+				cr := <-results
+				if cr.progress != nil && cr.progress.Completed > result.Seasons[cr.index].Completed {
+					diff := cr.progress.Completed - result.Seasons[cr.index].Completed
+					result.Seasons[cr.index].Completed = cr.progress.Completed
+					result.Completed += diff
 				}
 			}
 		}
