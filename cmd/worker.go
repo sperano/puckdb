@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/temporal"
@@ -76,6 +77,12 @@ func cmdWorker() *cobra.Command {
 			if err := config.BindWorkerConcurrencyFlags(flags); err != nil {
 				return err
 			}
+			if err := config.BindDataPathScanIntervalFlag(flags); err != nil {
+				return err
+			}
+			if err := config.BindDataPathStatsTTLFlag(flags); err != nil {
+				return err
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -84,6 +91,22 @@ func cmdWorker() *cobra.Command {
 			// Start metrics HTTP server
 			metricsAddr := fmt.Sprintf(":%d", viper.GetInt(config.FlagWorkerPort))
 			go metrics.StartWorkerServer(metricsAddr)
+
+			// Start data path scanner if data path is configured
+			var dataPathScanner *metrics.DataPathScanner
+			if dataPath := viper.GetString(config.FlagDataPath); dataPath != "" {
+				redisClient := redis.NewClient(&redis.Options{
+					Addr:     viper.GetString(config.FlagRedisURL),
+					Password: viper.GetString(config.FlagRedisPassword),
+					DB:       viper.GetInt(config.FlagRedisDB),
+				})
+				dataPathScanner = metrics.NewDataPathScanner(redisClient, dataPath)
+				dataPathScanner.Start()
+				defer func() {
+					dataPathScanner.Stop()
+					redisClient.Close()
+				}()
+			}
 
 			tclient, err := temporal.NewClient()
 			if err != nil {
@@ -175,5 +198,7 @@ func cmdWorker() *cobra.Command {
 	config.InitGameIDCacheTTLFlag(flags)
 	config.InitYahooDownloadSleepFlags(flags)
 	config.InitWorkerConcurrencyFlags(flags)
+	config.InitDataPathScanIntervalFlag(flags)
+	config.InitDataPathStatsTTLFlag(flags)
 	return cmd
 }

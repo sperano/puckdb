@@ -71,6 +71,21 @@ var (
 		Help:    "Duration of Temporal activities in seconds",
 		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 	}, []string{"activity"})
+
+	dataPathFilesTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_data_path_files_total",
+		Help: "Total number of files in the data path",
+	}, []string{"worker_id", "data_path"})
+
+	dataPathBytesTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_data_path_bytes_total",
+		Help: "Total size of files in the data path in bytes",
+	}, []string{"worker_id", "data_path"})
+
+	dataPathLastScanTimestamp = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_data_path_last_scan_timestamp_seconds",
+		Help: "Unix timestamp of the last data path scan",
+	}, []string{"worker_id", "data_path"})
 )
 
 // API metrics (HTTP middleware)
@@ -144,6 +159,9 @@ func init() {
 		httpResponseBytes,
 		downloadTotal,
 		activityDuration,
+		dataPathFilesTotal,
+		dataPathBytesTotal,
+		dataPathLastScanTimestamp,
 	)
 
 	// Register API metrics
@@ -301,4 +319,18 @@ func SetDBTableRowCount(table string, count int64) {
 // SetDBMetricsTimestamp records when database metrics were last computed
 func SetDBMetricsTimestamp() {
 	dbLastUpdated.Set(float64(time.Now().Unix()))
+}
+
+// SetDataPathMetrics updates data path statistics for a worker
+func SetDataPathMetrics(workerID, dataPath string, fileCount, totalBytes, lastScanUnix int64) {
+	dataPathFilesTotal.WithLabelValues(workerID, dataPath).Set(float64(fileCount))
+	dataPathBytesTotal.WithLabelValues(workerID, dataPath).Set(float64(totalBytes))
+	dataPathLastScanTimestamp.WithLabelValues(workerID, dataPath).Set(float64(lastScanUnix))
+}
+
+// ClearDataPathMetrics removes data path metrics for a worker (on shutdown)
+func ClearDataPathMetrics(workerID, dataPath string) {
+	dataPathFilesTotal.DeleteLabelValues(workerID, dataPath)
+	dataPathBytesTotal.DeleteLabelValues(workerID, dataPath)
+	dataPathLastScanTimestamp.DeleteLabelValues(workerID, dataPath)
 }

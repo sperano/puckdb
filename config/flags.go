@@ -109,10 +109,12 @@ const (
 
 // Metrics collection flags
 const (
-	FlagMetricsRefreshInterval = "metrics-refresh-interval"
-	FlagCacheIntervalSeconds   = "cache-interval-seconds"
-	FlagRedisIntervalSeconds   = "redis-interval-seconds"
-	FlagDBIntervalSeconds      = "db-interval-seconds"
+	FlagMetricsRefreshInterval  = "metrics-refresh-interval"
+	FlagCacheIntervalSeconds    = "cache-interval-seconds"
+	FlagRedisIntervalSeconds    = "redis-interval-seconds"
+	FlagDBIntervalSeconds       = "db-interval-seconds"
+	FlagDataPathScanInterval    = "data-path-scan-interval"
+	FlagDataPathStatsTTL        = "data-path-stats-ttl"
 )
 
 // CLI display flags
@@ -497,6 +499,22 @@ func InitDBIntervalSecondsFlag(flags *flag.FlagSet) {
 
 func BindDBIntervalSecondsFlag(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagDBIntervalSeconds, flags.Lookup(FlagDBIntervalSeconds))
+}
+
+func InitDataPathScanIntervalFlag(flags *flag.FlagSet) {
+	flags.Int(FlagDataPathScanInterval, DefaultDataPathScanInterval, "Interval in seconds for scanning data path file stats")
+}
+
+func BindDataPathScanIntervalFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagDataPathScanInterval, flags.Lookup(FlagDataPathScanInterval))
+}
+
+func InitDataPathStatsTTLFlag(flags *flag.FlagSet) {
+	flags.Int(FlagDataPathStatsTTL, DefaultDataPathStatsTTL, "TTL in seconds for data path stats in Redis")
+}
+
+func BindDataPathStatsTTLFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagDataPathStatsTTL, flags.Lookup(FlagDataPathStatsTTL))
 }
 
 // CLI display flags
