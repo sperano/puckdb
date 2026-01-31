@@ -5,10 +5,9 @@ import (
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 )
-
-const dateFormat = "2006-01-02"
 
 // SeasonInfo represents season metadata for Temporal serialization.
 // This is a local copy of nhl.SeasonInfo to ensure proper serialization.
@@ -41,11 +40,11 @@ func fetchSeasonsDataImpl(ctx context.Context, client NHLClient, input *model.Do
 			continue
 		}
 
-		startDate, err := time.Parse(dateFormat, s.StandingsStart)
+		startDate, err := time.Parse(config.DateFormat, s.StandingsStart)
 		if err != nil {
 			continue
 		}
-		endDate, err := time.Parse(dateFormat, s.StandingsEnd)
+		endDate, err := time.Parse(config.DateFormat, s.StandingsEnd)
 		if err != nil {
 			continue
 		}

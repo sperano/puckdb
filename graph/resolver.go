@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/http"
@@ -61,15 +62,6 @@ func createDatabase(ctx context.Context) (bool, error) {
 func initDatabase(ctx context.Context) (bool, error) {
 	q := database.QueriesFromContext(ctx)
 	if err := database.EnsureNHLWithSQLC(ctx, q); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-func clearCache(ctx context.Context) (bool, error) {
-	redisClient := redis.NewClient()
-	defer func() { _ = redisClient.Close() }()
-	if err := redis.ClearCache(ctx, redisClient); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -171,7 +163,7 @@ func (r *Resolver) cancelDownloadSeasons(ctx context.Context) (bool, error) {
 }
 
 func (r *Resolver) downloadDay(ctx context.Context, input model.DownloadDayInput) (bool, error) {
-	day, err := time.Parse("2006-01-02", input.Day)
+	day, err := time.Parse(config.DateFormat, input.Day)
 	if err != nil {
 		return false, err
 	}
@@ -294,8 +286,7 @@ func (r *Resolver) downloadEverythingForSeasonProgress(ctx context.Context, seas
 }
 
 func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string) (*model.WorkflowProgress, error) {
-	queryTimeout := 30 * time.Second
-	queryCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+	queryCtx, cancel := context.WithTimeout(ctx, config.DefaultQueryTimeout)
 	defer cancel()
 
 	response, err := r.TemporalClient.QueryWorkflow(queryCtx, workflowID, "", worker.ProgressQueryName)
@@ -344,8 +335,7 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 // queryChildSeasonProgress queries a child season workflow for its progress.
 // Returns nil if the child workflow doesn't exist or can't be queried.
 func (r *Resolver) queryChildSeasonProgress(ctx context.Context, startYear int) *worker.WorkflowProgress {
-	childTimeout := 5 * time.Second
-	childCtx, cancel := context.WithTimeout(ctx, childTimeout)
+	childCtx, cancel := context.WithTimeout(ctx, config.DefaultChildWorkflowTimeout)
 	defer cancel()
 
 	childWorkflowID := worker.WorkflowIDDownloadSeason(startYear)
@@ -378,6 +368,6 @@ func workflowOptions(id string) client.StartWorkflowOptions {
 	return client.StartWorkflowOptions{
 		ID:                  id,
 		TaskQueue:           temporal.QueueTasks,
-		WorkflowTaskTimeout: 60 * time.Second,
+		WorkflowTaskTimeout: config.DefaultWorkflowTaskTimeout,
 	}
 }

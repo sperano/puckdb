@@ -107,4 +107,47 @@ const (
 	DefaultDBProvisionLockTTL = 60 * time.Second
 )
 
+// HTTP/GraphQL server defaults
+const (
+	DefaultHTTPClientTimeout      = 60 * time.Second
+	DefaultWebsocketKeepAlive     = 10 * time.Second
+	DefaultCancelTimeout          = 10 * time.Second
+	DefaultCORSMaxAge             = 300
+	DefaultGraphQLQueryCacheSize  = 1000
+	DefaultGraphQLAPQCacheSize    = 100
+	DefaultViteDevServerOrigin    = "http://localhost:5173"
+)
+
+// GraphQL resolver timeout defaults
+const (
+	DefaultQueryTimeout        = 30 * time.Second
+	DefaultChildWorkflowTimeout = 5 * time.Second
+	DefaultWorkflowTaskTimeout = 60 * time.Second
+)
+
+// Database connection defaults
+const (
+	DefaultDBConnMaxLifetime  = 5 * time.Minute
+	DefaultSlowQueryThreshold = 2 * time.Second
+)
+
+// Worker processing defaults
+const (
+	EnrichmentLogInterval = 10
+)
+
+// Temporal workflow defaults
+const (
+	DefaultWorkflowExecutionTimeout    = 30 * time.Minute
+	DefaultActivityStartToCloseTimeout = 3 * time.Minute
+	DefaultBackoffCoefficient          = 2.0
+	DefaultSeasonConcurrency           = 3
+)
+
+// Time constants
+const (
+	HoursPerDay = 24
+	DateFormat  = "2006-01-02"
+)
+
 var ErrNotImplementedYet = errors.New("not implemented yet")

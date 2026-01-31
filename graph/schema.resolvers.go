@@ -35,11 +35,6 @@ func (r *mutationResolver) InitDatabase(ctx context.Context) (bool, error) {
 	return initDatabase(ctx)
 }
 
-// ClearCache is the resolver for the clearCache field.
-func (r *mutationResolver) ClearCache(ctx context.Context) (bool, error) {
-	return clearCache(ctx)
-}
-
 // FlushRedisDb is the resolver for the flushRedisDB field.
 func (r *mutationResolver) FlushRedisDb(ctx context.Context) (bool, error) {
 	return flushRedisDB(ctx)
@@ -209,3 +204,15 @@ type nHLConferenceResolver struct{ *Resolver }
 type nHLDivisionResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type seasonResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	func (r *mutationResolver) ClearCache(ctx context.Context) (bool, error) {
+	return clearCache(ctx)
+}
+*/

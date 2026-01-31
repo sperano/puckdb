@@ -10,6 +10,7 @@ import (
 	redis_ "github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/auth"
+	"github.com/sperano/puckdb/config"
 	"golang.org/x/oauth2"
 )
 
@@ -22,7 +23,7 @@ func TokenAsString(token *oauth2.Token) (string, error) {
 }
 
 func getRedisKeyForToken(user string) string {
-	return fmt.Sprintf("%s_yahoo_oauth2_token", user)
+	return fmt.Sprintf(config.RedisKeyYahooTokenFmt, user)
 }
 
 func SaveToken(ctx context.Context, redisClient Client, token *oauth2.Token) error {
@@ -84,7 +85,7 @@ func DeleteTokenForUser(ctx context.Context, redisClient Client, user string) er
 }
 
 func getRedisKeyForAuthCode(code string) string {
-	return fmt.Sprintf("yahoo_oauth2_code_%s", code)
+	return fmt.Sprintf(config.RedisKeyYahooAuthCodeFmt, code)
 }
 
 // MarkAuthCodeAsUsed marks an authorization code as used to prevent replay attacks.

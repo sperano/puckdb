@@ -23,7 +23,7 @@ func OauthConfig() (*oauth2.Config, error) {
 	// public-url is only needed for OAuth login flow, not for using existing tokens
 	var redirectURL string
 	if publicURL := viper.GetString(FlagPublicURL); len(publicURL) > 0 {
-		redirectURL = fmt.Sprintf("%s/yahoo/authenticated", publicURL)
+		redirectURL = fmt.Sprintf("%s%s", publicURL, YahooAuthCallbackPath)
 	}
 	return &oauth2.Config{
 		ClientID:     clientID,

@@ -120,13 +120,13 @@ func setupAPIRouter(redisClient redis.Client, resolver *graph.Resolver) *chi.Mux
 	// for more ideas, see: https://developer.github.com/v3/#cross-origin-resource-sharing
 	r.Use(cors.Handler(cors.Options{
 		// AllowedOrigins:   []string{"https://foo.com"}, // Use this to allow specific origin hosts.
-		AllowedOrigins: []string{"https://*", "http://*", "http://localhost:5173"},
+		AllowedOrigins: []string{"https://*", "http://*", config.DefaultViteDevServerOrigin},
 		// AllowOriginFunc: func(r *http.Request, origin string) bool { return true },
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: false,
-		MaxAge:           300, // Maximum value not ignored by any of major browsers
+		MaxAge:           config.DefaultCORSMaxAge,
 	}))
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +151,7 @@ func setupAPIRouter(redisClient redis.Client, resolver *graph.Resolver) *chi.Mux
 func graphqlHandler(resolver *graph.Resolver) http.Handler {
 	server := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
 	server.AddTransport(transport.Websocket{
-		KeepAlivePingInterval: 10 * time.Second,
+		KeepAlivePingInterval: config.DefaultWebsocketKeepAlive,
 	})
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})
@@ -160,10 +160,10 @@ func graphqlHandler(resolver *graph.Resolver) http.Handler {
 		MaxUploadSize: MaxUploadSize,
 		MaxMemory:     MaxMemory,
 	})
-	server.SetQueryCache(lru.New[*ast.QueryDocument](1000))
+	server.SetQueryCache(lru.New[*ast.QueryDocument](config.DefaultGraphQLQueryCacheSize))
 	server.Use(extension.Introspection{})
 	server.Use(extension.AutomaticPersistedQuery{
-		Cache: lru.New[string](100),
+		Cache: lru.New[string](config.DefaultGraphQLAPQCacheSize),
 	})
 	server.Use(apollotracing.Tracer{})
 	server.AroundResponses(aroundResponsesLogger)

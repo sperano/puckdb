@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/bsm/redislock"
 	"github.com/jackc/pgx/v5"
@@ -15,10 +14,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	dbProvisionLockName = "puckdb:db-provision"
-	dbProvisionLockTTL  = 60 * time.Second
-)
+const dbProvisionLockName = "puckdb:db-provision"
 
 func cmdDBProvision() *cobra.Command {
 	cmd := &cobra.Command{
@@ -66,7 +62,7 @@ func runDBProvision(cmd *cobra.Command, args []string) error {
 	defer func() { _ = redisClient.Close() }()
 
 	locker := redislock.New(redisClient)
-	lock, err := locker.Obtain(ctx, dbProvisionLockName, dbProvisionLockTTL, nil)
+	lock, err := locker.Obtain(ctx, dbProvisionLockName, config.DefaultDBProvisionLockTTL, nil)
 	if err == redislock.ErrNotObtained {
 		log.Warn().Msg("Could not obtain lock, another process is probably provisioning")
 		return nil
@@ -87,8 +83,8 @@ func runDBProvision(cmd *cobra.Command, args []string) error {
 		Msg("Provisioning database")
 
 	// Connect as provisioner to postgres database
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:5432/postgres",
-		provisionerUser, provisionerPassword, provisionerHost)
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/postgres",
+		provisionerUser, provisionerPassword, provisionerHost, config.DefaultPostgresPort)
 
 	conn, err := pgx.Connect(ctx, connStr)
 	if err != nil {
@@ -116,8 +112,8 @@ func runDBProvision(cmd *cobra.Command, args []string) error {
 
 	// Close connection to postgres and connect to target database for schema privileges
 	conn.Close(ctx)
-	connStr = fmt.Sprintf("postgres://%s:%s@%s:5432/%s",
-		provisionerUser, provisionerPassword, provisionerHost, targetDB)
+	connStr = fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+		provisionerUser, provisionerPassword, provisionerHost, config.DefaultPostgresPort, targetDB)
 	conn, err = pgx.Connect(ctx, connStr)
 	if err != nil {
 		return fmt.Errorf("failed to connect to %s: %w", targetDB, err)

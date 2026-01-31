@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/redis"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -155,7 +156,7 @@ func enrichPlayerBatchImpl(
 					}
 				}
 
-				if p%10 == 0 || int(p) == len(playerIDs) {
+				if p%config.EnrichmentLogInterval == 0 || int(p) == len(playerIDs) {
 					log.Info().
 						Int32("processed", p).
 						Int("total", len(playerIDs)).
@@ -324,7 +325,7 @@ func partialToSqlcPlayer(partial PartialPlayer, landing *nhl.PlayerLanding) sqlc
 		}
 
 		// Birth info
-		if birthDate, err := time.Parse("2006-01-02", landing.BirthDate); err == nil {
+		if birthDate, err := time.Parse(config.DateFormat, landing.BirthDate); err == nil {
 			player.BirthDate = pgtype.Date{Time: birthDate, Valid: true}
 		}
 		if landing.BirthCity != nil {

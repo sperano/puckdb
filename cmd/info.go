@@ -164,12 +164,12 @@ func formatDuration(d time.Duration) string {
 	if d < time.Hour {
 		return fmt.Sprintf("%d minutes", int(d.Minutes()))
 	}
-	if d < 24*time.Hour {
+	if d < config.HoursPerDay*time.Hour {
 		hours := int(d.Hours())
 		minutes := int(d.Minutes()) % 60
 		return fmt.Sprintf("%d hours, %d minutes", hours, minutes)
 	}
-	days := int(d.Hours()) / 24
-	hours := int(d.Hours()) % 24
+	days := int(d.Hours()) / config.HoursPerDay
+	hours := int(d.Hours()) % config.HoursPerDay
 	return fmt.Sprintf("%d days, %d hours", days, hours)
 }

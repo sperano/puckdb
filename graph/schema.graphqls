@@ -358,7 +358,6 @@ type Mutation {
     dropDatabase: Boolean! # deletes all the tables
     createDatabase: Boolean! # creates all the tables
     initDatabase: Boolean! # creates the NHL objects
-    clearCache: Boolean! # deletes all the keys in the redis cache
     flushRedisDB: Boolean! # flushes all keys in the configured redis db
 
 	downloadSeasons(input: DownloadSeasonsInput): Boolean!

@@ -23,8 +23,8 @@ func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) er
 
 	logger.Info("DownloadSeasonWorkflow started",
 		"startYear", season.StartYear,
-		"startDate", season.StartDate.Format("2006-01-02"),
-		"endDate", season.EndDate.Format("2006-01-02"))
+		"startDate", season.StartDate.Format(config.DateFormat),
+		"endDate", season.EndDate.Format(config.DateFormat))
 
 	// Set up progress tracking
 	total := countDownloadTasksForSeason(season)
@@ -66,7 +66,7 @@ func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) er
 	}
 
 	// Calculate number of days to process
-	numDays := int(end.Sub(season.StartDate).Hours()/24) + 1
+	numDays := int(end.Sub(season.StartDate).Hours()/config.HoursPerDay) + 1
 	if numDays < 0 {
 		numDays = 0
 	}
@@ -110,7 +110,7 @@ func WorkflowIDDownloadSeason(startYear int) string {
 
 // WorkflowIDDownloadDay returns the workflow ID for a single day download.
 func WorkflowIDDownloadDay(startYear int, day time.Time) string {
-	return fmt.Sprintf("download-day-%d-%s", startYear, day.Format("2006-01-02"))
+	return fmt.Sprintf("download-day-%d-%s", startYear, day.Format(config.DateFormat))
 }
 
 // DownloadDayWorkflowInput contains parameters for the DownloadDayWorkflow.
@@ -154,7 +154,7 @@ func DownloadDayWorkflow(ctx workflow.Context, input *DownloadDayWorkflowInput) 
 	}
 
 	logger.Info("DownloadDayWorkflow started",
-		"day", input.Day.Format("2006-01-02"),
+		"day", input.Day.Format(config.DateFormat),
 		"startYear", input.StartYear,
 		"numTeams", len(teamIDs))
 

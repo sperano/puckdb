@@ -18,7 +18,7 @@ func DownloadPlayersWorkflow(ctx workflow.Context, input *model.DownloadSeasonsI
 		maxConcurrency = 10
 	}
 
-	concurrency := defaultSeasonConcurrency
+	concurrency := config.DefaultSeasonConcurrency
 	if input.SeasonConcurrency != nil && *input.SeasonConcurrency > 0 {
 		concurrency = *input.SeasonConcurrency
 	}

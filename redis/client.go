@@ -3,12 +3,13 @@ package redis
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/bsm/redislock"
 	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
 	"github.com/spf13/viper"
-	"time"
 )
 
 type Client interface {
@@ -31,10 +32,6 @@ func NewClient() Client {
 		Password: viper.GetString(config.FlagRedisPassword),
 		DB:       db,
 	})
-}
-
-func ClearCache(ctx context.Context, client Client) error {
-	return clearCacheWithFilter(ctx, client, "yfh*")
 }
 
 func FlushDB(ctx context.Context, client Client) error {

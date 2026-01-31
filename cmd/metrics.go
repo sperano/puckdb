@@ -360,12 +360,12 @@ func fetchSeasonsFromNHL(ctx context.Context) ([]simpleSeason, error) {
 			continue
 		}
 
-		start, err := time.Parse("2006-01-02", s.StandingsStart)
+		start, err := time.Parse(config.DateFormat, s.StandingsStart)
 		if err != nil {
 			log.Warn().Err(err).Int("season", startYear).Msg("Failed to parse standings start")
 			continue
 		}
-		end, err := time.Parse("2006-01-02", s.StandingsEnd)
+		end, err := time.Parse(config.DateFormat, s.StandingsEnd)
 		if err != nil {
 			log.Warn().Err(err).Int("season", startYear).Msg("Failed to parse standings end")
 			continue

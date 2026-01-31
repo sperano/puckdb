@@ -28,7 +28,7 @@ func (e *HTTPError) Error() string {
 
 // IsClientError returns true for 4xx status codes
 func (e *HTTPError) IsClientError() bool {
-	return e.StatusCode >= 400 && e.StatusCode < 500
+	return e.StatusCode >= http.StatusBadRequest && e.StatusCode < http.StatusInternalServerError
 }
 
 // IsNonRetryableClientError returns true for 4xx errors that should not be retried.
@@ -38,7 +38,7 @@ func (e *HTTPError) IsNonRetryableClientError() bool {
 		return false
 	}
 	// 404 should be retried - Yahoo sometimes returns intermittent 404s
-	if e.StatusCode == 404 {
+	if e.StatusCode == http.StatusNotFound {
 		return false
 	}
 	// Other 4xx errors (400, 401, 403, etc.) should not be retried
@@ -82,7 +82,7 @@ func (c *GenericClient) Download(url string) ([]byte, error) {
 
 	metrics.ObserveHTTP(c.apiLabel, req.Method, resp.StatusCode, duration, len(body))
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		log.Error().
 			Str("url", url).
 			Int("status_code", resp.StatusCode).

@@ -14,7 +14,6 @@ import (
 
 const (
 	TaskQueueName                = "puckdb-tasks"
-	defaultTimeout               = 30 * time.Minute
 	WorkflowIDImportEverything   = "import-everything"
 	WorkflowIDDownloadEverything = "download-everything"
 	WorkflowIDDownloadSeasons    = "download-all"
@@ -52,8 +51,8 @@ func WorkflowIDImportEverythingForSeason(season int) string {
 
 func withChildOptions(ctx workflow.Context, id string) workflow.Context {
 	return workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		WorkflowExecutionTimeout: defaultTimeout,
-		WorkflowTaskTimeout:      defaultTimeout,
+		WorkflowExecutionTimeout: config.DefaultWorkflowExecutionTimeout,
+		WorkflowTaskTimeout:      config.DefaultWorkflowExecutionTimeout,
 		WorkflowID:               id,
 	})
 }
@@ -63,17 +62,15 @@ func defaultActivityOptions() workflow.ActivityOptions {
 	maxInterval := viper.GetInt(config.FlagTemporalRetryMaxInterval)
 	maxAttempts := viper.GetInt32(config.FlagTemporalRetryMaxAttempts)
 	return workflow.ActivityOptions{
-		StartToCloseTimeout: 3 * time.Minute,
+		StartToCloseTimeout: config.DefaultActivityStartToCloseTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Duration(initialInterval) * time.Second,
 			MaximumInterval:    time.Duration(maxInterval) * time.Second,
 			MaximumAttempts:    maxAttempts,
-			BackoffCoefficient: 2.0,
+			BackoffCoefficient: config.DefaultBackoffCoefficient,
 		},
 	}
 }
-
-const defaultSeasonConcurrency = 3
 
 func DownloadSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
@@ -89,7 +86,7 @@ func DownloadSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsI
 		maxConcurrency = 10
 	}
 
-	concurrency := defaultSeasonConcurrency
+	concurrency := config.DefaultSeasonConcurrency
 	if input.SeasonConcurrency != nil && *input.SeasonConcurrency > 0 {
 		concurrency = *input.SeasonConcurrency
 	}
@@ -212,7 +209,7 @@ func countDaysInSeason(season SeasonInfo) int {
 	if end.After(time.Now()) {
 		end = time.Now()
 	}
-	days := int(end.Sub(season.StartDate).Hours()/24) + 1
+	days := int(end.Sub(season.StartDate).Hours()/config.HoursPerDay) + 1
 	if days < 0 {
 		return 0
 	}

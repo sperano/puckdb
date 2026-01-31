@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -75,7 +74,7 @@ func OpenPGXPool(ctx context.Context) (*pgxpool.Pool, error) {
 
 	poolConfig.MaxConns = int32(viper.GetInt(config.FlagPostgresMaxOpenConns))
 	poolConfig.MinConns = int32(viper.GetInt(config.FlagPostgresMaxIdleConns))
-	poolConfig.MaxConnLifetime = 5 * time.Minute
+	poolConfig.MaxConnLifetime = config.DefaultDBConnMaxLifetime
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
@@ -95,7 +94,7 @@ func OpenGorm() (*gorm.DB, error) {
 	newLogger := logger.New(
 		log_.New(os.Stdout, "\n", log_.LstdFlags),
 		logger.Config{
-			SlowThreshold:             2 * time.Second, // Slow SQL threshold
+			SlowThreshold:             config.DefaultSlowQueryThreshold,
 			LogLevel:                  logger.Warn,
 			IgnoreRecordNotFoundError: false,
 			Colorful:                  true,
@@ -109,7 +108,7 @@ func OpenGorm() (*gorm.DB, error) {
 	if err == nil {
 		sqldb.SetMaxIdleConns(viper.GetInt(config.FlagPostgresMaxIdleConns))
 		sqldb.SetMaxOpenConns(viper.GetInt(config.FlagPostgresMaxOpenConns))
-		sqldb.SetConnMaxLifetime(5 * time.Minute) // TODO config
+		sqldb.SetConnMaxLifetime(config.DefaultDBConnMaxLifetime)
 	} else {
 		log.Warn().Msg(err.Error())
 	}

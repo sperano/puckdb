@@ -48,7 +48,7 @@ type GraphQLClient struct {
 func NewGraphQLClient(endpoint string) *GraphQLClient {
 	return &GraphQLClient{
 		endpoint:   strings.TrimSuffix(endpoint, "/") + "/graphql/query",
-		httpClient: &http.Client{Timeout: 60 * time.Second},
+		httpClient: &http.Client{Timeout: config.DefaultHTTPClientTimeout},
 	}
 }
 
@@ -446,7 +446,7 @@ type downloadState struct {
 
 func (s *downloadState) cancel(_ context.Context) {
 	// Use a fresh context to cancel since the original may be canceled.
-	cancelCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	cancelCtx, cancel := context.WithTimeout(context.Background(), config.DefaultCancelTimeout)
 	defer cancel()
 
 	switch s.current {
