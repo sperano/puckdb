@@ -25,6 +25,13 @@ func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) er
 		"startDate", season.StartDate.Format("2006-01-02"),
 		"endDate", season.EndDate.Format("2006-01-02"))
 
+	// Set up progress tracking
+	total := countDownloadTasksForSeason(season)
+	tracker := NewProgressTracker(total)
+	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+		return err
+	}
+
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 
 	// Look up Yahoo config and download league/team data
@@ -37,11 +44,14 @@ func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) er
 				if err := workflow.ExecuteActivity(ctx, DownloadLeague, season.StartYear, league.LeagueID).Get(ctx, nil); err != nil {
 					return err
 				}
+				tracker.Increment()
+
 				// Download teams
 				for _, teamid := range league.TeamIDs {
 					if err := workflow.ExecuteActivity(ctx, DownloadTeam, season.StartYear, league.LeagueID, teamid).Get(ctx, nil); err != nil {
 						return err
 					}
+					tracker.Increment()
 					teamIDs = append(teamIDs, TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
 				}
 			}
@@ -55,7 +65,6 @@ func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) er
 	}
 
 	// Process all days using DownloadDayActivity
-	daysProcessed := 0
 	for day := season.StartDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		dayInput := &DownloadDayInput{
 			Day:       day,
@@ -65,12 +74,12 @@ func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) er
 		if err := workflow.ExecuteActivity(ctx, DownloadDayActivity, dayInput).Get(ctx, nil); err != nil {
 			return err
 		}
-		daysProcessed++
+		tracker.Increment()
 	}
 
 	logger.Info("DownloadSeasonWorkflow completed",
 		"startYear", season.StartYear,
-		"daysProcessed", daysProcessed)
+		"completed", tracker.progress.Completed)
 	return nil
 }
 
