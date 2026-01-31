@@ -21,8 +21,8 @@ helm
 CLAUDE.md
 README.md
 
-# Temporal server config (not the Go package)
-temporal/dynamicconfig/
+# Docker-related config files
+docker/
 
 # IDE and editor
 .vscode/
