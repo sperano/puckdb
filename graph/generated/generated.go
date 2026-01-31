@@ -195,6 +195,7 @@ type ComplexityRoot struct {
 		DownloadYahooPlayers       func(childComplexity int) int
 		DropDatabase               func(childComplexity int) int
 		ExtractUniquePlayers       func(childComplexity int) int
+		FlushRedisDb               func(childComplexity int) int
 		ImportLeague               func(childComplexity int, season int, leagueID int) int
 		ImportTeam                 func(childComplexity int, season int, leagueID int, teamID int) int
 		InitDatabase               func(childComplexity int) int
@@ -359,6 +360,7 @@ type MutationResolver interface {
 	CreateDatabase(ctx context.Context) (bool, error)
 	InitDatabase(ctx context.Context) (bool, error)
 	ClearCache(ctx context.Context) (bool, error)
+	FlushRedisDb(ctx context.Context) (bool, error)
 	DownloadSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
 	CancelDownloadSeasons(ctx context.Context) (bool, error)
 	DownloadDay(ctx context.Context, input model.DownloadDayInput) (bool, error)
@@ -1270,6 +1272,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.ExtractUniquePlayers(childComplexity), true
+
+	case "Mutation.flushRedisDB":
+		if e.complexity.Mutation.FlushRedisDb == nil {
+			break
+		}
+
+		return e.complexity.Mutation.FlushRedisDb(childComplexity), true
 
 	case "Mutation.importLeague":
 		if e.complexity.Mutation.ImportLeague == nil {
@@ -2506,6 +2515,7 @@ type Mutation {
     createDatabase: Boolean! # creates all the tables
     initDatabase: Boolean! # creates the NHL objects
     clearCache: Boolean! # deletes all the keys in the redis cache
+    flushRedisDB: Boolean! # flushes all keys in the configured redis db
 
 	downloadSeasons(input: DownloadSeasonsInput): Boolean!
 	cancelDownloadSeasons: Boolean!
@@ -7912,6 +7922,50 @@ func (ec *executionContext) _Mutation_clearCache(ctx context.Context, field grap
 }
 
 func (ec *executionContext) fieldContext_Mutation_clearCache(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_flushRedisDB(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_flushRedisDB(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().FlushRedisDb(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_flushRedisDB(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -16369,6 +16423,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "clearCache":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_clearCache(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "flushRedisDB":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_flushRedisDB(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

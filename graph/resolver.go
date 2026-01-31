@@ -75,6 +75,15 @@ func clearCache(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+func flushRedisDB(ctx context.Context) (bool, error) {
+	redisClient := redis.NewClient()
+	defer func() { _ = redisClient.Close() }()
+	if err := redis.FlushDB(ctx, redisClient); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Divisions is the resolver for the divisions field.
 func divisions(ctx context.Context, obj *model.NHLConference) ([]*model.NHLDivision, error) {
 	q := database.QueriesFromContext(ctx)

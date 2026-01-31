@@ -40,6 +40,11 @@ func (r *mutationResolver) ClearCache(ctx context.Context) (bool, error) {
 	return clearCache(ctx)
 }
 
+// FlushRedisDb is the resolver for the flushRedisDB field.
+func (r *mutationResolver) FlushRedisDb(ctx context.Context) (bool, error) {
+	return flushRedisDB(ctx)
+}
+
 // DownloadSeasons is the resolver for the downloadSeasons field.
 func (r *mutationResolver) DownloadSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
 	return r.Resolver.downloadSeasons(ctx, input)

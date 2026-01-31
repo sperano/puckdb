@@ -14,6 +14,7 @@ import (
 type Client interface {
 	redislock.RedisClient
 	Del(ctx context.Context, keys ...string) *redis.IntCmd
+	FlushDB(ctx context.Context) *redis.StatusCmd
 	Get(ctx context.Context, key string) *redis.StringCmd
 	Keys(ctx context.Context, pattern string) *redis.StringSliceCmd
 	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
@@ -34,6 +35,10 @@ func NewClient() Client {
 
 func ClearCache(ctx context.Context, client Client) error {
 	return clearCacheWithFilter(ctx, client, "yfh*")
+}
+
+func FlushDB(ctx context.Context, client Client) error {
+	return client.FlushDB(ctx).Err()
 }
 
 func clearCacheWithFilter(ctx context.Context, client Client, filter string) error {

@@ -26,6 +26,14 @@ func (m *MockClient) Del(ctx context.Context, keys ...string) *redis.IntCmd {
 	return result.Get(0).(*redis.IntCmd)
 }
 
+func (m *MockClient) FlushDB(ctx context.Context) *redis.StatusCmd {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(*redis.StatusCmd)
+}
+
 func (m *MockClient) Get(ctx context.Context, key string) *redis.StringCmd {
 	args := m.Called(ctx, key)
 	if args.Get(0) == nil {
