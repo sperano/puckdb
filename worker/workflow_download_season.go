@@ -8,75 +8,57 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// daysPerExecution is the number of days to process before ContinueAsNew.
-// This prevents workflow history from growing too large.
-const daysPerExecution = 100
-
 // DownloadSeasonInput contains parameters for downloading a single season.
 type DownloadSeasonInput struct {
-	Season  SeasonInfo
-	StartDay time.Time  // Day to start from (zero = beginning of season, downloads league/team data)
-	TeamIDs  []TeamInfo // Pre-computed team IDs for Yahoo downloads (computed on first execution)
+	Season SeasonInfo
 }
 
 // DownloadSeasonWorkflow downloads all data for a single season.
-// Uses ContinueAsNew after processing daysPerExecution days to avoid history bloat.
+// Each season runs in its own child workflow to isolate history.
+// A typical season (~270 days) generates ~600 history events, well under the 50K limit.
 func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) error {
 	logger := workflow.GetLogger(ctx)
 	season := input.Season
 
-	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-
-	// Determine start day and whether this is the first execution
-	startDay := input.StartDay
-	teamIDs := input.TeamIDs
-	isFirstExecution := startDay.IsZero()
-
-	if isFirstExecution {
-		startDay = season.StartDate
-	}
-
 	logger.Info("DownloadSeasonWorkflow started",
 		"startYear", season.StartYear,
-		"startDay", startDay.Format("2006-01-02"),
-		"endDate", season.EndDate.Format("2006-01-02"),
-		"isFirstExecution", isFirstExecution)
+		"startDate", season.StartDate.Format("2006-01-02"),
+		"endDate", season.EndDate.Format("2006-01-02"))
 
-	// On first execution, download league and team data and compute teamIDs
-	if isFirstExecution {
-		teamIDs = nil
-		yahooConfig, err := config.GetYahooSeasonsConfig()
-		if err == nil {
-			if yahooCfg, inYahoo := yahooConfig[season.StartYear]; inYahoo {
-				for _, league := range yahooCfg.Leagues {
-					// Download league
-					if err := workflow.ExecuteActivity(ctx, DownloadLeague, season.StartYear, league.LeagueID).Get(ctx, nil); err != nil {
+	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
+
+	// Look up Yahoo config and download league/team data
+	var teamIDs []TeamInfo
+	yahooConfig, err := config.GetYahooSeasonsConfig()
+	if err == nil {
+		if yahooCfg, inYahoo := yahooConfig[season.StartYear]; inYahoo {
+			for _, league := range yahooCfg.Leagues {
+				// Download league
+				if err := workflow.ExecuteActivity(ctx, DownloadLeague, season.StartYear, league.LeagueID).Get(ctx, nil); err != nil {
+					return err
+				}
+				// Download teams
+				for _, teamid := range league.TeamIDs {
+					if err := workflow.ExecuteActivity(ctx, DownloadTeam, season.StartYear, league.LeagueID, teamid).Get(ctx, nil); err != nil {
 						return err
 					}
-					// Download teams
-					for _, teamid := range league.TeamIDs {
-						if err := workflow.ExecuteActivity(ctx, DownloadTeam, season.StartYear, league.LeagueID, teamid).Get(ctx, nil); err != nil {
-							return err
-						}
-						teamIDs = append(teamIDs, TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
-					}
+					teamIDs = append(teamIDs, TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
 				}
 			}
 		}
 	}
 
-	// Determine end of this execution batch
+	// Determine end date (don't download future days)
 	end := season.EndDate
 	if end.After(time.Now()) {
 		end = time.Now()
 	}
 
-	// Process days sequentially using DownloadDayActivity
+	// Process all days using DownloadDayActivity
 	daysProcessed := 0
-	currentDay := startDay
-	for !currentDay.After(end) && daysProcessed < daysPerExecution {
+	for day := season.StartDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		dayInput := &DownloadDayInput{
-			Day:       currentDay,
+			Day:       day,
 			StartYear: season.StartYear,
 			TeamIDs:   teamIDs,
 		}
@@ -84,24 +66,11 @@ func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) er
 			return err
 		}
 		daysProcessed++
-		currentDay = currentDay.AddDate(0, 0, 1)
-	}
-
-	// If more days remain, ContinueAsNew
-	if !currentDay.After(end) {
-		logger.Info("ContinueAsNew for remaining days",
-			"nextStartDay", currentDay.Format("2006-01-02"),
-			"daysProcessed", daysProcessed)
-		return workflow.NewContinueAsNewError(ctx, DownloadSeasonWorkflow, &DownloadSeasonInput{
-			Season:   season,
-			StartDay: currentDay,
-			TeamIDs:  teamIDs,
-		})
 	}
 
 	logger.Info("DownloadSeasonWorkflow completed",
 		"startYear", season.StartYear,
-		"totalDaysProcessed", daysProcessed)
+		"daysProcessed", daysProcessed)
 	return nil
 }
 
