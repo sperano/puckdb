@@ -26,4 +26,6 @@ jobs:
           --tag ericsperano/puckdb:latest \
           --tag ericsperano/puckdb:${{github.sha}} \
           --tag ericsperano/puckdb:build-${{github.run_number}} \
+          --cache-from type=gha \
+          --cache-to type=gha,mode=max \
           --platform linux/amd64,linux/arm64 .
