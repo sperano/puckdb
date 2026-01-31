@@ -24,3 +24,4 @@ puckdb-check.log
 .env
 yahoo-seasons.yaml
 tls
+helm
