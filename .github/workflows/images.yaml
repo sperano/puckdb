@@ -21,7 +21,6 @@ jobs:
       - name: Build the image
         run: |
           docker buildx build --push \
-          --build-arg GITHUB_TOKEN=${{ secrets.MY_GITHUB_TOKEN }} \
           --build-arg GITHUB_RUN_NUMBER=${{github.run_number}} \
           --tag ericsperano/puckdb:latest \
           --tag ericsperano/puckdb:${{github.sha}} \
