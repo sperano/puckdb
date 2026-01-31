@@ -75,6 +75,15 @@ Uses Cobra for CLI, Viper for configuration, and pflags for flags.
 - OAuth2 tokens cached in Redis
 - Environment variables supported via Viper
 
+### Flag Conventions
+**All CLI flags must follow these rules:**
+1. **Flag names** must be defined as constants in `config/flags.go` (e.g., `FlagAPIPort = "api-port"`)
+2. **Default values** must be defined as constants in `config/defaults.go` (e.g., `DefaultAPIPort = 8787`)
+3. **Never use magic numbers or string literals** as default values in flag definitions
+4. Each flag should have an `Init*Flag(flags *flag.FlagSet)` function that registers the flag with its default constant
+5. Each flag should have a `Bind*Flag(flags *flag.FlagSet) error` function for viper binding
+6. Cmd files should only call `config.Init*Flag()` and `config.Bind*Flag()` - never define flags locally
+
 ### Data Flow
 1. User authenticates via Yahoo OAuth2 (`/yahoo/login` → stored in Redis)
 2. GraphQL mutations or CLI commands trigger Temporal workflows

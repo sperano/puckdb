@@ -13,59 +13,116 @@ import (
 	"github.com/spf13/viper"
 )
 
-// TODO some flags should just go in cmd and not be exported maybe?
+// Server flags
 const (
-	FlagAPIPort                      = "api-port"
-	FlagAPITLSEnabled                = "api-tls-enabled"
-	FlagDataPath                     = "data-path"
-	FlagLogLevel                     = "log-level"
-	FlagMetricsPort                  = "metrics-port"
-	FlagMetricsRefreshInterval       = "metrics-refresh-interval"
-	FlagMetricsTLSEnabled            = "metrics-tls-enabled"
-	FlagPostgresHost                 = "postgres-host"
-	FlagPostgresUser                 = "postgres-user"
-	FlagPostgresPassword             = "postgres-password"
-	FlagPostgresDatabase             = "postgres-database"
-	FlagPostgresPort                 = "postgres-port"
-	FlagPostgresSSLMode              = "postgres-ssl-mode"
-	FlagPostgresTimeZone             = "postgres-time-zone"
-	FlagRedisURL                     = "redis-url"
-	FlagRedisPassword                = "redis-password"
-	FlagRedisDB                      = "redis-db"
-	FlagYahooSeasons                 = "yahoo-seasons"
-	FlagSkipPreseason                = "skip-preseason"
+	FlagAPIPort           = "api-port"
+	FlagAPITLSEnabled     = "api-tls-enabled"
+	FlagAPIServerAddr     = "api-server-addr"
+	FlagWorkerPort        = "worker-port"
+	FlagWorkerTLSEnabled  = "worker-tls-enabled"
+	FlagMetricsPort       = "metrics-port"
+	FlagMetricsTLSEnabled = "metrics-tls-enabled"
+	FlagTLSCertificate    = "tls-certificate"
+	FlagTLSKey            = "tls-key"
+)
+
+// Data and logging flags
+const (
+	FlagDataPath = "data-path"
+	FlagLogLevel = "log-level"
+)
+
+// PostgreSQL flags
+const (
+	FlagPostgresHost         = "postgres-host"
+	FlagPostgresUser         = "postgres-user"
+	FlagPostgresPassword     = "postgres-password"
+	FlagPostgresDatabase     = "postgres-database"
+	FlagPostgresPort         = "postgres-port"
+	FlagPostgresSSLMode      = "postgres-ssl-mode"
+	FlagPostgresTimeZone     = "postgres-time-zone"
+	FlagPostgresMaxOpenConns = "postgres-max-open-conns"
+	FlagPostgresMaxIdleConns = "postgres-max-idle-conns"
+)
+
+// Redis flags
+const (
+	FlagRedisURL      = "redis-url"
+	FlagRedisPassword = "redis-password"
+	FlagRedisDB       = "redis-db"
+)
+
+// Temporal flags
+const (
 	FlagTemporalHostPort             = "temporal-hostport"
 	FlagTemporalNamespace            = "temporal-namespace"
-	FlagTLSCertificate               = "tls-certificate"
-	FlagTLSKey                       = "tls-key"
-	FlagWorkerPort                   = "worker-port"
-	FlagWorkerTLSEnabled             = "worker-tls-enabled"
-	FlagYahooOAuth2ClientID          = "yahoo-oauth2-client-id"
-	FlagYahooOAuth2ClientSecret      = "yahoo-oauth2-client-secret"
-	FlagPublicURL                    = "public-url"
-	FlagYahooLogToken                = "yahoo-log-token"
-	FlagPostgresMaxOpenConns         = "postgres-max-open-conns"
-	FlagPostgresMaxIdleConns         = "postgres-max-idle-conns"
 	FlagTemporalRetryInitialInterval = "temporal-retry-initial-interval"
 	FlagTemporalRetryMaxInterval     = "temporal-retry-max-interval"
 	FlagTemporalRetryMaxAttempts     = "temporal-retry-max-attempts"
-	FlagMaxSeasonConcurrency         = "max-season-concurrency"
-	FlagDayConcurrency               = "day-concurrency"
+)
+
+// Worker concurrency flags
+const (
+	FlagWorkerMaxWorkflowPollers   = "worker-max-workflow-pollers"
+	FlagWorkerMaxActivityPollers   = "worker-max-activity-pollers"
+	FlagWorkerMaxWorkflowExecution = "worker-max-workflow-execution"
+	FlagWorkerMaxActivityExecution = "worker-max-activity-execution"
+)
+
+// Yahoo OAuth2 flags
+const (
+	FlagYahooOAuth2ClientID     = "yahoo-oauth2-client-id"
+	FlagYahooOAuth2ClientSecret = "yahoo-oauth2-client-secret"
+	FlagYahooLogToken           = "yahoo-log-token"
+	FlagYahooSeasons            = "yahoo-seasons"
+	FlagPublicURL               = "public-url"
+)
+
+// Yahoo player download flags
+const (
 	FlagMaxYahooPlayerID             = "max-yahoo-player-id"
 	FlagYahooPlayerBatchSize         = "yahoo-player-batch-size"
 	FlagYahooPlayerActivityBatchSize = "yahoo-player-activity-batch-size"
 	FlagYahooPlayersPerExecution     = "yahoo-players-per-execution"
-	FlagGameIDCacheTTL               = "game-id-cache-ttl"
 	FlagYahooDownloadSleepMin        = "yahoo-download-sleep-min"
 	FlagYahooDownloadSleepMax        = "yahoo-download-sleep-max"
+)
 
-	// Worker concurrency flags
-	FlagWorkerMaxWorkflowPollers        = "worker-max-workflow-pollers"
-	FlagWorkerMaxActivityPollers        = "worker-max-activity-pollers"
-	FlagWorkerMaxWorkflowExecution      = "worker-max-workflow-execution"
-	FlagWorkerMaxActivityExecution      = "worker-max-activity-execution"
+// Download workflow flags
+const (
+	FlagMaxSeasonConcurrency = "max-season-concurrency"
+	FlagDayConcurrency       = "day-concurrency"
+	FlagSkipPreseason        = "skip-preseason"
+	FlagSkipYahooPlayers     = "skip-yahoo-players"
+	FlagSkipSeasons          = "skip-seasons"
+	FlagSeasonConcurrency    = "season-concurrency"
+	FlagMonitor              = "monitor"
+	FlagSeasonYear           = "season"
+	FlagFromSeasonYear       = "from-season"
+	FlagToSeasonYear         = "to-season"
+)
 
-	// Provisioner flags for db-provision command
+// Cache flags
+const (
+	FlagGameIDCacheTTL = "game-id-cache-ttl"
+)
+
+// Metrics collection flags
+const (
+	FlagMetricsRefreshInterval = "metrics-refresh-interval"
+	FlagCacheIntervalSeconds   = "cache-interval-seconds"
+	FlagRedisIntervalSeconds   = "redis-interval-seconds"
+	FlagDBIntervalSeconds      = "db-interval-seconds"
+)
+
+// CLI display flags
+const (
+	FlagVerbose    = "verbose"
+	FlagIncomplete = "incomplete"
+)
+
+// Provisioner flags
+const (
 	FlagProvisionerHost     = "provisioner-host"
 	FlagProvisionerUser     = "provisioner-user"
 	FlagProvisionerPassword = "provisioner-password"
@@ -78,7 +135,7 @@ func InitLogLevelFlag(flags *flag.FlagSet, defaultLevel string) {
 }
 
 func InitSeasonsFlag(cmd *cobra.Command, flags *flag.FlagSet, persistent bool) {
-	flags.StringP(FlagYahooSeasons, "S", "yahoo-seasons.yaml", "Yahoo seasons config file")
+	flags.StringP(FlagYahooSeasons, "S", DefaultYahooSeasonsFile, "Yahoo seasons config file")
 	var err error
 	if persistent {
 		err = cmd.MarkPersistentFlagRequired(FlagYahooSeasons)
@@ -115,7 +172,7 @@ func InitDataPathFlag(flags *flag.FlagSet) {
 }
 
 func InitTemporalFlags(flags *flag.FlagSet) {
-	flags.String(FlagTemporalHostPort, "localhost:7233", "Temporal host/port")
+	flags.String(FlagTemporalHostPort, DefaultTemporalHostPort, "Temporal host/port")
 	flags.String(FlagTemporalNamespace, DefaultTemporalNamespace, "Temporal namespace")
 }
 
@@ -130,9 +187,9 @@ func BindTemporalFlags(flags *flag.FlagSet) error {
 }
 
 func InitTemporalRetryFlags(flags *flag.FlagSet) {
-	flags.Int(FlagTemporalRetryInitialInterval, 30, "Initial interval in seconds between activity retries")
-	flags.Int(FlagTemporalRetryMaxInterval, 300, "Maximum interval in seconds between activity retries (for rate limit recovery)")
-	flags.Int(FlagTemporalRetryMaxAttempts, 20, "Maximum number of activity retry attempts (0 for unlimited)")
+	flags.Int(FlagTemporalRetryInitialInterval, DefaultTemporalRetryInitialInterval, "Initial interval in seconds between activity retries")
+	flags.Int(FlagTemporalRetryMaxInterval, DefaultTemporalRetryMaxInterval, "Maximum interval in seconds between activity retries (for rate limit recovery)")
+	flags.Int(FlagTemporalRetryMaxAttempts, DefaultTemporalRetryMaxAttempts, "Maximum number of activity retry attempts (0 for unlimited)")
 }
 
 func BindTemporalRetryFlags(flags *flag.FlagSet) error {
@@ -146,7 +203,7 @@ func BindTemporalRetryFlags(flags *flag.FlagSet) error {
 }
 
 func InitMaxSeasonConcurrencyFlag(flags *flag.FlagSet) {
-	flags.Int(FlagMaxSeasonConcurrency, 10, "Maximum number of seasons to download concurrently")
+	flags.Int(FlagMaxSeasonConcurrency, DefaultMaxSeasonConcurrency, "Maximum number of seasons to download concurrently")
 }
 
 func BindMaxSeasonConcurrencyFlag(flags *flag.FlagSet) error {
@@ -154,7 +211,7 @@ func BindMaxSeasonConcurrencyFlag(flags *flag.FlagSet) error {
 }
 
 func InitDayConcurrencyFlag(flags *flag.FlagSet) {
-	flags.Int(FlagDayConcurrency, 20, "Number of days to download concurrently within each season")
+	flags.Int(FlagDayConcurrency, DefaultDayConcurrency, "Number of days to download concurrently within each season")
 }
 
 func BindDayConcurrencyFlag(flags *flag.FlagSet) error {
@@ -162,7 +219,7 @@ func BindDayConcurrencyFlag(flags *flag.FlagSet) error {
 }
 
 func InitMaxYahooPlayerIDFlag(flags *flag.FlagSet) {
-	flags.Int(FlagMaxYahooPlayerID, 35000, "Maximum Yahoo player ID to scan when importing players")
+	flags.Int(FlagMaxYahooPlayerID, DefaultMaxYahooPlayerID, "Maximum Yahoo player ID to scan when importing players")
 }
 
 func BindMaxYahooPlayerIDFlag(flags *flag.FlagSet) error {
@@ -170,7 +227,7 @@ func BindMaxYahooPlayerIDFlag(flags *flag.FlagSet) error {
 }
 
 func InitYahooPlayerBatchSizeFlag(flags *flag.FlagSet) {
-	flags.Int(FlagYahooPlayerBatchSize, 50, "Number of concurrent activities for downloading Yahoo players")
+	flags.Int(FlagYahooPlayerBatchSize, DefaultYahooPlayerBatchSize, "Number of concurrent activities for downloading Yahoo players")
 }
 
 func BindYahooPlayerBatchSizeFlag(flags *flag.FlagSet) error {
@@ -178,7 +235,7 @@ func BindYahooPlayerBatchSizeFlag(flags *flag.FlagSet) error {
 }
 
 func InitYahooPlayerActivityBatchSizeFlag(flags *flag.FlagSet) {
-	flags.Int(FlagYahooPlayerActivityBatchSize, 100, "Number of players to process per activity")
+	flags.Int(FlagYahooPlayerActivityBatchSize, DefaultYahooPlayerActivityBatchSize, "Number of players to process per activity")
 }
 
 func BindYahooPlayerActivityBatchSizeFlag(flags *flag.FlagSet) error {
@@ -186,7 +243,7 @@ func BindYahooPlayerActivityBatchSizeFlag(flags *flag.FlagSet) error {
 }
 
 func InitYahooPlayersPerExecutionFlag(flags *flag.FlagSet) {
-	flags.Int(FlagYahooPlayersPerExecution, 5000, "Players to process per workflow execution before ContinueAsNew")
+	flags.Int(FlagYahooPlayersPerExecution, DefaultYahooPlayersPerExecution, "Players to process per workflow execution before ContinueAsNew")
 }
 
 func BindYahooPlayersPerExecutionFlag(flags *flag.FlagSet) error {
@@ -194,7 +251,7 @@ func BindYahooPlayersPerExecutionFlag(flags *flag.FlagSet) error {
 }
 
 func InitGameIDCacheTTLFlag(flags *flag.FlagSet) {
-	flags.Int(FlagGameIDCacheTTL, 3600, "TTL in seconds for game ID cache in Redis")
+	flags.Int(FlagGameIDCacheTTL, DefaultGameIDCacheTTL, "TTL in seconds for game ID cache in Redis")
 }
 
 func BindGameIDCacheTTLFlag(flags *flag.FlagSet) error {
@@ -202,8 +259,8 @@ func BindGameIDCacheTTLFlag(flags *flag.FlagSet) error {
 }
 
 func InitYahooDownloadSleepFlags(flags *flag.FlagSet) {
-	flags.Int(FlagYahooDownloadSleepMin, 5, "Minimum seconds to sleep after each Yahoo API download")
-	flags.Int(FlagYahooDownloadSleepMax, 15, "Maximum seconds to sleep after each Yahoo API download")
+	flags.Int(FlagYahooDownloadSleepMin, DefaultYahooDownloadSleepMin, "Minimum seconds to sleep after each Yahoo API download")
+	flags.Int(FlagYahooDownloadSleepMax, DefaultYahooDownloadSleepMax, "Maximum seconds to sleep after each Yahoo API download")
 }
 
 func BindYahooDownloadSleepFlags(flags *flag.FlagSet) error {
@@ -230,9 +287,9 @@ func BindProvisionerFlags(flags *flag.FlagSet) error {
 }
 
 func InitRedisFlags(flags *flag.FlagSet) {
-	flags.String(FlagRedisURL, "localhost:6379", "Redis url")
+	flags.String(FlagRedisURL, DefaultRedisURL, "Redis url")
 	flags.String(FlagRedisPassword, "", "Redis password")
-	flags.Int(FlagRedisDB, 0, "Redis db")
+	flags.Int(FlagRedisDB, DefaultRedisDB, "Redis db")
 }
 
 func BindRedisFlags(flags *flag.FlagSet) error {
@@ -246,15 +303,15 @@ func BindRedisFlags(flags *flag.FlagSet) error {
 }
 
 func InitPostgresFlags(flags *flag.FlagSet) {
-	flags.String(FlagPostgresHost, "localhost", "Postgres host")
-	flags.String(FlagPostgresUser, "puckdb", "Postgres user")
+	flags.String(FlagPostgresHost, DefaultPostgresHost, "Postgres host")
+	flags.String(FlagPostgresUser, DefaultPostgresUser, "Postgres user")
 	flags.String(FlagPostgresPassword, "", "Postgres password")
-	flags.String(FlagPostgresDatabase, "puckdb", "Postgres database")
-	flags.Int(FlagPostgresPort, 5432, "Postgres port")
-	flags.String(FlagPostgresSSLMode, "disable", "Postgres SSL mode")
-	flags.String(FlagPostgresTimeZone, "America/Los_Angeles", "Postgres time zone")
-	flags.Int(FlagPostgresMaxIdleConns, 2, "Maximum idle database connections")
-	flags.Int(FlagPostgresMaxOpenConns, 5, "Maximum open database connections")
+	flags.String(FlagPostgresDatabase, DefaultPostgresDatabase, "Postgres database")
+	flags.Int(FlagPostgresPort, DefaultPostgresPort, "Postgres port")
+	flags.String(FlagPostgresSSLMode, DefaultPostgresSSLMode, "Postgres SSL mode")
+	flags.String(FlagPostgresTimeZone, DefaultPostgresTimeZone, "Postgres time zone")
+	flags.Int(FlagPostgresMaxIdleConns, DefaultPostgresMaxIdleConns, "Maximum idle database connections")
+	flags.Int(FlagPostgresMaxOpenConns, DefaultPostgresMaxOpenConns, "Maximum open database connections")
 }
 
 func BindPostgresFlags(flags *flag.FlagSet) error {
@@ -286,7 +343,7 @@ func BindPostgresFlags(flags *flag.FlagSet) error {
 }
 
 func InitWorkerPortFlag(flags *flag.FlagSet) {
-	flags.IntP(FlagWorkerPort, "", 8788, "Default port")
+	flags.IntP(FlagWorkerPort, "", DefaultWorkerPort, "Worker metrics port")
 }
 
 func InitWorkerTLSEnabledFlag(flags *flag.FlagSet) {
@@ -294,10 +351,10 @@ func InitWorkerTLSEnabledFlag(flags *flag.FlagSet) {
 }
 
 func InitWorkerConcurrencyFlags(flags *flag.FlagSet) {
-	flags.Int(FlagWorkerMaxWorkflowPollers, 2, "Max concurrent workflow task pollers")
-	flags.Int(FlagWorkerMaxActivityPollers, 2, "Max concurrent activity task pollers")
-	flags.Int(FlagWorkerMaxWorkflowExecution, 50, "Max concurrent workflow task executions")
-	flags.Int(FlagWorkerMaxActivityExecution, 50, "Max concurrent activity executions")
+	flags.Int(FlagWorkerMaxWorkflowPollers, DefaultWorkerMaxWorkflowPollers, "Max concurrent workflow task pollers")
+	flags.Int(FlagWorkerMaxActivityPollers, DefaultWorkerMaxActivityPollers, "Max concurrent activity task pollers")
+	flags.Int(FlagWorkerMaxWorkflowExecution, DefaultWorkerMaxWorkflowExecution, "Max concurrent workflow task executions")
+	flags.Int(FlagWorkerMaxActivityExecution, DefaultWorkerMaxActivityExecution, "Max concurrent activity executions")
 }
 
 func BindWorkerConcurrencyFlags(flags *flag.FlagSet) error {
@@ -322,7 +379,7 @@ func BindSkipPreseasonFlag(flags *flag.FlagSet) error {
 }
 
 func InitAPIPortFlag(flags *flag.FlagSet) {
-	flags.IntP(FlagAPIPort, "p", 8787, "Default port")
+	flags.IntP(FlagAPIPort, "p", DefaultAPIPort, "API server port")
 }
 
 func InitAPITLSEnabledFlag(flags *flag.FlagSet) {
@@ -330,7 +387,7 @@ func InitAPITLSEnabledFlag(flags *flag.FlagSet) {
 }
 
 func InitMetricsPortFlag(flags *flag.FlagSet) {
-	flags.IntP(FlagMetricsPort, "", 8789, "Default port")
+	flags.IntP(FlagMetricsPort, "", DefaultMetricsPort, "Metrics server port")
 }
 
 func InitMetricsTLSEnabledFlag(flags *flag.FlagSet) {
@@ -338,7 +395,7 @@ func InitMetricsTLSEnabledFlag(flags *flag.FlagSet) {
 }
 
 func InitMetricsRefreshIntervalFlag(flags *flag.FlagSet) {
-	flags.Int(FlagMetricsRefreshInterval, 5, "refresh every seconds")
+	flags.Int(FlagMetricsRefreshInterval, DefaultMetricsRefreshInterval, "Metrics refresh interval in seconds")
 }
 
 func InitTLSCertificate(flags *flag.FlagSet) {
@@ -348,13 +405,6 @@ func InitTLSCertificate(flags *flag.FlagSet) {
 func InitTLSKey(flags *flag.FlagSet) {
 	flags.String(FlagTLSKey, "", "TLS Key")
 }
-
-// Season range flags for filtering by season year
-const (
-	FlagSeasonYear     = "season"
-	FlagFromSeasonYear = "from-season"
-	FlagToSeasonYear   = "to-season"
-)
 
 func InitSeasonRangeFlags(flags *flag.FlagSet) {
 	flags.Int(FlagSeasonYear, 0, "Season year (e.g., 2024). Sets both from and to season.")
@@ -381,6 +431,89 @@ func GetSeasonRange() (start, end int) {
 		return season, season
 	}
 	return viper.GetInt(FlagFromSeasonYear), viper.GetInt(FlagToSeasonYear)
+}
+
+// CLI client flags
+func InitAPIServerAddrFlag(flags *flag.FlagSet) {
+	flags.String(FlagAPIServerAddr, DefaultAPIServerAddr, "API server address (e.g., http://localhost:8080)")
+}
+
+func BindAPIServerAddrFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagAPIServerAddr, flags.Lookup(FlagAPIServerAddr))
+}
+
+func InitMonitorFlag(flags *flag.FlagSet) {
+	flags.Bool(FlagMonitor, false, "Skip triggering workflow, only monitor existing workflow")
+}
+
+func BindMonitorFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagMonitor, flags.Lookup(FlagMonitor))
+}
+
+func InitSkipYahooPlayersFlag(flags *flag.FlagSet) {
+	flags.Bool(FlagSkipYahooPlayers, false, "Skip downloading Yahoo player pages")
+}
+
+func BindSkipYahooPlayersFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagSkipYahooPlayers, flags.Lookup(FlagSkipYahooPlayers))
+}
+
+func InitSkipSeasonsFlag(flags *flag.FlagSet) {
+	flags.Bool(FlagSkipSeasons, false, "Skip downloading season data (NHL schedules, boxscores, Yahoo fantasy)")
+}
+
+func BindSkipSeasonsFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagSkipSeasons, flags.Lookup(FlagSkipSeasons))
+}
+
+func InitSeasonConcurrencyFlag(flags *flag.FlagSet) {
+	flags.Int(FlagSeasonConcurrency, 0, "Number of seasons to process concurrently (0 uses server default)")
+}
+
+func BindSeasonConcurrencyFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagSeasonConcurrency, flags.Lookup(FlagSeasonConcurrency))
+}
+
+// Metrics collection interval flags
+func InitCacheIntervalSecondsFlag(flags *flag.FlagSet) {
+	flags.Int(FlagCacheIntervalSeconds, DefaultCacheIntervalSeconds, "Interval in seconds for cache metrics collection")
+}
+
+func BindCacheIntervalSecondsFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagCacheIntervalSeconds, flags.Lookup(FlagCacheIntervalSeconds))
+}
+
+func InitRedisIntervalSecondsFlag(flags *flag.FlagSet) {
+	flags.Int(FlagRedisIntervalSeconds, DefaultRedisIntervalSeconds, "Interval in seconds for Redis metrics collection")
+}
+
+func BindRedisIntervalSecondsFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagRedisIntervalSeconds, flags.Lookup(FlagRedisIntervalSeconds))
+}
+
+func InitDBIntervalSecondsFlag(flags *flag.FlagSet) {
+	flags.Int(FlagDBIntervalSeconds, DefaultDBIntervalSeconds, "Interval in seconds for database metrics collection")
+}
+
+func BindDBIntervalSecondsFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagDBIntervalSeconds, flags.Lookup(FlagDBIntervalSeconds))
+}
+
+// CLI display flags
+func InitVerboseFlag(flags *flag.FlagSet) {
+	flags.BoolP(FlagVerbose, "v", false, "Show detailed output per season")
+}
+
+func BindVerboseFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagVerbose, flags.Lookup(FlagVerbose))
+}
+
+func InitIncompleteFlag(flags *flag.FlagSet) {
+	flags.BoolP(FlagIncomplete, "i", false, "Only show seasons with less than 100% completion")
+}
+
+func BindIncompleteFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagIncomplete, flags.Lookup(FlagIncomplete))
 }
 
 func getTeamIDs(teamIDs string) []uint {

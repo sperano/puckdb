@@ -20,17 +20,8 @@ import (
 	"gorm.io/gorm"
 )
 
-const (
-	FlagMetricsPort          = "port"
-	FlagCacheIntervalSeconds = "cache-interval-seconds"
-	FlagRedisIntervalSeconds = "redis-interval-seconds"
-	FlagDBIntervalSeconds    = "db-interval-seconds"
-
-	defaultMetricsPort          = 8788
-	defaultCacheIntervalSeconds = 300 // 5 minutes
-	defaultRedisIntervalSeconds = 60  // 1 minute
-	defaultDBIntervalSeconds    = 300 // 5 minutes
-)
+// Local flag name for port (aliased from config.FlagMetricsPort for the metrics command)
+const FlagMetricsPortLocal = "port"
 
 // cacheMetrics holds statistics for a single file type within a season
 type cacheMetrics struct {
@@ -85,16 +76,16 @@ Each collector runs independently at its own interval.`,
 			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(FlagMetricsPort, flags.Lookup(FlagMetricsPort)); err != nil {
+			if err := viper.BindPFlag(config.FlagMetricsPort, flags.Lookup(FlagMetricsPortLocal)); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(FlagCacheIntervalSeconds, flags.Lookup(FlagCacheIntervalSeconds)); err != nil {
+			if err := config.BindCacheIntervalSecondsFlag(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(FlagRedisIntervalSeconds, flags.Lookup(FlagRedisIntervalSeconds)); err != nil {
+			if err := config.BindRedisIntervalSecondsFlag(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(FlagDBIntervalSeconds, flags.Lookup(FlagDBIntervalSeconds)); err != nil {
+			if err := config.BindDBIntervalSecondsFlag(flags); err != nil {
 				return err
 			}
 			if err := config.BindRedisFlags(flags); err != nil {
@@ -116,11 +107,11 @@ Each collector runs independently at its own interval.`,
 	config.InitRedisFlags(flags)
 	config.InitPostgresFlags(flags)
 	config.InitGameIDCacheTTLFlag(flags)
-	flags.StringP(config.FlagYahooSeasons, "S", "yahoo-seasons.yaml", "Yahoo seasons config file (optional, enables Yahoo file checks)")
-	flags.Int(FlagMetricsPort, defaultMetricsPort, "Port for metrics endpoint")
-	flags.Int(FlagCacheIntervalSeconds, defaultCacheIntervalSeconds, "Interval in seconds for cache metrics collection")
-	flags.Int(FlagRedisIntervalSeconds, defaultRedisIntervalSeconds, "Interval in seconds for Redis metrics collection")
-	flags.Int(FlagDBIntervalSeconds, defaultDBIntervalSeconds, "Interval in seconds for database metrics collection")
+	flags.StringP(config.FlagYahooSeasons, "S", config.DefaultYahooSeasonsFile, "Yahoo seasons config file (optional, enables Yahoo file checks)")
+	flags.Int(FlagMetricsPortLocal, config.DefaultMetricsPort, "Port for metrics endpoint")
+	config.InitCacheIntervalSecondsFlag(flags)
+	config.InitRedisIntervalSecondsFlag(flags)
+	config.InitDBIntervalSecondsFlag(flags)
 	return cmd
 }
 
@@ -128,10 +119,10 @@ func runMetrics(cmd *cobra.Command, _ []string) error {
 	config.LogFlagValues()
 
 	ctx := cmd.Context()
-	port := viper.GetInt(FlagMetricsPort)
-	cacheInterval := time.Duration(viper.GetInt(FlagCacheIntervalSeconds)) * time.Second
-	redisInterval := time.Duration(viper.GetInt(FlagRedisIntervalSeconds)) * time.Second
-	dbInterval := time.Duration(viper.GetInt(FlagDBIntervalSeconds)) * time.Second
+	port := viper.GetInt(config.FlagMetricsPort)
+	cacheInterval := time.Duration(viper.GetInt(config.FlagCacheIntervalSeconds)) * time.Second
+	redisInterval := time.Duration(viper.GetInt(config.FlagRedisIntervalSeconds)) * time.Second
+	dbInterval := time.Duration(viper.GetInt(config.FlagDBIntervalSeconds)) * time.Second
 
 	log.Info().
 		Int("port", port).

@@ -32,14 +32,13 @@ type spinner struct {
 	lineCount int // tracks number of lines in current message
 }
 
-const spinnerInterval = 125 * time.Millisecond
 
 func newSpinner(w io.Writer, message string) *spinner {
 	return &spinner{
 		frames:   []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 		message:  message,
 		writer:   w,
-		interval: spinnerInterval,
+		interval: config.DefaultSpinnerInterval,
 		stop:     make(chan struct{}),
 		done:     make(chan struct{}),
 	}
@@ -114,10 +113,6 @@ func cmdCheck() *cobra.Command {
 	return cmd
 }
 
-const (
-	FlagVerbose    = "verbose"
-	FlagIncomplete = "incomplete"
-)
 
 func cmdCheckCache() *cobra.Command {
 	var cmd = &cobra.Command{
@@ -134,10 +129,10 @@ If --seasons config file is provided, Yahoo files are also checked.`,
 			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(FlagVerbose, flags.Lookup(FlagVerbose)); err != nil {
+			if err := config.BindVerboseFlag(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(FlagIncomplete, flags.Lookup(FlagIncomplete)); err != nil {
+			if err := config.BindIncompleteFlag(flags); err != nil {
 				return err
 			}
 			if err := config.BindRedisFlags(flags); err != nil {
@@ -151,9 +146,9 @@ If --seasons config file is provided, Yahoo files are also checked.`,
 	config.InitDataPathFlag(flags)
 	config.InitSeasonRangeFlags(flags)
 	config.InitRedisFlags(flags)
-	flags.StringP(config.FlagYahooSeasons, "S", "yahoo-seasons.yaml", "Yahoo seasons config file (optional, enables Yahoo file checks)")
-	flags.BoolP(FlagVerbose, "v", false, "Show detailed output per season")
-	flags.BoolP(FlagIncomplete, "i", false, "Only show seasons with less than 100% completion")
+	flags.StringP(config.FlagYahooSeasons, "S", config.DefaultYahooSeasonsFile, "Yahoo seasons config file (optional, enables Yahoo file checks)")
+	config.InitVerboseFlag(flags)
+	config.InitIncompleteFlag(flags)
 	return cmd
 }
 
@@ -175,8 +170,8 @@ func runCheckCache(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	incompleteOnly := viper.GetBool(FlagIncomplete)
-	if viper.GetBool(FlagVerbose) {
+	incompleteOnly := viper.GetBool(config.FlagIncomplete)
+	if viper.GetBool(config.FlagVerbose) {
 		printCacheMetricsVerbose(allMetrics, incompleteOnly)
 	} else {
 		printCacheMetricsCompact(allMetrics, incompleteOnly)

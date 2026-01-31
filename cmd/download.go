@@ -22,18 +22,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	FlagAPIServerAddr     = "api-server-addr"
-	FlagMonitor           = "monitor"
-	FlagSeasonConcurrency = "season-concurrency"
-	FlagSkipYahooPlayers  = "skip-yahoo-players"
-	FlagSkipSeasons       = "skip-seasons"
-	DefaultAPIServerAddr  = "http://localhost:8080"
-	workflowPollInterval  = 2 * time.Second
-	workflowPollTimeout   = 30 * time.Minute
-	yahooPlayersTimeout   = 4 * time.Hour
-	downloadPlayersTimeout = 2 * time.Hour
-)
 
 // GraphQL request/response types
 type graphQLRequest struct {
@@ -408,32 +396,32 @@ Use --season for a specific season, or --from-season/--to-season for a range.
 Use --monitor to watch an existing workflow without triggering a new one.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
-			if err := viper.BindPFlag(FlagAPIServerAddr, flags.Lookup(FlagAPIServerAddr)); err != nil {
+			if err := config.BindAPIServerAddrFlag(flags); err != nil {
 				return err
 			}
 			if err := config.BindSeasonRangeFlags(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(FlagMonitor, flags.Lookup(FlagMonitor)); err != nil {
+			if err := config.BindMonitorFlag(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(FlagSkipYahooPlayers, flags.Lookup(FlagSkipYahooPlayers)); err != nil {
+			if err := config.BindSkipYahooPlayersFlag(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(FlagSkipSeasons, flags.Lookup(FlagSkipSeasons)); err != nil {
+			if err := config.BindSkipSeasonsFlag(flags); err != nil {
 				return err
 			}
-			return viper.BindPFlag(FlagSeasonConcurrency, flags.Lookup(FlagSeasonConcurrency))
+			return config.BindSeasonConcurrencyFlag(flags)
 		},
 		RunE: runDownload,
 	}
 	flags := cmd.Flags()
-	flags.String(FlagAPIServerAddr, DefaultAPIServerAddr, "API server address (e.g., http://localhost:8080)")
+	config.InitAPIServerAddrFlag(flags)
 	config.InitSeasonRangeFlags(flags)
-	flags.Bool(FlagMonitor, false, "Skip triggering workflow, only monitor existing workflow")
-	flags.Bool(FlagSkipYahooPlayers, false, "Skip downloading Yahoo player pages")
-	flags.Bool(FlagSkipSeasons, false, "Skip downloading season data (NHL schedules, boxscores, Yahoo fantasy)")
-	flags.Int(FlagSeasonConcurrency, 0, "Number of seasons to process concurrently (default: 3)")
+	config.InitMonitorFlag(flags)
+	config.InitSkipYahooPlayersFlag(flags)
+	config.InitSkipSeasonsFlag(flags)
+	config.InitSeasonConcurrencyFlag(flags)
 	return cmd
 }
 
@@ -490,7 +478,7 @@ func (s *downloadState) cancel(_ context.Context) {
 func runDownload(cmd *cobra.Command, _ []string) error {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
 
-	apiAddr := viper.GetString(FlagAPIServerAddr)
+	apiAddr := viper.GetString(config.FlagAPIServerAddr)
 	if apiAddr == "" {
 		return fmt.Errorf("api-server-addr is required")
 	}
@@ -514,17 +502,17 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 	}()
 	defer signal.Stop(sigChan)
 
-	if viper.GetBool(FlagMonitor) {
+	if viper.GetBool(config.FlagMonitor) {
 		log.Info().Str("server", apiAddr).Msg("Monitoring existing downloadSeasons workflow")
 		state.current = workflowDownloadSeasons
-		return monitorWorkflow(ctx, cmd, client.GetDownloadSeasonsStatus, workflowPollTimeout)
+		return monitorWorkflow(ctx, cmd, client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout)
 	}
 
 	totalStart := time.Now()
 	var yahooPlayersDuration, seasonsDuration, playersDuration time.Duration
 
 	// Step 1: Download Yahoo players (unless skipped)
-	if !viper.GetBool(FlagSkipYahooPlayers) {
+	if !viper.GetBool(config.FlagSkipYahooPlayers) {
 		stepStart := time.Now()
 		if err := runDownloadYahooPlayers(ctx, cmd, client, state); err != nil {
 			if ctx.Err() != nil {
@@ -546,7 +534,7 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 	input := buildDownloadSeasonsInput()
 
 	// Step 2: Download all season data (unless skipped)
-	if !viper.GetBool(FlagSkipSeasons) {
+	if !viper.GetBool(config.FlagSkipSeasons) {
 		stepStart := time.Now()
 		state.current = workflowDownloadSeasons
 
@@ -576,7 +564,7 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 			log.Info().Msg("Workflow started successfully")
 		}
 
-		if err := monitorWorkflow(ctx, cmd, client.GetDownloadSeasonsStatus, workflowPollTimeout); err != nil {
+		if err := monitorWorkflow(ctx, cmd, client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
 			if ctx.Err() != nil {
 				return fmt.Errorf("workflow canceled by user")
 			}
@@ -631,7 +619,7 @@ func runDownloadYahooPlayers(ctx context.Context, cmd *cobra.Command, client *Gr
 		log.Info().Msg("Yahoo players workflow started successfully")
 	}
 
-	if err := monitorWorkflow(ctx, cmd, client.GetDownloadYahooPlayersStatus, yahooPlayersTimeout); err != nil {
+	if err := monitorWorkflow(ctx, cmd, client.GetDownloadYahooPlayersStatus, config.DefaultYahooPlayersTimeout); err != nil {
 		return fmt.Errorf("downloadYahooPlayers failed: %w", err)
 	}
 
@@ -653,7 +641,7 @@ func runDownloadPlayers(ctx context.Context, cmd *cobra.Command, client *GraphQL
 		log.Info().Msg("Download players workflow started successfully")
 	}
 
-	if err := monitorWorkflow(ctx, cmd, client.GetDownloadPlayersStatus, downloadPlayersTimeout); err != nil {
+	if err := monitorWorkflow(ctx, cmd, client.GetDownloadPlayersStatus, config.DefaultDownloadPlayersTimeout); err != nil {
 		return fmt.Errorf("downloadPlayers failed: %w", err)
 	}
 
@@ -671,7 +659,7 @@ func buildDownloadSeasonsInput() *model.DownloadSeasonsInput {
 		input.EndSeason = &end
 	}
 
-	if concurrency := viper.GetInt(FlagSeasonConcurrency); concurrency > 0 {
+	if concurrency := viper.GetInt(config.FlagSeasonConcurrency); concurrency > 0 {
 		input.SeasonConcurrency = &concurrency
 	}
 
@@ -683,7 +671,7 @@ func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFe
 	sp.Start()
 	defer sp.Stop()
 
-	ticker := time.NewTicker(workflowPollInterval)
+	ticker := time.NewTicker(config.DefaultWorkflowPollInterval)
 	defer ticker.Stop()
 
 	timeout := time.After(pollTimeout)
@@ -734,7 +722,6 @@ func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFe
 	}
 }
 
-const progressBarWidth = 40
 
 func formatStatusMessage(status *WorkflowStatus) string {
 	if status.Progress == nil || status.Progress.Total == 0 {
@@ -795,7 +782,7 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		pct := float64(line.completed) / float64(line.total) * 100
 		pctTrunc := int(pct) // truncate, never round up to 100%
 		countStr := fmt.Sprintf("%d/%d", line.completed, line.total)
-		bar := renderProgressBar(pct, progressBarWidth)
+		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
 		lines = append(lines, fmt.Sprintf("%*s: %*s %s %3d%% ",
 			maxLabelWidth, line.label,
 			maxCountWidth, countStr,
@@ -881,19 +868,19 @@ func cmdImportPlayers() *cobra.Command {
 		Long:  `Extract unique players from NHL boxscores and Yahoo rosters, then merge into unified player records.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
-			return viper.BindPFlag(FlagAPIServerAddr, flags.Lookup(FlagAPIServerAddr))
+			return config.BindAPIServerAddrFlag(flags)
 		},
 		RunE: runImportPlayers,
 	}
 	flags := cmd.Flags()
-	flags.String(FlagAPIServerAddr, DefaultAPIServerAddr, "API server address (e.g., http://localhost:8080)")
+	config.InitAPIServerAddrFlag(flags)
 	return cmd
 }
 
 func runImportPlayers(cmd *cobra.Command, _ []string) error {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
 
-	apiAddr := viper.GetString(FlagAPIServerAddr)
+	apiAddr := viper.GetString(config.FlagAPIServerAddr)
 	if apiAddr == "" {
 		return fmt.Errorf("api-server-addr is required")
 	}
@@ -914,5 +901,5 @@ func runImportPlayers(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Monitor the workflow
-	return monitorWorkflow(ctx, cmd, client.GetExtractUniquePlayersStatus, workflowPollTimeout)
+	return monitorWorkflow(ctx, cmd, client.GetExtractUniquePlayersStatus, config.DefaultWorkflowPollTimeout)
 }
