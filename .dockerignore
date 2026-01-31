@@ -22,7 +22,7 @@ CLAUDE.md
 README.md
 
 # Docker-related config files
-docker/
+.docker/
 
 # IDE and editor
 .vscode/
