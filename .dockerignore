@@ -21,8 +21,8 @@ helm
 CLAUDE.md
 README.md
 
-# Temporal local config
-temporal/
+# Temporal server config (not the Go package)
+temporal/dynamicconfig/
 
 # IDE and editor
 .vscode/
