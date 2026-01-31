@@ -1,6 +1,40 @@
+# Binary
 puckdb
+
+# Git
 .git
+.gitignore
+
+# Docker
 Dockerfile
-YFH.YAML
-.bash_aliases
+docker-compose.yaml
+
+# Data and config
+.data/
 .env
+yahoo-seasons.yaml
+tls/
+helm
+
+# Documentation
+*.md
+CLAUDE.md
+README.md
+
+# Temporal local config
+temporal/
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test artifacts
+*.test
+*.out
+coverage.html
+
+# Misc
+.bash_aliases
+YFH.YAML

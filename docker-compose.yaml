@@ -2,39 +2,59 @@ services:
     db:
         image: postgres:16-alpine
         environment:
-        - POSTGRES_DB=puckdb
-        - POSTGRES_USER=puckdb
-        - POSTGRES_PASSWORD=foo
+            POSTGRES_DB: puckdb
+            POSTGRES_USER: puckdb
+            POSTGRES_PASSWORD: foo
         command: postgres -c 'max_connections=500'
         volumes:
-        - ./.data/db:/var/lib/postgresql/data
+            - ./.data/db:/var/lib/postgresql/data
         ports:
-        - "5432:5432"
+            - "5432:5432"
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U puckdb -d puckdb"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        restart: unless-stopped
 
     postgresql:
         container_name: temporal-postgresql
+        image: postgres:${POSTGRESQL_VERSION:-16-alpine}
         environment:
             POSTGRES_PASSWORD: temporal
             POSTGRES_USER: temporal
-        image: postgres:${POSTGRESQL_VERSION}
         volumes:
             - ./.data/temporal-db:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U temporal"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
         deploy:
             resources:
                 limits:
                     memory: 512M
+        restart: unless-stopped
 
     redis:
-        image: redis:6.2.13
+        image: redis:7-alpine
         ports:
-        - "6379:6379"
-        command: /bin/sh -c 'redis-server --appendonly yes --requirepass redis'
+            - "6379:6379"
+        command: redis-server --appendonly yes --requirepass redis
+        volumes:
+            - ./.data/redis:/data
+        healthcheck:
+            test: ["CMD", "redis-cli", "-a", "redis", "ping"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        restart: unless-stopped
 
     temporal:
         container_name: temporal
         depends_on:
-            - postgresql
-            - db
+            postgresql:
+                condition: service_healthy
         environment:
             - DB=postgresql
             - DB_PORT=5432
@@ -42,36 +62,46 @@ services:
             - POSTGRES_PWD=temporal
             - POSTGRES_SEEDS=postgresql
             - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-        image: temporalio/auto-setup:${TEMPORAL_VERSION}
+        image: temporalio/auto-setup:${TEMPORAL_VERSION:-1.25.2}
         ports:
             - "7233:7233"
         volumes:
             - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+        healthcheck:
+            test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+            interval: 10s
+            timeout: 5s
+            retries: 10
+            start_period: 30s
         deploy:
             resources:
                 limits:
                     memory: 2G
                 reservations:
                     memory: 1G
+        restart: unless-stopped
 
     temporal-admin-tools:
         container_name: temporal-admin-tools
         depends_on:
-            - temporal
+            temporal:
+                condition: service_healthy
         environment:
             - TEMPORAL_CLI_ADDRESS=temporal:7233
-        image: temporalio/admin-tools:${TEMPORAL_VERSION}
+        image: temporalio/admin-tools:${TEMPORAL_VERSION:-1.25.2}
         stdin_open: true
         tty: true
 
     temporal-ui:
         container_name: temporal-ui
         depends_on:
-            - temporal
+            temporal:
+                condition: service_healthy
         environment:
             - TEMPORAL_ADDRESS=temporal:7233
             - TEMPORAL_CORS_ORIGINS=http://localhost:3000
             - TEMPORAL_NOTIFY_ON_NEW_VERSION=false
-        image: temporalio/ui:${TEMPORAL_UI_VERSION}
+        image: temporalio/ui:${TEMPORAL_UI_VERSION:-2.32.0}
         ports:
             - "8080:8080"
+        restart: unless-stopped
