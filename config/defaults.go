@@ -52,6 +52,13 @@ const (
 	DefaultYahooDownloadSleepMax        = 15
 )
 
+// NHL player landing download defaults
+const (
+	DefaultPlayerLandingConcurrency      = 20   // Concurrent activities
+	DefaultPlayerLandingBatchSize        = 50   // Players per activity
+	DefaultPlayerLandingPlayersPerExec   = 2000 // Players before ContinueAsNew
+)
+
 // Cache defaults
 const (
 	DefaultGameIDCacheTTL = 3600

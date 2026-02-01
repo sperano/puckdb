@@ -88,6 +88,13 @@ const (
 	FlagYahooDownloadSleepMax        = "yahoo-download-sleep-max"
 )
 
+// NHL player landing download flags
+const (
+	FlagPlayerLandingConcurrency    = "player-landing-concurrency"
+	FlagPlayerLandingBatchSize      = "player-landing-batch-size"
+	FlagPlayerLandingPlayersPerExec = "player-landing-players-per-exec"
+)
+
 // Download workflow flags
 const (
 	FlagMaxSeasonConcurrency = "max-season-concurrency"
@@ -268,6 +275,22 @@ func BindYahooDownloadSleepFlags(flags *flag.FlagSet) error {
 		return err
 	}
 	return viper.BindPFlag(FlagYahooDownloadSleepMax, flags.Lookup(FlagYahooDownloadSleepMax))
+}
+
+func InitPlayerLandingFlags(flags *flag.FlagSet) {
+	flags.Int(FlagPlayerLandingConcurrency, DefaultPlayerLandingConcurrency, "Number of concurrent activities for downloading NHL player landings")
+	flags.Int(FlagPlayerLandingBatchSize, DefaultPlayerLandingBatchSize, "Number of players to download per activity")
+	flags.Int(FlagPlayerLandingPlayersPerExec, DefaultPlayerLandingPlayersPerExec, "Players to process per workflow execution before ContinueAsNew")
+}
+
+func BindPlayerLandingFlags(flags *flag.FlagSet) error {
+	if err := viper.BindPFlag(FlagPlayerLandingConcurrency, flags.Lookup(FlagPlayerLandingConcurrency)); err != nil {
+		return err
+	}
+	if err := viper.BindPFlag(FlagPlayerLandingBatchSize, flags.Lookup(FlagPlayerLandingBatchSize)); err != nil {
+		return err
+	}
+	return viper.BindPFlag(FlagPlayerLandingPlayersPerExec, flags.Lookup(FlagPlayerLandingPlayersPerExec))
 }
 
 func InitProvisionerFlags(flags *flag.FlagSet) {

@@ -76,6 +76,9 @@ func cmdWorker() *cobra.Command {
 			if err := config.BindWorkerConcurrencyFlags(flags); err != nil {
 				return err
 			}
+			if err := config.BindPlayerLandingFlags(flags); err != nil {
+				return err
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -113,9 +116,11 @@ func cmdWorker() *cobra.Command {
 			w.RegisterWorkflow(workers.DownloadDayWorkflow)
 			w.RegisterWorkflow(workers.DownloadYahooPlayersWorkflow)
 			w.RegisterWorkflow(workers.DownloadPlayersWorkflow)
+			w.RegisterWorkflow(workers.DownloadPlayersWorkflowContinue)
 			w.RegisterWorkflow(workers.EnrichPlayersWorkflow)
 
 			w.RegisterActivity(workers.ExtractPlayerIDsForSeasonActivity)
+			w.RegisterActivity(workers.DownloadPlayerLandingBatchActivity)
 			w.RegisterActivity(workers.MergeSeasonPlayersActivity)
 			w.RegisterActivity(workers.MergeAllSeasonsActivity)
 			w.RegisterActivity(workers.MergePlayerBatchesFromRedisActivity)
@@ -150,5 +155,6 @@ func cmdWorker() *cobra.Command {
 	config.InitGameIDCacheTTLFlag(flags)
 	config.InitYahooDownloadSleepFlags(flags)
 	config.InitWorkerConcurrencyFlags(flags)
+	config.InitPlayerLandingFlags(flags)
 	return cmd
 }
