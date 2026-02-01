@@ -345,6 +345,13 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
 	}
 
+	var lines []string
+
+	// Add phase message if present
+	if status.Progress.Message != nil && *status.Progress.Message != "" {
+		lines = append(lines, *status.Progress.Message)
+	}
+
 	// Sort seasons by startYear
 	seasons := make([]*model.SeasonProgress, len(status.Progress.Seasons))
 	copy(seasons, status.Progress.Seasons)
@@ -393,8 +400,7 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		}
 	}
 
-	// Format lines with aligned columns
-	var lines []string
+	// Format progress lines with aligned columns
 	for _, line := range allLines {
 		pct := float64(line.completed) / float64(line.total) * 100
 		pctTrunc := int(pct) // truncate, never round up to 100%

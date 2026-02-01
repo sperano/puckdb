@@ -21,6 +21,7 @@ type SeasonProgress struct {
 type WorkflowProgress struct {
 	Total     int              `json:"total"`
 	Completed int              `json:"completed"`
+	Message   string           `json:"message,omitempty"`
 	Seasons   []SeasonProgress `json:"seasons,omitempty"`
 }
 
@@ -231,6 +232,11 @@ func (p *ProgressTracker) WaitAllWithResults(ctx workflow.Context, futures []wor
 // Increment manually increments the completed count by 1.
 func (p *ProgressTracker) Increment() {
 	p.progress.Completed++
+}
+
+// SetMessage sets the progress message describing the current phase.
+func (p *ProgressTracker) SetMessage(message string) {
+	p.progress.Message = message
 }
 
 // ActivityStarter is a function that starts an activity for a given index and returns a future.

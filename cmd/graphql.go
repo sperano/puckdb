@@ -152,7 +152,7 @@ func (c *GraphQLClient) DownloadSeasons(ctx context.Context, input *model.Downlo
 func (c *GraphQLClient) GetDownloadSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		downloadSeasonsResult { status failureReason }
-		downloadSeasonsProgress { total completed seasons { startYear total completed } }
+		downloadSeasonsProgress { total completed message seasons { startYear total completed } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -178,7 +178,7 @@ func (c *GraphQLClient) GetDownloadSeasonsStatus(ctx context.Context) (*Workflow
 func (c *GraphQLClient) GetDownloadEverythingStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		downloadEverythingResult { status failureReason }
-		downloadEverythingProgress { total completed }
+		downloadEverythingProgress { total completed message }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -242,7 +242,7 @@ func (c *GraphQLClient) DownloadYahooPlayers(ctx context.Context) (bool, error) 
 func (c *GraphQLClient) GetDownloadYahooPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		downloadYahooPlayersResult { status failureReason }
-		downloadYahooPlayersProgress { total completed }
+		downloadYahooPlayersProgress { total completed message }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -325,7 +325,7 @@ func (c *GraphQLClient) DownloadPlayers(ctx context.Context, input *model.Downlo
 func (c *GraphQLClient) GetDownloadPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		downloadPlayersResult { status failureReason }
-		downloadPlayersProgress { total completed }
+		downloadPlayersProgress { total completed message }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -434,7 +434,7 @@ func (c *GraphQLClient) ImportPlayers(ctx context.Context) (bool, error) {
 func (c *GraphQLClient) GetImportPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		importPlayersResult { status failureReason }
-		importPlayersProgress { total completed }
+		importPlayersProgress { total completed message }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)

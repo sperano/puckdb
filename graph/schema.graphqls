@@ -295,6 +295,7 @@ type SeasonProgress {
 type WorkflowProgress {
 	total: Int!
 	completed: Int!
+	message: String
 	seasons: [SeasonProgress!]
 }
 

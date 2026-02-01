@@ -94,6 +94,7 @@ func runPhase1ExtractPlayerIDs(ctx workflow.Context, input *downloadPlayersInter
 	}
 
 	tracker := NewProgressTracker(len(seasons))
+	tracker.SetMessage("Collecting players from seasons")
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
@@ -164,6 +165,7 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 
 	// Progress tracker with offset for cumulative tracking
 	tracker := NewProgressTrackerWithOffset(numBatches, input.TotalCompleted, totalPlayers)
+	tracker.SetMessage("Downloading player landing pages")
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}

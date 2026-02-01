@@ -345,6 +345,7 @@ type ComplexityRoot struct {
 
 	WorkflowProgress struct {
 		Completed func(childComplexity int) int
+		Message   func(childComplexity int) int
 		Seasons   func(childComplexity int) int
 		Total     func(childComplexity int) int
 	}
@@ -2028,6 +2029,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.WorkflowProgress.Completed(childComplexity), true
 
+	case "WorkflowProgress.message":
+		if e.complexity.WorkflowProgress.Message == nil {
+			break
+		}
+
+		return e.complexity.WorkflowProgress.Message(childComplexity), true
+
 	case "WorkflowProgress.seasons":
 		if e.complexity.WorkflowProgress.Seasons == nil {
 			break
@@ -2460,6 +2468,7 @@ type SeasonProgress {
 type WorkflowProgress {
 	total: Int!
 	completed: Int!
+	message: String
 	seasons: [SeasonProgress!]
 }
 
@@ -11889,6 +11898,8 @@ func (ec *executionContext) fieldContext_Query_downloadSeasonsProgress(_ context
 				return ec.fieldContext_WorkflowProgress_total(ctx, field)
 			case "completed":
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+			case "message":
+				return ec.fieldContext_WorkflowProgress_message(ctx, field)
 			case "seasons":
 				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
 			}
@@ -11988,6 +11999,8 @@ func (ec *executionContext) fieldContext_Query_downloadYahooPlayersProgress(_ co
 				return ec.fieldContext_WorkflowProgress_total(ctx, field)
 			case "completed":
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+			case "message":
+				return ec.fieldContext_WorkflowProgress_message(ctx, field)
 			case "seasons":
 				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
 			}
@@ -12087,6 +12100,8 @@ func (ec *executionContext) fieldContext_Query_downloadPlayersProgress(_ context
 				return ec.fieldContext_WorkflowProgress_total(ctx, field)
 			case "completed":
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+			case "message":
+				return ec.fieldContext_WorkflowProgress_message(ctx, field)
 			case "seasons":
 				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
 			}
@@ -12186,6 +12201,8 @@ func (ec *executionContext) fieldContext_Query_importPlayersProgress(_ context.C
 				return ec.fieldContext_WorkflowProgress_total(ctx, field)
 			case "completed":
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+			case "message":
+				return ec.fieldContext_WorkflowProgress_message(ctx, field)
 			case "seasons":
 				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
 			}
@@ -13619,6 +13636,47 @@ func (ec *executionContext) fieldContext_WorkflowProgress_completed(_ context.Co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowProgress_message(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_WorkflowProgress_message(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Message, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_WorkflowProgress_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -17900,6 +17958,8 @@ func (ec *executionContext) _WorkflowProgress(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "message":
+			out.Values[i] = ec._WorkflowProgress_message(ctx, field, obj)
 		case "seasons":
 			out.Values[i] = ec._WorkflowProgress_seasons(ctx, field, obj)
 		default:

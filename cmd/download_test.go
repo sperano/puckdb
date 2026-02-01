@@ -138,7 +138,7 @@ func TestGraphQLClient_GetDownloadEverythingStatus(t *testing.T) {
 
 	expectedQuery := `query {
 		downloadEverythingResult { status failureReason }
-		downloadEverythingProgress { total completed }
+		downloadEverythingProgress { total completed message }
 	}`
 
 	for _, tt := range tests {

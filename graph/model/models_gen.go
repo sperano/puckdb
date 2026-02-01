@@ -286,6 +286,7 @@ type Team struct {
 type WorkflowProgress struct {
 	Total     int               `json:"total"`
 	Completed int               `json:"completed"`
+	Message   *string           `json:"message,omitempty"`
 	Seasons   []*SeasonProgress `json:"seasons,omitempty"`
 }
 
