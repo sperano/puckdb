@@ -77,12 +77,10 @@ const (
 
 // Metrics collection defaults
 const (
-	DefaultMetricsRefreshInterval  = 5
-	DefaultCacheIntervalSeconds    = 300
-	DefaultRedisIntervalSeconds    = 60
-	DefaultDBIntervalSeconds       = 300
-	DefaultDataPathScanInterval    = 120 // seconds
-	DefaultDataPathStatsTTL        = 300 // seconds (should be > scan interval)
+	DefaultMetricsRefreshInterval = 5
+	DefaultCacheIntervalSeconds   = 300
+	DefaultRedisIntervalSeconds   = 60
+	DefaultDBIntervalSeconds      = 300
 )
 
 // CLI client defaults

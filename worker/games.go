@@ -5,32 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
-	"gorm.io/gorm"
 )
-
-var globalDB *gorm.DB
-var mu sync.Mutex
-
-func getDB() (*gorm.DB, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	if globalDB == nil {
-		db, err := database.OpenGorm()
-		if err != nil {
-			return nil, err
-		}
-		globalDB = db
-	}
-	return globalDB, nil
-}
 
 // DownloadDailySchedule downloads the NHL schedule for a day and all boxscores.
 func DownloadDailySchedule(ctx context.Context, day time.Time) error {

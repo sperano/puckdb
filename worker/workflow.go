@@ -27,16 +27,6 @@ func WorkflowIDImportTeam(season int, leagueID int, teamID int) string {
 	return fmt.Sprintf("team-%d-%d", season, leagueID)
 }
 
-/*
-func WorkflowIDImportRostersForTeam(season config.Season, league config.League, teamid int) string {
-	return fmt.Sprintf("import-rosters-%d-%d-%d", season.StartYear(), league.LeagueID, teamid)
-}
-
-func WorkflowIDImportTeamSummariesForTeam(season config.Season, league config.League, teamid int) string {
-	return fmt.Sprintf("import-team-summary-%d-%d-%d", season.StartYear(), league.LeagueID, teamid)
-}
-*/
-
 func WorkflowIDDownloadGamesForSeason(season int) string {
 	return fmt.Sprintf("download-games-for-season-%d", season)
 }

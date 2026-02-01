@@ -26,7 +26,7 @@ type Client interface {
 func NewClient() Client {
 	url := viper.GetString(config.FlagRedisURL)
 	db := viper.GetInt(config.FlagRedisDB)
-	log.Info().Str("url", url).Int("db", db).Msg("Initializing Redis")
+	log.Debug().Str("url", url).Int("db", db).Msg("Initializing Redis")
 	return redis.NewClient(&redis.Options{
 		Addr:     url,
 		Password: viper.GetString(config.FlagRedisPassword),
