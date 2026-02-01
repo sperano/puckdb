@@ -317,6 +317,9 @@ type Query {
 	downloadPlayersResult: WorkflowResult!
 	downloadPlayersProgress: WorkflowProgress
 
+	importPlayersResult: WorkflowResult!
+	importPlayersProgress: WorkflowProgress
+
 	#    nhlStandings: [NHLTeamStanding!]
 #    fantasyGameLocalFiles(season: Int!): [LocalFile!]
 #    leagueLocalFiles(season: Int!): [LocalFile!]
@@ -367,6 +370,9 @@ type Mutation {
 
 	downloadPlayers(input: DownloadSeasonsInput): Boolean!
 	cancelDownloadPlayers: Boolean!
+
+	importPlayers: Boolean!
+	cancelImportPlayers: Boolean!
 
 	importLeague(season: Int!, leagueID: Int!): League!
 	importTeam(season: Int!, leagueID: Int!, teamID: Int!): Team!

@@ -229,6 +229,29 @@ func (r *Resolver) downloadPlayersProgress(ctx context.Context) (*model.Workflow
 	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadPlayers)
 }
 
+func (r *Resolver) importPlayers(ctx context.Context) (bool, error) {
+	opts := workflowOptions(worker.WorkflowIDImportPlayers)
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ImportPlayersWorkflow); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) cancelImportPlayers(ctx context.Context) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDImportPlayers, ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) importPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, worker.WorkflowIDImportPlayers)
+}
+
+func (r *Resolver) importPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDImportPlayers)
+}
+
 func (r *Resolver) downloadEverythingResult(ctx context.Context) (*model.WorkflowResult, error) {
 	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadEverything)
 }

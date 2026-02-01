@@ -118,6 +118,7 @@ func cmdWorker() *cobra.Command {
 			w.RegisterWorkflow(workers.DownloadPlayersWorkflow)
 			w.RegisterWorkflow(workers.DownloadPlayersWorkflowContinue)
 			w.RegisterWorkflow(workers.EnrichPlayersWorkflow)
+			w.RegisterWorkflow(workers.ImportPlayersWorkflow)
 
 			w.RegisterActivity(workers.ExtractPlayerIDsForSeasonActivity)
 			w.RegisterActivity(workers.DownloadPlayerLandingBatchActivity)

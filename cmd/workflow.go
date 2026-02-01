@@ -17,9 +17,9 @@ func cmdWorkflow() *cobra.Command {
 		Use:     "workflow",
 		Aliases: []string{"wf"},
 		Short:   "Workflow operations",
-		Long:    `Workflow management commands: download, cancel.`,
+		Long:    `Workflow management commands: download, import, cancel.`,
 	}
-	cmd.AddCommand(cmdDownload(), cmdWorkflowCancel())
+	cmd.AddCommand(cmdDownload(), cmdImport(), cmdWorkflowCancel())
 	return cmd
 }
 
