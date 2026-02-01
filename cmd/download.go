@@ -361,6 +361,25 @@ func (c *GraphQLClient) CancelDownloadPlayers(ctx context.Context) (bool, error)
 	return result.CancelDownloadPlayers, nil
 }
 
+// FlushRedisDB calls the flushRedisDB mutation to flush all keys in the configured Redis DB
+func (c *GraphQLClient) FlushRedisDB(ctx context.Context) (bool, error) {
+	const mutation = `mutation { flushRedisDB }`
+
+	resp, err := c.execute(ctx, mutation, nil)
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		FlushRedisDB bool `json:"flushRedisDB"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.FlushRedisDB, nil
+}
+
 // GetDownloadEverythingForSeasonStatus queries both workflow result and progress for a specific season.
 func (c *GraphQLClient) GetDownloadEverythingForSeasonStatus(ctx context.Context, season int) (*WorkflowStatus, error) {
 	const query = `query($season: Int!) {
@@ -521,7 +540,7 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 		yahooPlayersDuration = time.Since(stepStart)
-		log.Info().Dur("duration", yahooPlayersDuration).Msg("Yahoo players download completed")
+		log.Info().Str("duration", yahooPlayersDuration.String()).Msg("Yahoo players download completed")
 	} else {
 		log.Info().Msg("Skipping Yahoo players download")
 	}
@@ -571,7 +590,7 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 		seasonsDuration = time.Since(stepStart)
-		log.Info().Dur("duration", seasonsDuration).Msg("Seasons download completed")
+		log.Info().Str("duration", seasonsDuration.String()).Msg("Seasons download completed")
 	} else {
 		log.Info().Msg("Skipping seasons download")
 	}
@@ -590,15 +609,15 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	playersDuration = time.Since(stepStart)
-	log.Info().Dur("duration", playersDuration).Msg("Players download completed")
+	log.Info().Str("duration", playersDuration.String()).Msg("Players download completed")
 
 	// Log final summary
 	totalDuration := time.Since(totalStart)
 	log.Info().
-		Dur("yahooPlayers", yahooPlayersDuration).
-		Dur("seasons", seasonsDuration).
-		Dur("players", playersDuration).
-		Dur("total", totalDuration).
+		Str("yahooPlayers", yahooPlayersDuration.String()).
+		Str("seasons", seasonsDuration.String()).
+		Str("players", playersDuration.String()).
+		Str("total", totalDuration.String()).
 		Msg("Download completed")
 
 	return nil
