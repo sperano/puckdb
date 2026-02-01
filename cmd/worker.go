@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/temporal"
@@ -77,12 +76,6 @@ func cmdWorker() *cobra.Command {
 			if err := config.BindWorkerConcurrencyFlags(flags); err != nil {
 				return err
 			}
-			if err := config.BindDataPathScanIntervalFlag(flags); err != nil {
-				return err
-			}
-			if err := config.BindDataPathStatsTTLFlag(flags); err != nil {
-				return err
-			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -91,22 +84,6 @@ func cmdWorker() *cobra.Command {
 			// Start metrics HTTP server
 			metricsAddr := fmt.Sprintf(":%d", viper.GetInt(config.FlagWorkerPort))
 			go metrics.StartWorkerServer(metricsAddr)
-
-			// Start data path scanner if data path is configured
-			var dataPathScanner *metrics.DataPathScanner
-			if dataPath := viper.GetString(config.FlagDataPath); dataPath != "" {
-				redisClient := redis.NewClient(&redis.Options{
-					Addr:     viper.GetString(config.FlagRedisURL),
-					Password: viper.GetString(config.FlagRedisPassword),
-					DB:       viper.GetInt(config.FlagRedisDB),
-				})
-				dataPathScanner = metrics.NewDataPathScanner(redisClient, dataPath)
-				dataPathScanner.Start()
-				defer func() {
-					dataPathScanner.Stop()
-					redisClient.Close()
-				}()
-			}
 
 			tclient, err := temporal.NewClient()
 			if err != nil {
@@ -120,12 +97,6 @@ func cmdWorker() *cobra.Command {
 				MaxConcurrentActivityExecutionSize:     viper.GetInt(config.FlagWorkerMaxActivityExecution),
 			})
 
-			// Import activities
-			w.RegisterActivity(workers.ImportLeague)
-			w.RegisterActivity(workers.ImportTeam)
-			w.RegisterActivity(workers.ImportRosterForTeamOnDay)
-			w.RegisterActivity(workers.ImportTeamSummaryForTeamOnDay)
-
 			// DownloadFromYahoo activities
 			w.RegisterActivity(workers.DownloadLeague)
 			w.RegisterActivity(workers.DownloadDailySchedule)
@@ -137,36 +108,17 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.FetchSeasonsDataActivity)
 			w.RegisterActivity(workers.DownloadDayActivity)
 
-			// Import workflows
-			// w.RegisterWorkflow(workers.ImportLeagueWorkflow)      // commented out: depends on getGameKey
-			// w.RegisterWorkflow(workers.ImportTeamWorkflow)        // commented out: depends on getGameKey
-			// w.RegisterWorkflow(workers.ImportGamesForSeasonWorkflow)  // commented out: uses old Season struct
-			// w.RegisterWorkflow(workers.ImportRosterForTeamWorkflow)       // commented out: uses old Season struct
-			// w.RegisterWorkflow(workers.ImportTeamSummariesForTeamWorkflow) // commented out: uses old Season struct
-			// w.RegisterWorkflow(workers.ImportEverythingWorkflow)          // commented out: uses old Season struct
-			// w.RegisterWorkflow(workers.ImportEverythingForSeasonWorkflow) // commented out: uses old Season struct
-
 			w.RegisterWorkflow(workers.DownloadSeasonsWorkflow)
 			w.RegisterWorkflow(workers.DownloadSeasonWorkflow)
 			w.RegisterWorkflow(workers.DownloadDayWorkflow)
 			w.RegisterWorkflow(workers.DownloadYahooPlayersWorkflow)
 			w.RegisterWorkflow(workers.DownloadPlayersWorkflow)
-
-			// Player extraction workflows
-			// w.RegisterWorkflow(workers.ExtractUniquePlayersWorkflow)        // commented out: uses old Season struct
-			// w.RegisterWorkflow(workers.ExtractPlayersForSeasonWorkflow)     // commented out: uses old Season struct
-			// w.RegisterWorkflow(workers.ExtractYahooPlayersForSeasonWorkflow)  // commented out: uses old Season struct
-			// w.RegisterWorkflow(workers.ExtractBoxscorePlayersForSeasonWorkflow) // commented out: uses old Season struct
 			w.RegisterWorkflow(workers.EnrichPlayersWorkflow)
 
-			// Player extraction activities
-			//w.RegisterActivity(workers.ExtractBoxscorePlayersForDayActivity)
-			//w.RegisterActivity(workers.ExtractBoxscorePlayersForDayBatchActivity)
 			w.RegisterActivity(workers.ExtractPlayerIDsForSeasonActivity)
 			w.RegisterActivity(workers.MergeSeasonPlayersActivity)
 			w.RegisterActivity(workers.MergeAllSeasonsActivity)
 			w.RegisterActivity(workers.MergePlayerBatchesFromRedisActivity)
-			// w.RegisterActivity(workers.StoreSeasonResultActivity) // commented out
 			w.RegisterActivity(workers.StoreEnrichmentPlayersActivity)
 			w.RegisterActivity(workers.MergeAllSeasonsFromRedisActivity)
 			w.RegisterActivity(workers.EnrichPlayerBatchActivity)
@@ -198,7 +150,5 @@ func cmdWorker() *cobra.Command {
 	config.InitGameIDCacheTTLFlag(flags)
 	config.InitYahooDownloadSleepFlags(flags)
 	config.InitWorkerConcurrencyFlags(flags)
-	config.InitDataPathScanIntervalFlag(flags)
-	config.InitDataPathStatsTTLFlag(flags)
 	return cmd
 }

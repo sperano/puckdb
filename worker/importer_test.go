@@ -51,33 +51,3 @@ func TestDoDownloadImpl_MkdirAllError(t *testing.T) {
 	assert.Contains(t, err.Error(), "test")
 	mockFS.AssertExpectations(t)
 }
-
-// Tests for saveToCache
-
-func TestSaveToCache_Success(t *testing.T) {
-	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "test", NameVal: "file", ExtVal: "xml"}
-	content := []byte("test content")
-
-	mockFS.On("Write", mockFile, content).Return(nil)
-
-	err := saveToCache(mockFS, mockFile, content)
-
-	assert.NoError(t, err)
-	mockFS.AssertExpectations(t)
-}
-
-func TestSaveToCache_WriteError(t *testing.T) {
-	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "test", NameVal: "file", ExtVal: "xml"}
-	content := []byte("test content")
-	expectedErr := errors.New("write failed")
-
-	mockFS.On("Write", mockFile, content).Return(expectedErr)
-
-	err := saveToCache(mockFS, mockFile, content)
-
-	assert.Equal(t, expectedErr, err)
-	mockFS.AssertExpectations(t)
-}
-
