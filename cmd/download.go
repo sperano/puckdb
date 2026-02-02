@@ -341,7 +341,7 @@ func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFe
 }
 
 func formatStatusMessage(status *WorkflowStatus) string {
-	if status.Progress == nil || status.Progress.Total == 0 {
+	if status.Progress == nil {
 		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
 	}
 
@@ -350,6 +350,14 @@ func formatStatusMessage(status *WorkflowStatus) string {
 	// Add phase message if present
 	if status.Progress.Message != nil && *status.Progress.Message != "" {
 		lines = append(lines, *status.Progress.Message)
+	}
+
+	// If no progress data yet, return just the message or status
+	if status.Progress.Total == 0 {
+		if len(lines) > 0 {
+			return strings.Join(lines, "\n")
+		}
+		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
 	}
 
 	// Sort seasons by startYear
