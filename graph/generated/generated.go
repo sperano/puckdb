@@ -195,7 +195,7 @@ type ComplexityRoot struct {
 		DropDatabase               func(childComplexity int) int
 		FlushRedisDb               func(childComplexity int) int
 		ImportLeague               func(childComplexity int, season int, leagueID int) int
-		ImportPlayers              func(childComplexity int) int
+		ImportPlayers              func(childComplexity int, input *model.DownloadSeasonsInput) int
 		ImportTeam                 func(childComplexity int, season int, leagueID int, teamID int) int
 		InitDatabase               func(childComplexity int) int
 	}
@@ -369,7 +369,7 @@ type MutationResolver interface {
 	CancelDownloadYahooPlayers(ctx context.Context) (bool, error)
 	DownloadPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
 	CancelDownloadPlayers(ctx context.Context) (bool, error)
-	ImportPlayers(ctx context.Context) (bool, error)
+	ImportPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
 	CancelImportPlayers(ctx context.Context) (bool, error)
 	ImportLeague(ctx context.Context, season int, leagueID int) (*model.League, error)
 	ImportTeam(ctx context.Context, season int, leagueID int, teamID int) (*model.Team, error)
@@ -1284,7 +1284,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Mutation.ImportPlayers(childComplexity), true
+		args, err := ec.field_Mutation_importPlayers_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ImportPlayers(childComplexity, args["input"].(*model.DownloadSeasonsInput)), true
 
 	case "Mutation.importTeam":
 		if e.complexity.Mutation.ImportTeam == nil {
@@ -2545,7 +2550,7 @@ type Mutation {
 	downloadPlayers(input: DownloadSeasonsInput): Boolean!
 	cancelDownloadPlayers: Boolean!
 
-	importPlayers: Boolean!
+	importPlayers(input: DownloadSeasonsInput): Boolean!
 	cancelImportPlayers: Boolean!
 
 	importLeague(season: Int!, leagueID: Int!): League!
@@ -2712,6 +2717,38 @@ func (ec *executionContext) field_Mutation_importLeague_argsLeagueID(
 	}
 
 	var zeroVal int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_importPlayers_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_importPlayers_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_importPlayers_argsInput(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.DownloadSeasonsInput, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["input"]
+	if !ok {
+		var zeroVal *model.DownloadSeasonsInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalODownloadSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadSeasonsInput(ctx, tmp)
+	}
+
+	var zeroVal *model.DownloadSeasonsInput
 	return zeroVal, nil
 }
 
@@ -8307,7 +8344,7 @@ func (ec *executionContext) _Mutation_importPlayers(ctx context.Context, field g
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ImportPlayers(rctx)
+		return ec.resolvers.Mutation().ImportPlayers(rctx, fc.Args["input"].(*model.DownloadSeasonsInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -8324,7 +8361,7 @@ func (ec *executionContext) _Mutation_importPlayers(ctx context.Context, field g
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_importPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_importPlayers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -8333,6 +8370,17 @@ func (ec *executionContext) fieldContext_Mutation_importPlayers(_ context.Contex
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_importPlayers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }

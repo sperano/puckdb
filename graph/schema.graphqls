@@ -372,7 +372,7 @@ type Mutation {
 	downloadPlayers(input: DownloadSeasonsInput): Boolean!
 	cancelDownloadPlayers: Boolean!
 
-	importPlayers: Boolean!
+	importPlayers(input: DownloadSeasonsInput): Boolean!
 	cancelImportPlayers: Boolean!
 
 	importLeague(season: Int!, leagueID: Int!): League!

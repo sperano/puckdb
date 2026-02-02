@@ -412,10 +412,10 @@ func (c *GraphQLClient) GetDownloadEverythingForSeasonStatus(ctx context.Context
 }
 
 // ImportPlayers triggers the importPlayers mutation
-func (c *GraphQLClient) ImportPlayers(ctx context.Context) (bool, error) {
-	const mutation = `mutation { importPlayers }`
+func (c *GraphQLClient) ImportPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+	const mutation = `mutation($input: DownloadSeasonsInput) { importPlayers(input: $input) }`
 
-	resp, err := c.execute(ctx, mutation, nil)
+	resp, err := c.execute(ctx, mutation, map[string]any{"input": input})
 	if err != nil {
 		return false, err
 	}

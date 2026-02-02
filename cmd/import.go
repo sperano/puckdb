@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/graph/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -30,10 +31,17 @@ func cmdImportPlayers() *cobra.Command {
 		Use:   "players",
 		Short: "Import players into the database",
 		Long: `Trigger the importPlayers workflow via GraphQL API and monitor until completion.
+Use --season for a specific season, or --from-season/--to-season for a range.
 Use --monitor to watch an existing workflow without triggering a new one.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
 			if err := config.BindAPIServerAddrFlag(flags); err != nil {
+				return err
+			}
+			if err := config.BindSeasonRangeFlags(flags); err != nil {
+				return err
+			}
+			if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
 				return err
 			}
 			return config.BindMonitorFlag(flags)
@@ -42,6 +50,8 @@ Use --monitor to watch an existing workflow without triggering a new one.`,
 	}
 	flags := cmd.Flags()
 	config.InitAPIServerAddrFlag(flags)
+	config.InitSeasonRangeFlags(flags)
+	config.InitSeasonConcurrencyFlag(flags)
 	config.InitMonitorFlag(flags)
 	return cmd
 }
@@ -105,10 +115,22 @@ func runImportPlayers(cmd *cobra.Command, _ []string) error {
 
 	totalStart := time.Now()
 
-	state.current = workflowImportPlayers
-	log.Info().Str("server", apiAddr).Msg("Triggering importPlayers workflow")
+	input := buildImportPlayersInput()
 
-	started, err := client.ImportPlayers(ctx)
+	state.current = workflowImportPlayers
+	logEvent := log.Info().Str("server", apiAddr)
+	if input.StartSeason != nil {
+		logEvent = logEvent.Int("startSeason", *input.StartSeason)
+	}
+	if input.EndSeason != nil {
+		logEvent = logEvent.Int("endSeason", *input.EndSeason)
+	}
+	if input.SeasonConcurrency != nil {
+		logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
+	}
+	logEvent.Msg("Triggering importPlayers workflow")
+
+	started, err := client.ImportPlayers(ctx, input)
 	if err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
@@ -133,4 +155,22 @@ func runImportPlayers(cmd *cobra.Command, _ []string) error {
 	log.Info().Str("duration", totalDuration.String()).Msg("Import completed")
 
 	return nil
+}
+
+func buildImportPlayersInput() *model.DownloadSeasonsInput {
+	input := &model.DownloadSeasonsInput{}
+
+	start, end := config.GetSeasonRange()
+	if start > 0 {
+		input.StartSeason = &start
+	}
+	if end > 0 {
+		input.EndSeason = &end
+	}
+
+	if concurrency := viper.GetInt(config.FlagSeasonConcurrency); concurrency > 0 {
+		input.SeasonConcurrency = &concurrency
+	}
+
+	return input
 }

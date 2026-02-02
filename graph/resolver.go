@@ -229,9 +229,10 @@ func (r *Resolver) downloadPlayersProgress(ctx context.Context) (*model.Workflow
 	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadPlayers)
 }
 
-func (r *Resolver) importPlayers(ctx context.Context) (bool, error) {
+func (r *Resolver) importPlayers(ctx context.Context, _ *model.DownloadSeasonsInput) (bool, error) {
 	opts := workflowOptions(worker.WorkflowIDImportPlayers)
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ImportPlayersWorkflow); err != nil {
+	// ImportPlayersWorkflow doesn't use season parameters - they'll be used by importSeasonsWorkflow
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ImportPlayersWorkflow, (*worker.ImportPlayersInput)(nil)); err != nil {
 		return false, err
 	}
 	return true, nil

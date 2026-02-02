@@ -76,8 +76,8 @@ func (r *mutationResolver) CancelDownloadPlayers(ctx context.Context) (bool, err
 }
 
 // ImportPlayers is the resolver for the importPlayers field.
-func (r *mutationResolver) ImportPlayers(ctx context.Context) (bool, error) {
-	return r.Resolver.importPlayers(ctx)
+func (r *mutationResolver) ImportPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+	return r.Resolver.importPlayers(ctx, input)
 }
 
 // CancelImportPlayers is the resolver for the cancelImportPlayers field.
