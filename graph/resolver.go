@@ -311,6 +311,7 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 	result := &model.WorkflowProgress{
 		Total:     progress.Total,
 		Completed: progress.Completed,
+		Message:   ptrStringIfNotEmpty(progress.Message),
 	}
 
 	if len(progress.Seasons) > 0 {
