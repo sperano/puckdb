@@ -289,6 +289,9 @@ func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFe
 	sp.Start()
 	defer sp.Stop()
 
+	// Wait briefly for workflow to start and register query handlers
+	time.Sleep(config.DefaultWorkflowStartupDelay)
+
 	ticker := time.NewTicker(config.DefaultWorkflowPollInterval)
 	defer ticker.Stop()
 

@@ -97,6 +97,7 @@ const (
 
 // Workflow timeout defaults
 const (
+	DefaultWorkflowStartupDelay   = 500 * time.Millisecond
 	DefaultWorkflowPollInterval   = 2 * time.Second
 	DefaultWorkflowPollTimeout    = 30 * time.Minute
 	DefaultYahooPlayersTimeout    = 4 * time.Hour
