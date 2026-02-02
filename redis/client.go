@@ -15,9 +15,17 @@ import (
 type Client interface {
 	redislock.RedisClient
 	Del(ctx context.Context, keys ...string) *redis.IntCmd
+	Expire(ctx context.Context, key string, expiration time.Duration) *redis.BoolCmd
 	FlushDB(ctx context.Context) *redis.StatusCmd
 	Get(ctx context.Context, key string) *redis.StringCmd
+	HGet(ctx context.Context, key, field string) *redis.StringCmd
+	HGetAll(ctx context.Context, key string) *redis.StringStringMapCmd
+	HSet(ctx context.Context, key string, values ...interface{}) *redis.IntCmd
 	Keys(ctx context.Context, pattern string) *redis.StringSliceCmd
+	Pipeline() redis.Pipeliner
+	SAdd(ctx context.Context, key string, members ...interface{}) *redis.IntCmd
+	SMembers(ctx context.Context, key string) *redis.StringSliceCmd
+	SRem(ctx context.Context, key string, members ...interface{}) *redis.IntCmd
 	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
 	TTL(ctx context.Context, key string) *redis.DurationCmd
 	Close() error

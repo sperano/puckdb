@@ -117,3 +117,76 @@ func (m *MockClient) ScriptLoad(ctx context.Context, script string) *redis.Strin
 	}
 	return args.Get(0).(*redis.StringCmd)
 }
+
+func (m *MockClient) Expire(ctx context.Context, key string, expiration time.Duration) *redis.BoolCmd {
+	args := m.Called(ctx, key, expiration)
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(*redis.BoolCmd)
+}
+
+func (m *MockClient) HGet(ctx context.Context, key, field string) *redis.StringCmd {
+	args := m.Called(ctx, key, field)
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(*redis.StringCmd)
+}
+
+func (m *MockClient) HGetAll(ctx context.Context, key string) *redis.StringStringMapCmd {
+	args := m.Called(ctx, key)
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(*redis.StringStringMapCmd)
+}
+
+func (m *MockClient) HSet(ctx context.Context, key string, values ...interface{}) *redis.IntCmd {
+	callArgs := make([]any, 0, len(values)+2)
+	callArgs = append(callArgs, ctx, key)
+	callArgs = append(callArgs, values...)
+	result := m.Called(callArgs...)
+	if result.Get(0) == nil {
+		return nil
+	}
+	return result.Get(0).(*redis.IntCmd)
+}
+
+func (m *MockClient) Pipeline() redis.Pipeliner {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(redis.Pipeliner)
+}
+
+func (m *MockClient) SAdd(ctx context.Context, key string, members ...interface{}) *redis.IntCmd {
+	callArgs := make([]any, 0, len(members)+2)
+	callArgs = append(callArgs, ctx, key)
+	callArgs = append(callArgs, members...)
+	result := m.Called(callArgs...)
+	if result.Get(0) == nil {
+		return nil
+	}
+	return result.Get(0).(*redis.IntCmd)
+}
+
+func (m *MockClient) SMembers(ctx context.Context, key string) *redis.StringSliceCmd {
+	args := m.Called(ctx, key)
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(*redis.StringSliceCmd)
+}
+
+func (m *MockClient) SRem(ctx context.Context, key string, members ...interface{}) *redis.IntCmd {
+	callArgs := make([]any, 0, len(members)+2)
+	callArgs = append(callArgs, ctx, key)
+	callArgs = append(callArgs, members...)
+	result := m.Called(callArgs...)
+	if result.Get(0) == nil {
+		return nil
+	}
+	return result.Get(0).(*redis.IntCmd)
+}

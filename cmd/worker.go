@@ -129,6 +129,12 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.MergeAllSeasonsFromRedisActivity)
 			w.RegisterActivity(workers.EnrichPlayerBatchActivity)
 
+			// ImportPlayers activities
+			w.RegisterActivity(workers.LoadYahooIDPoolActivity)
+			w.RegisterActivity(workers.ListPlayerLandingIDsActivity)
+			w.RegisterActivity(workers.ImportPlayerBatchActivity)
+			w.RegisterActivity(workers.ReportUnmatchedYahooIDsActivity)
+
 			err = w.Run(worker.InterruptCh())
 			if err != nil {
 				return err
