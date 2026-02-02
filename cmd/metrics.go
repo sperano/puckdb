@@ -26,7 +26,7 @@ const FlagMetricsPortLocal = "port"
 // cacheMetrics holds statistics for a single file type within a season
 type cacheMetrics struct {
 	seasonYear int
-	fileType   cache.FileType
+	fileType   string
 	expected   int
 	found      int
 }
@@ -271,8 +271,7 @@ func computeAndUpdateCacheMetrics(ctx context.Context) error {
 	// Update Prometheus gauges per season and file type
 	for _, s := range cacheData {
 		season := fmt.Sprintf("%d", s.seasonYear)
-		fileType := cache.FileTypeName(s.fileType)
-		metrics.SetCacheMetrics(season, fileType, s.expected, s.found)
+		metrics.SetCacheMetrics(season, s.fileType, s.expected, s.found)
 	}
 
 	// Compute and set totals
@@ -447,7 +446,7 @@ func checkNHLSeasonCache(ctx context.Context, fs cache.FileSystem, redisClient r
 	dailyScheduleCount := countDailyScheduleFilesSimple(fs, season)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
-		fileType:   cache.DailyScheduleFileType,
+		fileType:   cache.FileTypeDailySchedule,
 		expected:   daysInSeason,
 		found:      dailyScheduleCount,
 	})
@@ -456,7 +455,7 @@ func checkNHLSeasonCache(ctx context.Context, fs cache.FileSystem, redisClient r
 	expectedBoxscores, foundBoxscores := countBoxscoreFilesSimple(ctx, fs, redisClient, season)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
-		fileType:   cache.BoxscoreFileType,
+		fileType:   cache.FileTypeBoxscore,
 		expected:   expectedBoxscores,
 		found:      foundBoxscores,
 	})
@@ -474,7 +473,7 @@ func checkYahooSeasonCache(fs cache.FileSystem, nhlSeason simpleSeason, yahooCfg
 	leagueCount := countLeagueFiles(fs, seasonYear, yahooCfg)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
-		fileType:   cache.LeagueFileType,
+		fileType:   cache.FileTypeLeague,
 		expected:   len(yahooCfg.Leagues),
 		found:      leagueCount,
 	})
@@ -487,7 +486,7 @@ func checkYahooSeasonCache(fs cache.FileSystem, nhlSeason simpleSeason, yahooCfg
 	teamCount := countTeamFiles(fs, seasonYear, yahooCfg)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
-		fileType:   cache.TeamFileType,
+		fileType:   cache.FileTypeTeam,
 		expected:   totalTeams,
 		found:      teamCount,
 	})
@@ -497,7 +496,7 @@ func checkYahooSeasonCache(fs cache.FileSystem, nhlSeason simpleSeason, yahooCfg
 	rosterCount := countRosterFiles(fs, nhlSeason, yahooCfg)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
-		fileType:   cache.RosterFileType,
+		fileType:   cache.FileTypeRoster,
 		expected:   expectedRosters,
 		found:      rosterCount,
 	})
@@ -507,7 +506,7 @@ func checkYahooSeasonCache(fs cache.FileSystem, nhlSeason simpleSeason, yahooCfg
 	summaryCount := countTeamSummaryFiles(fs, nhlSeason, yahooCfg)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
-		fileType:   cache.TeamSummaryFileType,
+		fileType:   cache.FileTypeTeamSummary,
 		expected:   expectedSummaries,
 		found:      summaryCount,
 	})
@@ -557,7 +556,7 @@ func countRosterFiles(fs cache.FileSystem, nhlSeason simpleSeason, cfg config.Se
 	for !current.After(end) {
 		for _, league := range cfg.Leagues {
 			for _, teamID := range league.TeamIDs {
-				file := fs.New(cache.RosterFileType, current, league.LeagueID, teamID)
+				file := cache.RosterFile{Date: current, LeagueID: league.LeagueID, TeamID: teamID}
 				if fs.Exists(file) {
 					count++
 				}
@@ -579,7 +578,7 @@ func countTeamSummaryFiles(fs cache.FileSystem, nhlSeason simpleSeason, cfg conf
 	for !current.After(end) {
 		for _, league := range cfg.Leagues {
 			for _, teamID := range league.TeamIDs {
-				file := fs.New(cache.TeamSummaryFileType, current, league.LeagueID, teamID)
+				file := cache.TeamSummaryFile{Date: current, LeagueID: league.LeagueID, TeamID: teamID}
 				if fs.Exists(file) {
 					count++
 				}
@@ -599,7 +598,7 @@ func countDailyScheduleFilesSimple(fs cache.FileSystem, season simpleSeason) int
 	}
 
 	for !current.After(end) {
-		file := fs.New(cache.DailyScheduleFileType, current)
+		file := cache.DailyScheduleFile{Date: current}
 		if fs.Exists(file) {
 			count++
 		}
@@ -616,7 +615,7 @@ func countBoxscoreFilesSimple(ctx context.Context, fs cache.FileSystem, redisCli
 	}
 
 	for !current.After(end) {
-		dailyScheduleFile := fs.New(cache.DailyScheduleFileType, current)
+		dailyScheduleFile := cache.DailyScheduleFile{Date: current}
 		if !fs.Exists(dailyScheduleFile) {
 			current = current.AddDate(0, 0, 1)
 			continue
@@ -635,7 +634,7 @@ func countBoxscoreFilesSimple(ctx context.Context, fs cache.FileSystem, redisCli
 		expected += len(gameIDs)
 
 		for _, gameID := range gameIDs {
-			boxscoreFile := fs.New(cache.BoxscoreFileType, current, gameID)
+			boxscoreFile := cache.BoxscoreFile{Date: current, GameID: gameID}
 			if fs.Exists(boxscoreFile) {
 				found++
 			}

@@ -17,7 +17,7 @@ func LoadYahooIDPoolActivity(ctx context.Context) (int, error) {
 
 func loadYahooIDPoolImpl(ctx context.Context, fs *cache.SimpleFS, redisClient redis.Client) (int, error) {
 	// Parse all Yahoo player HTML files using ListAll
-	players, err := cache.ListAll(fs, cache.YahooPlayerFileType, func(file cache.File, content []byte) (cache.YahooPlayer, error) {
+	players, err := cache.ListAll(fs, cache.YahooPlayerFile{}, cache.ParseYahooPlayerFilename, func(file cache.File, content []byte) (cache.YahooPlayer, error) {
 		yf := file.(cache.YahooPlayerFile)
 		player, err := cache.ParseYahooPlayerHTML(yf.PlayerID, content)
 		if err != nil {

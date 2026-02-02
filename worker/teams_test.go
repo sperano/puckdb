@@ -9,7 +9,6 @@ import (
 
 	"github.com/sperano/puckdb/cache"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 // Tests for downloadTeamImpl
@@ -17,11 +16,10 @@ import (
 func TestDownloadTeamImpl_FileExists(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "teams/2023/12345", NameVal: "1", ExtVal: "xml"}
+	file := cache.TeamFile{Season: 2023, LeagueID: 12345, TeamID: 1}
 
-	mockFS.On("New", cache.TeamFileType, mock.Anything).Return(mockFile)
-	mockFS.On("MkdirAll", "teams/2023/12345", os.FileMode(0755)).Return(nil)
-	mockFS.On("Exists", mockFile).Return(true)
+	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
+	mockFS.On("Exists", file).Return(true)
 
 	err := downloadTeamImpl(ctx, mockFS, 2023, 423, 12345, 1)
 
@@ -34,9 +32,6 @@ func TestDownloadTeamImpl_ContextCancelled(t *testing.T) {
 	cancel()
 
 	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "teams/2023/12345", NameVal: "1", ExtVal: "xml"}
-
-	mockFS.On("New", cache.TeamFileType, mock.Anything).Return(mockFile)
 
 	err := downloadTeamImpl(ctx, mockFS, 2023, 423, 12345, 1)
 
@@ -48,12 +43,11 @@ func TestDownloadTeamImpl_ContextCancelled(t *testing.T) {
 func TestDownloadRosterForTeamOnDayImpl_FileExists(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "rosters/12345/1", NameVal: "2023-11-15", ExtVal: "xml"}
 	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
+	file := cache.RosterFile{Date: day, LeagueID: 12345, TeamID: 1}
 
-	mockFS.On("New", cache.RosterFileType, mock.Anything).Return(mockFile)
-	mockFS.On("MkdirAll", "rosters/12345/1", os.FileMode(0755)).Return(nil)
-	mockFS.On("Exists", mockFile).Return(true)
+	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
+	mockFS.On("Exists", file).Return(true)
 
 	err := downloadRosterForTeamOnDayImpl(ctx, mockFS, 423, 12345, 1, day)
 
@@ -66,10 +60,7 @@ func TestDownloadRosterForTeamOnDayImpl_ContextCancelled(t *testing.T) {
 	cancel()
 
 	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "rosters/12345/1", NameVal: "2023-11-15", ExtVal: "xml"}
 	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
-
-	mockFS.On("New", cache.RosterFileType, mock.Anything).Return(mockFile)
 
 	err := downloadRosterForTeamOnDayImpl(ctx, mockFS, 423, 12345, 1, day)
 
@@ -81,12 +72,11 @@ func TestDownloadRosterForTeamOnDayImpl_ContextCancelled(t *testing.T) {
 func TestDownloadTeamSummaryForTeamOnDayImpl_FileExists(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "summaries/12345/1", NameVal: "2023-11-15", ExtVal: "xml"}
 	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
+	file := cache.TeamSummaryFile{Date: day, LeagueID: 12345, TeamID: 1}
 
-	mockFS.On("New", cache.TeamSummaryFileType, mock.Anything).Return(mockFile)
-	mockFS.On("MkdirAll", "summaries/12345/1", os.FileMode(0755)).Return(nil)
-	mockFS.On("Exists", mockFile).Return(true)
+	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
+	mockFS.On("Exists", file).Return(true)
 
 	err := downloadTeamSummaryForTeamOnDayImpl(ctx, mockFS, 423, 12345, 1, day)
 
@@ -99,10 +89,7 @@ func TestDownloadTeamSummaryForTeamOnDayImpl_ContextCancelled(t *testing.T) {
 	cancel()
 
 	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "summaries/12345/1", NameVal: "2023-11-15", ExtVal: "xml"}
 	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
-
-	mockFS.On("New", cache.TeamSummaryFileType, mock.Anything).Return(mockFile)
 
 	err := downloadTeamSummaryForTeamOnDayImpl(ctx, mockFS, 423, 12345, 1, day)
 
@@ -112,12 +99,11 @@ func TestDownloadTeamSummaryForTeamOnDayImpl_ContextCancelled(t *testing.T) {
 func TestDownloadTeamSummaryForTeamOnDayImpl_MkdirAllError(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "summaries/12345/1", NameVal: "2023-11-15", ExtVal: "xml"}
 	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
+	file := cache.TeamSummaryFile{Date: day, LeagueID: 12345, TeamID: 1}
 	expectedErr := errors.New("mkdir failed")
 
-	mockFS.On("New", cache.TeamSummaryFileType, mock.Anything).Return(mockFile)
-	mockFS.On("MkdirAll", "summaries/12345/1", os.FileMode(0755)).Return(expectedErr)
+	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(expectedErr)
 
 	err := downloadTeamSummaryForTeamOnDayImpl(ctx, mockFS, 423, 12345, 1, day)
 

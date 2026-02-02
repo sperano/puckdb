@@ -223,7 +223,7 @@ func printCacheMetricsVerbose(cacheData []cacheMetrics, incompleteOnly bool) {
 
 		for _, s := range seasonStats {
 			fmt.Printf("  │ %-13s │ %8s │ %5s │ %6.1f%% │\n",
-				cache.FileTypeName(s.fileType),
+				s.fileType,
 				strconv.Itoa(s.expected),
 				strconv.Itoa(s.found),
 				s.percentage())
@@ -320,20 +320,20 @@ func printCacheMetricsCompact(cacheData []cacheMetrics, incompleteOnly bool) {
 		}
 
 		switch s.fileType {
-		case cache.DailyScheduleFileType:
+		case cache.FileTypeDailySchedule:
 			sf.dailySched = [2]int{s.expected, s.found}
-		case cache.BoxscoreFileType:
+		case cache.FileTypeBoxscore:
 			sf.boxscore = [2]int{s.expected, s.found}
-		case cache.LeagueFileType:
+		case cache.FileTypeLeague:
 			sf.league = [2]int{s.expected, s.found}
 			sf.hasYahoo = true
-		case cache.TeamFileType:
+		case cache.FileTypeTeam:
 			sf.team = [2]int{s.expected, s.found}
 			sf.hasYahoo = true
-		case cache.RosterFileType:
+		case cache.FileTypeRoster:
 			sf.roster = [2]int{s.expected, s.found}
 			sf.hasYahoo = true
-		case cache.TeamSummaryFileType:
+		case cache.FileTypeTeamSummary:
 			sf.teamSummary = [2]int{s.expected, s.found}
 			sf.hasYahoo = true
 		}

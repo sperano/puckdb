@@ -46,7 +46,7 @@ func DownloadDailySchedule(ctx context.Context, day time.Time) error {
 
 // downloadSchedule downloads and parses the daily schedule.
 func downloadSchedule(ctx context.Context, fs cache.FileSystem, day time.Time) ([]nhl.GameID, error) {
-	file := fs.New(cache.DailyScheduleFileType, day)
+	file := cache.DailyScheduleFile{Date: day}
 	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
 		return nil, fmt.Errorf("mkdir: %w", err)
 	}
@@ -108,7 +108,7 @@ func downloadSchedule(ctx context.Context, fs cache.FileSystem, day time.Time) (
 
 // downloadBoxscoreToCache downloads a single boxscore to cache.
 func downloadBoxscoreToCache(ctx context.Context, fs cache.FileSystem, day time.Time, id nhl.GameID) error {
-	file := fs.New(cache.BoxscoreFileType, day, id)
+	file := cache.BoxscoreFile{Date: day, GameID: id}
 	if fs.Exists(file) {
 		log.Debug().Str("gameid", id.String()).Msg("Boxscore already cached")
 		metrics.IncDownload("Boxscore", "hit")

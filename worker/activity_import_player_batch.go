@@ -76,7 +76,7 @@ func importPlayerBatchImpl(ctx context.Context, deps ImportDeps, playerIDs []int
 		}
 
 		// Read PlayerLanding from cache
-		file := deps.FS.New(cache.PlayerLandingFileType, nhl.PlayerID(playerID))
+		file := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(playerID)}
 		if !deps.FS.Exists(file) {
 			result.Errors = append(result.Errors, fmt.Sprintf("player %d: file not found", playerID))
 			continue

@@ -22,11 +22,6 @@ func NewMockFileSystem() *MockFileSystem {
 	}
 }
 
-func (m *MockFileSystem) New(ft cache.FileType, args ...any) cache.File {
-	callArgs := m.Called(ft, args)
-	return callArgs.Get(0).(cache.File)
-}
-
 func (m *MockFileSystem) Read(file cache.File) ([]byte, error) {
 	args := m.Called(file)
 	if args.Get(0) == nil {

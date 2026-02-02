@@ -112,7 +112,7 @@ func parseLocalizedName(name nhl.LocalizedString) (first, last string) {
 // getBoxscoreFilesForDay returns boxscore files for a specific day.
 func getBoxscoreFilesForDay(ctx context.Context, fs cache.FileSystem, redisClient redis.Client, day time.Time) ([]cache.File, error) {
 	// First get the daily schedule to know which game IDs exist
-	scheduleFile := fs.New(cache.DailyScheduleFileType, day)
+	scheduleFile := cache.DailyScheduleFile{Date: day}
 	if !fs.Exists(scheduleFile) {
 		return nil, nil
 	}
@@ -124,7 +124,7 @@ func getBoxscoreFilesForDay(ctx context.Context, fs cache.FileSystem, redisClien
 
 	files := make([]cache.File, 0, len(gameIDs))
 	for _, id := range gameIDs {
-		file := fs.New(cache.BoxscoreFileType, day, id)
+		file := cache.BoxscoreFile{Date: day, GameID: id}
 		files = append(files, file)
 	}
 

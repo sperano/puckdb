@@ -91,7 +91,7 @@ func listPlayerLandingIDsImpl(fs *cache.SimpleFS) ([]int64, error) {
 		ID int64
 	}
 
-	results, err := cache.ListAll(fs, cache.PlayerLandingFileType, func(file cache.File, _ []byte) (playerID, error) {
+	results, err := cache.ListAll(fs, cache.PlayerLandingFile{}, cache.ParsePlayerLandingFilename, func(file cache.File, _ []byte) (playerID, error) {
 		pf := file.(cache.PlayerLandingFile)
 		return playerID{ID: pf.PlayerID.AsInt64()}, nil
 	})

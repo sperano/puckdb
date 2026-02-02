@@ -26,7 +26,7 @@ func DownloadTeam(ctx context.Context, season int, leagueID int, teamID int) err
 // downloadTeamImpl is the testable implementation.
 func downloadTeamImpl(ctx context.Context, fs cache.FileSystem, season int, gameKey int, leagueID int, teamID int) error {
 	log.Trace().Int("season", season).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("DownloadFromYahoo Team")
-	file := fs.New(cache.TeamFileType, season, leagueID, teamID)
+	file := cache.TeamFile{Season: season, LeagueID: leagueID, TeamID: teamID}
 	url := http.YahooTeamURL(gameKey, leagueID, teamID)
 	return doDownloadImpl(ctx, fs, file, url)
 }
@@ -47,7 +47,7 @@ func DownloadRosterForTeamOnDay(ctx context.Context, season int, leagueID int, t
 // downloadRosterForTeamOnDayImpl is the testable implementation.
 func downloadRosterForTeamOnDayImpl(ctx context.Context, fs cache.FileSystem, gameKey int, leagueID int, teamID int, day time.Time) error {
 	log.Trace().Time("day", day).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("DownloadFromYahoo roster")
-	file := fs.New(cache.RosterFileType, day, leagueID, teamID)
+	file := cache.RosterFile{Date: day, LeagueID: leagueID, TeamID: teamID}
 	url := http.YahooRosterURL(gameKey, leagueID, teamID, day)
 	return doDownloadImpl(ctx, fs, file, url)
 }
@@ -68,7 +68,7 @@ func DownloadTeamSummaryForTeamOnDay(ctx context.Context, season int, leagueID i
 // downloadTeamSummaryForTeamOnDayImpl is the testable implementation.
 func downloadTeamSummaryForTeamOnDayImpl(ctx context.Context, fs cache.FileSystem, gameKey int, leagueID int, teamID int, day time.Time) error {
 	log.Trace().Time("day", day).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("DownloadFromYahoo team summary")
-	file := fs.New(cache.TeamSummaryFileType, day, leagueID, teamID)
+	file := cache.TeamSummaryFile{Date: day, LeagueID: leagueID, TeamID: teamID}
 	url := http.YahooTeamSummaryURL(gameKey, leagueID, teamID, day)
 	return doDownloadImpl(ctx, fs, file, url)
 }

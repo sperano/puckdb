@@ -8,7 +8,6 @@ import (
 
 	"github.com/sperano/puckdb/cache"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 // Tests for downloadLeagueImpl
@@ -16,11 +15,10 @@ import (
 func TestDownloadLeagueImpl_FileExists(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "leagues/2023", NameVal: "12345", ExtVal: "xml"}
+	file := cache.LeagueFile{Season: 2023, LeagueID: 12345}
 
-	mockFS.On("New", cache.LeagueFileType, mock.Anything).Return(mockFile)
-	mockFS.On("MkdirAll", "leagues/2023", os.FileMode(0755)).Return(nil)
-	mockFS.On("Exists", mockFile).Return(true)
+	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
+	mockFS.On("Exists", file).Return(true)
 
 	err := downloadLeagueImpl(ctx, mockFS, 2023, 423, 12345)
 
@@ -33,9 +31,6 @@ func TestDownloadLeagueImpl_ContextCancelled(t *testing.T) {
 	cancel() // Cancel immediately
 
 	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "leagues/2023", NameVal: "12345", ExtVal: "xml"}
-
-	mockFS.On("New", cache.LeagueFileType, mock.Anything).Return(mockFile)
 
 	err := downloadLeagueImpl(ctx, mockFS, 2023, 423, 12345)
 
@@ -45,15 +40,14 @@ func TestDownloadLeagueImpl_ContextCancelled(t *testing.T) {
 func TestDownloadLeagueImpl_MkdirAllError(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
-	mockFile := MockFile{DirVal: "leagues/2023", NameVal: "12345", ExtVal: "xml"}
+	file := cache.LeagueFile{Season: 2023, LeagueID: 12345}
 	expectedErr := errors.New("mkdir failed")
 
-	mockFS.On("New", cache.LeagueFileType, mock.Anything).Return(mockFile)
-	mockFS.On("MkdirAll", "leagues/2023", os.FileMode(0755)).Return(expectedErr)
+	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(expectedErr)
 
 	err := downloadLeagueImpl(ctx, mockFS, 2023, 423, 12345)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "leagues/2023")
+	assert.Contains(t, err.Error(), file.Dir())
 	mockFS.AssertExpectations(t)
 }

@@ -244,7 +244,7 @@ func getPlayerLandingWithCache(
 	client NHLClient,
 	playerID nhl.PlayerID,
 ) (*nhl.PlayerLanding, bool, error) {
-	file := fs.New(cache.PlayerLandingFileType, playerID)
+	file := cache.PlayerLandingFile{PlayerID: playerID}
 
 	// Check cache first
 	if fs.Exists(file) {

@@ -53,7 +53,7 @@ func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID 
 	}
 
 	// Check if missing player file already exists (most common case)
-	missingFile := fs.New(cache.MissingYahooPlayerFileType, playerID)
+	missingFile := cache.MissingYahooPlayerFile{PlayerID: playerID}
 	if fs.Exists(missingFile) {
 		log.Debug().Int("playerID", playerID).Msg("Yahoo player already marked as missing")
 		metrics.IncDownload("YahooPlayer", "hit")
@@ -61,7 +61,7 @@ func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID 
 	}
 
 	// Check if player file already exists
-	playerFile := fs.New(cache.YahooPlayerFileType, playerID)
+	playerFile := cache.YahooPlayerFile{PlayerID: playerID}
 	if fs.Exists(playerFile) {
 		log.Debug().Int("playerID", playerID).Msg("Yahoo player already cached")
 		metrics.IncDownload("YahooPlayer", "hit")
