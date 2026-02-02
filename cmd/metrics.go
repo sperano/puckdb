@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -284,7 +285,7 @@ func computeAndUpdateCacheMetrics(ctx context.Context) error {
 	}
 	metrics.SetCacheMetrics("total", "all", totalExpected, totalFound)
 
-	// Calculate disk usage
+	// Calculate disk usage and file type stats
 	dataPath := viper.GetString(config.FlagDataPath)
 	if dataPath != "" {
 		diskSize, err := calculateDirSize(dataPath)
@@ -292,6 +293,12 @@ func computeAndUpdateCacheMetrics(ctx context.Context) error {
 			log.Warn().Err(err).Str("path", dataPath).Msg("Failed to calculate cache disk size")
 		} else {
 			metrics.SetCacheDiskSizeBytes(diskSize)
+		}
+
+		// Collect file stats by type
+		fileStats := collectFileTypeStats(dataPath)
+		for fileType, stats := range fileStats {
+			metrics.SetDataPathFileStats(fileType, stats.count, stats.bytes)
 		}
 	}
 
@@ -330,6 +337,90 @@ func calculateDirSize(path string) (int64, error) {
 		return nil
 	})
 	return size, err
+}
+
+// fileTypeStats holds count and size for a file type
+type fileTypeStats struct {
+	count int64
+	bytes int64
+}
+
+// collectFileTypeStats walks the data path and categorizes files by type
+func collectFileTypeStats(dataPath string) map[string]*fileTypeStats {
+	stats := make(map[string]*fileTypeStats)
+
+	_ = filepath.WalkDir(dataPath, func(filePath string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+
+		// Skip .git directory
+		if strings.Contains(filePath, "/.git/") {
+			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+
+		fileType := classifyFileType(dataPath, filePath, d.Name())
+		if stats[fileType] == nil {
+			stats[fileType] = &fileTypeStats{}
+		}
+		stats[fileType].count++
+		stats[fileType].bytes += info.Size()
+
+		return nil
+	})
+
+	return stats
+}
+
+// classifyFileType determines the file type based on path and filename
+func classifyFileType(dataPath, filePath, filename string) string {
+	relPath, _ := filepath.Rel(dataPath, filePath)
+	parts := strings.Split(relPath, string(filepath.Separator))
+
+	if len(parts) == 0 {
+		return cache.FileTypeUnknown
+	}
+
+	// Check top-level directories first
+	switch parts[0] {
+	case "players":
+		return cache.FileTypePlayerLanding
+	case "yahoo-players":
+		return cache.FileTypeYahooPlayer
+	case "yahoo-players-missing":
+		return cache.FileTypeYahooPlayer
+	case "game-keys":
+		return cache.FileTypeGameKey
+	}
+
+	// Check filename patterns for games directory
+	if strings.HasPrefix(filename, "boxscore-") {
+		return cache.FileTypeBoxscore
+	}
+	if strings.HasPrefix(filename, "daily-schedule-") {
+		return cache.FileTypeDailySchedule
+	}
+
+	// Check for league/team/roster/summary in nested directories
+	if strings.HasPrefix(filename, "league-") {
+		return cache.FileTypeLeague
+	}
+	if strings.HasPrefix(filename, "team-") {
+		return cache.FileTypeTeam
+	}
+	if strings.HasPrefix(filename, "rosters-") {
+		return cache.FileTypeRoster
+	}
+	if strings.HasPrefix(filename, "team-summary-") {
+		return cache.FileTypeTeamSummary
+	}
+
+	return cache.FileTypeUnknown
 }
 
 func countUniqueSeasons(cacheData []cacheMetrics) int {

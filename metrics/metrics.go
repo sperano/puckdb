@@ -138,6 +138,16 @@ var (
 		Name: "puckdb_build_info",
 		Help: "Build number of the running binary",
 	})
+
+	dataPathFilesTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_data_path_files_total",
+		Help: "Total number of files by type in data path",
+	}, []string{"file_type"})
+
+	dataPathBytesTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_data_path_bytes_total",
+		Help: "Total bytes by file type in data path",
+	}, []string{"file_type"})
 )
 
 func init() {
@@ -169,6 +179,8 @@ func init() {
 		dbTableRowCount,
 		dbLastUpdated,
 		buildInfo,
+		dataPathFilesTotal,
+		dataPathBytesTotal,
 	)
 }
 
@@ -312,4 +324,10 @@ func SetDBMetricsTimestamp() {
 // SetBuildInfo records the build number as the metric value
 func SetBuildInfo(buildNumber int) {
 	buildInfo.Set(float64(buildNumber))
+}
+
+// SetDataPathFileStats records file count and size for a file type
+func SetDataPathFileStats(fileType string, count int64, bytes int64) {
+	dataPathFilesTotal.WithLabelValues(fileType).Set(float64(count))
+	dataPathBytesTotal.WithLabelValues(fileType).Set(float64(bytes))
 }
