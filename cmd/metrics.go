@@ -131,6 +131,8 @@ func runMetrics(cmd *cobra.Command, _ []string) error {
 		Dur("db_interval_ms", dbInterval).
 		Msg("Starting metrics server")
 
+	metrics.SetBuildInfo(config.GetBuildNumberAsInt())
+
 	// Start collectors with independent intervals
 	go runCacheCollector(ctx, cacheInterval)
 	go runRedisCollector(ctx, redisInterval)

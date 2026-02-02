@@ -133,6 +133,11 @@ var (
 		Name: "puckdb_db_last_updated_timestamp",
 		Help: "Unix timestamp of last database metrics update",
 	})
+
+	buildInfo = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "puckdb_build_info",
+		Help: "Build number of the running binary",
+	})
 )
 
 func init() {
@@ -163,6 +168,7 @@ func init() {
 		redisLastUpdated,
 		dbTableRowCount,
 		dbLastUpdated,
+		buildInfo,
 	)
 }
 
@@ -301,4 +307,9 @@ func SetDBTableRowCount(table string, count int64) {
 // SetDBMetricsTimestamp records when database metrics were last computed
 func SetDBMetricsTimestamp() {
 	dbLastUpdated.Set(float64(time.Now().Unix()))
+}
+
+// SetBuildInfo records the build number as the metric value
+func SetBuildInfo(buildNumber int) {
+	buildInfo.Set(float64(buildNumber))
 }
