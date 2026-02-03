@@ -97,8 +97,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 
 	// Step 1b: Parse Yahoo players in batches (fan-out)
 	tracker.SetMessage("Parsing Yahoo players")
-	numYahooBatches := (len(yahooPlayerIDs) + batchSize - 1) / batchSize
-	tracker.SetItemTotal(PhaseLoadYahooPool, numYahooBatches)
+	tracker.SetItemTotal(PhaseLoadYahooPool, len(yahooPlayerIDs)) // Track by player count, not batches
 
 	var allYahooPlayers []cache.YahooPlayer
 	if err := runYahooParseBatches(ctx, tracker, PhaseLoadYahooPool, yahooPlayerIDs, batchSize, concurrency, &allYahooPlayers); err != nil {
@@ -139,7 +138,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 		"concurrency", concurrency)
 
 	numBatches := (len(playerIDs) + batchSize - 1) / batchSize
-	tracker.SetItemTotal(PhaseImportPlayers, numBatches) // Now we know the total
+	tracker.SetItemTotal(PhaseImportPlayers, len(playerIDs)) // Track by player count, not batches
 	var totalImported, totalMatched int
 	var allErrors []string
 
@@ -158,7 +157,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 	resultChan := workflow.NewChannel(ctx)
 
 	// Run batches with concurrency control - use main tracker for Phase 3
-	err := runImportBatches(ctx, tracker, PhaseImportPlayers, numBatches, concurrency, startActivity, resultChan, &results)
+	err := runImportBatches(ctx, tracker, PhaseImportPlayers, numBatches, concurrency, batchSize, len(playerIDs), startActivity, resultChan, &results)
 	if err != nil {
 		return err
 	}
@@ -200,6 +199,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 }
 
 // runYahooParseBatches executes Yahoo player parsing in batches with concurrency control.
+// Progress is tracked by player count (not batch count).
 func runYahooParseBatches(
 	ctx workflow.Context,
 	tracker *ProgressTracker,
@@ -210,6 +210,7 @@ func runYahooParseBatches(
 ) error {
 	logger := workflow.GetLogger(ctx)
 	numBatches := (len(playerIDs) + batchSize - 1) / batchSize
+	totalItems := len(playerIDs)
 
 	type activeWork struct {
 		index  int
@@ -256,7 +257,13 @@ func runYahooParseBatches(
 				}
 
 				*results = append(*results, batchResult...)
-				tracker.IncrementItem(phaseID)
+				// Calculate actual batch size (last batch may be smaller)
+				batchStart := capturedIdx * batchSize
+				actualBatchSize := batchSize
+				if batchStart+batchSize > totalItems {
+					actualBatchSize = totalItems - batchStart
+				}
+				tracker.IncrementItemBy(phaseID, actualBatchSize)
 				delete(active, capturedIdx)
 
 				// Start next batch if available
@@ -279,11 +286,12 @@ func runYahooParseBatches(
 }
 
 // runImportBatches executes import batches with concurrency control.
+// Progress is tracked by player count (not batch count) using batchSize and totalItems.
 func runImportBatches(
 	ctx workflow.Context,
 	tracker *ProgressTracker,
 	phaseID int,
-	numBatches, concurrency int,
+	numBatches, concurrency, batchSize, totalItems int,
 	startActivity func(workflow.Context, int) workflow.Future,
 	resultChan workflow.Channel,
 	results *[]ImportBatchResult,
@@ -325,7 +333,13 @@ func runImportBatches(
 				}
 
 				*results = append(*results, result)
-				tracker.IncrementItem(phaseID)
+				// Calculate actual batch size (last batch may be smaller)
+				batchStart := capturedIdx * batchSize
+				actualBatchSize := batchSize
+				if batchStart+batchSize > totalItems {
+					actualBatchSize = totalItems - batchStart
+				}
+				tracker.IncrementItemBy(phaseID, actualBatchSize)
 				delete(active, capturedIdx)
 
 				// Start next batch if available

@@ -155,6 +155,14 @@ func (p *ProgressTracker) IncrementItem(itemID int) {
 	}
 }
 
+// IncrementItemBy increments the completed count for a specific item by the given amount.
+func (p *ProgressTracker) IncrementItemBy(itemID int, amount int) {
+	p.progress.Completed += amount
+	if idx, ok := p.itemIndex[itemID]; ok {
+		p.progress.Items[idx].Completed += amount
+	}
+}
+
 // MarkItemStarted marks an item as started (child workflow spawned).
 func (p *ProgressTracker) MarkItemStarted(itemID int) {
 	if idx, ok := p.itemIndex[itemID]; ok {
