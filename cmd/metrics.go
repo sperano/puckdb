@@ -252,10 +252,19 @@ func collectDatabaseMetrics(db *gorm.DB) {
 		totalRows += count
 	}
 
+	// Query database size
+	var dbSizeBytes int64
+	if err := db.Raw("SELECT pg_database_size(current_database())").Scan(&dbSizeBytes).Error; err != nil {
+		log.Warn().Err(err).Msg("Failed to get database size")
+	} else {
+		metrics.SetDBSizeBytes(dbSizeBytes)
+	}
+
 	metrics.SetDBMetricsTimestamp()
 	log.Info().
 		Int("tables", len(tables)).
 		Int64("total_rows", totalRows).
+		Int64("db_size_bytes", dbSizeBytes).
 		Dur("duration", time.Since(start)).
 		Msg("Database metrics updated")
 }

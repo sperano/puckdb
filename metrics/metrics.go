@@ -129,6 +129,11 @@ var (
 		Help: "Number of rows in database tables",
 	}, []string{"table"})
 
+	dbSizeBytes = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "puckdb_db_size_bytes",
+		Help: "Total size of the database in bytes",
+	})
+
 	dbLastUpdated = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "puckdb_db_last_updated_timestamp",
 		Help: "Unix timestamp of last database metrics update",
@@ -177,6 +182,7 @@ func init() {
 		redisOAuthTokenValid,
 		redisLastUpdated,
 		dbTableRowCount,
+		dbSizeBytes,
 		dbLastUpdated,
 		buildInfo,
 		dataPathFilesTotal,
@@ -314,6 +320,11 @@ func SetRedisMetricsTimestamp() {
 // SetDBTableRowCount records the row count for a database table
 func SetDBTableRowCount(table string, count int64) {
 	dbTableRowCount.WithLabelValues(table).Set(float64(count))
+}
+
+// SetDBSizeBytes records the total database size in bytes
+func SetDBSizeBytes(bytes int64) {
+	dbSizeBytes.Set(float64(bytes))
 }
 
 // SetDBMetricsTimestamp records when database metrics were last computed
