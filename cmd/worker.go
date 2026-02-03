@@ -130,7 +130,9 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.EnrichPlayerBatchActivity)
 
 			// ImportPlayers activities
-			w.RegisterActivity(workers.LoadYahooIDPoolActivity)
+			w.RegisterActivity(workers.ListYahooPlayerFilesActivity)
+			w.RegisterActivity(workers.ParseYahooPlayerBatchActivity)
+			w.RegisterActivity(workers.SaveYahooPlayersToRedisActivity)
 			w.RegisterActivity(workers.ListPlayerLandingIDsActivity)
 			w.RegisterActivity(workers.ImportPlayerBatchActivity)
 			w.RegisterActivity(workers.ReportUnmatchedYahooIDsActivity)

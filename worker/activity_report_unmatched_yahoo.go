@@ -6,6 +6,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/redis"
+	"go.temporal.io/sdk/activity"
 )
 
 // UnmatchedYahooPlayer represents a Yahoo player that wasn't matched to any NHL player.
@@ -82,31 +83,19 @@ func reportUnmatchedYahooIDsImpl(ctx context.Context, redisClient redis.Client) 
 // ListPlayerLandingIDsActivity returns all player IDs from cached PlayerLanding files.
 // Used to enumerate players for import.
 func ListPlayerLandingIDsActivity(ctx context.Context) ([]int64, error) {
+	logger := activity.GetLogger(ctx)
 	fs := cache.NewSimpleCache().(*cache.InstrumentedFS).Inner()
-	return listPlayerLandingIDsImpl(fs)
-}
 
-func listPlayerLandingIDsImpl(fs *cache.SimpleFS) ([]int64, error) {
-	type playerID struct {
-		ID int64
-	}
-
-	results, err := cache.ListAll(fs, cache.PlayerLandingFile{}, cache.ParsePlayerLandingFilename, func(file cache.File, _ []byte) (playerID, error) {
-		pf := file.(cache.PlayerLandingFile)
-		return playerID{ID: pf.PlayerID.AsInt64()}, nil
-	})
+	files, err := cache.ListAll(fs, cache.PlayerLandingFile{}, cache.ParsePlayerLandingFilename)
 	if err != nil {
 		return nil, err
 	}
 
-	ids := make([]int64, len(results))
-	for i, r := range results {
-		ids[i] = r.ID
+	ids := make([]int64, len(files))
+	for i, f := range files {
+		ids[i] = f.(cache.PlayerLandingFile).PlayerID.AsInt64()
 	}
 
-	log.Info().
-		Int("players", len(ids)).
-		Msg("Listed PlayerLanding files")
-
+	logger.Info("Listed PlayerLanding files", "count", len(ids))
 	return ids, nil
 }

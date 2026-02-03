@@ -3,6 +3,7 @@ package worker
 import (
 	"time"
 
+	"github.com/sperano/puckdb/cache"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -81,18 +82,38 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 		},
 	})
 
-	// Phase 1: Load Yahoo ID pool into Redis
+	// Phase 1: Load Yahoo ID pool into Redis (fan-out pattern)
 	tracker.MarkItemStarted(PhaseLoadYahooPool)
-	tracker.SetMessage("Loading Yahoo player pool")
+	tracker.SetMessage("Listing Yahoo player files")
 	logger.Info("Phase 1: Loading Yahoo ID pool")
 
-	var yahooPoolSize int
-	if err := workflow.ExecuteActivity(ctx, LoadYahooIDPoolActivity).Get(ctx, &yahooPoolSize); err != nil {
-		logger.Error("Failed to load Yahoo ID pool", "error", err)
+	// Step 1a: List all Yahoo player files
+	var yahooPlayerIDs []int
+	if err := workflow.ExecuteActivity(ctx, ListYahooPlayerFilesActivity).Get(ctx, &yahooPlayerIDs); err != nil {
+		logger.Error("Failed to list Yahoo player files", "error", err)
 		return err
 	}
-	logger.Info("Loaded Yahoo ID pool", "size", yahooPoolSize)
-	tracker.IncrementItem(PhaseLoadYahooPool)
+	logger.Info("Listed Yahoo player files", "count", len(yahooPlayerIDs))
+
+	// Step 1b: Parse Yahoo players in batches (fan-out)
+	tracker.SetMessage("Parsing Yahoo players")
+	numYahooBatches := (len(yahooPlayerIDs) + batchSize - 1) / batchSize
+	tracker.SetItemTotal(PhaseLoadYahooPool, numYahooBatches)
+
+	var allYahooPlayers []cache.YahooPlayer
+	if err := runYahooParseBatches(ctx, tracker, PhaseLoadYahooPool, yahooPlayerIDs, batchSize, concurrency, &allYahooPlayers); err != nil {
+		logger.Error("Failed to parse Yahoo players", "error", err)
+		return err
+	}
+	logger.Info("Parsed Yahoo players", "count", len(allYahooPlayers))
+
+	// Step 1c: Save all players to Redis
+	tracker.SetMessage("Saving Yahoo pool to Redis")
+	if err := workflow.ExecuteActivity(ctx, SaveYahooPlayersToRedisActivity, allYahooPlayers).Get(ctx, nil); err != nil {
+		logger.Error("Failed to save Yahoo players to Redis", "error", err)
+		return err
+	}
+	logger.Info("Saved Yahoo pool to Redis", "size", len(allYahooPlayers))
 	tracker.MarkItemCompleted(PhaseLoadYahooPool)
 
 	// Phase 2: List all PlayerLanding files
@@ -174,6 +195,85 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 		"matchedWithYahoo", totalMatched,
 		"unmatchedYahoo", len(unmatched),
 		"errors", len(allErrors))
+
+	return nil
+}
+
+// runYahooParseBatches executes Yahoo player parsing in batches with concurrency control.
+func runYahooParseBatches(
+	ctx workflow.Context,
+	tracker *ProgressTracker,
+	phaseID int,
+	playerIDs []int,
+	batchSize, concurrency int,
+	results *[]cache.YahooPlayer,
+) error {
+	logger := workflow.GetLogger(ctx)
+	numBatches := (len(playerIDs) + batchSize - 1) / batchSize
+
+	type activeWork struct {
+		index  int
+		future workflow.Future
+	}
+	active := make(map[int]*activeWork)
+	nextIdx := 0
+
+	startActivity := func(batchIndex int) workflow.Future {
+		batchStart := batchIndex * batchSize
+		batchEnd := batchStart + batchSize
+		if batchEnd > len(playerIDs) {
+			batchEnd = len(playerIDs)
+		}
+		batch := playerIDs[batchStart:batchEnd]
+		return workflow.ExecuteActivity(ctx, ParseYahooPlayerBatchActivity, batch)
+	}
+
+	// Start initial batches
+	for i := 0; i < concurrency && nextIdx < numBatches; i++ {
+		future := startActivity(nextIdx)
+		active[nextIdx] = &activeWork{index: nextIdx, future: future}
+		nextIdx++
+	}
+
+	var firstErr error
+
+	// Process until all work is done
+	for len(active) > 0 {
+		selector := workflow.NewSelector(ctx)
+
+		for idx, work := range active {
+			capturedIdx := idx
+			capturedWork := work
+			selector.AddFuture(capturedWork.future, func(f workflow.Future) {
+				var batchResult []cache.YahooPlayer
+				if err := f.Get(ctx, &batchResult); err != nil {
+					if firstErr == nil {
+						firstErr = err
+					}
+					logger.Error("Yahoo parse batch failed", "index", capturedIdx, "error", err)
+					delete(active, capturedIdx)
+					return
+				}
+
+				*results = append(*results, batchResult...)
+				tracker.IncrementItem(phaseID)
+				delete(active, capturedIdx)
+
+				// Start next batch if available
+				if nextIdx < numBatches {
+					future := startActivity(nextIdx)
+					active[nextIdx] = &activeWork{index: nextIdx, future: future}
+					nextIdx++
+				}
+			})
+		}
+
+		selector.Select(ctx)
+
+		if firstErr != nil {
+			return firstErr
+		}
+	}
 
 	return nil
 }

@@ -454,6 +454,8 @@ func isPhaseBasedProgress(items []*model.ProgressItem) bool {
 }
 
 // formatPhaseProgress formats progress for phase-based workflows with checkmarks.
+// Shows completed phases with checkmarks, in-progress phases with progress bars,
+// and hides pending phases entirely.
 func formatPhaseProgress(progress *model.WorkflowProgress, existingLines []string) string {
 	lines := existingLines
 
@@ -467,15 +469,14 @@ func formatPhaseProgress(progress *model.WorkflowProgress, existingLines []strin
 			// Completed: show checkmark with count
 			lines = append(lines, fmt.Sprintf("✓ %s (%d)", description, item.Total))
 		} else if item.Started {
-			// In progress: show progress bar
+			// In progress: show phase on one line, progress bar on next
+			lines = append(lines, fmt.Sprintf("▶ %s", description))
 			pct := float64(item.Completed) / float64(item.Total) * 100
 			bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-			lines = append(lines, fmt.Sprintf("  %s: %d/%d %s %d%%",
-				description, item.Completed, item.Total, bar, int(pct)))
-		} else {
-			// Pending: show as waiting
-			lines = append(lines, fmt.Sprintf("  %s (pending)", description))
+			lines = append(lines, fmt.Sprintf("  %d/%d %s %d%%",
+				item.Completed, item.Total, bar, int(pct)))
 		}
+		// Pending phases are not shown
 	}
 
 	return strings.Join(lines, "\n")
