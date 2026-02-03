@@ -175,7 +175,7 @@ func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker 
 // startSeasonChildWorkflow spawns a child workflow for a season
 func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, active map[int]*childWorkflowWork, season SeasonInfo) {
 	logger.Info("Starting season child workflow", "startYear", season.StartYear)
-	tracker.MarkSeasonStarted(season.StartYear)
+	tracker.MarkItemStarted(season.StartYear)
 	ctxo := withChildOptions(ctx, WorkflowIDDownloadSeason(season.StartYear))
 	future := workflow.ExecuteChildWorkflow(ctxo, DownloadSeasonWorkflow, &DownloadSeasonInput{Season: season})
 	active[season.StartYear] = &childWorkflowWork{
@@ -186,9 +186,9 @@ func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *
 
 // markSeasonComplete sets all tasks for a season as completed in the tracker
 func markSeasonComplete(tracker *ProgressTracker, startYear int) {
-	if idx, ok := tracker.seasonIndex[startYear]; ok {
-		remaining := tracker.progress.Seasons[idx].Total - tracker.progress.Seasons[idx].Completed
-		tracker.progress.Seasons[idx].Completed = tracker.progress.Seasons[idx].Total
+	if idx, ok := tracker.itemIndex[startYear]; ok {
+		remaining := tracker.progress.Items[idx].Total - tracker.progress.Items[idx].Completed
+		tracker.progress.Items[idx].Completed = tracker.progress.Items[idx].Total
 		tracker.progress.Completed += remaining
 	}
 }

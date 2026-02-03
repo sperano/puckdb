@@ -152,7 +152,7 @@ func (c *GraphQLClient) DownloadSeasons(ctx context.Context, input *model.Downlo
 func (c *GraphQLClient) GetDownloadSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		downloadSeasonsResult { status failureReason }
-		downloadSeasonsProgress { total completed message seasons { startYear total completed } }
+		downloadSeasonsProgress { total completed message items { id description total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -434,7 +434,7 @@ func (c *GraphQLClient) ImportPlayers(ctx context.Context, input *model.Download
 func (c *GraphQLClient) GetImportPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		importPlayersResult { status failureReason }
-		importPlayersProgress { total completed message }
+		importPlayersProgress { total completed message items { id description total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)

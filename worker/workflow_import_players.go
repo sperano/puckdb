@@ -16,6 +16,14 @@ const (
 	DefaultImportPlayersConcurrency = 10
 )
 
+// Phase IDs for import workflow
+const (
+	PhaseLoadYahooPool  = 1
+	PhaseListFiles      = 2
+	PhaseImportPlayers  = 3
+	PhaseReportUnmatched = 4
+)
+
 // ImportPlayersInput contains configuration for the import workflow.
 type ImportPlayersInput struct {
 	BatchSize   *int // Players per batch activity (default: 50)
@@ -50,8 +58,14 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 		"batchSize", batchSize,
 		"concurrency", concurrency)
 
-	// Register progress query handler
-	tracker := NewProgressTracker(4) // 4 phases: load pool, list files, import, report
+	// Register progress query handler with phase-based tracking
+	phases := []PhaseInfo{
+		{ID: PhaseLoadYahooPool, Description: "Load Yahoo pool", Total: 1},
+		{ID: PhaseListFiles, Description: "List player files", Total: 1},
+		{ID: PhaseImportPlayers, Description: "Import players", Total: 0}, // Total set later
+		{ID: PhaseReportUnmatched, Description: "Report unmatched", Total: 1},
+	}
+	tracker := NewProgressTrackerWithPhases(phases)
 	tracker.SetMessage("Starting import")
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
@@ -68,6 +82,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 	})
 
 	// Phase 1: Load Yahoo ID pool into Redis
+	tracker.MarkItemStarted(PhaseLoadYahooPool)
 	tracker.SetMessage("Loading Yahoo player pool")
 	logger.Info("Phase 1: Loading Yahoo ID pool")
 
@@ -77,9 +92,11 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 		return err
 	}
 	logger.Info("Loaded Yahoo ID pool", "size", yahooPoolSize)
-	tracker.Increment()
+	tracker.IncrementItem(PhaseLoadYahooPool)
+	tracker.MarkItemCompleted(PhaseLoadYahooPool)
 
 	// Phase 2: List all PlayerLanding files
+	tracker.MarkItemStarted(PhaseListFiles)
 	tracker.SetMessage("Listing player files")
 	logger.Info("Phase 2: Listing PlayerLanding files")
 
@@ -89,9 +106,11 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 		return err
 	}
 	logger.Info("Found player files", "count", len(playerIDs))
-	tracker.Increment()
+	tracker.IncrementItem(PhaseListFiles)
+	tracker.MarkItemCompleted(PhaseListFiles)
 
 	// Phase 3: Import players in batches
+	tracker.MarkItemStarted(PhaseImportPlayers)
 	tracker.SetMessage("Importing players")
 	logger.Info("Phase 3: Importing players",
 		"total", len(playerIDs),
@@ -99,12 +118,9 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 		"concurrency", concurrency)
 
 	numBatches := (len(playerIDs) + batchSize - 1) / batchSize
+	tracker.SetItemTotal(PhaseImportPlayers, numBatches) // Now we know the total
 	var totalImported, totalMatched int
 	var allErrors []string
-
-	// Use progress tracker's worker pool for batch processing
-	importTracker := NewProgressTracker(numBatches)
-	importTracker.SetMessage("Importing player batches")
 
 	startActivity := func(ctx workflow.Context, batchIndex int) workflow.Future {
 		batchStart := batchIndex * batchSize
@@ -120,8 +136,8 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 	results := make([]ImportBatchResult, 0, numBatches)
 	resultChan := workflow.NewChannel(ctx)
 
-	// Run batches with concurrency control
-	err := runImportBatches(ctx, importTracker, numBatches, concurrency, startActivity, resultChan, &results)
+	// Run batches with concurrency control - use main tracker for Phase 3
+	err := runImportBatches(ctx, tracker, PhaseImportPlayers, numBatches, concurrency, startActivity, resultChan, &results)
 	if err != nil {
 		return err
 	}
@@ -137,9 +153,10 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 		"imported", totalImported,
 		"matched", totalMatched,
 		"errors", len(allErrors))
-	tracker.Increment()
+	tracker.MarkItemCompleted(PhaseImportPlayers)
 
 	// Phase 4: Report unmatched Yahoo IDs
+	tracker.MarkItemStarted(PhaseReportUnmatched)
 	tracker.SetMessage("Reporting unmatched Yahoo players")
 	logger.Info("Phase 4: Reporting unmatched Yahoo IDs")
 
@@ -148,7 +165,8 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 		logger.Warn("Failed to report unmatched Yahoo IDs", "error", err)
 		// Don't fail the workflow for this
 	}
-	tracker.Increment()
+	tracker.IncrementItem(PhaseReportUnmatched)
+	tracker.MarkItemCompleted(PhaseReportUnmatched)
 
 	logger.Info("ImportPlayersWorkflow completed",
 		"totalPlayers", len(playerIDs),
@@ -164,6 +182,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 func runImportBatches(
 	ctx workflow.Context,
 	tracker *ProgressTracker,
+	phaseID int,
 	numBatches, concurrency int,
 	startActivity func(workflow.Context, int) workflow.Future,
 	resultChan workflow.Channel,
@@ -206,7 +225,7 @@ func runImportBatches(
 				}
 
 				*results = append(*results, result)
-				tracker.Increment()
+				tracker.IncrementItem(phaseID)
 				delete(active, capturedIdx)
 
 				// Start next batch if available

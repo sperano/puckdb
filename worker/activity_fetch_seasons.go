@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
@@ -15,6 +16,12 @@ type SeasonInfo struct {
 	StartYear int       `json:"startYear"`
 	StartDate time.Time `json:"startDate"`
 	EndDate   time.Time `json:"endDate"`
+}
+
+// Label returns a display label for the season (e.g., "2024-25").
+func (s SeasonInfo) Label() string {
+	endYearShort := (s.StartYear + 1) % 100
+	return fmt.Sprintf("%d-%02d", s.StartYear, endYearShort)
 }
 
 // FetchSeasonsDataActivity fetches season data from the NHL API and filters by input range.

@@ -7,9 +7,10 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// SeasonProgress represents the progress for a single season.
-type SeasonProgress struct {
-	StartYear   int    `json:"startYear"`
+// ItemProgress represents the progress for a single item (season, phase, batch, etc.).
+type ItemProgress struct {
+	ID          int    `json:"id"`
+	Description string `json:"description,omitempty"`
 	Total       int    `json:"total"`
 	Completed   int    `json:"completed"`
 	Started     bool   `json:"started"`
@@ -19,10 +20,10 @@ type SeasonProgress struct {
 
 // WorkflowProgress represents the progress of a workflow.
 type WorkflowProgress struct {
-	Total     int              `json:"total"`
-	Completed int              `json:"completed"`
-	Message   string           `json:"message,omitempty"`
-	Seasons   []SeasonProgress `json:"seasons,omitempty"`
+	Total     int            `json:"total"`
+	Completed int            `json:"completed"`
+	Message   string         `json:"message,omitempty"`
+	Items     []ItemProgress `json:"items,omitempty"`
 }
 
 // ProgressQueryName is the name of the query handler for progress.
@@ -30,17 +31,17 @@ const ProgressQueryName = "progress"
 
 // ProgressTracker tracks workflow progress and handles completion via Selector.
 type ProgressTracker struct {
-	progress     WorkflowProgress
-	seasonIndex  map[int]int // maps startYear to index in Seasons slice
-	futureToYear map[int]int // maps future index to startYear
+	progress    WorkflowProgress
+	itemIndex   map[int]int // maps item ID to index in Items slice
+	futureToID  map[int]int // maps future index to item ID
 }
 
 // NewProgressTracker creates a new ProgressTracker with the given total count.
 func NewProgressTracker(total int) *ProgressTracker {
 	return &ProgressTracker{
-		progress:     WorkflowProgress{Total: total, Completed: 0},
-		seasonIndex:  make(map[int]int),
-		futureToYear: make(map[int]int),
+		progress:   WorkflowProgress{Total: total, Completed: 0},
+		itemIndex:  make(map[int]int),
+		futureToID: make(map[int]int),
 	}
 }
 
@@ -51,71 +52,121 @@ func NewProgressTracker(total int) *ProgressTracker {
 // - grandTotal: total items across all executions
 func NewProgressTrackerWithOffset(batchSize int, offset int, grandTotal int) *ProgressTracker {
 	return &ProgressTracker{
-		progress:     WorkflowProgress{Total: grandTotal, Completed: offset},
-		seasonIndex:  make(map[int]int),
-		futureToYear: make(map[int]int),
+		progress:   WorkflowProgress{Total: grandTotal, Completed: offset},
+		itemIndex:  make(map[int]int),
+		futureToID: make(map[int]int),
 	}
 }
 
 // NewProgressTrackerWithSeasons creates a ProgressTracker that tracks per-season progress.
 func NewProgressTrackerWithSeasons(seasons []SeasonInfo) *ProgressTracker {
 	tracker := &ProgressTracker{
-		seasonIndex:  make(map[int]int),
-		futureToYear: make(map[int]int),
+		itemIndex:  make(map[int]int),
+		futureToID: make(map[int]int),
 	}
 	tracker.InitializeWithSeasons(seasons)
 	return tracker
+}
+
+// PhaseInfo represents a workflow phase for progress tracking.
+type PhaseInfo struct {
+	ID          int    // Phase number (1, 2, 3, ...)
+	Description string // Human-readable description
+	Total       int    // Expected total items (0 if unknown initially)
+}
+
+// NewProgressTrackerWithPhases creates a ProgressTracker that tracks per-phase progress.
+func NewProgressTrackerWithPhases(phases []PhaseInfo) *ProgressTracker {
+	tracker := &ProgressTracker{
+		itemIndex:  make(map[int]int),
+		futureToID: make(map[int]int),
+	}
+	tracker.InitializeWithPhases(phases)
+	return tracker
+}
+
+// InitializeWithPhases sets up per-phase progress tracking.
+func (p *ProgressTracker) InitializeWithPhases(phases []PhaseInfo) {
+	total := 0
+	itemProgress := make([]ItemProgress, len(phases))
+
+	for i, phase := range phases {
+		itemProgress[i] = ItemProgress{
+			ID:          phase.ID,
+			Description: phase.Description,
+			Total:       phase.Total,
+			Completed:   0,
+		}
+		p.itemIndex[phase.ID] = i
+		total += phase.Total
+	}
+
+	p.progress = WorkflowProgress{
+		Total:     total,
+		Completed: 0,
+		Items:     itemProgress,
+	}
+}
+
+// SetItemTotal updates the total for a specific item (useful when total is unknown at start).
+func (p *ProgressTracker) SetItemTotal(itemID int, total int) {
+	if idx, ok := p.itemIndex[itemID]; ok {
+		oldTotal := p.progress.Items[idx].Total
+		p.progress.Items[idx].Total = total
+		p.progress.Total += (total - oldTotal)
+	}
 }
 
 // InitializeWithSeasons sets up per-season progress tracking.
 // Can be called after RegisterQueryHandler to update progress state once seasons are known.
 func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo) {
 	total := 0
-	seasonProgress := make([]SeasonProgress, len(seasons))
+	itemProgress := make([]ItemProgress, len(seasons))
 
 	for i, season := range seasons {
 		count := countDownloadTasksForSeason(season)
-		seasonProgress[i] = SeasonProgress{
-			StartYear: season.StartYear,
-			Total:     count,
-			Completed: 0,
+		itemProgress[i] = ItemProgress{
+			ID:          season.StartYear,
+			Description: season.Label(),
+			Total:       count,
+			Completed:   0,
 		}
-		p.seasonIndex[season.StartYear] = i
+		p.itemIndex[season.StartYear] = i
 		total += count
 	}
 
 	p.progress = WorkflowProgress{
 		Total:     total,
 		Completed: 0,
-		Seasons:   seasonProgress,
+		Items:     itemProgress,
 	}
 }
 
-// SetFutureSeason associates a future index with a season year for tracking.
-func (p *ProgressTracker) SetFutureSeason(futureIndex int, startYear int) {
-	p.futureToYear[futureIndex] = startYear
+// SetFutureItem associates a future index with an item ID for tracking.
+func (p *ProgressTracker) SetFutureItem(futureIndex int, itemID int) {
+	p.futureToID[futureIndex] = itemID
 }
 
-// IncrementSeason increments the completed count for a specific season.
-func (p *ProgressTracker) IncrementSeason(startYear int) {
+// IncrementItem increments the completed count for a specific item.
+func (p *ProgressTracker) IncrementItem(itemID int) {
 	p.progress.Completed++
-	if idx, ok := p.seasonIndex[startYear]; ok {
-		p.progress.Seasons[idx].Completed++
+	if idx, ok := p.itemIndex[itemID]; ok {
+		p.progress.Items[idx].Completed++
 	}
 }
 
-// MarkSeasonStarted marks a season as started (child workflow spawned).
-func (p *ProgressTracker) MarkSeasonStarted(startYear int) {
-	if idx, ok := p.seasonIndex[startYear]; ok {
-		p.progress.Seasons[idx].Started = true
-		p.progress.Seasons[idx].StartedAt = time.Now().UTC().Format(time.RFC3339)
+// MarkItemStarted marks an item as started (child workflow spawned).
+func (p *ProgressTracker) MarkItemStarted(itemID int) {
+	if idx, ok := p.itemIndex[itemID]; ok {
+		p.progress.Items[idx].Started = true
+		p.progress.Items[idx].StartedAt = time.Now().UTC().Format(time.RFC3339)
 	}
 }
 
-// MarkSeasonCompleted marks a season as completed with timestamp.
-func (p *ProgressTracker) MarkSeasonCompleted(startYear int) {
-	if idx, ok := p.seasonIndex[startYear]; ok {
-		p.progress.Seasons[idx].CompletedAt = time.Now().UTC().Format(time.RFC3339)
+// MarkItemCompleted marks an item as completed with timestamp.
+func (p *ProgressTracker) MarkItemCompleted(itemID int) {
+	if idx, ok := p.itemIndex[itemID]; ok {
+		p.progress.Items[idx].CompletedAt = time.Now().UTC().Format(time.RFC3339)
 	}
 }
 
@@ -129,12 +180,12 @@ func (p *ProgressTracker) RegisterQueryHandler(ctx workflow.Context) error {
 // WaitAll waits for all futures, updating progress as each completes.
 // Returns the first error encountered, but continues tracking progress for all futures.
 func (p *ProgressTracker) WaitAll(ctx workflow.Context, futures []workflow.Future) error {
-	return p.WaitAllForSeason(ctx, futures, 0)
+	return p.WaitAllForItem(ctx, futures, 0)
 }
 
-// WaitAllForSeason waits for all futures, updating per-season progress.
-// If startYear is 0, only updates the total completed count.
-func (p *ProgressTracker) WaitAllForSeason(ctx workflow.Context, futures []workflow.Future, startYear int) error {
+// WaitAllForItem waits for all futures, updating per-item progress.
+// If itemID is 0, only updates the total completed count.
+func (p *ProgressTracker) WaitAllForItem(ctx workflow.Context, futures []workflow.Future, itemID int) error {
 	if len(futures) == 0 {
 		return nil
 	}
@@ -148,8 +199,8 @@ func (p *ProgressTracker) WaitAllForSeason(ctx workflow.Context, futures []workf
 			if err := f.Get(ctx, nil); err != nil && firstErr == nil {
 				firstErr = err
 			}
-			if startYear != 0 {
-				p.IncrementSeason(startYear)
+			if itemID != 0 {
+				p.IncrementItem(itemID)
 			} else {
 				p.progress.Completed++
 			}
@@ -166,9 +217,9 @@ func (p *ProgressTracker) WaitAllForSeason(ctx workflow.Context, futures []workf
 	return nil
 }
 
-// WaitAllWithSeasons waits for all futures, updating per-season progress based on the futureSeasons slice.
-// futureSeasons[i] contains the startYear for futures[i].
-func (p *ProgressTracker) WaitAllWithSeasons(ctx workflow.Context, futures []workflow.Future, futureSeasons []int) error {
+// WaitAllWithItems waits for all futures, updating per-item progress based on the futureItems slice.
+// futureItems[i] contains the itemID for futures[i].
+func (p *ProgressTracker) WaitAllWithItems(ctx workflow.Context, futures []workflow.Future, futureItems []int) error {
 	if len(futures) == 0 {
 		return nil
 	}
@@ -183,7 +234,7 @@ func (p *ProgressTracker) WaitAllWithSeasons(ctx workflow.Context, futures []wor
 			if err := f.Get(ctx, nil); err != nil && firstErr == nil {
 				firstErr = err
 			}
-			p.IncrementSeason(futureSeasons[idx])
+			p.IncrementItem(futureItems[idx])
 		})
 	}
 

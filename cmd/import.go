@@ -22,6 +22,7 @@ func cmdImport() *cobra.Command {
 		Short: "Import data into the database",
 		Long:  `Trigger import workflows via GraphQL API and monitor until completion.`,
 	}
+	config.InitAPIServerAddrFlag(cmd.PersistentFlags())
 	cmd.AddCommand(cmdImportPlayers())
 	return cmd
 }

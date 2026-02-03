@@ -315,29 +315,30 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 		Message:   ptrStringIfNotEmpty(progress.Message),
 	}
 
-	if len(progress.Seasons) > 0 {
-		result.Seasons = make([]*model.SeasonProgress, len(progress.Seasons))
+	if len(progress.Items) > 0 {
+		result.Items = make([]*model.ProgressItem, len(progress.Items))
 
-		// Identify seasons that need child workflow queries
+		// Identify items that need child workflow queries
 		type childQuery struct {
-			index     int
-			startYear int
+			index  int
+			itemID int
 		}
 		var queries []childQuery
 
-		for i, s := range progress.Seasons {
-			result.Seasons[i] = &model.SeasonProgress{
-				StartYear:   s.StartYear,
-				Total:       s.Total,
-				Completed:   s.Completed,
-				Started:     s.Started,
-				StartedAt:   ptrStringIfNotEmpty(s.StartedAt),
-				CompletedAt: ptrStringIfNotEmpty(s.CompletedAt),
+		for i, item := range progress.Items {
+			result.Items[i] = &model.ProgressItem{
+				ID:          item.ID,
+				Description: ptrStringIfNotEmpty(item.Description),
+				Total:       item.Total,
+				Completed:   item.Completed,
+				Started:     item.Started,
+				StartedAt:   ptrStringIfNotEmpty(item.StartedAt),
+				CompletedAt: ptrStringIfNotEmpty(item.CompletedAt),
 			}
 
-			// Mark started but incomplete seasons for parallel querying
-			if s.Started && s.Completed < s.Total {
-				queries = append(queries, childQuery{index: i, startYear: s.StartYear})
+			// Mark started but incomplete items for parallel querying
+			if item.Started && item.Completed < item.Total {
+				queries = append(queries, childQuery{index: i, itemID: item.ID})
 			}
 		}
 
@@ -350,20 +351,20 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 			results := make(chan childResult, len(queries))
 
 			for _, q := range queries {
-				go func(idx, year int) {
+				go func(idx, id int) {
 					results <- childResult{
 						index:    idx,
-						progress: r.queryChildSeasonProgress(ctx, year),
+						progress: r.queryChildItemProgress(ctx, id),
 					}
-				}(q.index, q.startYear)
+				}(q.index, q.itemID)
 			}
 
 			// Collect results
 			for range queries {
 				cr := <-results
-				if cr.progress != nil && cr.progress.Completed > result.Seasons[cr.index].Completed {
-					diff := cr.progress.Completed - result.Seasons[cr.index].Completed
-					result.Seasons[cr.index].Completed = cr.progress.Completed
+				if cr.progress != nil && cr.progress.Completed > result.Items[cr.index].Completed {
+					diff := cr.progress.Completed - result.Items[cr.index].Completed
+					result.Items[cr.index].Completed = cr.progress.Completed
 					result.Completed += diff
 				}
 			}
@@ -373,13 +374,14 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 	return result, nil
 }
 
-// queryChildSeasonProgress queries a child season workflow for its progress.
+// queryChildItemProgress queries a child workflow for its progress.
+// For season-based workflows, itemID is the startYear.
 // Returns nil if the child workflow doesn't exist or can't be queried.
-func (r *Resolver) queryChildSeasonProgress(ctx context.Context, startYear int) *worker.WorkflowProgress {
+func (r *Resolver) queryChildItemProgress(ctx context.Context, itemID int) *worker.WorkflowProgress {
 	childCtx, cancel := context.WithTimeout(ctx, config.DefaultChildWorkflowTimeout)
 	defer cancel()
 
-	childWorkflowID := worker.WorkflowIDDownloadSeason(startYear)
+	childWorkflowID := worker.WorkflowIDDownloadSeason(itemID)
 	response, err := r.TemporalClient.QueryWorkflow(childCtx, childWorkflowID, "", worker.ProgressQueryName)
 	if err != nil {
 		return nil

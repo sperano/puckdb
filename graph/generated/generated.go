@@ -289,6 +289,16 @@ type ComplexityRoot struct {
 		Stats  func(childComplexity int) int
 	}
 
+	ProgressItem struct {
+		Completed   func(childComplexity int) int
+		CompletedAt func(childComplexity int) int
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Started     func(childComplexity int) int
+		StartedAt   func(childComplexity int) int
+		Total       func(childComplexity int) int
+	}
+
 	Query struct {
 		BuildNumber                  func(childComplexity int) int
 		CurrentFantasyGameKey        func(childComplexity int) int
@@ -323,15 +333,6 @@ type ComplexityRoot struct {
 		Start   func(childComplexity int) int
 	}
 
-	SeasonProgress struct {
-		Completed   func(childComplexity int) int
-		CompletedAt func(childComplexity int) int
-		StartYear   func(childComplexity int) int
-		Started     func(childComplexity int) int
-		StartedAt   func(childComplexity int) int
-		Total       func(childComplexity int) int
-	}
-
 	Team struct {
 		DraftPosition         func(childComplexity int) int
 		HasDraftGrade         func(childComplexity int) int
@@ -345,8 +346,8 @@ type ComplexityRoot struct {
 
 	WorkflowProgress struct {
 		Completed func(childComplexity int) int
+		Items     func(childComplexity int) int
 		Message   func(childComplexity int) int
-		Seasons   func(childComplexity int) int
 		Total     func(childComplexity int) int
 	}
 
@@ -1744,6 +1745,55 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.PlayerWithStats.Stats(childComplexity), true
 
+	case "ProgressItem.completed":
+		if e.complexity.ProgressItem.Completed == nil {
+			break
+		}
+
+		return e.complexity.ProgressItem.Completed(childComplexity), true
+
+	case "ProgressItem.completedAt":
+		if e.complexity.ProgressItem.CompletedAt == nil {
+			break
+		}
+
+		return e.complexity.ProgressItem.CompletedAt(childComplexity), true
+
+	case "ProgressItem.description":
+		if e.complexity.ProgressItem.Description == nil {
+			break
+		}
+
+		return e.complexity.ProgressItem.Description(childComplexity), true
+
+	case "ProgressItem.id":
+		if e.complexity.ProgressItem.ID == nil {
+			break
+		}
+
+		return e.complexity.ProgressItem.ID(childComplexity), true
+
+	case "ProgressItem.started":
+		if e.complexity.ProgressItem.Started == nil {
+			break
+		}
+
+		return e.complexity.ProgressItem.Started(childComplexity), true
+
+	case "ProgressItem.startedAt":
+		if e.complexity.ProgressItem.StartedAt == nil {
+			break
+		}
+
+		return e.complexity.ProgressItem.StartedAt(childComplexity), true
+
+	case "ProgressItem.total":
+		if e.complexity.ProgressItem.Total == nil {
+			break
+		}
+
+		return e.complexity.ProgressItem.Total(childComplexity), true
+
 	case "Query.buildNumber":
 		if e.complexity.Query.BuildNumber == nil {
 			break
@@ -1929,48 +1979,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Season.Start(childComplexity), true
 
-	case "SeasonProgress.completed":
-		if e.complexity.SeasonProgress.Completed == nil {
-			break
-		}
-
-		return e.complexity.SeasonProgress.Completed(childComplexity), true
-
-	case "SeasonProgress.completedAt":
-		if e.complexity.SeasonProgress.CompletedAt == nil {
-			break
-		}
-
-		return e.complexity.SeasonProgress.CompletedAt(childComplexity), true
-
-	case "SeasonProgress.startYear":
-		if e.complexity.SeasonProgress.StartYear == nil {
-			break
-		}
-
-		return e.complexity.SeasonProgress.StartYear(childComplexity), true
-
-	case "SeasonProgress.started":
-		if e.complexity.SeasonProgress.Started == nil {
-			break
-		}
-
-		return e.complexity.SeasonProgress.Started(childComplexity), true
-
-	case "SeasonProgress.startedAt":
-		if e.complexity.SeasonProgress.StartedAt == nil {
-			break
-		}
-
-		return e.complexity.SeasonProgress.StartedAt(childComplexity), true
-
-	case "SeasonProgress.total":
-		if e.complexity.SeasonProgress.Total == nil {
-			break
-		}
-
-		return e.complexity.SeasonProgress.Total(childComplexity), true
-
 	case "Team.DraftPosition":
 		if e.complexity.Team.DraftPosition == nil {
 			break
@@ -2034,19 +2042,19 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.WorkflowProgress.Completed(childComplexity), true
 
+	case "WorkflowProgress.items":
+		if e.complexity.WorkflowProgress.Items == nil {
+			break
+		}
+
+		return e.complexity.WorkflowProgress.Items(childComplexity), true
+
 	case "WorkflowProgress.message":
 		if e.complexity.WorkflowProgress.Message == nil {
 			break
 		}
 
 		return e.complexity.WorkflowProgress.Message(childComplexity), true
-
-	case "WorkflowProgress.seasons":
-		if e.complexity.WorkflowProgress.Seasons == nil {
-			break
-		}
-
-		return e.complexity.WorkflowProgress.Seasons(childComplexity), true
 
 	case "WorkflowProgress.total":
 		if e.complexity.WorkflowProgress.Total == nil {
@@ -2461,8 +2469,9 @@ type WorkflowResult {
 	failureReason: String
 }
 
-type SeasonProgress {
-	startYear: Int!
+type ProgressItem {
+	id: Int!
+	description: String
 	total: Int!
 	completed: Int!
 	started: Boolean!
@@ -2474,7 +2483,7 @@ type WorkflowProgress {
 	total: Int!
 	completed: Int!
 	message: String
-	seasons: [SeasonProgress!]
+	items: [ProgressItem!]
 }
 
 type Query {
@@ -11518,6 +11527,305 @@ func (ec *executionContext) fieldContext_PlayerWithStats_Stats(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _ProgressItem_id(ctx context.Context, field graphql.CollectedField, obj *model.ProgressItem) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProgressItem_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProgressItem_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgressItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgressItem_description(ctx context.Context, field graphql.CollectedField, obj *model.ProgressItem) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProgressItem_description(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Description, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProgressItem_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgressItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgressItem_total(ctx context.Context, field graphql.CollectedField, obj *model.ProgressItem) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProgressItem_total(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Total, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProgressItem_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgressItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgressItem_completed(ctx context.Context, field graphql.CollectedField, obj *model.ProgressItem) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProgressItem_completed(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Completed, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProgressItem_completed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgressItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgressItem_started(ctx context.Context, field graphql.CollectedField, obj *model.ProgressItem) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProgressItem_started(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Started, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProgressItem_started(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgressItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgressItem_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.ProgressItem) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProgressItem_startedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.StartedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProgressItem_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgressItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgressItem_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.ProgressItem) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProgressItem_completedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CompletedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProgressItem_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgressItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_buildNumber(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_buildNumber(ctx, field)
 	if err != nil {
@@ -11948,8 +12256,8 @@ func (ec *executionContext) fieldContext_Query_downloadSeasonsProgress(_ context
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
 			case "message":
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
-			case "seasons":
-				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
+			case "items":
+				return ec.fieldContext_WorkflowProgress_items(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -12049,8 +12357,8 @@ func (ec *executionContext) fieldContext_Query_downloadYahooPlayersProgress(_ co
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
 			case "message":
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
-			case "seasons":
-				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
+			case "items":
+				return ec.fieldContext_WorkflowProgress_items(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -12150,8 +12458,8 @@ func (ec *executionContext) fieldContext_Query_downloadPlayersProgress(_ context
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
 			case "message":
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
-			case "seasons":
-				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
+			case "items":
+				return ec.fieldContext_WorkflowProgress_items(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -12251,8 +12559,8 @@ func (ec *executionContext) fieldContext_Query_importPlayersProgress(_ context.C
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
 			case "message":
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
-			case "seasons":
-				return ec.fieldContext_WorkflowProgress_seasons(ctx, field)
+			case "items":
+				return ec.fieldContext_WorkflowProgress_items(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -12979,264 +13287,6 @@ func (ec *executionContext) fieldContext_Season_leagues(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _SeasonProgress_startYear(ctx context.Context, field graphql.CollectedField, obj *model.SeasonProgress) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_SeasonProgress_startYear(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.StartYear, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_SeasonProgress_startYear(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "SeasonProgress",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _SeasonProgress_total(ctx context.Context, field graphql.CollectedField, obj *model.SeasonProgress) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_SeasonProgress_total(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Total, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_SeasonProgress_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "SeasonProgress",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _SeasonProgress_completed(ctx context.Context, field graphql.CollectedField, obj *model.SeasonProgress) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_SeasonProgress_completed(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Completed, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_SeasonProgress_completed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "SeasonProgress",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _SeasonProgress_started(ctx context.Context, field graphql.CollectedField, obj *model.SeasonProgress) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_SeasonProgress_started(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Started, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_SeasonProgress_started(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "SeasonProgress",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _SeasonProgress_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.SeasonProgress) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_SeasonProgress_startedAt(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.StartedAt, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*string)
-	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_SeasonProgress_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "SeasonProgress",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _SeasonProgress_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.SeasonProgress) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_SeasonProgress_completedAt(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.CompletedAt, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*string)
-	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_SeasonProgress_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "SeasonProgress",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Team_ID(ctx context.Context, field graphql.CollectedField, obj *model.Team) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Team_ID(ctx, field)
 	if err != nil {
@@ -13730,8 +13780,8 @@ func (ec *executionContext) fieldContext_WorkflowProgress_message(_ context.Cont
 	return fc, nil
 }
 
-func (ec *executionContext) _WorkflowProgress_seasons(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowProgress) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_WorkflowProgress_seasons(ctx, field)
+func (ec *executionContext) _WorkflowProgress_items(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_WorkflowProgress_items(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -13744,7 +13794,7 @@ func (ec *executionContext) _WorkflowProgress_seasons(ctx context.Context, field
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Seasons, nil
+		return obj.Items, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -13753,12 +13803,12 @@ func (ec *executionContext) _WorkflowProgress_seasons(ctx context.Context, field
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.([]*model.SeasonProgress)
+	res := resTmp.([]*model.ProgressItem)
 	fc.Result = res
-	return ec.marshalOSeasonProgress2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonProgressᚄ(ctx, field.Selections, res)
+	return ec.marshalOProgressItem2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressItemᚄ(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_WorkflowProgress_seasons(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_WorkflowProgress_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "WorkflowProgress",
 		Field:      field,
@@ -13766,20 +13816,22 @@ func (ec *executionContext) fieldContext_WorkflowProgress_seasons(_ context.Cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "startYear":
-				return ec.fieldContext_SeasonProgress_startYear(ctx, field)
+			case "id":
+				return ec.fieldContext_ProgressItem_id(ctx, field)
+			case "description":
+				return ec.fieldContext_ProgressItem_description(ctx, field)
 			case "total":
-				return ec.fieldContext_SeasonProgress_total(ctx, field)
+				return ec.fieldContext_ProgressItem_total(ctx, field)
 			case "completed":
-				return ec.fieldContext_SeasonProgress_completed(ctx, field)
+				return ec.fieldContext_ProgressItem_completed(ctx, field)
 			case "started":
-				return ec.fieldContext_SeasonProgress_started(ctx, field)
+				return ec.fieldContext_ProgressItem_started(ctx, field)
 			case "startedAt":
-				return ec.fieldContext_SeasonProgress_startedAt(ctx, field)
+				return ec.fieldContext_ProgressItem_startedAt(ctx, field)
 			case "completedAt":
-				return ec.fieldContext_SeasonProgress_completedAt(ctx, field)
+				return ec.fieldContext_ProgressItem_completedAt(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type SeasonProgress", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type ProgressItem", field.Name)
 		},
 	}
 	return fc, nil
@@ -17359,6 +17411,66 @@ func (ec *executionContext) _PlayerWithStats(ctx context.Context, sel ast.Select
 	return out
 }
 
+var progressItemImplementors = []string{"ProgressItem"}
+
+func (ec *executionContext) _ProgressItem(ctx context.Context, sel ast.SelectionSet, obj *model.ProgressItem) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, progressItemImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProgressItem")
+		case "id":
+			out.Values[i] = ec._ProgressItem_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._ProgressItem_description(ctx, field, obj)
+		case "total":
+			out.Values[i] = ec._ProgressItem_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completed":
+			out.Values[i] = ec._ProgressItem_completed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "started":
+			out.Values[i] = ec._ProgressItem_started(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startedAt":
+			out.Values[i] = ec._ProgressItem_startedAt(ctx, field, obj)
+		case "completedAt":
+			out.Values[i] = ec._ProgressItem_completedAt(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var queryImplementors = []string{"Query"}
 
 func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -17853,64 +17965,6 @@ func (ec *executionContext) _Season(ctx context.Context, sel ast.SelectionSet, o
 	return out
 }
 
-var seasonProgressImplementors = []string{"SeasonProgress"}
-
-func (ec *executionContext) _SeasonProgress(ctx context.Context, sel ast.SelectionSet, obj *model.SeasonProgress) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, seasonProgressImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("SeasonProgress")
-		case "startYear":
-			out.Values[i] = ec._SeasonProgress_startYear(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "total":
-			out.Values[i] = ec._SeasonProgress_total(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "completed":
-			out.Values[i] = ec._SeasonProgress_completed(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "started":
-			out.Values[i] = ec._SeasonProgress_started(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "startedAt":
-			out.Values[i] = ec._SeasonProgress_startedAt(ctx, field, obj)
-		case "completedAt":
-			out.Values[i] = ec._SeasonProgress_completedAt(ctx, field, obj)
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
 var teamImplementors = []string{"Team"}
 
 func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj *model.Team) graphql.Marshaler {
@@ -18008,8 +18062,8 @@ func (ec *executionContext) _WorkflowProgress(ctx context.Context, sel ast.Selec
 			}
 		case "message":
 			out.Values[i] = ec._WorkflowProgress_message(ctx, field, obj)
-		case "seasons":
-			out.Values[i] = ec._WorkflowProgress_seasons(ctx, field, obj)
+		case "items":
+			out.Values[i] = ec._WorkflowProgress_items(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -18752,14 +18806,14 @@ func (ec *executionContext) marshalNPlayerStats2ᚖgithubᚗcomᚋsperanoᚋpuck
 	return ec._PlayerStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSeasonProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonProgress(ctx context.Context, sel ast.SelectionSet, v *model.SeasonProgress) graphql.Marshaler {
+func (ec *executionContext) marshalNProgressItem2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressItem(ctx context.Context, sel ast.SelectionSet, v *model.ProgressItem) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}
-	return ec._SeasonProgress(ctx, sel, v)
+	return ec._ProgressItem(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -19220,7 +19274,7 @@ func (ec *executionContext) marshalONHLTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdb�
 	return ec._NHLTeam(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOSeasonProgress2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonProgressᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SeasonProgress) graphql.Marshaler {
+func (ec *executionContext) marshalOProgressItem2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ProgressItem) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -19247,7 +19301,7 @@ func (ec *executionContext) marshalOSeasonProgress2ᚕᚖgithubᚗcomᚋsperano�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSeasonProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonProgress(ctx, sel, v[i])
+			ret[i] = ec.marshalNProgressItem2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressItem(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)

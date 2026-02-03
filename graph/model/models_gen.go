@@ -243,6 +243,16 @@ type PlayerWithStats struct {
 	Stats  *PlayerStats `json:"Stats"`
 }
 
+type ProgressItem struct {
+	ID          int     `json:"id"`
+	Description *string `json:"description,omitempty"`
+	Total       int     `json:"total"`
+	Completed   int     `json:"completed"`
+	Started     bool    `json:"started"`
+	StartedAt   *string `json:"startedAt,omitempty"`
+	CompletedAt *string `json:"completedAt,omitempty"`
+}
+
 type Query struct {
 }
 
@@ -263,15 +273,6 @@ type Season struct {
 	Leagues []*League `json:"leagues"`
 }
 
-type SeasonProgress struct {
-	StartYear   int     `json:"startYear"`
-	Total       int     `json:"total"`
-	Completed   int     `json:"completed"`
-	Started     bool    `json:"started"`
-	StartedAt   *string `json:"startedAt,omitempty"`
-	CompletedAt *string `json:"completedAt,omitempty"`
-}
-
 type Team struct {
 	ID                    int      `json:"ID"`
 	Key                   string   `json:"Key"`
@@ -284,10 +285,10 @@ type Team struct {
 }
 
 type WorkflowProgress struct {
-	Total     int               `json:"total"`
-	Completed int               `json:"completed"`
-	Message   *string           `json:"message,omitempty"`
-	Seasons   []*SeasonProgress `json:"seasons,omitempty"`
+	Total     int             `json:"total"`
+	Completed int             `json:"completed"`
+	Message   *string         `json:"message,omitempty"`
+	Items     []*ProgressItem `json:"items,omitempty"`
 }
 
 type WorkflowResult struct {

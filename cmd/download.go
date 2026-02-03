@@ -363,11 +363,16 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
 	}
 
-	// Sort seasons by startYear
-	seasons := make([]*model.SeasonProgress, len(status.Progress.Seasons))
-	copy(seasons, status.Progress.Seasons)
-	sort.Slice(seasons, func(i, j int) bool {
-		return seasons[i].StartYear < seasons[j].StartYear
+	// Detect display mode: phase-based vs season-based
+	if isPhaseBasedProgress(status.Progress.Items) {
+		return formatPhaseProgress(status.Progress, lines)
+	}
+
+	// Sort items by ID (for season-based, ID is startYear)
+	items := make([]*model.ProgressItem, len(status.Progress.Items))
+	copy(items, status.Progress.Items)
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].ID < items[j].ID
 	})
 
 	// Collect active seasons (> 0% and < 100%)
@@ -376,23 +381,27 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		completed int
 		total     int
 	}
-	var activeSeasons []progressLine
+	var activeItems []progressLine
 
-	for _, season := range seasons {
-		if season.Total > 0 {
-			pct := float64(season.Completed) / float64(season.Total) * 100
+	for _, item := range items {
+		if item.Total > 0 {
+			pct := float64(item.Completed) / float64(item.Total) * 100
 			if pct > 0 && pct < 100 {
-				activeSeasons = append(activeSeasons, progressLine{
-					label:     fmt.Sprintf("%d", season.StartYear),
-					completed: season.Completed,
-					total:     season.Total,
+				label := fmt.Sprintf("%d", item.ID)
+				if item.Description != nil && *item.Description != "" {
+					label = *item.Description
+				}
+				activeItems = append(activeItems, progressLine{
+					label:     label,
+					completed: item.Completed,
+					total:     item.Total,
 				})
 			}
 		}
 	}
 
 	// Add total line
-	allLines := append(activeSeasons, progressLine{
+	allLines := append(activeItems, progressLine{
 		label:     "Total",
 		completed: status.Progress.Completed,
 		total:     status.Progress.Total,
@@ -422,6 +431,51 @@ func formatStatusMessage(status *WorkflowStatus) string {
 			maxCountWidth, countStr,
 			bar,
 			pctTrunc))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// isPhaseBasedProgress detects if the progress items represent phases (vs seasons).
+// Phases have non-numeric descriptions like "Load Yahoo pool", "Import players".
+func isPhaseBasedProgress(items []*model.ProgressItem) bool {
+	if len(items) == 0 {
+		return false
+	}
+	// Check first item's description - if it's not a year-like number, it's phase-based
+	first := items[0]
+	if first.Description != nil && *first.Description != "" {
+		// If description doesn't look like a season (e.g., "2024-25"), it's a phase
+		if len(*first.Description) > 0 && (*first.Description)[0] < '0' || (*first.Description)[0] > '9' {
+			return true
+		}
+	}
+	return false
+}
+
+// formatPhaseProgress formats progress for phase-based workflows with checkmarks.
+func formatPhaseProgress(progress *model.WorkflowProgress, existingLines []string) string {
+	lines := existingLines
+
+	for _, item := range progress.Items {
+		description := fmt.Sprintf("Phase %d", item.ID)
+		if item.Description != nil && *item.Description != "" {
+			description = *item.Description
+		}
+
+		if item.Completed == item.Total && item.Total > 0 {
+			// Completed: show checkmark with count
+			lines = append(lines, fmt.Sprintf("✓ %s (%d)", description, item.Total))
+		} else if item.Started {
+			// In progress: show progress bar
+			pct := float64(item.Completed) / float64(item.Total) * 100
+			bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
+			lines = append(lines, fmt.Sprintf("  %s: %d/%d %s %d%%",
+				description, item.Completed, item.Total, bar, int(pct)))
+		} else {
+			// Pending: show as waiting
+			lines = append(lines, fmt.Sprintf("  %s (pending)", description))
+		}
 	}
 
 	return strings.Join(lines, "\n")

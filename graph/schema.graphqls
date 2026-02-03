@@ -283,8 +283,9 @@ type WorkflowResult {
 	failureReason: String
 }
 
-type SeasonProgress {
-	startYear: Int!
+type ProgressItem {
+	id: Int!
+	description: String
 	total: Int!
 	completed: Int!
 	started: Boolean!
@@ -296,7 +297,7 @@ type WorkflowProgress {
 	total: Int!
 	completed: Int!
 	message: String
-	seasons: [SeasonProgress!]
+	items: [ProgressItem!]
 }
 
 type Query {
