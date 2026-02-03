@@ -324,6 +324,22 @@ type WorkflowProgress {
 	items: [ProgressItem!]
 }
 
+type UnmatchedYahooPlayer {
+	yahooID: Int!
+	firstName: String!
+	lastName: String!
+	team: String!
+	jerseyNumber: Int!
+}
+
+type ImportPlayersResultData {
+	totalPlayers: Int!
+	importedPlayers: Int!
+	matchedWithYahoo: Int!
+	unmatchedYahoo: [UnmatchedYahooPlayer!]!
+	errors: [String!]!
+}
+
 type Query {
 	buildNumber: Int!
 
@@ -345,6 +361,7 @@ type Query {
 
 	importPlayersResult: WorkflowResult!
 	importPlayersProgress: WorkflowProgress
+	importPlayersResultData: ImportPlayersResultData
 
 	players(filter: PlayersFilter): [Player!]!
 

@@ -253,6 +253,35 @@ func (r *Resolver) importPlayersProgress(ctx context.Context) (*model.WorkflowPr
 	return r.queryWorkflowProgress(ctx, worker.WorkflowIDImportPlayers)
 }
 
+func (r *Resolver) importPlayersResultData(ctx context.Context) (*model.ImportPlayersResultData, error) {
+	run := r.TemporalClient.GetWorkflow(ctx, worker.WorkflowIDImportPlayers, "")
+
+	var result worker.ImportPlayersResult
+	if err := run.Get(ctx, &result); err != nil {
+		return nil, err
+	}
+
+	// Convert worker result to GraphQL model
+	unmatchedYahoo := make([]*model.UnmatchedYahooPlayer, len(result.UnmatchedYahoo))
+	for i, p := range result.UnmatchedYahoo {
+		unmatchedYahoo[i] = &model.UnmatchedYahooPlayer{
+			YahooID:      p.YahooID,
+			FirstName:    p.FirstName,
+			LastName:     p.LastName,
+			Team:         p.Team,
+			JerseyNumber: p.JerseyNumber,
+		}
+	}
+
+	return &model.ImportPlayersResultData{
+		TotalPlayers:     result.TotalPlayers,
+		ImportedPlayers:  result.ImportedPlayers,
+		MatchedWithYahoo: result.MatchedWithYahoo,
+		UnmatchedYahoo:   unmatchedYahoo,
+		Errors:           result.Errors,
+	}, nil
+}
+
 func (r *Resolver) downloadEverythingResult(ctx context.Context) (*model.WorkflowResult, error) {
 	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadEverything)
 }

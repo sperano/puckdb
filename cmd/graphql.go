@@ -474,3 +474,48 @@ func (c *GraphQLClient) CancelImportPlayers(ctx context.Context) (bool, error) {
 
 	return result.CancelImportPlayers, nil
 }
+
+// ImportPlayersResultData holds the result data from the import workflow
+type ImportPlayersResultData struct {
+	TotalPlayers     int                     `json:"totalPlayers"`
+	ImportedPlayers  int                     `json:"importedPlayers"`
+	MatchedWithYahoo int                     `json:"matchedWithYahoo"`
+	UnmatchedYahoo   []UnmatchedYahooPlayer  `json:"unmatchedYahoo"`
+	Errors           []string                `json:"errors"`
+}
+
+// UnmatchedYahooPlayer represents a Yahoo player that couldn't be matched to an NHL player
+type UnmatchedYahooPlayer struct {
+	YahooID      int    `json:"yahooID"`
+	FirstName    string `json:"firstName"`
+	LastName     string `json:"lastName"`
+	Team         string `json:"team"`
+	JerseyNumber int    `json:"jerseyNumber"`
+}
+
+// GetImportPlayersResultData queries the import players workflow result data
+func (c *GraphQLClient) GetImportPlayersResultData(ctx context.Context) (*ImportPlayersResultData, error) {
+	const query = `query {
+		importPlayersResultData {
+			totalPlayers
+			importedPlayers
+			matchedWithYahoo
+			unmatchedYahoo { yahooID firstName lastName team jerseyNumber }
+			errors
+		}
+	}`
+
+	resp, err := c.execute(ctx, query, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		ImportPlayersResultData *ImportPlayersResultData `json:"importPlayersResultData"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.ImportPlayersResultData, nil
+}

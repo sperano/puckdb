@@ -179,6 +179,11 @@ func (r *queryResolver) ImportPlayersProgress(ctx context.Context) (*model.Workf
 	return r.Resolver.importPlayersProgress(ctx)
 }
 
+// ImportPlayersResultData is the resolver for the importPlayersResultData field.
+func (r *queryResolver) ImportPlayersResultData(ctx context.Context) (*model.ImportPlayersResultData, error) {
+	return r.Resolver.importPlayersResultData(ctx)
+}
+
 // Players is the resolver for the players field.
 func (r *queryResolver) Players(ctx context.Context, filter *model.PlayersFilter) ([]*model.Player, error) {
 	return listPlayers(ctx, database.QueriesFromContext(ctx), filter)

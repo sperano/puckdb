@@ -42,7 +42,7 @@ type ImportPlayersResult struct {
 
 // ImportPlayersWorkflow imports player data from cached PlayerLanding files into the database.
 // It matches NHL players with Yahoo player IDs where possible.
-func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) error {
+func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*ImportPlayersResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Parse configuration
@@ -69,7 +69,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 	tracker := NewProgressTrackerWithPhases(phases)
 	tracker.SetMessage("Starting import")
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
-		return err
+		return nil, err
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
@@ -91,7 +91,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 	var yahooPlayerIDs []int
 	if err := workflow.ExecuteActivity(ctx, ListYahooPlayerFilesActivity).Get(ctx, &yahooPlayerIDs); err != nil {
 		logger.Error("Failed to list Yahoo player files", "error", err)
-		return err
+		return nil, err
 	}
 	logger.Info("Listed Yahoo player files", "count", len(yahooPlayerIDs))
 
@@ -102,7 +102,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 	var allYahooPlayers []cache.YahooPlayer
 	if err := runYahooParseBatches(ctx, tracker, PhaseLoadYahooPool, yahooPlayerIDs, batchSize, concurrency, &allYahooPlayers); err != nil {
 		logger.Error("Failed to parse Yahoo players", "error", err)
-		return err
+		return nil, err
 	}
 	logger.Info("Parsed Yahoo players", "count", len(allYahooPlayers))
 
@@ -110,7 +110,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 	tracker.SetMessage("Saving Yahoo pool to Redis")
 	if err := workflow.ExecuteActivity(ctx, SaveYahooPlayersToRedisActivity, allYahooPlayers).Get(ctx, nil); err != nil {
 		logger.Error("Failed to save Yahoo players to Redis", "error", err)
-		return err
+		return nil, err
 	}
 	logger.Info("Saved Yahoo pool to Redis", "size", len(allYahooPlayers))
 	tracker.MarkItemCompleted(PhaseLoadYahooPool)
@@ -123,7 +123,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 	var playerIDs []int64
 	if err := workflow.ExecuteActivity(ctx, ListPlayerLandingIDsActivity).Get(ctx, &playerIDs); err != nil {
 		logger.Error("Failed to list player IDs", "error", err)
-		return err
+		return nil, err
 	}
 	logger.Info("Found player files", "count", len(playerIDs))
 	tracker.IncrementItem(PhaseListFiles)
@@ -159,7 +159,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 	// Run batches with concurrency control - use main tracker for Phase 3
 	err := runImportBatches(ctx, tracker, PhaseImportPlayers, numBatches, concurrency, batchSize, len(playerIDs), startActivity, resultChan, &results)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Aggregate results
@@ -195,7 +195,13 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) erro
 		"unmatchedYahoo", len(unmatched),
 		"errors", len(allErrors))
 
-	return nil
+	return &ImportPlayersResult{
+		TotalPlayers:     len(playerIDs),
+		ImportedPlayers:  totalImported,
+		MatchedWithYahoo: totalMatched,
+		UnmatchedYahoo:   unmatched,
+		Errors:           allErrors,
+	}, nil
 }
 
 // runYahooParseBatches executes Yahoo player parsing in batches with concurrency control.

@@ -135,6 +135,14 @@ type ComplexityRoot struct {
 		UpdatedAt       func(childComplexity int) int
 	}
 
+	ImportPlayersResultData struct {
+		Errors           func(childComplexity int) int
+		ImportedPlayers  func(childComplexity int) int
+		MatchedWithYahoo func(childComplexity int) int
+		TotalPlayers     func(childComplexity int) int
+		UnmatchedYahoo   func(childComplexity int) int
+	}
+
 	League struct {
 		CreatedAt             func(childComplexity int) int
 		DraftStatus           func(childComplexity int) int
@@ -325,6 +333,7 @@ type ComplexityRoot struct {
 		DownloadYahooPlayersResult   func(childComplexity int) int
 		ImportPlayersProgress        func(childComplexity int) int
 		ImportPlayersResult          func(childComplexity int) int
+		ImportPlayersResultData      func(childComplexity int) int
 		NhlConferences               func(childComplexity int) int
 		NhlDivisions                 func(childComplexity int) int
 		NhlTeam                      func(childComplexity int, teamID int) int
@@ -358,6 +367,14 @@ type ComplexityRoot struct {
 		Manager               func(childComplexity int) int
 		Name                  func(childComplexity int) int
 		URL                   func(childComplexity int) int
+	}
+
+	UnmatchedYahooPlayer struct {
+		FirstName    func(childComplexity int) int
+		JerseyNumber func(childComplexity int) int
+		LastName     func(childComplexity int) int
+		Team         func(childComplexity int) int
+		YahooID      func(childComplexity int) int
 	}
 
 	WorkflowProgress struct {
@@ -412,6 +429,7 @@ type QueryResolver interface {
 	DownloadPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
 	ImportPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
 	ImportPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
+	ImportPlayersResultData(ctx context.Context) (*model.ImportPlayersResultData, error)
 	Players(ctx context.Context, filter *model.PlayersFilter) ([]*model.Player, error)
 }
 type SeasonResolver interface {
@@ -947,6 +965,41 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Game.UpdatedAt(childComplexity), true
+
+	case "ImportPlayersResultData.errors":
+		if e.complexity.ImportPlayersResultData.Errors == nil {
+			break
+		}
+
+		return e.complexity.ImportPlayersResultData.Errors(childComplexity), true
+
+	case "ImportPlayersResultData.importedPlayers":
+		if e.complexity.ImportPlayersResultData.ImportedPlayers == nil {
+			break
+		}
+
+		return e.complexity.ImportPlayersResultData.ImportedPlayers(childComplexity), true
+
+	case "ImportPlayersResultData.matchedWithYahoo":
+		if e.complexity.ImportPlayersResultData.MatchedWithYahoo == nil {
+			break
+		}
+
+		return e.complexity.ImportPlayersResultData.MatchedWithYahoo(childComplexity), true
+
+	case "ImportPlayersResultData.totalPlayers":
+		if e.complexity.ImportPlayersResultData.TotalPlayers == nil {
+			break
+		}
+
+		return e.complexity.ImportPlayersResultData.TotalPlayers(childComplexity), true
+
+	case "ImportPlayersResultData.unmatchedYahoo":
+		if e.complexity.ImportPlayersResultData.UnmatchedYahoo == nil {
+			break
+		}
+
+		return e.complexity.ImportPlayersResultData.UnmatchedYahoo(childComplexity), true
 
 	case "League.createdAt":
 		if e.complexity.League.CreatedAt == nil {
@@ -1986,6 +2039,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.ImportPlayersResult(childComplexity), true
 
+	case "Query.importPlayersResultData":
+		if e.complexity.Query.ImportPlayersResultData == nil {
+			break
+		}
+
+		return e.complexity.Query.ImportPlayersResultData(childComplexity), true
+
 	case "Query.nhlConferences":
 		if e.complexity.Query.NhlConferences == nil {
 			break
@@ -2168,6 +2228,41 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Team.URL(childComplexity), true
+
+	case "UnmatchedYahooPlayer.firstName":
+		if e.complexity.UnmatchedYahooPlayer.FirstName == nil {
+			break
+		}
+
+		return e.complexity.UnmatchedYahooPlayer.FirstName(childComplexity), true
+
+	case "UnmatchedYahooPlayer.jerseyNumber":
+		if e.complexity.UnmatchedYahooPlayer.JerseyNumber == nil {
+			break
+		}
+
+		return e.complexity.UnmatchedYahooPlayer.JerseyNumber(childComplexity), true
+
+	case "UnmatchedYahooPlayer.lastName":
+		if e.complexity.UnmatchedYahooPlayer.LastName == nil {
+			break
+		}
+
+		return e.complexity.UnmatchedYahooPlayer.LastName(childComplexity), true
+
+	case "UnmatchedYahooPlayer.team":
+		if e.complexity.UnmatchedYahooPlayer.Team == nil {
+			break
+		}
+
+		return e.complexity.UnmatchedYahooPlayer.Team(childComplexity), true
+
+	case "UnmatchedYahooPlayer.yahooID":
+		if e.complexity.UnmatchedYahooPlayer.YahooID == nil {
+			break
+		}
+
+		return e.complexity.UnmatchedYahooPlayer.YahooID(childComplexity), true
 
 	case "WorkflowProgress.completed":
 		if e.complexity.WorkflowProgress.Completed == nil {
@@ -2645,6 +2740,22 @@ type WorkflowProgress {
 	items: [ProgressItem!]
 }
 
+type UnmatchedYahooPlayer {
+	yahooID: Int!
+	firstName: String!
+	lastName: String!
+	team: String!
+	jerseyNumber: Int!
+}
+
+type ImportPlayersResultData {
+	totalPlayers: Int!
+	importedPlayers: Int!
+	matchedWithYahoo: Int!
+	unmatchedYahoo: [UnmatchedYahooPlayer!]!
+	errors: [String!]!
+}
+
 type Query {
 	buildNumber: Int!
 
@@ -2666,6 +2777,7 @@ type Query {
 
 	importPlayersResult: WorkflowResult!
 	importPlayersProgress: WorkflowProgress
+	importPlayersResultData: ImportPlayersResultData
 
 	players(filter: PlayersFilter): [Player!]!
 
@@ -6461,6 +6573,238 @@ func (ec *executionContext) fieldContext_Game_UpdatedAt(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ImportPlayersResultData_totalPlayers(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ImportPlayersResultData_totalPlayers(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalPlayers, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ImportPlayersResultData_totalPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ImportPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ImportPlayersResultData_importedPlayers(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ImportPlayersResultData_importedPlayers(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ImportedPlayers, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ImportPlayersResultData_importedPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ImportPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ImportPlayersResultData_matchedWithYahoo(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ImportPlayersResultData_matchedWithYahoo(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.MatchedWithYahoo, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ImportPlayersResultData_matchedWithYahoo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ImportPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ImportPlayersResultData_unmatchedYahoo(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ImportPlayersResultData_unmatchedYahoo(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UnmatchedYahoo, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.UnmatchedYahooPlayer)
+	fc.Result = res
+	return ec.marshalNUnmatchedYahooPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐUnmatchedYahooPlayerᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ImportPlayersResultData_unmatchedYahoo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ImportPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "yahooID":
+				return ec.fieldContext_UnmatchedYahooPlayer_yahooID(ctx, field)
+			case "firstName":
+				return ec.fieldContext_UnmatchedYahooPlayer_firstName(ctx, field)
+			case "lastName":
+				return ec.fieldContext_UnmatchedYahooPlayer_lastName(ctx, field)
+			case "team":
+				return ec.fieldContext_UnmatchedYahooPlayer_team(ctx, field)
+			case "jerseyNumber":
+				return ec.fieldContext_UnmatchedYahooPlayer_jerseyNumber(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type UnmatchedYahooPlayer", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ImportPlayersResultData_errors(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ImportPlayersResultData_errors(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Errors, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ImportPlayersResultData_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ImportPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -13397,6 +13741,59 @@ func (ec *executionContext) fieldContext_Query_importPlayersProgress(_ context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_importPlayersResultData(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_importPlayersResultData(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().ImportPlayersResultData(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.ImportPlayersResultData)
+	fc.Result = res
+	return ec.marshalOImportPlayersResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐImportPlayersResultData(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_importPlayersResultData(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "totalPlayers":
+				return ec.fieldContext_ImportPlayersResultData_totalPlayers(ctx, field)
+			case "importedPlayers":
+				return ec.fieldContext_ImportPlayersResultData_importedPlayers(ctx, field)
+			case "matchedWithYahoo":
+				return ec.fieldContext_ImportPlayersResultData_matchedWithYahoo(ctx, field)
+			case "unmatchedYahoo":
+				return ec.fieldContext_ImportPlayersResultData_unmatchedYahoo(ctx, field)
+			case "errors":
+				return ec.fieldContext_ImportPlayersResultData_errors(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ImportPlayersResultData", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_players(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_players(ctx, field)
 	if err != nil {
@@ -14616,6 +15013,226 @@ func (ec *executionContext) fieldContext_Team_Manager(_ context.Context, field g
 				return ec.fieldContext_Manager_ImageURL(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Manager", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UnmatchedYahooPlayer_yahooID(ctx context.Context, field graphql.CollectedField, obj *model.UnmatchedYahooPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UnmatchedYahooPlayer_yahooID(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.YahooID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_yahooID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UnmatchedYahooPlayer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UnmatchedYahooPlayer_firstName(ctx context.Context, field graphql.CollectedField, obj *model.UnmatchedYahooPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UnmatchedYahooPlayer_firstName(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.FirstName, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_firstName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UnmatchedYahooPlayer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UnmatchedYahooPlayer_lastName(ctx context.Context, field graphql.CollectedField, obj *model.UnmatchedYahooPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UnmatchedYahooPlayer_lastName(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.LastName, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_lastName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UnmatchedYahooPlayer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UnmatchedYahooPlayer_team(ctx context.Context, field graphql.CollectedField, obj *model.UnmatchedYahooPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UnmatchedYahooPlayer_team(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Team, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_team(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UnmatchedYahooPlayer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UnmatchedYahooPlayer_jerseyNumber(ctx context.Context, field graphql.CollectedField, obj *model.UnmatchedYahooPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UnmatchedYahooPlayer_jerseyNumber(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.JerseyNumber, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_jerseyNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UnmatchedYahooPlayer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -17308,6 +17925,65 @@ func (ec *executionContext) _Game(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var importPlayersResultDataImplementors = []string{"ImportPlayersResultData"}
+
+func (ec *executionContext) _ImportPlayersResultData(ctx context.Context, sel ast.SelectionSet, obj *model.ImportPlayersResultData) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, importPlayersResultDataImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ImportPlayersResultData")
+		case "totalPlayers":
+			out.Values[i] = ec._ImportPlayersResultData_totalPlayers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "importedPlayers":
+			out.Values[i] = ec._ImportPlayersResultData_importedPlayers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "matchedWithYahoo":
+			out.Values[i] = ec._ImportPlayersResultData_matchedWithYahoo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unmatchedYahoo":
+			out.Values[i] = ec._ImportPlayersResultData_unmatchedYahoo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._ImportPlayersResultData_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var leagueImplementors = []string{"League"}
 
 func (ec *executionContext) _League(ctx context.Context, sel ast.SelectionSet, obj *model.League) graphql.Marshaler {
@@ -18842,6 +19518,25 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "importPlayersResultData":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_importPlayersResultData(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "players":
 			field := field
 
@@ -19097,6 +19792,65 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "Manager":
 			out.Values[i] = ec._Team_Manager(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var unmatchedYahooPlayerImplementors = []string{"UnmatchedYahooPlayer"}
+
+func (ec *executionContext) _UnmatchedYahooPlayer(ctx context.Context, sel ast.SelectionSet, obj *model.UnmatchedYahooPlayer) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, unmatchedYahooPlayerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UnmatchedYahooPlayer")
+		case "yahooID":
+			out.Values[i] = ec._UnmatchedYahooPlayer_yahooID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "firstName":
+			out.Values[i] = ec._UnmatchedYahooPlayer_firstName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastName":
+			out.Values[i] = ec._UnmatchedYahooPlayer_lastName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "team":
+			out.Values[i] = ec._UnmatchedYahooPlayer_team(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "jerseyNumber":
+			out.Values[i] = ec._UnmatchedYahooPlayer_jerseyNumber(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -20030,6 +20784,60 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
+func (ec *executionContext) marshalNUnmatchedYahooPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐUnmatchedYahooPlayerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.UnmatchedYahooPlayer) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNUnmatchedYahooPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐUnmatchedYahooPlayer(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNUnmatchedYahooPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐUnmatchedYahooPlayer(ctx context.Context, sel ast.SelectionSet, v *model.UnmatchedYahooPlayer) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._UnmatchedYahooPlayer(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNWorkflowResult2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v model.WorkflowResult) graphql.Marshaler {
 	return ec._WorkflowResult(ctx, sel, &v)
 }
@@ -20329,6 +21137,13 @@ func (ec *executionContext) unmarshalODownloadSeasonsInput2ᚖgithubᚗcomᚋspe
 	}
 	res, err := ec.unmarshalInputDownloadSeasonsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOImportPlayersResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐImportPlayersResultData(ctx context.Context, sel ast.SelectionSet, v *model.ImportPlayersResultData) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ImportPlayersResultData(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {

@@ -155,6 +155,14 @@ func runImportPlayers(cmd *cobra.Command, _ []string) error {
 	totalDuration := time.Since(totalStart)
 	log.Info().Str("duration", totalDuration.String()).Msg("Import completed")
 
+	// Fetch and print result data
+	resultData, err := client.GetImportPlayersResultData(ctx)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to fetch import result data")
+	} else if resultData != nil {
+		printImportPlayersResult(cmd, resultData)
+	}
+
 	return nil
 }
 
@@ -174,4 +182,27 @@ func buildImportPlayersInput() *model.DownloadSeasonsInput {
 	}
 
 	return input
+}
+
+func printImportPlayersResult(cmd *cobra.Command, result *ImportPlayersResultData) {
+	fmt.Fprintln(cmd.OutOrStdout())
+	fmt.Fprintln(cmd.OutOrStdout(), "=== Import Results ===")
+	fmt.Fprintf(cmd.OutOrStdout(), "Total players:       %d\n", result.TotalPlayers)
+	fmt.Fprintf(cmd.OutOrStdout(), "Imported:            %d\n", result.ImportedPlayers)
+	fmt.Fprintf(cmd.OutOrStdout(), "Matched with Yahoo:  %d\n", result.MatchedWithYahoo)
+
+	if len(result.UnmatchedYahoo) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "\nUnmatched Yahoo players (%d):\n", len(result.UnmatchedYahoo))
+		for _, p := range result.UnmatchedYahoo {
+			fmt.Fprintf(cmd.OutOrStdout(), "  - %s %s (#%d, %s) [Yahoo ID: %d]\n",
+				p.FirstName, p.LastName, p.JerseyNumber, p.Team, p.YahooID)
+		}
+	}
+
+	if len(result.Errors) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "\nErrors (%d):\n", len(result.Errors))
+		for _, e := range result.Errors {
+			fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", e)
+		}
+	}
 }
