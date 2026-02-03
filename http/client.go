@@ -105,9 +105,13 @@ func NewYahooClient(ctx context.Context, redisClient redis.Client) (Client, erro
 	if err != nil {
 		return nil, err
 	}
+	return NewYahooClientWithConfig(ctx, redisClient, conf)
+}
+
+func NewYahooClientWithConfig(ctx context.Context, redisClient redis.Client, conf *oauth2.Config) (Client, error) {
 	token, err := redis.LoadToken(ctx, redisClient)
 	if errors.Is(err, redis.NewOAuth2TokenMissingError()) {
-
+		// Token missing - continue to return error below
 	}
 	if err != nil {
 		return nil, err

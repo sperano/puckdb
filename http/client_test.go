@@ -1,13 +1,21 @@
 package http
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/go-redis/redis/v8"
+	"github.com/rs/zerolog"
+	"github.com/sperano/puckdb/auth"
+	puckredis "github.com/sperano/puckdb/redis"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 )
 
 func TestHTTPError_Error(t *testing.T) {
@@ -182,6 +190,11 @@ func TestGenericClient_Download_Redirects(t *testing.T) {
 func TestGenericClient_Download_LargeResponse(t *testing.T) {
 	t.Parallel()
 
+	// Suppress trace logging for this test to avoid printing 1MB of binary data
+	oldLevel := zerolog.GlobalLevel()
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	defer zerolog.SetGlobalLevel(oldLevel)
+
 	// Create a 1MB response
 	largeBody := make([]byte, 1024*1024)
 	for i := range largeBody {
@@ -312,4 +325,200 @@ func BenchmarkGenericClient_Download(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		client.Download(server.URL)
 	}
+}
+
+// createMockStringCmd creates a redis.StringCmd with the given value or error
+func createMockStringCmd(val string, err error) *redis.StringCmd {
+	cmd := redis.NewStringCmd(context.Background())
+	if err != nil {
+		cmd.SetErr(err)
+	} else {
+		cmd.SetVal(val)
+	}
+	return cmd
+}
+
+// createMockBoolCmd creates a redis.BoolCmd with the given value
+func createMockBoolCmd(val bool, err error) *redis.BoolCmd {
+	cmd := redis.NewBoolCmd(context.Background())
+	if err != nil {
+		cmd.SetErr(err)
+	} else {
+		cmd.SetVal(val)
+	}
+	return cmd
+}
+
+// createMockStatusCmd creates a redis.StatusCmd with the given value
+func createMockStatusCmd(val string, err error) *redis.StatusCmd {
+	cmd := redis.NewStatusCmd(context.Background())
+	if err != nil {
+		cmd.SetErr(err)
+	} else {
+		cmd.SetVal(val)
+	}
+	return cmd
+}
+
+func createTestOAuthConfig(tokenServerURL string) *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  tokenServerURL + "/auth",
+			TokenURL: tokenServerURL + "/token",
+		},
+		RedirectURL: "http://localhost:8080/callback",
+		Scopes:      []string{"openid"},
+	}
+}
+
+func TestNewYahooClientWithConfig_TokenLoadError(t *testing.T) {
+	t.Parallel()
+
+	mockRedis := &puckredis.MockClient{}
+	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	conf := createTestOAuthConfig("http://example.com")
+
+	// Key format: %s_yahoo_oauth2_token
+	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
+		Return(createMockStringCmd("", redis.ErrClosed))
+
+	_, err := NewYahooClientWithConfig(ctx, mockRedis, conf)
+	require.Error(t, err)
+	mockRedis.AssertExpectations(t)
+}
+
+func TestNewYahooClientWithConfig_TokenMissing(t *testing.T) {
+	t.Parallel()
+
+	mockRedis := &puckredis.MockClient{}
+	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	conf := createTestOAuthConfig("http://example.com")
+
+	// Key format: %s_yahoo_oauth2_token
+	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
+		Return(createMockStringCmd("", redis.Nil))
+
+	_, err := NewYahooClientWithConfig(ctx, mockRedis, conf)
+	require.Error(t, err)
+	mockRedis.AssertExpectations(t)
+}
+
+func TestNewYahooClientWithConfig_Success(t *testing.T) {
+	t.Parallel()
+
+	mockRedis := &puckredis.MockClient{}
+	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+
+	// Create a mock OAuth2 token server
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// This shouldn't be called since the token isn't expired
+		t.Error("Token server should not be called for non-expired token")
+	}))
+	defer tokenServer.Close()
+
+	conf := createTestOAuthConfig(tokenServer.URL)
+
+	// Create a valid token JSON - not expired, so no refresh needed
+	token := &oauth2.Token{
+		AccessToken:  "test-access-token",
+		TokenType:    "Bearer",
+		RefreshToken: "test-refresh-token",
+		Expiry:       time.Now().Add(1 * time.Hour),
+	}
+	tokenJSON, _ := puckredis.TokenAsString(token)
+
+	// Key format: %s_yahoo_oauth2_token
+	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
+		Return(createMockStringCmd(tokenJSON, nil))
+
+	client, err := NewYahooClientWithConfig(ctx, mockRedis, conf)
+	require.NoError(t, err)
+	assert.NotNil(t, client)
+	mockRedis.AssertExpectations(t)
+}
+
+func TestNewYahooClientWithConfig_TokenRefreshAndSave(t *testing.T) {
+	t.Parallel()
+
+	mockRedis := &puckredis.MockClient{}
+	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+
+	// Create a mock OAuth2 token server that returns a new token
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"access_token": "new-access-token",
+			"token_type": "Bearer",
+			"refresh_token": "new-refresh-token",
+			"expires_in": 3600
+		}`))
+	}))
+	defer tokenServer.Close()
+
+	conf := createTestOAuthConfig(tokenServer.URL)
+
+	// Create an expired token that will trigger refresh
+	token := &oauth2.Token{
+		AccessToken:  "old-access-token",
+		TokenType:    "Bearer",
+		RefreshToken: "test-refresh-token",
+		Expiry:       time.Now().Add(-1 * time.Hour), // Expired
+	}
+	tokenJSON, _ := puckredis.TokenAsString(token)
+
+	// Key format: %s_yahoo_oauth2_token
+	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
+		Return(createMockStringCmd(tokenJSON, nil))
+
+	// Mock Redis to save the new token
+	mockRedis.On("Set", mock.Anything, "testuser_yahoo_oauth2_token", mock.AnythingOfType("string"), mock.Anything).
+		Return(createMockStatusCmd("OK", nil))
+
+	client, err := NewYahooClientWithConfig(ctx, mockRedis, conf)
+	require.NoError(t, err)
+	assert.NotNil(t, client)
+	mockRedis.AssertExpectations(t)
+}
+
+func TestNewYahooClientWithConfig_TokenSaveError(t *testing.T) {
+	t.Parallel()
+
+	mockRedis := &puckredis.MockClient{}
+	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+
+	// Create a mock OAuth2 token server
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"access_token": "new-access-token",
+			"token_type": "Bearer",
+			"refresh_token": "new-refresh-token",
+			"expires_in": 3600
+		}`))
+	}))
+	defer tokenServer.Close()
+
+	conf := createTestOAuthConfig(tokenServer.URL)
+
+	// Create an expired token
+	token := &oauth2.Token{
+		AccessToken:  "old-access-token",
+		TokenType:    "Bearer",
+		RefreshToken: "test-refresh-token",
+		Expiry:       time.Now().Add(-1 * time.Hour),
+	}
+	tokenJSON, _ := puckredis.TokenAsString(token)
+
+	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
+		Return(createMockStringCmd(tokenJSON, nil))
+
+	// Mock Redis save to fail
+	mockRedis.On("Set", mock.Anything, "testuser_yahoo_oauth2_token", mock.AnythingOfType("string"), mock.Anything).
+		Return(createMockStatusCmd("", redis.ErrClosed))
+
+	_, err := NewYahooClientWithConfig(ctx, mockRedis, conf)
+	require.Error(t, err)
+	mockRedis.AssertExpectations(t)
 }

@@ -27,12 +27,19 @@ func setNoCacheHeaders(w http.ResponseWriter) {
 }
 
 func YahooLoginHandler(w http.ResponseWriter, r *http.Request) {
-	setNoCacheHeaders(w)
-	if conf, err := config.OauthConfig(); err == nil {
+	conf, err := config.OauthConfig()
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	YahooLoginHandlerWithConfig(conf)(w, r)
+}
+
+func YahooLoginHandlerWithConfig(conf *oauth2.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		setNoCacheHeaders(w)
 		url := conf.AuthCodeURL("state", oauth2.AccessTypeOnline)
 		http.Redirect(w, r, url, http.StatusFound)
-	} else {
-		handleError(w, http.StatusInternalServerError, err)
 	}
 }
 
@@ -51,12 +58,10 @@ func YahooLandedHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func YahooAuthenticatedHandler(redisClient redis.Client) http.HandlerFunc {
-	successURL := fmt.Sprintf("%s%s", viper.GetString(config.FlagPublicURL), config.YahooLandedPath)
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		setNoCacheHeaders(w)
 
-		// Check for OAuth error response (e.g., user denied permission)
+		// Check for OAuth error response first (before loading config)
 		if errParam := r.URL.Query().Get("error"); errParam != "" {
 			errDesc := r.URL.Query().Get("error_description")
 			handleError(w, http.StatusForbidden, fmt.Errorf("OAuth error: %s - %s", errParam, errDesc))
@@ -69,11 +74,25 @@ func YahooAuthenticatedHandler(redisClient redis.Client) http.HandlerFunc {
 			return
 		}
 
+		conf, err := config.OauthConfig()
+		if err != nil {
+			handleError(w, http.StatusInternalServerError, err)
+			return
+		}
+		successURL := fmt.Sprintf("%s%s", viper.GetString(config.FlagPublicURL), config.YahooLandedPath)
+		YahooAuthenticatedHandlerWithConfig(redisClient, conf, successURL, code)(w, r)
+	}
+}
+
+func YahooAuthenticatedHandlerWithConfig(redisClient redis.Client, conf *oauth2.Config, successURL string, code string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		setNoCacheHeaders(w)
+
 		if viper.GetBool(config.FlagYahooLogToken) {
 			log.Debug().Str("code", code).Msg("Authentication code received from Yahoo")
 		}
 		ctxV := context.WithValue(context.Background(), auth.CtxUser, config.DefaultUser)
-		err := exchangeCode(ctxV, redisClient, config.DefaultUser, code)
+		err := exchangeCodeWithConfig(ctxV, redisClient, conf, config.DefaultUser, code)
 		if err == nil {
 			http.Redirect(w, r, successURL, http.StatusFound)
 		} else {
@@ -83,6 +102,14 @@ func YahooAuthenticatedHandler(redisClient redis.Client) http.HandlerFunc {
 }
 
 func exchangeCode(ctx context.Context, redisClient redis.Client, user string, code string) error {
+	conf, err := config.OauthConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get OAuth config: %w", err)
+	}
+	return exchangeCodeWithConfig(ctx, redisClient, conf, user, code)
+}
+
+func exchangeCodeWithConfig(ctx context.Context, redisClient redis.Client, conf *oauth2.Config, user string, code string) error {
 	// Step 1: Check if we already have a valid token
 	// This prevents unnecessary code exchanges and protects against callback replays
 	hasToken, err := redis.HasValidToken(ctx, redisClient, user)
@@ -104,11 +131,6 @@ func exchangeCode(ctx context.Context, redisClient redis.Client, user string, co
 	}
 
 	// Step 3: Exchange code for token
-	conf, err := config.OauthConfig()
-	if err != nil {
-		return fmt.Errorf("failed to get OAuth config: %w", err)
-	}
-
 	token, err := conf.Exchange(ctx, code)
 	if err != nil {
 		// Exchange failed - code is marked as used but we have no token
