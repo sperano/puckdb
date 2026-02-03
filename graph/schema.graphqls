@@ -200,18 +200,42 @@ type Game {
 }
 
 type Player {
-	id: Int!
+	id: Int64!
+	yahooID: Int64
 	firstName: String!
 	lastName: String!
-	uniformNumber: Int!
-	homeURL: String!
-	imageSmall: String!
-	imageMedium: String!
-	imageLarge: String!
 	nhlTeam: NHLTeam
-	localFile: LocalFile!
-	createdAt: Time!
-	updatedAt: Time!
+	position: String!
+	shootsCatches: String!
+	heightInches: Int
+	weightPounds: Int
+	birthDate: String
+	birthCity: String
+	birthStateProvince: String
+	birthCountry: String
+	sweaterNumber: Int
+	isActive: Boolean!
+	headshotURL: String!
+	heroImageURL: String
+	yahooImageSmall: String!
+	yahooImageMedium: String!
+	yahooImageLarge: String!
+	yahooHomeURL: String!
+	playerSlug: String
+	draftYear: Int
+	draftTeamAbbrev: String
+	draftRound: Int
+	draftPickInRound: Int
+	draftOverallPick: Int
+}
+
+input PlayersFilter {
+	name: String
+	sweaterNumber: Int
+	hasYahooID: Boolean
+	teamID: Int
+	position: String
+	isActive: Boolean
 }
 
 type PlayerStats {
@@ -322,14 +346,13 @@ type Query {
 	importPlayersResult: WorkflowResult!
 	importPlayersProgress: WorkflowProgress
 
+	players(filter: PlayersFilter): [Player!]!
+
 	#    nhlStandings: [NHLTeamStanding!]
 #    fantasyGameLocalFiles(season: Int!): [LocalFile!]
 #    leagueLocalFiles(season: Int!): [LocalFile!]
 #    teams: [Team!]!
 #    team(teamID: Int!): Team!
-#    players: [Player!]
-#	playersStats(fromDate: String = "", toDate: String = ""): [PlayerWithStats!]
-#    player(playerID: Int!): Player!
 #    games: [Game!]
 #    configuration: Configuration!
 #    dbStats: DBStats!

@@ -114,7 +114,7 @@ type League struct {
 	DraftStatus           string     `json:"draftStatus"`
 	NumTeams              int        `json:"numTeams"`
 	EditKey               string     `json:"editKey"`
-	LeagueUpdateTimestamp string     `json:"LeagueUpdateTimestamp"`
+	LeagueUpdateTimestamp int64      `json:"LeagueUpdateTimestamp"`
 	ScoringType           string     `json:"scoringType"`
 	LeagueType            string     `json:"leagueType"`
 	IsProLeague           bool       `json:"isProLeague"`
@@ -205,18 +205,33 @@ type OAuth2Token struct {
 }
 
 type Player struct {
-	ID            int        `json:"id"`
-	FirstName     string     `json:"firstName"`
-	LastName      string     `json:"lastName"`
-	UniformNumber int        `json:"uniformNumber"`
-	HomeURL       string     `json:"homeURL"`
-	ImageSmall    string     `json:"imageSmall"`
-	ImageMedium   string     `json:"imageMedium"`
-	ImageLarge    string     `json:"imageLarge"`
-	NhlTeam       *NHLTeam   `json:"nhlTeam,omitempty"`
-	LocalFile     *LocalFile `json:"localFile"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	UpdatedAt     time.Time  `json:"updatedAt"`
+	ID                 int64    `json:"id"`
+	YahooID            *int64   `json:"yahooID,omitempty"`
+	FirstName          string   `json:"firstName"`
+	LastName           string   `json:"lastName"`
+	NhlTeam            *NHLTeam `json:"nhlTeam,omitempty"`
+	Position           string   `json:"position"`
+	ShootsCatches      string   `json:"shootsCatches"`
+	HeightInches       *int     `json:"heightInches,omitempty"`
+	WeightPounds       *int     `json:"weightPounds,omitempty"`
+	BirthDate          *string  `json:"birthDate,omitempty"`
+	BirthCity          *string  `json:"birthCity,omitempty"`
+	BirthStateProvince *string  `json:"birthStateProvince,omitempty"`
+	BirthCountry       *string  `json:"birthCountry,omitempty"`
+	SweaterNumber      *int     `json:"sweaterNumber,omitempty"`
+	IsActive           bool     `json:"isActive"`
+	HeadshotURL        string   `json:"headshotURL"`
+	HeroImageURL       *string  `json:"heroImageURL,omitempty"`
+	YahooImageSmall    string   `json:"yahooImageSmall"`
+	YahooImageMedium   string   `json:"yahooImageMedium"`
+	YahooImageLarge    string   `json:"yahooImageLarge"`
+	YahooHomeURL       string   `json:"yahooHomeURL"`
+	PlayerSlug         *string  `json:"playerSlug,omitempty"`
+	DraftYear          *int     `json:"draftYear,omitempty"`
+	DraftTeamAbbrev    *string  `json:"draftTeamAbbrev,omitempty"`
+	DraftRound         *int     `json:"draftRound,omitempty"`
+	DraftPickInRound   *int     `json:"draftPickInRound,omitempty"`
+	DraftOverallPick   *int     `json:"draftOverallPick,omitempty"`
 }
 
 type PlayerStats struct {
@@ -241,6 +256,15 @@ type PlayerStats struct {
 type PlayerWithStats struct {
 	Player *Player      `json:"Player"`
 	Stats  *PlayerStats `json:"Stats"`
+}
+
+type PlayersFilter struct {
+	Name          *string `json:"name,omitempty"`
+	SweaterNumber *int    `json:"sweaterNumber,omitempty"`
+	HasYahooID    *bool   `json:"hasYahooID,omitempty"`
+	TeamID        *int    `json:"teamID,omitempty"`
+	Position      *string `json:"position,omitempty"`
+	IsActive      *bool   `json:"isActive,omitempty"`
 }
 
 type ProgressItem struct {

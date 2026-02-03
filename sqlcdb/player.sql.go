@@ -580,6 +580,123 @@ func (q *Queries) LinkYahooToNHLPlayer(ctx context.Context, arg LinkYahooToNHLPl
 	return err
 }
 
+const listPlayers = `-- name: ListPlayers :many
+SELECT p.id, p.yahoo_id, p.first_name, p.last_name, p.nhl_team_id, p.position, p.shoots_catches, p.height_inches, p.weight_pounds, p.birth_date, p.birth_city, p.birth_state_province, p.birth_country, p.sweater_number, p.is_active, p.headshot_url, p.hero_image_url, p.yahoo_image_small, p.yahoo_image_medium, p.yahoo_image_large, p.yahoo_home_url, p.player_slug, p.draft_year, p.draft_team_abbrev, p.draft_round, p.draft_pick_in_round, p.draft_overall_pick, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+FROM players p
+LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
+WHERE
+    ($1::text IS NULL OR
+     p.first_name ILIKE '%' || $1 || '%' OR
+     p.last_name ILIKE '%' || $1 || '%')
+    AND ($2::int IS NULL OR p.sweater_number = $2)
+    AND ($3::boolean IS NULL OR
+         (CASE WHEN $3 THEN p.yahoo_id IS NOT NULL ELSE p.yahoo_id IS NULL END))
+    AND ($4::bigint IS NULL OR p.nhl_team_id = $4)
+    AND ($5::text IS NULL OR p.position = $5)
+    AND ($6::boolean IS NULL OR p.is_active = $6)
+ORDER BY p.last_name, p.first_name
+`
+
+type ListPlayersParams struct {
+	Name          pgtype.Text `json:"name"`
+	SweaterNumber pgtype.Int4 `json:"sweater_number"`
+	HasYahooID    pgtype.Bool `json:"has_yahoo_id"`
+	TeamID        pgtype.Int8 `json:"team_id"`
+	Position      pgtype.Text `json:"position"`
+	IsActive      pgtype.Bool `json:"is_active"`
+}
+
+type ListPlayersRow struct {
+	ID                 int64       `json:"id"`
+	YahooID            pgtype.Int8 `json:"yahoo_id"`
+	FirstName          string      `json:"first_name"`
+	LastName           string      `json:"last_name"`
+	NhlTeamID          pgtype.Int8 `json:"nhl_team_id"`
+	Position           string      `json:"position"`
+	ShootsCatches      string      `json:"shoots_catches"`
+	HeightInches       pgtype.Int4 `json:"height_inches"`
+	WeightPounds       pgtype.Int4 `json:"weight_pounds"`
+	BirthDate          pgtype.Date `json:"birth_date"`
+	BirthCity          pgtype.Text `json:"birth_city"`
+	BirthStateProvince pgtype.Text `json:"birth_state_province"`
+	BirthCountry       pgtype.Text `json:"birth_country"`
+	SweaterNumber      pgtype.Int4 `json:"sweater_number"`
+	IsActive           bool        `json:"is_active"`
+	HeadshotUrl        string      `json:"headshot_url"`
+	HeroImageUrl       pgtype.Text `json:"hero_image_url"`
+	YahooImageSmall    string      `json:"yahoo_image_small"`
+	YahooImageMedium   string      `json:"yahoo_image_medium"`
+	YahooImageLarge    string      `json:"yahoo_image_large"`
+	YahooHomeUrl       string      `json:"yahoo_home_url"`
+	PlayerSlug         pgtype.Text `json:"player_slug"`
+	DraftYear          pgtype.Int4 `json:"draft_year"`
+	DraftTeamAbbrev    pgtype.Text `json:"draft_team_abbrev"`
+	DraftRound         pgtype.Int4 `json:"draft_round"`
+	DraftPickInRound   pgtype.Int4 `json:"draft_pick_in_round"`
+	DraftOverallPick   pgtype.Int4 `json:"draft_overall_pick"`
+	TeamCity           pgtype.Text `json:"team_city"`
+	TeamName           pgtype.Text `json:"team_name"`
+	TeamAbbrev         pgtype.Text `json:"team_abbrev"`
+}
+
+func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]ListPlayersRow, error) {
+	rows, err := q.db.Query(ctx, listPlayers,
+		arg.Name,
+		arg.SweaterNumber,
+		arg.HasYahooID,
+		arg.TeamID,
+		arg.Position,
+		arg.IsActive,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPlayersRow{}
+	for rows.Next() {
+		var i ListPlayersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.YahooID,
+			&i.FirstName,
+			&i.LastName,
+			&i.NhlTeamID,
+			&i.Position,
+			&i.ShootsCatches,
+			&i.HeightInches,
+			&i.WeightPounds,
+			&i.BirthDate,
+			&i.BirthCity,
+			&i.BirthStateProvince,
+			&i.BirthCountry,
+			&i.SweaterNumber,
+			&i.IsActive,
+			&i.HeadshotUrl,
+			&i.HeroImageUrl,
+			&i.YahooImageSmall,
+			&i.YahooImageMedium,
+			&i.YahooImageLarge,
+			&i.YahooHomeUrl,
+			&i.PlayerSlug,
+			&i.DraftYear,
+			&i.DraftTeamAbbrev,
+			&i.DraftRound,
+			&i.DraftPickInRound,
+			&i.DraftOverallPick,
+			&i.TeamCity,
+			&i.TeamName,
+			&i.TeamAbbrev,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchPlayersByName = `-- name: SearchPlayersByName :many
 SELECT p.id, p.yahoo_id, p.first_name, p.last_name, p.nhl_team_id, p.position, p.shoots_catches, p.height_inches, p.weight_pounds, p.birth_date, p.birth_city, p.birth_state_province, p.birth_country, p.sweater_number, p.is_active, p.headshot_url, p.hero_image_url, p.yahoo_image_small, p.yahoo_image_medium, p.yahoo_image_large, p.yahoo_home_url, p.player_slug, p.draft_year, p.draft_team_abbrev, p.draft_round, p.draft_pick_in_round, p.draft_overall_pick, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
 FROM players p

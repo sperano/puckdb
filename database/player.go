@@ -49,18 +49,21 @@ func (p *Players) Ensure(db *gorm.DB) error {
 }
 
 func (p *Player) GraphQLModel() *gqlmodel.Player {
+	sweaterNumber := p.UniformNumber
 	return &gqlmodel.Player{
-		ID:            int(p.ID),
-		FirstName:     p.FirstName,
-		LastName:      p.LastName,
-		UniformNumber: p.UniformNumber,
-		HomeURL:       p.HomeURL,
-		ImageSmall:    p.ImageSmall,
-		ImageMedium:   p.ImageMedium,
-		ImageLarge:    p.ImageLarge,
-		NhlTeam:       p.NHLTeam.GraphQLModel(),
-		CreatedAt:     p.CreatedAt,
-		UpdatedAt:     p.UpdatedAt,
+		ID:               int64(p.ID),
+		FirstName:        p.FirstName,
+		LastName:         p.LastName,
+		SweaterNumber:    &sweaterNumber,
+		Position:         "",
+		ShootsCatches:    "",
+		IsActive:         true,
+		HeadshotURL:      "",
+		YahooImageSmall:  p.ImageSmall,
+		YahooImageMedium: p.ImageMedium,
+		YahooImageLarge:  p.ImageLarge,
+		YahooHomeURL:     p.HomeURL,
+		NhlTeam:          p.NHLTeam.GraphQLModel(),
 	}
 }
 

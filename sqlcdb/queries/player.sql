@@ -45,6 +45,22 @@ WHERE p.last_name ILIKE $1 OR p.first_name ILIKE $1
 ORDER BY p.last_name, p.first_name
 LIMIT 50;
 
+-- name: ListPlayers :many
+SELECT p.*, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+FROM players p
+LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
+WHERE
+    (sqlc.narg('name')::text IS NULL OR
+     p.first_name ILIKE '%' || sqlc.narg('name') || '%' OR
+     p.last_name ILIKE '%' || sqlc.narg('name') || '%')
+    AND (sqlc.narg('sweater_number')::int IS NULL OR p.sweater_number = sqlc.narg('sweater_number'))
+    AND (sqlc.narg('has_yahoo_id')::boolean IS NULL OR
+         (CASE WHEN sqlc.narg('has_yahoo_id') THEN p.yahoo_id IS NOT NULL ELSE p.yahoo_id IS NULL END))
+    AND (sqlc.narg('team_id')::bigint IS NULL OR p.nhl_team_id = sqlc.narg('team_id'))
+    AND (sqlc.narg('position')::text IS NULL OR p.position = sqlc.narg('position'))
+    AND (sqlc.narg('is_active')::boolean IS NULL OR p.is_active = sqlc.narg('is_active'))
+ORDER BY p.last_name, p.first_name;
+
 -- name: UpsertPlayer :exec
 INSERT INTO players (
     id, yahoo_id, first_name, last_name, nhl_team_id,

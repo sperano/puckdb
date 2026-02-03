@@ -2,11 +2,11 @@ package database
 
 import (
 	"fmt"
+	"time"
+
 	gqlmodel "github.com/sperano/puckdb/graph/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"strconv"
-	"time"
 )
 
 type StatGroup int
@@ -141,7 +141,7 @@ func (l *League) GraphQLModel() *gqlmodel.League {
 		DraftStatus:           l.DraftStatus,
 		NumTeams:              l.NumTeams,
 		EditKey:               l.EditKey,
-		LeagueUpdateTimestamp: strconv.FormatInt(l.LeagueUpdateTimestamp, 10),
+		LeagueUpdateTimestamp: l.LeagueUpdateTimestamp,
 		ScoringType:           l.ScoringType,
 		LeagueType:            l.LeagueType,
 		IsProLeague:           l.IsProLeague,

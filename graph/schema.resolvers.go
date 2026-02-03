@@ -179,6 +179,11 @@ func (r *queryResolver) ImportPlayersProgress(ctx context.Context) (*model.Workf
 	return r.Resolver.importPlayersProgress(ctx)
 }
 
+// Players is the resolver for the players field.
+func (r *queryResolver) Players(ctx context.Context, filter *model.PlayersFilter) ([]*model.Player, error) {
+	return listPlayers(ctx, database.QueriesFromContext(ctx), filter)
+}
+
 // Leagues is the resolver for the leagues field.
 func (r *seasonResolver) Leagues(ctx context.Context, obj *model.Season) ([]*model.League, error) {
 	return nil, fmt.Errorf("not implemented")

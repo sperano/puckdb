@@ -214,7 +214,7 @@ func TestLeagueGraphQLModel(t *testing.T) {
 	assert.Equal(t, "my-draft-status", g.DraftStatus)
 	assert.Equal(t, 11, g.NumTeams)
 	assert.Equal(t, "my-edit-key", g.EditKey)
-	assert.Equal(t, "123", g.LeagueUpdateTimestamp)
+	assert.Equal(t, int64(123), g.LeagueUpdateTimestamp)
 	assert.Equal(t, "my-scoring-type", g.ScoringType)
 	assert.Equal(t, "my-league-type", g.LeagueType)
 	assert.True(t, g.IsProLeague)

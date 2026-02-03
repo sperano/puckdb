@@ -148,16 +148,15 @@ func TestPlayerGraphQLModel(t *testing.T) {
 		SourceVersion: fileTS,
 	}
 	g := p.GraphQLModel()
-	assert.Equal(t, 76, g.ID)
-	assert.Equal(t, createdAt, g.CreatedAt)
-	assert.Equal(t, updatedAt, g.UpdatedAt)
+	assert.Equal(t, int64(76), g.ID)
 	assert.Equal(t, "my-first-name", g.FirstName)
 	assert.Equal(t, "my-last-name", g.LastName)
-	assert.Equal(t, 76, g.UniformNumber)
-	assert.Equal(t, "my-home-url", g.HomeURL)
-	assert.Equal(t, "my-image-small", g.ImageSmall)
-	assert.Equal(t, "my-image-medium", g.ImageMedium)
-	assert.Equal(t, "my-image-large", g.ImageLarge)
+	assert.NotNil(t, g.SweaterNumber)
+	assert.Equal(t, 76, *g.SweaterNumber)
+	assert.Equal(t, "my-home-url", g.YahooHomeURL)
+	assert.Equal(t, "my-image-small", g.YahooImageSmall)
+	assert.Equal(t, "my-image-medium", g.YahooImageMedium)
+	assert.Equal(t, "my-image-large", g.YahooImageLarge)
 	assert.Equal(t, 760, g.NhlTeam.ID)
 }
 
