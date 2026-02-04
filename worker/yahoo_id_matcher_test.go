@@ -188,6 +188,82 @@ func TestMatchYahooID_NicknameMatchReverse(t *testing.T) {
 	assert.Equal(t, 500, result.YahooID)
 }
 
+func TestMatchYahooID_AccentNormalization(t *testing.T) {
+	t.Parallel()
+
+	// NHL "Daniel Brière" should match Yahoo "Daniel Briere" (no accent)
+	landing := &nhl.PlayerLanding{
+		FirstName: nhl.LocalizedString{Default: "Daniel"},
+		LastName:  nhl.LocalizedString{Default: "Brière"},
+	}
+
+	pool := map[int]*cache.YahooPlayer{
+		1737: {YahooID: 1737, FirstName: "Daniel", LastName: "Briere", JerseyNumber: 48, Team: "Philadelphia"},
+	}
+
+	result, err := MatchYahooID(landing, "PHI", pool)
+	require.NoError(t, err)
+	assert.True(t, result.Matched)
+	assert.Equal(t, 1737, result.YahooID)
+}
+
+func TestMatchYahooID_AccentNormalizationUmlaut(t *testing.T) {
+	t.Parallel()
+
+	// NHL "Juuso Välimäki" should match Yahoo "Juuso Valimaki"
+	landing := &nhl.PlayerLanding{
+		FirstName: nhl.LocalizedString{Default: "Juuso"},
+		LastName:  nhl.LocalizedString{Default: "Välimäki"},
+	}
+
+	pool := map[int]*cache.YahooPlayer{
+		7531: {YahooID: 7531, FirstName: "Juuso", LastName: "Valimaki", JerseyNumber: 4, Team: "Calgary"},
+	}
+
+	result, err := MatchYahooID(landing, "CGY", pool)
+	require.NoError(t, err)
+	assert.True(t, result.Matched)
+	assert.Equal(t, 7531, result.YahooID)
+}
+
+func TestMatchYahooID_HTMLEntityApostrophe(t *testing.T) {
+	t.Parallel()
+
+	// Yahoo "Rod Brind&#x27;Amour" (HTML entity) should match NHL "Rod Brind'Amour"
+	landing := &nhl.PlayerLanding{
+		FirstName: nhl.LocalizedString{Default: "Rod"},
+		LastName:  nhl.LocalizedString{Default: "Brind'Amour"},
+	}
+
+	pool := map[int]*cache.YahooPlayer{
+		45: {YahooID: 45, FirstName: "Rod", LastName: "Brind&#x27;Amour", JerseyNumber: 0, Team: "Carolina"},
+	}
+
+	result, err := MatchYahooID(landing, "CAR", pool)
+	require.NoError(t, err)
+	assert.True(t, result.Matched)
+	assert.Equal(t, 45, result.YahooID)
+}
+
+func TestMatchYahooID_RolandRollie(t *testing.T) {
+	t.Parallel()
+
+	// NHL "Roland Melanson" should match Yahoo "Rollie Melanson"
+	landing := &nhl.PlayerLanding{
+		FirstName: nhl.LocalizedString{Default: "Roland"},
+		LastName:  nhl.LocalizedString{Default: "Melanson"},
+	}
+
+	pool := map[int]*cache.YahooPlayer{
+		375: {YahooID: 375, FirstName: "Rollie", LastName: "Melanson", JerseyNumber: 0, Team: ""},
+	}
+
+	result, err := MatchYahooID(landing, "", pool)
+	require.NoError(t, err)
+	assert.True(t, result.Matched)
+	assert.Equal(t, 375, result.YahooID)
+}
+
 func TestNhlAbbrevToYahooTeam(t *testing.T) {
 	t.Parallel()
 

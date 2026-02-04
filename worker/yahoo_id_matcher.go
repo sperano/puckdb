@@ -2,11 +2,16 @@ package worker
 
 import (
 	"fmt"
+	"html"
 	"strings"
+	"unicode"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
 
 // YahooIDMatchResult contains the result of a Yahoo ID matching attempt.
@@ -14,6 +19,23 @@ type YahooIDMatchResult struct {
 	YahooID int
 	Matched bool
 	Reason  string // "name+jersey", "name-only", "team-tiebreaker", "no-match", "ambiguous"
+}
+
+// normalizeName prepares a name for matching by:
+// 1. Decoding HTML entities (&#x27; -> ')
+// 2. Removing diacritics/accents (é -> e, ü -> u)
+// 3. Converting to lowercase
+func normalizeName(name string) string {
+	// Decode HTML entities (e.g., &#x27; -> ')
+	name = html.UnescapeString(name)
+
+	// Remove diacritics using unicode normalization
+	// NFD decomposes characters (é -> e + combining accent)
+	// Then we remove the combining marks
+	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
+	result, _, _ := transform.String(t, name)
+
+	return strings.ToLower(result)
 }
 
 // nicknameAliases maps first names to their common nicknames/variations.
@@ -121,6 +143,8 @@ var nicknameAliases = map[string][]string{
 	"don":       {"donald", "donnie"},
 	"ronald":    {"ron", "ronnie"},
 	"ron":       {"ronald", "ronnie"},
+	"roland":    {"rollie"},
+	"rollie":    {"roland"},
 	"harold":    {"harry", "hal"},
 	"harry":     {"harold"},
 	"hal":       {"harold"},
@@ -193,8 +217,9 @@ func MatchYahooID(
 	nhlTeamAbbrev string,
 	pool map[int]*cache.YahooPlayer,
 ) (YahooIDMatchResult, error) {
-	firstName := strings.ToLower(landing.FirstName.Default)
-	lastName := strings.ToLower(landing.LastName.Default)
+	// Normalize names: decode HTML entities, strip accents, lowercase
+	firstName := normalizeName(landing.FirstName.Default)
+	lastName := normalizeName(landing.LastName.Default)
 
 	// Build list of first names to match (original + aliases)
 	firstNamesToMatch := []string{firstName}
@@ -205,20 +230,26 @@ func MatchYahooID(
 	// Step 1: Find all name matches (exact or via nickname)
 	type candidateMatch struct {
 		player       *cache.YahooPlayer
-		fuzzyMatched bool // true if matched via nickname alias
+		fuzzyMatched bool // true if matched via nickname alias or accent normalization
 	}
 	var candidates []candidateMatch
 	for _, yahoo := range pool {
-		yahooFirst := strings.ToLower(yahoo.FirstName)
-		yahooLast := strings.ToLower(yahoo.LastName)
+		// Normalize Yahoo names too (they may have HTML entities)
+		yahooFirst := normalizeName(yahoo.FirstName)
+		yahooLast := normalizeName(yahoo.LastName)
 
 		if yahooLast != lastName {
 			continue
 		}
 
-		// Check exact match first
+		// Check exact match first (after normalization)
 		if yahooFirst == firstName {
-			candidates = append(candidates, candidateMatch{player: yahoo, fuzzyMatched: false})
+			// Mark as fuzzy if normalization changed either name
+			fuzzy := yahooFirst != strings.ToLower(yahoo.FirstName) ||
+				firstName != strings.ToLower(landing.FirstName.Default) ||
+				yahooLast != strings.ToLower(yahoo.LastName) ||
+				lastName != strings.ToLower(landing.LastName.Default)
+			candidates = append(candidates, candidateMatch{player: yahoo, fuzzyMatched: fuzzy})
 			continue
 		}
 
