@@ -238,7 +238,7 @@ func MatchYahooID(
 	// Helper to log and return a fuzzy match result
 	logFuzzyMatch := func(match candidateMatch, reason string) YahooIDMatchResult {
 		if match.fuzzyMatched {
-			log.Info().
+			log.Warn().
 				Int64("nhl_id", landing.PlayerID.AsInt64()).
 				Str("nhl_name", landing.FirstName.Default+" "+landing.LastName.Default).
 				Int("yahoo_id", match.player.YahooID).
