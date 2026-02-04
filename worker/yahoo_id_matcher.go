@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 )
@@ -202,7 +203,11 @@ func MatchYahooID(
 	}
 
 	// Step 1: Find all name matches (exact or via nickname)
-	var candidates []*cache.YahooPlayer
+	type candidateMatch struct {
+		player       *cache.YahooPlayer
+		fuzzyMatched bool // true if matched via nickname alias
+	}
+	var candidates []candidateMatch
 	for _, yahoo := range pool {
 		yahooFirst := strings.ToLower(yahoo.FirstName)
 		yahooLast := strings.ToLower(yahoo.LastName)
@@ -211,9 +216,16 @@ func MatchYahooID(
 			continue
 		}
 
-		for _, fn := range firstNamesToMatch {
+		// Check exact match first
+		if yahooFirst == firstName {
+			candidates = append(candidates, candidateMatch{player: yahoo, fuzzyMatched: false})
+			continue
+		}
+
+		// Check nickname aliases
+		for _, fn := range firstNamesToMatch[1:] { // Skip first (exact) name
 			if yahooFirst == fn {
-				candidates = append(candidates, yahoo)
+				candidates = append(candidates, candidateMatch{player: yahoo, fuzzyMatched: true})
 				break
 			}
 		}
@@ -223,21 +235,35 @@ func MatchYahooID(
 		return YahooIDMatchResult{Matched: false, Reason: "no-match"}, nil
 	}
 
+	// Helper to log and return a fuzzy match result
+	logFuzzyMatch := func(match candidateMatch, reason string) YahooIDMatchResult {
+		if match.fuzzyMatched {
+			log.Info().
+				Int64("nhl_id", landing.PlayerID.AsInt64()).
+				Str("nhl_name", landing.FirstName.Default+" "+landing.LastName.Default).
+				Int("yahoo_id", match.player.YahooID).
+				Str("yahoo_name", match.player.FirstName+" "+match.player.LastName).
+				Str("reason", reason).
+				Msg("Fuzzy matched player via nickname alias")
+		}
+		return YahooIDMatchResult{
+			YahooID: match.player.YahooID,
+			Matched: true,
+			Reason:  reason,
+		}
+	}
+
 	// Step 2: Filter by jersey number if NHL player has one
 	hasJersey := landing.SweaterNumber != nil && *landing.SweaterNumber > 0
 	if hasJersey {
-		var jerseyMatches []*cache.YahooPlayer
+		var jerseyMatches []candidateMatch
 		for _, c := range candidates {
-			if c.JerseyNumber == *landing.SweaterNumber {
+			if c.player.JerseyNumber == *landing.SweaterNumber {
 				jerseyMatches = append(jerseyMatches, c)
 			}
 		}
 		if len(jerseyMatches) == 1 {
-			return YahooIDMatchResult{
-				YahooID: jerseyMatches[0].YahooID,
-				Matched: true,
-				Reason:  "name+jersey",
-			}, nil
+			return logFuzzyMatch(jerseyMatches[0], "name+jersey"), nil
 		}
 		if len(jerseyMatches) > 1 {
 			// Multiple jersey matches, continue with these for team tiebreaker
@@ -250,18 +276,14 @@ func MatchYahooID(
 	if len(candidates) > 1 && nhlTeamAbbrev != "" {
 		yahooTeamName := nhlAbbrevToYahooTeam[nhlTeamAbbrev]
 		if yahooTeamName != "" {
-			var teamMatches []*cache.YahooPlayer
+			var teamMatches []candidateMatch
 			for _, c := range candidates {
-				if c.Team == yahooTeamName {
+				if c.player.Team == yahooTeamName {
 					teamMatches = append(teamMatches, c)
 				}
 			}
 			if len(teamMatches) == 1 {
-				return YahooIDMatchResult{
-					YahooID: teamMatches[0].YahooID,
-					Matched: true,
-					Reason:  "team-tiebreaker",
-				}, nil
+				return logFuzzyMatch(teamMatches[0], "team-tiebreaker"), nil
 			}
 			if len(teamMatches) > 1 {
 				// Still ambiguous after team filter
@@ -275,17 +297,7 @@ func MatchYahooID(
 
 	// Step 4: Single candidate = match (name-only)
 	if len(candidates) == 1 {
-		reason := "name-only"
-		if hasJersey {
-			// We had a jersey number but didn't find a jersey match,
-			// so we're falling back to name-only
-			reason = "name-only"
-		}
-		return YahooIDMatchResult{
-			YahooID: candidates[0].YahooID,
-			Matched: true,
-			Reason:  reason,
-		}, nil
+		return logFuzzyMatch(candidates[0], "name-only"), nil
 	}
 
 	// Multiple candidates, no single match found
