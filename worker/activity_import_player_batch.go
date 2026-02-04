@@ -113,7 +113,13 @@ func importPlayerBatchImpl(ctx context.Context, deps ImportDeps, playerIDs []int
 
 		// Upsert to database
 		if err := deps.Queries.UpsertPlayer(ctx, params); err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("player %d: upsert error: %v", playerID, err))
+			errMsg := fmt.Sprintf("player %d (%s %s): upsert error: %v",
+				playerID, landing.FirstName.Default, landing.LastName.Default, err)
+			if matchResult.Matched {
+				errMsg = fmt.Sprintf("player %d (%s %s, yahoo_id=%d): upsert error: %v",
+					playerID, landing.FirstName.Default, landing.LastName.Default, matchResult.YahooID, err)
+			}
+			result.Errors = append(result.Errors, errMsg)
 			continue
 		}
 
