@@ -15,6 +15,126 @@ type YahooIDMatchResult struct {
 	Reason  string // "name+jersey", "name-only", "team-tiebreaker", "no-match", "ambiguous"
 }
 
+// nicknameAliases maps first names to their common nicknames/variations.
+// Used for fuzzy matching when exact name match fails.
+// Keys and values should be lowercase.
+var nicknameAliases = map[string][]string{
+	// Common hockey player nickname variations
+	"rejean":    {"reggie"},
+	"reggie":    {"rejean"},
+	"michael":   {"mike", "mick", "mickey"},
+	"mike":      {"michael", "mick", "mickey"},
+	"william":   {"will", "bill", "billy", "willy"},
+	"bill":      {"william", "billy"},
+	"billy":     {"william", "bill"},
+	"robert":    {"rob", "bob", "bobby", "robbie"},
+	"bob":       {"robert", "bobby"},
+	"bobby":     {"robert", "bob"},
+	"rob":       {"robert", "robbie"},
+	"richard":   {"rick", "ricky", "rich", "dick"},
+	"rick":      {"richard", "ricky"},
+	"james":     {"jim", "jimmy", "jamie"},
+	"jim":       {"james", "jimmy"},
+	"jimmy":     {"james", "jim"},
+	"joseph":    {"joe", "joey"},
+	"joe":       {"joseph", "joey"},
+	"thomas":    {"tom", "tommy"},
+	"tom":       {"thomas", "tommy"},
+	"tommy":     {"thomas", "tom"},
+	"anthony":   {"tony"},
+	"tony":      {"anthony"},
+	"alexander": {"alex", "sasha"},
+	"alex":      {"alexander", "sasha"},
+	"daniel":    {"dan", "danny"},
+	"dan":       {"daniel", "danny"},
+	"danny":     {"daniel", "dan"},
+	"matthew":   {"matt", "matty"},
+	"matt":      {"matthew", "matty"},
+	"nicholas":  {"nick", "nicky"},
+	"nick":      {"nicholas", "nicky"},
+	"christopher": {"chris"},
+	"chris":     {"christopher"},
+	"jonathan":  {"jon", "jonny", "john"},
+	"jon":       {"jonathan", "jonny"},
+	"john":      {"jonathan", "johnny", "jon"},
+	"johnny":    {"john", "jonathan"},
+	"edward":    {"ed", "eddie", "ted", "teddy"},
+	"ed":        {"edward", "eddie"},
+	"eddie":     {"edward", "ed"},
+	"patrick":   {"pat", "patty", "paddy"},
+	"pat":       {"patrick", "patty"},
+	"timothy":   {"tim", "timmy"},
+	"tim":       {"timothy", "timmy"},
+	"kenneth":   {"ken", "kenny"},
+	"ken":       {"kenneth", "kenny"},
+	"stephen":   {"steve", "steven"},
+	"steven":    {"steve", "stephen"},
+	"steve":     {"stephen", "steven"},
+	"david":     {"dave", "davey"},
+	"dave":      {"david", "davey"},
+	"joshua":    {"josh"},
+	"josh":      {"joshua"},
+	"andrew":    {"andy", "drew"},
+	"andy":      {"andrew"},
+	"drew":      {"andrew"},
+	"benjamin":  {"ben", "benny"},
+	"ben":       {"benjamin", "benny"},
+	"samuel":    {"sam", "sammy"},
+	"sam":       {"samuel", "sammy"},
+	"peter":     {"pete"},
+	"pete":      {"peter"},
+	"phillip":   {"phil"},
+	"phil":      {"phillip"},
+	"douglas":   {"doug", "dougie"},
+	"doug":      {"douglas", "dougie"},
+	"raymond":   {"ray"},
+	"ray":       {"raymond"},
+	"lawrence":  {"larry"},
+	"larry":     {"lawrence"},
+	"gerald":    {"gerry", "jerry"},
+	"gerry":     {"gerald", "jerry"},
+	"jerry":     {"gerald", "gerry"},
+	"eugene":    {"gene"},
+	"gene":      {"eugene"},
+	"francis":   {"frank", "frankie"},
+	"frank":     {"francis", "frankie"},
+	"frederick": {"fred", "freddy", "freddie"},
+	"fred":      {"frederick", "freddy"},
+	"charles":   {"charlie", "chuck", "chas"},
+	"charlie":   {"charles", "chuck"},
+	"chuck":     {"charles", "charlie"},
+	"bernard":   {"bernie"},
+	"bernie":    {"bernard"},
+	"vincent":   {"vinnie", "vince"},
+	"vince":     {"vincent", "vinnie"},
+	"vinnie":    {"vincent", "vince"},
+	"zachary":   {"zach", "zack"},
+	"zach":      {"zachary", "zack"},
+	"zack":      {"zachary", "zach"},
+	"jacob":     {"jake"},
+	"jake":      {"jacob"},
+	"nathaniel": {"nate", "nathan"},
+	"nathan":    {"nate", "nathaniel"},
+	"nate":      {"nathan", "nathaniel"},
+	"donald":    {"don", "donnie"},
+	"don":       {"donald", "donnie"},
+	"ronald":    {"ron", "ronnie"},
+	"ron":       {"ronald", "ronnie"},
+	"harold":    {"harry", "hal"},
+	"harry":     {"harold"},
+	"hal":       {"harold"},
+	"arthur":    {"art", "artie"},
+	"art":       {"arthur", "artie"},
+	"leonard":   {"len", "lenny", "leo"},
+	"len":       {"leonard", "lenny"},
+	"lenny":     {"leonard", "len"},
+	"walter":    {"walt", "wally"},
+	"walt":      {"walter", "wally"},
+	"wally":     {"walter", "walt"},
+	"albert":    {"al", "bert"},
+	"al":        {"albert"},
+}
+
 // nhlAbbrevToYahooTeam maps NHL team abbreviations to Yahoo team display names
 // as they appear in Yahoo Sports HTML page titles.
 // Based on YahooHomeLink URLs in database/client.go (e.g., /teams/ny-rangers/ -> "NY Rangers")
@@ -63,7 +183,7 @@ var nhlAbbrevToYahooTeam = map[string]string{
 
 // MatchYahooID attempts to find a matching Yahoo player ID for an NHL player.
 // The matching algorithm:
-// 1. Find all name matches (case-insensitive)
+// 1. Find all name matches (case-insensitive, including nickname aliases)
 // 2. If NHL player has a jersey number, filter by jersey
 // 3. If multiple matches, use team as tiebreaker
 // 4. Return error if >1 match after all disambiguation
@@ -75,12 +195,27 @@ func MatchYahooID(
 	firstName := strings.ToLower(landing.FirstName.Default)
 	lastName := strings.ToLower(landing.LastName.Default)
 
-	// Step 1: Find all name matches
+	// Build list of first names to match (original + aliases)
+	firstNamesToMatch := []string{firstName}
+	if aliases, ok := nicknameAliases[firstName]; ok {
+		firstNamesToMatch = append(firstNamesToMatch, aliases...)
+	}
+
+	// Step 1: Find all name matches (exact or via nickname)
 	var candidates []*cache.YahooPlayer
 	for _, yahoo := range pool {
-		if strings.ToLower(yahoo.FirstName) == firstName &&
-			strings.ToLower(yahoo.LastName) == lastName {
-			candidates = append(candidates, yahoo)
+		yahooFirst := strings.ToLower(yahoo.FirstName)
+		yahooLast := strings.ToLower(yahoo.LastName)
+
+		if yahooLast != lastName {
+			continue
+		}
+
+		for _, fn := range firstNamesToMatch {
+			if yahooFirst == fn {
+				candidates = append(candidates, yahoo)
+				break
+			}
 		}
 	}
 

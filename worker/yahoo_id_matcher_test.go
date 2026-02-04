@@ -150,6 +150,44 @@ func TestMatchYahooID_JerseyZeroFallback(t *testing.T) {
 	assert.Equal(t, "name-only", result.Reason)
 }
 
+func TestMatchYahooID_NicknameMatch(t *testing.T) {
+	t.Parallel()
+
+	// NHL player "Rejean Lemelin" should match Yahoo player "Reggie Lemelin"
+	landing := &nhl.PlayerLanding{
+		FirstName: nhl.LocalizedString{Default: "Rejean"},
+		LastName:  nhl.LocalizedString{Default: "Lemelin"},
+	}
+
+	pool := map[int]*cache.YahooPlayer{
+		332: {YahooID: 332, FirstName: "Reggie", LastName: "Lemelin", JerseyNumber: 1, Team: "Boston"},
+	}
+
+	result, err := MatchYahooID(landing, "BOS", pool)
+	require.NoError(t, err)
+	assert.True(t, result.Matched)
+	assert.Equal(t, 332, result.YahooID)
+}
+
+func TestMatchYahooID_NicknameMatchReverse(t *testing.T) {
+	t.Parallel()
+
+	// Test the reverse: NHL "Mike" should match Yahoo "Michael"
+	landing := &nhl.PlayerLanding{
+		FirstName: nhl.LocalizedString{Default: "Mike"},
+		LastName:  nhl.LocalizedString{Default: "Smith"},
+	}
+
+	pool := map[int]*cache.YahooPlayer{
+		500: {YahooID: 500, FirstName: "Michael", LastName: "Smith", JerseyNumber: 31, Team: "Edmonton"},
+	}
+
+	result, err := MatchYahooID(landing, "EDM", pool)
+	require.NoError(t, err)
+	assert.True(t, result.Matched)
+	assert.Equal(t, 500, result.YahooID)
+}
+
 func TestNhlAbbrevToYahooTeam(t *testing.T) {
 	t.Parallel()
 
