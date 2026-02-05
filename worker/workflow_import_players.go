@@ -63,8 +63,8 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 		"concurrency", concurrency)
 
 	// Register progress query handler with phase-based tracking
+	// Phase 1 (Load Yahoo pool) is fast and doesn't need progress tracking
 	phases := []PhaseInfo{
-		{ID: PhaseLoadYahooPool, Description: "Load Yahoo pool", Total: 1},
 		{ID: PhaseImportPlayers, Description: "Import players", Total: 0}, // Total set later
 		{ID: PhaseReportUnmatched, Description: "Review unmatched players", Total: 0}, // Total set later
 	}
@@ -85,8 +85,8 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 	})
 
 	// Phase 1: Load Yahoo ID pool into Redis (fan-out pattern)
-	tracker.MarkItemStarted(PhaseLoadYahooPool)
-	tracker.SetMessage("Listing Yahoo player files")
+	// This phase is fast and doesn't need progress tracking
+	tracker.SetMessage("Loading Yahoo player pool")
 	logger.Info("Phase 1: Loading Yahoo ID pool")
 
 	// Step 1a: List all Yahoo player files
@@ -98,18 +98,14 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 	logger.Info("Listed Yahoo player files", "count", len(yahooPlayerIDs))
 
 	// Step 1b: Parse Yahoo players in batches (fan-out)
-	tracker.SetMessage("Parsing Yahoo players")
-	tracker.SetItemTotal(PhaseLoadYahooPool, len(yahooPlayerIDs)) // Track by player count, not batches
-
 	var allYahooPlayers []cache.YahooPlayer
-	if err := runYahooParseBatches(ctx, tracker, PhaseLoadYahooPool, yahooPlayerIDs, batchSize, concurrency, &allYahooPlayers); err != nil {
+	if err := runYahooParseBatches(ctx, yahooPlayerIDs, batchSize, concurrency, &allYahooPlayers); err != nil {
 		logger.Error("Failed to parse Yahoo players", "error", err)
 		return nil, err
 	}
 	logger.Info("Parsed Yahoo players", "count", len(allYahooPlayers))
 
 	// Step 1c: Save all players to Redis
-	tracker.SetMessage("Saving Yahoo pool to Redis")
 	var saveResult *SaveYahooIDPoolResult
 	if err := workflow.ExecuteActivity(ctx, SaveYahooPlayersToRedisActivity, allYahooPlayers).Get(ctx, &saveResult); err != nil {
 		logger.Error("Failed to save Yahoo players to Redis", "error", err)
@@ -119,7 +115,6 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 		"total", saveResult.TotalPlayers,
 		"available", saveResult.AvailablePlayers,
 		"skipped_non_nhl", saveResult.SkippedNonNHL)
-	tracker.MarkItemCompleted(PhaseLoadYahooPool)
 
 	// List all PlayerLanding files
 	logger.Info("Listing PlayerLanding files")
@@ -179,20 +174,67 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 
 	// Phase 3: Review unmatched Yahoo players
 	tracker.MarkItemStarted(PhaseReportUnmatched)
-	tracker.SetMessage("Reviewing unmatched Yahoo players")
+	tracker.SetMessage("Loading unmatched Yahoo players")
 	logger.Info("Phase 3: Reviewing unmatched Yahoo players")
 
-	var unmatchedReport *UnmatchedReport
-	if err := workflow.ExecuteActivity(ctx, ReportUnmatchedYahooIDsActivity).Get(ctx, &unmatchedReport); err != nil {
-		logger.Warn("Failed to review unmatched Yahoo IDs", "error", err)
-		// Don't fail the workflow for this, use empty report
-		unmatchedReport = &UnmatchedReport{}
+	// Step 3a: Load unmatched players to get the count
+	var unmatchedPlayers []UnmatchedYahooPlayer
+	if err := workflow.ExecuteActivity(ctx, LoadUnmatchedYahooPlayersActivity).Get(ctx, &unmatchedPlayers); err != nil {
+		logger.Warn("Failed to load unmatched Yahoo players", "error", err)
+		unmatchedPlayers = []UnmatchedYahooPlayer{}
 	}
 
-	// Update progress to show how many were reviewed
-	totalReviewed := len(unmatchedReport.TrulyUnmatched) + unmatchedReport.VerifiedNonNHLCount + unmatchedReport.NotFoundCount
-	tracker.SetItemTotal(PhaseReportUnmatched, totalReviewed)
-	tracker.IncrementItemBy(PhaseReportUnmatched, totalReviewed)
+	// Set phase total to number of unmatched players
+	tracker.SetItemTotal(PhaseReportUnmatched, len(unmatchedPlayers))
+	logger.Info("Loaded unmatched Yahoo players", "count", len(unmatchedPlayers))
+
+	// Step 3b: Verify unmatched players in batches against NHL API
+	unmatchedReport := &UnmatchedReport{
+		TrulyUnmatched: make([]VerifiedPlayer, 0),
+	}
+
+	if len(unmatchedPlayers) > 0 {
+		tracker.SetMessage("Verifying unmatched players against NHL API")
+
+		// Process in batches for progress tracking
+		verifyBatchSize := DefaultVerifyBatchSize
+		for i := 0; i < len(unmatchedPlayers); i += verifyBatchSize {
+			end := i + verifyBatchSize
+			if end > len(unmatchedPlayers) {
+				end = len(unmatchedPlayers)
+			}
+			batch := unmatchedPlayers[i:end]
+
+			var batchResult *VerifyUnmatchedResult
+			if err := workflow.ExecuteActivity(ctx, VerifyUnmatchedBatchActivity, batch).Get(ctx, &batchResult); err != nil {
+				logger.Warn("Failed to verify batch", "error", err, "batch_start", i)
+				// Continue with next batch
+			} else {
+				// Aggregate results
+				unmatchedReport.TrulyUnmatched = append(unmatchedReport.TrulyUnmatched, batchResult.TrulyUnmatched...)
+				unmatchedReport.VerifiedNonNHLCount += len(batchResult.VerifiedNonNHL)
+				unmatchedReport.NotFoundCount += len(batchResult.NotFoundInNHL)
+			}
+
+			// Update progress after each batch
+			tracker.IncrementItemBy(PhaseReportUnmatched, len(batch))
+		}
+
+		// Log truly unmatched players (those with NHL games)
+		for _, p := range unmatchedReport.TrulyUnmatched {
+			logger.Warn("Truly unmatched player with NHL games",
+				"yahooID", p.YahooID,
+				"yahoo_name", p.FirstName+" "+p.LastName,
+				"nhl_name", p.NHLName,
+				"nhl_games", p.NHLGames)
+		}
+
+		// Cleanup Redis keys
+		if err := workflow.ExecuteActivity(ctx, CleanupYahooIDPoolActivity).Get(ctx, nil); err != nil {
+			logger.Warn("Failed to cleanup Yahoo ID pool", "error", err)
+		}
+	}
+
 	tracker.MarkItemCompleted(PhaseReportUnmatched)
 
 	logger.Info("ImportPlayersWorkflow completed",
@@ -218,18 +260,14 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 }
 
 // runYahooParseBatches executes Yahoo player parsing in batches with concurrency control.
-// Progress is tracked by player count (not batch count).
 func runYahooParseBatches(
 	ctx workflow.Context,
-	tracker *ProgressTracker,
-	phaseID int,
 	playerIDs []int,
 	batchSize, concurrency int,
 	results *[]cache.YahooPlayer,
 ) error {
 	logger := workflow.GetLogger(ctx)
 	numBatches := (len(playerIDs) + batchSize - 1) / batchSize
-	totalItems := len(playerIDs)
 
 	type activeWork struct {
 		index  int
@@ -276,13 +314,6 @@ func runYahooParseBatches(
 				}
 
 				*results = append(*results, batchResult...)
-				// Calculate actual batch size (last batch may be smaller)
-				batchStart := capturedIdx * batchSize
-				actualBatchSize := batchSize
-				if batchStart+batchSize > totalItems {
-					actualBatchSize = totalItems - batchStart
-				}
-				tracker.IncrementItemBy(phaseID, actualBatchSize)
 				delete(active, capturedIdx)
 
 				// Start next batch if available

@@ -24,6 +24,9 @@ const (
 
 	// leagueNHL is the league abbreviation for NHL.
 	leagueNHL = "NHL"
+
+	// DefaultVerifyBatchSize is the number of players to verify per batch activity.
+	DefaultVerifyBatchSize = 10
 )
 
 // VerifiedPlayer contains the verification result for a Yahoo player.
@@ -51,12 +54,13 @@ type VerifyUnmatchedResult struct {
 	NotFoundInNHL []VerifiedPlayer
 }
 
-// VerifyUnmatchedYahooIDsActivity verifies unmatched Yahoo players against the NHL API.
-// It categorizes them into:
+// VerifyUnmatchedBatchActivity verifies a batch of unmatched Yahoo players against the NHL API.
+// This is called multiple times by the workflow to enable progress tracking.
+// It categorizes players into:
 // - VerifiedNonNHL: confirmed 0 NHL games (can be ignored in future)
 // - TrulyUnmatched: have NHL games but weren't matched (need investigation)
 // - NotFoundInNHL: no matching name in NHL database
-func VerifyUnmatchedYahooIDsActivity(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
+func VerifyUnmatchedBatchActivity(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
 	logger := activity.GetLogger(ctx)
 	client := nhl.NewClient()
 	redisClient := redis.NewClient()
@@ -85,12 +89,6 @@ func VerifyUnmatchedYahooIDsActivity(ctx context.Context, players []UnmatchedYah
 			continue
 		}
 
-		// Report progress
-		if i > 0 && i%10 == 0 {
-			activity.RecordHeartbeat(ctx, i)
-			logger.Info("Verification progress", "completed", i, "total", len(players))
-		}
-
 		// Verify this player
 		verified := verifyPlayer(ctx, client, player)
 
@@ -105,7 +103,7 @@ func VerifyUnmatchedYahooIDsActivity(ctx context.Context, players []UnmatchedYah
 			newlyVerifiedNonNHL = append(newlyVerifiedNonNHL, player.YahooID)
 		}
 
-		// Rate limiting
+		// Rate limiting between players (not after last one)
 		if i < len(players)-1 {
 			time.Sleep(verifyAPIDelay)
 		}
@@ -118,13 +116,11 @@ func VerifyUnmatchedYahooIDsActivity(ctx context.Context, players []UnmatchedYah
 		}
 	}
 
-	log.Info().
-		Int("total", len(players)).
-		Int("verified_non_nhl", len(result.VerifiedNonNHL)).
-		Int("truly_unmatched", len(result.TrulyUnmatched)).
-		Int("not_found", len(result.NotFoundInNHL)).
-		Int("newly_verified", len(newlyVerifiedNonNHL)).
-		Msg("Verification complete")
+	logger.Debug("Verified batch",
+		"batch_size", len(players),
+		"verified_non_nhl", len(result.VerifiedNonNHL),
+		"truly_unmatched", len(result.TrulyUnmatched),
+		"not_found", len(result.NotFoundInNHL))
 
 	return result, nil
 }

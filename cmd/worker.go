@@ -135,7 +135,9 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.SaveYahooPlayersToRedisActivity)
 			w.RegisterActivity(workers.ListPlayerLandingIDsActivity)
 			w.RegisterActivity(workers.ImportPlayerBatchActivity)
-			w.RegisterActivity(workers.ReportUnmatchedYahooIDsActivity)
+			w.RegisterActivity(workers.LoadUnmatchedYahooPlayersActivity)
+			w.RegisterActivity(workers.VerifyUnmatchedBatchActivity)
+			w.RegisterActivity(workers.CleanupYahooIDPoolActivity)
 
 			err = w.Run(worker.InterruptCh())
 			if err != nil {

@@ -48,6 +48,9 @@ func newSpinner(w io.Writer, message string) *spinner {
 }
 
 func (s *spinner) Start() {
+	// Hide cursor
+	fmt.Fprint(s.writer, "\033[?25l")
+
 	go func() {
 		defer close(s.done)
 		i := 0
@@ -100,6 +103,8 @@ func (s *spinner) Stop() {
 	s.once.Do(func() {
 		close(s.stop)
 		<-s.done
+		// Show cursor
+		fmt.Fprint(s.writer, "\033[?25h")
 	})
 }
 
