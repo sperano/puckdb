@@ -38,10 +38,12 @@ WHERE p.position = $1
 ORDER BY p.last_name, p.first_name;
 
 -- name: SearchPlayersByName :many
+-- Search by name using normalized columns for accent-insensitive matching
 SELECT p.*, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
 FROM players p
 LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.last_name ILIKE $1 OR p.first_name ILIKE $1
+WHERE p.last_name_normalized LIKE $1 OR p.first_name_normalized LIKE $1
+   OR p.last_name ILIKE $1 OR p.first_name ILIKE $1
 ORDER BY p.last_name, p.first_name
 LIMIT 50;
 
@@ -63,7 +65,7 @@ ORDER BY p.last_name, p.first_name;
 
 -- name: UpsertPlayer :exec
 INSERT INTO players (
-    id, yahoo_id, first_name, last_name, nhl_team_id,
+    id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, nhl_team_id,
     position, shoots_catches, height_inches, weight_pounds,
     birth_date, birth_city, birth_state_province, birth_country,
     sweater_number, is_active, headshot_url, hero_image_url,
@@ -71,18 +73,20 @@ INSERT INTO players (
     yahoo_home_url, player_slug,
     draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick
 ) VALUES (
-    $1, $2, $3, $4, $5,
-    $6, $7, $8, $9,
-    $10, $11, $12, $13,
-    $14, $15, $16, $17,
-    $18, $19, $20,
-    $21, $22,
-    $23, $24, $25, $26, $27
+    $1, $2, $3, $4, $5, $6, $7,
+    $8, $9, $10, $11,
+    $12, $13, $14, $15,
+    $16, $17, $18, $19,
+    $20, $21, $22,
+    $23, $24,
+    $25, $26, $27, $28, $29
 )
 ON CONFLICT (id) DO UPDATE SET
     yahoo_id = COALESCE(EXCLUDED.yahoo_id, players.yahoo_id),
     first_name = EXCLUDED.first_name,
     last_name = EXCLUDED.last_name,
+    first_name_normalized = EXCLUDED.first_name_normalized,
+    last_name_normalized = EXCLUDED.last_name_normalized,
     nhl_team_id = EXCLUDED.nhl_team_id,
     position = EXCLUDED.position,
     shoots_catches = EXCLUDED.shoots_catches,

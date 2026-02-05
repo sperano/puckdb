@@ -60,8 +60,8 @@ func sqlcTeamRowToGQL(row sqlcdb.GetAllNHLTeamsRow) *model.NHLTeam {
 		Abbreviation:  row.Abbreviation,
 		NhlHomeLink:   row.NhlHomeLink,
 		YahooHomeLink: row.YahooHomeLink,
-		SmallLogoURL:  row.SmallLogoUrl,
-		LargeLogoURL:  row.LargeLogoUrl,
+		SmallLogoURL:  row.SmallLogoURL,
+		LargeLogoURL:  row.LargeLogoURL,
 		Division: &model.NHLDivision{
 			ID:   int(row.DivID),
 			Name: row.DivName,

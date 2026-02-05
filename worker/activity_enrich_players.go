@@ -209,8 +209,8 @@ func enrichPlayerBatchImpl(
 			BirthCountry:       player.BirthCountry,
 			SweaterNumber:      player.SweaterNumber,
 			IsActive:           player.IsActive,
-			HeadshotUrl:        player.HeadshotUrl,
-			HeroImageUrl:       player.HeroImageUrl,
+			HeadshotUrl:        player.HeadshotURL,
+			HeroImageUrl:       player.HeroImageURL,
 			YahooImageSmall:    player.YahooImageSmall,
 			YahooImageMedium:   player.YahooImageMedium,
 			YahooImageLarge:    player.YahooImageLarge,
@@ -294,7 +294,7 @@ func partialToSqlcPlayer(partial PartialPlayer, landing *nhl.PlayerLanding) sqlc
 		YahooHomeUrl:     partial.YahooHomeURL,
 		IsActive:         false, // Will be updated from landing
 		ShootsCatches:    "",    // Will be updated from landing
-		HeadshotUrl:      "",    // Will be updated from landing
+		HeadshotURL:      "",    // Will be updated from landing
 	}
 
 	if landing != nil {
@@ -306,7 +306,7 @@ func partialToSqlcPlayer(partial PartialPlayer, landing *nhl.PlayerLanding) sqlc
 		player.HeightInches = pgtype.Int4{Int32: int32(landing.HeightInInches), Valid: true}
 		player.WeightPounds = pgtype.Int4{Int32: int32(landing.WeightInPounds), Valid: true}
 		player.IsActive = landing.IsActive
-		player.HeadshotUrl = landing.Headshot
+		player.HeadshotURL = landing.Headshot
 
 		if landing.SweaterNumber != nil {
 			player.SweaterNumber = pgtype.Int4{Int32: int32(*landing.SweaterNumber), Valid: true}
@@ -318,7 +318,7 @@ func partialToSqlcPlayer(partial PartialPlayer, landing *nhl.PlayerLanding) sqlc
 			player.NhlTeamID = pgtype.Int8{Valid: false}
 		}
 		if landing.HeroImage != nil {
-			player.HeroImageUrl = pgtype.Text{String: *landing.HeroImage, Valid: true}
+			player.HeroImageURL = pgtype.Text{String: *landing.HeroImage, Valid: true}
 		}
 		if landing.PlayerSlug != nil {
 			player.PlayerSlug = pgtype.Text{String: *landing.PlayerSlug, Valid: true}

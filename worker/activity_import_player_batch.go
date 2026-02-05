@@ -150,15 +150,17 @@ func importPlayerBatchImpl(ctx context.Context, deps ImportDeps, playerIDs []int
 // buildUpsertParams creates UpsertPlayerParams from PlayerLanding and match result.
 func buildUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResult) sqlcdb.UpsertPlayerParams {
 	params := sqlcdb.UpsertPlayerParams{
-		ID:            landing.PlayerID.AsInt64(),
-		FirstName:     landing.FirstName.Default,
-		LastName:      landing.LastName.Default,
-		Position:      string(landing.Position),
-		ShootsCatches: string(landing.ShootsCatches),
-		HeightInches:  pgtype.Int4{Int32: int32(landing.HeightInInches), Valid: landing.HeightInInches > 0},
-		WeightPounds:  pgtype.Int4{Int32: int32(landing.WeightInPounds), Valid: landing.WeightInPounds > 0},
-		IsActive:      landing.IsActive,
-		HeadshotUrl:   landing.Headshot,
+		ID:                  landing.PlayerID.AsInt64(),
+		FirstName:           landing.FirstName.Default,
+		LastName:            landing.LastName.Default,
+		FirstNameNormalized: normalizeName(landing.FirstName.Default),
+		LastNameNormalized:  normalizeName(landing.LastName.Default),
+		Position:            string(landing.Position),
+		ShootsCatches:       string(landing.ShootsCatches),
+		HeightInches:        pgtype.Int4{Int32: int32(landing.HeightInInches), Valid: landing.HeightInInches > 0},
+		WeightPounds:        pgtype.Int4{Int32: int32(landing.WeightInPounds), Valid: landing.WeightInPounds > 0},
+		IsActive:            landing.IsActive,
+		HeadshotUrl:         landing.Headshot,
 	}
 
 	// Yahoo ID and URLs

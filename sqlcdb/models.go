@@ -28,37 +28,39 @@ type NhlTeam struct {
 	NhlDivisionID int64       `json:"nhl_division_id"`
 	NhlHomeLink   string      `json:"nhl_home_link"`
 	YahooHomeLink string      `json:"yahoo_home_link"`
-	SmallLogoUrl  string      `json:"small_logo_url"`
-	LargeLogoUrl  string      `json:"large_logo_url"`
+	SmallLogoURL  string      `json:"small_logo_url"`
+	LargeLogoURL  string      `json:"large_logo_url"`
 	AllStars      bool        `json:"all_stars"`
 }
 
 type Player struct {
-	ID                 int64       `json:"id"`
-	YahooID            pgtype.Int8 `json:"yahoo_id"`
-	FirstName          string      `json:"first_name"`
-	LastName           string      `json:"last_name"`
-	NhlTeamID          pgtype.Int8 `json:"nhl_team_id"`
-	Position           string      `json:"position"`
-	ShootsCatches      string      `json:"shoots_catches"`
-	HeightInches       pgtype.Int4 `json:"height_inches"`
-	WeightPounds       pgtype.Int4 `json:"weight_pounds"`
-	BirthDate          pgtype.Date `json:"birth_date"`
-	BirthCity          pgtype.Text `json:"birth_city"`
-	BirthStateProvince pgtype.Text `json:"birth_state_province"`
-	BirthCountry       pgtype.Text `json:"birth_country"`
-	SweaterNumber      pgtype.Int4 `json:"sweater_number"`
-	IsActive           bool        `json:"is_active"`
-	HeadshotUrl        string      `json:"headshot_url"`
-	HeroImageUrl       pgtype.Text `json:"hero_image_url"`
-	YahooImageSmall    string      `json:"yahoo_image_small"`
-	YahooImageMedium   string      `json:"yahoo_image_medium"`
-	YahooImageLarge    string      `json:"yahoo_image_large"`
-	YahooHomeUrl       string      `json:"yahoo_home_url"`
-	PlayerSlug         pgtype.Text `json:"player_slug"`
-	DraftYear          pgtype.Int4 `json:"draft_year"`
-	DraftTeamAbbrev    pgtype.Text `json:"draft_team_abbrev"`
-	DraftRound         pgtype.Int4 `json:"draft_round"`
-	DraftPickInRound   pgtype.Int4 `json:"draft_pick_in_round"`
-	DraftOverallPick   pgtype.Int4 `json:"draft_overall_pick"`
+	ID                  int64       `json:"id"`
+	YahooID             pgtype.Int8 `json:"yahoo_id"`
+	FirstName           string      `json:"first_name"`
+	LastName            string      `json:"last_name"`
+	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	Position            string      `json:"position"`
+	ShootsCatches       string      `json:"shoots_catches"`
+	HeightInches        pgtype.Int4 `json:"height_inches"`
+	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
+	BirthDate           pgtype.Date `json:"birth_date"`
+	BirthCity           pgtype.Text `json:"birth_city"`
+	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
+	BirthCountry        pgtype.Text `json:"birth_country"`
+	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
+	IsActive            bool        `json:"is_active"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeroImageURL        pgtype.Text `json:"hero_image_url"`
+	YahooImageSmall     string      `json:"yahoo_image_small"`
+	YahooImageMedium    string      `json:"yahoo_image_medium"`
+	YahooImageLarge     string      `json:"yahoo_image_large"`
+	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	PlayerSlug          pgtype.Text `json:"player_slug"`
+	DraftYear           pgtype.Int4 `json:"draft_year"`
+	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
+	DraftRound          pgtype.Int4 `json:"draft_round"`
+	DraftPickInRound    pgtype.Int4 `json:"draft_pick_in_round"`
+	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
+	FirstNameNormalized string      `json:"first_name_normalized"`
+	LastNameNormalized  string      `json:"last_name_normalized"`
 }

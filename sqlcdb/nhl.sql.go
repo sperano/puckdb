@@ -100,8 +100,8 @@ type GetAllNHLTeamsRow struct {
 	NhlDivisionID int64       `json:"nhl_division_id"`
 	NhlHomeLink   string      `json:"nhl_home_link"`
 	YahooHomeLink string      `json:"yahoo_home_link"`
-	SmallLogoUrl  string      `json:"small_logo_url"`
-	LargeLogoUrl  string      `json:"large_logo_url"`
+	SmallLogoURL  string      `json:"small_logo_url"`
+	LargeLogoURL  string      `json:"large_logo_url"`
 	AllStars      bool        `json:"all_stars"`
 	DivID         int64       `json:"div_id"`
 	DivName       string      `json:"div_name"`
@@ -127,8 +127,8 @@ func (q *Queries) GetAllNHLTeams(ctx context.Context, allStars bool) ([]GetAllNH
 			&i.NhlDivisionID,
 			&i.NhlHomeLink,
 			&i.YahooHomeLink,
-			&i.SmallLogoUrl,
-			&i.LargeLogoUrl,
+			&i.SmallLogoURL,
+			&i.LargeLogoURL,
 			&i.AllStars,
 			&i.DivID,
 			&i.DivName,
