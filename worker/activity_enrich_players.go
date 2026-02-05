@@ -37,6 +37,7 @@ type enrichResult struct {
 // Extracted from sqlcdb.Queries for testability.
 type PlayerUpserter interface {
 	UpsertPlayer(ctx context.Context, arg sqlcdb.UpsertPlayerParams) error
+	ClearConflictingYahooID(ctx context.Context, arg sqlcdb.ClearConflictingYahooIDParams) error
 }
 
 // EnrichDeps holds dependencies for player enrichment.
@@ -198,7 +199,7 @@ func enrichPlayerBatchImpl(
 			YahooID:            player.YahooID,
 			FirstName:          player.FirstName,
 			LastName:           player.LastName,
-			NhlTeamID:          player.NhlTeamID,
+			NHLTeamID:          player.NHLTeamID,
 			Position:           player.Position,
 			ShootsCatches:      player.ShootsCatches,
 			HeightInches:       player.HeightInches,
@@ -209,12 +210,12 @@ func enrichPlayerBatchImpl(
 			BirthCountry:       player.BirthCountry,
 			SweaterNumber:      player.SweaterNumber,
 			IsActive:           player.IsActive,
-			HeadshotUrl:        player.HeadshotURL,
-			HeroImageUrl:       player.HeroImageURL,
+			HeadshotURL:        player.HeadshotURL,
+			HeroImageURL:       player.HeroImageURL,
 			YahooImageSmall:    player.YahooImageSmall,
 			YahooImageMedium:   player.YahooImageMedium,
 			YahooImageLarge:    player.YahooImageLarge,
-			YahooHomeUrl:       player.YahooHomeUrl,
+			YahooHomeURL:       player.YahooHomeURL,
 			PlayerSlug:         player.PlayerSlug,
 			DraftYear:          player.DraftYear,
 			DraftTeamAbbrev:    player.DraftTeamAbbrev,
@@ -278,7 +279,7 @@ func getPlayerLandingWithCache(
 }
 
 // partialToSqlcPlayer converts PartialPlayer + optional NHL landing to sqlcdb.Player.
-// NhlTeamID is only set from NHL API data since Yahoo uses different team IDs.
+// NHLTeamID is only set from NHL API data since Yahoo uses different team IDs.
 func partialToSqlcPlayer(partial PartialPlayer, landing *nhl.PlayerLanding) sqlcdb.Player {
 	player := sqlcdb.Player{
 		ID:               partial.ID,
@@ -287,11 +288,11 @@ func partialToSqlcPlayer(partial PartialPlayer, landing *nhl.PlayerLanding) sqlc
 		LastName:         partial.LastName,
 		Position:         partial.Position,
 		SweaterNumber:    pgtype.Int4{Int32: int32(partial.SweaterNumber), Valid: partial.SweaterNumber > 0},
-		NhlTeamID:        pgtype.Int8{Valid: false}, // Only set from NHL API, Yahoo uses different IDs
+		NHLTeamID:        pgtype.Int8{Valid: false}, // Only set from NHL API, Yahoo uses different IDs
 		YahooImageSmall:  partial.YahooImageSmall,
 		YahooImageMedium: partial.YahooImageMedium,
 		YahooImageLarge:  partial.YahooImageLarge,
-		YahooHomeUrl:     partial.YahooHomeURL,
+		YahooHomeURL:     partial.YahooHomeURL,
 		IsActive:         false, // Will be updated from landing
 		ShootsCatches:    "",    // Will be updated from landing
 		HeadshotURL:      "",    // Will be updated from landing
@@ -312,10 +313,10 @@ func partialToSqlcPlayer(partial PartialPlayer, landing *nhl.PlayerLanding) sqlc
 			player.SweaterNumber = pgtype.Int4{Int32: int32(*landing.SweaterNumber), Valid: true}
 		}
 		if landing.CurrentTeamID != nil {
-			player.NhlTeamID = pgtype.Int8{Int64: int64(*landing.CurrentTeamID), Valid: true}
+			player.NHLTeamID = pgtype.Int8{Int64: int64(*landing.CurrentTeamID), Valid: true}
 		} else {
 			// Player is not on a current team - clear potentially stale team ID from partial data
-			player.NhlTeamID = pgtype.Int8{Valid: false}
+			player.NHLTeamID = pgtype.Int8{Valid: false}
 		}
 		if landing.HeroImage != nil {
 			player.HeroImageURL = pgtype.Text{String: *landing.HeroImage, Valid: true}

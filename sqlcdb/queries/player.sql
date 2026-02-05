@@ -163,6 +163,11 @@ WHERE id = $1;
 -- Link a Yahoo player ID to an existing NHL player
 UPDATE players SET yahoo_id = $2 WHERE id = $1;
 
+-- name: ClearConflictingYahooID :exec
+-- Clear a yahoo_id from any player except the one we're about to assign it to.
+-- This handles cases where a yahoo_id was previously assigned to the wrong player.
+UPDATE players SET yahoo_id = NULL WHERE yahoo_id = $1 AND id != $2;
+
 -- name: CountPlayers :one
 SELECT COUNT(*) FROM players;
 

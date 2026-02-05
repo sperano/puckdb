@@ -454,8 +454,8 @@ func isPhaseBasedProgress(items []*model.ProgressItem) bool {
 }
 
 // formatPhaseProgress formats progress for phase-based workflows with checkmarks.
-// Shows completed phases with checkmarks, in-progress phases with progress bars,
-// and hides pending phases entirely.
+// Shows completed phases with checkmarks and elapsed time, in-progress phases with
+// progress bars, and pending phases with indentation.
 func formatPhaseProgress(progress *model.WorkflowProgress, existingLines []string) string {
 	lines := existingLines
 
@@ -466,20 +466,69 @@ func formatPhaseProgress(progress *model.WorkflowProgress, existingLines []strin
 		}
 
 		if item.Completed == item.Total && item.Total > 0 {
-			// Completed: show checkmark with count
-			lines = append(lines, fmt.Sprintf("✓ %s (%d)", description, item.Total))
+			// Completed: show checkmark with count and elapsed time
+			elapsed := formatElapsedTime(item.StartedAt, item.CompletedAt)
+			if elapsed != "" {
+				lines = append(lines, fmt.Sprintf("✓ %s (%d, %s)", description, item.Total, elapsed))
+			} else {
+				lines = append(lines, fmt.Sprintf("✓ %s (%d)", description, item.Total))
+			}
 		} else if item.Started {
-			// In progress: show phase on one line, progress bar on next
+			// In progress: show phase on one line, progress bar on next with spinner placeholder
 			lines = append(lines, fmt.Sprintf("▶ %s", description))
 			pct := float64(item.Completed) / float64(item.Total) * 100
 			bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-			lines = append(lines, fmt.Sprintf("  %d/%d %s %d%%",
-				item.Completed, item.Total, bar, int(pct)))
+			lines = append(lines, fmt.Sprintf("%s %d/%d %s %d%%",
+				SpinnerPlaceholder, item.Completed, item.Total, bar, int(pct)))
+		} else {
+			lines = append(lines, fmt.Sprintf("  %s", description))
 		}
-		// Pending phases are not shown
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// formatElapsedTime calculates and formats the elapsed time between two RFC3339 timestamps.
+func formatElapsedTime(startedAt, completedAt *string) string {
+	if startedAt == nil || completedAt == nil {
+		return ""
+	}
+
+	start, err := time.Parse(time.RFC3339, *startedAt)
+	if err != nil {
+		return ""
+	}
+
+	end, err := time.Parse(time.RFC3339, *completedAt)
+	if err != nil {
+		return ""
+	}
+
+	elapsed := end.Sub(start)
+
+	// Format as human-readable duration
+	if elapsed < time.Second {
+		return fmt.Sprintf("%dms", elapsed.Milliseconds())
+	}
+	if elapsed < time.Minute {
+		secs := elapsed.Seconds()
+		if secs == float64(int(secs)) {
+			return fmt.Sprintf("%ds", int(secs))
+		}
+		return fmt.Sprintf("%.1fs", secs)
+	}
+	if elapsed < time.Hour {
+		mins := int(elapsed.Minutes())
+		secs := int(elapsed.Seconds()) % 60
+		if secs == 0 {
+			return fmt.Sprintf("%dm", mins)
+		}
+		return fmt.Sprintf("%dm%ds", mins, secs)
+	}
+
+	hours := int(elapsed.Hours())
+	mins := int(elapsed.Minutes()) % 60
+	return fmt.Sprintf("%dh%dm", hours, mins)
 }
 
 func renderProgressBar(pct float64, width int) string {

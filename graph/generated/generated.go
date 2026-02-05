@@ -87,9 +87,9 @@ type ComplexityRoot struct {
 		FantasyGames   func(childComplexity int) int
 		Games          func(childComplexity int) int
 		Leagues        func(childComplexity int) int
-		NhlConferences func(childComplexity int) int
-		NhlDivisions   func(childComplexity int) int
-		NhlTeams       func(childComplexity int) int
+		NHLConferences func(childComplexity int) int
+		NHLDivisions   func(childComplexity int) int
+		NHLTeams       func(childComplexity int) int
 		PlayerStats    func(childComplexity int) int
 		Players        func(childComplexity int) int
 		RosterPlayers  func(childComplexity int) int
@@ -239,8 +239,8 @@ type ComplexityRoot struct {
 		Division      func(childComplexity int) int
 		ID            func(childComplexity int) int
 		LargeLogoURL  func(childComplexity int) int
+		NHLHomeLink   func(childComplexity int) int
 		Name          func(childComplexity int) int
-		NhlHomeLink   func(childComplexity int) int
 		SmallLogoURL  func(childComplexity int) int
 		YahooHomeLink func(childComplexity int) int
 	}
@@ -275,7 +275,7 @@ type ComplexityRoot struct {
 		ID                 func(childComplexity int) int
 		IsActive           func(childComplexity int) int
 		LastName           func(childComplexity int) int
-		NhlTeam            func(childComplexity int) int
+		NHLTeam            func(childComplexity int) int
 		PlayerSlug         func(childComplexity int) int
 		Position           func(childComplexity int) int
 		ShootsCatches      func(childComplexity int) int
@@ -687,25 +687,25 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		return e.complexity.DBStats.Leagues(childComplexity), true
 
 	case "DBStats.nhlConferences":
-		if e.complexity.DBStats.NhlConferences == nil {
+		if e.complexity.DBStats.NHLConferences == nil {
 			break
 		}
 
-		return e.complexity.DBStats.NhlConferences(childComplexity), true
+		return e.complexity.DBStats.NHLConferences(childComplexity), true
 
 	case "DBStats.nhlDivisions":
-		if e.complexity.DBStats.NhlDivisions == nil {
+		if e.complexity.DBStats.NHLDivisions == nil {
 			break
 		}
 
-		return e.complexity.DBStats.NhlDivisions(childComplexity), true
+		return e.complexity.DBStats.NHLDivisions(childComplexity), true
 
 	case "DBStats.nhlTeams":
-		if e.complexity.DBStats.NhlTeams == nil {
+		if e.complexity.DBStats.NHLTeams == nil {
 			break
 		}
 
-		return e.complexity.DBStats.NhlTeams(childComplexity), true
+		return e.complexity.DBStats.NHLTeams(childComplexity), true
 
 	case "DBStats.playerStats":
 		if e.complexity.DBStats.PlayerStats == nil {
@@ -1528,19 +1528,19 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.NHLTeam.LargeLogoURL(childComplexity), true
 
+	case "NHLTeam.nhlHomeLink":
+		if e.complexity.NHLTeam.NHLHomeLink == nil {
+			break
+		}
+
+		return e.complexity.NHLTeam.NHLHomeLink(childComplexity), true
+
 	case "NHLTeam.name":
 		if e.complexity.NHLTeam.Name == nil {
 			break
 		}
 
 		return e.complexity.NHLTeam.Name(childComplexity), true
-
-	case "NHLTeam.nhlHomeLink":
-		if e.complexity.NHLTeam.NhlHomeLink == nil {
-			break
-		}
-
-		return e.complexity.NHLTeam.NhlHomeLink(childComplexity), true
 
 	case "NHLTeam.smallLogoURL":
 		if e.complexity.NHLTeam.SmallLogoURL == nil {
@@ -1718,11 +1718,11 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		return e.complexity.Player.LastName(childComplexity), true
 
 	case "Player.nhlTeam":
-		if e.complexity.Player.NhlTeam == nil {
+		if e.complexity.Player.NHLTeam == nil {
 			break
 		}
 
-		return e.complexity.Player.NhlTeam(childComplexity), true
+		return e.complexity.Player.NHLTeam(childComplexity), true
 
 	case "Player.playerSlug":
 		if e.complexity.Player.PlayerSlug == nil {
@@ -2418,6 +2418,8 @@ var sources = []*ast.Source{
 #
 # https://gqlgen.com/getting-started/
 
+directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
+
 scalar Int64
 scalar Time
 
@@ -2444,7 +2446,7 @@ type NHLTeam {
 	id: Int!
 	city: String!
 	name: String!
-	nhlHomeLink: String!
+	nhlHomeLink: String! @goField(name: "NHLHomeLink")
 	yahooHomeLink: String!
 	division: NHLDivision!
 	smallLogoURL: String!
@@ -2498,9 +2500,9 @@ type OAuth2Token {
 }
 
 type DBStats {
-	nhlConferences: Int!
-	nhlDivisions: Int!
-	nhlTeams: Int!
+	nhlConferences: Int! @goField(name: "NHLConferences")
+	nhlDivisions: Int! @goField(name: "NHLDivisions")
+	nhlTeams: Int! @goField(name: "NHLTeams")
 	fantasyGames: Int!
 	leagues: Int!
 	players: Int!
@@ -2620,7 +2622,7 @@ type Player {
 	yahooID: Int64
 	firstName: String!
 	lastName: String!
-	nhlTeam: NHLTeam
+	nhlTeam: NHLTeam @goField(name: "NHLTeam")
 	position: String!
 	shootsCatches: String!
 	heightInches: Int
@@ -4651,7 +4653,7 @@ func (ec *executionContext) _DBStats_nhlConferences(ctx context.Context, field g
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.NhlConferences, nil
+		return obj.NHLConferences, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -4695,7 +4697,7 @@ func (ec *executionContext) _DBStats_nhlDivisions(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.NhlDivisions, nil
+		return obj.NHLDivisions, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -4739,7 +4741,7 @@ func (ec *executionContext) _DBStats_nhlTeams(ctx context.Context, field graphql
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.NhlTeams, nil
+		return obj.NHLTeams, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -10030,7 +10032,7 @@ func (ec *executionContext) _NHLTeam_nhlHomeLink(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.NhlHomeLink, nil
+		return obj.NHLHomeLink, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -10845,7 +10847,7 @@ func (ec *executionContext) _Player_nhlTeam(ctx context.Context, field graphql.C
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.NhlTeam, nil
+		return obj.NHLTeam, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)

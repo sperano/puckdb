@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -99,7 +100,11 @@ func importPlayerBatchImpl(ctx context.Context, deps ImportDeps, playerIDs []int
 		if landing.CurrentTeamAbbrev != nil {
 			teamAbbrev = *landing.CurrentTeamAbbrev
 		}
-		matchResult, err := MatchYahooID(&landing, teamAbbrev, yahooPool)
+		var nhlBirthDate time.Time
+		if landing.BirthDate != "" {
+			nhlBirthDate, _ = time.Parse("2006-01-02", landing.BirthDate)
+		}
+		matchResult, err := MatchYahooID(&landing, teamAbbrev, nhlBirthDate, yahooPool)
 		if err != nil {
 			log.Debug().
 				Err(err).
@@ -110,6 +115,22 @@ func importPlayerBatchImpl(ctx context.Context, deps ImportDeps, playerIDs []int
 
 		// Build UpsertPlayerParams
 		params := buildUpsertParams(&landing, matchResult)
+
+		// Clear any conflicting yahoo_id assignment before upserting.
+		// This handles cases where a yahoo_id was previously assigned to the wrong player
+		// (e.g., Bryan Hextall Sr. vs Jr. with the same name).
+		if matchResult.Matched {
+			clearParams := sqlcdb.ClearConflictingYahooIDParams{
+				YahooID: pgtype.Int8{Int64: int64(matchResult.YahooID), Valid: true},
+				ID:      playerID,
+			}
+			if err := deps.Queries.ClearConflictingYahooID(ctx, clearParams); err != nil {
+				log.Warn().Err(err).
+					Int64("nhl_id", playerID).
+					Int("yahoo_id", matchResult.YahooID).
+					Msg("Failed to clear conflicting yahoo_id")
+			}
+		}
 
 		// Upsert to database
 		if err := deps.Queries.UpsertPlayer(ctx, params); err != nil {
@@ -149,29 +170,33 @@ func importPlayerBatchImpl(ctx context.Context, deps ImportDeps, playerIDs []int
 
 // buildUpsertParams creates UpsertPlayerParams from PlayerLanding and match result.
 func buildUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResult) sqlcdb.UpsertPlayerParams {
+	// Trim whitespace from name fields - NHL API sometimes has trailing spaces
+	firstName := strings.TrimSpace(landing.FirstName.Default)
+	lastName := strings.TrimSpace(landing.LastName.Default)
+
 	params := sqlcdb.UpsertPlayerParams{
 		ID:                  landing.PlayerID.AsInt64(),
-		FirstName:           landing.FirstName.Default,
-		LastName:            landing.LastName.Default,
-		FirstNameNormalized: normalizeName(landing.FirstName.Default),
-		LastNameNormalized:  normalizeName(landing.LastName.Default),
+		FirstName:           firstName,
+		LastName:            lastName,
+		FirstNameNormalized: normalizeName(firstName),
+		LastNameNormalized:  normalizeName(lastName),
 		Position:            string(landing.Position),
 		ShootsCatches:       string(landing.ShootsCatches),
 		HeightInches:        pgtype.Int4{Int32: int32(landing.HeightInInches), Valid: landing.HeightInInches > 0},
 		WeightPounds:        pgtype.Int4{Int32: int32(landing.WeightInPounds), Valid: landing.WeightInPounds > 0},
 		IsActive:            landing.IsActive,
-		HeadshotUrl:         landing.Headshot,
+		HeadshotURL:         strings.TrimSpace(landing.Headshot),
 	}
 
 	// Yahoo ID and URLs
 	if match.Matched {
 		params.YahooID = pgtype.Int8{Int64: int64(match.YahooID), Valid: true}
-		params.YahooHomeUrl = fmt.Sprintf("%s%d/", yahooPlayerBaseURL, match.YahooID)
+		params.YahooHomeURL = fmt.Sprintf("%s%d/", yahooPlayerBaseURL, match.YahooID)
 	}
 
 	// Team ID
 	if landing.CurrentTeamID != nil {
-		params.NhlTeamID = pgtype.Int8{Int64: int64(*landing.CurrentTeamID), Valid: true}
+		params.NHLTeamID = pgtype.Int8{Int64: int64(*landing.CurrentTeamID), Valid: true}
 	}
 
 	// Jersey number
@@ -188,29 +213,29 @@ func buildUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResult) sql
 
 	// Birth location
 	if landing.BirthCity != nil {
-		params.BirthCity = pgtype.Text{String: landing.BirthCity.Default, Valid: true}
+		params.BirthCity = pgtype.Text{String: strings.TrimSpace(landing.BirthCity.Default), Valid: true}
 	}
 	if landing.BirthStateProvince != nil {
-		params.BirthStateProvince = pgtype.Text{String: landing.BirthStateProvince.Default, Valid: true}
+		params.BirthStateProvince = pgtype.Text{String: strings.TrimSpace(landing.BirthStateProvince.Default), Valid: true}
 	}
 	if landing.BirthCountry != nil {
-		params.BirthCountry = pgtype.Text{String: *landing.BirthCountry, Valid: true}
+		params.BirthCountry = pgtype.Text{String: strings.TrimSpace(*landing.BirthCountry), Valid: true}
 	}
 
 	// Hero image
 	if landing.HeroImage != nil {
-		params.HeroImageUrl = pgtype.Text{String: *landing.HeroImage, Valid: true}
+		params.HeroImageURL = pgtype.Text{String: strings.TrimSpace(*landing.HeroImage), Valid: true}
 	}
 
 	// Player slug
 	if landing.PlayerSlug != nil {
-		params.PlayerSlug = pgtype.Text{String: *landing.PlayerSlug, Valid: true}
+		params.PlayerSlug = pgtype.Text{String: strings.TrimSpace(*landing.PlayerSlug), Valid: true}
 	}
 
 	// Draft details
 	if landing.DraftDetails != nil {
 		params.DraftYear = pgtype.Int4{Int32: int32(landing.DraftDetails.Year), Valid: true}
-		params.DraftTeamAbbrev = pgtype.Text{String: landing.DraftDetails.TeamAbbrev, Valid: true}
+		params.DraftTeamAbbrev = pgtype.Text{String: strings.TrimSpace(landing.DraftDetails.TeamAbbrev), Valid: true}
 		params.DraftRound = pgtype.Int4{Int32: int32(landing.DraftDetails.Round), Valid: true}
 		params.DraftPickInRound = pgtype.Int4{Int32: int32(landing.DraftDetails.PickInRound), Valid: true}
 		params.DraftOverallPick = pgtype.Int4{Int32: int32(landing.DraftDetails.OverallPick), Valid: true}

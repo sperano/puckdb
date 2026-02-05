@@ -10,3 +10,19 @@ sql:
         sql_package: "pgx/v5"
         emit_json_tags: true
         emit_empty_slices: true
+        rename:
+          id: "ID"
+          yahoo_id: "YahooID"
+          nhl_team_id: "NHLTeamID"
+          nhl_conference_id: "NHLConferenceID"
+          nhl_division_id: "NHLDivisionID"
+          headshot_url: "HeadshotURL"
+          hero_image_url: "HeroImageURL"
+          yahoo_home_url: "YahooHomeURL"
+          yahoo_image_url: "YahooImageURL"
+          small_logo_url: "SmallLogoURL"
+          large_logo_url: "LargeLogoURL"
+          nhl_home_link: "NHLHomeLink"
+          yahoo_home_link: "YahooHomeLink"
+          player_id: "PlayerID"
+          team_id: "TeamID"

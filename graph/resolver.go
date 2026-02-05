@@ -111,10 +111,10 @@ func teams(ctx context.Context, obj *model.NHLDivision) ([]*model.NHLTeam, error
 			City:          t.City,
 			Name:          t.Name,
 			Abbreviation:  t.Abbreviation,
-			NhlHomeLink:   t.NhlHomeLink,
+			NHLHomeLink:   t.NHLHomeLink,
 			YahooHomeLink: t.YahooHomeLink,
-			SmallLogoURL:  t.SmallLogoUrl,
-			LargeLogoURL:  t.LargeLogoUrl,
+			SmallLogoURL:  t.SmallLogoURL,
+			LargeLogoURL:  t.LargeLogoURL,
 			Division: &model.NHLDivision{
 				ID:   int(t.DivID),
 				Name: t.DivName,

@@ -2,6 +2,8 @@
 #
 # https://gqlgen.com/getting-started/
 
+directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
+
 scalar Int64
 scalar Time
 
@@ -28,7 +30,7 @@ type NHLTeam {
 	id: Int!
 	city: String!
 	name: String!
-	nhlHomeLink: String!
+	nhlHomeLink: String! @goField(name: "NHLHomeLink")
 	yahooHomeLink: String!
 	division: NHLDivision!
 	smallLogoURL: String!
@@ -82,9 +84,9 @@ type OAuth2Token {
 }
 
 type DBStats {
-	nhlConferences: Int!
-	nhlDivisions: Int!
-	nhlTeams: Int!
+	nhlConferences: Int! @goField(name: "NHLConferences")
+	nhlDivisions: Int! @goField(name: "NHLDivisions")
+	nhlTeams: Int! @goField(name: "NHLTeams")
 	fantasyGames: Int!
 	leagues: Int!
 	players: Int!
@@ -204,7 +206,7 @@ type Player {
 	yahooID: Int64
 	firstName: String!
 	lastName: String!
-	nhlTeam: NHLTeam
+	nhlTeam: NHLTeam @goField(name: "NHLTeam")
 	position: String!
 	shootsCatches: String!
 	heightInches: Int

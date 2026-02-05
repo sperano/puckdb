@@ -43,9 +43,9 @@ type Configuration struct {
 }
 
 type DBStats struct {
-	NhlConferences int `json:"nhlConferences"`
-	NhlDivisions   int `json:"nhlDivisions"`
-	NhlTeams       int `json:"nhlTeams"`
+	NHLConferences int `json:"nhlConferences"`
+	NHLDivisions   int `json:"nhlDivisions"`
+	NHLTeams       int `json:"nhlTeams"`
 	FantasyGames   int `json:"fantasyGames"`
 	Leagues        int `json:"leagues"`
 	Players        int `json:"players"`
@@ -191,7 +191,7 @@ type NHLTeam struct {
 	ID            int          `json:"id"`
 	City          string       `json:"city"`
 	Name          string       `json:"name"`
-	NhlHomeLink   string       `json:"nhlHomeLink"`
+	NHLHomeLink   string       `json:"nhlHomeLink"`
 	YahooHomeLink string       `json:"yahooHomeLink"`
 	Division      *NHLDivision `json:"division"`
 	SmallLogoURL  string       `json:"smallLogoURL"`
@@ -217,7 +217,7 @@ type Player struct {
 	YahooID            *int64   `json:"yahooID,omitempty"`
 	FirstName          string   `json:"firstName"`
 	LastName           string   `json:"lastName"`
-	NhlTeam            *NHLTeam `json:"nhlTeam,omitempty"`
+	NHLTeam            *NHLTeam `json:"nhlTeam,omitempty"`
 	Position           string   `json:"position"`
 	ShootsCatches      string   `json:"shootsCatches"`
 	HeightInches       *int     `json:"heightInches,omitempty"`

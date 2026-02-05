@@ -157,7 +157,7 @@ func TestPlayerGraphQLModel(t *testing.T) {
 	assert.Equal(t, "my-image-small", g.YahooImageSmall)
 	assert.Equal(t, "my-image-medium", g.YahooImageMedium)
 	assert.Equal(t, "my-image-large", g.YahooImageLarge)
-	assert.Equal(t, 760, g.NhlTeam.ID)
+	assert.Equal(t, 760, g.NHLTeam.ID)
 }
 
 func TestPlayer_SetVersion(t *testing.T) {

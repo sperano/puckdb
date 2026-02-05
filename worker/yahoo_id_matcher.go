@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/rs/zerolog/log"
@@ -22,10 +23,13 @@ type YahooIDMatchResult struct {
 }
 
 // normalizeName prepares a name for matching by:
-// 1. Decoding HTML entities (&#x27; -> ')
-// 2. Removing diacritics/accents (é -> e, ü -> u)
-// 3. Converting to lowercase
+// 1. Trimming leading/trailing whitespace
+// 2. Decoding HTML entities (&#x27; -> ')
+// 3. Removing diacritics/accents (é -> e, ü -> u)
+// 4. Converting to lowercase
 func normalizeName(name string) string {
+	name = strings.TrimSpace(name)
+
 	// Decode HTML entities (e.g., &#x27; -> ')
 	name = html.UnescapeString(name)
 
@@ -210,11 +214,13 @@ var nhlAbbrevToYahooTeam = map[string]string{
 // The matching algorithm:
 // 1. Find all name matches (case-insensitive, including nickname aliases)
 // 2. If NHL player has a jersey number, filter by jersey
-// 3. If multiple matches, use team as tiebreaker
-// 4. Return error if >1 match after all disambiguation
+// 3. If both have birth dates, filter by date match (within 1 day)
+// 4. If multiple matches, use team as tiebreaker
+// 5. Return error if >1 match after all disambiguation
 func MatchYahooID(
 	landing *nhl.PlayerLanding,
 	nhlTeamAbbrev string,
+	nhlBirthDate time.Time,
 	pool map[int]*cache.YahooPlayer,
 ) (YahooIDMatchResult, error) {
 	// Normalize names: decode HTML entities, strip accents, lowercase
@@ -303,7 +309,31 @@ func MatchYahooID(
 		// If no jersey matches, continue with all name matches
 	}
 
-	// Step 3: Team tiebreaker if multiple candidates
+	// Step 3: Filter by birth date if both NHL and Yahoo players have one
+	if !nhlBirthDate.IsZero() && len(candidates) > 1 {
+		var birthMatches []candidateMatch
+		for _, c := range candidates {
+			if !c.player.BirthDate.IsZero() {
+				diff := nhlBirthDate.Sub(c.player.BirthDate)
+				if diff < 0 {
+					diff = -diff
+				}
+				if diff <= 24*time.Hour {
+					birthMatches = append(birthMatches, c)
+				}
+			}
+		}
+		if len(birthMatches) == 1 {
+			return logFuzzyMatch(birthMatches[0], "name+birthdate"), nil
+		}
+		if len(birthMatches) > 1 {
+			// Multiple birth date matches, continue with these for team tiebreaker
+			candidates = birthMatches
+		}
+		// If no birth date matches, continue with all candidates
+	}
+
+	// Step 4: Team tiebreaker if multiple candidates
 	if len(candidates) > 1 && nhlTeamAbbrev != "" {
 		yahooTeamName := nhlAbbrevToYahooTeam[nhlTeamAbbrev]
 		if yahooTeamName != "" {
@@ -326,7 +356,7 @@ func MatchYahooID(
 		}
 	}
 
-	// Step 4: Single candidate = match (name-only)
+	// Step 5: Single candidate = match (name-only)
 	if len(candidates) == 1 {
 		return logFuzzyMatch(candidates[0], "name-only"), nil
 	}

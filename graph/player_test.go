@@ -18,7 +18,7 @@ func TestSqlcPlayerRowToGQL_AllFields(t *testing.T) {
 		YahooID:            pgtype.Int8{Int64: 5441, Valid: true},
 		FirstName:          "Connor",
 		LastName:           "McDavid",
-		NhlTeamID:          pgtype.Int8{Int64: 22, Valid: true},
+		NHLTeamID:          pgtype.Int8{Int64: 22, Valid: true},
 		Position:           "C",
 		ShootsCatches:      "L",
 		HeightInches:       pgtype.Int4{Int32: 73, Valid: true},
@@ -29,12 +29,12 @@ func TestSqlcPlayerRowToGQL_AllFields(t *testing.T) {
 		BirthCountry:       pgtype.Text{String: "CAN", Valid: true},
 		SweaterNumber:      pgtype.Int4{Int32: 97, Valid: true},
 		IsActive:           true,
-		HeadshotUrl:        "https://example.com/headshot.jpg",
-		HeroImageUrl:       pgtype.Text{String: "https://example.com/hero.jpg", Valid: true},
+		HeadshotURL:        "https://example.com/headshot.jpg",
+		HeroImageURL:       pgtype.Text{String: "https://example.com/hero.jpg", Valid: true},
 		YahooImageSmall:    "https://example.com/yahoo-small.jpg",
 		YahooImageMedium:   "https://example.com/yahoo-medium.jpg",
 		YahooImageLarge:    "https://example.com/yahoo-large.jpg",
-		YahooHomeUrl:       "https://sports.yahoo.com/nhl/players/5441",
+		YahooHomeURL:       "https://sports.yahoo.com/nhl/players/5441",
 		PlayerSlug:         pgtype.Text{String: "connor-mcdavid-8478402", Valid: true},
 		DraftYear:          pgtype.Int4{Int32: 2015, Valid: true},
 		DraftTeamAbbrev:    pgtype.Text{String: "EDM", Valid: true},
@@ -91,11 +91,11 @@ func TestSqlcPlayerRowToGQL_AllFields(t *testing.T) {
 	assert.Equal(t, 1, *result.DraftOverallPick)
 
 	// Check NHL team
-	assert.NotNil(t, result.NhlTeam)
-	assert.Equal(t, 22, result.NhlTeam.ID)
-	assert.Equal(t, "Edmonton", result.NhlTeam.City)
-	assert.Equal(t, "Oilers", result.NhlTeam.Name)
-	assert.Equal(t, "EDM", result.NhlTeam.Abbreviation)
+	assert.NotNil(t, result.NHLTeam)
+	assert.Equal(t, 22, result.NHLTeam.ID)
+	assert.Equal(t, "Edmonton", result.NHLTeam.City)
+	assert.Equal(t, "Oilers", result.NHLTeam.Name)
+	assert.Equal(t, "EDM", result.NHLTeam.Abbreviation)
 }
 
 func TestSqlcPlayerRowToGQL_NullableFieldsEmpty(t *testing.T) {
@@ -108,11 +108,11 @@ func TestSqlcPlayerRowToGQL_NullableFieldsEmpty(t *testing.T) {
 		Position:         "C",
 		ShootsCatches:    "L",
 		IsActive:         true,
-		HeadshotUrl:      "https://example.com/crosby.jpg",
+		HeadshotURL:      "https://example.com/crosby.jpg",
 		YahooImageSmall:  "",
 		YahooImageMedium: "",
 		YahooImageLarge:  "",
-		YahooHomeUrl:     "",
+		YahooHomeURL:     "",
 		// All nullable fields left as zero values (Invalid)
 	}
 
@@ -137,7 +137,7 @@ func TestSqlcPlayerRowToGQL_NullableFieldsEmpty(t *testing.T) {
 	assert.Nil(t, result.DraftRound)
 	assert.Nil(t, result.DraftPickInRound)
 	assert.Nil(t, result.DraftOverallPick)
-	assert.Nil(t, result.NhlTeam)
+	assert.Nil(t, result.NHLTeam)
 }
 
 func TestSqlcPlayerRowToGQL_InactivePlayer(t *testing.T) {
@@ -150,7 +150,7 @@ func TestSqlcPlayerRowToGQL_InactivePlayer(t *testing.T) {
 		Position:      "C",
 		ShootsCatches: "L",
 		IsActive:      false,
-		HeadshotUrl:   "",
+		HeadshotURL:   "",
 	}
 
 	result := sqlcPlayerRowToGQL(row)
@@ -171,9 +171,9 @@ func TestSqlcPlayerRowToGQL_Goalie(t *testing.T) {
 		Position:      "G",
 		ShootsCatches: "L",
 		IsActive:      true,
-		HeadshotUrl:   "https://example.com/saros.jpg",
+		HeadshotURL:   "https://example.com/saros.jpg",
 		SweaterNumber: pgtype.Int4{Int32: 74, Valid: true},
-		NhlTeamID:     pgtype.Int8{Int64: 18, Valid: true},
+		NHLTeamID:     pgtype.Int8{Int64: 18, Valid: true},
 		TeamCity:      pgtype.Text{String: "Nashville", Valid: true},
 		TeamName:      pgtype.Text{String: "Predators", Valid: true},
 		TeamAbbrev:    pgtype.Text{String: "NSH", Valid: true},
@@ -185,9 +185,9 @@ func TestSqlcPlayerRowToGQL_Goalie(t *testing.T) {
 	assert.Equal(t, "L", result.ShootsCatches)
 	assert.NotNil(t, result.SweaterNumber)
 	assert.Equal(t, 74, *result.SweaterNumber)
-	assert.NotNil(t, result.NhlTeam)
-	assert.Equal(t, "Nashville", result.NhlTeam.City)
-	assert.Equal(t, "Predators", result.NhlTeam.Name)
+	assert.NotNil(t, result.NHLTeam)
+	assert.Equal(t, "Nashville", result.NHLTeam.City)
+	assert.Equal(t, "Predators", result.NHLTeam.Name)
 }
 
 func TestSqlcPlayerRowToGQL_PlayerWithYahooIDButNoTeam(t *testing.T) {
@@ -201,11 +201,11 @@ func TestSqlcPlayerRowToGQL_PlayerWithYahooIDButNoTeam(t *testing.T) {
 		Position:         "D",
 		ShootsCatches:    "R",
 		IsActive:         true,
-		HeadshotUrl:      "",
+		HeadshotURL:      "",
 		YahooImageSmall:  "https://example.com/fa-small.jpg",
 		YahooImageMedium: "https://example.com/fa-medium.jpg",
 		YahooImageLarge:  "https://example.com/fa-large.jpg",
-		YahooHomeUrl:     "https://sports.yahoo.com/nhl/players/9999",
+		YahooHomeURL:     "https://sports.yahoo.com/nhl/players/9999",
 		// No team info
 	}
 
@@ -213,6 +213,6 @@ func TestSqlcPlayerRowToGQL_PlayerWithYahooIDButNoTeam(t *testing.T) {
 
 	assert.NotNil(t, result.YahooID)
 	assert.Equal(t, int64(9999), *result.YahooID)
-	assert.Nil(t, result.NhlTeam)
+	assert.Nil(t, result.NHLTeam)
 	assert.Equal(t, "https://example.com/fa-small.jpg", result.YahooImageSmall)
 }

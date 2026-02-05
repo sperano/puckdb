@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearConflictingYahooID = `-- name: ClearConflictingYahooID :exec
+UPDATE players SET yahoo_id = NULL WHERE yahoo_id = $1 AND id != $2
+`
+
+type ClearConflictingYahooIDParams struct {
+	YahooID pgtype.Int8 `json:"yahoo_id"`
+	ID      int64       `json:"id"`
+}
+
+// Clear a yahoo_id from any player except the one we're about to assign it to.
+// This handles cases where a yahoo_id was previously assigned to the wrong player.
+func (q *Queries) ClearConflictingYahooID(ctx context.Context, arg ClearConflictingYahooIDParams) error {
+	_, err := q.db.Exec(ctx, clearConflictingYahooID, arg.YahooID, arg.ID)
+	return err
+}
+
 const countActivePlayers = `-- name: CountActivePlayers :one
 SELECT COUNT(*) FROM players WHERE is_active = TRUE
 `
@@ -55,7 +71,7 @@ type GetActivePlayersRow struct {
 	YahooID             pgtype.Int8 `json:"yahoo_id"`
 	FirstName           string      `json:"first_name"`
 	LastName            string      `json:"last_name"`
-	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -66,12 +82,12 @@ type GetActivePlayersRow struct {
 	BirthCountry        pgtype.Text `json:"birth_country"`
 	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
 	IsActive            bool        `json:"is_active"`
-	HeadshotUrl         string      `json:"headshot_url"`
-	HeroImageUrl        pgtype.Text `json:"hero_image_url"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeroImageURL        pgtype.Text `json:"hero_image_url"`
 	YahooImageSmall     string      `json:"yahoo_image_small"`
 	YahooImageMedium    string      `json:"yahoo_image_medium"`
 	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	YahooHomeURL        string      `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text `json:"player_slug"`
 	DraftYear           pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
@@ -99,7 +115,7 @@ func (q *Queries) GetActivePlayers(ctx context.Context) ([]GetActivePlayersRow, 
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NhlTeamID,
+			&i.NHLTeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -110,12 +126,12 @@ func (q *Queries) GetActivePlayers(ctx context.Context) ([]GetActivePlayersRow, 
 			&i.BirthCountry,
 			&i.SweaterNumber,
 			&i.IsActive,
-			&i.HeadshotUrl,
-			&i.HeroImageUrl,
+			&i.HeadshotURL,
+			&i.HeroImageURL,
 			&i.YahooImageSmall,
 			&i.YahooImageMedium,
 			&i.YahooImageLarge,
-			&i.YahooHomeUrl,
+			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
 			&i.DraftTeamAbbrev,
@@ -150,7 +166,7 @@ type GetAllPlayersRow struct {
 	YahooID             pgtype.Int8 `json:"yahoo_id"`
 	FirstName           string      `json:"first_name"`
 	LastName            string      `json:"last_name"`
-	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -161,12 +177,12 @@ type GetAllPlayersRow struct {
 	BirthCountry        pgtype.Text `json:"birth_country"`
 	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
 	IsActive            bool        `json:"is_active"`
-	HeadshotUrl         string      `json:"headshot_url"`
-	HeroImageUrl        pgtype.Text `json:"hero_image_url"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeroImageURL        pgtype.Text `json:"hero_image_url"`
 	YahooImageSmall     string      `json:"yahoo_image_small"`
 	YahooImageMedium    string      `json:"yahoo_image_medium"`
 	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	YahooHomeURL        string      `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text `json:"player_slug"`
 	DraftYear           pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
@@ -194,7 +210,7 @@ func (q *Queries) GetAllPlayers(ctx context.Context) ([]GetAllPlayersRow, error)
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NhlTeamID,
+			&i.NHLTeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -205,12 +221,12 @@ func (q *Queries) GetAllPlayers(ctx context.Context) ([]GetAllPlayersRow, error)
 			&i.BirthCountry,
 			&i.SweaterNumber,
 			&i.IsActive,
-			&i.HeadshotUrl,
-			&i.HeroImageUrl,
+			&i.HeadshotURL,
+			&i.HeroImageURL,
 			&i.YahooImageSmall,
 			&i.YahooImageMedium,
 			&i.YahooImageLarge,
-			&i.YahooHomeUrl,
+			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
 			&i.DraftTeamAbbrev,
@@ -245,7 +261,7 @@ type GetPlayerRow struct {
 	YahooID             pgtype.Int8 `json:"yahoo_id"`
 	FirstName           string      `json:"first_name"`
 	LastName            string      `json:"last_name"`
-	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -256,12 +272,12 @@ type GetPlayerRow struct {
 	BirthCountry        pgtype.Text `json:"birth_country"`
 	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
 	IsActive            bool        `json:"is_active"`
-	HeadshotUrl         string      `json:"headshot_url"`
-	HeroImageUrl        pgtype.Text `json:"hero_image_url"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeroImageURL        pgtype.Text `json:"hero_image_url"`
 	YahooImageSmall     string      `json:"yahoo_image_small"`
 	YahooImageMedium    string      `json:"yahoo_image_medium"`
 	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	YahooHomeURL        string      `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text `json:"player_slug"`
 	DraftYear           pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
@@ -283,7 +299,7 @@ func (q *Queries) GetPlayer(ctx context.Context, id int64) (GetPlayerRow, error)
 		&i.YahooID,
 		&i.FirstName,
 		&i.LastName,
-		&i.NhlTeamID,
+		&i.NHLTeamID,
 		&i.Position,
 		&i.ShootsCatches,
 		&i.HeightInches,
@@ -294,12 +310,12 @@ func (q *Queries) GetPlayer(ctx context.Context, id int64) (GetPlayerRow, error)
 		&i.BirthCountry,
 		&i.SweaterNumber,
 		&i.IsActive,
-		&i.HeadshotUrl,
-		&i.HeroImageUrl,
+		&i.HeadshotURL,
+		&i.HeroImageURL,
 		&i.YahooImageSmall,
 		&i.YahooImageMedium,
 		&i.YahooImageLarge,
-		&i.YahooHomeUrl,
+		&i.YahooHomeURL,
 		&i.PlayerSlug,
 		&i.DraftYear,
 		&i.DraftTeamAbbrev,
@@ -327,7 +343,7 @@ type GetPlayerByYahooIDRow struct {
 	YahooID             pgtype.Int8 `json:"yahoo_id"`
 	FirstName           string      `json:"first_name"`
 	LastName            string      `json:"last_name"`
-	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -338,12 +354,12 @@ type GetPlayerByYahooIDRow struct {
 	BirthCountry        pgtype.Text `json:"birth_country"`
 	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
 	IsActive            bool        `json:"is_active"`
-	HeadshotUrl         string      `json:"headshot_url"`
-	HeroImageUrl        pgtype.Text `json:"hero_image_url"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeroImageURL        pgtype.Text `json:"hero_image_url"`
 	YahooImageSmall     string      `json:"yahoo_image_small"`
 	YahooImageMedium    string      `json:"yahoo_image_medium"`
 	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	YahooHomeURL        string      `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text `json:"player_slug"`
 	DraftYear           pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
@@ -365,7 +381,7 @@ func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (
 		&i.YahooID,
 		&i.FirstName,
 		&i.LastName,
-		&i.NhlTeamID,
+		&i.NHLTeamID,
 		&i.Position,
 		&i.ShootsCatches,
 		&i.HeightInches,
@@ -376,12 +392,12 @@ func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (
 		&i.BirthCountry,
 		&i.SweaterNumber,
 		&i.IsActive,
-		&i.HeadshotUrl,
-		&i.HeroImageUrl,
+		&i.HeadshotURL,
+		&i.HeroImageURL,
 		&i.YahooImageSmall,
 		&i.YahooImageMedium,
 		&i.YahooImageLarge,
-		&i.YahooHomeUrl,
+		&i.YahooHomeURL,
 		&i.PlayerSlug,
 		&i.DraftYear,
 		&i.DraftTeamAbbrev,
@@ -410,7 +426,7 @@ type GetPlayersByPositionRow struct {
 	YahooID             pgtype.Int8 `json:"yahoo_id"`
 	FirstName           string      `json:"first_name"`
 	LastName            string      `json:"last_name"`
-	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -421,12 +437,12 @@ type GetPlayersByPositionRow struct {
 	BirthCountry        pgtype.Text `json:"birth_country"`
 	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
 	IsActive            bool        `json:"is_active"`
-	HeadshotUrl         string      `json:"headshot_url"`
-	HeroImageUrl        pgtype.Text `json:"hero_image_url"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeroImageURL        pgtype.Text `json:"hero_image_url"`
 	YahooImageSmall     string      `json:"yahoo_image_small"`
 	YahooImageMedium    string      `json:"yahoo_image_medium"`
 	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	YahooHomeURL        string      `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text `json:"player_slug"`
 	DraftYear           pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
@@ -454,7 +470,7 @@ func (q *Queries) GetPlayersByPosition(ctx context.Context, position string) ([]
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NhlTeamID,
+			&i.NHLTeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -465,12 +481,12 @@ func (q *Queries) GetPlayersByPosition(ctx context.Context, position string) ([]
 			&i.BirthCountry,
 			&i.SweaterNumber,
 			&i.IsActive,
-			&i.HeadshotUrl,
-			&i.HeroImageUrl,
+			&i.HeadshotURL,
+			&i.HeroImageURL,
 			&i.YahooImageSmall,
 			&i.YahooImageMedium,
 			&i.YahooImageLarge,
-			&i.YahooHomeUrl,
+			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
 			&i.DraftTeamAbbrev,
@@ -506,7 +522,7 @@ type GetPlayersByTeamRow struct {
 	YahooID             pgtype.Int8 `json:"yahoo_id"`
 	FirstName           string      `json:"first_name"`
 	LastName            string      `json:"last_name"`
-	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -517,12 +533,12 @@ type GetPlayersByTeamRow struct {
 	BirthCountry        pgtype.Text `json:"birth_country"`
 	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
 	IsActive            bool        `json:"is_active"`
-	HeadshotUrl         string      `json:"headshot_url"`
-	HeroImageUrl        pgtype.Text `json:"hero_image_url"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeroImageURL        pgtype.Text `json:"hero_image_url"`
 	YahooImageSmall     string      `json:"yahoo_image_small"`
 	YahooImageMedium    string      `json:"yahoo_image_medium"`
 	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	YahooHomeURL        string      `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text `json:"player_slug"`
 	DraftYear           pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
@@ -550,7 +566,7 @@ func (q *Queries) GetPlayersByTeam(ctx context.Context, nhlTeamID pgtype.Int8) (
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NhlTeamID,
+			&i.NHLTeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -561,12 +577,12 @@ func (q *Queries) GetPlayersByTeam(ctx context.Context, nhlTeamID pgtype.Int8) (
 			&i.BirthCountry,
 			&i.SweaterNumber,
 			&i.IsActive,
-			&i.HeadshotUrl,
-			&i.HeroImageUrl,
+			&i.HeadshotURL,
+			&i.HeroImageURL,
 			&i.YahooImageSmall,
 			&i.YahooImageMedium,
 			&i.YahooImageLarge,
-			&i.YahooHomeUrl,
+			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
 			&i.DraftTeamAbbrev,
@@ -635,7 +651,7 @@ type ListPlayersRow struct {
 	YahooID             pgtype.Int8 `json:"yahoo_id"`
 	FirstName           string      `json:"first_name"`
 	LastName            string      `json:"last_name"`
-	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -646,12 +662,12 @@ type ListPlayersRow struct {
 	BirthCountry        pgtype.Text `json:"birth_country"`
 	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
 	IsActive            bool        `json:"is_active"`
-	HeadshotUrl         string      `json:"headshot_url"`
-	HeroImageUrl        pgtype.Text `json:"hero_image_url"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeroImageURL        pgtype.Text `json:"hero_image_url"`
 	YahooImageSmall     string      `json:"yahoo_image_small"`
 	YahooImageMedium    string      `json:"yahoo_image_medium"`
 	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	YahooHomeURL        string      `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text `json:"player_slug"`
 	DraftYear           pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
@@ -686,7 +702,7 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Lis
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NhlTeamID,
+			&i.NHLTeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -697,12 +713,12 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Lis
 			&i.BirthCountry,
 			&i.SweaterNumber,
 			&i.IsActive,
-			&i.HeadshotUrl,
-			&i.HeroImageUrl,
+			&i.HeadshotURL,
+			&i.HeroImageURL,
 			&i.YahooImageSmall,
 			&i.YahooImageMedium,
 			&i.YahooImageLarge,
-			&i.YahooHomeUrl,
+			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
 			&i.DraftTeamAbbrev,
@@ -740,7 +756,7 @@ type SearchPlayersByNameRow struct {
 	YahooID             pgtype.Int8 `json:"yahoo_id"`
 	FirstName           string      `json:"first_name"`
 	LastName            string      `json:"last_name"`
-	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -751,12 +767,12 @@ type SearchPlayersByNameRow struct {
 	BirthCountry        pgtype.Text `json:"birth_country"`
 	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
 	IsActive            bool        `json:"is_active"`
-	HeadshotUrl         string      `json:"headshot_url"`
-	HeroImageUrl        pgtype.Text `json:"hero_image_url"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeroImageURL        pgtype.Text `json:"hero_image_url"`
 	YahooImageSmall     string      `json:"yahoo_image_small"`
 	YahooImageMedium    string      `json:"yahoo_image_medium"`
 	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	YahooHomeURL        string      `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text `json:"player_slug"`
 	DraftYear           pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
@@ -785,7 +801,7 @@ func (q *Queries) SearchPlayersByName(ctx context.Context, lastNameNormalized st
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NhlTeamID,
+			&i.NHLTeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -796,12 +812,12 @@ func (q *Queries) SearchPlayersByName(ctx context.Context, lastNameNormalized st
 			&i.BirthCountry,
 			&i.SweaterNumber,
 			&i.IsActive,
-			&i.HeadshotUrl,
-			&i.HeroImageUrl,
+			&i.HeadshotURL,
+			&i.HeroImageURL,
 			&i.YahooImageSmall,
 			&i.YahooImageMedium,
 			&i.YahooImageLarge,
-			&i.YahooHomeUrl,
+			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
 			&i.DraftTeamAbbrev,
@@ -840,7 +856,7 @@ type UpdatePlayerYahooInfoParams struct {
 	YahooImageSmall  string      `json:"yahoo_image_small"`
 	YahooImageMedium string      `json:"yahoo_image_medium"`
 	YahooImageLarge  string      `json:"yahoo_image_large"`
-	YahooHomeUrl     string      `json:"yahoo_home_url"`
+	YahooHomeURL     string      `json:"yahoo_home_url"`
 }
 
 // Use this when importing from Yahoo API (updates Yahoo-specific fields)
@@ -851,7 +867,7 @@ func (q *Queries) UpdatePlayerYahooInfo(ctx context.Context, arg UpdatePlayerYah
 		arg.YahooImageSmall,
 		arg.YahooImageMedium,
 		arg.YahooImageLarge,
-		arg.YahooHomeUrl,
+		arg.YahooHomeURL,
 	)
 	return err
 }
@@ -912,7 +928,7 @@ type UpsertPlayerParams struct {
 	LastName            string      `json:"last_name"`
 	FirstNameNormalized string      `json:"first_name_normalized"`
 	LastNameNormalized  string      `json:"last_name_normalized"`
-	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -923,12 +939,12 @@ type UpsertPlayerParams struct {
 	BirthCountry        pgtype.Text `json:"birth_country"`
 	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
 	IsActive            bool        `json:"is_active"`
-	HeadshotUrl         string      `json:"headshot_url"`
-	HeroImageUrl        pgtype.Text `json:"hero_image_url"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeroImageURL        pgtype.Text `json:"hero_image_url"`
 	YahooImageSmall     string      `json:"yahoo_image_small"`
 	YahooImageMedium    string      `json:"yahoo_image_medium"`
 	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	YahooHomeURL        string      `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text `json:"player_slug"`
 	DraftYear           pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
@@ -945,7 +961,7 @@ func (q *Queries) UpsertPlayer(ctx context.Context, arg UpsertPlayerParams) erro
 		arg.LastName,
 		arg.FirstNameNormalized,
 		arg.LastNameNormalized,
-		arg.NhlTeamID,
+		arg.NHLTeamID,
 		arg.Position,
 		arg.ShootsCatches,
 		arg.HeightInches,
@@ -956,12 +972,12 @@ func (q *Queries) UpsertPlayer(ctx context.Context, arg UpsertPlayerParams) erro
 		arg.BirthCountry,
 		arg.SweaterNumber,
 		arg.IsActive,
-		arg.HeadshotUrl,
-		arg.HeroImageUrl,
+		arg.HeadshotURL,
+		arg.HeroImageURL,
 		arg.YahooImageSmall,
 		arg.YahooImageMedium,
 		arg.YahooImageLarge,
-		arg.YahooHomeUrl,
+		arg.YahooHomeURL,
 		arg.PlayerSlug,
 		arg.DraftYear,
 		arg.DraftTeamAbbrev,
@@ -1014,7 +1030,7 @@ type UpsertPlayerFromNHLParams struct {
 	ID                 int64       `json:"id"`
 	FirstName          string      `json:"first_name"`
 	LastName           string      `json:"last_name"`
-	NhlTeamID          pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID          pgtype.Int8 `json:"nhl_team_id"`
 	Position           string      `json:"position"`
 	ShootsCatches      string      `json:"shoots_catches"`
 	HeightInches       pgtype.Int4 `json:"height_inches"`
@@ -1025,8 +1041,8 @@ type UpsertPlayerFromNHLParams struct {
 	BirthCountry       pgtype.Text `json:"birth_country"`
 	SweaterNumber      pgtype.Int4 `json:"sweater_number"`
 	IsActive           bool        `json:"is_active"`
-	HeadshotUrl        string      `json:"headshot_url"`
-	HeroImageUrl       pgtype.Text `json:"hero_image_url"`
+	HeadshotURL        string      `json:"headshot_url"`
+	HeroImageURL       pgtype.Text `json:"hero_image_url"`
 	PlayerSlug         pgtype.Text `json:"player_slug"`
 	DraftYear          pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev    pgtype.Text `json:"draft_team_abbrev"`
@@ -1041,7 +1057,7 @@ func (q *Queries) UpsertPlayerFromNHL(ctx context.Context, arg UpsertPlayerFromN
 		arg.ID,
 		arg.FirstName,
 		arg.LastName,
-		arg.NhlTeamID,
+		arg.NHLTeamID,
 		arg.Position,
 		arg.ShootsCatches,
 		arg.HeightInches,
@@ -1052,8 +1068,8 @@ func (q *Queries) UpsertPlayerFromNHL(ctx context.Context, arg UpsertPlayerFromN
 		arg.BirthCountry,
 		arg.SweaterNumber,
 		arg.IsActive,
-		arg.HeadshotUrl,
-		arg.HeroImageUrl,
+		arg.HeadshotURL,
+		arg.HeroImageURL,
 		arg.PlayerSlug,
 		arg.DraftYear,
 		arg.DraftTeamAbbrev,

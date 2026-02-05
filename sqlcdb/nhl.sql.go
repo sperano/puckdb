@@ -47,7 +47,7 @@ ORDER BY d.id
 type GetAllNHLDivisionsRow struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
-	NhlConferenceID int64  `json:"nhl_conference_id"`
+	NHLConferenceID int64  `json:"nhl_conference_id"`
 	ConfID          int64  `json:"conf_id"`
 	ConfName        string `json:"conf_name"`
 }
@@ -64,7 +64,7 @@ func (q *Queries) GetAllNHLDivisions(ctx context.Context) ([]GetAllNHLDivisionsR
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.NhlConferenceID,
+			&i.NHLConferenceID,
 			&i.ConfID,
 			&i.ConfName,
 		); err != nil {
@@ -97,8 +97,8 @@ type GetAllNHLTeamsRow struct {
 	City          string      `json:"city"`
 	Name          string      `json:"name"`
 	Abbreviation  string      `json:"abbreviation"`
-	NhlDivisionID int64       `json:"nhl_division_id"`
-	NhlHomeLink   string      `json:"nhl_home_link"`
+	NHLDivisionID int64       `json:"nhl_division_id"`
+	NHLHomeLink   string      `json:"nhl_home_link"`
 	YahooHomeLink string      `json:"yahoo_home_link"`
 	SmallLogoURL  string      `json:"small_logo_url"`
 	LargeLogoURL  string      `json:"large_logo_url"`
@@ -124,8 +124,8 @@ func (q *Queries) GetAllNHLTeams(ctx context.Context, allStars bool) ([]GetAllNH
 			&i.City,
 			&i.Name,
 			&i.Abbreviation,
-			&i.NhlDivisionID,
-			&i.NhlHomeLink,
+			&i.NHLDivisionID,
+			&i.NHLHomeLink,
 			&i.YahooHomeLink,
 			&i.SmallLogoURL,
 			&i.LargeLogoURL,
@@ -169,7 +169,7 @@ ORDER BY d.id
 type GetNHLDivisionsByConferenceRow struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
-	NhlConferenceID int64  `json:"nhl_conference_id"`
+	NHLConferenceID int64  `json:"nhl_conference_id"`
 	ConfID          int64  `json:"conf_id"`
 	ConfName        string `json:"conf_name"`
 }
@@ -186,7 +186,7 @@ func (q *Queries) GetNHLDivisionsByConference(ctx context.Context, nhlConference
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.NhlConferenceID,
+			&i.NHLConferenceID,
 			&i.ConfID,
 			&i.ConfName,
 		); err != nil {
@@ -218,11 +218,11 @@ type GetNHLTeamRow struct {
 	City          string      `json:"city"`
 	Name          string      `json:"name"`
 	Abbreviation  string      `json:"abbreviation"`
-	NhlDivisionID int64       `json:"nhl_division_id"`
-	NhlHomeLink   string      `json:"nhl_home_link"`
+	NHLDivisionID int64       `json:"nhl_division_id"`
+	NHLHomeLink   string      `json:"nhl_home_link"`
 	YahooHomeLink string      `json:"yahoo_home_link"`
-	SmallLogoUrl  string      `json:"small_logo_url"`
-	LargeLogoUrl  string      `json:"large_logo_url"`
+	SmallLogoURL  string      `json:"small_logo_url"`
+	LargeLogoURL  string      `json:"large_logo_url"`
 	AllStars      bool        `json:"all_stars"`
 	DivID         int64       `json:"div_id"`
 	DivName       string      `json:"div_name"`
@@ -239,11 +239,11 @@ func (q *Queries) GetNHLTeam(ctx context.Context, id int64) (GetNHLTeamRow, erro
 		&i.City,
 		&i.Name,
 		&i.Abbreviation,
-		&i.NhlDivisionID,
-		&i.NhlHomeLink,
+		&i.NHLDivisionID,
+		&i.NHLHomeLink,
 		&i.YahooHomeLink,
-		&i.SmallLogoUrl,
-		&i.LargeLogoUrl,
+		&i.SmallLogoURL,
+		&i.LargeLogoURL,
 		&i.AllStars,
 		&i.DivID,
 		&i.DivName,
@@ -272,11 +272,11 @@ type GetNHLTeamsByDivisionRow struct {
 	City          string      `json:"city"`
 	Name          string      `json:"name"`
 	Abbreviation  string      `json:"abbreviation"`
-	NhlDivisionID int64       `json:"nhl_division_id"`
-	NhlHomeLink   string      `json:"nhl_home_link"`
+	NHLDivisionID int64       `json:"nhl_division_id"`
+	NHLHomeLink   string      `json:"nhl_home_link"`
 	YahooHomeLink string      `json:"yahoo_home_link"`
-	SmallLogoUrl  string      `json:"small_logo_url"`
-	LargeLogoUrl  string      `json:"large_logo_url"`
+	SmallLogoURL  string      `json:"small_logo_url"`
+	LargeLogoURL  string      `json:"large_logo_url"`
 	AllStars      bool        `json:"all_stars"`
 	DivID         int64       `json:"div_id"`
 	DivName       string      `json:"div_name"`
@@ -299,11 +299,11 @@ func (q *Queries) GetNHLTeamsByDivision(ctx context.Context, nhlDivisionID int64
 			&i.City,
 			&i.Name,
 			&i.Abbreviation,
-			&i.NhlDivisionID,
-			&i.NhlHomeLink,
+			&i.NHLDivisionID,
+			&i.NHLHomeLink,
 			&i.YahooHomeLink,
-			&i.SmallLogoUrl,
-			&i.LargeLogoUrl,
+			&i.SmallLogoURL,
+			&i.LargeLogoURL,
 			&i.AllStars,
 			&i.DivID,
 			&i.DivName,
@@ -347,11 +347,11 @@ ON CONFLICT (id) DO UPDATE SET
 type UpsertNHLDivisionParams struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
-	NhlConferenceID int64  `json:"nhl_conference_id"`
+	NHLConferenceID int64  `json:"nhl_conference_id"`
 }
 
 func (q *Queries) UpsertNHLDivision(ctx context.Context, arg UpsertNHLDivisionParams) error {
-	_, err := q.db.Exec(ctx, upsertNHLDivision, arg.ID, arg.Name, arg.NhlConferenceID)
+	_, err := q.db.Exec(ctx, upsertNHLDivision, arg.ID, arg.Name, arg.NHLConferenceID)
 	return err
 }
 
@@ -377,11 +377,11 @@ type UpsertNHLTeamParams struct {
 	City          string      `json:"city"`
 	Name          string      `json:"name"`
 	Abbreviation  string      `json:"abbreviation"`
-	NhlDivisionID int64       `json:"nhl_division_id"`
-	NhlHomeLink   string      `json:"nhl_home_link"`
+	NHLDivisionID int64       `json:"nhl_division_id"`
+	NHLHomeLink   string      `json:"nhl_home_link"`
 	YahooHomeLink string      `json:"yahoo_home_link"`
-	SmallLogoUrl  string      `json:"small_logo_url"`
-	LargeLogoUrl  string      `json:"large_logo_url"`
+	SmallLogoURL  string      `json:"small_logo_url"`
+	LargeLogoURL  string      `json:"large_logo_url"`
 	AllStars      bool        `json:"all_stars"`
 }
 
@@ -392,11 +392,11 @@ func (q *Queries) UpsertNHLTeam(ctx context.Context, arg UpsertNHLTeamParams) er
 		arg.City,
 		arg.Name,
 		arg.Abbreviation,
-		arg.NhlDivisionID,
-		arg.NhlHomeLink,
+		arg.NHLDivisionID,
+		arg.NHLHomeLink,
 		arg.YahooHomeLink,
-		arg.SmallLogoUrl,
-		arg.LargeLogoUrl,
+		arg.SmallLogoURL,
+		arg.LargeLogoURL,
 		arg.AllStars,
 	)
 	return err

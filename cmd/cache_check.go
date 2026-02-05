@@ -19,6 +19,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+// SpinnerPlaceholder is replaced with the current spinner frame when rendering.
+// Use this in the message to position the spinner on a specific line.
+const SpinnerPlaceholder = "\x00"
+
 // spinner displays an animated spinner with a message (supports multi-line)
 type spinner struct {
 	frames    []string
@@ -61,12 +65,20 @@ func (s *spinner) Start() {
 				s.clearLines()
 				// Count lines in new message
 				s.lineCount = strings.Count(s.message, "\n") + 1
-				// Print lines with spinner on the last line
-				lines := strings.Split(s.message, "\n")
-				for j := 0; j < len(lines)-1; j++ {
-					fmt.Fprintf(s.writer, "  %s\n", lines[j])
+
+				// Replace placeholder with spinner frame, or put spinner on last line
+				if strings.Contains(s.message, SpinnerPlaceholder) {
+					// Placeholder mode: replace placeholder with spinner frame
+					output := strings.Replace(s.message, SpinnerPlaceholder, s.frames[i], 1)
+					fmt.Fprint(s.writer, output)
+				} else {
+					// Legacy mode: spinner on last line
+					lines := strings.Split(s.message, "\n")
+					for j := 0; j < len(lines)-1; j++ {
+						fmt.Fprintf(s.writer, "%s\n", lines[j])
+					}
+					fmt.Fprintf(s.writer, "%s %s", s.frames[i], lines[len(lines)-1])
 				}
-				fmt.Fprintf(s.writer, "%s %s", s.frames[i], lines[len(lines)-1])
 				s.mu.Unlock()
 				i = (i + 1) % len(s.frames)
 				time.Sleep(s.interval)

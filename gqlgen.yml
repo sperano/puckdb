@@ -75,6 +75,7 @@ models:
       teams:
         resolver: true
 
+
   Season:
     fields:
       leagues:

@@ -16,7 +16,7 @@ type NhlConference struct {
 type NhlDivision struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
-	NhlConferenceID int64  `json:"nhl_conference_id"`
+	NHLConferenceID int64  `json:"nhl_conference_id"`
 }
 
 type NhlTeam struct {
@@ -25,8 +25,8 @@ type NhlTeam struct {
 	City          string      `json:"city"`
 	Name          string      `json:"name"`
 	Abbreviation  string      `json:"abbreviation"`
-	NhlDivisionID int64       `json:"nhl_division_id"`
-	NhlHomeLink   string      `json:"nhl_home_link"`
+	NHLDivisionID int64       `json:"nhl_division_id"`
+	NHLHomeLink   string      `json:"nhl_home_link"`
 	YahooHomeLink string      `json:"yahoo_home_link"`
 	SmallLogoURL  string      `json:"small_logo_url"`
 	LargeLogoURL  string      `json:"large_logo_url"`
@@ -38,7 +38,7 @@ type Player struct {
 	YahooID             pgtype.Int8 `json:"yahoo_id"`
 	FirstName           string      `json:"first_name"`
 	LastName            string      `json:"last_name"`
-	NhlTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -54,7 +54,7 @@ type Player struct {
 	YahooImageSmall     string      `json:"yahoo_image_small"`
 	YahooImageMedium    string      `json:"yahoo_image_medium"`
 	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeUrl        string      `json:"yahoo_home_url"`
+	YahooHomeURL        string      `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text `json:"player_slug"`
 	DraftYear           pgtype.Int4 `json:"draft_year"`
 	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`

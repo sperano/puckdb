@@ -1,0 +1,2 @@
+-- No-op: Cannot restore original whitespace since it was data corruption
+-- This migration only cleaned up malformed data from the NHL API

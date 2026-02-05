@@ -61,7 +61,7 @@ func (t *NHLTeam) GraphQLModel() *gqlmodel.NHLTeam {
 		City:          t.City,
 		Abbreviation:  t.Abbreviation,
 		Name:          t.Name,
-		NhlHomeLink:   t.NHLHomeLink,
+		NHLHomeLink:   t.NHLHomeLink,
 		YahooHomeLink: t.YahooHomeLink,
 		Division:      t.NHLDivision.GraphQLModel(),
 		SmallLogoURL:  t.SmallLogoURL,

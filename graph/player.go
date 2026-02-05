@@ -17,11 +17,11 @@ func sqlcPlayerRowToGQL(row sqlcdb.ListPlayersRow) *model.Player {
 		Position:        row.Position,
 		ShootsCatches:   row.ShootsCatches,
 		IsActive:        row.IsActive,
-		HeadshotURL:     row.HeadshotUrl,
+		HeadshotURL:     row.HeadshotURL,
 		YahooImageSmall: row.YahooImageSmall,
 		YahooImageMedium: row.YahooImageMedium,
 		YahooImageLarge: row.YahooImageLarge,
-		YahooHomeURL:    row.YahooHomeUrl,
+		YahooHomeURL:    row.YahooHomeURL,
 	}
 
 	// Handle nullable fields
@@ -53,8 +53,8 @@ func sqlcPlayerRowToGQL(row sqlcdb.ListPlayersRow) *model.Player {
 		v := int(row.SweaterNumber.Int32)
 		player.SweaterNumber = &v
 	}
-	if row.HeroImageUrl.Valid {
-		player.HeroImageURL = &row.HeroImageUrl.String
+	if row.HeroImageURL.Valid {
+		player.HeroImageURL = &row.HeroImageURL.String
 	}
 	if row.PlayerSlug.Valid {
 		player.PlayerSlug = &row.PlayerSlug.String
@@ -80,9 +80,9 @@ func sqlcPlayerRowToGQL(row sqlcdb.ListPlayersRow) *model.Player {
 	}
 
 	// Handle NHL team if present
-	if row.NhlTeamID.Valid && row.TeamName.Valid {
-		player.NhlTeam = &model.NHLTeam{
-			ID:           int(row.NhlTeamID.Int64),
+	if row.NHLTeamID.Valid && row.TeamName.Valid {
+		player.NHLTeam = &model.NHLTeam{
+			ID:           int(row.NHLTeamID.Int64),
 			City:         row.TeamCity.String,
 			Name:         row.TeamName.String,
 			Abbreviation: row.TeamAbbrev.String,

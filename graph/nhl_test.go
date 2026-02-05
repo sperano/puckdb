@@ -32,7 +32,7 @@ func TestSqlcTeamRowToGQL(t *testing.T) {
 		City:          "Boston",
 		Name:          "Bruins",
 		Abbreviation:  "BOS",
-		NhlHomeLink:   "https://www.nhl.com/bruins",
+		NHLHomeLink:   "https://www.nhl.com/bruins",
 		YahooHomeLink: "https://sports.yahoo.com/nhl/teams/boston/",
 		SmallLogoURL:  "https://example.com/small.png",
 		LargeLogoURL:  "https://example.com/large.png",
@@ -48,7 +48,7 @@ func TestSqlcTeamRowToGQL(t *testing.T) {
 	assert.Equal(t, "Boston", result.City)
 	assert.Equal(t, "Bruins", result.Name)
 	assert.Equal(t, "BOS", result.Abbreviation)
-	assert.Equal(t, "https://www.nhl.com/bruins", result.NhlHomeLink)
+	assert.Equal(t, "https://www.nhl.com/bruins", result.NHLHomeLink)
 	assert.Equal(t, "https://sports.yahoo.com/nhl/teams/boston/", result.YahooHomeLink)
 	assert.Equal(t, "https://example.com/small.png", result.SmallLogoURL)
 	assert.Equal(t, "https://example.com/large.png", result.LargeLogoURL)
@@ -67,10 +67,10 @@ func TestSqlcSingleTeamRowToGQL(t *testing.T) {
 		City:          "Vegas",
 		Name:          "Golden Knights",
 		Abbreviation:  "VGS",
-		NhlHomeLink:   "https://www.nhl.com/goldenknights",
+		NHLHomeLink:   "https://www.nhl.com/goldenknights",
 		YahooHomeLink: "https://sports.yahoo.com/nhl/teams/vegas/",
-		SmallLogoUrl:  "https://example.com/vgs-small.png",
-		LargeLogoUrl:  "https://example.com/vgs-large.png",
+		SmallLogoURL:  "https://example.com/vgs-small.png",
+		LargeLogoURL:  "https://example.com/vgs-large.png",
 		DivID:         4,
 		DivName:       "Pacific",
 		ConfID:        2,
@@ -83,7 +83,7 @@ func TestSqlcSingleTeamRowToGQL(t *testing.T) {
 	assert.Equal(t, "Vegas", result.City)
 	assert.Equal(t, "Golden Knights", result.Name)
 	assert.Equal(t, "VGS", result.Abbreviation)
-	assert.Equal(t, "https://www.nhl.com/goldenknights", result.NhlHomeLink)
+	assert.Equal(t, "https://www.nhl.com/goldenknights", result.NHLHomeLink)
 	assert.Equal(t, "https://sports.yahoo.com/nhl/teams/vegas/", result.YahooHomeLink)
 	assert.Equal(t, "https://example.com/vgs-small.png", result.SmallLogoURL)
 	assert.Equal(t, "https://example.com/vgs-large.png", result.LargeLogoURL)
@@ -102,7 +102,7 @@ func TestSqlcTeamRowToGQL_EmptyFields(t *testing.T) {
 		City:          "Atlantic",
 		Name:          "All-Stars",
 		Abbreviation:  "AAS",
-		NhlHomeLink:   "",
+		NHLHomeLink:   "",
 		YahooHomeLink: "",
 		SmallLogoURL:  "",
 		LargeLogoURL:  "",
@@ -118,7 +118,7 @@ func TestSqlcTeamRowToGQL_EmptyFields(t *testing.T) {
 	assert.Equal(t, "Atlantic", result.City)
 	assert.Equal(t, "All-Stars", result.Name)
 	assert.Equal(t, "AAS", result.Abbreviation)
-	assert.Equal(t, "", result.NhlHomeLink)
+	assert.Equal(t, "", result.NHLHomeLink)
 	assert.Equal(t, "", result.YahooHomeLink)
 	assert.Equal(t, "", result.SmallLogoURL)
 	assert.Equal(t, "", result.LargeLogoURL)

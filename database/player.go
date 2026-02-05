@@ -63,7 +63,7 @@ func (p *Player) GraphQLModel() *gqlmodel.Player {
 		YahooImageMedium: p.ImageMedium,
 		YahooImageLarge:  p.ImageLarge,
 		YahooHomeURL:     p.HomeURL,
-		NhlTeam:          p.NHLTeam.GraphQLModel(),
+		NHLTeam:          p.NHLTeam.GraphQLModel(),
 	}
 }
 
