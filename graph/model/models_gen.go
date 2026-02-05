@@ -106,11 +106,14 @@ type Game struct {
 }
 
 type ImportPlayersResultData struct {
-	TotalPlayers     int                     `json:"totalPlayers"`
-	ImportedPlayers  int                     `json:"importedPlayers"`
-	MatchedWithYahoo int                     `json:"matchedWithYahoo"`
-	UnmatchedYahoo   []*UnmatchedYahooPlayer `json:"unmatchedYahoo"`
-	Errors           []string                `json:"errors"`
+	TotalPlayers          int                     `json:"totalPlayers"`
+	ImportedPlayers       int                     `json:"importedPlayers"`
+	MatchedWithYahoo      int                     `json:"matchedWithYahoo"`
+	TotalYahooPlayers     int                     `json:"totalYahooPlayers"`
+	SkippedNonNHL         int                     `json:"skippedNonNHL"`
+	VerifiedNonNHLThisRun int                     `json:"verifiedNonNHLThisRun"`
+	TrulyUnmatched        []*TrulyUnmatchedPlayer `json:"trulyUnmatched"`
+	Errors                []string                `json:"errors"`
 }
 
 type League struct {
@@ -316,12 +319,13 @@ type Team struct {
 	Manager               *Manager `json:"Manager"`
 }
 
-type UnmatchedYahooPlayer struct {
-	YahooID      int    `json:"yahooID"`
-	FirstName    string `json:"firstName"`
-	LastName     string `json:"lastName"`
-	Team         string `json:"team"`
-	JerseyNumber int    `json:"jerseyNumber"`
+type TrulyUnmatchedPlayer struct {
+	YahooID     int    `json:"yahooID"`
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	NhlGames    int    `json:"nhlGames"`
+	NhlPlayerID int    `json:"nhlPlayerID"`
+	NhlName     string `json:"nhlName"`
 }
 
 type WorkflowProgress struct {

@@ -326,19 +326,26 @@ type WorkflowProgress {
 	items: [ProgressItem!]
 }
 
-type UnmatchedYahooPlayer {
+# TrulyUnmatchedPlayer represents a Yahoo player who has NHL games but wasn't matched.
+# These need investigation.
+type TrulyUnmatchedPlayer {
 	yahooID: Int!
 	firstName: String!
 	lastName: String!
-	team: String!
-	jerseyNumber: Int!
+	nhlGames: Int!
+	nhlPlayerID: Int!
+	nhlName: String!
 }
 
 type ImportPlayersResultData {
 	totalPlayers: Int!
 	importedPlayers: Int!
 	matchedWithYahoo: Int!
-	unmatchedYahoo: [UnmatchedYahooPlayer!]!
+	# Yahoo player stats
+	totalYahooPlayers: Int!
+	skippedNonNHL: Int! @goField(name: "SkippedNonNHL")            # Excluded at load (verified non-NHL from previous runs)
+	verifiedNonNHLThisRun: Int! @goField(name: "VerifiedNonNHLThisRun")    # Verified as non-NHL during this run
+	trulyUnmatched: [TrulyUnmatchedPlayer!]!  # Have NHL games but weren't matched
 	errors: [String!]!
 }
 

@@ -35,8 +35,12 @@ type ImportPlayersResult struct {
 	TotalPlayers     int
 	ImportedPlayers  int
 	MatchedWithYahoo int
-	UnmatchedYahoo   []UnmatchedYahooPlayer
-	Errors           []string
+	// Yahoo player stats
+	TotalYahooPlayers     int              // Total Yahoo players parsed
+	SkippedNonNHL         int              // Excluded at load (verified non-NHL from previous runs)
+	VerifiedNonNHLThisRun int              // Verified as non-NHL during this run
+	TrulyUnmatched        []VerifiedPlayer // Unmatched players with NHL games (need investigation)
+	Errors                []string
 }
 
 // ImportPlayersWorkflow imports player data from cached PlayerLanding files into the database.
@@ -62,7 +66,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 	phases := []PhaseInfo{
 		{ID: PhaseLoadYahooPool, Description: "Load Yahoo pool", Total: 1},
 		{ID: PhaseImportPlayers, Description: "Import players", Total: 0}, // Total set later
-		{ID: PhaseReportUnmatched, Description: "Report unmatched", Total: 1},
+		{ID: PhaseReportUnmatched, Description: "Review unmatched players", Total: 0}, // Total set later
 	}
 	tracker := NewProgressTrackerWithPhases(phases)
 	tracker.SetMessage("Starting import")
@@ -106,11 +110,15 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 
 	// Step 1c: Save all players to Redis
 	tracker.SetMessage("Saving Yahoo pool to Redis")
-	if err := workflow.ExecuteActivity(ctx, SaveYahooPlayersToRedisActivity, allYahooPlayers).Get(ctx, nil); err != nil {
+	var saveResult *SaveYahooIDPoolResult
+	if err := workflow.ExecuteActivity(ctx, SaveYahooPlayersToRedisActivity, allYahooPlayers).Get(ctx, &saveResult); err != nil {
 		logger.Error("Failed to save Yahoo players to Redis", "error", err)
 		return nil, err
 	}
-	logger.Info("Saved Yahoo pool to Redis", "size", len(allYahooPlayers))
+	logger.Info("Saved Yahoo pool to Redis",
+		"total", saveResult.TotalPlayers,
+		"available", saveResult.AvailablePlayers,
+		"skipped_non_nhl", saveResult.SkippedNonNHL)
 	tracker.MarkItemCompleted(PhaseLoadYahooPool)
 
 	// List all PlayerLanding files
@@ -169,32 +177,43 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 		"errors", len(allErrors))
 	tracker.MarkItemCompleted(PhaseImportPlayers)
 
-	// Phase 3: Report unmatched Yahoo IDs
+	// Phase 3: Review unmatched Yahoo players
 	tracker.MarkItemStarted(PhaseReportUnmatched)
-	tracker.SetMessage("Reporting unmatched Yahoo players")
-	logger.Info("Phase 3: Reporting unmatched Yahoo IDs")
+	tracker.SetMessage("Reviewing unmatched Yahoo players")
+	logger.Info("Phase 3: Reviewing unmatched Yahoo players")
 
-	var unmatched []UnmatchedYahooPlayer
-	if err := workflow.ExecuteActivity(ctx, ReportUnmatchedYahooIDsActivity).Get(ctx, &unmatched); err != nil {
-		logger.Warn("Failed to report unmatched Yahoo IDs", "error", err)
-		// Don't fail the workflow for this
+	var unmatchedReport *UnmatchedReport
+	if err := workflow.ExecuteActivity(ctx, ReportUnmatchedYahooIDsActivity).Get(ctx, &unmatchedReport); err != nil {
+		logger.Warn("Failed to review unmatched Yahoo IDs", "error", err)
+		// Don't fail the workflow for this, use empty report
+		unmatchedReport = &UnmatchedReport{}
 	}
-	tracker.IncrementItem(PhaseReportUnmatched)
+
+	// Update progress to show how many were reviewed
+	totalReviewed := len(unmatchedReport.TrulyUnmatched) + unmatchedReport.VerifiedNonNHLCount + unmatchedReport.NotFoundCount
+	tracker.SetItemTotal(PhaseReportUnmatched, totalReviewed)
+	tracker.IncrementItemBy(PhaseReportUnmatched, totalReviewed)
 	tracker.MarkItemCompleted(PhaseReportUnmatched)
 
 	logger.Info("ImportPlayersWorkflow completed",
 		"totalPlayers", len(playerIDs),
 		"imported", totalImported,
 		"matchedWithYahoo", totalMatched,
-		"unmatchedYahoo", len(unmatched),
+		"totalYahooPlayers", saveResult.TotalPlayers,
+		"skippedNonNHL", saveResult.SkippedNonNHL,
+		"trulyUnmatched", len(unmatchedReport.TrulyUnmatched),
+		"verifiedNonNHLThisRun", unmatchedReport.VerifiedNonNHLCount,
 		"errors", len(allErrors))
 
 	return &ImportPlayersResult{
-		TotalPlayers:     len(playerIDs),
-		ImportedPlayers:  totalImported,
-		MatchedWithYahoo: totalMatched,
-		UnmatchedYahoo:   unmatched,
-		Errors:           allErrors,
+		TotalPlayers:          len(playerIDs),
+		ImportedPlayers:       totalImported,
+		MatchedWithYahoo:      totalMatched,
+		TotalYahooPlayers:     saveResult.TotalPlayers,
+		SkippedNonNHL:         saveResult.SkippedNonNHL,
+		VerifiedNonNHLThisRun: unmatchedReport.VerifiedNonNHLCount,
+		TrulyUnmatched:        unmatchedReport.TrulyUnmatched,
+		Errors:                allErrors,
 	}, nil
 }
 

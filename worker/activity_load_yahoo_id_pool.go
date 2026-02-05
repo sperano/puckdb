@@ -58,15 +58,20 @@ func ParseYahooPlayerBatchActivity(ctx context.Context, playerIDs []int) ([]cach
 
 // SaveYahooPlayersToRedisActivity saves parsed Yahoo players to Redis.
 // This is the final step of Phase 1.
-func SaveYahooPlayersToRedisActivity(ctx context.Context, players []cache.YahooPlayer) error {
+// Returns the result including how many players were skipped (verified non-NHL).
+func SaveYahooPlayersToRedisActivity(ctx context.Context, players []cache.YahooPlayer) (*SaveYahooIDPoolResult, error) {
 	logger := activity.GetLogger(ctx)
 	redisClient := redis.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
-	if err := SaveYahooIDPool(ctx, redisClient, players); err != nil {
-		return err
+	result, err := SaveYahooIDPool(ctx, redisClient, players)
+	if err != nil {
+		return nil, err
 	}
 
-	logger.Info("Saved Yahoo players to Redis", "count", len(players))
-	return nil
+	logger.Info("Saved Yahoo players to Redis",
+		"total", result.TotalPlayers,
+		"available", result.AvailablePlayers,
+		"skipped_non_nhl", result.SkippedNonNHL)
+	return result, nil
 }

@@ -136,11 +136,14 @@ type ComplexityRoot struct {
 	}
 
 	ImportPlayersResultData struct {
-		Errors           func(childComplexity int) int
-		ImportedPlayers  func(childComplexity int) int
-		MatchedWithYahoo func(childComplexity int) int
-		TotalPlayers     func(childComplexity int) int
-		UnmatchedYahoo   func(childComplexity int) int
+		Errors                func(childComplexity int) int
+		ImportedPlayers       func(childComplexity int) int
+		MatchedWithYahoo      func(childComplexity int) int
+		SkippedNonNHL         func(childComplexity int) int
+		TotalPlayers          func(childComplexity int) int
+		TotalYahooPlayers     func(childComplexity int) int
+		TrulyUnmatched        func(childComplexity int) int
+		VerifiedNonNHLThisRun func(childComplexity int) int
 	}
 
 	League struct {
@@ -369,12 +372,13 @@ type ComplexityRoot struct {
 		URL                   func(childComplexity int) int
 	}
 
-	UnmatchedYahooPlayer struct {
-		FirstName    func(childComplexity int) int
-		JerseyNumber func(childComplexity int) int
-		LastName     func(childComplexity int) int
-		Team         func(childComplexity int) int
-		YahooID      func(childComplexity int) int
+	TrulyUnmatchedPlayer struct {
+		FirstName   func(childComplexity int) int
+		LastName    func(childComplexity int) int
+		NhlGames    func(childComplexity int) int
+		NhlName     func(childComplexity int) int
+		NhlPlayerID func(childComplexity int) int
+		YahooID     func(childComplexity int) int
 	}
 
 	WorkflowProgress struct {
@@ -987,6 +991,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.ImportPlayersResultData.MatchedWithYahoo(childComplexity), true
 
+	case "ImportPlayersResultData.skippedNonNHL":
+		if e.complexity.ImportPlayersResultData.SkippedNonNHL == nil {
+			break
+		}
+
+		return e.complexity.ImportPlayersResultData.SkippedNonNHL(childComplexity), true
+
 	case "ImportPlayersResultData.totalPlayers":
 		if e.complexity.ImportPlayersResultData.TotalPlayers == nil {
 			break
@@ -994,12 +1005,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.ImportPlayersResultData.TotalPlayers(childComplexity), true
 
-	case "ImportPlayersResultData.unmatchedYahoo":
-		if e.complexity.ImportPlayersResultData.UnmatchedYahoo == nil {
+	case "ImportPlayersResultData.totalYahooPlayers":
+		if e.complexity.ImportPlayersResultData.TotalYahooPlayers == nil {
 			break
 		}
 
-		return e.complexity.ImportPlayersResultData.UnmatchedYahoo(childComplexity), true
+		return e.complexity.ImportPlayersResultData.TotalYahooPlayers(childComplexity), true
+
+	case "ImportPlayersResultData.trulyUnmatched":
+		if e.complexity.ImportPlayersResultData.TrulyUnmatched == nil {
+			break
+		}
+
+		return e.complexity.ImportPlayersResultData.TrulyUnmatched(childComplexity), true
+
+	case "ImportPlayersResultData.verifiedNonNHLThisRun":
+		if e.complexity.ImportPlayersResultData.VerifiedNonNHLThisRun == nil {
+			break
+		}
+
+		return e.complexity.ImportPlayersResultData.VerifiedNonNHLThisRun(childComplexity), true
 
 	case "League.createdAt":
 		if e.complexity.League.CreatedAt == nil {
@@ -2229,40 +2254,47 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Team.URL(childComplexity), true
 
-	case "UnmatchedYahooPlayer.firstName":
-		if e.complexity.UnmatchedYahooPlayer.FirstName == nil {
+	case "TrulyUnmatchedPlayer.firstName":
+		if e.complexity.TrulyUnmatchedPlayer.FirstName == nil {
 			break
 		}
 
-		return e.complexity.UnmatchedYahooPlayer.FirstName(childComplexity), true
+		return e.complexity.TrulyUnmatchedPlayer.FirstName(childComplexity), true
 
-	case "UnmatchedYahooPlayer.jerseyNumber":
-		if e.complexity.UnmatchedYahooPlayer.JerseyNumber == nil {
+	case "TrulyUnmatchedPlayer.lastName":
+		if e.complexity.TrulyUnmatchedPlayer.LastName == nil {
 			break
 		}
 
-		return e.complexity.UnmatchedYahooPlayer.JerseyNumber(childComplexity), true
+		return e.complexity.TrulyUnmatchedPlayer.LastName(childComplexity), true
 
-	case "UnmatchedYahooPlayer.lastName":
-		if e.complexity.UnmatchedYahooPlayer.LastName == nil {
+	case "TrulyUnmatchedPlayer.nhlGames":
+		if e.complexity.TrulyUnmatchedPlayer.NhlGames == nil {
 			break
 		}
 
-		return e.complexity.UnmatchedYahooPlayer.LastName(childComplexity), true
+		return e.complexity.TrulyUnmatchedPlayer.NhlGames(childComplexity), true
 
-	case "UnmatchedYahooPlayer.team":
-		if e.complexity.UnmatchedYahooPlayer.Team == nil {
+	case "TrulyUnmatchedPlayer.nhlName":
+		if e.complexity.TrulyUnmatchedPlayer.NhlName == nil {
 			break
 		}
 
-		return e.complexity.UnmatchedYahooPlayer.Team(childComplexity), true
+		return e.complexity.TrulyUnmatchedPlayer.NhlName(childComplexity), true
 
-	case "UnmatchedYahooPlayer.yahooID":
-		if e.complexity.UnmatchedYahooPlayer.YahooID == nil {
+	case "TrulyUnmatchedPlayer.nhlPlayerID":
+		if e.complexity.TrulyUnmatchedPlayer.NhlPlayerID == nil {
 			break
 		}
 
-		return e.complexity.UnmatchedYahooPlayer.YahooID(childComplexity), true
+		return e.complexity.TrulyUnmatchedPlayer.NhlPlayerID(childComplexity), true
+
+	case "TrulyUnmatchedPlayer.yahooID":
+		if e.complexity.TrulyUnmatchedPlayer.YahooID == nil {
+			break
+		}
+
+		return e.complexity.TrulyUnmatchedPlayer.YahooID(childComplexity), true
 
 	case "WorkflowProgress.completed":
 		if e.complexity.WorkflowProgress.Completed == nil {
@@ -2742,19 +2774,26 @@ type WorkflowProgress {
 	items: [ProgressItem!]
 }
 
-type UnmatchedYahooPlayer {
+# TrulyUnmatchedPlayer represents a Yahoo player who has NHL games but wasn't matched.
+# These need investigation.
+type TrulyUnmatchedPlayer {
 	yahooID: Int!
 	firstName: String!
 	lastName: String!
-	team: String!
-	jerseyNumber: Int!
+	nhlGames: Int!
+	nhlPlayerID: Int!
+	nhlName: String!
 }
 
 type ImportPlayersResultData {
 	totalPlayers: Int!
 	importedPlayers: Int!
 	matchedWithYahoo: Int!
-	unmatchedYahoo: [UnmatchedYahooPlayer!]!
+	# Yahoo player stats
+	totalYahooPlayers: Int!
+	skippedNonNHL: Int! @goField(name: "SkippedNonNHL")            # Excluded at load (verified non-NHL from previous runs)
+	verifiedNonNHLThisRun: Int! @goField(name: "VerifiedNonNHLThisRun")    # Verified as non-NHL during this run
+	trulyUnmatched: [TrulyUnmatchedPlayer!]!  # Have NHL games but weren't matched
 	errors: [String!]!
 }
 
@@ -6712,8 +6751,8 @@ func (ec *executionContext) fieldContext_ImportPlayersResultData_matchedWithYaho
 	return fc, nil
 }
 
-func (ec *executionContext) _ImportPlayersResultData_unmatchedYahoo(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_ImportPlayersResultData_unmatchedYahoo(ctx, field)
+func (ec *executionContext) _ImportPlayersResultData_totalYahooPlayers(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ImportPlayersResultData_totalYahooPlayers(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -6726,7 +6765,7 @@ func (ec *executionContext) _ImportPlayersResultData_unmatchedYahoo(ctx context.
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.UnmatchedYahoo, nil
+		return obj.TotalYahooPlayers, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -6738,12 +6777,144 @@ func (ec *executionContext) _ImportPlayersResultData_unmatchedYahoo(ctx context.
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*model.UnmatchedYahooPlayer)
+	res := resTmp.(int)
 	fc.Result = res
-	return ec.marshalNUnmatchedYahooPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐUnmatchedYahooPlayerᚄ(ctx, field.Selections, res)
+	return ec.marshalNInt2int(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_ImportPlayersResultData_unmatchedYahoo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ImportPlayersResultData_totalYahooPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ImportPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ImportPlayersResultData_skippedNonNHL(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ImportPlayersResultData_skippedNonNHL(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SkippedNonNHL, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ImportPlayersResultData_skippedNonNHL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ImportPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ImportPlayersResultData_verifiedNonNHLThisRun(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ImportPlayersResultData_verifiedNonNHLThisRun(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.VerifiedNonNHLThisRun, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ImportPlayersResultData_verifiedNonNHLThisRun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ImportPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ImportPlayersResultData_trulyUnmatched(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ImportPlayersResultData_trulyUnmatched(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TrulyUnmatched, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.TrulyUnmatchedPlayer)
+	fc.Result = res
+	return ec.marshalNTrulyUnmatchedPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTrulyUnmatchedPlayerᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ImportPlayersResultData_trulyUnmatched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ImportPlayersResultData",
 		Field:      field,
@@ -6752,17 +6923,19 @@ func (ec *executionContext) fieldContext_ImportPlayersResultData_unmatchedYahoo(
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "yahooID":
-				return ec.fieldContext_UnmatchedYahooPlayer_yahooID(ctx, field)
+				return ec.fieldContext_TrulyUnmatchedPlayer_yahooID(ctx, field)
 			case "firstName":
-				return ec.fieldContext_UnmatchedYahooPlayer_firstName(ctx, field)
+				return ec.fieldContext_TrulyUnmatchedPlayer_firstName(ctx, field)
 			case "lastName":
-				return ec.fieldContext_UnmatchedYahooPlayer_lastName(ctx, field)
-			case "team":
-				return ec.fieldContext_UnmatchedYahooPlayer_team(ctx, field)
-			case "jerseyNumber":
-				return ec.fieldContext_UnmatchedYahooPlayer_jerseyNumber(ctx, field)
+				return ec.fieldContext_TrulyUnmatchedPlayer_lastName(ctx, field)
+			case "nhlGames":
+				return ec.fieldContext_TrulyUnmatchedPlayer_nhlGames(ctx, field)
+			case "nhlPlayerID":
+				return ec.fieldContext_TrulyUnmatchedPlayer_nhlPlayerID(ctx, field)
+			case "nhlName":
+				return ec.fieldContext_TrulyUnmatchedPlayer_nhlName(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type UnmatchedYahooPlayer", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type TrulyUnmatchedPlayer", field.Name)
 		},
 	}
 	return fc, nil
@@ -13785,8 +13958,14 @@ func (ec *executionContext) fieldContext_Query_importPlayersResultData(_ context
 				return ec.fieldContext_ImportPlayersResultData_importedPlayers(ctx, field)
 			case "matchedWithYahoo":
 				return ec.fieldContext_ImportPlayersResultData_matchedWithYahoo(ctx, field)
-			case "unmatchedYahoo":
-				return ec.fieldContext_ImportPlayersResultData_unmatchedYahoo(ctx, field)
+			case "totalYahooPlayers":
+				return ec.fieldContext_ImportPlayersResultData_totalYahooPlayers(ctx, field)
+			case "skippedNonNHL":
+				return ec.fieldContext_ImportPlayersResultData_skippedNonNHL(ctx, field)
+			case "verifiedNonNHLThisRun":
+				return ec.fieldContext_ImportPlayersResultData_verifiedNonNHLThisRun(ctx, field)
+			case "trulyUnmatched":
+				return ec.fieldContext_ImportPlayersResultData_trulyUnmatched(ctx, field)
 			case "errors":
 				return ec.fieldContext_ImportPlayersResultData_errors(ctx, field)
 			}
@@ -15020,8 +15199,8 @@ func (ec *executionContext) fieldContext_Team_Manager(_ context.Context, field g
 	return fc, nil
 }
 
-func (ec *executionContext) _UnmatchedYahooPlayer_yahooID(ctx context.Context, field graphql.CollectedField, obj *model.UnmatchedYahooPlayer) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_UnmatchedYahooPlayer_yahooID(ctx, field)
+func (ec *executionContext) _TrulyUnmatchedPlayer_yahooID(ctx context.Context, field graphql.CollectedField, obj *model.TrulyUnmatchedPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrulyUnmatchedPlayer_yahooID(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -15051,9 +15230,9 @@ func (ec *executionContext) _UnmatchedYahooPlayer_yahooID(ctx context.Context, f
 	return ec.marshalNInt2int(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_yahooID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_TrulyUnmatchedPlayer_yahooID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "UnmatchedYahooPlayer",
+		Object:     "TrulyUnmatchedPlayer",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -15064,8 +15243,8 @@ func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_yahooID(_ context.
 	return fc, nil
 }
 
-func (ec *executionContext) _UnmatchedYahooPlayer_firstName(ctx context.Context, field graphql.CollectedField, obj *model.UnmatchedYahooPlayer) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_UnmatchedYahooPlayer_firstName(ctx, field)
+func (ec *executionContext) _TrulyUnmatchedPlayer_firstName(ctx context.Context, field graphql.CollectedField, obj *model.TrulyUnmatchedPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrulyUnmatchedPlayer_firstName(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -15095,9 +15274,9 @@ func (ec *executionContext) _UnmatchedYahooPlayer_firstName(ctx context.Context,
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_firstName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_TrulyUnmatchedPlayer_firstName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "UnmatchedYahooPlayer",
+		Object:     "TrulyUnmatchedPlayer",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -15108,8 +15287,8 @@ func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_firstName(_ contex
 	return fc, nil
 }
 
-func (ec *executionContext) _UnmatchedYahooPlayer_lastName(ctx context.Context, field graphql.CollectedField, obj *model.UnmatchedYahooPlayer) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_UnmatchedYahooPlayer_lastName(ctx, field)
+func (ec *executionContext) _TrulyUnmatchedPlayer_lastName(ctx context.Context, field graphql.CollectedField, obj *model.TrulyUnmatchedPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrulyUnmatchedPlayer_lastName(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -15139,9 +15318,9 @@ func (ec *executionContext) _UnmatchedYahooPlayer_lastName(ctx context.Context, 
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_lastName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_TrulyUnmatchedPlayer_lastName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "UnmatchedYahooPlayer",
+		Object:     "TrulyUnmatchedPlayer",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -15152,8 +15331,8 @@ func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_lastName(_ context
 	return fc, nil
 }
 
-func (ec *executionContext) _UnmatchedYahooPlayer_team(ctx context.Context, field graphql.CollectedField, obj *model.UnmatchedYahooPlayer) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_UnmatchedYahooPlayer_team(ctx, field)
+func (ec *executionContext) _TrulyUnmatchedPlayer_nhlGames(ctx context.Context, field graphql.CollectedField, obj *model.TrulyUnmatchedPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrulyUnmatchedPlayer_nhlGames(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -15166,51 +15345,7 @@ func (ec *executionContext) _UnmatchedYahooPlayer_team(ctx context.Context, fiel
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Team, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_team(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "UnmatchedYahooPlayer",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _UnmatchedYahooPlayer_jerseyNumber(ctx context.Context, field graphql.CollectedField, obj *model.UnmatchedYahooPlayer) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_UnmatchedYahooPlayer_jerseyNumber(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.JerseyNumber, nil
+		return obj.NhlGames, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -15227,14 +15362,102 @@ func (ec *executionContext) _UnmatchedYahooPlayer_jerseyNumber(ctx context.Conte
 	return ec.marshalNInt2int(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_UnmatchedYahooPlayer_jerseyNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_TrulyUnmatchedPlayer_nhlGames(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "UnmatchedYahooPlayer",
+		Object:     "TrulyUnmatchedPlayer",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TrulyUnmatchedPlayer_nhlPlayerID(ctx context.Context, field graphql.CollectedField, obj *model.TrulyUnmatchedPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrulyUnmatchedPlayer_nhlPlayerID(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.NhlPlayerID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_TrulyUnmatchedPlayer_nhlPlayerID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TrulyUnmatchedPlayer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TrulyUnmatchedPlayer_nhlName(ctx context.Context, field graphql.CollectedField, obj *model.TrulyUnmatchedPlayer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TrulyUnmatchedPlayer_nhlName(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.NhlName, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_TrulyUnmatchedPlayer_nhlName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TrulyUnmatchedPlayer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -17953,8 +18176,23 @@ func (ec *executionContext) _ImportPlayersResultData(ctx context.Context, sel as
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "unmatchedYahoo":
-			out.Values[i] = ec._ImportPlayersResultData_unmatchedYahoo(ctx, field, obj)
+		case "totalYahooPlayers":
+			out.Values[i] = ec._ImportPlayersResultData_totalYahooPlayers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skippedNonNHL":
+			out.Values[i] = ec._ImportPlayersResultData_skippedNonNHL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "verifiedNonNHLThisRun":
+			out.Values[i] = ec._ImportPlayersResultData_verifiedNonNHLThisRun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "trulyUnmatched":
+			out.Values[i] = ec._ImportPlayersResultData_trulyUnmatched(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -19820,39 +20058,44 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
-var unmatchedYahooPlayerImplementors = []string{"UnmatchedYahooPlayer"}
+var trulyUnmatchedPlayerImplementors = []string{"TrulyUnmatchedPlayer"}
 
-func (ec *executionContext) _UnmatchedYahooPlayer(ctx context.Context, sel ast.SelectionSet, obj *model.UnmatchedYahooPlayer) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, unmatchedYahooPlayerImplementors)
+func (ec *executionContext) _TrulyUnmatchedPlayer(ctx context.Context, sel ast.SelectionSet, obj *model.TrulyUnmatchedPlayer) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, trulyUnmatchedPlayerImplementors)
 
 	out := graphql.NewFieldSet(fields)
 	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("UnmatchedYahooPlayer")
+			out.Values[i] = graphql.MarshalString("TrulyUnmatchedPlayer")
 		case "yahooID":
-			out.Values[i] = ec._UnmatchedYahooPlayer_yahooID(ctx, field, obj)
+			out.Values[i] = ec._TrulyUnmatchedPlayer_yahooID(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "firstName":
-			out.Values[i] = ec._UnmatchedYahooPlayer_firstName(ctx, field, obj)
+			out.Values[i] = ec._TrulyUnmatchedPlayer_firstName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "lastName":
-			out.Values[i] = ec._UnmatchedYahooPlayer_lastName(ctx, field, obj)
+			out.Values[i] = ec._TrulyUnmatchedPlayer_lastName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "team":
-			out.Values[i] = ec._UnmatchedYahooPlayer_team(ctx, field, obj)
+		case "nhlGames":
+			out.Values[i] = ec._TrulyUnmatchedPlayer_nhlGames(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "jerseyNumber":
-			out.Values[i] = ec._UnmatchedYahooPlayer_jerseyNumber(ctx, field, obj)
+		case "nhlPlayerID":
+			out.Values[i] = ec._TrulyUnmatchedPlayer_nhlPlayerID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nhlName":
+			out.Values[i] = ec._TrulyUnmatchedPlayer_nhlName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -20786,7 +21029,7 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalNUnmatchedYahooPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐUnmatchedYahooPlayerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.UnmatchedYahooPlayer) graphql.Marshaler {
+func (ec *executionContext) marshalNTrulyUnmatchedPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTrulyUnmatchedPlayerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.TrulyUnmatchedPlayer) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -20810,7 +21053,7 @@ func (ec *executionContext) marshalNUnmatchedYahooPlayer2ᚕᚖgithubᚗcomᚋsp
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNUnmatchedYahooPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐUnmatchedYahooPlayer(ctx, sel, v[i])
+			ret[i] = ec.marshalNTrulyUnmatchedPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTrulyUnmatchedPlayer(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -20830,14 +21073,14 @@ func (ec *executionContext) marshalNUnmatchedYahooPlayer2ᚕᚖgithubᚗcomᚋsp
 	return ret
 }
 
-func (ec *executionContext) marshalNUnmatchedYahooPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐUnmatchedYahooPlayer(ctx context.Context, sel ast.SelectionSet, v *model.UnmatchedYahooPlayer) graphql.Marshaler {
+func (ec *executionContext) marshalNTrulyUnmatchedPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTrulyUnmatchedPlayer(ctx context.Context, sel ast.SelectionSet, v *model.TrulyUnmatchedPlayer) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}
-	return ec._UnmatchedYahooPlayer(ctx, sel, v)
+	return ec._TrulyUnmatchedPlayer(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNWorkflowResult2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v model.WorkflowResult) graphql.Marshaler {

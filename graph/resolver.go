@@ -262,23 +262,27 @@ func (r *Resolver) importPlayersResultData(ctx context.Context) (*model.ImportPl
 	}
 
 	// Convert worker result to GraphQL model
-	unmatchedYahoo := make([]*model.UnmatchedYahooPlayer, len(result.UnmatchedYahoo))
-	for i, p := range result.UnmatchedYahoo {
-		unmatchedYahoo[i] = &model.UnmatchedYahooPlayer{
-			YahooID:      p.YahooID,
-			FirstName:    p.FirstName,
-			LastName:     p.LastName,
-			Team:         p.Team,
-			JerseyNumber: p.JerseyNumber,
+	trulyUnmatched := make([]*model.TrulyUnmatchedPlayer, len(result.TrulyUnmatched))
+	for i, p := range result.TrulyUnmatched {
+		trulyUnmatched[i] = &model.TrulyUnmatchedPlayer{
+			YahooID:     p.YahooID,
+			FirstName:   p.FirstName,
+			LastName:    p.LastName,
+			NhlGames:    p.NHLGames,
+			NhlPlayerID: int(p.NHLPlayerID),
+			NhlName:     p.NHLName,
 		}
 	}
 
 	return &model.ImportPlayersResultData{
-		TotalPlayers:     result.TotalPlayers,
-		ImportedPlayers:  result.ImportedPlayers,
-		MatchedWithYahoo: result.MatchedWithYahoo,
-		UnmatchedYahoo:   unmatchedYahoo,
-		Errors:           result.Errors,
+		TotalPlayers:          result.TotalPlayers,
+		ImportedPlayers:       result.ImportedPlayers,
+		MatchedWithYahoo:      result.MatchedWithYahoo,
+		TotalYahooPlayers:     result.TotalYahooPlayers,
+		SkippedNonNHL:         result.SkippedNonNHL,
+		VerifiedNonNHLThisRun: result.VerifiedNonNHLThisRun,
+		TrulyUnmatched:        trulyUnmatched,
+		Errors:                result.Errors,
 	}, nil
 }
 

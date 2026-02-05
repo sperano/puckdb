@@ -32,12 +32,20 @@ const (
 	VerifiedNonNHLKey     = "puckdb:verified-non-nhl"                  // Set: Yahoo IDs verified to have 0 NHL games
 )
 
+// SaveYahooIDPoolResult contains the result of saving Yahoo players to Redis.
+type SaveYahooIDPoolResult struct {
+	TotalPlayers   int // Total Yahoo players provided
+	AvailablePlayers int // Players added to the available pool
+	SkippedNonNHL  int // Players skipped because they're verified non-NHL
+}
+
 // SaveYahooIDPool stores all Yahoo players in Redis as a hash and populates the available set.
 // Players whose IDs are in the verified non-NHL set are excluded from the available set
 // (they have been confirmed to have 0 NHL games and don't need to be matched).
-func SaveYahooIDPool(ctx context.Context, client redis.Client, players []cache.YahooPlayer) error {
+// Returns the count of skipped players for reporting.
+func SaveYahooIDPool(ctx context.Context, client redis.Client, players []cache.YahooPlayer) (*SaveYahooIDPoolResult, error) {
 	if len(players) == 0 {
-		return nil
+		return &SaveYahooIDPoolResult{}, nil
 	}
 
 	// Load verified non-NHL IDs to exclude from available set
@@ -53,7 +61,7 @@ func SaveYahooIDPool(ctx context.Context, client redis.Client, players []cache.Y
 	for _, player := range players {
 		var buf bytes.Buffer
 		if err := gob.NewEncoder(&buf).Encode(player); err != nil {
-			return fmt.Errorf("encode yahoo player %d: %w", player.YahooID, err)
+			return nil, fmt.Errorf("encode yahoo player %d: %w", player.YahooID, err)
 		}
 		pipe.HSet(ctx, YahooIDPoolKey, strconv.Itoa(player.YahooID), buf.Bytes())
 	}
@@ -78,7 +86,7 @@ func SaveYahooIDPool(ctx context.Context, client redis.Client, players []cache.Y
 	pipe.Expire(ctx, YahooIDAvailableKey, ImportPlayersTTL)
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("save yahoo id pool to redis: %w", err)
+		return nil, fmt.Errorf("save yahoo id pool to redis: %w", err)
 	}
 
 	log.Info().
@@ -87,7 +95,11 @@ func SaveYahooIDPool(ctx context.Context, client redis.Client, players []cache.Y
 		Int("excluded_verified_non_nhl", excludedCount).
 		Msg("Saved YahooID pool to Redis")
 
-	return nil
+	return &SaveYahooIDPoolResult{
+		TotalPlayers:     len(players),
+		AvailablePlayers: len(availableIDs),
+		SkippedNonNHL:    excludedCount,
+	}, nil
 }
 
 // LoadYahooIDPool loads all Yahoo players from Redis.
