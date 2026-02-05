@@ -29,7 +29,7 @@ func TestMatchYahooID_NameAndJerseyMatch(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
 	assert.Equal(t, 100, result.YahooID)
-	assert.Equal(t, "name+jersey", result.Reason)
+	assert.Equal(t, MatchReasonNameJersey, result.Reason)
 }
 
 func TestMatchYahooID_NameOnlyMatch(t *testing.T) {
@@ -49,7 +49,7 @@ func TestMatchYahooID_NameOnlyMatch(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
 	assert.Equal(t, 100, result.YahooID)
-	assert.Equal(t, "name-only", result.Reason)
+	assert.Equal(t, MatchReasonNameOnly, result.Reason)
 }
 
 func TestMatchYahooID_TeamTiebreaker(t *testing.T) {
@@ -70,7 +70,7 @@ func TestMatchYahooID_TeamTiebreaker(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
 	assert.Equal(t, 200, result.YahooID)
-	assert.Equal(t, "team-tiebreaker", result.Reason)
+	assert.Equal(t, MatchReasonTeamTiebreaker, result.Reason)
 }
 
 func TestMatchYahooID_NoMatch(t *testing.T) {
@@ -88,7 +88,7 @@ func TestMatchYahooID_NoMatch(t *testing.T) {
 	result, err := MatchYahooID(landing, "EDM", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.False(t, result.Matched)
-	assert.Equal(t, "no-match", result.Reason)
+	assert.Equal(t, MatchReasonNoMatch, result.Reason)
 }
 
 func TestMatchYahooID_Ambiguous(t *testing.T) {
@@ -108,7 +108,7 @@ func TestMatchYahooID_Ambiguous(t *testing.T) {
 	result, err := MatchYahooID(landing, "BOS", time.Time{}, pool)
 	assert.Error(t, err)
 	assert.False(t, result.Matched)
-	assert.Equal(t, "ambiguous", result.Reason)
+	assert.Equal(t, MatchReasonAmbiguous, result.Reason)
 }
 
 func TestMatchYahooID_CaseInsensitive(t *testing.T) {
@@ -148,7 +148,7 @@ func TestMatchYahooID_JerseyZeroFallback(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
 	assert.Equal(t, 99, result.YahooID)
-	assert.Equal(t, "name-only", result.Reason)
+	assert.Equal(t, MatchReasonNameOnly, result.Reason)
 }
 
 func TestMatchYahooID_NicknameMatch(t *testing.T) {
@@ -284,7 +284,7 @@ func TestMatchYahooID_TrailingWhitespace(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
 	assert.Equal(t, 8378, result.YahooID)
-	assert.Equal(t, "name+jersey", result.Reason)
+	assert.Equal(t, MatchReasonNameJersey, result.Reason)
 }
 
 func TestMatchYahooID_BirthDateTiebreaker(t *testing.T) {
@@ -318,7 +318,7 @@ func TestMatchYahooID_BirthDateTiebreaker(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
 	assert.Equal(t, 22424, result.YahooID)
-	assert.Equal(t, "name+birthdate", result.Reason)
+	assert.Equal(t, MatchReasonNameBirthdate, result.Reason)
 
 	// Match Bryan Jr. by birth date
 	nhlBirthDate = time.Date(1941, time.May, 23, 0, 0, 0, 0, time.UTC)
@@ -326,7 +326,95 @@ func TestMatchYahooID_BirthDateTiebreaker(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
 	assert.Equal(t, 22425, result.YahooID)
-	assert.Equal(t, "name+birthdate", result.Reason)
+	assert.Equal(t, MatchReasonNameBirthdate, result.Reason)
+}
+
+func TestMatchYahooID_CompoundFirstName(t *testing.T) {
+	t.Parallel()
+
+	// Charles Alexis Legault: NHL splits as FirstName="Charles Alexis", LastName="Legault"
+	// but Yahoo splits as FirstName="Charles", LastName="Alexis Legault"
+	// Full name is the same: "Charles Alexis Legault"
+	sweater := 62
+	landing := &nhl.PlayerLanding{
+		FirstName:     nhl.LocalizedString{Default: "Charles Alexis"},
+		LastName:      nhl.LocalizedString{Default: "Legault"},
+		SweaterNumber: &sweater,
+	}
+
+	pool := map[int]*cache.YahooPlayer{
+		30710: {
+			YahooID:      30710,
+			FirstName:    "Charles",
+			LastName:     "Alexis Legault", // Yahoo split the name differently
+			JerseyNumber: 62,
+			Team:         "Carolina",
+		},
+	}
+
+	result, err := MatchYahooID(landing, "CAR", time.Time{}, pool)
+	require.NoError(t, err)
+	assert.True(t, result.Matched)
+	assert.Equal(t, 30710, result.YahooID)
+	assert.Equal(t, MatchReasonFullName, result.Reason) // Should use fullname reason since split differs
+}
+
+func TestMatchYahooID_CompoundFirstName_WithJersey(t *testing.T) {
+	t.Parallel()
+
+	// Same scenario but verifying jersey match also works
+	sweater := 62
+	landing := &nhl.PlayerLanding{
+		FirstName:     nhl.LocalizedString{Default: "Charles Alexis"},
+		LastName:      nhl.LocalizedString{Default: "Legault"},
+		SweaterNumber: &sweater,
+	}
+
+	// Add another player with same jersey to ensure full name matching is used
+	pool := map[int]*cache.YahooPlayer{
+		30710: {
+			YahooID:      30710,
+			FirstName:    "Charles",
+			LastName:     "Alexis Legault",
+			JerseyNumber: 62,
+			Team:         "Carolina",
+		},
+		99999: {
+			YahooID:      99999,
+			FirstName:    "Someone",
+			LastName:     "Else",
+			JerseyNumber: 62,
+			Team:         "Carolina",
+		},
+	}
+
+	result, err := MatchYahooID(landing, "CAR", time.Time{}, pool)
+	require.NoError(t, err)
+	assert.True(t, result.Matched)
+	assert.Equal(t, 30710, result.YahooID)
+}
+
+func TestMatchYahooID_CompoundFirstName_NoMatch(t *testing.T) {
+	t.Parallel()
+
+	// Ensure compound first name doesn't match a different person
+	landing := &nhl.PlayerLanding{
+		FirstName: nhl.LocalizedString{Default: "Charles Alexis"},
+		LastName:  nhl.LocalizedString{Default: "Legault"},
+	}
+
+	pool := map[int]*cache.YahooPlayer{
+		12345: {
+			YahooID:   12345,
+			FirstName: "Charles",
+			LastName:  "Smith", // Different person entirely
+		},
+	}
+
+	result, err := MatchYahooID(landing, "", time.Time{}, pool)
+	require.NoError(t, err)
+	assert.False(t, result.Matched)
+	assert.Equal(t, MatchReasonNoMatch, result.Reason)
 }
 
 func TestNhlAbbrevToYahooTeam(t *testing.T) {

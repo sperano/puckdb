@@ -15,11 +15,53 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// MatchReason represents the reason for a Yahoo ID match result.
+type MatchReason int
+
+const (
+	// MatchReasonNoMatch indicates no matching Yahoo player was found.
+	MatchReasonNoMatch MatchReason = iota
+	// MatchReasonNameOnly indicates a match based on name alone.
+	MatchReasonNameOnly
+	// MatchReasonNameJersey indicates a match based on name and jersey number.
+	MatchReasonNameJersey
+	// MatchReasonNameBirthdate indicates a match based on name and birth date.
+	MatchReasonNameBirthdate
+	// MatchReasonFullName indicates a match based on full name comparison (for compound names).
+	MatchReasonFullName
+	// MatchReasonTeamTiebreaker indicates a match resolved by team when multiple candidates existed.
+	MatchReasonTeamTiebreaker
+	// MatchReasonAmbiguous indicates multiple matches with no disambiguating factor.
+	MatchReasonAmbiguous
+)
+
+// String returns the string representation of the match reason.
+func (r MatchReason) String() string {
+	switch r {
+	case MatchReasonNoMatch:
+		return "no-match"
+	case MatchReasonNameOnly:
+		return "name-only"
+	case MatchReasonNameJersey:
+		return "name+jersey"
+	case MatchReasonNameBirthdate:
+		return "name+birthdate"
+	case MatchReasonFullName:
+		return "fullname"
+	case MatchReasonTeamTiebreaker:
+		return "team-tiebreaker"
+	case MatchReasonAmbiguous:
+		return "ambiguous"
+	default:
+		return "unknown"
+	}
+}
+
 // YahooIDMatchResult contains the result of a Yahoo ID matching attempt.
 type YahooIDMatchResult struct {
 	YahooID int
 	Matched bool
-	Reason  string // "name+jersey", "name-only", "team-tiebreaker", "no-match", "ambiguous"
+	Reason  MatchReason
 }
 
 // normalizeName prepares a name for matching by:
@@ -212,7 +254,7 @@ var nhlAbbrevToYahooTeam = map[string]string{
 
 // MatchYahooID attempts to find a matching Yahoo player ID for an NHL player.
 // The matching algorithm:
-// 1. Find all name matches (case-insensitive, including nickname aliases)
+// 1. Find all name matches (case-insensitive, including nickname aliases and full name comparison)
 // 2. If NHL player has a jersey number, filter by jersey
 // 3. If both have birth dates, filter by date match (within 1 day)
 // 4. If multiple matches, use team as tiebreaker
@@ -226,6 +268,7 @@ func MatchYahooID(
 	// Normalize names: decode HTML entities, strip accents, lowercase
 	firstName := normalizeName(landing.FirstName.Default)
 	lastName := normalizeName(landing.LastName.Default)
+	nhlFullName := firstName + " " + lastName
 
 	// Build list of first names to match (original + aliases)
 	firstNamesToMatch := []string{firstName}
@@ -235,20 +278,38 @@ func MatchYahooID(
 
 	// Step 1: Find all name matches (exact or via nickname)
 	type candidateMatch struct {
-		player       *cache.YahooPlayer
-		fuzzyMatched bool // true if matched via nickname alias or accent normalization
+		player         *cache.YahooPlayer
+		fuzzyMatched   bool // true if matched via nickname alias, accent normalization, or full-name match
+		fullNameMatch  bool // true if matched via full name comparison (handles compound names)
 	}
 	var candidates []candidateMatch
 	for _, yahoo := range pool {
 		// Normalize Yahoo names too (they may have HTML entities)
 		yahooFirst := normalizeName(yahoo.FirstName)
 		yahooLast := normalizeName(yahoo.LastName)
+		yahooFullName := yahooFirst + " " + yahooLast
 
+		// Check full name match first (handles compound first names like "Charles Alexis Legault")
+		// NHL might have FirstName="Charles Alexis", LastName="Legault"
+		// Yahoo might have FirstName="Charles", LastName="Alexis Legault"
+		// But both produce the same full name: "charles alexis legault"
+		if yahooFullName == nhlFullName {
+			// Full name matches - this is a strong signal even if first/last split differs
+			splitDiffers := yahooFirst != firstName || yahooLast != lastName
+			candidates = append(candidates, candidateMatch{
+				player:        yahoo,
+				fuzzyMatched:  splitDiffers,
+				fullNameMatch: splitDiffers, // Only mark as fullNameMatch if split differs
+			})
+			continue
+		}
+
+		// Standard matching: last name must match exactly
 		if yahooLast != lastName {
 			continue
 		}
 
-		// Check exact match first (after normalization)
+		// Check exact first name match (after normalization)
 		if yahooFirst == firstName {
 			// Mark as fuzzy if normalization changed either name
 			fuzzy := yahooFirst != strings.ToLower(yahoo.FirstName) ||
@@ -269,24 +330,31 @@ func MatchYahooID(
 	}
 
 	if len(candidates) == 0 {
-		return YahooIDMatchResult{Matched: false, Reason: "no-match"}, nil
+		return YahooIDMatchResult{Matched: false, Reason: MatchReasonNoMatch}, nil
 	}
 
-	// Helper to log and return a fuzzy match result
-	logFuzzyMatch := func(match candidateMatch, reason string) YahooIDMatchResult {
+	// Helper to log and return a match result
+	logMatch := func(match candidateMatch, reason MatchReason) YahooIDMatchResult {
+		// Use MatchReasonFullName if matched via full name comparison with different split
+		finalReason := reason
+		if match.fullNameMatch && (reason == MatchReasonNameOnly || reason == MatchReasonNameJersey || reason == MatchReasonNameBirthdate) {
+			finalReason = MatchReasonFullName
+		}
+
 		if match.fuzzyMatched {
 			log.Warn().
 				Int64("nhl_id", landing.PlayerID.AsInt64()).
 				Str("nhl_name", landing.FirstName.Default+" "+landing.LastName.Default).
 				Int("yahoo_id", match.player.YahooID).
 				Str("yahoo_name", match.player.FirstName+" "+match.player.LastName).
-				Str("reason", reason).
-				Msg("Fuzzy matched player via nickname alias")
+				Str("reason", finalReason.String()).
+				Bool("fullname_match", match.fullNameMatch).
+				Msg("Fuzzy matched player")
 		}
 		return YahooIDMatchResult{
 			YahooID: match.player.YahooID,
 			Matched: true,
-			Reason:  reason,
+			Reason:  finalReason,
 		}
 	}
 
@@ -300,7 +368,7 @@ func MatchYahooID(
 			}
 		}
 		if len(jerseyMatches) == 1 {
-			return logFuzzyMatch(jerseyMatches[0], "name+jersey"), nil
+			return logMatch(jerseyMatches[0], MatchReasonNameJersey), nil
 		}
 		if len(jerseyMatches) > 1 {
 			// Multiple jersey matches, continue with these for team tiebreaker
@@ -324,7 +392,7 @@ func MatchYahooID(
 			}
 		}
 		if len(birthMatches) == 1 {
-			return logFuzzyMatch(birthMatches[0], "name+birthdate"), nil
+			return logMatch(birthMatches[0], MatchReasonNameBirthdate), nil
 		}
 		if len(birthMatches) > 1 {
 			// Multiple birth date matches, continue with these for team tiebreaker
@@ -344,11 +412,11 @@ func MatchYahooID(
 				}
 			}
 			if len(teamMatches) == 1 {
-				return logFuzzyMatch(teamMatches[0], "team-tiebreaker"), nil
+				return logMatch(teamMatches[0], MatchReasonTeamTiebreaker), nil
 			}
 			if len(teamMatches) > 1 {
 				// Still ambiguous after team filter
-				return YahooIDMatchResult{Matched: false, Reason: "ambiguous"},
+				return YahooIDMatchResult{Matched: false, Reason: MatchReasonAmbiguous},
 					fmt.Errorf("multiple matches for %s %s with team %s: %d candidates",
 						landing.FirstName.Default, landing.LastName.Default, nhlTeamAbbrev, len(teamMatches))
 			}
@@ -358,11 +426,11 @@ func MatchYahooID(
 
 	// Step 5: Single candidate = match (name-only)
 	if len(candidates) == 1 {
-		return logFuzzyMatch(candidates[0], "name-only"), nil
+		return logMatch(candidates[0], MatchReasonNameOnly), nil
 	}
 
 	// Multiple candidates, no single match found
-	return YahooIDMatchResult{Matched: false, Reason: "ambiguous"},
+	return YahooIDMatchResult{Matched: false, Reason: MatchReasonAmbiguous},
 		fmt.Errorf("multiple matches for %s %s: %d candidates, no disambiguator",
 			landing.FirstName.Default, landing.LastName.Default, len(candidates))
 }

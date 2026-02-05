@@ -18,16 +18,30 @@ type UnmatchedYahooPlayer struct {
 	JerseyNumber int
 }
 
-// ReportUnmatchedYahooIDsActivity reports all Yahoo IDs that weren't matched and cleans up Redis.
+// UnmatchedReport contains the results of the unmatched player verification.
+type UnmatchedReport struct {
+	// TrulyUnmatched are players with NHL games who weren't matched (need investigation).
+	TrulyUnmatched []VerifiedPlayer
+
+	// VerifiedNonNHLCount is the number of players confirmed to have 0 NHL games.
+	VerifiedNonNHLCount int
+
+	// NotFoundCount is the number of players not found in the NHL database.
+	NotFoundCount int
+}
+
+// ReportUnmatchedYahooIDsActivity reports Yahoo IDs that weren't matched, verifies them
+// against the NHL API, and only returns truly unmatched players (those with NHL games).
+// Players with 0 NHL games are added to the verified non-NHL set for future exclusion.
 // This is Phase 3 of the import workflow.
-func ReportUnmatchedYahooIDsActivity(ctx context.Context) ([]UnmatchedYahooPlayer, error) {
+func ReportUnmatchedYahooIDsActivity(ctx context.Context) (*UnmatchedReport, error) {
 	redisClient := redis.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	return reportUnmatchedYahooIDsImpl(ctx, redisClient)
 }
 
-func reportUnmatchedYahooIDsImpl(ctx context.Context, redisClient redis.Client) ([]UnmatchedYahooPlayer, error) {
+func reportUnmatchedYahooIDsImpl(ctx context.Context, redisClient redis.Client) (*UnmatchedReport, error) {
 	// Get unmatched IDs
 	unmatchedIDs, err := GetUnmatchedYahooIDs(ctx, redisClient)
 	if err != nil {
@@ -55,21 +69,25 @@ func reportUnmatchedYahooIDsImpl(ctx context.Context, redisClient redis.Client) 
 	}
 
 	log.Info().
-		Int("unmatched", len(unmatched)).
-		Msg("Found unmatched Yahoo players")
+		Int("unmatched_before_verification", len(unmatched)).
+		Msg("Found unmatched Yahoo players, starting verification")
 
-	// Log sample of unmatched players for debugging
-	for i, p := range unmatched {
-		if i >= 10 {
-			log.Debug().Int("remaining", len(unmatched)-10).Msg("... and more unmatched players")
-			break
-		}
-		log.Debug().
+	// Verify unmatched players against NHL API
+	verifyResult, err := VerifyUnmatchedYahooIDsActivity(ctx, unmatched)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to verify unmatched players")
+		// On error, return empty report but don't fail the workflow
+		return &UnmatchedReport{}, nil
+	}
+
+	// Log truly unmatched players (those with NHL games)
+	for _, p := range verifyResult.TrulyUnmatched {
+		log.Warn().
 			Int("yahooID", p.YahooID).
-			Str("name", p.FirstName+" "+p.LastName).
-			Str("team", p.Team).
-			Int("jersey", p.JerseyNumber).
-			Msg("Unmatched Yahoo player")
+			Str("yahoo_name", p.FirstName+" "+p.LastName).
+			Str("nhl_name", p.NHLName).
+			Int("nhl_games", p.NHLGames).
+			Msg("Truly unmatched player with NHL games - needs investigation")
 	}
 
 	// Cleanup Redis keys
@@ -77,7 +95,11 @@ func reportUnmatchedYahooIDsImpl(ctx context.Context, redisClient redis.Client) 
 		log.Warn().Err(err).Msg("Failed to cleanup Yahoo ID pool")
 	}
 
-	return unmatched, nil
+	return &UnmatchedReport{
+		TrulyUnmatched:      verifyResult.TrulyUnmatched,
+		VerifiedNonNHLCount: len(verifyResult.VerifiedNonNHL),
+		NotFoundCount:       len(verifyResult.NotFoundInNHL),
+	}, nil
 }
 
 // ListPlayerLandingIDsActivity returns all player IDs from cached PlayerLanding files.
