@@ -20,6 +20,12 @@ const (
 	yahooPlayerBaseURL = "https://sports.yahoo.com/nhl/players/"
 )
 
+// PlayerUpserter is the interface for database operations needed by player import.
+type PlayerUpserter interface {
+	UpsertPlayer(ctx context.Context, arg sqlcdb.UpsertPlayerParams) error
+	ClearConflictingYahooID(ctx context.Context, arg sqlcdb.ClearConflictingYahooIDParams) error
+}
+
 // ImportBatchResult holds the results of importing a batch of players.
 type ImportBatchResult struct {
 	Imported int      // Total players imported

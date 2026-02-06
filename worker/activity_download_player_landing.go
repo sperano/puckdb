@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
@@ -65,4 +66,45 @@ func downloadPlayerLandingBatchImpl(
 		Msg("Player landing batch complete")
 
 	return result, nil
+}
+
+// getPlayerLandingWithCache attempts to get player landing data from cache first,
+// falling back to the NHL API if not cached. Returns the data and whether it came from cache.
+func getPlayerLandingWithCache(
+	ctx context.Context,
+	fs cache.FileSystem,
+	client NHLClient,
+	playerID nhl.PlayerID,
+) (*nhl.PlayerLanding, bool, error) {
+	file := cache.PlayerLandingFile{PlayerID: playerID}
+
+	// Check cache first
+	if fs.Exists(file) {
+		data, err := fs.Read(file)
+		if err == nil {
+			var landing nhl.PlayerLanding
+			if err := json.Unmarshal(data, &landing); err == nil {
+				return &landing, true, nil
+			}
+			log.Debug().Err(err).Str("player_id", playerID.String()).Msg("Failed to unmarshal cached player landing")
+		}
+	}
+
+	// Fetch from API
+	landing, err := client.PlayerLanding(ctx, playerID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// Save to cache
+	data, err := json.Marshal(landing)
+	if err != nil {
+		log.Debug().Err(err).Str("player_id", playerID.String()).Msg("Failed to marshal player landing for cache")
+	} else {
+		if err := fs.Write(file, data); err != nil {
+			log.Debug().Err(err).Str("player_id", playerID.String()).Msg("Failed to write player landing to cache")
+		}
+	}
+
+	return landing, false, nil
 }
