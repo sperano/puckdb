@@ -177,12 +177,8 @@ func DoMigration(db *gorm.DB) error {
 		&League{},
 		&StatDefinition{},
 		&RosterPosition{},
-		&PlayerStats{},
-		&Game{},
 		&Team{},
 		&RosterPlayer{},
-		&Standing{},
-		&TeamSummary{},
 	)
 	if err != nil {
 		return err
@@ -199,12 +195,8 @@ func DropEverything(db *gorm.DB) error {
 	err := migrator.DropTable(
 		"league_roster_positions",
 		"league_stat_definitions",
-		&TeamSummary{},
-		&Standing{},
 		&RosterPlayer{},
 		&Team{},
-		&Game{},
-		&PlayerStats{},
 		&RosterPosition{},
 		&StatDefinition{},
 		&League{},

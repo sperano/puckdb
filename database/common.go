@@ -17,30 +17,6 @@ const (
 	CDeletedAt             = "deleted_at"
 	CPlayerID              = "player_id"
 	CNHLTeamID             = "nhl_team_id"
-	CGoalAgainst           = "goal_against"
-	CShotsAgainst          = "shots_against"
-	CSaves                 = "saves"
-	CGoalieTimeOnIce       = "goalie_time_on_ice"
-	CGoals                 = "goals"
-	CAssists               = "assists"
-	CPlusMinus             = "plus_minus"
-	CPenaltyMinutes        = "penalty_minutes"
-	CShotsOnGoal           = "shots_on_goal"
-	CFaceoffsWon           = "faceoffs_won"
-	CFaceoffsLost          = "faceoffs_lost"
-	CHits                  = "hits"
-	CBlocks                = "blocks"
-	CTimeOnIce             = "time_on_ice"
-	CShifts                = "shifts"
-	CTakeAways             = "take_aways"
-	CGiveAways             = "give_aways"
-	CFirstName             = "first_name"
-	CLastName              = "last_name"
-	CUniformNumber         = "uniform_number"
-	CHomeURL               = "home_url"
-	CImageSmall            = "image_small"
-	CImageMedium           = "image_medium"
-	CImageLarge            = "image_large"
 	CNHLConferenceID       = "nhl_conference_id"
 	CCity                  = "city"
 	CAbbreviation          = "abbreviation"
@@ -95,17 +71,15 @@ const (
 	CImageUL               = "image_url"
 	CEligiblePositions     = "eligible_positions"
 	CSelectedPosition      = "selected_position"
+	CSourceVersion         = "source_version"
 )
 
 // Table names
 const (
-	TblPlayerStats    = "player_stats"
 	TblPlayers        = "players"
-	TblGames          = "games"
 	TblNHLConferences = "nhl_conferences"
 	TblNHLDivisions   = "nhl_divisions"
 	TblNHLTeams       = "nhl_teams"
-	TblTeamSummaries  = "team_summaries"
 	TblLeagues        = "leagues"
 	TblTeams          = "teams"
 	TblRosterPlayers  = "roster_players"
@@ -154,7 +128,7 @@ func (d *Different[T]) Current() any {
 }
 
 type Object interface {
-	*League | *Team | *RosterPlayer | *PlayerStats | *Player | *TeamSummary | RosterPlayers
+	*League | *Team | *RosterPlayer | RosterPlayers
 	SetSourceVersion(time.Time)
 	Ensure(*gorm.DB) error
 }
