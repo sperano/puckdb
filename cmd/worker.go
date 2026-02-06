@@ -106,7 +106,6 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.DownloadTeam)
 			w.RegisterActivity(workers.DownloadRosterForTeamOnDay)
 			w.RegisterActivity(workers.DownloadTeamSummaryForTeamOnDay)
-			w.RegisterActivity(workers.DownloadYahooPlayer)
 			w.RegisterActivity(workers.DownloadYahooPlayerBatch)
 			w.RegisterActivity(workers.FetchSeasonsDataActivity)
 			w.RegisterActivity(workers.DownloadDayActivity)
@@ -126,11 +125,7 @@ func cmdWorker() *cobra.Command {
 
 			w.RegisterActivity(workers.ExtractPlayerIDsForSeasonActivity)
 			w.RegisterActivity(workers.DownloadPlayerLandingBatchActivity)
-			w.RegisterActivity(workers.MergeSeasonPlayersActivity)
-			w.RegisterActivity(workers.MergeAllSeasonsActivity)
 			w.RegisterActivity(workers.MergePlayerBatchesFromRedisActivity)
-			w.RegisterActivity(workers.StoreEnrichmentPlayersActivity)
-			w.RegisterActivity(workers.MergeAllSeasonsFromRedisActivity)
 			w.RegisterActivity(workers.EnrichPlayerBatchActivity)
 
 			// ImportPlayers activities

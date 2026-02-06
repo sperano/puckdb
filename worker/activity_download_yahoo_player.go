@@ -12,16 +12,6 @@ import (
 	"github.com/sperano/puckdb/metrics"
 )
 
-// DownloadYahooPlayer downloads a Yahoo player page and saves it to cache.
-// If the player already exists (either as YahooPlayer or MissingYahooPlayer), it returns early.
-// On 200: saves as YahooPlayerFile
-// On 404: saves as MissingYahooPlayerFile
-// Other status codes: returns error
-func DownloadYahooPlayer(ctx context.Context, playerID int) error {
-	fs := cache.NewSimpleCache()
-	return downloadYahooPlayerImpl(ctx, fs, playerID)
-}
-
 // DownloadYahooPlayerBatch downloads a range of Yahoo player pages.
 // Processes players from startID to endID (inclusive).
 func DownloadYahooPlayerBatch(ctx context.Context, startID, endID int) error {
