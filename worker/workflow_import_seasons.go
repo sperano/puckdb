@@ -6,17 +6,12 @@ import (
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/spf13/viper"
-	"go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/workflow"
 )
 
-const (
-	// Mock import processes one "day" per tick, with a short sleep to simulate work
-	mockImportTickDuration = 50 * time.Millisecond
-)
-
-// ImportSeasonsWorkflow imports season data into the database.
-// Currently a mock implementation that simulates importing one day at a time.
+// ImportSeasonsWorkflow imports season data from cached boxscores into the database.
+// It reads boxscore files from SimpleFS (previously downloaded) and upserts them
+// into the nhl_games, nhl_game_skater_stats, and nhl_game_goalie_stats tables.
 func ImportSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
@@ -83,68 +78,66 @@ func initializeImportProgress(tracker *ProgressTracker, seasons []SeasonInfo) {
 	}
 }
 
-// importSeasonWork tracks a mock import for a single season.
-type importSeasonWork struct {
-	season    SeasonInfo
-	day       int // current day being processed
-	totalDays int // total days in this season
-}
-
-// processImportSeasons processes seasons with concurrency control.
-// Each tick advances all active seasons by one day.
-func processImportSeasons(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, seasons []SeasonInfo, concurrency int) error {
+// processImportSeasons processes seasons sequentially, with each season's days processed in parallel.
+// This matches the download workflow pattern where seasons are processed one at a time,
+// but days within a season are processed with configurable concurrency.
+func processImportSeasons(ctx workflow.Context, logger interface{ Info(string, ...interface{}) }, tracker *ProgressTracker, seasons []SeasonInfo, seasonConcurrency int) error {
 	if len(seasons) == 0 {
 		return nil
 	}
 
-	active := make(map[int]*importSeasonWork)
-	pending := make([]SeasonInfo, len(seasons))
-	copy(pending, seasons)
-
-	// Start initial batch
-	for i := 0; i < concurrency && len(pending) > 0; i++ {
-		season := pending[0]
-		pending = pending[1:]
-		startImportSeason(logger, tracker, active, season)
+	// Get day concurrency from config (same as download workflow)
+	dayConcurrency := viper.GetInt(config.FlagDayConcurrency)
+	if dayConcurrency <= 0 {
+		dayConcurrency = 20
 	}
 
-	// Process until all complete
-	for len(active) > 0 {
-		// Sleep for one tick
-		if err := workflow.Sleep(ctx, mockImportTickDuration); err != nil {
+	// Process each season
+	for _, season := range seasons {
+		tracker.MarkItemStarted(season.StartYear)
+
+		if err := importSeasonBoxscores(ctx, logger, tracker, season, dayConcurrency); err != nil {
 			return err
 		}
 
-		// Advance all active seasons by one day
-		for year, work := range active {
-			work.day++
-			tracker.IncrementItem(year)
-
-			if work.day >= work.totalDays {
-				tracker.MarkItemCompleted(year)
-				logger.Info("Season import completed", "startYear", year, "days", work.totalDays)
-				delete(active, year)
-
-				// Start next pending season
-				if len(pending) > 0 {
-					nextSeason := pending[0]
-					pending = pending[1:]
-					startImportSeason(logger, tracker, active, nextSeason)
-				}
-			}
-		}
+		tracker.MarkItemCompleted(season.StartYear)
+		logger.Info("Season import completed", "startYear", season.StartYear)
 	}
 
 	return nil
 }
 
-func startImportSeason(logger log.Logger, tracker *ProgressTracker, active map[int]*importSeasonWork, season SeasonInfo) {
-	days := countDaysInSeason(season)
-	logger.Info("Starting season import", "startYear", season.StartYear, "days", days)
-	tracker.MarkItemStarted(season.StartYear)
-	active[season.StartYear] = &importSeasonWork{
-		season:    season,
-		day:       0,
-		totalDays: days,
+// importSeasonBoxscores imports all boxscores for a single season.
+// Days are processed in parallel using the same concurrency pattern as the download workflow.
+func importSeasonBoxscores(ctx workflow.Context, logger interface{ Info(string, ...interface{}) }, tracker *ProgressTracker, season SeasonInfo, dayConcurrency int) error {
+	// Determine end date (don't import future days)
+	end := season.EndDate
+	if end.After(time.Now()) {
+		end = time.Now()
 	}
+
+	// Calculate number of days to process
+	numDays := int(end.Sub(season.StartDate).Hours()/config.HoursPerDay) + 1
+	if numDays < 0 {
+		numDays = 0
+	}
+
+	logger.Info("Processing days in parallel",
+		"season", season.StartYear,
+		"numDays", numDays,
+		"concurrency", dayConcurrency)
+
+	// Process days in parallel using RunWorkerPool (same pattern as download workflow)
+	startDate := season.StartDate
+	startYear := season.StartYear
+	err := tracker.RunWorkerPool(ctx, numDays, dayConcurrency, func(ctx workflow.Context, i int) workflow.Future {
+		day := startDate.AddDate(0, 0, i)
+		input := ImportBoxscoresForDateInput{
+			Date:   day,
+			Season: startYear,
+		}
+		return workflow.ExecuteActivity(ctx, ImportBoxscoresForDateActivity, input)
+	})
+
+	return err
 }

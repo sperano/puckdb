@@ -19,6 +19,82 @@ type NhlDivision struct {
 	NHLConferenceID int64  `json:"nhl_conference_id"`
 }
 
+type NhlGame struct {
+	ID                    int64              `json:"id"`
+	Season                int32              `json:"season"`
+	GameType              int16              `json:"game_type"`
+	GameDate              pgtype.Date        `json:"game_date"`
+	Venue                 string             `json:"venue"`
+	VenueLocation         string             `json:"venue_location"`
+	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
+	EasternUTCOffset      string             `json:"eastern_utc_offset"`
+	VenueUTCOffset        string             `json:"venue_utc_offset"`
+	GameState             string             `json:"game_state"`
+	GameScheduleState     string             `json:"game_schedule_state"`
+	PeriodNumber          int16              `json:"period_number"`
+	PeriodType            string             `json:"period_type"`
+	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
+	ClockTimeRemaining    string             `json:"clock_time_remaining"`
+	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
+	ClockRunning          bool               `json:"clock_running"`
+	ClockInIntermission   bool               `json:"clock_in_intermission"`
+	HomeTeamID            int64              `json:"home_team_id"`
+	HomeTeamScore         int32              `json:"home_team_score"`
+	HomeTeamSog           int32              `json:"home_team_sog"`
+	AwayTeamID            int64              `json:"away_team_id"`
+	AwayTeamScore         int32              `json:"away_team_score"`
+	AwayTeamSog           int32              `json:"away_team_sog"`
+	LimitedScoring        bool               `json:"limited_scoring"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
+type NhlGameGoalieStat struct {
+	GameID                   int64              `json:"game_id"`
+	PlayerID                 int64              `json:"player_id"`
+	TeamID                   int64              `json:"team_id"`
+	IsHome                   bool               `json:"is_home"`
+	SweaterNumber            int16              `json:"sweater_number"`
+	Decision                 pgtype.Text        `json:"decision"`
+	Starter                  pgtype.Bool        `json:"starter"`
+	ShotsAgainst             int32              `json:"shots_against"`
+	Saves                    int32              `json:"saves"`
+	SavePctg                 pgtype.Float4      `json:"save_pctg"`
+	GoalsAgainst             int16              `json:"goals_against"`
+	EvenStrengthGoalsAgainst int16              `json:"even_strength_goals_against"`
+	PowerPlayGoalsAgainst    int16              `json:"power_play_goals_against"`
+	ShorthandedGoalsAgainst  int16              `json:"shorthanded_goals_against"`
+	TOISeconds               int32              `json:"toi_seconds"`
+	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
+	CreatedAt                pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+}
+
+type NhlGameSkaterStat struct {
+	GameID             int64              `json:"game_id"`
+	PlayerID           int64              `json:"player_id"`
+	TeamID             int64              `json:"team_id"`
+	IsHome             bool               `json:"is_home"`
+	SweaterNumber      int16              `json:"sweater_number"`
+	Position           string             `json:"position"`
+	Goals              int16              `json:"goals"`
+	Assists            int16              `json:"assists"`
+	Points             int16              `json:"points"`
+	PlusMinus          int16              `json:"plus_minus"`
+	ShotsOnGoal        int16              `json:"shots_on_goal"`
+	TOISeconds         int32              `json:"toi_seconds"`
+	Shifts             int16              `json:"shifts"`
+	FaceoffWinningPctg pgtype.Float4      `json:"faceoff_winning_pctg"`
+	Hits               int16              `json:"hits"`
+	BlockedShots       int16              `json:"blocked_shots"`
+	PenaltyMinutes     int16              `json:"penalty_minutes"`
+	Giveaways          int16              `json:"giveaways"`
+	Takeaways          int16              `json:"takeaways"`
+	PowerPlayGoals     int16              `json:"power_play_goals"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type NhlTeam struct {
 	ID            int64       `json:"id"`
 	YahooID       pgtype.Int8 `json:"yahoo_id"`
