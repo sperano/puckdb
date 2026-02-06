@@ -24,6 +24,7 @@ func cmdImport() *cobra.Command {
 	}
 	config.InitAPIServerAddrFlag(cmd.PersistentFlags())
 	cmd.AddCommand(cmdImportPlayers())
+	cmd.AddCommand(cmdImportSeasons())
 	return cmd
 }
 
@@ -75,6 +76,13 @@ func (s *importState) cancel(_ context.Context) {
 			log.Error().Err(err).Msg("Failed to cancel importPlayers workflow")
 		} else {
 			log.Info().Msg("importPlayers workflow canceled")
+		}
+	case workflowImportSeasons:
+		log.Info().Msg("Canceling importSeasons workflow...")
+		if _, err := s.client.CancelImportSeasons(cancelCtx); err != nil {
+			log.Error().Err(err).Msg("Failed to cancel importSeasons workflow")
+		} else {
+			log.Info().Msg("importSeasons workflow canceled")
 		}
 	default:
 		// No workflow to cancel
@@ -205,4 +213,128 @@ func printImportPlayersResult(cmd *cobra.Command, result *ImportPlayersResultDat
 			fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", e)
 		}
 	}
+}
+
+func cmdImportSeasons() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use:   "seasons",
+		Short: "Import seasons into the database",
+		Long: `Trigger the importSeasons workflow via GraphQL API and monitor until completion.
+Use --season for a specific season, or --from-season/--to-season for a range.
+Use --monitor to watch an existing workflow without triggering a new one.`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			flags := cmd.Flags()
+			if err := config.BindAPIServerAddrFlag(flags); err != nil {
+				return err
+			}
+			if err := config.BindSeasonRangeFlags(flags); err != nil {
+				return err
+			}
+			if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
+				return err
+			}
+			return config.BindMonitorFlag(flags)
+		},
+		RunE: runImportSeasons,
+	}
+	flags := cmd.Flags()
+	config.InitAPIServerAddrFlag(flags)
+	config.InitSeasonRangeFlags(flags)
+	config.InitSeasonConcurrencyFlag(flags)
+	config.InitMonitorFlag(flags)
+	return cmd
+}
+
+func runImportSeasons(cmd *cobra.Command, _ []string) error {
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
+
+	apiAddr := viper.GetString(config.FlagAPIServerAddr)
+	if apiAddr == "" {
+		return fmt.Errorf("api-server-addr is required")
+	}
+
+	client := NewGraphQLClient(apiAddr)
+	state := &importState{client: client, current: workflowNone}
+
+	ctx, cancel := context.WithCancel(cmd.Context())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		fmt.Println()
+		log.Warn().Msg("Interrupt received, canceling workflow...")
+		state.cancel(ctx)
+		cancel()
+	}()
+	defer signal.Stop(sigChan)
+
+	if viper.GetBool(config.FlagMonitor) {
+		log.Info().Str("server", apiAddr).Msg("Monitoring existing importSeasons workflow")
+		state.current = workflowImportSeasons
+		return monitorWorkflow(ctx, cmd, client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout)
+	}
+
+	totalStart := time.Now()
+
+	input := buildImportSeasonsInput()
+
+	state.current = workflowImportSeasons
+	logEvent := log.Info().Str("server", apiAddr)
+	if input.StartSeason != nil {
+		logEvent = logEvent.Int("startSeason", *input.StartSeason)
+	}
+	if input.EndSeason != nil {
+		logEvent = logEvent.Int("endSeason", *input.EndSeason)
+	}
+	if input.SeasonConcurrency != nil {
+		logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
+	}
+	logEvent.Msg("Triggering importSeasons workflow")
+
+	started, err := client.ImportSeasons(ctx, input)
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
+		return fmt.Errorf("failed to trigger importSeasons: %w", err)
+	}
+
+	if !started {
+		log.Warn().Msg("Workflow was not started (may already be running)")
+	} else {
+		log.Info().Msg("Workflow started successfully")
+	}
+
+	if err := monitorWorkflow(ctx, cmd, client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
+		return err
+	}
+
+	totalDuration := time.Since(totalStart)
+	log.Info().Str("duration", totalDuration.String()).Msg("Import completed")
+
+	return nil
+}
+
+func buildImportSeasonsInput() *model.DownloadSeasonsInput {
+	input := &model.DownloadSeasonsInput{}
+
+	start, end := config.GetSeasonRange()
+	if start > 0 {
+		input.StartSeason = &start
+	}
+	if end > 0 {
+		input.EndSeason = &end
+	}
+
+	if concurrency := viper.GetInt(config.FlagSeasonConcurrency); concurrency > 0 {
+		input.SeasonConcurrency = &concurrency
+	}
+
+	return input
 }

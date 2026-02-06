@@ -286,6 +286,29 @@ func (r *Resolver) importPlayersResultData(ctx context.Context) (*model.ImportPl
 	}, nil
 }
 
+func (r *Resolver) importSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+	opts := workflowOptions(worker.WorkflowIDImportSeasons)
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ImportSeasonsWorkflow, input); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) cancelImportSeasons(ctx context.Context) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDImportSeasons, ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) importSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, worker.WorkflowIDImportSeasons)
+}
+
+func (r *Resolver) importSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDImportSeasons)
+}
+
 func (r *Resolver) downloadEverythingResult(ctx context.Context) (*model.WorkflowResult, error) {
 	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadEverything)
 }

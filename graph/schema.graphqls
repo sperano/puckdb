@@ -372,6 +372,9 @@ type Query {
 	importPlayersProgress: WorkflowProgress
 	importPlayersResultData: ImportPlayersResultData
 
+	importSeasonsResult: WorkflowResult!
+	importSeasonsProgress: WorkflowProgress
+
 	players(filter: PlayersFilter): [Player!]!
 
 	#    nhlStandings: [NHLTeamStanding!]
@@ -424,6 +427,9 @@ type Mutation {
 
 	importPlayers(input: DownloadSeasonsInput): Boolean!
 	cancelImportPlayers: Boolean!
+
+	importSeasons(input: DownloadSeasonsInput): Boolean!
+	cancelImportSeasons: Boolean!
 
 	importLeague(season: Int!, leagueID: Int!): League!
 	importTeam(season: Int!, leagueID: Int!, teamID: Int!): Team!

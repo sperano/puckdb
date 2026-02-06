@@ -15,6 +15,7 @@ import (
 const (
 	TaskQueueName                = "puckdb-tasks"
 	WorkflowIDImportEverything   = "import-everything"
+	WorkflowIDImportSeasons      = "import-seasons"
 	WorkflowIDDownloadEverything = "download-everything"
 	WorkflowIDDownloadSeasons    = "download-all"
 )

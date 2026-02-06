@@ -108,6 +108,7 @@ const (
 	workflowDownloadSeasons
 	workflowDownloadPlayers
 	workflowImportPlayers
+	workflowImportSeasons
 )
 
 // DownloadEverything triggers the downloadEverything mutation
@@ -473,6 +474,70 @@ func (c *GraphQLClient) CancelImportPlayers(ctx context.Context) (bool, error) {
 	}
 
 	return result.CancelImportPlayers, nil
+}
+
+// ImportSeasons triggers the importSeasons mutation
+func (c *GraphQLClient) ImportSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+	const mutation = `mutation($input: DownloadSeasonsInput) { importSeasons(input: $input) }`
+
+	resp, err := c.execute(ctx, mutation, map[string]any{"input": input})
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		ImportSeasons bool `json:"importSeasons"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.ImportSeasons, nil
+}
+
+// GetImportSeasonsStatus queries both workflow result and progress
+func (c *GraphQLClient) GetImportSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
+	const query = `query {
+		importSeasonsResult { status failureReason }
+		importSeasonsProgress { total completed message items { id description total completed started startedAt completedAt } }
+	}`
+
+	resp, err := c.execute(ctx, query, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		ImportSeasonsResult   *model.WorkflowResult   `json:"importSeasonsResult"`
+		ImportSeasonsProgress *model.WorkflowProgress `json:"importSeasonsProgress"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &WorkflowStatus{
+		Result:   result.ImportSeasonsResult,
+		Progress: result.ImportSeasonsProgress,
+	}, nil
+}
+
+// CancelImportSeasons cancels the importSeasons workflow
+func (c *GraphQLClient) CancelImportSeasons(ctx context.Context) (bool, error) {
+	const mutation = `mutation { cancelImportSeasons }`
+
+	resp, err := c.execute(ctx, mutation, nil)
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		CancelImportSeasons bool `json:"cancelImportSeasons"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.CancelImportSeasons, nil
 }
 
 // ImportPlayersResultData holds the result data from the import workflow
