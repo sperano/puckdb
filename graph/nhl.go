@@ -94,20 +94,6 @@ func sqlcSingleTeamRowToGQL(row sqlcdb.GetNHLTeamRow) *model.NHLTeam {
 	}
 }
 
-/*
-func toGqlSeasons(seasons []config.Season) []*model.Season {
-	gqlSeasons := make([]*model.Season, len(seasons))
-	for i, s := range seasons {
-		gqlSeasons[i] = &model.Season{
-			Start:   s.Start,
-			End:     s.End,
-			GameKey: s.GameKey,
-		}
-	}
-	return gqlSeasons
-}
-*/
-
 func nhlTeams(ctx context.Context, q *sqlcdb.Queries, allstars bool) ([]*model.NHLTeam, error) {
 	teams, err := q.GetAllNHLTeams(ctx, allstars)
 	if err != nil {
