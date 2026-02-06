@@ -2,14 +2,15 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"os"
-	"strings"
 )
 
 func Root() *cobra.Command {
@@ -26,7 +27,7 @@ func Root() *cobra.Command {
 	flags := rootCmd.PersistentFlags()
 	config.InitLogLevelFlag(flags, config.DefaultLogLevel)
 
-	rootCmd.AddCommand(cmdAPI(), cmdCacheCheck(), cmdDB(), cmdInfo(), cmdMetrics(), cmdRedis(), cmdVerifyUnmatched(), cmdWorker(), cmdWorkflow(), cmdYahoo())
+	rootCmd.AddCommand(cmdAPI(), cmdCacheCheck(), cmdDB(), cmdInfo(), cmdMetrics(), cmdRedis(), cmdWorker(), cmdWorkflow(), cmdYahoo())
 
 	cobra.OnInitialize(func() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})

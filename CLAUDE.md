@@ -1,144 +1,129 @@
-# CLAUDE.md
+# PuckDB
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Go application that imports NHL hockey data and Yahoo Fantasy Sports data. Downloads from NHL API and Yahoo API, caches locally as files, stores in PostgreSQL. Temporal orchestrates long-running workflows.
 
-## Project Overview
+## Quick Reference
 
-PuckDB is a Go application that imports and manages NHL hockey data and Yahoo Fantasy Sports data. It downloads data from the NHL API and Yahoo Fantasy Sports API, caches it locally as files, and stores processed data in PostgreSQL. Temporal handles workflow orchestration for long-running import jobs.
-
-## Common Commands
-
-### Build and Run
+### Build
 ```bash
-go build -o puckdb .                 # Build the binary
-./puckdb api                         # Run as HTTP/GraphQL server (port 8080)
-./puckdb worker                      # Run as Temporal worker (metrics on port 8788)
-./puckdb download                    # Trigger download workflow via GraphQL API
-./puckdb check cache                 # Verify cache completeness
-./puckdb info                        # Display configuration info
+cd /Users/eric/code/workspaces/puckdb/puckdb && go build -o /tmp/puckdb .
+```
+> **Note:** Always `cd` into the module directory before `go build`. The `-C` flag doesn't work reliably outside a module context.
+
+### Run
+```bash
+/tmp/puckdb api                      # GraphQL server (port 8787)
+/tmp/puckdb worker                   # Temporal worker (port 8788)
+/tmp/puckdb info                     # Show configuration
 ```
 
-### Testing
+### Test
 ```bash
-go test ./...                        # Run all tests
-go test -cover ./...                 # Run tests with coverage
-go test -v ./cache/...               # Run tests for a specific package
+go test ./...                        # All tests
+go test -cover ./...                 # With coverage
 ```
 
-### Infrastructure
+### Generate Code
 ```bash
-docker-compose up                    # Start Postgres, Redis, Temporal
+go run github.com/99designs/gqlgen generate   # GraphQL (schema: graph/schema.graphqls)
 ```
 
-### GraphQL Code Generation
-```bash
-go run github.com/99designs/gqlgen generate
-```
-Schema is at `graph/schema.graphqls`. Generated code goes to `graph/generated/` and `graph/model/`.
+## CLI Commands
 
-## Architecture
+| Command | Description |
+|---------|-------------|
+| `api` | HTTP server: GraphQL at `/graphql`, playground at `/graphql/`, OAuth at `/yahoo/*` |
+| `worker` | Temporal worker for download/import workflows, metrics at `/metrics` |
+| `info` | Display current configuration |
+| `cache-check` | Verify cache file completeness |
+| `db init` | Create tables, seed NHL data |
+| `db drop` | Drop all tables |
+| `db provision` | Create database/user on shared PostgreSQL |
+| `workflow download` | Trigger download workflows, monitor progress |
+| `workflow cancel` | Cancel running Temporal workflows |
+| `yahoo signout` | Clear OAuth2 token from Redis |
 
-### CLI Commands (cmd/)
-- **api** - HTTP server with GraphQL at `/graphql`, playground at `/graphql/`, and Yahoo OAuth2 at `/yahoo/*`
-- **worker** - Temporal worker that processes download/import workflows; exposes `/metrics` endpoint
-- **info** - Displays current configuration
-- **metrics** - Exposes Prometheus metrics for cache, Redis, and database
-- **cache-check** - Verifies cache file completeness against expected counts from NHL API
-- **db** - Database operations
-  - **db init** - Database initialization (creates tables, seeds NHL data)
-  - **db drop** - Database cleanup (drops tables)
-  - **db provision** - Creates database and user on shared PostgreSQL (uses Redis lock)
-- **workflow** (alias: **wf**) - Workflow operations
-  - **workflow download** - Triggers download workflows via GraphQL and monitors progress
-  - **workflow cancel** - Cancels running Temporal workflows
-- **yahoo** - Yahoo OAuth operations
-  - **yahoo signout** - Clears OAuth2 token from Redis
+## Package Structure
 
-Uses Cobra for CLI, Viper for configuration, and pflags for flags.
+| Package | Purpose |
+|---------|---------|
+| `cmd/` | CLI commands (Cobra + Viper) |
+| `worker/` | Temporal workflows and activities |
+| `graph/` | GraphQL resolvers and schema (gqlgen) |
+| `database/` | GORM models for PostgreSQL |
+| `sqlcdb/` | sqlc-generated type-safe queries |
+| `cache/` | File-based caching, XML/JSON parsing |
+| `redis/` | OAuth2 tokens, player data cache |
+| `config/` | Flags, defaults, seasons YAML parsing |
+| `http/` | HTTP client, Yahoo API URL builders |
+| `metrics/` | Prometheus metrics |
+| `temporal/` | Temporal client configuration |
 
-### Core Packages
-- **worker/** - Temporal workflows and activities for downloading/importing data
-  - Active workflows: `DownloadSeasonsWorkflow`, `DownloadYahooPlayersWorkflow`, `DownloadRosterForTeamWorkflow`, `DownloadTeamSummariesForTeamWorkflow`, `EnrichPlayersWorkflow`
-  - Task queue name: `puckdb-tasks`
-- **graph/** - GraphQL resolvers and schema (gqlgen)
-- **database/** - GORM models and queries for PostgreSQL
-- **sqlcdb/** - sqlc-generated type-safe SQL queries
-- **cache/** - File-based caching and XML/JSON parsing for API responses
-- **redis/** - Redis client for OAuth2 token cache and player data cache
-- **config/** - Configuration flags, seasons config parsing from YAML
-- **http/** - HTTP client with logging, Yahoo API URL builders
-- **metrics/** - Prometheus metrics collection and HTTP server
-- **temporal/** - Temporal client configuration
-- **auth/** - Authentication context utilities
-- **date/** - Date range and timestamp utilities
+### Active Workflows
+- `DownloadSeasonsWorkflow` - NHL season data
+- `DownloadYahooPlayersWorkflow` - Yahoo player pages
+- `DownloadRosterForTeamWorkflow` - Team rosters
+- `DownloadTeamSummariesForTeamWorkflow` - Team summaries
+- `EnrichPlayersWorkflow` - Player enrichment
 
-### Configuration
-- Flags defined in `config/flags.go` with `Init*Flag` and `Bind*Flags` pattern
-- Season configuration loaded from `seasons.yaml` (YAML file with start/end dates, game keys, league IDs, team IDs)
-- OAuth2 tokens cached in Redis
-- Environment variables supported via Viper
+Task queue: `puckdb-tasks`
 
-### Flag Conventions
-**All CLI flags must follow these rules:**
-1. **Flag names** must be defined as constants in `config/flags.go` (e.g., `FlagAPIPort = "api-port"`)
-2. **Default values** must be defined as constants in `config/defaults.go` (e.g., `DefaultAPIPort = 8787`)
-3. **Never use magic numbers or string literals** as default values in flag definitions
-4. Each flag should have an `Init*Flag(flags *flag.FlagSet)` function that registers the flag with its default constant
-5. Each flag should have a `Bind*Flag(flags *flag.FlagSet) error` function for viper binding
-6. Cmd files should only call `config.Init*Flag()` and `config.Bind*Flag()` - never define flags locally
+## External Services
 
-### Data Flow
-1. User authenticates via Yahoo OAuth2 (`/yahoo/login` → stored in Redis)
-2. GraphQL mutations or CLI commands trigger Temporal workflows
-3. Workers download data from NHL API and Yahoo API, store as cached files
-4. Workers parse cached files and store structured data in PostgreSQL
-5. GraphQL queries serve data from PostgreSQL
+| Service | Port | Details |
+|---------|------|---------|
+| PostgreSQL | 5432 | user: `puckdb`, password: `foo`, db: `puckdb` |
+| Redis | 6379 | password: `redis` |
+| Temporal | 7233 | namespace: `default` |
+| Temporal UI | 8080 | Workflow monitoring |
 
-### GraphQL API
+## Data Flow
+
+1. User authenticates via Yahoo OAuth2 (`/yahoo/login` → Redis)
+2. GraphQL mutations or CLI trigger Temporal workflows
+3. Workers download from NHL/Yahoo APIs → cached files
+4. Workers parse cached files → PostgreSQL
+5. GraphQL queries serve from PostgreSQL
+
+## Configuration Conventions
+
+Flags follow a strict pattern in `config/`:
+
+1. **Flag names** → constants in `flags.go` (e.g., `FlagAPIPort = "api-port"`)
+2. **Defaults** → constants in `defaults.go` (e.g., `DefaultAPIPort = 8787`)
+3. **No magic numbers** in flag definitions
+4. Each flag has `Init*Flag()` and `Bind*Flag()` functions
+5. Cmd files only call these functions, never define flags locally
+
+Season config: `seasons.yaml` (start/end dates, game keys, league IDs, team IDs)
+
+## GraphQL API
+
 **Mutations:**
-- `downloadSeasons(input)` / `cancelDownloadSeasons` - Download NHL and Yahoo season data
-- `downloadYahooPlayers` / `cancelDownloadYahooPlayers` - Download Yahoo player pages
-- `importLeague`, `importTeam` - Import specific league/team data
-- `clearDatabase`, `dropDatabase`, `createDatabase`, `initDatabase` - DB management
+- `downloadSeasons` / `cancelDownloadSeasons` - NHL and Yahoo season data
+- `downloadYahooPlayers` / `cancelDownloadYahooPlayers` - Yahoo player pages
+- `importLeague`, `importTeam` - Import specific data
+- `clearDatabase`, `dropDatabase`, `createDatabase`, `initDatabase`
 
 **Queries:**
-- `downloadSeasonsResult`, `downloadSeasonsProgress` - Workflow status
-- `downloadYahooPlayersResult`, `downloadYahooPlayersProgress` - Workflow status
-- `nhlConferences`, `nhlDivisions`, `nhlTeams`, `nhlTeam` - NHL reference data
+- `downloadSeasonsResult`, `downloadSeasonsProgress`
+- `downloadYahooPlayersResult`, `downloadYahooPlayersProgress`
+- `nhlConferences`, `nhlDivisions`, `nhlTeams`, `nhlTeam`
 
-### External Services
-- **PostgreSQL** (port 5432): Main data store with GORM ORM (user: puckdb, password: foo, db: puckdb)
-- **Redis** (port 6379): OAuth2 token cache, player data cache (password: redis)
-- **Temporal** (port 7233): Workflow orchestration
-- **Temporal UI** (port 8080): Workflow monitoring
+## Metrics
 
-### Metrics
+Worker exposes Prometheus metrics at `/metrics` (port 8788).
 
-The worker exposes Prometheus metrics at `/metrics` (default port 8788, configurable via `--worker-port`). A health check endpoint is available at `/health`.
+| Metric | Type | Description |
+|--------|------|-------------|
+| `puckdb_fs_operation_duration_seconds` | Histogram | Filesystem operation duration |
+| `puckdb_fs_bytes` | Histogram | Read/write sizes |
+| `puckdb_http_request_duration_seconds` | Histogram | External API request duration |
+| `puckdb_http_response_bytes` | Histogram | Response body sizes |
+| `puckdb_download_total` | Counter | Downloads by result (hit/miss/error) |
+| `puckdb_activity_duration_seconds` | Histogram | Temporal activity duration |
 
-**Filesystem Metrics**
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `puckdb_fs_operation_duration_seconds` | Histogram | operation, file_type | Duration of filesystem operations |
-| `puckdb_fs_bytes` | Histogram | operation, file_type | Size of read/write operations in bytes |
+## References
 
-**HTTP Metrics**
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `puckdb_http_request_duration_seconds` | Histogram | api, status_code | Duration of HTTP requests to external APIs |
-| `puckdb_http_response_bytes` | Histogram | api | Size of HTTP response bodies |
-
-**Download Workflow Metrics**
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `puckdb_download_total` | Counter | file_type, result | Download operations count (result: hit/miss/error) |
-
-**Temporal Activity Metrics**
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `puckdb_activity_duration_seconds` | Histogram | activity | Duration of Temporal activities |
-
-### Yahoo OAuth2 References
-
-- [Fantasy Sports API Guide](https://developer.yahoo.com/fantasysports/guide/)
+- [Yahoo Fantasy Sports API Guide](https://developer.yahoo.com/fantasysports/guide/)
 - [OAuth2 Example](https://stackoverflow.com/questions/48255130/yahoo-fantasy-sports-example-using-oauth2)
