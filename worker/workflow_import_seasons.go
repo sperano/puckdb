@@ -48,6 +48,11 @@ func ImportSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsInp
 		return err
 	}
 
+	// Extract and upsert any missing teams before importing boxscores
+	if err := extractAndUpsertMissingTeams(ctx, logger, seasons); err != nil {
+		return err
+	}
+
 	initializeImportProgress(tracker, seasons)
 
 	return processImportSeasons(ctx, logger, tracker, seasons, concurrency)
@@ -140,4 +145,31 @@ func importSeasonBoxscores(ctx workflow.Context, logger interface{ Info(string, 
 	})
 
 	return err
+}
+
+// extractAndUpsertMissingTeams scans all boxscores for teams and inserts any missing ones.
+// This ensures historical teams (like Toronto Arenas) exist before importing games.
+func extractAndUpsertMissingTeams(ctx workflow.Context, logger interface{ Info(string, ...interface{}) }, seasons []SeasonInfo) error {
+	logger.Info("Extracting teams from boxscores", "seasons", len(seasons))
+
+	// Extract all unique teams from boxscores across all seasons
+	var extractedTeams []ExtractedTeam
+	extractInput := ExtractTeamsForSeasonsInput{Seasons: seasons}
+	if err := workflow.ExecuteActivity(ctx, ExtractTeamsForSeasonsActivity, extractInput).Get(ctx, &extractedTeams); err != nil {
+		return err
+	}
+
+	logger.Info("Extracted teams from boxscores", "unique_teams", len(extractedTeams))
+
+	// Upsert any missing teams (existing teams are skipped)
+	var result UpsertMissingTeamsResult
+	if err := workflow.ExecuteActivity(ctx, UpsertMissingTeamsActivity, extractedTeams).Get(ctx, &result); err != nil {
+		return err
+	}
+
+	logger.Info("Team upsert complete",
+		"inserted", result.TeamsInserted,
+		"skipped", result.TeamsSkipped)
+
+	return nil
 }

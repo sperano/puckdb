@@ -78,6 +78,30 @@ func (q *Queries) GetAllNHLDivisions(ctx context.Context) ([]GetAllNHLDivisionsR
 	return items, nil
 }
 
+const getAllNHLTeamIDs = `-- name: GetAllNHLTeamIDs :many
+SELECT id FROM nhl_teams ORDER BY id
+`
+
+func (q *Queries) GetAllNHLTeamIDs(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.Query(ctx, getAllNHLTeamIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAllNHLTeams = `-- name: GetAllNHLTeams :many
 SELECT
     t.id, t.yahoo_id, t.city, t.name, t.abbreviation, t.nhl_division_id,

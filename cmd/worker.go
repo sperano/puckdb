@@ -121,6 +121,8 @@ func cmdWorker() *cobra.Command {
 
 			// ImportSeasons activities
 			w.RegisterActivity(workers.ImportBoxscoresForDateActivity)
+			w.RegisterActivity(workers.ExtractTeamsForSeasonsActivity)
+			w.RegisterActivity(workers.UpsertMissingTeamsActivity)
 
 			w.RegisterActivity(workers.ExtractPlayerIDsForSeasonActivity)
 			w.RegisterActivity(workers.DownloadPlayerLandingBatchActivity)

@@ -82,3 +82,6 @@ ON CONFLICT (id) DO UPDATE SET
     small_logo_url = EXCLUDED.small_logo_url,
     large_logo_url = EXCLUDED.large_logo_url,
     all_stars = EXCLUDED.all_stars;
+
+-- name: GetAllNHLTeamIDs :many
+SELECT id FROM nhl_teams ORDER BY id;
