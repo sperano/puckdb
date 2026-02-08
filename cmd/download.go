@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"sort"
@@ -123,7 +124,7 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 	if viper.GetBool(config.FlagMonitor) {
 		log.Info().Str("server", apiAddr).Msg("Monitoring existing downloadSeasons workflow")
 		state.current = workflowDownloadSeasons
-		return monitorWorkflow(ctx, cmd, client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout)
+		return monitorWorkflow_legacy(ctx, cmd, client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout)
 	}
 
 	totalStart := time.Now()
@@ -182,7 +183,7 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 			log.Info().Msg("Workflow started successfully")
 		}
 
-		if err := monitorWorkflow(ctx, cmd, client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
+		if err := monitorWorkflow_legacy(ctx, cmd, client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
 			if ctx.Err() != nil {
 				return fmt.Errorf("workflow canceled by user")
 			}
@@ -237,7 +238,7 @@ func runDownloadYahooPlayers(ctx context.Context, cmd *cobra.Command, client *Gr
 		log.Info().Msg("Yahoo players workflow started successfully")
 	}
 
-	if err := monitorWorkflow(ctx, cmd, client.GetDownloadYahooPlayersStatus, config.DefaultYahooPlayersTimeout); err != nil {
+	if err := monitorWorkflow_legacy(ctx, cmd, client.GetDownloadYahooPlayersStatus, config.DefaultYahooPlayersTimeout); err != nil {
 		return fmt.Errorf("downloadYahooPlayers failed: %w", err)
 	}
 
@@ -259,7 +260,7 @@ func runDownloadPlayers(ctx context.Context, cmd *cobra.Command, client *GraphQL
 		log.Info().Msg("Download players workflow started successfully")
 	}
 
-	if err := monitorWorkflow(ctx, cmd, client.GetDownloadPlayersStatus, config.DefaultDownloadPlayersTimeout); err != nil {
+	if err := monitorWorkflow_legacy(ctx, cmd, client.GetDownloadPlayersStatus, config.DefaultDownloadPlayersTimeout); err != nil {
 		return fmt.Errorf("downloadPlayers failed: %w", err)
 	}
 
@@ -284,7 +285,7 @@ func buildDownloadSeasonsInput() *model.DownloadSeasonsInput {
 	return input
 }
 
-func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFetcher, pollTimeout time.Duration) error {
+func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, getStatus statusFetcher, pollTimeout time.Duration) error {
 	sp := newSpinner(cmd.OutOrStdout(), "Monitoring workflow...")
 	sp.Start()
 	defer sp.Stop()
@@ -293,6 +294,64 @@ func monitorWorkflow(ctx context.Context, cmd *cobra.Command, getStatus statusFe
 	time.Sleep(config.DefaultWorkflowStartupDelay)
 
 	ticker := time.NewTicker(config.DefaultWorkflowPollInterval)
+	defer ticker.Stop()
+
+	timeout := time.After(pollTimeout)
+
+	for {
+		status, err := getStatus(ctx)
+		if err != nil {
+			sp.PrintAbove(func() {
+				log.Warn().Err(err).Msg("Failed to get status, retrying...")
+			})
+		} else {
+			sp.mu.Lock()
+			sp.message = formatStatusMessage(status)
+			sp.mu.Unlock()
+
+			switch status.Result.Status {
+			case model.TemporalWorkflowStatusCompleted:
+				sp.Stop()
+				log.Info().Msg("Workflow completed successfully")
+				return nil
+			case model.TemporalWorkflowStatusFailed:
+				if status.Result.FailureReason != nil {
+					return fmt.Errorf("workflow failed: %s", *status.Result.FailureReason)
+				}
+				return fmt.Errorf("workflow failed")
+			case model.TemporalWorkflowStatusCanceled:
+				return fmt.Errorf("workflow was canceled")
+			case model.TemporalWorkflowStatusTerminated:
+				return fmt.Errorf("workflow was terminated")
+			case model.TemporalWorkflowStatusTimedOut:
+				return fmt.Errorf("workflow timed out")
+			case model.TemporalWorkflowStatusRunning:
+				// Continue polling
+			case model.TemporalWorkflowStatusUnspecified:
+				// Workflow might not have started yet or doesn't exist
+				log.Debug().Msg("Workflow status unspecified")
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			return fmt.Errorf("workflow monitoring timed out after %v", pollTimeout)
+		case <-ticker.C:
+			// continue to next iteration
+		}
+	}
+}
+
+func monitorWorkflow(ctx context.Context, out io.Writer, msg string, getStatus statusFetcher, pollTimeout time.Duration) error {
+	sp := newSpinner(out, msg)
+	sp.Start()
+	defer sp.Stop()
+
+	// Wait briefly for workflow to start and register query handlers
+	time.Sleep(config.DefaultWorkflowStartupDelay)               // TODO: make this smarter by detecting when workflow is actually ready instead of fixed sleep
+	ticker := time.NewTicker(config.DefaultWorkflowPollInterval) // TODO isnt this a flag instead of just a default?
 	defer ticker.Stop()
 
 	timeout := time.After(pollTimeout)

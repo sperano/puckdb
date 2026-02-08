@@ -57,9 +57,10 @@ func (s *spinner) Start() {
 		for {
 			select {
 			case <-s.stop:
-				// Clear all lines
+				// Clear current display before Stop() prints final state
 				s.mu.Lock()
 				s.clearLines()
+				s.lineCount = 0
 				s.mu.Unlock()
 				return
 			default:
@@ -103,6 +104,16 @@ func (s *spinner) Stop() {
 	s.once.Do(func() {
 		close(s.stop)
 		<-s.done
+
+		// Print final message without spinner
+		s.mu.Lock()
+		msg := s.message
+		s.mu.Unlock()
+
+		// Remove spinner placeholder if present, print final state
+		msg = strings.Replace(msg, SpinnerPlaceholder, "✓", 1)
+		fmt.Fprintln(s.writer, msg)
+
 		// Show cursor
 		fmt.Fprint(s.writer, "\033[?25h")
 	})

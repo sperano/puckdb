@@ -127,7 +127,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 	logger.Info("Found player files", "count", len(playerIDs))
 
 	// Phase 2: Import players in batches
-	tracker.MarkItemStarted(PhaseImportPlayers)
+	tracker.MarkItemStarted(ctx, PhaseImportPlayers)
 	tracker.SetMessage("Importing players")
 	logger.Info("Phase 2: Importing players",
 		"total", len(playerIDs),
@@ -170,10 +170,10 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 		"imported", totalImported,
 		"matched", totalMatched,
 		"errors", len(allErrors))
-	tracker.MarkItemCompleted(PhaseImportPlayers)
+	tracker.MarkItemCompleted(ctx, PhaseImportPlayers)
 
 	// Phase 3: Review unmatched Yahoo players
-	tracker.MarkItemStarted(PhaseReportUnmatched)
+	tracker.MarkItemStarted(ctx, PhaseReportUnmatched)
 	tracker.SetMessage("Loading unmatched Yahoo players")
 	logger.Info("Phase 3: Reviewing unmatched Yahoo players")
 
@@ -235,7 +235,7 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 		}
 	}
 
-	tracker.MarkItemCompleted(PhaseReportUnmatched)
+	tracker.MarkItemCompleted(ctx, PhaseReportUnmatched)
 
 	logger.Info("ImportPlayersWorkflow completed",
 		"totalPlayers", len(playerIDs),

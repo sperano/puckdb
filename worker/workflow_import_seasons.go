@@ -97,13 +97,13 @@ func processImportSeasons(ctx workflow.Context, logger interface{ Info(string, .
 
 	// Process each season
 	for _, season := range seasons {
-		tracker.MarkItemStarted(season.StartYear)
+		tracker.MarkItemStarted(ctx, season.StartYear)
 
 		if err := importSeasonBoxscores(ctx, logger, tracker, season, dayConcurrency); err != nil {
 			return err
 		}
 
-		tracker.MarkItemCompleted(season.StartYear)
+		tracker.MarkItemCompleted(ctx, season.StartYear)
 		logger.Info("Season import completed", "startYear", season.StartYear)
 	}
 

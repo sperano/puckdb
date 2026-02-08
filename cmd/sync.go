@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -29,7 +30,13 @@ func cmdSync() *cobra.Command {
 			}
 			return nil
 		},
-		RunE: runSync,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := runSync(cmd, nil); err != nil {
+				_, _ = fmt.Fprintln(os.Stderr, err.Error())
+				return err
+			}
+			return nil
+		},
 	}
 	flags := cmd.PersistentFlags()
 	config.InitAPIServerAddrFlag(flags)
@@ -71,27 +78,28 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 }
 
 func runSync(cmd *cobra.Command, args []string) error {
-	fmt.Printf("PuckDB - Sync - %s\n", config.BuildNumber)
-
-	// Step 1: Initialize reference data (franchises, seasons, league structure)
-	if err := runInitialize(cmd); err != nil {
-		return fmt.Errorf("initialization failed: %w", err)
-	}
-
-	// Step 2: Sync players
-	return runSyncPlayers(cmd, args)
-}
-
-func runInitialize(cmd *cobra.Command) error {
+	fmt.Printf("PuckDB Sync - %s\n\n", config.BuildNumber)
 	apiAddr := viper.GetString(config.FlagAPIServerAddr)
 	if apiAddr == "" {
 		return fmt.Errorf("api-server-addr is required")
 	}
-
+	ctx := cmd.Context()
 	client := NewGraphQLClient(apiAddr)
+
+	// Step 1: Initialize reference data (franchises, seasons, league structure)
+	if err := runInitialize(ctx, cmd.OutOrStdout(), client); err != nil {
+		return fmt.Errorf("initialization failed: %w", err)
+	}
+
+	// Step 2: Sync players
+	//return runSyncPlayers(cmd, args)
+	return nil
+}
+
+func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient) error {
 	state := &syncState{client: client, current: workflowNone}
 
-	ctx, cancel := context.WithCancel(cmd.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
@@ -107,10 +115,8 @@ func runInitialize(cmd *cobra.Command) error {
 	defer signal.Stop(sigChan)
 
 	totalStart := time.Now()
-
 	state.current = workflowInitialize
-	log.Info().Str("server", apiAddr).Msg("Triggering initialize workflow")
-
+	log.Info().Str("server", client.endpoint).Msg("Triggering initialize workflow")
 	started, err := client.Initialize(ctx)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -125,7 +131,8 @@ func runInitialize(cmd *cobra.Command) error {
 		log.Info().Msg("Workflow started successfully")
 	}
 
-	if err := monitorWorkflow(ctx, cmd, client.GetInitializeStatus, config.DefaultWorkflowPollTimeout); err != nil {
+	if err := monitorWorkflow(ctx, out, "Initializing NHL Franchises and NHL Seasons configurations...",
+		client.GetInitializeStatus, config.DefaultWorkflowPollTimeout); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
@@ -133,25 +140,23 @@ func runInitialize(cmd *cobra.Command) error {
 	}
 
 	totalDuration := time.Since(totalStart)
-	log.Info().Str("duration", totalDuration.String()).Msg("Initialization completed")
 
 	// Fetch and print result data
 	resultData, err := client.GetInitializeResultData(ctx)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to fetch initialize result data")
 	} else if resultData != nil {
-		printInitializeResult(cmd, resultData)
+		printInitializeResult(out, resultData, totalDuration)
 	}
 
 	return nil
 }
 
-func printInitializeResult(cmd *cobra.Command, result *InitializeResultData) {
-	fmt.Fprintln(cmd.OutOrStdout())
-	fmt.Fprintln(cmd.OutOrStdout(), "=== Initialize Results ===")
-	fmt.Fprintf(cmd.OutOrStdout(), "Franchises upserted:    %d\n", result.FranchisesUpserted)
-	fmt.Fprintf(cmd.OutOrStdout(), "Seasons upserted:       %d\n", result.SeasonsUpserted)
-	fmt.Fprintf(cmd.OutOrStdout(), "Season teams upserted:  %d\n", result.SeasonTeamsUpserted)
+func printInitializeResult(out io.Writer, result *InitializeResultData, duration time.Duration) {
+	fmt.Fprintf(out, "= Initialization completed in %.1fs =\n", duration.Seconds())
+	fmt.Fprintf(out, "  Franchises upserted:    %d\n", result.FranchisesUpserted)
+	fmt.Fprintf(out, "  Seasons upserted:       %d\n", result.SeasonsUpserted)
+	fmt.Fprintf(out, "  Season teams upserted:  %d\n", result.SeasonTeamsUpserted)
 }
 
 //func cmdImportPlayers() *cobra.Command {
@@ -250,7 +255,7 @@ func runSyncPlayers(cmd *cobra.Command, _ []string) error {
 	if viper.GetBool(config.FlagMonitor) {
 		log.Info().Str("server", apiAddr).Msg("Monitoring existing importPlayers workflow")
 		state.current = workflowImportPlayers
-		return monitorWorkflow(ctx, cmd, client.GetImportPlayersStatus, config.DefaultWorkflowPollTimeout)
+		return monitorWorkflow_legacy(ctx, cmd, client.GetImportPlayersStatus, config.DefaultWorkflowPollTimeout)
 	}
 
 	totalStart := time.Now()
@@ -284,7 +289,7 @@ func runSyncPlayers(cmd *cobra.Command, _ []string) error {
 		log.Info().Msg("Workflow started successfully")
 	}
 
-	if err := monitorWorkflow(ctx, cmd, client.GetImportPlayersStatus, config.DefaultWorkflowPollTimeout); err != nil {
+	if err := monitorWorkflow_legacy(ctx, cmd, client.GetImportPlayersStatus, config.DefaultWorkflowPollTimeout); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
@@ -403,7 +408,7 @@ func runSyncSeasons(cmd *cobra.Command, _ []string) error {
 	if viper.GetBool(config.FlagMonitor) {
 		log.Info().Str("server", apiAddr).Msg("Monitoring existing importSeasons workflow")
 		state.current = workflowImportSeasons
-		return monitorWorkflow(ctx, cmd, client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout)
+		return monitorWorkflow_legacy(ctx, cmd, client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout)
 	}
 
 	totalStart := time.Now()
@@ -437,7 +442,7 @@ func runSyncSeasons(cmd *cobra.Command, _ []string) error {
 		log.Info().Msg("Workflow started successfully")
 	}
 
-	if err := monitorWorkflow(ctx, cmd, client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
+	if err := monitorWorkflow_legacy(ctx, cmd, client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}

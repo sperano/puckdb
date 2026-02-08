@@ -301,3 +301,32 @@ func upsertSeasonTeamsImpl(
 
 	return result, nil
 }
+
+// InitializeSeasonTeamsResult contains the combined result of downloading standings and upserting teams for a season.
+type InitializeSeasonTeamsResult struct {
+	SeasonID       int  `json:"seasonId"`
+	DownloadResult DownloadSeasonStandingsResult `json:"downloadResult"`
+	UpsertResult   UpsertSeasonTeamsResult       `json:"upsertResult"`
+}
+
+// InitializeSeasonTeamsActivity downloads standings and upserts teams for a single season.
+// This combines DownloadSeasonStandingsActivity and UpsertSeasonTeamsActivity for efficient concurrent processing.
+func InitializeSeasonTeamsActivity(ctx context.Context, seasonID int) (InitializeSeasonTeamsResult, error) {
+	result := InitializeSeasonTeamsResult{SeasonID: seasonID}
+
+	// Download standings
+	downloadResult, err := DownloadSeasonStandingsActivity(ctx, seasonID)
+	if err != nil {
+		return result, fmt.Errorf("download season standings: %w", err)
+	}
+	result.DownloadResult = downloadResult
+
+	// Upsert teams
+	upsertResult, err := UpsertSeasonTeamsActivity(ctx, seasonID)
+	if err != nil {
+		return result, fmt.Errorf("upsert season teams: %w", err)
+	}
+	result.UpsertResult = upsertResult
+
+	return result, nil
+}

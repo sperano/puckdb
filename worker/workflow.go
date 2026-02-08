@@ -176,7 +176,7 @@ func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker 
 // startSeasonChildWorkflow spawns a child workflow for a season
 func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, active map[int]*childWorkflowWork, season SeasonInfo) {
 	logger.Info("Starting season child workflow", "startYear", season.StartYear)
-	tracker.MarkItemStarted(season.StartYear)
+	tracker.MarkItemStarted(ctx, season.StartYear)
 	ctxo := withChildOptions(ctx, WorkflowIDDownloadSeason(season.StartYear))
 	future := workflow.ExecuteChildWorkflow(ctxo, DownloadSeasonWorkflow, &DownloadSeasonInput{Season: season})
 	active[season.StartYear] = &childWorkflowWork{

@@ -164,17 +164,35 @@ func (p *ProgressTracker) IncrementItemBy(itemID int, amount int) {
 }
 
 // MarkItemStarted marks an item as started (child workflow spawned).
-func (p *ProgressTracker) MarkItemStarted(itemID int) {
+// Uses workflow.Now for deterministic time during replays.
+func (p *ProgressTracker) MarkItemStarted(ctx workflow.Context, itemID int) {
 	if idx, ok := p.itemIndex[itemID]; ok {
 		p.progress.Items[idx].Started = true
-		p.progress.Items[idx].StartedAt = time.Now().UTC().Format(time.RFC3339)
+		p.progress.Items[idx].StartedAt = workflow.Now(ctx).UTC().Format(time.RFC3339)
 	}
 }
 
-// MarkItemCompleted marks an item as completed with timestamp.
-func (p *ProgressTracker) MarkItemCompleted(itemID int) {
+// IsItemStarted returns whether an item has been marked as started.
+func (p *ProgressTracker) IsItemStarted(itemID int) bool {
 	if idx, ok := p.itemIndex[itemID]; ok {
-		p.progress.Items[idx].CompletedAt = time.Now().UTC().Format(time.RFC3339)
+		return p.progress.Items[idx].Started
+	}
+	return false
+}
+
+// GetItemTotal returns the total for a specific item.
+func (p *ProgressTracker) GetItemTotal(itemID int) int {
+	if idx, ok := p.itemIndex[itemID]; ok {
+		return p.progress.Items[idx].Total
+	}
+	return -1
+}
+
+// MarkItemCompleted marks an item as completed with timestamp.
+// Uses workflow.Now for deterministic time during replays.
+func (p *ProgressTracker) MarkItemCompleted(ctx workflow.Context, itemID int) {
+	if idx, ok := p.itemIndex[itemID]; ok {
+		p.progress.Items[idx].CompletedAt = workflow.Now(ctx).UTC().Format(time.RFC3339)
 	}
 }
 
@@ -301,9 +319,25 @@ func (p *ProgressTracker) SetMessage(message string) {
 // ActivityStarter is a function that starts an activity for a given index and returns a future.
 type ActivityStarter func(ctx workflow.Context, index int) workflow.Future
 
+// ResultHandler is called for each completed activity with its index.
+// The handler receives the future to extract the result.
+type ResultHandler func(ctx workflow.Context, index int, future workflow.Future) error
+
 // RunWorkerPool runs activities with a fixed concurrency, always keeping `concurrency` activities in flight.
 // As each activity completes, immediately starts the next one until all `total` items are processed.
 func (p *ProgressTracker) RunWorkerPool(ctx workflow.Context, total int, concurrency int, startActivity ActivityStarter) error {
+	return p.RunWorkerPoolWithHandler(ctx, total, concurrency, startActivity, nil)
+}
+
+// RunWorkerPoolWithHandler is like RunWorkerPool but calls handler for each completed activity.
+// The handler can extract and aggregate results from each future.
+func (p *ProgressTracker) RunWorkerPoolWithHandler(ctx workflow.Context, total int, concurrency int, startActivity ActivityStarter, handler ResultHandler) error {
+	return p.RunWorkerPoolForItem(ctx, total, concurrency, 0, startActivity, handler)
+}
+
+// RunWorkerPoolForItem is like RunWorkerPoolWithHandler but increments a specific item's progress.
+// Use itemID=0 to only increment the overall total.
+func (p *ProgressTracker) RunWorkerPoolForItem(ctx workflow.Context, total int, concurrency int, itemID int, startActivity ActivityStarter, handler ResultHandler) error {
 	if total == 0 {
 		return nil
 	}
@@ -331,10 +365,20 @@ func (p *ProgressTracker) RunWorkerPool(ctx workflow.Context, total int, concurr
 			capturedIdx := idx
 			capturedFuture := future
 			selector.AddFuture(capturedFuture, func(f workflow.Future) {
-				if err := f.Get(ctx, nil); err != nil && firstErr == nil {
-					firstErr = err
+				if handler != nil {
+					if err := handler(ctx, capturedIdx, f); err != nil && firstErr == nil {
+						firstErr = err
+					}
+				} else {
+					if err := f.Get(ctx, nil); err != nil && firstErr == nil {
+						firstErr = err
+					}
 				}
-				p.Increment()
+				if itemID != 0 {
+					p.IncrementItem(itemID)
+				} else {
+					p.Increment()
+				}
 				delete(active, capturedIdx)
 			})
 		}
