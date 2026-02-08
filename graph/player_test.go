@@ -18,7 +18,7 @@ func TestSqlcPlayerToGQL_AllFields(t *testing.T) {
 		YahooID:            pgtype.Int8{Int64: 5441, Valid: true},
 		FirstName:          "Connor",
 		LastName:           "McDavid",
-		NHLTeamID:          pgtype.Int8{Int64: 22, Valid: true},
+		TeamID:             pgtype.Int8{Int64: 22, Valid: true},
 		Position:           "C",
 		ShootsCatches:      "L",
 		HeightInches:       pgtype.Int4{Int32: 73, Valid: true},
@@ -167,7 +167,7 @@ func TestSqlcPlayerToGQL_Goalie(t *testing.T) {
 		IsActive:      true,
 		HeadshotURL:   "https://example.com/saros.jpg",
 		SweaterNumber: pgtype.Int4{Int32: 74, Valid: true},
-		NHLTeamID:     pgtype.Int8{Int64: 18, Valid: true},
+		TeamID:        pgtype.Int8{Int64: 18, Valid: true},
 	}
 
 	result := sqlcPlayerToGQL(row)

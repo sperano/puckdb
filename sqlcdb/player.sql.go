@@ -59,7 +59,7 @@ func (q *Queries) DeletePlayer(ctx context.Context, id int64) error {
 }
 
 const getActivePlayers = `-- name: GetActivePlayers :many
-SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players WHERE is_active = TRUE ORDER BY last_name, first_name
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE is_active = TRUE ORDER BY last_name, first_name
 `
 
 func (q *Queries) GetActivePlayers(ctx context.Context) ([]Player, error) {
@@ -76,7 +76,9 @@ func (q *Queries) GetActivePlayers(ctx context.Context) ([]Player, error) {
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NHLTeamID,
+			&i.FirstNameNormalized,
+			&i.LastNameNormalized,
+			&i.TeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -99,8 +101,6 @@ func (q *Queries) GetActivePlayers(ctx context.Context) ([]Player, error) {
 			&i.DraftRound,
 			&i.DraftPickInRound,
 			&i.DraftOverallPick,
-			&i.FirstNameNormalized,
-			&i.LastNameNormalized,
 		); err != nil {
 			return nil, err
 		}
@@ -113,7 +113,7 @@ func (q *Queries) GetActivePlayers(ctx context.Context) ([]Player, error) {
 }
 
 const getAllPlayers = `-- name: GetAllPlayers :many
-SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players ORDER BY last_name, first_name
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players ORDER BY last_name, first_name
 `
 
 func (q *Queries) GetAllPlayers(ctx context.Context) ([]Player, error) {
@@ -130,7 +130,9 @@ func (q *Queries) GetAllPlayers(ctx context.Context) ([]Player, error) {
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NHLTeamID,
+			&i.FirstNameNormalized,
+			&i.LastNameNormalized,
+			&i.TeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -153,8 +155,6 @@ func (q *Queries) GetAllPlayers(ctx context.Context) ([]Player, error) {
 			&i.DraftRound,
 			&i.DraftPickInRound,
 			&i.DraftOverallPick,
-			&i.FirstNameNormalized,
-			&i.LastNameNormalized,
 		); err != nil {
 			return nil, err
 		}
@@ -167,7 +167,7 @@ func (q *Queries) GetAllPlayers(ctx context.Context) ([]Player, error) {
 }
 
 const getPlayer = `-- name: GetPlayer :one
-SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players WHERE id = $1
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE id = $1
 `
 
 func (q *Queries) GetPlayer(ctx context.Context, id int64) (Player, error) {
@@ -178,7 +178,9 @@ func (q *Queries) GetPlayer(ctx context.Context, id int64) (Player, error) {
 		&i.YahooID,
 		&i.FirstName,
 		&i.LastName,
-		&i.NHLTeamID,
+		&i.FirstNameNormalized,
+		&i.LastNameNormalized,
+		&i.TeamID,
 		&i.Position,
 		&i.ShootsCatches,
 		&i.HeightInches,
@@ -201,14 +203,12 @@ func (q *Queries) GetPlayer(ctx context.Context, id int64) (Player, error) {
 		&i.DraftRound,
 		&i.DraftPickInRound,
 		&i.DraftOverallPick,
-		&i.FirstNameNormalized,
-		&i.LastNameNormalized,
 	)
 	return i, err
 }
 
 const getPlayerByYahooID = `-- name: GetPlayerByYahooID :one
-SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players WHERE yahoo_id = $1
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE yahoo_id = $1
 `
 
 func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (Player, error) {
@@ -219,7 +219,9 @@ func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (
 		&i.YahooID,
 		&i.FirstName,
 		&i.LastName,
-		&i.NHLTeamID,
+		&i.FirstNameNormalized,
+		&i.LastNameNormalized,
+		&i.TeamID,
 		&i.Position,
 		&i.ShootsCatches,
 		&i.HeightInches,
@@ -242,14 +244,12 @@ func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (
 		&i.DraftRound,
 		&i.DraftPickInRound,
 		&i.DraftOverallPick,
-		&i.FirstNameNormalized,
-		&i.LastNameNormalized,
 	)
 	return i, err
 }
 
 const getPlayersByPosition = `-- name: GetPlayersByPosition :many
-SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players WHERE position = $1 ORDER BY last_name, first_name
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE position = $1 ORDER BY last_name, first_name
 `
 
 func (q *Queries) GetPlayersByPosition(ctx context.Context, position string) ([]Player, error) {
@@ -266,7 +266,9 @@ func (q *Queries) GetPlayersByPosition(ctx context.Context, position string) ([]
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NHLTeamID,
+			&i.FirstNameNormalized,
+			&i.LastNameNormalized,
+			&i.TeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -289,8 +291,6 @@ func (q *Queries) GetPlayersByPosition(ctx context.Context, position string) ([]
 			&i.DraftRound,
 			&i.DraftPickInRound,
 			&i.DraftOverallPick,
-			&i.FirstNameNormalized,
-			&i.LastNameNormalized,
 		); err != nil {
 			return nil, err
 		}
@@ -303,11 +303,11 @@ func (q *Queries) GetPlayersByPosition(ctx context.Context, position string) ([]
 }
 
 const getPlayersByTeam = `-- name: GetPlayersByTeam :many
-SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players WHERE nhl_team_id = $1 ORDER BY last_name, first_name
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE team_id = $1 ORDER BY last_name, first_name
 `
 
-func (q *Queries) GetPlayersByTeam(ctx context.Context, nhlTeamID pgtype.Int8) ([]Player, error) {
-	rows, err := q.db.Query(ctx, getPlayersByTeam, nhlTeamID)
+func (q *Queries) GetPlayersByTeam(ctx context.Context, teamID pgtype.Int8) ([]Player, error) {
+	rows, err := q.db.Query(ctx, getPlayersByTeam, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +320,9 @@ func (q *Queries) GetPlayersByTeam(ctx context.Context, nhlTeamID pgtype.Int8) (
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NHLTeamID,
+			&i.FirstNameNormalized,
+			&i.LastNameNormalized,
+			&i.TeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -343,8 +345,6 @@ func (q *Queries) GetPlayersByTeam(ctx context.Context, nhlTeamID pgtype.Int8) (
 			&i.DraftRound,
 			&i.DraftPickInRound,
 			&i.DraftOverallPick,
-			&i.FirstNameNormalized,
-			&i.LastNameNormalized,
 		); err != nil {
 			return nil, err
 		}
@@ -372,7 +372,7 @@ func (q *Queries) LinkYahooToNHLPlayer(ctx context.Context, arg LinkYahooToNHLPl
 }
 
 const listPlayers = `-- name: ListPlayers :many
-SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players
 WHERE
     ($1::text IS NULL OR
      first_name ILIKE '%' || $1 || '%' OR
@@ -380,7 +380,7 @@ WHERE
     AND ($2::int IS NULL OR sweater_number = $2)
     AND ($3::boolean IS NULL OR
          (CASE WHEN $3 THEN yahoo_id IS NOT NULL ELSE yahoo_id IS NULL END))
-    AND ($4::bigint IS NULL OR nhl_team_id = $4)
+    AND ($4::bigint IS NULL OR team_id = $4)
     AND ($5::text IS NULL OR position = $5)
     AND ($6::boolean IS NULL OR is_active = $6)
 ORDER BY last_name, first_name
@@ -416,7 +416,9 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Pla
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NHLTeamID,
+			&i.FirstNameNormalized,
+			&i.LastNameNormalized,
+			&i.TeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -439,8 +441,6 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Pla
 			&i.DraftRound,
 			&i.DraftPickInRound,
 			&i.DraftOverallPick,
-			&i.FirstNameNormalized,
-			&i.LastNameNormalized,
 		); err != nil {
 			return nil, err
 		}
@@ -453,7 +453,7 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Pla
 }
 
 const searchPlayersByName = `-- name: SearchPlayersByName :many
-SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players
 WHERE last_name_normalized LIKE $1 OR first_name_normalized LIKE $1
    OR last_name ILIKE $1 OR first_name ILIKE $1
 ORDER BY last_name, first_name
@@ -475,7 +475,9 @@ func (q *Queries) SearchPlayersByName(ctx context.Context, lastNameNormalized st
 			&i.YahooID,
 			&i.FirstName,
 			&i.LastName,
-			&i.NHLTeamID,
+			&i.FirstNameNormalized,
+			&i.LastNameNormalized,
+			&i.TeamID,
 			&i.Position,
 			&i.ShootsCatches,
 			&i.HeightInches,
@@ -498,8 +500,6 @@ func (q *Queries) SearchPlayersByName(ctx context.Context, lastNameNormalized st
 			&i.DraftRound,
 			&i.DraftPickInRound,
 			&i.DraftOverallPick,
-			&i.FirstNameNormalized,
-			&i.LastNameNormalized,
 		); err != nil {
 			return nil, err
 		}
@@ -545,7 +545,7 @@ func (q *Queries) UpdatePlayerYahooInfo(ctx context.Context, arg UpdatePlayerYah
 
 const upsertPlayer = `-- name: UpsertPlayer :exec
 INSERT INTO players (
-    id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, nhl_team_id,
+    id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id,
     position, shoots_catches, height_inches, weight_pounds,
     birth_date, birth_city, birth_state_province, birth_country,
     sweater_number, is_active, headshot_url, hero_image_url,
@@ -567,7 +567,7 @@ ON CONFLICT (id) DO UPDATE SET
     last_name = EXCLUDED.last_name,
     first_name_normalized = EXCLUDED.first_name_normalized,
     last_name_normalized = EXCLUDED.last_name_normalized,
-    nhl_team_id = EXCLUDED.nhl_team_id,
+    team_id = EXCLUDED.team_id,
     position = EXCLUDED.position,
     shoots_catches = EXCLUDED.shoots_catches,
     height_inches = COALESCE(EXCLUDED.height_inches, players.height_inches),
@@ -599,7 +599,7 @@ type UpsertPlayerParams struct {
 	LastName            string      `json:"last_name"`
 	FirstNameNormalized string      `json:"first_name_normalized"`
 	LastNameNormalized  string      `json:"last_name_normalized"`
-	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
+	TeamID              pgtype.Int8 `json:"team_id"`
 	Position            string      `json:"position"`
 	ShootsCatches       string      `json:"shoots_catches"`
 	HeightInches        pgtype.Int4 `json:"height_inches"`
@@ -632,7 +632,7 @@ func (q *Queries) UpsertPlayer(ctx context.Context, arg UpsertPlayerParams) erro
 		arg.LastName,
 		arg.FirstNameNormalized,
 		arg.LastNameNormalized,
-		arg.NHLTeamID,
+		arg.TeamID,
 		arg.Position,
 		arg.ShootsCatches,
 		arg.HeightInches,
@@ -661,7 +661,7 @@ func (q *Queries) UpsertPlayer(ctx context.Context, arg UpsertPlayerParams) erro
 
 const upsertPlayerFromNHL = `-- name: UpsertPlayerFromNHL :exec
 INSERT INTO players (
-    id, first_name, last_name, nhl_team_id,
+    id, first_name, last_name, team_id,
     position, shoots_catches, height_inches, weight_pounds,
     birth_date, birth_city, birth_state_province, birth_country,
     sweater_number, is_active, headshot_url, hero_image_url, player_slug,
@@ -676,7 +676,7 @@ INSERT INTO players (
 ON CONFLICT (id) DO UPDATE SET
     first_name = EXCLUDED.first_name,
     last_name = EXCLUDED.last_name,
-    nhl_team_id = EXCLUDED.nhl_team_id,
+    team_id = EXCLUDED.team_id,
     position = EXCLUDED.position,
     shoots_catches = EXCLUDED.shoots_catches,
     height_inches = EXCLUDED.height_inches,
@@ -701,7 +701,7 @@ type UpsertPlayerFromNHLParams struct {
 	ID                 int64       `json:"id"`
 	FirstName          string      `json:"first_name"`
 	LastName           string      `json:"last_name"`
-	NHLTeamID          pgtype.Int8 `json:"nhl_team_id"`
+	TeamID             pgtype.Int8 `json:"team_id"`
 	Position           string      `json:"position"`
 	ShootsCatches      string      `json:"shoots_catches"`
 	HeightInches       pgtype.Int4 `json:"height_inches"`
@@ -728,7 +728,7 @@ func (q *Queries) UpsertPlayerFromNHL(ctx context.Context, arg UpsertPlayerFromN
 		arg.ID,
 		arg.FirstName,
 		arg.LastName,
-		arg.NHLTeamID,
+		arg.TeamID,
 		arg.Position,
 		arg.ShootsCatches,
 		arg.HeightInches,

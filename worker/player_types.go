@@ -11,7 +11,7 @@ type PartialPlayer struct {
 	LastName      string
 	Position      string
 	SweaterNumber int
-	NHLTeamID     int64
+	TeamID        int64
 
 	// Yahoo-specific fields
 	YahooHomeURL     string

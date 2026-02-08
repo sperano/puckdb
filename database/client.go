@@ -135,7 +135,7 @@ func RunSQLMigrationsDown() error {
 
 func DoMigration() error {
 	log.Info().Msg("Starting database migration")
-	// Run SQL migrations (handles nhl_teams, nhl_franchises, nhl_seasons, nhl_season_teams, players)
+	// Run SQL migrations (handles franchises, seasons, season_teams, players, games, stats)
 	if err := RunSQLMigrations(); err != nil {
 		return err
 	}

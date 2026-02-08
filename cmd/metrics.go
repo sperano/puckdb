@@ -235,7 +235,7 @@ func collectRedisMetrics(ctx context.Context, redisClient redis.Client) {
 func collectDatabaseMetrics(ctx context.Context, pool *pgxpool.Pool) {
 	start := time.Now()
 
-	tables := []string{"players", "nhl_franchises", "nhl_seasons", "nhl_season_teams", "nhl_games", "nhl_game_skater_stats", "nhl_game_goalie_stats"}
+	tables := []string{"players", "franchises", "seasons", "season_teams", "games", "game_skater_stats", "game_goalie_stats"}
 	var totalRows int64
 	for _, table := range tables {
 		var count int64

@@ -1,5 +1,5 @@
 -- =============================================================================
--- NHL Game Goalie Stats Queries
+-- Game Goalie Stats Queries
 -- =============================================================================
 
 -- name: GetGameGoalieStats :one
@@ -7,10 +7,10 @@
 SELECT s.*,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
+FROM game_goalie_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1 AND s.player_id = $2;
 
 -- name: GetGameGoalieStatsByGame :many
@@ -18,10 +18,10 @@ WHERE s.game_id = $1 AND s.player_id = $2;
 SELECT s.*,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
+FROM game_goalie_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1
 ORDER BY s.is_home DESC, s.starter DESC NULLS LAST;
 
@@ -30,10 +30,10 @@ ORDER BY s.is_home DESC, s.starter DESC NULLS LAST;
 SELECT s.*,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
+FROM game_goalie_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1 AND s.team_id = $2
 ORDER BY s.starter DESC NULLS LAST;
 
@@ -42,9 +42,9 @@ ORDER BY s.starter DESC NULLS LAST;
 SELECT s.*,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1
 ORDER BY g.game_date DESC;
 
@@ -53,9 +53,9 @@ ORDER BY g.game_date DESC;
 SELECT s.*,
     g.game_date, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1 AND g.season = $2
 ORDER BY g.game_date;
 
@@ -64,9 +64,9 @@ ORDER BY g.game_date;
 SELECT s.*,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1 AND g.game_date >= $2 AND g.game_date <= $3
 ORDER BY g.game_date;
 
@@ -93,8 +93,8 @@ SELECT
         THEN (SUM(s.goals_against)::float / SUM(s.toi_seconds)::float) * 3600
         ELSE NULL
     END as season_gaa
-FROM nhl_game_goalie_stats s
-JOIN nhl_games g ON s.game_id = g.id
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
 WHERE s.player_id = $1 AND g.season = $2
 GROUP BY s.player_id;
 
@@ -122,15 +122,15 @@ SELECT
         THEN (SUM(s.goals_against)::float / SUM(s.toi_seconds)::float) * 3600
         ELSE NULL
     END as season_gaa
-FROM nhl_game_goalie_stats s
-JOIN nhl_games g ON s.game_id = g.id
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
 JOIN players p ON s.player_id = p.id
 WHERE s.team_id = $1 AND g.season = $2
 GROUP BY s.player_id, p.first_name, p.last_name
 ORDER BY wins DESC, games_played DESC;
 
 -- name: UpsertGameGoalieStats :exec
-INSERT INTO nhl_game_goalie_stats (
+INSERT INTO game_goalie_stats (
     game_id, player_id, team_id, is_home, sweater_number,
     decision, starter,
     shots_against, saves, save_pctg,
@@ -163,7 +163,7 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     updated_at = NOW();
 
 -- name: DeleteGameGoalieStats :exec
-DELETE FROM nhl_game_goalie_stats WHERE game_id = $1 AND player_id = $2;
+DELETE FROM game_goalie_stats WHERE game_id = $1 AND player_id = $2;
 
 -- name: DeleteGameGoalieStatsByGame :exec
-DELETE FROM nhl_game_goalie_stats WHERE game_id = $1;
+DELETE FROM game_goalie_stats WHERE game_id = $1;

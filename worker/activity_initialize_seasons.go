@@ -170,7 +170,7 @@ func UpsertSeasonsActivity(ctx context.Context) (UpsertSeasonsResult, error) {
 }
 
 type seasonsUpserter interface {
-	UpsertNHLSeason(ctx context.Context, arg sqlcdb.UpsertNHLSeasonParams) error
+	UpsertSeason(ctx context.Context, arg sqlcdb.UpsertSeasonParams) error
 }
 
 func upsertSeasonsImpl(
@@ -191,13 +191,13 @@ func upsertSeasonsImpl(
 			return result, fmt.Errorf("parse standings end for season %d: %w", s.ID.ToInt(), err)
 		}
 
-		params := sqlcdb.UpsertNHLSeasonParams{
+		params := sqlcdb.UpsertSeasonParams{
 			ID:             int32(s.ID.ToInt()),
 			StandingsStart: pgtype.Date{Time: startDate, Valid: true},
 			StandingsEnd:   pgtype.Date{Time: endDate, Valid: true},
 		}
 
-		if err := queries.UpsertNHLSeason(ctx, params); err != nil {
+		if err := queries.UpsertSeason(ctx, params); err != nil {
 			return result, fmt.Errorf("upsert season %d: %w", s.ID.ToInt(), err)
 		}
 
@@ -247,7 +247,7 @@ func UpsertSeasonTeamsActivity(ctx context.Context, seasonID int) (UpsertSeasonT
 }
 
 type seasonTeamsUpserter interface {
-	UpsertNHLSeasonTeam(ctx context.Context, arg sqlcdb.UpsertNHLSeasonTeamParams) error
+	UpsertSeasonTeam(ctx context.Context, arg sqlcdb.UpsertSeasonTeamParams) error
 }
 
 func upsertSeasonTeamsImpl(
@@ -273,7 +273,7 @@ func upsertSeasonTeamsImpl(
 			confAbbrev = pgtype.Text{String: *s.ConferenceAbbrev, Valid: true}
 		}
 
-		params := sqlcdb.UpsertNHLSeasonTeamParams{
+		params := sqlcdb.UpsertSeasonTeamParams{
 			SeasonID:        int32(seasonID),
 			TeamID:          0, // Will need to map from abbrev to ID
 			FranchiseID:     pgtype.Int8{Valid: false}, // Will link later
@@ -286,7 +286,7 @@ func upsertSeasonTeamsImpl(
 			ConferenceAbbrev: confAbbrev,
 		}
 
-		if err := queries.UpsertNHLSeasonTeam(ctx, params); err != nil {
+		if err := queries.UpsertSeasonTeam(ctx, params); err != nil {
 			return result, fmt.Errorf("upsert season team %s for season %d: %w", s.TeamAbbrev.String(), seasonID, err)
 		}
 

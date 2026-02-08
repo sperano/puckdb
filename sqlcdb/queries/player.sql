@@ -11,7 +11,7 @@ SELECT * FROM players ORDER BY last_name, first_name;
 SELECT * FROM players WHERE is_active = TRUE ORDER BY last_name, first_name;
 
 -- name: GetPlayersByTeam :many
-SELECT * FROM players WHERE nhl_team_id = $1 ORDER BY last_name, first_name;
+SELECT * FROM players WHERE team_id = $1 ORDER BY last_name, first_name;
 
 -- name: GetPlayersByPosition :many
 SELECT * FROM players WHERE position = $1 ORDER BY last_name, first_name;
@@ -33,14 +33,14 @@ WHERE
     AND (sqlc.narg('sweater_number')::int IS NULL OR sweater_number = sqlc.narg('sweater_number'))
     AND (sqlc.narg('has_yahoo_id')::boolean IS NULL OR
          (CASE WHEN sqlc.narg('has_yahoo_id') THEN yahoo_id IS NOT NULL ELSE yahoo_id IS NULL END))
-    AND (sqlc.narg('team_id')::bigint IS NULL OR nhl_team_id = sqlc.narg('team_id'))
+    AND (sqlc.narg('team_id')::bigint IS NULL OR team_id = sqlc.narg('team_id'))
     AND (sqlc.narg('position')::text IS NULL OR position = sqlc.narg('position'))
     AND (sqlc.narg('is_active')::boolean IS NULL OR is_active = sqlc.narg('is_active'))
 ORDER BY last_name, first_name;
 
 -- name: UpsertPlayer :exec
 INSERT INTO players (
-    id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, nhl_team_id,
+    id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id,
     position, shoots_catches, height_inches, weight_pounds,
     birth_date, birth_city, birth_state_province, birth_country,
     sweater_number, is_active, headshot_url, hero_image_url,
@@ -62,7 +62,7 @@ ON CONFLICT (id) DO UPDATE SET
     last_name = EXCLUDED.last_name,
     first_name_normalized = EXCLUDED.first_name_normalized,
     last_name_normalized = EXCLUDED.last_name_normalized,
-    nhl_team_id = EXCLUDED.nhl_team_id,
+    team_id = EXCLUDED.team_id,
     position = EXCLUDED.position,
     shoots_catches = EXCLUDED.shoots_catches,
     height_inches = COALESCE(EXCLUDED.height_inches, players.height_inches),
@@ -89,7 +89,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- name: UpsertPlayerFromNHL :exec
 -- Use this when importing from NHL API (has NHL ID as primary)
 INSERT INTO players (
-    id, first_name, last_name, nhl_team_id,
+    id, first_name, last_name, team_id,
     position, shoots_catches, height_inches, weight_pounds,
     birth_date, birth_city, birth_state_province, birth_country,
     sweater_number, is_active, headshot_url, hero_image_url, player_slug,
@@ -104,7 +104,7 @@ INSERT INTO players (
 ON CONFLICT (id) DO UPDATE SET
     first_name = EXCLUDED.first_name,
     last_name = EXCLUDED.last_name,
-    nhl_team_id = EXCLUDED.nhl_team_id,
+    team_id = EXCLUDED.team_id,
     position = EXCLUDED.position,
     shoots_catches = EXCLUDED.shoots_catches,
     height_inches = EXCLUDED.height_inches,

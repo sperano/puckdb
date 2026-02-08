@@ -12,7 +12,7 @@ import (
 )
 
 const deleteGameGoalieStats = `-- name: DeleteGameGoalieStats :exec
-DELETE FROM nhl_game_goalie_stats WHERE game_id = $1 AND player_id = $2
+DELETE FROM game_goalie_stats WHERE game_id = $1 AND player_id = $2
 `
 
 type DeleteGameGoalieStatsParams struct {
@@ -26,7 +26,7 @@ func (q *Queries) DeleteGameGoalieStats(ctx context.Context, arg DeleteGameGoali
 }
 
 const deleteGameGoalieStatsByGame = `-- name: DeleteGameGoalieStatsByGame :exec
-DELETE FROM nhl_game_goalie_stats WHERE game_id = $1
+DELETE FROM game_goalie_stats WHERE game_id = $1
 `
 
 func (q *Queries) DeleteGameGoalieStatsByGame(ctx context.Context, gameID int64) error {
@@ -39,10 +39,10 @@ const getGameGoalieStats = `-- name: GetGameGoalieStats :one
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
+FROM game_goalie_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1 AND s.player_id = $2
 `
 
@@ -77,7 +77,7 @@ type GetGameGoalieStatsRow struct {
 }
 
 // =============================================================================
-// NHL Game Goalie Stats Queries
+// Game Goalie Stats Queries
 // =============================================================================
 // Get a single goalie's stats for a specific game
 func (q *Queries) GetGameGoalieStats(ctx context.Context, arg GetGameGoalieStatsParams) (GetGameGoalieStatsRow, error) {
@@ -114,10 +114,10 @@ const getGameGoalieStatsByGame = `-- name: GetGameGoalieStatsByGame :many
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
+FROM game_goalie_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1
 ORDER BY s.is_home DESC, s.starter DESC NULLS LAST
 `
@@ -195,10 +195,10 @@ const getGameGoalieStatsByGameAndTeam = `-- name: GetGameGoalieStatsByGameAndTea
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
+FROM game_goalie_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1 AND s.team_id = $2
 ORDER BY s.starter DESC NULLS LAST
 `
@@ -299,8 +299,8 @@ SELECT
         THEN (SUM(s.goals_against)::float / SUM(s.toi_seconds)::float) * 3600
         ELSE NULL
     END as season_gaa
-FROM nhl_game_goalie_stats s
-JOIN nhl_games g ON s.game_id = g.id
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
 WHERE s.player_id = $1 AND g.season = $2
 GROUP BY s.player_id
 `
@@ -350,9 +350,9 @@ const getGoalieStatsByPlayer = `-- name: GetGoalieStatsByPlayer :many
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1
 ORDER BY g.game_date DESC
 `
@@ -432,9 +432,9 @@ const getGoalieStatsByPlayerAndDateRange = `-- name: GetGoalieStatsByPlayerAndDa
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1 AND g.game_date >= $2 AND g.game_date <= $3
 ORDER BY g.game_date
 `
@@ -520,9 +520,9 @@ const getGoalieStatsByPlayerAndSeason = `-- name: GetGoalieStatsByPlayerAndSeaso
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     g.game_date, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_goalie_stats s
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1 AND g.season = $2
 ORDER BY g.game_date
 `
@@ -624,8 +624,8 @@ SELECT
         THEN (SUM(s.goals_against)::float / SUM(s.toi_seconds)::float) * 3600
         ELSE NULL
     END as season_gaa
-FROM nhl_game_goalie_stats s
-JOIN nhl_games g ON s.game_id = g.id
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
 JOIN players p ON s.player_id = p.id
 WHERE s.team_id = $1 AND g.season = $2
 GROUP BY s.player_id, p.first_name, p.last_name
@@ -691,7 +691,7 @@ func (q *Queries) GetTeamGoalieSeasonTotals(ctx context.Context, arg GetTeamGoal
 }
 
 const upsertGameGoalieStats = `-- name: UpsertGameGoalieStats :exec
-INSERT INTO nhl_game_goalie_stats (
+INSERT INTO game_goalie_stats (
     game_id, player_id, team_id, is_home, sweater_number,
     decision, starter,
     shots_against, saves, save_pctg,

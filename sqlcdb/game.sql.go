@@ -11,75 +11,75 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countNHLGames = `-- name: CountNHLGames :one
-SELECT COUNT(*) FROM nhl_games
+const countGames = `-- name: CountGames :one
+SELECT COUNT(*) FROM games
 `
 
-func (q *Queries) CountNHLGames(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countNHLGames)
+func (q *Queries) CountGames(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countGames)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
-const countNHLGamesBySeason = `-- name: CountNHLGamesBySeason :one
-SELECT COUNT(*) FROM nhl_games WHERE season = $1
+const countGamesBySeason = `-- name: CountGamesBySeason :one
+SELECT COUNT(*) FROM games WHERE season = $1
 `
 
-func (q *Queries) CountNHLGamesBySeason(ctx context.Context, season int32) (int64, error) {
-	row := q.db.QueryRow(ctx, countNHLGamesBySeason, season)
+func (q *Queries) CountGamesBySeason(ctx context.Context, season int32) (int64, error) {
+	row := q.db.QueryRow(ctx, countGamesBySeason, season)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
-const countNHLGamesByTeamAndSeason = `-- name: CountNHLGamesByTeamAndSeason :one
-SELECT COUNT(*) FROM nhl_games
+const countGamesByTeamAndSeason = `-- name: CountGamesByTeamAndSeason :one
+SELECT COUNT(*) FROM games
 WHERE (home_team_id = $1 OR away_team_id = $1) AND season = $2
 `
 
-type CountNHLGamesByTeamAndSeasonParams struct {
+type CountGamesByTeamAndSeasonParams struct {
 	HomeTeamID int64 `json:"home_team_id"`
 	Season     int32 `json:"season"`
 }
 
-func (q *Queries) CountNHLGamesByTeamAndSeason(ctx context.Context, arg CountNHLGamesByTeamAndSeasonParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countNHLGamesByTeamAndSeason, arg.HomeTeamID, arg.Season)
+func (q *Queries) CountGamesByTeamAndSeason(ctx context.Context, arg CountGamesByTeamAndSeasonParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countGamesByTeamAndSeason, arg.HomeTeamID, arg.Season)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
-const deleteNHLGame = `-- name: DeleteNHLGame :exec
-DELETE FROM nhl_games WHERE id = $1
+const deleteGame = `-- name: DeleteGame :exec
+DELETE FROM games WHERE id = $1
 `
 
-func (q *Queries) DeleteNHLGame(ctx context.Context, id int64) error {
-	_, err := q.db.Exec(ctx, deleteNHLGame, id)
+func (q *Queries) DeleteGame(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteGame, id)
 	return err
 }
 
-const deleteNHLGamesBySeason = `-- name: DeleteNHLGamesBySeason :exec
-DELETE FROM nhl_games WHERE season = $1
+const deleteGamesBySeason = `-- name: DeleteGamesBySeason :exec
+DELETE FROM games WHERE season = $1
 `
 
-func (q *Queries) DeleteNHLGamesBySeason(ctx context.Context, season int32) error {
-	_, err := q.db.Exec(ctx, deleteNHLGamesBySeason, season)
+func (q *Queries) DeleteGamesBySeason(ctx context.Context, season int32) error {
+	_, err := q.db.Exec(ctx, deleteGamesBySeason, season)
 	return err
 }
 
-const getNHLGame = `-- name: GetNHLGame :one
+const getGame = `-- name: GetGame :one
 
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.id = $1
 `
 
-type GetNHLGameRow struct {
+type GetGameRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
 	GameType              int16              `json:"game_type"`
@@ -114,12 +114,12 @@ type GetNHLGameRow struct {
 }
 
 // =============================================================================
-// NHL Games Queries
+// Games Queries
 // =============================================================================
 // Get a single game by ID with team details
-func (q *Queries) GetNHLGame(ctx context.Context, id int64) (GetNHLGameRow, error) {
-	row := q.db.QueryRow(ctx, getNHLGame, id)
-	var i GetNHLGameRow
+func (q *Queries) GetGame(ctx context.Context, id int64) (GetGameRow, error) {
+	row := q.db.QueryRow(ctx, getGame, id)
+	var i GetGameRow
 	err := row.Scan(
 		&i.ID,
 		&i.Season,
@@ -156,18 +156,18 @@ func (q *Queries) GetNHLGame(ctx context.Context, id int64) (GetNHLGameRow, erro
 	return i, err
 }
 
-const getNHLGamesByDate = `-- name: GetNHLGamesByDate :many
+const getGamesByDate = `-- name: GetGamesByDate :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.game_date = $1
 ORDER BY g.start_time_utc
 `
 
-type GetNHLGamesByDateRow struct {
+type GetGamesByDateRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
 	GameType              int16              `json:"game_type"`
@@ -202,15 +202,15 @@ type GetNHLGamesByDateRow struct {
 }
 
 // Get all games on a specific date
-func (q *Queries) GetNHLGamesByDate(ctx context.Context, gameDate pgtype.Date) ([]GetNHLGamesByDateRow, error) {
-	rows, err := q.db.Query(ctx, getNHLGamesByDate, gameDate)
+func (q *Queries) GetGamesByDate(ctx context.Context, gameDate pgtype.Date) ([]GetGamesByDateRow, error) {
+	rows, err := q.db.Query(ctx, getGamesByDate, gameDate)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetNHLGamesByDateRow{}
+	items := []GetGamesByDateRow{}
 	for rows.Next() {
-		var i GetNHLGamesByDateRow
+		var i GetGamesByDateRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Season,
@@ -254,23 +254,23 @@ func (q *Queries) GetNHLGamesByDate(ctx context.Context, gameDate pgtype.Date) (
 	return items, nil
 }
 
-const getNHLGamesByDateRange = `-- name: GetNHLGamesByDateRange :many
+const getGamesByDateRange = `-- name: GetGamesByDateRange :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.game_date >= $1 AND g.game_date <= $2
 ORDER BY g.game_date, g.start_time_utc
 `
 
-type GetNHLGamesByDateRangeParams struct {
+type GetGamesByDateRangeParams struct {
 	GameDate   pgtype.Date `json:"game_date"`
 	GameDate_2 pgtype.Date `json:"game_date_2"`
 }
 
-type GetNHLGamesByDateRangeRow struct {
+type GetGamesByDateRangeRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
 	GameType              int16              `json:"game_type"`
@@ -305,15 +305,15 @@ type GetNHLGamesByDateRangeRow struct {
 }
 
 // Get all games within a date range
-func (q *Queries) GetNHLGamesByDateRange(ctx context.Context, arg GetNHLGamesByDateRangeParams) ([]GetNHLGamesByDateRangeRow, error) {
-	rows, err := q.db.Query(ctx, getNHLGamesByDateRange, arg.GameDate, arg.GameDate_2)
+func (q *Queries) GetGamesByDateRange(ctx context.Context, arg GetGamesByDateRangeParams) ([]GetGamesByDateRangeRow, error) {
+	rows, err := q.db.Query(ctx, getGamesByDateRange, arg.GameDate, arg.GameDate_2)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetNHLGamesByDateRangeRow{}
+	items := []GetGamesByDateRangeRow{}
 	for rows.Next() {
-		var i GetNHLGamesByDateRangeRow
+		var i GetGamesByDateRangeRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Season,
@@ -357,18 +357,18 @@ func (q *Queries) GetNHLGamesByDateRange(ctx context.Context, arg GetNHLGamesByD
 	return items, nil
 }
 
-const getNHLGamesBySeason = `-- name: GetNHLGamesBySeason :many
+const getGamesBySeason = `-- name: GetGamesBySeason :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.season = $1
 ORDER BY g.game_date, g.start_time_utc
 `
 
-type GetNHLGamesBySeasonRow struct {
+type GetGamesBySeasonRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
 	GameType              int16              `json:"game_type"`
@@ -403,15 +403,15 @@ type GetNHLGamesBySeasonRow struct {
 }
 
 // Get all games for a season
-func (q *Queries) GetNHLGamesBySeason(ctx context.Context, season int32) ([]GetNHLGamesBySeasonRow, error) {
-	rows, err := q.db.Query(ctx, getNHLGamesBySeason, season)
+func (q *Queries) GetGamesBySeason(ctx context.Context, season int32) ([]GetGamesBySeasonRow, error) {
+	rows, err := q.db.Query(ctx, getGamesBySeason, season)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetNHLGamesBySeasonRow{}
+	items := []GetGamesBySeasonRow{}
 	for rows.Next() {
-		var i GetNHLGamesBySeasonRow
+		var i GetGamesBySeasonRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Season,
@@ -455,18 +455,18 @@ func (q *Queries) GetNHLGamesBySeason(ctx context.Context, season int32) ([]GetN
 	return items, nil
 }
 
-const getNHLGamesByTeam = `-- name: GetNHLGamesByTeam :many
+const getGamesByTeam = `-- name: GetGamesByTeam :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.home_team_id = $1 OR g.away_team_id = $1
 ORDER BY g.game_date, g.start_time_utc
 `
 
-type GetNHLGamesByTeamRow struct {
+type GetGamesByTeamRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
 	GameType              int16              `json:"game_type"`
@@ -501,15 +501,15 @@ type GetNHLGamesByTeamRow struct {
 }
 
 // Get all games for a team (home or away)
-func (q *Queries) GetNHLGamesByTeam(ctx context.Context, homeTeamID int64) ([]GetNHLGamesByTeamRow, error) {
-	rows, err := q.db.Query(ctx, getNHLGamesByTeam, homeTeamID)
+func (q *Queries) GetGamesByTeam(ctx context.Context, homeTeamID int64) ([]GetGamesByTeamRow, error) {
+	rows, err := q.db.Query(ctx, getGamesByTeam, homeTeamID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetNHLGamesByTeamRow{}
+	items := []GetGamesByTeamRow{}
 	for rows.Next() {
-		var i GetNHLGamesByTeamRow
+		var i GetGamesByTeamRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Season,
@@ -553,24 +553,24 @@ func (q *Queries) GetNHLGamesByTeam(ctx context.Context, homeTeamID int64) ([]Ge
 	return items, nil
 }
 
-const getNHLGamesByTeamAndSeason = `-- name: GetNHLGamesByTeamAndSeason :many
+const getGamesByTeamAndSeason = `-- name: GetGamesByTeamAndSeason :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE (g.home_team_id = $1 OR g.away_team_id = $1)
   AND g.season = $2
 ORDER BY g.game_date, g.start_time_utc
 `
 
-type GetNHLGamesByTeamAndSeasonParams struct {
+type GetGamesByTeamAndSeasonParams struct {
 	HomeTeamID int64 `json:"home_team_id"`
 	Season     int32 `json:"season"`
 }
 
-type GetNHLGamesByTeamAndSeasonRow struct {
+type GetGamesByTeamAndSeasonRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
 	GameType              int16              `json:"game_type"`
@@ -605,15 +605,15 @@ type GetNHLGamesByTeamAndSeasonRow struct {
 }
 
 // Get all games for a team in a specific season
-func (q *Queries) GetNHLGamesByTeamAndSeason(ctx context.Context, arg GetNHLGamesByTeamAndSeasonParams) ([]GetNHLGamesByTeamAndSeasonRow, error) {
-	rows, err := q.db.Query(ctx, getNHLGamesByTeamAndSeason, arg.HomeTeamID, arg.Season)
+func (q *Queries) GetGamesByTeamAndSeason(ctx context.Context, arg GetGamesByTeamAndSeasonParams) ([]GetGamesByTeamAndSeasonRow, error) {
+	rows, err := q.db.Query(ctx, getGamesByTeamAndSeason, arg.HomeTeamID, arg.Season)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetNHLGamesByTeamAndSeasonRow{}
+	items := []GetGamesByTeamAndSeasonRow{}
 	for rows.Next() {
-		var i GetNHLGamesByTeamAndSeasonRow
+		var i GetGamesByTeamAndSeasonRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Season,
@@ -657,13 +657,13 @@ func (q *Queries) GetNHLGamesByTeamAndSeason(ctx context.Context, arg GetNHLGame
 	return items, nil
 }
 
-const listNHLGames = `-- name: ListNHLGames :many
+const listGames = `-- name: ListGames :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE
     ($1::int IS NULL OR g.season = $1)
     AND ($2::smallint IS NULL OR g.game_type = $2)
@@ -675,7 +675,7 @@ ORDER BY g.game_date, g.start_time_utc
 LIMIT COALESCE($7::int, 100)
 `
 
-type ListNHLGamesParams struct {
+type ListGamesParams struct {
 	Season    pgtype.Int4 `json:"season"`
 	GameType  pgtype.Int2 `json:"game_type"`
 	GameState pgtype.Text `json:"game_state"`
@@ -685,7 +685,7 @@ type ListNHLGamesParams struct {
 	Limit     pgtype.Int4 `json:"limit"`
 }
 
-type ListNHLGamesRow struct {
+type ListGamesRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
 	GameType              int16              `json:"game_type"`
@@ -720,8 +720,8 @@ type ListNHLGamesRow struct {
 }
 
 // Flexible game listing with optional filters
-func (q *Queries) ListNHLGames(ctx context.Context, arg ListNHLGamesParams) ([]ListNHLGamesRow, error) {
-	rows, err := q.db.Query(ctx, listNHLGames,
+func (q *Queries) ListGames(ctx context.Context, arg ListGamesParams) ([]ListGamesRow, error) {
+	rows, err := q.db.Query(ctx, listGames,
 		arg.Season,
 		arg.GameType,
 		arg.GameState,
@@ -734,9 +734,9 @@ func (q *Queries) ListNHLGames(ctx context.Context, arg ListNHLGamesParams) ([]L
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListNHLGamesRow{}
+	items := []ListGamesRow{}
 	for rows.Next() {
-		var i ListNHLGamesRow
+		var i ListGamesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Season,
@@ -780,8 +780,8 @@ func (q *Queries) ListNHLGames(ctx context.Context, arg ListNHLGamesParams) ([]L
 	return items, nil
 }
 
-const upsertNHLGame = `-- name: UpsertNHLGame :exec
-INSERT INTO nhl_games (
+const upsertGame = `-- name: UpsertGame :exec
+INSERT INTO games (
     id, season, game_type, game_date,
     venue, venue_location, start_time_utc, eastern_utc_offset, venue_utc_offset,
     game_state, game_schedule_state,
@@ -828,7 +828,7 @@ ON CONFLICT (id) DO UPDATE SET
     updated_at = NOW()
 `
 
-type UpsertNHLGameParams struct {
+type UpsertGameParams struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
 	GameType              int16              `json:"game_type"`
@@ -856,8 +856,8 @@ type UpsertNHLGameParams struct {
 	LimitedScoring        bool               `json:"limited_scoring"`
 }
 
-func (q *Queries) UpsertNHLGame(ctx context.Context, arg UpsertNHLGameParams) error {
-	_, err := q.db.Exec(ctx, upsertNHLGame,
+func (q *Queries) UpsertGame(ctx context.Context, arg UpsertGameParams) error {
+	_, err := q.db.Exec(ctx, upsertGame,
 		arg.ID,
 		arg.Season,
 		arg.GameType,

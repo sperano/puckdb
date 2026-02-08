@@ -49,7 +49,7 @@ func UpsertFranchisesActivity(ctx context.Context) (UpsertFranchisesResult, erro
 }
 
 type franchiseUpserter interface {
-	UpsertNHLFranchise(ctx context.Context, arg sqlcdb.UpsertNHLFranchiseParams) error
+	UpsertFranchise(ctx context.Context, arg sqlcdb.UpsertFranchiseParams) error
 }
 
 func upsertFranchisesImpl(
@@ -61,14 +61,14 @@ func upsertFranchisesImpl(
 	result := UpsertFranchisesResult{}
 
 	for _, f := range franchises {
-		params := sqlcdb.UpsertNHLFranchiseParams{
+		params := sqlcdb.UpsertFranchiseParams{
 			ID:             f.ID,
 			FullName:       f.FullName,
 			TeamCommonName: f.TeamCommonName,
 			TeamPlaceName:  f.TeamPlaceName,
 		}
 
-		if err := queries.UpsertNHLFranchise(ctx, params); err != nil {
+		if err := queries.UpsertFranchise(ctx, params); err != nil {
 			return result, fmt.Errorf("upsert franchise %d (%s): %w", f.ID, f.FullName, err)
 		}
 

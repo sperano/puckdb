@@ -48,7 +48,7 @@ func ImportBoxscoresForDateActivity(ctx context.Context, input ImportBoxscoresFo
 
 // BoxscoreUpserter is the interface for database operations needed by boxscore import.
 type BoxscoreUpserter interface {
-	UpsertNHLGame(ctx context.Context, arg sqlcdb.UpsertNHLGameParams) error
+	UpsertGame(ctx context.Context, arg sqlcdb.UpsertGameParams) error
 	UpsertGameSkaterStats(ctx context.Context, arg sqlcdb.UpsertGameSkaterStatsParams) error
 	UpsertGameGoalieStats(ctx context.Context, arg sqlcdb.UpsertGameGoalieStatsParams) error
 }
@@ -117,7 +117,7 @@ func importBoxscoresForDateImpl(
 
 		// Upsert the game
 		gameParams := boxscoreToGameParams(&boxscore, input.Season)
-		if err := queries.UpsertNHLGame(ctx, gameParams); err != nil {
+		if err := queries.UpsertGame(ctx, gameParams); err != nil {
 			return result, fmt.Errorf("upsert game %d: %w", game.ID, err)
 		}
 		result.GamesImported++
@@ -147,8 +147,8 @@ func importBoxscoresForDateImpl(
 	return result, nil
 }
 
-// boxscoreToGameParams converts an NHL API Boxscore to sqlcdb.UpsertNHLGameParams.
-func boxscoreToGameParams(b *nhl.Boxscore, season int) sqlcdb.UpsertNHLGameParams {
+// boxscoreToGameParams converts an NHL API Boxscore to sqlcdb.UpsertGameParams.
+func boxscoreToGameParams(b *nhl.Boxscore, season int) sqlcdb.UpsertGameParams {
 	// Parse game date
 	var gameDate pgtype.Date
 	if t, err := time.Parse("2006-01-02", b.GameDate); err == nil {
@@ -161,7 +161,7 @@ func boxscoreToGameParams(b *nhl.Boxscore, season int) sqlcdb.UpsertNHLGameParam
 		startTimeUTC = pgtype.Timestamptz{Time: t, Valid: true}
 	}
 
-	return sqlcdb.UpsertNHLGameParams{
+	return sqlcdb.UpsertGameParams{
 		ID:       int64(b.ID),
 		Season:   int32(season),
 		GameType: int16(b.GameType),

@@ -1,81 +1,81 @@
 -- =============================================================================
--- NHL Games Queries
+-- Games Queries
 -- =============================================================================
 
--- name: GetNHLGame :one
+-- name: GetGame :one
 -- Get a single game by ID with team details
 SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.id = $1;
 
--- name: GetNHLGamesByDate :many
+-- name: GetGamesByDate :many
 -- Get all games on a specific date
 SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.game_date = $1
 ORDER BY g.start_time_utc;
 
--- name: GetNHLGamesByDateRange :many
+-- name: GetGamesByDateRange :many
 -- Get all games within a date range
 SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.game_date >= $1 AND g.game_date <= $2
 ORDER BY g.game_date, g.start_time_utc;
 
--- name: GetNHLGamesBySeason :many
+-- name: GetGamesBySeason :many
 -- Get all games for a season
 SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.season = $1
 ORDER BY g.game_date, g.start_time_utc;
 
--- name: GetNHLGamesByTeam :many
+-- name: GetGamesByTeam :many
 -- Get all games for a team (home or away)
 SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.home_team_id = $1 OR g.away_team_id = $1
 ORDER BY g.game_date, g.start_time_utc;
 
--- name: GetNHLGamesByTeamAndSeason :many
+-- name: GetGamesByTeamAndSeason :many
 -- Get all games for a team in a specific season
 SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE (g.home_team_id = $1 OR g.away_team_id = $1)
   AND g.season = $2
 ORDER BY g.game_date, g.start_time_utc;
 
--- name: ListNHLGames :many
+-- name: ListGames :many
 -- Flexible game listing with optional filters
 SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
-FROM nhl_games g
-JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE
     (sqlc.narg('season')::int IS NULL OR g.season = sqlc.narg('season'))
     AND (sqlc.narg('game_type')::smallint IS NULL OR g.game_type = sqlc.narg('game_type'))
@@ -86,18 +86,18 @@ WHERE
 ORDER BY g.game_date, g.start_time_utc
 LIMIT COALESCE(sqlc.narg('limit')::int, 100);
 
--- name: CountNHLGames :one
-SELECT COUNT(*) FROM nhl_games;
+-- name: CountGames :one
+SELECT COUNT(*) FROM games;
 
--- name: CountNHLGamesBySeason :one
-SELECT COUNT(*) FROM nhl_games WHERE season = $1;
+-- name: CountGamesBySeason :one
+SELECT COUNT(*) FROM games WHERE season = $1;
 
--- name: CountNHLGamesByTeamAndSeason :one
-SELECT COUNT(*) FROM nhl_games
+-- name: CountGamesByTeamAndSeason :one
+SELECT COUNT(*) FROM games
 WHERE (home_team_id = $1 OR away_team_id = $1) AND season = $2;
 
--- name: UpsertNHLGame :exec
-INSERT INTO nhl_games (
+-- name: UpsertGame :exec
+INSERT INTO games (
     id, season, game_type, game_date,
     venue, venue_location, start_time_utc, eastern_utc_offset, venue_utc_offset,
     game_state, game_schedule_state,
@@ -143,8 +143,8 @@ ON CONFLICT (id) DO UPDATE SET
     limited_scoring = EXCLUDED.limited_scoring,
     updated_at = NOW();
 
--- name: DeleteNHLGame :exec
-DELETE FROM nhl_games WHERE id = $1;
+-- name: DeleteGame :exec
+DELETE FROM games WHERE id = $1;
 
--- name: DeleteNHLGamesBySeason :exec
-DELETE FROM nhl_games WHERE season = $1;
+-- name: DeleteGamesBySeason :exec
+DELETE FROM games WHERE season = $1;

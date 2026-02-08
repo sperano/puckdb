@@ -202,7 +202,7 @@ func buildUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResult) sql
 
 	// Team ID
 	if landing.CurrentTeamID != nil {
-		params.NHLTeamID = pgtype.Int8{Int64: int64(*landing.CurrentTeamID), Valid: true}
+		params.TeamID = pgtype.Int8{Int64: int64(*landing.CurrentTeamID), Valid: true}
 	}
 
 	// Jersey number

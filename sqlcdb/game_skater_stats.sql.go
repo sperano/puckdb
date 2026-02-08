@@ -12,7 +12,7 @@ import (
 )
 
 const deleteGameSkaterStats = `-- name: DeleteGameSkaterStats :exec
-DELETE FROM nhl_game_skater_stats WHERE game_id = $1 AND player_id = $2
+DELETE FROM game_skater_stats WHERE game_id = $1 AND player_id = $2
 `
 
 type DeleteGameSkaterStatsParams struct {
@@ -26,7 +26,7 @@ func (q *Queries) DeleteGameSkaterStats(ctx context.Context, arg DeleteGameSkate
 }
 
 const deleteGameSkaterStatsByGame = `-- name: DeleteGameSkaterStatsByGame :exec
-DELETE FROM nhl_game_skater_stats WHERE game_id = $1
+DELETE FROM game_skater_stats WHERE game_id = $1
 `
 
 func (q *Queries) DeleteGameSkaterStatsByGame(ctx context.Context, gameID int64) error {
@@ -39,10 +39,10 @@ const getGameSkaterStats = `-- name: GetGameSkaterStats :one
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     p.first_name, p.last_name, p.position as player_position,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_skater_stats s
+FROM game_skater_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1 AND s.player_id = $2
 `
 
@@ -82,7 +82,7 @@ type GetGameSkaterStatsRow struct {
 }
 
 // =============================================================================
-// NHL Game Skater Stats Queries
+// Game Skater Stats Queries
 // =============================================================================
 // Get a single player's stats for a specific game
 func (q *Queries) GetGameSkaterStats(ctx context.Context, arg GetGameSkaterStatsParams) (GetGameSkaterStatsRow, error) {
@@ -124,10 +124,10 @@ const getGameSkaterStatsByGame = `-- name: GetGameSkaterStatsByGame :many
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     p.first_name, p.last_name, p.position as player_position,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_skater_stats s
+FROM game_skater_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1
 ORDER BY s.is_home DESC, s.position, p.last_name
 `
@@ -215,10 +215,10 @@ const getGameSkaterStatsByGameAndTeam = `-- name: GetGameSkaterStatsByGameAndTea
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     p.first_name, p.last_name, p.position as player_position,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_skater_stats s
+FROM game_skater_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1 AND s.team_id = $2
 ORDER BY s.position, p.last_name
 `
@@ -323,8 +323,8 @@ SELECT
     SUM(s.giveaways)::int as total_giveaways,
     SUM(s.takeaways)::int as total_takeaways,
     SUM(s.power_play_goals)::int as total_pp_goals
-FROM nhl_game_skater_stats s
-JOIN nhl_games g ON s.game_id = g.id
+FROM game_skater_stats s
+JOIN games g ON s.game_id = g.id
 WHERE s.player_id = $1 AND g.season = $2
 GROUP BY s.player_id
 `
@@ -378,9 +378,9 @@ const getSkaterStatsByPlayer = `-- name: GetSkaterStatsByPlayer :many
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_skater_stats s
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+FROM game_skater_stats s
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1
 ORDER BY g.game_date DESC
 `
@@ -468,9 +468,9 @@ const getSkaterStatsByPlayerAndDateRange = `-- name: GetSkaterStatsByPlayerAndDa
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_skater_stats s
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+FROM game_skater_stats s
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1 AND g.game_date >= $2 AND g.game_date <= $3
 ORDER BY g.game_date
 `
@@ -564,9 +564,9 @@ const getSkaterStatsByPlayerAndSeason = `-- name: GetSkaterStatsByPlayerAndSeaso
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     g.game_date, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
-FROM nhl_game_skater_stats s
-JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+FROM game_skater_stats s
+JOIN games g ON s.game_id = g.id
+JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1 AND g.season = $2
 ORDER BY g.game_date
 `
@@ -664,8 +664,8 @@ SELECT
     SUM(s.plus_minus)::int as total_plus_minus,
     SUM(s.shots_on_goal)::int as total_shots,
     SUM(s.penalty_minutes)::int as total_pim
-FROM nhl_game_skater_stats s
-JOIN nhl_games g ON s.game_id = g.id
+FROM game_skater_stats s
+JOIN games g ON s.game_id = g.id
 JOIN players p ON s.player_id = p.id
 WHERE s.team_id = $1 AND g.season = $2
 GROUP BY s.player_id, p.first_name, p.last_name, p.position
@@ -725,7 +725,7 @@ func (q *Queries) GetTeamSkaterSeasonTotals(ctx context.Context, arg GetTeamSkat
 }
 
 const upsertGameSkaterStats = `-- name: UpsertGameSkaterStats :exec
-INSERT INTO nhl_game_skater_stats (
+INSERT INTO game_skater_stats (
     game_id, player_id, team_id, is_home, sweater_number, position,
     goals, assists, points, plus_minus, shots_on_goal,
     toi_seconds, shifts, faceoff_winning_pctg,

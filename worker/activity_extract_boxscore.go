@@ -80,7 +80,7 @@ func addSkaterPlayer(players map[int64]PartialPlayer, s nhl.SkaterStats, teamID 
 		LastName:        lastName,
 		Position:        string(s.Position),
 		SweaterNumber:   s.SweaterNumber,
-		NHLTeamID:       teamID,
+		TeamID:          teamID,
 		HasBoxscoreData: true,
 	}
 }
@@ -95,7 +95,7 @@ func addGoaliePlayer(players map[int64]PartialPlayer, g nhl.GoalieStats, teamID 
 		LastName:        lastName,
 		Position:        string(g.Position),
 		SweaterNumber:   g.SweaterNumber,
-		NHLTeamID:       teamID,
+		TeamID:          teamID,
 		HasBoxscoreData: true,
 	}
 }

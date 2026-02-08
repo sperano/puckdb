@@ -82,7 +82,7 @@ func TestAddSkaterPlayer(t *testing.T) {
 	assert.Equal(t, "McDavid", player.LastName)
 	assert.Equal(t, "C", player.Position)
 	assert.Equal(t, 97, player.SweaterNumber)
-	assert.Equal(t, teamID, player.NHLTeamID)
+	assert.Equal(t, teamID, player.TeamID)
 	assert.True(t, player.HasBoxscoreData)
 }
 
@@ -107,6 +107,6 @@ func TestAddGoaliePlayer(t *testing.T) {
 	assert.Equal(t, "Skinner", player.LastName)
 	assert.Equal(t, "G", player.Position)
 	assert.Equal(t, 74, player.SweaterNumber)
-	assert.Equal(t, teamID, player.NHLTeamID)
+	assert.Equal(t, teamID, player.TeamID)
 	assert.True(t, player.HasBoxscoreData)
 }

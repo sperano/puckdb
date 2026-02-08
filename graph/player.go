@@ -28,8 +28,8 @@ func sqlcPlayerToGQL(row sqlcdb.Player) *model.Player {
 	if row.YahooID.Valid {
 		player.YahooID = &row.YahooID.Int64
 	}
-	if row.NHLTeamID.Valid {
-		player.NHLTeamID = &row.NHLTeamID.Int64
+	if row.TeamID.Valid {
+		player.NHLTeamID = &row.TeamID.Int64
 	}
 	if row.HeightInches.Valid {
 		v := int(row.HeightInches.Int32)
