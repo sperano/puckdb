@@ -9,9 +9,19 @@ import (
 const (
 	DefaultTemporalNamespace = "puckdb"
 	DefaultUser              = "eric"
-	DefaultLogLevel          = "info"
-	DefaultImportLogLevel    = "error"
+	DefaultLogLevel          = LogLevelInfo
+	DefaultImportLogLevel    = LogLevelInfo
 	DefaultYahooSeasonsFile  = "yahoo-seasons.yaml"
+)
+
+// Log file defaults
+const (
+	DefaultLogFile       = ""        // empty = stdout/stderr
+	DefaultImportLogFile = "default" // special value = use platform default path
+	DefaultLogMaxSize    = 10        // MB before rotation
+	DefaultLogMaxBackups = 3         // old files to keep
+	DefaultLogMaxAge     = 30        // days to keep old files
+	DefaultLogCompress   = false     // don't gzip old files
 )
 
 // Server port defaults

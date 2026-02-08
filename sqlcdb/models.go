@@ -8,15 +8,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type NhlConference struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
-
-type NhlDivision struct {
-	ID              int64  `json:"id"`
-	Name            string `json:"name"`
-	NHLConferenceID int64  `json:"nhl_conference_id"`
+type NhlFranchise struct {
+	ID             int64  `json:"id"`
+	FullName       string `json:"full_name"`
+	TeamCommonName string `json:"team_common_name"`
+	TeamPlaceName  string `json:"team_place_name"`
 }
 
 type NhlGame struct {
@@ -95,18 +91,23 @@ type NhlGameSkaterStat struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
-type NhlTeam struct {
-	ID            int64       `json:"id"`
-	YahooID       pgtype.Int8 `json:"yahoo_id"`
-	City          string      `json:"city"`
-	Name          string      `json:"name"`
-	Abbreviation  string      `json:"abbreviation"`
-	NHLDivisionID int64       `json:"nhl_division_id"`
-	NHLHomeLink   string      `json:"nhl_home_link"`
-	YahooHomeLink string      `json:"yahoo_home_link"`
-	SmallLogoURL  string      `json:"small_logo_url"`
-	LargeLogoURL  string      `json:"large_logo_url"`
-	AllStars      bool        `json:"all_stars"`
+type NhlSeason struct {
+	ID             int32       `json:"id"`
+	StandingsStart pgtype.Date `json:"standings_start"`
+	StandingsEnd   pgtype.Date `json:"standings_end"`
+}
+
+type NhlSeasonTeam struct {
+	SeasonID         int32       `json:"season_id"`
+	TeamID           int64       `json:"team_id"`
+	FranchiseID      pgtype.Int8 `json:"franchise_id"`
+	FullName         string      `json:"full_name"`
+	Abbrev           string      `json:"abbrev"`
+	LogoUrl          pgtype.Text `json:"logo_url"`
+	DivisionName     string      `json:"division_name"`
+	DivisionAbbrev   string      `json:"division_abbrev"`
+	ConferenceName   pgtype.Text `json:"conference_name"`
+	ConferenceAbbrev pgtype.Text `json:"conference_abbrev"`
 }
 
 type Player struct {

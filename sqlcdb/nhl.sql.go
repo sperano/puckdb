@@ -7,66 +7,39 @@ package sqlcdb
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getAllNHLConferences = `-- name: GetAllNHLConferences :many
-SELECT id, name FROM nhl_conferences ORDER BY id
+const countNHLFranchises = `-- name: CountNHLFranchises :one
+SELECT COUNT(*) FROM nhl_franchises
 `
 
-func (q *Queries) GetAllNHLConferences(ctx context.Context) ([]NhlConference, error) {
-	rows, err := q.db.Query(ctx, getAllNHLConferences)
+func (q *Queries) CountNHLFranchises(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countNHLFranchises)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getAllNHLFranchises = `-- name: GetAllNHLFranchises :many
+SELECT id, full_name, team_common_name, team_place_name
+FROM nhl_franchises
+ORDER BY id
+`
+
+func (q *Queries) GetAllNHLFranchises(ctx context.Context) ([]NhlFranchise, error) {
+	rows, err := q.db.Query(ctx, getAllNHLFranchises)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []NhlConference{}
+	items := []NhlFranchise{}
 	for rows.Next() {
-		var i NhlConference
-		if err := rows.Scan(&i.ID, &i.Name); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getAllNHLDivisions = `-- name: GetAllNHLDivisions :many
-SELECT
-    d.id, d.name, d.nhl_conference_id,
-    c.id AS conf_id, c.name AS conf_name
-FROM nhl_divisions d
-JOIN nhl_conferences c ON d.nhl_conference_id = c.id
-ORDER BY d.id
-`
-
-type GetAllNHLDivisionsRow struct {
-	ID              int64  `json:"id"`
-	Name            string `json:"name"`
-	NHLConferenceID int64  `json:"nhl_conference_id"`
-	ConfID          int64  `json:"conf_id"`
-	ConfName        string `json:"conf_name"`
-}
-
-func (q *Queries) GetAllNHLDivisions(ctx context.Context) ([]GetAllNHLDivisionsRow, error) {
-	rows, err := q.db.Query(ctx, getAllNHLDivisions)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetAllNHLDivisionsRow{}
-	for rows.Next() {
-		var i GetAllNHLDivisionsRow
+		var i NhlFranchise
 		if err := rows.Scan(
 			&i.ID,
-			&i.Name,
-			&i.NHLConferenceID,
-			&i.ConfID,
-			&i.ConfName,
+			&i.FullName,
+			&i.TeamCommonName,
+			&i.TeamPlaceName,
 		); err != nil {
 			return nil, err
 		}
@@ -78,350 +51,46 @@ func (q *Queries) GetAllNHLDivisions(ctx context.Context) ([]GetAllNHLDivisionsR
 	return items, nil
 }
 
-const getAllNHLTeamIDs = `-- name: GetAllNHLTeamIDs :many
-SELECT id FROM nhl_teams ORDER BY id
+const getNHLFranchise = `-- name: GetNHLFranchise :one
+SELECT id, full_name, team_common_name, team_place_name
+FROM nhl_franchises
+WHERE id = $1
 `
 
-func (q *Queries) GetAllNHLTeamIDs(ctx context.Context) ([]int64, error) {
-	rows, err := q.db.Query(ctx, getAllNHLTeamIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []int64{}
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getAllNHLTeams = `-- name: GetAllNHLTeams :many
-SELECT
-    t.id, t.yahoo_id, t.city, t.name, t.abbreviation, t.nhl_division_id,
-    t.nhl_home_link, t.yahoo_home_link, t.small_logo_url, t.large_logo_url, t.all_stars,
-    d.id AS div_id, d.name AS div_name,
-    c.id AS conf_id, c.name AS conf_name
-FROM nhl_teams t
-JOIN nhl_divisions d ON t.nhl_division_id = d.id
-JOIN nhl_conferences c ON d.nhl_conference_id = c.id
-WHERE t.all_stars = $1
-ORDER BY t.id
-`
-
-type GetAllNHLTeamsRow struct {
-	ID            int64       `json:"id"`
-	YahooID       pgtype.Int8 `json:"yahoo_id"`
-	City          string      `json:"city"`
-	Name          string      `json:"name"`
-	Abbreviation  string      `json:"abbreviation"`
-	NHLDivisionID int64       `json:"nhl_division_id"`
-	NHLHomeLink   string      `json:"nhl_home_link"`
-	YahooHomeLink string      `json:"yahoo_home_link"`
-	SmallLogoURL  string      `json:"small_logo_url"`
-	LargeLogoURL  string      `json:"large_logo_url"`
-	AllStars      bool        `json:"all_stars"`
-	DivID         int64       `json:"div_id"`
-	DivName       string      `json:"div_name"`
-	ConfID        int64       `json:"conf_id"`
-	ConfName      string      `json:"conf_name"`
-}
-
-func (q *Queries) GetAllNHLTeams(ctx context.Context, allStars bool) ([]GetAllNHLTeamsRow, error) {
-	rows, err := q.db.Query(ctx, getAllNHLTeams, allStars)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetAllNHLTeamsRow{}
-	for rows.Next() {
-		var i GetAllNHLTeamsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.YahooID,
-			&i.City,
-			&i.Name,
-			&i.Abbreviation,
-			&i.NHLDivisionID,
-			&i.NHLHomeLink,
-			&i.YahooHomeLink,
-			&i.SmallLogoURL,
-			&i.LargeLogoURL,
-			&i.AllStars,
-			&i.DivID,
-			&i.DivName,
-			&i.ConfID,
-			&i.ConfName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getNHLConference = `-- name: GetNHLConference :one
-SELECT id, name FROM nhl_conferences WHERE id = $1
-`
-
-func (q *Queries) GetNHLConference(ctx context.Context, id int64) (NhlConference, error) {
-	row := q.db.QueryRow(ctx, getNHLConference, id)
-	var i NhlConference
-	err := row.Scan(&i.ID, &i.Name)
-	return i, err
-}
-
-const getNHLDivisionsByConference = `-- name: GetNHLDivisionsByConference :many
-SELECT
-    d.id, d.name, d.nhl_conference_id,
-    c.id AS conf_id, c.name AS conf_name
-FROM nhl_divisions d
-JOIN nhl_conferences c ON d.nhl_conference_id = c.id
-WHERE d.nhl_conference_id = $1
-ORDER BY d.id
-`
-
-type GetNHLDivisionsByConferenceRow struct {
-	ID              int64  `json:"id"`
-	Name            string `json:"name"`
-	NHLConferenceID int64  `json:"nhl_conference_id"`
-	ConfID          int64  `json:"conf_id"`
-	ConfName        string `json:"conf_name"`
-}
-
-func (q *Queries) GetNHLDivisionsByConference(ctx context.Context, nhlConferenceID int64) ([]GetNHLDivisionsByConferenceRow, error) {
-	rows, err := q.db.Query(ctx, getNHLDivisionsByConference, nhlConferenceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetNHLDivisionsByConferenceRow{}
-	for rows.Next() {
-		var i GetNHLDivisionsByConferenceRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.NHLConferenceID,
-			&i.ConfID,
-			&i.ConfName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getNHLTeam = `-- name: GetNHLTeam :one
-SELECT
-    t.id, t.yahoo_id, t.city, t.name, t.abbreviation, t.nhl_division_id,
-    t.nhl_home_link, t.yahoo_home_link, t.small_logo_url, t.large_logo_url, t.all_stars,
-    d.id AS div_id, d.name AS div_name,
-    c.id AS conf_id, c.name AS conf_name
-FROM nhl_teams t
-JOIN nhl_divisions d ON t.nhl_division_id = d.id
-JOIN nhl_conferences c ON d.nhl_conference_id = c.id
-WHERE t.id = $1
-`
-
-type GetNHLTeamRow struct {
-	ID            int64       `json:"id"`
-	YahooID       pgtype.Int8 `json:"yahoo_id"`
-	City          string      `json:"city"`
-	Name          string      `json:"name"`
-	Abbreviation  string      `json:"abbreviation"`
-	NHLDivisionID int64       `json:"nhl_division_id"`
-	NHLHomeLink   string      `json:"nhl_home_link"`
-	YahooHomeLink string      `json:"yahoo_home_link"`
-	SmallLogoURL  string      `json:"small_logo_url"`
-	LargeLogoURL  string      `json:"large_logo_url"`
-	AllStars      bool        `json:"all_stars"`
-	DivID         int64       `json:"div_id"`
-	DivName       string      `json:"div_name"`
-	ConfID        int64       `json:"conf_id"`
-	ConfName      string      `json:"conf_name"`
-}
-
-func (q *Queries) GetNHLTeam(ctx context.Context, id int64) (GetNHLTeamRow, error) {
-	row := q.db.QueryRow(ctx, getNHLTeam, id)
-	var i GetNHLTeamRow
+func (q *Queries) GetNHLFranchise(ctx context.Context, id int64) (NhlFranchise, error) {
+	row := q.db.QueryRow(ctx, getNHLFranchise, id)
+	var i NhlFranchise
 	err := row.Scan(
 		&i.ID,
-		&i.YahooID,
-		&i.City,
-		&i.Name,
-		&i.Abbreviation,
-		&i.NHLDivisionID,
-		&i.NHLHomeLink,
-		&i.YahooHomeLink,
-		&i.SmallLogoURL,
-		&i.LargeLogoURL,
-		&i.AllStars,
-		&i.DivID,
-		&i.DivName,
-		&i.ConfID,
-		&i.ConfName,
+		&i.FullName,
+		&i.TeamCommonName,
+		&i.TeamPlaceName,
 	)
 	return i, err
 }
 
-const getNHLTeamsByDivision = `-- name: GetNHLTeamsByDivision :many
-SELECT
-    t.id, t.yahoo_id, t.city, t.name, t.abbreviation, t.nhl_division_id,
-    t.nhl_home_link, t.yahoo_home_link, t.small_logo_url, t.large_logo_url, t.all_stars,
-    d.id AS div_id, d.name AS div_name,
-    c.id AS conf_id, c.name AS conf_name
-FROM nhl_teams t
-JOIN nhl_divisions d ON t.nhl_division_id = d.id
-JOIN nhl_conferences c ON d.nhl_conference_id = c.id
-WHERE t.nhl_division_id = $1
-ORDER BY t.id
-`
-
-type GetNHLTeamsByDivisionRow struct {
-	ID            int64       `json:"id"`
-	YahooID       pgtype.Int8 `json:"yahoo_id"`
-	City          string      `json:"city"`
-	Name          string      `json:"name"`
-	Abbreviation  string      `json:"abbreviation"`
-	NHLDivisionID int64       `json:"nhl_division_id"`
-	NHLHomeLink   string      `json:"nhl_home_link"`
-	YahooHomeLink string      `json:"yahoo_home_link"`
-	SmallLogoURL  string      `json:"small_logo_url"`
-	LargeLogoURL  string      `json:"large_logo_url"`
-	AllStars      bool        `json:"all_stars"`
-	DivID         int64       `json:"div_id"`
-	DivName       string      `json:"div_name"`
-	ConfID        int64       `json:"conf_id"`
-	ConfName      string      `json:"conf_name"`
-}
-
-func (q *Queries) GetNHLTeamsByDivision(ctx context.Context, nhlDivisionID int64) ([]GetNHLTeamsByDivisionRow, error) {
-	rows, err := q.db.Query(ctx, getNHLTeamsByDivision, nhlDivisionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetNHLTeamsByDivisionRow{}
-	for rows.Next() {
-		var i GetNHLTeamsByDivisionRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.YahooID,
-			&i.City,
-			&i.Name,
-			&i.Abbreviation,
-			&i.NHLDivisionID,
-			&i.NHLHomeLink,
-			&i.YahooHomeLink,
-			&i.SmallLogoURL,
-			&i.LargeLogoURL,
-			&i.AllStars,
-			&i.DivID,
-			&i.DivName,
-			&i.ConfID,
-			&i.ConfName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const upsertNHLConference = `-- name: UpsertNHLConference :exec
-INSERT INTO nhl_conferences (id, name)
-VALUES ($1, $2)
-ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
-`
-
-type UpsertNHLConferenceParams struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
-
-func (q *Queries) UpsertNHLConference(ctx context.Context, arg UpsertNHLConferenceParams) error {
-	_, err := q.db.Exec(ctx, upsertNHLConference, arg.ID, arg.Name)
-	return err
-}
-
-const upsertNHLDivision = `-- name: UpsertNHLDivision :exec
-INSERT INTO nhl_divisions (id, name, nhl_conference_id)
-VALUES ($1, $2, $3)
+const upsertNHLFranchise = `-- name: UpsertNHLFranchise :exec
+INSERT INTO nhl_franchises (id, full_name, team_common_name, team_place_name)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT (id) DO UPDATE SET
-    name = EXCLUDED.name,
-    nhl_conference_id = EXCLUDED.nhl_conference_id
+    full_name = EXCLUDED.full_name,
+    team_common_name = EXCLUDED.team_common_name,
+    team_place_name = EXCLUDED.team_place_name
 `
 
-type UpsertNHLDivisionParams struct {
-	ID              int64  `json:"id"`
-	Name            string `json:"name"`
-	NHLConferenceID int64  `json:"nhl_conference_id"`
+type UpsertNHLFranchiseParams struct {
+	ID             int64  `json:"id"`
+	FullName       string `json:"full_name"`
+	TeamCommonName string `json:"team_common_name"`
+	TeamPlaceName  string `json:"team_place_name"`
 }
 
-func (q *Queries) UpsertNHLDivision(ctx context.Context, arg UpsertNHLDivisionParams) error {
-	_, err := q.db.Exec(ctx, upsertNHLDivision, arg.ID, arg.Name, arg.NHLConferenceID)
-	return err
-}
-
-const upsertNHLTeam = `-- name: UpsertNHLTeam :exec
-INSERT INTO nhl_teams (id, yahoo_id, city, name, abbreviation, nhl_division_id, nhl_home_link, yahoo_home_link, small_logo_url, large_logo_url, all_stars)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-ON CONFLICT (id) DO UPDATE SET
-    yahoo_id = EXCLUDED.yahoo_id,
-    city = EXCLUDED.city,
-    name = EXCLUDED.name,
-    abbreviation = EXCLUDED.abbreviation,
-    nhl_division_id = EXCLUDED.nhl_division_id,
-    nhl_home_link = EXCLUDED.nhl_home_link,
-    yahoo_home_link = EXCLUDED.yahoo_home_link,
-    small_logo_url = EXCLUDED.small_logo_url,
-    large_logo_url = EXCLUDED.large_logo_url,
-    all_stars = EXCLUDED.all_stars
-`
-
-type UpsertNHLTeamParams struct {
-	ID            int64       `json:"id"`
-	YahooID       pgtype.Int8 `json:"yahoo_id"`
-	City          string      `json:"city"`
-	Name          string      `json:"name"`
-	Abbreviation  string      `json:"abbreviation"`
-	NHLDivisionID int64       `json:"nhl_division_id"`
-	NHLHomeLink   string      `json:"nhl_home_link"`
-	YahooHomeLink string      `json:"yahoo_home_link"`
-	SmallLogoURL  string      `json:"small_logo_url"`
-	LargeLogoURL  string      `json:"large_logo_url"`
-	AllStars      bool        `json:"all_stars"`
-}
-
-func (q *Queries) UpsertNHLTeam(ctx context.Context, arg UpsertNHLTeamParams) error {
-	_, err := q.db.Exec(ctx, upsertNHLTeam,
+func (q *Queries) UpsertNHLFranchise(ctx context.Context, arg UpsertNHLFranchiseParams) error {
+	_, err := q.db.Exec(ctx, upsertNHLFranchise,
 		arg.ID,
-		arg.YahooID,
-		arg.City,
-		arg.Name,
-		arg.Abbreviation,
-		arg.NHLDivisionID,
-		arg.NHLHomeLink,
-		arg.YahooHomeLink,
-		arg.SmallLogoURL,
-		arg.LargeLogoURL,
-		arg.AllStars,
+		arg.FullName,
+		arg.TeamCommonName,
+		arg.TeamPlaceName,
 	)
 	return err
 }

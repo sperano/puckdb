@@ -42,10 +42,13 @@ func cmdDBInit() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
-			db, err := database.OpenGorm()
+			// Verify we can connect to the database
+			pool, err := database.OpenPGXPool(ctx)
 			if err != nil {
 				return err
 			}
+			pool.Close()
+
 			redisClient := redis.NewClient()
 			defer func() { _ = redisClient.Close() }()
 
@@ -62,18 +65,7 @@ func cmdDBInit() *cobra.Command {
 					log.Error().Msg(err.Error())
 				}
 			}()
-			if err := database.DoMigration(db); err != nil {
-				return err
-			}
-
-			// Seed NHL data using SQLC
-			pool, err := database.OpenPGXPool(ctx)
-			if err != nil {
-				return err
-			}
-			defer pool.Close()
-			q := database.NewQueries(pool)
-			return database.EnsureNHLWithSQLC(ctx, q)
+			return database.DoMigration()
 		},
 	}
 	flags := cmd.Flags()
@@ -91,11 +83,13 @@ func cmdDBDrop() *cobra.Command {
 			return config.BindPostgresFlags(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := database.OpenGorm()
+			ctx := context.Background()
+			pool, err := database.OpenPGXPool(ctx)
 			if err != nil {
 				return err
 			}
-			return database.DropEverything(db)
+			defer pool.Close()
+			return database.DropEverything(ctx, pool)
 		},
 	}
 	config.InitPostgresFlags(cmd.Flags())

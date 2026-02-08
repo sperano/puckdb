@@ -6,20 +6,22 @@
 -- Get a single player's stats for a specific game
 SELECT s.*,
     p.first_name, p.last_name, p.position as player_position,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_games g ON s.game_id = g.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1 AND s.player_id = $2;
 
 -- name: GetGameSkaterStatsByGame :many
 -- Get all skater stats for a game
 SELECT s.*,
     p.first_name, p.last_name, p.position as player_position,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_games g ON s.game_id = g.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1
 ORDER BY s.is_home DESC, s.position, p.last_name;
 
@@ -27,10 +29,11 @@ ORDER BY s.is_home DESC, s.position, p.last_name;
 -- Get all skater stats for a specific team in a game
 SELECT s.*,
     p.first_name, p.last_name, p.position as player_position,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_games g ON s.game_id = g.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1 AND s.team_id = $2
 ORDER BY s.position, p.last_name;
 
@@ -38,10 +41,10 @@ ORDER BY s.position, p.last_name;
 -- Get all game stats for a specific player (game log)
 SELECT s.*,
     g.game_date, g.season, g.game_type,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1
 ORDER BY g.game_date DESC;
 
@@ -49,10 +52,10 @@ ORDER BY g.game_date DESC;
 -- Get all game stats for a player in a specific season
 SELECT s.*,
     g.game_date, g.game_type,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1 AND g.season = $2
 ORDER BY g.game_date;
 
@@ -60,10 +63,10 @@ ORDER BY g.game_date;
 -- Get all game stats for a player within a date range
 SELECT s.*,
     g.game_date, g.season, g.game_type,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1 AND g.game_date >= $2 AND g.game_date <= $3
 ORDER BY g.game_date;
 

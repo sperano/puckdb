@@ -30,6 +30,7 @@ const (
 const (
 	FlagDataPath = "data-path"
 	FlagLogLevel = "log-level"
+	FlagLogFile  = "log-file"
 )
 
 // PostgreSQL flags
@@ -137,8 +138,16 @@ const (
 
 // const FlagInteractive = "interactive"
 
-func InitLogLevelFlag(flags *flag.FlagSet, defaultLevel string) {
+func InitLoggingFlags(flags *flag.FlagSet, defaultLevel, defaultFile string) {
 	flags.StringP(FlagLogLevel, "L", defaultLevel, fmt.Sprintf("Log Level: %s", getLogLevelsStr()))
+	flags.String(FlagLogFile, defaultFile, fmt.Sprintf("Log file path (empty for stdout, 'default' for %s)", GetDefaultLogPath()))
+}
+
+func BindLoggingFlags(flags *flag.FlagSet) error {
+	if err := viper.BindPFlag(FlagLogLevel, flags.Lookup(FlagLogLevel)); err != nil {
+		return err
+	}
+	return viper.BindPFlag(FlagLogFile, flags.Lookup(FlagLogFile))
 }
 
 func InitSeasonsFlag(cmd *cobra.Command, flags *flag.FlagSet, persistent bool) {

@@ -25,9 +25,9 @@ func Root() *cobra.Command {
 		},
 	}
 	flags := rootCmd.PersistentFlags()
-	config.InitLogLevelFlag(flags, config.DefaultLogLevel)
+	config.InitLoggingFlags(flags, config.DefaultLogLevel, config.DefaultLogFile)
 
-	rootCmd.AddCommand(cmdAPI(), cmdCacheCheck(), cmdDB(), cmdInfo(), cmdMetrics(), cmdRedis(), cmdWorker(), cmdWorkflow(), cmdYahoo())
+	rootCmd.AddCommand(cmdAPI(), cmdCacheCheck(), cmdDB(), cmdInfo(), cmdMetrics(), cmdRedis(), cmdSync(), cmdWorker(), cmdWorkflow(), cmdYahoo())
 
 	cobra.OnInitialize(func() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
@@ -51,12 +51,13 @@ func BindFlags(flags *pflag.FlagSet) {
 
 func commonInit(cmd *cobra.Command) error {
 	flags := cmd.Flags()
-	if err := viper.BindPFlag(config.FlagLogLevel, flags.Lookup(config.FlagLogLevel)); err != nil {
+	if err := config.BindLoggingFlags(flags); err != nil {
 		return err
 	}
 	BindFlags(cmd.PersistentFlags())
 	BindFlags(cmd.Flags())
-	config.LogIntro()
+	config.SetupLogger()
 	config.SetLogLevel()
+	config.LogIntro()
 	return nil
 }

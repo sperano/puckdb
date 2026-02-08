@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSqlcPlayerRowToGQL_AllFields(t *testing.T) {
+func TestSqlcPlayerToGQL_AllFields(t *testing.T) {
 	t.Parallel()
 
 	birthDate := time.Date(1995, 7, 13, 0, 0, 0, 0, time.UTC)
-	row := sqlcdb.ListPlayersRow{
+	row := sqlcdb.Player{
 		ID:                 8478402,
 		YahooID:            pgtype.Int8{Int64: 5441, Valid: true},
 		FirstName:          "Connor",
@@ -41,12 +41,9 @@ func TestSqlcPlayerRowToGQL_AllFields(t *testing.T) {
 		DraftRound:         pgtype.Int4{Int32: 1, Valid: true},
 		DraftPickInRound:   pgtype.Int4{Int32: 1, Valid: true},
 		DraftOverallPick:   pgtype.Int4{Int32: 1, Valid: true},
-		TeamCity:           pgtype.Text{String: "Edmonton", Valid: true},
-		TeamName:           pgtype.Text{String: "Oilers", Valid: true},
-		TeamAbbrev:         pgtype.Text{String: "EDM", Valid: true},
 	}
 
-	result := sqlcPlayerRowToGQL(row)
+	result := sqlcPlayerToGQL(row)
 
 	assert.Equal(t, int64(8478402), result.ID)
 	assert.NotNil(t, result.YahooID)
@@ -90,18 +87,15 @@ func TestSqlcPlayerRowToGQL_AllFields(t *testing.T) {
 	assert.NotNil(t, result.DraftOverallPick)
 	assert.Equal(t, 1, *result.DraftOverallPick)
 
-	// Check NHL team
-	assert.NotNil(t, result.NHLTeam)
-	assert.Equal(t, 22, result.NHLTeam.ID)
-	assert.Equal(t, "Edmonton", result.NHLTeam.City)
-	assert.Equal(t, "Oilers", result.NHLTeam.Name)
-	assert.Equal(t, "EDM", result.NHLTeam.Abbreviation)
+	// Check NHL team ID
+	assert.NotNil(t, result.NHLTeamID)
+	assert.Equal(t, int64(22), *result.NHLTeamID)
 }
 
-func TestSqlcPlayerRowToGQL_NullableFieldsEmpty(t *testing.T) {
+func TestSqlcPlayerToGQL_NullableFieldsEmpty(t *testing.T) {
 	t.Parallel()
 
-	row := sqlcdb.ListPlayersRow{
+	row := sqlcdb.Player{
 		ID:               8471675,
 		FirstName:        "Sidney",
 		LastName:         "Crosby",
@@ -116,7 +110,7 @@ func TestSqlcPlayerRowToGQL_NullableFieldsEmpty(t *testing.T) {
 		// All nullable fields left as zero values (Invalid)
 	}
 
-	result := sqlcPlayerRowToGQL(row)
+	result := sqlcPlayerToGQL(row)
 
 	assert.Equal(t, int64(8471675), result.ID)
 	assert.Nil(t, result.YahooID)
@@ -137,13 +131,13 @@ func TestSqlcPlayerRowToGQL_NullableFieldsEmpty(t *testing.T) {
 	assert.Nil(t, result.DraftRound)
 	assert.Nil(t, result.DraftPickInRound)
 	assert.Nil(t, result.DraftOverallPick)
-	assert.Nil(t, result.NHLTeam)
+	assert.Nil(t, result.NHLTeamID)
 }
 
-func TestSqlcPlayerRowToGQL_InactivePlayer(t *testing.T) {
+func TestSqlcPlayerToGQL_InactivePlayer(t *testing.T) {
 	t.Parallel()
 
-	row := sqlcdb.ListPlayersRow{
+	row := sqlcdb.Player{
 		ID:            8445001,
 		FirstName:     "Wayne",
 		LastName:      "Gretzky",
@@ -153,7 +147,7 @@ func TestSqlcPlayerRowToGQL_InactivePlayer(t *testing.T) {
 		HeadshotURL:   "",
 	}
 
-	result := sqlcPlayerRowToGQL(row)
+	result := sqlcPlayerToGQL(row)
 
 	assert.Equal(t, int64(8445001), result.ID)
 	assert.Equal(t, "Wayne", result.FirstName)
@@ -161,10 +155,10 @@ func TestSqlcPlayerRowToGQL_InactivePlayer(t *testing.T) {
 	assert.False(t, result.IsActive)
 }
 
-func TestSqlcPlayerRowToGQL_Goalie(t *testing.T) {
+func TestSqlcPlayerToGQL_Goalie(t *testing.T) {
 	t.Parallel()
 
-	row := sqlcdb.ListPlayersRow{
+	row := sqlcdb.Player{
 		ID:            8477424,
 		FirstName:     "Juuse",
 		LastName:      "Saros",
@@ -174,26 +168,22 @@ func TestSqlcPlayerRowToGQL_Goalie(t *testing.T) {
 		HeadshotURL:   "https://example.com/saros.jpg",
 		SweaterNumber: pgtype.Int4{Int32: 74, Valid: true},
 		NHLTeamID:     pgtype.Int8{Int64: 18, Valid: true},
-		TeamCity:      pgtype.Text{String: "Nashville", Valid: true},
-		TeamName:      pgtype.Text{String: "Predators", Valid: true},
-		TeamAbbrev:    pgtype.Text{String: "NSH", Valid: true},
 	}
 
-	result := sqlcPlayerRowToGQL(row)
+	result := sqlcPlayerToGQL(row)
 
 	assert.Equal(t, "G", result.Position)
 	assert.Equal(t, "L", result.ShootsCatches)
 	assert.NotNil(t, result.SweaterNumber)
 	assert.Equal(t, 74, *result.SweaterNumber)
-	assert.NotNil(t, result.NHLTeam)
-	assert.Equal(t, "Nashville", result.NHLTeam.City)
-	assert.Equal(t, "Predators", result.NHLTeam.Name)
+	assert.NotNil(t, result.NHLTeamID)
+	assert.Equal(t, int64(18), *result.NHLTeamID)
 }
 
-func TestSqlcPlayerRowToGQL_PlayerWithYahooIDButNoTeam(t *testing.T) {
+func TestSqlcPlayerToGQL_PlayerWithYahooIDButNoTeam(t *testing.T) {
 	t.Parallel()
 
-	row := sqlcdb.ListPlayersRow{
+	row := sqlcdb.Player{
 		ID:               12345,
 		YahooID:          pgtype.Int8{Int64: 9999, Valid: true},
 		FirstName:        "Free",
@@ -209,10 +199,10 @@ func TestSqlcPlayerRowToGQL_PlayerWithYahooIDButNoTeam(t *testing.T) {
 		// No team info
 	}
 
-	result := sqlcPlayerRowToGQL(row)
+	result := sqlcPlayerToGQL(row)
 
 	assert.NotNil(t, result.YahooID)
 	assert.Equal(t, int64(9999), *result.YahooID)
-	assert.Nil(t, result.NHLTeam)
+	assert.Nil(t, result.NHLTeamID)
 	assert.Equal(t, "https://example.com/fa-small.jpg", result.YahooImageSmall)
 }

@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/graph/generated"
 	"github.com/sperano/puckdb/graph/model"
 )
@@ -30,14 +29,19 @@ func (r *mutationResolver) CreateDatabase(ctx context.Context) (bool, error) {
 	return createDatabase(ctx)
 }
 
-// InitDatabase is the resolver for the initDatabase field.
-func (r *mutationResolver) InitDatabase(ctx context.Context) (bool, error) {
-	return initDatabase(ctx)
-}
-
 // FlushRedisDb is the resolver for the flushRedisDB field.
 func (r *mutationResolver) FlushRedisDb(ctx context.Context) (bool, error) {
 	return flushRedisDB(ctx)
+}
+
+// Initialize is the resolver for the initialize field.
+func (r *mutationResolver) Initialize(ctx context.Context) (bool, error) {
+	return r.Resolver.initialize(ctx)
+}
+
+// CancelInitialize is the resolver for the cancelInitialize field.
+func (r *mutationResolver) CancelInitialize(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelInitialize(ctx)
 }
 
 // DownloadSeasons is the resolver for the downloadSeasons field.
@@ -48,11 +52,6 @@ func (r *mutationResolver) DownloadSeasons(ctx context.Context, input *model.Dow
 // CancelDownloadSeasons is the resolver for the cancelDownloadSeasons field.
 func (r *mutationResolver) CancelDownloadSeasons(ctx context.Context) (bool, error) {
 	return r.Resolver.cancelDownloadSeasons(ctx)
-}
-
-// DownloadDay is the resolver for the downloadDay field.
-func (r *mutationResolver) DownloadDay(ctx context.Context, input model.DownloadDayInput) (bool, error) {
-	return r.Resolver.downloadDay(ctx, input)
 }
 
 // DownloadYahooPlayers is the resolver for the downloadYahooPlayers field.
@@ -105,16 +104,6 @@ func (r *mutationResolver) ImportTeam(ctx context.Context, season int, leagueID 
 	return nil, fmt.Errorf("not implemented")
 }
 
-// Divisions is the resolver for the divisions field.
-func (r *nHLConferenceResolver) Divisions(ctx context.Context, obj *model.NHLConference) ([]*model.NHLDivision, error) {
-	return divisions(ctx, obj)
-}
-
-// Teams is the resolver for the teams field.
-func (r *nHLDivisionResolver) Teams(ctx context.Context, obj *model.NHLDivision) ([]*model.NHLTeam, error) {
-	return teams(ctx, obj)
-}
-
 // BuildNumber is the resolver for the buildNumber field.
 func (r *queryResolver) BuildNumber(ctx context.Context) (int, error) {
 	_ = ctx
@@ -124,29 +113,19 @@ func (r *queryResolver) BuildNumber(ctx context.Context) (int, error) {
 	return strconv.Atoi(config.BuildNumber)
 }
 
-// NhlConferences is the resolver for the nhlConferences field.
-func (r *queryResolver) NhlConferences(ctx context.Context) ([]*model.NHLConference, error) {
-	return nhlConferences(ctx, database.QueriesFromContext(ctx))
+// InitializeResult is the resolver for the initializeResult field.
+func (r *queryResolver) InitializeResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.initializeResult(ctx)
 }
 
-// NhlDivisions is the resolver for the nhlDivisions field.
-func (r *queryResolver) NhlDivisions(ctx context.Context) ([]*model.NHLDivision, error) {
-	return nhlDivisions(ctx, database.QueriesFromContext(ctx))
+// InitializeProgress is the resolver for the initializeProgress field.
+func (r *queryResolver) InitializeProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.Resolver.initializeProgress(ctx)
 }
 
-// NhlTeams is the resolver for the nhlTeams field.
-func (r *queryResolver) NhlTeams(ctx context.Context, allstars bool) ([]*model.NHLTeam, error) {
-	return nhlTeams(ctx, database.QueriesFromContext(ctx), allstars)
-}
-
-// NhlTeam is the resolver for the nhlTeam field.
-func (r *queryResolver) NhlTeam(ctx context.Context, teamID int) (*model.NHLTeam, error) {
-	return nhlTeam(ctx, database.QueriesFromContext(ctx), teamID)
-}
-
-// CurrentFantasyGameKey is the resolver for the currentFantasyGameKey field.
-func (r *queryResolver) CurrentFantasyGameKey(ctx context.Context) (int, error) {
-	return currentFantasyGameKey(ctx)
+// InitializeResultData is the resolver for the initializeResultData field.
+func (r *queryResolver) InitializeResultData(ctx context.Context) (*model.InitializeResultData, error) {
+	return r.Resolver.initializeResultData(ctx)
 }
 
 // DownloadSeasonsResult is the resolver for the downloadSeasonsResult field.
@@ -204,11 +183,6 @@ func (r *queryResolver) ImportSeasonsProgress(ctx context.Context) (*model.Workf
 	return r.Resolver.importSeasonsProgress(ctx)
 }
 
-// Players is the resolver for the players field.
-func (r *queryResolver) Players(ctx context.Context, filter *model.PlayersFilter) ([]*model.Player, error) {
-	return listPlayers(ctx, database.QueriesFromContext(ctx), filter)
-}
-
 // Leagues is the resolver for the leagues field.
 func (r *seasonResolver) Leagues(ctx context.Context, obj *model.Season) ([]*model.League, error) {
 	return nil, fmt.Errorf("not implemented")
@@ -217,12 +191,6 @@ func (r *seasonResolver) Leagues(ctx context.Context, obj *model.Season) ([]*mod
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
-// NHLConference returns generated.NHLConferenceResolver implementation.
-func (r *Resolver) NHLConference() generated.NHLConferenceResolver { return &nHLConferenceResolver{r} }
-
-// NHLDivision returns generated.NHLDivisionResolver implementation.
-func (r *Resolver) NHLDivision() generated.NHLDivisionResolver { return &nHLDivisionResolver{r} }
-
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
@@ -230,7 +198,5 @@ func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 func (r *Resolver) Season() generated.SeasonResolver { return &seasonResolver{r} }
 
 type mutationResolver struct{ *Resolver }
-type nHLConferenceResolver struct{ *Resolver }
-type nHLDivisionResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type seasonResolver struct{ *Resolver }

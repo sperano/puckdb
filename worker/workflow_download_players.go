@@ -82,9 +82,7 @@ func runPhase1ExtractPlayerIDs(ctx workflow.Context, input *downloadPlayersInter
 	}
 
 	logger.Info("Phase 1 complete, transitioning to Phase 2",
-		"total_unique_players", len(result.PlayerIDs),
-		"teams_inserted", result.TeamsInserted,
-		"teams_skipped", result.TeamsSkipped)
+		"total_unique_players", len(result.PlayerIDs))
 
 	// ContinueAsNew into Phase 2
 	return workflow.NewContinueAsNewError(ctx, DownloadPlayersWorkflowContinue,

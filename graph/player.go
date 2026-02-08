@@ -9,24 +9,27 @@ import (
 	"github.com/sperano/puckdb/sqlcdb"
 )
 
-func sqlcPlayerRowToGQL(row sqlcdb.ListPlayersRow) *model.Player {
+func sqlcPlayerToGQL(row sqlcdb.Player) *model.Player {
 	player := &model.Player{
-		ID:              row.ID,
-		FirstName:       row.FirstName,
-		LastName:        row.LastName,
-		Position:        row.Position,
-		ShootsCatches:   row.ShootsCatches,
-		IsActive:        row.IsActive,
-		HeadshotURL:     row.HeadshotURL,
-		YahooImageSmall: row.YahooImageSmall,
+		ID:               row.ID,
+		FirstName:        row.FirstName,
+		LastName:         row.LastName,
+		Position:         row.Position,
+		ShootsCatches:    row.ShootsCatches,
+		IsActive:         row.IsActive,
+		HeadshotURL:      row.HeadshotURL,
+		YahooImageSmall:  row.YahooImageSmall,
 		YahooImageMedium: row.YahooImageMedium,
-		YahooImageLarge: row.YahooImageLarge,
-		YahooHomeURL:    row.YahooHomeURL,
+		YahooImageLarge:  row.YahooImageLarge,
+		YahooHomeURL:     row.YahooHomeURL,
 	}
 
 	// Handle nullable fields
 	if row.YahooID.Valid {
 		player.YahooID = &row.YahooID.Int64
+	}
+	if row.NHLTeamID.Valid {
+		player.NHLTeamID = &row.NHLTeamID.Int64
 	}
 	if row.HeightInches.Valid {
 		v := int(row.HeightInches.Int32)
@@ -79,16 +82,6 @@ func sqlcPlayerRowToGQL(row sqlcdb.ListPlayersRow) *model.Player {
 		player.DraftOverallPick = &v
 	}
 
-	// Handle NHL team if present
-	if row.NHLTeamID.Valid && row.TeamName.Valid {
-		player.NHLTeam = &model.NHLTeam{
-			ID:           int(row.NHLTeamID.Int64),
-			City:         row.TeamCity.String,
-			Name:         row.TeamName.String,
-			Abbreviation: row.TeamAbbrev.String,
-		}
-	}
-
 	return player
 }
 
@@ -123,7 +116,7 @@ func listPlayers(ctx context.Context, q *sqlcdb.Queries, filter *model.PlayersFi
 
 	players := make([]*model.Player, len(rows))
 	for i, row := range rows {
-		players[i] = sqlcPlayerRowToGQL(row)
+		players[i] = sqlcPlayerToGQL(row)
 	}
 
 	return players, nil

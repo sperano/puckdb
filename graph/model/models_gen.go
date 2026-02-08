@@ -43,9 +43,9 @@ type Configuration struct {
 }
 
 type DBStats struct {
-	NHLConferences int `json:"nhlConferences"`
-	NHLDivisions   int `json:"nhlDivisions"`
-	NHLTeams       int `json:"nhlTeams"`
+	NHLFranchises  int `json:"nhlFranchises"`
+	NHLSeasons     int `json:"nhlSeasons"`
+	NHLSeasonTeams int `json:"nhlSeasonTeams"`
 	FantasyGames   int `json:"fantasyGames"`
 	Leagues        int `json:"leagues"`
 	Players        int `json:"players"`
@@ -55,11 +55,6 @@ type DBStats struct {
 	RosterPlayers  int `json:"rosterPlayers"`
 	Standings      int `json:"standings"`
 	TeamSummaries  int `json:"teamSummaries"`
-}
-
-type DownloadDayInput struct {
-	Season int    `json:"season"`
-	Day    string `json:"day"`
 }
 
 type DownloadSeasonsInput struct {
@@ -84,27 +79,6 @@ type FantasyGame struct {
 	UpdatedAt          time.Time  `json:"updatedAt"`
 }
 
-type Game struct {
-	ID              int        `json:"ID"`
-	Date            time.Time  `json:"Date"`
-	HomeTeam        *NHLTeam   `json:"HomeTeam"`
-	HomeTeamScore1  int        `json:"HomeTeamScore1"`
-	HomeTeamScore2  int        `json:"HomeTeamScore2"`
-	HomeTeamScore3  int        `json:"HomeTeamScore3"`
-	HomeTeamScoreO  int        `json:"HomeTeamScoreO"`
-	HomeTeamScoreSo int        `json:"HomeTeamScoreSO"`
-	AwayTeam        *NHLTeam   `json:"AwayTeam"`
-	AwayTeamScore1  int        `json:"AwayTeamScore1"`
-	AwayTeamScore2  int        `json:"AwayTeamScore2"`
-	AwayTeamScore3  int        `json:"AwayTeamScore3"`
-	AwayTeamScoreO  int        `json:"AwayTeamScoreO"`
-	AwayTeamScoreSo int        `json:"AwayTeamScoreSO"`
-	State           string     `json:"State"`
-	LocalFile       *LocalFile `json:"LocalFile,omitempty"`
-	CreatedAt       time.Time  `json:"CreatedAt"`
-	UpdatedAt       time.Time  `json:"UpdatedAt"`
-}
-
 type ImportPlayersResultData struct {
 	TotalPlayers          int                     `json:"totalPlayers"`
 	ImportedPlayers       int                     `json:"importedPlayers"`
@@ -114,6 +88,12 @@ type ImportPlayersResultData struct {
 	VerifiedNonNHLThisRun int                     `json:"verifiedNonNHLThisRun"`
 	TrulyUnmatched        []*TrulyUnmatchedPlayer `json:"trulyUnmatched"`
 	Errors                []string                `json:"errors"`
+}
+
+type InitializeResultData struct {
+	FranchisesUpserted  int `json:"franchisesUpserted"`
+	SeasonsUpserted     int `json:"seasonsUpserted"`
+	SeasonTeamsUpserted int `json:"seasonTeamsUpserted"`
 }
 
 type League struct {
@@ -165,47 +145,11 @@ type Manager struct {
 type Mutation struct {
 }
 
-type NHLConference struct {
-	ID        int            `json:"id"`
-	Name      string         `json:"name"`
-	Divisions []*NHLDivision `json:"divisions"`
-}
-
-type NHLDivision struct {
-	ID         int            `json:"id"`
-	Name       string         `json:"name"`
-	Conference *NHLConference `json:"conference"`
-	Teams      []*NHLTeam     `json:"teams"`
-}
-
-type NHLStandingsTeamStats struct {
-	GamesPlayed    int `json:"GamesPlayed"`
-	Wins           int `json:"Wins"`
-	OvertimeWins   int `json:"OvertimeWins"`
-	ShootoutWins   int `json:"ShootoutWins"`
-	Losses         int `json:"Losses"`
-	OvertimeLosses int `json:"OvertimeLosses"`
-	ShootoutLosses int `json:"ShootoutLosses"`
-	GoalsFor       int `json:"GoalsFor"`
-	GoalsAgainst   int `json:"GoalsAgainst"`
-}
-
-type NHLTeam struct {
-	ID            int          `json:"id"`
-	City          string       `json:"city"`
-	Name          string       `json:"name"`
-	NHLHomeLink   string       `json:"nhlHomeLink"`
-	YahooHomeLink string       `json:"yahooHomeLink"`
-	Division      *NHLDivision `json:"division"`
-	SmallLogoURL  string       `json:"smallLogoURL"`
-	LargeLogoURL  string       `json:"largeLogoURL"`
-	Abbreviation  string       `json:"abbreviation"`
-}
-
-type NHLTeamStanding struct {
-	NHLTeam *NHLTeam               `json:"NHLTeam"`
-	Away    *NHLStandingsTeamStats `json:"Away"`
-	Home    *NHLStandingsTeamStats `json:"Home"`
+type NHLFranchise struct {
+	ID             int    `json:"id"`
+	FullName       string `json:"fullName"`
+	TeamCommonName string `json:"teamCommonName"`
+	TeamPlaceName  string `json:"teamPlaceName"`
 }
 
 type OAuth2Token struct {
@@ -216,57 +160,33 @@ type OAuth2Token struct {
 }
 
 type Player struct {
-	ID                 int64    `json:"id"`
-	YahooID            *int64   `json:"yahooID,omitempty"`
-	FirstName          string   `json:"firstName"`
-	LastName           string   `json:"lastName"`
-	NHLTeam            *NHLTeam `json:"nhlTeam,omitempty"`
-	Position           string   `json:"position"`
-	ShootsCatches      string   `json:"shootsCatches"`
-	HeightInches       *int     `json:"heightInches,omitempty"`
-	WeightPounds       *int     `json:"weightPounds,omitempty"`
-	BirthDate          *string  `json:"birthDate,omitempty"`
-	BirthCity          *string  `json:"birthCity,omitempty"`
-	BirthStateProvince *string  `json:"birthStateProvince,omitempty"`
-	BirthCountry       *string  `json:"birthCountry,omitempty"`
-	SweaterNumber      *int     `json:"sweaterNumber,omitempty"`
-	IsActive           bool     `json:"isActive"`
-	HeadshotURL        string   `json:"headshotURL"`
-	HeroImageURL       *string  `json:"heroImageURL,omitempty"`
-	YahooImageSmall    string   `json:"yahooImageSmall"`
-	YahooImageMedium   string   `json:"yahooImageMedium"`
-	YahooImageLarge    string   `json:"yahooImageLarge"`
-	YahooHomeURL       string   `json:"yahooHomeURL"`
-	PlayerSlug         *string  `json:"playerSlug,omitempty"`
-	DraftYear          *int     `json:"draftYear,omitempty"`
-	DraftTeamAbbrev    *string  `json:"draftTeamAbbrev,omitempty"`
-	DraftRound         *int     `json:"draftRound,omitempty"`
-	DraftPickInRound   *int     `json:"draftPickInRound,omitempty"`
-	DraftOverallPick   *int     `json:"draftOverallPick,omitempty"`
-}
-
-type PlayerStats struct {
-	Goals           int `json:"Goals"`
-	Assists         int `json:"Assists"`
-	PlusMinus       int `json:"PlusMinus"`
-	PenaltyMinutes  int `json:"PenaltyMinutes"`
-	ShotsOnGoal     int `json:"ShotsOnGoal"`
-	FaceoffsWon     int `json:"FaceoffsWon"`
-	FaceoffsLost    int `json:"FaceoffsLost"`
-	Hits            int `json:"Hits"`
-	TimeOnIce       int `json:"TimeOnIce"`
-	Shifts          int `json:"Shifts"`
-	TakeAways       int `json:"TakeAways"`
-	GiveAways       int `json:"GiveAways"`
-	GoalAgainst     int `json:"GoalAgainst"`
-	ShotsAgainst    int `json:"ShotsAgainst"`
-	Saves           int `json:"Saves"`
-	GoalieTimeOnIce int `json:"GoalieTimeOnIce"`
-}
-
-type PlayerWithStats struct {
-	Player *Player      `json:"Player"`
-	Stats  *PlayerStats `json:"Stats"`
+	ID                 int64   `json:"id"`
+	YahooID            *int64  `json:"yahooID,omitempty"`
+	FirstName          string  `json:"firstName"`
+	LastName           string  `json:"lastName"`
+	NHLTeamID          *int64  `json:"nhlTeamID,omitempty"`
+	Position           string  `json:"position"`
+	ShootsCatches      string  `json:"shootsCatches"`
+	HeightInches       *int    `json:"heightInches,omitempty"`
+	WeightPounds       *int    `json:"weightPounds,omitempty"`
+	BirthDate          *string `json:"birthDate,omitempty"`
+	BirthCity          *string `json:"birthCity,omitempty"`
+	BirthStateProvince *string `json:"birthStateProvince,omitempty"`
+	BirthCountry       *string `json:"birthCountry,omitempty"`
+	SweaterNumber      *int    `json:"sweaterNumber,omitempty"`
+	IsActive           bool    `json:"isActive"`
+	HeadshotURL        string  `json:"headshotURL"`
+	HeroImageURL       *string `json:"heroImageURL,omitempty"`
+	YahooImageSmall    string  `json:"yahooImageSmall"`
+	YahooImageMedium   string  `json:"yahooImageMedium"`
+	YahooImageLarge    string  `json:"yahooImageLarge"`
+	YahooHomeURL       string  `json:"yahooHomeURL"`
+	PlayerSlug         *string `json:"playerSlug,omitempty"`
+	DraftYear          *int    `json:"draftYear,omitempty"`
+	DraftTeamAbbrev    *string `json:"draftTeamAbbrev,omitempty"`
+	DraftRound         *int    `json:"draftRound,omitempty"`
+	DraftPickInRound   *int    `json:"draftPickInRound,omitempty"`
+	DraftOverallPick   *int    `json:"draftOverallPick,omitempty"`
 }
 
 type PlayersFilter struct {
@@ -289,17 +209,6 @@ type ProgressItem struct {
 }
 
 type Query struct {
-}
-
-type RosterPlayer struct {
-	Date              time.Time `json:"Date"`
-	Team              *Team     `json:"Team"`
-	Player            *Player   `json:"Player"`
-	NHLTeam           *NHLTeam  `json:"NHLTeam"`
-	EligiblePositions []string  `json:"EligiblePositions"`
-	SelectedPosition  string    `json:"SelectedPosition"`
-	CreatedAt         time.Time `json:"CreatedAt"`
-	UpdatedAt         time.Time `json:"UpdatedAt"`
 }
 
 type Season struct {

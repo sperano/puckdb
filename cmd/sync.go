@@ -8,7 +8,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
@@ -16,91 +15,194 @@ import (
 	"github.com/spf13/viper"
 )
 
-func cmdImport() *cobra.Command {
+func cmdSync() *cobra.Command {
 	var cmd = &cobra.Command{
-		Use:   "import",
-		Short: "Import data into the database",
-		Long:  `Trigger import workflows via GraphQL API and monitor until completion.`,
+		Use:   "sync",
+		Short: "Sync data into the database",
+		Long:  `Trigger sync workflows via GraphQL API and monitor until completion.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// Apply import-specific log level default if user didn't explicitly set it
+			// Check which logging flags were explicitly set before binding
 			logLevelChanged := cmd.Flags().Changed(config.FlagLogLevel)
-			if err := importInit(cmd, logLevelChanged); err != nil {
+			logFileChanged := cmd.Flags().Changed(config.FlagLogFile)
+			if err := syncInit(cmd, logLevelChanged, logFileChanged); err != nil {
 				return err
 			}
 			return nil
 		},
-		RunE: runImport,
+		RunE: runSync,
 	}
-	config.InitAPIServerAddrFlag(cmd.PersistentFlags())
+	flags := cmd.PersistentFlags()
+	config.InitAPIServerAddrFlag(flags)
+	config.InitSeasonRangeFlags(flags)
+	config.InitSeasonConcurrencyFlag(flags)
+	cmd.AddCommand(cmdSyncSeasons())
 	return cmd
 }
 
-func importInit(cmd *cobra.Command, logLevelChanged bool) error {
+func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 	flags := cmd.Flags()
-	if err := viper.BindPFlag(config.FlagLogLevel, flags.Lookup(config.FlagLogLevel)); err != nil {
+	if err := config.BindLoggingFlags(flags); err != nil {
+		return err
+	}
+	if err := config.BindAPIServerAddrFlag(flags); err != nil {
+		return err
+	}
+	if err := config.BindSeasonRangeFlags(flags); err != nil {
+		return err
+	}
+	if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
 		return err
 	}
 	BindFlags(cmd.PersistentFlags())
 	BindFlags(cmd.Flags())
 
-	// Apply import-specific log level default before setting level
+	// Apply import-specific defaults before setting up logger
 	if !logLevelChanged {
 		viper.Set(config.FlagLogLevel, config.DefaultImportLogLevel)
 	}
-	config.SetLogLevel()
-	config.LogIntro() // Will be filtered by log level if error or above
-	return nil
-}
-
-func runImport(cmd *cobra.Command, _ []string) error {
-	fmt.Printf("PuckDB - Import - %s\n", config.BuildNumber)
-	//log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
-	//fmt.Fprintln(cmd.OutOrStdout(), "Please specify a subcommand (e.g. 'players' or 'seasons').")
-	return nil
-}
-
-func cmdImportPlayers() *cobra.Command {
-	var cmd = &cobra.Command{
-		Use:   "players",
-		Short: "Import players into the database",
-		Long: `Trigger the importPlayers workflow via GraphQL API and monitor until completion.
-Use --season for a specific season, or --from-season/--to-season for a range.
-Use --monitor to watch an existing workflow without triggering a new one.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			if err := config.BindAPIServerAddrFlag(flags); err != nil {
-				return err
-			}
-			if err := config.BindSeasonRangeFlags(flags); err != nil {
-				return err
-			}
-			if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
-				return err
-			}
-			return config.BindMonitorFlag(flags)
-		},
-		RunE: runImportPlayers,
+	if !logFileChanged {
+		viper.Set(config.FlagLogFile, config.DefaultImportLogFile)
 	}
-	flags := cmd.Flags()
-	config.InitAPIServerAddrFlag(flags)
-	config.InitSeasonRangeFlags(flags)
-	config.InitSeasonConcurrencyFlag(flags)
-	config.InitMonitorFlag(flags)
-	return cmd
+
+	config.SetupLogger()
+	config.SetLogLevel()
+	config.LogIntro()
+	return nil
 }
 
-// importState tracks the current workflow for signal handling
-type importState struct {
+func runSync(cmd *cobra.Command, args []string) error {
+	fmt.Printf("PuckDB - Sync - %s\n", config.BuildNumber)
+
+	// Step 1: Initialize reference data (franchises, seasons, league structure)
+	if err := runInitialize(cmd); err != nil {
+		return fmt.Errorf("initialization failed: %w", err)
+	}
+
+	// Step 2: Sync players
+	return runSyncPlayers(cmd, args)
+}
+
+func runInitialize(cmd *cobra.Command) error {
+	apiAddr := viper.GetString(config.FlagAPIServerAddr)
+	if apiAddr == "" {
+		return fmt.Errorf("api-server-addr is required")
+	}
+
+	client := NewGraphQLClient(apiAddr)
+	state := &syncState{client: client, current: workflowNone}
+
+	ctx, cancel := context.WithCancel(cmd.Context())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		fmt.Println()
+		log.Warn().Msg("Interrupt received, canceling workflow...")
+		state.cancel(ctx)
+		cancel()
+	}()
+	defer signal.Stop(sigChan)
+
+	totalStart := time.Now()
+
+	state.current = workflowInitialize
+	log.Info().Str("server", apiAddr).Msg("Triggering initialize workflow")
+
+	started, err := client.Initialize(ctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
+		return fmt.Errorf("failed to trigger initialize: %w", err)
+	}
+
+	if !started {
+		log.Warn().Msg("Workflow was not started (may already be running)")
+	} else {
+		log.Info().Msg("Workflow started successfully")
+	}
+
+	if err := monitorWorkflow(ctx, cmd, client.GetInitializeStatus, config.DefaultWorkflowPollTimeout); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
+		return err
+	}
+
+	totalDuration := time.Since(totalStart)
+	log.Info().Str("duration", totalDuration.String()).Msg("Initialization completed")
+
+	// Fetch and print result data
+	resultData, err := client.GetInitializeResultData(ctx)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to fetch initialize result data")
+	} else if resultData != nil {
+		printInitializeResult(cmd, resultData)
+	}
+
+	return nil
+}
+
+func printInitializeResult(cmd *cobra.Command, result *InitializeResultData) {
+	fmt.Fprintln(cmd.OutOrStdout())
+	fmt.Fprintln(cmd.OutOrStdout(), "=== Initialize Results ===")
+	fmt.Fprintf(cmd.OutOrStdout(), "Franchises upserted:    %d\n", result.FranchisesUpserted)
+	fmt.Fprintf(cmd.OutOrStdout(), "Seasons upserted:       %d\n", result.SeasonsUpserted)
+	fmt.Fprintf(cmd.OutOrStdout(), "Season teams upserted:  %d\n", result.SeasonTeamsUpserted)
+}
+
+//func cmdImportPlayers() *cobra.Command {
+//	var cmd = &cobra.Command{
+//		Use:   "players",
+//		Short: "Import players into the database",
+//		Long: `Trigger the importPlayers workflow via GraphQL API and monitor until completion.
+//Use --season for a specific season, or --from-season/--to-season for a range.
+//Use --monitor to watch an existing workflow without triggering a new one.`,
+//		PreRunE: func(cmd *cobra.Command, args []string) error {
+//			flags := cmd.Flags()
+//			if err := config.BindAPIServerAddrFlag(flags); err != nil {
+//				return err
+//			}
+//			if err := config.BindSeasonRangeFlags(flags); err != nil {
+//				return err
+//			}
+//			if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
+//				return err
+//			}
+//			return config.BindMonitorFlag(flags)
+//		},
+//		RunE: runImportPlayers,
+//	}
+//	flags := cmd.Flags()
+//	config.InitAPIServerAddrFlag(flags)
+//	config.InitSeasonRangeFlags(flags)
+//	config.InitSeasonConcurrencyFlag(flags)
+//	config.InitMonitorFlag(flags)
+//	return cmd
+//}
+
+// syncState tracks the current workflow for signal handling
+type syncState struct {
 	client  *GraphQLClient
 	current workflowType
 }
 
-func (s *importState) cancel(_ context.Context) {
+func (s *syncState) cancel(_ context.Context) {
 	// Use a fresh context to cancel since the original may be canceled.
 	cancelCtx, cancel := context.WithTimeout(context.Background(), config.DefaultCancelTimeout)
 	defer cancel()
 
 	switch s.current {
+	case workflowInitialize:
+		log.Info().Msg("Canceling initialize workflow...")
+		if _, err := s.client.CancelInitialize(cancelCtx); err != nil {
+			log.Error().Err(err).Msg("Failed to cancel initialize workflow")
+		} else {
+			log.Info().Msg("initialize workflow canceled")
+		}
 	case workflowImportPlayers:
 		log.Info().Msg("Canceling importPlayers workflow...")
 		if _, err := s.client.CancelImportPlayers(cancelCtx); err != nil {
@@ -120,16 +222,14 @@ func (s *importState) cancel(_ context.Context) {
 	}
 }
 
-func runImportPlayers(cmd *cobra.Command, _ []string) error {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
-
+func runSyncPlayers(cmd *cobra.Command, _ []string) error {
 	apiAddr := viper.GetString(config.FlagAPIServerAddr)
 	if apiAddr == "" {
 		return fmt.Errorf("api-server-addr is required")
 	}
 
 	client := NewGraphQLClient(apiAddr)
-	state := &importState{client: client, current: workflowNone}
+	state := &syncState{client: client, current: workflowNone}
 
 	// Set up signal handling for Ctrl+C
 	ctx, cancel := context.WithCancel(cmd.Context())
@@ -246,11 +346,11 @@ func printImportPlayersResult(cmd *cobra.Command, result *ImportPlayersResultDat
 	}
 }
 
-func cmdImportSeasons() *cobra.Command {
+func cmdSyncSeasons() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "seasons",
-		Short: "Import seasons into the database",
-		Long: `Trigger the importSeasons workflow via GraphQL API and monitor until completion.
+		Short: "Sync seasons into the database",
+		Long: `Trigger the syncSeasons workflow via GraphQL API and monitor until completion.
 Use --season for a specific season, or --from-season/--to-season for a range.
 Use --monitor to watch an existing workflow without triggering a new one.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -266,7 +366,7 @@ Use --monitor to watch an existing workflow without triggering a new one.`,
 			}
 			return config.BindMonitorFlag(flags)
 		},
-		RunE: runImportSeasons,
+		RunE: runSyncSeasons,
 	}
 	flags := cmd.Flags()
 	config.InitAPIServerAddrFlag(flags)
@@ -276,16 +376,14 @@ Use --monitor to watch an existing workflow without triggering a new one.`,
 	return cmd
 }
 
-func runImportSeasons(cmd *cobra.Command, _ []string) error {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
-
+func runSyncSeasons(cmd *cobra.Command, _ []string) error {
 	apiAddr := viper.GetString(config.FlagAPIServerAddr)
 	if apiAddr == "" {
 		return fmt.Errorf("api-server-addr is required")
 	}
 
 	client := NewGraphQLClient(apiAddr)
-	state := &importState{client: client, current: workflowNone}
+	state := &syncState{client: client, current: workflowNone}
 
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()

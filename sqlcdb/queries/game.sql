@@ -5,65 +5,65 @@
 -- name: GetNHLGame :one
 -- Get a single game by ID with team details
 SELECT g.*,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.id = $1;
 
 -- name: GetNHLGamesByDate :many
 -- Get all games on a specific date
 SELECT g.*,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.game_date = $1
 ORDER BY g.start_time_utc;
 
 -- name: GetNHLGamesByDateRange :many
 -- Get all games within a date range
 SELECT g.*,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.game_date >= $1 AND g.game_date <= $2
 ORDER BY g.game_date, g.start_time_utc;
 
 -- name: GetNHLGamesBySeason :many
 -- Get all games for a season
 SELECT g.*,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.season = $1
 ORDER BY g.game_date, g.start_time_utc;
 
 -- name: GetNHLGamesByTeam :many
 -- Get all games for a team (home or away)
 SELECT g.*,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.home_team_id = $1 OR g.away_team_id = $1
 ORDER BY g.game_date, g.start_time_utc;
 
 -- name: GetNHLGamesByTeamAndSeason :many
 -- Get all games for a team in a specific season
 SELECT g.*,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE (g.home_team_id = $1 OR g.away_team_id = $1)
   AND g.season = $2
 ORDER BY g.game_date, g.start_time_utc;
@@ -71,11 +71,11 @@ ORDER BY g.game_date, g.start_time_utc;
 -- name: ListNHLGames :many
 -- Flexible game listing with optional filters
 SELECT g.*,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE
     (sqlc.narg('season')::int IS NULL OR g.season = sqlc.narg('season'))
     AND (sqlc.narg('game_type')::smallint IS NULL OR g.game_type = sqlc.narg('game_type'))

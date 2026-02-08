@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
@@ -18,7 +19,6 @@ import (
 	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gorm.io/gorm"
 )
 
 // Local flag name for port (aliased from config.FlagMetricsPort for the metrics command)
@@ -194,20 +194,15 @@ func runRedisCollector(ctx context.Context, interval time.Duration) {
 func runDatabaseCollector(ctx context.Context, interval time.Duration) {
 	log.Info().Dur("interval", interval).Msg("Starting database collector")
 
-	db, err := database.OpenGorm()
+	pool, err := database.OpenPGXPool(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to open database for metrics collector")
 		return
 	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to get sql.DB for metrics collector")
-		return
-	}
-	defer sqlDB.Close()
+	defer pool.Close()
 
 	// Collect immediately on startup
-	collectDatabaseMetrics(db)
+	collectDatabaseMetrics(ctx, pool)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -216,7 +211,7 @@ func runDatabaseCollector(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			collectDatabaseMetrics(db)
+			collectDatabaseMetrics(ctx, pool)
 		}
 	}
 }
@@ -237,14 +232,15 @@ func collectRedisMetrics(ctx context.Context, redisClient redis.Client) {
 		Msg("Redis metrics updated")
 }
 
-func collectDatabaseMetrics(db *gorm.DB) {
+func collectDatabaseMetrics(ctx context.Context, pool *pgxpool.Pool) {
 	start := time.Now()
 
-	tables := []string{"players", "nhl_teams", "nhl_divisions", "nhl_conferences", "games", "leagues", "teams"}
+	tables := []string{"players", "nhl_franchises", "nhl_seasons", "nhl_season_teams", "nhl_games", "nhl_game_skater_stats", "nhl_game_goalie_stats"}
 	var totalRows int64
 	for _, table := range tables {
 		var count int64
-		if err := db.Table(table).Count(&count).Error; err != nil {
+		query := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
+		if err := pool.QueryRow(ctx, query).Scan(&count); err != nil {
 			log.Warn().Err(err).Str("table", table).Msg("Failed to count rows")
 			continue
 		}
@@ -254,7 +250,7 @@ func collectDatabaseMetrics(db *gorm.DB) {
 
 	// Query database size
 	var dbSizeBytes int64
-	if err := db.Raw("SELECT pg_database_size(current_database())").Scan(&dbSizeBytes).Error; err != nil {
+	if err := pool.QueryRow(ctx, "SELECT pg_database_size(current_database())").Scan(&dbSizeBytes); err != nil {
 		log.Warn().Err(err).Msg("Failed to get database size")
 	} else {
 		metrics.SetDBSizeBytes(dbSizeBytes)

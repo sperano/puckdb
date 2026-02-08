@@ -13,6 +13,8 @@ type NHLClient interface {
 	Boxscore(ctx context.Context, gameID nhl.GameID) (*nhl.Boxscore, error)
 	DailySchedule(ctx context.Context, date nhl.GameDate) (*nhl.DailySchedule, error)
 	SeasonStandingManifest(ctx context.Context) ([]nhl.SeasonInfo, error)
+	LeagueStandingsForSeason(ctx context.Context, season nhl.Season) ([]nhl.Standing, error)
+	Franchises(ctx context.Context) ([]nhl.Franchise, error)
 }
 
 // Compile-time check that nhl.Client implements NHLClient

@@ -114,7 +114,6 @@ func setupAPIRouter(redisClient redis.Client, resolver *graph.Resolver) *chi.Mux
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(handlers.ChiLogger)
 
-	r.Use(database.Middleware)
 	r.Use(database.SQLCMiddleware)
 	// Basic CORS
 	// for more ideas, see: https://developer.github.com/v3/#cross-origin-resource-sharing

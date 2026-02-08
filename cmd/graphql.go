@@ -104,6 +104,7 @@ type workflowType int
 
 const (
 	workflowNone workflowType = iota
+	workflowInitialize
 	workflowYahooPlayers
 	workflowDownloadSeasons
 	workflowDownloadPlayers
@@ -583,4 +584,100 @@ func (c *GraphQLClient) GetImportPlayersResultData(ctx context.Context) (*Import
 	}
 
 	return result.ImportPlayersResultData, nil
+}
+
+// Initialize triggers the initialize mutation
+func (c *GraphQLClient) Initialize(ctx context.Context) (bool, error) {
+	const mutation = `mutation { initialize }`
+
+	resp, err := c.execute(ctx, mutation, nil)
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		Initialize bool `json:"initialize"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.Initialize, nil
+}
+
+// GetInitializeStatus queries both workflow result and progress
+func (c *GraphQLClient) GetInitializeStatus(ctx context.Context) (*WorkflowStatus, error) {
+	const query = `query {
+		initializeResult { status failureReason }
+		initializeProgress { total completed message items { id description total completed started startedAt completedAt } }
+	}`
+
+	resp, err := c.execute(ctx, query, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		InitializeResult   *model.WorkflowResult   `json:"initializeResult"`
+		InitializeProgress *model.WorkflowProgress `json:"initializeProgress"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &WorkflowStatus{
+		Result:   result.InitializeResult,
+		Progress: result.InitializeProgress,
+	}, nil
+}
+
+// CancelInitialize cancels the initialize workflow
+func (c *GraphQLClient) CancelInitialize(ctx context.Context) (bool, error) {
+	const mutation = `mutation { cancelInitialize }`
+
+	resp, err := c.execute(ctx, mutation, nil)
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		CancelInitialize bool `json:"cancelInitialize"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.CancelInitialize, nil
+}
+
+// InitializeResultData holds the result data from the initialize workflow
+type InitializeResultData struct {
+	FranchisesUpserted  int `json:"franchisesUpserted"`
+	SeasonsUpserted     int `json:"seasonsUpserted"`
+	SeasonTeamsUpserted int `json:"seasonTeamsUpserted"`
+}
+
+// GetInitializeResultData queries the initialize workflow result data
+func (c *GraphQLClient) GetInitializeResultData(ctx context.Context) (*InitializeResultData, error) {
+	const query = `query {
+		initializeResultData {
+			franchisesUpserted
+			seasonsUpserted
+			seasonTeamsUpserted
+		}
+	}`
+
+	resp, err := c.execute(ctx, query, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		InitializeResultData *InitializeResultData `json:"initializeResultData"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.InitializeResultData, nil
 }

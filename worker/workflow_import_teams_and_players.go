@@ -11,11 +11,9 @@ import (
 
 const WorkflowIDImportNHLTeamsAndPlayers = "import-nhl-teams-and-players"
 
-// ImportTeamsAndPlayersResult contains the result of the combined extraction and team upsert.
+// ImportTeamsAndPlayersResult contains the result of the player extraction.
 type ImportTeamsAndPlayersResult struct {
-	PlayerIDs     []int64 `json:"playerIds"`
-	TeamsInserted int     `json:"teamsInserted"`
-	TeamsSkipped  int     `json:"teamsSkipped"`
+	PlayerIDs []int64 `json:"playerIds"`
 }
 
 // ImportNHLTeamsAndPlayersWorkflow extracts teams and player IDs from boxscores,
@@ -64,16 +62,12 @@ func ImportNHLTeamsAndPlayersWorkflow(ctx workflow.Context, input *model.Downloa
 		return nil, err
 	}
 
-	// Merge results: dedupe player IDs and collect unique teams
+	// Merge results: dedupe player IDs
 	playerIDSet := make(map[int64]struct{})
-	teamMap := make(map[int64]ExtractedTeam)
 
 	for _, result := range allResults {
 		for _, id := range result.PlayerIDs {
 			playerIDSet[id] = struct{}{}
-		}
-		for _, team := range result.Teams {
-			teamMap[team.ID] = team
 		}
 	}
 
@@ -84,32 +78,12 @@ func ImportNHLTeamsAndPlayersWorkflow(ctx workflow.Context, input *model.Downloa
 	}
 	sort.Slice(playerIDSlice, func(i, j int) bool { return playerIDSlice[i] < playerIDSlice[j] })
 
-	// Convert teams to slice
-	teamSlice := make([]ExtractedTeam, 0, len(teamMap))
-	for _, team := range teamMap {
-		teamSlice = append(teamSlice, team)
-	}
-
-	logger.Info("Extraction complete, upserting teams",
-		"seasons_processed", len(seasons),
-		"total_unique_players", len(playerIDSlice),
-		"total_unique_teams", len(teamSlice))
-
-	// Upsert missing teams to database
-	var upsertResult UpsertMissingTeamsResult
-	if err := workflow.ExecuteActivity(ctx, UpsertMissingTeamsActivity, teamSlice).Get(ctx, &upsertResult); err != nil {
-		return nil, err
-	}
-
 	logger.Info("ImportNHLTeamsAndPlayersWorkflow completed",
-		"total_players", len(playerIDSlice),
-		"teams_inserted", upsertResult.TeamsInserted,
-		"teams_skipped", upsertResult.TeamsSkipped)
+		"seasons_processed", len(seasons),
+		"total_players", len(playerIDSlice))
 
 	return &ImportTeamsAndPlayersResult{
-		PlayerIDs:     playerIDSlice,
-		TeamsInserted: upsertResult.TeamsInserted,
-		TeamsSkipped:  upsertResult.TeamsSkipped,
+		PlayerIDs: playerIDSlice,
 	}, nil
 }
 
@@ -166,8 +140,7 @@ func extractBoxscoreDataWithConcurrency(
 
 				logger.Info("Season extraction complete",
 					"startYear", capturedWork.season.StartYear,
-					"players_found", len(result.PlayerIDs),
-					"teams_found", len(result.Teams))
+					"players_found", len(result.PlayerIDs))
 
 				tracker.Increment()
 				delete(active, capturedIdx)

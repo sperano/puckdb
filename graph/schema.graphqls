@@ -13,29 +13,11 @@ type Season {
 	leagues: [League!]!
 }
 
-type NHLConference {
+type NHLFranchise {
 	id: Int!
-	name: String!
-	divisions: [NHLDivision!]!
-}
-
-type NHLDivision {
-	id: Int!
-	name: String!
-	conference: NHLConference!
-	teams: [NHLTeam!]!
-}
-
-type NHLTeam {
-	id: Int!
-	city: String!
-	name: String!
-	nhlHomeLink: String! @goField(name: "NHLHomeLink")
-	yahooHomeLink: String!
-	division: NHLDivision!
-	smallLogoURL: String!
-	largeLogoURL: String!
-	abbreviation: String!
+	fullName: String!
+	teamCommonName: String!
+	teamPlaceName: String!
 }
 
 type LocalFile {
@@ -84,9 +66,9 @@ type OAuth2Token {
 }
 
 type DBStats {
-	nhlConferences: Int! @goField(name: "NHLConferences")
-	nhlDivisions: Int! @goField(name: "NHLDivisions")
-	nhlTeams: Int! @goField(name: "NHLTeams")
+	nhlFranchises: Int! @goField(name: "NHLFranchises")
+	nhlSeasons: Int! @goField(name: "NHLSeasons")
+	nhlSeasonTeams: Int! @goField(name: "NHLSeasonTeams")
 	fantasyGames: Int!
 	leagues: Int!
 	players: Int!
@@ -180,33 +162,12 @@ type Team {
 	#GithubTimestamp       time.Time
 }
 
-type Game {
-	ID: Int!
-	Date: Time!
-	HomeTeam: NHLTeam!
-	HomeTeamScore1: Int!
-	HomeTeamScore2: Int!
-	HomeTeamScore3: Int!
-	HomeTeamScoreO: Int!
-	HomeTeamScoreSO: Int!
-	AwayTeam: NHLTeam!
-	AwayTeamScore1: Int!
-	AwayTeamScore2: Int!
-	AwayTeamScore3: Int!
-	AwayTeamScoreO: Int!
-	AwayTeamScoreSO: Int!
-	State: String!
-	LocalFile: LocalFile
-	CreatedAt: Time!
-	UpdatedAt: Time!
-}
-
 type Player {
 	id: Int64!
 	yahooID: Int64
 	firstName: String!
 	lastName: String!
-	nhlTeam: NHLTeam @goField(name: "NHLTeam")
+	nhlTeamID: Int64 @goField(name: "NHLTeamID")
 	position: String!
 	shootsCatches: String!
 	heightInches: Int
@@ -238,59 +199,6 @@ input PlayersFilter {
 	teamID: Int
 	position: String
 	isActive: Boolean
-}
-
-type PlayerStats {
-	Goals: Int!
-	Assists: Int!
-	PlusMinus: Int!
-	PenaltyMinutes: Int!
-	ShotsOnGoal: Int!
-	FaceoffsWon: Int!
-	FaceoffsLost: Int!
-	Hits: Int!
-	TimeOnIce: Int!
-	Shifts: Int!
-	TakeAways: Int!
-	GiveAways: Int!
-	GoalAgainst: Int!
-	ShotsAgainst: Int!
-	Saves: Int!
-	GoalieTimeOnIce: Int!
-}
-
-type PlayerWithStats {
-	Player: Player!
-	Stats: PlayerStats!
-}
-
-type NHLStandingsTeamStats {
-	GamesPlayed: Int!
-	Wins: Int!
-	OvertimeWins: Int!
-	ShootoutWins: Int!
-	Losses: Int!
-	OvertimeLosses: Int!
-	ShootoutLosses: Int!
-	GoalsFor: Int!
-	GoalsAgainst: Int!
-}
-
-type NHLTeamStanding {
-	NHLTeam: NHLTeam!
-	Away: NHLStandingsTeamStats!
-	Home: NHLStandingsTeamStats!
-}
-
-type RosterPlayer {
-	Date: Time!
-	Team: Team!
-	Player: Player!
-	NHLTeam: NHLTeam!
-	EligiblePositions: [String!]!
-	SelectedPosition:  String!
-	CreatedAt: Time!
-	UpdatedAt: Time!
 }
 
 enum TemporalWorkflowStatus {
@@ -349,15 +257,18 @@ type ImportPlayersResultData {
 	errors: [String!]!
 }
 
+type InitializeResultData {
+	franchisesUpserted: Int!
+	seasonsUpserted: Int!
+	seasonTeamsUpserted: Int!
+}
+
 type Query {
 	buildNumber: Int!
 
-    nhlConferences: [NHLConference!]!
-    nhlDivisions: [NHLDivision!]!
-    nhlTeams(allstars: Boolean!): [NHLTeam]
-    nhlTeam(teamID: Int!): NHLTeam
-
-	currentFantasyGameKey: Int!
+	initializeResult: WorkflowResult!
+	initializeProgress: WorkflowProgress
+	initializeResultData: InitializeResultData
 
 	downloadSeasonsResult: WorkflowResult!
 	downloadSeasonsProgress: WorkflowProgress
@@ -374,24 +285,6 @@ type Query {
 
 	importSeasonsResult: WorkflowResult!
 	importSeasonsProgress: WorkflowProgress
-
-	players(filter: PlayersFilter): [Player!]!
-
-	#    nhlStandings: [NHLTeamStanding!]
-#    fantasyGameLocalFiles(season: Int!): [LocalFile!]
-#    leagueLocalFiles(season: Int!): [LocalFile!]
-#    teams: [Team!]!
-#    team(teamID: Int!): Team!
-#    games: [Game!]
-#    configuration: Configuration!
-#    dbStats: DBStats!
-#    localStats: LocalStats!
-#    status: Status!
-#    localFile(season: Int!, path: String!): String!
-#    lastGameDayImported: String!
-#	lastRostersDayImported: String!
-#
-#	rosterPlayers(teamID: Int!, date: String!): [RosterPlayer!]
 }
 
 
@@ -401,23 +294,18 @@ input DownloadSeasonsInput {
 	seasonConcurrency: Int
 }
 
-input DownloadDayInput {
-	season: Int!
-	day: String!  # Format: "2024-01-15"
-}
-
 type Mutation {
 	# TODO should this really be available in a mutation?
     clearDatabase: Boolean! # drop, create, init
     dropDatabase: Boolean! # deletes all the tables
     createDatabase: Boolean! # creates all the tables
-    initDatabase: Boolean! # creates the NHL objects
     flushRedisDB: Boolean! # flushes all keys in the configured redis db
+
+	initialize: Boolean!
+	cancelInitialize: Boolean!
 
 	downloadSeasons(input: DownloadSeasonsInput): Boolean!
 	cancelDownloadSeasons: Boolean!
-
-	downloadDay(input: DownloadDayInput!): Boolean!
 
 	downloadYahooPlayers: Boolean!
 	cancelDownloadYahooPlayers: Boolean!

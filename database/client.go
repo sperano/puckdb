@@ -5,22 +5,16 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/spf13/viper"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-	log_ "log"
 )
 
 //go:embed migrations/*.sql
@@ -89,31 +83,6 @@ func NewQueries(pool *pgxpool.Pool) *sqlcdb.Queries {
 	return sqlcdb.New(pool)
 }
 
-func OpenGorm() (*gorm.DB, error) {
-	log.Info().Str("dsn", getDSNForDisplay()).Msg("Initializing GORM")
-	newLogger := logger.New(
-		log_.New(os.Stdout, "\n", log_.LstdFlags),
-		logger.Config{
-			SlowThreshold:             config.DefaultSlowQueryThreshold,
-			LogLevel:                  logger.Warn,
-			IgnoreRecordNotFoundError: false,
-			Colorful:                  true,
-		},
-	)
-	db, err := gorm.Open(postgres.Open(GetDSN()), &gorm.Config{Logger: newLogger})
-	if err != nil {
-		return nil, err
-	}
-	sqldb, err := db.DB()
-	if err == nil {
-		sqldb.SetMaxIdleConns(viper.GetInt(config.FlagPostgresMaxIdleConns))
-		sqldb.SetMaxOpenConns(viper.GetInt(config.FlagPostgresMaxOpenConns))
-		sqldb.SetConnMaxLifetime(config.DefaultDBConnMaxLifetime)
-	} else {
-		log.Warn().Msg(err.Error())
-	}
-	return db, nil
-}
 
 // RunSQLMigrations runs the embedded SQL migrations
 func RunSQLMigrations() error {
@@ -164,54 +133,28 @@ func RunSQLMigrationsDown() error {
 	return nil
 }
 
-func DoMigration(db *gorm.DB) error {
+func DoMigration() error {
 	log.Info().Msg("Starting database migration")
-
-	// Run SQL migrations first (handles nhl_conferences, nhl_divisions, nhl_teams, players)
+	// Run SQL migrations (handles nhl_teams, nhl_franchises, nhl_seasons, nhl_season_teams, players)
 	if err := RunSQLMigrations(); err != nil {
-		return err
-	}
-
-	// GORM AutoMigrate for remaining tables (not NHL tables - those are in SQL migrations)
-	err := db.AutoMigrate(
-		&League{},
-		&StatDefinition{},
-		&RosterPosition{},
-		&Team{},
-		&RosterPlayer{},
-	)
-	if err != nil {
 		return err
 	}
 	log.Info().Msg("Database migration completed")
 	return nil
 }
 
-func DropEverything(db *gorm.DB) error {
+// DropEverything runs all down migrations to drop database tables
+func DropEverything(ctx context.Context, pool *pgxpool.Pool) error {
 	log.Info().Msg("Dropping all tables")
-	migrator := db.Migrator()
 
-	// Drop GORM-managed tables first (they may have FKs to SQL-managed tables)
-	err := migrator.DropTable(
-		"league_roster_positions",
-		"league_stat_definitions",
-		&RosterPlayer{},
-		&Team{},
-		&RosterPosition{},
-		&StatDefinition{},
-		&League{},
-	)
-	if err != nil {
-		return err
-	}
-
-	// Run SQL down migrations (handles players, nhl_teams, nhl_divisions, nhl_conferences)
+	// Run SQL down migrations (handles all tables managed by golang-migrate)
 	if err := RunSQLMigrationsDown(); err != nil {
 		return err
 	}
 
 	// Drop the schema_migrations table used by golang-migrate
-	if err := migrator.DropTable("schema_migrations"); err != nil {
+	_, err := pool.Exec(ctx, "DROP TABLE IF EXISTS schema_migrations")
+	if err != nil {
 		log.Warn().Err(err).Msg("Failed to drop schema_migrations table")
 	}
 
@@ -219,311 +162,7 @@ func DropEverything(db *gorm.DB) error {
 	return nil
 }
 
-const (
-	Eastern      = 1
-	Western      = 2
-	Atlantic     = 2
-	Central      = 3
-	Pacific      = 4
-	Metropolitan = 7
-)
-
-// EnsureNHLWithSQLC seeds the NHL reference data using SQLC
-func EnsureNHLWithSQLC(ctx context.Context, q *sqlcdb.Queries) error {
-	if err := EnsureNHLConferencesWithSQLC(ctx, q); err != nil {
-		return err
-	}
-	if err := EnsureNHLDivisionsWithSQLC(ctx, q); err != nil {
-		return err
-	}
-	return EnsureNHLTeamsWithSQLC(ctx, q)
-}
-
-func EnsureNHLConferencesWithSQLC(ctx context.Context, q *sqlcdb.Queries) error {
-	conferences := []sqlcdb.UpsertNHLConferenceParams{
-		{ID: Eastern, Name: "Eastern"},
-		{ID: Western, Name: "Western"},
-	}
-	for _, c := range conferences {
-		if err := q.UpsertNHLConference(ctx, c); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func EnsureNHLDivisionsWithSQLC(ctx context.Context, q *sqlcdb.Queries) error {
-	divisions := []sqlcdb.UpsertNHLDivisionParams{
-		{ID: Atlantic, Name: "Atlantic", NHLConferenceID: Eastern},
-		{ID: Metropolitan, Name: "Metropolitan", NHLConferenceID: Eastern},
-		{ID: Central, Name: "Central", NHLConferenceID: Western},
-		{ID: Pacific, Name: "Pacific", NHLConferenceID: Western},
-	}
-	for _, d := range divisions {
-		if err := q.UpsertNHLDivision(ctx, d); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func EnsureNHLTeamsWithSQLC(ctx context.Context, q *sqlcdb.Queries) error {
-	// Teams use NHL API IDs as primary key and Yahoo IDs for cross-referencing
-	// NHL API IDs from https://api.nhle.com/stats/rest/en/team
-	teams := []sqlcdb.UpsertNHLTeamParams{
-		// Atlantic Division
-		{ID: 6, YahooID: pgtype.Int8{Int64: 1, Valid: true}, NHLDivisionID: Atlantic, Abbreviation: "BOS", City: "Boston", Name: "Bruins",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210311/70x70/boston-bruins_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210311/500x500/boston-bruins_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/bruins",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/boston/",
-			AllStars:      false},
-		{ID: 7, YahooID: pgtype.Int8{Int64: 2, Valid: true}, NHLDivisionID: Atlantic, Abbreviation: "BUF", City: "Buffalo", Name: "Sabres",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210311/70x70/buffalo-sabres_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210311/500x500/buffalo-sabres_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/sabres",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/buffalo/",
-			AllStars:      false},
-		{ID: 17, YahooID: pgtype.Int8{Int64: 5, Valid: true}, NHLDivisionID: Atlantic, Abbreviation: "DET", City: "Detroit", Name: "Red Wings",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/redwings_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/500x500/redwings_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/redwings",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/detroit/",
-			AllStars:      false},
-		{ID: 13, YahooID: pgtype.Int8{Int64: 26, Valid: true}, NHLDivisionID: Atlantic, Abbreviation: "FLA", City: "Florida", Name: "Panthers",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/70x70/florida_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/500x500/florida_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/panthers",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/florida/",
-			AllStars:      false},
-		{ID: 8, YahooID: pgtype.Int8{Int64: 10, Valid: true}, NHLDivisionID: Atlantic, Abbreviation: "MTL", City: "Montreal", Name: "Canadiens",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/canadiens_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/500x500/canadiens_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/canadiens",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/montreal/",
-			AllStars:      false},
-		{ID: 9, YahooID: pgtype.Int8{Int64: 14, Valid: true}, NHLDivisionID: Atlantic, Abbreviation: "OTT", City: "Ottawa", Name: "Senators",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20201006/70x70/senators_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20201006/500x500/senators_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/senators",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/ottawa/",
-			AllStars:      false},
-		{ID: 14, YahooID: pgtype.Int8{Int64: 20, Valid: true}, NHLDivisionID: Atlantic, Abbreviation: "TBL", City: "Tampa Bay", Name: "Lightning",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/70x70/tampa-bay-lightning_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/500x500/tampa-bay-lightning_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/lightning",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/tampa-bay/",
-			AllStars:      false},
-		{ID: 10, YahooID: pgtype.Int8{Int64: 21, Valid: true}, NHLDivisionID: Atlantic, Abbreviation: "TOR", City: "Toronto", Name: "Maple Leafs",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/mapleleafs_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/500x500/mapleleafs_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/mapleleafs",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/toronto/",
-			AllStars:      false},
-
-		// Metropolitan Division
-		{ID: 12, YahooID: pgtype.Int8{Int64: 7, Valid: true}, NHLDivisionID: Metropolitan, Abbreviation: "CAR", City: "Carolina", Name: "Hurricanes",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181123/nhl/70x70/hurricanes_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181123/nhl/500x500/hurricanes_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/hurricanes",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/carolina/",
-			AllStars:      false},
-		{ID: 29, YahooID: pgtype.Int8{Int64: 29, Valid: true}, NHLDivisionID: Metropolitan, Abbreviation: "CBJ", City: "Columbus", Name: "Blue Jackets",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/bluejackets_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/500x500/bluejackets_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/bluejackets",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/columbus/",
-			AllStars:      false},
-		{ID: 1, YahooID: pgtype.Int8{Int64: 11, Valid: true}, NHLDivisionID: Metropolitan, Abbreviation: "NJD", City: "New Jersey", Name: "Devils",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/devils_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181122/nhl/500x500/devils_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/devils",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/new-jersey/",
-			AllStars:      false},
-		{ID: 2, YahooID: pgtype.Int8{Int64: 12, Valid: true}, NHLDivisionID: Metropolitan, Abbreviation: "NYI", City: "New York", Name: "Islanders",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/islanders_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/500x500/islanders_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/islanders",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/ny-islanders/",
-			AllStars:      false},
-		{ID: 3, YahooID: pgtype.Int8{Int64: 13, Valid: true}, NHLDivisionID: Metropolitan, Abbreviation: "NYR", City: "New York", Name: "Rangers",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181122/nhl/70x70/rangers_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181122/nhl/500x500/rangers_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/rangers",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/ny-rangers/",
-			AllStars:      false},
-		{ID: 4, YahooID: pgtype.Int8{Int64: 15, Valid: true}, NHLDivisionID: Metropolitan, Abbreviation: "PHI", City: "Philadelphia", Name: "Flyers",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/70x70/philadelphia-flyers_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/500x500/philadelphia-flyers_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/flyers",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/philadelphia/",
-			AllStars:      false},
-		{ID: 5, YahooID: pgtype.Int8{Int64: 16, Valid: true}, NHLDivisionID: Metropolitan, Abbreviation: "PIT", City: "Pittsburgh", Name: "Penguins",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/penguins_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/500x500/penguins_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/penguins",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/pittsburgh/",
-			AllStars:      false},
-		{ID: 15, YahooID: pgtype.Int8{Int64: 23, Valid: true}, NHLDivisionID: Metropolitan, Abbreviation: "WSH", City: "Washington", Name: "Capitals",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210325/70x70/washington-capitals_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210325/500x500/washington-capitals_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/capitals",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/washington/",
-			AllStars:      false},
-
-		// Central Division
-		{ID: 53, YahooID: pgtype.Int8{Int64: 24, Valid: true}, NHLDivisionID: Central, Abbreviation: "ARI", City: "Arizona", Name: "Coyotes",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20211001/70x70/arizona-coyotes_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20211001/500x500/arizona-coyotes_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/coyotes",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/arizona/",
-			AllStars:      false},
-		{ID: 16, YahooID: pgtype.Int8{Int64: 4, Valid: true}, NHLDivisionID: Central, Abbreviation: "CHI", City: "Chicago", Name: "Blackhawks",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/blackhawks_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/500x500/blackhawks_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/blackhawks",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/chicago/",
-			AllStars:      false},
-		{ID: 21, YahooID: pgtype.Int8{Int64: 17, Valid: true}, NHLDivisionID: Central, Abbreviation: "COL", City: "Colorado", Name: "Avalanche",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210311/70x70/colorado-avalanche_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210311/500x500/colorado-avalanche_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/avalanche",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/colorado/",
-			AllStars:      false},
-		{ID: 25, YahooID: pgtype.Int8{Int64: 9, Valid: true}, NHLDivisionID: Central, Abbreviation: "DAL", City: "Dallas", Name: "Stars",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210311/70x70/dallas-stars_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210311/500x500/dallas-stars_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/stars",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/dallas/",
-			AllStars:      false},
-		{ID: 30, YahooID: pgtype.Int8{Int64: 30, Valid: true}, NHLDivisionID: Central, Abbreviation: "MIN", City: "Minnesota", Name: "Wild",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/wild_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/500x500/wild_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/wild",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/minnesota/",
-			AllStars:      false},
-		{ID: 18, YahooID: pgtype.Int8{Int64: 27, Valid: true}, NHLDivisionID: Central, Abbreviation: "NSH", City: "Nashville", Name: "Predators",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/70x70/nashville-predators_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/500x500/nashville-predators_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/predators",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/nashville/",
-			AllStars:      false},
-		{ID: 19, YahooID: pgtype.Int8{Int64: 19, Valid: true}, NHLDivisionID: Central, Abbreviation: "STL", City: "St. Louis", Name: "Blues",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/70x70/st-louis-blues_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/500x500/st-louis-blues_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/blues",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/st-louis/",
-			AllStars:      false},
-		{ID: 59, YahooID: pgtype.Int8{Int64: 60, Valid: true}, NHLDivisionID: Central, Abbreviation: "UTA", City: "Utah", Name: "Hockey Club",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20240610/70px/utah_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20240610/500px/utah_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/utah",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/utah/",
-			AllStars:      false},
-		{ID: 68, YahooID: pgtype.Int8{Int64: 60, Valid: true}, NHLDivisionID: Central, Abbreviation: "UTA", City: "Utah", Name: "Mammoth",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20240610/70px/utah_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20240610/500px/utah_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/utah",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/utah/",
-			AllStars:      false},
-		{ID: 52, YahooID: pgtype.Int8{Int64: 28, Valid: true}, NHLDivisionID: Central, Abbreviation: "WPG", City: "Winnipeg", Name: "Jets",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/jets_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/500x500/jets_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/jets",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/winnipeg/",
-			AllStars:      false},
-
-		// Pacific Division
-		{ID: 24, YahooID: pgtype.Int8{Int64: 25, Valid: true}, NHLDivisionID: Pacific, Abbreviation: "ANA", City: "Anaheim", Name: "Ducks",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181122/nhl/70x70/ducks_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181122/nhl/500x500/ducks_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/ducks",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/anaheim/",
-			AllStars:      false},
-		{ID: 20, YahooID: pgtype.Int8{Int64: 3, Valid: true}, NHLDivisionID: Pacific, Abbreviation: "CGY", City: "Calgary", Name: "Flames",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210311/70x70/calgary-flames_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210311/500x500/calgary-flames_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/flames",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/calgary/",
-			AllStars:      false},
-		{ID: 22, YahooID: pgtype.Int8{Int64: 6, Valid: true}, NHLDivisionID: Pacific, Abbreviation: "EDM", City: "Edmonton", Name: "Oilers",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20220917/70x70/oilers1_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20220917/500x500/oilers1_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/oilers",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/edmonton/",
-			AllStars:      false},
-		{ID: 26, YahooID: pgtype.Int8{Int64: 8, Valid: true}, NHLDivisionID: Pacific, Abbreviation: "LAK", City: "Los Angeles", Name: "Kings",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20200508/70x70/kings_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20200508/500x500/kings_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/kings",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/los-angeles/",
-			AllStars:      false},
-		{ID: 55, YahooID: pgtype.Int8{Int64: 59, Valid: true}, NHLDivisionID: Pacific, Abbreviation: "SEA", City: "Seattle", Name: "Kraken",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210715/70x70/seattle-kraken_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210715/500x500/seattle-kraken_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/kraken",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/seattle/",
-			AllStars:      false},
-		{ID: 28, YahooID: pgtype.Int8{Int64: 18, Valid: true}, NHLDivisionID: Pacific, Abbreviation: "SJS", City: "San Jose", Name: "Sharks",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/70x70/sharks_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20181126/nhl/500x500/sharks_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/sharks",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/san-jose/",
-			AllStars:      false},
-		{ID: 23, YahooID: pgtype.Int8{Int64: 22, Valid: true}, NHLDivisionID: Pacific, Abbreviation: "VAN", City: "Vancouver", Name: "Canucks",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/20190924/nhl/70x70/canucks_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/20190924/nhl/500x500/canucks_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/canucks",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/vancouver/",
-			AllStars:      false},
-		{ID: 54, YahooID: pgtype.Int8{Int64: 58, Valid: true}, NHLDivisionID: Pacific, Abbreviation: "VGK", City: "Vegas", Name: "Golden Knights",
-			SmallLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/70x70/vegas-golden-knights_wbg.png",
-			LargeLogoURL:  "https://s.yimg.com/cv/apiv2/default/nhl/20210312/500x500/vegas-golden-knights_wbg.png",
-			NHLHomeLink:   "https://www.nhl.com/goldenknights",
-			YahooHomeLink: "https://sports.yahoo.com/nhl/teams/vegas/",
-			AllStars:      false},
-
-		// All-Star teams (use high IDs to avoid conflicts with real NHL teams)
-		{ID: 100, YahooID: pgtype.Int8{Int64: 31, Valid: true}, NHLDivisionID: Atlantic, Abbreviation: "AAS", City: "Atlantic", Name: "All-Stars",
-			SmallLogoURL: "", LargeLogoURL: "", NHLHomeLink: "", YahooHomeLink: "", AllStars: true},
-		{ID: 101, YahooID: pgtype.Int8{Int64: 32, Valid: true}, NHLDivisionID: Central, Abbreviation: "CAS", City: "Central", Name: "All-Stars",
-			SmallLogoURL: "", LargeLogoURL: "", NHLHomeLink: "", YahooHomeLink: "", AllStars: true},
-		{ID: 102, YahooID: pgtype.Int8{Int64: 33, Valid: true}, NHLDivisionID: Metropolitan, Abbreviation: "MAS", City: "Metropolitan", Name: "All-Stars",
-			SmallLogoURL: "", LargeLogoURL: "", NHLHomeLink: "", YahooHomeLink: "", AllStars: true},
-		{ID: 103, YahooID: pgtype.Int8{Int64: 34, Valid: true}, NHLDivisionID: Pacific, Abbreviation: "PAS", City: "Pacific", Name: "All-Stars",
-			SmallLogoURL: "", LargeLogoURL: "", NHLHomeLink: "", YahooHomeLink: "", AllStars: true},
-	}
-	for _, team := range teams {
-		if err := q.UpsertNHLTeam(ctx, team); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-const contextKey = "gorm"
 const sqlcContextKey = "sqlc"
-
-func Middleware(next http.Handler) http.Handler {
-	db, err := OpenGorm()
-	if err != nil {
-		log.Error().Err(err).Msg("can't open database")
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err != nil {
-			// TODO return http error
-			log.Error().Err(err).Msg("can't open database")
-			return
-		}
-		ctx := context.WithValue(r.Context(), contextKey, db)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-func FromContext(ctx context.Context) *gorm.DB {
-	return ctx.Value(contextKey).(*gorm.DB)
-}
 
 // SQLCMiddleware adds SQLC queries to the request context
 func SQLCMiddleware(next http.Handler) http.Handler {

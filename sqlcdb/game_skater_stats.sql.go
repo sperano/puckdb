@@ -38,10 +38,11 @@ const getGameSkaterStats = `-- name: GetGameSkaterStats :one
 
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     p.first_name, p.last_name, p.position as player_position,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_games g ON s.game_id = g.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1 AND s.player_id = $2
 `
 
@@ -76,7 +77,6 @@ type GetGameSkaterStatsRow struct {
 	FirstName          string             `json:"first_name"`
 	LastName           string             `json:"last_name"`
 	PlayerPosition     string             `json:"player_position"`
-	TeamCity           string             `json:"team_city"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -114,7 +114,6 @@ func (q *Queries) GetGameSkaterStats(ctx context.Context, arg GetGameSkaterStats
 		&i.FirstName,
 		&i.LastName,
 		&i.PlayerPosition,
-		&i.TeamCity,
 		&i.TeamName,
 		&i.TeamAbbrev,
 	)
@@ -124,10 +123,11 @@ func (q *Queries) GetGameSkaterStats(ctx context.Context, arg GetGameSkaterStats
 const getGameSkaterStatsByGame = `-- name: GetGameSkaterStatsByGame :many
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     p.first_name, p.last_name, p.position as player_position,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_games g ON s.game_id = g.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1
 ORDER BY s.is_home DESC, s.position, p.last_name
 `
@@ -158,7 +158,6 @@ type GetGameSkaterStatsByGameRow struct {
 	FirstName          string             `json:"first_name"`
 	LastName           string             `json:"last_name"`
 	PlayerPosition     string             `json:"player_position"`
-	TeamCity           string             `json:"team_city"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -199,7 +198,6 @@ func (q *Queries) GetGameSkaterStatsByGame(ctx context.Context, gameID int64) ([
 			&i.FirstName,
 			&i.LastName,
 			&i.PlayerPosition,
-			&i.TeamCity,
 			&i.TeamName,
 			&i.TeamAbbrev,
 		); err != nil {
@@ -216,10 +214,11 @@ func (q *Queries) GetGameSkaterStatsByGame(ctx context.Context, gameID int64) ([
 const getGameSkaterStatsByGameAndTeam = `-- name: GetGameSkaterStatsByGameAndTeam :many
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     p.first_name, p.last_name, p.position as player_position,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN players p ON s.player_id = p.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_games g ON s.game_id = g.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.game_id = $1 AND s.team_id = $2
 ORDER BY s.position, p.last_name
 `
@@ -255,7 +254,6 @@ type GetGameSkaterStatsByGameAndTeamRow struct {
 	FirstName          string             `json:"first_name"`
 	LastName           string             `json:"last_name"`
 	PlayerPosition     string             `json:"player_position"`
-	TeamCity           string             `json:"team_city"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -296,7 +294,6 @@ func (q *Queries) GetGameSkaterStatsByGameAndTeam(ctx context.Context, arg GetGa
 			&i.FirstName,
 			&i.LastName,
 			&i.PlayerPosition,
-			&i.TeamCity,
 			&i.TeamName,
 			&i.TeamAbbrev,
 		); err != nil {
@@ -380,10 +377,10 @@ func (q *Queries) GetSkaterSeasonTotals(ctx context.Context, arg GetSkaterSeason
 const getSkaterStatsByPlayer = `-- name: GetSkaterStatsByPlayer :many
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     g.game_date, g.season, g.game_type,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1
 ORDER BY g.game_date DESC
 `
@@ -414,7 +411,6 @@ type GetSkaterStatsByPlayerRow struct {
 	GameDate           pgtype.Date        `json:"game_date"`
 	Season             int32              `json:"season"`
 	GameType           int16              `json:"game_type"`
-	TeamCity           string             `json:"team_city"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -455,7 +451,6 @@ func (q *Queries) GetSkaterStatsByPlayer(ctx context.Context, playerID int64) ([
 			&i.GameDate,
 			&i.Season,
 			&i.GameType,
-			&i.TeamCity,
 			&i.TeamName,
 			&i.TeamAbbrev,
 		); err != nil {
@@ -472,10 +467,10 @@ func (q *Queries) GetSkaterStatsByPlayer(ctx context.Context, playerID int64) ([
 const getSkaterStatsByPlayerAndDateRange = `-- name: GetSkaterStatsByPlayerAndDateRange :many
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     g.game_date, g.season, g.game_type,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1 AND g.game_date >= $2 AND g.game_date <= $3
 ORDER BY g.game_date
 `
@@ -512,7 +507,6 @@ type GetSkaterStatsByPlayerAndDateRangeRow struct {
 	GameDate           pgtype.Date        `json:"game_date"`
 	Season             int32              `json:"season"`
 	GameType           int16              `json:"game_type"`
-	TeamCity           string             `json:"team_city"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -553,7 +547,6 @@ func (q *Queries) GetSkaterStatsByPlayerAndDateRange(ctx context.Context, arg Ge
 			&i.GameDate,
 			&i.Season,
 			&i.GameType,
-			&i.TeamCity,
 			&i.TeamName,
 			&i.TeamAbbrev,
 		); err != nil {
@@ -570,10 +563,10 @@ func (q *Queries) GetSkaterStatsByPlayerAndDateRange(ctx context.Context, arg Ge
 const getSkaterStatsByPlayerAndSeason = `-- name: GetSkaterStatsByPlayerAndSeason :many
 SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
     g.game_date, g.game_type,
-    t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
+    t.full_name as team_name, t.abbrev as team_abbrev
 FROM nhl_game_skater_stats s
 JOIN nhl_games g ON s.game_id = g.id
-JOIN nhl_teams t ON s.team_id = t.id
+JOIN nhl_season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
 WHERE s.player_id = $1 AND g.season = $2
 ORDER BY g.game_date
 `
@@ -608,7 +601,6 @@ type GetSkaterStatsByPlayerAndSeasonRow struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	GameDate           pgtype.Date        `json:"game_date"`
 	GameType           int16              `json:"game_type"`
-	TeamCity           string             `json:"team_city"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -648,7 +640,6 @@ func (q *Queries) GetSkaterStatsByPlayerAndSeason(ctx context.Context, arg GetSk
 			&i.UpdatedAt,
 			&i.GameDate,
 			&i.GameType,
-			&i.TeamCity,
 			&i.TeamName,
 			&i.TeamAbbrev,
 		); err != nil {

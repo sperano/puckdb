@@ -92,6 +92,22 @@ func (m *MockNHLClient) SeasonStandingManifest(ctx context.Context) ([]nhl.Seaso
 	return args.Get(0).([]nhl.SeasonInfo), args.Error(1)
 }
 
+func (m *MockNHLClient) LeagueStandingsForSeason(ctx context.Context, season nhl.Season) ([]nhl.Standing, error) {
+	args := m.Called(ctx, season)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]nhl.Standing), args.Error(1)
+}
+
+func (m *MockNHLClient) Franchises(ctx context.Context) ([]nhl.Franchise, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]nhl.Franchise), args.Error(1)
+}
+
 // MockPlayerUpserter implements PlayerUpserter for testing.
 type MockPlayerUpserter struct {
 	mock.Mock

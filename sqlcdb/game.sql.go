@@ -71,11 +71,11 @@ func (q *Queries) DeleteNHLGamesBySeason(ctx context.Context, season int32) erro
 const getNHLGame = `-- name: GetNHLGame :one
 
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.id = $1
 `
 
@@ -107,10 +107,8 @@ type GetNHLGameRow struct {
 	LimitedScoring        bool               `json:"limited_scoring"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	HomeTeamCity          string             `json:"home_team_city"`
 	HomeTeamName          string             `json:"home_team_name"`
 	HomeTeamAbbrev        string             `json:"home_team_abbrev"`
-	AwayTeamCity          string             `json:"away_team_city"`
 	AwayTeamName          string             `json:"away_team_name"`
 	AwayTeamAbbrev        string             `json:"away_team_abbrev"`
 }
@@ -150,10 +148,8 @@ func (q *Queries) GetNHLGame(ctx context.Context, id int64) (GetNHLGameRow, erro
 		&i.LimitedScoring,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.HomeTeamCity,
 		&i.HomeTeamName,
 		&i.HomeTeamAbbrev,
-		&i.AwayTeamCity,
 		&i.AwayTeamName,
 		&i.AwayTeamAbbrev,
 	)
@@ -162,11 +158,11 @@ func (q *Queries) GetNHLGame(ctx context.Context, id int64) (GetNHLGameRow, erro
 
 const getNHLGamesByDate = `-- name: GetNHLGamesByDate :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.game_date = $1
 ORDER BY g.start_time_utc
 `
@@ -199,10 +195,8 @@ type GetNHLGamesByDateRow struct {
 	LimitedScoring        bool               `json:"limited_scoring"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	HomeTeamCity          string             `json:"home_team_city"`
 	HomeTeamName          string             `json:"home_team_name"`
 	HomeTeamAbbrev        string             `json:"home_team_abbrev"`
-	AwayTeamCity          string             `json:"away_team_city"`
 	AwayTeamName          string             `json:"away_team_name"`
 	AwayTeamAbbrev        string             `json:"away_team_abbrev"`
 }
@@ -245,10 +239,8 @@ func (q *Queries) GetNHLGamesByDate(ctx context.Context, gameDate pgtype.Date) (
 			&i.LimitedScoring,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.HomeTeamCity,
 			&i.HomeTeamName,
 			&i.HomeTeamAbbrev,
-			&i.AwayTeamCity,
 			&i.AwayTeamName,
 			&i.AwayTeamAbbrev,
 		); err != nil {
@@ -264,11 +256,11 @@ func (q *Queries) GetNHLGamesByDate(ctx context.Context, gameDate pgtype.Date) (
 
 const getNHLGamesByDateRange = `-- name: GetNHLGamesByDateRange :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.game_date >= $1 AND g.game_date <= $2
 ORDER BY g.game_date, g.start_time_utc
 `
@@ -306,10 +298,8 @@ type GetNHLGamesByDateRangeRow struct {
 	LimitedScoring        bool               `json:"limited_scoring"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	HomeTeamCity          string             `json:"home_team_city"`
 	HomeTeamName          string             `json:"home_team_name"`
 	HomeTeamAbbrev        string             `json:"home_team_abbrev"`
-	AwayTeamCity          string             `json:"away_team_city"`
 	AwayTeamName          string             `json:"away_team_name"`
 	AwayTeamAbbrev        string             `json:"away_team_abbrev"`
 }
@@ -352,10 +342,8 @@ func (q *Queries) GetNHLGamesByDateRange(ctx context.Context, arg GetNHLGamesByD
 			&i.LimitedScoring,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.HomeTeamCity,
 			&i.HomeTeamName,
 			&i.HomeTeamAbbrev,
-			&i.AwayTeamCity,
 			&i.AwayTeamName,
 			&i.AwayTeamAbbrev,
 		); err != nil {
@@ -371,11 +359,11 @@ func (q *Queries) GetNHLGamesByDateRange(ctx context.Context, arg GetNHLGamesByD
 
 const getNHLGamesBySeason = `-- name: GetNHLGamesBySeason :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.season = $1
 ORDER BY g.game_date, g.start_time_utc
 `
@@ -408,10 +396,8 @@ type GetNHLGamesBySeasonRow struct {
 	LimitedScoring        bool               `json:"limited_scoring"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	HomeTeamCity          string             `json:"home_team_city"`
 	HomeTeamName          string             `json:"home_team_name"`
 	HomeTeamAbbrev        string             `json:"home_team_abbrev"`
-	AwayTeamCity          string             `json:"away_team_city"`
 	AwayTeamName          string             `json:"away_team_name"`
 	AwayTeamAbbrev        string             `json:"away_team_abbrev"`
 }
@@ -454,10 +440,8 @@ func (q *Queries) GetNHLGamesBySeason(ctx context.Context, season int32) ([]GetN
 			&i.LimitedScoring,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.HomeTeamCity,
 			&i.HomeTeamName,
 			&i.HomeTeamAbbrev,
-			&i.AwayTeamCity,
 			&i.AwayTeamName,
 			&i.AwayTeamAbbrev,
 		); err != nil {
@@ -473,11 +457,11 @@ func (q *Queries) GetNHLGamesBySeason(ctx context.Context, season int32) ([]GetN
 
 const getNHLGamesByTeam = `-- name: GetNHLGamesByTeam :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE g.home_team_id = $1 OR g.away_team_id = $1
 ORDER BY g.game_date, g.start_time_utc
 `
@@ -510,10 +494,8 @@ type GetNHLGamesByTeamRow struct {
 	LimitedScoring        bool               `json:"limited_scoring"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	HomeTeamCity          string             `json:"home_team_city"`
 	HomeTeamName          string             `json:"home_team_name"`
 	HomeTeamAbbrev        string             `json:"home_team_abbrev"`
-	AwayTeamCity          string             `json:"away_team_city"`
 	AwayTeamName          string             `json:"away_team_name"`
 	AwayTeamAbbrev        string             `json:"away_team_abbrev"`
 }
@@ -556,10 +538,8 @@ func (q *Queries) GetNHLGamesByTeam(ctx context.Context, homeTeamID int64) ([]Ge
 			&i.LimitedScoring,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.HomeTeamCity,
 			&i.HomeTeamName,
 			&i.HomeTeamAbbrev,
-			&i.AwayTeamCity,
 			&i.AwayTeamName,
 			&i.AwayTeamAbbrev,
 		); err != nil {
@@ -575,11 +555,11 @@ func (q *Queries) GetNHLGamesByTeam(ctx context.Context, homeTeamID int64) ([]Ge
 
 const getNHLGamesByTeamAndSeason = `-- name: GetNHLGamesByTeamAndSeason :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE (g.home_team_id = $1 OR g.away_team_id = $1)
   AND g.season = $2
 ORDER BY g.game_date, g.start_time_utc
@@ -618,10 +598,8 @@ type GetNHLGamesByTeamAndSeasonRow struct {
 	LimitedScoring        bool               `json:"limited_scoring"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	HomeTeamCity          string             `json:"home_team_city"`
 	HomeTeamName          string             `json:"home_team_name"`
 	HomeTeamAbbrev        string             `json:"home_team_abbrev"`
-	AwayTeamCity          string             `json:"away_team_city"`
 	AwayTeamName          string             `json:"away_team_name"`
 	AwayTeamAbbrev        string             `json:"away_team_abbrev"`
 }
@@ -664,10 +642,8 @@ func (q *Queries) GetNHLGamesByTeamAndSeason(ctx context.Context, arg GetNHLGame
 			&i.LimitedScoring,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.HomeTeamCity,
 			&i.HomeTeamName,
 			&i.HomeTeamAbbrev,
-			&i.AwayTeamCity,
 			&i.AwayTeamName,
 			&i.AwayTeamAbbrev,
 		); err != nil {
@@ -683,11 +659,11 @@ func (q *Queries) GetNHLGamesByTeamAndSeason(ctx context.Context, arg GetNHLGame
 
 const listNHLGames = `-- name: ListNHLGames :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
-    ht.city as home_team_city, ht.name as home_team_name, ht.abbreviation as home_team_abbrev,
-    at.city as away_team_city, at.name as away_team_name, at.abbreviation as away_team_abbrev
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM nhl_games g
-JOIN nhl_teams ht ON g.home_team_id = ht.id
-JOIN nhl_teams at ON g.away_team_id = at.id
+JOIN nhl_season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
+JOIN nhl_season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
 WHERE
     ($1::int IS NULL OR g.season = $1)
     AND ($2::smallint IS NULL OR g.game_type = $2)
@@ -737,10 +713,8 @@ type ListNHLGamesRow struct {
 	LimitedScoring        bool               `json:"limited_scoring"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	HomeTeamCity          string             `json:"home_team_city"`
 	HomeTeamName          string             `json:"home_team_name"`
 	HomeTeamAbbrev        string             `json:"home_team_abbrev"`
-	AwayTeamCity          string             `json:"away_team_city"`
 	AwayTeamName          string             `json:"away_team_name"`
 	AwayTeamAbbrev        string             `json:"away_team_abbrev"`
 }
@@ -791,10 +765,8 @@ func (q *Queries) ListNHLGames(ctx context.Context, arg ListNHLGamesParams) ([]L
 			&i.LimitedScoring,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.HomeTeamCity,
 			&i.HomeTeamName,
 			&i.HomeTeamAbbrev,
-			&i.AwayTeamCity,
 			&i.AwayTeamName,
 			&i.AwayTeamAbbrev,
 		); err != nil {

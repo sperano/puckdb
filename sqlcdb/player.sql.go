@@ -59,57 +59,18 @@ func (q *Queries) DeletePlayer(ctx context.Context, id int64) error {
 }
 
 const getActivePlayers = `-- name: GetActivePlayers :many
-SELECT p.id, p.yahoo_id, p.first_name, p.last_name, p.nhl_team_id, p.position, p.shoots_catches, p.height_inches, p.weight_pounds, p.birth_date, p.birth_city, p.birth_state_province, p.birth_country, p.sweater_number, p.is_active, p.headshot_url, p.hero_image_url, p.yahoo_image_small, p.yahoo_image_medium, p.yahoo_image_large, p.yahoo_home_url, p.player_slug, p.draft_year, p.draft_team_abbrev, p.draft_round, p.draft_pick_in_round, p.draft_overall_pick, p.first_name_normalized, p.last_name_normalized, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.is_active = TRUE
-ORDER BY p.last_name, p.first_name
+SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players WHERE is_active = TRUE ORDER BY last_name, first_name
 `
 
-type GetActivePlayersRow struct {
-	ID                  int64       `json:"id"`
-	YahooID             pgtype.Int8 `json:"yahoo_id"`
-	FirstName           string      `json:"first_name"`
-	LastName            string      `json:"last_name"`
-	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
-	Position            string      `json:"position"`
-	ShootsCatches       string      `json:"shoots_catches"`
-	HeightInches        pgtype.Int4 `json:"height_inches"`
-	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
-	BirthDate           pgtype.Date `json:"birth_date"`
-	BirthCity           pgtype.Text `json:"birth_city"`
-	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
-	BirthCountry        pgtype.Text `json:"birth_country"`
-	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
-	IsActive            bool        `json:"is_active"`
-	HeadshotURL         string      `json:"headshot_url"`
-	HeroImageURL        pgtype.Text `json:"hero_image_url"`
-	YahooImageSmall     string      `json:"yahoo_image_small"`
-	YahooImageMedium    string      `json:"yahoo_image_medium"`
-	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeURL        string      `json:"yahoo_home_url"`
-	PlayerSlug          pgtype.Text `json:"player_slug"`
-	DraftYear           pgtype.Int4 `json:"draft_year"`
-	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
-	DraftRound          pgtype.Int4 `json:"draft_round"`
-	DraftPickInRound    pgtype.Int4 `json:"draft_pick_in_round"`
-	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
-	FirstNameNormalized string      `json:"first_name_normalized"`
-	LastNameNormalized  string      `json:"last_name_normalized"`
-	TeamCity            pgtype.Text `json:"team_city"`
-	TeamName            pgtype.Text `json:"team_name"`
-	TeamAbbrev          pgtype.Text `json:"team_abbrev"`
-}
-
-func (q *Queries) GetActivePlayers(ctx context.Context) ([]GetActivePlayersRow, error) {
+func (q *Queries) GetActivePlayers(ctx context.Context) ([]Player, error) {
 	rows, err := q.db.Query(ctx, getActivePlayers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetActivePlayersRow{}
+	items := []Player{}
 	for rows.Next() {
-		var i GetActivePlayersRow
+		var i Player
 		if err := rows.Scan(
 			&i.ID,
 			&i.YahooID,
@@ -140,9 +101,6 @@ func (q *Queries) GetActivePlayers(ctx context.Context) ([]GetActivePlayersRow, 
 			&i.DraftOverallPick,
 			&i.FirstNameNormalized,
 			&i.LastNameNormalized,
-			&i.TeamCity,
-			&i.TeamName,
-			&i.TeamAbbrev,
 		); err != nil {
 			return nil, err
 		}
@@ -155,56 +113,18 @@ func (q *Queries) GetActivePlayers(ctx context.Context) ([]GetActivePlayersRow, 
 }
 
 const getAllPlayers = `-- name: GetAllPlayers :many
-SELECT p.id, p.yahoo_id, p.first_name, p.last_name, p.nhl_team_id, p.position, p.shoots_catches, p.height_inches, p.weight_pounds, p.birth_date, p.birth_city, p.birth_state_province, p.birth_country, p.sweater_number, p.is_active, p.headshot_url, p.hero_image_url, p.yahoo_image_small, p.yahoo_image_medium, p.yahoo_image_large, p.yahoo_home_url, p.player_slug, p.draft_year, p.draft_team_abbrev, p.draft_round, p.draft_pick_in_round, p.draft_overall_pick, p.first_name_normalized, p.last_name_normalized, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-ORDER BY p.last_name, p.first_name
+SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players ORDER BY last_name, first_name
 `
 
-type GetAllPlayersRow struct {
-	ID                  int64       `json:"id"`
-	YahooID             pgtype.Int8 `json:"yahoo_id"`
-	FirstName           string      `json:"first_name"`
-	LastName            string      `json:"last_name"`
-	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
-	Position            string      `json:"position"`
-	ShootsCatches       string      `json:"shoots_catches"`
-	HeightInches        pgtype.Int4 `json:"height_inches"`
-	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
-	BirthDate           pgtype.Date `json:"birth_date"`
-	BirthCity           pgtype.Text `json:"birth_city"`
-	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
-	BirthCountry        pgtype.Text `json:"birth_country"`
-	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
-	IsActive            bool        `json:"is_active"`
-	HeadshotURL         string      `json:"headshot_url"`
-	HeroImageURL        pgtype.Text `json:"hero_image_url"`
-	YahooImageSmall     string      `json:"yahoo_image_small"`
-	YahooImageMedium    string      `json:"yahoo_image_medium"`
-	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeURL        string      `json:"yahoo_home_url"`
-	PlayerSlug          pgtype.Text `json:"player_slug"`
-	DraftYear           pgtype.Int4 `json:"draft_year"`
-	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
-	DraftRound          pgtype.Int4 `json:"draft_round"`
-	DraftPickInRound    pgtype.Int4 `json:"draft_pick_in_round"`
-	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
-	FirstNameNormalized string      `json:"first_name_normalized"`
-	LastNameNormalized  string      `json:"last_name_normalized"`
-	TeamCity            pgtype.Text `json:"team_city"`
-	TeamName            pgtype.Text `json:"team_name"`
-	TeamAbbrev          pgtype.Text `json:"team_abbrev"`
-}
-
-func (q *Queries) GetAllPlayers(ctx context.Context) ([]GetAllPlayersRow, error) {
+func (q *Queries) GetAllPlayers(ctx context.Context) ([]Player, error) {
 	rows, err := q.db.Query(ctx, getAllPlayers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetAllPlayersRow{}
+	items := []Player{}
 	for rows.Next() {
-		var i GetAllPlayersRow
+		var i Player
 		if err := rows.Scan(
 			&i.ID,
 			&i.YahooID,
@@ -235,9 +155,6 @@ func (q *Queries) GetAllPlayers(ctx context.Context) ([]GetAllPlayersRow, error)
 			&i.DraftOverallPick,
 			&i.FirstNameNormalized,
 			&i.LastNameNormalized,
-			&i.TeamCity,
-			&i.TeamName,
-			&i.TeamAbbrev,
 		); err != nil {
 			return nil, err
 		}
@@ -250,50 +167,12 @@ func (q *Queries) GetAllPlayers(ctx context.Context) ([]GetAllPlayersRow, error)
 }
 
 const getPlayer = `-- name: GetPlayer :one
-SELECT p.id, p.yahoo_id, p.first_name, p.last_name, p.nhl_team_id, p.position, p.shoots_catches, p.height_inches, p.weight_pounds, p.birth_date, p.birth_city, p.birth_state_province, p.birth_country, p.sweater_number, p.is_active, p.headshot_url, p.hero_image_url, p.yahoo_image_small, p.yahoo_image_medium, p.yahoo_image_large, p.yahoo_home_url, p.player_slug, p.draft_year, p.draft_team_abbrev, p.draft_round, p.draft_pick_in_round, p.draft_overall_pick, p.first_name_normalized, p.last_name_normalized, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.id = $1
+SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players WHERE id = $1
 `
 
-type GetPlayerRow struct {
-	ID                  int64       `json:"id"`
-	YahooID             pgtype.Int8 `json:"yahoo_id"`
-	FirstName           string      `json:"first_name"`
-	LastName            string      `json:"last_name"`
-	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
-	Position            string      `json:"position"`
-	ShootsCatches       string      `json:"shoots_catches"`
-	HeightInches        pgtype.Int4 `json:"height_inches"`
-	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
-	BirthDate           pgtype.Date `json:"birth_date"`
-	BirthCity           pgtype.Text `json:"birth_city"`
-	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
-	BirthCountry        pgtype.Text `json:"birth_country"`
-	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
-	IsActive            bool        `json:"is_active"`
-	HeadshotURL         string      `json:"headshot_url"`
-	HeroImageURL        pgtype.Text `json:"hero_image_url"`
-	YahooImageSmall     string      `json:"yahoo_image_small"`
-	YahooImageMedium    string      `json:"yahoo_image_medium"`
-	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeURL        string      `json:"yahoo_home_url"`
-	PlayerSlug          pgtype.Text `json:"player_slug"`
-	DraftYear           pgtype.Int4 `json:"draft_year"`
-	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
-	DraftRound          pgtype.Int4 `json:"draft_round"`
-	DraftPickInRound    pgtype.Int4 `json:"draft_pick_in_round"`
-	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
-	FirstNameNormalized string      `json:"first_name_normalized"`
-	LastNameNormalized  string      `json:"last_name_normalized"`
-	TeamCity            pgtype.Text `json:"team_city"`
-	TeamName            pgtype.Text `json:"team_name"`
-	TeamAbbrev          pgtype.Text `json:"team_abbrev"`
-}
-
-func (q *Queries) GetPlayer(ctx context.Context, id int64) (GetPlayerRow, error) {
+func (q *Queries) GetPlayer(ctx context.Context, id int64) (Player, error) {
 	row := q.db.QueryRow(ctx, getPlayer, id)
-	var i GetPlayerRow
+	var i Player
 	err := row.Scan(
 		&i.ID,
 		&i.YahooID,
@@ -324,58 +203,17 @@ func (q *Queries) GetPlayer(ctx context.Context, id int64) (GetPlayerRow, error)
 		&i.DraftOverallPick,
 		&i.FirstNameNormalized,
 		&i.LastNameNormalized,
-		&i.TeamCity,
-		&i.TeamName,
-		&i.TeamAbbrev,
 	)
 	return i, err
 }
 
 const getPlayerByYahooID = `-- name: GetPlayerByYahooID :one
-SELECT p.id, p.yahoo_id, p.first_name, p.last_name, p.nhl_team_id, p.position, p.shoots_catches, p.height_inches, p.weight_pounds, p.birth_date, p.birth_city, p.birth_state_province, p.birth_country, p.sweater_number, p.is_active, p.headshot_url, p.hero_image_url, p.yahoo_image_small, p.yahoo_image_medium, p.yahoo_image_large, p.yahoo_home_url, p.player_slug, p.draft_year, p.draft_team_abbrev, p.draft_round, p.draft_pick_in_round, p.draft_overall_pick, p.first_name_normalized, p.last_name_normalized, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.yahoo_id = $1
+SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players WHERE yahoo_id = $1
 `
 
-type GetPlayerByYahooIDRow struct {
-	ID                  int64       `json:"id"`
-	YahooID             pgtype.Int8 `json:"yahoo_id"`
-	FirstName           string      `json:"first_name"`
-	LastName            string      `json:"last_name"`
-	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
-	Position            string      `json:"position"`
-	ShootsCatches       string      `json:"shoots_catches"`
-	HeightInches        pgtype.Int4 `json:"height_inches"`
-	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
-	BirthDate           pgtype.Date `json:"birth_date"`
-	BirthCity           pgtype.Text `json:"birth_city"`
-	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
-	BirthCountry        pgtype.Text `json:"birth_country"`
-	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
-	IsActive            bool        `json:"is_active"`
-	HeadshotURL         string      `json:"headshot_url"`
-	HeroImageURL        pgtype.Text `json:"hero_image_url"`
-	YahooImageSmall     string      `json:"yahoo_image_small"`
-	YahooImageMedium    string      `json:"yahoo_image_medium"`
-	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeURL        string      `json:"yahoo_home_url"`
-	PlayerSlug          pgtype.Text `json:"player_slug"`
-	DraftYear           pgtype.Int4 `json:"draft_year"`
-	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
-	DraftRound          pgtype.Int4 `json:"draft_round"`
-	DraftPickInRound    pgtype.Int4 `json:"draft_pick_in_round"`
-	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
-	FirstNameNormalized string      `json:"first_name_normalized"`
-	LastNameNormalized  string      `json:"last_name_normalized"`
-	TeamCity            pgtype.Text `json:"team_city"`
-	TeamName            pgtype.Text `json:"team_name"`
-	TeamAbbrev          pgtype.Text `json:"team_abbrev"`
-}
-
-func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (GetPlayerByYahooIDRow, error) {
+func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (Player, error) {
 	row := q.db.QueryRow(ctx, getPlayerByYahooID, yahooID)
-	var i GetPlayerByYahooIDRow
+	var i Player
 	err := row.Scan(
 		&i.ID,
 		&i.YahooID,
@@ -406,65 +244,23 @@ func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (
 		&i.DraftOverallPick,
 		&i.FirstNameNormalized,
 		&i.LastNameNormalized,
-		&i.TeamCity,
-		&i.TeamName,
-		&i.TeamAbbrev,
 	)
 	return i, err
 }
 
 const getPlayersByPosition = `-- name: GetPlayersByPosition :many
-SELECT p.id, p.yahoo_id, p.first_name, p.last_name, p.nhl_team_id, p.position, p.shoots_catches, p.height_inches, p.weight_pounds, p.birth_date, p.birth_city, p.birth_state_province, p.birth_country, p.sweater_number, p.is_active, p.headshot_url, p.hero_image_url, p.yahoo_image_small, p.yahoo_image_medium, p.yahoo_image_large, p.yahoo_home_url, p.player_slug, p.draft_year, p.draft_team_abbrev, p.draft_round, p.draft_pick_in_round, p.draft_overall_pick, p.first_name_normalized, p.last_name_normalized, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.position = $1
-ORDER BY p.last_name, p.first_name
+SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players WHERE position = $1 ORDER BY last_name, first_name
 `
 
-type GetPlayersByPositionRow struct {
-	ID                  int64       `json:"id"`
-	YahooID             pgtype.Int8 `json:"yahoo_id"`
-	FirstName           string      `json:"first_name"`
-	LastName            string      `json:"last_name"`
-	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
-	Position            string      `json:"position"`
-	ShootsCatches       string      `json:"shoots_catches"`
-	HeightInches        pgtype.Int4 `json:"height_inches"`
-	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
-	BirthDate           pgtype.Date `json:"birth_date"`
-	BirthCity           pgtype.Text `json:"birth_city"`
-	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
-	BirthCountry        pgtype.Text `json:"birth_country"`
-	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
-	IsActive            bool        `json:"is_active"`
-	HeadshotURL         string      `json:"headshot_url"`
-	HeroImageURL        pgtype.Text `json:"hero_image_url"`
-	YahooImageSmall     string      `json:"yahoo_image_small"`
-	YahooImageMedium    string      `json:"yahoo_image_medium"`
-	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeURL        string      `json:"yahoo_home_url"`
-	PlayerSlug          pgtype.Text `json:"player_slug"`
-	DraftYear           pgtype.Int4 `json:"draft_year"`
-	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
-	DraftRound          pgtype.Int4 `json:"draft_round"`
-	DraftPickInRound    pgtype.Int4 `json:"draft_pick_in_round"`
-	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
-	FirstNameNormalized string      `json:"first_name_normalized"`
-	LastNameNormalized  string      `json:"last_name_normalized"`
-	TeamCity            pgtype.Text `json:"team_city"`
-	TeamName            pgtype.Text `json:"team_name"`
-	TeamAbbrev          pgtype.Text `json:"team_abbrev"`
-}
-
-func (q *Queries) GetPlayersByPosition(ctx context.Context, position string) ([]GetPlayersByPositionRow, error) {
+func (q *Queries) GetPlayersByPosition(ctx context.Context, position string) ([]Player, error) {
 	rows, err := q.db.Query(ctx, getPlayersByPosition, position)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetPlayersByPositionRow{}
+	items := []Player{}
 	for rows.Next() {
-		var i GetPlayersByPositionRow
+		var i Player
 		if err := rows.Scan(
 			&i.ID,
 			&i.YahooID,
@@ -495,9 +291,6 @@ func (q *Queries) GetPlayersByPosition(ctx context.Context, position string) ([]
 			&i.DraftOverallPick,
 			&i.FirstNameNormalized,
 			&i.LastNameNormalized,
-			&i.TeamCity,
-			&i.TeamName,
-			&i.TeamAbbrev,
 		); err != nil {
 			return nil, err
 		}
@@ -510,57 +303,18 @@ func (q *Queries) GetPlayersByPosition(ctx context.Context, position string) ([]
 }
 
 const getPlayersByTeam = `-- name: GetPlayersByTeam :many
-SELECT p.id, p.yahoo_id, p.first_name, p.last_name, p.nhl_team_id, p.position, p.shoots_catches, p.height_inches, p.weight_pounds, p.birth_date, p.birth_city, p.birth_state_province, p.birth_country, p.sweater_number, p.is_active, p.headshot_url, p.hero_image_url, p.yahoo_image_small, p.yahoo_image_medium, p.yahoo_image_large, p.yahoo_home_url, p.player_slug, p.draft_year, p.draft_team_abbrev, p.draft_round, p.draft_pick_in_round, p.draft_overall_pick, p.first_name_normalized, p.last_name_normalized, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.nhl_team_id = $1
-ORDER BY p.last_name, p.first_name
+SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players WHERE nhl_team_id = $1 ORDER BY last_name, first_name
 `
 
-type GetPlayersByTeamRow struct {
-	ID                  int64       `json:"id"`
-	YahooID             pgtype.Int8 `json:"yahoo_id"`
-	FirstName           string      `json:"first_name"`
-	LastName            string      `json:"last_name"`
-	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
-	Position            string      `json:"position"`
-	ShootsCatches       string      `json:"shoots_catches"`
-	HeightInches        pgtype.Int4 `json:"height_inches"`
-	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
-	BirthDate           pgtype.Date `json:"birth_date"`
-	BirthCity           pgtype.Text `json:"birth_city"`
-	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
-	BirthCountry        pgtype.Text `json:"birth_country"`
-	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
-	IsActive            bool        `json:"is_active"`
-	HeadshotURL         string      `json:"headshot_url"`
-	HeroImageURL        pgtype.Text `json:"hero_image_url"`
-	YahooImageSmall     string      `json:"yahoo_image_small"`
-	YahooImageMedium    string      `json:"yahoo_image_medium"`
-	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeURL        string      `json:"yahoo_home_url"`
-	PlayerSlug          pgtype.Text `json:"player_slug"`
-	DraftYear           pgtype.Int4 `json:"draft_year"`
-	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
-	DraftRound          pgtype.Int4 `json:"draft_round"`
-	DraftPickInRound    pgtype.Int4 `json:"draft_pick_in_round"`
-	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
-	FirstNameNormalized string      `json:"first_name_normalized"`
-	LastNameNormalized  string      `json:"last_name_normalized"`
-	TeamCity            pgtype.Text `json:"team_city"`
-	TeamName            pgtype.Text `json:"team_name"`
-	TeamAbbrev          pgtype.Text `json:"team_abbrev"`
-}
-
-func (q *Queries) GetPlayersByTeam(ctx context.Context, nhlTeamID pgtype.Int8) ([]GetPlayersByTeamRow, error) {
+func (q *Queries) GetPlayersByTeam(ctx context.Context, nhlTeamID pgtype.Int8) ([]Player, error) {
 	rows, err := q.db.Query(ctx, getPlayersByTeam, nhlTeamID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetPlayersByTeamRow{}
+	items := []Player{}
 	for rows.Next() {
-		var i GetPlayersByTeamRow
+		var i Player
 		if err := rows.Scan(
 			&i.ID,
 			&i.YahooID,
@@ -591,9 +345,6 @@ func (q *Queries) GetPlayersByTeam(ctx context.Context, nhlTeamID pgtype.Int8) (
 			&i.DraftOverallPick,
 			&i.FirstNameNormalized,
 			&i.LastNameNormalized,
-			&i.TeamCity,
-			&i.TeamName,
-			&i.TeamAbbrev,
 		); err != nil {
 			return nil, err
 		}
@@ -621,20 +372,18 @@ func (q *Queries) LinkYahooToNHLPlayer(ctx context.Context, arg LinkYahooToNHLPl
 }
 
 const listPlayers = `-- name: ListPlayers :many
-SELECT p.id, p.yahoo_id, p.first_name, p.last_name, p.nhl_team_id, p.position, p.shoots_catches, p.height_inches, p.weight_pounds, p.birth_date, p.birth_city, p.birth_state_province, p.birth_country, p.sweater_number, p.is_active, p.headshot_url, p.hero_image_url, p.yahoo_image_small, p.yahoo_image_medium, p.yahoo_image_large, p.yahoo_home_url, p.player_slug, p.draft_year, p.draft_team_abbrev, p.draft_round, p.draft_pick_in_round, p.draft_overall_pick, p.first_name_normalized, p.last_name_normalized, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
+SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players
 WHERE
     ($1::text IS NULL OR
-     p.first_name ILIKE '%' || $1 || '%' OR
-     p.last_name ILIKE '%' || $1 || '%')
-    AND ($2::int IS NULL OR p.sweater_number = $2)
+     first_name ILIKE '%' || $1 || '%' OR
+     last_name ILIKE '%' || $1 || '%')
+    AND ($2::int IS NULL OR sweater_number = $2)
     AND ($3::boolean IS NULL OR
-         (CASE WHEN $3 THEN p.yahoo_id IS NOT NULL ELSE p.yahoo_id IS NULL END))
-    AND ($4::bigint IS NULL OR p.nhl_team_id = $4)
-    AND ($5::text IS NULL OR p.position = $5)
-    AND ($6::boolean IS NULL OR p.is_active = $6)
-ORDER BY p.last_name, p.first_name
+         (CASE WHEN $3 THEN yahoo_id IS NOT NULL ELSE yahoo_id IS NULL END))
+    AND ($4::bigint IS NULL OR nhl_team_id = $4)
+    AND ($5::text IS NULL OR position = $5)
+    AND ($6::boolean IS NULL OR is_active = $6)
+ORDER BY last_name, first_name
 `
 
 type ListPlayersParams struct {
@@ -646,42 +395,7 @@ type ListPlayersParams struct {
 	IsActive      pgtype.Bool `json:"is_active"`
 }
 
-type ListPlayersRow struct {
-	ID                  int64       `json:"id"`
-	YahooID             pgtype.Int8 `json:"yahoo_id"`
-	FirstName           string      `json:"first_name"`
-	LastName            string      `json:"last_name"`
-	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
-	Position            string      `json:"position"`
-	ShootsCatches       string      `json:"shoots_catches"`
-	HeightInches        pgtype.Int4 `json:"height_inches"`
-	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
-	BirthDate           pgtype.Date `json:"birth_date"`
-	BirthCity           pgtype.Text `json:"birth_city"`
-	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
-	BirthCountry        pgtype.Text `json:"birth_country"`
-	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
-	IsActive            bool        `json:"is_active"`
-	HeadshotURL         string      `json:"headshot_url"`
-	HeroImageURL        pgtype.Text `json:"hero_image_url"`
-	YahooImageSmall     string      `json:"yahoo_image_small"`
-	YahooImageMedium    string      `json:"yahoo_image_medium"`
-	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeURL        string      `json:"yahoo_home_url"`
-	PlayerSlug          pgtype.Text `json:"player_slug"`
-	DraftYear           pgtype.Int4 `json:"draft_year"`
-	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
-	DraftRound          pgtype.Int4 `json:"draft_round"`
-	DraftPickInRound    pgtype.Int4 `json:"draft_pick_in_round"`
-	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
-	FirstNameNormalized string      `json:"first_name_normalized"`
-	LastNameNormalized  string      `json:"last_name_normalized"`
-	TeamCity            pgtype.Text `json:"team_city"`
-	TeamName            pgtype.Text `json:"team_name"`
-	TeamAbbrev          pgtype.Text `json:"team_abbrev"`
-}
-
-func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]ListPlayersRow, error) {
+func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Player, error) {
 	rows, err := q.db.Query(ctx, listPlayers,
 		arg.Name,
 		arg.SweaterNumber,
@@ -694,9 +408,9 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Lis
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListPlayersRow{}
+	items := []Player{}
 	for rows.Next() {
-		var i ListPlayersRow
+		var i Player
 		if err := rows.Scan(
 			&i.ID,
 			&i.YahooID,
@@ -727,9 +441,6 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Lis
 			&i.DraftOverallPick,
 			&i.FirstNameNormalized,
 			&i.LastNameNormalized,
-			&i.TeamCity,
-			&i.TeamName,
-			&i.TeamAbbrev,
 		); err != nil {
 			return nil, err
 		}
@@ -742,60 +453,23 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Lis
 }
 
 const searchPlayersByName = `-- name: SearchPlayersByName :many
-SELECT p.id, p.yahoo_id, p.first_name, p.last_name, p.nhl_team_id, p.position, p.shoots_catches, p.height_inches, p.weight_pounds, p.birth_date, p.birth_city, p.birth_state_province, p.birth_country, p.sweater_number, p.is_active, p.headshot_url, p.hero_image_url, p.yahoo_image_small, p.yahoo_image_medium, p.yahoo_image_large, p.yahoo_home_url, p.player_slug, p.draft_year, p.draft_team_abbrev, p.draft_round, p.draft_pick_in_round, p.draft_overall_pick, p.first_name_normalized, p.last_name_normalized, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.last_name_normalized LIKE $1 OR p.first_name_normalized LIKE $1
-   OR p.last_name ILIKE $1 OR p.first_name ILIKE $1
-ORDER BY p.last_name, p.first_name
+SELECT id, yahoo_id, first_name, last_name, nhl_team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick, first_name_normalized, last_name_normalized FROM players
+WHERE last_name_normalized LIKE $1 OR first_name_normalized LIKE $1
+   OR last_name ILIKE $1 OR first_name ILIKE $1
+ORDER BY last_name, first_name
 LIMIT 50
 `
 
-type SearchPlayersByNameRow struct {
-	ID                  int64       `json:"id"`
-	YahooID             pgtype.Int8 `json:"yahoo_id"`
-	FirstName           string      `json:"first_name"`
-	LastName            string      `json:"last_name"`
-	NHLTeamID           pgtype.Int8 `json:"nhl_team_id"`
-	Position            string      `json:"position"`
-	ShootsCatches       string      `json:"shoots_catches"`
-	HeightInches        pgtype.Int4 `json:"height_inches"`
-	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
-	BirthDate           pgtype.Date `json:"birth_date"`
-	BirthCity           pgtype.Text `json:"birth_city"`
-	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
-	BirthCountry        pgtype.Text `json:"birth_country"`
-	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
-	IsActive            bool        `json:"is_active"`
-	HeadshotURL         string      `json:"headshot_url"`
-	HeroImageURL        pgtype.Text `json:"hero_image_url"`
-	YahooImageSmall     string      `json:"yahoo_image_small"`
-	YahooImageMedium    string      `json:"yahoo_image_medium"`
-	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeURL        string      `json:"yahoo_home_url"`
-	PlayerSlug          pgtype.Text `json:"player_slug"`
-	DraftYear           pgtype.Int4 `json:"draft_year"`
-	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
-	DraftRound          pgtype.Int4 `json:"draft_round"`
-	DraftPickInRound    pgtype.Int4 `json:"draft_pick_in_round"`
-	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
-	FirstNameNormalized string      `json:"first_name_normalized"`
-	LastNameNormalized  string      `json:"last_name_normalized"`
-	TeamCity            pgtype.Text `json:"team_city"`
-	TeamName            pgtype.Text `json:"team_name"`
-	TeamAbbrev          pgtype.Text `json:"team_abbrev"`
-}
-
 // Search by name using normalized columns for accent-insensitive matching
-func (q *Queries) SearchPlayersByName(ctx context.Context, lastNameNormalized string) ([]SearchPlayersByNameRow, error) {
+func (q *Queries) SearchPlayersByName(ctx context.Context, lastNameNormalized string) ([]Player, error) {
 	rows, err := q.db.Query(ctx, searchPlayersByName, lastNameNormalized)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []SearchPlayersByNameRow{}
+	items := []Player{}
 	for rows.Next() {
-		var i SearchPlayersByNameRow
+		var i Player
 		if err := rows.Scan(
 			&i.ID,
 			&i.YahooID,
@@ -826,9 +500,6 @@ func (q *Queries) SearchPlayersByName(ctx context.Context, lastNameNormalized st
 			&i.DraftOverallPick,
 			&i.FirstNameNormalized,
 			&i.LastNameNormalized,
-			&i.TeamCity,
-			&i.TeamName,
-			&i.TeamAbbrev,
 		); err != nil {
 			return nil, err
 		}

@@ -11,14 +11,12 @@ import (
 	"github.com/sperano/puckdb/redis"
 )
 
-// BoxscoreExtractionResult contains all data extracted from boxscores for a season.
+// BoxscoreExtractionResult contains player IDs extracted from boxscores for a season.
 type BoxscoreExtractionResult struct {
-	PlayerIDs []int64         `json:"playerIds"`
-	Teams     []ExtractedTeam `json:"teams"`
+	PlayerIDs []int64 `json:"playerIds"`
 }
 
-// ExtractBoxscoreDataForSeasonActivity extracts player IDs and teams from all boxscores for a season.
-// This unified activity replaces separate player/team extraction, parsing each boxscore file once.
+// ExtractBoxscoreDataForSeasonActivity extracts player IDs from all boxscores for a season.
 func ExtractBoxscoreDataForSeasonActivity(ctx context.Context, season SeasonInfo) (BoxscoreExtractionResult, error) {
 	return extractBoxscoreDataForSeasonImpl(ctx, cache.NewSimpleCache(), redis.NewClient(), season)
 }
@@ -30,7 +28,6 @@ func extractBoxscoreDataForSeasonImpl(
 	season SeasonInfo,
 ) (BoxscoreExtractionResult, error) {
 	playerIDs := make(map[int64]struct{})
-	teams := make(map[int64]ExtractedTeam)
 
 	end := season.EndDate
 	if end.After(time.Now()) {
@@ -45,7 +42,7 @@ func extractBoxscoreDataForSeasonImpl(
 		default:
 		}
 
-		dayPlayerIDs, dayTeams, err := extractBoxscoreDataForDay(ctx, fs, redisClient, day)
+		dayPlayerIDs, err := extractPlayerIDsForDay(ctx, fs, redisClient, day)
 		if err != nil {
 			log.Debug().Err(err).Time("day", day).Msg("Failed to extract boxscore data for day")
 			continue
@@ -54,9 +51,6 @@ func extractBoxscoreDataForSeasonImpl(
 		for _, id := range dayPlayerIDs {
 			playerIDs[id] = struct{}{}
 		}
-		for id, team := range dayTeams {
-			teams[id] = team
-		}
 
 		dayCount++
 		if dayCount%30 == 0 {
@@ -64,54 +58,45 @@ func extractBoxscoreDataForSeasonImpl(
 				Int("season", season.StartYear).
 				Int("days_processed", dayCount).
 				Int("unique_players", len(playerIDs)).
-				Int("unique_teams", len(teams)).
 				Msg("Season extraction progress")
 		}
 	}
 
-	// Convert maps to slices
+	// Convert map to slice
 	playerIDSlice := make([]int64, 0, len(playerIDs))
 	for id := range playerIDs {
 		playerIDSlice = append(playerIDSlice, id)
-	}
-
-	teamSlice := make([]ExtractedTeam, 0, len(teams))
-	for _, team := range teams {
-		teamSlice = append(teamSlice, team)
 	}
 
 	log.Info().
 		Int("season", season.StartYear).
 		Int("days_processed", dayCount).
 		Int("unique_players", len(playerIDSlice)).
-		Int("unique_teams", len(teamSlice)).
 		Msg("Season extraction complete")
 
 	return BoxscoreExtractionResult{
 		PlayerIDs: playerIDSlice,
-		Teams:     teamSlice,
 	}, nil
 }
 
-// extractBoxscoreDataForDay extracts player IDs and teams from all boxscores for a single day.
-func extractBoxscoreDataForDay(
+// extractPlayerIDsForDay extracts player IDs from all boxscores for a single day.
+func extractPlayerIDsForDay(
 	ctx context.Context,
 	fs cache.FileSystem,
 	redisClient redis.Client,
 	day time.Time,
-) ([]int64, map[int64]ExtractedTeam, error) {
+) ([]int64, error) {
 	boxscoreFiles, err := getBoxscoreFilesForDay(ctx, fs, redisClient, day)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var playerIDs []int64
-	teams := make(map[int64]ExtractedTeam)
 
 	for _, file := range boxscoreFiles {
 		select {
 		case <-ctx.Done():
-			return nil, nil, ctx.Err()
+			return nil, ctx.Err()
 		default:
 		}
 
@@ -132,13 +117,24 @@ func extractBoxscoreDataForDay(
 		// Extract player IDs from both teams
 		playerIDs = append(playerIDs, extractTeamPlayerIDs(&boxscore.PlayerByGameStats.HomeTeam)...)
 		playerIDs = append(playerIDs, extractTeamPlayerIDs(&boxscore.PlayerByGameStats.AwayTeam)...)
-
-		// Extract team metadata from both teams
-		homeTeam := extractTeamFromBoxscore(&boxscore.HomeTeam)
-		awayTeam := extractTeamFromBoxscore(&boxscore.AwayTeam)
-		teams[homeTeam.ID] = homeTeam
-		teams[awayTeam.ID] = awayTeam
 	}
 
-	return playerIDs, teams, nil
+	return playerIDs, nil
+}
+
+// extractTeamPlayerIDs extracts all player IDs from a team's player stats.
+func extractTeamPlayerIDs(stats *nhl.TeamPlayerStats) []int64 {
+	var ids []int64
+
+	for _, s := range stats.Forwards {
+		ids = append(ids, s.PlayerID.AsInt64())
+	}
+	for _, s := range stats.Defense {
+		ids = append(ids, s.PlayerID.AsInt64())
+	}
+	for _, g := range stats.Goalies {
+		ids = append(ids, g.PlayerID.AsInt64())
+	}
+
+	return ids
 }

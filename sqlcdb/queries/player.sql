@@ -1,67 +1,42 @@
 -- name: GetPlayer :one
-SELECT p.*, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.id = $1;
+SELECT * FROM players WHERE id = $1;
 
 -- name: GetPlayerByYahooID :one
-SELECT p.*, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.yahoo_id = $1;
+SELECT * FROM players WHERE yahoo_id = $1;
 
 -- name: GetAllPlayers :many
-SELECT p.*, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-ORDER BY p.last_name, p.first_name;
+SELECT * FROM players ORDER BY last_name, first_name;
 
 -- name: GetActivePlayers :many
-SELECT p.*, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.is_active = TRUE
-ORDER BY p.last_name, p.first_name;
+SELECT * FROM players WHERE is_active = TRUE ORDER BY last_name, first_name;
 
 -- name: GetPlayersByTeam :many
-SELECT p.*, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.nhl_team_id = $1
-ORDER BY p.last_name, p.first_name;
+SELECT * FROM players WHERE nhl_team_id = $1 ORDER BY last_name, first_name;
 
 -- name: GetPlayersByPosition :many
-SELECT p.*, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.position = $1
-ORDER BY p.last_name, p.first_name;
+SELECT * FROM players WHERE position = $1 ORDER BY last_name, first_name;
 
 -- name: SearchPlayersByName :many
 -- Search by name using normalized columns for accent-insensitive matching
-SELECT p.*, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
-WHERE p.last_name_normalized LIKE $1 OR p.first_name_normalized LIKE $1
-   OR p.last_name ILIKE $1 OR p.first_name ILIKE $1
-ORDER BY p.last_name, p.first_name
+SELECT * FROM players
+WHERE last_name_normalized LIKE $1 OR first_name_normalized LIKE $1
+   OR last_name ILIKE $1 OR first_name ILIKE $1
+ORDER BY last_name, first_name
 LIMIT 50;
 
 -- name: ListPlayers :many
-SELECT p.*, t.city as team_city, t.name as team_name, t.abbreviation as team_abbrev
-FROM players p
-LEFT JOIN nhl_teams t ON p.nhl_team_id = t.id
+SELECT * FROM players
 WHERE
     (sqlc.narg('name')::text IS NULL OR
-     p.first_name ILIKE '%' || sqlc.narg('name') || '%' OR
-     p.last_name ILIKE '%' || sqlc.narg('name') || '%')
-    AND (sqlc.narg('sweater_number')::int IS NULL OR p.sweater_number = sqlc.narg('sweater_number'))
+     first_name ILIKE '%' || sqlc.narg('name') || '%' OR
+     last_name ILIKE '%' || sqlc.narg('name') || '%')
+    AND (sqlc.narg('sweater_number')::int IS NULL OR sweater_number = sqlc.narg('sweater_number'))
     AND (sqlc.narg('has_yahoo_id')::boolean IS NULL OR
-         (CASE WHEN sqlc.narg('has_yahoo_id') THEN p.yahoo_id IS NOT NULL ELSE p.yahoo_id IS NULL END))
-    AND (sqlc.narg('team_id')::bigint IS NULL OR p.nhl_team_id = sqlc.narg('team_id'))
-    AND (sqlc.narg('position')::text IS NULL OR p.position = sqlc.narg('position'))
-    AND (sqlc.narg('is_active')::boolean IS NULL OR p.is_active = sqlc.narg('is_active'))
-ORDER BY p.last_name, p.first_name;
+         (CASE WHEN sqlc.narg('has_yahoo_id') THEN yahoo_id IS NOT NULL ELSE yahoo_id IS NULL END))
+    AND (sqlc.narg('team_id')::bigint IS NULL OR nhl_team_id = sqlc.narg('team_id'))
+    AND (sqlc.narg('position')::text IS NULL OR position = sqlc.narg('position'))
+    AND (sqlc.narg('is_active')::boolean IS NULL OR is_active = sqlc.narg('is_active'))
+ORDER BY last_name, first_name;
 
 -- name: UpsertPlayer :exec
 INSERT INTO players (

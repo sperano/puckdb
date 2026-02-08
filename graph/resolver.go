@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"time"
 
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
@@ -15,6 +14,8 @@ import (
 	temporalEnums "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 )
+
+// Imports are managed by goimports
 
 type Resolver struct {
 	TemporalClient client.Client
@@ -36,32 +37,23 @@ func clearDatabase(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	_, err = createDatabase(ctx)
-	if err != nil {
-		return false, err
-	}
-	return initDatabase(ctx)
+	return createDatabase(ctx)
 }
 
 func dropDatabase(ctx context.Context) (bool, error) {
-	db := database.FromContext(ctx)
-	if err := database.DropEverything(db); err != nil {
+	pool, err := database.OpenPGXPool(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer pool.Close()
+	if err := database.DropEverything(ctx, pool); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func createDatabase(ctx context.Context) (bool, error) {
-	db := database.FromContext(ctx)
-	if err := database.DoMigration(db); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-func initDatabase(ctx context.Context) (bool, error) {
-	q := database.QueriesFromContext(ctx)
-	if err := database.EnsureNHLWithSQLC(ctx, q); err != nil {
+func createDatabase(_ context.Context) (bool, error) {
+	if err := database.DoMigration(); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -74,58 +66,6 @@ func flushRedisDB(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	return true, nil
-}
-
-// Divisions is the resolver for the divisions field.
-func divisions(ctx context.Context, obj *model.NHLConference) ([]*model.NHLDivision, error) {
-	q := database.QueriesFromContext(ctx)
-	divs, err := q.GetNHLDivisionsByConference(ctx, int64(obj.ID))
-	if err != nil {
-		return nil, err
-	}
-	gqlDivs := make([]*model.NHLDivision, len(divs))
-	for i, d := range divs {
-		gqlDivs[i] = &model.NHLDivision{
-			ID:   int(d.ID),
-			Name: d.Name,
-			Conference: &model.NHLConference{
-				ID:   int(d.ConfID),
-				Name: d.ConfName,
-			},
-		}
-	}
-	return gqlDivs, nil
-}
-
-// Teams is the resolver for the teams field.
-func teams(ctx context.Context, obj *model.NHLDivision) ([]*model.NHLTeam, error) {
-	q := database.QueriesFromContext(ctx)
-	teams, err := q.GetNHLTeamsByDivision(ctx, int64(obj.ID))
-	if err != nil {
-		return nil, err
-	}
-	gqlTeams := make([]*model.NHLTeam, len(teams))
-	for i, t := range teams {
-		gqlTeams[i] = &model.NHLTeam{
-			ID:            int(t.ID),
-			City:          t.City,
-			Name:          t.Name,
-			Abbreviation:  t.Abbreviation,
-			NHLHomeLink:   t.NHLHomeLink,
-			YahooHomeLink: t.YahooHomeLink,
-			SmallLogoURL:  t.SmallLogoURL,
-			LargeLogoURL:  t.LargeLogoURL,
-			Division: &model.NHLDivision{
-				ID:   int(t.DivID),
-				Name: t.DivName,
-				Conference: &model.NHLConference{
-					ID:   int(t.ConfID),
-					Name: t.ConfName,
-				},
-			},
-		}
-	}
-	return gqlTeams, nil
 }
 
 func currentFantasyGameKey(_ context.Context) (int, error) {
@@ -150,26 +90,6 @@ func (r *Resolver) downloadSeasons(ctx context.Context, input *model.DownloadSea
 
 func (r *Resolver) cancelDownloadSeasons(ctx context.Context) (bool, error) {
 	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDDownloadSeasons, ""); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-func (r *Resolver) downloadDay(ctx context.Context, input model.DownloadDayInput) (bool, error) {
-	day, err := time.Parse(config.DateFormat, input.Day)
-	if err != nil {
-		return false, err
-	}
-
-	workflowID := worker.WorkflowIDDownloadDay(input.Season, day)
-	opts := workflowOptions(workflowID)
-
-	workerInput := &worker.DownloadDayWorkflowInput{
-		Day:       day,
-		StartYear: input.Season,
-	}
-
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.DownloadDayWorkflow, workerInput); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -307,6 +227,44 @@ func (r *Resolver) importSeasonsResult(ctx context.Context) (*model.WorkflowResu
 
 func (r *Resolver) importSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
 	return r.queryWorkflowProgress(ctx, worker.WorkflowIDImportSeasons)
+}
+
+func (r *Resolver) initialize(ctx context.Context) (bool, error) {
+	opts := workflowOptions(worker.WorkflowIDInitialize)
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.InitializeWorkflow); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) cancelInitialize(ctx context.Context) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDInitialize, ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) initializeResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, worker.WorkflowIDInitialize)
+}
+
+func (r *Resolver) initializeProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDInitialize)
+}
+
+func (r *Resolver) initializeResultData(ctx context.Context) (*model.InitializeResultData, error) {
+	run := r.TemporalClient.GetWorkflow(ctx, worker.WorkflowIDInitialize, "")
+
+	var result worker.InitializeResult
+	if err := run.Get(ctx, &result); err != nil {
+		return nil, err
+	}
+
+	return &model.InitializeResultData{
+		FranchisesUpserted:  result.FranchisesUpserted,
+		SeasonsUpserted:     result.SeasonsUpserted,
+		SeasonTeamsUpserted: result.SeasonTeamsUpserted,
+	}, nil
 }
 
 func (r *Resolver) downloadEverythingResult(ctx context.Context) (*model.WorkflowResult, error) {

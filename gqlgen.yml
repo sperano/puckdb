@@ -65,17 +65,6 @@ models:
     model:
       - github.com/99designs/gqlgen/graphql.Int64
 
-  NHLConference:
-    fields:
-      divisions:
-        resolver: true
-
-  NHLDivision:
-    fields:
-      teams:
-        resolver: true
-
-
   Season:
     fields:
       leagues:
