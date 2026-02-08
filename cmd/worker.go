@@ -116,6 +116,7 @@ func cmdWorker() *cobra.Command {
 			w.RegisterWorkflow(workers.DownloadYahooPlayersWorkflow)
 			w.RegisterWorkflow(workers.DownloadPlayersWorkflow)
 			w.RegisterWorkflow(workers.DownloadPlayersWorkflowContinue)
+			w.RegisterWorkflow(workers.ImportNHLTeamsAndPlayersWorkflow)
 			w.RegisterWorkflow(workers.ImportPlayersWorkflow)
 			w.RegisterWorkflow(workers.ImportSeasonsWorkflow)
 
@@ -124,6 +125,10 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.ExtractTeamsForSeasonsActivity)
 			w.RegisterActivity(workers.UpsertMissingTeamsActivity)
 
+			// Combined boxscore extraction (replaces separate player/team extraction)
+			w.RegisterActivity(workers.ExtractBoxscoreDataForSeasonActivity)
+
+			// Deprecated: Use ExtractBoxscoreDataForSeasonActivity instead
 			w.RegisterActivity(workers.ExtractPlayerIDsForSeasonActivity)
 			w.RegisterActivity(workers.DownloadPlayerLandingBatchActivity)
 			w.RegisterActivity(workers.MergePlayerBatchesFromRedisActivity)

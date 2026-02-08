@@ -10,6 +10,7 @@ const (
 	DefaultTemporalNamespace = "puckdb"
 	DefaultUser              = "eric"
 	DefaultLogLevel          = "info"
+	DefaultImportLogLevel    = "error"
 	DefaultYahooSeasonsFile  = "yahoo-seasons.yaml"
 )
 

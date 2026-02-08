@@ -12,6 +12,9 @@ import (
 )
 
 // ExtractPlayerIDsForSeasonActivity extracts all unique player IDs from boxscores for a season.
+//
+// Deprecated: Use ExtractBoxscoreDataForSeasonActivity instead, which extracts both player IDs
+// and teams in a single pass through the boxscore files.
 func ExtractPlayerIDsForSeasonActivity(ctx context.Context, season SeasonInfo) ([]int64, error) {
 	return extractPlayerIDsForSeasonImpl(ctx, cache.NewSimpleCache(), redis.NewClient(), season)
 }

@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"sort"
 	"time"
 
 	"github.com/sperano/puckdb/config"
@@ -56,70 +55,41 @@ func downloadPlayersWorkflowImpl(ctx workflow.Context, input *downloadPlayersInt
 	return runPhase2DownloadLandings(ctx, input)
 }
 
-// runPhase1ExtractPlayerIDs extracts all unique player IDs from boxscores.
+// runPhase1ExtractPlayerIDs extracts all unique player IDs from boxscores by calling
+// ImportNHLTeamsAndPlayersWorkflow as a child workflow.
 func runPhase1ExtractPlayerIDs(ctx workflow.Context, input *downloadPlayersInternalInput) error {
 	logger := workflow.GetLogger(ctx)
-	maxConcurrency := viper.GetInt(config.FlagMaxSeasonConcurrency)
-	if maxConcurrency <= 0 {
-		maxConcurrency = config.DefaultMaxSeasonConcurrency
-	}
 
-	concurrency := config.DefaultSeasonConcurrency
-	if input.SeasonConcurrency != nil && *input.SeasonConcurrency > 0 {
-		concurrency = *input.SeasonConcurrency
-	}
-	if concurrency > maxConcurrency {
-		logger.Warn("Requested concurrency exceeds maximum, capping",
-			"requested", concurrency,
-			"max", maxConcurrency)
-		concurrency = maxConcurrency
-	}
-
-	logger.Info("DownloadPlayersWorkflow Phase 1: extracting player IDs",
+	logger.Info("DownloadPlayersWorkflow Phase 1: extracting player IDs via child workflow",
 		"startSeason", input.StartSeason,
-		"endSeason", input.EndSeason,
-		"concurrency", concurrency)
+		"endSeason", input.EndSeason)
 
-	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-
-	// Fetch seasons
-	modelInput := &model.DownloadSeasonsInput{
+	// Execute ImportNHLTeamsAndPlayersWorkflow as a child workflow
+	// This extracts both teams and player IDs, upserts teams, and returns player IDs
+	childInput := &model.DownloadSeasonsInput{
 		StartSeason:       input.StartSeason,
 		EndSeason:         input.EndSeason,
 		SeasonConcurrency: input.SeasonConcurrency,
 	}
-	var seasons []SeasonInfo
-	if err := workflow.ExecuteActivity(ctx, FetchSeasonsDataActivity, modelInput).Get(ctx, &seasons); err != nil {
+
+	childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+		WorkflowID: WorkflowIDImportNHLTeamsAndPlayers,
+	})
+
+	var result *ImportTeamsAndPlayersResult
+	if err := workflow.ExecuteChildWorkflow(childCtx, ImportNHLTeamsAndPlayersWorkflow, childInput).Get(ctx, &result); err != nil {
 		return err
 	}
-
-	tracker := NewProgressTracker(len(seasons))
-	tracker.SetMessage("Collecting players from seasons")
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
-		return err
-	}
-
-	// Extract player IDs from all seasons
-	allPlayerIDs, err := extractPlayerIDsWithConcurrency(ctx, tracker, seasons, concurrency)
-	if err != nil {
-		return err
-	}
-
-	// Convert map to sorted slice for determinism
-	playerIDSlice := make([]int64, 0, len(allPlayerIDs))
-	for id := range allPlayerIDs {
-		playerIDSlice = append(playerIDSlice, id)
-	}
-	sort.Slice(playerIDSlice, func(i, j int) bool { return playerIDSlice[i] < playerIDSlice[j] })
 
 	logger.Info("Phase 1 complete, transitioning to Phase 2",
-		"seasons_processed", len(seasons),
-		"total_unique_players", len(playerIDSlice))
+		"total_unique_players", len(result.PlayerIDs),
+		"teams_inserted", result.TeamsInserted,
+		"teams_skipped", result.TeamsSkipped)
 
 	// ContinueAsNew into Phase 2
 	return workflow.NewContinueAsNewError(ctx, DownloadPlayersWorkflowContinue,
 		&downloadPlayersInternalInput{
-			PlayerIDs:      playerIDSlice,
+			PlayerIDs:      result.PlayerIDs,
 			StartIndex:     0,
 			TotalCompleted: 0,
 			Phase:          phaseDownloadPlayerLandings,
@@ -217,82 +187,3 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 	return nil
 }
 
-// extractPlayerIDsWithConcurrency processes seasons with bounded concurrency,
-// collecting player IDs from each and merging into a single set.
-func extractPlayerIDsWithConcurrency(
-	ctx workflow.Context,
-	tracker *ProgressTracker,
-	seasons []SeasonInfo,
-	concurrency int,
-) (map[int64]struct{}, error) {
-	if len(seasons) == 0 {
-		return make(map[int64]struct{}), nil
-	}
-
-	logger := workflow.GetLogger(ctx)
-	allPlayerIDs := make(map[int64]struct{})
-
-	// Track active futures
-	type activeWork struct {
-		season SeasonInfo
-		future workflow.Future
-	}
-	active := make(map[int]*activeWork)
-	nextIdx := 0
-
-	// Start initial batch
-	for i := 0; i < concurrency && nextIdx < len(seasons); i++ {
-		season := seasons[nextIdx]
-		future := workflow.ExecuteActivity(ctx, ExtractPlayerIDsForSeasonActivity, season)
-		active[nextIdx] = &activeWork{season: season, future: future}
-		nextIdx++
-	}
-
-	var firstErr error
-
-	// Process until all work is done
-	for len(active) > 0 {
-		selector := workflow.NewSelector(ctx)
-
-		for idx, work := range active {
-			capturedIdx := idx
-			capturedWork := work
-			selector.AddFuture(capturedWork.future, func(f workflow.Future) {
-				var playerIDs []int64
-				if err := f.Get(ctx, &playerIDs); err != nil && firstErr == nil {
-					firstErr = err
-					return
-				}
-
-				// Merge player IDs into the combined set
-				for _, id := range playerIDs {
-					allPlayerIDs[id] = struct{}{}
-				}
-
-				logger.Info("Season extraction complete",
-					"startYear", capturedWork.season.StartYear,
-					"players_found", len(playerIDs),
-					"total_unique", len(allPlayerIDs))
-
-				tracker.Increment()
-				delete(active, capturedIdx)
-
-				// Start next season if available
-				if nextIdx < len(seasons) {
-					season := seasons[nextIdx]
-					future := workflow.ExecuteActivity(ctx, ExtractPlayerIDsForSeasonActivity, season)
-					active[nextIdx] = &activeWork{season: season, future: future}
-					nextIdx++
-				}
-			})
-		}
-
-		selector.Select(ctx)
-
-		if firstErr != nil {
-			return nil, firstErr
-		}
-	}
-
-	return allPlayerIDs, nil
-}

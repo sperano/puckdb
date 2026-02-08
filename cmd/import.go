@@ -21,11 +21,42 @@ func cmdImport() *cobra.Command {
 		Use:   "import",
 		Short: "Import data into the database",
 		Long:  `Trigger import workflows via GraphQL API and monitor until completion.`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Apply import-specific log level default if user didn't explicitly set it
+			logLevelChanged := cmd.Flags().Changed(config.FlagLogLevel)
+			if err := importInit(cmd, logLevelChanged); err != nil {
+				return err
+			}
+			return nil
+		},
+		RunE: runImport,
 	}
 	config.InitAPIServerAddrFlag(cmd.PersistentFlags())
-	cmd.AddCommand(cmdImportPlayers())
-	cmd.AddCommand(cmdImportSeasons())
 	return cmd
+}
+
+func importInit(cmd *cobra.Command, logLevelChanged bool) error {
+	flags := cmd.Flags()
+	if err := viper.BindPFlag(config.FlagLogLevel, flags.Lookup(config.FlagLogLevel)); err != nil {
+		return err
+	}
+	BindFlags(cmd.PersistentFlags())
+	BindFlags(cmd.Flags())
+
+	// Apply import-specific log level default before setting level
+	if !logLevelChanged {
+		viper.Set(config.FlagLogLevel, config.DefaultImportLogLevel)
+	}
+	config.SetLogLevel()
+	config.LogIntro() // Will be filtered by log level if error or above
+	return nil
+}
+
+func runImport(cmd *cobra.Command, _ []string) error {
+	fmt.Printf("PuckDB - Import - %s\n", config.BuildNumber)
+	//log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
+	//fmt.Fprintln(cmd.OutOrStdout(), "Please specify a subcommand (e.g. 'players' or 'seasons').")
+	return nil
 }
 
 func cmdImportPlayers() *cobra.Command {

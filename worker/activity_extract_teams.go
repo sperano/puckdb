@@ -25,6 +25,9 @@ type ExtractTeamsForSeasonsInput struct {
 }
 
 // ExtractTeamsForSeasonsActivity extracts all unique teams from boxscores across multiple seasons.
+//
+// Deprecated: Use ExtractBoxscoreDataForSeasonActivity instead, which extracts both player IDs
+// and teams in a single pass through the boxscore files with season-level concurrency.
 func ExtractTeamsForSeasonsActivity(ctx context.Context, input ExtractTeamsForSeasonsInput) ([]ExtractedTeam, error) {
 	fs := cache.NewSimpleCache()
 	redisClient := redis.NewClient()
