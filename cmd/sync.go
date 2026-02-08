@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
@@ -81,7 +82,8 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 }
 
 func runSync(cmd *cobra.Command, args []string) error {
-	fmt.Printf("PuckDB Sync - %s\n", config.BuildNumber)
+	start := time.Now()
+	fmt.Printf("PuckDB Sync - %s\n\n", config.BuildNumber)
 	apiAddr := viper.GetString(config.FlagAPIServerAddr)
 	if apiAddr == "" {
 		return fmt.Errorf("api-server-addr is required")
@@ -108,19 +110,20 @@ func runSync(cmd *cobra.Command, args []string) error {
 	if err := runInitialize(ctx, out, client, state); err != nil {
 		return fmt.Errorf("initialization failed: %w", err)
 	}
-	if ctx.Err() != nil {
-		return fmt.Errorf("workflow canceled by user")
-	}
+	//if ctx.Err() != nil {
+	//	return fmt.Errorf("workflow canceled by user")
+	//}
 
 	// Step 2: Download Yahoo player pages (unless skipped)
 	if !viper.GetBool(config.FlagSkipYahooPlayers) {
 		if err := runDownloadYahooPlayer(ctx, out, client, state); err != nil {
-			return err
+			return fmt.Errorf("downloading Yahoo! players failed: %w", err)
 		}
 	} else {
 		fmt.Println("Skipping Yahoo players download")
 	}
 
+	fmt.Printf("\nSync completed in %.1fs\n", time.Since(start).Seconds())
 	return nil
 }
 
@@ -231,8 +234,6 @@ func (s *syncState) cancel() {
 	fmt.Printf("\nCanceling %s workflow...\n", info.name)
 	if _, err := info.fn(cancelCtx); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to cancel %s workflow\n", info.name)
-	} else {
-		fmt.Printf("%s workflow canceled\n", info.name)
 	}
 }
 

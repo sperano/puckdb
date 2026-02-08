@@ -118,16 +118,13 @@ func (s *spinner) Stop() {
 	})
 }
 
-// Cancel stops the spinner and clears without printing the final message.
+// Cancel stops the spinner without clearing or printing.
 // Use this when the operation was interrupted rather than completed.
+// Leaves the current display as-is.
 func (s *spinner) Cancel() {
 	s.once.Do(func() {
 		close(s.stop)
 		<-s.done
-
-		s.mu.Lock()
-		s.clearLines()
-		s.mu.Unlock()
 
 		// Show cursor
 		fmt.Fprint(s.writer, "\033[?25h")
