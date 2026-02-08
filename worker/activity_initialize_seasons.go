@@ -111,7 +111,10 @@ func downloadSeasonStandingsImpl(
 	}
 
 	// Fetch from API
-	season := nhl.NewSeason(seasonID)
+	season, err := nhl.SeasonFromInt(seasonID)
+	if err != nil {
+		return DownloadSeasonStandingsResult{SeasonID: seasonID}, fmt.Errorf("parse season ID %d: %w", seasonID, err)
+	}
 	standings, err := client.LeagueStandingsForSeason(ctx, season)
 	if err != nil {
 		metrics.IncDownload(cache.FileTypeSeasonStandings, "error")
