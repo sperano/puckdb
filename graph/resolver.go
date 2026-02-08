@@ -341,13 +341,14 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 
 		for i, item := range progress.Items {
 			result.Items[i] = &model.ProgressItem{
-				ID:          item.ID,
-				Description: ptrStringIfNotEmpty(item.Description),
-				Total:       item.Total,
-				Completed:   item.Completed,
-				Started:     item.Started,
-				StartedAt:   ptrStringIfNotEmpty(item.StartedAt),
-				CompletedAt: ptrStringIfNotEmpty(item.CompletedAt),
+				ID:                   item.ID,
+				Description:          ptrStringIfNotEmpty(item.Description),
+				CompletedDescription: ptrStringIfNotEmpty(item.CompletedDescription),
+				Total:                item.Total,
+				Completed:            item.Completed,
+				Started:              item.Started,
+				StartedAt:            ptrStringIfNotEmpty(item.StartedAt),
+				CompletedAt:          ptrStringIfNotEmpty(item.CompletedAt),
 			}
 
 			// Mark started but incomplete items for parallel querying

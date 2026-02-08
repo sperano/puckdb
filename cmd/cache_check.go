@@ -25,25 +25,29 @@ const SpinnerPlaceholder = "\x00"
 
 // spinner displays an animated spinner with a message (supports multi-line)
 type spinner struct {
-	frames    []string
-	message   string
-	writer    io.Writer
-	interval  time.Duration
-	stop      chan struct{}
-	done      chan struct{}
-	mu        sync.Mutex
-	once      sync.Once
-	lineCount int // tracks number of lines in current message
+	frames          []string
+	message         string
+	header          string // in-progress header (e.g., "Downloading...")
+	completedHeader string // completion header (e.g., "Downloaded.")
+	writer          io.Writer
+	interval        time.Duration
+	stop            chan struct{}
+	done            chan struct{}
+	mu              sync.Mutex
+	once            sync.Once
+	lineCount       int // tracks number of lines in current message
 }
 
-func newSpinner(w io.Writer, message string) *spinner {
+func newSpinner(w io.Writer, header, completedHeader string) *spinner {
 	return &spinner{
-		frames:   []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
-		message:  message,
-		writer:   w,
-		interval: config.DefaultSpinnerInterval,
-		stop:     make(chan struct{}),
-		done:     make(chan struct{}),
+		frames:          []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
+		message:         header,
+		header:          header,
+		completedHeader: completedHeader,
+		writer:          w,
+		interval:        config.DefaultSpinnerInterval,
+		stop:            make(chan struct{}),
+		done:            make(chan struct{}),
 	}
 }
 
@@ -57,11 +61,7 @@ func (s *spinner) Start() {
 		for {
 			select {
 			case <-s.stop:
-				// Clear current display before Stop() prints final state
-				s.mu.Lock()
-				s.clearLines()
-				s.lineCount = 0
-				s.mu.Unlock()
+				// Exit cleanly, Stop() will render final state in place
 				return
 			default:
 				s.mu.Lock()
@@ -105,14 +105,29 @@ func (s *spinner) Stop() {
 		close(s.stop)
 		<-s.done
 
-		// Print final message without spinner
 		s.mu.Lock()
-		msg := s.message
+		// Clear previous display
+		s.clearLines()
+		// Render final message (without spinner placeholder)
+		msg := strings.Replace(s.message, SpinnerPlaceholder, " ", 1)
+		fmt.Fprintln(s.writer, msg)
 		s.mu.Unlock()
 
-		// Remove spinner placeholder if present, print final state
-		msg = strings.Replace(msg, SpinnerPlaceholder, "✓", 1)
-		fmt.Fprintln(s.writer, msg)
+		// Show cursor
+		fmt.Fprint(s.writer, "\033[?25h")
+	})
+}
+
+// Cancel stops the spinner and clears without printing the final message.
+// Use this when the operation was interrupted rather than completed.
+func (s *spinner) Cancel() {
+	s.once.Do(func() {
+		close(s.stop)
+		<-s.done
+
+		s.mu.Lock()
+		s.clearLines()
+		s.mu.Unlock()
 
 		// Show cursor
 		fmt.Fprint(s.writer, "\033[?25h")
@@ -175,7 +190,7 @@ func runCacheCheck(cmd *cobra.Command, _ []string) error {
 	redisClient := redis.NewClient()
 	defer redisClient.Close()
 
-	sp := newSpinner(cmd.OutOrStdout(), "Counting cache files...")
+	sp := newSpinner(cmd.OutOrStdout(), "Counting cache files...", "Counted cache files.")
 	sp.Start()
 
 	allMetrics, err := getAllMetrics(cmd.Context(), redisClient)

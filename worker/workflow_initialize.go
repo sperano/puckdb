@@ -2,6 +2,7 @@ package worker
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
@@ -38,12 +39,13 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 	result := InitializeResult{}
 
 	// Set up progress tracking with phases
+	// CompletedDescription is set dynamically via SetItemCompletedDescription with counts/elapsed
 	phases := []PhaseInfo{
-		{ID: PhaseDownloadFranchises, Description: "Download franchises", Total: 1},
-		{ID: PhaseUpsertFranchises, Description: "Upsert franchises", Total: 1},
-		{ID: PhaseDownloadSeasons, Description: "Download seasons", Total: 1},
-		{ID: PhaseUpsertSeasons, Description: "Upsert seasons", Total: 1},
-		{ID: PhaseInitializeSeasonTeams, Description: "Initialize season teams", Total: 0}, // Total set later
+		{ID: PhaseDownloadFranchises, Description: "Downloading franchises...", Total: 1},
+		{ID: PhaseUpsertFranchises, Description: "Upserting franchises...", Total: 1},
+		{ID: PhaseDownloadSeasons, Description: "Downloading seasons...", Total: 1},
+		{ID: PhaseUpsertSeasons, Description: "Upserting seasons...", Total: 1},
+		{ID: PhaseInitializeSeasonTeams, Description: "Upserting season teams...", Total: 0}, // Total set later
 	}
 	tracker := NewProgressTrackerWithPhases(phases)
 	//tracker.SetMessage("Starting initialization")
@@ -55,7 +57,7 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 	ctx = workflow.WithActivityOptions(ctx, activityOpts)
 
 	// Phase 1: Download franchises
-	//tracker.SetMessage("Downloading franchises")
+	tracker.MarkItemStarted(ctx, PhaseDownloadFranchises)
 	logger.Info("Phase 1: Downloading NHL franchises")
 	var franchisesDownloadResult DownloadFranchisesResult
 	if err := workflow.ExecuteActivity(ctx, DownloadFranchisesActivity).Get(ctx, &franchisesDownloadResult); err != nil {
@@ -64,10 +66,12 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 	result.FranchisesDownloaded = franchisesDownloadResult.Count
 	result.FranchisesFromCache = franchisesDownloadResult.FromCache
 	tracker.IncrementItem(PhaseDownloadFranchises)
+	tracker.SetItemCompletedDescription(PhaseDownloadFranchises,
+		fmt.Sprintf("Downloaded %d franchises in %s.", franchisesDownloadResult.Count, tracker.GetItemElapsed(ctx, PhaseDownloadFranchises)))
 	tracker.MarkItemCompleted(ctx, PhaseDownloadFranchises)
 
 	// Phase 2: Upsert franchises to database
-	//tracker.SetMessage("Upserting franchises to database")
+	tracker.MarkItemStarted(ctx, PhaseUpsertFranchises)
 	logger.Info("Phase 2: Upserting franchises to database")
 	var franchisesUpsertResult UpsertFranchisesResult
 	if err := workflow.ExecuteActivity(ctx, UpsertFranchisesActivity).Get(ctx, &franchisesUpsertResult); err != nil {
@@ -75,10 +79,12 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 	}
 	result.FranchisesUpserted = franchisesUpsertResult.FranchisesUpserted
 	tracker.IncrementItem(PhaseUpsertFranchises)
+	tracker.SetItemCompletedDescription(PhaseUpsertFranchises,
+		fmt.Sprintf("Upserted %d franchises in %s.", franchisesUpsertResult.FranchisesUpserted, tracker.GetItemElapsed(ctx, PhaseUpsertFranchises)))
 	tracker.MarkItemCompleted(ctx, PhaseUpsertFranchises)
 
 	// Phase 3: Download seasons manifest
-	//tracker.SetMessage("Downloading seasons manifest")
+	tracker.MarkItemStarted(ctx, PhaseDownloadSeasons)
 	logger.Info("Phase 3: Downloading NHL seasons manifest")
 	var seasonsManifestResult DownloadSeasonsManifestResult
 	if err := workflow.ExecuteActivity(ctx, DownloadSeasonsManifestActivity).Get(ctx, &seasonsManifestResult); err != nil {
@@ -87,10 +93,12 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 	result.SeasonsDownloaded = seasonsManifestResult.Count
 	result.SeasonsFromCache = seasonsManifestResult.FromCache
 	tracker.IncrementItem(PhaseDownloadSeasons)
+	tracker.SetItemCompletedDescription(PhaseDownloadSeasons,
+		fmt.Sprintf("Downloaded %d seasons in %s.", seasonsManifestResult.Count, tracker.GetItemElapsed(ctx, PhaseDownloadSeasons)))
 	tracker.MarkItemCompleted(ctx, PhaseDownloadSeasons)
 
 	// Phase 4: Upsert seasons to database
-	//tracker.SetMessage("Upserting seasons to database")
+	tracker.MarkItemStarted(ctx, PhaseUpsertSeasons)
 	logger.Info("Phase 4: Upserting seasons to database")
 	var seasonsUpsertResult UpsertSeasonsResult
 	if err := workflow.ExecuteActivity(ctx, UpsertSeasonsActivity).Get(ctx, &seasonsUpsertResult); err != nil {
@@ -98,6 +106,8 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 	}
 	result.SeasonsUpserted = seasonsUpsertResult.SeasonsUpserted
 	tracker.IncrementItem(PhaseUpsertSeasons)
+	tracker.SetItemCompletedDescription(PhaseUpsertSeasons,
+		fmt.Sprintf("Upserted %d seasons in %s.", seasonsUpsertResult.SeasonsUpserted, tracker.GetItemElapsed(ctx, PhaseUpsertSeasons)))
 	tracker.MarkItemCompleted(ctx, PhaseUpsertSeasons)
 
 	// Phase 5: Download standings and upsert teams for each season (concurrent)
@@ -109,11 +119,6 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 
 	tracker.SetItemTotal(PhaseInitializeSeasonTeams, len(seasons))
 	tracker.MarkItemStarted(ctx, PhaseInitializeSeasonTeams)
-	//tracker.SetMessage("Initializing season teams")
-	logger.Info("Phase 5: Initializing season teams",
-		"count", len(seasons),
-		"phase5_started", tracker.IsItemStarted(PhaseInitializeSeasonTeams),
-		"phase5_total", tracker.GetItemTotal(PhaseInitializeSeasonTeams))
 
 	// Process seasons concurrently using worker pool with error tolerance
 	seasonIDs := make([]int, len(seasons))
@@ -126,15 +131,9 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 		return result, err
 	}
 	result.SeasonTeamsUpserted = teamsUpserted
+	tracker.SetItemCompletedDescription(PhaseInitializeSeasonTeams,
+		fmt.Sprintf("Upserted %d season teams in %s.", teamsUpserted, tracker.GetItemElapsed(ctx, PhaseInitializeSeasonTeams)))
 	tracker.MarkItemCompleted(ctx, PhaseInitializeSeasonTeams)
-
-	logger.Info("Initialization complete",
-		"franchises_downloaded", result.FranchisesDownloaded,
-		"franchises_upserted", result.FranchisesUpserted,
-		"seasons_downloaded", result.SeasonsDownloaded,
-		"seasons_upserted", result.SeasonsUpserted,
-		"season_teams_upserted", result.SeasonTeamsUpserted)
-
 	return result, nil
 }
 

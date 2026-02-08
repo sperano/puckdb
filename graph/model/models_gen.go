@@ -199,13 +199,14 @@ type PlayersFilter struct {
 }
 
 type ProgressItem struct {
-	ID          int     `json:"id"`
-	Description *string `json:"description,omitempty"`
-	Total       int     `json:"total"`
-	Completed   int     `json:"completed"`
-	Started     bool    `json:"started"`
-	StartedAt   *string `json:"startedAt,omitempty"`
-	CompletedAt *string `json:"completedAt,omitempty"`
+	ID                   int     `json:"id"`
+	Description          *string `json:"description,omitempty"`
+	CompletedDescription *string `json:"completedDescription,omitempty"`
+	Total                int     `json:"total"`
+	Completed            int     `json:"completed"`
+	Started              bool    `json:"started"`
+	StartedAt            *string `json:"startedAt,omitempty"`
+	CompletedAt          *string `json:"completedAt,omitempty"`
 }
 
 type Query struct {

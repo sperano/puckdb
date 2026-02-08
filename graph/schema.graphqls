@@ -220,6 +220,7 @@ type WorkflowResult {
 type ProgressItem {
 	id: Int!
 	description: String
+	completedDescription: String
 	total: Int!
 	completed: Int!
 	started: Boolean!

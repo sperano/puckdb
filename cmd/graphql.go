@@ -154,7 +154,7 @@ func (c *GraphQLClient) DownloadSeasons(ctx context.Context, input *model.Downlo
 func (c *GraphQLClient) GetDownloadSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		downloadSeasonsResult { status failureReason }
-		downloadSeasonsProgress { total completed message items { id description total completed started startedAt completedAt } }
+		downloadSeasonsProgress { total completed message items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -244,7 +244,7 @@ func (c *GraphQLClient) DownloadYahooPlayers(ctx context.Context) (bool, error) 
 func (c *GraphQLClient) GetDownloadYahooPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		downloadYahooPlayersResult { status failureReason }
-		downloadYahooPlayersProgress { total completed message }
+		downloadYahooPlayersProgress { total completed message items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -327,7 +327,7 @@ func (c *GraphQLClient) DownloadPlayers(ctx context.Context, input *model.Downlo
 func (c *GraphQLClient) GetDownloadPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		downloadPlayersResult { status failureReason }
-		downloadPlayersProgress { total completed message }
+		downloadPlayersProgress { total completed message items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -436,7 +436,7 @@ func (c *GraphQLClient) ImportPlayers(ctx context.Context, input *model.Download
 func (c *GraphQLClient) GetImportPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		importPlayersResult { status failureReason }
-		importPlayersProgress { total completed message items { id description total completed started startedAt completedAt } }
+		importPlayersProgress { total completed message items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -500,7 +500,7 @@ func (c *GraphQLClient) ImportSeasons(ctx context.Context, input *model.Download
 func (c *GraphQLClient) GetImportSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		importSeasonsResult { status failureReason }
-		importSeasonsProgress { total completed message items { id description total completed started startedAt completedAt } }
+		importSeasonsProgress { total completed message items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -609,7 +609,7 @@ func (c *GraphQLClient) Initialize(ctx context.Context) (bool, error) {
 func (c *GraphQLClient) GetInitializeStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		initializeResult { status failureReason }
-		initializeProgress { total completed message items { id description total completed started startedAt completedAt } }
+		initializeProgress { total completed message items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)

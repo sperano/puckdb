@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/sperano/puckdb/cache"
@@ -65,8 +66,8 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 	// Register progress query handler with phase-based tracking
 	// Phase 1 (Load Yahoo pool) is fast and doesn't need progress tracking
 	phases := []PhaseInfo{
-		{ID: PhaseImportPlayers, Description: "Import players", Total: 0}, // Total set later
-		{ID: PhaseReportUnmatched, Description: "Review unmatched players", Total: 0}, // Total set later
+		{ID: PhaseImportPlayers, Description: "Importing players...", CompletedDescription: "Imported players.", Total: 0}, // Total set later
+		{ID: PhaseReportUnmatched, Description: "Reviewing unmatched players...", CompletedDescription: "Reviewed unmatched players.", Total: 0}, // Total set later
 	}
 	tracker := NewProgressTrackerWithPhases(phases)
 	tracker.SetMessage("Starting import")
@@ -170,6 +171,8 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 		"imported", totalImported,
 		"matched", totalMatched,
 		"errors", len(allErrors))
+	tracker.SetItemCompletedDescription(PhaseImportPlayers,
+		fmt.Sprintf("Imported %d players (%d matched) in %s.", totalImported, totalMatched, tracker.GetItemElapsed(ctx, PhaseImportPlayers)))
 	tracker.MarkItemCompleted(ctx, PhaseImportPlayers)
 
 	// Phase 3: Review unmatched Yahoo players
@@ -235,6 +238,8 @@ func ImportPlayersWorkflow(ctx workflow.Context, input *ImportPlayersInput) (*Im
 		}
 	}
 
+	tracker.SetItemCompletedDescription(PhaseReportUnmatched,
+		fmt.Sprintf("Reviewed %d unmatched (%d truly unmatched) in %s.", len(unmatchedPlayers), len(unmatchedReport.TrulyUnmatched), tracker.GetItemElapsed(ctx, PhaseReportUnmatched)))
 	tracker.MarkItemCompleted(ctx, PhaseReportUnmatched)
 
 	logger.Info("ImportPlayersWorkflow completed",

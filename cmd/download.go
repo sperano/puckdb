@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -115,7 +114,6 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 	go func() {
 		<-sigChan
 		fmt.Println() // newline after ^C
-		log.Warn().Msg("Interrupt received, canceling workflow...")
 		state.cancel(ctx)
 		cancel()
 	}()
@@ -124,7 +122,7 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 	if viper.GetBool(config.FlagMonitor) {
 		log.Info().Str("server", apiAddr).Msg("Monitoring existing downloadSeasons workflow")
 		state.current = workflowDownloadSeasons
-		return monitorWorkflow_legacy(ctx, cmd, client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout)
+		return monitorWorkflow_legacy(ctx, cmd, "Downloading seasons...", "Downloaded seasons.", client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout)
 	}
 
 	totalStart := time.Now()
@@ -183,7 +181,7 @@ func runDownload(cmd *cobra.Command, _ []string) error {
 			log.Info().Msg("Workflow started successfully")
 		}
 
-		if err := monitorWorkflow_legacy(ctx, cmd, client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
+		if err := monitorWorkflow_legacy(ctx, cmd, "Downloading seasons...", "Downloaded seasons.", client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
 			if ctx.Err() != nil {
 				return fmt.Errorf("workflow canceled by user")
 			}
@@ -238,7 +236,7 @@ func runDownloadYahooPlayers(ctx context.Context, cmd *cobra.Command, client *Gr
 		log.Info().Msg("Yahoo players workflow started successfully")
 	}
 
-	if err := monitorWorkflow_legacy(ctx, cmd, client.GetDownloadYahooPlayersStatus, config.DefaultYahooPlayersTimeout); err != nil {
+	if err := monitorWorkflow_legacy(ctx, cmd, "Downloading Yahoo! players...", "Downloaded Yahoo! players.", client.GetDownloadYahooPlayersStatus, config.DefaultYahooPlayersTimeout); err != nil {
 		return fmt.Errorf("downloadYahooPlayers failed: %w", err)
 	}
 
@@ -260,7 +258,7 @@ func runDownloadPlayers(ctx context.Context, cmd *cobra.Command, client *GraphQL
 		log.Info().Msg("Download players workflow started successfully")
 	}
 
-	if err := monitorWorkflow_legacy(ctx, cmd, client.GetDownloadPlayersStatus, config.DefaultDownloadPlayersTimeout); err != nil {
+	if err := monitorWorkflow_legacy(ctx, cmd, "Downloading players...", "Downloaded players.", client.GetDownloadPlayersStatus, config.DefaultDownloadPlayersTimeout); err != nil {
 		return fmt.Errorf("downloadPlayers failed: %w", err)
 	}
 
@@ -285,10 +283,9 @@ func buildDownloadSeasonsInput() *model.DownloadSeasonsInput {
 	return input
 }
 
-func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, getStatus statusFetcher, pollTimeout time.Duration) error {
-	sp := newSpinner(cmd.OutOrStdout(), "Monitoring workflow...")
+func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, header, completedHeader string, getStatus statusFetcher, pollTimeout time.Duration) error {
+	sp := newSpinner(cmd.OutOrStdout(), header, completedHeader)
 	sp.Start()
-	defer sp.Stop()
 
 	// Wait briefly for workflow to start and register query handlers
 	time.Sleep(config.DefaultWorkflowStartupDelay)
@@ -306,24 +303,28 @@ func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, getStatus s
 			})
 		} else {
 			sp.mu.Lock()
-			sp.message = formatStatusMessage(status)
+			sp.message = formatStatusMessage(status, header)
 			sp.mu.Unlock()
 
 			switch status.Result.Status {
 			case model.TemporalWorkflowStatusCompleted:
+				// formatStatusMessage (set above) has all phases with CompletedDescriptions
 				sp.Stop()
-				log.Info().Msg("Workflow completed successfully")
 				return nil
 			case model.TemporalWorkflowStatusFailed:
+				sp.Cancel()
 				if status.Result.FailureReason != nil {
 					return fmt.Errorf("workflow failed: %s", *status.Result.FailureReason)
 				}
 				return fmt.Errorf("workflow failed")
 			case model.TemporalWorkflowStatusCanceled:
+				sp.Cancel()
 				return fmt.Errorf("workflow was canceled")
 			case model.TemporalWorkflowStatusTerminated:
+				sp.Cancel()
 				return fmt.Errorf("workflow was terminated")
 			case model.TemporalWorkflowStatusTimedOut:
+				sp.Cancel()
 				return fmt.Errorf("workflow timed out")
 			case model.TemporalWorkflowStatusRunning:
 				// Continue polling
@@ -335,8 +336,10 @@ func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, getStatus s
 
 		select {
 		case <-ctx.Done():
+			sp.Cancel()
 			return ctx.Err()
 		case <-timeout:
+			sp.Cancel()
 			return fmt.Errorf("workflow monitoring timed out after %v", pollTimeout)
 		case <-ticker.C:
 			// continue to next iteration
@@ -344,10 +347,9 @@ func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, getStatus s
 	}
 }
 
-func monitorWorkflow(ctx context.Context, out io.Writer, msg string, getStatus statusFetcher, pollTimeout time.Duration) error {
-	sp := newSpinner(out, msg)
+func monitorWorkflow(ctx context.Context, out io.Writer, header, completedHeader string, getStatus statusFetcher, pollTimeout time.Duration) error {
+	sp := newSpinner(out, header, completedHeader)
 	sp.Start()
-	defer sp.Stop()
 
 	// Wait briefly for workflow to start and register query handlers
 	time.Sleep(config.DefaultWorkflowStartupDelay)               // TODO: make this smarter by detecting when workflow is actually ready instead of fixed sleep
@@ -364,24 +366,28 @@ func monitorWorkflow(ctx context.Context, out io.Writer, msg string, getStatus s
 			})
 		} else {
 			sp.mu.Lock()
-			sp.message = formatStatusMessage(status)
+			sp.message = formatStatusMessage(status, header)
 			sp.mu.Unlock()
 
 			switch status.Result.Status {
 			case model.TemporalWorkflowStatusCompleted:
+				// formatStatusMessage (set above) has all phases with CompletedDescriptions
 				sp.Stop()
-				log.Info().Msg("Workflow completed successfully")
 				return nil
 			case model.TemporalWorkflowStatusFailed:
+				sp.Cancel()
 				if status.Result.FailureReason != nil {
 					return fmt.Errorf("workflow failed: %s", *status.Result.FailureReason)
 				}
 				return fmt.Errorf("workflow failed")
 			case model.TemporalWorkflowStatusCanceled:
+				sp.Cancel()
 				return fmt.Errorf("workflow was canceled")
 			case model.TemporalWorkflowStatusTerminated:
+				sp.Cancel()
 				return fmt.Errorf("workflow was terminated")
 			case model.TemporalWorkflowStatusTimedOut:
+				sp.Cancel()
 				return fmt.Errorf("workflow timed out")
 			case model.TemporalWorkflowStatusRunning:
 				// Continue polling
@@ -393,8 +399,10 @@ func monitorWorkflow(ctx context.Context, out io.Writer, msg string, getStatus s
 
 		select {
 		case <-ctx.Done():
+			sp.Cancel()
 			return ctx.Err()
 		case <-timeout:
+			sp.Cancel()
 			return fmt.Errorf("workflow monitoring timed out after %v", pollTimeout)
 		case <-ticker.C:
 			// continue to next iteration
@@ -402,19 +410,19 @@ func monitorWorkflow(ctx context.Context, out io.Writer, msg string, getStatus s
 	}
 }
 
-func formatStatusMessage(status *WorkflowStatus) string {
+func formatStatusMessage(status *WorkflowStatus, header string) string {
 	if status.Progress == nil {
 		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
 	}
 
 	var lines []string
 
-	// Add phase message if present
+	// Add workflow message if present
 	if status.Progress.Message != nil && *status.Progress.Message != "" {
 		lines = append(lines, *status.Progress.Message)
 	}
 
-	// If no progress data yet, return just the message or status
+	// No progress yet
 	if status.Progress.Total == 0 {
 		if len(lines) > 0 {
 			return strings.Join(lines, "\n")
@@ -422,124 +430,39 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
 	}
 
-	// Detect display mode: phase-based vs season-based
-	if isPhaseBasedProgress(status.Progress.Items) {
-		return formatPhaseProgress(status.Progress, lines)
-	}
-
-	// Sort items by ID (for season-based, ID is startYear)
-	items := make([]*model.ProgressItem, len(status.Progress.Items))
-	copy(items, status.Progress.Items)
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].ID < items[j].ID
-	})
-
-	// Collect active seasons (> 0% and < 100%)
-	type progressLine struct {
-		label     string
-		completed int
-		total     int
-	}
-	var activeItems []progressLine
-
-	for _, item := range items {
-		if item.Total > 0 {
-			pct := float64(item.Completed) / float64(item.Total) * 100
-			if pct > 0 && pct < 100 {
-				label := fmt.Sprintf("%d", item.ID)
-				if item.Description != nil && *item.Description != "" {
-					label = *item.Description
-				}
-				activeItems = append(activeItems, progressLine{
-					label:     label,
-					completed: item.Completed,
-					total:     item.Total,
-				})
-			}
-		}
-	}
-
-	// Add total line
-	allLines := append(activeItems, progressLine{
-		label:     "Total",
-		completed: status.Progress.Completed,
-		total:     status.Progress.Total,
-	})
-
-	// Calculate max widths for alignment
-	maxLabelWidth := 0
-	maxCountWidth := 0
-	for _, line := range allLines {
-		if len(line.label) > maxLabelWidth {
-			maxLabelWidth = len(line.label)
-		}
-		countStr := fmt.Sprintf("%d/%d", line.completed, line.total)
-		if len(countStr) > maxCountWidth {
-			maxCountWidth = len(countStr)
-		}
-	}
-
-	// Format progress lines with aligned columns
-	for _, line := range allLines {
-		pct := float64(line.completed) / float64(line.total) * 100
-		pctTrunc := int(pct) // truncate, never round up to 100%
-		countStr := fmt.Sprintf("%d/%d", line.completed, line.total)
+	// If no items, show simple header + progress bar
+	if len(status.Progress.Items) == 0 {
+		lines = append(lines, fmt.Sprintf("▶ %s", header))
+		pct := float64(status.Progress.Completed) / float64(status.Progress.Total) * 100
 		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-		lines = append(lines, fmt.Sprintf("%*s: %*s %s %3d%% ",
-			maxLabelWidth, line.label,
-			maxCountWidth, countStr,
-			bar,
-			pctTrunc))
+		lines = append(lines, fmt.Sprintf("%s %d/%d %s %d%%",
+			SpinnerPlaceholder, status.Progress.Completed, status.Progress.Total, bar, int(pct)))
+		return strings.Join(lines, "\n")
 	}
 
-	return strings.Join(lines, "\n")
-}
-
-// isPhaseBasedProgress detects if the progress items represent phases (vs seasons).
-// Phases have non-numeric descriptions like "Load Yahoo pool", "Import players".
-func isPhaseBasedProgress(items []*model.ProgressItem) bool {
-	if len(items) == 0 {
-		return false
-	}
-	// Check first item's description - if it's not a year-like number, it's phase-based
-	first := items[0]
-	if first.Description != nil && *first.Description != "" {
-		// If description doesn't look like a season (e.g., "2024-25"), it's a phase
-		if len(*first.Description) > 0 && (*first.Description)[0] < '0' || (*first.Description)[0] > '9' {
-			return true
-		}
-	}
-	return false
-}
-
-// formatPhaseProgress formats progress for phase-based workflows with checkmarks.
-// Shows completed phases with checkmarks and elapsed time, in-progress phases with
-// progress bars, and pending phases with indentation.
-func formatPhaseProgress(progress *model.WorkflowProgress, existingLines []string) string {
-	lines := existingLines
-
-	for _, item := range progress.Items {
-		description := fmt.Sprintf("Phase %d", item.ID)
+	// Display each item with ✓/▶/indent
+	for _, item := range status.Progress.Items {
+		description := fmt.Sprintf("Item %d", item.ID)
 		if item.Description != nil && *item.Description != "" {
 			description = *item.Description
 		}
+		completedDescription := description
+		if item.CompletedDescription != nil && *item.CompletedDescription != "" {
+			completedDescription = *item.CompletedDescription
+		}
 
 		if item.Completed == item.Total && item.Total > 0 {
-			// Completed: show checkmark with count and elapsed time
-			elapsed := formatElapsedTime(item.StartedAt, item.CompletedAt)
-			if elapsed != "" {
-				lines = append(lines, fmt.Sprintf("✓ %s (%d, %s)", description, item.Total, elapsed))
-			} else {
-				lines = append(lines, fmt.Sprintf("✓ %s (%d)", description, item.Total))
-			}
+			// Completed: checkmark with completed description
+			lines = append(lines, fmt.Sprintf("✓ %s", completedDescription))
 		} else if item.Started {
-			// In progress: show phase on one line, progress bar on next with spinner placeholder
+			// In progress: arrow + name, then progress bar with spinner
 			lines = append(lines, fmt.Sprintf("▶ %s", description))
 			pct := float64(item.Completed) / float64(item.Total) * 100
 			bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
 			lines = append(lines, fmt.Sprintf("%s %d/%d %s %d%%",
 				SpinnerPlaceholder, item.Completed, item.Total, bar, int(pct)))
 		} else {
+			// Pending: indented
 			lines = append(lines, fmt.Sprintf("  %s", description))
 		}
 	}

@@ -241,13 +241,14 @@ type ComplexityRoot struct {
 	}
 
 	ProgressItem struct {
-		Completed   func(childComplexity int) int
-		CompletedAt func(childComplexity int) int
-		Description func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Started     func(childComplexity int) int
-		StartedAt   func(childComplexity int) int
-		Total       func(childComplexity int) int
+		Completed            func(childComplexity int) int
+		CompletedAt          func(childComplexity int) int
+		CompletedDescription func(childComplexity int) int
+		Description          func(childComplexity int) int
+		ID                   func(childComplexity int) int
+		Started              func(childComplexity int) int
+		StartedAt            func(childComplexity int) int
+		Total                func(childComplexity int) int
 	}
 
 	Query struct {
@@ -1482,6 +1483,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.ProgressItem.CompletedAt(childComplexity), true
 
+	case "ProgressItem.completedDescription":
+		if e.complexity.ProgressItem.CompletedDescription == nil {
+			break
+		}
+
+		return e.complexity.ProgressItem.CompletedDescription(childComplexity), true
+
 	case "ProgressItem.description":
 		if e.complexity.ProgressItem.Description == nil {
 			break
@@ -2112,6 +2120,7 @@ type WorkflowResult {
 type ProgressItem {
 	id: Int!
 	description: String
+	completedDescription: String
 	total: Int!
 	completed: Int!
 	started: Boolean!
@@ -9521,6 +9530,47 @@ func (ec *executionContext) fieldContext_ProgressItem_description(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _ProgressItem_completedDescription(ctx context.Context, field graphql.CollectedField, obj *model.ProgressItem) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProgressItem_completedDescription(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CompletedDescription, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProgressItem_completedDescription(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgressItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProgressItem_total(ctx context.Context, field graphql.CollectedField, obj *model.ProgressItem) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_ProgressItem_total(ctx, field)
 	if err != nil {
@@ -11593,6 +11643,8 @@ func (ec *executionContext) fieldContext_WorkflowProgress_items(_ context.Contex
 				return ec.fieldContext_ProgressItem_id(ctx, field)
 			case "description":
 				return ec.fieldContext_ProgressItem_description(ctx, field)
+			case "completedDescription":
+				return ec.fieldContext_ProgressItem_completedDescription(ctx, field)
 			case "total":
 				return ec.fieldContext_ProgressItem_total(ctx, field)
 			case "completed":
@@ -14800,6 +14852,8 @@ func (ec *executionContext) _ProgressItem(ctx context.Context, sel ast.Selection
 			}
 		case "description":
 			out.Values[i] = ec._ProgressItem_description(ctx, field, obj)
+		case "completedDescription":
+			out.Values[i] = ec._ProgressItem_completedDescription(ctx, field, obj)
 		case "total":
 			out.Values[i] = ec._ProgressItem_total(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"fmt"
 	"reflect"
 	"time"
 
@@ -9,13 +10,14 @@ import (
 
 // ItemProgress represents the progress for a single item (season, phase, batch, etc.).
 type ItemProgress struct {
-	ID          int    `json:"id"`
-	Description string `json:"description,omitempty"`
-	Total       int    `json:"total"`
-	Completed   int    `json:"completed"`
-	Started     bool   `json:"started"`
-	StartedAt   string `json:"startedAt,omitempty"`   // RFC3339 timestamp
-	CompletedAt string `json:"completedAt,omitempty"` // RFC3339 timestamp
+	ID                   int    `json:"id"`
+	Description          string `json:"description,omitempty"`
+	CompletedDescription string `json:"completedDescription,omitempty"` // Past tense for completion display
+	Total                int    `json:"total"`
+	Completed            int    `json:"completed"`
+	Started              bool   `json:"started"`
+	StartedAt            string `json:"startedAt,omitempty"`   // RFC3339 timestamp
+	CompletedAt          string `json:"completedAt,omitempty"` // RFC3339 timestamp
 }
 
 // WorkflowProgress represents the progress of a workflow.
@@ -58,6 +60,28 @@ func NewProgressTrackerWithOffset(batchSize int, offset int, grandTotal int) *Pr
 	}
 }
 
+// NewProgressTrackerSinglePhase creates a ProgressTracker with a single phase for display.
+// Combines phase-based display with ContinueAsNew offset support.
+// CompletedDescription should be set dynamically via SetItemCompletedDescription.
+func NewProgressTrackerSinglePhase(description string, total, completed int) *ProgressTracker {
+	const phaseID = 1
+	return &ProgressTracker{
+		progress: WorkflowProgress{
+			Total:     total,
+			Completed: completed,
+			Items: []ItemProgress{{
+				ID:          phaseID,
+				Description: description,
+				Total:       total,
+				Completed:   completed,
+				Started:     true,
+			}},
+		},
+		itemIndex:  map[int]int{phaseID: 0},
+		futureToID: make(map[int]int),
+	}
+}
+
 // NewProgressTrackerWithSeasons creates a ProgressTracker that tracks per-season progress.
 func NewProgressTrackerWithSeasons(seasons []SeasonInfo) *ProgressTracker {
 	tracker := &ProgressTracker{
@@ -70,9 +94,10 @@ func NewProgressTrackerWithSeasons(seasons []SeasonInfo) *ProgressTracker {
 
 // PhaseInfo represents a workflow phase for progress tracking.
 type PhaseInfo struct {
-	ID          int    // Phase number (1, 2, 3, ...)
-	Description string // Human-readable description
-	Total       int    // Expected total items (0 if unknown initially)
+	ID                   int    // Phase number (1, 2, 3, ...)
+	Description          string // In-progress description (e.g., "Downloading...")
+	CompletedDescription string // Completion description (e.g., "Downloaded.")
+	Total                int    // Expected total items (0 if unknown initially)
 }
 
 // NewProgressTrackerWithPhases creates a ProgressTracker that tracks per-phase progress.
@@ -92,10 +117,11 @@ func (p *ProgressTracker) InitializeWithPhases(phases []PhaseInfo) {
 
 	for i, phase := range phases {
 		itemProgress[i] = ItemProgress{
-			ID:          phase.ID,
-			Description: phase.Description,
-			Total:       phase.Total,
-			Completed:   0,
+			ID:                   phase.ID,
+			Description:          phase.Description,
+			CompletedDescription: phase.CompletedDescription,
+			Total:                phase.Total,
+			Completed:            0,
 		}
 		p.itemIndex[phase.ID] = i
 		total += phase.Total
@@ -115,6 +141,51 @@ func (p *ProgressTracker) SetItemTotal(itemID int, total int) {
 		p.progress.Items[idx].Total = total
 		p.progress.Total += (total - oldTotal)
 	}
+}
+
+// SetItemCompletedDescription updates the completed description for a specific item.
+// Useful for including dynamic values like counts in the completion message.
+func (p *ProgressTracker) SetItemCompletedDescription(itemID int, description string) {
+	if idx, ok := p.itemIndex[itemID]; ok {
+		p.progress.Items[idx].CompletedDescription = description
+	}
+}
+
+// GetItemElapsed returns the elapsed time since the item started as a formatted string.
+// Returns empty string if item not found or not started.
+func (p *ProgressTracker) GetItemElapsed(ctx workflow.Context, itemID int) string {
+	idx, ok := p.itemIndex[itemID]
+	if !ok {
+		return ""
+	}
+	item := p.progress.Items[idx]
+	if item.StartedAt == "" {
+		return ""
+	}
+	startTime, err := time.Parse(time.RFC3339, item.StartedAt)
+	if err != nil {
+		return ""
+	}
+	elapsed := workflow.Now(ctx).Sub(startTime)
+	return formatDuration(elapsed)
+}
+
+// formatDuration formats a duration in a human-readable way.
+func formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return "0.0s"
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	}
+	if d < time.Hour {
+		minutes := int(d.Minutes())
+		seconds := int(d.Seconds()) % 60
+		return fmt.Sprintf("%dm %ds", minutes, seconds)
+	}
+	hours := int(d.Hours())
+	minutes := int(d.Minutes()) % 60
+	return fmt.Sprintf("%dh %dm", hours, minutes)
 }
 
 // InitializeWithSeasons sets up per-season progress tracking.
@@ -189,10 +260,17 @@ func (p *ProgressTracker) GetItemTotal(itemID int) int {
 }
 
 // MarkItemCompleted marks an item as completed with timestamp.
+// Sets Completed = Total to ensure display logic shows completion checkmark.
 // Uses workflow.Now for deterministic time during replays.
 func (p *ProgressTracker) MarkItemCompleted(ctx workflow.Context, itemID int) {
 	if idx, ok := p.itemIndex[itemID]; ok {
-		p.progress.Items[idx].CompletedAt = workflow.Now(ctx).UTC().Format(time.RFC3339)
+		item := &p.progress.Items[idx]
+		// Sync overall progress if item's Completed was behind Total
+		if item.Completed < item.Total {
+			p.progress.Completed += item.Total - item.Completed
+		}
+		item.Completed = item.Total
+		item.CompletedAt = workflow.Now(ctx).UTC().Format(time.RFC3339)
 	}
 }
 

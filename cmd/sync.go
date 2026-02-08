@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
@@ -42,6 +41,7 @@ func cmdSync() *cobra.Command {
 	config.InitAPIServerAddrFlag(flags)
 	config.InitSeasonRangeFlags(flags)
 	config.InitSeasonConcurrencyFlag(flags)
+	config.InitSkipYahooPlayersFlag(flags)
 	cmd.AddCommand(cmdSyncSeasons())
 	return cmd
 }
@@ -58,6 +58,9 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 		return err
 	}
 	if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
+		return err
+	}
+	if err := config.BindSkipYahooPlayersFlag(flags); err != nil {
 		return err
 	}
 	BindFlags(cmd.PersistentFlags())
@@ -78,28 +81,17 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 }
 
 func runSync(cmd *cobra.Command, args []string) error {
-	fmt.Printf("PuckDB Sync - %s\n\n", config.BuildNumber)
+	fmt.Printf("PuckDB Sync - %s\n", config.BuildNumber)
 	apiAddr := viper.GetString(config.FlagAPIServerAddr)
 	if apiAddr == "" {
 		return fmt.Errorf("api-server-addr is required")
 	}
-	ctx := cmd.Context()
+
 	client := NewGraphQLClient(apiAddr)
-
-	// Step 1: Initialize reference data (franchises, seasons, league structure)
-	if err := runInitialize(ctx, cmd.OutOrStdout(), client); err != nil {
-		return fmt.Errorf("initialization failed: %w", err)
-	}
-
-	// Step 2: Sync players
-	//return runSyncPlayers(cmd, args)
-	return nil
-}
-
-func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient) error {
 	state := &syncState{client: client, current: workflowNone}
+	out := cmd.OutOrStdout()
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
@@ -107,16 +99,33 @@ func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient) er
 
 	go func() {
 		<-sigChan
-		fmt.Println()
-		log.Warn().Msg("Interrupt received, canceling workflow...")
-		state.cancel(ctx)
+		state.cancel()
 		cancel()
 	}()
 	defer signal.Stop(sigChan)
 
-	totalStart := time.Now()
+	// Step 1: Initialize reference data (franchises, seasons, league structure)
+	if err := runInitialize(ctx, out, client, state); err != nil {
+		return fmt.Errorf("initialization failed: %w", err)
+	}
+	if ctx.Err() != nil {
+		return fmt.Errorf("workflow canceled by user")
+	}
+
+	// Step 2: Download Yahoo player pages (unless skipped)
+	if !viper.GetBool(config.FlagSkipYahooPlayers) {
+		if err := runDownloadYahooPlayer(ctx, out, client, state); err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("Skipping Yahoo players download")
+	}
+
+	return nil
+}
+
+func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	state.current = workflowInitialize
-	log.Info().Str("server", client.endpoint).Msg("Triggering initialize workflow")
 	started, err := client.Initialize(ctx)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -127,11 +136,8 @@ func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient) er
 
 	if !started {
 		log.Warn().Msg("Workflow was not started (may already be running)")
-	} else {
-		log.Info().Msg("Workflow started successfully")
 	}
-
-	if err := monitorWorkflow(ctx, out, "Initializing NHL Franchises and NHL Seasons configurations...",
+	if err := monitorWorkflow(ctx, out, "", "",
 		client.GetInitializeStatus, config.DefaultWorkflowPollTimeout); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
@@ -139,24 +145,32 @@ func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient) er
 		return err
 	}
 
-	totalDuration := time.Since(totalStart)
-
-	// Fetch and print result data
-	resultData, err := client.GetInitializeResultData(ctx)
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to fetch initialize result data")
-	} else if resultData != nil {
-		printInitializeResult(out, resultData, totalDuration)
-	}
-
 	return nil
 }
 
-func printInitializeResult(out io.Writer, result *InitializeResultData, duration time.Duration) {
-	fmt.Fprintf(out, "= Initialization completed in %.1fs =\n", duration.Seconds())
-	fmt.Fprintf(out, "  Franchises upserted:    %d\n", result.FranchisesUpserted)
-	fmt.Fprintf(out, "  Seasons upserted:       %d\n", result.SeasonsUpserted)
-	fmt.Fprintf(out, "  Season teams upserted:  %d\n", result.SeasonTeamsUpserted)
+func runDownloadYahooPlayer(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+	state.current = workflowYahooPlayers
+	started, err := client.DownloadYahooPlayers(ctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
+		return fmt.Errorf("failed to trigger downloadYahooPlayers: %w", err)
+	}
+
+	if !started {
+		log.Warn().Msg("Yahoo players workflow was not started (may already be running)")
+	}
+
+	if err := monitorWorkflow(ctx, out, "Downloading Yahoo! players...", "Downloaded Yahoo! players.",
+		client.GetDownloadYahooPlayersStatus, config.DefaultYahooPlayersTimeout); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
+		return fmt.Errorf("downloadYahooPlayers failed: %w", err)
+	}
+
+	return nil
 }
 
 //func cmdImportPlayers() *cobra.Command {
@@ -195,35 +209,30 @@ type syncState struct {
 	current workflowType
 }
 
-func (s *syncState) cancel(_ context.Context) {
-	// Use a fresh context to cancel since the original may be canceled.
+func (s *syncState) cancel() {
 	cancelCtx, cancel := context.WithTimeout(context.Background(), config.DefaultCancelTimeout)
 	defer cancel()
 
-	switch s.current {
-	case workflowInitialize:
-		log.Info().Msg("Canceling initialize workflow...")
-		if _, err := s.client.CancelInitialize(cancelCtx); err != nil {
-			log.Error().Err(err).Msg("Failed to cancel initialize workflow")
-		} else {
-			log.Info().Msg("initialize workflow canceled")
-		}
-	case workflowImportPlayers:
-		log.Info().Msg("Canceling importPlayers workflow...")
-		if _, err := s.client.CancelImportPlayers(cancelCtx); err != nil {
-			log.Error().Err(err).Msg("Failed to cancel importPlayers workflow")
-		} else {
-			log.Info().Msg("importPlayers workflow canceled")
-		}
-	case workflowImportSeasons:
-		log.Info().Msg("Canceling importSeasons workflow...")
-		if _, err := s.client.CancelImportSeasons(cancelCtx); err != nil {
-			log.Error().Err(err).Msg("Failed to cancel importSeasons workflow")
-		} else {
-			log.Info().Msg("importSeasons workflow canceled")
-		}
-	default:
-		// No workflow to cancel
+	type cancelInfo struct {
+		name string
+		fn   func(context.Context) (bool, error)
+	}
+	cancelers := map[workflowType]cancelInfo{
+		workflowYahooPlayers:  {"downloadYahooPlayers", s.client.CancelDownloadYahooPlayers},
+		workflowInitialize:    {"initialize", s.client.CancelInitialize},
+		workflowImportPlayers: {"importPlayers", s.client.CancelImportPlayers},
+		workflowImportSeasons: {"importSeasons", s.client.CancelImportSeasons},
+	}
+	info, ok := cancelers[s.current]
+	if !ok {
+		return
+	}
+
+	fmt.Printf("\nCanceling %s workflow...\n", info.name)
+	if _, err := info.fn(cancelCtx); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to cancel %s workflow\n", info.name)
+	} else {
+		fmt.Printf("%s workflow canceled\n", info.name)
 	}
 }
 
@@ -246,19 +255,15 @@ func runSyncPlayers(cmd *cobra.Command, _ []string) error {
 	go func() {
 		<-sigChan
 		fmt.Println() // newline after ^C
-		log.Warn().Msg("Interrupt received, canceling workflow...")
-		state.cancel(ctx)
+		state.cancel()
 		cancel()
 	}()
 	defer signal.Stop(sigChan)
 
 	if viper.GetBool(config.FlagMonitor) {
-		log.Info().Str("server", apiAddr).Msg("Monitoring existing importPlayers workflow")
 		state.current = workflowImportPlayers
-		return monitorWorkflow_legacy(ctx, cmd, client.GetImportPlayersStatus, config.DefaultWorkflowPollTimeout)
+		return monitorWorkflow_legacy(ctx, cmd, "Importing players...", "Imported players.", client.GetImportPlayersStatus, config.DefaultWorkflowPollTimeout)
 	}
-
-	totalStart := time.Now()
 
 	input := buildImportPlayersInput()
 
@@ -285,19 +290,14 @@ func runSyncPlayers(cmd *cobra.Command, _ []string) error {
 
 	if !started {
 		log.Warn().Msg("Workflow was not started (may already be running)")
-	} else {
-		log.Info().Msg("Workflow started successfully")
 	}
 
-	if err := monitorWorkflow_legacy(ctx, cmd, client.GetImportPlayersStatus, config.DefaultWorkflowPollTimeout); err != nil {
+	if err := monitorWorkflow_legacy(ctx, cmd, "Importing players...", "Imported players.", client.GetImportPlayersStatus, config.DefaultWorkflowPollTimeout); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
 		return err
 	}
-
-	totalDuration := time.Since(totalStart)
-	log.Info().Str("duration", totalDuration.String()).Msg("Import completed")
 
 	// Fetch and print result data
 	resultData, err := client.GetImportPlayersResultData(ctx)
@@ -399,19 +399,16 @@ func runSyncSeasons(cmd *cobra.Command, _ []string) error {
 	go func() {
 		<-sigChan
 		fmt.Println()
-		log.Warn().Msg("Interrupt received, canceling workflow...")
-		state.cancel(ctx)
+		state.cancel()
 		cancel()
 	}()
 	defer signal.Stop(sigChan)
 
 	if viper.GetBool(config.FlagMonitor) {
-		log.Info().Str("server", apiAddr).Msg("Monitoring existing importSeasons workflow")
+		//log.Info().Str("server", apiAddr).Msg("Monitoring existing importSeasons workflow")
 		state.current = workflowImportSeasons
-		return monitorWorkflow_legacy(ctx, cmd, client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout)
+		return monitorWorkflow_legacy(ctx, cmd, "Importing seasons...", "Imported seasons.", client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout)
 	}
-
-	totalStart := time.Now()
 
 	input := buildImportSeasonsInput()
 
@@ -438,19 +435,14 @@ func runSyncSeasons(cmd *cobra.Command, _ []string) error {
 
 	if !started {
 		log.Warn().Msg("Workflow was not started (may already be running)")
-	} else {
-		log.Info().Msg("Workflow started successfully")
 	}
 
-	if err := monitorWorkflow_legacy(ctx, cmd, client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
+	if err := monitorWorkflow_legacy(ctx, cmd, "Importing seasons...", "Imported seasons.", client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
 		return err
 	}
-
-	totalDuration := time.Since(totalStart)
-	log.Info().Str("duration", totalDuration.String()).Msg("Import completed")
 
 	return nil
 }
