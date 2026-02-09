@@ -42,7 +42,9 @@ func cmdSync() *cobra.Command {
 	config.InitAPIServerAddrFlag(flags)
 	config.InitSeasonRangeFlags(flags)
 	config.InitSeasonConcurrencyFlag(flags)
+	config.InitSkipInitializingFlag(flags)
 	config.InitSkipYahooPlayersFlag(flags)
+	config.InitSkipSeasonsFlag(flags)
 	cmd.AddCommand(cmdSyncSeasons())
 	return cmd
 }
@@ -61,7 +63,13 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 	if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
 		return err
 	}
+	if err := config.BindSkipInitializingFlag(flags); err != nil {
+		return err
+	}
 	if err := config.BindSkipYahooPlayersFlag(flags); err != nil {
+		return err
+	}
+	if err := config.BindSkipSeasonsFlag(flags); err != nil {
 		return err
 	}
 	BindFlags(cmd.PersistentFlags())
@@ -83,7 +91,7 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 
 func runSync(cmd *cobra.Command, args []string) error {
 	start := time.Now()
-	fmt.Printf("PuckDB Sync - %s\n\n", config.BuildNumber)
+	fmt.Printf("PuckDB Sync - %s\n", config.BuildNumber)
 	apiAddr := viper.GetString(config.FlagAPIServerAddr)
 	if apiAddr == "" {
 		return fmt.Errorf("api-server-addr is required")
@@ -107,12 +115,13 @@ func runSync(cmd *cobra.Command, args []string) error {
 	defer signal.Stop(sigChan)
 
 	// Step 1: Initialize reference data (franchises, seasons, league structure)
-	if err := runInitialize(ctx, out, client, state); err != nil {
-		return fmt.Errorf("initialization failed: %w", err)
+	if !viper.GetBool(config.FlagSkipInitializing) {
+		if err := runInitialize(ctx, out, client, state); err != nil {
+			return fmt.Errorf("initialization failed: %w", err)
+		}
+	} else {
+		fmt.Println("- Skipping initialization.")
 	}
-	//if ctx.Err() != nil {
-	//	return fmt.Errorf("workflow canceled by user")
-	//}
 
 	// Step 2: Download Yahoo player pages (unless skipped)
 	if !viper.GetBool(config.FlagSkipYahooPlayers) {
@@ -120,7 +129,16 @@ func runSync(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("downloading Yahoo! players failed: %w", err)
 		}
 	} else {
-		fmt.Println("Skipping Yahoo players download")
+		fmt.Println("- Skipping Yahoo players download.")
+	}
+
+	// Step 3: Download season data (unless skipped)
+	if !viper.GetBool(config.FlagSkipSeasons) {
+		if err := runDownloadSeasons(ctx, out, client, state); err != nil {
+			return fmt.Errorf("downloading seasons failed: %w", err)
+		}
+	} else {
+		fmt.Println("- Skipping seasons download.")
 	}
 
 	fmt.Printf("\nSync completed in %.1fs\n", time.Since(start).Seconds())
@@ -176,6 +194,44 @@ func runDownloadYahooPlayer(ctx context.Context, out io.Writer, client *GraphQLC
 	return nil
 }
 
+func runDownloadSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+	state.current = workflowDownloadSeasons
+
+	input := &model.DownloadSeasonsInput{}
+	start, end := config.GetSeasonRange()
+	if start > 0 {
+		input.StartSeason = &start
+	}
+	if end > 0 {
+		input.EndSeason = &end
+	}
+	if concurrency := viper.GetInt(config.FlagSeasonConcurrency); concurrency > 0 {
+		input.SeasonConcurrency = &concurrency
+	}
+
+	started, err := client.DownloadSeasons(ctx, input)
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
+		return fmt.Errorf("failed to trigger downloadSeasons: %w", err)
+	}
+
+	if !started {
+		log.Warn().Msg("Download seasons workflow was not started (may already be running)")
+	}
+
+	if err := monitorWorkflow(ctx, out, "Downloading seasons...", "Downloaded seasons.",
+		client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
+		return fmt.Errorf("downloadSeasons failed: %w", err)
+	}
+
+	return nil
+}
+
 //func cmdImportPlayers() *cobra.Command {
 //	var cmd = &cobra.Command{
 //		Use:   "players",
@@ -221,10 +277,11 @@ func (s *syncState) cancel() {
 		fn   func(context.Context) (bool, error)
 	}
 	cancelers := map[workflowType]cancelInfo{
-		workflowYahooPlayers:  {"downloadYahooPlayers", s.client.CancelDownloadYahooPlayers},
-		workflowInitialize:    {"initialize", s.client.CancelInitialize},
-		workflowImportPlayers: {"importPlayers", s.client.CancelImportPlayers},
-		workflowImportSeasons: {"importSeasons", s.client.CancelImportSeasons},
+		workflowYahooPlayers:    {"downloadYahooPlayers", s.client.CancelDownloadYahooPlayers},
+		workflowInitialize:      {"initialize", s.client.CancelInitialize},
+		workflowDownloadSeasons: {"downloadSeasons", s.client.CancelDownloadSeasons},
+		workflowImportPlayers:   {"importPlayers", s.client.CancelImportPlayers},
+		workflowImportSeasons:   {"importSeasons", s.client.CancelImportSeasons},
 	}
 	info, ok := cancelers[s.current]
 	if !ok {

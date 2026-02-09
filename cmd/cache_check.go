@@ -72,8 +72,8 @@ func (s *spinner) Start() {
 
 				// Replace placeholder with spinner frame, or put spinner on last line
 				if strings.Contains(s.message, SpinnerPlaceholder) {
-					// Placeholder mode: replace placeholder with spinner frame
-					output := strings.Replace(s.message, SpinnerPlaceholder, s.frames[i], 1)
+					// Placeholder mode: replace all placeholders with spinner frame
+					output := strings.ReplaceAll(s.message, SpinnerPlaceholder, s.frames[i])
 					fmt.Fprint(s.writer, output)
 				} else {
 					// Legacy mode: spinner on last line
@@ -108,8 +108,8 @@ func (s *spinner) Stop() {
 		s.mu.Lock()
 		// Clear previous display
 		s.clearLines()
-		// Render final message (without spinner placeholder)
-		msg := strings.Replace(s.message, SpinnerPlaceholder, " ", 1)
+		// Render final message (without spinner placeholders)
+		msg := strings.ReplaceAll(s.message, SpinnerPlaceholder, " ")
 		fmt.Fprintln(s.writer, msg)
 		s.mu.Unlock()
 

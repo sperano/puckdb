@@ -440,7 +440,74 @@ func formatStatusMessage(status *WorkflowStatus, header string) string {
 		return strings.Join(lines, "\n")
 	}
 
-	// Display each item with ✓/▶/indent
+	// Special handling for seasons: single header, only show in-progress items
+	if header == "Downloading seasons..." {
+		lines = append(lines, fmt.Sprintf("▶ %s", header))
+
+		// First pass: find max widths for alignment (including total line)
+		var maxCompleted, maxTotal, maxDescLen int
+		const totalLabel = "Total"
+		maxDescLen = len(totalLabel)
+
+		for _, item := range status.Progress.Items {
+			if !item.Started || (item.Completed == item.Total && item.Total > 0) {
+				continue
+			}
+			if item.Completed > maxCompleted {
+				maxCompleted = item.Completed
+			}
+			if item.Total > maxTotal {
+				maxTotal = item.Total
+			}
+			desc := fmt.Sprintf("Item %d", item.ID)
+			if item.Description != nil && *item.Description != "" {
+				desc = *item.Description
+			}
+			if len(desc) > maxDescLen {
+				maxDescLen = len(desc)
+			}
+		}
+
+		// Include overall totals in width calculation
+		if status.Progress.Completed > maxCompleted {
+			maxCompleted = status.Progress.Completed
+		}
+		if status.Progress.Total > maxTotal {
+			maxTotal = status.Progress.Total
+		}
+
+		completedWidth := len(fmt.Sprintf("%d", maxCompleted))
+		totalWidth := len(fmt.Sprintf("%d", maxTotal))
+
+		// Second pass: format with aligned columns
+		for _, item := range status.Progress.Items {
+			if !item.Started || (item.Completed == item.Total && item.Total > 0) {
+				continue
+			}
+
+			description := fmt.Sprintf("Item %d", item.ID)
+			if item.Description != nil && *item.Description != "" {
+				description = *item.Description
+			}
+
+			pct := float64(item.Completed) / float64(item.Total) * 100
+			bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
+			lines = append(lines, fmt.Sprintf("%s %-*s %*d/%*d %s %d%%",
+				SpinnerPlaceholder, maxDescLen, description, completedWidth, item.Completed, totalWidth, item.Total, bar, int(pct)))
+		}
+
+		// Total progress line
+		if status.Progress.Total > 0 {
+			totalPct := float64(status.Progress.Completed) / float64(status.Progress.Total) * 100
+			totalBar := renderProgressBar(totalPct, config.DefaultProgressBarWidth)
+			lines = append(lines, fmt.Sprintf("  %-*s %*d/%*d %s %d%%",
+				maxDescLen, totalLabel, completedWidth, status.Progress.Completed, totalWidth, status.Progress.Total, totalBar, int(totalPct)))
+		}
+
+		return strings.Join(lines, "\n")
+	}
+
+	// Default: display each item with ✓/▶/indent (for phases, etc.)
 	for _, item := range status.Progress.Items {
 		description := fmt.Sprintf("Item %d", item.ID)
 		if item.Description != nil && *item.Description != "" {

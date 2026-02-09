@@ -103,6 +103,7 @@ const (
 	FlagSkipPreseason        = "skip-preseason"
 	FlagSkipYahooPlayers     = "skip-yahoo-players"
 	FlagSkipSeasons          = "skip-seasons"
+	FlagSkipInitializing     = "skip-initializing"
 	FlagSeasonConcurrency    = "season-concurrency"
 	FlagMonitor              = "monitor"
 	FlagSeasonYear           = "season"
@@ -496,6 +497,14 @@ func InitSkipSeasonsFlag(flags *flag.FlagSet) {
 
 func BindSkipSeasonsFlag(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagSkipSeasons, flags.Lookup(FlagSkipSeasons))
+}
+
+func InitSkipInitializingFlag(flags *flag.FlagSet) {
+	flags.Bool(FlagSkipInitializing, false, "Skip the initialization workflow (franchises, seasons, league structure)")
+}
+
+func BindSkipInitializingFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagSkipInitializing, flags.Lookup(FlagSkipInitializing))
 }
 
 func InitSeasonConcurrencyFlag(flags *flag.FlagSet) {
