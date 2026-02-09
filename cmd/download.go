@@ -434,20 +434,13 @@ func formatStatusMessage(status *WorkflowStatus, header string) string {
 		return strings.Join(lines, "\n")
 	}
 
-	// Special handling for seasons: single header, only show in-progress items
-	// TODO: wow this is ugly - ideally the workflow would return a more display-friendly status that we wouldn't have to do all this formatting logic for. Maybe something like:
-	// {
-	//   header: "Downloading seasons...",
-	//   items: [
-	//     {id: 2022, description: "2022-23 season", completed: 5, total: 82, started: true},
-	//     {id: 2021, description: "2021-22 season", completed: 82, total: 82, started: true},
-	//     ...
-	//   ],
-	//   progress: {completed: 87, total: 164}
-	// }
-
-	if header == "Downloading seasons..." {
-		lines = append(lines, fmt.Sprintf("▶ %s", header))
+	// Grouped items display: single header with multiple concurrent progress bars
+	if status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleGroupedItems {
+		displayHeader := header
+		if status.Progress.Header != nil && *status.Progress.Header != "" {
+			displayHeader = *status.Progress.Header
+		}
+		lines = append(lines, fmt.Sprintf("▶ %s", displayHeader))
 
 		// First pass: find max widths for alignment (including total line)
 		var maxCompleted, maxTotal, maxDescLen int

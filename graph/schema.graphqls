@@ -228,11 +228,21 @@ type ProgressItem {
 	completedAt: String
 }
 
+# ProgressDisplayStyle determines how items are rendered in the CLI.
+enum ProgressDisplayStyle {
+	# PHASES: Sequential steps shown with ✓/▶/indent prefixes (default)
+	PHASES
+	# GROUPED_ITEMS: Concurrent items shown under a single header with progress bars
+	GROUPED_ITEMS
+}
+
 type WorkflowProgress {
 	total: Int!
 	completed: Int!
 	message: String
+	header: String
 	items: [ProgressItem!]
+	displayStyle: ProgressDisplayStyle
 }
 
 # TrulyUnmatchedPlayer represents a Yahoo player who has NHL games but wasn't matched.

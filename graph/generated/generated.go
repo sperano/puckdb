@@ -296,10 +296,12 @@ type ComplexityRoot struct {
 	}
 
 	WorkflowProgress struct {
-		Completed func(childComplexity int) int
-		Items     func(childComplexity int) int
-		Message   func(childComplexity int) int
-		Total     func(childComplexity int) int
+		Completed    func(childComplexity int) int
+		DisplayStyle func(childComplexity int) int
+		Header       func(childComplexity int) int
+		Items        func(childComplexity int) int
+		Message      func(childComplexity int) int
+		Total        func(childComplexity int) int
 	}
 
 	WorkflowResult struct {
@@ -1756,6 +1758,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.WorkflowProgress.Completed(childComplexity), true
 
+	case "WorkflowProgress.displayStyle":
+		if e.complexity.WorkflowProgress.DisplayStyle == nil {
+			break
+		}
+
+		return e.complexity.WorkflowProgress.DisplayStyle(childComplexity), true
+
+	case "WorkflowProgress.header":
+		if e.complexity.WorkflowProgress.Header == nil {
+			break
+		}
+
+		return e.complexity.WorkflowProgress.Header(childComplexity), true
+
 	case "WorkflowProgress.items":
 		if e.complexity.WorkflowProgress.Items == nil {
 			break
@@ -2128,11 +2144,21 @@ type ProgressItem {
 	completedAt: String
 }
 
+# ProgressDisplayStyle determines how items are rendered in the CLI.
+enum ProgressDisplayStyle {
+	# PHASES: Sequential steps shown with ✓/▶/indent prefixes (default)
+	PHASES
+	# GROUPED_ITEMS: Concurrent items shown under a single header with progress bars
+	GROUPED_ITEMS
+}
+
 type WorkflowProgress {
 	total: Int!
 	completed: Int!
 	message: String
+	header: String
 	items: [ProgressItem!]
+	displayStyle: ProgressDisplayStyle
 }
 
 # TrulyUnmatchedPlayer represents a Yahoo player who has NHL games but wasn't matched.
@@ -9921,8 +9947,12 @@ func (ec *executionContext) fieldContext_Query_initializeProgress(_ context.Cont
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
 			case "message":
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
+			case "header":
+				return ec.fieldContext_WorkflowProgress_header(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
+			case "displayStyle":
+				return ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -10071,8 +10101,12 @@ func (ec *executionContext) fieldContext_Query_downloadSeasonsProgress(_ context
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
 			case "message":
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
+			case "header":
+				return ec.fieldContext_WorkflowProgress_header(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
+			case "displayStyle":
+				return ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -10172,8 +10206,12 @@ func (ec *executionContext) fieldContext_Query_downloadYahooPlayersProgress(_ co
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
 			case "message":
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
+			case "header":
+				return ec.fieldContext_WorkflowProgress_header(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
+			case "displayStyle":
+				return ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -10273,8 +10311,12 @@ func (ec *executionContext) fieldContext_Query_downloadPlayersProgress(_ context
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
 			case "message":
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
+			case "header":
+				return ec.fieldContext_WorkflowProgress_header(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
+			case "displayStyle":
+				return ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -10374,8 +10416,12 @@ func (ec *executionContext) fieldContext_Query_importPlayersProgress(_ context.C
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
 			case "message":
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
+			case "header":
+				return ec.fieldContext_WorkflowProgress_header(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
+			case "displayStyle":
+				return ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -10534,8 +10580,12 @@ func (ec *executionContext) fieldContext_Query_importSeasonsProgress(_ context.C
 				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
 			case "message":
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
+			case "header":
+				return ec.fieldContext_WorkflowProgress_header(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
+			case "displayStyle":
+				return ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
 		},
@@ -11603,6 +11653,47 @@ func (ec *executionContext) fieldContext_WorkflowProgress_message(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _WorkflowProgress_header(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_WorkflowProgress_header(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Header, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_WorkflowProgress_header(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _WorkflowProgress_items(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowProgress) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_WorkflowProgress_items(ctx, field)
 	if err != nil {
@@ -11657,6 +11748,47 @@ func (ec *executionContext) fieldContext_WorkflowProgress_items(_ context.Contex
 				return ec.fieldContext_ProgressItem_completedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ProgressItem", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowProgress_displayStyle(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DisplayStyle, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.ProgressDisplayStyle)
+	fc.Result = res
+	return ec.marshalOProgressDisplayStyle2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressDisplayStyle(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_WorkflowProgress_displayStyle(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ProgressDisplayStyle does not have child fields")
 		},
 	}
 	return fc, nil
@@ -15493,8 +15625,12 @@ func (ec *executionContext) _WorkflowProgress(ctx context.Context, sel ast.Selec
 			}
 		case "message":
 			out.Values[i] = ec._WorkflowProgress_message(ctx, field, obj)
+		case "header":
+			out.Values[i] = ec._WorkflowProgress_header(ctx, field, obj)
 		case "items":
 			out.Values[i] = ec._WorkflowProgress_items(ctx, field, obj)
+		case "displayStyle":
+			out.Values[i] = ec._WorkflowProgress_displayStyle(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -16535,6 +16671,22 @@ func (ec *executionContext) marshalOInt642ᚖint64(ctx context.Context, sel ast.
 	}
 	res := graphql.MarshalInt64(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOProgressDisplayStyle2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressDisplayStyle(ctx context.Context, v interface{}) (*model.ProgressDisplayStyle, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.ProgressDisplayStyle)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOProgressDisplayStyle2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressDisplayStyle(ctx context.Context, sel ast.SelectionSet, v *model.ProgressDisplayStyle) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalOProgressItem2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ProgressItem) graphql.Marshaler {

@@ -239,15 +239,58 @@ type TrulyUnmatchedPlayer struct {
 }
 
 type WorkflowProgress struct {
-	Total     int             `json:"total"`
-	Completed int             `json:"completed"`
-	Message   *string         `json:"message,omitempty"`
-	Items     []*ProgressItem `json:"items,omitempty"`
+	Total        int                   `json:"total"`
+	Completed    int                   `json:"completed"`
+	Message      *string               `json:"message,omitempty"`
+	Header       *string               `json:"header,omitempty"`
+	Items        []*ProgressItem       `json:"items,omitempty"`
+	DisplayStyle *ProgressDisplayStyle `json:"displayStyle,omitempty"`
 }
 
 type WorkflowResult struct {
 	Status        TemporalWorkflowStatus `json:"status"`
 	FailureReason *string                `json:"failureReason,omitempty"`
+}
+
+type ProgressDisplayStyle string
+
+const (
+	ProgressDisplayStylePhases       ProgressDisplayStyle = "PHASES"
+	ProgressDisplayStyleGroupedItems ProgressDisplayStyle = "GROUPED_ITEMS"
+)
+
+var AllProgressDisplayStyle = []ProgressDisplayStyle{
+	ProgressDisplayStylePhases,
+	ProgressDisplayStyleGroupedItems,
+}
+
+func (e ProgressDisplayStyle) IsValid() bool {
+	switch e {
+	case ProgressDisplayStylePhases, ProgressDisplayStyleGroupedItems:
+		return true
+	}
+	return false
+}
+
+func (e ProgressDisplayStyle) String() string {
+	return string(e)
+}
+
+func (e *ProgressDisplayStyle) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ProgressDisplayStyle(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ProgressDisplayStyle", str)
+	}
+	return nil
+}
+
+func (e ProgressDisplayStyle) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 type TemporalWorkflowStatus string

@@ -20,12 +20,24 @@ type ItemProgress struct {
 	CompletedAt          string `json:"completedAt,omitempty"` // RFC3339 timestamp
 }
 
+// ProgressDisplayStyle determines how items are rendered in the CLI.
+type ProgressDisplayStyle string
+
+const (
+	// DisplayStylePhases shows items as sequential steps with ✓/▶/indent prefixes
+	DisplayStylePhases ProgressDisplayStyle = "PHASES"
+	// DisplayStyleGroupedItems shows items under a single header with progress bars
+	DisplayStyleGroupedItems ProgressDisplayStyle = "GROUPED_ITEMS"
+)
+
 // WorkflowProgress represents the progress of a workflow.
 type WorkflowProgress struct {
-	Total     int            `json:"total"`
-	Completed int            `json:"completed"`
-	Message   string         `json:"message,omitempty"`
-	Items     []ItemProgress `json:"items,omitempty"`
+	Total        int                  `json:"total"`
+	Completed    int                  `json:"completed"`
+	Message      string               `json:"message,omitempty"`
+	Header       string               `json:"header,omitempty"`
+	Items        []ItemProgress       `json:"items,omitempty"`
+	DisplayStyle ProgressDisplayStyle `json:"displayStyle,omitempty"`
 }
 
 // ProgressQueryName is the name of the query handler for progress.
@@ -128,9 +140,10 @@ func (p *ProgressTracker) InitializeWithPhases(phases []PhaseInfo) {
 	}
 
 	p.progress = WorkflowProgress{
-		Total:     total,
-		Completed: 0,
-		Items:     itemProgress,
+		Total:        total,
+		Completed:    0,
+		Items:        itemProgress,
+		DisplayStyle: DisplayStylePhases,
 	}
 }
 
@@ -207,9 +220,11 @@ func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo) {
 	}
 
 	p.progress = WorkflowProgress{
-		Total:     total,
-		Completed: 0,
-		Items:     itemProgress,
+		Total:        total,
+		Completed:    0,
+		Header:       "Downloading seasons...",
+		Items:        itemProgress,
+		DisplayStyle: DisplayStyleGroupedItems,
 	}
 }
 
