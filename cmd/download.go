@@ -14,231 +14,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-func cmdDownload() *cobra.Command {
-	var cmd = &cobra.Command{
-		Use:   "download",
-		Short: "Download NHL and Yahoo data",
-		Long: `Trigger download workflow via GraphQL API and monitor until completion.
-Use --season for a specific season, or --from-season/--to-season for a range.
-Use --monitor to watch an existing workflow without triggering a new one.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			if err := config.BindAPIServerAddrFlag(flags); err != nil {
-				return err
-			}
-			if err := config.BindSeasonRangeFlags(flags); err != nil {
-				return err
-			}
-			if err := config.BindMonitorFlag(flags); err != nil {
-				return err
-			}
-			if err := config.BindSkipYahooPlayersFlag(flags); err != nil {
-				return err
-			}
-			if err := config.BindSkipSeasonsFlag(flags); err != nil {
-				return err
-			}
-			return config.BindSeasonConcurrencyFlag(flags)
-		},
-		RunE: runDownload,
-	}
-	flags := cmd.Flags()
-	config.InitAPIServerAddrFlag(flags)
-	config.InitSeasonRangeFlags(flags)
-	config.InitMonitorFlag(flags)
-	config.InitSkipYahooPlayersFlag(flags)
-	config.InitSkipSeasonsFlag(flags)
-	config.InitSeasonConcurrencyFlag(flags)
-	return cmd
-}
-
-// downloadState tracks the current workflow for signal handling
-type downloadState struct {
-	client  *GraphQLClient
-	current workflowType
-}
-
-func (s *downloadState) cancel(_ context.Context) {
-	// Use a fresh context to cancel since the original may be canceled.
-	cancelCtx, cancel := context.WithTimeout(context.Background(), config.DefaultCancelTimeout)
-	defer cancel()
-
-	switch s.current {
-	case workflowYahooPlayers:
-		log.Info().Msg("Canceling downloadYahooPlayers workflow...")
-		if _, err := s.client.CancelDownloadYahooPlayers(cancelCtx); err != nil {
-			log.Error().Err(err).Msg("Failed to cancel downloadYahooPlayers workflow")
-		} else {
-			log.Info().Msg("downloadYahooPlayers workflow canceled")
-		}
-	case workflowDownloadSeasons:
-		log.Info().Msg("Canceling downloadSeasons workflow...")
-		if _, err := s.client.CancelDownloadSeasons(cancelCtx); err != nil {
-			log.Error().Err(err).Msg("Failed to cancel downloadSeasons workflow")
-		} else {
-			log.Info().Msg("downloadSeasons workflow canceled")
-		}
-	case workflowDownloadPlayers:
-		log.Info().Msg("Canceling downloadPlayers workflow...")
-		if _, err := s.client.CancelDownloadPlayers(cancelCtx); err != nil {
-			log.Error().Err(err).Msg("Failed to cancel downloadPlayers workflow")
-		} else {
-			log.Info().Msg("downloadPlayers workflow canceled")
-		}
-	case workflowNone:
-	}
-}
-
-func runDownload(cmd *cobra.Command, _ []string) error {
-	//log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
-	//
-	//apiAddr := viper.GetString(config.FlagAPIServerAddr)
-	//if apiAddr == "" {
-	//	return fmt.Errorf("api-server-addr is required")
-	//}
-	//
-	//client := NewGraphQLClient(apiAddr)
-	//state := &downloadState{client: client, current: workflowNone}
-	//
-	//// Set up signal handling for Ctrl+C
-	//ctx, cancel := context.WithCancel(cmd.Context())
-	//defer cancel()
-	//
-	//sigChan := make(chan os.Signal, 1)
-	//signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	//
-	//go func() {
-	//	<-sigChan
-	//	fmt.Println() // newline after ^C
-	//	state.cancel(ctx)
-	//	cancel()
-	//}()
-	//defer signal.Stop(sigChan)
-	//
-	//if viper.GetBool(config.FlagMonitor) {
-	//	log.Info().Str("server", apiAddr).Msg("Monitoring existing downloadSeasons workflow")
-	//	state.current = workflowDownloadSeasons
-	//	return monitorWorkflow_legacy(ctx, cmd, "Downloading seasons...", "Downloaded seasons.", client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout)
-	//}
-	//
-	//totalStart := time.Now()
-	//var yahooPlayersDuration, seasonsDuration, playersDuration time.Duration
-	//
-	//// Step 1: Download Yahoo players (unless skipped)
-	//if !viper.GetBool(config.FlagSkipYahooPlayers) {
-	//	stepStart := time.Now()
-	//	if err := runDownloadYahooPlayers(ctx, cmd, client, state); err != nil {
-	//		if ctx.Err() != nil {
-	//			return fmt.Errorf("workflow canceled by user")
-	//		}
-	//		return err
-	//	}
-	//	yahooPlayersDuration = time.Since(stepStart)
-	//	log.Info().Str("duration", yahooPlayersDuration.String()).Msg("Yahoo players download completed")
-	//} else {
-	//	log.Info().Msg("Skipping Yahoo players download")
-	//}
-	//
-	//// Check if context was canceled during Yahoo players download
-	//if ctx.Err() != nil {
-	//	return fmt.Errorf("workflow canceled by user")
-	//}
-	//
-	//input := buildDownloadSeasonsInput()
-	//
-	//// Step 2: Download all season data (unless skipped)
-	//if !viper.GetBool(config.FlagSkipSeasons) {
-	//	stepStart := time.Now()
-	//	state.current = workflowDownloadSeasons
-	//
-	//	logEvent := log.Info().Str("server", apiAddr)
-	//	if input.StartSeason != nil {
-	//		logEvent = logEvent.Int("startSeason", *input.StartSeason)
-	//	}
-	//	if input.EndSeason != nil {
-	//		logEvent = logEvent.Int("endSeason", *input.EndSeason)
-	//	}
-	//	if input.SeasonConcurrency != nil {
-	//		logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
-	//	}
-	//	logEvent.Msg("Triggering downloadSeasons workflow")
-	//
-	//	started, err := client.DownloadSeasons(ctx, input)
-	//	if err != nil {
-	//		if ctx.Err() != nil {
-	//			return fmt.Errorf("workflow canceled by user")
-	//		}
-	//		return fmt.Errorf("failed to trigger download: %w", err)
-	//	}
-	//
-	//	if !started {
-	//		log.Warn().Msg("Workflow was not started (may already be running)")
-	//	} else {
-	//		log.Info().Msg("Workflow started successfully")
-	//	}
-	//
-	//	if err := monitorWorkflow_legacy(ctx, cmd, "Downloading seasons...", "Downloaded seasons.", client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
-	//		if ctx.Err() != nil {
-	//			return fmt.Errorf("workflow canceled by user")
-	//		}
-	//		return err
-	//	}
-	//	seasonsDuration = time.Since(stepStart)
-	//	log.Info().Str("duration", seasonsDuration.String()).Msg("Seasons download completed")
-	//} else {
-	//	log.Info().Msg("Skipping seasons download")
-	//}
-	//
-	//// Check if context was canceled
-	//if ctx.Err() != nil {
-	//	return fmt.Errorf("workflow canceled by user")
-	//}
-	//
-	//// Step 3: Download players (extract player IDs from boxscores)
-	//stepStart := time.Now()
-	//if err := runDownloadPlayers(ctx, cmd, client, state, input); err != nil {
-	//	if ctx.Err() != nil {
-	//		return fmt.Errorf("workflow canceled by user")
-	//	}
-	//	return err
-	//}
-	//playersDuration = time.Since(stepStart)
-	//log.Info().Str("duration", playersDuration.String()).Msg("Players download completed")
-	//
-	//// Log final summary
-	//totalDuration := time.Since(totalStart)
-	//log.Info().
-	//	Str("yahooPlayers", yahooPlayersDuration.String()).
-	//	Str("seasons", seasonsDuration.String()).
-	//	Str("players", playersDuration.String()).
-	//	Str("total", totalDuration.String()).
-	//	Msg("Download completed")
-	//
-	return nil
-}
-
-func runDownloadYahooPlayers(ctx context.Context, cmd *cobra.Command, client *GraphQLClient, state *downloadState) error {
-	state.current = workflowYahooPlayers
-	log.Info().Msg("Triggering downloadYahooPlayers workflow")
-
-	started, err := client.DownloadYahooPlayers(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to trigger downloadYahooPlayers: %w", err)
-	}
-
-	if !started {
-		log.Warn().Msg("Yahoo players workflow was not started (may already be running)")
-	} else {
-		log.Info().Msg("Yahoo players workflow started successfully")
-	}
-
-	if err := monitorWorkflow_legacy(ctx, cmd, "Downloading Yahoo! players...", client.GetDownloadYahooPlayersStatus, config.DefaultYahooPlayersTimeout); err != nil {
-		return fmt.Errorf("downloadYahooPlayers failed: %w", err)
-	}
-
-	return nil
-}
-
 func runDownloadPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState, input *model.DownloadSeasonsInput) error {
 	state.current = workflowDownloadPlayers
 	log.Info().Msg("Triggering downloadPlayers workflow")
@@ -254,7 +29,7 @@ func runDownloadPlayers(ctx context.Context, out io.Writer, client *GraphQLClien
 		log.Info().Msg("Download players workflow started successfully")
 	}
 
-	if err := monitorWorkflow(ctx, out, "Downloading players...", client.GetDownloadPlayersStatus, config.DefaultDownloadPlayersTimeout); err != nil {
+	if err := monitorWorkflow(ctx, out, client.GetDownloadPlayersStatus, config.DefaultDownloadPlayersTimeout); err != nil {
 		return fmt.Errorf("downloadPlayers failed: %w", err)
 	}
 
@@ -299,7 +74,7 @@ func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, header stri
 			})
 		} else {
 			sp.mu.Lock()
-			sp.message = formatStatusMessage(status, header)
+			sp.message = formatStatusMessage(status)
 			sp.mu.Unlock()
 
 			switch status.Result.Status {
@@ -342,8 +117,8 @@ func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, header stri
 	}
 }
 
-func monitorWorkflow(ctx context.Context, out io.Writer, header string, getStatus statusFetcher, pollTimeout time.Duration) error {
-	sp := newSpinner(out, header)
+func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher, pollTimeout time.Duration) error {
+	sp := newSpinner(out, "Starting...")
 	sp.Start()
 
 	// Wait briefly for workflow to start and register query handlers
@@ -361,7 +136,7 @@ func monitorWorkflow(ctx context.Context, out io.Writer, header string, getStatu
 			})
 		} else {
 			sp.mu.Lock()
-			sp.message = formatStatusMessage(status, header)
+			sp.message = formatStatusMessage(status)
 			sp.mu.Unlock()
 
 			switch status.Result.Status {
@@ -404,9 +179,14 @@ func monitorWorkflow(ctx context.Context, out io.Writer, header string, getStatu
 	}
 }
 
-func formatStatusMessage(status *WorkflowStatus, header string) string {
+func formatStatusMessage(status *WorkflowStatus) string {
 	if status.Progress == nil {
 		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
+	}
+
+	header := ""
+	if status.Progress.Header != nil {
+		header = *status.Progress.Header
 	}
 
 	var lines []string
@@ -426,7 +206,9 @@ func formatStatusMessage(status *WorkflowStatus, header string) string {
 
 	// If no items, show simple header + progress bar
 	if len(status.Progress.Items) == 0 {
-		lines = append(lines, fmt.Sprintf("▶ %s", header))
+		if header != "" {
+			lines = append(lines, fmt.Sprintf("▶ %s", header))
+		}
 		pct := float64(status.Progress.Completed) / float64(status.Progress.Total) * 100
 		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
 		lines = append(lines, fmt.Sprintf("%s %d/%d %s %d%%",
@@ -436,11 +218,9 @@ func formatStatusMessage(status *WorkflowStatus, header string) string {
 
 	// Grouped items display: single header with multiple concurrent progress bars
 	if status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleGroupedItems {
-		displayHeader := header
-		if status.Progress.Header != nil && *status.Progress.Header != "" {
-			displayHeader = *status.Progress.Header
+		if header != "" {
+			lines = append(lines, fmt.Sprintf("▶ %s", header))
 		}
-		lines = append(lines, fmt.Sprintf("▶ %s", displayHeader))
 
 		// First pass: find max widths for alignment (including total line)
 		var maxCompleted, maxTotal, maxDescLen int
@@ -533,49 +313,6 @@ func formatStatusMessage(status *WorkflowStatus, header string) string {
 	}
 
 	return strings.Join(lines, "\n")
-}
-
-// formatElapsedTime calculates and formats the elapsed time between two RFC3339 timestamps.
-func formatElapsedTime(startedAt, completedAt *string) string {
-	if startedAt == nil || completedAt == nil {
-		return ""
-	}
-
-	start, err := time.Parse(time.RFC3339, *startedAt)
-	if err != nil {
-		return ""
-	}
-
-	end, err := time.Parse(time.RFC3339, *completedAt)
-	if err != nil {
-		return ""
-	}
-
-	elapsed := end.Sub(start)
-
-	// Format as human-readable duration
-	if elapsed < time.Second {
-		return fmt.Sprintf("%dms", elapsed.Milliseconds())
-	}
-	if elapsed < time.Minute {
-		secs := elapsed.Seconds()
-		if secs == float64(int(secs)) {
-			return fmt.Sprintf("%ds", int(secs))
-		}
-		return fmt.Sprintf("%.1fs", secs)
-	}
-	if elapsed < time.Hour {
-		mins := int(elapsed.Minutes())
-		secs := int(elapsed.Seconds()) % 60
-		if secs == 0 {
-			return fmt.Sprintf("%dm", mins)
-		}
-		return fmt.Sprintf("%dm%ds", mins, secs)
-	}
-
-	hours := int(elapsed.Hours())
-	mins := int(elapsed.Minutes()) % 60
-	return fmt.Sprintf("%dh%dm", hours, mins)
 }
 
 func renderProgressBar(pct float64, width int) string {

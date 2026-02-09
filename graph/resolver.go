@@ -327,6 +327,13 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 		Total:     progress.Total,
 		Completed: progress.Completed,
 		Message:   ptrStringIfNotEmpty(progress.Message),
+		Header:    ptrStringIfNotEmpty(progress.Header),
+	}
+
+	// Convert display style if set
+	if progress.DisplayStyle != "" {
+		style := model.ProgressDisplayStyle(progress.DisplayStyle)
+		result.DisplayStyle = &style
 	}
 
 	if len(progress.Items) > 0 {

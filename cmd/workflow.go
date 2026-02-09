@@ -19,7 +19,7 @@ func cmdWorkflow() *cobra.Command {
 		Short:   "Workflow operations",
 		Long:    `Workflow management commands: download, cancel.`,
 	}
-	cmd.AddCommand(cmdDownload(), cmdWorkflowCancel())
+	cmd.AddCommand(cmdWorkflowCancel())
 	return cmd
 }
 

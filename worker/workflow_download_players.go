@@ -31,6 +31,9 @@ type downloadPlayersInternalInput struct {
 	TotalCompleted int
 	Phase          int
 	StartedAt      time.Time // Original start time for elapsed calculation
+
+	// Progress state preserved across ContinueAsNew
+	Phase1CompletedDesc string // Completion message from Phase 1
 }
 
 // DownloadPlayersWorkflow extracts player IDs from boxscores and downloads their landing pages.
@@ -61,10 +64,21 @@ func downloadPlayersWorkflowImpl(ctx workflow.Context, input *downloadPlayersInt
 // ImportNHLTeamsAndPlayersWorkflow as a child workflow.
 func runPhase1ExtractPlayerIDs(ctx workflow.Context, input *downloadPlayersInternalInput) error {
 	logger := workflow.GetLogger(ctx)
+	startedAt := workflow.Now(ctx)
 
 	logger.Info("DownloadPlayersWorkflow Phase 1: extracting player IDs via child workflow",
 		"startSeason", input.StartSeason,
 		"endSeason", input.EndSeason)
+
+	// Set up phase-based progress tracker
+	tracker := NewProgressTrackerWithPhases([]PhaseInfo{
+		{ID: phaseExtractPlayerIDs, Description: "Extracting player IDs..."},
+		{ID: phaseDownloadPlayerLandings, Description: "Downloading players..."},
+	})
+	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+		return err
+	}
+	tracker.MarkItemStarted(ctx, phaseExtractPlayerIDs)
 
 	// Execute ImportNHLTeamsAndPlayersWorkflow as a child workflow
 	// This extracts both teams and player IDs, upserts teams, and returns player IDs
@@ -83,17 +97,24 @@ func runPhase1ExtractPlayerIDs(ctx workflow.Context, input *downloadPlayersInter
 		return err
 	}
 
+	// Mark Phase 1 complete
+	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
+	phase1CompletedDesc := fmt.Sprintf("Extracted %d player IDs in %s.", len(result.PlayerIDs), elapsed)
+	tracker.SetItemCompletedDescription(phaseExtractPlayerIDs, phase1CompletedDesc)
+	tracker.MarkItemCompleted(ctx, phaseExtractPlayerIDs)
+
 	logger.Info("Phase 1 complete, transitioning to Phase 2",
 		"total_unique_players", len(result.PlayerIDs))
 
-	// ContinueAsNew into Phase 2
+	// ContinueAsNew into Phase 2, preserving Phase 1 completion info
 	return workflow.NewContinueAsNewError(ctx, DownloadPlayersWorkflowContinue,
 		&downloadPlayersInternalInput{
-			PlayerIDs:      result.PlayerIDs,
-			StartIndex:     0,
-			TotalCompleted: 0,
-			Phase:          phaseDownloadPlayerLandings,
-			StartedAt:      workflow.Now(ctx),
+			PlayerIDs:           result.PlayerIDs,
+			StartIndex:          0,
+			TotalCompleted:      0,
+			Phase:               phaseDownloadPlayerLandings,
+			StartedAt:           workflow.Now(ctx),
+			Phase1CompletedDesc: phase1CompletedDesc,
 		})
 }
 
@@ -140,12 +161,19 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 		"concurrency", concurrency,
 		"batch_size", batchSize)
 
-	// Progress tracker with single phase for proper completion display
-	const phaseID = 1
-	tracker := NewProgressTrackerSinglePhase("Downloading players...", totalPlayers, input.TotalCompleted)
+	// Set up phase-based progress tracker with Phase 1 already completed
+	tracker := NewProgressTrackerWithPhases([]PhaseInfo{
+		{ID: phaseExtractPlayerIDs, Description: "Extracting player IDs...", CompletedDescription: input.Phase1CompletedDesc, Total: 1},
+		{ID: phaseDownloadPlayerLandings, Description: "Downloading players...", Total: totalPlayers},
+	})
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
+
+	// Mark Phase 1 as already completed, Phase 2 as started with current progress
+	tracker.MarkItemCompleted(ctx, phaseExtractPlayerIDs)
+	tracker.MarkItemStarted(ctx, phaseDownloadPlayerLandings)
+	tracker.IncrementItemBy(phaseDownloadPlayerLandings, input.TotalCompleted)
 
 	// Activity options with longer timeout for API calls
 	activityCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
@@ -158,7 +186,7 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 		},
 	})
 
-	// Run worker pool
+	// Run worker pool - increment by batchSize per completion
 	startActivity := func(ctx workflow.Context, batchIndex int) workflow.Future {
 		batchStart := startIdx + (batchIndex * batchSize)
 		batchEnd := batchStart + batchSize
@@ -169,7 +197,7 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 		return workflow.ExecuteActivity(activityCtx, DownloadPlayerLandingBatchActivity, batch)
 	}
 
-	if err := tracker.RunWorkerPoolForItem(ctx, numBatches, concurrency, phaseID, startActivity, nil); err != nil {
+	if err := tracker.RunWorkerPoolForItemBy(ctx, numBatches, concurrency, phaseDownloadPlayerLandings, batchSize, startActivity, nil); err != nil {
 		return err
 	}
 
@@ -181,18 +209,19 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 
 		return workflow.NewContinueAsNewError(ctx, DownloadPlayersWorkflowContinue,
 			&downloadPlayersInternalInput{
-				PlayerIDs:      input.PlayerIDs,
-				StartIndex:     endIdx,
-				TotalCompleted: input.TotalCompleted + playersThisExec,
-				Phase:          phaseDownloadPlayerLandings,
-				StartedAt:      startedAt,
+				PlayerIDs:           input.PlayerIDs,
+				StartIndex:          endIdx,
+				TotalCompleted:      input.TotalCompleted + playersThisExec,
+				Phase:               phaseDownloadPlayerLandings,
+				StartedAt:           startedAt,
+				Phase1CompletedDesc: input.Phase1CompletedDesc,
 			})
 	}
 
 	// Mark phase complete with final count and elapsed time
 	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
-	tracker.SetItemCompletedDescription(phaseID, fmt.Sprintf("Downloaded %d players in %s.", totalPlayers, elapsed))
-	tracker.MarkItemCompleted(ctx, phaseID)
+	tracker.SetItemCompletedDescription(phaseDownloadPlayerLandings, fmt.Sprintf("Downloaded %d players in %s.", totalPlayers, elapsed))
+	tracker.MarkItemCompleted(ctx, phaseDownloadPlayerLandings)
 
 	logger.Info("DownloadPlayersWorkflow completed",
 		"total_players", totalPlayers)

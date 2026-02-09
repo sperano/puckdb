@@ -45,9 +45,9 @@ const ProgressQueryName = "progress"
 
 // ProgressTracker tracks workflow progress and handles completion via Selector.
 type ProgressTracker struct {
-	progress    WorkflowProgress
-	itemIndex   map[int]int // maps item ID to index in Items slice
-	futureToID  map[int]int // maps future index to item ID
+	progress   WorkflowProgress
+	itemIndex  map[int]int // maps item ID to index in Items slice
+	futureToID map[int]int // maps future index to item ID
 }
 
 // NewProgressTracker creates a new ProgressTracker with the given total count.
@@ -431,6 +431,12 @@ func (p *ProgressTracker) RunWorkerPoolWithHandler(ctx workflow.Context, total i
 // RunWorkerPoolForItem is like RunWorkerPoolWithHandler but increments a specific item's progress.
 // Use itemID=0 to only increment the overall total.
 func (p *ProgressTracker) RunWorkerPoolForItem(ctx workflow.Context, total int, concurrency int, itemID int, startActivity ActivityStarter, handler ResultHandler) error {
+	return p.RunWorkerPoolForItemBy(ctx, total, concurrency, itemID, 1, startActivity, handler)
+}
+
+// RunWorkerPoolForItemBy is like RunWorkerPoolForItem but increments by a custom amount per completion.
+// Use for batch processing where each activity handles multiple items.
+func (p *ProgressTracker) RunWorkerPoolForItemBy(ctx workflow.Context, total int, concurrency int, itemID int, incrementBy int, startActivity ActivityStarter, handler ResultHandler) error {
 	if total == 0 {
 		return nil
 	}
@@ -468,9 +474,9 @@ func (p *ProgressTracker) RunWorkerPoolForItem(ctx workflow.Context, total int, 
 					}
 				}
 				if itemID != 0 {
-					p.IncrementItem(itemID)
+					p.IncrementItemBy(itemID, incrementBy)
 				} else {
-					p.Increment()
+					p.progress.Completed += incrementBy
 				}
 				delete(active, capturedIdx)
 			})

@@ -159,21 +159,30 @@ func runSync(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	state.current = workflowInitialize
-	started, err := client.Initialize(ctx)
+// workflowRunner encapsulates common workflow execution logic.
+type workflowRunner struct {
+	workflowType workflowType
+	trigger      func() (bool, error)
+	getStatus    statusFetcher
+	timeout      time.Duration
+}
+
+func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState) error {
+	state.current = r.workflowType
+
+	started, err := r.trigger()
 	if err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
-		return fmt.Errorf("failed to trigger initialize: %w", err)
+		return fmt.Errorf("failed to trigger workflow: %w", err)
 	}
 
 	if !started {
 		log.Warn().Msg("Workflow was not started (may already be running)")
 	}
-	if err := monitorWorkflow(ctx, out, "",
-		client.GetInitializeStatus, config.DefaultWorkflowPollTimeout); err != nil {
+
+	if err := monitorWorkflow(ctx, out, r.getStatus, r.timeout); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
@@ -183,67 +192,31 @@ func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient, st
 	return nil
 }
 
+func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+	return workflowRunner{
+		workflowType: workflowInitialize,
+		trigger:      func() (bool, error) { return client.Initialize(ctx) },
+		getStatus:    client.GetInitializeStatus,
+		timeout:      config.DefaultWorkflowPollTimeout,
+	}.run(ctx, out, state)
+}
+
 func runDownloadYahooPlayer(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	state.current = workflowYahooPlayers
-	started, err := client.DownloadYahooPlayers(ctx)
-	if err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("workflow canceled by user")
-		}
-		return fmt.Errorf("failed to trigger downloadYahooPlayers: %w", err)
-	}
-
-	if !started {
-		log.Warn().Msg("Yahoo players workflow was not started (may already be running)")
-	}
-
-	if err := monitorWorkflow(ctx, out, "Downloading Yahoo! players...",
-		client.GetDownloadYahooPlayersStatus, config.DefaultYahooPlayersTimeout); err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("workflow canceled by user")
-		}
-		return fmt.Errorf("downloadYahooPlayers failed: %w", err)
-	}
-
-	return nil
+	return workflowRunner{
+		workflowType: workflowYahooPlayers,
+		trigger:      func() (bool, error) { return client.DownloadYahooPlayers(ctx) },
+		getStatus:    client.GetDownloadYahooPlayersStatus,
+		timeout:      config.DefaultYahooPlayersTimeout,
+	}.run(ctx, out, state)
 }
 
 func runDownloadSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	state.current = workflowDownloadSeasons
-
-	input := &model.DownloadSeasonsInput{}
-	start, end := config.GetSeasonRange()
-	if start > 0 {
-		input.StartSeason = &start
-	}
-	if end > 0 {
-		input.EndSeason = &end
-	}
-	if concurrency := viper.GetInt(config.FlagSeasonConcurrency); concurrency > 0 {
-		input.SeasonConcurrency = &concurrency
-	}
-
-	started, err := client.DownloadSeasons(ctx, input)
-	if err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("workflow canceled by user")
-		}
-		return fmt.Errorf("failed to trigger downloadSeasons: %w", err)
-	}
-
-	if !started {
-		log.Warn().Msg("Download seasons workflow was not started (may already be running)")
-	}
-
-	if err := monitorWorkflow(ctx, out, "Downloading seasons...",
-		client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("workflow canceled by user")
-		}
-		return fmt.Errorf("downloadSeasons failed: %w", err)
-	}
-
-	return nil
+	return workflowRunner{
+		workflowType: workflowDownloadSeasons,
+		trigger:      func() (bool, error) { return client.DownloadSeasons(ctx, buildDownloadSeasonsInput()) },
+		getStatus:    client.GetDownloadSeasonsStatus,
+		timeout:      config.DefaultWorkflowPollTimeout,
+	}.run(ctx, out, state)
 }
 
 //func cmdImportPlayers() *cobra.Command {
