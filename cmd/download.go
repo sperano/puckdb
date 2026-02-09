@@ -4,13 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
@@ -94,130 +90,130 @@ func (s *downloadState) cancel(_ context.Context) {
 }
 
 func runDownload(cmd *cobra.Command, _ []string) error {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
-
-	apiAddr := viper.GetString(config.FlagAPIServerAddr)
-	if apiAddr == "" {
-		return fmt.Errorf("api-server-addr is required")
-	}
-
-	client := NewGraphQLClient(apiAddr)
-	state := &downloadState{client: client, current: workflowNone}
-
-	// Set up signal handling for Ctrl+C
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		fmt.Println() // newline after ^C
-		state.cancel(ctx)
-		cancel()
-	}()
-	defer signal.Stop(sigChan)
-
-	if viper.GetBool(config.FlagMonitor) {
-		log.Info().Str("server", apiAddr).Msg("Monitoring existing downloadSeasons workflow")
-		state.current = workflowDownloadSeasons
-		return monitorWorkflow_legacy(ctx, cmd, "Downloading seasons...", "Downloaded seasons.", client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout)
-	}
-
-	totalStart := time.Now()
-	var yahooPlayersDuration, seasonsDuration, playersDuration time.Duration
-
-	// Step 1: Download Yahoo players (unless skipped)
-	if !viper.GetBool(config.FlagSkipYahooPlayers) {
-		stepStart := time.Now()
-		if err := runDownloadYahooPlayers(ctx, cmd, client, state); err != nil {
-			if ctx.Err() != nil {
-				return fmt.Errorf("workflow canceled by user")
-			}
-			return err
-		}
-		yahooPlayersDuration = time.Since(stepStart)
-		log.Info().Str("duration", yahooPlayersDuration.String()).Msg("Yahoo players download completed")
-	} else {
-		log.Info().Msg("Skipping Yahoo players download")
-	}
-
-	// Check if context was canceled during Yahoo players download
-	if ctx.Err() != nil {
-		return fmt.Errorf("workflow canceled by user")
-	}
-
-	input := buildDownloadSeasonsInput()
-
-	// Step 2: Download all season data (unless skipped)
-	if !viper.GetBool(config.FlagSkipSeasons) {
-		stepStart := time.Now()
-		state.current = workflowDownloadSeasons
-
-		logEvent := log.Info().Str("server", apiAddr)
-		if input.StartSeason != nil {
-			logEvent = logEvent.Int("startSeason", *input.StartSeason)
-		}
-		if input.EndSeason != nil {
-			logEvent = logEvent.Int("endSeason", *input.EndSeason)
-		}
-		if input.SeasonConcurrency != nil {
-			logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
-		}
-		logEvent.Msg("Triggering downloadSeasons workflow")
-
-		started, err := client.DownloadSeasons(ctx, input)
-		if err != nil {
-			if ctx.Err() != nil {
-				return fmt.Errorf("workflow canceled by user")
-			}
-			return fmt.Errorf("failed to trigger download: %w", err)
-		}
-
-		if !started {
-			log.Warn().Msg("Workflow was not started (may already be running)")
-		} else {
-			log.Info().Msg("Workflow started successfully")
-		}
-
-		if err := monitorWorkflow_legacy(ctx, cmd, "Downloading seasons...", "Downloaded seasons.", client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
-			if ctx.Err() != nil {
-				return fmt.Errorf("workflow canceled by user")
-			}
-			return err
-		}
-		seasonsDuration = time.Since(stepStart)
-		log.Info().Str("duration", seasonsDuration.String()).Msg("Seasons download completed")
-	} else {
-		log.Info().Msg("Skipping seasons download")
-	}
-
-	// Check if context was canceled
-	if ctx.Err() != nil {
-		return fmt.Errorf("workflow canceled by user")
-	}
-
-	// Step 3: Download players (extract player IDs from boxscores)
-	stepStart := time.Now()
-	if err := runDownloadPlayers(ctx, cmd, client, state, input); err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("workflow canceled by user")
-		}
-		return err
-	}
-	playersDuration = time.Since(stepStart)
-	log.Info().Str("duration", playersDuration.String()).Msg("Players download completed")
-
-	// Log final summary
-	totalDuration := time.Since(totalStart)
-	log.Info().
-		Str("yahooPlayers", yahooPlayersDuration.String()).
-		Str("seasons", seasonsDuration.String()).
-		Str("players", playersDuration.String()).
-		Str("total", totalDuration.String()).
-		Msg("Download completed")
-
+	//log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
+	//
+	//apiAddr := viper.GetString(config.FlagAPIServerAddr)
+	//if apiAddr == "" {
+	//	return fmt.Errorf("api-server-addr is required")
+	//}
+	//
+	//client := NewGraphQLClient(apiAddr)
+	//state := &downloadState{client: client, current: workflowNone}
+	//
+	//// Set up signal handling for Ctrl+C
+	//ctx, cancel := context.WithCancel(cmd.Context())
+	//defer cancel()
+	//
+	//sigChan := make(chan os.Signal, 1)
+	//signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	//
+	//go func() {
+	//	<-sigChan
+	//	fmt.Println() // newline after ^C
+	//	state.cancel(ctx)
+	//	cancel()
+	//}()
+	//defer signal.Stop(sigChan)
+	//
+	//if viper.GetBool(config.FlagMonitor) {
+	//	log.Info().Str("server", apiAddr).Msg("Monitoring existing downloadSeasons workflow")
+	//	state.current = workflowDownloadSeasons
+	//	return monitorWorkflow_legacy(ctx, cmd, "Downloading seasons...", "Downloaded seasons.", client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout)
+	//}
+	//
+	//totalStart := time.Now()
+	//var yahooPlayersDuration, seasonsDuration, playersDuration time.Duration
+	//
+	//// Step 1: Download Yahoo players (unless skipped)
+	//if !viper.GetBool(config.FlagSkipYahooPlayers) {
+	//	stepStart := time.Now()
+	//	if err := runDownloadYahooPlayers(ctx, cmd, client, state); err != nil {
+	//		if ctx.Err() != nil {
+	//			return fmt.Errorf("workflow canceled by user")
+	//		}
+	//		return err
+	//	}
+	//	yahooPlayersDuration = time.Since(stepStart)
+	//	log.Info().Str("duration", yahooPlayersDuration.String()).Msg("Yahoo players download completed")
+	//} else {
+	//	log.Info().Msg("Skipping Yahoo players download")
+	//}
+	//
+	//// Check if context was canceled during Yahoo players download
+	//if ctx.Err() != nil {
+	//	return fmt.Errorf("workflow canceled by user")
+	//}
+	//
+	//input := buildDownloadSeasonsInput()
+	//
+	//// Step 2: Download all season data (unless skipped)
+	//if !viper.GetBool(config.FlagSkipSeasons) {
+	//	stepStart := time.Now()
+	//	state.current = workflowDownloadSeasons
+	//
+	//	logEvent := log.Info().Str("server", apiAddr)
+	//	if input.StartSeason != nil {
+	//		logEvent = logEvent.Int("startSeason", *input.StartSeason)
+	//	}
+	//	if input.EndSeason != nil {
+	//		logEvent = logEvent.Int("endSeason", *input.EndSeason)
+	//	}
+	//	if input.SeasonConcurrency != nil {
+	//		logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
+	//	}
+	//	logEvent.Msg("Triggering downloadSeasons workflow")
+	//
+	//	started, err := client.DownloadSeasons(ctx, input)
+	//	if err != nil {
+	//		if ctx.Err() != nil {
+	//			return fmt.Errorf("workflow canceled by user")
+	//		}
+	//		return fmt.Errorf("failed to trigger download: %w", err)
+	//	}
+	//
+	//	if !started {
+	//		log.Warn().Msg("Workflow was not started (may already be running)")
+	//	} else {
+	//		log.Info().Msg("Workflow started successfully")
+	//	}
+	//
+	//	if err := monitorWorkflow_legacy(ctx, cmd, "Downloading seasons...", "Downloaded seasons.", client.GetDownloadSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
+	//		if ctx.Err() != nil {
+	//			return fmt.Errorf("workflow canceled by user")
+	//		}
+	//		return err
+	//	}
+	//	seasonsDuration = time.Since(stepStart)
+	//	log.Info().Str("duration", seasonsDuration.String()).Msg("Seasons download completed")
+	//} else {
+	//	log.Info().Msg("Skipping seasons download")
+	//}
+	//
+	//// Check if context was canceled
+	//if ctx.Err() != nil {
+	//	return fmt.Errorf("workflow canceled by user")
+	//}
+	//
+	//// Step 3: Download players (extract player IDs from boxscores)
+	//stepStart := time.Now()
+	//if err := runDownloadPlayers(ctx, cmd, client, state, input); err != nil {
+	//	if ctx.Err() != nil {
+	//		return fmt.Errorf("workflow canceled by user")
+	//	}
+	//	return err
+	//}
+	//playersDuration = time.Since(stepStart)
+	//log.Info().Str("duration", playersDuration.String()).Msg("Players download completed")
+	//
+	//// Log final summary
+	//totalDuration := time.Since(totalStart)
+	//log.Info().
+	//	Str("yahooPlayers", yahooPlayersDuration.String()).
+	//	Str("seasons", seasonsDuration.String()).
+	//	Str("players", playersDuration.String()).
+	//	Str("total", totalDuration.String()).
+	//	Msg("Download completed")
+	//
 	return nil
 }
 
@@ -236,14 +232,14 @@ func runDownloadYahooPlayers(ctx context.Context, cmd *cobra.Command, client *Gr
 		log.Info().Msg("Yahoo players workflow started successfully")
 	}
 
-	if err := monitorWorkflow_legacy(ctx, cmd, "Downloading Yahoo! players...", "Downloaded Yahoo! players.", client.GetDownloadYahooPlayersStatus, config.DefaultYahooPlayersTimeout); err != nil {
+	if err := monitorWorkflow_legacy(ctx, cmd, "Downloading Yahoo! players...", client.GetDownloadYahooPlayersStatus, config.DefaultYahooPlayersTimeout); err != nil {
 		return fmt.Errorf("downloadYahooPlayers failed: %w", err)
 	}
 
 	return nil
 }
 
-func runDownloadPlayers(ctx context.Context, cmd *cobra.Command, client *GraphQLClient, state *downloadState, input *model.DownloadSeasonsInput) error {
+func runDownloadPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState, input *model.DownloadSeasonsInput) error {
 	state.current = workflowDownloadPlayers
 	log.Info().Msg("Triggering downloadPlayers workflow")
 
@@ -258,7 +254,7 @@ func runDownloadPlayers(ctx context.Context, cmd *cobra.Command, client *GraphQL
 		log.Info().Msg("Download players workflow started successfully")
 	}
 
-	if err := monitorWorkflow_legacy(ctx, cmd, "Downloading players...", "Downloaded players.", client.GetDownloadPlayersStatus, config.DefaultDownloadPlayersTimeout); err != nil {
+	if err := monitorWorkflow(ctx, out, "Downloading players...", client.GetDownloadPlayersStatus, config.DefaultDownloadPlayersTimeout); err != nil {
 		return fmt.Errorf("downloadPlayers failed: %w", err)
 	}
 
@@ -283,8 +279,8 @@ func buildDownloadSeasonsInput() *model.DownloadSeasonsInput {
 	return input
 }
 
-func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, header, completedHeader string, getStatus statusFetcher, pollTimeout time.Duration) error {
-	sp := newSpinner(cmd.OutOrStdout(), header, completedHeader)
+func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, header string, getStatus statusFetcher, pollTimeout time.Duration) error {
+	sp := newSpinner(cmd.OutOrStdout(), header)
 	sp.Start()
 
 	// Wait briefly for workflow to start and register query handlers
@@ -308,7 +304,6 @@ func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, header, com
 
 			switch status.Result.Status {
 			case model.TemporalWorkflowStatusCompleted:
-				// formatStatusMessage (set above) has all phases with CompletedDescriptions
 				sp.Stop()
 				return nil
 			case model.TemporalWorkflowStatusFailed:
@@ -347,8 +342,8 @@ func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, header, com
 	}
 }
 
-func monitorWorkflow(ctx context.Context, out io.Writer, header, completedHeader string, getStatus statusFetcher, pollTimeout time.Duration) error {
-	sp := newSpinner(out, header, completedHeader)
+func monitorWorkflow(ctx context.Context, out io.Writer, header string, getStatus statusFetcher, pollTimeout time.Duration) error {
+	sp := newSpinner(out, header)
 	sp.Start()
 
 	// Wait briefly for workflow to start and register query handlers
@@ -371,7 +366,6 @@ func monitorWorkflow(ctx context.Context, out io.Writer, header, completedHeader
 
 			switch status.Result.Status {
 			case model.TemporalWorkflowStatusCompleted:
-				// formatStatusMessage (set above) has all phases with CompletedDescriptions
 				sp.Stop()
 				return nil
 			case model.TemporalWorkflowStatusFailed:
@@ -441,6 +435,17 @@ func formatStatusMessage(status *WorkflowStatus, header string) string {
 	}
 
 	// Special handling for seasons: single header, only show in-progress items
+	// TODO: wow this is ugly - ideally the workflow would return a more display-friendly status that we wouldn't have to do all this formatting logic for. Maybe something like:
+	// {
+	//   header: "Downloading seasons...",
+	//   items: [
+	//     {id: 2022, description: "2022-23 season", completed: 5, total: 82, started: true},
+	//     {id: 2021, description: "2021-22 season", completed: 82, total: 82, started: true},
+	//     ...
+	//   ],
+	//   progress: {completed: 87, total: 164}
+	// }
+
 	if header == "Downloading seasons..." {
 		lines = append(lines, fmt.Sprintf("▶ %s", header))
 

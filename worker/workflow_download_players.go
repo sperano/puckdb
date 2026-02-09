@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/sperano/puckdb/config"
@@ -29,6 +30,7 @@ type downloadPlayersInternalInput struct {
 	StartIndex     int
 	TotalCompleted int
 	Phase          int
+	StartedAt      time.Time // Original start time for elapsed calculation
 }
 
 // DownloadPlayersWorkflow extracts player IDs from boxscores and downloads their landing pages.
@@ -91,6 +93,7 @@ func runPhase1ExtractPlayerIDs(ctx workflow.Context, input *downloadPlayersInter
 			StartIndex:     0,
 			TotalCompleted: 0,
 			Phase:          phaseDownloadPlayerLandings,
+			StartedAt:      workflow.Now(ctx),
 		})
 }
 
@@ -119,6 +122,12 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 		endIdx = totalPlayers
 	}
 
+	// Track start time for elapsed calculation
+	startedAt := input.StartedAt
+	if startedAt.IsZero() {
+		startedAt = workflow.Now(ctx)
+	}
+
 	playersThisExec := endIdx - startIdx
 	numBatches := (playersThisExec + batchSize - 1) / batchSize
 
@@ -131,9 +140,9 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 		"concurrency", concurrency,
 		"batch_size", batchSize)
 
-	// Progress tracker with offset for cumulative tracking
-	tracker := NewProgressTrackerWithOffset(numBatches, input.TotalCompleted, totalPlayers)
-	tracker.SetMessage("Downloading player landing pages")
+	// Progress tracker with single phase for proper completion display
+	const phaseID = 1
+	tracker := NewProgressTrackerSinglePhase("Downloading players...", totalPlayers, input.TotalCompleted)
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
@@ -160,7 +169,7 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 		return workflow.ExecuteActivity(activityCtx, DownloadPlayerLandingBatchActivity, batch)
 	}
 
-	if err := tracker.RunWorkerPool(ctx, numBatches, concurrency, startActivity); err != nil {
+	if err := tracker.RunWorkerPoolForItem(ctx, numBatches, concurrency, phaseID, startActivity, nil); err != nil {
 		return err
 	}
 
@@ -176,12 +185,17 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 				StartIndex:     endIdx,
 				TotalCompleted: input.TotalCompleted + playersThisExec,
 				Phase:          phaseDownloadPlayerLandings,
+				StartedAt:      startedAt,
 			})
 	}
+
+	// Mark phase complete with final count and elapsed time
+	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
+	tracker.SetItemCompletedDescription(phaseID, fmt.Sprintf("Downloaded %d players in %s.", totalPlayers, elapsed))
+	tracker.MarkItemCompleted(ctx, phaseID)
 
 	logger.Info("DownloadPlayersWorkflow completed",
 		"total_players", totalPlayers)
 
 	return nil
 }
-

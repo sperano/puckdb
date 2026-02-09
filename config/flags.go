@@ -101,6 +101,7 @@ const (
 	FlagMaxSeasonConcurrency = "max-season-concurrency"
 	FlagDayConcurrency       = "day-concurrency"
 	FlagSkipPreseason        = "skip-preseason"
+	FlagSkipPlayers          = "skip-players"
 	FlagSkipYahooPlayers     = "skip-yahoo-players"
 	FlagSkipSeasons          = "skip-seasons"
 	FlagSkipInitializing     = "skip-initializing"
@@ -483,8 +484,16 @@ func BindMonitorFlag(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagMonitor, flags.Lookup(FlagMonitor))
 }
 
+func InitSkipPlayersFlag(flags *flag.FlagSet) {
+	flags.Bool(FlagSkipPlayers, false, "Skip downloading players")
+}
+
+func BindSkipPlayersFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagSkipPlayers, flags.Lookup(FlagSkipPlayers))
+}
+
 func InitSkipYahooPlayersFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagSkipYahooPlayers, false, "Skip downloading Yahoo player pages")
+	flags.Bool(FlagSkipYahooPlayers, false, "Skip downloading Yahoo! players")
 }
 
 func BindSkipYahooPlayersFlag(flags *flag.FlagSet) error {
@@ -492,7 +501,7 @@ func BindSkipYahooPlayersFlag(flags *flag.FlagSet) error {
 }
 
 func InitSkipSeasonsFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagSkipSeasons, false, "Skip downloading season data (NHL schedules, boxscores, Yahoo fantasy)")
+	flags.Bool(FlagSkipSeasons, false, "Skip downloading season data (NHL schedules, boxscores, Yahoo! fantasy)")
 }
 
 func BindSkipSeasonsFlag(flags *flag.FlagSet) error {

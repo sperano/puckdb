@@ -25,29 +25,27 @@ const SpinnerPlaceholder = "\x00"
 
 // spinner displays an animated spinner with a message (supports multi-line)
 type spinner struct {
-	frames          []string
-	message         string
-	header          string // in-progress header (e.g., "Downloading...")
-	completedHeader string // completion header (e.g., "Downloaded.")
-	writer          io.Writer
-	interval        time.Duration
-	stop            chan struct{}
-	done            chan struct{}
-	mu              sync.Mutex
-	once            sync.Once
-	lineCount       int // tracks number of lines in current message
+	frames    []string
+	message   string
+	header    string // in-progress header (e.g., "Downloading...")
+	writer    io.Writer
+	interval  time.Duration
+	stop      chan struct{}
+	done      chan struct{}
+	mu        sync.Mutex
+	once      sync.Once
+	lineCount int // tracks number of lines in current message
 }
 
-func newSpinner(w io.Writer, header, completedHeader string) *spinner {
+func newSpinner(w io.Writer, header string) *spinner {
 	return &spinner{
-		frames:          []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
-		message:         header,
-		header:          header,
-		completedHeader: completedHeader,
-		writer:          w,
-		interval:        config.DefaultSpinnerInterval,
-		stop:            make(chan struct{}),
-		done:            make(chan struct{}),
+		frames:   []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
+		message:  header,
+		header:   header,
+		writer:   w,
+		interval: config.DefaultSpinnerInterval,
+		stop:     make(chan struct{}),
+		done:     make(chan struct{}),
 	}
 }
 
@@ -187,7 +185,7 @@ func runCacheCheck(cmd *cobra.Command, _ []string) error {
 	redisClient := redis.NewClient()
 	defer redisClient.Close()
 
-	sp := newSpinner(cmd.OutOrStdout(), "Counting cache files...", "Counted cache files.")
+	sp := newSpinner(cmd.OutOrStdout(), "Counting cache files...")
 	sp.Start()
 
 	allMetrics, err := getAllMetrics(cmd.Context(), redisClient)
