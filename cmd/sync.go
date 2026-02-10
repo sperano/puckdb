@@ -46,6 +46,7 @@ func cmdSync() *cobra.Command {
 	config.InitSkipYahooPlayersFlag(flags)
 	config.InitSkipSeasonsFlag(flags)
 	config.InitSkipPlayersFlag(flags)
+	config.InitSkipImportPlayersFlag(flags)
 	cmd.AddCommand(cmdSyncSeasons())
 	return cmd
 }
@@ -74,6 +75,9 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 		return err
 	}
 	if err := config.BindSkipPlayersFlag(flags); err != nil {
+		return err
+	}
+	if err := config.BindSkipImportPlayersFlag(flags); err != nil {
 		return err
 	}
 	BindFlags(cmd.PersistentFlags())
@@ -146,13 +150,21 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 4: Download players data (unless skipped)
-	if !viper.GetBool(config.FlagSkipPlayers) {
-		input := buildDownloadSeasonsInput()
-		if err := runDownloadPlayers(ctx, out, client, state, input); err != nil {
+	if !viper.GetBool(config.FlagSkipDownloadPlayers) {
+		if err := runDownloadPlayers(ctx, out, client, state); err != nil {
 			return fmt.Errorf("downloading players failed: %w", err)
 		}
 	} else {
 		fmt.Println("- Skipping players download.")
+	}
+
+	// Step 5: Import players data (unless skipped)
+	if !viper.GetBool(config.FlagSkipImportPlayers) {
+		if err := runImportPlayers(ctx, out, client, state); err != nil {
+			return fmt.Errorf("importing players failed: %w", err)
+		}
+	} else {
+		fmt.Println("- Skipping players import.")
 	}
 
 	fmt.Printf("\nSync completed in %.1fs\n", time.Since(start).Seconds())
@@ -219,35 +231,23 @@ func runDownloadSeasons(ctx context.Context, out io.Writer, client *GraphQLClien
 	}.run(ctx, out, state)
 }
 
-//func cmdImportPlayers() *cobra.Command {
-//	var cmd = &cobra.Command{
-//		Use:   "players",
-//		Short: "Import players into the database",
-//		Long: `Trigger the importPlayers workflow via GraphQL API and monitor until completion.
-//Use --season for a specific season, or --from-season/--to-season for a range.
-//Use --monitor to watch an existing workflow without triggering a new one.`,
-//		PreRunE: func(cmd *cobra.Command, args []string) error {
-//			flags := cmd.Flags()
-//			if err := config.BindAPIServerAddrFlag(flags); err != nil {
-//				return err
-//			}
-//			if err := config.BindSeasonRangeFlags(flags); err != nil {
-//				return err
-//			}
-//			if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
-//				return err
-//			}
-//			return config.BindMonitorFlag(flags)
-//		},
-//		RunE: runImportPlayers,
-//	}
-//	flags := cmd.Flags()
-//	config.InitAPIServerAddrFlag(flags)
-//	config.InitSeasonRangeFlags(flags)
-//	config.InitSeasonConcurrencyFlag(flags)
-//	config.InitMonitorFlag(flags)
-//	return cmd
-//}
+func runDownloadPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+	return workflowRunner{
+		workflowType: workflowDownloadPlayers,
+		trigger:      func() (bool, error) { return client.DownloadPlayers(ctx, buildDownloadSeasonsInput()) },
+		getStatus:    client.GetDownloadPlayersStatus,
+		timeout:      config.DefaultWorkflowPollTimeout,
+	}.run(ctx, out, state)
+}
+
+func runImportPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+	return workflowRunner{
+		workflowType: workflowImportPlayers,
+		trigger:      func() (bool, error) { return client.ImportPlayers(ctx, buildImportPlayersInput()) },
+		getStatus:    client.GetImportPlayersStatus,
+		timeout:      config.DefaultWorkflowPollTimeout,
+	}.run(ctx, out, state)
+}
 
 // syncState tracks the current workflow for signal handling
 type syncState struct {
