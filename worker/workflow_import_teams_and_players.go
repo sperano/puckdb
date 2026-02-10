@@ -13,7 +13,7 @@ const WorkflowIDImportNHLTeamsAndPlayers = "import-nhl-teams-and-players"
 
 // ImportTeamsAndPlayersResult contains the result of the player extraction.
 type ImportTeamsAndPlayersResult struct {
-	PlayerIDs []int64 `json:"playerIds"`
+	Players []BoxscorePlayer `json:"players"`
 }
 
 // ImportNHLTeamsAndPlayersWorkflow extracts teams and player IDs from boxscores,
@@ -62,28 +62,28 @@ func ImportNHLTeamsAndPlayersWorkflow(ctx workflow.Context, input *model.Downloa
 		return nil, err
 	}
 
-	// Merge results: dedupe player IDs
-	playerIDSet := make(map[int64]struct{})
+	// Merge results: dedupe players by ID
+	playerMap := make(map[int64]BoxscorePlayer)
 
 	for _, result := range allResults {
-		for _, id := range result.PlayerIDs {
-			playerIDSet[id] = struct{}{}
+		for _, p := range result.Players {
+			playerMap[p.ID] = p
 		}
 	}
 
-	// Convert player IDs to sorted slice for determinism
-	playerIDSlice := make([]int64, 0, len(playerIDSet))
-	for id := range playerIDSet {
-		playerIDSlice = append(playerIDSlice, id)
+	// Convert to sorted slice for determinism
+	players := make([]BoxscorePlayer, 0, len(playerMap))
+	for _, p := range playerMap {
+		players = append(players, p)
 	}
-	sort.Slice(playerIDSlice, func(i, j int) bool { return playerIDSlice[i] < playerIDSlice[j] })
+	sort.Slice(players, func(i, j int) bool { return players[i].ID < players[j].ID })
 
 	logger.Info("ImportNHLTeamsAndPlayersWorkflow completed",
 		"seasons_processed", len(seasons),
-		"total_players", len(playerIDSlice))
+		"total_players", len(players))
 
 	return &ImportTeamsAndPlayersResult{
-		PlayerIDs: playerIDSlice,
+		Players: players,
 	}, nil
 }
 
@@ -140,7 +140,7 @@ func extractBoxscoreDataWithConcurrency(
 
 				logger.Info("Season extraction complete",
 					"startYear", capturedWork.season.StartYear,
-					"players_found", len(result.PlayerIDs))
+					"players_found", len(result.Players))
 
 				tracker.Increment()
 				delete(active, capturedIdx)

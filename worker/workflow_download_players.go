@@ -26,7 +26,7 @@ type downloadPlayersInternalInput struct {
 	SeasonConcurrency *int
 
 	// Phase 2 params (populated after Phase 1)
-	PlayerIDs      []int64
+	Players        []BoxscorePlayer
 	StartIndex     int
 	TotalCompleted int
 	Phase          int
@@ -99,17 +99,17 @@ func runPhase1ExtractPlayerIDs(ctx workflow.Context, input *downloadPlayersInter
 
 	// Mark Phase 1 complete
 	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
-	phase1CompletedDesc := fmt.Sprintf("Extracted %d player IDs in %s.", len(result.PlayerIDs), elapsed)
+	phase1CompletedDesc := fmt.Sprintf("Extracted %d player IDs in %s.", len(result.Players), elapsed)
 	tracker.SetItemCompletedDescription(phaseExtractPlayerIDs, phase1CompletedDesc)
 	tracker.MarkItemCompleted(ctx, phaseExtractPlayerIDs)
 
 	logger.Info("Phase 1 complete, transitioning to Phase 2",
-		"total_unique_players", len(result.PlayerIDs))
+		"total_unique_players", len(result.Players))
 
 	// ContinueAsNew into Phase 2, preserving Phase 1 completion info
 	return workflow.NewContinueAsNewError(ctx, DownloadPlayersWorkflowContinue,
 		&downloadPlayersInternalInput{
-			PlayerIDs:           result.PlayerIDs,
+			Players:             result.Players,
 			StartIndex:          0,
 			TotalCompleted:      0,
 			Phase:               phaseDownloadPlayerLandings,
@@ -136,7 +136,7 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 		playersPerExec = config.DefaultPlayerLandingPlayersPerExec
 	}
 
-	totalPlayers := len(input.PlayerIDs)
+	totalPlayers := len(input.Players)
 	startIdx := input.StartIndex
 	endIdx := startIdx + playersPerExec
 	if endIdx > totalPlayers {
@@ -193,7 +193,7 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 		if batchEnd > endIdx {
 			batchEnd = endIdx
 		}
-		batch := input.PlayerIDs[batchStart:batchEnd]
+		batch := input.Players[batchStart:batchEnd]
 		return workflow.ExecuteActivity(activityCtx, DownloadPlayerLandingBatchActivity, batch)
 	}
 
@@ -209,7 +209,7 @@ func runPhase2DownloadLandings(ctx workflow.Context, input *downloadPlayersInter
 
 		return workflow.NewContinueAsNewError(ctx, DownloadPlayersWorkflowContinue,
 			&downloadPlayersInternalInput{
-				PlayerIDs:           input.PlayerIDs,
+				Players:             input.Players,
 				StartIndex:          endIdx,
 				TotalCompleted:      input.TotalCompleted + playersThisExec,
 				Phase:               phaseDownloadPlayerLandings,

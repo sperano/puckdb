@@ -29,29 +29,47 @@ func testPlayerLanding(id int64) *nhl.PlayerLanding {
 	}
 }
 
+// testBoxscorePlayer creates a BoxscorePlayer for testing.
+func testBoxscorePlayer(id int64) BoxscorePlayer {
+	return BoxscorePlayer{
+		ID:        id,
+		FirstName: "Test",
+		LastName:  "Player",
+		Position:  "C",
+	}
+}
+
+// testBoxscorePlayers creates a slice of BoxscorePlayers for testing.
+func testBoxscorePlayers(ids ...int64) []BoxscorePlayer {
+	players := make([]BoxscorePlayer, len(ids))
+	for i, id := range ids {
+		players[i] = testBoxscorePlayer(id)
+	}
+	return players
+}
+
 func TestDownloadPlayerLandingBatch_AllCacheHits(t *testing.T) {
 	ctx := context.Background()
 	fs := NewMockFileSystem()
 	client := &MockNHLClient{}
 
-	playerIDs := []int64{1, 2, 3}
+	players := testBoxscorePlayers(1, 2, 3)
 
-	// All players are cached
-	for _, id := range playerIDs {
-		file := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(id)}
-		fs.On("Exists", file).Return(true).Once()
+	// All players are cached (check missing file first, then landing file)
+	for _, p := range players {
+		missingFile := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
+		fs.On("Exists", missingFile).Return(false).Once()
 
-		landing := testPlayerLanding(id)
-		data, _ := json.Marshal(landing)
-		fs.On("Read", file).Return(data, nil).Once()
+		landingFile := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
+		fs.On("Exists", landingFile).Return(true).Once()
 	}
 
-	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, playerIDs)
+	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
 	assert.Equal(t, 3, result.CacheHits)
-	assert.Equal(t, 0, result.Errors)
+	assert.Equal(t, 0, result.Missing)
 
 	client.AssertNotCalled(t, "PlayerLanding")
 }
@@ -61,58 +79,114 @@ func TestDownloadPlayerLandingBatch_AllDownloads(t *testing.T) {
 	fs := NewMockFileSystem()
 	client := &MockNHLClient{}
 
-	playerIDs := []int64{100, 200}
+	players := testBoxscorePlayers(100, 200)
 
-	for _, id := range playerIDs {
-		file := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(id)}
-		fs.On("Exists", file).Return(false).Once()
+	for _, p := range players {
+		missingFile := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
+		fs.On("Exists", missingFile).Return(false).Once()
 
-		landing := testPlayerLanding(id)
-		client.On("PlayerLanding", ctx, nhl.PlayerID(id)).Return(landing, nil).Once()
+		landingFile := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
+		fs.On("Exists", landingFile).Return(false).Once()
 
-		fs.On("Write", file, mock.Anything).Return(nil).Once()
+		landing := testPlayerLanding(p.ID)
+		client.On("PlayerLanding", ctx, nhl.PlayerID(p.ID)).Return(landing, nil).Once()
+
+		fs.On("Write", landingFile, mock.Anything).Return(nil).Once()
 	}
 
-	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, playerIDs)
+	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Downloaded)
 	assert.Equal(t, 0, result.CacheHits)
-	assert.Equal(t, 0, result.Errors)
+	assert.Equal(t, 0, result.Missing)
 }
 
-func TestDownloadPlayerLandingBatch_MixedResults(t *testing.T) {
+func TestDownloadPlayerLandingBatch_FailsOnError(t *testing.T) {
 	ctx := context.Background()
 	fs := NewMockFileSystem()
 	client := &MockNHLClient{}
 
-	playerIDs := []int64{1, 2, 3}
+	players := testBoxscorePlayers(1, 2, 3)
 
 	// Player 1: cached
-	file1 := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(1)}
-	fs.On("Exists", file1).Return(true).Once()
-	landing1 := testPlayerLanding(1)
-	data1, _ := json.Marshal(landing1)
-	fs.On("Read", file1).Return(data1, nil).Once()
+	missingFile1 := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(1)}
+	fs.On("Exists", missingFile1).Return(false).Once()
+	landingFile1 := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(1)}
+	fs.On("Exists", landingFile1).Return(true).Once()
 
-	// Player 2: not cached, download succeeds
-	file2 := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(2)}
-	fs.On("Exists", file2).Return(false).Once()
-	landing2 := testPlayerLanding(2)
-	client.On("PlayerLanding", ctx, nhl.PlayerID(2)).Return(landing2, nil).Once()
-	fs.On("Write", file2, mock.Anything).Return(nil).Once()
+	// Player 2: not cached, download fails
+	missingFile2 := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(2)}
+	fs.On("Exists", missingFile2).Return(false).Once()
+	landingFile2 := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(2)}
+	fs.On("Exists", landingFile2).Return(false).Once()
+	client.On("PlayerLanding", ctx, nhl.PlayerID(2)).Return(nil, errors.New("network error")).Once()
 
-	// Player 3: not cached, download fails
-	file3 := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(3)}
-	fs.On("Exists", file3).Return(false).Once()
-	client.On("PlayerLanding", ctx, nhl.PlayerID(3)).Return(nil, errors.New("player not found")).Once()
+	// Player 3: never reached due to error on player 2
 
-	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, playerIDs)
+	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, players)
 
-	require.NoError(t, err) // Batch continues despite individual errors
-	assert.Equal(t, 1, result.Downloaded)
+	require.Error(t, err)
+	assert.Equal(t, "network error", err.Error())
+	assert.Equal(t, 0, result.Downloaded)
 	assert.Equal(t, 1, result.CacheHits)
-	assert.Equal(t, 1, result.Errors)
+	assert.Equal(t, 0, result.Missing)
+}
+
+func TestDownloadPlayerLandingBatch_404CachesAsMissing(t *testing.T) {
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+
+	players := testBoxscorePlayers(404)
+
+	// Not in cache
+	missingFile := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(404)}
+	fs.On("Exists", missingFile).Return(false).Once()
+	landingFile := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(404)}
+	fs.On("Exists", landingFile).Return(false).Once()
+
+	// API returns 404
+	notFoundErr := nhl.NewResourceNotFoundError("player not found")
+	client.On("PlayerLanding", ctx, nhl.PlayerID(404)).Return(nil, notFoundErr).Once()
+
+	// Missing file should be written with player data
+	fs.On("Write", missingFile, mock.MatchedBy(func(data []byte) bool {
+		var result cache.MissingPlayerLandingData
+		if err := json.Unmarshal(data, &result); err != nil {
+			return false
+		}
+		return result.FirstName == "Test" && result.LastName == "Player" && result.Position == "C"
+	})).Return(nil).Once()
+
+	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, players)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.Downloaded)
+	assert.Equal(t, 0, result.CacheHits)
+	assert.Equal(t, 1, result.Missing)
+}
+
+func TestDownloadPlayerLandingBatch_AlreadyMissing(t *testing.T) {
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+
+	players := testBoxscorePlayers(404)
+
+	// Already marked as missing
+	missingFile := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(404)}
+	fs.On("Exists", missingFile).Return(true).Once()
+
+	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, players)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.Downloaded)
+	assert.Equal(t, 0, result.CacheHits)
+	assert.Equal(t, 1, result.Missing)
+
+	// Should not call API
+	client.AssertNotCalled(t, "PlayerLanding")
 }
 
 func TestDownloadPlayerLandingBatch_EmptyBatch(t *testing.T) {
@@ -120,12 +194,12 @@ func TestDownloadPlayerLandingBatch_EmptyBatch(t *testing.T) {
 	fs := NewMockFileSystem()
 	client := &MockNHLClient{}
 
-	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, []int64{})
+	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, []BoxscorePlayer{})
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
 	assert.Equal(t, 0, result.CacheHits)
-	assert.Equal(t, 0, result.Errors)
+	assert.Equal(t, 0, result.Missing)
 }
 
 func TestDownloadPlayerLandingBatch_ContextCancellation(t *testing.T) {
@@ -135,12 +209,12 @@ func TestDownloadPlayerLandingBatch_ContextCancellation(t *testing.T) {
 	fs := NewMockFileSystem()
 	client := &MockNHLClient{}
 
-	playerIDs := []int64{1, 2, 3}
+	players := testBoxscorePlayers(1, 2, 3)
 
-	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, playerIDs)
+	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, players)
 
 	assert.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, 0, result.Downloaded)
 	assert.Equal(t, 0, result.CacheHits)
-	assert.Equal(t, 0, result.Errors)
+	assert.Equal(t, 0, result.Missing)
 }

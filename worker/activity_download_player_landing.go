@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
@@ -14,97 +15,136 @@ import (
 type DownloadPlayerLandingBatchResult struct {
 	Downloaded int // Players downloaded from API
 	CacheHits  int // Players found in cache
-	Errors     int // Players that failed to download
+	Missing    int // 404 responses (cached for future runs)
 }
 
-// DownloadPlayerLandingBatchActivity downloads player landing pages for a batch of player IDs.
-// Skips already-cached players (idempotent). Individual failures are logged and skipped.
-func DownloadPlayerLandingBatchActivity(ctx context.Context, playerIDs []int64) (DownloadPlayerLandingBatchResult, error) {
+// DownloadPlayerLandingBatchActivity downloads player landing pages for a batch of players.
+// Skips already-cached players (idempotent). Caches 404s to avoid repeat failures.
+func DownloadPlayerLandingBatchActivity(ctx context.Context, players []BoxscorePlayer) (DownloadPlayerLandingBatchResult, error) {
 	fs := cache.NewSimpleCache()
 	client := newNHLClient()
-	return downloadPlayerLandingBatchImpl(ctx, fs, client, playerIDs)
+	return downloadPlayerLandingBatchImpl(ctx, fs, client, players)
 }
 
 func downloadPlayerLandingBatchImpl(
 	ctx context.Context,
 	fs cache.FileSystem,
 	client NHLClient,
-	playerIDs []int64,
+	players []BoxscorePlayer,
 ) (DownloadPlayerLandingBatchResult, error) {
 	result := DownloadPlayerLandingBatchResult{}
 
-	for _, id := range playerIDs {
+	for _, p := range players {
 		select {
 		case <-ctx.Done():
 			return result, ctx.Err()
 		default:
 		}
 
-		playerID := nhl.PlayerID(id)
-		_, fromCache, err := getPlayerLandingWithCache(ctx, fs, client, playerID)
+		playerID := nhl.PlayerID(p.ID)
+		status, err := getPlayerLandingWithCache(ctx, fs, client, playerID, &p)
 		if err != nil {
-			log.Warn().Err(err).Int64("player_id", id).Msg("Failed to download player landing")
-			result.Errors++
-			metrics.IncDownload("PlayerLanding", "error")
-			continue
+			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
+			return result, err
 		}
 
-		if fromCache {
+		switch status {
+		case playerLandingCached:
 			result.CacheHits++
 			metrics.IncDownload("PlayerLanding", "hit")
-		} else {
+		case playerLandingDownloaded:
 			result.Downloaded++
 			metrics.IncDownload("PlayerLanding", "miss")
+		case playerLandingMissing:
+			result.Missing++
+			metrics.IncDownload("PlayerLanding", "missing")
 		}
 	}
 
 	log.Debug().
 		Int("downloaded", result.Downloaded).
 		Int("cache_hits", result.CacheHits).
-		Int("errors", result.Errors).
-		Int("batch_size", len(playerIDs)).
+		Int("missing", result.Missing).
+		Int("batch_size", len(players)).
 		Msg("Player landing batch complete")
 
 	return result, nil
 }
 
+type playerLandingStatus int
+
+const (
+	playerLandingDownloaded playerLandingStatus = iota
+	playerLandingCached
+	playerLandingMissing
+)
+
 // getPlayerLandingWithCache attempts to get player landing data from cache first,
-// falling back to the NHL API if not cached. Returns the data and whether it came from cache.
+// falling back to the NHL API if not cached. Caches 404s to avoid repeat failures.
 func getPlayerLandingWithCache(
 	ctx context.Context,
 	fs cache.FileSystem,
 	client NHLClient,
 	playerID nhl.PlayerID,
-) (*nhl.PlayerLanding, bool, error) {
-	file := cache.PlayerLandingFile{PlayerID: playerID}
+	boxscorePlayer *BoxscorePlayer,
+) (playerLandingStatus, error) {
+	landingFile := cache.PlayerLandingFile{PlayerID: playerID}
+	missingFile := cache.MissingPlayerLandingFile{PlayerID: playerID}
 
-	// Check cache first
-	if fs.Exists(file) {
-		data, err := fs.Read(file)
-		if err == nil {
-			var landing nhl.PlayerLanding
-			if err := json.Unmarshal(data, &landing); err == nil {
-				return &landing, true, nil
-			}
-			log.Debug().Err(err).Str("player_id", playerID.String()).Msg("Failed to unmarshal cached player landing")
-		}
+	// Check if already marked as missing (most common case for 404s)
+	if fs.Exists(missingFile) {
+		log.Debug().Str("player_id", playerID.String()).Msg("Player landing already marked as missing")
+		return playerLandingMissing, nil
+	}
+
+	// Check if landing page is already cached
+	if fs.Exists(landingFile) {
+		log.Debug().Str("player_id", playerID.String()).Msg("Player landing already cached")
+		return playerLandingCached, nil
 	}
 
 	// Fetch from API
 	landing, err := client.PlayerLanding(ctx, playerID)
 	if err != nil {
-		return nil, false, err
+		// Check if this is a 404 error
+		var notFoundErr *nhl.ResourceNotFoundError
+		if errors.As(err, &notFoundErr) {
+			// Cache the 404 with boxscore player data
+			if saveErr := saveMissingPlayerLanding(fs, missingFile, boxscorePlayer); saveErr != nil {
+				log.Warn().Err(saveErr).Str("player_id", playerID.String()).Msg("Failed to save missing player landing")
+			} else {
+				log.Info().Str("player_id", playerID.String()).Msg("Saved player as missing (404)")
+			}
+			return playerLandingMissing, nil
+		}
+		return 0, err
 	}
 
-	// Save to cache
+	// Save successful response to cache
 	data, err := json.Marshal(landing)
 	if err != nil {
 		log.Debug().Err(err).Str("player_id", playerID.String()).Msg("Failed to marshal player landing for cache")
 	} else {
-		if err := fs.Write(file, data); err != nil {
+		if err := fs.Write(landingFile, data); err != nil {
 			log.Debug().Err(err).Str("player_id", playerID.String()).Msg("Failed to write player landing to cache")
 		}
 	}
 
-	return landing, false, nil
+	return playerLandingDownloaded, nil
+}
+
+// saveMissingPlayerLanding saves boxscore player data to a missing player landing file.
+func saveMissingPlayerLanding(fs cache.FileSystem, file cache.MissingPlayerLandingFile, player *BoxscorePlayer) error {
+	data := cache.MissingPlayerLandingData{
+		FirstName: player.FirstName,
+		LastName:  player.LastName,
+		Position:  player.Position,
+	}
+
+	content, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	return fs.Write(file, content)
 }
