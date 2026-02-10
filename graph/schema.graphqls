@@ -91,18 +91,6 @@ type LocalStats {
 	# Standings: Int!
 }
 
-#type Status {
-#	Version: String!
-#	Configuration: Configuration!
-#	DBStats: DBStats!
-#	LocalStats: LocalStats!
-#	GameKey: Int!
-#	SeasonStart: Time!
-#	SeasonEnd: Time!
-#	CurrentUser: String!
-#	OAuth2Token: OAuth2Token
-#}
-
 type FantasyGame {
 	id: Int!
 	key: Int!

@@ -14,28 +14,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-func runDownloadPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState, input *model.DownloadSeasonsInput) error {
-	state.current = workflowDownloadPlayers
-	log.Info().Msg("Triggering downloadPlayers workflow")
-
-	started, err := client.DownloadPlayers(ctx, input)
-	if err != nil {
-		return fmt.Errorf("failed to trigger downloadPlayers: %w", err)
-	}
-
-	if !started {
-		log.Warn().Msg("Download players workflow was not started (may already be running)")
-	} else {
-		log.Info().Msg("Download players workflow started successfully")
-	}
-
-	if err := monitorWorkflow(ctx, out, client.GetDownloadPlayersStatus, config.DefaultDownloadPlayersTimeout); err != nil {
-		return fmt.Errorf("downloadPlayers failed: %w", err)
-	}
-
-	return nil
-}
-
 func buildDownloadSeasonsInput() *model.DownloadSeasonsInput {
 	input := &model.DownloadSeasonsInput{}
 
