@@ -153,7 +153,46 @@ func (r *Resolver) processPlayersResult(ctx context.Context) (*model.WorkflowRes
 }
 
 func (r *Resolver) processPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDProcessPlayers)
+	progress, err := r.queryWorkflowProgress(ctx, worker.WorkflowIDProcessPlayers)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if Phase 1 (extracting player IDs) is in progress - query child workflow
+	const phaseExtractIDs = 1
+	if progress != nil && len(progress.Items) > 0 {
+		for i, item := range progress.Items {
+			if item.ID == phaseExtractIDs && item.Started && (item.CompletedAt == nil || *item.CompletedAt == "") {
+				// Phase 1 in progress - query the child workflow for real progress
+				childProgress := r.queryChildWorkflowProgress(ctx, worker.WorkflowIDImportNHLTeamsAndPlayers)
+				if childProgress != nil {
+					progress.Items[i].Total = childProgress.Total
+					progress.Items[i].Completed = childProgress.Completed
+				}
+				break
+			}
+		}
+	}
+
+	return progress, nil
+}
+
+// queryChildWorkflowProgress queries a specific child workflow by ID for its progress.
+func (r *Resolver) queryChildWorkflowProgress(ctx context.Context, workflowID string) *worker.WorkflowProgress {
+	childCtx, cancel := context.WithTimeout(ctx, config.DefaultChildWorkflowTimeout)
+	defer cancel()
+
+	response, err := r.TemporalClient.QueryWorkflow(childCtx, workflowID, "", worker.ProgressQueryName)
+	if err != nil {
+		return nil
+	}
+
+	var childProgress worker.WorkflowProgress
+	if err := response.Get(&childProgress); err != nil {
+		return nil
+	}
+
+	return &childProgress
 }
 
 func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.ProcessPlayersResultData, error) {
