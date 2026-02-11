@@ -114,10 +114,9 @@ func cmdWorker() *cobra.Command {
 			w.RegisterWorkflow(workers.DownloadSeasonWorkflow)
 			w.RegisterWorkflow(workers.DownloadDayWorkflow)
 			w.RegisterWorkflow(workers.DownloadYahooPlayersWorkflow)
-			w.RegisterWorkflow(workers.DownloadPlayersWorkflow)
-			w.RegisterWorkflow(workers.DownloadPlayersWorkflowContinue)
 			w.RegisterWorkflow(workers.ImportNHLTeamsAndPlayersWorkflow)
-			w.RegisterWorkflow(workers.ImportPlayersWorkflow)
+			w.RegisterWorkflow(workers.ProcessPlayersWorkflow)
+			w.RegisterWorkflow(workers.ProcessPlayersWorkflowContinue)
 			w.RegisterWorkflow(workers.ImportSeasonsWorkflow)
 			w.RegisterWorkflow(workers.InitializeWorkflow)
 
@@ -139,12 +138,11 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.DownloadPlayerLandingBatchActivity)
 			w.RegisterActivity(workers.MergePlayerBatchesFromRedisActivity)
 
-			// ImportPlayers activities
+			// ProcessPlayers activities (unified download + import)
+			w.RegisterActivity(workers.ProcessPlayerBatchActivity)
 			w.RegisterActivity(workers.ListYahooPlayerFilesActivity)
 			w.RegisterActivity(workers.ParseYahooPlayerBatchActivity)
 			w.RegisterActivity(workers.SaveYahooPlayersToRedisActivity)
-			w.RegisterActivity(workers.ListPlayerLandingIDsActivity)
-			w.RegisterActivity(workers.ImportPlayerBatchActivity)
 			w.RegisterActivity(workers.LoadUnmatchedYahooPlayersActivity)
 			w.RegisterActivity(workers.VerifyUnmatchedBatchActivity)
 			w.RegisterActivity(workers.CleanupYahooIDPoolActivity)

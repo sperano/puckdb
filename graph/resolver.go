@@ -126,57 +126,40 @@ func (r *Resolver) downloadYahooPlayersProgress(ctx context.Context) (*model.Wor
 	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadYahooPlayers)
 }
 
-func (r *Resolver) downloadPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
-	opts := workflowOptions(worker.WorkflowIDDownloadPlayers)
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.DownloadPlayersWorkflow, input); err != nil {
+func (r *Resolver) processPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+	opts := workflowOptions(worker.WorkflowIDProcessPlayers)
+	// Convert GraphQL input to workflow input
+	workflowInput := &worker.ProcessPlayersInput{}
+	if input != nil {
+		workflowInput.StartSeason = input.StartSeason
+		workflowInput.EndSeason = input.EndSeason
+		workflowInput.SeasonConcurrency = input.SeasonConcurrency
+	}
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ProcessPlayersWorkflow, workflowInput); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (r *Resolver) cancelDownloadPlayers(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDDownloadPlayers, ""); err != nil {
+func (r *Resolver) cancelProcessPlayers(ctx context.Context) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDProcessPlayers, ""); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (r *Resolver) downloadPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadPlayers)
+func (r *Resolver) processPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, worker.WorkflowIDProcessPlayers)
 }
 
-func (r *Resolver) downloadPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadPlayers)
+func (r *Resolver) processPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDProcessPlayers)
 }
 
-func (r *Resolver) importPlayers(ctx context.Context, _ *model.DownloadSeasonsInput) (bool, error) {
-	opts := workflowOptions(worker.WorkflowIDImportPlayers)
-	// ImportPlayersWorkflow doesn't use season parameters - they'll be used by importSeasonsWorkflow
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ImportPlayersWorkflow, (*worker.ImportPlayersInput)(nil)); err != nil {
-		return false, err
-	}
-	return true, nil
-}
+func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.ProcessPlayersResultData, error) {
+	run := r.TemporalClient.GetWorkflow(ctx, worker.WorkflowIDProcessPlayers, "")
 
-func (r *Resolver) cancelImportPlayers(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDImportPlayers, ""); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-func (r *Resolver) importPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDImportPlayers)
-}
-
-func (r *Resolver) importPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDImportPlayers)
-}
-
-func (r *Resolver) importPlayersResultData(ctx context.Context) (*model.ImportPlayersResultData, error) {
-	run := r.TemporalClient.GetWorkflow(ctx, worker.WorkflowIDImportPlayers, "")
-
-	var result worker.ImportPlayersResult
+	var result worker.ProcessPlayersResult
 	if err := run.Get(ctx, &result); err != nil {
 		return nil, err
 	}
@@ -194,10 +177,13 @@ func (r *Resolver) importPlayersResultData(ctx context.Context) (*model.ImportPl
 		}
 	}
 
-	return &model.ImportPlayersResultData{
+	return &model.ProcessPlayersResultData{
 		TotalPlayers:          result.TotalPlayers,
 		ImportedPlayers:       result.ImportedPlayers,
 		MatchedWithYahoo:      result.MatchedWithYahoo,
+		Downloaded:            result.Downloaded,
+		CacheHits:             result.CacheHits,
+		Missing:               result.Missing,
 		TotalYahooPlayers:     result.TotalYahooPlayers,
 		SkippedNonNHL:         result.SkippedNonNHL,
 		VerifiedNonNHLThisRun: result.VerifiedNonNHLThisRun,

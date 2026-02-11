@@ -112,17 +112,6 @@ type ComplexityRoot struct {
 		UpdatedAt          func(childComplexity int) int
 	}
 
-	ImportPlayersResultData struct {
-		Errors                func(childComplexity int) int
-		ImportedPlayers       func(childComplexity int) int
-		MatchedWithYahoo      func(childComplexity int) int
-		SkippedNonNHL         func(childComplexity int) int
-		TotalPlayers          func(childComplexity int) int
-		TotalYahooPlayers     func(childComplexity int) int
-		TrulyUnmatched        func(childComplexity int) int
-		VerifiedNonNHLThisRun func(childComplexity int) int
-	}
-
 	InitializeResultData struct {
 		FranchisesUpserted  func(childComplexity int) int
 		SeasonTeamsUpserted func(childComplexity int) int
@@ -176,24 +165,22 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CancelDownloadPlayers      func(childComplexity int) int
 		CancelDownloadSeasons      func(childComplexity int) int
 		CancelDownloadYahooPlayers func(childComplexity int) int
-		CancelImportPlayers        func(childComplexity int) int
 		CancelImportSeasons        func(childComplexity int) int
 		CancelInitialize           func(childComplexity int) int
+		CancelProcessPlayers       func(childComplexity int) int
 		ClearDatabase              func(childComplexity int) int
 		CreateDatabase             func(childComplexity int) int
-		DownloadPlayers            func(childComplexity int, input *model.DownloadSeasonsInput) int
 		DownloadSeasons            func(childComplexity int, input *model.DownloadSeasonsInput) int
 		DownloadYahooPlayers       func(childComplexity int) int
 		DropDatabase               func(childComplexity int) int
 		FlushRedisDb               func(childComplexity int) int
 		ImportLeague               func(childComplexity int, season int, leagueID int) int
-		ImportPlayers              func(childComplexity int, input *model.DownloadSeasonsInput) int
 		ImportSeasons              func(childComplexity int, input *model.DownloadSeasonsInput) int
 		ImportTeam                 func(childComplexity int, season int, leagueID int, teamID int) int
 		Initialize                 func(childComplexity int) int
+		ProcessPlayers             func(childComplexity int, input *model.DownloadSeasonsInput) int
 	}
 
 	NHLFranchise struct {
@@ -240,6 +227,20 @@ type ComplexityRoot struct {
 		YahooImageSmall    func(childComplexity int) int
 	}
 
+	ProcessPlayersResultData struct {
+		CacheHits             func(childComplexity int) int
+		Downloaded            func(childComplexity int) int
+		Errors                func(childComplexity int) int
+		ImportedPlayers       func(childComplexity int) int
+		MatchedWithYahoo      func(childComplexity int) int
+		Missing               func(childComplexity int) int
+		SkippedNonNHL         func(childComplexity int) int
+		TotalPlayers          func(childComplexity int) int
+		TotalYahooPlayers     func(childComplexity int) int
+		TrulyUnmatched        func(childComplexity int) int
+		VerifiedNonNHLThisRun func(childComplexity int) int
+	}
+
 	ProgressItem struct {
 		Completed            func(childComplexity int) int
 		CompletedAt          func(childComplexity int) int
@@ -253,20 +254,18 @@ type ComplexityRoot struct {
 
 	Query struct {
 		BuildNumber                  func(childComplexity int) int
-		DownloadPlayersProgress      func(childComplexity int) int
-		DownloadPlayersResult        func(childComplexity int) int
 		DownloadSeasonsProgress      func(childComplexity int) int
 		DownloadSeasonsResult        func(childComplexity int) int
 		DownloadYahooPlayersProgress func(childComplexity int) int
 		DownloadYahooPlayersResult   func(childComplexity int) int
-		ImportPlayersProgress        func(childComplexity int) int
-		ImportPlayersResult          func(childComplexity int) int
-		ImportPlayersResultData      func(childComplexity int) int
 		ImportSeasonsProgress        func(childComplexity int) int
 		ImportSeasonsResult          func(childComplexity int) int
 		InitializeProgress           func(childComplexity int) int
 		InitializeResult             func(childComplexity int) int
 		InitializeResultData         func(childComplexity int) int
+		ProcessPlayersProgress       func(childComplexity int) int
+		ProcessPlayersResult         func(childComplexity int) int
+		ProcessPlayersResultData     func(childComplexity int) int
 	}
 
 	Season struct {
@@ -321,10 +320,8 @@ type MutationResolver interface {
 	CancelDownloadSeasons(ctx context.Context) (bool, error)
 	DownloadYahooPlayers(ctx context.Context) (bool, error)
 	CancelDownloadYahooPlayers(ctx context.Context) (bool, error)
-	DownloadPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
-	CancelDownloadPlayers(ctx context.Context) (bool, error)
-	ImportPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
-	CancelImportPlayers(ctx context.Context) (bool, error)
+	ProcessPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
+	CancelProcessPlayers(ctx context.Context) (bool, error)
 	ImportSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error)
 	CancelImportSeasons(ctx context.Context) (bool, error)
 	ImportLeague(ctx context.Context, season int, leagueID int) (*model.League, error)
@@ -339,11 +336,9 @@ type QueryResolver interface {
 	DownloadSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error)
 	DownloadYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
 	DownloadYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
-	DownloadPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
-	DownloadPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
-	ImportPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
-	ImportPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
-	ImportPlayersResultData(ctx context.Context) (*model.ImportPlayersResultData, error)
+	ProcessPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
+	ProcessPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
+	ProcessPlayersResultData(ctx context.Context) (*model.ProcessPlayersResultData, error)
 	ImportSeasonsResult(ctx context.Context) (*model.WorkflowResult, error)
 	ImportSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error)
 }
@@ -755,62 +750,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.FantasyGame.UpdatedAt(childComplexity), true
 
-	case "ImportPlayersResultData.errors":
-		if e.complexity.ImportPlayersResultData.Errors == nil {
-			break
-		}
-
-		return e.complexity.ImportPlayersResultData.Errors(childComplexity), true
-
-	case "ImportPlayersResultData.importedPlayers":
-		if e.complexity.ImportPlayersResultData.ImportedPlayers == nil {
-			break
-		}
-
-		return e.complexity.ImportPlayersResultData.ImportedPlayers(childComplexity), true
-
-	case "ImportPlayersResultData.matchedWithYahoo":
-		if e.complexity.ImportPlayersResultData.MatchedWithYahoo == nil {
-			break
-		}
-
-		return e.complexity.ImportPlayersResultData.MatchedWithYahoo(childComplexity), true
-
-	case "ImportPlayersResultData.skippedNonNHL":
-		if e.complexity.ImportPlayersResultData.SkippedNonNHL == nil {
-			break
-		}
-
-		return e.complexity.ImportPlayersResultData.SkippedNonNHL(childComplexity), true
-
-	case "ImportPlayersResultData.totalPlayers":
-		if e.complexity.ImportPlayersResultData.TotalPlayers == nil {
-			break
-		}
-
-		return e.complexity.ImportPlayersResultData.TotalPlayers(childComplexity), true
-
-	case "ImportPlayersResultData.totalYahooPlayers":
-		if e.complexity.ImportPlayersResultData.TotalYahooPlayers == nil {
-			break
-		}
-
-		return e.complexity.ImportPlayersResultData.TotalYahooPlayers(childComplexity), true
-
-	case "ImportPlayersResultData.trulyUnmatched":
-		if e.complexity.ImportPlayersResultData.TrulyUnmatched == nil {
-			break
-		}
-
-		return e.complexity.ImportPlayersResultData.TrulyUnmatched(childComplexity), true
-
-	case "ImportPlayersResultData.verifiedNonNHLThisRun":
-		if e.complexity.ImportPlayersResultData.VerifiedNonNHLThisRun == nil {
-			break
-		}
-
-		return e.complexity.ImportPlayersResultData.VerifiedNonNHLThisRun(childComplexity), true
-
 	case "InitializeResultData.franchisesUpserted":
 		if e.complexity.InitializeResultData.FranchisesUpserted == nil {
 			break
@@ -1070,13 +1009,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Manager.Nickname(childComplexity), true
 
-	case "Mutation.cancelDownloadPlayers":
-		if e.complexity.Mutation.CancelDownloadPlayers == nil {
-			break
-		}
-
-		return e.complexity.Mutation.CancelDownloadPlayers(childComplexity), true
-
 	case "Mutation.cancelDownloadSeasons":
 		if e.complexity.Mutation.CancelDownloadSeasons == nil {
 			break
@@ -1090,13 +1022,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.CancelDownloadYahooPlayers(childComplexity), true
-
-	case "Mutation.cancelImportPlayers":
-		if e.complexity.Mutation.CancelImportPlayers == nil {
-			break
-		}
-
-		return e.complexity.Mutation.CancelImportPlayers(childComplexity), true
 
 	case "Mutation.cancelImportSeasons":
 		if e.complexity.Mutation.CancelImportSeasons == nil {
@@ -1112,6 +1037,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CancelInitialize(childComplexity), true
 
+	case "Mutation.cancelProcessPlayers":
+		if e.complexity.Mutation.CancelProcessPlayers == nil {
+			break
+		}
+
+		return e.complexity.Mutation.CancelProcessPlayers(childComplexity), true
+
 	case "Mutation.clearDatabase":
 		if e.complexity.Mutation.ClearDatabase == nil {
 			break
@@ -1125,18 +1057,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.CreateDatabase(childComplexity), true
-
-	case "Mutation.downloadPlayers":
-		if e.complexity.Mutation.DownloadPlayers == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_downloadPlayers_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.DownloadPlayers(childComplexity, args["input"].(*model.DownloadSeasonsInput)), true
 
 	case "Mutation.downloadSeasons":
 		if e.complexity.Mutation.DownloadSeasons == nil {
@@ -1183,18 +1103,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.ImportLeague(childComplexity, args["season"].(int), args["leagueID"].(int)), true
 
-	case "Mutation.importPlayers":
-		if e.complexity.Mutation.ImportPlayers == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_importPlayers_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.ImportPlayers(childComplexity, args["input"].(*model.DownloadSeasonsInput)), true
-
 	case "Mutation.importSeasons":
 		if e.complexity.Mutation.ImportSeasons == nil {
 			break
@@ -1225,6 +1133,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.Initialize(childComplexity), true
+
+	case "Mutation.processPlayers":
+		if e.complexity.Mutation.ProcessPlayers == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_processPlayers_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ProcessPlayers(childComplexity, args["input"].(*model.DownloadSeasonsInput)), true
 
 	case "NHLFranchise.fullName":
 		if e.complexity.NHLFranchise.FullName == nil {
@@ -1471,6 +1391,83 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Player.YahooImageSmall(childComplexity), true
 
+	case "ProcessPlayersResultData.cacheHits":
+		if e.complexity.ProcessPlayersResultData.CacheHits == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.CacheHits(childComplexity), true
+
+	case "ProcessPlayersResultData.downloaded":
+		if e.complexity.ProcessPlayersResultData.Downloaded == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.Downloaded(childComplexity), true
+
+	case "ProcessPlayersResultData.errors":
+		if e.complexity.ProcessPlayersResultData.Errors == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.Errors(childComplexity), true
+
+	case "ProcessPlayersResultData.importedPlayers":
+		if e.complexity.ProcessPlayersResultData.ImportedPlayers == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.ImportedPlayers(childComplexity), true
+
+	case "ProcessPlayersResultData.matchedWithYahoo":
+		if e.complexity.ProcessPlayersResultData.MatchedWithYahoo == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.MatchedWithYahoo(childComplexity), true
+
+	case "ProcessPlayersResultData.missing":
+		if e.complexity.ProcessPlayersResultData.Missing == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.Missing(childComplexity), true
+
+	case "ProcessPlayersResultData.skippedNonNHL":
+		if e.complexity.ProcessPlayersResultData.SkippedNonNHL == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.SkippedNonNHL(childComplexity), true
+
+	case "ProcessPlayersResultData.totalPlayers":
+		if e.complexity.ProcessPlayersResultData.TotalPlayers == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.TotalPlayers(childComplexity), true
+
+	case "ProcessPlayersResultData.totalYahooPlayers":
+		if e.complexity.ProcessPlayersResultData.TotalYahooPlayers == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.TotalYahooPlayers(childComplexity), true
+
+	case "ProcessPlayersResultData.trulyUnmatched":
+		if e.complexity.ProcessPlayersResultData.TrulyUnmatched == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.TrulyUnmatched(childComplexity), true
+
+	case "ProcessPlayersResultData.verifiedNonNHLThisRun":
+		if e.complexity.ProcessPlayersResultData.VerifiedNonNHLThisRun == nil {
+			break
+		}
+
+		return e.complexity.ProcessPlayersResultData.VerifiedNonNHLThisRun(childComplexity), true
+
 	case "ProgressItem.completed":
 		if e.complexity.ProgressItem.Completed == nil {
 			break
@@ -1534,20 +1531,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.BuildNumber(childComplexity), true
 
-	case "Query.downloadPlayersProgress":
-		if e.complexity.Query.DownloadPlayersProgress == nil {
-			break
-		}
-
-		return e.complexity.Query.DownloadPlayersProgress(childComplexity), true
-
-	case "Query.downloadPlayersResult":
-		if e.complexity.Query.DownloadPlayersResult == nil {
-			break
-		}
-
-		return e.complexity.Query.DownloadPlayersResult(childComplexity), true
-
 	case "Query.downloadSeasonsProgress":
 		if e.complexity.Query.DownloadSeasonsProgress == nil {
 			break
@@ -1575,27 +1558,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.DownloadYahooPlayersResult(childComplexity), true
-
-	case "Query.importPlayersProgress":
-		if e.complexity.Query.ImportPlayersProgress == nil {
-			break
-		}
-
-		return e.complexity.Query.ImportPlayersProgress(childComplexity), true
-
-	case "Query.importPlayersResult":
-		if e.complexity.Query.ImportPlayersResult == nil {
-			break
-		}
-
-		return e.complexity.Query.ImportPlayersResult(childComplexity), true
-
-	case "Query.importPlayersResultData":
-		if e.complexity.Query.ImportPlayersResultData == nil {
-			break
-		}
-
-		return e.complexity.Query.ImportPlayersResultData(childComplexity), true
 
 	case "Query.importSeasonsProgress":
 		if e.complexity.Query.ImportSeasonsProgress == nil {
@@ -1631,6 +1593,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.InitializeResultData(childComplexity), true
+
+	case "Query.processPlayersProgress":
+		if e.complexity.Query.ProcessPlayersProgress == nil {
+			break
+		}
+
+		return e.complexity.Query.ProcessPlayersProgress(childComplexity), true
+
+	case "Query.processPlayersResult":
+		if e.complexity.Query.ProcessPlayersResult == nil {
+			break
+		}
+
+		return e.complexity.Query.ProcessPlayersResult(childComplexity), true
+
+	case "Query.processPlayersResultData":
+		if e.complexity.Query.ProcessPlayersResultData == nil {
+			break
+		}
+
+		return e.complexity.Query.ProcessPlayersResultData(childComplexity), true
 
 	case "Season.end":
 		if e.complexity.Season.End == nil {
@@ -2007,18 +1990,6 @@ type LocalStats {
 	# Standings: Int!
 }
 
-#type Status {
-#	Version: String!
-#	Configuration: Configuration!
-#	DBStats: DBStats!
-#	LocalStats: LocalStats!
-#	GameKey: Int!
-#	SeasonStart: Time!
-#	SeasonEnd: Time!
-#	CurrentUser: String!
-#	OAuth2Token: OAuth2Token
-#}
-
 type FantasyGame {
 	id: Int!
 	key: Int!
@@ -2172,10 +2143,15 @@ type TrulyUnmatchedPlayer {
 	nhlName: String!
 }
 
-type ImportPlayersResultData {
+type ProcessPlayersResultData {
+	# Player counts
 	totalPlayers: Int!
 	importedPlayers: Int!
 	matchedWithYahoo: Int!
+	# Download stats
+	downloaded: Int!
+	cacheHits: Int!
+	missing: Int!
 	# Yahoo player stats
 	totalYahooPlayers: Int!
 	skippedNonNHL: Int! @goField(name: "SkippedNonNHL")            # Excluded at load (verified non-NHL from previous runs)
@@ -2203,12 +2179,9 @@ type Query {
 	downloadYahooPlayersResult: WorkflowResult!
 	downloadYahooPlayersProgress: WorkflowProgress
 
-	downloadPlayersResult: WorkflowResult!
-	downloadPlayersProgress: WorkflowProgress
-
-	importPlayersResult: WorkflowResult!
-	importPlayersProgress: WorkflowProgress
-	importPlayersResultData: ImportPlayersResultData
+	processPlayersResult: WorkflowResult!
+	processPlayersProgress: WorkflowProgress
+	processPlayersResultData: ProcessPlayersResultData
 
 	importSeasonsResult: WorkflowResult!
 	importSeasonsProgress: WorkflowProgress
@@ -2237,11 +2210,8 @@ type Mutation {
 	downloadYahooPlayers: Boolean!
 	cancelDownloadYahooPlayers: Boolean!
 
-	downloadPlayers(input: DownloadSeasonsInput): Boolean!
-	cancelDownloadPlayers: Boolean!
-
-	importPlayers(input: DownloadSeasonsInput): Boolean!
-	cancelImportPlayers: Boolean!
+	processPlayers(input: DownloadSeasonsInput): Boolean!
+	cancelProcessPlayers: Boolean!
 
 	importSeasons(input: DownloadSeasonsInput): Boolean!
 	cancelImportSeasons: Boolean!
@@ -2257,38 +2227,6 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
-
-func (ec *executionContext) field_Mutation_downloadPlayers_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_downloadPlayers_argsInput(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_downloadPlayers_argsInput(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (*model.DownloadSeasonsInput, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["input"]
-	if !ok {
-		var zeroVal *model.DownloadSeasonsInput
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalODownloadSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadSeasonsInput(ctx, tmp)
-	}
-
-	var zeroVal *model.DownloadSeasonsInput
-	return zeroVal, nil
-}
 
 func (ec *executionContext) field_Mutation_downloadSeasons_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -2378,38 +2316,6 @@ func (ec *executionContext) field_Mutation_importLeague_argsLeagueID(
 	}
 
 	var zeroVal int
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_importPlayers_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_importPlayers_argsInput(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_importPlayers_argsInput(
-	ctx context.Context,
-	rawArgs map[string]interface{},
-) (*model.DownloadSeasonsInput, error) {
-	// We won't call the directive if the argument is null.
-	// Set call_argument_directives_with_null to true to call directives
-	// even if the argument is null.
-	_, ok := rawArgs["input"]
-	if !ok {
-		var zeroVal *model.DownloadSeasonsInput
-		return zeroVal, nil
-	}
-
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalODownloadSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadSeasonsInput(ctx, tmp)
-	}
-
-	var zeroVal *model.DownloadSeasonsInput
 	return zeroVal, nil
 }
 
@@ -2528,6 +2434,38 @@ func (ec *executionContext) field_Mutation_importTeam_argsTeamID(
 	}
 
 	var zeroVal int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_processPlayers_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_processPlayers_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_processPlayers_argsInput(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.DownloadSeasonsInput, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["input"]
+	if !ok {
+		var zeroVal *model.DownloadSeasonsInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalODownloadSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐDownloadSeasonsInput(ctx, tmp)
+	}
+
+	var zeroVal *model.DownloadSeasonsInput
 	return zeroVal, nil
 }
 
@@ -5061,372 +4999,6 @@ func (ec *executionContext) fieldContext_FantasyGame_updatedAt(_ context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _ImportPlayersResultData_totalPlayers(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_ImportPlayersResultData_totalPlayers(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.TotalPlayers, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_ImportPlayersResultData_totalPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ImportPlayersResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ImportPlayersResultData_importedPlayers(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_ImportPlayersResultData_importedPlayers(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.ImportedPlayers, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_ImportPlayersResultData_importedPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ImportPlayersResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ImportPlayersResultData_matchedWithYahoo(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_ImportPlayersResultData_matchedWithYahoo(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.MatchedWithYahoo, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_ImportPlayersResultData_matchedWithYahoo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ImportPlayersResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ImportPlayersResultData_totalYahooPlayers(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_ImportPlayersResultData_totalYahooPlayers(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.TotalYahooPlayers, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_ImportPlayersResultData_totalYahooPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ImportPlayersResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ImportPlayersResultData_skippedNonNHL(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_ImportPlayersResultData_skippedNonNHL(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.SkippedNonNHL, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_ImportPlayersResultData_skippedNonNHL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ImportPlayersResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ImportPlayersResultData_verifiedNonNHLThisRun(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_ImportPlayersResultData_verifiedNonNHLThisRun(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.VerifiedNonNHLThisRun, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_ImportPlayersResultData_verifiedNonNHLThisRun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ImportPlayersResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ImportPlayersResultData_trulyUnmatched(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_ImportPlayersResultData_trulyUnmatched(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.TrulyUnmatched, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*model.TrulyUnmatchedPlayer)
-	fc.Result = res
-	return ec.marshalNTrulyUnmatchedPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTrulyUnmatchedPlayerᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_ImportPlayersResultData_trulyUnmatched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ImportPlayersResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "yahooID":
-				return ec.fieldContext_TrulyUnmatchedPlayer_yahooID(ctx, field)
-			case "firstName":
-				return ec.fieldContext_TrulyUnmatchedPlayer_firstName(ctx, field)
-			case "lastName":
-				return ec.fieldContext_TrulyUnmatchedPlayer_lastName(ctx, field)
-			case "nhlGames":
-				return ec.fieldContext_TrulyUnmatchedPlayer_nhlGames(ctx, field)
-			case "nhlPlayerID":
-				return ec.fieldContext_TrulyUnmatchedPlayer_nhlPlayerID(ctx, field)
-			case "nhlName":
-				return ec.fieldContext_TrulyUnmatchedPlayer_nhlName(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type TrulyUnmatchedPlayer", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ImportPlayersResultData_errors(ctx context.Context, field graphql.CollectedField, obj *model.ImportPlayersResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_ImportPlayersResultData_errors(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Errors, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]string)
-	fc.Result = res
-	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_ImportPlayersResultData_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ImportPlayersResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _InitializeResultData_franchisesUpserted(ctx context.Context, field graphql.CollectedField, obj *model.InitializeResultData) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_InitializeResultData_franchisesUpserted(ctx, field)
 	if err != nil {
@@ -7512,8 +7084,8 @@ func (ec *executionContext) fieldContext_Mutation_cancelDownloadYahooPlayers(_ c
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_downloadPlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_downloadPlayers(ctx, field)
+func (ec *executionContext) _Mutation_processPlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_processPlayers(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -7526,7 +7098,7 @@ func (ec *executionContext) _Mutation_downloadPlayers(ctx context.Context, field
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DownloadPlayers(rctx, fc.Args["input"].(*model.DownloadSeasonsInput))
+		return ec.resolvers.Mutation().ProcessPlayers(rctx, fc.Args["input"].(*model.DownloadSeasonsInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7543,7 +7115,7 @@ func (ec *executionContext) _Mutation_downloadPlayers(ctx context.Context, field
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_downloadPlayers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_processPlayers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -7560,15 +7132,15 @@ func (ec *executionContext) fieldContext_Mutation_downloadPlayers(ctx context.Co
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_downloadPlayers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_processPlayers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_cancelDownloadPlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_cancelDownloadPlayers(ctx, field)
+func (ec *executionContext) _Mutation_cancelProcessPlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelProcessPlayers(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -7581,7 +7153,7 @@ func (ec *executionContext) _Mutation_cancelDownloadPlayers(ctx context.Context,
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelDownloadPlayers(rctx)
+		return ec.resolvers.Mutation().CancelProcessPlayers(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7598,106 +7170,7 @@ func (ec *executionContext) _Mutation_cancelDownloadPlayers(ctx context.Context,
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_cancelDownloadPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_importPlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_importPlayers(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ImportPlayers(rctx, fc.Args["input"].(*model.DownloadSeasonsInput))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_importPlayers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_importPlayers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_cancelImportPlayers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_cancelImportPlayers(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CancelImportPlayers(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_cancelImportPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_cancelProcessPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -9471,6 +8944,504 @@ func (ec *executionContext) fieldContext_Player_draftOverallPick(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _ProcessPlayersResultData_totalPlayers(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_totalPlayers(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalPlayers, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_totalPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProcessPlayersResultData_importedPlayers(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_importedPlayers(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ImportedPlayers, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_importedPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProcessPlayersResultData_matchedWithYahoo(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_matchedWithYahoo(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.MatchedWithYahoo, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_matchedWithYahoo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProcessPlayersResultData_downloaded(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_downloaded(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Downloaded, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_downloaded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProcessPlayersResultData_cacheHits(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_cacheHits(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CacheHits, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_cacheHits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProcessPlayersResultData_missing(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_missing(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Missing, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_missing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProcessPlayersResultData_totalYahooPlayers(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_totalYahooPlayers(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalYahooPlayers, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_totalYahooPlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProcessPlayersResultData_skippedNonNHL(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_skippedNonNHL(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SkippedNonNHL, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_skippedNonNHL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProcessPlayersResultData_verifiedNonNHLThisRun(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_verifiedNonNHLThisRun(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.VerifiedNonNHLThisRun, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_verifiedNonNHLThisRun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProcessPlayersResultData_trulyUnmatched(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_trulyUnmatched(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TrulyUnmatched, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.TrulyUnmatchedPlayer)
+	fc.Result = res
+	return ec.marshalNTrulyUnmatchedPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐTrulyUnmatchedPlayerᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_trulyUnmatched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "yahooID":
+				return ec.fieldContext_TrulyUnmatchedPlayer_yahooID(ctx, field)
+			case "firstName":
+				return ec.fieldContext_TrulyUnmatchedPlayer_firstName(ctx, field)
+			case "lastName":
+				return ec.fieldContext_TrulyUnmatchedPlayer_lastName(ctx, field)
+			case "nhlGames":
+				return ec.fieldContext_TrulyUnmatchedPlayer_nhlGames(ctx, field)
+			case "nhlPlayerID":
+				return ec.fieldContext_TrulyUnmatchedPlayer_nhlPlayerID(ctx, field)
+			case "nhlName":
+				return ec.fieldContext_TrulyUnmatchedPlayer_nhlName(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TrulyUnmatchedPlayer", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProcessPlayersResultData_errors(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ProcessPlayersResultData_errors(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Errors, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProcessPlayersResultData",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProgressItem_id(ctx context.Context, field graphql.CollectedField, obj *model.ProgressItem) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_ProgressItem_id(ctx, field)
 	if err != nil {
@@ -10219,8 +10190,8 @@ func (ec *executionContext) fieldContext_Query_downloadYahooPlayersProgress(_ co
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_downloadPlayersResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_downloadPlayersResult(ctx, field)
+func (ec *executionContext) _Query_processPlayersResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_processPlayersResult(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -10233,7 +10204,7 @@ func (ec *executionContext) _Query_downloadPlayersResult(ctx context.Context, fi
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().DownloadPlayersResult(rctx)
+		return ec.resolvers.Query().ProcessPlayersResult(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -10250,7 +10221,7 @@ func (ec *executionContext) _Query_downloadPlayersResult(ctx context.Context, fi
 	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_downloadPlayersResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_processPlayersResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -10269,8 +10240,8 @@ func (ec *executionContext) fieldContext_Query_downloadPlayersResult(_ context.C
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_downloadPlayersProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_downloadPlayersProgress(ctx, field)
+func (ec *executionContext) _Query_processPlayersProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_processPlayersProgress(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -10283,7 +10254,7 @@ func (ec *executionContext) _Query_downloadPlayersProgress(ctx context.Context, 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().DownloadPlayersProgress(rctx)
+		return ec.resolvers.Query().ProcessPlayersProgress(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -10297,7 +10268,7 @@ func (ec *executionContext) _Query_downloadPlayersProgress(ctx context.Context, 
 	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_downloadPlayersProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_processPlayersProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -10324,8 +10295,8 @@ func (ec *executionContext) fieldContext_Query_downloadPlayersProgress(_ context
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_importPlayersResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_importPlayersResult(ctx, field)
+func (ec *executionContext) _Query_processPlayersResultData(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_processPlayersResultData(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -10338,57 +10309,7 @@ func (ec *executionContext) _Query_importPlayersResult(ctx context.Context, fiel
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().ImportPlayersResult(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(*model.WorkflowResult)
-	fc.Result = res
-	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_importPlayersResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "status":
-				return ec.fieldContext_WorkflowResult_status(ctx, field)
-			case "failureReason":
-				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_importPlayersProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_importPlayersProgress(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().ImportPlayersProgress(rctx)
+		return ec.resolvers.Query().ProcessPlayersResultData(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -10397,67 +10318,12 @@ func (ec *executionContext) _Query_importPlayersProgress(ctx context.Context, fi
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*model.WorkflowProgress)
+	res := resTmp.(*model.ProcessPlayersResultData)
 	fc.Result = res
-	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
+	return ec.marshalOProcessPlayersResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProcessPlayersResultData(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_importPlayersProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "total":
-				return ec.fieldContext_WorkflowProgress_total(ctx, field)
-			case "completed":
-				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
-			case "message":
-				return ec.fieldContext_WorkflowProgress_message(ctx, field)
-			case "header":
-				return ec.fieldContext_WorkflowProgress_header(ctx, field)
-			case "items":
-				return ec.fieldContext_WorkflowProgress_items(ctx, field)
-			case "displayStyle":
-				return ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_importPlayersResultData(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_importPlayersResultData(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().ImportPlayersResultData(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.ImportPlayersResultData)
-	fc.Result = res
-	return ec.marshalOImportPlayersResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐImportPlayersResultData(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_importPlayersResultData(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_processPlayersResultData(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -10466,23 +10332,29 @@ func (ec *executionContext) fieldContext_Query_importPlayersResultData(_ context
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "totalPlayers":
-				return ec.fieldContext_ImportPlayersResultData_totalPlayers(ctx, field)
+				return ec.fieldContext_ProcessPlayersResultData_totalPlayers(ctx, field)
 			case "importedPlayers":
-				return ec.fieldContext_ImportPlayersResultData_importedPlayers(ctx, field)
+				return ec.fieldContext_ProcessPlayersResultData_importedPlayers(ctx, field)
 			case "matchedWithYahoo":
-				return ec.fieldContext_ImportPlayersResultData_matchedWithYahoo(ctx, field)
+				return ec.fieldContext_ProcessPlayersResultData_matchedWithYahoo(ctx, field)
+			case "downloaded":
+				return ec.fieldContext_ProcessPlayersResultData_downloaded(ctx, field)
+			case "cacheHits":
+				return ec.fieldContext_ProcessPlayersResultData_cacheHits(ctx, field)
+			case "missing":
+				return ec.fieldContext_ProcessPlayersResultData_missing(ctx, field)
 			case "totalYahooPlayers":
-				return ec.fieldContext_ImportPlayersResultData_totalYahooPlayers(ctx, field)
+				return ec.fieldContext_ProcessPlayersResultData_totalYahooPlayers(ctx, field)
 			case "skippedNonNHL":
-				return ec.fieldContext_ImportPlayersResultData_skippedNonNHL(ctx, field)
+				return ec.fieldContext_ProcessPlayersResultData_skippedNonNHL(ctx, field)
 			case "verifiedNonNHLThisRun":
-				return ec.fieldContext_ImportPlayersResultData_verifiedNonNHLThisRun(ctx, field)
+				return ec.fieldContext_ProcessPlayersResultData_verifiedNonNHLThisRun(ctx, field)
 			case "trulyUnmatched":
-				return ec.fieldContext_ImportPlayersResultData_trulyUnmatched(ctx, field)
+				return ec.fieldContext_ProcessPlayersResultData_trulyUnmatched(ctx, field)
 			case "errors":
-				return ec.fieldContext_ImportPlayersResultData_errors(ctx, field)
+				return ec.fieldContext_ProcessPlayersResultData_errors(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type ImportPlayersResultData", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type ProcessPlayersResultData", field.Name)
 		},
 	}
 	return fc, nil
@@ -14140,80 +14012,6 @@ func (ec *executionContext) _FantasyGame(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
-var importPlayersResultDataImplementors = []string{"ImportPlayersResultData"}
-
-func (ec *executionContext) _ImportPlayersResultData(ctx context.Context, sel ast.SelectionSet, obj *model.ImportPlayersResultData) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, importPlayersResultDataImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("ImportPlayersResultData")
-		case "totalPlayers":
-			out.Values[i] = ec._ImportPlayersResultData_totalPlayers(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "importedPlayers":
-			out.Values[i] = ec._ImportPlayersResultData_importedPlayers(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "matchedWithYahoo":
-			out.Values[i] = ec._ImportPlayersResultData_matchedWithYahoo(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "totalYahooPlayers":
-			out.Values[i] = ec._ImportPlayersResultData_totalYahooPlayers(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "skippedNonNHL":
-			out.Values[i] = ec._ImportPlayersResultData_skippedNonNHL(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "verifiedNonNHLThisRun":
-			out.Values[i] = ec._ImportPlayersResultData_verifiedNonNHLThisRun(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "trulyUnmatched":
-			out.Values[i] = ec._ImportPlayersResultData_trulyUnmatched(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "errors":
-			out.Values[i] = ec._ImportPlayersResultData_errors(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
 var initializeResultDataImplementors = []string{"InitializeResultData"}
 
 func (ec *executionContext) _InitializeResultData(ctx context.Context, sel ast.SelectionSet, obj *model.InitializeResultData) graphql.Marshaler {
@@ -14658,30 +14456,16 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "downloadPlayers":
+		case "processPlayers":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_downloadPlayers(ctx, field)
+				return ec._Mutation_processPlayers(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "cancelDownloadPlayers":
+		case "cancelProcessPlayers":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_cancelDownloadPlayers(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "importPlayers":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_importPlayers(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "cancelImportPlayers":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_cancelImportPlayers(ctx, field)
+				return ec._Mutation_cancelProcessPlayers(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -14966,6 +14750,95 @@ func (ec *executionContext) _Player(ctx context.Context, sel ast.SelectionSet, o
 	return out
 }
 
+var processPlayersResultDataImplementors = []string{"ProcessPlayersResultData"}
+
+func (ec *executionContext) _ProcessPlayersResultData(ctx context.Context, sel ast.SelectionSet, obj *model.ProcessPlayersResultData) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, processPlayersResultDataImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProcessPlayersResultData")
+		case "totalPlayers":
+			out.Values[i] = ec._ProcessPlayersResultData_totalPlayers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "importedPlayers":
+			out.Values[i] = ec._ProcessPlayersResultData_importedPlayers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "matchedWithYahoo":
+			out.Values[i] = ec._ProcessPlayersResultData_matchedWithYahoo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "downloaded":
+			out.Values[i] = ec._ProcessPlayersResultData_downloaded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cacheHits":
+			out.Values[i] = ec._ProcessPlayersResultData_cacheHits(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "missing":
+			out.Values[i] = ec._ProcessPlayersResultData_missing(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalYahooPlayers":
+			out.Values[i] = ec._ProcessPlayersResultData_totalYahooPlayers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skippedNonNHL":
+			out.Values[i] = ec._ProcessPlayersResultData_skippedNonNHL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "verifiedNonNHLThisRun":
+			out.Values[i] = ec._ProcessPlayersResultData_verifiedNonNHLThisRun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "trulyUnmatched":
+			out.Values[i] = ec._ProcessPlayersResultData_trulyUnmatched(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._ProcessPlayersResultData_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var progressItemImplementors = []string{"ProgressItem"}
 
 func (ec *executionContext) _ProgressItem(ctx context.Context, sel ast.SelectionSet, obj *model.ProgressItem) graphql.Marshaler {
@@ -15211,7 +15084,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "downloadPlayersResult":
+		case "processPlayersResult":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -15220,7 +15093,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_downloadPlayersResult(ctx, field)
+				res = ec._Query_processPlayersResult(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -15233,7 +15106,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "downloadPlayersProgress":
+		case "processPlayersProgress":
 			field := field
 
 			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
@@ -15242,7 +15115,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_downloadPlayersProgress(ctx, field)
+				res = ec._Query_processPlayersProgress(ctx, field)
 				return res
 			}
 
@@ -15252,29 +15125,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "importPlayersResult":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_importPlayersResult(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "importPlayersProgress":
+		case "processPlayersResultData":
 			field := field
 
 			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
@@ -15283,26 +15134,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_importPlayersProgress(ctx, field)
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "importPlayersResultData":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_importPlayersResultData(ctx, field)
+				res = ec._Query_processPlayersResultData(ctx, field)
 				return res
 			}
 
@@ -16627,13 +16459,6 @@ func (ec *executionContext) unmarshalODownloadSeasonsInput2ᚖgithubᚗcomᚋspe
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOImportPlayersResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐImportPlayersResultData(ctx context.Context, sel ast.SelectionSet, v *model.ImportPlayersResultData) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return ec._ImportPlayersResultData(ctx, sel, v)
-}
-
 func (ec *executionContext) marshalOInitializeResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐInitializeResultData(ctx context.Context, sel ast.SelectionSet, v *model.InitializeResultData) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -16671,6 +16496,13 @@ func (ec *executionContext) marshalOInt642ᚖint64(ctx context.Context, sel ast.
 	}
 	res := graphql.MarshalInt64(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOProcessPlayersResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProcessPlayersResultData(ctx context.Context, sel ast.SelectionSet, v *model.ProcessPlayersResultData) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ProcessPlayersResultData(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOProgressDisplayStyle2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressDisplayStyle(ctx context.Context, v interface{}) (*model.ProgressDisplayStyle, error) {

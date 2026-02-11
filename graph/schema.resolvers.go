@@ -64,24 +64,14 @@ func (r *mutationResolver) CancelDownloadYahooPlayers(ctx context.Context) (bool
 	return r.Resolver.cancelDownloadYahooPlayers(ctx)
 }
 
-// DownloadPlayers is the resolver for the downloadPlayers field.
-func (r *mutationResolver) DownloadPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
-	return r.Resolver.downloadPlayers(ctx, input)
+// ProcessPlayers is the resolver for the processPlayers field.
+func (r *mutationResolver) ProcessPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+	return r.Resolver.processPlayers(ctx, input)
 }
 
-// CancelDownloadPlayers is the resolver for the cancelDownloadPlayers field.
-func (r *mutationResolver) CancelDownloadPlayers(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelDownloadPlayers(ctx)
-}
-
-// ImportPlayers is the resolver for the importPlayers field.
-func (r *mutationResolver) ImportPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
-	return r.Resolver.importPlayers(ctx, input)
-}
-
-// CancelImportPlayers is the resolver for the cancelImportPlayers field.
-func (r *mutationResolver) CancelImportPlayers(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelImportPlayers(ctx)
+// CancelProcessPlayers is the resolver for the cancelProcessPlayers field.
+func (r *mutationResolver) CancelProcessPlayers(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelProcessPlayers(ctx)
 }
 
 // ImportSeasons is the resolver for the importSeasons field.
@@ -148,29 +138,19 @@ func (r *queryResolver) DownloadYahooPlayersProgress(ctx context.Context) (*mode
 	return r.Resolver.downloadYahooPlayersProgress(ctx)
 }
 
-// DownloadPlayersResult is the resolver for the downloadPlayersResult field.
-func (r *queryResolver) DownloadPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.downloadPlayersResult(ctx)
+// ProcessPlayersResult is the resolver for the processPlayersResult field.
+func (r *queryResolver) ProcessPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.processPlayersResult(ctx)
 }
 
-// DownloadPlayersProgress is the resolver for the downloadPlayersProgress field.
-func (r *queryResolver) DownloadPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.Resolver.downloadPlayersProgress(ctx)
+// ProcessPlayersProgress is the resolver for the processPlayersProgress field.
+func (r *queryResolver) ProcessPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.Resolver.processPlayersProgress(ctx)
 }
 
-// ImportPlayersResult is the resolver for the importPlayersResult field.
-func (r *queryResolver) ImportPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.importPlayersResult(ctx)
-}
-
-// ImportPlayersProgress is the resolver for the importPlayersProgress field.
-func (r *queryResolver) ImportPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.Resolver.importPlayersProgress(ctx)
-}
-
-// ImportPlayersResultData is the resolver for the importPlayersResultData field.
-func (r *queryResolver) ImportPlayersResultData(ctx context.Context) (*model.ImportPlayersResultData, error) {
-	return r.Resolver.importPlayersResultData(ctx)
+// ProcessPlayersResultData is the resolver for the processPlayersResultData field.
+func (r *queryResolver) ProcessPlayersResultData(ctx context.Context) (*model.ProcessPlayersResultData, error) {
+	return r.Resolver.processPlayersResultData(ctx)
 }
 
 // ImportSeasonsResult is the resolver for the importSeasonsResult field.

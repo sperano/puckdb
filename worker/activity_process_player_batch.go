@@ -12,13 +12,12 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/redis"
 	"github.com/sperano/puckdb/sqlcdb"
 )
 
-const (
-	yahooPlayerBaseURL = "https://sports.yahoo.com/nhl/players/"
-)
+const yahooPlayerBaseURL = "https://sports.yahoo.com/nhl/players/"
 
 // PlayerUpserter is the interface for database operations needed by player import.
 type PlayerUpserter interface {
@@ -26,82 +25,118 @@ type PlayerUpserter interface {
 	ClearConflictingYahooID(ctx context.Context, arg sqlcdb.ClearConflictingYahooIDParams) error
 }
 
-// ImportBatchResult holds the results of importing a batch of players.
-type ImportBatchResult struct {
-	Imported int      // Total players imported
+// ProcessPlayerBatchResult contains combined download and import statistics.
+type ProcessPlayerBatchResult struct {
+	// Download stats
+	Downloaded int // Players downloaded from API
+	CacheHits  int // Players found in cache
+	Missing    int // 404 responses (cached for future runs)
+
+	// Import stats
+	Imported int      // Players imported to database
 	Matched  int      // Players matched with Yahoo IDs
 	Errors   []string // Error messages for failed players
 }
 
-// ImportPlayerBatchActivity imports a batch of players from cached PlayerLanding files.
-// It reads PlayerLanding JSON, matches with Yahoo IDs, and upserts to the database.
-func ImportPlayerBatchActivity(ctx context.Context, playerIDs []int64) (ImportBatchResult, error) {
+// ProcessPlayerBatchActivity downloads player landing pages (if needed) and imports them to the database.
+// This combines DownloadPlayerLandingBatchActivity and ImportPlayerBatchActivity into a single pass.
+func ProcessPlayerBatchActivity(ctx context.Context, players []BoxscorePlayer) (ProcessPlayerBatchResult, error) {
+	fs := cache.NewSimpleCache()
+	nhlClient := newNHLClient()
+
 	redisClient := redis.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	pool, err := database.OpenPGXPool(ctx)
 	if err != nil {
-		return ImportBatchResult{}, err
+		return ProcessPlayerBatchResult{}, err
 	}
 	defer pool.Close()
 
-	deps := ImportDeps{
-		FS:      cache.NewSimpleCache(),
-		Redis:   redisClient,
-		Queries: database.NewQueries(pool),
+	deps := processDeps{
+		fs:        fs,
+		nhlClient: nhlClient,
+		redis:     redisClient,
+		queries:   database.NewQueries(pool),
 	}
 
-	return importPlayerBatchImpl(ctx, deps, playerIDs)
+	return processPlayerBatchImpl(ctx, deps, players)
 }
 
-// ImportDeps holds dependencies for player import.
-type ImportDeps struct {
-	FS      cache.FileSystem
-	Redis   redis.Client
-	Queries PlayerUpserter
+// processDeps holds dependencies for the combined process activity.
+type processDeps struct {
+	fs        cache.FileSystem
+	nhlClient NHLClient
+	redis     redis.Client
+	queries   PlayerUpserter
 }
 
-func importPlayerBatchImpl(ctx context.Context, deps ImportDeps, playerIDs []int64) (ImportBatchResult, error) {
-	if len(playerIDs) == 0 {
-		return ImportBatchResult{}, nil
+func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []BoxscorePlayer) (ProcessPlayerBatchResult, error) {
+	result := ProcessPlayerBatchResult{}
+
+	if len(players) == 0 {
+		return result, nil
 	}
 
-	// Load YahooID pool from Redis
-	yahooPool, err := LoadYahooIDPool(ctx, deps.Redis)
+	// Load YahooID pool from Redis once for the batch
+	yahooPool, err := LoadYahooIDPool(ctx, deps.redis)
 	if err != nil {
-		return ImportBatchResult{}, fmt.Errorf("load yahoo pool: %w", err)
+		return result, fmt.Errorf("load yahoo pool: %w", err)
 	}
 
-	var result ImportBatchResult
 	var matchedYahooIDs []int
 
-	for _, playerID := range playerIDs {
+	for _, p := range players {
 		select {
 		case <-ctx.Done():
 			return result, ctx.Err()
 		default:
 		}
 
-		// Read PlayerLanding from cache
-		file := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(playerID)}
-		if !deps.FS.Exists(file) {
-			result.Errors = append(result.Errors, fmt.Sprintf("player %d: file not found", playerID))
+		playerID := nhl.PlayerID(p.ID)
+
+		// Step 1: Download player landing (if not cached)
+		downloadStatus, err := getPlayerLandingWithCache(ctx, deps.fs, deps.nhlClient, playerID, &p)
+		if err != nil {
+			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
+			return result, err
+		}
+
+		switch downloadStatus {
+		case playerLandingCached:
+			result.CacheHits++
+			metrics.IncDownload("PlayerLanding", "hit")
+		case playerLandingDownloaded:
+			result.Downloaded++
+			metrics.IncDownload("PlayerLanding", "miss")
+		case playerLandingMissing:
+			result.Missing++
+			metrics.IncDownload("PlayerLanding", "missing")
+			// Skip import for missing players (404s)
 			continue
 		}
 
-		content, err := deps.FS.Read(file)
+		// Step 2: Import player to database
+		file := cache.PlayerLandingFile{PlayerID: playerID}
+		if !deps.fs.Exists(file) {
+			// This shouldn't happen after successful download, but handle gracefully
+			result.Errors = append(result.Errors, fmt.Sprintf("player %d: file not found after download", p.ID))
+			continue
+		}
+
+		content, err := deps.fs.Read(file)
 		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("player %d: read error: %v", playerID, err))
+			result.Errors = append(result.Errors, fmt.Sprintf("player %d: read error: %v", p.ID, err))
 			continue
 		}
 
 		var landing nhl.PlayerLanding
 		if err := json.Unmarshal(content, &landing); err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("player %d: parse error: %v", playerID, err))
+			result.Errors = append(result.Errors, fmt.Sprintf("player %d: parse error: %v", p.ID, err))
 			continue
 		}
 
-		// Try to match with Yahoo player
+		// Match with Yahoo player
 		var teamAbbrev string
 		if landing.CurrentTeamAbbrev != nil {
 			teamAbbrev = *landing.CurrentTeamAbbrev
@@ -114,37 +149,35 @@ func importPlayerBatchImpl(ctx context.Context, deps ImportDeps, playerIDs []int
 		if err != nil {
 			log.Debug().
 				Err(err).
-				Int64("nhl_id", playerID).
+				Int64("nhl_id", p.ID).
 				Str("name", landing.FirstName.Default+" "+landing.LastName.Default).
 				Msg("Yahoo ID matching warning")
 		}
 
 		// Build UpsertPlayerParams
-		params := buildUpsertParams(&landing, matchResult)
+		params := buildProcessUpsertParams(&landing, matchResult)
 
-		// Clear any conflicting yahoo_id assignment before upserting.
-		// This handles cases where a yahoo_id was previously assigned to the wrong player
-		// (e.g., Bryan Hextall Sr. vs Jr. with the same name).
+		// Clear any conflicting yahoo_id assignment before upserting
 		if matchResult.Matched {
 			clearParams := sqlcdb.ClearConflictingYahooIDParams{
 				YahooID: pgtype.Int8{Int64: int64(matchResult.YahooID), Valid: true},
-				ID:      playerID,
+				ID:      p.ID,
 			}
-			if err := deps.Queries.ClearConflictingYahooID(ctx, clearParams); err != nil {
+			if err := deps.queries.ClearConflictingYahooID(ctx, clearParams); err != nil {
 				log.Warn().Err(err).
-					Int64("nhl_id", playerID).
+					Int64("nhl_id", p.ID).
 					Int("yahoo_id", matchResult.YahooID).
 					Msg("Failed to clear conflicting yahoo_id")
 			}
 		}
 
 		// Upsert to database
-		if err := deps.Queries.UpsertPlayer(ctx, params); err != nil {
+		if err := deps.queries.UpsertPlayer(ctx, params); err != nil {
 			errMsg := fmt.Sprintf("player %d (%s %s): upsert error: %v",
-				playerID, landing.FirstName.Default, landing.LastName.Default, err)
+				p.ID, landing.FirstName.Default, landing.LastName.Default, err)
 			if matchResult.Matched {
 				errMsg = fmt.Sprintf("player %d (%s %s, yahoo_id=%d): upsert error: %v",
-					playerID, landing.FirstName.Default, landing.LastName.Default, matchResult.YahooID, err)
+					p.ID, landing.FirstName.Default, landing.LastName.Default, matchResult.YahooID, err)
 			}
 			result.Errors = append(result.Errors, errMsg)
 			continue
@@ -159,23 +192,27 @@ func importPlayerBatchImpl(ctx context.Context, deps ImportDeps, playerIDs []int
 
 	// Remove matched Yahoo IDs from available set
 	if len(matchedYahooIDs) > 0 {
-		if err := RemoveFromYahooIDPool(ctx, deps.Redis, matchedYahooIDs); err != nil {
+		if err := RemoveFromYahooIDPool(ctx, deps.redis, matchedYahooIDs); err != nil {
 			log.Warn().Err(err).Int("count", len(matchedYahooIDs)).Msg("Failed to remove matched Yahoo IDs")
 		}
 	}
 
 	log.Info().
-		Int("batch_size", len(playerIDs)).
+		Int("batch_size", len(players)).
+		Int("downloaded", result.Downloaded).
+		Int("cache_hits", result.CacheHits).
+		Int("missing", result.Missing).
 		Int("imported", result.Imported).
 		Int("matched", result.Matched).
 		Int("errors", len(result.Errors)).
-		Msg("Import batch complete")
+		Msg("Process player batch complete")
 
 	return result, nil
 }
 
-// buildUpsertParams creates UpsertPlayerParams from PlayerLanding and match result.
-func buildUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResult) sqlcdb.UpsertPlayerParams {
+// buildProcessUpsertParams creates UpsertPlayerParams from PlayerLanding and match result.
+// This is a copy of buildUpsertParams to avoid circular dependencies.
+func buildProcessUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResult) sqlcdb.UpsertPlayerParams {
 	// Trim whitespace from name fields - NHL API sometimes has trailing spaces
 	firstName := strings.TrimSpace(landing.FirstName.Default)
 	lastName := strings.TrimSpace(landing.LastName.Default)

@@ -46,7 +46,6 @@ func cmdSync() *cobra.Command {
 	config.InitSkipYahooPlayersFlag(flags)
 	config.InitSkipSeasonsFlag(flags)
 	config.InitSkipPlayersFlag(flags)
-	config.InitSkipImportPlayersFlag(flags)
 	cmd.AddCommand(cmdSyncSeasons())
 	return cmd
 }
@@ -75,9 +74,6 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 		return err
 	}
 	if err := config.BindSkipPlayersFlag(flags); err != nil {
-		return err
-	}
-	if err := config.BindSkipImportPlayersFlag(flags); err != nil {
 		return err
 	}
 	BindFlags(cmd.PersistentFlags())
@@ -149,25 +145,16 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Println("- Skipping seasons download.")
 	}
 
-	// Step 4: Download players data (unless skipped)
-	if !viper.GetBool(config.FlagSkipDownloadPlayers) {
-		if err := runDownloadPlayers(ctx, out, client, state); err != nil {
-			return fmt.Errorf("downloading players failed: %w", err)
+	// Step 4: Process players (download + import) unless skipped
+	if !viper.GetBool(config.FlagSkipProcessPlayers) {
+		if err := runProcessPlayers(ctx, out, client, state); err != nil {
+			return fmt.Errorf("processing players failed: %w", err)
 		}
 	} else {
-		fmt.Println("- Skipping players download.")
+		fmt.Println("- Skipping players processing.")
 	}
 
-	// Step 5: Import players data (unless skipped)
-	if !viper.GetBool(config.FlagSkipImportPlayers) {
-		if err := runImportPlayers(ctx, out, client, state); err != nil {
-			return fmt.Errorf("importing players failed: %w", err)
-		}
-	} else {
-		fmt.Println("- Skipping players import.")
-	}
-
-	fmt.Printf("\nSync completed in %.1fs\n", time.Since(start).Seconds())
+	fmt.Printf("✓ Sync completed in %.1fs\n", time.Since(start).Seconds())
 	return nil
 }
 
@@ -231,20 +218,11 @@ func runDownloadSeasons(ctx context.Context, out io.Writer, client *GraphQLClien
 	}.run(ctx, out, state)
 }
 
-func runDownloadPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+func runProcessPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	return workflowRunner{
-		workflowType: workflowDownloadPlayers,
-		trigger:      func() (bool, error) { return client.DownloadPlayers(ctx, buildDownloadSeasonsInput()) },
-		getStatus:    client.GetDownloadPlayersStatus,
-		timeout:      config.DefaultWorkflowPollTimeout,
-	}.run(ctx, out, state)
-}
-
-func runImportPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	return workflowRunner{
-		workflowType: workflowImportPlayers,
-		trigger:      func() (bool, error) { return client.ImportPlayers(ctx, buildImportPlayersInput()) },
-		getStatus:    client.GetImportPlayersStatus,
+		workflowType: workflowProcessPlayers,
+		trigger:      func() (bool, error) { return client.ProcessPlayers(ctx, buildProcessPlayersInput()) },
+		getStatus:    client.GetProcessPlayersStatus,
 		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)
 }
@@ -267,7 +245,7 @@ func (s *syncState) cancel() {
 		workflowYahooPlayers:    {"downloadYahooPlayers", s.client.CancelDownloadYahooPlayers},
 		workflowInitialize:      {"initialize", s.client.CancelInitialize},
 		workflowDownloadSeasons: {"downloadSeasons", s.client.CancelDownloadSeasons},
-		workflowImportPlayers:   {"importPlayers", s.client.CancelImportPlayers},
+		workflowProcessPlayers:  {"processPlayers", s.client.CancelProcessPlayers},
 		workflowImportSeasons:   {"importSeasons", s.client.CancelImportSeasons},
 	}
 	info, ok := cancelers[s.current]
@@ -306,13 +284,13 @@ func runSyncPlayers(cmd *cobra.Command, _ []string) error {
 	defer signal.Stop(sigChan)
 
 	if viper.GetBool(config.FlagMonitor) {
-		state.current = workflowImportPlayers
-		return monitorWorkflow_legacy(ctx, cmd, "Importing players...", client.GetImportPlayersStatus, config.DefaultWorkflowPollTimeout)
+		state.current = workflowProcessPlayers
+		return monitorWorkflow_legacy(ctx, cmd, "Processing players...", client.GetProcessPlayersStatus, config.DefaultWorkflowPollTimeout)
 	}
 
-	input := buildImportPlayersInput()
+	input := buildProcessPlayersInput()
 
-	state.current = workflowImportPlayers
+	state.current = workflowProcessPlayers
 	logEvent := log.Info().Str("server", apiAddr)
 	if input.StartSeason != nil {
 		logEvent = logEvent.Int("startSeason", *input.StartSeason)
@@ -323,21 +301,21 @@ func runSyncPlayers(cmd *cobra.Command, _ []string) error {
 	if input.SeasonConcurrency != nil {
 		logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
 	}
-	logEvent.Msg("Triggering importPlayers workflow")
+	logEvent.Msg("Triggering processPlayers workflow")
 
-	started, err := client.ImportPlayers(ctx, input)
+	started, err := client.ProcessPlayers(ctx, input)
 	if err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
-		return fmt.Errorf("failed to trigger importPlayers: %w", err)
+		return fmt.Errorf("failed to trigger processPlayers: %w", err)
 	}
 
 	if !started {
 		log.Warn().Msg("Workflow was not started (may already be running)")
 	}
 
-	if err := monitorWorkflow_legacy(ctx, cmd, "Importing players...", client.GetImportPlayersStatus, config.DefaultWorkflowPollTimeout); err != nil {
+	if err := monitorWorkflow_legacy(ctx, cmd, "Processing players...", client.GetProcessPlayersStatus, config.DefaultWorkflowPollTimeout); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
@@ -345,17 +323,17 @@ func runSyncPlayers(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Fetch and print result data
-	resultData, err := client.GetImportPlayersResultData(ctx)
+	resultData, err := client.GetProcessPlayersResultData(ctx)
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to fetch import result data")
+		log.Warn().Err(err).Msg("Failed to fetch process players result data")
 	} else if resultData != nil {
-		printImportPlayersResult(cmd, resultData)
+		printProcessPlayersResult(cmd, resultData)
 	}
 
 	return nil
 }
 
-func buildImportPlayersInput() *model.DownloadSeasonsInput {
+func buildProcessPlayersInput() *model.DownloadSeasonsInput {
 	input := &model.DownloadSeasonsInput{}
 
 	start, end := config.GetSeasonRange()
@@ -373,18 +351,26 @@ func buildImportPlayersInput() *model.DownloadSeasonsInput {
 	return input
 }
 
-func printImportPlayersResult(cmd *cobra.Command, result *ImportPlayersResultData) {
+func printProcessPlayersResult(cmd *cobra.Command, result *ProcessPlayersResultData) {
 	fmt.Fprintln(cmd.OutOrStdout())
-	fmt.Fprintln(cmd.OutOrStdout(), "=== Import Results ===")
+	fmt.Fprintln(cmd.OutOrStdout(), "=== Process Players Results ===")
 	fmt.Fprintf(cmd.OutOrStdout(), "Total players:       %d\n", result.TotalPlayers)
 	fmt.Fprintf(cmd.OutOrStdout(), "Imported:            %d\n", result.ImportedPlayers)
 	fmt.Fprintf(cmd.OutOrStdout(), "Matched with Yahoo:  %d\n", result.MatchedWithYahoo)
+	fmt.Fprintf(cmd.OutOrStdout(), "\nDownload stats:\n")
+	fmt.Fprintf(cmd.OutOrStdout(), "  Downloaded:        %d\n", result.Downloaded)
+	fmt.Fprintf(cmd.OutOrStdout(), "  Cache hits:        %d\n", result.CacheHits)
+	fmt.Fprintf(cmd.OutOrStdout(), "  Missing (404):     %d\n", result.Missing)
+	fmt.Fprintf(cmd.OutOrStdout(), "\nYahoo player stats:\n")
+	fmt.Fprintf(cmd.OutOrStdout(), "  Total Yahoo:       %d\n", result.TotalYahooPlayers)
+	fmt.Fprintf(cmd.OutOrStdout(), "  Skipped non-NHL:   %d\n", result.SkippedNonNHL)
+	fmt.Fprintf(cmd.OutOrStdout(), "  Verified non-NHL:  %d\n", result.VerifiedNonNHLThisRun)
 
-	if len(result.UnmatchedYahoo) > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "\nUnmatched Yahoo players (%d):\n", len(result.UnmatchedYahoo))
-		for _, p := range result.UnmatchedYahoo {
-			fmt.Fprintf(cmd.OutOrStdout(), "  - %s %s (#%d, %s) [Yahoo ID: %d]\n",
-				p.FirstName, p.LastName, p.JerseyNumber, p.Team, p.YahooID)
+	if len(result.TrulyUnmatched) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "\nTruly unmatched Yahoo players (%d):\n", len(result.TrulyUnmatched))
+		for _, p := range result.TrulyUnmatched {
+			fmt.Fprintf(cmd.OutOrStdout(), "  - %s %s [Yahoo: %d, NHL: %d %s, Games: %d]\n",
+				p.FirstName, p.LastName, p.YahooID, p.NHLPlayerID, p.NHLName, p.NHLGames)
 		}
 	}
 

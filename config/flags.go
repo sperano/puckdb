@@ -101,8 +101,7 @@ const (
 	FlagMaxSeasonConcurrency = "max-season-concurrency"
 	FlagDayConcurrency       = "day-concurrency"
 	FlagSkipPreseason        = "skip-preseason"
-	FlagSkipDownloadPlayers  = "skip-players"
-	FlagSkipImportPlayers    = "skip-import-players"
+	FlagSkipProcessPlayers   = "skip-players"
 	FlagSkipYahooPlayers     = "skip-yahoo-players"
 	FlagSkipSeasons          = "skip-seasons"
 	FlagSkipInitializing     = "skip-initializing"
@@ -486,19 +485,11 @@ func BindMonitorFlag(flags *flag.FlagSet) error {
 }
 
 func InitSkipPlayersFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagSkipDownloadPlayers, false, "Skip downloading players")
+	flags.Bool(FlagSkipProcessPlayers, false, "Skip processing players (download + import)")
 }
 
 func BindSkipPlayersFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagSkipDownloadPlayers, flags.Lookup(FlagSkipDownloadPlayers))
-}
-
-func InitSkipImportPlayersFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagSkipImportPlayers, false, "Skip importing players to database")
-}
-
-func BindSkipImportPlayersFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagSkipImportPlayers, flags.Lookup(FlagSkipImportPlayers))
+	return viper.BindPFlag(FlagSkipProcessPlayers, flags.Lookup(FlagSkipProcessPlayers))
 }
 
 func InitSkipYahooPlayersFlag(flags *flag.FlagSet) {

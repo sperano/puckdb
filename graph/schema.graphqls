@@ -244,10 +244,15 @@ type TrulyUnmatchedPlayer {
 	nhlName: String!
 }
 
-type ImportPlayersResultData {
+type ProcessPlayersResultData {
+	# Player counts
 	totalPlayers: Int!
 	importedPlayers: Int!
 	matchedWithYahoo: Int!
+	# Download stats
+	downloaded: Int!
+	cacheHits: Int!
+	missing: Int!
 	# Yahoo player stats
 	totalYahooPlayers: Int!
 	skippedNonNHL: Int! @goField(name: "SkippedNonNHL")            # Excluded at load (verified non-NHL from previous runs)
@@ -275,12 +280,9 @@ type Query {
 	downloadYahooPlayersResult: WorkflowResult!
 	downloadYahooPlayersProgress: WorkflowProgress
 
-	downloadPlayersResult: WorkflowResult!
-	downloadPlayersProgress: WorkflowProgress
-
-	importPlayersResult: WorkflowResult!
-	importPlayersProgress: WorkflowProgress
-	importPlayersResultData: ImportPlayersResultData
+	processPlayersResult: WorkflowResult!
+	processPlayersProgress: WorkflowProgress
+	processPlayersResultData: ProcessPlayersResultData
 
 	importSeasonsResult: WorkflowResult!
 	importSeasonsProgress: WorkflowProgress
@@ -309,11 +311,8 @@ type Mutation {
 	downloadYahooPlayers: Boolean!
 	cancelDownloadYahooPlayers: Boolean!
 
-	downloadPlayers(input: DownloadSeasonsInput): Boolean!
-	cancelDownloadPlayers: Boolean!
-
-	importPlayers(input: DownloadSeasonsInput): Boolean!
-	cancelImportPlayers: Boolean!
+	processPlayers(input: DownloadSeasonsInput): Boolean!
+	cancelProcessPlayers: Boolean!
 
 	importSeasons(input: DownloadSeasonsInput): Boolean!
 	cancelImportSeasons: Boolean!

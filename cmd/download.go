@@ -174,16 +174,14 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		lines = append(lines, *status.Progress.Message)
 	}
 
-	// No progress yet
-	if status.Progress.Total == 0 {
-		if len(lines) > 0 {
-			return strings.Join(lines, "\n")
-		}
-		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
-	}
-
-	// If no items, show simple header + progress bar
+	// If no items, show simple header + progress bar (or fallback message)
 	if len(status.Progress.Items) == 0 {
+		if status.Progress.Total == 0 {
+			if len(lines) > 0 {
+				return strings.Join(lines, "\n")
+			}
+			return fmt.Sprintf("Workflow status: %s", status.Result.Status)
+		}
 		if header != "" {
 			lines = append(lines, fmt.Sprintf("▶ %s", header))
 		}
@@ -274,7 +272,9 @@ func formatStatusMessage(status *WorkflowStatus) string {
 			completedDescription = *item.CompletedDescription
 		}
 
-		if item.Completed == item.Total && item.Total > 0 {
+		isCompleted := (item.Completed == item.Total && item.Total > 0) ||
+			(item.CompletedAt != nil && *item.CompletedAt != "")
+		if isCompleted {
 			// Completed: checkmark with completed description
 			lines = append(lines, fmt.Sprintf("✓ %s", completedDescription))
 		} else if item.Started {
@@ -285,8 +285,8 @@ func formatStatusMessage(status *WorkflowStatus) string {
 			lines = append(lines, fmt.Sprintf("%s %d/%d %s %d%%",
 				SpinnerPlaceholder, item.Completed, item.Total, bar, int(pct)))
 		} else {
-			// Pending: indented
-			lines = append(lines, fmt.Sprintf("  %s", description))
+			// Pending: don't display
+			continue
 		}
 	}
 

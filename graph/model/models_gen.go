@@ -79,17 +79,6 @@ type FantasyGame struct {
 	UpdatedAt          time.Time  `json:"updatedAt"`
 }
 
-type ImportPlayersResultData struct {
-	TotalPlayers          int                     `json:"totalPlayers"`
-	ImportedPlayers       int                     `json:"importedPlayers"`
-	MatchedWithYahoo      int                     `json:"matchedWithYahoo"`
-	TotalYahooPlayers     int                     `json:"totalYahooPlayers"`
-	SkippedNonNHL         int                     `json:"skippedNonNHL"`
-	VerifiedNonNHLThisRun int                     `json:"verifiedNonNHLThisRun"`
-	TrulyUnmatched        []*TrulyUnmatchedPlayer `json:"trulyUnmatched"`
-	Errors                []string                `json:"errors"`
-}
-
 type InitializeResultData struct {
 	FranchisesUpserted  int `json:"franchisesUpserted"`
 	SeasonsUpserted     int `json:"seasonsUpserted"`
@@ -196,6 +185,20 @@ type PlayersFilter struct {
 	TeamID        *int    `json:"teamID,omitempty"`
 	Position      *string `json:"position,omitempty"`
 	IsActive      *bool   `json:"isActive,omitempty"`
+}
+
+type ProcessPlayersResultData struct {
+	TotalPlayers          int                     `json:"totalPlayers"`
+	ImportedPlayers       int                     `json:"importedPlayers"`
+	MatchedWithYahoo      int                     `json:"matchedWithYahoo"`
+	Downloaded            int                     `json:"downloaded"`
+	CacheHits             int                     `json:"cacheHits"`
+	Missing               int                     `json:"missing"`
+	TotalYahooPlayers     int                     `json:"totalYahooPlayers"`
+	SkippedNonNHL         int                     `json:"skippedNonNHL"`
+	VerifiedNonNHLThisRun int                     `json:"verifiedNonNHLThisRun"`
+	TrulyUnmatched        []*TrulyUnmatchedPlayer `json:"trulyUnmatched"`
+	Errors                []string                `json:"errors"`
 }
 
 type ProgressItem struct {
