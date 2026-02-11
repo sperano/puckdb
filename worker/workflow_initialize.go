@@ -14,22 +14,22 @@ const WorkflowIDInitialize = "initialize"
 
 // Phase IDs for initialization workflow
 const (
-	PhaseDownloadFranchises = iota + 1
+	PhaseFetchFranchises = iota + 1
 	PhaseUpsertFranchises
-	PhaseDownloadSeasons
+	PhaseFetchSeasons
 	PhaseUpsertSeasons
 	PhaseInitializeSeasonTeams
 )
 
 // InitializeResult contains the results of the initialization workflow.
 type InitializeResult struct {
-	FranchisesDownloaded int  `json:"franchisesDownloaded"`
-	FranchisesFromCache  bool `json:"franchisesFromCache"`
-	FranchisesUpserted   int  `json:"franchisesUpserted"`
-	SeasonsDownloaded    int  `json:"seasonsDownloaded"`
-	SeasonsFromCache     bool `json:"seasonsFromCache"`
-	SeasonsUpserted      int  `json:"seasonsUpserted"`
-	SeasonTeamsUpserted  int  `json:"seasonTeamsUpserted"`
+	FranchisesFetched   int  `json:"franchisesFetched"`
+	FranchisesFromCache bool `json:"franchisesFromCache"`
+	FranchisesUpserted  int  `json:"franchisesUpserted"`
+	SeasonsFetched      int  `json:"seasonsFetched"`
+	SeasonsFromCache    bool `json:"seasonsFromCache"`
+	SeasonsUpserted     int  `json:"seasonsUpserted"`
+	SeasonTeamsUpserted int  `json:"seasonTeamsUpserted"`
 }
 
 // InitializeWorkflow downloads and upserts reference data (franchises, seasons, league structure).
@@ -41,9 +41,9 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 	// Set up progress tracking with phases
 	// CompletedDescription is set dynamically via SetItemCompletedDescription with counts/elapsed
 	phases := []PhaseInfo{
-		{ID: PhaseDownloadFranchises, Description: "Downloading franchises...", Total: 1},
+		{ID: PhaseFetchFranchises, Description: "Fetching franchises...", Total: 1},
 		{ID: PhaseUpsertFranchises, Description: "Upserting franchises...", Total: 1},
-		{ID: PhaseDownloadSeasons, Description: "Downloading seasons...", Total: 1},
+		{ID: PhaseFetchSeasons, Description: "Fetching seasons...", Total: 1},
 		{ID: PhaseUpsertSeasons, Description: "Upserting seasons...", Total: 1},
 		{ID: PhaseInitializeSeasonTeams, Description: "Upserting season teams...", Total: 0}, // Total set later
 	}
@@ -56,19 +56,19 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 	activityOpts := defaultActivityOptions()
 	ctx = workflow.WithActivityOptions(ctx, activityOpts)
 
-	// Phase 1: Download franchises
-	tracker.MarkItemStarted(ctx, PhaseDownloadFranchises)
-	logger.Info("Phase 1: Downloading NHL franchises")
+	// Phase 1: Fetch franchises
+	tracker.MarkItemStarted(ctx, PhaseFetchFranchises)
+	logger.Info("Phase 1: Fetching NHL franchises")
 	var franchisesDownloadResult DownloadFranchisesResult
 	if err := workflow.ExecuteActivity(ctx, DownloadFranchisesActivity).Get(ctx, &franchisesDownloadResult); err != nil {
 		return result, err
 	}
-	result.FranchisesDownloaded = franchisesDownloadResult.Count
+	result.FranchisesFetched = franchisesDownloadResult.Count
 	result.FranchisesFromCache = franchisesDownloadResult.FromCache
-	tracker.IncrementItem(PhaseDownloadFranchises)
-	tracker.SetItemCompletedDescription(PhaseDownloadFranchises,
-		fmt.Sprintf("Downloaded %d franchises in %s.", franchisesDownloadResult.Count, tracker.GetItemElapsed(ctx, PhaseDownloadFranchises)))
-	tracker.MarkItemCompleted(ctx, PhaseDownloadFranchises)
+	tracker.IncrementItem(PhaseFetchFranchises)
+	tracker.SetItemCompletedDescription(PhaseFetchFranchises,
+		fmt.Sprintf("Fetched %d franchises in %s.", franchisesDownloadResult.Count, tracker.GetItemElapsed(ctx, PhaseFetchFranchises)))
+	tracker.MarkItemCompleted(ctx, PhaseFetchFranchises)
 
 	// Phase 2: Upsert franchises to database
 	tracker.MarkItemStarted(ctx, PhaseUpsertFranchises)
@@ -83,19 +83,19 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 		fmt.Sprintf("Upserted %d franchises in %s.", franchisesUpsertResult.FranchisesUpserted, tracker.GetItemElapsed(ctx, PhaseUpsertFranchises)))
 	tracker.MarkItemCompleted(ctx, PhaseUpsertFranchises)
 
-	// Phase 3: Download seasons manifest
-	tracker.MarkItemStarted(ctx, PhaseDownloadSeasons)
-	logger.Info("Phase 3: Downloading NHL seasons manifest")
+	// Phase 3: Fetch seasons manifest
+	tracker.MarkItemStarted(ctx, PhaseFetchSeasons)
+	logger.Info("Phase 3: Fetching NHL seasons manifest")
 	var seasonsManifestResult DownloadSeasonsManifestResult
 	if err := workflow.ExecuteActivity(ctx, DownloadSeasonsManifestActivity).Get(ctx, &seasonsManifestResult); err != nil {
 		return result, err
 	}
-	result.SeasonsDownloaded = seasonsManifestResult.Count
+	result.SeasonsFetched = seasonsManifestResult.Count
 	result.SeasonsFromCache = seasonsManifestResult.FromCache
-	tracker.IncrementItem(PhaseDownloadSeasons)
-	tracker.SetItemCompletedDescription(PhaseDownloadSeasons,
-		fmt.Sprintf("Downloaded %d seasons in %s.", seasonsManifestResult.Count, tracker.GetItemElapsed(ctx, PhaseDownloadSeasons)))
-	tracker.MarkItemCompleted(ctx, PhaseDownloadSeasons)
+	tracker.IncrementItem(PhaseFetchSeasons)
+	tracker.SetItemCompletedDescription(PhaseFetchSeasons,
+		fmt.Sprintf("Fetched %d seasons in %s.", seasonsManifestResult.Count, tracker.GetItemElapsed(ctx, PhaseFetchSeasons)))
+	tracker.MarkItemCompleted(ctx, PhaseFetchSeasons)
 
 	// Phase 4: Upsert seasons to database
 	tracker.MarkItemStarted(ctx, PhaseUpsertSeasons)

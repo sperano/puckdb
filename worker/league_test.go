@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Tests for downloadLeagueImpl
+// Tests for fetchLeagueImpl
 
-func TestDownloadLeagueImpl_FileExists(t *testing.T) {
+func TestFetchLeagueImpl_FileExists(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
 	file := cache.LeagueFile{Season: 2023, LeagueID: 12345}
@@ -20,24 +20,24 @@ func TestDownloadLeagueImpl_FileExists(t *testing.T) {
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
 	mockFS.On("Exists", file).Return(true)
 
-	err := downloadLeagueImpl(ctx, mockFS, 2023, 423, 12345)
+	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345)
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
 }
 
-func TestDownloadLeagueImpl_ContextCancelled(t *testing.T) {
+func TestFetchLeagueImpl_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
 	mockFS := NewMockFileSystem()
 
-	err := downloadLeagueImpl(ctx, mockFS, 2023, 423, 12345)
+	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345)
 
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
-func TestDownloadLeagueImpl_MkdirAllError(t *testing.T) {
+func TestFetchLeagueImpl_MkdirAllError(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
 	file := cache.LeagueFile{Season: 2023, LeagueID: 12345}
@@ -45,7 +45,7 @@ func TestDownloadLeagueImpl_MkdirAllError(t *testing.T) {
 
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(expectedErr)
 
-	err := downloadLeagueImpl(ctx, mockFS, 2023, 423, 12345)
+	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), file.Dir())

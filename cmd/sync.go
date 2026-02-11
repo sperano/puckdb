@@ -11,7 +11,6 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/graph/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -127,22 +126,22 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Println("- Skipping initialization.")
 	}
 
-	// Step 2: Download Yahoo players (unless skipped)
+	// Step 2: Fetch Yahoo players (unless skipped)
 	if !viper.GetBool(config.FlagSkipYahooPlayers) {
-		if err := runDownloadYahooPlayer(ctx, out, client, state); err != nil {
-			return fmt.Errorf("downloading Yahoo! players failed: %w", err)
+		if err := runFetchYahooPlayers(ctx, out, client, state); err != nil {
+			return fmt.Errorf("fetching Yahoo! players failed: %w", err)
 		}
 	} else {
-		fmt.Println("- Skipping Yahoo players download.")
+		fmt.Println("- Skipping Yahoo players fetch.")
 	}
 
-	// Step 3: Download seasons data (unless skipped)
+	// Step 3: Fetch seasons data (unless skipped)
 	if !viper.GetBool(config.FlagSkipSeasons) {
-		if err := runDownloadSeasons(ctx, out, client, state); err != nil {
-			return fmt.Errorf("downloading seasons failed: %w", err)
+		if err := runFetchSeasons(ctx, out, client, state); err != nil {
+			return fmt.Errorf("fetching seasons failed: %w", err)
 		}
 	} else {
-		fmt.Println("- Skipping seasons download.")
+		fmt.Println("- Skipping seasons fetch.")
 	}
 
 	// Step 4: Process players (download + import) unless skipped
@@ -200,20 +199,20 @@ func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient, st
 	}.run(ctx, out, state)
 }
 
-func runDownloadYahooPlayer(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+func runFetchYahooPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	return workflowRunner{
 		workflowType: workflowYahooPlayers,
-		trigger:      func() (bool, error) { return client.DownloadYahooPlayers(ctx) },
-		getStatus:    client.GetDownloadYahooPlayersStatus,
+		trigger:      func() (bool, error) { return client.FetchYahooPlayers(ctx) },
+		getStatus:    client.GetFetchYahooPlayersStatus,
 		timeout:      config.DefaultYahooPlayersTimeout,
 	}.run(ctx, out, state)
 }
 
-func runDownloadSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+func runFetchSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	return workflowRunner{
-		workflowType: workflowDownloadSeasons,
-		trigger:      func() (bool, error) { return client.DownloadSeasons(ctx, buildDownloadSeasonsInput()) },
-		getStatus:    client.GetDownloadSeasonsStatus,
+		workflowType: workflowFetchSeasons,
+		trigger:      func() (bool, error) { return client.FetchSeasons(ctx, buildFetchSeasonsInput()) },
+		getStatus:    client.GetFetchSeasonsStatus,
 		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)
 }
@@ -221,7 +220,7 @@ func runDownloadSeasons(ctx context.Context, out io.Writer, client *GraphQLClien
 func runProcessPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	return workflowRunner{
 		workflowType: workflowProcessPlayers,
-		trigger:      func() (bool, error) { return client.ProcessPlayers(ctx, buildProcessPlayersInput()) },
+		trigger:      func() (bool, error) { return client.ProcessPlayers(ctx, buildFetchSeasonsInput()) },
 		getStatus:    client.GetProcessPlayersStatus,
 		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)
@@ -242,11 +241,11 @@ func (s *syncState) cancel() {
 		fn   func(context.Context) (bool, error)
 	}
 	cancelers := map[workflowType]cancelInfo{
-		workflowYahooPlayers:    {"downloadYahooPlayers", s.client.CancelDownloadYahooPlayers},
-		workflowInitialize:      {"initialize", s.client.CancelInitialize},
-		workflowDownloadSeasons: {"downloadSeasons", s.client.CancelDownloadSeasons},
-		workflowProcessPlayers:  {"processPlayers", s.client.CancelProcessPlayers},
-		workflowImportSeasons:   {"importSeasons", s.client.CancelImportSeasons},
+		workflowYahooPlayers:   {"fetchYahooPlayers", s.client.CancelFetchYahooPlayers},
+		workflowInitialize:     {"initialize", s.client.CancelInitialize},
+		workflowFetchSeasons:   {"fetchSeasons", s.client.CancelFetchSeasons},
+		workflowProcessPlayers: {"processPlayers", s.client.CancelProcessPlayers},
+		workflowImportSeasons:  {"importSeasons", s.client.CancelImportSeasons},
 	}
 	info, ok := cancelers[s.current]
 	if !ok {
@@ -288,7 +287,7 @@ func runSyncPlayers(cmd *cobra.Command, _ []string) error {
 		return monitorWorkflow_legacy(ctx, cmd, "Processing players...", client.GetProcessPlayersStatus, config.DefaultWorkflowPollTimeout)
 	}
 
-	input := buildProcessPlayersInput()
+	input := buildFetchSeasonsInput()
 
 	state.current = workflowProcessPlayers
 	logEvent := log.Info().Str("server", apiAddr)
@@ -333,23 +332,6 @@ func runSyncPlayers(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func buildProcessPlayersInput() *model.DownloadSeasonsInput {
-	input := &model.DownloadSeasonsInput{}
-
-	start, end := config.GetSeasonRange()
-	if start > 0 {
-		input.StartSeason = &start
-	}
-	if end > 0 {
-		input.EndSeason = &end
-	}
-
-	if concurrency := viper.GetInt(config.FlagSeasonConcurrency); concurrency > 0 {
-		input.SeasonConcurrency = &concurrency
-	}
-
-	return input
-}
 
 func printProcessPlayersResult(cmd *cobra.Command, result *ProcessPlayersResultData) {
 	fmt.Fprintln(cmd.OutOrStdout())
@@ -441,7 +423,7 @@ func runSyncSeasons(cmd *cobra.Command, _ []string) error {
 		return monitorWorkflow_legacy(ctx, cmd, "Importing seasons...", client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout)
 	}
 
-	input := buildImportSeasonsInput()
+	input := buildFetchSeasonsInput()
 
 	state.current = workflowImportSeasons
 	logEvent := log.Info().Str("server", apiAddr)
@@ -476,22 +458,4 @@ func runSyncSeasons(cmd *cobra.Command, _ []string) error {
 	}
 
 	return nil
-}
-
-func buildImportSeasonsInput() *model.DownloadSeasonsInput {
-	input := &model.DownloadSeasonsInput{}
-
-	start, end := config.GetSeasonRange()
-	if start > 0 {
-		input.StartSeason = &start
-	}
-	if end > 0 {
-		input.EndSeason = &end
-	}
-
-	if concurrency := viper.GetInt(config.FlagSeasonConcurrency); concurrency > 0 {
-		input.SeasonConcurrency = &concurrency
-	}
-
-	return input
 }

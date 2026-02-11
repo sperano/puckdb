@@ -12,7 +12,7 @@ import (
 // ImportSeasonsWorkflow imports season data from cached boxscores into the database.
 // It reads boxscore files from SimpleFS (previously downloaded) and upserts them
 // into the nhl_games, nhl_game_skater_stats, and nhl_game_goalie_stats tables.
-func ImportSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsInput) error {
+func ImportSeasonsWorkflow(ctx workflow.Context, input *model.FetchSeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
 	tracker := NewProgressTracker(0)

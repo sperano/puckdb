@@ -80,53 +80,53 @@ func currentFantasyGameKey(_ context.Context) (int, error) {
 	return fantasy.Game.Key, nil
 }
 
-func (r *Resolver) downloadSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
-	opts := workflowOptions(worker.WorkflowIDDownloadSeasons)
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.DownloadSeasonsWorkflow, input); err != nil {
+func (r *Resolver) fetchSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
+	opts := workflowOptions(worker.WorkflowIDFetchSeasons)
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.FetchSeasonsWorkflow, input); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (r *Resolver) cancelDownloadSeasons(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDDownloadSeasons, ""); err != nil {
+func (r *Resolver) cancelFetchSeasons(ctx context.Context) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDFetchSeasons, ""); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (r *Resolver) downloadSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadSeasons)
+func (r *Resolver) fetchSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, worker.WorkflowIDFetchSeasons)
 }
 
-func (r *Resolver) downloadSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadSeasons)
+func (r *Resolver) fetchSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDFetchSeasons)
 }
 
-func (r *Resolver) downloadYahooPlayers(ctx context.Context) (bool, error) {
-	opts := workflowOptions(worker.WorkflowIDDownloadYahooPlayers)
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.DownloadYahooPlayersWorkflow, nil); err != nil {
+func (r *Resolver) fetchYahooPlayers(ctx context.Context) (bool, error) {
+	opts := workflowOptions(worker.WorkflowIDFetchYahooPlayers)
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.FetchYahooPlayersWorkflow, nil); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (r *Resolver) cancelDownloadYahooPlayers(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDDownloadYahooPlayers, ""); err != nil {
+func (r *Resolver) cancelFetchYahooPlayers(ctx context.Context) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDFetchYahooPlayers, ""); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (r *Resolver) downloadYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadYahooPlayers)
+func (r *Resolver) fetchYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, worker.WorkflowIDFetchYahooPlayers)
 }
 
-func (r *Resolver) downloadYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadYahooPlayers)
+func (r *Resolver) fetchYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDFetchYahooPlayers)
 }
 
-func (r *Resolver) processPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+func (r *Resolver) processPlayers(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
 	opts := workflowOptions(worker.WorkflowIDProcessPlayers)
 	// Convert GraphQL input to workflow input
 	workflowInput := &worker.ProcessPlayersInput{}
@@ -231,7 +231,7 @@ func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.Process
 	}, nil
 }
 
-func (r *Resolver) importSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+func (r *Resolver) importSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
 	opts := workflowOptions(worker.WorkflowIDImportSeasons)
 	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ImportSeasonsWorkflow, input); err != nil {
 		return false, err
@@ -292,14 +292,6 @@ func (r *Resolver) initializeResultData(ctx context.Context) (*model.InitializeR
 	}, nil
 }
 
-func (r *Resolver) downloadEverythingResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadEverything)
-}
-
-func (r *Resolver) downloadEverythingForSeasonResult(ctx context.Context, season int) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDDownloadEverythingForSeason(season))
-}
-
 func (r *Resolver) getWorkflowResult(ctx context.Context, workflowID string) (*model.WorkflowResult, error) {
 	resp, err := r.TemporalClient.DescribeWorkflowExecution(ctx, workflowID, "")
 	if err != nil {
@@ -323,14 +315,6 @@ func (r *Resolver) getWorkflowResult(ctx context.Context, workflowID string) (*m
 	}
 
 	return result, nil
-}
-
-func (r *Resolver) downloadEverythingProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadEverything)
-}
-
-func (r *Resolver) downloadEverythingForSeasonProgress(ctx context.Context, season int) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDDownloadEverythingForSeason(season))
 }
 
 func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string) (*model.WorkflowProgress, error) {
@@ -428,7 +412,7 @@ func (r *Resolver) queryChildItemProgress(ctx context.Context, itemID int) *work
 	childCtx, cancel := context.WithTimeout(ctx, config.DefaultChildWorkflowTimeout)
 	defer cancel()
 
-	childWorkflowID := worker.WorkflowIDDownloadSeason(itemID)
+	childWorkflowID := worker.WorkflowIDFetchSeason(itemID)
 	response, err := r.TemporalClient.QueryWorkflow(childCtx, childWorkflowID, "", worker.ProgressQueryName)
 	if err != nil {
 		return nil

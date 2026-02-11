@@ -60,11 +60,11 @@ go run github.com/99designs/gqlgen generate   # GraphQL (schema: graph/schema.gr
 | `temporal/` | Temporal client configuration |
 
 ### Active Workflows
-- `DownloadSeasonsWorkflow` - NHL season data
-- `DownloadYahooPlayersWorkflow` - Yahoo player pages
-- `DownloadRosterForTeamWorkflow` - Team rosters
-- `DownloadTeamSummariesForTeamWorkflow` - Team summaries
-- `EnrichPlayersWorkflow` - Player enrichment
+- `FetchSeasonsWorkflow` - NHL season data
+- `FetchYahooPlayersWorkflow` - Yahoo player pages
+- `FetchSeasonWorkflow` - Single season data (child workflow)
+- `ProcessPlayersWorkflow` - Player enrichment and matching
+- `InitializeWorkflow` - Database initialization
 
 Task queue: `puckdb-tasks`
 
@@ -100,15 +100,17 @@ Season config: `seasons.yaml` (start/end dates, game keys, league IDs, team IDs)
 ## GraphQL API
 
 **Mutations:**
-- `downloadSeasons` / `cancelDownloadSeasons` - NHL and Yahoo season data
-- `downloadYahooPlayers` / `cancelDownloadYahooPlayers` - Yahoo player pages
-- `importLeague`, `importTeam` - Import specific data
-- `clearDatabase`, `dropDatabase`, `createDatabase`, `initDatabase`
+- `fetchSeasons` / `cancelFetchSeasons` - NHL and Yahoo season data
+- `fetchYahooPlayers` / `cancelFetchYahooPlayers` - Yahoo player pages
+- `processPlayers` / `cancelProcessPlayers` - Player processing
+- `initialize` / `cancelInitialize` - Database initialization
+- `clearDatabase`, `dropDatabase`, `createDatabase`, `flushRedisDB`
 
 **Queries:**
-- `downloadSeasonsResult`, `downloadSeasonsProgress`
-- `downloadYahooPlayersResult`, `downloadYahooPlayersProgress`
-- `nhlConferences`, `nhlDivisions`, `nhlTeams`, `nhlTeam`
+- `fetchSeasonsResult`, `fetchSeasonsProgress`
+- `fetchYahooPlayersResult`, `fetchYahooPlayersProgress`
+- `processPlayersResult`, `processPlayersProgress`, `processPlayersResultData`
+- `initializeResult`, `initializeProgress`, `initializeResultData`
 
 ## Metrics
 

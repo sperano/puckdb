@@ -13,11 +13,11 @@ import (
 	"github.com/sperano/puckdb/metrics"
 )
 
-// DownloadDailySchedule downloads the NHL schedule for a day and all boxscores.
-func DownloadDailySchedule(ctx context.Context, day time.Time) error {
+// FetchDailySchedule fetches the NHL schedule for a day and all boxscores.
+func FetchDailySchedule(ctx context.Context, day time.Time) error {
 	start := time.Now()
 	defer func() {
-		metrics.ObserveActivityDuration("DownloadDailySchedule", time.Since(start))
+		metrics.ObserveActivityDuration("FetchDailySchedule", time.Since(start))
 	}()
 
 	fs := cache.NewSimpleCache()

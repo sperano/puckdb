@@ -96,7 +96,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []Box
 		playerID := nhl.PlayerID(p.ID)
 
 		// Step 1: Download player landing (if not cached)
-		downloadStatus, err := getPlayerLandingWithCache(ctx, deps.fs, deps.nhlClient, playerID, &p)
+		downloadStatus, err := ensurePlayerLandingCached(ctx, deps.fs, deps.nhlClient, playerID, &p)
 		if err != nil {
 			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
 			return result, err

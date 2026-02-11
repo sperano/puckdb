@@ -106,7 +106,7 @@ const (
 	workflowNone workflowType = iota
 	workflowInitialize
 	workflowYahooPlayers
-	workflowDownloadSeasons
+	workflowFetchSeasons
 	workflowProcessPlayers
 	workflowImportSeasons
 )
@@ -130,9 +130,9 @@ func (c *GraphQLClient) DownloadEverything(ctx context.Context) (bool, error) {
 	return result.DownloadEverything, nil
 }
 
-// DownloadSeasons triggers the downloadSeasons mutation with an optional season range.
-func (c *GraphQLClient) DownloadSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
-	const mutation = `mutation($input: DownloadSeasonsInput) { downloadSeasons(input: $input) }`
+// FetchSeasons triggers the fetchSeasons mutation with an optional season range.
+func (c *GraphQLClient) FetchSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
+	const mutation = `mutation($input: FetchSeasonsInput) { fetchSeasons(input: $input) }`
 
 	resp, err := c.execute(ctx, mutation, map[string]any{"input": input})
 	if err != nil {
@@ -140,20 +140,20 @@ func (c *GraphQLClient) DownloadSeasons(ctx context.Context, input *model.Downlo
 	}
 
 	var result struct {
-		DownloadSeasons bool `json:"downloadSeasons"`
+		FetchSeasons bool `json:"fetchSeasons"`
 	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return false, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return result.DownloadSeasons, nil
+	return result.FetchSeasons, nil
 }
 
-// GetDownloadSeasonsStatus queries both workflow result and progress in a single request.
-func (c *GraphQLClient) GetDownloadSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
+// GetFetchSeasonsStatus queries both workflow result and progress in a single request.
+func (c *GraphQLClient) GetFetchSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
-		downloadSeasonsResult { status failureReason }
-		downloadSeasonsProgress { total completed message header displayStyle items { id description completedDescription total completed started startedAt completedAt } }
+		fetchSeasonsResult { status failureReason }
+		fetchSeasonsProgress { total completed message header displayStyle items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -162,16 +162,16 @@ func (c *GraphQLClient) GetDownloadSeasonsStatus(ctx context.Context) (*Workflow
 	}
 
 	var result struct {
-		DownloadSeasonsResult   *model.WorkflowResult   `json:"downloadSeasonsResult"`
-		DownloadSeasonsProgress *model.WorkflowProgress `json:"downloadSeasonsProgress"`
+		FetchSeasonsResult   *model.WorkflowResult   `json:"fetchSeasonsResult"`
+		FetchSeasonsProgress *model.WorkflowProgress `json:"fetchSeasonsProgress"`
 	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	return &WorkflowStatus{
-		Result:   result.DownloadSeasonsResult,
-		Progress: result.DownloadSeasonsProgress,
+		Result:   result.FetchSeasonsResult,
+		Progress: result.FetchSeasonsProgress,
 	}, nil
 }
 
@@ -220,9 +220,9 @@ func (c *GraphQLClient) DownloadEverythingForSeason(ctx context.Context, season 
 	return result.DownloadEverythingForSeason, nil
 }
 
-// DownloadYahooPlayers triggers the downloadYahooPlayers mutation
-func (c *GraphQLClient) DownloadYahooPlayers(ctx context.Context) (bool, error) {
-	const mutation = `mutation { downloadYahooPlayers }`
+// FetchYahooPlayers triggers the fetchYahooPlayers mutation
+func (c *GraphQLClient) FetchYahooPlayers(ctx context.Context) (bool, error) {
+	const mutation = `mutation { fetchYahooPlayers }`
 
 	resp, err := c.execute(ctx, mutation, nil)
 	if err != nil {
@@ -230,20 +230,20 @@ func (c *GraphQLClient) DownloadYahooPlayers(ctx context.Context) (bool, error) 
 	}
 
 	var result struct {
-		DownloadYahooPlayers bool `json:"downloadYahooPlayers"`
+		FetchYahooPlayers bool `json:"fetchYahooPlayers"`
 	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return false, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return result.DownloadYahooPlayers, nil
+	return result.FetchYahooPlayers, nil
 }
 
-// GetDownloadYahooPlayersStatus queries both workflow result and progress
-func (c *GraphQLClient) GetDownloadYahooPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
+// GetFetchYahooPlayersStatus queries both workflow result and progress
+func (c *GraphQLClient) GetFetchYahooPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
-		downloadYahooPlayersResult { status failureReason }
-		downloadYahooPlayersProgress { total completed message header displayStyle items { id description completedDescription total completed started startedAt completedAt } }
+		fetchYahooPlayersResult { status failureReason }
+		fetchYahooPlayersProgress { total completed message header displayStyle items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -252,22 +252,22 @@ func (c *GraphQLClient) GetDownloadYahooPlayersStatus(ctx context.Context) (*Wor
 	}
 
 	var result struct {
-		DownloadYahooPlayersResult   *model.WorkflowResult   `json:"downloadYahooPlayersResult"`
-		DownloadYahooPlayersProgress *model.WorkflowProgress `json:"downloadYahooPlayersProgress"`
+		FetchYahooPlayersResult   *model.WorkflowResult   `json:"fetchYahooPlayersResult"`
+		FetchYahooPlayersProgress *model.WorkflowProgress `json:"fetchYahooPlayersProgress"`
 	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	return &WorkflowStatus{
-		Result:   result.DownloadYahooPlayersResult,
-		Progress: result.DownloadYahooPlayersProgress,
+		Result:   result.FetchYahooPlayersResult,
+		Progress: result.FetchYahooPlayersProgress,
 	}, nil
 }
 
-// CancelDownloadYahooPlayers cancels the downloadYahooPlayers workflow
-func (c *GraphQLClient) CancelDownloadYahooPlayers(ctx context.Context) (bool, error) {
-	const mutation = `mutation { cancelDownloadYahooPlayers }`
+// CancelFetchYahooPlayers cancels the fetchYahooPlayers workflow
+func (c *GraphQLClient) CancelFetchYahooPlayers(ctx context.Context) (bool, error) {
+	const mutation = `mutation { cancelFetchYahooPlayers }`
 
 	resp, err := c.execute(ctx, mutation, nil)
 	if err != nil {
@@ -275,18 +275,18 @@ func (c *GraphQLClient) CancelDownloadYahooPlayers(ctx context.Context) (bool, e
 	}
 
 	var result struct {
-		CancelDownloadYahooPlayers bool `json:"cancelDownloadYahooPlayers"`
+		CancelFetchYahooPlayers bool `json:"cancelFetchYahooPlayers"`
 	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return false, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return result.CancelDownloadYahooPlayers, nil
+	return result.CancelFetchYahooPlayers, nil
 }
 
-// CancelDownloadSeasons cancels the downloadSeasons workflow
-func (c *GraphQLClient) CancelDownloadSeasons(ctx context.Context) (bool, error) {
-	const mutation = `mutation { cancelDownloadSeasons }`
+// CancelFetchSeasons cancels the fetchSeasons workflow
+func (c *GraphQLClient) CancelFetchSeasons(ctx context.Context) (bool, error) {
+	const mutation = `mutation { cancelFetchSeasons }`
 
 	resp, err := c.execute(ctx, mutation, nil)
 	if err != nil {
@@ -294,18 +294,18 @@ func (c *GraphQLClient) CancelDownloadSeasons(ctx context.Context) (bool, error)
 	}
 
 	var result struct {
-		CancelDownloadSeasons bool `json:"cancelDownloadSeasons"`
+		CancelFetchSeasons bool `json:"cancelFetchSeasons"`
 	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return false, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return result.CancelDownloadSeasons, nil
+	return result.CancelFetchSeasons, nil
 }
 
-// ProcessPlayers triggers the processPlayers mutation (combined download + import)
-func (c *GraphQLClient) ProcessPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
-	const mutation = `mutation($input: DownloadSeasonsInput) { processPlayers(input: $input) }`
+// ProcessPlayers triggers the processPlayers mutation (combined fetch + import)
+func (c *GraphQLClient) ProcessPlayers(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
+	const mutation = `mutation($input: FetchSeasonsInput) { processPlayers(input: $input) }`
 
 	resp, err := c.execute(ctx, mutation, map[string]any{"input": input})
 	if err != nil {
@@ -414,8 +414,8 @@ func (c *GraphQLClient) GetDownloadEverythingForSeasonStatus(ctx context.Context
 
 
 // ImportSeasons triggers the importSeasons mutation
-func (c *GraphQLClient) ImportSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
-	const mutation = `mutation($input: DownloadSeasonsInput) { importSeasons(input: $input) }`
+func (c *GraphQLClient) ImportSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
+	const mutation = `mutation($input: FetchSeasonsInput) { importSeasons(input: $input) }`
 
 	resp, err := c.execute(ctx, mutation, map[string]any{"input": input})
 	if err != nil {

@@ -18,7 +18,7 @@ type ImportTeamsAndPlayersResult struct {
 
 // ImportNHLTeamsAndPlayersWorkflow extracts teams and player IDs from boxscores,
 // upserts teams to the database, and returns player IDs for downstream processing.
-func ImportNHLTeamsAndPlayersWorkflow(ctx workflow.Context, input *model.DownloadSeasonsInput) (*ImportTeamsAndPlayersResult, error) {
+func ImportNHLTeamsAndPlayersWorkflow(ctx workflow.Context, input *model.FetchSeasonsInput) (*ImportTeamsAndPlayersResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	maxConcurrency := viper.GetInt(config.FlagMaxSeasonConcurrency)

@@ -89,7 +89,7 @@ func TestWorkflowIDImportTeam(t *testing.T) {
 	}
 }
 
-func TestWorkflowIDDownloadGamesForSeason(t *testing.T) {
+func TestWorkflowIDFetchGamesForSeason(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -99,131 +99,77 @@ func TestWorkflowIDDownloadGamesForSeason(t *testing.T) {
 		{
 			name:     "2023 season",
 			season:   2023,
-			expected: "download-games-for-season-2023",
+			expected: "fetch-games-for-season-2023",
 		},
 		{
 			name:     "2022 season",
 			season:   2022,
-			expected: "download-games-for-season-2022",
+			expected: "fetch-games-for-season-2022",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDDownloadGamesForSeason(tt.season)
+			result := WorkflowIDFetchGamesForSeason(tt.season)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestWorkflowIDDownloadEverythingForSeason(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		season   int
-		expected string
-	}{
-		{
-			name:     "2023 season",
-			season:   2023,
-			expected: "download-everything-for-season-2023",
-		},
-		{
-			name:     "2022 season",
-			season:   2022,
-			expected: "download-everything-for-season-2022",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDDownloadEverythingForSeason(tt.season)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestWorkflowIDImportEverythingForSeason(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		season   int
-		expected string
-	}{
-		{
-			name:     "2023 season",
-			season:   2023,
-			expected: "import-everything-for-season-2023",
-		},
-		{
-			name:     "2022 season",
-			season:   2022,
-			expected: "import-everything-for-season-2022",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDImportEverythingForSeason(tt.season)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-// Workflow test suite for DownloadSeasons workflows
-type DownloadSeasonsWorkflowTestSuite struct {
+// Workflow test suite for FetchSeasons workflows
+type FetchSeasonsWorkflowTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 	env *testsuite.TestWorkflowEnvironment
 }
 
-func (s *DownloadSeasonsWorkflowTestSuite) SetupTest() {
+func (s *FetchSeasonsWorkflowTestSuite) SetupTest() {
 	s.env = s.NewTestWorkflowEnvironment()
-	s.env.RegisterWorkflow(DownloadSeasonsWorkflow)
-	s.env.RegisterWorkflow(DownloadSeasonWorkflow)
+	s.env.RegisterWorkflow(FetchSeasonsWorkflow)
+	s.env.RegisterWorkflow(FetchSeasonWorkflow)
 }
 
-func (s *DownloadSeasonsWorkflowTestSuite) AfterTest(suiteName, testName string) {
+func (s *FetchSeasonsWorkflowTestSuite) AfterTest(suiteName, testName string) {
 	s.env.AssertExpectations(s.T())
 }
 
-func TestDownloadSeasonsWorkflowTestSuite(t *testing.T) {
-	suite.Run(t, new(DownloadSeasonsWorkflowTestSuite))
+func TestFetchSeasonsWorkflowTestSuite(t *testing.T) {
+	suite.Run(t, new(FetchSeasonsWorkflowTestSuite))
 }
 
-// Test DownloadSeasonsWorkflow with mocked child workflows
-func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_Success() {
-	input := &model.DownloadSeasonsInput{}
+// Test FetchSeasonsWorkflow with mocked child workflows
+func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_Success() {
+	input := &model.FetchSeasonsInput{}
 	seasons := []SeasonInfo{
 		{StartYear: 2023, StartDate: mustParseDate("2024-04-14"), EndDate: mustParseDate("2024-04-15")},
 	}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
 	// Mock the child workflow for each season
-	s.env.OnWorkflow(DownloadSeasonWorkflow, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnWorkflow(FetchSeasonWorkflow, mock.Anything, mock.Anything).Return(nil)
 
-	s.env.ExecuteWorkflow(DownloadSeasonsWorkflow, input)
+	s.env.ExecuteWorkflow(FetchSeasonsWorkflow, input)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
 }
 
-// Test DownloadSeasonsWorkflow handles activity error
-func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_FetchSeasonsError() {
-	input := &model.DownloadSeasonsInput{}
+// Test FetchSeasonsWorkflow handles activity error
+func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_FetchSeasonsError() {
+	input := &model.FetchSeasonsInput{}
 	expectedErr := errors.New("failed to fetch seasons")
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(nil, expectedErr)
 
-	s.env.ExecuteWorkflow(DownloadSeasonsWorkflow, input)
+	s.env.ExecuteWorkflow(FetchSeasonsWorkflow, input)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
 }
 
-// Test DownloadSeasonsWorkflow handles child workflow error
-func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_ChildWorkflowError() {
-	input := &model.DownloadSeasonsInput{}
+// Test FetchSeasonsWorkflow handles child workflow error
+func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_ChildWorkflowError() {
+	input := &model.FetchSeasonsInput{}
 	seasons := []SeasonInfo{
 		{StartYear: 2023, StartDate: mustParseDate("2024-04-14"), EndDate: mustParseDate("2024-04-15")},
 	}
@@ -231,22 +177,22 @@ func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_ChildWork
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
 	// Mock the child workflow to return an error
-	s.env.OnWorkflow(DownloadSeasonWorkflow, mock.Anything, mock.Anything).Return(expectedErr)
+	s.env.OnWorkflow(FetchSeasonWorkflow, mock.Anything, mock.Anything).Return(expectedErr)
 
-	s.env.ExecuteWorkflow(DownloadSeasonsWorkflow, input)
+	s.env.ExecuteWorkflow(FetchSeasonsWorkflow, input)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
 }
 
-// Test DownloadSeasonsWorkflow with no seasons
-func (s *DownloadSeasonsWorkflowTestSuite) TestDownloadSeasonsWorkflow_NoSeasons() {
-	input := &model.DownloadSeasonsInput{}
+// Test FetchSeasonsWorkflow with no seasons
+func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_NoSeasons() {
+	input := &model.FetchSeasonsInput{}
 	seasons := []SeasonInfo{}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
 
-	s.env.ExecuteWorkflow(DownloadSeasonsWorkflow, input)
+	s.env.ExecuteWorkflow(FetchSeasonsWorkflow, input)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())

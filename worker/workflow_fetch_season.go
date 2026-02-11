@@ -9,19 +9,19 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// DownloadSeasonInput contains parameters for downloading a single season.
-type DownloadSeasonInput struct {
+// FetchSeasonInput contains parameters for fetching a single season.
+type FetchSeasonInput struct {
 	Season SeasonInfo
 }
 
-// DownloadSeasonWorkflow downloads all data for a single season.
+// FetchSeasonWorkflow fetches all data for a single season.
 // Each season runs in its own child workflow to isolate history.
 // A typical season (~270 days) generates ~600 history events, well under the 50K limit.
-func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) error {
+func FetchSeasonWorkflow(ctx workflow.Context, input *FetchSeasonInput) error {
 	logger := workflow.GetLogger(ctx)
 	season := input.Season
 
-	logger.Info("DownloadSeasonWorkflow started",
+	logger.Info("FetchSeasonWorkflow started",
 		"startYear", season.StartYear,
 		"startDate", season.StartDate.Format(config.DateFormat),
 		"endDate", season.EndDate.Format(config.DateFormat))
@@ -41,15 +41,15 @@ func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) er
 	if err == nil {
 		if yahooCfg, inYahoo := yahooConfig[season.StartYear]; inYahoo {
 			for _, league := range yahooCfg.Leagues {
-				// Download league
-				if err := workflow.ExecuteActivity(ctx, DownloadLeague, season.StartYear, league.LeagueID).Get(ctx, nil); err != nil {
+				// Fetch league
+				if err := workflow.ExecuteActivity(ctx, FetchLeague, season.StartYear, league.LeagueID).Get(ctx, nil); err != nil {
 					return err
 				}
 				tracker.Increment()
 
-				// Download teams
+				// Fetch teams
 				for _, teamid := range league.TeamIDs {
-					if err := workflow.ExecuteActivity(ctx, DownloadTeam, season.StartYear, league.LeagueID, teamid).Get(ctx, nil); err != nil {
+					if err := workflow.ExecuteActivity(ctx, FetchTeam, season.StartYear, league.LeagueID, teamid).Get(ctx, nil); err != nil {
 						return err
 					}
 					tracker.Increment()
@@ -86,46 +86,46 @@ func DownloadSeasonWorkflow(ctx workflow.Context, input *DownloadSeasonInput) er
 	startYear := season.StartYear
 	err = tracker.RunWorkerPool(ctx, numDays, dayConcurrency, func(ctx workflow.Context, i int) workflow.Future {
 		day := startDate.AddDate(0, 0, i)
-		dayInput := &DownloadDayInput{
+		dayInput := &FetchDayInput{
 			Day:       day,
 			StartYear: startYear,
 			TeamIDs:   teamIDs,
 		}
-		return workflow.ExecuteActivity(ctx, DownloadDayActivity, dayInput)
+		return workflow.ExecuteActivity(ctx, FetchDayActivity, dayInput)
 	})
 	if err != nil {
 		return err
 	}
 
-	logger.Info("DownloadSeasonWorkflow completed",
+	logger.Info("FetchSeasonWorkflow completed",
 		"startYear", season.StartYear,
 		"completed", tracker.progress.Completed)
 	return nil
 }
 
-// WorkflowIDDownloadSeason returns the workflow ID for a single season download.
-func WorkflowIDDownloadSeason(startYear int) string {
-	return fmt.Sprintf("download-season-%d", startYear)
+// WorkflowIDFetchSeason returns the workflow ID for a single season fetch.
+func WorkflowIDFetchSeason(startYear int) string {
+	return fmt.Sprintf("fetch-season-%d", startYear)
 }
 
-// WorkflowIDDownloadDay returns the workflow ID for a single day download.
-func WorkflowIDDownloadDay(startYear int, day time.Time) string {
-	return fmt.Sprintf("download-day-%d-%s", startYear, day.Format(config.DateFormat))
+// WorkflowIDFetchDay returns the workflow ID for a single day fetch.
+func WorkflowIDFetchDay(startYear int, day time.Time) string {
+	return fmt.Sprintf("fetch-day-%d-%s", startYear, day.Format(config.DateFormat))
 }
 
-// DownloadDayWorkflowInput contains parameters for the DownloadDayWorkflow.
-// The workflow looks up Yahoo config itself to determine which teams to download.
-type DownloadDayWorkflowInput struct {
+// FetchDayWorkflowInput contains parameters for the FetchDayWorkflow.
+// The workflow looks up Yahoo config itself to determine which teams to fetch.
+type FetchDayWorkflowInput struct {
 	Day       time.Time
 	StartYear int
 }
 
-// DownloadDayInput contains parameters for DownloadDayActivity.
+// FetchDayInput contains parameters for FetchDayActivity.
 // TeamIDs are pre-computed by the parent workflow.
-type DownloadDayInput struct {
+type FetchDayInput struct {
 	Day       time.Time
 	StartYear int
-	TeamIDs   []TeamInfo // Teams to download Yahoo data for (empty if no Yahoo config)
+	TeamIDs   []TeamInfo // Teams to fetch Yahoo data for (empty if no Yahoo config)
 }
 
 // TeamInfo identifies a team for Yahoo downloads.
@@ -134,10 +134,10 @@ type TeamInfo struct {
 	TeamID   int
 }
 
-// DownloadDayWorkflow downloads all data for a single day.
+// FetchDayWorkflow fetches all data for a single day.
 // This includes NHL boxscores and Yahoo rosters/summaries for all configured teams.
-// It looks up the Yahoo config to determine which teams to download.
-func DownloadDayWorkflow(ctx workflow.Context, input *DownloadDayWorkflowInput) error {
+// It looks up the Yahoo config to determine which teams to fetch.
+func FetchDayWorkflow(ctx workflow.Context, input *FetchDayWorkflowInput) error {
 	logger := workflow.GetLogger(ctx)
 
 	// Look up Yahoo config for this season
@@ -153,25 +153,25 @@ func DownloadDayWorkflow(ctx workflow.Context, input *DownloadDayWorkflowInput) 
 		}
 	}
 
-	logger.Info("DownloadDayWorkflow started",
+	logger.Info("FetchDayWorkflow started",
 		"day", input.Day.Format(config.DateFormat),
 		"startYear", input.StartYear,
 		"numTeams", len(teamIDs))
 
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 
-	// Download daily schedule (boxscores)
-	if err := workflow.ExecuteActivity(ctx, DownloadDailySchedule, input.Day).Get(ctx, nil); err != nil {
+	// Fetch daily schedule (boxscores)
+	if err := workflow.ExecuteActivity(ctx, FetchDailySchedule, input.Day).Get(ctx, nil); err != nil {
 		return err
 	}
 
-	// Download Yahoo rosters and summaries for each team
+	// Fetch Yahoo rosters and summaries for each team
 	for _, team := range teamIDs {
-		if err := workflow.ExecuteActivity(ctx, DownloadRosterForTeamOnDay,
+		if err := workflow.ExecuteActivity(ctx, FetchRosterForTeamOnDay,
 			input.StartYear, team.LeagueID, team.TeamID, input.Day).Get(ctx, nil); err != nil {
 			return err
 		}
-		if err := workflow.ExecuteActivity(ctx, DownloadTeamSummaryForTeamOnDay,
+		if err := workflow.ExecuteActivity(ctx, FetchTeamSummaryForTeamOnDay,
 			input.StartYear, team.LeagueID, team.TeamID, input.Day).Get(ctx, nil); err != nil {
 			return err
 		}

@@ -100,20 +100,20 @@ func cmdWorker() *cobra.Command {
 				MaxConcurrentActivityExecutionSize:     viper.GetInt(config.FlagWorkerMaxActivityExecution),
 			})
 
-			// DownloadFromYahoo activities
-			w.RegisterActivity(workers.DownloadLeague)
-			w.RegisterActivity(workers.DownloadDailySchedule)
-			w.RegisterActivity(workers.DownloadTeam)
-			w.RegisterActivity(workers.DownloadRosterForTeamOnDay)
-			w.RegisterActivity(workers.DownloadTeamSummaryForTeamOnDay)
-			w.RegisterActivity(workers.DownloadYahooPlayerBatch)
+			// Yahoo fetch activities
+			w.RegisterActivity(workers.FetchLeague)
+			w.RegisterActivity(workers.FetchDailySchedule)
+			w.RegisterActivity(workers.FetchTeam)
+			w.RegisterActivity(workers.FetchRosterForTeamOnDay)
+			w.RegisterActivity(workers.FetchTeamSummaryForTeamOnDay)
+			w.RegisterActivity(workers.FetchYahooPlayerBatch)
 			w.RegisterActivity(workers.FetchSeasonsDataActivity)
-			w.RegisterActivity(workers.DownloadDayActivity)
+			w.RegisterActivity(workers.FetchDayActivity)
 
-			w.RegisterWorkflow(workers.DownloadSeasonsWorkflow)
-			w.RegisterWorkflow(workers.DownloadSeasonWorkflow)
-			w.RegisterWorkflow(workers.DownloadDayWorkflow)
-			w.RegisterWorkflow(workers.DownloadYahooPlayersWorkflow)
+			w.RegisterWorkflow(workers.FetchSeasonsWorkflow)
+			w.RegisterWorkflow(workers.FetchSeasonWorkflow)
+			w.RegisterWorkflow(workers.FetchDayWorkflow)
+			w.RegisterWorkflow(workers.FetchYahooPlayersWorkflow)
 			w.RegisterWorkflow(workers.ImportNHLTeamsAndPlayersWorkflow)
 			w.RegisterWorkflow(workers.ProcessPlayersWorkflow)
 			w.RegisterWorkflow(workers.ProcessPlayersWorkflowContinue)

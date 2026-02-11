@@ -6,77 +6,12 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"time"
 )
 
-type Configuration struct {
-	APITLSEnabled             bool   `json:"apiTLSEnabled"`
-	APIPort                   int    `json:"apiPort"`
-	DataPath                  string `json:"dataPath"`
-	LeagueID                  int    `json:"leagueID"`
-	LogLevel                  string `json:"logLevel"`
-	MetricsPort               int    `json:"metricsPort"`
-	MetricsRefreshInterval    int    `json:"metricsRefreshInterval"`
-	MetricsTLSEnabled         bool   `json:"metricsTLSEnabled"`
-	PostgresDb                string `json:"postgresDB"`
-	PostgresHost              string `json:"postgresHost"`
-	PostgresPassword          string `json:"postgresPassword"`
-	PostgresPort              int    `json:"postgresPort"`
-	PostgresSSLMode           string `json:"postgresSSLMode"`
-	PostgresTimeZone          string `json:"postgresTimeZone"`
-	PostgresUser              string `json:"postgresUser"`
-	RedisDb                   string `json:"redisDB"`
-	RedisPassword             string `json:"redisPassword"`
-	RedisURL                  string `json:"redisURL"`
-	Seasons                   string `json:"seasons"`
-	TeamIDs                   []int  `json:"teamIDs"`
-	TemporalHostPort          string `json:"temporalHostPort"`
-	TemporalNamespace         string `json:"temporalNamespace"`
-	TLSCertificate            string `json:"tlsCertificate"`
-	TLSKey                    string `json:"tlsKey"`
-	UIURL                     string `json:"uiURL"`
-	WorkerPort                int    `json:"workerPort"`
-	WorkerTLSEnabled          bool   `json:"workerTLSEnabled"`
-	YahooOAuth2ClientID       string `json:"yahooOAuth2ClientID"`
-	YahooOAuth2ClientRedirect string `json:"yahooOAuth2ClientRedirect"`
-	YahooOAuth2ClientSecret   string `json:"yahooOAuth2ClientSecret"`
-}
-
-type DBStats struct {
-	NHLFranchises  int `json:"nhlFranchises"`
-	NHLSeasons     int `json:"nhlSeasons"`
-	NHLSeasonTeams int `json:"nhlSeasonTeams"`
-	FantasyGames   int `json:"fantasyGames"`
-	Leagues        int `json:"leagues"`
-	Players        int `json:"players"`
-	PlayerStats    int `json:"playerStats"`
-	Games          int `json:"games"`
-	Teams          int `json:"teams"`
-	RosterPlayers  int `json:"rosterPlayers"`
-	Standings      int `json:"standings"`
-	TeamSummaries  int `json:"teamSummaries"`
-}
-
-type DownloadSeasonsInput struct {
+type FetchSeasonsInput struct {
 	StartSeason       *int `json:"startSeason,omitempty"`
 	EndSeason         *int `json:"endSeason,omitempty"`
 	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`
-}
-
-type FantasyGame struct {
-	ID                 int        `json:"id"`
-	Key                int        `json:"key"`
-	Name               string     `json:"name"`
-	Code               string     `json:"code"`
-	Type               string     `json:"type"`
-	URL                string     `json:"url"`
-	Season             int        `json:"season"`
-	IsRegistrationOver bool       `json:"isRegistrationOver"`
-	IsGameOver         bool       `json:"isGameOver"`
-	IsOffSeason        bool       `json:"isOffSeason"`
-	LocalFile          *LocalFile `json:"localFile"`
-	CreatedAt          time.Time  `json:"createdAt"`
-	UpdatedAt          time.Time  `json:"updatedAt"`
 }
 
 type InitializeResultData struct {
@@ -85,106 +20,7 @@ type InitializeResultData struct {
 	SeasonTeamsUpserted int `json:"seasonTeamsUpserted"`
 }
 
-type League struct {
-	ID                    int        `json:"id"`
-	Key                   string     `json:"key"`
-	Name                  string     `json:"name"`
-	URL                   string     `json:"url"`
-	LogoURL               string     `json:"logoURL"`
-	DraftStatus           string     `json:"draftStatus"`
-	NumTeams              int        `json:"numTeams"`
-	EditKey               string     `json:"editKey"`
-	LeagueUpdateTimestamp int64      `json:"LeagueUpdateTimestamp"`
-	ScoringType           string     `json:"scoringType"`
-	LeagueType            string     `json:"leagueType"`
-	IsProLeague           bool       `json:"isProLeague"`
-	IsCashLeague          bool       `json:"isCashLeague"`
-	StartDate             time.Time  `json:"startDate"`
-	EndDate               time.Time  `json:"endDate"`
-	GameCode              string     `json:"gameCode"`
-	Season                int        `json:"season"`
-	LocalFile             *LocalFile `json:"localFile"`
-	CreatedAt             time.Time  `json:"createdAt"`
-	UpdatedAt             time.Time  `json:"updatedAt"`
-}
-
-type LocalFile struct {
-	Path string `json:"path"`
-	Type string `json:"type"`
-}
-
-type LocalStats struct {
-	FantasyGames   int `json:"fantasyGames"`
-	Leagues        int `json:"leagues"`
-	GamesLists     int `json:"gamesLists"`
-	Games          int `json:"games"`
-	Teams          int `json:"teams"`
-	Rosters        int `json:"rosters"`
-	TeamsSummaries int `json:"teamsSummaries"`
-}
-
-type Manager struct {
-	ManagerID int    `json:"ManagerID"`
-	Nickname  string `json:"Nickname"`
-	GUID      string `json:"GUID"`
-	EMail     string `json:"EMail"`
-	ImageURL  string `json:"ImageURL"`
-}
-
 type Mutation struct {
-}
-
-type NHLFranchise struct {
-	ID             int    `json:"id"`
-	FullName       string `json:"fullName"`
-	TeamCommonName string `json:"teamCommonName"`
-	TeamPlaceName  string `json:"teamPlaceName"`
-}
-
-type OAuth2Token struct {
-	AccessToken  string `json:"accessToken"`
-	TokenType    string `json:"tokenType"`
-	RefreshToken string `json:"refreshToken"`
-	Expiry       string `json:"expiry"`
-}
-
-type Player struct {
-	ID                 int64   `json:"id"`
-	YahooID            *int64  `json:"yahooID,omitempty"`
-	FirstName          string  `json:"firstName"`
-	LastName           string  `json:"lastName"`
-	NHLTeamID          *int64  `json:"nhlTeamID,omitempty"`
-	Position           string  `json:"position"`
-	ShootsCatches      string  `json:"shootsCatches"`
-	HeightInches       *int    `json:"heightInches,omitempty"`
-	WeightPounds       *int    `json:"weightPounds,omitempty"`
-	BirthDate          *string `json:"birthDate,omitempty"`
-	BirthCity          *string `json:"birthCity,omitempty"`
-	BirthStateProvince *string `json:"birthStateProvince,omitempty"`
-	BirthCountry       *string `json:"birthCountry,omitempty"`
-	SweaterNumber      *int    `json:"sweaterNumber,omitempty"`
-	IsActive           bool    `json:"isActive"`
-	HeadshotURL        string  `json:"headshotURL"`
-	HeroImageURL       *string `json:"heroImageURL,omitempty"`
-	YahooImageSmall    string  `json:"yahooImageSmall"`
-	YahooImageMedium   string  `json:"yahooImageMedium"`
-	YahooImageLarge    string  `json:"yahooImageLarge"`
-	YahooHomeURL       string  `json:"yahooHomeURL"`
-	PlayerSlug         *string `json:"playerSlug,omitempty"`
-	DraftYear          *int    `json:"draftYear,omitempty"`
-	DraftTeamAbbrev    *string `json:"draftTeamAbbrev,omitempty"`
-	DraftRound         *int    `json:"draftRound,omitempty"`
-	DraftPickInRound   *int    `json:"draftPickInRound,omitempty"`
-	DraftOverallPick   *int    `json:"draftOverallPick,omitempty"`
-}
-
-type PlayersFilter struct {
-	Name          *string `json:"name,omitempty"`
-	SweaterNumber *int    `json:"sweaterNumber,omitempty"`
-	HasYahooID    *bool   `json:"hasYahooID,omitempty"`
-	TeamID        *int    `json:"teamID,omitempty"`
-	Position      *string `json:"position,omitempty"`
-	IsActive      *bool   `json:"isActive,omitempty"`
 }
 
 type ProcessPlayersResultData struct {
@@ -213,23 +49,6 @@ type ProgressItem struct {
 }
 
 type Query struct {
-}
-
-type Season struct {
-	Start   time.Time `json:"start"`
-	End     time.Time `json:"end"`
-	Leagues []*League `json:"leagues"`
-}
-
-type Team struct {
-	ID                    int      `json:"ID"`
-	Key                   string   `json:"Key"`
-	Name                  string   `json:"Name"`
-	IsOwnedByCurrentLogin bool     `json:"IsOwnedByCurrentLogin"`
-	URL                   string   `json:"URL"`
-	DraftPosition         int      `json:"DraftPosition"`
-	HasDraftGrade         bool     `json:"HasDraftGrade"`
-	Manager               *Manager `json:"Manager"`
 }
 
 type TrulyUnmatchedPlayer struct {

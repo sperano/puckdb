@@ -12,25 +12,25 @@ import (
 	"github.com/sperano/puckdb/metrics"
 )
 
-type downloadStatus int
+type fetchStatus int
 
 const (
-	downloadStatusDownloaded downloadStatus = iota
-	downloadStatusMissing
-	downloadStatusCached
+	fetchStatusDownloaded fetchStatus = iota
+	fetchStatusMissing
+	fetchStatusCached
 )
 
-// DownloadYahooPlayerBatchResult contains counts from a batch download.
-type DownloadYahooPlayerBatchResult struct {
-	Downloaded int // Successfully downloaded player pages
+// FetchYahooPlayerBatchResult contains counts from a batch fetch operation.
+type FetchYahooPlayerBatchResult struct {
+	Downloaded int // Network downloads (player pages fetched from Yahoo)
 	Missing    int // 404 responses (player doesn't exist)
-	Cached     int // Already in cache (hit)
+	Cached     int // Cache hits (already in local cache)
 }
 
-// DownloadYahooPlayerBatch downloads a range of Yahoo player pages.
+// FetchYahooPlayerBatch fetches a range of Yahoo player pages (from cache or network).
 // Processes players from startID to endID (inclusive).
-func DownloadYahooPlayerBatch(ctx context.Context, startID, endID int) (DownloadYahooPlayerBatchResult, error) {
-	var result DownloadYahooPlayerBatchResult
+func FetchYahooPlayerBatch(ctx context.Context, startID, endID int) (FetchYahooPlayerBatchResult, error) {
+	var result FetchYahooPlayerBatchResult
 	fs := cache.NewSimpleCache()
 	for playerID := startID; playerID <= endID; playerID++ {
 		select {
@@ -38,24 +38,24 @@ func DownloadYahooPlayerBatch(ctx context.Context, startID, endID int) (Download
 			return result, ctx.Err()
 		default:
 		}
-		status, err := downloadYahooPlayerImpl(ctx, fs, playerID)
+		status, err := fetchYahooPlayerImpl(ctx, fs, playerID)
 		if err != nil {
 			return result, err
 		}
 		switch status {
-		case downloadStatusDownloaded:
+		case fetchStatusDownloaded:
 			result.Downloaded++
-		case downloadStatusMissing:
+		case fetchStatusMissing:
 			result.Missing++
-		case downloadStatusCached:
+		case fetchStatusCached:
 			result.Cached++
 		}
 	}
 	return result, nil
 }
 
-// downloadYahooPlayerImpl is the testable implementation.
-func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID int) (downloadStatus, error) {
+// fetchYahooPlayerImpl is the testable implementation.
+func fetchYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID int) (fetchStatus, error) {
 	start := time.Now()
 	defer func() {
 		metrics.ObserveActivityDuration("DownloadYahooPlayer", time.Since(start))
@@ -72,7 +72,7 @@ func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID 
 	if fs.Exists(missingFile) {
 		log.Debug().Int("playerID", playerID).Msg("Yahoo player already marked as missing")
 		metrics.IncDownload("YahooPlayer", "hit")
-		return downloadStatusMissing, nil
+		return fetchStatusMissing, nil
 	}
 
 	// Check if player file already exists
@@ -80,7 +80,7 @@ func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID 
 	if fs.Exists(playerFile) {
 		log.Debug().Int("playerID", playerID).Msg("Yahoo player already cached")
 		metrics.IncDownload("YahooPlayer", "hit")
-		return downloadStatusCached, nil
+		return fetchStatusCached, nil
 	}
 
 	log.Info().Int("playerID", playerID).Msg("Downloading Yahoo player")
@@ -110,7 +110,7 @@ func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID 
 				log.Info().Int("playerID", playerID).Msg("Saved as missing Yahoo player")
 				metrics.IncDownload("YahooPlayer", "miss")
 				sleepAfterYahooDownload()
-				return downloadStatusMissing, nil
+				return fetchStatusMissing, nil
 			}
 		}
 		metrics.IncDownload("YahooPlayer", "error")
@@ -125,5 +125,5 @@ func downloadYahooPlayerImpl(ctx context.Context, fs cache.FileSystem, playerID 
 	log.Info().Int("playerID", playerID).Str("path", cache.Path(playerFile)).Msg("Saved Yahoo player")
 	metrics.IncDownload("YahooPlayer", "miss")
 	sleepAfterYahooDownload()
-	return downloadStatusDownloaded, nil
+	return fetchStatusDownloaded, nil
 }

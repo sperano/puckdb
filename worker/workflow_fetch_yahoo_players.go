@@ -9,19 +9,19 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-const WorkflowIDDownloadYahooPlayers = "download-yahoo-players"
+const WorkflowIDFetchYahooPlayers = "fetch-yahoo-players"
 
-// DownloadYahooPlayersInput contains parameters for the workflow, supporting ContinueAsNew.
-type DownloadYahooPlayersInput struct {
+// FetchYahooPlayersInput contains parameters for the workflow, supporting ContinueAsNew.
+type FetchYahooPlayersInput struct {
 	StartPlayerID  int       // First player ID to process in this execution (1-based)
 	TotalCompleted int       // Cumulative completed count from previous executions
-	TotalFound     int       // Cumulative found players (downloaded + cached, excludes 404s)
+	TotalFound     int       // Cumulative found players (network downloads + cache hits, excludes 404s)
 	StartedAt      time.Time // Original workflow start time (for elapsed calculation)
 }
 
-// DownloadYahooPlayersWorkflow downloads all Yahoo player pages from ID 1 to max-yahoo-player-id.
+// FetchYahooPlayersWorkflow fetches all Yahoo player pages from ID 1 to max-yahoo-player-id.
 // Uses ContinueAsNew to avoid hitting Temporal's history size limit.
-func DownloadYahooPlayersWorkflow(ctx workflow.Context, input *DownloadYahooPlayersInput) error {
+func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInput) error {
 	logger := workflow.GetLogger(ctx)
 
 	startID := 1
@@ -54,7 +54,7 @@ func DownloadYahooPlayersWorkflow(ctx workflow.Context, input *DownloadYahooPlay
 	// Calculate number of activity batches needed
 	numActivityBatches := (totalPlayers + activityBatchSize - 1) / activityBatchSize
 
-	logger.Info("DownloadYahooPlayersWorkflow started",
+	logger.Info("FetchYahooPlayersWorkflow started",
 		"startID", startID,
 		"endID", endID,
 		"maxPlayerID", maxPlayerID,
@@ -65,7 +65,7 @@ func DownloadYahooPlayersWorkflow(ctx workflow.Context, input *DownloadYahooPlay
 
 	// Track progress with single phase for phase-based display
 	const phaseID = 1
-	tracker := NewProgressTrackerSinglePhase("Downloading Yahoo! players...", maxPlayerID, totalCompleted)
+	tracker := NewProgressTrackerSinglePhase("Fetching Yahoo! players...", maxPlayerID, totalCompleted)
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
@@ -77,12 +77,12 @@ func DownloadYahooPlayersWorkflow(ctx workflow.Context, input *DownloadYahooPlay
 		if batchEndID > endID {
 			batchEndID = endID
 		}
-		return workflow.ExecuteActivity(activityCtx, DownloadYahooPlayerBatch, batchStartID, batchEndID)
+		return workflow.ExecuteActivity(activityCtx, FetchYahooPlayerBatch, batchStartID, batchEndID)
 	}
 
 	executionFound := 0
 	handler := func(ctx workflow.Context, index int, future workflow.Future) error {
-		var result DownloadYahooPlayerBatchResult
+		var result FetchYahooPlayerBatchResult
 		if err := future.Get(ctx, &result); err != nil {
 			return err
 		}
@@ -96,8 +96,8 @@ func DownloadYahooPlayersWorkflow(ctx workflow.Context, input *DownloadYahooPlay
 
 	// Continue with next batch if more players remain
 	if endID < maxPlayerID {
-		return workflow.NewContinueAsNewError(ctx, DownloadYahooPlayersWorkflow,
-			&DownloadYahooPlayersInput{
+		return workflow.NewContinueAsNewError(ctx, FetchYahooPlayersWorkflow,
+			&FetchYahooPlayersInput{
 				StartPlayerID:  endID + 1,
 				TotalCompleted: totalCompleted + totalPlayers,
 				TotalFound:     totalFound + executionFound,
@@ -112,6 +112,6 @@ func DownloadYahooPlayersWorkflow(ctx workflow.Context, input *DownloadYahooPlay
 	tracker.SetItemCompletedDescription(phaseID, fmt.Sprintf("Found %d/%d Yahoo! players in %s.", finalFound, finalCount, elapsed))
 	tracker.MarkItemCompleted(ctx, phaseID)
 
-	logger.Info("DownloadYahooPlayersWorkflow completed", "maxPlayerID", maxPlayerID)
+	logger.Info("FetchYahooPlayersWorkflow completed", "maxPlayerID", maxPlayerID)
 	return nil
 }

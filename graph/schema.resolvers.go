@@ -6,7 +6,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/sperano/puckdb/config"
@@ -44,28 +43,28 @@ func (r *mutationResolver) CancelInitialize(ctx context.Context) (bool, error) {
 	return r.Resolver.cancelInitialize(ctx)
 }
 
-// DownloadSeasons is the resolver for the downloadSeasons field.
-func (r *mutationResolver) DownloadSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
-	return r.Resolver.downloadSeasons(ctx, input)
+// FetchSeasons is the resolver for the fetchSeasons field.
+func (r *mutationResolver) FetchSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
+	return r.Resolver.fetchSeasons(ctx, input)
 }
 
-// CancelDownloadSeasons is the resolver for the cancelDownloadSeasons field.
-func (r *mutationResolver) CancelDownloadSeasons(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelDownloadSeasons(ctx)
+// CancelFetchSeasons is the resolver for the cancelFetchSeasons field.
+func (r *mutationResolver) CancelFetchSeasons(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelFetchSeasons(ctx)
 }
 
-// DownloadYahooPlayers is the resolver for the downloadYahooPlayers field.
-func (r *mutationResolver) DownloadYahooPlayers(ctx context.Context) (bool, error) {
-	return r.Resolver.downloadYahooPlayers(ctx)
+// FetchYahooPlayers is the resolver for the fetchYahooPlayers field.
+func (r *mutationResolver) FetchYahooPlayers(ctx context.Context) (bool, error) {
+	return r.Resolver.fetchYahooPlayers(ctx)
 }
 
-// CancelDownloadYahooPlayers is the resolver for the cancelDownloadYahooPlayers field.
-func (r *mutationResolver) CancelDownloadYahooPlayers(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelDownloadYahooPlayers(ctx)
+// CancelFetchYahooPlayers is the resolver for the cancelFetchYahooPlayers field.
+func (r *mutationResolver) CancelFetchYahooPlayers(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelFetchYahooPlayers(ctx)
 }
 
 // ProcessPlayers is the resolver for the processPlayers field.
-func (r *mutationResolver) ProcessPlayers(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+func (r *mutationResolver) ProcessPlayers(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
 	return r.Resolver.processPlayers(ctx, input)
 }
 
@@ -75,23 +74,13 @@ func (r *mutationResolver) CancelProcessPlayers(ctx context.Context) (bool, erro
 }
 
 // ImportSeasons is the resolver for the importSeasons field.
-func (r *mutationResolver) ImportSeasons(ctx context.Context, input *model.DownloadSeasonsInput) (bool, error) {
+func (r *mutationResolver) ImportSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
 	return r.Resolver.importSeasons(ctx, input)
 }
 
 // CancelImportSeasons is the resolver for the cancelImportSeasons field.
 func (r *mutationResolver) CancelImportSeasons(ctx context.Context) (bool, error) {
 	return r.Resolver.cancelImportSeasons(ctx)
-}
-
-// ImportLeague is the resolver for the importLeague field.
-func (r *mutationResolver) ImportLeague(ctx context.Context, season int, leagueID int) (*model.League, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// ImportTeam is the resolver for the importTeam field.
-func (r *mutationResolver) ImportTeam(ctx context.Context, season int, leagueID int, teamID int) (*model.Team, error) {
-	return nil, fmt.Errorf("not implemented")
 }
 
 // BuildNumber is the resolver for the buildNumber field.
@@ -118,24 +107,24 @@ func (r *queryResolver) InitializeResultData(ctx context.Context) (*model.Initia
 	return r.Resolver.initializeResultData(ctx)
 }
 
-// DownloadSeasonsResult is the resolver for the downloadSeasonsResult field.
-func (r *queryResolver) DownloadSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.downloadSeasonsResult(ctx)
+// FetchSeasonsResult is the resolver for the fetchSeasonsResult field.
+func (r *queryResolver) FetchSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.fetchSeasonsResult(ctx)
 }
 
-// DownloadSeasonsProgress is the resolver for the downloadSeasonsProgress field.
-func (r *queryResolver) DownloadSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.Resolver.downloadSeasonsProgress(ctx)
+// FetchSeasonsProgress is the resolver for the fetchSeasonsProgress field.
+func (r *queryResolver) FetchSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.Resolver.fetchSeasonsProgress(ctx)
 }
 
-// DownloadYahooPlayersResult is the resolver for the downloadYahooPlayersResult field.
-func (r *queryResolver) DownloadYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.downloadYahooPlayersResult(ctx)
+// FetchYahooPlayersResult is the resolver for the fetchYahooPlayersResult field.
+func (r *queryResolver) FetchYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.fetchYahooPlayersResult(ctx)
 }
 
-// DownloadYahooPlayersProgress is the resolver for the downloadYahooPlayersProgress field.
-func (r *queryResolver) DownloadYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.Resolver.downloadYahooPlayersProgress(ctx)
+// FetchYahooPlayersProgress is the resolver for the fetchYahooPlayersProgress field.
+func (r *queryResolver) FetchYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.Resolver.fetchYahooPlayersProgress(ctx)
 }
 
 // ProcessPlayersResult is the resolver for the processPlayersResult field.
@@ -163,20 +152,11 @@ func (r *queryResolver) ImportSeasonsProgress(ctx context.Context) (*model.Workf
 	return r.Resolver.importSeasonsProgress(ctx)
 }
 
-// Leagues is the resolver for the leagues field.
-func (r *seasonResolver) Leagues(ctx context.Context, obj *model.Season) ([]*model.League, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
-// Season returns generated.SeasonResolver implementation.
-func (r *Resolver) Season() generated.SeasonResolver { return &seasonResolver{r} }
-
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
-type seasonResolver struct{ *Resolver }

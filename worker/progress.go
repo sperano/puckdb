@@ -222,7 +222,7 @@ func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo) {
 	p.progress = WorkflowProgress{
 		Total:        total,
 		Completed:    0,
-		Header:       "Downloading seasons...",
+		Header:       "Processing seasons...",
 		Items:        itemProgress,
 		DisplayStyle: DisplayStyleGroupedItems,
 	}

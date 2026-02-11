@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	TaskQueueName                = "puckdb-tasks"
-	WorkflowIDImportEverything   = "import-everything"
-	WorkflowIDImportSeasons      = "import-seasons"
-	WorkflowIDDownloadEverything = "download-everything"
-	WorkflowIDDownloadSeasons    = "download-all"
+	TaskQueueName = "puckdb-tasks"
+	//WorkflowIDImportEverything   = "import-everything" // TODO remove
+	WorkflowIDImportSeasons = "import-seasons"
+	//WorkflowIDDownloadEverything = "download-everything" // TODO remove
+	WorkflowIDFetchSeasons = "fetch-seasons"
 )
 
 func WorkflowIDImportLeague(season int, leagueID int) string {
@@ -28,17 +28,17 @@ func WorkflowIDImportTeam(season int, leagueID int, teamID int) string {
 	return fmt.Sprintf("team-%d-%d", season, leagueID)
 }
 
-func WorkflowIDDownloadGamesForSeason(season int) string {
-	return fmt.Sprintf("download-games-for-season-%d", season)
+func WorkflowIDFetchGamesForSeason(season int) string {
+	return fmt.Sprintf("fetch-games-for-season-%d", season)
 }
 
-func WorkflowIDDownloadEverythingForSeason(season int) string {
-	return fmt.Sprintf("download-everything-for-season-%d", season)
-}
-
-func WorkflowIDImportEverythingForSeason(season int) string {
-	return fmt.Sprintf("import-everything-for-season-%d", season)
-}
+//func WorkflowIDDownloadEverythingForSeason(season int) string {
+//	return fmt.Sprintf("download-everything-for-season-%d", season)
+//}
+//
+//func WorkflowIDImportEverythingForSeason(season int) string {
+//	return fmt.Sprintf("import-everything-for-season-%d", season)
+//}
 
 func withChildOptions(ctx workflow.Context, id string) workflow.Context {
 	return workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
@@ -63,7 +63,7 @@ func defaultActivityOptions() workflow.ActivityOptions {
 	}
 }
 
-func DownloadSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsInput) error {
+func FetchSeasonsWorkflow(ctx workflow.Context, input *model.FetchSeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
 	// Register query handler immediately so progress queries work from workflow start
@@ -88,7 +88,7 @@ func DownloadSeasonsWorkflow(ctx workflow.Context, input *model.DownloadSeasonsI
 		concurrency = maxConcurrency
 	}
 
-	logger.Info("DownloadAllWorkflow started",
+	logger.Info("FetchSeasonsWorkflow started",
 		"startSeason", input.StartSeason,
 		"endSeason", input.EndSeason,
 		"concurrency", concurrency)
@@ -177,8 +177,8 @@ func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker 
 func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, active map[int]*childWorkflowWork, season SeasonInfo) {
 	logger.Info("Starting season child workflow", "startYear", season.StartYear)
 	tracker.MarkItemStarted(ctx, season.StartYear)
-	ctxo := withChildOptions(ctx, WorkflowIDDownloadSeason(season.StartYear))
-	future := workflow.ExecuteChildWorkflow(ctxo, DownloadSeasonWorkflow, &DownloadSeasonInput{Season: season})
+	ctxo := withChildOptions(ctx, WorkflowIDFetchSeason(season.StartYear))
+	future := workflow.ExecuteChildWorkflow(ctxo, FetchSeasonWorkflow, &FetchSeasonInput{Season: season})
 	active[season.StartYear] = &childWorkflowWork{
 		season: season,
 		future: future,

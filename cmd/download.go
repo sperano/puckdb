@@ -14,8 +14,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-func buildDownloadSeasonsInput() *model.DownloadSeasonsInput {
-	input := &model.DownloadSeasonsInput{}
+func buildFetchSeasonsInput() *model.FetchSeasonsInput {
+	input := &model.FetchSeasonsInput{}
 
 	start, end := config.GetSeasonRange()
 	if start > 0 {

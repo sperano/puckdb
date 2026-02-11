@@ -42,7 +42,7 @@ func downloadPlayerLandingBatchImpl(
 		}
 
 		playerID := nhl.PlayerID(p.ID)
-		status, err := getPlayerLandingWithCache(ctx, fs, client, playerID, &p)
+		status, err := ensurePlayerLandingCached(ctx, fs, client, playerID, &p)
 		if err != nil {
 			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
 			return result, err
@@ -79,9 +79,9 @@ const (
 	playerLandingMissing
 )
 
-// getPlayerLandingWithCache attempts to get player landing data from cache first,
-// falling back to the NHL API if not cached. Caches 404s to avoid repeat failures.
-func getPlayerLandingWithCache(
+// ensurePlayerLandingCached downloads player landing data if not already cached.
+// Returns a status indicating whether data was downloaded, already cached, or missing (404).
+func ensurePlayerLandingCached(
 	ctx context.Context,
 	fs cache.FileSystem,
 	client NHLClient,
