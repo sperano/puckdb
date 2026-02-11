@@ -27,7 +27,7 @@ func Root() *cobra.Command {
 	flags := rootCmd.PersistentFlags()
 	config.InitLoggingFlags(flags, config.DefaultLogLevel, config.DefaultLogFile)
 
-	rootCmd.AddCommand(cmdAPI(), cmdCacheCheck(), cmdDB(), cmdInfo(), cmdMetrics(), cmdRedis(), cmdSync(), cmdWorker(), cmdWorkflow(), cmdYahoo())
+	rootCmd.AddCommand(cmdAPI(), cmdCacheCheck(), cmdDB(), cmdInfo(), cmdMetrics(), cmdRedis(), cmdSync(), cmdWorker(), cmdYahoo())
 
 	cobra.OnInitialize(func() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
