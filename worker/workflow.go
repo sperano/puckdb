@@ -101,7 +101,7 @@ func FetchSeasonsWorkflow(ctx workflow.Context, input *model.FetchSeasonsInput) 
 	}
 
 	// Update tracker with actual season data now that we know the seasons
-	tracker.InitializeWithSeasons(seasons)
+	tracker.InitializeWithSeasons(seasons, "Fetching seasons...")
 
 	return processWithChildWorkflows(ctx, logger, tracker, seasons, concurrency)
 }

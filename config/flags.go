@@ -105,6 +105,7 @@ const (
 	FlagSkipYahooPlayers     = "skip-yahoo-players"
 	FlagSkipSeasons          = "skip-seasons"
 	FlagSkipInitializing     = "skip-initializing"
+	FlagSkipImportSeasons    = "skip-import-seasons"
 	FlagSeasonConcurrency    = "season-concurrency"
 	FlagMonitor              = "monitor"
 	FlagSeasonYear           = "season"
@@ -514,6 +515,14 @@ func InitSkipInitializingFlag(flags *flag.FlagSet) {
 
 func BindSkipInitializingFlag(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagSkipInitializing, flags.Lookup(FlagSkipInitializing))
+}
+
+func InitSkipImportSeasonsFlag(flags *flag.FlagSet) {
+	flags.Bool(FlagSkipImportSeasons, false, "Skip importing seasons into the database")
+}
+
+func BindSkipImportSeasonsFlag(flags *flag.FlagSet) error {
+	return viper.BindPFlag(FlagSkipImportSeasons, flags.Lookup(FlagSkipImportSeasons))
 }
 
 func InitSeasonConcurrencyFlag(flags *flag.FlagSet) {

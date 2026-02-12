@@ -403,7 +403,7 @@ func TestNewProgressTrackerWithSeasons(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tracker := NewProgressTrackerWithSeasons(tt.seasons)
+			tracker := NewProgressTrackerWithSeasons(tt.seasons, "")
 			assert.NotNil(t, tracker)
 			assert.Equal(t, tt.expectedItems, len(tracker.progress.Items))
 			assert.Equal(t, 0, tracker.progress.Completed)
@@ -463,7 +463,7 @@ func TestProgressTracker_InitializeWithSeasons(t *testing.T) {
 		{StartYear: 2023},
 	}
 
-	tracker.InitializeWithSeasons(seasons)
+	tracker.InitializeWithSeasons(seasons, "")
 
 	assert.Greater(t, tracker.progress.Total, 0, "total should be calculated from seasons")
 	assert.Equal(t, 0, tracker.progress.Completed)

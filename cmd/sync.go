@@ -45,7 +45,7 @@ func cmdSync() *cobra.Command {
 	config.InitSkipYahooPlayersFlag(flags)
 	config.InitSkipSeasonsFlag(flags)
 	config.InitSkipPlayersFlag(flags)
-	cmd.AddCommand(cmdSyncSeasons())
+	config.InitSkipImportSeasonsFlag(flags)
 	return cmd
 }
 
@@ -73,6 +73,9 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 		return err
 	}
 	if err := config.BindSkipPlayersFlag(flags); err != nil {
+		return err
+	}
+	if err := config.BindSkipImportSeasonsFlag(flags); err != nil {
 		return err
 	}
 	BindFlags(cmd.PersistentFlags())
@@ -149,8 +152,24 @@ func runSync(cmd *cobra.Command, args []string) error {
 		if err := runProcessPlayers(ctx, out, client, state); err != nil {
 			return fmt.Errorf("processing players failed: %w", err)
 		}
+		// Fetch and print result data
+		resultData, err := client.GetProcessPlayersResultData(ctx)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to fetch process players result data")
+		} else if resultData != nil {
+			printProcessPlayersResult(out, resultData)
+		}
 	} else {
 		fmt.Println("- Skipping players processing.")
+	}
+
+	// Step 5: Import seasons (unless skipped)
+	if !viper.GetBool(config.FlagSkipImportSeasons) {
+		if err := runImportSeasons(ctx, out, client, state); err != nil {
+			return fmt.Errorf("importing seasons failed: %w", err)
+		}
+	} else {
+		fmt.Println("- Skipping seasons import.")
 	}
 
 	fmt.Printf("✓ Sync completed in %.1fs\n", time.Since(start).Seconds())
@@ -226,6 +245,15 @@ func runProcessPlayers(ctx context.Context, out io.Writer, client *GraphQLClient
 	}.run(ctx, out, state)
 }
 
+func runImportSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+	return workflowRunner{
+		workflowType: workflowImportSeasons,
+		trigger:      func() (bool, error) { return client.ImportSeasons(ctx, buildFetchSeasonsInput()) },
+		getStatus:    client.GetImportSeasonsStatus,
+		timeout:      config.DefaultWorkflowPollTimeout,
+	}.run(ctx, out, state)
+}
+
 // syncState tracks the current workflow for signal handling
 type syncState struct {
 	client  *GraphQLClient
@@ -258,204 +286,129 @@ func (s *syncState) cancel() {
 	}
 }
 
-func runSyncPlayers(cmd *cobra.Command, _ []string) error {
-	apiAddr := viper.GetString(config.FlagAPIServerAddr)
-	if apiAddr == "" {
-		return fmt.Errorf("api-server-addr is required")
-	}
-
-	client := NewGraphQLClient(apiAddr)
-	state := &syncState{client: client, current: workflowNone}
-
-	// Set up signal handling for Ctrl+C
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		fmt.Println() // newline after ^C
-		state.cancel()
-		cancel()
-	}()
-	defer signal.Stop(sigChan)
-
-	if viper.GetBool(config.FlagMonitor) {
-		state.current = workflowProcessPlayers
-		return monitorWorkflow_legacy(ctx, cmd, "Processing players...", client.GetProcessPlayersStatus, config.DefaultWorkflowPollTimeout)
-	}
-
-	input := buildFetchSeasonsInput()
-
-	state.current = workflowProcessPlayers
-	logEvent := log.Info().Str("server", apiAddr)
-	if input.StartSeason != nil {
-		logEvent = logEvent.Int("startSeason", *input.StartSeason)
-	}
-	if input.EndSeason != nil {
-		logEvent = logEvent.Int("endSeason", *input.EndSeason)
-	}
-	if input.SeasonConcurrency != nil {
-		logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
-	}
-	logEvent.Msg("Triggering processPlayers workflow")
-
-	started, err := client.ProcessPlayers(ctx, input)
-	if err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("workflow canceled by user")
-		}
-		return fmt.Errorf("failed to trigger processPlayers: %w", err)
-	}
-
-	if !started {
-		log.Warn().Msg("Workflow was not started (may already be running)")
-	}
-
-	if err := monitorWorkflow_legacy(ctx, cmd, "Processing players...", client.GetProcessPlayersStatus, config.DefaultWorkflowPollTimeout); err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("workflow canceled by user")
-		}
-		return err
-	}
-
-	// Fetch and print result data
-	resultData, err := client.GetProcessPlayersResultData(ctx)
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to fetch process players result data")
-	} else if resultData != nil {
-		printProcessPlayersResult(cmd, resultData)
-	}
-
-	return nil
-}
-
-
-func printProcessPlayersResult(cmd *cobra.Command, result *ProcessPlayersResultData) {
-	fmt.Fprintln(cmd.OutOrStdout())
-	fmt.Fprintln(cmd.OutOrStdout(), "=== Process Players Results ===")
-	fmt.Fprintf(cmd.OutOrStdout(), "Total players:       %d\n", result.TotalPlayers)
-	fmt.Fprintf(cmd.OutOrStdout(), "Imported:            %d\n", result.ImportedPlayers)
-	fmt.Fprintf(cmd.OutOrStdout(), "Matched with Yahoo:  %d\n", result.MatchedWithYahoo)
-	fmt.Fprintf(cmd.OutOrStdout(), "\nDownload stats:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "  Downloaded:        %d\n", result.Downloaded)
-	fmt.Fprintf(cmd.OutOrStdout(), "  Cache hits:        %d\n", result.CacheHits)
-	fmt.Fprintf(cmd.OutOrStdout(), "  Missing (404):     %d\n", result.Missing)
-	fmt.Fprintf(cmd.OutOrStdout(), "\nYahoo player stats:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "  Total Yahoo:       %d\n", result.TotalYahooPlayers)
-	fmt.Fprintf(cmd.OutOrStdout(), "  Skipped non-NHL:   %d\n", result.SkippedNonNHL)
-	fmt.Fprintf(cmd.OutOrStdout(), "  Verified non-NHL:  %d\n", result.VerifiedNonNHLThisRun)
+func printProcessPlayersResult(out io.Writer, result *ProcessPlayersResultData) {
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, "=== Process Players Results ===")
+	_, _ = fmt.Fprintf(out, "Total players:       %d\n", result.TotalPlayers)
+	_, _ = fmt.Fprintf(out, "Imported:            %d\n", result.ImportedPlayers)
+	_, _ = fmt.Fprintf(out, "Matched with Yahoo:  %d\n", result.MatchedWithYahoo)
+	_, _ = fmt.Fprintf(out, "\nDownload stats:\n")
+	_, _ = fmt.Fprintf(out, "  Downloaded:        %d\n", result.Downloaded)
+	_, _ = fmt.Fprintf(out, "  Cache hits:        %d\n", result.CacheHits)
+	_, _ = fmt.Fprintf(out, "  Missing (404):     %d\n", result.Missing)
+	_, _ = fmt.Fprintf(out, "\nYahoo player stats:\n")
+	_, _ = fmt.Fprintf(out, "  Total Yahoo:       %d\n", result.TotalYahooPlayers)
+	_, _ = fmt.Fprintf(out, "  Skipped non-NHL:   %d\n", result.SkippedNonNHL)
+	_, _ = fmt.Fprintf(out, "  Verified non-NHL:  %d\n", result.VerifiedNonNHLThisRun)
 
 	if len(result.TrulyUnmatched) > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "\nTruly unmatched Yahoo players (%d):\n", len(result.TrulyUnmatched))
+		_, _ = fmt.Fprintf(out, "\nTruly unmatched Yahoo players (%d):\n", len(result.TrulyUnmatched))
 		for _, p := range result.TrulyUnmatched {
-			fmt.Fprintf(cmd.OutOrStdout(), "  - %s %s [Yahoo: %d, NHL: %d %s, Games: %d]\n",
+			_, _ = fmt.Fprintf(out, "  - %s %s [Yahoo: %d, NHL: %d %s, Games: %d]\n",
 				p.FirstName, p.LastName, p.YahooID, p.NHLPlayerID, p.NHLName, p.NHLGames)
 		}
 	}
 
 	if len(result.Errors) > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "\nErrors (%d):\n", len(result.Errors))
+		_, _ = fmt.Fprintf(out, "\nErrors (%d):\n", len(result.Errors))
 		for _, e := range result.Errors {
-			fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", e)
+			_, _ = fmt.Fprintf(out, "  - %s\n", e)
 		}
 	}
 }
 
-func cmdSyncSeasons() *cobra.Command {
-	var cmd = &cobra.Command{
-		Use:   "seasons",
-		Short: "Sync seasons into the database",
-		Long: `Trigger the syncSeasons workflow via GraphQL API and monitor until completion.
-Use --season for a specific season, or --from-season/--to-season for a range.
-Use --monitor to watch an existing workflow without triggering a new one.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			if err := config.BindAPIServerAddrFlag(flags); err != nil {
-				return err
-			}
-			if err := config.BindSeasonRangeFlags(flags); err != nil {
-				return err
-			}
-			if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
-				return err
-			}
-			return config.BindMonitorFlag(flags)
-		},
-		RunE: runSyncSeasons,
-	}
-	flags := cmd.Flags()
-	config.InitAPIServerAddrFlag(flags)
-	config.InitSeasonRangeFlags(flags)
-	config.InitSeasonConcurrencyFlag(flags)
-	config.InitMonitorFlag(flags)
-	return cmd
-}
+//func cmdSyncSeasons() *cobra.Command {
+//	var cmd = &cobra.Command{
+//		Use:   "seasons",
+//		Short: "Sync seasons into the database",
+//		Long: `Trigger the syncSeasons workflow via GraphQL API and monitor until completion.
+//Use --season for a specific season, or --from-season/--to-season for a range.
+//Use --monitor to watch an existing workflow without triggering a new one.`,
+//		PreRunE: func(cmd *cobra.Command, args []string) error {
+//			flags := cmd.Flags()
+//			if err := config.BindAPIServerAddrFlag(flags); err != nil {
+//				return err
+//			}
+//			if err := config.BindSeasonRangeFlags(flags); err != nil {
+//				return err
+//			}
+//			if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
+//				return err
+//			}
+//			return config.BindMonitorFlag(flags)
+//		},
+//		RunE: runImportSeasons,
+//	}
+//	flags := cmd.Flags()
+//	config.InitAPIServerAddrFlag(flags)
+//	config.InitSeasonRangeFlags(flags)
+//	config.InitSeasonConcurrencyFlag(flags)
+//	config.InitMonitorFlag(flags)
+//	return cmd
+//}
 
-func runSyncSeasons(cmd *cobra.Command, _ []string) error {
-	apiAddr := viper.GetString(config.FlagAPIServerAddr)
-	if apiAddr == "" {
-		return fmt.Errorf("api-server-addr is required")
-	}
-
-	client := NewGraphQLClient(apiAddr)
-	state := &syncState{client: client, current: workflowNone}
-
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		fmt.Println()
-		state.cancel()
-		cancel()
-	}()
-	defer signal.Stop(sigChan)
-
-	if viper.GetBool(config.FlagMonitor) {
-		//log.Info().Str("server", apiAddr).Msg("Monitoring existing importSeasons workflow")
-		state.current = workflowImportSeasons
-		return monitorWorkflow_legacy(ctx, cmd, "Importing seasons...", client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout)
-	}
-
-	input := buildFetchSeasonsInput()
-
-	state.current = workflowImportSeasons
-	logEvent := log.Info().Str("server", apiAddr)
-	if input.StartSeason != nil {
-		logEvent = logEvent.Int("startSeason", *input.StartSeason)
-	}
-	if input.EndSeason != nil {
-		logEvent = logEvent.Int("endSeason", *input.EndSeason)
-	}
-	if input.SeasonConcurrency != nil {
-		logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
-	}
-	logEvent.Msg("Triggering importSeasons workflow")
-
-	started, err := client.ImportSeasons(ctx, input)
-	if err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("workflow canceled by user")
-		}
-		return fmt.Errorf("failed to trigger importSeasons: %w", err)
-	}
-
-	if !started {
-		log.Warn().Msg("Workflow was not started (may already be running)")
-	}
-
-	if err := monitorWorkflow_legacy(ctx, cmd, "Importing seasons...", client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("workflow canceled by user")
-		}
-		return err
-	}
-
-	return nil
-}
+//func runImportSeasons(cmd *cobra.Command, _ []string) error {
+//	apiAddr := viper.GetString(config.FlagAPIServerAddr)
+//	if apiAddr == "" {
+//		return fmt.Errorf("api-server-addr is required")
+//	}
+//
+//	client := NewGraphQLClient(apiAddr)
+//	state := &syncState{client: client, current: workflowNone}
+//
+//	ctx, cancel := context.WithCancel(cmd.Context())
+//	defer cancel()
+//
+//	sigChan := make(chan os.Signal, 1)
+//	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+//
+//	go func() {
+//		<-sigChan
+//		fmt.Println()
+//		state.cancel()
+//		cancel()
+//	}()
+//	defer signal.Stop(sigChan)
+//
+//	if viper.GetBool(config.FlagMonitor) {
+//		//log.Info().Str("server", apiAddr).Msg("Monitoring existing importSeasons workflow")
+//		state.current = workflowImportSeasons
+//		return monitorWorkflow_legacy(ctx, cmd, "Importing seasons...", client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout)
+//	}
+//
+//	input := buildFetchSeasonsInput()
+//
+//	state.current = workflowImportSeasons
+//	logEvent := log.Info().Str("server", apiAddr)
+//	if input.StartSeason != nil {
+//		logEvent = logEvent.Int("startSeason", *input.StartSeason)
+//	}
+//	if input.EndSeason != nil {
+//		logEvent = logEvent.Int("endSeason", *input.EndSeason)
+//	}
+//	if input.SeasonConcurrency != nil {
+//		logEvent = logEvent.Int("seasonConcurrency", *input.SeasonConcurrency)
+//	}
+//	logEvent.Msg("Triggering importSeasons workflow")
+//
+//	started, err := client.ImportSeasons(ctx, input)
+//	if err != nil {
+//		if ctx.Err() != nil {
+//			return fmt.Errorf("workflow canceled by user")
+//		}
+//		return fmt.Errorf("failed to trigger importSeasons: %w", err)
+//	}
+//
+//	if !started {
+//		log.Warn().Msg("Workflow was not started (may already be running)")
+//	}
+//
+//	if err := monitorWorkflow_legacy(ctx, cmd, "Importing seasons...", client.GetImportSeasonsStatus, config.DefaultWorkflowPollTimeout); err != nil {
+//		if ctx.Err() != nil {
+//			return fmt.Errorf("workflow canceled by user")
+//		}
+//		return err
+//	}
+//
+//	return nil
+//}

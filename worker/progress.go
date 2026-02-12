@@ -95,12 +95,12 @@ func NewProgressTrackerSinglePhase(description string, total, completed int) *Pr
 }
 
 // NewProgressTrackerWithSeasons creates a ProgressTracker that tracks per-season progress.
-func NewProgressTrackerWithSeasons(seasons []SeasonInfo) *ProgressTracker {
+func NewProgressTrackerWithSeasons(seasons []SeasonInfo, header string) *ProgressTracker {
 	tracker := &ProgressTracker{
 		itemIndex:  make(map[int]int),
 		futureToID: make(map[int]int),
 	}
-	tracker.InitializeWithSeasons(seasons)
+	tracker.InitializeWithSeasons(seasons, header)
 	return tracker
 }
 
@@ -203,7 +203,7 @@ func formatDuration(d time.Duration) string {
 
 // InitializeWithSeasons sets up per-season progress tracking.
 // Can be called after RegisterQueryHandler to update progress state once seasons are known.
-func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo) {
+func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo, header string) {
 	total := 0
 	itemProgress := make([]ItemProgress, len(seasons))
 
@@ -222,7 +222,7 @@ func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo) {
 	p.progress = WorkflowProgress{
 		Total:        total,
 		Completed:    0,
-		Header:       "Processing seasons...",
+		Header:       header,
 		Items:        itemProgress,
 		DisplayStyle: DisplayStyleGroupedItems,
 	}

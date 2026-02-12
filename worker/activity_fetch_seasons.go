@@ -2,10 +2,12 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 )
@@ -24,8 +26,25 @@ func (s SeasonInfo) Label() string {
 	return fmt.Sprintf("%d-%02d", s.StartYear, endYearShort)
 }
 
-// FetchSeasonsDataActivity fetches season data from the NHL API and filters by input range.
+// FetchSeasonsDataActivity fetches season data and filters by input range.
+// It reads from the cached seasons manifest first (populated by DownloadSeasonsManifestActivity),
+// falling back to the NHL API only if the cache doesn't exist.
 func FetchSeasonsDataActivity(ctx context.Context, input *model.FetchSeasonsInput) ([]SeasonInfo, error) {
+	fs := cache.NewSimpleCache()
+	file := cache.SeasonsManifestFile{}
+
+	// Try cache first
+	if fs.Exists(file) {
+		data, err := fs.Read(file)
+		if err == nil {
+			var seasons []nhl.SeasonInfo
+			if err := json.Unmarshal(data, &seasons); err == nil {
+				return filterSeasons(seasons, input), nil
+			}
+		}
+	}
+
+	// Fall back to API
 	client := nhl.NewClient()
 	return fetchSeasonsDataImpl(ctx, client, input)
 }
@@ -35,7 +54,11 @@ func fetchSeasonsDataImpl(ctx context.Context, client NHLClient, input *model.Fe
 	if err != nil {
 		return nil, err
 	}
+	return filterSeasons(seasons, input), nil
+}
 
+// filterSeasons converts nhl.SeasonInfo to worker.SeasonInfo and filters by input range.
+func filterSeasons(seasons []nhl.SeasonInfo, input *model.FetchSeasonsInput) []SeasonInfo {
 	var result []SeasonInfo
 	for _, s := range seasons {
 		startYear := s.ID.StartYear()
@@ -63,5 +86,5 @@ func fetchSeasonsDataImpl(ctx context.Context, client NHLClient, input *model.Fe
 		})
 	}
 
-	return result, nil
+	return result
 }

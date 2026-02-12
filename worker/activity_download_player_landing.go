@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
@@ -123,11 +124,11 @@ func ensurePlayerLandingCached(
 	// Save successful response to cache
 	data, err := json.Marshal(landing)
 	if err != nil {
-		log.Debug().Err(err).Str("player_id", playerID.String()).Msg("Failed to marshal player landing for cache")
-	} else {
-		if err := fs.Write(landingFile, data); err != nil {
-			log.Debug().Err(err).Str("player_id", playerID.String()).Msg("Failed to write player landing to cache")
-		}
+		return 0, fmt.Errorf("marshal player %s landing: %w", playerID.String(), err)
+	}
+
+	if err := fs.Write(landingFile, data); err != nil {
+		return 0, fmt.Errorf("write player %s landing to cache: %w", playerID.String(), err)
 	}
 
 	return playerLandingDownloaded, nil
