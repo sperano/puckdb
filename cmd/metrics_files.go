@@ -101,8 +101,8 @@ func classifyFileType(dataPath, filePath, filename string) string {
 	if strings.HasPrefix(filename, "league-") {
 		return cache.FileTypeLeague
 	}
-	// Check team-summary- BEFORE team- (more specific match first)
-	if strings.HasPrefix(filename, "team-summary-") {
+	// Check team summary files (team-XX-summary-*) BEFORE team- (more specific match first)
+	if strings.HasPrefix(filename, "team-") && strings.Contains(filename, "-summary-") {
 		return cache.FileTypeTeamSummary
 	}
 	if strings.HasPrefix(filename, "team-") {
