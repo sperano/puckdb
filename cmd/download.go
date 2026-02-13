@@ -10,7 +10,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
-	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
@@ -30,69 +29,6 @@ func buildFetchSeasonsInput() *model.FetchSeasonsInput {
 	}
 
 	return input
-}
-
-func monitorWorkflow_legacy(ctx context.Context, cmd *cobra.Command, header string, getStatus statusFetcher, pollTimeout time.Duration) error {
-	sp := newSpinner(cmd.OutOrStdout(), header)
-	sp.Start()
-
-	// Wait briefly for workflow to start and register query handlers
-	time.Sleep(config.DefaultWorkflowStartupDelay)
-
-	ticker := time.NewTicker(config.DefaultWorkflowPollInterval)
-	defer ticker.Stop()
-
-	timeout := time.After(pollTimeout)
-
-	for {
-		status, err := getStatus(ctx)
-		if err != nil {
-			sp.PrintAbove(func() {
-				log.Warn().Err(err).Msg("Failed to get status, retrying...")
-			})
-		} else {
-			sp.mu.Lock()
-			sp.message = formatStatusMessage(status)
-			sp.mu.Unlock()
-
-			switch status.Result.Status {
-			case model.TemporalWorkflowStatusCompleted:
-				sp.Stop()
-				return nil
-			case model.TemporalWorkflowStatusFailed:
-				sp.Cancel()
-				if status.Result.FailureReason != nil {
-					return fmt.Errorf("workflow failed: %s", *status.Result.FailureReason)
-				}
-				return fmt.Errorf("workflow failed")
-			case model.TemporalWorkflowStatusCanceled:
-				sp.Cancel()
-				return fmt.Errorf("workflow was canceled")
-			case model.TemporalWorkflowStatusTerminated:
-				sp.Cancel()
-				return fmt.Errorf("workflow was terminated")
-			case model.TemporalWorkflowStatusTimedOut:
-				sp.Cancel()
-				return fmt.Errorf("workflow timed out")
-			case model.TemporalWorkflowStatusRunning:
-				// Continue polling
-			case model.TemporalWorkflowStatusUnspecified:
-				// Workflow might not have started yet or doesn't exist
-				log.Debug().Msg("Workflow status unspecified")
-			}
-		}
-
-		select {
-		case <-ctx.Done():
-			sp.Cancel()
-			return ctx.Err()
-		case <-timeout:
-			sp.Cancel()
-			return fmt.Errorf("workflow monitoring timed out after %v", pollTimeout)
-		case <-ticker.C:
-			// continue to next iteration
-		}
-	}
 }
 
 func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher, pollTimeout time.Duration) error {

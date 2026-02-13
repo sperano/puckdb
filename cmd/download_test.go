@@ -413,3 +413,73 @@ func TestNewGraphQLClient(t *testing.T) {
 		t.Error("expected httpClient to be set")
 	}
 }
+
+func TestNewGraphQLClient_WithTrailingSlash(t *testing.T) {
+	client := NewGraphQLClient("http://localhost:8080/")
+
+	if client.endpoint != "http://localhost:8080/graphql/query" {
+		t.Errorf("expected endpoint http://localhost:8080/graphql/query, got %s", client.endpoint)
+	}
+}
+
+func TestFormatStatusMessage(t *testing.T) {
+	tests := []struct {
+		name   string
+		status *WorkflowStatus
+		want   string
+	}{
+		{
+			name: "nil progress shows status only",
+			status: &WorkflowStatus{
+				Result: &model.WorkflowResult{
+					Status: model.TemporalWorkflowStatusRunning,
+				},
+				Progress: nil,
+			},
+			want: "Workflow status: RUNNING",
+		},
+		{
+			name: "progress with total zero and message",
+			status: &WorkflowStatus{
+				Result: &model.WorkflowResult{
+					Status: model.TemporalWorkflowStatusRunning,
+				},
+				Progress: &model.WorkflowProgress{
+					Total:     0,
+					Completed: 0,
+					Message:   ptr("Initializing..."),
+				},
+			},
+			want: "Initializing...",
+		},
+		{
+			name: "progress with total shows progress bar",
+			status: &WorkflowStatus{
+				Result: &model.WorkflowResult{
+					Status: model.TemporalWorkflowStatusRunning,
+				},
+				Progress: &model.WorkflowProgress{
+					Total:     10,
+					Completed: 5,
+					Header:    ptr("Processing"),
+				},
+			},
+			// Progress bar uses config.DefaultProgressBarWidth (40 chars)
+			want: "▶ Processing\n\x00 5/10 [████████████████████░░░░░░░░░░░░░░░░░░░░] 50%",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatStatusMessage(tt.status)
+			if got != tt.want {
+				t.Errorf("formatStatusMessage() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// ptr returns a pointer to the given string
+func ptr(s string) *string {
+	return &s
+}
