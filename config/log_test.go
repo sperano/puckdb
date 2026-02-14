@@ -46,6 +46,21 @@ func TestSetLogLevel(t *testing.T) {
 	}
 }
 
+func TestSetLogLevel_InvalidFallsBackToDefault(t *testing.T) {
+	// Not parallel - modifies global zerolog state
+	original := zerolog.GlobalLevel()
+	t.Cleanup(func() {
+		zerolog.SetGlobalLevel(original)
+		viper.Set(FlagLogLevel, nil)
+	})
+
+	viper.Set(FlagLogLevel, "banana")
+	SetLogLevel()
+
+	// Should fall back to default (info)
+	assert.Equal(t, zerolog.InfoLevel, zerolog.GlobalLevel())
+}
+
 func TestGetDefaultLogPath(t *testing.T) {
 	t.Parallel()
 	path := GetDefaultLogPath()
@@ -89,4 +104,41 @@ func TestSetupLogger_FileWithTempDir(t *testing.T) {
 	// Verify the directory was created (file created on first write)
 	_, err := os.Stat(tempDir)
 	assert.NoError(t, err)
+}
+
+func TestSetupLogger_DefaultImportLogFile(t *testing.T) {
+	// Not parallel - modifies global logger
+	t.Cleanup(func() {
+		viper.Set(FlagLogFile, nil)
+	})
+
+	// This tests the branch where logFile == DefaultImportLogFile ("default")
+	// which resolves to GetDefaultLogPath()
+	viper.Set(FlagLogFile, DefaultImportLogFile)
+	SetupLogger()
+
+	// Verify the default log directory was created
+	expectedDir := filepath.Dir(GetDefaultLogPath())
+	_, err := os.Stat(expectedDir)
+	assert.NoError(t, err)
+}
+
+func TestSetupLogger_InvalidDirectory(t *testing.T) {
+	// Not parallel - modifies global logger
+	t.Cleanup(func() {
+		viper.Set(FlagLogFile, nil)
+	})
+
+	// Use a path that can't be created (file in place of directory)
+	tempDir := t.TempDir()
+	blockingFile := filepath.Join(tempDir, "blocker")
+	err := os.WriteFile(blockingFile, []byte("test"), 0644)
+	require.NoError(t, err)
+
+	// Try to create a log file inside the blocking file (impossible)
+	impossiblePath := filepath.Join(blockingFile, "subdir", "test.log")
+	viper.Set(FlagLogFile, impossiblePath)
+
+	// Should fall back to console writer without panicking
+	SetupLogger()
 }

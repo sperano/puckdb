@@ -50,7 +50,8 @@ func SetLogLevel() {
 	s := viper.GetString(FlagLogLevel)
 	lvl, found := logLevels[s]
 	if !found {
-		log.Fatal().Msgf("Invalid log level: %s", s)
+		log.Warn().Str("invalid", s).Str("using", DefaultLogLevel).Msg("Invalid log level, using default")
+		lvl = logLevels[DefaultLogLevel]
 	}
 	zerolog.SetGlobalLevel(lvl)
 }
@@ -92,7 +93,7 @@ func SetupLogger() {
 
 	// Ensure directory exists
 	dir := filepath.Dir(logFile)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := os.MkdirAll(dir, DirPermOwnerRWX); err != nil {
 		log.Warn().Err(err).Str("dir", dir).Msg("Failed to create log directory, falling back to console only")
 		log.Logger = log.Output(consoleWriter)
 		return

@@ -28,7 +28,7 @@ func OauthConfig() (*oauth2.Config, error) {
 	return &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		Scopes:       []string{"openid", "fspt-r"},
+		Scopes:       YahooOAuthScopes,
 		Endpoint:     yahoo.Endpoint,
 		RedirectURL:  redirectURL,
 	}, nil

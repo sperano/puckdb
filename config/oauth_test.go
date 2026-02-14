@@ -25,7 +25,7 @@ func TestOauthConfig(t *testing.T) {
 	assert.Equal(t, "test-client-id", cfg.ClientID)
 	assert.Equal(t, "test-client-secret", cfg.ClientSecret)
 	assert.Equal(t, "https://example.com"+YahooAuthCallbackPath, cfg.RedirectURL)
-	assert.Equal(t, []string{"openid", "fspt-r"}, cfg.Scopes)
+	assert.Equal(t, YahooOAuthScopes, cfg.Scopes)
 }
 
 func TestOauthConfig_MissingClientID(t *testing.T) {

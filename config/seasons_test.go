@@ -96,3 +96,7 @@ func TestLeagueGet_Error(t *testing.T) {
 	_, err = season.GetLeague(9999)
 	assert.Equal(t, "league not found: 9999", err.Error())
 }
+
+// Note: GetYahooSeasonsConfig uses sync.Once so it can only be tested once per process.
+// This test must be run in isolation or be the first to call GetYahooSeasonsConfig.
+// For this reason, we test the underlying getYahooSeasons function more thoroughly above.

@@ -171,4 +171,18 @@ const (
 	DateFormat  = "2006-01-02"
 )
 
+// File system constants
+const (
+	DirPermOwnerRWX = 0700 // Owner read/write/execute only
+)
+
+// Build version constants
+const (
+	BuildNumberNotAvailable = "n/a"
+	BuildNumberInvalid      = -1
+)
+
+// Yahoo OAuth2 scopes
+var YahooOAuthScopes = []string{"openid", "fspt-r"}
+
 var ErrNotImplementedYet = errors.New("not implemented yet")

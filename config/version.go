@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	BuildNumber = "n/a"
+	BuildNumber = BuildNumberNotAvailable
 )
 
 func LogIntro() {
@@ -16,12 +16,12 @@ func LogIntro() {
 }
 
 // GetBuildNumberAsInt returns the build number as an integer.
-// Returns -1 if the build number cannot be parsed.
+// Returns BuildNumberInvalid if the build number cannot be parsed.
 func GetBuildNumberAsInt() int {
 	n, err := strconv.Atoi(BuildNumber)
 	if err != nil {
 		log.Warn().Str("build_number", BuildNumber).Msg("Could not parse build number as int")
-		return -1
+		return BuildNumberInvalid
 	}
 	return n
 }
