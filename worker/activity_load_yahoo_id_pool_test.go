@@ -170,14 +170,14 @@ func TestParseYahooPlayerBatchImpl_MixedErrors(t *testing.T) {
 }
 
 // ////////////////////////////////////////////////////////////////////////////
-// SaveYahooIDPool tests
+// saveYahooPlayersToRedisImpl tests
 // ////////////////////////////////////////////////////////////////////////////
 
-func TestSaveYahooIDPool_EmptyPlayers(t *testing.T) {
+func TestSaveYahooPlayersToRedisImpl_EmptyPlayers(t *testing.T) {
 	ctx := context.Background()
 	client, _ := redismock.NewClientMock()
 
-	result, err := SaveYahooIDPool(ctx, client, []store.YahooPlayer{})
+	result, err := saveYahooPlayersToRedisImpl(ctx, client, []store.YahooPlayer{})
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.TotalPlayers)
@@ -185,7 +185,7 @@ func TestSaveYahooIDPool_EmptyPlayers(t *testing.T) {
 	assert.Equal(t, 0, result.SkippedNonNHL)
 }
 
-func TestSaveYahooIDPool_Success(t *testing.T) {
+func TestSaveYahooPlayersToRedisImpl_Success(t *testing.T) {
 	ctx := context.Background()
 	client, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -207,7 +207,7 @@ func TestSaveYahooIDPool_Success(t *testing.T) {
 	mockRedis.ExpectExpire(YahooIDPoolKey, ImportPlayersTTL).SetVal(true)
 	mockRedis.ExpectExpire(YahooIDAvailableKey, ImportPlayersTTL).SetVal(true)
 
-	result, err := SaveYahooIDPool(ctx, client, players)
+	result, err := saveYahooPlayersToRedisImpl(ctx, client, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.TotalPlayers)
@@ -216,7 +216,7 @@ func TestSaveYahooIDPool_Success(t *testing.T) {
 	require.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
-func TestSaveYahooIDPool_WithVerifiedNonNHL(t *testing.T) {
+func TestSaveYahooPlayersToRedisImpl_WithVerifiedNonNHL(t *testing.T) {
 	ctx := context.Background()
 	client, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -243,7 +243,7 @@ func TestSaveYahooIDPool_WithVerifiedNonNHL(t *testing.T) {
 	mockRedis.ExpectExpire(YahooIDPoolKey, ImportPlayersTTL).SetVal(true)
 	mockRedis.ExpectExpire(YahooIDAvailableKey, ImportPlayersTTL).SetVal(true)
 
-	result, err := SaveYahooIDPool(ctx, client, players)
+	result, err := saveYahooPlayersToRedisImpl(ctx, client, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 3, result.TotalPlayers)
@@ -252,7 +252,7 @@ func TestSaveYahooIDPool_WithVerifiedNonNHL(t *testing.T) {
 	require.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
-func TestSaveYahooIDPool_PipelineError(t *testing.T) {
+func TestSaveYahooPlayersToRedisImpl_PipelineError(t *testing.T) {
 	ctx := context.Background()
 	client, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -271,7 +271,7 @@ func TestSaveYahooIDPool_PipelineError(t *testing.T) {
 	mockRedis.ExpectExpire(YahooIDPoolKey, ImportPlayersTTL).SetVal(true)
 	mockRedis.ExpectExpire(YahooIDAvailableKey, ImportPlayersTTL).SetErr(errors.New("redis connection failed"))
 
-	result, err := SaveYahooIDPool(ctx, client, players)
+	result, err := saveYahooPlayersToRedisImpl(ctx, client, players)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "redis connection failed")

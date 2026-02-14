@@ -117,6 +117,14 @@ func (m *MockNHLClient) Franchises(ctx context.Context) ([]nhl.Franchise, error)
 	return args.Get(0).([]nhl.Franchise), args.Error(1)
 }
 
+func (m *MockNHLClient) SearchPlayer(ctx context.Context, query string, limit *int) ([]nhl.PlayerSearchResult, error) {
+	args := m.Called(ctx, query, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]nhl.PlayerSearchResult), args.Error(1)
+}
+
 // MockPlayerUpserter implements PlayerUpserter for testing.
 type MockPlayerUpserter struct {
 	mock.Mock

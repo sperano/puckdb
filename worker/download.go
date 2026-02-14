@@ -36,6 +36,7 @@ type NHLClient interface {
 	SeasonStandingManifest(ctx context.Context) ([]nhl.SeasonInfo, error)
 	LeagueStandingsForSeason(ctx context.Context, season nhl.Season) ([]nhl.Standing, error)
 	Franchises(ctx context.Context) ([]nhl.Franchise, error)
+	SearchPlayer(ctx context.Context, query string, limit *int) ([]nhl.PlayerSearchResult, error)
 }
 
 // Compile-time check that nhl.Client implements NHLClient

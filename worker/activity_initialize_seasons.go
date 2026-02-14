@@ -313,20 +313,41 @@ type InitializeSeasonTeamsResult struct {
 	UpsertResult   UpsertSeasonTeamsResult       `json:"upsertResult"`
 }
 
+// seasonTeamsInitializer abstracts the sub-operations for testing.
+type seasonTeamsInitializer interface {
+	DownloadStandings(ctx context.Context, seasonID int) (DownloadSeasonStandingsResult, error)
+	UpsertTeams(ctx context.Context, seasonID int) (UpsertSeasonTeamsResult, error)
+}
+
+// realSeasonTeamsInitializer calls the actual activity functions.
+type realSeasonTeamsInitializer struct{}
+
+func (realSeasonTeamsInitializer) DownloadStandings(ctx context.Context, seasonID int) (DownloadSeasonStandingsResult, error) {
+	return DownloadSeasonStandingsActivity(ctx, seasonID)
+}
+
+func (realSeasonTeamsInitializer) UpsertTeams(ctx context.Context, seasonID int) (UpsertSeasonTeamsResult, error) {
+	return UpsertSeasonTeamsActivity(ctx, seasonID)
+}
+
 // InitializeSeasonTeamsActivity downloads standings and upserts teams for a single season.
 // This combines DownloadSeasonStandingsActivity and UpsertSeasonTeamsActivity for efficient concurrent processing.
 func InitializeSeasonTeamsActivity(ctx context.Context, seasonID int) (InitializeSeasonTeamsResult, error) {
+	return initializeSeasonTeamsImpl(ctx, realSeasonTeamsInitializer{}, seasonID)
+}
+
+func initializeSeasonTeamsImpl(ctx context.Context, init seasonTeamsInitializer, seasonID int) (InitializeSeasonTeamsResult, error) {
 	result := InitializeSeasonTeamsResult{SeasonID: seasonID}
 
 	// Download standings
-	downloadResult, err := DownloadSeasonStandingsActivity(ctx, seasonID)
+	downloadResult, err := init.DownloadStandings(ctx, seasonID)
 	if err != nil {
 		return result, fmt.Errorf("download season standings: %w", err)
 	}
 	result.DownloadResult = downloadResult
 
 	// Upsert teams
-	upsertResult, err := UpsertSeasonTeamsActivity(ctx, seasonID)
+	upsertResult, err := init.UpsertTeams(ctx, seasonID)
 	if err != nil {
 		return result, fmt.Errorf("upsert season teams: %w", err)
 	}

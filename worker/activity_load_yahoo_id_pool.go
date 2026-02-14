@@ -1,8 +1,12 @@
 package worker
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
+	"fmt"
 
+	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
@@ -96,7 +100,7 @@ func SaveYahooPlayersToRedisActivity(ctx context.Context, players []store.YahooP
 	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
-	result, err := SaveYahooIDPool(ctx, redisClient, players)
+	result, err := saveYahooPlayersToRedisImpl(ctx, redisClient, players)
 	if err != nil {
 		return nil, err
 	}
@@ -106,4 +110,63 @@ func SaveYahooPlayersToRedisActivity(ctx context.Context, players []store.YahooP
 		"available", result.AvailablePlayers,
 		"skipped_non_nhl", result.SkippedNonNHL)
 	return result, nil
+}
+
+func saveYahooPlayersToRedisImpl(ctx context.Context, client cache.Client, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
+	if len(players) == 0 {
+		return &SaveYahooIDPoolResult{}, nil
+	}
+
+	// Load verified non-NHL IDs to exclude from available set
+	verifiedNonNHL, err := LoadVerifiedNonNHLIDs(ctx, client)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load verified non-NHL IDs, including all players")
+		verifiedNonNHL = make(map[store.YahooPlayerID]struct{})
+	}
+
+	pipe := client.Pipeline()
+
+	// Store each player in the hash (we still store all for reference)
+	for _, player := range players {
+		var buf bytes.Buffer
+		if err := gob.NewEncoder(&buf).Encode(player); err != nil {
+			return nil, fmt.Errorf("encode yahoo player %d: %w", player.YahooID, err)
+		}
+		pipe.HSet(ctx, YahooIDPoolKey, player.YahooID.String(), buf.Bytes())
+	}
+
+	// Add only non-verified IDs to the available set
+	var availableIDs []interface{}
+	excludedCount := 0
+	for _, player := range players {
+		if _, isVerifiedNonNHL := verifiedNonNHL[player.YahooID]; !isVerifiedNonNHL {
+			availableIDs = append(availableIDs, player.YahooID)
+		} else {
+			excludedCount++
+		}
+	}
+
+	if len(availableIDs) > 0 {
+		pipe.SAdd(ctx, YahooIDAvailableKey, availableIDs...)
+	}
+
+	// Set TTL on both keys
+	pipe.Expire(ctx, YahooIDPoolKey, ImportPlayersTTL)
+	pipe.Expire(ctx, YahooIDAvailableKey, ImportPlayersTTL)
+
+	if _, err := pipe.Exec(ctx); err != nil {
+		return nil, fmt.Errorf("save yahoo id pool to redis: %w", err)
+	}
+
+	log.Info().
+		Int("total_players", len(players)).
+		Int("available", len(availableIDs)).
+		Int("excluded_verified_non_nhl", excludedCount).
+		Msg("Saved YahooID pool to Redis")
+
+	return &SaveYahooIDPoolResult{
+		TotalPlayers:     len(players),
+		AvailablePlayers: len(availableIDs),
+		SkippedNonNHL:    excludedCount,
+	}, nil
 }

@@ -21,9 +21,13 @@ func FetchDailyScheduleActivity(ctx context.Context, day time.Time) error {
 	}()
 
 	fs := store.NewStore()
+	client := newNHLClient()
+	return fetchDailyScheduleImpl(ctx, fs, client, day)
+}
 
+func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClient, day time.Time) error {
 	// Download schedule
-	gameIDs, err := downloadSchedule(ctx, fs, day)
+	gameIDs, err := downloadSchedule(ctx, fs, client, day)
 	if err != nil {
 		return err
 	}
@@ -45,7 +49,7 @@ func FetchDailyScheduleActivity(ctx context.Context, day time.Time) error {
 }
 
 // downloadSchedule downloads and parses the daily schedule.
-func downloadSchedule(ctx context.Context, fs store.Store, day time.Time) ([]nhl.GameID, error) {
+func downloadSchedule(ctx context.Context, fs store.Store, client NHLClient, day time.Time) ([]nhl.GameID, error) {
 	file := store.DailyScheduleFile{Date: day}
 	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
 		return nil, fmt.Errorf("mkdir: %w", err)
@@ -56,7 +60,6 @@ func downloadSchedule(ctx context.Context, fs store.Store, day time.Time) ([]nhl
 		metrics.IncDownload("DailySchedule", "hit")
 	} else {
 		log.Info().Time("day", day).Msg("Downloading daily schedule")
-		client := newNHLClient()
 
 		start := time.Now()
 		schedule, err := client.DailySchedule(ctx, nhl.FromDate(day))
