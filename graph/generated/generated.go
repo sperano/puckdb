@@ -120,12 +120,13 @@ type ComplexityRoot struct {
 	}
 
 	WorkflowProgress struct {
-		Completed    func(childComplexity int) int
-		DisplayStyle func(childComplexity int) int
-		Header       func(childComplexity int) int
-		Items        func(childComplexity int) int
-		Message      func(childComplexity int) int
-		Total        func(childComplexity int) int
+		Completed       func(childComplexity int) int
+		CompletedHeader func(childComplexity int) int
+		DisplayStyle    func(childComplexity int) int
+		Header          func(childComplexity int) int
+		Items           func(childComplexity int) int
+		Message         func(childComplexity int) int
+		Total           func(childComplexity int) int
 	}
 
 	WorkflowResult struct {
@@ -592,6 +593,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.WorkflowProgress.Completed(childComplexity), true
 
+	case "WorkflowProgress.completedHeader":
+		if e.complexity.WorkflowProgress.CompletedHeader == nil {
+			break
+		}
+
+		return e.complexity.WorkflowProgress.CompletedHeader(childComplexity), true
+
 	case "WorkflowProgress.displayStyle":
 		if e.complexity.WorkflowProgress.DisplayStyle == nil {
 			break
@@ -796,6 +804,7 @@ type WorkflowProgress {
 	completed: Int!
 	message: String
 	header: String
+	completedHeader: String
 	items: [ProgressItem!]
 	displayStyle: ProgressDisplayStyle
 }
@@ -2845,6 +2854,8 @@ func (ec *executionContext) fieldContext_Query_initializeProgress(_ context.Cont
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
 			case "header":
 				return ec.fieldContext_WorkflowProgress_header(ctx, field)
+			case "completedHeader":
+				return ec.fieldContext_WorkflowProgress_completedHeader(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
 			case "displayStyle":
@@ -2999,6 +3010,8 @@ func (ec *executionContext) fieldContext_Query_fetchSeasonsProgress(_ context.Co
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
 			case "header":
 				return ec.fieldContext_WorkflowProgress_header(ctx, field)
+			case "completedHeader":
+				return ec.fieldContext_WorkflowProgress_completedHeader(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
 			case "displayStyle":
@@ -3104,6 +3117,8 @@ func (ec *executionContext) fieldContext_Query_fetchYahooPlayersProgress(_ conte
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
 			case "header":
 				return ec.fieldContext_WorkflowProgress_header(ctx, field)
+			case "completedHeader":
+				return ec.fieldContext_WorkflowProgress_completedHeader(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
 			case "displayStyle":
@@ -3209,6 +3224,8 @@ func (ec *executionContext) fieldContext_Query_processPlayersProgress(_ context.
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
 			case "header":
 				return ec.fieldContext_WorkflowProgress_header(ctx, field)
+			case "completedHeader":
+				return ec.fieldContext_WorkflowProgress_completedHeader(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
 			case "displayStyle":
@@ -3379,6 +3396,8 @@ func (ec *executionContext) fieldContext_Query_importSeasonsProgress(_ context.C
 				return ec.fieldContext_WorkflowProgress_message(ctx, field)
 			case "header":
 				return ec.fieldContext_WorkflowProgress_header(ctx, field)
+			case "completedHeader":
+				return ec.fieldContext_WorkflowProgress_completedHeader(ctx, field)
 			case "items":
 				return ec.fieldContext_WorkflowProgress_items(ctx, field)
 			case "displayStyle":
@@ -3941,6 +3960,47 @@ func (ec *executionContext) _WorkflowProgress_header(ctx context.Context, field 
 }
 
 func (ec *executionContext) fieldContext_WorkflowProgress_header(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowProgress_completedHeader(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_WorkflowProgress_completedHeader(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CompletedHeader, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_WorkflowProgress_completedHeader(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "WorkflowProgress",
 		Field:      field,
@@ -6704,6 +6764,8 @@ func (ec *executionContext) _WorkflowProgress(ctx context.Context, sel ast.Selec
 			out.Values[i] = ec._WorkflowProgress_message(ctx, field, obj)
 		case "header":
 			out.Values[i] = ec._WorkflowProgress_header(ctx, field, obj)
+		case "completedHeader":
+			out.Values[i] = ec._WorkflowProgress_completedHeader(ctx, field, obj)
 		case "items":
 			out.Values[i] = ec._WorkflowProgress_items(ctx, field, obj)
 		case "displayStyle":

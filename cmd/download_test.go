@@ -469,6 +469,28 @@ func TestFormatStatusMessage(t *testing.T) {
 		},
 	}
 
+	groupedStyle := model.ProgressDisplayStyleGroupedItems
+	tests = append(tests, struct {
+		name   string
+		status *WorkflowStatus
+		want   string
+	}{
+		name: "grouped items with completed header shows completion summary",
+		status: &WorkflowStatus{
+			Result: &model.WorkflowResult{
+				Status: model.TemporalWorkflowStatusCompleted,
+			},
+			Progress: &model.WorkflowProgress{
+				Total:           100,
+				Completed:       100,
+				Header:          ptr("Fetching seasons..."),
+				CompletedHeader: ptr("Fetched 5 seasons in 2m 30s."),
+				DisplayStyle:    &groupedStyle,
+			},
+		},
+		want: "✓ Fetched 5 seasons in 2m 30s.",
+	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := formatStatusMessage(tt.status)

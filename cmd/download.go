@@ -98,6 +98,11 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
 	}
 
+	// If completed header is set, show completion summary (workflow finished)
+	if status.Progress.CompletedHeader != nil && *status.Progress.CompletedHeader != "" {
+		return fmt.Sprintf("✓ %s", *status.Progress.CompletedHeader)
+	}
+
 	header := ""
 	if status.Progress.Header != nil {
 		header = *status.Progress.Header

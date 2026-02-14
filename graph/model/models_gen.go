@@ -61,12 +61,13 @@ type TrulyUnmatchedPlayer struct {
 }
 
 type WorkflowProgress struct {
-	Total        int                   `json:"total"`
-	Completed    int                   `json:"completed"`
-	Message      *string               `json:"message,omitempty"`
-	Header       *string               `json:"header,omitempty"`
-	Items        []*ProgressItem       `json:"items,omitempty"`
-	DisplayStyle *ProgressDisplayStyle `json:"displayStyle,omitempty"`
+	Total           int                   `json:"total"`
+	Completed       int                   `json:"completed"`
+	Message         *string               `json:"message,omitempty"`
+	Header          *string               `json:"header,omitempty"`
+	CompletedHeader *string               `json:"completedHeader,omitempty"`
+	Items           []*ProgressItem       `json:"items,omitempty"`
+	DisplayStyle    *ProgressDisplayStyle `json:"displayStyle,omitempty"`
 }
 
 type WorkflowResult struct {

@@ -47,6 +47,7 @@ type WorkflowProgress {
 	completed: Int!
 	message: String
 	header: String
+	completedHeader: String
 	items: [ProgressItem!]
 	displayStyle: ProgressDisplayStyle
 }

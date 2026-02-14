@@ -32,12 +32,13 @@ const (
 
 // WorkflowProgress represents the progress of a workflow.
 type WorkflowProgress struct {
-	Total        int                  `json:"total"`
-	Completed    int                  `json:"completed"`
-	Message      string               `json:"message,omitempty"`
-	Header       string               `json:"header,omitempty"`
-	Items        []ItemProgress       `json:"items,omitempty"`
-	DisplayStyle ProgressDisplayStyle `json:"displayStyle,omitempty"`
+	Total           int                  `json:"total"`
+	Completed       int                  `json:"completed"`
+	Message         string               `json:"message,omitempty"`
+	Header          string               `json:"header,omitempty"`
+	CompletedHeader string               `json:"completedHeader,omitempty"`
+	Items           []ItemProgress       `json:"items,omitempty"`
+	DisplayStyle    ProgressDisplayStyle `json:"displayStyle,omitempty"`
 }
 
 // ProgressQueryName is the name of the query handler for progress.
@@ -407,6 +408,12 @@ func (p *ProgressTracker) Increment() {
 // SetMessage sets the progress message describing the current phase.
 func (p *ProgressTracker) SetMessage(message string) {
 	p.progress.Message = message
+}
+
+// SetCompletedHeader sets the header to display when the workflow completes.
+// For GROUPED_ITEMS style, this replaces the in-progress header with a completion summary.
+func (p *ProgressTracker) SetCompletedHeader(header string) {
+	p.progress.CompletedHeader = header
 }
 
 // ActivityStarter is a function that starts an activity for a given index and returns a future.
