@@ -134,6 +134,24 @@ func (m *MockPlayerUpserter) UpsertPlayer(ctx context.Context, arg sqlcdb.Upsert
 	return args.Error(0)
 }
 
+func (m *MockPlayerUpserter) ClearConflictingYahooID(ctx context.Context, arg sqlcdb.ClearConflictingYahooIDParams) error {
+	args := m.Called(ctx, arg)
+	return args.Error(0)
+}
+
+// MockHTTPDownloader implements HTTPDownloader for testing.
+type MockHTTPDownloader struct {
+	mock.Mock
+}
+
+func (m *MockHTTPDownloader) Download(url string) ([]byte, error) {
+	args := m.Called(url)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]byte), args.Error(1)
+}
+
 // MockFile implements store.File for testing.
 type MockFile struct {
 	DirVal  string
@@ -144,3 +162,23 @@ type MockFile struct {
 func (f MockFile) Dir() string  { return f.DirVal }
 func (f MockFile) Name() string { return f.NameVal }
 func (f MockFile) Ext() string  { return f.ExtVal }
+
+// MockSeasonsUpserter implements seasonsUpserter for testing.
+type MockSeasonsUpserter struct {
+	mock.Mock
+}
+
+func (m *MockSeasonsUpserter) UpsertSeason(ctx context.Context, arg sqlcdb.UpsertSeasonParams) error {
+	args := m.Called(ctx, arg)
+	return args.Error(0)
+}
+
+// MockSeasonTeamsUpserter implements seasonTeamsUpserter for testing.
+type MockSeasonTeamsUpserter struct {
+	mock.Mock
+}
+
+func (m *MockSeasonTeamsUpserter) UpsertSeasonTeam(ctx context.Context, arg sqlcdb.UpsertSeasonTeamParams) error {
+	args := m.Called(ctx, arg)
+	return args.Error(0)
+}

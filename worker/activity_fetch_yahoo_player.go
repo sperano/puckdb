@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/store"
-	"github.com/sperano/puckdb/http"
+	puckhttp "github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/store"
 )
 
 type fetchStatus int
@@ -19,6 +19,18 @@ const (
 	fetchStatusMissing
 	fetchStatusCached
 )
+
+// HTTPDownloader is the interface for downloading content via HTTP.
+type HTTPDownloader interface {
+	Download(url string) ([]byte, error)
+}
+
+// httpDownloaderFunc adapts a function to the HTTPDownloader interface.
+type httpDownloaderFunc func(url string) ([]byte, error)
+
+func (f httpDownloaderFunc) Download(url string) ([]byte, error) {
+	return f(url)
+}
 
 // FetchYahooPlayerBatchResult contains counts from a batch fetch operation.
 type FetchYahooPlayerBatchResult struct {
@@ -32,13 +44,14 @@ type FetchYahooPlayerBatchResult struct {
 func FetchYahooPlayerBatchActivity(ctx context.Context, startID, endID store.YahooPlayerID) (FetchYahooPlayerBatchResult, error) {
 	var result FetchYahooPlayerBatchResult
 	fs := store.NewStore()
+	downloader := httpDownloaderFunc(puckhttp.DownloadPublic)
 	for playerID := startID; playerID <= endID; playerID++ {
 		select {
 		case <-ctx.Done():
 			return result, ctx.Err()
 		default:
 		}
-		status, err := fetchYahooPlayerImpl(ctx, fs, playerID)
+		status, err := fetchYahooPlayerImpl(ctx, fs, downloader, playerID)
 		if err != nil {
 			return result, err
 		}
@@ -55,7 +68,7 @@ func FetchYahooPlayerBatchActivity(ctx context.Context, startID, endID store.Yah
 }
 
 // fetchYahooPlayerImpl is the testable implementation.
-func fetchYahooPlayerImpl(ctx context.Context, fs store.Store, playerID store.YahooPlayerID) (fetchStatus, error) {
+func fetchYahooPlayerImpl(ctx context.Context, fs store.Store, downloader HTTPDownloader, playerID store.YahooPlayerID) (fetchStatus, error) {
 	start := time.Now()
 	defer func() {
 		metrics.ObserveActivityDuration("DownloadYahooPlayer", time.Since(start))
@@ -96,10 +109,10 @@ func fetchYahooPlayerImpl(ctx context.Context, fs store.Store, playerID store.Ya
 	}
 
 	// Download the player page
-	url := http.YahooPlayerURL(int(playerID))
-	content, err := http.DownloadPublic(url)
+	url := puckhttp.YahooPlayerURL(int(playerID))
+	content, err := downloader.Download(url)
 	if err != nil {
-		var httpErr *http.HTTPError
+		var httpErr *puckhttp.HTTPError
 		if errors.As(err, &httpErr) {
 			if httpErr.StatusCode == 404 {
 				// Save as missing player
