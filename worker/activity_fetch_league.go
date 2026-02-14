@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/store"
 )
 
 func FetchLeagueActivity(ctx context.Context, season int, leagueID int) error {

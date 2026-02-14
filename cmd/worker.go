@@ -114,9 +114,6 @@ func cmdWorker() *cobra.Command {
 			// Combined boxscore extraction (replaces separate player/team extraction)
 			w.RegisterActivity(workers.ExtractBoxscoreDataForSeasonActivity)
 
-			w.RegisterActivity(workers.DownloadPlayerLandingBatchActivity)
-			w.RegisterActivity(workers.MergePlayerBatchesFromRedisActivity)
-
 			// ProcessPlayers activities (unified download + import)
 			w.RegisterActivity(workers.ProcessPlayerBatchActivity)
 			w.RegisterActivity(workers.ListYahooPlayerFilesActivity)

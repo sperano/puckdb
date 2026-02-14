@@ -130,6 +130,7 @@ func saveMissingPlayerLanding(fs store.Store, file store.MissingPlayerLandingFil
 		Position:  player.Position,
 	}
 
+	// TODO can the Marshal fail here?
 	content, err := json.Marshal(data)
 	if err != nil {
 		return err
