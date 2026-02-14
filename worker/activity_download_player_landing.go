@@ -8,8 +8,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/store"
 )
 
 // DownloadPlayerLandingBatchResult contains statistics from a batch download.
@@ -17,14 +17,6 @@ type DownloadPlayerLandingBatchResult struct {
 	Downloaded int // Players downloaded from API
 	CacheHits  int // Players found in cache
 	Missing    int // 404 responses (cached for future runs)
-}
-
-// DownloadPlayerLandingBatchActivity downloads player landing pages for a batch of players.
-// Skips already-cached players (idempotent). Caches 404s to avoid repeat failures.
-func DownloadPlayerLandingBatchActivity(ctx context.Context, players []BoxscorePlayer) (DownloadPlayerLandingBatchResult, error) {
-	fs := store.NewStore()
-	client := newNHLClient()
-	return downloadPlayerLandingBatchImpl(ctx, fs, client, players)
 }
 
 func downloadPlayerLandingBatchImpl(
@@ -121,12 +113,8 @@ func ensurePlayerLandingCached(
 		return 0, err
 	}
 
-	// Save successful response to cache
-	data, err := json.Marshal(landing)
-	if err != nil {
-		return 0, fmt.Errorf("marshal player %s landing: %w", playerID.String(), err)
-	}
-
+	// Save successful response to cache (json.Marshal won't fail for *nhl.PlayerLanding)
+	data, _ := json.Marshal(landing)
 	if err := fs.Write(landingFile, data); err != nil {
 		return 0, fmt.Errorf("write player %s landing to cache: %w", playerID.String(), err)
 	}

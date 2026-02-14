@@ -52,14 +52,10 @@ func downloadFranchisesImpl(
 		return DownloadFranchisesResult{}, err
 	}
 
-	// Save to cache
-	data, err := json.Marshal(franchises)
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to marshal franchises for cache")
-	} else {
-		if err := fs.Write(file, data); err != nil {
-			log.Warn().Err(err).Msg("Failed to write franchises to cache")
-		}
+	// Save to cache (json.Marshal won't fail for []nhl.Franchise)
+	data, _ := json.Marshal(franchises)
+	if err := fs.Write(file, data); err != nil {
+		log.Warn().Err(err).Msg("Failed to write franchises to cache")
 	}
 
 	log.Info().Int("count", len(franchises)).Msg("Franchises downloaded from API")

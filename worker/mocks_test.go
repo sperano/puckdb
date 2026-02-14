@@ -3,10 +3,11 @@ package worker
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/sqlcdb"
+	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -180,5 +181,35 @@ type MockSeasonTeamsUpserter struct {
 
 func (m *MockSeasonTeamsUpserter) UpsertSeasonTeam(ctx context.Context, arg sqlcdb.UpsertSeasonTeamParams) error {
 	args := m.Called(ctx, arg)
+	return args.Error(0)
+}
+
+// MockFranchiseUpserter implements franchiseUpserter for testing.
+type MockFranchiseUpserter struct {
+	mock.Mock
+}
+
+func (m *MockFranchiseUpserter) UpsertFranchise(ctx context.Context, arg sqlcdb.UpsertFranchiseParams) error {
+	args := m.Called(ctx, arg)
+	return args.Error(0)
+}
+
+// MockDayFetcher implements dayFetcher for testing.
+type MockDayFetcher struct {
+	mock.Mock
+}
+
+func (m *MockDayFetcher) FetchDailySchedule(ctx context.Context, day time.Time) error {
+	args := m.Called(ctx, day)
+	return args.Error(0)
+}
+
+func (m *MockDayFetcher) FetchRoster(ctx context.Context, startYear int, leagueID, teamID int, day time.Time) error {
+	args := m.Called(ctx, startYear, leagueID, teamID, day)
+	return args.Error(0)
+}
+
+func (m *MockDayFetcher) FetchTeamSummary(ctx context.Context, startYear int, leagueID, teamID int, day time.Time) error {
+	args := m.Called(ctx, startYear, leagueID, teamID, day)
 	return args.Error(0)
 }

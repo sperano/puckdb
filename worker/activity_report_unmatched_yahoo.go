@@ -37,6 +37,16 @@ func LoadUnmatchedYahooPlayersActivity(ctx context.Context) ([]UnmatchedYahooPla
 	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
+	unmatched, err := loadUnmatchedYahooPlayersImpl(ctx, redisClient)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Loaded unmatched Yahoo players", "count", len(unmatched))
+	return unmatched, nil
+}
+
+func loadUnmatchedYahooPlayersImpl(ctx context.Context, redisClient cache.Client) ([]UnmatchedYahooPlayer, error) {
 	// Get unmatched IDs
 	unmatchedIDs, err := GetUnmatchedYahooIDs(ctx, redisClient)
 	if err != nil {
@@ -63,7 +73,6 @@ func LoadUnmatchedYahooPlayersActivity(ctx context.Context) ([]UnmatchedYahooPla
 		})
 	}
 
-	logger.Info("Loaded unmatched Yahoo players", "count", len(unmatched))
 	return unmatched, nil
 }
 
@@ -74,12 +83,16 @@ func CleanupYahooIDPoolActivity(ctx context.Context) error {
 	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
-	if err := CleanupYahooIDPool(ctx, redisClient); err != nil {
+	if err := cleanupYahooIDPoolImpl(ctx, redisClient); err != nil {
 		return err
 	}
 
 	logger.Info("Cleaned up Yahoo ID pool from Redis")
 	return nil
+}
+
+func cleanupYahooIDPoolImpl(ctx context.Context, redisClient cache.Client) error {
+	return CleanupYahooIDPool(ctx, redisClient)
 }
 
 // ListPlayerLandingIDsActivity returns all player IDs from cached PlayerLanding files.
@@ -88,6 +101,16 @@ func ListPlayerLandingIDsActivity(ctx context.Context) ([]int64, error) {
 	logger := activity.GetLogger(ctx)
 	fs := store.NewStore()
 
+	ids, err := listPlayerLandingIDsImpl(fs)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Listed PlayerLanding files", "count", len(ids))
+	return ids, nil
+}
+
+func listPlayerLandingIDsImpl(fs store.Store) ([]int64, error) {
 	files, err := fs.ListFiles(store.PlayerLandingFile{}, store.ParsePlayerLandingFilename)
 	if err != nil {
 		return nil, err
@@ -98,6 +121,5 @@ func ListPlayerLandingIDsActivity(ctx context.Context) ([]int64, error) {
 		ids[i] = f.(store.PlayerLandingFile).PlayerID.AsInt64()
 	}
 
-	logger.Info("Listed PlayerLanding files", "count", len(ids))
 	return ids, nil
 }

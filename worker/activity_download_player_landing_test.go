@@ -218,3 +218,68 @@ func TestDownloadPlayerLandingBatch_ContextCancellation(t *testing.T) {
 	assert.Equal(t, 0, result.CacheHits)
 	assert.Equal(t, 0, result.Missing)
 }
+
+func TestEnsurePlayerLandingCached_WriteError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+
+	playerID := nhl.PlayerID(123)
+	boxscorePlayer := testBoxscorePlayer(123)
+
+	// Not in cache
+	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
+	fs.On("Exists", missingFile).Return(false)
+	landingFile := store.PlayerLandingFile{PlayerID: playerID}
+	fs.On("Exists", landingFile).Return(false)
+
+	// API returns successfully
+	landing := testPlayerLanding(123)
+	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
+
+	// Write fails
+	fs.On("Write", landingFile, mock.Anything).Return(errors.New("disk full"))
+
+	status, err := ensurePlayerLandingCached(ctx, fs, client, playerID, &boxscorePlayer)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "write player")
+	assert.Contains(t, err.Error(), "disk full")
+	assert.Equal(t, playerLandingStatus(0), status)
+	fs.AssertExpectations(t)
+	client.AssertExpectations(t)
+}
+
+func TestEnsurePlayerLandingCached_404SaveMissingError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+
+	playerID := nhl.PlayerID(404)
+	boxscorePlayer := testBoxscorePlayer(404)
+
+	// Not in cache
+	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
+	fs.On("Exists", missingFile).Return(false)
+	landingFile := store.PlayerLandingFile{PlayerID: playerID}
+	fs.On("Exists", landingFile).Return(false)
+
+	// API returns 404
+	notFoundErr := nhl.NewResourceNotFoundError("player not found")
+	client.On("PlayerLanding", ctx, playerID).Return(nil, notFoundErr)
+
+	// Writing missing file fails (but operation should still succeed)
+	fs.On("Write", missingFile, mock.Anything).Return(errors.New("disk full"))
+
+	status, err := ensurePlayerLandingCached(ctx, fs, client, playerID, &boxscorePlayer)
+
+	// Should still succeed - save failure is logged but not fatal
+	require.NoError(t, err)
+	assert.Equal(t, playerLandingMissing, status)
+	fs.AssertExpectations(t)
+	client.AssertExpectations(t)
+}

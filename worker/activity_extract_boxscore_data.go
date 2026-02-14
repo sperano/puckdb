@@ -26,15 +26,22 @@ type BoxscoreExtractionResult struct {
 	Players []BoxscorePlayer `json:"players"`
 }
 
+// dayPlayerExtractor extracts players for a single day.
+type dayPlayerExtractor func(ctx context.Context, day time.Time) ([]BoxscorePlayer, error)
+
 // ExtractBoxscoreDataForSeasonActivity extracts player info from all boxscores for a season.
 func ExtractBoxscoreDataForSeasonActivity(ctx context.Context, season SeasonInfo) (BoxscoreExtractionResult, error) {
-	return extractBoxscoreDataForSeasonImpl(ctx, store.NewStore(), cache.NewClient(), season)
+	fs := store.NewStore()
+	redisClient := cache.NewClient()
+	extractor := func(ctx context.Context, day time.Time) ([]BoxscorePlayer, error) {
+		return extractPlayersForDay(ctx, fs, redisClient, day)
+	}
+	return extractBoxscoreDataForSeasonImpl(ctx, extractor, season)
 }
 
 func extractBoxscoreDataForSeasonImpl(
 	ctx context.Context,
-	fs store.Store,
-	redisClient cache.Client,
+	extractForDay dayPlayerExtractor,
 	season SeasonInfo,
 ) (BoxscoreExtractionResult, error) {
 	// Map by player ID to deduplicate while preserving player info
@@ -53,7 +60,7 @@ func extractBoxscoreDataForSeasonImpl(
 		default:
 		}
 
-		dayPlayers, err := extractPlayersForDay(ctx, fs, redisClient, day)
+		dayPlayers, err := extractForDay(ctx, day)
 		if err != nil {
 			log.Debug().Err(err).Time("day", day).Msg("Failed to extract boxscore data for day")
 			continue
