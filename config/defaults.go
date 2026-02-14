@@ -121,8 +121,9 @@ const (
 	DefaultProgressBarWidth = 40
 )
 
-// Database provisioning defaults
+// Database operations defaults
 const (
+	DefaultDBInitLockTTL      = 60 * time.Second
 	DefaultDBProvisionLockTTL = 60 * time.Second
 )
 

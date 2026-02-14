@@ -26,6 +26,7 @@ func Root() *cobra.Command {
 	}
 	flags := rootCmd.PersistentFlags()
 	config.InitLoggingFlags(flags, config.DefaultLogLevel, config.DefaultLogFile)
+	config.InitAPIServerAddrFlag(flags)
 
 	rootCmd.AddCommand(cmdAPI(), cmdCacheCheck(), cmdDB(), cmdInfo(), cmdMetrics(), cmdRedis(), cmdSync(), cmdWorker(), cmdYahoo())
 
@@ -52,6 +53,9 @@ func BindFlags(flags *pflag.FlagSet) {
 func commonInit(cmd *cobra.Command) error {
 	flags := cmd.Flags()
 	if err := config.BindLoggingFlags(flags); err != nil {
+		return err
+	}
+	if err := config.BindAPIServerAddrFlag(cmd.Root().PersistentFlags()); err != nil {
 		return err
 	}
 	BindFlags(cmd.PersistentFlags())

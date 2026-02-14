@@ -254,3 +254,60 @@ func (c *GraphQLClient) FlushRedisDB(ctx context.Context) (bool, error) {
 
 	return result.FlushRedisDB, nil
 }
+
+// DropDatabase calls the dropDatabase mutation to delete all tables
+func (c *GraphQLClient) DropDatabase(ctx context.Context) (bool, error) {
+	const mutation = `mutation { dropDatabase }`
+
+	resp, err := c.execute(ctx, mutation, nil)
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		DropDatabase bool `json:"dropDatabase"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.DropDatabase, nil
+}
+
+// CreateDatabase calls the createDatabase mutation to create all tables
+func (c *GraphQLClient) CreateDatabase(ctx context.Context) (bool, error) {
+	const mutation = `mutation { createDatabase }`
+
+	resp, err := c.execute(ctx, mutation, nil)
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		CreateDatabase bool `json:"createDatabase"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.CreateDatabase, nil
+}
+
+// ClearDatabase calls the clearDatabase mutation (drop + create + init)
+func (c *GraphQLClient) ClearDatabase(ctx context.Context) (bool, error) {
+	const mutation = `mutation { clearDatabase }`
+
+	resp, err := c.execute(ctx, mutation, nil)
+	if err != nil {
+		return false, err
+	}
+
+	var result struct {
+		ClearDatabase bool `json:"clearDatabase"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.ClearDatabase, nil
+}

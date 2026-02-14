@@ -4,17 +4,23 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/bsm/redislock"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+func getGraphQLClient() (*GraphQLClient, error) {
+	apiAddr := viper.GetString(config.FlagAPIServerAddr)
+	if apiAddr == "" {
+		return nil, fmt.Errorf("api-server-addr is required")
+	}
+	return NewGraphQLClient(apiAddr), nil
+}
 
 func cmdDB() *cobra.Command {
 	cmd := &cobra.Command{
@@ -26,51 +32,52 @@ func cmdDB() *cobra.Command {
 	return cmd
 }
 
+const dbInitLockName = "puckdb:db-init"
+
 func cmdDBInit() *cobra.Command {
-	const lockName = "yfh-init"
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize database",
-		Long:  `Run database migrations and seed NHL data. Uses Redis lock to prevent concurrent migrations.`,
+		Long:  `Run database migrations via GraphQL API. Uses Redis lock to prevent concurrent migrations.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			if err := config.BindRedisFlags(flags); err != nil {
-				return err
-			}
-			return config.BindPostgresFlags(flags)
+			return config.BindRedisFlags(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
-
-			// Verify we can connect to the database
-			pool, err := database.OpenPGXPool(ctx)
+			client, err := getGraphQLClient()
 			if err != nil {
 				return err
 			}
-			pool.Close()
+
+			ctx := context.Background()
 
 			redisClient := redis.NewClient()
 			defer func() { _ = redisClient.Close() }()
 
 			locker := redislock.New(redisClient)
-			lock, err := locker.Obtain(ctx, lockName, 60*time.Second, nil)
+			lock, err := locker.Obtain(ctx, dbInitLockName, config.DefaultDBInitLockTTL, nil)
 			if err == redislock.ErrNotObtained {
-				log.Warn().Msg("Could not obtain a lock, Another process is probably doing the database migration")
+				log.Warn().Msg("Could not obtain lock, another process is probably doing the database migration")
 				return nil
 			} else if err != nil {
-				log.Fatal().Err(err)
+				return fmt.Errorf("failed to acquire lock: %w", err)
 			}
 			defer func() {
 				if err := lock.Release(ctx); err != nil {
-					log.Error().Msg(err.Error())
+					log.Error().Err(err).Msg("Failed to release lock")
 				}
 			}()
-			return database.DoMigration()
+
+			success, err := client.CreateDatabase(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to initialize database: %w", err)
+			}
+			if success {
+				log.Info().Msg("Database initialized successfully")
+			}
+			return nil
 		},
 	}
-	flags := cmd.Flags()
-	config.InitPostgresFlags(flags)
-	config.InitRedisFlags(flags)
+	config.InitRedisFlags(cmd.Flags())
 	return cmd
 }
 
@@ -78,21 +85,23 @@ func cmdDBDrop() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "drop",
 		Short: "Drop database tables",
-		Long:  `Drop all database tables. Use with caution.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindPostgresFlags(cmd.Flags())
-		},
+		Long:  `Drop all database tables via GraphQL API. Use with caution.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
-			pool, err := database.OpenPGXPool(ctx)
+			client, err := getGraphQLClient()
 			if err != nil {
 				return err
 			}
-			defer pool.Close()
-			return database.DropEverything(ctx, pool)
+			ctx := context.Background()
+			success, err := client.DropDatabase(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to drop database: %w", err)
+			}
+			if success {
+				log.Info().Msg("Database tables dropped successfully")
+			}
+			return nil
 		},
 	}
-	config.InitPostgresFlags(cmd.Flags())
 	return cmd
 }
 
