@@ -207,7 +207,7 @@ func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.Process
 	trulyUnmatched := make([]*model.TrulyUnmatchedPlayer, len(result.TrulyUnmatched))
 	for i, p := range result.TrulyUnmatched {
 		trulyUnmatched[i] = &model.TrulyUnmatchedPlayer{
-			YahooID:     p.YahooID,
+			YahooID:     int(p.YahooID),
 			FirstName:   p.FirstName,
 			LastName:    p.LastName,
 			NhlGames:    p.NHLGames,

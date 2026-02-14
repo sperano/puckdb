@@ -10,7 +10,7 @@ import (
 
 // ListYahooPlayerFilesActivity lists all Yahoo player file IDs from the cache.
 // This is a fast operation that just reads the directory listing.
-func ListYahooPlayerFilesActivity(ctx context.Context) ([]int, error) {
+func ListYahooPlayerFilesActivity(ctx context.Context) ([]store.YahooPlayerID, error) {
 	logger := activity.GetLogger(ctx)
 	fs := store.NewStore().(*store.InstrumentedStore).Inner()
 
@@ -19,7 +19,7 @@ func ListYahooPlayerFilesActivity(ctx context.Context) ([]int, error) {
 		return nil, err
 	}
 
-	ids := make([]int, len(files))
+	ids := make([]store.YahooPlayerID, len(files))
 	for i, f := range files {
 		ids[i] = f.(store.YahooPlayerFile).PlayerID
 	}
@@ -30,7 +30,7 @@ func ListYahooPlayerFilesActivity(ctx context.Context) ([]int, error) {
 
 // ParseYahooPlayerBatchActivity parses a batch of Yahoo player HTML files.
 // Returns the parsed players for aggregation by the workflow.
-func ParseYahooPlayerBatchActivity(ctx context.Context, playerIDs []int) ([]store.YahooPlayer, error) {
+func ParseYahooPlayerBatchActivity(ctx context.Context, playerIDs []store.YahooPlayerID) ([]store.YahooPlayer, error) {
 	logger := activity.GetLogger(ctx)
 	fs := store.NewStore().(*store.InstrumentedStore).Inner()
 

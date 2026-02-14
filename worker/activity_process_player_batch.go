@@ -84,7 +84,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []Box
 		return result, fmt.Errorf("load yahoo pool: %w", err)
 	}
 
-	var matchedYahooIDs []int
+	var matchedYahooIDs []store.YahooPlayerID
 
 	for _, p := range players {
 		select {
@@ -166,7 +166,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []Box
 			if err := deps.queries.ClearConflictingYahooID(ctx, clearParams); err != nil {
 				log.Warn().Err(err).
 					Int64("nhl_id", p.ID).
-					Int("yahoo_id", matchResult.YahooID).
+					Int("yahoo_id", int(matchResult.YahooID)).
 					Msg("Failed to clear conflicting yahoo_id")
 			}
 		}

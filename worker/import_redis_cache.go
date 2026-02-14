@@ -52,7 +52,7 @@ func SaveYahooIDPool(ctx context.Context, client cache.Client, players []store.Y
 	verifiedNonNHL, err := LoadVerifiedNonNHLIDs(ctx, client)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load verified non-NHL IDs, including all players")
-		verifiedNonNHL = make(map[int]struct{})
+		verifiedNonNHL = make(map[store.YahooPlayerID]struct{})
 	}
 
 	pipe := client.Pipeline()
@@ -63,7 +63,7 @@ func SaveYahooIDPool(ctx context.Context, client cache.Client, players []store.Y
 		if err := gob.NewEncoder(&buf).Encode(player); err != nil {
 			return nil, fmt.Errorf("encode yahoo player %d: %w", player.YahooID, err)
 		}
-		pipe.HSet(ctx, YahooIDPoolKey, strconv.Itoa(player.YahooID), buf.Bytes())
+		pipe.HSet(ctx, YahooIDPoolKey, player.YahooID.String(), buf.Bytes())
 	}
 
 	// Add only non-verified IDs to the available set
@@ -103,13 +103,13 @@ func SaveYahooIDPool(ctx context.Context, client cache.Client, players []store.Y
 }
 
 // LoadYahooIDPool loads all Yahoo players from Redis.
-func LoadYahooIDPool(ctx context.Context, client cache.Client) (map[int]*store.YahooPlayer, error) {
+func LoadYahooIDPool(ctx context.Context, client cache.Client) (map[store.YahooPlayerID]*store.YahooPlayer, error) {
 	data, err := client.HGetAll(ctx, YahooIDPoolKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("load yahoo id pool from redis: %w", err)
 	}
 
-	pool := make(map[int]*store.YahooPlayer, len(data))
+	pool := make(map[store.YahooPlayerID]*store.YahooPlayer, len(data))
 	for idStr, encoded := range data {
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
@@ -121,7 +121,7 @@ func LoadYahooIDPool(ctx context.Context, client cache.Client) (map[int]*store.Y
 			log.Warn().Err(err).Int("yahooID", id).Msg("Failed to decode Yahoo player from Redis")
 			continue
 		}
-		pool[id] = &player
+		pool[store.YahooPlayerID(id)] = &player
 	}
 
 	log.Debug().
@@ -132,19 +132,19 @@ func LoadYahooIDPool(ctx context.Context, client cache.Client) (map[int]*store.Y
 }
 
 // LoadAvailableYahooIDs loads only the available (unmatched) Yahoo IDs from Redis.
-func LoadAvailableYahooIDs(ctx context.Context, client cache.Client) (map[int]struct{}, error) {
+func LoadAvailableYahooIDs(ctx context.Context, client cache.Client) (map[store.YahooPlayerID]struct{}, error) {
 	ids, err := client.SMembers(ctx, YahooIDAvailableKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("load available yahoo ids from redis: %w", err)
 	}
 
-	available := make(map[int]struct{}, len(ids))
+	available := make(map[store.YahooPlayerID]struct{}, len(ids))
 	for _, idStr := range ids {
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
 			continue
 		}
-		available[id] = struct{}{}
+		available[store.YahooPlayerID(id)] = struct{}{}
 	}
 
 	log.Debug().
@@ -155,14 +155,14 @@ func LoadAvailableYahooIDs(ctx context.Context, client cache.Client) (map[int]st
 }
 
 // RemoveFromYahooIDPool removes matched Yahoo IDs from the available set.
-func RemoveFromYahooIDPool(ctx context.Context, client cache.Client, ids []int) error {
+func RemoveFromYahooIDPool(ctx context.Context, client cache.Client, ids []store.YahooPlayerID) error {
 	if len(ids) == 0 {
 		return nil
 	}
 
 	args := make([]interface{}, len(ids))
 	for i, id := range ids {
-		args[i] = id
+		args[i] = int(id)
 	}
 
 	if err := client.SRem(ctx, YahooIDAvailableKey, args...).Err(); err != nil {
@@ -177,27 +177,27 @@ func RemoveFromYahooIDPool(ctx context.Context, client cache.Client, ids []int) 
 }
 
 // GetUnmatchedYahooIDs returns all YahooIDs that were never matched.
-func GetUnmatchedYahooIDs(ctx context.Context, client cache.Client) ([]int, error) {
+func GetUnmatchedYahooIDs(ctx context.Context, client cache.Client) ([]store.YahooPlayerID, error) {
 	ids, err := client.SMembers(ctx, YahooIDAvailableKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("get unmatched yahoo ids: %w", err)
 	}
 
-	result := make([]int, 0, len(ids))
+	result := make([]store.YahooPlayerID, 0, len(ids))
 	for _, idStr := range ids {
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
 			continue
 		}
-		result = append(result, id)
+		result = append(result, store.YahooPlayerID(id))
 	}
 
 	return result, nil
 }
 
 // GetYahooPlayerByID fetches a single Yahoo player from the pool by ID.
-func GetYahooPlayerByID(ctx context.Context, client cache.Client, yahooID int) (*store.YahooPlayer, error) {
-	encoded, err := client.HGet(ctx, YahooIDPoolKey, strconv.Itoa(yahooID)).Bytes()
+func GetYahooPlayerByID(ctx context.Context, client cache.Client, yahooID store.YahooPlayerID) (*store.YahooPlayer, error) {
+	encoded, err := client.HGet(ctx, YahooIDPoolKey, yahooID.String()).Bytes()
 	if err != nil {
 		return nil, fmt.Errorf("get yahoo player %d: %w", yahooID, err)
 	}
@@ -223,14 +223,14 @@ func CleanupYahooIDPool(ctx context.Context, client cache.Client) error {
 
 // SaveVerifiedNonNHLIDs stores Yahoo IDs that have been verified to have 0 NHL games.
 // These IDs will be excluded from future unmatched reports.
-func SaveVerifiedNonNHLIDs(ctx context.Context, client cache.Client, ids []int) error {
+func SaveVerifiedNonNHLIDs(ctx context.Context, client cache.Client, ids []store.YahooPlayerID) error {
 	if len(ids) == 0 {
 		return nil
 	}
 
 	args := make([]interface{}, len(ids))
 	for i, id := range ids {
-		args[i] = id
+		args[i] = int(id)
 	}
 
 	pipe := client.Pipeline()
@@ -249,19 +249,19 @@ func SaveVerifiedNonNHLIDs(ctx context.Context, client cache.Client, ids []int) 
 }
 
 // LoadVerifiedNonNHLIDs loads the set of Yahoo IDs verified to have 0 NHL games.
-func LoadVerifiedNonNHLIDs(ctx context.Context, client cache.Client) (map[int]struct{}, error) {
+func LoadVerifiedNonNHLIDs(ctx context.Context, client cache.Client) (map[store.YahooPlayerID]struct{}, error) {
 	ids, err := client.SMembers(ctx, VerifiedNonNHLKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("load verified non-nhl ids: %w", err)
 	}
 
-	verified := make(map[int]struct{}, len(ids))
+	verified := make(map[store.YahooPlayerID]struct{}, len(ids))
 	for _, idStr := range ids {
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
 			continue
 		}
-		verified[id] = struct{}{}
+		verified[store.YahooPlayerID(id)] = struct{}{}
 	}
 
 	log.Debug().

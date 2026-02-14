@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+// YahooPlayerID is the unique identifier Yahoo assigns to a player.
+// This is distinct from nhl.PlayerID to prevent accidental mixing of ID namespaces.
+type YahooPlayerID int
+
+func (id YahooPlayerID) String() string {
+	return strconv.Itoa(int(id))
+}
+
 // ParseYahooPlayerFilename parses "player-123" into YahooPlayerFile{PlayerID: 123}
 func ParseYahooPlayerFilename(name string) File {
 	const prefix = "player-"
@@ -19,7 +27,7 @@ func ParseYahooPlayerFilename(name string) File {
 	if err != nil {
 		return nil
 	}
-	return YahooPlayerFile{PlayerID: id}
+	return YahooPlayerFile{PlayerID: YahooPlayerID(id)}
 }
 
 // ////////////////////////////////////////////////////////////////////////////
@@ -115,7 +123,7 @@ const yahooPlayersDirName = "yahoo-players"
 
 // YahooPlayerFile represents a stored Yahoo Fantasy player HTML page.
 type YahooPlayerFile struct {
-	PlayerID int
+	PlayerID YahooPlayerID
 }
 
 func (f YahooPlayerFile) Ext() string  { return "html" }
@@ -130,7 +138,7 @@ const missingYahooPlayersDirName = "yahoo-players-missing"
 
 // MissingYahooPlayerFile represents a stored 404/missing Yahoo Fantasy player.
 type MissingYahooPlayerFile struct {
-	PlayerID int
+	PlayerID YahooPlayerID
 }
 
 func (f MissingYahooPlayerFile) Ext() string  { return "txt" }

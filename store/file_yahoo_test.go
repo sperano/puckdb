@@ -13,7 +13,7 @@ func TestParseYahooPlayerFilename(t *testing.T) {
 	tests := []struct {
 		name       string
 		filename   string
-		expectedID int
+		expectedID YahooPlayerID
 		shouldNil  bool
 	}{
 		{

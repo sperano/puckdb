@@ -20,7 +20,7 @@ func TestMatchYahooID_NameAndJerseyMatch(t *testing.T) {
 		SweaterNumber: &sweater,
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		100: {YahooID: 100, FirstName: "Connor", LastName: "McDavid", JerseyNumber: 97, Team: "Edmonton"},
 		101: {YahooID: 101, FirstName: "Connor", LastName: "Brown", JerseyNumber: 28, Team: "Ottawa"},
 	}
@@ -28,7 +28,7 @@ func TestMatchYahooID_NameAndJerseyMatch(t *testing.T) {
 	result, err := MatchYahooID(landing, "EDM", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 100, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(100), result.YahooID)
 	assert.Equal(t, MatchReasonNameJersey, result.Reason)
 }
 
@@ -40,7 +40,7 @@ func TestMatchYahooID_NameOnlyMatch(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "McDavid"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		100: {YahooID: 100, FirstName: "Connor", LastName: "McDavid", JerseyNumber: 97, Team: "Edmonton"},
 		101: {YahooID: 101, FirstName: "Connor", LastName: "Brown", JerseyNumber: 28, Team: "Ottawa"},
 	}
@@ -48,7 +48,7 @@ func TestMatchYahooID_NameOnlyMatch(t *testing.T) {
 	result, err := MatchYahooID(landing, "EDM", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 100, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(100), result.YahooID)
 	assert.Equal(t, MatchReasonNameOnly, result.Reason)
 }
 
@@ -61,7 +61,7 @@ func TestMatchYahooID_TeamTiebreaker(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Pettersson"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		200: {YahooID: 200, FirstName: "Elias", LastName: "Pettersson", JerseyNumber: 40, Team: "Vancouver"},
 		201: {YahooID: 201, FirstName: "Elias", LastName: "Pettersson", JerseyNumber: 28, Team: "Carolina"},
 	}
@@ -69,7 +69,7 @@ func TestMatchYahooID_TeamTiebreaker(t *testing.T) {
 	result, err := MatchYahooID(landing, "VAN", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 200, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(200), result.YahooID)
 	assert.Equal(t, MatchReasonTeamTiebreaker, result.Reason)
 }
 
@@ -81,7 +81,7 @@ func TestMatchYahooID_NoMatch(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Gretzky"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		100: {YahooID: 100, FirstName: "Connor", LastName: "McDavid", JerseyNumber: 97},
 	}
 
@@ -100,7 +100,7 @@ func TestMatchYahooID_Ambiguous(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Smith"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		300: {YahooID: 300, FirstName: "John", LastName: "Smith", JerseyNumber: 10, Team: "Boston"},
 		301: {YahooID: 301, FirstName: "John", LastName: "Smith", JerseyNumber: 20, Team: "Boston"},
 	}
@@ -119,14 +119,14 @@ func TestMatchYahooID_CaseInsensitive(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "MCDAVID"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		100: {YahooID: 100, FirstName: "connor", LastName: "mcdavid", JerseyNumber: 97},
 	}
 
 	result, err := MatchYahooID(landing, "EDM", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 100, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(100), result.YahooID)
 }
 
 func TestMatchYahooID_JerseyZeroFallback(t *testing.T) {
@@ -140,14 +140,14 @@ func TestMatchYahooID_JerseyZeroFallback(t *testing.T) {
 		SweaterNumber: &sweater,
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		99: {YahooID: 99, FirstName: "Wayne", LastName: "Gretzky", JerseyNumber: 0}, // Retired player, no jersey
 	}
 
 	result, err := MatchYahooID(landing, "", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 99, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(99), result.YahooID)
 	assert.Equal(t, MatchReasonNameOnly, result.Reason)
 }
 
@@ -160,14 +160,14 @@ func TestMatchYahooID_NicknameMatch(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Lemelin"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		332: {YahooID: 332, FirstName: "Reggie", LastName: "Lemelin", JerseyNumber: 1, Team: "Boston"},
 	}
 
 	result, err := MatchYahooID(landing, "BOS", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 332, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(332), result.YahooID)
 }
 
 func TestMatchYahooID_NicknameMatchReverse(t *testing.T) {
@@ -179,14 +179,14 @@ func TestMatchYahooID_NicknameMatchReverse(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Smith"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		500: {YahooID: 500, FirstName: "Michael", LastName: "Smith", JerseyNumber: 31, Team: "Edmonton"},
 	}
 
 	result, err := MatchYahooID(landing, "EDM", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 500, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(500), result.YahooID)
 }
 
 func TestMatchYahooID_AccentNormalization(t *testing.T) {
@@ -198,14 +198,14 @@ func TestMatchYahooID_AccentNormalization(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Brière"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		1737: {YahooID: 1737, FirstName: "Daniel", LastName: "Briere", JerseyNumber: 48, Team: "Philadelphia"},
 	}
 
 	result, err := MatchYahooID(landing, "PHI", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 1737, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(1737), result.YahooID)
 }
 
 func TestMatchYahooID_AccentNormalizationUmlaut(t *testing.T) {
@@ -217,14 +217,14 @@ func TestMatchYahooID_AccentNormalizationUmlaut(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Välimäki"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		7531: {YahooID: 7531, FirstName: "Juuso", LastName: "Valimaki", JerseyNumber: 4, Team: "Calgary"},
 	}
 
 	result, err := MatchYahooID(landing, "CGY", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 7531, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(7531), result.YahooID)
 }
 
 func TestMatchYahooID_HTMLEntityApostrophe(t *testing.T) {
@@ -236,14 +236,14 @@ func TestMatchYahooID_HTMLEntityApostrophe(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Brind'Amour"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		45: {YahooID: 45, FirstName: "Rod", LastName: "Brind&#x27;Amour", JerseyNumber: 0, Team: "Carolina"},
 	}
 
 	result, err := MatchYahooID(landing, "CAR", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 45, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(45), result.YahooID)
 }
 
 func TestMatchYahooID_RolandRollie(t *testing.T) {
@@ -255,14 +255,14 @@ func TestMatchYahooID_RolandRollie(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Melanson"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		375: {YahooID: 375, FirstName: "Rollie", LastName: "Melanson", JerseyNumber: 0, Team: ""},
 	}
 
 	result, err := MatchYahooID(landing, "", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 375, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(375), result.YahooID)
 }
 
 func TestMatchYahooID_TrailingWhitespace(t *testing.T) {
@@ -276,14 +276,14 @@ func TestMatchYahooID_TrailingWhitespace(t *testing.T) {
 		SweaterNumber: &sweater,
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		8378: {YahooID: 8378, FirstName: "Matej", LastName: "Blumel", JerseyNumber: 13, Team: "Boston"},
 	}
 
 	result, err := MatchYahooID(landing, "BOS", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 8378, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(8378), result.YahooID)
 	assert.Equal(t, MatchReasonNameJersey, result.Reason)
 }
 
@@ -297,7 +297,7 @@ func TestMatchYahooID_BirthDateTiebreaker(t *testing.T) {
 	}
 
 	// Bryan Hextall Sr. (1913) and Bryan Hextall Jr. (1941)
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		22424: {
 			YahooID:   22424,
 			FirstName: "Bryan",
@@ -317,7 +317,7 @@ func TestMatchYahooID_BirthDateTiebreaker(t *testing.T) {
 	result, err := MatchYahooID(landing, "", nhlBirthDate, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 22424, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(22424), result.YahooID)
 	assert.Equal(t, MatchReasonNameBirthdate, result.Reason)
 
 	// Match Bryan Jr. by birth date
@@ -325,7 +325,7 @@ func TestMatchYahooID_BirthDateTiebreaker(t *testing.T) {
 	result, err = MatchYahooID(landing, "", nhlBirthDate, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 22425, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(22425), result.YahooID)
 	assert.Equal(t, MatchReasonNameBirthdate, result.Reason)
 }
 
@@ -342,7 +342,7 @@ func TestMatchYahooID_CompoundFirstName(t *testing.T) {
 		SweaterNumber: &sweater,
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		30710: {
 			YahooID:      30710,
 			FirstName:    "Charles",
@@ -355,7 +355,7 @@ func TestMatchYahooID_CompoundFirstName(t *testing.T) {
 	result, err := MatchYahooID(landing, "CAR", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 30710, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(30710), result.YahooID)
 	assert.Equal(t, MatchReasonFullName, result.Reason) // Should use fullname reason since split differs
 }
 
@@ -371,7 +371,7 @@ func TestMatchYahooID_CompoundFirstName_WithJersey(t *testing.T) {
 	}
 
 	// Add another player with same jersey to ensure full name matching is used
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		30710: {
 			YahooID:      30710,
 			FirstName:    "Charles",
@@ -391,7 +391,7 @@ func TestMatchYahooID_CompoundFirstName_WithJersey(t *testing.T) {
 	result, err := MatchYahooID(landing, "CAR", time.Time{}, pool)
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
-	assert.Equal(t, 30710, result.YahooID)
+	assert.Equal(t, store.YahooPlayerID(30710), result.YahooID)
 }
 
 func TestMatchYahooID_CompoundFirstName_NoMatch(t *testing.T) {
@@ -403,7 +403,7 @@ func TestMatchYahooID_CompoundFirstName_NoMatch(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Legault"},
 	}
 
-	pool := map[int]*store.YahooPlayer{
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
 		12345: {
 			YahooID:   12345,
 			FirstName: "Charles",

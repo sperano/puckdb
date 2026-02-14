@@ -197,14 +197,14 @@ func TestListAll(t *testing.T) {
 	assert.Len(t, files, 2)
 
 	// Check that we got the right files
-	var ids []int
+	var ids []YahooPlayerID
 	for _, f := range files {
 		if yp, ok := f.(YahooPlayerFile); ok {
 			ids = append(ids, yp.PlayerID)
 		}
 	}
-	assert.Contains(t, ids, 1)
-	assert.Contains(t, ids, 2)
+	assert.Contains(t, ids, YahooPlayerID(1))
+	assert.Contains(t, ids, YahooPlayerID(2))
 }
 
 func TestListAll_DirectoryNotExists(t *testing.T) {

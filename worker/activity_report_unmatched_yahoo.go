@@ -11,7 +11,7 @@ import (
 
 // UnmatchedYahooPlayer represents a Yahoo player that wasn't matched to any NHL player.
 type UnmatchedYahooPlayer struct {
-	YahooID      int
+	YahooID      store.YahooPlayerID
 	FirstName    string
 	LastName     string
 	Team         string
@@ -48,7 +48,7 @@ func LoadUnmatchedYahooPlayersActivity(ctx context.Context) ([]UnmatchedYahooPla
 	for _, id := range unmatchedIDs {
 		player, err := GetYahooPlayerByID(ctx, redisClient, id)
 		if err != nil {
-			log.Warn().Err(err).Int("yahooID", id).Msg("Failed to load unmatched Yahoo player details")
+			log.Warn().Err(err).Int("yahooID", int(id)).Msg("Failed to load unmatched Yahoo player details")
 			// Still include basic info
 			unmatched = append(unmatched, UnmatchedYahooPlayer{YahooID: id})
 			continue

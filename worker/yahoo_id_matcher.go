@@ -59,7 +59,7 @@ func (r MatchReason) String() string {
 
 // YahooIDMatchResult contains the result of a Yahoo ID matching attempt.
 type YahooIDMatchResult struct {
-	YahooID int
+	YahooID store.YahooPlayerID
 	Matched bool
 	Reason  MatchReason
 }
@@ -263,7 +263,7 @@ func MatchYahooID(
 	landing *nhl.PlayerLanding,
 	nhlTeamAbbrev string,
 	nhlBirthDate time.Time,
-	pool map[int]*store.YahooPlayer,
+	pool map[store.YahooPlayerID]*store.YahooPlayer,
 ) (YahooIDMatchResult, error) {
 	// Normalize names: decode HTML entities, strip accents, lowercase
 	firstName := normalizeName(landing.FirstName.Default)
@@ -345,7 +345,7 @@ func MatchYahooID(
 			log.Warn().
 				Int64("nhl_id", landing.PlayerID.AsInt64()).
 				Str("nhl_name", landing.FirstName.Default+" "+landing.LastName.Default).
-				Int("yahoo_id", match.player.YahooID).
+				Int("yahoo_id", int(match.player.YahooID)).
 				Str("yahoo_name", match.player.FirstName+" "+match.player.LastName).
 				Str("reason", finalReason.String()).
 				Bool("fullname_match", match.fullNameMatch).

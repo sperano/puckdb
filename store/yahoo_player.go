@@ -16,7 +16,7 @@ var ErrPlayerPageEmpty = errors.New("player page is empty or deleted")
 
 // YahooPlayer holds player data parsed from Yahoo Sports HTML files.
 type YahooPlayer struct {
-	YahooID      int
+	YahooID      YahooPlayerID
 	FirstName    string
 	LastName     string
 	Positions    []nhl.Position
@@ -46,7 +46,7 @@ var (
 
 // ParseYahooPlayerHTML parses a Yahoo Sports player HTML file and extracts player data.
 // The yahooID should be extracted from the filename (e.g., "player-1.html" -> 1).
-func ParseYahooPlayerHTML(yahooID int, html []byte) (*YahooPlayer, error) {
+func ParseYahooPlayerHTML(yahooID YahooPlayerID, html []byte) (*YahooPlayer, error) {
 	content := string(html)
 
 	player := &YahooPlayer{

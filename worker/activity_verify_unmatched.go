@@ -33,7 +33,7 @@ const (
 
 // VerifiedPlayer contains the verification result for a Yahoo player.
 type VerifiedPlayer struct {
-	YahooID     int
+	YahooID     store.YahooPlayerID
 	FirstName   string
 	LastName    string
 	NHLGames    int  // Total NHL regular season games
@@ -46,7 +46,7 @@ type VerifiedPlayer struct {
 // VerifyUnmatchedResult contains the categorized results of verification.
 type VerifyUnmatchedResult struct {
 	// VerifiedNonNHL contains Yahoo IDs confirmed to have 0 NHL games.
-	VerifiedNonNHL []int
+	VerifiedNonNHL []store.YahooPlayerID
 
 	// TrulyUnmatched contains players who have NHL games but weren't matched.
 	// These need investigation.
@@ -73,17 +73,17 @@ func VerifyUnmatchedBatchActivity(ctx context.Context, players []UnmatchedYahooP
 	alreadyVerified, err := LoadVerifiedNonNHLIDs(ctx, redisClient)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load verified non-NHL IDs, will verify all")
-		alreadyVerified = make(map[int]struct{})
+		alreadyVerified = make(map[store.YahooPlayerID]struct{})
 	}
 
 	result := &VerifyUnmatchedResult{
-		VerifiedNonNHL: make([]int, 0),
+		VerifiedNonNHL: make([]store.YahooPlayerID, 0),
 		TrulyUnmatched: make([]VerifiedPlayer, 0),
 		NotFoundInNHL:  make([]VerifiedPlayer, 0),
 	}
 
 	// Track newly verified non-NHL IDs
-	newlyVerifiedNonNHL := make([]int, 0)
+	newlyVerifiedNonNHL := make([]store.YahooPlayerID, 0)
 
 	for i, player := range players {
 		// Skip already verified players

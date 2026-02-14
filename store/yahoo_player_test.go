@@ -26,10 +26,10 @@ func TestParseYahooPlayerHTML(t *testing.T) {
 </body>
 </html>`)
 
-		player, err := ParseYahooPlayerHTML(12345, html)
+		player, err := ParseYahooPlayerHTML(YahooPlayerID(12345), html)
 		require.NoError(t, err)
 
-		assert.Equal(t, 12345, player.YahooID)
+		assert.Equal(t, YahooPlayerID(12345), player.YahooID)
 		assert.Equal(t, "Matt", player.FirstName)
 		assert.Equal(t, "Rempe", player.LastName)
 		assert.Equal(t, "NY Rangers", player.Team)
@@ -55,10 +55,10 @@ func TestParseYahooPlayerHTML(t *testing.T) {
 </body>
 </html>`)
 
-		player, err := ParseYahooPlayerHTML(99, html)
+		player, err := ParseYahooPlayerHTML(YahooPlayerID(99), html)
 		require.NoError(t, err)
 
-		assert.Equal(t, 99, player.YahooID)
+		assert.Equal(t, YahooPlayerID(99), player.YahooID)
 		assert.Equal(t, "Wayne", player.FirstName)
 		assert.Equal(t, "Gretzky", player.LastName)
 		assert.Empty(t, player.Team) // No team for retired player
@@ -80,7 +80,7 @@ func TestParseYahooPlayerHTML(t *testing.T) {
 </body>
 </html>`)
 
-		player, err := ParseYahooPlayerHTML(31, html)
+		player, err := ParseYahooPlayerHTML(YahooPlayerID(31), html)
 		require.NoError(t, err)
 
 		assert.Equal(t, "Igor", player.FirstName)
@@ -100,7 +100,7 @@ func TestParseYahooPlayerHTML(t *testing.T) {
 <body></body>
 </html>`)
 
-		_, err := ParseYahooPlayerHTML(123, html)
+		_, err := ParseYahooPlayerHTML(YahooPlayerID(123), html)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrPlayerPageEmpty)
 	})
@@ -115,7 +115,7 @@ func TestParseYahooPlayerHTML(t *testing.T) {
 <body></body>
 </html>`)
 
-		_, err := ParseYahooPlayerHTML(123, html)
+		_, err := ParseYahooPlayerHTML(YahooPlayerID(123), html)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not parse player title")
 	})
@@ -130,7 +130,7 @@ func TestParseYahooPlayerHTML(t *testing.T) {
 <body></body>
 </html>`)
 
-		player, err := ParseYahooPlayerHTML(1, html)
+		player, err := ParseYahooPlayerHTML(YahooPlayerID(1), html)
 		require.NoError(t, err)
 
 		assert.Equal(t, "Madonna", player.FirstName)
@@ -149,7 +149,7 @@ func TestParseYahooPlayerHTML(t *testing.T) {
 </body>
 </html>`)
 
-		player, err := ParseYahooPlayerHTML(23, html)
+		player, err := ParseYahooPlayerHTML(YahooPlayerID(23), html)
 		require.NoError(t, err)
 
 		assert.Equal(t, "Adam", player.FirstName)
@@ -168,7 +168,7 @@ func TestParseYahooPlayerHTML(t *testing.T) {
 <body></body>
 </html>`)
 
-		player, err := ParseYahooPlayerHTML(8, html)
+		player, err := ParseYahooPlayerHTML(YahooPlayerID(8), html)
 		require.NoError(t, err)
 
 		assert.Len(t, player.Positions, 1)
