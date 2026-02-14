@@ -94,32 +94,3 @@ func CleanupYahooIDPoolActivity(ctx context.Context) error {
 func cleanupYahooIDPoolImpl(ctx context.Context, redisClient cache.Client) error {
 	return CleanupYahooIDPool(ctx, redisClient)
 }
-
-// ListPlayerLandingIDsActivity returns all player IDs from cached PlayerLanding files.
-// Used to enumerate players for import.
-func ListPlayerLandingIDsActivity(ctx context.Context) ([]int64, error) {
-	logger := activity.GetLogger(ctx)
-	fs := store.NewStore()
-
-	ids, err := listPlayerLandingIDsImpl(fs)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Info("Listed PlayerLanding files", "count", len(ids))
-	return ids, nil
-}
-
-func listPlayerLandingIDsImpl(fs store.Store) ([]int64, error) {
-	files, err := fs.ListFiles(store.PlayerLandingFile{}, store.ParsePlayerLandingFilename)
-	if err != nil {
-		return nil, err
-	}
-
-	ids := make([]int64, len(files))
-	for i, f := range files {
-		ids[i] = f.(store.PlayerLandingFile).PlayerID.AsInt64()
-	}
-
-	return ids, nil
-}

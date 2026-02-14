@@ -7,10 +7,8 @@ import (
 	"testing"
 
 	"github.com/go-redis/redismock/v8"
-	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -133,55 +131,4 @@ func TestCleanupYahooIDPool_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "redis error")
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
-}
-
-func TestListPlayerLandingIDs_Empty(t *testing.T) {
-	t.Parallel()
-
-	fs := NewMockFileSystem()
-
-	fs.On("ListFiles", store.PlayerLandingFile{}, mock.AnythingOfType("store.FilenameParser")).Return([]store.File{}, nil)
-
-	result, err := listPlayerLandingIDsImpl(fs)
-
-	require.NoError(t, err)
-	assert.Empty(t, result)
-	fs.AssertExpectations(t)
-}
-
-func TestListPlayerLandingIDs_Success(t *testing.T) {
-	t.Parallel()
-
-	fs := NewMockFileSystem()
-
-	files := []store.File{
-		store.PlayerLandingFile{PlayerID: nhl.PlayerID(8478402)},
-		store.PlayerLandingFile{PlayerID: nhl.PlayerID(8477934)},
-		store.PlayerLandingFile{PlayerID: nhl.PlayerID(8480069)},
-	}
-	fs.On("ListFiles", store.PlayerLandingFile{}, mock.AnythingOfType("store.FilenameParser")).Return(files, nil)
-
-	result, err := listPlayerLandingIDsImpl(fs)
-
-	require.NoError(t, err)
-	assert.Len(t, result, 3)
-	assert.Contains(t, result, int64(8478402))
-	assert.Contains(t, result, int64(8477934))
-	assert.Contains(t, result, int64(8480069))
-	fs.AssertExpectations(t)
-}
-
-func TestListPlayerLandingIDs_Error(t *testing.T) {
-	t.Parallel()
-
-	fs := NewMockFileSystem()
-
-	fs.On("ListFiles", store.PlayerLandingFile{}, mock.AnythingOfType("store.FilenameParser")).Return(nil, errors.New("filesystem error"))
-
-	result, err := listPlayerLandingIDsImpl(fs)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "filesystem error")
-	assert.Nil(t, result)
-	fs.AssertExpectations(t)
 }
