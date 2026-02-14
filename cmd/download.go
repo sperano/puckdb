@@ -34,6 +34,7 @@ func buildFetchSeasonsInput() *model.FetchSeasonsInput {
 func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher, pollTimeout time.Duration) error {
 	sp := newSpinner(out, "Starting...")
 	sp.Start()
+	startedAt := time.Now()
 
 	// Wait briefly for workflow to start and register query handlers
 	time.Sleep(config.DefaultWorkflowStartupDelay)               // TODO: make this smarter by detecting when workflow is actually ready instead of fixed sleep
@@ -55,6 +56,15 @@ func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher
 
 			switch status.Result.Status {
 			case model.TemporalWorkflowStatusCompleted:
+				// For GROUPED_ITEMS with completedHeader, format with stats
+				if status.Progress != nil &&
+					status.Progress.CompletedHeader != nil && *status.Progress.CompletedHeader != "" &&
+					status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleGroupedItems {
+					elapsed := formatDuration(time.Since(startedAt))
+					sp.mu.Lock()
+					sp.message = fmt.Sprintf("✓ %s (%d in %s)", *status.Progress.CompletedHeader, status.Progress.Total, elapsed)
+					sp.mu.Unlock()
+				}
 				sp.Stop()
 				return nil
 			case model.TemporalWorkflowStatusFailed:
@@ -96,11 +106,6 @@ func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher
 func formatStatusMessage(status *WorkflowStatus) string {
 	if status.Progress == nil {
 		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
-	}
-
-	// If completed header is set, show completion summary (workflow finished)
-	if status.Progress.CompletedHeader != nil && *status.Progress.CompletedHeader != "" {
-		return fmt.Sprintf("✓ %s", *status.Progress.CompletedHeader)
 	}
 
 	header := ""

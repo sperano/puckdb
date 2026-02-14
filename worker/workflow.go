@@ -94,7 +94,6 @@ func FetchSeasonsWorkflow(ctx workflow.Context, input *model.FetchSeasonsInput) 
 		"concurrency", concurrency)
 
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-	startedAt := workflow.Now(ctx)
 
 	var seasons []SeasonInfo
 	if err := workflow.ExecuteActivity(ctx, FetchSeasonsDataActivity, input).Get(ctx, &seasons); err != nil {
@@ -102,17 +101,10 @@ func FetchSeasonsWorkflow(ctx workflow.Context, input *model.FetchSeasonsInput) 
 	}
 
 	// Update tracker with actual season data now that we know the seasons
-	tracker.InitializeWithSeasons(seasons, "Fetching seasons...")
+	// Both headers set at init time so client sees them before workflow completes
+	tracker.InitializeWithSeasons(seasons, "Fetching seasons...", "Fetched seasons.")
 
-	if err := processWithChildWorkflows(ctx, logger, tracker, seasons, concurrency); err != nil {
-		return err
-	}
-
-	// Set completion header for display
-	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
-	tracker.SetCompletedHeader(fmt.Sprintf("Fetched %d seasons in %s.", len(seasons), elapsed))
-
-	return nil
+	return processWithChildWorkflows(ctx, logger, tracker, seasons, concurrency)
 }
 
 // childWorkflowWork tracks a child workflow for a single season

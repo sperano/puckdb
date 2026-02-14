@@ -96,12 +96,12 @@ func NewProgressTrackerSinglePhase(description string, total, completed int) *Pr
 }
 
 // NewProgressTrackerWithSeasons creates a ProgressTracker that tracks per-season progress.
-func NewProgressTrackerWithSeasons(seasons []SeasonInfo, header string) *ProgressTracker {
+func NewProgressTrackerWithSeasons(seasons []SeasonInfo, header, completedHeader string) *ProgressTracker {
 	tracker := &ProgressTracker{
 		itemIndex:  make(map[int]int),
 		futureToID: make(map[int]int),
 	}
-	tracker.InitializeWithSeasons(seasons, header)
+	tracker.InitializeWithSeasons(seasons, header, completedHeader)
 	return tracker
 }
 
@@ -204,7 +204,8 @@ func formatDuration(d time.Duration) string {
 
 // InitializeWithSeasons sets up per-season progress tracking.
 // Can be called after RegisterQueryHandler to update progress state once seasons are known.
-func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo, header string) {
+// Both header (in-progress) and completedHeader (done) are set at init time to avoid race conditions.
+func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo, header, completedHeader string) {
 	total := 0
 	itemProgress := make([]ItemProgress, len(seasons))
 
@@ -221,11 +222,12 @@ func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo, header str
 	}
 
 	p.progress = WorkflowProgress{
-		Total:        total,
-		Completed:    0,
-		Header:       header,
-		Items:        itemProgress,
-		DisplayStyle: DisplayStyleGroupedItems,
+		Total:           total,
+		Completed:       0,
+		Header:          header,
+		CompletedHeader: completedHeader,
+		Items:           itemProgress,
+		DisplayStyle:    DisplayStyleGroupedItems,
 	}
 }
 
@@ -408,12 +410,6 @@ func (p *ProgressTracker) Increment() {
 // SetMessage sets the progress message describing the current phase.
 func (p *ProgressTracker) SetMessage(message string) {
 	p.progress.Message = message
-}
-
-// SetCompletedHeader sets the header to display when the workflow completes.
-// For GROUPED_ITEMS style, this replaces the in-progress header with a completion summary.
-func (p *ProgressTracker) SetCompletedHeader(header string) {
-	p.progress.CompletedHeader = header
 }
 
 // ActivityStarter is a function that starts an activity for a given index and returns a future.
