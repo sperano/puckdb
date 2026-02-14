@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"golang.org/x/oauth2"
 )
 
@@ -167,36 +167,6 @@ func createYahooTestOAuthConfig(tokenServerURL string) *oauth2.Config {
 	}
 }
 
-func createYahooMockStringCmd(val string, err error) *redis.StringCmd {
-	cmd := redis.NewStringCmd(context.Background())
-	if err != nil {
-		cmd.SetErr(err)
-	} else {
-		cmd.SetVal(val)
-	}
-	return cmd
-}
-
-func createYahooMockBoolCmd(val bool, err error) *redis.BoolCmd {
-	cmd := redis.NewBoolCmd(context.Background())
-	if err != nil {
-		cmd.SetErr(err)
-	} else {
-		cmd.SetVal(val)
-	}
-	return cmd
-}
-
-func createYahooMockStatusCmd(val string, err error) *redis.StatusCmd {
-	cmd := redis.NewStatusCmd(context.Background())
-	if err != nil {
-		cmd.SetErr(err)
-	} else {
-		cmd.SetVal(val)
-	}
-	return cmd
-}
-
 func TestYahooLoginHandlerWithConfig(t *testing.T) {
 	t.Parallel()
 
@@ -235,35 +205,34 @@ func TestYahooAuthenticatedHandlerWithConfig_Success(t *testing.T) {
 	defer tokenServer.Close()
 
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
-	mockRedis := &cache.MockClient{}
+	client, mock := redismock.NewClientMock()
+	mock.MatchExpectationsInOrder(false)
 
 	// Key format: %s_yahoo_oauth2_token (config.DefaultUser = "eric")
-	mockRedis.On("Get", mock.Anything, "eric_yahoo_oauth2_token").
-		Return(createYahooMockStringCmd("", redis.Nil))
+	mock.ExpectGet("eric_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	mockRedis.On("SetNX", mock.Anything, "yahoo_oauth2_code_test-auth-code", mock.Anything, mock.Anything).
-		Return(createYahooMockBoolCmd(true, nil))
+	anyArgs := func(expected, actual []interface{}) error { return nil }
+	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_test-auth-code", "x", time.Hour).SetVal(true)
 
 	// Mock: save the new token
-	mockRedis.On("Set", mock.Anything, "eric_yahoo_oauth2_token", mock.AnythingOfType("string"), mock.Anything).
-		Return(createYahooMockStatusCmd("OK", nil))
+	mock.CustomMatch(anyArgs).ExpectSet("eric_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
 
 	req := httptest.NewRequest(http.MethodGet, "/yahoo/callback", nil)
 	w := httptest.NewRecorder()
 
-	handler := YahooAuthenticatedHandlerWithConfig(mockRedis, conf, "http://localhost/success", "test-auth-code")
+	handler := YahooAuthenticatedHandlerWithConfig(client, conf, "http://localhost/success", "test-auth-code")
 	handler(w, req)
 
 	assert.Equal(t, http.StatusFound, w.Code)
 	assert.Equal(t, "http://localhost/success", w.Header().Get("Location"))
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestExchangeCodeWithConfig_AlreadyHasValidToken(t *testing.T) {
 	t.Parallel()
 
-	mockRedis := &cache.MockClient{}
+	client, mock := redismock.NewClientMock()
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig("http://example.com")
 
@@ -277,33 +246,32 @@ func TestExchangeCodeWithConfig_AlreadyHasValidToken(t *testing.T) {
 	tokenJSON, _ := cache.TokenAsString(token)
 
 	// Key format: %s_yahoo_oauth2_token
-	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
-		Return(createYahooMockStringCmd(tokenJSON, nil))
+	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
 
-	err := exchangeCodeWithConfig(ctx, mockRedis, conf, "testuser", "some-code")
+	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "some-code")
 	assert.NoError(t, err) // Should succeed without exchanging
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestExchangeCodeWithConfig_AuthCodeAlreadyUsed(t *testing.T) {
 	t.Parallel()
 
-	mockRedis := &cache.MockClient{}
+	client, mock := redismock.NewClientMock()
+	mock.MatchExpectationsInOrder(false)
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig("http://example.com")
 
 	// Key format: %s_yahoo_oauth2_token
-	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
-		Return(createYahooMockStringCmd("", redis.Nil))
+	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s - SetNX returns false (already exists)
-	mockRedis.On("SetNX", mock.Anything, "yahoo_oauth2_code_already-used-code", mock.Anything, mock.Anything).
-		Return(createYahooMockBoolCmd(false, nil))
+	anyArgs := func(expected, actual []interface{}) error { return nil }
+	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_already-used-code", "x", time.Hour).SetVal(false)
 
-	err := exchangeCodeWithConfig(ctx, mockRedis, conf, "testuser", "already-used-code")
+	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "already-used-code")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot exchange authorization code")
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestExchangeCodeWithConfig_TokenExchangeFails(t *testing.T) {
@@ -316,22 +284,22 @@ func TestExchangeCodeWithConfig_TokenExchangeFails(t *testing.T) {
 	}))
 	defer tokenServer.Close()
 
-	mockRedis := &cache.MockClient{}
+	client, mock := redismock.NewClientMock()
+	mock.MatchExpectationsInOrder(false)
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
 	// Key format: %s_yahoo_oauth2_token
-	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
-		Return(createYahooMockStringCmd("", redis.Nil))
+	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	mockRedis.On("SetNX", mock.Anything, "yahoo_oauth2_code_expired-code", mock.Anything, mock.Anything).
-		Return(createYahooMockBoolCmd(true, nil))
+	anyArgs := func(expected, actual []interface{}) error { return nil }
+	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_expired-code", "x", time.Hour).SetVal(true)
 
-	err := exchangeCodeWithConfig(ctx, mockRedis, conf, "testuser", "expired-code")
+	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "expired-code")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "token exchange failed")
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestExchangeCodeWithConfig_TokenSaveFails(t *testing.T) {
@@ -349,26 +317,25 @@ func TestExchangeCodeWithConfig_TokenSaveFails(t *testing.T) {
 	}))
 	defer tokenServer.Close()
 
-	mockRedis := &cache.MockClient{}
+	client, mock := redismock.NewClientMock()
+	mock.MatchExpectationsInOrder(false)
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
 	// Key format: %s_yahoo_oauth2_token
-	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
-		Return(createYahooMockStringCmd("", redis.Nil))
+	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	mockRedis.On("SetNX", mock.Anything, "yahoo_oauth2_code_valid-code", mock.Anything, mock.Anything).
-		Return(createYahooMockBoolCmd(true, nil))
+	anyArgs := func(expected, actual []interface{}) error { return nil }
+	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_valid-code", "x", time.Hour).SetVal(true)
 
 	// Mock: save token fails
-	mockRedis.On("Set", mock.Anything, "testuser_yahoo_oauth2_token", mock.AnythingOfType("string"), mock.Anything).
-		Return(createYahooMockStatusCmd("", redis.ErrClosed))
+	mock.CustomMatch(anyArgs).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetErr(redis.ErrClosed)
 
-	err := exchangeCodeWithConfig(ctx, mockRedis, conf, "testuser", "valid-code")
+	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "valid-code")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "token save failed")
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestExchangeCodeWithConfig_Success(t *testing.T) {
@@ -386,23 +353,22 @@ func TestExchangeCodeWithConfig_Success(t *testing.T) {
 	}))
 	defer tokenServer.Close()
 
-	mockRedis := &cache.MockClient{}
+	client, mock := redismock.NewClientMock()
+	mock.MatchExpectationsInOrder(false)
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
 	// Key format: %s_yahoo_oauth2_token
-	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
-		Return(createYahooMockStringCmd("", redis.Nil))
+	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	mockRedis.On("SetNX", mock.Anything, "yahoo_oauth2_code_valid-code", mock.Anything, mock.Anything).
-		Return(createYahooMockBoolCmd(true, nil))
+	anyArgs := func(expected, actual []interface{}) error { return nil }
+	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_valid-code", "x", time.Hour).SetVal(true)
 
 	// Mock: save token succeeds
-	mockRedis.On("Set", mock.Anything, "testuser_yahoo_oauth2_token", mock.AnythingOfType("string"), mock.Anything).
-		Return(createYahooMockStatusCmd("OK", nil))
+	mock.CustomMatch(anyArgs).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
 
-	err := exchangeCodeWithConfig(ctx, mockRedis, conf, "testuser", "valid-code")
+	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "valid-code")
 	assert.NoError(t, err)
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

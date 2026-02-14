@@ -2,30 +2,24 @@ package cmd
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"regexp"
 	"testing"
 	"time"
 
-	goredis "github.com/go-redis/redis/v8"
-	"github.com/sperano/puckdb/cache"
+	"github.com/go-redis/redismock/v8"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"golang.org/x/oauth2"
 )
 
 func TestCmdInfoImpl_WithoutToken(t *testing.T) {
-	mockRedis := &cache.MockClient{}
-	ctx := context.Background()
+	client, mock := redismock.NewClientMock()
 
 	// Mock Get to return redis.Nil error (no token found)
-	getCmd := goredis.NewStringCmd(ctx)
-	getCmd.SetErr(goredis.Nil)
-	mockRedis.On("Get", mock.Anything, mock.Anything).Return(getCmd)
+	mock.ExpectGet("eric_yahoo_oauth2_token").RedisNil()
 
 	b := bytes.NewBufferString("")
-	err := cmdInfoImpl(b, mockRedis)
+	err := cmdInfoImpl(b, client)
 
 	assert.NoError(t, err)
 	output := b.String()
@@ -36,11 +30,11 @@ func TestCmdInfoImpl_WithoutToken(t *testing.T) {
 
 	assert.Contains(t, output, "Yahoo! Token:                  not found")
 	assert.NotContains(t, output, "Access Token:")
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCmdInfoImpl_WithToken(t *testing.T) {
-	mockRedis := &cache.MockClient{}
-	ctx := context.Background()
+	client, mock := redismock.NewClientMock()
 
 	// Create a mock token
 	expiry := time.Now().Add(1 * time.Hour)
@@ -53,12 +47,10 @@ func TestCmdInfoImpl_WithToken(t *testing.T) {
 	tokenJSON, _ := json.Marshal(token)
 
 	// Mock Get to return the token
-	getCmd := goredis.NewStringCmd(ctx)
-	getCmd.SetVal(string(tokenJSON))
-	mockRedis.On("Get", mock.Anything, mock.Anything).Return(getCmd)
+	mock.ExpectGet("eric_yahoo_oauth2_token").SetVal(string(tokenJSON))
 
 	b := bytes.NewBufferString("")
-	err := cmdInfoImpl(b, mockRedis)
+	err := cmdInfoImpl(b, client)
 
 	assert.NoError(t, err)
 	output := b.String()
@@ -72,11 +64,11 @@ func TestCmdInfoImpl_WithToken(t *testing.T) {
 	assert.Contains(t, output, "Token Type:    Bearer")
 	assert.Contains(t, output, "Refresh Token: test-refresh-token")
 	assert.Contains(t, output, "Expires in:")
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCmdInfoImpl_WithExpiredToken(t *testing.T) {
-	mockRedis := &cache.MockClient{}
-	ctx := context.Background()
+	client, mock := redismock.NewClientMock()
 
 	// Create a mock expired token
 	expiry := time.Now().Add(-1 * time.Hour)
@@ -89,12 +81,10 @@ func TestCmdInfoImpl_WithExpiredToken(t *testing.T) {
 	tokenJSON, _ := json.Marshal(token)
 
 	// Mock Get to return the token
-	getCmd := goredis.NewStringCmd(ctx)
-	getCmd.SetVal(string(tokenJSON))
-	mockRedis.On("Get", mock.Anything, mock.Anything).Return(getCmd)
+	mock.ExpectGet("eric_yahoo_oauth2_token").SetVal(string(tokenJSON))
 
 	b := bytes.NewBufferString("")
-	err := cmdInfoImpl(b, mockRedis)
+	err := cmdInfoImpl(b, client)
 
 	assert.NoError(t, err)
 	output := b.String()
@@ -106,6 +96,7 @@ func TestCmdInfoImpl_WithExpiredToken(t *testing.T) {
 	assert.Contains(t, output, "Yahoo! Token:                  found")
 	assert.Contains(t, output, "Expired:")
 	assert.Contains(t, output, "ago")
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestFormatDuration(t *testing.T) {

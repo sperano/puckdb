@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redismock/v8"
 	"github.com/rs/zerolog"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 )
@@ -327,39 +327,6 @@ func BenchmarkGenericClient_Download(b *testing.B) {
 	}
 }
 
-// createMockStringCmd creates a redis.StringCmd with the given value or error
-func createMockStringCmd(val string, err error) *redis.StringCmd {
-	cmd := redis.NewStringCmd(context.Background())
-	if err != nil {
-		cmd.SetErr(err)
-	} else {
-		cmd.SetVal(val)
-	}
-	return cmd
-}
-
-// createMockBoolCmd creates a redis.BoolCmd with the given value
-func createMockBoolCmd(val bool, err error) *redis.BoolCmd {
-	cmd := redis.NewBoolCmd(context.Background())
-	if err != nil {
-		cmd.SetErr(err)
-	} else {
-		cmd.SetVal(val)
-	}
-	return cmd
-}
-
-// createMockStatusCmd creates a redis.StatusCmd with the given value
-func createMockStatusCmd(val string, err error) *redis.StatusCmd {
-	cmd := redis.NewStatusCmd(context.Background())
-	if err != nil {
-		cmd.SetErr(err)
-	} else {
-		cmd.SetVal(val)
-	}
-	return cmd
-}
-
 func createTestOAuthConfig(tokenServerURL string) *oauth2.Config {
 	return &oauth2.Config{
 		ClientID:     "test-client-id",
@@ -376,39 +343,37 @@ func createTestOAuthConfig(tokenServerURL string) *oauth2.Config {
 func TestNewYahooClientWithConfig_TokenLoadError(t *testing.T) {
 	t.Parallel()
 
-	mockRedis := &cache.MockClient{}
+	client, mock := redismock.NewClientMock()
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createTestOAuthConfig("http://example.com")
 
 	// Key format: %s_yahoo_oauth2_token
-	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
-		Return(createMockStringCmd("", redis.ErrClosed))
+	mock.ExpectGet("testuser_yahoo_oauth2_token").SetErr(redis.ErrClosed)
 
-	_, err := NewYahooClientWithConfig(ctx, mockRedis, conf)
+	_, err := NewYahooClientWithConfig(ctx, client, conf)
 	require.Error(t, err)
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestNewYahooClientWithConfig_TokenMissing(t *testing.T) {
 	t.Parallel()
 
-	mockRedis := &cache.MockClient{}
+	client, mock := redismock.NewClientMock()
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createTestOAuthConfig("http://example.com")
 
 	// Key format: %s_yahoo_oauth2_token
-	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
-		Return(createMockStringCmd("", redis.Nil))
+	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
-	_, err := NewYahooClientWithConfig(ctx, mockRedis, conf)
+	_, err := NewYahooClientWithConfig(ctx, client, conf)
 	require.Error(t, err)
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestNewYahooClientWithConfig_Success(t *testing.T) {
 	t.Parallel()
 
-	mockRedis := &cache.MockClient{}
+	redisClient, mock := redismock.NewClientMock()
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 
 	// Create a mock OAuth2 token server
@@ -430,19 +395,19 @@ func TestNewYahooClientWithConfig_Success(t *testing.T) {
 	tokenJSON, _ := cache.TokenAsString(token)
 
 	// Key format: %s_yahoo_oauth2_token
-	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
-		Return(createMockStringCmd(tokenJSON, nil))
+	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
 
-	client, err := NewYahooClientWithConfig(ctx, mockRedis, conf)
+	client, err := NewYahooClientWithConfig(ctx, redisClient, conf)
 	require.NoError(t, err)
 	assert.NotNil(t, client)
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestNewYahooClientWithConfig_TokenRefreshAndSave(t *testing.T) {
 	t.Parallel()
 
-	mockRedis := &cache.MockClient{}
+	redisClient, mock := redismock.NewClientMock()
+	mock.MatchExpectationsInOrder(false)
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 
 	// Create a mock OAuth2 token server that returns a new token
@@ -469,23 +434,23 @@ func TestNewYahooClientWithConfig_TokenRefreshAndSave(t *testing.T) {
 	tokenJSON, _ := cache.TokenAsString(token)
 
 	// Key format: %s_yahoo_oauth2_token
-	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
-		Return(createMockStringCmd(tokenJSON, nil))
+	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
 
 	// Mock Redis to save the new token
-	mockRedis.On("Set", mock.Anything, "testuser_yahoo_oauth2_token", mock.AnythingOfType("string"), mock.Anything).
-		Return(createMockStatusCmd("OK", nil))
+	anyArgs := func(expected, actual []interface{}) error { return nil }
+	mock.CustomMatch(anyArgs).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
 
-	client, err := NewYahooClientWithConfig(ctx, mockRedis, conf)
+	client, err := NewYahooClientWithConfig(ctx, redisClient, conf)
 	require.NoError(t, err)
 	assert.NotNil(t, client)
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestNewYahooClientWithConfig_TokenSaveError(t *testing.T) {
 	t.Parallel()
 
-	mockRedis := &cache.MockClient{}
+	redisClient, mock := redismock.NewClientMock()
+	mock.MatchExpectationsInOrder(false)
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 
 	// Create a mock OAuth2 token server
@@ -511,14 +476,13 @@ func TestNewYahooClientWithConfig_TokenSaveError(t *testing.T) {
 	}
 	tokenJSON, _ := cache.TokenAsString(token)
 
-	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
-		Return(createMockStringCmd(tokenJSON, nil))
+	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
 
 	// Mock Redis save to fail
-	mockRedis.On("Set", mock.Anything, "testuser_yahoo_oauth2_token", mock.AnythingOfType("string"), mock.Anything).
-		Return(createMockStatusCmd("", redis.ErrClosed))
+	anyArgs := func(expected, actual []interface{}) error { return nil }
+	mock.CustomMatch(anyArgs).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetErr(redis.ErrClosed)
 
-	_, err := NewYahooClientWithConfig(ctx, mockRedis, conf)
+	_, err := NewYahooClientWithConfig(ctx, redisClient, conf)
 	require.Error(t, err)
-	mockRedis.AssertExpectations(t)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

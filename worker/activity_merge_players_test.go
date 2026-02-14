@@ -6,17 +6,16 @@ import (
 	"encoding/gob"
 	"testing"
 
-	goredis "github.com/go-redis/redis/v8"
-	"github.com/sperano/puckdb/cache"
+	"github.com/go-redis/redismock/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMergePlayerBatchesFromRedisImpl_EmptyKeys(t *testing.T) {
 	ctx := context.Background()
-	mockRedis := &cache.MockClient{}
+	client, _ := redismock.NewClientMock()
 
-	result, err := mergePlayerBatchesFromRedisImpl(ctx, mockRedis, []string{}, "yahoo")
+	result, err := mergePlayerBatchesFromRedisImpl(ctx, client, []string{}, "yahoo")
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 0)
@@ -24,7 +23,7 @@ func TestMergePlayerBatchesFromRedisImpl_EmptyKeys(t *testing.T) {
 
 func TestMergePlayerBatchesFromRedisImpl_YahooSource(t *testing.T) {
 	ctx := context.Background()
-	mockRedis := &cache.MockClient{}
+	client, mock := redismock.NewClientMock()
 
 	// Create test player data
 	players := map[int64]PartialPlayer{
@@ -38,26 +37,21 @@ func TestMergePlayerBatchesFromRedisImpl_YahooSource(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, gob.NewEncoder(&buf).Encode(players))
 
-	// Mock Redis Get
-	redisCmd := goredis.NewStringCmd(ctx)
-	redisCmd.SetVal(buf.String())
-	mockRedis.On("Get", ctx, "test-key").Return(redisCmd)
+	// Mock Redis Get and Del
+	mock.ExpectGet("test-key").SetVal(buf.String())
+	mock.ExpectDel("test-key").SetVal(1)
 
-	// Mock Redis Del
-	delCmd := goredis.NewIntCmd(ctx)
-	delCmd.SetVal(1)
-	mockRedis.On("Del", ctx, "test-key").Return(delCmd)
-
-	result, err := mergePlayerBatchesFromRedisImpl(ctx, mockRedis, []string{"test-key"}, "yahoo")
+	result, err := mergePlayerBatchesFromRedisImpl(ctx, client, []string{"test-key"}, "yahoo")
 
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
 	assert.Equal(t, "Connor", result[8476453].FirstName)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestMergePlayerBatchesFromRedisImpl_BoxscoreSource(t *testing.T) {
 	ctx := context.Background()
-	mockRedis := &cache.MockClient{}
+	client, mock := redismock.NewClientMock()
 
 	// Create test player data
 	players := map[int64]PartialPlayer{
@@ -70,19 +64,14 @@ func TestMergePlayerBatchesFromRedisImpl_BoxscoreSource(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, gob.NewEncoder(&buf).Encode(players))
 
-	// Mock Redis Get
-	redisCmd := goredis.NewStringCmd(ctx)
-	redisCmd.SetVal(buf.String())
-	mockRedis.On("Get", ctx, "test-key").Return(redisCmd)
+	// Mock Redis Get and Del
+	mock.ExpectGet("test-key").SetVal(buf.String())
+	mock.ExpectDel("test-key").SetVal(1)
 
-	// Mock Redis Del
-	delCmd := goredis.NewIntCmd(ctx)
-	delCmd.SetVal(1)
-	mockRedis.On("Del", ctx, "test-key").Return(delCmd)
-
-	result, err := mergePlayerBatchesFromRedisImpl(ctx, mockRedis, []string{"test-key"}, "boxscore")
+	result, err := mergePlayerBatchesFromRedisImpl(ctx, client, []string{"test-key"}, "boxscore")
 
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
 	assert.True(t, result[8476453].HasBoxscoreData)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

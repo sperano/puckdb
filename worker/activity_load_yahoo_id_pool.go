@@ -14,6 +14,17 @@ func ListYahooPlayerFilesActivity(ctx context.Context) ([]store.YahooPlayerID, e
 	logger := activity.GetLogger(ctx)
 	fs := store.NewStore()
 
+	ids, err := listYahooPlayerFilesImpl(fs)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Listed Yahoo player files", "count", len(ids))
+	return ids, nil
+}
+
+// listYahooPlayerFilesImpl contains the testable logic for ListYahooPlayerFilesActivity.
+func listYahooPlayerFilesImpl(fs store.Store) ([]store.YahooPlayerID, error) {
 	files, err := fs.ListFiles(store.YahooPlayerFile{}, store.ParseYahooPlayerFilename)
 	if err != nil {
 		return nil, err
@@ -24,8 +35,14 @@ func ListYahooPlayerFilesActivity(ctx context.Context) ([]store.YahooPlayerID, e
 		ids[i] = f.(store.YahooPlayerFile).PlayerID
 	}
 
-	logger.Info("Listed Yahoo player files", "count", len(ids))
 	return ids, nil
+}
+
+// ParseYahooPlayerBatchResult contains the results of parsing a batch of Yahoo player files.
+type ParseYahooPlayerBatchResult struct {
+	Players    []store.YahooPlayer
+	ReadErrors int
+	ParseErrors int
 }
 
 // ParseYahooPlayerBatchActivity parses a batch of Yahoo player HTML files.
@@ -34,26 +51,41 @@ func ParseYahooPlayerBatchActivity(ctx context.Context, playerIDs []store.YahooP
 	logger := activity.GetLogger(ctx)
 	fs := store.NewStore()
 
-	players := make([]store.YahooPlayer, 0, len(playerIDs))
+	result := parseYahooPlayerBatchImpl(fs, playerIDs)
+
+	if result.ReadErrors > 0 || result.ParseErrors > 0 {
+		logger.Warn("Some players failed to parse",
+			"readErrors", result.ReadErrors,
+			"parseErrors", result.ParseErrors)
+	}
+	logger.Debug("Parsed Yahoo player batch", "requested", len(playerIDs), "parsed", len(result.Players))
+	return result.Players, nil
+}
+
+// parseYahooPlayerBatchImpl contains the testable logic for ParseYahooPlayerBatchActivity.
+func parseYahooPlayerBatchImpl(fs store.Store, playerIDs []store.YahooPlayerID) ParseYahooPlayerBatchResult {
+	result := ParseYahooPlayerBatchResult{
+		Players: make([]store.YahooPlayer, 0, len(playerIDs)),
+	}
+
 	for _, id := range playerIDs {
 		file := store.YahooPlayerFile{PlayerID: id}
 		content, err := fs.Read(file)
 		if err != nil {
-			logger.Warn("Failed to read Yahoo player file", "playerID", id, "error", err)
+			result.ReadErrors++
 			continue
 		}
 
 		player, err := store.ParseYahooPlayerHTML(id, content)
 		if err != nil {
-			logger.Warn("Failed to parse Yahoo player HTML", "playerID", id, "error", err)
+			result.ParseErrors++
 			continue
 		}
 
-		players = append(players, *player)
+		result.Players = append(result.Players, *player)
 	}
 
-	logger.Debug("Parsed Yahoo player batch", "requested", len(playerIDs), "parsed", len(players))
-	return players, nil
+	return result
 }
 
 // SaveYahooPlayersToRedisActivity saves parsed Yahoo players to Redis.
