@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/metrics"
 )
 
@@ -22,14 +22,14 @@ type DownloadPlayerLandingBatchResult struct {
 // DownloadPlayerLandingBatchActivity downloads player landing pages for a batch of players.
 // Skips already-cached players (idempotent). Caches 404s to avoid repeat failures.
 func DownloadPlayerLandingBatchActivity(ctx context.Context, players []BoxscorePlayer) (DownloadPlayerLandingBatchResult, error) {
-	fs := cache.NewSimpleCache()
+	fs := store.NewStore()
 	client := newNHLClient()
 	return downloadPlayerLandingBatchImpl(ctx, fs, client, players)
 }
 
 func downloadPlayerLandingBatchImpl(
 	ctx context.Context,
-	fs cache.FileSystem,
+	fs store.Store,
 	client NHLClient,
 	players []BoxscorePlayer,
 ) (DownloadPlayerLandingBatchResult, error) {
@@ -84,13 +84,13 @@ const (
 // Returns a status indicating whether data was downloaded, already cached, or missing (404).
 func ensurePlayerLandingCached(
 	ctx context.Context,
-	fs cache.FileSystem,
+	fs store.Store,
 	client NHLClient,
 	playerID nhl.PlayerID,
 	boxscorePlayer *BoxscorePlayer,
 ) (playerLandingStatus, error) {
-	landingFile := cache.PlayerLandingFile{PlayerID: playerID}
-	missingFile := cache.MissingPlayerLandingFile{PlayerID: playerID}
+	landingFile := store.PlayerLandingFile{PlayerID: playerID}
+	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
 
 	// Check if already marked as missing (most common case for 404s)
 	if fs.Exists(missingFile) {
@@ -135,8 +135,8 @@ func ensurePlayerLandingCached(
 }
 
 // saveMissingPlayerLanding saves boxscore player data to a missing player landing file.
-func saveMissingPlayerLanding(fs cache.FileSystem, file cache.MissingPlayerLandingFile, player *BoxscorePlayer) error {
-	data := cache.MissingPlayerLandingData{
+func saveMissingPlayerLanding(fs store.Store, file store.MissingPlayerLandingFile, player *BoxscorePlayer) error {
+	data := store.MissingPlayerLandingData{
 		FirstName: player.FirstName,
 		LastName:  player.LastName,
 		Position:  player.Position,

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/config"
 	"go.temporal.io/sdk/workflow"
 )
@@ -169,8 +169,8 @@ func readSeasonsFromCache(ctx workflow.Context) ([]nhl.SeasonInfo, error) {
 	var seasons []nhl.SeasonInfo
 
 	err := workflow.SideEffect(ctx, func(ctx workflow.Context) interface{} {
-		fs := cache.NewSimpleCache()
-		file := cache.SeasonsManifestFile{}
+		fs := store.NewStore()
+		file := store.SeasonsManifestFile{}
 		data, err := fs.Read(file)
 		if err != nil {
 			return nil

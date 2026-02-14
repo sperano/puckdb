@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/sperano/puckdb/auth"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/redis"
 	"golang.org/x/oauth2"
 	"net/http"
 
@@ -57,7 +57,7 @@ func YahooLandedHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(html))
 }
 
-func YahooAuthenticatedHandler(redisClient redis.Client) http.HandlerFunc {
+func YahooAuthenticatedHandler(redisClient cache.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setNoCacheHeaders(w)
 
@@ -84,7 +84,7 @@ func YahooAuthenticatedHandler(redisClient redis.Client) http.HandlerFunc {
 	}
 }
 
-func YahooAuthenticatedHandlerWithConfig(redisClient redis.Client, conf *oauth2.Config, successURL string, code string) http.HandlerFunc {
+func YahooAuthenticatedHandlerWithConfig(redisClient cache.Client, conf *oauth2.Config, successURL string, code string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setNoCacheHeaders(w)
 
@@ -101,7 +101,7 @@ func YahooAuthenticatedHandlerWithConfig(redisClient redis.Client, conf *oauth2.
 	}
 }
 
-func exchangeCode(ctx context.Context, redisClient redis.Client, user string, code string) error {
+func exchangeCode(ctx context.Context, redisClient cache.Client, user string, code string) error {
 	conf, err := config.OauthConfig()
 	if err != nil {
 		return fmt.Errorf("failed to get OAuth config: %w", err)
@@ -109,10 +109,10 @@ func exchangeCode(ctx context.Context, redisClient redis.Client, user string, co
 	return exchangeCodeWithConfig(ctx, redisClient, conf, user, code)
 }
 
-func exchangeCodeWithConfig(ctx context.Context, redisClient redis.Client, conf *oauth2.Config, user string, code string) error {
+func exchangeCodeWithConfig(ctx context.Context, redisClient cache.Client, conf *oauth2.Config, user string, code string) error {
 	// Step 1: Check if we already have a valid token
 	// This prevents unnecessary code exchanges and protects against callback replays
-	hasToken, err := redis.HasValidToken(ctx, redisClient, user)
+	hasToken, err := cache.HasValidToken(ctx, redisClient, user)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to check for existing token")
 		// Continue anyway - this is a safeguard, not a blocker
@@ -125,7 +125,7 @@ func exchangeCodeWithConfig(ctx context.Context, redisClient redis.Client, conf 
 	// Step 2: Mark authorization code as used BEFORE attempting exchange
 	// This ensures we never retry with the same code even if exchange succeeds but save fails
 	// Uses Redis SetNX for atomic check-and-set (prevents race conditions)
-	if err := redis.MarkAuthCodeAsUsed(ctx, redisClient, code); err != nil {
+	if err := cache.MarkAuthCodeAsUsed(ctx, redisClient, code); err != nil {
 		log.Error().Err(err).Msg("Authorization code already used or failed to mark as used")
 		return fmt.Errorf("cannot exchange authorization code: %w", err)
 	}
@@ -141,7 +141,7 @@ func exchangeCodeWithConfig(ctx context.Context, redisClient redis.Client, conf 
 
 	// Step 4: Persist token to Redis
 	// If this fails, we have a token but it's not saved - this is critical
-	if err := redis.SaveToken(ctx, redisClient, token); err != nil {
+	if err := cache.SaveToken(ctx, redisClient, token); err != nil {
 		log.Error().Err(err).Msg("CRITICAL: Token exchange succeeded but Redis save failed")
 		// Even though we have the token, we return an error because it's not persisted
 		// The code is consumed, user will need to re-authenticate

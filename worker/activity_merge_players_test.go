@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	goredis "github.com/go-redis/redis/v8"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMergePlayerBatchesFromRedisImpl_EmptyKeys(t *testing.T) {
 	ctx := context.Background()
-	mockRedis := &redis.MockClient{}
+	mockRedis := &cache.MockClient{}
 
 	result, err := mergePlayerBatchesFromRedisImpl(ctx, mockRedis, []string{}, "yahoo")
 
@@ -24,7 +24,7 @@ func TestMergePlayerBatchesFromRedisImpl_EmptyKeys(t *testing.T) {
 
 func TestMergePlayerBatchesFromRedisImpl_YahooSource(t *testing.T) {
 	ctx := context.Background()
-	mockRedis := &redis.MockClient{}
+	mockRedis := &cache.MockClient{}
 
 	// Create test player data
 	players := map[int64]PartialPlayer{
@@ -57,7 +57,7 @@ func TestMergePlayerBatchesFromRedisImpl_YahooSource(t *testing.T) {
 
 func TestMergePlayerBatchesFromRedisImpl_BoxscoreSource(t *testing.T) {
 	ctx := context.Background()
-	mockRedis := &redis.MockClient{}
+	mockRedis := &cache.MockClient{}
 
 	// Create test player data
 	players := map[int64]PartialPlayer{

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
 )
@@ -19,14 +19,14 @@ func FetchTeam(ctx context.Context, season int, leagueID int, teamID int) error 
 	if err != nil {
 		return err
 	}
-	fs := cache.NewSimpleCache()
+	fs := store.NewStore()
 	return fetchTeamImpl(ctx, fs, season, gameKey, leagueID, teamID)
 }
 
 // fetchTeamImpl is the testable implementation.
-func fetchTeamImpl(ctx context.Context, fs cache.FileSystem, season int, gameKey int, leagueID int, teamID int) error {
+func fetchTeamImpl(ctx context.Context, fs store.Store, season int, gameKey int, leagueID int, teamID int) error {
 	log.Trace().Int("season", season).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo Team")
-	file := cache.TeamFile{Season: season, LeagueID: leagueID, TeamID: teamID}
+	file := store.TeamFile{Season: season, LeagueID: leagueID, TeamID: teamID}
 	url := http.YahooTeamURL(gameKey, leagueID, teamID)
 	return doDownloadImpl(ctx, fs, file, url)
 }
@@ -40,14 +40,14 @@ func FetchRosterForTeamOnDay(ctx context.Context, season int, leagueID int, team
 	if err != nil {
 		return err
 	}
-	fs := cache.NewSimpleCache()
+	fs := store.NewStore()
 	return fetchRosterForTeamOnDayImpl(ctx, fs, gameKey, leagueID, teamID, day)
 }
 
 // fetchRosterForTeamOnDayImpl is the testable implementation.
-func fetchRosterForTeamOnDayImpl(ctx context.Context, fs cache.FileSystem, gameKey int, leagueID int, teamID int, day time.Time) error {
+func fetchRosterForTeamOnDayImpl(ctx context.Context, fs store.Store, gameKey int, leagueID int, teamID int, day time.Time) error {
 	log.Trace().Time("day", day).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo roster")
-	file := cache.RosterFile{Date: day, LeagueID: leagueID, TeamID: teamID}
+	file := store.RosterFile{Date: day, LeagueID: leagueID, TeamID: teamID}
 	url := http.YahooRosterURL(gameKey, leagueID, teamID, day)
 	return doDownloadImpl(ctx, fs, file, url)
 }
@@ -61,14 +61,14 @@ func FetchTeamSummaryForTeamOnDay(ctx context.Context, season int, leagueID int,
 	if err != nil {
 		return err
 	}
-	fs := cache.NewSimpleCache()
+	fs := store.NewStore()
 	return fetchTeamSummaryForTeamOnDayImpl(ctx, fs, gameKey, leagueID, teamID, day)
 }
 
 // fetchTeamSummaryForTeamOnDayImpl is the testable implementation.
-func fetchTeamSummaryForTeamOnDayImpl(ctx context.Context, fs cache.FileSystem, gameKey int, leagueID int, teamID int, day time.Time) error {
+func fetchTeamSummaryForTeamOnDayImpl(ctx context.Context, fs store.Store, gameKey int, leagueID int, teamID int, day time.Time) error {
 	log.Trace().Time("day", day).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo team summary")
-	file := cache.TeamSummaryFile{Date: day, LeagueID: leagueID, TeamID: teamID}
+	file := store.TeamSummaryFile{Date: day, LeagueID: leagueID, TeamID: teamID}
 	url := http.YahooTeamSummaryURL(gameKey, leagueID, teamID, day)
 	return doDownloadImpl(ctx, fs, file, url)
 }

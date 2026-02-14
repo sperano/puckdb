@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/spf13/viper"
@@ -246,7 +246,7 @@ func runProcessPhase2LoadYahoo(ctx workflow.Context, input *processPlayersIntern
 	logger.Info("Listed Yahoo player files", "count", len(yahooPlayerIDs))
 
 	// Step 2b: Parse Yahoo players in batches
-	var allYahooPlayers []cache.YahooPlayer
+	var allYahooPlayers []store.YahooPlayer
 	if err := runYahooParseBatches(ctx, yahooPlayerIDs, input.BatchSize, input.Concurrency, &allYahooPlayers); err != nil {
 		logger.Error("Failed to parse Yahoo players", "error", err)
 		return nil, err
@@ -657,7 +657,7 @@ func runYahooParseBatches(
 	ctx workflow.Context,
 	playerIDs []int,
 	batchSize, concurrency int,
-	results *[]cache.YahooPlayer,
+	results *[]store.YahooPlayer,
 ) error {
 	logger := workflow.GetLogger(ctx)
 	numBatches := (len(playerIDs) + batchSize - 1) / batchSize
@@ -696,7 +696,7 @@ func runYahooParseBatches(
 			capturedIdx := idx
 			capturedWork := work
 			selector.AddFuture(capturedWork.future, func(f workflow.Future) {
-				var batchResult []cache.YahooPlayer
+				var batchResult []store.YahooPlayer
 				if err := f.Get(ctx, &batchResult); err != nil {
 					if firstErr == nil {
 						firstErr = err

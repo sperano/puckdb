@@ -7,13 +7,13 @@ import (
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/store"
 )
 
 // ExtractBoxscorePlayersForDayActivity extracts players from all boxscore files for one day.
 //func ExtractBoxscorePlayersForDayActivity(ctx context.Context, day time.Time) (map[int64]PartialPlayer, error) {
 //	players := make(map[int64]PartialPlayer)
-//	fs := cache.NewSimpleCache()
+//	fs := cache.NewFileSystem()
 //
 //	// Get list of boxscore files for this day via daily schedule
 //	boxscoreFiles, err := getBoxscoreFilesForDay(fs, day)
@@ -110,9 +110,9 @@ func parseLocalizedName(name nhl.LocalizedString) (first, last string) {
 }
 
 // getBoxscoreFilesForDay returns boxscore files for a specific day.
-func getBoxscoreFilesForDay(ctx context.Context, fs cache.FileSystem, redisClient redis.Client, day time.Time) ([]cache.File, error) {
+func getBoxscoreFilesForDay(ctx context.Context, fs store.Store, redisClient cache.Client, day time.Time) ([]store.File, error) {
 	// First get the daily schedule to know which game IDs exist
-	scheduleFile := cache.DailyScheduleFile{Date: day}
+	scheduleFile := store.DailyScheduleFile{Date: day}
 	if !fs.Exists(scheduleFile) {
 		return nil, nil
 	}
@@ -122,9 +122,9 @@ func getBoxscoreFilesForDay(ctx context.Context, fs cache.FileSystem, redisClien
 		return nil, err
 	}
 
-	files := make([]cache.File, 0, len(gameIDs))
+	files := make([]store.File, 0, len(gameIDs))
 	for _, id := range gameIDs {
-		file := cache.BoxscoreFile{Date: day, GameID: id}
+		file := store.BoxscoreFile{Date: day, GameID: id}
 		files = append(files, file)
 	}
 

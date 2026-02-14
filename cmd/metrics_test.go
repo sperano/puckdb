@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 )
 
 func TestClassifyFileType(t *testing.T) {
@@ -21,84 +21,84 @@ func TestClassifyFileType(t *testing.T) {
 			dataPath: "/data",
 			filePath: "/data/players/12345.json",
 			filename: "12345.json",
-			want:     cache.FileTypePlayerLanding,
+			want:     store.FileTypePlayerLanding,
 		},
 		{
 			name:     "yahoo player file",
 			dataPath: "/data",
 			filePath: "/data/yahoo-players/player-123.html",
 			filename: "player-123.html",
-			want:     cache.FileTypeYahooPlayer,
+			want:     store.FileTypeYahooPlayer,
 		},
 		{
 			name:     "yahoo player missing file",
 			dataPath: "/data",
 			filePath: "/data/yahoo-players-missing/player-456.html",
 			filename: "player-456.html",
-			want:     cache.FileTypeYahooPlayer,
+			want:     store.FileTypeYahooPlayer,
 		},
 		{
 			name:     "game key file",
 			dataPath: "/data",
 			filePath: "/data/game-keys/2024010001.json",
 			filename: "2024010001.json",
-			want:     cache.FileTypeGameKey,
+			want:     store.FileTypeGameKey,
 		},
 		{
 			name:     "boxscore file",
 			dataPath: "/data",
 			filePath: "/data/games/2024/boxscore-2024010001.json",
 			filename: "boxscore-2024010001.json",
-			want:     cache.FileTypeBoxscore,
+			want:     store.FileTypeBoxscore,
 		},
 		{
 			name:     "daily schedule file",
 			dataPath: "/data",
 			filePath: "/data/games/2024/daily-schedule-2024-10-15.json",
 			filename: "daily-schedule-2024-10-15.json",
-			want:     cache.FileTypeDailySchedule,
+			want:     store.FileTypeDailySchedule,
 		},
 		{
 			name:     "league file",
 			dataPath: "/data",
 			filePath: "/data/yahoo/2024/league-12345.json",
 			filename: "league-12345.json",
-			want:     cache.FileTypeLeague,
+			want:     store.FileTypeLeague,
 		},
 		{
 			name:     "team file",
 			dataPath: "/data",
 			filePath: "/data/yahoo/2024/team-12345-1.json",
 			filename: "team-12345-1.json",
-			want:     cache.FileTypeTeam,
+			want:     store.FileTypeTeam,
 		},
 		{
 			name:     "roster file",
 			dataPath: "/data",
 			filePath: "/data/yahoo/2024/rosters-2024-10-15.json",
 			filename: "rosters-2024-10-15.json",
-			want:     cache.FileTypeRoster,
+			want:     store.FileTypeRoster,
 		},
 		{
 			name:     "team summary file",
 			dataPath: "/data",
 			filePath: "/data/yahoo/2024/team-summary-12345-1-2024-10-15.json",
 			filename: "team-summary-12345-1-2024-10-15.json",
-			want:     cache.FileTypeTeamSummary,
+			want:     store.FileTypeTeamSummary,
 		},
 		{
 			name:     "unknown file",
 			dataPath: "/data",
 			filePath: "/data/other/random.txt",
 			filename: "random.txt",
-			want:     cache.FileTypeUnknown,
+			want:     store.FileTypeUnknown,
 		},
 		{
 			name:     "file at root with unknown type",
 			dataPath: "/data",
 			filePath: "/data/config.json",
 			filename: "config.json",
-			want:     cache.FileTypeUnknown,
+			want:     store.FileTypeUnknown,
 		},
 	}
 

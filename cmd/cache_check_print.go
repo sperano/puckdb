@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/dustin/go-humanize/english"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 )
 
 func printCacheMetricsVerbose(cacheData []cacheMetrics, incompleteOnly bool) {
@@ -160,20 +160,20 @@ func printCacheMetricsCompact(cacheData []cacheMetrics, incompleteOnly bool) {
 		}
 
 		switch s.fileType {
-		case cache.FileTypeDailySchedule:
+		case store.FileTypeDailySchedule:
 			sf.dailySched = [2]int{s.expected, s.found}
-		case cache.FileTypeBoxscore:
+		case store.FileTypeBoxscore:
 			sf.boxscore = [2]int{s.expected, s.found}
-		case cache.FileTypeLeague:
+		case store.FileTypeLeague:
 			sf.league = [2]int{s.expected, s.found}
 			sf.hasYahoo = true
-		case cache.FileTypeTeam:
+		case store.FileTypeTeam:
 			sf.team = [2]int{s.expected, s.found}
 			sf.hasYahoo = true
-		case cache.FileTypeRoster:
+		case store.FileTypeRoster:
 			sf.roster = [2]int{s.expected, s.found}
 			sf.hasYahoo = true
-		case cache.FileTypeTeamSummary:
+		case store.FileTypeTeamSummary:
 			sf.teamSummary = [2]int{s.expected, s.found}
 			sf.hasYahoo = true
 		}

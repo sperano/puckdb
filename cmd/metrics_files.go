@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 )
 
 // calculateDirSize calculates the total size of a directory, excluding .git
@@ -75,42 +75,42 @@ func classifyFileType(dataPath, filePath, filename string) string {
 	parts := strings.Split(relPath, string(filepath.Separator))
 
 	if len(parts) == 0 {
-		return cache.FileTypeUnknown
+		return store.FileTypeUnknown
 	}
 
 	// Check top-level directories first
 	switch parts[0] {
 	case "players":
-		return cache.FileTypePlayerLanding
+		return store.FileTypePlayerLanding
 	case "yahoo-players":
-		return cache.FileTypeYahooPlayer
+		return store.FileTypeYahooPlayer
 	case "yahoo-players-missing":
-		return cache.FileTypeYahooPlayer
+		return store.FileTypeYahooPlayer
 	case "game-keys":
-		return cache.FileTypeGameKey
+		return store.FileTypeGameKey
 	}
 
 	// Check filename patterns for files in nested directories
 	// Note: Order matters! More specific prefixes must come first.
 	if strings.HasPrefix(filename, "boxscore-") {
-		return cache.FileTypeBoxscore
+		return store.FileTypeBoxscore
 	}
 	if strings.HasPrefix(filename, "daily-schedule-") {
-		return cache.FileTypeDailySchedule
+		return store.FileTypeDailySchedule
 	}
 	if strings.HasPrefix(filename, "league-") {
-		return cache.FileTypeLeague
+		return store.FileTypeLeague
 	}
 	// Check team summary files (team-XX-summary-*) BEFORE team- (more specific match first)
 	if strings.HasPrefix(filename, "team-") && strings.Contains(filename, "-summary-") {
-		return cache.FileTypeTeamSummary
+		return store.FileTypeTeamSummary
 	}
 	if strings.HasPrefix(filename, "team-") {
-		return cache.FileTypeTeam
+		return store.FileTypeTeam
 	}
 	if strings.HasPrefix(filename, "rosters-") {
-		return cache.FileTypeRoster
+		return store.FileTypeRoster
 	}
 
-	return cache.FileTypeUnknown
+	return store.FileTypeUnknown
 }

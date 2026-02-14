@@ -6,7 +6,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/metrics"
 )
 
@@ -19,17 +19,17 @@ type DownloadFranchisesResult struct {
 // DownloadFranchisesActivity downloads all NHL franchises from the API.
 // Uses SimpleFS cache; skips download if already cached.
 func DownloadFranchisesActivity(ctx context.Context) (DownloadFranchisesResult, error) {
-	fs := cache.NewSimpleCache()
+	fs := store.NewStore()
 	client := newNHLClient()
 	return downloadFranchisesImpl(ctx, fs, client)
 }
 
 func downloadFranchisesImpl(
 	ctx context.Context,
-	fs cache.FileSystem,
+	fs store.Store,
 	client NHLClient,
 ) (DownloadFranchisesResult, error) {
-	file := cache.FranchisesFile{}
+	file := store.FranchisesFile{}
 
 	// Check cache first
 	if fs.Exists(file) {
@@ -38,7 +38,7 @@ func downloadFranchisesImpl(
 			var franchises []nhl.Franchise
 			if err := json.Unmarshal(data, &franchises); err == nil {
 				log.Debug().Int("count", len(franchises)).Msg("Franchises loaded from cache")
-				metrics.IncDownload(cache.FileTypeFranchises, "hit")
+				metrics.IncDownload(store.FileTypeFranchises, "hit")
 				return DownloadFranchisesResult{Count: len(franchises), FromCache: true}, nil
 			}
 			log.Debug().Err(err).Msg("Failed to unmarshal cached franchises")
@@ -48,7 +48,7 @@ func downloadFranchisesImpl(
 	// Fetch from API
 	franchises, err := client.Franchises(ctx)
 	if err != nil {
-		metrics.IncDownload(cache.FileTypeFranchises, "error")
+		metrics.IncDownload(store.FileTypeFranchises, "error")
 		return DownloadFranchisesResult{}, err
 	}
 
@@ -63,7 +63,7 @@ func downloadFranchisesImpl(
 	}
 
 	log.Info().Int("count", len(franchises)).Msg("Franchises downloaded from API")
-	metrics.IncDownload(cache.FileTypeFranchises, "miss")
+	metrics.IncDownload(store.FileTypeFranchises, "miss")
 
 	return DownloadFranchisesResult{Count: len(franchises), FromCache: false}, nil
 }

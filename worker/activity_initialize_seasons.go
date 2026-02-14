@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -25,17 +25,17 @@ type DownloadSeasonsManifestResult struct {
 // DownloadSeasonsManifestActivity downloads the NHL seasons manifest.
 // Uses SimpleFS cache; skips download if already cached.
 func DownloadSeasonsManifestActivity(ctx context.Context) (DownloadSeasonsManifestResult, error) {
-	fs := cache.NewSimpleCache()
+	fs := store.NewStore()
 	client := newNHLClient()
 	return downloadSeasonsManifestImpl(ctx, fs, client)
 }
 
 func downloadSeasonsManifestImpl(
 	ctx context.Context,
-	fs cache.FileSystem,
+	fs store.Store,
 	client NHLClient,
 ) (DownloadSeasonsManifestResult, error) {
-	file := cache.SeasonsManifestFile{}
+	file := store.SeasonsManifestFile{}
 
 	// Check cache first
 	if fs.Exists(file) {
@@ -44,7 +44,7 @@ func downloadSeasonsManifestImpl(
 			var seasons []nhl.SeasonInfo
 			if err := json.Unmarshal(data, &seasons); err == nil {
 				log.Debug().Int("count", len(seasons)).Msg("Seasons manifest loaded from cache")
-				metrics.IncDownload(cache.FileTypeSeasonsManifest, "hit")
+				metrics.IncDownload(store.FileTypeSeasonsManifest, "hit")
 				return DownloadSeasonsManifestResult{Count: len(seasons), FromCache: true}, nil
 			}
 			log.Debug().Err(err).Msg("Failed to unmarshal cached seasons manifest")
@@ -54,7 +54,7 @@ func downloadSeasonsManifestImpl(
 	// Fetch from API
 	seasons, err := client.SeasonStandingManifest(ctx)
 	if err != nil {
-		metrics.IncDownload(cache.FileTypeSeasonsManifest, "error")
+		metrics.IncDownload(store.FileTypeSeasonsManifest, "error")
 		return DownloadSeasonsManifestResult{}, err
 	}
 
@@ -69,7 +69,7 @@ func downloadSeasonsManifestImpl(
 	}
 
 	log.Info().Int("count", len(seasons)).Msg("Seasons manifest downloaded from API")
-	metrics.IncDownload(cache.FileTypeSeasonsManifest, "miss")
+	metrics.IncDownload(store.FileTypeSeasonsManifest, "miss")
 
 	return DownloadSeasonsManifestResult{Count: len(seasons), FromCache: false}, nil
 }
@@ -83,18 +83,18 @@ type DownloadSeasonStandingsResult struct {
 
 // DownloadSeasonStandingsActivity downloads standings for a specific season.
 func DownloadSeasonStandingsActivity(ctx context.Context, seasonID int) (DownloadSeasonStandingsResult, error) {
-	fs := cache.NewSimpleCache()
+	fs := store.NewStore()
 	client := newNHLClient()
 	return downloadSeasonStandingsImpl(ctx, fs, client, seasonID)
 }
 
 func downloadSeasonStandingsImpl(
 	ctx context.Context,
-	fs cache.FileSystem,
+	fs store.Store,
 	client NHLClient,
 	seasonID int,
 ) (DownloadSeasonStandingsResult, error) {
-	file := cache.SeasonStandingsFile{SeasonID: seasonID}
+	file := store.SeasonStandingsFile{SeasonID: seasonID}
 
 	// Check cache first
 	if fs.Exists(file) {
@@ -103,7 +103,7 @@ func downloadSeasonStandingsImpl(
 			var standings []nhl.Standing
 			if err := json.Unmarshal(data, &standings); err == nil {
 				log.Debug().Int("season", seasonID).Int("teams", len(standings)).Msg("Season standings loaded from cache")
-				metrics.IncDownload(cache.FileTypeSeasonStandings, "hit")
+				metrics.IncDownload(store.FileTypeSeasonStandings, "hit")
 				return DownloadSeasonStandingsResult{SeasonID: seasonID, TeamCount: len(standings), FromCache: true}, nil
 			}
 			log.Debug().Err(err).Int("season", seasonID).Msg("Failed to unmarshal cached season standings")
@@ -117,7 +117,7 @@ func downloadSeasonStandingsImpl(
 	}
 	standings, err := client.LeagueStandingsForSeason(ctx, season)
 	if err != nil {
-		metrics.IncDownload(cache.FileTypeSeasonStandings, "error")
+		metrics.IncDownload(store.FileTypeSeasonStandings, "error")
 		return DownloadSeasonStandingsResult{SeasonID: seasonID}, err
 	}
 
@@ -132,7 +132,7 @@ func downloadSeasonStandingsImpl(
 	}
 
 	log.Info().Int("season", seasonID).Int("teams", len(standings)).Msg("Season standings downloaded from API")
-	metrics.IncDownload(cache.FileTypeSeasonStandings, "miss")
+	metrics.IncDownload(store.FileTypeSeasonStandings, "miss")
 
 	return DownloadSeasonStandingsResult{SeasonID: seasonID, TeamCount: len(standings), FromCache: false}, nil
 }
@@ -147,8 +147,8 @@ func UpsertSeasonsActivity(ctx context.Context) (UpsertSeasonsResult, error) {
 	logger := activity.GetLogger(ctx)
 
 	// Read seasons manifest from cache
-	fs := cache.NewSimpleCache()
-	file := cache.SeasonsManifestFile{}
+	fs := store.NewStore()
+	file := store.SeasonsManifestFile{}
 
 	data, err := fs.Read(file)
 	if err != nil {
@@ -215,7 +215,7 @@ func upsertSeasonsImpl(
 
 // UpsertSeasonTeamsResult contains results from upserting season teams to database.
 type UpsertSeasonTeamsResult struct {
-	SeasonID    int `json:"seasonId"`
+	SeasonID      int `json:"seasonId"`
 	TeamsUpserted int `json:"teamsUpserted"`
 }
 
@@ -224,8 +224,8 @@ func UpsertSeasonTeamsActivity(ctx context.Context, seasonID int) (UpsertSeasonT
 	logger := activity.GetLogger(ctx)
 
 	// Read standings from cache
-	fs := cache.NewSimpleCache()
-	file := cache.SeasonStandingsFile{SeasonID: seasonID}
+	fs := store.NewStore()
+	file := store.SeasonStandingsFile{SeasonID: seasonID}
 
 	data, err := fs.Read(file)
 	if err != nil {
@@ -277,15 +277,15 @@ func upsertSeasonTeamsImpl(
 		}
 
 		params := sqlcdb.UpsertSeasonTeamParams{
-			SeasonID:        int32(seasonID),
-			TeamID:          0, // Will need to map from abbrev to ID
-			FranchiseID:     pgtype.Int8{Valid: false}, // Will link later
-			FullName:        s.TeamName.String(),
-			Abbrev:          s.TeamAbbrev.String(),
-			LogoUrl:         pgtype.Text{String: s.TeamLogo, Valid: s.TeamLogo != ""},
-			DivisionName:    s.DivisionName,
-			DivisionAbbrev:  s.DivisionAbbrev,
-			ConferenceName:  confName,
+			SeasonID:         int32(seasonID),
+			TeamID:           0,                         // Will need to map from abbrev to ID
+			FranchiseID:      pgtype.Int8{Valid: false}, // Will link later
+			FullName:         s.TeamName.String(),
+			Abbrev:           s.TeamAbbrev.String(),
+			LogoUrl:          pgtype.Text{String: s.TeamLogo, Valid: s.TeamLogo != ""},
+			DivisionName:     s.DivisionName,
+			DivisionAbbrev:   s.DivisionAbbrev,
+			ConferenceName:   confName,
 			ConferenceAbbrev: confAbbrev,
 		}
 
@@ -304,7 +304,7 @@ func upsertSeasonTeamsImpl(
 
 // InitializeSeasonTeamsResult contains the combined result of downloading standings and upserting teams for a season.
 type InitializeSeasonTeamsResult struct {
-	SeasonID       int  `json:"seasonId"`
+	SeasonID       int                           `json:"seasonId"`
 	DownloadResult DownloadSeasonStandingsResult `json:"downloadResult"`
 	UpsertResult   UpsertSeasonTeamsResult       `json:"upsertResult"`
 }

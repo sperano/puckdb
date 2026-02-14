@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 	"golang.org/x/text/runes"
 	"golang.org/x/text/transform"
@@ -33,14 +33,14 @@ const (
 
 // VerifiedPlayer contains the verification result for a Yahoo player.
 type VerifiedPlayer struct {
-	YahooID      int
-	FirstName    string
-	LastName     string
-	NHLGames     int  // Total NHL regular season games
-	HasNHLGames  bool // True if player has any NHL games
-	FoundInNHL   bool // True if player was found in NHL search
-	NHLPlayerID  int64
-	NHLName      string // The matched NHL player name (may differ from Yahoo name)
+	YahooID     int
+	FirstName   string
+	LastName    string
+	NHLGames    int  // Total NHL regular season games
+	HasNHLGames bool // True if player has any NHL games
+	FoundInNHL  bool // True if player was found in NHL search
+	NHLPlayerID int64
+	NHLName     string // The matched NHL player name (may differ from Yahoo name)
 }
 
 // VerifyUnmatchedResult contains the categorized results of verification.
@@ -65,8 +65,8 @@ type VerifyUnmatchedResult struct {
 func VerifyUnmatchedBatchActivity(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
 	logger := activity.GetLogger(ctx)
 	client := nhl.NewClient()
-	fs := cache.NewSimpleCache()
-	redisClient := redis.NewClient()
+	fs := store.NewStore()
+	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	// Load already verified IDs to skip re-verification
@@ -129,7 +129,7 @@ func VerifyUnmatchedBatchActivity(ctx context.Context, players []UnmatchedYahooP
 }
 
 // verifyPlayer checks if a Yahoo player has any NHL regular season games.
-func verifyPlayer(ctx context.Context, client *nhl.Client, fs cache.FileSystem, player UnmatchedYahooPlayer) VerifiedPlayer {
+func verifyPlayer(ctx context.Context, client *nhl.Client, fs store.Store, player UnmatchedYahooPlayer) VerifiedPlayer {
 	result := VerifiedPlayer{
 		YahooID:   player.YahooID,
 		FirstName: player.FirstName,
@@ -184,8 +184,8 @@ func verifyPlayer(ctx context.Context, client *nhl.Client, fs cache.FileSystem, 
 }
 
 // fetchPlayerLanding retrieves player landing data, using cache if available.
-func fetchPlayerLanding(ctx context.Context, client *nhl.Client, fs cache.FileSystem, playerID nhl.PlayerID) (*nhl.PlayerLanding, error) {
-	file := cache.PlayerLandingFile{PlayerID: playerID}
+func fetchPlayerLanding(ctx context.Context, client *nhl.Client, fs store.Store, playerID nhl.PlayerID) (*nhl.PlayerLanding, error) {
+	file := store.PlayerLandingFile{PlayerID: playerID}
 
 	// Check cache first
 	if fs.Exists(file) {

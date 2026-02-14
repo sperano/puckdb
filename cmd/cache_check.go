@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -50,7 +50,7 @@ If --seasons config file is provided, Yahoo files are also checked.`,
 func runCacheCheck(cmd *cobra.Command, _ []string) error {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: cmd.OutOrStdout()})
 
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer redisClient.Close()
 
 	sp := newSpinner(cmd.OutOrStdout(), "Counting cache files...")

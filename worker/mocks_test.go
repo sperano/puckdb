@@ -5,12 +5,12 @@ import (
 	"os"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/stretchr/testify/mock"
 )
 
-// MockFileSystem implements cache.FileSystem for testing.
+// MockFileSystem implements store.FileSystem for testing.
 type MockFileSystem struct {
 	mock.Mock
 	files map[string][]byte
@@ -22,7 +22,7 @@ func NewMockFileSystem() *MockFileSystem {
 	}
 }
 
-func (m *MockFileSystem) Read(file cache.File) ([]byte, error) {
+func (m *MockFileSystem) Read(file store.File) ([]byte, error) {
 	args := m.Called(file)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -30,12 +30,12 @@ func (m *MockFileSystem) Read(file cache.File) ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (m *MockFileSystem) Write(file cache.File, content []byte) error {
+func (m *MockFileSystem) Write(file store.File, content []byte) error {
 	args := m.Called(file, content)
 	return args.Error(0)
 }
 
-func (m *MockFileSystem) Exists(file cache.File) bool {
+func (m *MockFileSystem) Exists(file store.File) bool {
 	args := m.Called(file)
 	return args.Bool(0)
 }
@@ -45,12 +45,12 @@ func (m *MockFileSystem) MkdirAll(dir string, perm os.FileMode) error {
 	return args.Error(0)
 }
 
-func (m *MockFileSystem) Remove(file cache.File) error {
+func (m *MockFileSystem) Remove(file store.File) error {
 	args := m.Called(file)
 	return args.Error(0)
 }
 
-func (m *MockFileSystem) FullPath(file cache.File) string {
+func (m *MockFileSystem) FullPath(file store.File) string {
 	args := m.Called(file)
 	return args.String(0)
 }
@@ -126,7 +126,7 @@ func (m *MockPlayerUpserter) UpsertPlayer(ctx context.Context, arg sqlcdb.Upsert
 	return args.Error(0)
 }
 
-// MockFile implements cache.File for testing.
+// MockFile implements store.File for testing.
 type MockFile struct {
 	DirVal  string
 	NameVal string

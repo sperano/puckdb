@@ -6,7 +6,7 @@ import (
 	"encoding/gob"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/cache"
 )
 
 // MergePlayerBatchesFromRedisActivity loads player batches from Redis and merges them.
@@ -17,7 +17,7 @@ func MergePlayerBatchesFromRedisActivity(
 	keys []string,
 	source string,
 ) (map[int64]PartialPlayer, error) {
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	return mergePlayerBatchesFromRedisImpl(ctx, redisClient, keys, source)
@@ -26,7 +26,7 @@ func MergePlayerBatchesFromRedisActivity(
 // mergePlayerBatchesFromRedisImpl is the testable implementation.
 func mergePlayerBatchesFromRedisImpl(
 	ctx context.Context,
-	redisClient redis.Client,
+	redisClient cache.Client,
 	keys []string,
 	source string,
 ) (map[int64]PartialPlayer, error) {
@@ -42,7 +42,7 @@ func mergePlayerBatchesFromRedisImpl(
 	merged := make(map[int64]PartialPlayer)
 
 	for i, key := range keys {
-		data, err := redis.LoadPlayerBatch(ctx, redisClient, key)
+		data, err := cache.LoadPlayerBatch(ctx, redisClient, key)
 		if err != nil {
 			log.Warn().Err(err).Str("key", key).Msg("Failed to load batch from Redis, skipping")
 			continue
@@ -76,7 +76,7 @@ func mergePlayerBatchesFromRedisImpl(
 	}
 
 	// Clean up Redis keys
-	if err := redis.DeletePlayerBatches(ctx, redisClient, keys); err != nil {
+	if err := cache.DeletePlayerBatches(ctx, redisClient, keys); err != nil {
 		log.Warn().Err(err).Msg("Failed to delete Redis keys, they will expire via TTL")
 	}
 

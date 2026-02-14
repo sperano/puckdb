@@ -8,7 +8,7 @@ import (
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/http"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/temporal"
 	"github.com/sperano/puckdb/worker"
 	temporalEnums "go.temporal.io/api/enums/v1"
@@ -60,9 +60,9 @@ func createDatabase(_ context.Context) (bool, error) {
 }
 
 func flushRedisDB(ctx context.Context) (bool, error) {
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
-	if err := redis.FlushDB(ctx, redisClient); err != nil {
+	if err := cache.FlushDB(ctx, redisClient); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -73,7 +73,7 @@ func currentFantasyGameKey(_ context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	fantasy, err := cache.ParseXML(content)
+	fantasy, err := store.ParseXML(content)
 	if err != nil {
 		return 0, err
 	}

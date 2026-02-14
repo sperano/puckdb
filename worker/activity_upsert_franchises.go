@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/sqlcdb"
 	"go.temporal.io/sdk/activity"
@@ -23,8 +23,8 @@ func UpsertFranchisesActivity(ctx context.Context) (UpsertFranchisesResult, erro
 	logger := activity.GetLogger(ctx)
 
 	// Read franchises from cache
-	fs := cache.NewSimpleCache()
-	file := cache.FranchisesFile{}
+	fs := store.NewStore()
+	file := store.FranchisesFile{}
 
 	data, err := fs.Read(file)
 	if err != nil {

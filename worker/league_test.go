@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,7 +15,7 @@ import (
 func TestFetchLeagueImpl_FileExists(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
-	file := cache.LeagueFile{Season: 2023, LeagueID: 12345}
+	file := store.LeagueFile{Season: 2023, LeagueID: 12345}
 
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
 	mockFS.On("Exists", file).Return(true)
@@ -40,7 +40,7 @@ func TestFetchLeagueImpl_ContextCancelled(t *testing.T) {
 func TestFetchLeagueImpl_MkdirAllError(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
-	file := cache.LeagueFile{Season: 2023, LeagueID: 12345}
+	file := store.LeagueFile{Season: 2023, LeagueID: 12345}
 	expectedErr := errors.New("mkdir failed")
 
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(expectedErr)

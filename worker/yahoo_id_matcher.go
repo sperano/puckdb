@@ -9,7 +9,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"golang.org/x/text/runes"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
@@ -263,7 +263,7 @@ func MatchYahooID(
 	landing *nhl.PlayerLanding,
 	nhlTeamAbbrev string,
 	nhlBirthDate time.Time,
-	pool map[int]*cache.YahooPlayer,
+	pool map[int]*store.YahooPlayer,
 ) (YahooIDMatchResult, error) {
 	// Normalize names: decode HTML entities, strip accents, lowercase
 	firstName := normalizeName(landing.FirstName.Default)
@@ -278,7 +278,7 @@ func MatchYahooID(
 
 	// Step 1: Find all name matches (exact or via nickname)
 	type candidateMatch struct {
-		player         *cache.YahooPlayer
+		player         *store.YahooPlayer
 		fuzzyMatched   bool // true if matched via nickname alias, accent normalization, or full-name match
 		fullNameMatch  bool // true if matched via full name comparison (handles compound names)
 	}

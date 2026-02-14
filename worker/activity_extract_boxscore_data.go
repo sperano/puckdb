@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/store"
 )
 
 // BoxscorePlayer holds minimal player info extracted from boxscore appearances.
@@ -28,13 +28,13 @@ type BoxscoreExtractionResult struct {
 
 // ExtractBoxscoreDataForSeasonActivity extracts player info from all boxscores for a season.
 func ExtractBoxscoreDataForSeasonActivity(ctx context.Context, season SeasonInfo) (BoxscoreExtractionResult, error) {
-	return extractBoxscoreDataForSeasonImpl(ctx, cache.NewSimpleCache(), redis.NewClient(), season)
+	return extractBoxscoreDataForSeasonImpl(ctx, store.NewStore(), cache.NewClient(), season)
 }
 
 func extractBoxscoreDataForSeasonImpl(
 	ctx context.Context,
-	fs cache.FileSystem,
-	redisClient redis.Client,
+	fs store.Store,
+	redisClient cache.Client,
 	season SeasonInfo,
 ) (BoxscoreExtractionResult, error) {
 	// Map by player ID to deduplicate while preserving player info
@@ -93,8 +93,8 @@ func extractBoxscoreDataForSeasonImpl(
 // extractPlayersForDay extracts player info from all boxscores for a single day.
 func extractPlayersForDay(
 	ctx context.Context,
-	fs cache.FileSystem,
-	redisClient redis.Client,
+	fs store.Store,
+	redisClient cache.Client,
 	day time.Time,
 ) ([]BoxscorePlayer, error) {
 	boxscoreFiles, err := getBoxscoreFilesForDay(ctx, fs, redisClient, day)

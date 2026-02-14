@@ -9,7 +9,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/metrics"
 )
 
@@ -20,7 +20,7 @@ func FetchDailySchedule(ctx context.Context, day time.Time) error {
 		metrics.ObserveActivityDuration("FetchDailySchedule", time.Since(start))
 	}()
 
-	fs := cache.NewSimpleCache()
+	fs := store.NewStore()
 
 	// Download schedule
 	gameIDs, err := downloadSchedule(ctx, fs, day)
@@ -45,8 +45,8 @@ func FetchDailySchedule(ctx context.Context, day time.Time) error {
 }
 
 // downloadSchedule downloads and parses the daily schedule.
-func downloadSchedule(ctx context.Context, fs cache.FileSystem, day time.Time) ([]nhl.GameID, error) {
-	file := cache.DailyScheduleFile{Date: day}
+func downloadSchedule(ctx context.Context, fs store.Store, day time.Time) ([]nhl.GameID, error) {
+	file := store.DailyScheduleFile{Date: day}
 	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
 		return nil, fmt.Errorf("mkdir: %w", err)
 	}
@@ -80,7 +80,7 @@ func downloadSchedule(ctx context.Context, fs cache.FileSystem, day time.Time) (
 			metrics.IncDownload("DailySchedule", "error")
 			return nil, fmt.Errorf("save schedule: %w", err)
 		}
-		log.Info().Str("path", cache.Path(file)).Msg("Saved schedule")
+		log.Info().Str("path", store.Path(file)).Msg("Saved schedule")
 		metrics.IncDownload("DailySchedule", "miss")
 	}
 
@@ -107,8 +107,8 @@ func downloadSchedule(ctx context.Context, fs cache.FileSystem, day time.Time) (
 }
 
 // downloadBoxscoreToCache downloads a single boxscore to cache.
-func downloadBoxscoreToCache(ctx context.Context, fs cache.FileSystem, day time.Time, id nhl.GameID) error {
-	file := cache.BoxscoreFile{Date: day, GameID: id}
+func downloadBoxscoreToCache(ctx context.Context, fs store.Store, day time.Time, id nhl.GameID) error {
+	file := store.BoxscoreFile{Date: day, GameID: id}
 	if fs.Exists(file) {
 		log.Debug().Str("gameid", id.String()).Msg("Boxscore already cached")
 		metrics.IncDownload("Boxscore", "hit")
@@ -130,7 +130,7 @@ func downloadBoxscoreToCache(ctx context.Context, fs cache.FileSystem, day time.
 		metrics.IncDownload("Boxscore", "error")
 		return fmt.Errorf("save: %w", err)
 	}
-	log.Info().Str("gameid", id.String()).Str("path", cache.Path(file)).Msg("Saved boxscore")
+	log.Info().Str("gameid", id.String()).Str("path", store.Path(file)).Msg("Saved boxscore")
 	metrics.IncDownload("Boxscore", "miss")
 	return nil
 }

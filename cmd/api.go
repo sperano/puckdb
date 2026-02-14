@@ -20,9 +20,9 @@ import (
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/graph"
 	"github.com/sperano/puckdb/graph/generated"
+	"github.com/sperano/puckdb/cache"
 	handlers "github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
-	"github.com/sperano/puckdb/redis"
 	"github.com/sperano/puckdb/temporal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -72,7 +72,7 @@ func cmdAPI() *cobra.Command {
 			config.LogFlagValues()
 
 			// the oauth2 token for yahoo authentication is cached in redis
-			redisClient := redis.NewClient()
+			redisClient := cache.NewClient()
 			defer func() { _ = redisClient.Close() }()
 
 			// create temporal client for GraphQL resolver
@@ -109,7 +109,7 @@ func cmdAPI() *cobra.Command {
 	return cmd
 }
 
-func setupAPIRouter(redisClient redis.Client, resolver *graph.Resolver) *chi.Mux {
+func setupAPIRouter(redisClient cache.Client, resolver *graph.Resolver) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(handlers.ChiLogger)

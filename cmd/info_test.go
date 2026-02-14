@@ -9,14 +9,14 @@ import (
 	"time"
 
 	goredis "github.com/go-redis/redis/v8"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/oauth2"
 )
 
 func TestCmdInfoImpl_WithoutToken(t *testing.T) {
-	mockRedis := &redis.MockClient{}
+	mockRedis := &cache.MockClient{}
 	ctx := context.Background()
 
 	// Mock Get to return redis.Nil error (no token found)
@@ -39,7 +39,7 @@ func TestCmdInfoImpl_WithoutToken(t *testing.T) {
 }
 
 func TestCmdInfoImpl_WithToken(t *testing.T) {
-	mockRedis := &redis.MockClient{}
+	mockRedis := &cache.MockClient{}
 	ctx := context.Background()
 
 	// Create a mock token
@@ -75,7 +75,7 @@ func TestCmdInfoImpl_WithToken(t *testing.T) {
 }
 
 func TestCmdInfoImpl_WithExpiredToken(t *testing.T) {
-	mockRedis := &redis.MockClient{}
+	mockRedis := &cache.MockClient{}
 	ctx := context.Background()
 
 	// Create a mock expired token

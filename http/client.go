@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/metrics"
-	"github.com/sperano/puckdb/redis"
 	"golang.org/x/oauth2"
 )
 
@@ -100,7 +100,7 @@ func (c *GenericClient) Download(url string) ([]byte, error) {
 	return body, nil
 }
 
-func NewYahooClient(ctx context.Context, redisClient redis.Client) (Client, error) {
+func NewYahooClient(ctx context.Context, redisClient cache.Client) (Client, error) {
 	conf, err := config.OauthConfig()
 	if err != nil {
 		return nil, err
@@ -108,9 +108,9 @@ func NewYahooClient(ctx context.Context, redisClient redis.Client) (Client, erro
 	return NewYahooClientWithConfig(ctx, redisClient, conf)
 }
 
-func NewYahooClientWithConfig(ctx context.Context, redisClient redis.Client, conf *oauth2.Config) (Client, error) {
-	token, err := redis.LoadToken(ctx, redisClient)
-	if errors.Is(err, redis.NewOAuth2TokenMissingError()) {
+func NewYahooClientWithConfig(ctx context.Context, redisClient cache.Client, conf *oauth2.Config) (Client, error) {
+	token, err := cache.LoadToken(ctx, redisClient)
+	if errors.Is(err, cache.NewOAuth2TokenMissingError()) {
 		// Token missing - continue to return error below
 	}
 	if err != nil {
@@ -122,14 +122,14 @@ func NewYahooClientWithConfig(ctx context.Context, redisClient redis.Client, con
 		return nil, err
 	}
 	if newToken.AccessToken != token.AccessToken {
-		if err := redis.SaveToken(ctx, redisClient, newToken); err != nil {
+		if err := cache.SaveToken(ctx, redisClient, newToken); err != nil {
 			return nil, err
 		}
 	}
 	return &GenericClient{Client: oauth2.NewClient(ctx, tokenSource), apiLabel: "yahoo"}, nil
 }
 
-func DownloadYahoo(ctx context.Context, redisClient redis.Client, url string) ([]byte, error) {
+func DownloadYahoo(ctx context.Context, redisClient cache.Client, url string) ([]byte, error) {
 	// this can fail if no oauth2 token is found in redis
 	client, err := NewYahooClient(ctx, redisClient)
 	if err != nil {

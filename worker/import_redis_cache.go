@@ -10,7 +10,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/store"
 )
 
 const (
@@ -43,7 +43,7 @@ type SaveYahooIDPoolResult struct {
 // Players whose IDs are in the verified non-NHL set are excluded from the available set
 // (they have been confirmed to have 0 NHL games and don't need to be matched).
 // Returns the count of skipped players for reporting.
-func SaveYahooIDPool(ctx context.Context, client redis.Client, players []cache.YahooPlayer) (*SaveYahooIDPoolResult, error) {
+func SaveYahooIDPool(ctx context.Context, client cache.Client, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
 	if len(players) == 0 {
 		return &SaveYahooIDPoolResult{}, nil
 	}
@@ -103,20 +103,20 @@ func SaveYahooIDPool(ctx context.Context, client redis.Client, players []cache.Y
 }
 
 // LoadYahooIDPool loads all Yahoo players from Redis.
-func LoadYahooIDPool(ctx context.Context, client redis.Client) (map[int]*cache.YahooPlayer, error) {
+func LoadYahooIDPool(ctx context.Context, client cache.Client) (map[int]*store.YahooPlayer, error) {
 	data, err := client.HGetAll(ctx, YahooIDPoolKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("load yahoo id pool from redis: %w", err)
 	}
 
-	pool := make(map[int]*cache.YahooPlayer, len(data))
+	pool := make(map[int]*store.YahooPlayer, len(data))
 	for idStr, encoded := range data {
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
 			continue
 		}
 
-		var player cache.YahooPlayer
+		var player store.YahooPlayer
 		if err := gob.NewDecoder(bytes.NewReader([]byte(encoded))).Decode(&player); err != nil {
 			log.Warn().Err(err).Int("yahooID", id).Msg("Failed to decode Yahoo player from Redis")
 			continue
@@ -132,7 +132,7 @@ func LoadYahooIDPool(ctx context.Context, client redis.Client) (map[int]*cache.Y
 }
 
 // LoadAvailableYahooIDs loads only the available (unmatched) Yahoo IDs from Redis.
-func LoadAvailableYahooIDs(ctx context.Context, client redis.Client) (map[int]struct{}, error) {
+func LoadAvailableYahooIDs(ctx context.Context, client cache.Client) (map[int]struct{}, error) {
 	ids, err := client.SMembers(ctx, YahooIDAvailableKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("load available yahoo ids from redis: %w", err)
@@ -155,7 +155,7 @@ func LoadAvailableYahooIDs(ctx context.Context, client redis.Client) (map[int]st
 }
 
 // RemoveFromYahooIDPool removes matched Yahoo IDs from the available set.
-func RemoveFromYahooIDPool(ctx context.Context, client redis.Client, ids []int) error {
+func RemoveFromYahooIDPool(ctx context.Context, client cache.Client, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -177,7 +177,7 @@ func RemoveFromYahooIDPool(ctx context.Context, client redis.Client, ids []int) 
 }
 
 // GetUnmatchedYahooIDs returns all YahooIDs that were never matched.
-func GetUnmatchedYahooIDs(ctx context.Context, client redis.Client) ([]int, error) {
+func GetUnmatchedYahooIDs(ctx context.Context, client cache.Client) ([]int, error) {
 	ids, err := client.SMembers(ctx, YahooIDAvailableKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("get unmatched yahoo ids: %w", err)
@@ -196,13 +196,13 @@ func GetUnmatchedYahooIDs(ctx context.Context, client redis.Client) ([]int, erro
 }
 
 // GetYahooPlayerByID fetches a single Yahoo player from the pool by ID.
-func GetYahooPlayerByID(ctx context.Context, client redis.Client, yahooID int) (*cache.YahooPlayer, error) {
+func GetYahooPlayerByID(ctx context.Context, client cache.Client, yahooID int) (*store.YahooPlayer, error) {
 	encoded, err := client.HGet(ctx, YahooIDPoolKey, strconv.Itoa(yahooID)).Bytes()
 	if err != nil {
 		return nil, fmt.Errorf("get yahoo player %d: %w", yahooID, err)
 	}
 
-	var player cache.YahooPlayer
+	var player store.YahooPlayer
 	if err := gob.NewDecoder(bytes.NewReader(encoded)).Decode(&player); err != nil {
 		return nil, fmt.Errorf("decode yahoo player %d: %w", yahooID, err)
 	}
@@ -211,7 +211,7 @@ func GetYahooPlayerByID(ctx context.Context, client redis.Client, yahooID int) (
 }
 
 // CleanupYahooIDPool deletes the YahooID pool keys from Redis.
-func CleanupYahooIDPool(ctx context.Context, client redis.Client) error {
+func CleanupYahooIDPool(ctx context.Context, client cache.Client) error {
 	if err := client.Del(ctx, YahooIDPoolKey, YahooIDAvailableKey).Err(); err != nil {
 		return fmt.Errorf("cleanup yahoo id pool: %w", err)
 	}
@@ -223,7 +223,7 @@ func CleanupYahooIDPool(ctx context.Context, client redis.Client) error {
 
 // SaveVerifiedNonNHLIDs stores Yahoo IDs that have been verified to have 0 NHL games.
 // These IDs will be excluded from future unmatched reports.
-func SaveVerifiedNonNHLIDs(ctx context.Context, client redis.Client, ids []int) error {
+func SaveVerifiedNonNHLIDs(ctx context.Context, client cache.Client, ids []int) error {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -249,7 +249,7 @@ func SaveVerifiedNonNHLIDs(ctx context.Context, client redis.Client, ids []int) 
 }
 
 // LoadVerifiedNonNHLIDs loads the set of Yahoo IDs verified to have 0 NHL games.
-func LoadVerifiedNonNHLIDs(ctx context.Context, client redis.Client) (map[int]struct{}, error) {
+func LoadVerifiedNonNHLIDs(ctx context.Context, client cache.Client) (map[int]struct{}, error) {
 	ids, err := client.SMembers(ctx, VerifiedNonNHLKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("load verified non-nhl ids: %w", err)

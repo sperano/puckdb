@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 )
@@ -30,8 +30,8 @@ func (s SeasonInfo) Label() string {
 // It reads from the cached seasons manifest first (populated by DownloadSeasonsManifestActivity),
 // falling back to the NHL API only if the cache doesn't exist.
 func FetchSeasonsDataActivity(ctx context.Context, input *model.FetchSeasonsInput) ([]SeasonInfo, error) {
-	fs := cache.NewSimpleCache()
-	file := cache.SeasonsManifestFile{}
+	fs := store.NewStore()
+	file := store.SeasonsManifestFile{}
 
 	// Try cache first
 	if fs.Exists(file) {

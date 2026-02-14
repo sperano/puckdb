@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -57,10 +57,10 @@ func TestDownloadPlayerLandingBatch_AllCacheHits(t *testing.T) {
 
 	// All players are cached (check missing file first, then landing file)
 	for _, p := range players {
-		missingFile := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
+		missingFile := store.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
 		fs.On("Exists", missingFile).Return(false).Once()
 
-		landingFile := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
+		landingFile := store.PlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
 		fs.On("Exists", landingFile).Return(true).Once()
 	}
 
@@ -82,10 +82,10 @@ func TestDownloadPlayerLandingBatch_AllDownloads(t *testing.T) {
 	players := testBoxscorePlayers(100, 200)
 
 	for _, p := range players {
-		missingFile := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
+		missingFile := store.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
 		fs.On("Exists", missingFile).Return(false).Once()
 
-		landingFile := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
+		landingFile := store.PlayerLandingFile{PlayerID: nhl.PlayerID(p.ID)}
 		fs.On("Exists", landingFile).Return(false).Once()
 
 		landing := testPlayerLanding(p.ID)
@@ -110,15 +110,15 @@ func TestDownloadPlayerLandingBatch_FailsOnError(t *testing.T) {
 	players := testBoxscorePlayers(1, 2, 3)
 
 	// Player 1: cached
-	missingFile1 := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(1)}
+	missingFile1 := store.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(1)}
 	fs.On("Exists", missingFile1).Return(false).Once()
-	landingFile1 := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(1)}
+	landingFile1 := store.PlayerLandingFile{PlayerID: nhl.PlayerID(1)}
 	fs.On("Exists", landingFile1).Return(true).Once()
 
 	// Player 2: not cached, download fails
-	missingFile2 := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(2)}
+	missingFile2 := store.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(2)}
 	fs.On("Exists", missingFile2).Return(false).Once()
-	landingFile2 := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(2)}
+	landingFile2 := store.PlayerLandingFile{PlayerID: nhl.PlayerID(2)}
 	fs.On("Exists", landingFile2).Return(false).Once()
 	client.On("PlayerLanding", ctx, nhl.PlayerID(2)).Return(nil, errors.New("network error")).Once()
 
@@ -141,9 +141,9 @@ func TestDownloadPlayerLandingBatch_404CachesAsMissing(t *testing.T) {
 	players := testBoxscorePlayers(404)
 
 	// Not in cache
-	missingFile := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(404)}
+	missingFile := store.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(404)}
 	fs.On("Exists", missingFile).Return(false).Once()
-	landingFile := cache.PlayerLandingFile{PlayerID: nhl.PlayerID(404)}
+	landingFile := store.PlayerLandingFile{PlayerID: nhl.PlayerID(404)}
 	fs.On("Exists", landingFile).Return(false).Once()
 
 	// API returns 404
@@ -152,7 +152,7 @@ func TestDownloadPlayerLandingBatch_404CachesAsMissing(t *testing.T) {
 
 	// Missing file should be written with player data
 	fs.On("Write", missingFile, mock.MatchedBy(func(data []byte) bool {
-		var result cache.MissingPlayerLandingData
+		var result store.MissingPlayerLandingData
 		if err := json.Unmarshal(data, &result); err != nil {
 			return false
 		}
@@ -175,7 +175,7 @@ func TestDownloadPlayerLandingBatch_AlreadyMissing(t *testing.T) {
 	players := testBoxscorePlayers(404)
 
 	// Already marked as missing
-	missingFile := cache.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(404)}
+	missingFile := store.MissingPlayerLandingFile{PlayerID: nhl.PlayerID(404)}
 	fs.On("Exists", missingFile).Return(true).Once()
 
 	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, players)

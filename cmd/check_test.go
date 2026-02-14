@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/viper"
 )
 
@@ -13,7 +13,7 @@ func BenchmarkGetAllMetrics(b *testing.B) {
 	viper.Set(config.FlagDataPath, "../test-data/cache")
 	viper.Set(config.FlagSeasonYear, 2022)
 
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer redisClient.Close()
 
 	b.ResetTimer()

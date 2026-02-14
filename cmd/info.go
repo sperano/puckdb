@@ -9,8 +9,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -70,7 +70,7 @@ func cmdInfo() *cobra.Command {
 			return viper.BindPFlag(config.FlagWorkerTLSEnabled, flags.Lookup(config.FlagWorkerTLSEnabled))
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			redisClient := redis.NewClient()
+			redisClient := cache.NewClient()
 			defer redisClient.Close()
 			return cmdInfoImpl(cmd.OutOrStdout(), redisClient)
 		},
@@ -95,7 +95,7 @@ func cmdInfo() *cobra.Command {
 	return cmd
 }
 
-func cmdInfoImpl(w io.Writer, redisClient redis.Client) error {
+func cmdInfoImpl(w io.Writer, redisClient cache.Client) error {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: w})
 	log.Info().Msgf("API Port:                      %d", viper.GetInt(config.FlagAPIPort))
 	log.Info().Msgf("API TLS Enabled:               %v", viper.GetBool(config.FlagAPITLSEnabled))
@@ -130,7 +130,7 @@ func cmdInfoImpl(w io.Writer, redisClient redis.Client) error {
 
 	// Display token information
 	ctx := context.Background()
-	token, err := redis.LoadTokenForUser(ctx, redisClient, config.DefaultUser)
+	token, err := cache.LoadTokenForUser(ctx, redisClient, config.DefaultUser)
 	if err != nil {
 		log.Info().Msg("Yahoo! Token:                  not found")
 	} else {

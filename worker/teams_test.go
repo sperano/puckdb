@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,7 +16,7 @@ import (
 func TestFetchTeamImpl_FileExists(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
-	file := cache.TeamFile{Season: 2023, LeagueID: 12345, TeamID: 1}
+	file := store.TeamFile{Season: 2023, LeagueID: 12345, TeamID: 1}
 
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
 	mockFS.On("Exists", file).Return(true)
@@ -44,7 +44,7 @@ func TestFetchRosterForTeamOnDayImpl_FileExists(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
 	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
-	file := cache.RosterFile{Date: day, LeagueID: 12345, TeamID: 1}
+	file := store.RosterFile{Date: day, LeagueID: 12345, TeamID: 1}
 
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
 	mockFS.On("Exists", file).Return(true)
@@ -73,7 +73,7 @@ func TestFetchTeamSummaryForTeamOnDayImpl_FileExists(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
 	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
-	file := cache.TeamSummaryFile{Date: day, LeagueID: 12345, TeamID: 1}
+	file := store.TeamSummaryFile{Date: day, LeagueID: 12345, TeamID: 1}
 
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
 	mockFS.On("Exists", file).Return(true)
@@ -100,7 +100,7 @@ func TestFetchTeamSummaryForTeamOnDayImpl_MkdirAllError(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
 	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
-	file := cache.TeamSummaryFile{Date: day, LeagueID: 12345, TeamID: 1}
+	file := store.TeamSummaryFile{Date: day, LeagueID: 12345, TeamID: 1}
 	expectedErr := errors.New("mkdir failed")
 
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(expectedErr)

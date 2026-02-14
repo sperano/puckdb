@@ -5,7 +5,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -34,7 +34,7 @@ type UnmatchedReport struct {
 // This is the first step of Phase 3, allowing the workflow to know the total count for progress tracking.
 func LoadUnmatchedYahooPlayersActivity(ctx context.Context) ([]UnmatchedYahooPlayer, error) {
 	logger := activity.GetLogger(ctx)
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	// Get unmatched IDs
@@ -71,7 +71,7 @@ func LoadUnmatchedYahooPlayersActivity(ctx context.Context) ([]UnmatchedYahooPla
 // Called at the end of Phase 3 after verification is complete.
 func CleanupYahooIDPoolActivity(ctx context.Context) error {
 	logger := activity.GetLogger(ctx)
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	if err := CleanupYahooIDPool(ctx, redisClient); err != nil {
@@ -86,16 +86,16 @@ func CleanupYahooIDPoolActivity(ctx context.Context) error {
 // Used to enumerate players for import.
 func ListPlayerLandingIDsActivity(ctx context.Context) ([]int64, error) {
 	logger := activity.GetLogger(ctx)
-	fs := cache.NewSimpleCache().(*cache.InstrumentedFS).Inner()
+	fs := store.NewStore().(*store.InstrumentedStore).Inner()
 
-	files, err := cache.ListAll(fs, cache.PlayerLandingFile{}, cache.ParsePlayerLandingFilename)
+	files, err := store.ListAll(fs, store.PlayerLandingFile{}, store.ParsePlayerLandingFilename)
 	if err != nil {
 		return nil, err
 	}
 
 	ids := make([]int64, len(files))
 	for i, f := range files {
-		ids[i] = f.(cache.PlayerLandingFile).PlayerID.AsInt64()
+		ids[i] = f.(store.PlayerLandingFile).PlayerID.AsInt64()
 	}
 
 	logger.Info("Listed PlayerLanding files", "count", len(ids))

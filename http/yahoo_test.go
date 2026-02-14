@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/auth"
-	puckredis "github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/oauth2"
@@ -235,7 +235,7 @@ func TestYahooAuthenticatedHandlerWithConfig_Success(t *testing.T) {
 	defer tokenServer.Close()
 
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
-	mockRedis := &puckredis.MockClient{}
+	mockRedis := &cache.MockClient{}
 
 	// Key format: %s_yahoo_oauth2_token (config.DefaultUser = "eric")
 	mockRedis.On("Get", mock.Anything, "eric_yahoo_oauth2_token").
@@ -263,7 +263,7 @@ func TestYahooAuthenticatedHandlerWithConfig_Success(t *testing.T) {
 func TestExchangeCodeWithConfig_AlreadyHasValidToken(t *testing.T) {
 	t.Parallel()
 
-	mockRedis := &puckredis.MockClient{}
+	mockRedis := &cache.MockClient{}
 	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig("http://example.com")
 
@@ -274,7 +274,7 @@ func TestExchangeCodeWithConfig_AlreadyHasValidToken(t *testing.T) {
 		RefreshToken: "valid-refresh-token",
 		Expiry:       time.Now().Add(1 * time.Hour),
 	}
-	tokenJSON, _ := puckredis.TokenAsString(token)
+	tokenJSON, _ := cache.TokenAsString(token)
 
 	// Key format: %s_yahoo_oauth2_token
 	mockRedis.On("Get", mock.Anything, "testuser_yahoo_oauth2_token").
@@ -288,7 +288,7 @@ func TestExchangeCodeWithConfig_AlreadyHasValidToken(t *testing.T) {
 func TestExchangeCodeWithConfig_AuthCodeAlreadyUsed(t *testing.T) {
 	t.Parallel()
 
-	mockRedis := &puckredis.MockClient{}
+	mockRedis := &cache.MockClient{}
 	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig("http://example.com")
 
@@ -316,7 +316,7 @@ func TestExchangeCodeWithConfig_TokenExchangeFails(t *testing.T) {
 	}))
 	defer tokenServer.Close()
 
-	mockRedis := &puckredis.MockClient{}
+	mockRedis := &cache.MockClient{}
 	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
@@ -349,7 +349,7 @@ func TestExchangeCodeWithConfig_TokenSaveFails(t *testing.T) {
 	}))
 	defer tokenServer.Close()
 
-	mockRedis := &puckredis.MockClient{}
+	mockRedis := &cache.MockClient{}
 	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
@@ -386,7 +386,7 @@ func TestExchangeCodeWithConfig_Success(t *testing.T) {
 	}))
 	defer tokenServer.Close()
 
-	mockRedis := &puckredis.MockClient{}
+	mockRedis := &cache.MockClient{}
 	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 

@@ -5,16 +5,16 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/metrics"
-	"github.com/sperano/puckdb/redis"
 )
 
 // runRedisCollector periodically checks Redis for OAuth token existence
 func runRedisCollector(ctx context.Context, interval time.Duration) {
 	log.Info().Dur("interval", interval).Msg("Starting Redis collector")
 
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer redisClient.Close()
 
 	// Collect immediately on startup
@@ -32,9 +32,9 @@ func runRedisCollector(ctx context.Context, interval time.Duration) {
 	}
 }
 
-func collectRedisMetrics(ctx context.Context, redisClient redis.Client) {
+func collectRedisMetrics(ctx context.Context, redisClient cache.Client) {
 	start := time.Now()
-	hasToken, err := redis.HasValidToken(ctx, redisClient, config.DefaultUser)
+	hasToken, err := cache.HasValidToken(ctx, redisClient, config.DefaultUser)
 	if err != nil {
 		log.Error().Err(err).Str("user", config.DefaultUser).Msg("Failed to check OAuth token")
 		return

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 )
 
@@ -20,10 +20,10 @@ func cmdSignout() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
-			redisClient := redis.NewClient()
+			redisClient := cache.NewClient()
 			defer redisClient.Close()
 
-			err := redis.DeleteTokenForUser(ctx, redisClient, config.DefaultUser)
+			err := cache.DeleteTokenForUser(ctx, redisClient, config.DefaultUser)
 			if err != nil {
 				return fmt.Errorf("failed to remove token: %w", err)
 			}

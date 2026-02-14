@@ -8,8 +8,8 @@ import (
 	"github.com/bsm/redislock"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -50,7 +50,7 @@ func cmdDBInit() *cobra.Command {
 
 			ctx := context.Background()
 
-			redisClient := redis.NewClient()
+			redisClient := cache.NewClient()
 			defer func() { _ = redisClient.Close() }()
 
 			locker := redislock.New(redisClient)
@@ -149,7 +149,7 @@ func runDBProvision(cmd *cobra.Command, args []string) error {
 	targetDB := viper.GetString(config.FlagPostgresDatabase)
 
 	// Acquire Redis lock to prevent concurrent provisioning
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	locker := redislock.New(redisClient)

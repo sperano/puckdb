@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ func TestMatchYahooID_NameAndJerseyMatch(t *testing.T) {
 		SweaterNumber: &sweater,
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		100: {YahooID: 100, FirstName: "Connor", LastName: "McDavid", JerseyNumber: 97, Team: "Edmonton"},
 		101: {YahooID: 101, FirstName: "Connor", LastName: "Brown", JerseyNumber: 28, Team: "Ottawa"},
 	}
@@ -40,7 +40,7 @@ func TestMatchYahooID_NameOnlyMatch(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "McDavid"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		100: {YahooID: 100, FirstName: "Connor", LastName: "McDavid", JerseyNumber: 97, Team: "Edmonton"},
 		101: {YahooID: 101, FirstName: "Connor", LastName: "Brown", JerseyNumber: 28, Team: "Ottawa"},
 	}
@@ -61,7 +61,7 @@ func TestMatchYahooID_TeamTiebreaker(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Pettersson"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		200: {YahooID: 200, FirstName: "Elias", LastName: "Pettersson", JerseyNumber: 40, Team: "Vancouver"},
 		201: {YahooID: 201, FirstName: "Elias", LastName: "Pettersson", JerseyNumber: 28, Team: "Carolina"},
 	}
@@ -81,7 +81,7 @@ func TestMatchYahooID_NoMatch(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Gretzky"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		100: {YahooID: 100, FirstName: "Connor", LastName: "McDavid", JerseyNumber: 97},
 	}
 
@@ -100,7 +100,7 @@ func TestMatchYahooID_Ambiguous(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Smith"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		300: {YahooID: 300, FirstName: "John", LastName: "Smith", JerseyNumber: 10, Team: "Boston"},
 		301: {YahooID: 301, FirstName: "John", LastName: "Smith", JerseyNumber: 20, Team: "Boston"},
 	}
@@ -119,7 +119,7 @@ func TestMatchYahooID_CaseInsensitive(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "MCDAVID"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		100: {YahooID: 100, FirstName: "connor", LastName: "mcdavid", JerseyNumber: 97},
 	}
 
@@ -140,7 +140,7 @@ func TestMatchYahooID_JerseyZeroFallback(t *testing.T) {
 		SweaterNumber: &sweater,
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		99: {YahooID: 99, FirstName: "Wayne", LastName: "Gretzky", JerseyNumber: 0}, // Retired player, no jersey
 	}
 
@@ -160,7 +160,7 @@ func TestMatchYahooID_NicknameMatch(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Lemelin"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		332: {YahooID: 332, FirstName: "Reggie", LastName: "Lemelin", JerseyNumber: 1, Team: "Boston"},
 	}
 
@@ -179,7 +179,7 @@ func TestMatchYahooID_NicknameMatchReverse(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Smith"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		500: {YahooID: 500, FirstName: "Michael", LastName: "Smith", JerseyNumber: 31, Team: "Edmonton"},
 	}
 
@@ -198,7 +198,7 @@ func TestMatchYahooID_AccentNormalization(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Brière"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		1737: {YahooID: 1737, FirstName: "Daniel", LastName: "Briere", JerseyNumber: 48, Team: "Philadelphia"},
 	}
 
@@ -217,7 +217,7 @@ func TestMatchYahooID_AccentNormalizationUmlaut(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Välimäki"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		7531: {YahooID: 7531, FirstName: "Juuso", LastName: "Valimaki", JerseyNumber: 4, Team: "Calgary"},
 	}
 
@@ -236,7 +236,7 @@ func TestMatchYahooID_HTMLEntityApostrophe(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Brind'Amour"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		45: {YahooID: 45, FirstName: "Rod", LastName: "Brind&#x27;Amour", JerseyNumber: 0, Team: "Carolina"},
 	}
 
@@ -255,7 +255,7 @@ func TestMatchYahooID_RolandRollie(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Melanson"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		375: {YahooID: 375, FirstName: "Rollie", LastName: "Melanson", JerseyNumber: 0, Team: ""},
 	}
 
@@ -276,7 +276,7 @@ func TestMatchYahooID_TrailingWhitespace(t *testing.T) {
 		SweaterNumber: &sweater,
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		8378: {YahooID: 8378, FirstName: "Matej", LastName: "Blumel", JerseyNumber: 13, Team: "Boston"},
 	}
 
@@ -297,7 +297,7 @@ func TestMatchYahooID_BirthDateTiebreaker(t *testing.T) {
 	}
 
 	// Bryan Hextall Sr. (1913) and Bryan Hextall Jr. (1941)
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		22424: {
 			YahooID:   22424,
 			FirstName: "Bryan",
@@ -342,7 +342,7 @@ func TestMatchYahooID_CompoundFirstName(t *testing.T) {
 		SweaterNumber: &sweater,
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		30710: {
 			YahooID:      30710,
 			FirstName:    "Charles",
@@ -371,7 +371,7 @@ func TestMatchYahooID_CompoundFirstName_WithJersey(t *testing.T) {
 	}
 
 	// Add another player with same jersey to ensure full name matching is used
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		30710: {
 			YahooID:      30710,
 			FirstName:    "Charles",
@@ -403,7 +403,7 @@ func TestMatchYahooID_CompoundFirstName_NoMatch(t *testing.T) {
 		LastName:  nhl.LocalizedString{Default: "Legault"},
 	}
 
-	pool := map[int]*cache.YahooPlayer{
+	pool := map[int]*store.YahooPlayer{
 		12345: {
 			YahooID:   12345,
 			FirstName: "Charles",

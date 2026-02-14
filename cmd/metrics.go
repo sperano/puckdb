@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/metrics"
-	"github.com/sperano/puckdb/redis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -131,7 +131,7 @@ func runCacheCollector(ctx context.Context, interval time.Duration) {
 func computeAndUpdateCacheMetrics(ctx context.Context) error {
 	start := time.Now()
 
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer redisClient.Close()
 
 	cacheData, err := getAllMetrics(ctx, redisClient)

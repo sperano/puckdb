@@ -13,7 +13,7 @@ import (
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/sqlcdb"
 )
 
@@ -41,10 +41,10 @@ type ProcessPlayerBatchResult struct {
 // ProcessPlayerBatchActivity downloads player landing pages (if needed) and imports them to the database.
 // This combines DownloadPlayerLandingBatchActivity and ImportPlayerBatchActivity into a single pass.
 func ProcessPlayerBatchActivity(ctx context.Context, players []BoxscorePlayer) (ProcessPlayerBatchResult, error) {
-	fs := cache.NewSimpleCache()
+	fs := store.NewStore()
 	nhlClient := newNHLClient()
 
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	pool, err := database.OpenPGXPool(ctx)
@@ -65,9 +65,9 @@ func ProcessPlayerBatchActivity(ctx context.Context, players []BoxscorePlayer) (
 
 // processDeps holds dependencies for the combined process activity.
 type processDeps struct {
-	fs        cache.FileSystem
+	fs        store.Store
 	nhlClient NHLClient
-	redis     redis.Client
+	redis     cache.Client
 	queries   PlayerUpserter
 }
 
@@ -117,7 +117,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []Box
 		}
 
 		// Step 2: Import player to database
-		file := cache.PlayerLandingFile{PlayerID: playerID}
+		file := store.PlayerLandingFile{PlayerID: playerID}
 		if !deps.fs.Exists(file) {
 			// This shouldn't happen after successful download, but handle gracefully
 			result.Errors = append(result.Errors, fmt.Sprintf("player %d: file not found after download", p.ID))

@@ -17,7 +17,7 @@ import (
 	"github.com/sperano/puckdb/config"
 	puckhttp "github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
-	"github.com/sperano/puckdb/redis"
+	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
 )
 
@@ -35,14 +35,14 @@ func newNHLClient() *nhl.Client {
 }
 
 func DownloadFromYahoo(url string) ([]byte, error) {
-	redisClient := redis.NewClient()
+	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	return downloadFromYahooImpl(redisClient, url)
 }
 
 // downloadFromYahooImpl is the testable implementation.
-func downloadFromYahooImpl(redisClient redis.Client, url string) ([]byte, error) {
+func downloadFromYahooImpl(redisClient cache.Client, url string) ([]byte, error) {
 	ctx := context.WithValue(context.Background(), auth.CtxUser, config.DefaultUser)
 	return puckhttp.DownloadYahoo(ctx, redisClient, url)
 }
@@ -58,8 +58,8 @@ func GetGameKeyForSeason(season int) (int, error) {
 	}
 	gameKeyCacheMu.RUnlock()
 
-	fs := cache.NewSimpleCache()
-	gameKey, err := cache.GetGameKey(fs, season, DownloadFromYahoo, sleepAfterYahooDownload)
+	fs := store.NewStore()
+	gameKey, err := store.GetGameKey(fs, season, DownloadFromYahoo, sleepAfterYahooDownload)
 	if err != nil {
 		return 0, err
 	}
@@ -95,7 +95,7 @@ func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
 }
 
 // doDownloadImpl is the testable implementation.
-func doDownloadImpl(ctx context.Context, fs cache.FileSystem, file cache.File, url string) error {
+func doDownloadImpl(ctx context.Context, fs store.Store, file store.File, url string) error {
 	fileType := reflect.TypeOf(file).Name()
 
 	for {
@@ -108,7 +108,7 @@ func doDownloadImpl(ctx context.Context, fs cache.FileSystem, file cache.File, u
 				return fmt.Errorf("%s: %w", file.Dir(), err)
 			}
 			if fs.Exists(file) {
-				log.Debug().Str("file", cache.Path(file)).Msg("Already downloaded")
+				log.Debug().Str("file", store.Path(file)).Msg("Already downloaded")
 				metrics.IncDownload(fileType, "hit")
 				return nil
 			}
@@ -119,9 +119,9 @@ func doDownloadImpl(ctx context.Context, fs cache.FileSystem, file cache.File, u
 			}
 			if err := fs.Write(file, content); err != nil {
 				metrics.IncDownload(fileType, "error")
-				return fmt.Errorf("%s: %w", cache.Path(file), err)
+				return fmt.Errorf("%s: %w", store.Path(file), err)
 			}
-			log.Info().Str("file", cache.Path(file)).Msg("Downloaded")
+			log.Info().Str("file", store.Path(file)).Msg("Downloaded")
 			metrics.IncDownload(fileType, "miss")
 			sleepAfterYahooDownload()
 			return nil

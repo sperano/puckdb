@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/sqlcdb"
 	"go.temporal.io/sdk/activity"
@@ -33,7 +33,7 @@ type ImportBoxscoresForDateResult struct {
 // ImportBoxscoresForDateActivity imports all boxscores for a single date from the cache into the database.
 func ImportBoxscoresForDateActivity(ctx context.Context, input ImportBoxscoresForDateInput) (ImportBoxscoresForDateResult, error) {
 	logger := activity.GetLogger(ctx)
-	fs := cache.NewSimpleCache()
+	fs := store.NewStore()
 
 	pool, err := database.OpenPGXPool(ctx)
 	if err != nil {
@@ -61,7 +61,7 @@ type activityLogger interface {
 
 func importBoxscoresForDateImpl(
 	ctx context.Context,
-	fs cache.FileSystem,
+	fs store.Store,
 	queries BoxscoreUpserter,
 	input ImportBoxscoresForDateInput,
 	logger activityLogger,
@@ -69,7 +69,7 @@ func importBoxscoresForDateImpl(
 	result := ImportBoxscoresForDateResult{}
 
 	// Read the daily schedule to get game IDs
-	scheduleFile := cache.DailyScheduleFile{Date: input.Date}
+	scheduleFile := store.DailyScheduleFile{Date: input.Date}
 	if !fs.Exists(scheduleFile) {
 		logger.Debug("No daily schedule file for date", "date", input.Date.Format("2006-01-02"))
 		return result, nil
@@ -94,7 +94,7 @@ func importBoxscoresForDateImpl(
 		}
 
 		// Read the boxscore file
-		boxscoreFile := cache.BoxscoreFile{Date: input.Date, GameID: game.ID}
+		boxscoreFile := store.BoxscoreFile{Date: input.Date, GameID: game.ID}
 		if !fs.Exists(boxscoreFile) {
 			logger.Warn("Boxscore file missing for final game", "gameID", game.ID)
 			result.GamesSkipped++
