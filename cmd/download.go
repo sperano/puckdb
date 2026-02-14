@@ -42,14 +42,21 @@ func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher
 	defer ticker.Stop()
 
 	timeout := time.After(pollTimeout)
+	consecutiveFailures := 0
 
 	for {
 		status, err := getStatus(ctx)
 		if err != nil {
+			consecutiveFailures++
+			if consecutiveFailures >= config.MaxConsecutiveQueryFailures {
+				sp.Cancel()
+				return fmt.Errorf("workflow query failed %d times consecutively - workflow may be stuck or a previous run is blocking. Check Temporal UI and terminate stale workflows", consecutiveFailures)
+			}
 			sp.PrintAbove(func() {
-				log.Warn().Err(err).Msg("Failed to get status, retrying...")
+				log.Warn().Err(err).Int("attempt", consecutiveFailures).Msg("Failed to get status, retrying...")
 			})
 		} else {
+			consecutiveFailures = 0 // Reset on success
 			sp.mu.Lock()
 			sp.message = formatStatusMessage(status)
 			sp.mu.Unlock()
@@ -60,9 +67,12 @@ func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher
 				if status.Progress != nil &&
 					status.Progress.CompletedHeader != nil && *status.Progress.CompletedHeader != "" &&
 					status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleGroupedItems {
-					elapsed := formatDuration(time.Since(startedAt))
+					elapsed := time.Since(startedAt).Seconds()
+					itemCount := len(status.Progress.Items)
+					// CompletedHeader is a template like "Fetched %d seasons"
+					header := fmt.Sprintf(*status.Progress.CompletedHeader, itemCount)
 					sp.mu.Lock()
-					sp.message = fmt.Sprintf("✓ %s (%d in %s)", *status.Progress.CompletedHeader, status.Progress.Total, elapsed)
+					sp.message = fmt.Sprintf("✓ %s in %.1fs.", header, elapsed)
 					sp.mu.Unlock()
 				}
 				sp.Stop()

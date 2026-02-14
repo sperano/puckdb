@@ -113,6 +113,7 @@ const (
 	DefaultWorkflowPollTimeout    = 30 * time.Minute
 	DefaultYahooPlayersTimeout    = 4 * time.Hour
 	DefaultDownloadPlayersTimeout = 2 * time.Hour
+	MaxConsecutiveQueryFailures   = 3
 )
 
 // UI defaults

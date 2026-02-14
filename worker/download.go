@@ -108,7 +108,7 @@ func doDownloadImpl(ctx context.Context, fs cache.FileSystem, file cache.File, u
 				return fmt.Errorf("%s: %w", file.Dir(), err)
 			}
 			if fs.Exists(file) {
-				log.Info().Str("file", cache.Path(file)).Msg("Already downloaded")
+				log.Debug().Str("file", cache.Path(file)).Msg("Already downloaded")
 				metrics.IncDownload(fileType, "hit")
 				return nil
 			}

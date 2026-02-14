@@ -333,10 +333,11 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 	}
 
 	result := &model.WorkflowProgress{
-		Total:     progress.Total,
-		Completed: progress.Completed,
-		Message:   ptrStringIfNotEmpty(progress.Message),
-		Header:    ptrStringIfNotEmpty(progress.Header),
+		Total:           progress.Total,
+		Completed:       progress.Completed,
+		Message:         ptrStringIfNotEmpty(progress.Message),
+		Header:          ptrStringIfNotEmpty(progress.Header),
+		CompletedHeader: ptrStringIfNotEmpty(progress.CompletedHeader),
 	}
 
 	// Convert display style if set

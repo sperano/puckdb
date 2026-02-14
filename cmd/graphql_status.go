@@ -64,7 +64,7 @@ func (c *GraphQLClient) GetDownloadEverythingForSeasonStatus(ctx context.Context
 func (c *GraphQLClient) GetFetchSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		fetchSeasonsResult { status failureReason }
-		fetchSeasonsProgress { total completed message header displayStyle items { id description completedDescription total completed started startedAt completedAt } }
+		fetchSeasonsProgress { total completed message header completedHeader displayStyle items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -90,7 +90,7 @@ func (c *GraphQLClient) GetFetchSeasonsStatus(ctx context.Context) (*WorkflowSta
 func (c *GraphQLClient) GetFetchYahooPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		fetchYahooPlayersResult { status failureReason }
-		fetchYahooPlayersProgress { total completed message header displayStyle items { id description completedDescription total completed started startedAt completedAt } }
+		fetchYahooPlayersProgress { total completed message header completedHeader displayStyle items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -116,7 +116,7 @@ func (c *GraphQLClient) GetFetchYahooPlayersStatus(ctx context.Context) (*Workfl
 func (c *GraphQLClient) GetProcessPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		processPlayersResult { status failureReason }
-		processPlayersProgress { total completed message header displayStyle items { id description completedDescription total completed started startedAt completedAt } }
+		processPlayersProgress { total completed message header completedHeader displayStyle items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -175,7 +175,7 @@ func (c *GraphQLClient) GetProcessPlayersResultData(ctx context.Context) (*model
 func (c *GraphQLClient) GetImportSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		importSeasonsResult { status failureReason }
-		importSeasonsProgress { total completed message header displayStyle items { id description completedDescription total completed started startedAt completedAt } }
+		importSeasonsProgress { total completed message header completedHeader displayStyle items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
@@ -201,7 +201,7 @@ func (c *GraphQLClient) GetImportSeasonsStatus(ctx context.Context) (*WorkflowSt
 func (c *GraphQLClient) GetInitializeStatus(ctx context.Context) (*WorkflowStatus, error) {
 	const query = `query {
 		initializeResult { status failureReason }
-		initializeProgress { total completed message header displayStyle items { id description completedDescription total completed started startedAt completedAt } }
+		initializeProgress { total completed message header completedHeader displayStyle items { id description completedDescription total completed started startedAt completedAt } }
 	}`
 
 	resp, err := c.execute(ctx, query, nil)
