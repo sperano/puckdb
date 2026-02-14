@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"fmt"
-	"github.com/sperano/puckdb/auth"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"golang.org/x/oauth2"
@@ -91,7 +90,7 @@ func YahooAuthenticatedHandlerWithConfig(redisClient cache.Client, conf *oauth2.
 		if viper.GetBool(config.FlagYahooLogToken) {
 			log.Debug().Str("code", code).Msg("Authentication code received from Yahoo")
 		}
-		ctxV := context.WithValue(context.Background(), auth.CtxUser, config.DefaultUser)
+		ctxV := context.WithValue(context.Background(), config.CtxUser, config.DefaultUser)
 		err := exchangeCodeWithConfig(ctxV, redisClient, conf, config.DefaultUser, code)
 		if err == nil {
 			http.Redirect(w, r, successURL, http.StatusFound)

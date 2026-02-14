@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/sperano/puckdb/auth"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/oauth2"
@@ -264,7 +264,7 @@ func TestExchangeCodeWithConfig_AlreadyHasValidToken(t *testing.T) {
 	t.Parallel()
 
 	mockRedis := &cache.MockClient{}
-	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig("http://example.com")
 
 	// Create a valid non-expired token
@@ -289,7 +289,7 @@ func TestExchangeCodeWithConfig_AuthCodeAlreadyUsed(t *testing.T) {
 	t.Parallel()
 
 	mockRedis := &cache.MockClient{}
-	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig("http://example.com")
 
 	// Key format: %s_yahoo_oauth2_token
@@ -317,7 +317,7 @@ func TestExchangeCodeWithConfig_TokenExchangeFails(t *testing.T) {
 	defer tokenServer.Close()
 
 	mockRedis := &cache.MockClient{}
-	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
 	// Key format: %s_yahoo_oauth2_token
@@ -350,7 +350,7 @@ func TestExchangeCodeWithConfig_TokenSaveFails(t *testing.T) {
 	defer tokenServer.Close()
 
 	mockRedis := &cache.MockClient{}
-	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
 	// Key format: %s_yahoo_oauth2_token
@@ -387,7 +387,7 @@ func TestExchangeCodeWithConfig_Success(t *testing.T) {
 	defer tokenServer.Close()
 
 	mockRedis := &cache.MockClient{}
-	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
 	// Key format: %s_yahoo_oauth2_token

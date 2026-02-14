@@ -12,7 +12,6 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/auth"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	puckhttp "github.com/sperano/puckdb/http"
@@ -43,7 +42,7 @@ func DownloadFromYahoo(url string) ([]byte, error) {
 
 // downloadFromYahooImpl is the testable implementation.
 func downloadFromYahooImpl(redisClient cache.Client, url string) ([]byte, error) {
-	ctx := context.WithValue(context.Background(), auth.CtxUser, config.DefaultUser)
+	ctx := context.WithValue(context.Background(), config.CtxUser, config.DefaultUser)
 	return puckhttp.DownloadYahoo(ctx, redisClient, url)
 }
 

@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog"
-	"github.com/sperano/puckdb/auth"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -377,7 +377,7 @@ func TestNewYahooClientWithConfig_TokenLoadError(t *testing.T) {
 	t.Parallel()
 
 	mockRedis := &cache.MockClient{}
-	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createTestOAuthConfig("http://example.com")
 
 	// Key format: %s_yahoo_oauth2_token
@@ -393,7 +393,7 @@ func TestNewYahooClientWithConfig_TokenMissing(t *testing.T) {
 	t.Parallel()
 
 	mockRedis := &cache.MockClient{}
-	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createTestOAuthConfig("http://example.com")
 
 	// Key format: %s_yahoo_oauth2_token
@@ -409,7 +409,7 @@ func TestNewYahooClientWithConfig_Success(t *testing.T) {
 	t.Parallel()
 
 	mockRedis := &cache.MockClient{}
-	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 
 	// Create a mock OAuth2 token server
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -443,7 +443,7 @@ func TestNewYahooClientWithConfig_TokenRefreshAndSave(t *testing.T) {
 	t.Parallel()
 
 	mockRedis := &cache.MockClient{}
-	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 
 	// Create a mock OAuth2 token server that returns a new token
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -486,7 +486,7 @@ func TestNewYahooClientWithConfig_TokenSaveError(t *testing.T) {
 	t.Parallel()
 
 	mockRedis := &cache.MockClient{}
-	ctx := context.WithValue(context.Background(), auth.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 
 	// Create a mock OAuth2 token server
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
