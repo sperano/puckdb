@@ -15,8 +15,7 @@ func cmdSignout() *cobra.Command {
 		Short: "Remove OAuth token",
 		Long:  `Remove Yahoo OAuth2 token from Redis.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			return config.BindRedisFlags(flags)
+			return config.RedisFlags.Bind(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
@@ -32,7 +31,6 @@ func cmdSignout() *cobra.Command {
 			return nil
 		},
 	}
-	flags := cmd.Flags()
-	config.InitRedisFlags(flags)
+	config.RedisFlags.Init(cmd.Flags())
 	return cmd
 }

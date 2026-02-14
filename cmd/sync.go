@@ -39,13 +39,9 @@ func cmdSync() *cobra.Command {
 		},
 	}
 	flags := cmd.PersistentFlags()
-	config.InitSeasonRangeFlags(flags)
-	config.InitSeasonConcurrencyFlag(flags)
-	config.InitSkipInitializingFlag(flags)
-	config.InitSkipYahooPlayersFlag(flags)
-	config.InitSkipSeasonsFlag(flags)
-	config.InitSkipPlayersFlag(flags)
-	config.InitSkipImportSeasonsFlag(flags)
+	config.SeasonRangeFlags.Init(flags)
+	config.SeasonConcurrencyFlags.Init(flags)
+	config.SyncSkipFlags.Init(flags)
 	return cmd
 }
 
@@ -54,28 +50,16 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 	if err := config.BindLoggingFlags(flags); err != nil {
 		return err
 	}
-	if err := config.BindAPIServerAddrFlag(cmd.Root().PersistentFlags()); err != nil {
+	if err := config.APIServerAddrFlags.Bind(cmd.Root().PersistentFlags()); err != nil {
 		return err
 	}
-	if err := config.BindSeasonRangeFlags(flags); err != nil {
+	if err := config.SeasonRangeFlags.Bind(flags); err != nil {
 		return err
 	}
-	if err := config.BindSeasonConcurrencyFlag(flags); err != nil {
+	if err := config.SeasonConcurrencyFlags.Bind(flags); err != nil {
 		return err
 	}
-	if err := config.BindSkipInitializingFlag(flags); err != nil {
-		return err
-	}
-	if err := config.BindSkipYahooPlayersFlag(flags); err != nil {
-		return err
-	}
-	if err := config.BindSkipSeasonsFlag(flags); err != nil {
-		return err
-	}
-	if err := config.BindSkipPlayersFlag(flags); err != nil {
-		return err
-	}
-	if err := config.BindSkipImportSeasonsFlag(flags); err != nil {
+	if err := config.SyncSkipFlags.Bind(flags); err != nil {
 		return err
 	}
 	BindFlags(cmd.PersistentFlags())

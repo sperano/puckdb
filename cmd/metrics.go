@@ -31,7 +31,7 @@ Collectors:
 Each collector runs independently at its own interval.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
-			if err := viper.BindPFlag(config.FlagDataPath, flags.Lookup(config.FlagDataPath)); err != nil {
+			if err := config.DataPathFlags.Bind(flags); err != nil {
 				return err
 			}
 			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
@@ -40,39 +40,31 @@ Each collector runs independently at its own interval.`,
 			if err := viper.BindPFlag(config.FlagMetricsPort, flags.Lookup(FlagMetricsPortLocal)); err != nil {
 				return err
 			}
-			if err := config.BindCacheIntervalSecondsFlag(flags); err != nil {
+			if err := config.MetricsIntervalFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindRedisIntervalSecondsFlag(flags); err != nil {
+			if err := config.RedisFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindDBIntervalSecondsFlag(flags); err != nil {
+			if err := config.PostgresFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindRedisFlags(flags); err != nil {
+			if err := config.GameIDCacheFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindPostgresFlags(flags); err != nil {
-				return err
-			}
-			if err := config.BindGameIDCacheTTLFlag(flags); err != nil {
-				return err
-			}
-			return config.BindSeasonRangeFlags(flags)
+			return config.SeasonRangeFlags.Bind(flags)
 		},
 		RunE: runMetrics,
 	}
 	flags := cmd.Flags()
-	config.InitDataPathFlag(flags)
-	config.InitSeasonRangeFlags(flags)
-	config.InitRedisFlags(flags)
-	config.InitPostgresFlags(flags)
-	config.InitGameIDCacheTTLFlag(flags)
+	config.DataPathFlags.Init(flags)
+	config.SeasonRangeFlags.Init(flags)
+	config.RedisFlags.Init(flags)
+	config.PostgresFlags.Init(flags)
+	config.GameIDCacheFlags.Init(flags)
 	flags.StringP(config.FlagYahooSeasons, "S", config.DefaultYahooSeasonsFile, "Yahoo seasons config file (optional, enables Yahoo file checks)")
 	flags.Int(FlagMetricsPortLocal, config.DefaultMetricsPort, "Port for metrics endpoint")
-	config.InitCacheIntervalSecondsFlag(flags)
-	config.InitRedisIntervalSecondsFlag(flags)
-	config.InitDBIntervalSecondsFlag(flags)
+	config.MetricsIntervalFlags.Init(flags)
 	return cmd
 }
 

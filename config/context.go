@@ -5,8 +5,12 @@ import (
 	"errors"
 )
 
-// Context key for user identity
-const CtxUser = "user"
+// contextKey is an unexported type for context keys to prevent collisions
+// with keys defined in other packages.
+type contextKey string
+
+// CtxUser is the context key for user identity.
+const CtxUser contextKey = "user"
 
 // Errors for user context extraction
 var (

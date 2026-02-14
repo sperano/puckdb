@@ -19,67 +19,46 @@ func cmdWorker() *cobra.Command {
 		Long:  `Start the Temporal worker to process import workflows`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
-			if err := config.BindYahooOAuth2Flags(flags); err != nil {
+			if err := config.YahooOAuth2Flags.Bind(flags); err != nil {
 				return err
 			}
 			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagDataPath, flags.Lookup(config.FlagDataPath)); err != nil {
+			if err := config.DataPathFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindRedisFlags(flags); err != nil {
+			if err := config.RedisFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindPostgresFlags(flags); err != nil {
+			if err := config.PostgresFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindTemporalFlags(flags); err != nil {
+			if err := config.TemporalFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindTemporalRetryFlags(flags); err != nil {
+			if err := config.TemporalRetryFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagWorkerPort, flags.Lookup(config.FlagWorkerPort)); err != nil {
+			if err := config.WorkerPortFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagWorkerTLSEnabled, flags.Lookup(config.FlagWorkerTLSEnabled)); err != nil {
+			if err := config.DownloadConcurrencyFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindSkipPreseasonFlag(flags); err != nil {
+			if err := config.YahooPlayerFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindMaxSeasonConcurrencyFlag(flags); err != nil {
+			if err := config.GameIDCacheFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindDayConcurrencyFlag(flags); err != nil {
+			if err := config.YahooDownloadSleepFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindMaxYahooPlayerIDFlag(flags); err != nil {
+			if err := config.WorkerConcurrencyFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindYahooPlayerBatchSizeFlag(flags); err != nil {
-				return err
-			}
-			if err := config.BindYahooPlayerActivityBatchSizeFlag(flags); err != nil {
-				return err
-			}
-			if err := config.BindYahooPlayersPerExecutionFlag(flags); err != nil {
-				return err
-			}
-			if err := config.BindGameIDCacheTTLFlag(flags); err != nil {
-				return err
-			}
-			if err := config.BindYahooDownloadSleepFlags(flags); err != nil {
-				return err
-			}
-			if err := config.BindWorkerConcurrencyFlags(flags); err != nil {
-				return err
-			}
-			if err := config.BindPlayerLandingFlags(flags); err != nil {
-				return err
-			}
-			return nil
+			return config.PlayerLandingFlags.Bind(flags)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.LogFlagValues()
@@ -155,25 +134,19 @@ func cmdWorker() *cobra.Command {
 		},
 	}
 	flags := cmd.Flags()
-	config.InitYahooOAuth2Flags(flags)
+	config.YahooOAuth2Flags.Init(flags)
 	config.InitSeasonsFlag(cmd, flags, false)
-	config.InitDataPathFlag(flags)
-	config.InitRedisFlags(flags)
-	config.InitPostgresFlags(flags)
-	config.InitTemporalFlags(flags)
-	config.InitTemporalRetryFlags(flags)
-	config.InitWorkerPortFlag(flags)
-	config.InitWorkerTLSEnabledFlag(flags)
-	config.InitSkipPreseasonFlag(flags)
-	config.InitMaxSeasonConcurrencyFlag(flags)
-	config.InitDayConcurrencyFlag(flags)
-	config.InitMaxYahooPlayerIDFlag(flags)
-	config.InitYahooPlayerBatchSizeFlag(flags)
-	config.InitYahooPlayerActivityBatchSizeFlag(flags)
-	config.InitYahooPlayersPerExecutionFlag(flags)
-	config.InitGameIDCacheTTLFlag(flags)
-	config.InitYahooDownloadSleepFlags(flags)
-	config.InitWorkerConcurrencyFlags(flags)
-	config.InitPlayerLandingFlags(flags)
+	config.DataPathFlags.Init(flags)
+	config.RedisFlags.Init(flags)
+	config.PostgresFlags.Init(flags)
+	config.TemporalFlags.Init(flags)
+	config.TemporalRetryFlags.Init(flags)
+	config.WorkerPortFlags.Init(flags)
+	config.DownloadConcurrencyFlags.Init(flags)
+	config.YahooPlayerFlags.Init(flags)
+	config.GameIDCacheFlags.Init(flags)
+	config.YahooDownloadSleepFlags.Init(flags)
+	config.WorkerConcurrencyFlags.Init(flags)
+	config.PlayerLandingFlags.Init(flags)
 	return cmd
 }

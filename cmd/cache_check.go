@@ -18,32 +18,28 @@ Use --season to check a specific season, or --from-season/--to-season for a rang
 If --seasons config file is provided, Yahoo files are also checked.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
-			if err := viper.BindPFlag(config.FlagDataPath, flags.Lookup(config.FlagDataPath)); err != nil {
+			if err := config.DataPathFlags.Bind(flags); err != nil {
 				return err
 			}
 			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
 				return err
 			}
-			if err := config.BindVerboseFlag(flags); err != nil {
+			if err := config.DisplayFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindIncompleteFlag(flags); err != nil {
+			if err := config.RedisFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindRedisFlags(flags); err != nil {
-				return err
-			}
-			return config.BindSeasonRangeFlags(flags)
+			return config.SeasonRangeFlags.Bind(flags)
 		},
 		RunE: runCacheCheck,
 	}
 	flags := cmd.Flags()
-	config.InitDataPathFlag(flags)
-	config.InitSeasonRangeFlags(flags)
-	config.InitRedisFlags(flags)
+	config.DataPathFlags.Init(flags)
+	config.SeasonRangeFlags.Init(flags)
+	config.RedisFlags.Init(flags)
 	flags.StringP(config.FlagYahooSeasons, "S", config.DefaultYahooSeasonsFile, "Yahoo seasons config file (optional, enables Yahoo file checks)")
-	config.InitVerboseFlag(flags)
-	config.InitIncompleteFlag(flags)
+	config.DisplayFlags.Init(flags)
 	return cmd
 }
 

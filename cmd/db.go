@@ -40,7 +40,7 @@ func cmdDBInit() *cobra.Command {
 		Short: "Initialize database",
 		Long:  `Run database migrations via GraphQL API. Uses Redis lock to prevent concurrent migrations.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindRedisFlags(cmd.Flags())
+			return config.RedisFlags.Bind(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getGraphQLClient()
@@ -77,7 +77,7 @@ func cmdDBInit() *cobra.Command {
 			return nil
 		},
 	}
-	config.InitRedisFlags(cmd.Flags())
+	config.RedisFlags.Init(cmd.Flags())
 	return cmd
 }
 
@@ -116,20 +116,20 @@ Uses provisioner credentials to create the target database and user.
 This command is idempotent and uses a Redis lock to prevent concurrent runs.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
-			if err := config.BindRedisFlags(flags); err != nil {
+			if err := config.RedisFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindProvisionerFlags(flags); err != nil {
+			if err := config.ProvisionerFlags.Bind(flags); err != nil {
 				return err
 			}
-			return config.BindPostgresFlags(flags)
+			return config.PostgresFlags.Bind(flags)
 		},
 		RunE: runDBProvision,
 	}
 	flags := cmd.Flags()
-	config.InitRedisFlags(flags)
-	config.InitProvisionerFlags(flags)
-	config.InitPostgresFlags(flags)
+	config.RedisFlags.Init(flags)
+	config.ProvisionerFlags.Init(flags)
+	config.PostgresFlags.Init(flags)
 	return cmd
 }
 

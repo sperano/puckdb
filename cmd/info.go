@@ -25,49 +25,34 @@ func cmdInfo() *cobra.Command {
 			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
 				return err
 			}
-			if err := config.BindYahooOAuth2Flags(flags); err != nil {
+			if err := config.YahooOAuth2Flags.Bind(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagDataPath, flags.Lookup(config.FlagDataPath)); err != nil {
+			if err := config.DataPathFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindRedisFlags(flags); err != nil {
+			if err := config.RedisFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindPostgresFlags(flags); err != nil {
+			if err := config.PostgresFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindTemporalFlags(flags); err != nil {
+			if err := config.TemporalFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindTemporalRetryFlags(flags); err != nil {
+			if err := config.TemporalRetryFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagAPIPort, flags.Lookup(config.FlagAPIPort)); err != nil {
+			if err := config.APIPortFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagAPITLSEnabled, flags.Lookup(config.FlagAPITLSEnabled)); err != nil {
+			if err := config.MetricsPortFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagMetricsPort, flags.Lookup(config.FlagMetricsPort)); err != nil {
+			if err := config.TLSFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagMetricsTLSEnabled, flags.Lookup(config.FlagMetricsTLSEnabled)); err != nil {
-				return err
-			}
-			if err := viper.BindPFlag(config.FlagMetricsRefreshInterval, flags.Lookup(config.FlagMetricsRefreshInterval)); err != nil {
-				return err
-			}
-			if err := viper.BindPFlag(config.FlagTLSCertificate, flags.Lookup(config.FlagTLSCertificate)); err != nil {
-				return err
-			}
-			if err := viper.BindPFlag(config.FlagTLSKey, flags.Lookup(config.FlagTLSKey)); err != nil {
-				return err
-			}
-			if err := viper.BindPFlag(config.FlagWorkerPort, flags.Lookup(config.FlagWorkerPort)); err != nil {
-				return err
-			}
-			return viper.BindPFlag(config.FlagWorkerTLSEnabled, flags.Lookup(config.FlagWorkerTLSEnabled))
+			return config.WorkerPortFlags.Bind(flags)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			redisClient := cache.NewClient()
@@ -76,22 +61,17 @@ func cmdInfo() *cobra.Command {
 		},
 	}
 	flags := cmd.Flags()
-	config.InitAPIPortFlag(flags)
-	config.InitAPITLSEnabledFlag(flags)
-	config.InitDataPathFlag(flags)
-	config.InitMetricsPortFlag(flags)
-	config.InitMetricsRefreshIntervalFlag(flags)
-	config.InitMetricsTLSEnabledFlag(flags)
-	config.InitPostgresFlags(flags)
-	config.InitRedisFlags(flags)
+	config.APIPortFlags.Init(flags)
+	config.DataPathFlags.Init(flags)
+	config.MetricsPortFlags.Init(flags)
+	config.PostgresFlags.Init(flags)
+	config.RedisFlags.Init(flags)
 	config.InitSeasonsFlag(cmd, flags, false)
-	config.InitTemporalFlags(flags)
-	config.InitTemporalRetryFlags(flags)
-	config.InitWorkerPortFlag(flags)
-	config.InitWorkerTLSEnabledFlag(flags)
-	config.InitYahooOAuth2Flags(flags)
-	config.InitTLSCertificate(flags)
-	config.InitTLSKey(flags)
+	config.TemporalFlags.Init(flags)
+	config.TemporalRetryFlags.Init(flags)
+	config.WorkerPortFlags.Init(flags)
+	config.YahooOAuth2Flags.Init(flags)
+	config.TLSFlags.Init(flags)
 	return cmd
 }
 

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -12,6 +11,69 @@ import (
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
+
+// FlagDef defines a single CLI flag.
+type FlagDef struct {
+	Name      string
+	Short     string // optional single-char shorthand
+	Default   any    // string, int, or bool
+	Usage     string
+	Sensitive bool // if true, value is redacted in logs
+}
+
+// FlagGroup is a collection of related flags.
+type FlagGroup struct {
+	Flags []FlagDef
+}
+
+// Init registers all flags in the group with the given FlagSet.
+func (g *FlagGroup) Init(flags *flag.FlagSet) {
+	for _, f := range g.Flags {
+		switch v := f.Default.(type) {
+		case string:
+			if f.Short != "" {
+				flags.StringP(f.Name, f.Short, v, f.Usage)
+			} else {
+				flags.String(f.Name, v, f.Usage)
+			}
+		case int:
+			if f.Short != "" {
+				flags.IntP(f.Name, f.Short, v, f.Usage)
+			} else {
+				flags.Int(f.Name, v, f.Usage)
+			}
+		case bool:
+			if f.Short != "" {
+				flags.BoolP(f.Name, f.Short, v, f.Usage)
+			} else {
+				flags.Bool(f.Name, v, f.Usage)
+			}
+		}
+	}
+}
+
+// Bind binds all flags in the group to viper.
+func (g *FlagGroup) Bind(flags *flag.FlagSet) error {
+	for _, f := range g.Flags {
+		if err := viper.BindPFlag(f.Name, flags.Lookup(f.Name)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sensitiveFlags returns a set of flag names that should be redacted.
+func (g *FlagGroup) sensitiveFlags() map[string]bool {
+	result := make(map[string]bool)
+	for _, f := range g.Flags {
+		if f.Sensitive {
+			result[f.Name] = true
+		}
+	}
+	return result
+}
+
+// Flag name constants - used by viper.Get* calls throughout the codebase
 
 // Server flags
 const (
@@ -139,13 +201,239 @@ const (
 	FlagProvisionerPassword = "provisioner-password"
 )
 
-// const FlagInteractive = "interactive"
+// Flag groups - related flags grouped together
 
+// PostgresFlags defines all PostgreSQL connection flags.
+var PostgresFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagPostgresHost, "", DefaultPostgresHost, "Postgres host", false},
+		{FlagPostgresUser, "", DefaultPostgresUser, "Postgres user", false},
+		{FlagPostgresPassword, "", "", "Postgres password", true},
+		{FlagPostgresDatabase, "", DefaultPostgresDatabase, "Postgres database", false},
+		{FlagPostgresPort, "", DefaultPostgresPort, "Postgres port", false},
+		{FlagPostgresSSLMode, "", DefaultPostgresSSLMode, "Postgres SSL mode", false},
+		{FlagPostgresTimeZone, "", DefaultPostgresTimeZone, "Postgres time zone", false},
+		{FlagPostgresMaxIdleConns, "", DefaultPostgresMaxIdleConns, "Maximum idle database connections", false},
+		{FlagPostgresMaxOpenConns, "", DefaultPostgresMaxOpenConns, "Maximum open database connections", false},
+	},
+}
+
+// RedisFlags defines all Redis connection flags.
+var RedisFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagRedisURL, "", DefaultRedisURL, "Redis url", false},
+		{FlagRedisPassword, "", "", "Redis password", true},
+		{FlagRedisDB, "", DefaultRedisDB, "Redis db", false},
+	},
+}
+
+// TemporalFlags defines Temporal connection flags.
+var TemporalFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagTemporalHostPort, "", DefaultTemporalHostPort, "Temporal host/port", false},
+		{FlagTemporalNamespace, "", DefaultTemporalNamespace, "Temporal namespace", false},
+	},
+}
+
+// TemporalRetryFlags defines Temporal retry policy flags.
+var TemporalRetryFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagTemporalRetryInitialInterval, "", DefaultTemporalRetryInitialInterval, "Initial interval in seconds between activity retries", false},
+		{FlagTemporalRetryMaxInterval, "", DefaultTemporalRetryMaxInterval, "Maximum interval in seconds between activity retries (for rate limit recovery)", false},
+		{FlagTemporalRetryMaxAttempts, "", DefaultTemporalRetryMaxAttempts, "Maximum number of activity retry attempts (0 for unlimited)", false},
+	},
+}
+
+// YahooOAuth2Flags defines Yahoo OAuth2 configuration flags.
+var YahooOAuth2Flags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagYahooOAuth2ClientID, "", "", "Yahoo! OAuth2 Client ID", false},
+		{FlagYahooOAuth2ClientSecret, "", "", "Yahoo! OAuth2 Client Secret", true},
+		{FlagPublicURL, "", "", "Public URL for OAuth callbacks (e.g., https://localhost:8787 or http://api.example.com)", false},
+		{FlagYahooLogToken, "", false, "Log the token after successful authentication (for debugging)", false},
+	},
+}
+
+// YahooPlayerFlags defines Yahoo player download flags.
+var YahooPlayerFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagMaxYahooPlayerID, "", DefaultMaxYahooPlayerID, "Maximum Yahoo player ID to scan when importing players", false},
+		{FlagYahooPlayerBatchSize, "", DefaultYahooPlayerBatchSize, "Number of concurrent activities for downloading Yahoo players", false},
+		{FlagYahooPlayerActivityBatchSize, "", DefaultYahooPlayerActivityBatchSize, "Number of players to process per activity", false},
+		{FlagYahooPlayersPerExecution, "", DefaultYahooPlayersPerExecution, "Players to process per workflow execution before ContinueAsNew", false},
+	},
+}
+
+// YahooDownloadSleepFlags defines Yahoo download rate limiting flags.
+var YahooDownloadSleepFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagYahooDownloadSleepMin, "", DefaultYahooDownloadSleepMin, "Minimum seconds to sleep after each Yahoo API download", false},
+		{FlagYahooDownloadSleepMax, "", DefaultYahooDownloadSleepMax, "Maximum seconds to sleep after each Yahoo API download", false},
+	},
+}
+
+// PlayerLandingFlags defines NHL player landing download flags.
+var PlayerLandingFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagPlayerLandingConcurrency, "", DefaultPlayerLandingConcurrency, "Number of concurrent activities for downloading NHL player landings", false},
+		{FlagPlayerLandingBatchSize, "", DefaultPlayerLandingBatchSize, "Number of players to download per activity", false},
+		{FlagPlayerLandingPlayersPerExec, "", DefaultPlayerLandingPlayersPerExec, "Players to process per workflow execution before ContinueAsNew", false},
+	},
+}
+
+// WorkerConcurrencyFlags defines Temporal worker concurrency flags.
+var WorkerConcurrencyFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagWorkerMaxWorkflowPollers, "", DefaultWorkerMaxWorkflowPollers, "Max concurrent workflow task pollers", false},
+		{FlagWorkerMaxActivityPollers, "", DefaultWorkerMaxActivityPollers, "Max concurrent activity task pollers", false},
+		{FlagWorkerMaxWorkflowExecution, "", DefaultWorkerMaxWorkflowExecution, "Max concurrent workflow task executions", false},
+		{FlagWorkerMaxActivityExecution, "", DefaultWorkerMaxActivityExecution, "Max concurrent activity executions", false},
+	},
+}
+
+// ProvisionerFlags defines database provisioner flags.
+var ProvisionerFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagProvisionerHost, "", "", "PostgreSQL host for provisioner connection", false},
+		{FlagProvisionerUser, "", "", "PostgreSQL user with CREATE DATABASE privileges", false},
+		{FlagProvisionerPassword, "", "", "PostgreSQL provisioner password", true},
+	},
+}
+
+// SeasonRangeFlags defines season selection flags.
+var SeasonRangeFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagSeasonYear, "", 0, "Season year (e.g., 2024). Sets both from and to season.", false},
+		{FlagFromSeasonYear, "", 0, "Start season year for range (e.g., 2020)", false},
+		{FlagToSeasonYear, "", 0, "End season year for range (e.g., 2024)", false},
+	},
+}
+
+// SyncSkipFlags defines sync workflow skip flags.
+var SyncSkipFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagSkipInitializing, "", false, "Skip the initialization workflow (franchises, seasons, league structure)", false},
+		{FlagSkipYahooPlayers, "", false, "Skip downloading Yahoo! players", false},
+		{FlagSkipSeasons, "", false, "Skip downloading season data (NHL schedules, boxscores, Yahoo! fantasy)", false},
+		{FlagSkipProcessPlayers, "", false, "Skip processing players (download + import)", false},
+		{FlagSkipImportSeasons, "", false, "Skip importing seasons into the database", false},
+	},
+}
+
+// MetricsIntervalFlags defines metrics collection interval flags.
+var MetricsIntervalFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagCacheIntervalSeconds, "", DefaultCacheIntervalSeconds, "Interval in seconds for cache metrics collection", false},
+		{FlagRedisIntervalSeconds, "", DefaultRedisIntervalSeconds, "Interval in seconds for Redis metrics collection", false},
+		{FlagDBIntervalSeconds, "", DefaultDBIntervalSeconds, "Interval in seconds for database metrics collection", false},
+	},
+}
+
+// DisplayFlags defines CLI display option flags.
+var DisplayFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagVerbose, "v", false, "Show detailed output per season", false},
+		{FlagIncomplete, "i", false, "Only show seasons with less than 100% completion", false},
+	},
+}
+
+// TLSFlags defines TLS certificate flags.
+var TLSFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagTLSCertificate, "", "", "TLS Certificate", false},
+		{FlagTLSKey, "", "", "TLS Key", true},
+	},
+}
+
+// Single-flag groups for individual flags
+
+// LoggingFlags defines logging configuration flags.
+// Note: Use InitLoggingFlags for custom defaults per command.
+var LoggingFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagLogLevel, "L", DefaultLogLevel, fmt.Sprintf("Log Level: %s", getLogLevelsStr()), false},
+		{FlagLogFile, "", DefaultLogFile, fmt.Sprintf("Log file path (empty for stdout, 'default' for %s)", GetDefaultLogPath()), false},
+	},
+}
+
+// APIServerAddrFlags defines API server address flag.
+var APIServerAddrFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagAPIServerAddr, "A", DefaultAPIServerAddr, "API server address (e.g., http://localhost:8080)", false},
+	},
+}
+
+// APIPortFlags defines API server port flags.
+var APIPortFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagAPIPort, "p", DefaultAPIPort, "API server port", false},
+		{FlagAPITLSEnabled, "", false, "Enable TLS Mode", false},
+	},
+}
+
+// WorkerPortFlags defines worker server port flags.
+var WorkerPortFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagWorkerPort, "", DefaultWorkerPort, "Worker metrics port", false},
+		{FlagWorkerTLSEnabled, "", false, "Enable TLS Mode", false},
+	},
+}
+
+// MetricsPortFlags defines metrics server port flags.
+var MetricsPortFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagMetricsPort, "", DefaultMetricsPort, "Metrics server port", false},
+		{FlagMetricsTLSEnabled, "", false, "Enable TLS Mode", false},
+		{FlagMetricsRefreshInterval, "", DefaultMetricsRefreshInterval, "Metrics refresh interval in seconds", false},
+	},
+}
+
+// DataPathFlags defines data path flag.
+var DataPathFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagDataPath, "", "", "Path to local files data", false},
+	},
+}
+
+// DownloadConcurrencyFlags defines download concurrency flags.
+var DownloadConcurrencyFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagMaxSeasonConcurrency, "", DefaultMaxSeasonConcurrency, "Maximum number of seasons to download concurrently", false},
+		{FlagDayConcurrency, "", DefaultDayConcurrency, "Number of days to download concurrently within each season", false},
+		{FlagSkipPreseason, "", false, "Skip downloading and importing preseason games", false},
+	},
+}
+
+// GameIDCacheFlags defines game ID cache TTL flag.
+var GameIDCacheFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagGameIDCacheTTL, "", DefaultGameIDCacheTTL, "TTL in seconds for game ID cache in Redis", false},
+	},
+}
+
+// SeasonConcurrencyFlags defines season concurrency flag.
+var SeasonConcurrencyFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagSeasonConcurrency, "", 0, "Number of seasons to process concurrently (0 uses server default)", false},
+	},
+}
+
+// MonitorFlags defines workflow monitor flag.
+var MonitorFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagMonitor, "", false, "Skip triggering workflow, only monitor existing workflow", false},
+	},
+}
+
+// Special functions for flags that need custom initialization
+
+// InitLoggingFlags initializes logging flags with custom defaults.
 func InitLoggingFlags(flags *flag.FlagSet, defaultLevel, defaultFile string) {
 	flags.StringP(FlagLogLevel, "L", defaultLevel, fmt.Sprintf("Log Level: %s", getLogLevelsStr()))
 	flags.String(FlagLogFile, defaultFile, fmt.Sprintf("Log file path (empty for stdout, 'default' for %s)", GetDefaultLogPath()))
 }
 
+// BindLoggingFlags binds logging flags to viper.
 func BindLoggingFlags(flags *flag.FlagSet) error {
 	if err := viper.BindPFlag(FlagLogLevel, flags.Lookup(FlagLogLevel)); err != nil {
 		return err
@@ -153,6 +441,7 @@ func BindLoggingFlags(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagLogFile, flags.Lookup(FlagLogFile))
 }
 
+// InitSeasonsFlag initializes the Yahoo seasons flag with required validation.
 func InitSeasonsFlag(cmd *cobra.Command, flags *flag.FlagSet, persistent bool) {
 	flags.StringP(FlagYahooSeasons, "S", DefaultYahooSeasonsFile, "Yahoo seasons config file")
 	var err error
@@ -162,299 +451,10 @@ func InitSeasonsFlag(cmd *cobra.Command, flags *flag.FlagSet, persistent bool) {
 		err = cmd.MarkFlagRequired(FlagYahooSeasons)
 	}
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to mark flag as required")
+		// This can only happen if FlagYahooSeasons doesn't exist, which is
+		// impossible since we just added it above. Panic on programmer error.
+		panic(fmt.Sprintf("failed to mark %s flag as required: %v", FlagYahooSeasons, err))
 	}
-}
-
-func InitYahooOAuth2Flags(flags *flag.FlagSet) {
-	flags.String(FlagYahooOAuth2ClientID, "", "Yahoo! OAuth2 Client ID")
-	flags.String(FlagYahooOAuth2ClientSecret, "", "Yahoo! OAuth2 Client Secret")
-	flags.String(FlagPublicURL, "", "Public URL for OAuth callbacks (e.g., https://localhost:8787 or http://api.example.com)")
-	flags.Bool(FlagYahooLogToken, false, "Log the token after succesful authentication (for debugging)")
-}
-
-func BindYahooOAuth2Flags(flags *flag.FlagSet) error {
-	if err := viper.BindPFlag(FlagYahooOAuth2ClientID, flags.Lookup(FlagYahooOAuth2ClientID)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagYahooOAuth2ClientSecret, flags.Lookup(FlagYahooOAuth2ClientSecret)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagPublicURL, flags.Lookup(FlagPublicURL)); err != nil {
-		return err
-	}
-	return viper.BindPFlag(FlagYahooLogToken, flags.Lookup(FlagYahooLogToken))
-}
-
-func InitDataPathFlag(flags *flag.FlagSet) {
-	flags.String(FlagDataPath, "", "Path to local files data")
-}
-
-func InitTemporalFlags(flags *flag.FlagSet) {
-	flags.String(FlagTemporalHostPort, DefaultTemporalHostPort, "Temporal host/port")
-	flags.String(FlagTemporalNamespace, DefaultTemporalNamespace, "Temporal namespace")
-}
-
-func BindTemporalFlags(flags *flag.FlagSet) error {
-	if err := viper.BindPFlag(FlagTemporalHostPort, flags.Lookup(FlagTemporalHostPort)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagTemporalNamespace, flags.Lookup(FlagTemporalNamespace)); err != nil {
-		return err
-	}
-	return nil
-}
-
-func InitTemporalRetryFlags(flags *flag.FlagSet) {
-	flags.Int(FlagTemporalRetryInitialInterval, DefaultTemporalRetryInitialInterval, "Initial interval in seconds between activity retries")
-	flags.Int(FlagTemporalRetryMaxInterval, DefaultTemporalRetryMaxInterval, "Maximum interval in seconds between activity retries (for rate limit recovery)")
-	flags.Int(FlagTemporalRetryMaxAttempts, DefaultTemporalRetryMaxAttempts, "Maximum number of activity retry attempts (0 for unlimited)")
-}
-
-func BindTemporalRetryFlags(flags *flag.FlagSet) error {
-	if err := viper.BindPFlag(FlagTemporalRetryInitialInterval, flags.Lookup(FlagTemporalRetryInitialInterval)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagTemporalRetryMaxInterval, flags.Lookup(FlagTemporalRetryMaxInterval)); err != nil {
-		return err
-	}
-	return viper.BindPFlag(FlagTemporalRetryMaxAttempts, flags.Lookup(FlagTemporalRetryMaxAttempts))
-}
-
-func InitMaxSeasonConcurrencyFlag(flags *flag.FlagSet) {
-	flags.Int(FlagMaxSeasonConcurrency, DefaultMaxSeasonConcurrency, "Maximum number of seasons to download concurrently")
-}
-
-func BindMaxSeasonConcurrencyFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagMaxSeasonConcurrency, flags.Lookup(FlagMaxSeasonConcurrency))
-}
-
-func InitDayConcurrencyFlag(flags *flag.FlagSet) {
-	flags.Int(FlagDayConcurrency, DefaultDayConcurrency, "Number of days to download concurrently within each season")
-}
-
-func BindDayConcurrencyFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagDayConcurrency, flags.Lookup(FlagDayConcurrency))
-}
-
-func InitMaxYahooPlayerIDFlag(flags *flag.FlagSet) {
-	flags.Int(FlagMaxYahooPlayerID, DefaultMaxYahooPlayerID, "Maximum Yahoo player ID to scan when importing players")
-}
-
-func BindMaxYahooPlayerIDFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagMaxYahooPlayerID, flags.Lookup(FlagMaxYahooPlayerID))
-}
-
-func InitYahooPlayerBatchSizeFlag(flags *flag.FlagSet) {
-	flags.Int(FlagYahooPlayerBatchSize, DefaultYahooPlayerBatchSize, "Number of concurrent activities for downloading Yahoo players")
-}
-
-func BindYahooPlayerBatchSizeFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagYahooPlayerBatchSize, flags.Lookup(FlagYahooPlayerBatchSize))
-}
-
-func InitYahooPlayerActivityBatchSizeFlag(flags *flag.FlagSet) {
-	flags.Int(FlagYahooPlayerActivityBatchSize, DefaultYahooPlayerActivityBatchSize, "Number of players to process per activity")
-}
-
-func BindYahooPlayerActivityBatchSizeFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagYahooPlayerActivityBatchSize, flags.Lookup(FlagYahooPlayerActivityBatchSize))
-}
-
-func InitYahooPlayersPerExecutionFlag(flags *flag.FlagSet) {
-	flags.Int(FlagYahooPlayersPerExecution, DefaultYahooPlayersPerExecution, "Players to process per workflow execution before ContinueAsNew")
-}
-
-func BindYahooPlayersPerExecutionFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagYahooPlayersPerExecution, flags.Lookup(FlagYahooPlayersPerExecution))
-}
-
-func InitGameIDCacheTTLFlag(flags *flag.FlagSet) {
-	flags.Int(FlagGameIDCacheTTL, DefaultGameIDCacheTTL, "TTL in seconds for game ID cache in Redis")
-}
-
-func BindGameIDCacheTTLFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagGameIDCacheTTL, flags.Lookup(FlagGameIDCacheTTL))
-}
-
-func InitYahooDownloadSleepFlags(flags *flag.FlagSet) {
-	flags.Int(FlagYahooDownloadSleepMin, DefaultYahooDownloadSleepMin, "Minimum seconds to sleep after each Yahoo API download")
-	flags.Int(FlagYahooDownloadSleepMax, DefaultYahooDownloadSleepMax, "Maximum seconds to sleep after each Yahoo API download")
-}
-
-func BindYahooDownloadSleepFlags(flags *flag.FlagSet) error {
-	if err := viper.BindPFlag(FlagYahooDownloadSleepMin, flags.Lookup(FlagYahooDownloadSleepMin)); err != nil {
-		return err
-	}
-	return viper.BindPFlag(FlagYahooDownloadSleepMax, flags.Lookup(FlagYahooDownloadSleepMax))
-}
-
-func InitPlayerLandingFlags(flags *flag.FlagSet) {
-	flags.Int(FlagPlayerLandingConcurrency, DefaultPlayerLandingConcurrency, "Number of concurrent activities for downloading NHL player landings")
-	flags.Int(FlagPlayerLandingBatchSize, DefaultPlayerLandingBatchSize, "Number of players to download per activity")
-	flags.Int(FlagPlayerLandingPlayersPerExec, DefaultPlayerLandingPlayersPerExec, "Players to process per workflow execution before ContinueAsNew")
-}
-
-func BindPlayerLandingFlags(flags *flag.FlagSet) error {
-	if err := viper.BindPFlag(FlagPlayerLandingConcurrency, flags.Lookup(FlagPlayerLandingConcurrency)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagPlayerLandingBatchSize, flags.Lookup(FlagPlayerLandingBatchSize)); err != nil {
-		return err
-	}
-	return viper.BindPFlag(FlagPlayerLandingPlayersPerExec, flags.Lookup(FlagPlayerLandingPlayersPerExec))
-}
-
-func InitProvisionerFlags(flags *flag.FlagSet) {
-	flags.String(FlagProvisionerHost, "", "PostgreSQL host for provisioner connection")
-	flags.String(FlagProvisionerUser, "", "PostgreSQL user with CREATE DATABASE privileges")
-	flags.String(FlagProvisionerPassword, "", "PostgreSQL provisioner password")
-}
-
-func BindProvisionerFlags(flags *flag.FlagSet) error {
-	if err := viper.BindPFlag(FlagProvisionerHost, flags.Lookup(FlagProvisionerHost)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagProvisionerUser, flags.Lookup(FlagProvisionerUser)); err != nil {
-		return err
-	}
-	return viper.BindPFlag(FlagProvisionerPassword, flags.Lookup(FlagProvisionerPassword))
-}
-
-func InitRedisFlags(flags *flag.FlagSet) {
-	flags.String(FlagRedisURL, DefaultRedisURL, "Redis url")
-	flags.String(FlagRedisPassword, "", "Redis password")
-	flags.Int(FlagRedisDB, DefaultRedisDB, "Redis db")
-}
-
-func BindRedisFlags(flags *flag.FlagSet) error {
-	if err := viper.BindPFlag(FlagRedisURL, flags.Lookup(FlagRedisURL)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagRedisPassword, flags.Lookup(FlagRedisPassword)); err != nil {
-		return err
-	}
-	return viper.BindPFlag(FlagRedisDB, flags.Lookup(FlagRedisDB))
-}
-
-func InitPostgresFlags(flags *flag.FlagSet) {
-	flags.String(FlagPostgresHost, DefaultPostgresHost, "Postgres host")
-	flags.String(FlagPostgresUser, DefaultPostgresUser, "Postgres user")
-	flags.String(FlagPostgresPassword, "", "Postgres password")
-	flags.String(FlagPostgresDatabase, DefaultPostgresDatabase, "Postgres database")
-	flags.Int(FlagPostgresPort, DefaultPostgresPort, "Postgres port")
-	flags.String(FlagPostgresSSLMode, DefaultPostgresSSLMode, "Postgres SSL mode")
-	flags.String(FlagPostgresTimeZone, DefaultPostgresTimeZone, "Postgres time zone")
-	flags.Int(FlagPostgresMaxIdleConns, DefaultPostgresMaxIdleConns, "Maximum idle database connections")
-	flags.Int(FlagPostgresMaxOpenConns, DefaultPostgresMaxOpenConns, "Maximum open database connections")
-}
-
-func BindPostgresFlags(flags *flag.FlagSet) error {
-	if err := viper.BindPFlag(FlagPostgresHost, flags.Lookup(FlagPostgresHost)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagPostgresUser, flags.Lookup(FlagPostgresUser)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagPostgresPassword, flags.Lookup(FlagPostgresPassword)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagPostgresDatabase, flags.Lookup(FlagPostgresDatabase)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagPostgresPort, flags.Lookup(FlagPostgresPort)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagPostgresSSLMode, flags.Lookup(FlagPostgresSSLMode)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagPostgresMaxIdleConns, flags.Lookup(FlagPostgresMaxIdleConns)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagPostgresMaxOpenConns, flags.Lookup(FlagPostgresMaxOpenConns)); err != nil {
-		return err
-	}
-	return viper.BindPFlag(FlagPostgresTimeZone, flags.Lookup(FlagPostgresTimeZone))
-}
-
-func InitWorkerPortFlag(flags *flag.FlagSet) {
-	flags.IntP(FlagWorkerPort, "", DefaultWorkerPort, "Worker metrics port")
-}
-
-func InitWorkerTLSEnabledFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagWorkerTLSEnabled, false, "Enable TLS Mode")
-}
-
-func InitWorkerConcurrencyFlags(flags *flag.FlagSet) {
-	flags.Int(FlagWorkerMaxWorkflowPollers, DefaultWorkerMaxWorkflowPollers, "Max concurrent workflow task pollers")
-	flags.Int(FlagWorkerMaxActivityPollers, DefaultWorkerMaxActivityPollers, "Max concurrent activity task pollers")
-	flags.Int(FlagWorkerMaxWorkflowExecution, DefaultWorkerMaxWorkflowExecution, "Max concurrent workflow task executions")
-	flags.Int(FlagWorkerMaxActivityExecution, DefaultWorkerMaxActivityExecution, "Max concurrent activity executions")
-}
-
-func BindWorkerConcurrencyFlags(flags *flag.FlagSet) error {
-	if err := viper.BindPFlag(FlagWorkerMaxWorkflowPollers, flags.Lookup(FlagWorkerMaxWorkflowPollers)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagWorkerMaxActivityPollers, flags.Lookup(FlagWorkerMaxActivityPollers)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagWorkerMaxWorkflowExecution, flags.Lookup(FlagWorkerMaxWorkflowExecution)); err != nil {
-		return err
-	}
-	return viper.BindPFlag(FlagWorkerMaxActivityExecution, flags.Lookup(FlagWorkerMaxActivityExecution))
-}
-
-func InitSkipPreseasonFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagSkipPreseason, false, "Skip downloading and importing preseason games")
-}
-
-func BindSkipPreseasonFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagSkipPreseason, flags.Lookup(FlagSkipPreseason))
-}
-
-func InitAPIPortFlag(flags *flag.FlagSet) {
-	flags.IntP(FlagAPIPort, "p", DefaultAPIPort, "API server port")
-}
-
-func InitAPITLSEnabledFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagAPITLSEnabled, false, "Enable TLS Mode")
-}
-
-func InitMetricsPortFlag(flags *flag.FlagSet) {
-	flags.IntP(FlagMetricsPort, "", DefaultMetricsPort, "Metrics server port")
-}
-
-func InitMetricsTLSEnabledFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagMetricsTLSEnabled, false, "Enable TLS Mode")
-}
-
-func InitMetricsRefreshIntervalFlag(flags *flag.FlagSet) {
-	flags.Int(FlagMetricsRefreshInterval, DefaultMetricsRefreshInterval, "Metrics refresh interval in seconds")
-}
-
-func InitTLSCertificate(flags *flag.FlagSet) {
-	flags.String(FlagTLSCertificate, "", "TLS Certificates")
-}
-
-func InitTLSKey(flags *flag.FlagSet) {
-	flags.String(FlagTLSKey, "", "TLS Key")
-}
-
-func InitSeasonRangeFlags(flags *flag.FlagSet) {
-	flags.Int(FlagSeasonYear, 0, "Season year (e.g., 2024). Sets both from and to season.")
-	flags.Int(FlagFromSeasonYear, 0, "Start season year for range (e.g., 2020)")
-	flags.Int(FlagToSeasonYear, 0, "End season year for range (e.g., 2024)")
-}
-
-func BindSeasonRangeFlags(flags *flag.FlagSet) error {
-	if err := viper.BindPFlag(FlagSeasonYear, flags.Lookup(FlagSeasonYear)); err != nil {
-		return err
-	}
-	if err := viper.BindPFlag(FlagFromSeasonYear, flags.Lookup(FlagFromSeasonYear)); err != nil {
-		return err
-	}
-	return viper.BindPFlag(FlagToSeasonYear, flags.Lookup(FlagToSeasonYear))
 }
 
 // GetSeasonRange returns start and end season years from flags.
@@ -468,126 +468,7 @@ func GetSeasonRange() (start, end int) {
 	return viper.GetInt(FlagFromSeasonYear), viper.GetInt(FlagToSeasonYear)
 }
 
-// CLI client flags
-func InitAPIServerAddrFlag(flags *flag.FlagSet) {
-	flags.StringP(FlagAPIServerAddr, "A", DefaultAPIServerAddr, "API server address (e.g., http://localhost:8080)")
-}
-
-func BindAPIServerAddrFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagAPIServerAddr, flags.Lookup(FlagAPIServerAddr))
-}
-
-func InitMonitorFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagMonitor, false, "Skip triggering workflow, only monitor existing workflow")
-}
-
-func BindMonitorFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagMonitor, flags.Lookup(FlagMonitor))
-}
-
-func InitSkipPlayersFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagSkipProcessPlayers, false, "Skip processing players (download + import)")
-}
-
-func BindSkipPlayersFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagSkipProcessPlayers, flags.Lookup(FlagSkipProcessPlayers))
-}
-
-func InitSkipYahooPlayersFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagSkipYahooPlayers, false, "Skip downloading Yahoo! players")
-}
-
-func BindSkipYahooPlayersFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagSkipYahooPlayers, flags.Lookup(FlagSkipYahooPlayers))
-}
-
-func InitSkipSeasonsFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagSkipSeasons, false, "Skip downloading season data (NHL schedules, boxscores, Yahoo! fantasy)")
-}
-
-func BindSkipSeasonsFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagSkipSeasons, flags.Lookup(FlagSkipSeasons))
-}
-
-func InitSkipInitializingFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagSkipInitializing, false, "Skip the initialization workflow (franchises, seasons, league structure)")
-}
-
-func BindSkipInitializingFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagSkipInitializing, flags.Lookup(FlagSkipInitializing))
-}
-
-func InitSkipImportSeasonsFlag(flags *flag.FlagSet) {
-	flags.Bool(FlagSkipImportSeasons, false, "Skip importing seasons into the database")
-}
-
-func BindSkipImportSeasonsFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagSkipImportSeasons, flags.Lookup(FlagSkipImportSeasons))
-}
-
-func InitSeasonConcurrencyFlag(flags *flag.FlagSet) {
-	flags.Int(FlagSeasonConcurrency, 0, "Number of seasons to process concurrently (0 uses server default)")
-}
-
-func BindSeasonConcurrencyFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagSeasonConcurrency, flags.Lookup(FlagSeasonConcurrency))
-}
-
-// Metrics collection interval flags
-func InitCacheIntervalSecondsFlag(flags *flag.FlagSet) {
-	flags.Int(FlagCacheIntervalSeconds, DefaultCacheIntervalSeconds, "Interval in seconds for cache metrics collection")
-}
-
-func BindCacheIntervalSecondsFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagCacheIntervalSeconds, flags.Lookup(FlagCacheIntervalSeconds))
-}
-
-func InitRedisIntervalSecondsFlag(flags *flag.FlagSet) {
-	flags.Int(FlagRedisIntervalSeconds, DefaultRedisIntervalSeconds, "Interval in seconds for Redis metrics collection")
-}
-
-func BindRedisIntervalSecondsFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagRedisIntervalSeconds, flags.Lookup(FlagRedisIntervalSeconds))
-}
-
-func InitDBIntervalSecondsFlag(flags *flag.FlagSet) {
-	flags.Int(FlagDBIntervalSeconds, DefaultDBIntervalSeconds, "Interval in seconds for database metrics collection")
-}
-
-func BindDBIntervalSecondsFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagDBIntervalSeconds, flags.Lookup(FlagDBIntervalSeconds))
-}
-
-// CLI display flags
-func InitVerboseFlag(flags *flag.FlagSet) {
-	flags.BoolP(FlagVerbose, "v", false, "Show detailed output per season")
-}
-
-func BindVerboseFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagVerbose, flags.Lookup(FlagVerbose))
-}
-
-func InitIncompleteFlag(flags *flag.FlagSet) {
-	flags.BoolP(FlagIncomplete, "i", false, "Only show seasons with less than 100% completion")
-}
-
-func BindIncompleteFlag(flags *flag.FlagSet) error {
-	return viper.BindPFlag(FlagIncomplete, flags.Lookup(FlagIncomplete))
-}
-
-func getTeamIDs(teamIDs string) []uint {
-	tokens := strings.Split(teamIDs, ",")
-	ids := make([]uint, len(tokens))
-	for idx, tok := range tokens {
-		id, err := strconv.Atoi(tok)
-		if err != nil {
-			log.Fatal().Err(err)
-		}
-		ids[idx] = uint(id)
-	}
-	return ids
-}
-
+// SetupViper configures viper for environment variable and config file support.
 func SetupViper() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.SetEnvPrefix("puckdb")
@@ -603,20 +484,28 @@ func SetupViper() {
 	}
 }
 
-// sensitiveFlags contains flag names that should not be logged
-var sensitiveFlags = map[string]bool{
-	FlagPostgresPassword:        true,
-	FlagProvisionerPassword:     true,
-	FlagRedisPassword:           true,
-	FlagYahooOAuth2ClientSecret: true,
-	FlagTLSKey:                  true,
+// allFlagGroups contains all flag groups for sensitive flag detection.
+var allFlagGroups = []*FlagGroup{
+	&PostgresFlags,
+	&RedisFlags,
+	&ProvisionerFlags,
+	&YahooOAuth2Flags,
+	&TLSFlags,
 }
 
-// LogFlagValues logs all viper settings at debug level, redacting sensitive values
+// LogFlagValues logs all viper settings at debug level, redacting sensitive values.
 func LogFlagValues() {
 	settings := viper.AllSettings()
 	if len(settings) == 0 {
 		return
+	}
+
+	// Build set of sensitive flags from all groups
+	sensitiveFlags := make(map[string]bool)
+	for _, group := range allFlagGroups {
+		for k, v := range group.sensitiveFlags() {
+			sensitiveFlags[k] = v
+		}
 	}
 
 	// Collect and sort keys for consistent output
@@ -637,3 +526,4 @@ func LogFlagValues() {
 		}
 	}
 }
+

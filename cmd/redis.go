@@ -26,7 +26,7 @@ func cmdRedisFlush() *cobra.Command {
 		Short: "Flush all keys in Redis DB",
 		Long:  `Flush all keys in the configured Redis database via GraphQL API.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindAPIServerAddrFlag(cmd.Flags())
+			return config.APIServerAddrFlags.Bind(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiAddr := viper.GetString(config.FlagAPIServerAddr)
@@ -53,6 +53,6 @@ func cmdRedisFlush() *cobra.Command {
 			return nil
 		},
 	}
-	config.InitAPIServerAddrFlag(cmd.Flags())
+	config.APIServerAddrFlags.Init(cmd.Flags())
 	return cmd
 }

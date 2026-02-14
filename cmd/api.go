@@ -42,31 +42,25 @@ func cmdAPI() *cobra.Command {
 		Long:  `Start the HTTP server with GraphQL endpoint and Yahoo OAuth handlers`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
-			if err := config.BindYahooOAuth2Flags(flags); err != nil {
+			if err := config.YahooOAuth2Flags.Bind(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagDataPath, flags.Lookup(config.FlagDataPath)); err != nil {
+			if err := config.DataPathFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindRedisFlags(flags); err != nil {
+			if err := config.RedisFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindPostgresFlags(flags); err != nil {
+			if err := config.PostgresFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := config.BindTemporalFlags(flags); err != nil {
+			if err := config.TemporalFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagAPIPort, flags.Lookup(config.FlagAPIPort)); err != nil {
+			if err := config.APIPortFlags.Bind(flags); err != nil {
 				return err
 			}
-			if err := viper.BindPFlag(config.FlagAPITLSEnabled, flags.Lookup(config.FlagAPITLSEnabled)); err != nil {
-				return err
-			}
-			if err := viper.BindPFlag(config.FlagTLSCertificate, flags.Lookup(config.FlagTLSCertificate)); err != nil {
-				return err
-			}
-			return viper.BindPFlag(config.FlagTLSKey, flags.Lookup(config.FlagTLSKey))
+			return config.TLSFlags.Bind(flags)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.LogFlagValues()
@@ -96,16 +90,14 @@ func cmdAPI() *cobra.Command {
 		},
 	}
 	flags := cmd.Flags()
-	config.InitDataPathFlag(flags)
-	config.InitRedisFlags(flags)
+	config.DataPathFlags.Init(flags)
+	config.RedisFlags.Init(flags)
 	config.InitSeasonsFlag(cmd, flags, false)
-	config.InitYahooOAuth2Flags(flags)
-	config.InitPostgresFlags(flags)
-	config.InitTemporalFlags(flags)
-	config.InitAPIPortFlag(flags)
-	config.InitAPITLSEnabledFlag(flags)
-	config.InitTLSCertificate(flags)
-	config.InitTLSKey(flags)
+	config.YahooOAuth2Flags.Init(flags)
+	config.PostgresFlags.Init(flags)
+	config.TemporalFlags.Init(flags)
+	config.APIPortFlags.Init(flags)
+	config.TLSFlags.Init(flags)
 	return cmd
 }
 
