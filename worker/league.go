@@ -10,10 +10,10 @@ import (
 	"github.com/sperano/puckdb/metrics"
 )
 
-func FetchLeague(ctx context.Context, season int, leagueID int) error {
+func FetchLeagueActivity(ctx context.Context, season int, leagueID int) error {
 	start := time.Now()
 	defer func() {
-		metrics.ObserveActivityDuration("FetchLeague", time.Since(start))
+		metrics.ObserveActivityDuration("FetchLeagueActivity", time.Since(start))
 	}()
 	gameKey, err := GetGameKeyForSeason(season)
 	if err != nil {

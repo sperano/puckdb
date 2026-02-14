@@ -169,7 +169,13 @@ func UpsertSeasonsActivity(ctx context.Context) (UpsertSeasonsResult, error) {
 
 	queries := sqlcdb.New(pool)
 
-	return upsertSeasonsImpl(ctx, queries, seasons, logger)
+	result, err := upsertSeasonsImpl(ctx, queries, seasons)
+	if err != nil {
+		return result, err
+	}
+
+	logger.Info("Seasons upserted", "count", result.SeasonsUpserted)
+	return result, nil
 }
 
 type seasonsUpserter interface {
@@ -180,7 +186,6 @@ func upsertSeasonsImpl(
 	ctx context.Context,
 	queries seasonsUpserter,
 	seasons []nhl.SeasonInfo,
-	logger activityLogger,
 ) (UpsertSeasonsResult, error) {
 	result := UpsertSeasonsResult{}
 
@@ -206,9 +211,6 @@ func upsertSeasonsImpl(
 
 		result.SeasonsUpserted++
 	}
-
-	logger.Info("Seasons upserted", "count", result.SeasonsUpserted)
-	log.Info().Int("count", result.SeasonsUpserted).Msg("Seasons upserted to database")
 
 	return result, nil
 }
@@ -246,7 +248,13 @@ func UpsertSeasonTeamsActivity(ctx context.Context, seasonID int) (UpsertSeasonT
 
 	queries := sqlcdb.New(pool)
 
-	return upsertSeasonTeamsImpl(ctx, queries, seasonID, standings, logger)
+	result, err := upsertSeasonTeamsImpl(ctx, queries, seasonID, standings)
+	if err != nil {
+		return result, err
+	}
+
+	logger.Info("Season teams upserted", "season", seasonID, "count", result.TeamsUpserted)
+	return result, nil
 }
 
 type seasonTeamsUpserter interface {
@@ -258,7 +266,6 @@ func upsertSeasonTeamsImpl(
 	queries seasonTeamsUpserter,
 	seasonID int,
 	standings []nhl.Standing,
-	logger activityLogger,
 ) (UpsertSeasonTeamsResult, error) {
 	result := UpsertSeasonTeamsResult{SeasonID: seasonID}
 
@@ -295,9 +302,6 @@ func upsertSeasonTeamsImpl(
 
 		result.TeamsUpserted++
 	}
-
-	logger.Info("Season teams upserted", "season", seasonID, "count", result.TeamsUpserted)
-	log.Info().Int("season", seasonID).Int("count", result.TeamsUpserted).Msg("Season teams upserted to database")
 
 	return result, nil
 }

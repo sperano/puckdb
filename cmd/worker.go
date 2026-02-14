@@ -80,12 +80,12 @@ func cmdWorker() *cobra.Command {
 			})
 
 			// Yahoo fetch activities
-			w.RegisterActivity(workers.FetchLeague)
-			w.RegisterActivity(workers.FetchDailySchedule)
-			w.RegisterActivity(workers.FetchTeam)
-			w.RegisterActivity(workers.FetchRosterForTeamOnDay)
-			w.RegisterActivity(workers.FetchTeamSummaryForTeamOnDay)
-			w.RegisterActivity(workers.FetchYahooPlayerBatch)
+			w.RegisterActivity(workers.FetchLeagueActivity)
+			w.RegisterActivity(workers.FetchDailyScheduleActivity)
+			w.RegisterActivity(workers.FetchTeamActivity)
+			w.RegisterActivity(workers.FetchRosterForTeamOnDayActivity)
+			w.RegisterActivity(workers.FetchTeamSummaryForTeamOnDayActivity)
+			w.RegisterActivity(workers.FetchYahooPlayerBatchActivity)
 			w.RegisterActivity(workers.FetchSeasonsDataActivity)
 			w.RegisterActivity(workers.FetchDayActivity)
 

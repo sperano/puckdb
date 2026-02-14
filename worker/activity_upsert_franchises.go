@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/sqlcdb"
+	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -22,7 +21,6 @@ type UpsertFranchisesResult struct {
 func UpsertFranchisesActivity(ctx context.Context) (UpsertFranchisesResult, error) {
 	logger := activity.GetLogger(ctx)
 
-	// Read franchises from cache
 	fs := store.NewStore()
 	file := store.FranchisesFile{}
 
@@ -36,7 +34,6 @@ func UpsertFranchisesActivity(ctx context.Context) (UpsertFranchisesResult, erro
 		return UpsertFranchisesResult{}, fmt.Errorf("unmarshal franchises: %w", err)
 	}
 
-	// Open database connection
 	pool, err := database.OpenPGXPool(ctx)
 	if err != nil {
 		return UpsertFranchisesResult{}, fmt.Errorf("open database pool: %w", err)
@@ -45,7 +42,13 @@ func UpsertFranchisesActivity(ctx context.Context) (UpsertFranchisesResult, erro
 
 	queries := sqlcdb.New(pool)
 
-	return upsertFranchisesImpl(ctx, queries, franchises, logger)
+	result, err := upsertFranchisesImpl(ctx, queries, franchises)
+	if err != nil {
+		return result, err
+	}
+
+	logger.Info("Franchises upserted", "count", result.FranchisesUpserted)
+	return result, nil
 }
 
 type franchiseUpserter interface {
@@ -56,7 +59,6 @@ func upsertFranchisesImpl(
 	ctx context.Context,
 	queries franchiseUpserter,
 	franchises []nhl.Franchise,
-	logger activityLogger,
 ) (UpsertFranchisesResult, error) {
 	result := UpsertFranchisesResult{}
 
@@ -74,9 +76,6 @@ func upsertFranchisesImpl(
 
 		result.FranchisesUpserted++
 	}
-
-	logger.Info("Franchises upserted", "count", result.FranchisesUpserted)
-	log.Info().Int("count", result.FranchisesUpserted).Msg("Franchises upserted to database")
 
 	return result, nil
 }

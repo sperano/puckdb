@@ -42,14 +42,14 @@ func FetchSeasonWorkflow(ctx workflow.Context, input *FetchSeasonInput) error {
 		if yahooCfg, inYahoo := yahooConfig[season.StartYear]; inYahoo {
 			for _, league := range yahooCfg.Leagues {
 				// Fetch league
-				if err := workflow.ExecuteActivity(ctx, FetchLeague, season.StartYear, league.LeagueID).Get(ctx, nil); err != nil {
+				if err := workflow.ExecuteActivity(ctx, FetchLeagueActivity, season.StartYear, league.LeagueID).Get(ctx, nil); err != nil {
 					return err
 				}
 				tracker.Increment()
 
 				// Fetch teams
 				for _, teamid := range league.TeamIDs {
-					if err := workflow.ExecuteActivity(ctx, FetchTeam, season.StartYear, league.LeagueID, teamid).Get(ctx, nil); err != nil {
+					if err := workflow.ExecuteActivity(ctx, FetchTeamActivity, season.StartYear, league.LeagueID, teamid).Get(ctx, nil); err != nil {
 						return err
 					}
 					tracker.Increment()
@@ -161,17 +161,17 @@ func FetchDayWorkflow(ctx workflow.Context, input *FetchDayWorkflowInput) error 
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 
 	// Fetch daily schedule (boxscores)
-	if err := workflow.ExecuteActivity(ctx, FetchDailySchedule, input.Day).Get(ctx, nil); err != nil {
+	if err := workflow.ExecuteActivity(ctx, FetchDailyScheduleActivity, input.Day).Get(ctx, nil); err != nil {
 		return err
 	}
 
 	// Fetch Yahoo rosters and summaries for each team
 	for _, team := range teamIDs {
-		if err := workflow.ExecuteActivity(ctx, FetchRosterForTeamOnDay,
+		if err := workflow.ExecuteActivity(ctx, FetchRosterForTeamOnDayActivity,
 			input.StartYear, team.LeagueID, team.TeamID, input.Day).Get(ctx, nil); err != nil {
 			return err
 		}
-		if err := workflow.ExecuteActivity(ctx, FetchTeamSummaryForTeamOnDay,
+		if err := workflow.ExecuteActivity(ctx, FetchTeamSummaryForTeamOnDayActivity,
 			input.StartYear, team.LeagueID, team.TeamID, input.Day).Get(ctx, nil); err != nil {
 			return err
 		}

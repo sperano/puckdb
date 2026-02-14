@@ -77,7 +77,7 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 		if batchEndID > endID {
 			batchEndID = endID
 		}
-		return workflow.ExecuteActivity(activityCtx, FetchYahooPlayerBatch, batchStartID, batchEndID)
+		return workflow.ExecuteActivity(activityCtx, FetchYahooPlayerBatchActivity, batchStartID, batchEndID)
 	}
 
 	executionFound := 0

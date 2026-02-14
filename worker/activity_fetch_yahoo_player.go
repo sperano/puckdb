@@ -27,9 +27,9 @@ type FetchYahooPlayerBatchResult struct {
 	Cached     int // Cache hits (already in local cache)
 }
 
-// FetchYahooPlayerBatch fetches a range of Yahoo player pages (from cache or network).
+// FetchYahooPlayerBatchActivity fetches a range of Yahoo player pages (from cache or network).
 // Processes players from startID to endID (inclusive).
-func FetchYahooPlayerBatch(ctx context.Context, startID, endID store.YahooPlayerID) (FetchYahooPlayerBatchResult, error) {
+func FetchYahooPlayerBatchActivity(ctx context.Context, startID, endID store.YahooPlayerID) (FetchYahooPlayerBatchResult, error) {
 	var result FetchYahooPlayerBatchResult
 	fs := store.NewStore()
 	for playerID := startID; playerID <= endID; playerID++ {

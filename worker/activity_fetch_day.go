@@ -27,16 +27,16 @@ func FetchDayActivity(ctx context.Context, input *FetchDayInput) error {
 		Msg("FetchDayActivity started")
 
 	// Fetch daily schedule (boxscores)
-	if err := FetchDailySchedule(ctx, input.Day); err != nil {
+	if err := FetchDailyScheduleActivity(ctx, input.Day); err != nil {
 		return err
 	}
 
 	// Fetch Yahoo rosters and summaries for each team (if any configured)
 	for _, team := range input.TeamIDs {
-		if err := FetchRosterForTeamOnDay(ctx, input.StartYear, team.LeagueID, team.TeamID, input.Day); err != nil {
+		if err := FetchRosterForTeamOnDayActivity(ctx, input.StartYear, team.LeagueID, team.TeamID, input.Day); err != nil {
 			return err
 		}
-		if err := FetchTeamSummaryForTeamOnDay(ctx, input.StartYear, team.LeagueID, team.TeamID, input.Day); err != nil {
+		if err := FetchTeamSummaryForTeamOnDayActivity(ctx, input.StartYear, team.LeagueID, team.TeamID, input.Day); err != nil {
 			return err
 		}
 	}

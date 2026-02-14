@@ -10,10 +10,10 @@ import (
 	"github.com/sperano/puckdb/metrics"
 )
 
-func FetchTeam(ctx context.Context, season int, leagueID int, teamID int) error {
+func FetchTeamActivity(ctx context.Context, season int, leagueID int, teamID int) error {
 	start := time.Now()
 	defer func() {
-		metrics.ObserveActivityDuration("FetchTeam", time.Since(start))
+		metrics.ObserveActivityDuration("FetchTeamActivity", time.Since(start))
 	}()
 	gameKey, err := GetGameKeyForSeason(season)
 	if err != nil {
@@ -31,10 +31,10 @@ func fetchTeamImpl(ctx context.Context, fs store.Store, season int, gameKey int,
 	return doDownloadImpl(ctx, fs, file, url)
 }
 
-func FetchRosterForTeamOnDay(ctx context.Context, season int, leagueID int, teamID int, day time.Time) error {
+func FetchRosterForTeamOnDayActivity(ctx context.Context, season int, leagueID int, teamID int, day time.Time) error {
 	start := time.Now()
 	defer func() {
-		metrics.ObserveActivityDuration("FetchRosterForTeamOnDay", time.Since(start))
+		metrics.ObserveActivityDuration("FetchRosterForTeamOnDayActivity", time.Since(start))
 	}()
 	gameKey, err := GetGameKeyForSeason(season)
 	if err != nil {
@@ -52,10 +52,10 @@ func fetchRosterForTeamOnDayImpl(ctx context.Context, fs store.Store, gameKey in
 	return doDownloadImpl(ctx, fs, file, url)
 }
 
-func FetchTeamSummaryForTeamOnDay(ctx context.Context, season int, leagueID int, teamID int, day time.Time) error {
+func FetchTeamSummaryForTeamOnDayActivity(ctx context.Context, season int, leagueID int, teamID int, day time.Time) error {
 	start := time.Now()
 	defer func() {
-		metrics.ObserveActivityDuration("FetchTeamSummaryForTeamOnDay", time.Since(start))
+		metrics.ObserveActivityDuration("FetchTeamSummaryForTeamOnDayActivity", time.Since(start))
 	}()
 	gameKey, err := GetGameKeyForSeason(season)
 	if err != nil {

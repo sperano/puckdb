@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/sqlcdb"
+	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -43,7 +44,19 @@ func ImportBoxscoresForDateActivity(ctx context.Context, input ImportBoxscoresFo
 
 	queries := sqlcdb.New(pool)
 
-	return importBoxscoresForDateImpl(ctx, fs, queries, input, logger)
+	result, err := importBoxscoresForDateImpl(ctx, fs, queries, input)
+	if err != nil {
+		return result, err
+	}
+
+	logger.Info("Imported boxscores for date",
+		"date", input.Date.Format("2006-01-02"),
+		"games", result.GamesImported,
+		"skaters", result.SkatersImported,
+		"goalies", result.GoaliesImported,
+		"skipped", result.GamesSkipped)
+
+	return result, nil
 }
 
 // BoxscoreUpserter is the interface for database operations needed by boxscore import.
@@ -53,25 +66,19 @@ type BoxscoreUpserter interface {
 	UpsertGameGoalieStats(ctx context.Context, arg sqlcdb.UpsertGameGoalieStatsParams) error
 }
 
-type activityLogger interface {
-	Info(msg string, keyvals ...interface{})
-	Warn(msg string, keyvals ...interface{})
-	Debug(msg string, keyvals ...interface{})
-}
 
 func importBoxscoresForDateImpl(
 	ctx context.Context,
 	fs store.Store,
 	queries BoxscoreUpserter,
 	input ImportBoxscoresForDateInput,
-	logger activityLogger,
 ) (ImportBoxscoresForDateResult, error) {
 	result := ImportBoxscoresForDateResult{}
 
 	// Read the daily schedule to get game IDs
 	scheduleFile := store.DailyScheduleFile{Date: input.Date}
 	if !fs.Exists(scheduleFile) {
-		logger.Debug("No daily schedule file for date", "date", input.Date.Format("2006-01-02"))
+		log.Debug().Str("date", input.Date.Format("2006-01-02")).Msg("No daily schedule file for date")
 		return result, nil
 	}
 
@@ -96,21 +103,21 @@ func importBoxscoresForDateImpl(
 		// Read the boxscore file
 		boxscoreFile := store.BoxscoreFile{Date: input.Date, GameID: game.ID}
 		if !fs.Exists(boxscoreFile) {
-			logger.Warn("Boxscore file missing for final game", "gameID", game.ID)
+			log.Warn().Str("gameID", game.ID.String()).Msg("Boxscore file missing for final game")
 			result.GamesSkipped++
 			continue
 		}
 
 		boxscoreData, err := fs.Read(boxscoreFile)
 		if err != nil {
-			logger.Warn("Failed to read boxscore file", "gameID", game.ID, "error", err)
+			log.Warn().Err(err).Str("gameID", game.ID.String()).Msg("Failed to read boxscore file")
 			result.GamesSkipped++
 			continue
 		}
 
 		var boxscore nhl.Boxscore
 		if err := json.Unmarshal(boxscoreData, &boxscore); err != nil {
-			logger.Warn("Failed to parse boxscore", "gameID", game.ID, "error", err)
+			log.Warn().Err(err).Str("gameID", game.ID.String()).Msg("Failed to parse boxscore")
 			result.GamesSkipped++
 			continue
 		}
@@ -136,13 +143,6 @@ func importBoxscoresForDateImpl(
 		}
 		result.GoaliesImported += goalieCount
 	}
-
-	logger.Info("Imported boxscores for date",
-		"date", input.Date.Format("2006-01-02"),
-		"games", result.GamesImported,
-		"skaters", result.SkatersImported,
-		"goalies", result.GoaliesImported,
-		"skipped", result.GamesSkipped)
 
 	return result, nil
 }
