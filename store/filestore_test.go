@@ -164,7 +164,7 @@ func TestFileStore_Remove_NonExistent(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestListAll(t *testing.T) {
+func TestFileStore_ListFiles(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -190,7 +190,7 @@ func TestListAll(t *testing.T) {
 	// Create a subdirectory (should be skipped)
 	require.NoError(t, os.MkdirAll(filepath.Join(testDir, "subdir"), 0755))
 
-	files, err := ListAll(fs, sample, ParseYahooPlayerFilename)
+	files, err := fs.ListFiles(sample, ParseYahooPlayerFilename)
 	require.NoError(t, err)
 
 	// Should find player-1 and player-2, but not player-abc (invalid) or other.json (wrong ext)
@@ -207,18 +207,18 @@ func TestListAll(t *testing.T) {
 	assert.Contains(t, ids, YahooPlayerID(2))
 }
 
-func TestListAll_DirectoryNotExists(t *testing.T) {
+func TestFileStore_ListFiles_DirectoryNotExists(t *testing.T) {
 	t.Parallel()
 
 	fs := NewFileStore(t.TempDir())
 	sample := YahooPlayerFile{PlayerID: 0}
 
-	_, err := ListAll(fs, sample, ParseYahooPlayerFilename)
+	_, err := fs.ListFiles(sample, ParseYahooPlayerFilename)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "read dir")
 }
 
-func TestListAll_ShortFilename(t *testing.T) {
+func TestFileStore_ListFiles_ShortFilename(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -235,7 +235,7 @@ func TestListAll_ShortFilename(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(testDir, "x.html"), []byte("also short"), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(testDir, "player-1.html"), []byte("valid"), 0644))
 
-	files, err := ListAll(fs, sample, ParseYahooPlayerFilename)
+	files, err := fs.ListFiles(sample, ParseYahooPlayerFilename)
 	require.NoError(t, err)
 
 	// Only player-1.html should be found (x.html doesn't match parser pattern)

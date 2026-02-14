@@ -39,6 +39,7 @@ type Store interface {
 	MkdirAll(dir string, perm os.FileMode) error
 	Remove(file File) error
 	FullPath(file File) string
+	ListFiles(sample File, parser FilenameParser) ([]File, error)
 }
 
 // Path returns the full path for a file (dir/name.ext)
@@ -98,10 +99,17 @@ func (fs *FileStore) Remove(file File) error {
 	return os.Remove(fs.FullPath(file))
 }
 
-// ListAll returns all files in a directory matching the sample file's extension.
+// ListFiles returns all files in a directory matching the sample file's extension.
 // The sample file is used to determine the directory and extension to scan.
 // Returns file metadata only; caller is responsible for reading/processing contents.
-func ListAll(
+func (fs *FileStore) ListFiles(sample File, parser FilenameParser) ([]File, error) {
+	return listAll(fs, sample, parser)
+}
+
+// listAll returns all files in a directory matching the sample file's extension.
+// The sample file is used to determine the directory and extension to scan.
+// Returns file metadata only; caller is responsible for reading/processing contents.
+func listAll(
 	fs *FileStore,
 	sample File,
 	filenameParser FilenameParser,

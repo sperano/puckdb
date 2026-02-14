@@ -12,9 +12,9 @@ import (
 // This is a fast operation that just reads the directory listing.
 func ListYahooPlayerFilesActivity(ctx context.Context) ([]store.YahooPlayerID, error) {
 	logger := activity.GetLogger(ctx)
-	fs := store.NewStore().(*store.InstrumentedStore).Inner()
+	fs := store.NewStore()
 
-	files, err := store.ListAll(fs, store.YahooPlayerFile{}, store.ParseYahooPlayerFilename)
+	files, err := fs.ListFiles(store.YahooPlayerFile{}, store.ParseYahooPlayerFilename)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func ListYahooPlayerFilesActivity(ctx context.Context) ([]store.YahooPlayerID, e
 // Returns the parsed players for aggregation by the workflow.
 func ParseYahooPlayerBatchActivity(ctx context.Context, playerIDs []store.YahooPlayerID) ([]store.YahooPlayer, error) {
 	logger := activity.GetLogger(ctx)
-	fs := store.NewStore().(*store.InstrumentedStore).Inner()
+	fs := store.NewStore()
 
 	players := make([]store.YahooPlayer, 0, len(playerIDs))
 	for _, id := range playerIDs {

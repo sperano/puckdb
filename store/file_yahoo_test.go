@@ -7,6 +7,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestYahooPlayerID_String(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		id       YahooPlayerID
+		expected string
+	}{
+		{YahooPlayerID(1), "1"},
+		{YahooPlayerID(12345), "12345"},
+		{YahooPlayerID(0), "0"},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.expected, tt.id.String())
+	}
+}
+
 func TestParseYahooPlayerFilename(t *testing.T) {
 	t.Parallel()
 

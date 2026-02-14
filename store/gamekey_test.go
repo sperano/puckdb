@@ -21,12 +21,13 @@ func TestNewStore(t *testing.T) {
 	assert.NotNil(t, store)
 
 	// Should return an InstrumentedStore
-	instrumented, ok := store.(*InstrumentedStore)
+	_, ok := store.(*InstrumentedStore)
 	assert.True(t, ok)
 
-	// Inner should be a FileStore with the configured path
-	inner := instrumented.Inner()
-	assert.Equal(t, "/tmp/test-data", inner.RootPath)
+	// Verify the store uses the configured path by checking FullPath
+	testFile := GameKeyFile{Season: 2024}
+	fullPath := store.FullPath(testFile)
+	assert.Equal(t, "/tmp/test-data/game-keys/gamekey-2024.xml", fullPath)
 }
 
 func TestParseXML(t *testing.T) {

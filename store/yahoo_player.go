@@ -40,8 +40,9 @@ var (
 	// Image URL format: https://s.yimg.com/xe/i/us/sp/v/nhl_cutout/players_l/{date}/{player_id}.png
 	imagePattern = regexp.MustCompile(`(https://s\.yimg\.com/xe/i/us/sp/v/nhl_cutout/players_l/[^"]+\.png)`)
 
-	// Birth date format: "January 26, 1961" (appears in bio section)
-	birthDatePattern = regexp.MustCompile(`([A-Z][a-z]+ \d{1,2}, \d{4})`)
+	// Birth date format: "Born: <span>January 26, 1961 (City, Province)</span>"
+	// Anchored to "Born:" label to avoid matching other dates on the page
+	birthDatePattern = regexp.MustCompile(`Born:.*?>([A-Z][a-z]+ \d{1,2}, \d{4})`)
 )
 
 // ParseYahooPlayerHTML parses a Yahoo Sports player HTML file and extracts player data.

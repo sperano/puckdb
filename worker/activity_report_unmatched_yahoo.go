@@ -86,9 +86,9 @@ func CleanupYahooIDPoolActivity(ctx context.Context) error {
 // Used to enumerate players for import.
 func ListPlayerLandingIDsActivity(ctx context.Context) ([]int64, error) {
 	logger := activity.GetLogger(ctx)
-	fs := store.NewStore().(*store.InstrumentedStore).Inner()
+	fs := store.NewStore()
 
-	files, err := store.ListAll(fs, store.PlayerLandingFile{}, store.ParsePlayerLandingFilename)
+	files, err := fs.ListFiles(store.PlayerLandingFile{}, store.ParsePlayerLandingFilename)
 	if err != nil {
 		return nil, err
 	}

@@ -47,6 +47,14 @@ func (m *MockStore) FullPath(file File) string {
 	return args.String(0)
 }
 
+func (m *MockStore) ListFiles(sample File, parser FilenameParser) ([]File, error) {
+	args := m.Called(sample, parser)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]File), args.Error(1)
+}
+
 func TestNewInstrumentedStore(t *testing.T) {
 	t.Parallel()
 
@@ -204,13 +212,36 @@ func TestInstrumentedStore_FullPath(t *testing.T) {
 	inner.AssertExpectations(t)
 }
 
-func TestInstrumentedStore_Inner(t *testing.T) {
+func TestInstrumentedStore_ListFiles(t *testing.T) {
 	t.Parallel()
 
-	// Inner() expects the inner store to be a *FileStore
-	fs := NewFileStore("/tmp")
-	instrumented := NewInstrumentedStore(fs)
+	t.Run("success", func(t *testing.T) {
+		inner := &MockStore{}
+		sample := YahooPlayerFile{}
+		expected := []File{
+			YahooPlayerFile{PlayerID: 1},
+			YahooPlayerFile{PlayerID: 2},
+		}
 
-	inner := instrumented.Inner()
-	assert.Equal(t, fs, inner)
+		inner.On("ListFiles", sample, mock.AnythingOfType("FilenameParser")).Return(expected, nil)
+		instrumented := NewInstrumentedStore(inner)
+
+		files, err := instrumented.ListFiles(sample, ParseYahooPlayerFilename)
+		require.NoError(t, err)
+		assert.Equal(t, expected, files)
+		inner.AssertExpectations(t)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		inner := &MockStore{}
+		sample := YahooPlayerFile{}
+
+		inner.On("ListFiles", sample, mock.AnythingOfType("FilenameParser")).Return(nil, os.ErrNotExist)
+		instrumented := NewInstrumentedStore(inner)
+
+		_, err := instrumented.ListFiles(sample, ParseYahooPlayerFilename)
+		assert.Error(t, err)
+		inner.AssertExpectations(t)
+	})
 }
+

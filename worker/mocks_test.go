@@ -55,6 +55,14 @@ func (m *MockFileSystem) FullPath(file store.File) string {
 	return args.String(0)
 }
 
+func (m *MockFileSystem) ListFiles(sample store.File, parser store.FilenameParser) ([]store.File, error) {
+	args := m.Called(sample, parser)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]store.File), args.Error(1)
+}
+
 // MockNHLClient implements NHLClient for testing.
 type MockNHLClient struct {
 	mock.Mock

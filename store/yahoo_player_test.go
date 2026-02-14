@@ -22,7 +22,7 @@ func TestParseYahooPlayerHTML(t *testing.T) {
 <body>
 <span">#99<</span>
 <img src="https://s.yimg.com/xe/i/us/sp/v/nhl_cutout/players_l/20240115/12345.png" />
-<div>January 26, 1999</div>
+<span>Born: <span class="_ys_uns4xu">January 26, 1999 (Calgary, Alberta)</span></span>
 </body>
 </html>`)
 
@@ -51,7 +51,7 @@ func TestParseYahooPlayerHTML(t *testing.T) {
 <title>Wayne Gretzky (C) Stats, News, Bio | NHL</title>
 </head>
 <body>
-<div>January 26, 1961</div>
+<span>Born: <span>January 26, 1961 (Brantford, Ontario)</span></span>
 </body>
 </html>`)
 

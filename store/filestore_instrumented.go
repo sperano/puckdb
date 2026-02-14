@@ -89,7 +89,12 @@ func (fs *InstrumentedStore) FullPath(file File) string {
 	return fs.inner.FullPath(file)
 }
 
-// Inner returns the underlying FileStore for operations that need direct access.
-func (fs *InstrumentedStore) Inner() *FileStore {
-	return fs.inner.(*FileStore)
+// ListFiles delegates to the inner Store and records timing metrics
+func (fs *InstrumentedStore) ListFiles(sample File, parser FilenameParser) ([]File, error) {
+	start := time.Now()
+	files, err := fs.inner.ListFiles(sample, parser)
+	duration := time.Since(start)
+
+	metrics.ObserveFSOp("list", fileTypeName(sample), duration, len(files))
+	return files, err
 }
