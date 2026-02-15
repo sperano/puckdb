@@ -140,8 +140,8 @@ func runSync(cmd *cobra.Command, args []string) error {
 		resultData, err := client.GetProcessPlayersResultData(ctx)
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to fetch process players result data")
-		} else if resultData != nil {
-			printProcessPlayersResult(out, resultData)
+			//} else if resultData != nil {
+			//	printProcessPlayersResult(out, resultData)
 		}
 	} else {
 		fmt.Println("- Skipping players processing.")
