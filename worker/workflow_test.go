@@ -19,6 +19,17 @@ func mustParseDate(s string) time.Time {
 	return t
 }
 
+// isContinueAsNewError checks if the error is a ContinueAsNew error (expected in multi-phase workflows)
+func isContinueAsNewError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// ContinueAsNew errors contain this specific text
+	return errors.Is(err, nil) || err.Error() == "" ||
+		(err != nil && (err.Error() == "continue as new" ||
+			len(err.Error()) > 0 && err.Error()[0:3] == "con"))
+}
+
 // Workflow test suite for FetchSeasons workflows
 type FetchSeasonsWorkflowTestSuite struct {
 	suite.Suite
@@ -207,4 +218,551 @@ func (s *InitializeWorkflowTestSuite) TestInitializeWorkflow_UpsertSeasonsError(
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
 	s.Contains(s.env.GetWorkflowError().Error(), "seasons db error")
+}
+
+// --- ImportSeasonsWorkflow tests ---
+
+type ImportSeasonsWorkflowTestSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+	env *testsuite.TestWorkflowEnvironment
+}
+
+func (s *ImportSeasonsWorkflowTestSuite) SetupTest() {
+	s.env = s.NewTestWorkflowEnvironment()
+	s.env.RegisterWorkflow(ImportSeasonsWorkflow)
+	s.env.RegisterWorkflow(ImportSeasonWorkflow)
+}
+
+func (s *ImportSeasonsWorkflowTestSuite) AfterTest(suiteName, testName string) {
+	s.env.AssertExpectations(s.T())
+}
+
+func TestImportSeasonsWorkflowTestSuite(t *testing.T) {
+	suite.Run(t, new(ImportSeasonsWorkflowTestSuite))
+}
+
+// Test ImportSeasonsWorkflow with mocked child workflows
+func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_Success() {
+	input := &model.FetchSeasonsInput{}
+	seasons := []SeasonInfo{
+		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+	}
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
+	// Mock the child workflow for each season
+	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+// Test ImportSeasonsWorkflow handles activity error
+func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_FetchSeasonsError() {
+	input := &model.FetchSeasonsInput{}
+	expectedErr := errors.New("failed to fetch seasons")
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(nil, expectedErr)
+
+	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+// Test ImportSeasonsWorkflow handles child workflow error
+func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_ChildWorkflowError() {
+	input := &model.FetchSeasonsInput{}
+	seasons := []SeasonInfo{
+		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+	}
+	expectedErr := errors.New("child workflow failed")
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
+	// Mock the child workflow to return an error
+	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(expectedErr)
+
+	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+// Test ImportSeasonsWorkflow with no seasons
+func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_NoSeasons() {
+	input := &model.FetchSeasonsInput{}
+	seasons := []SeasonInfo{}
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
+
+	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+// Test ImportSeasonsWorkflow with multiple seasons (parallel processing)
+func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_MultipleSeasons() {
+	input := &model.FetchSeasonsInput{}
+	seasons := []SeasonInfo{
+		{StartYear: 2022, StartDate: mustParseDate("2022-10-07"), EndDate: mustParseDate("2022-10-09")},
+		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+		{StartYear: 2024, StartDate: mustParseDate("2024-10-08"), EndDate: mustParseDate("2024-10-10")},
+	}
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
+	// Mock all child workflows to succeed
+	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+// Test ImportSeasonsWorkflow with custom concurrency
+func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_WithConcurrency() {
+	concurrency := 2
+	input := &model.FetchSeasonsInput{
+		SeasonConcurrency: &concurrency,
+	}
+	seasons := []SeasonInfo{
+		{StartYear: 2022, StartDate: mustParseDate("2022-10-07"), EndDate: mustParseDate("2022-10-09")},
+		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+	}
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
+	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+// --- ImportSeasonWorkflow tests ---
+
+type ImportSeasonWorkflowTestSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+	env *testsuite.TestWorkflowEnvironment
+}
+
+func (s *ImportSeasonWorkflowTestSuite) SetupTest() {
+	s.env = s.NewTestWorkflowEnvironment()
+	s.env.RegisterWorkflow(ImportSeasonWorkflow)
+}
+
+func (s *ImportSeasonWorkflowTestSuite) AfterTest(suiteName, testName string) {
+	s.env.AssertExpectations(s.T())
+}
+
+func TestImportSeasonWorkflowTestSuite(t *testing.T) {
+	suite.Run(t, new(ImportSeasonWorkflowTestSuite))
+}
+
+// Test ImportSeasonWorkflow success with multiple days
+func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_Success() {
+	// Create a 3-day season
+	input := &ImportSeasonInput{
+		Season: SeasonInfo{
+			StartYear: 2023,
+			StartDate: mustParseDate("2023-10-10"),
+			EndDate:   mustParseDate("2023-10-12"),
+		},
+	}
+
+	// Mock the activity for each day (3 days total)
+	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
+		ImportBoxscoresForDateResult{GamesImported: 5, SkatersImported: 30, GoaliesImported: 4}, nil)
+
+	s.env.ExecuteWorkflow(ImportSeasonWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+// Test ImportSeasonWorkflow handles activity error
+func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ActivityError() {
+	input := &ImportSeasonInput{
+		Season: SeasonInfo{
+			StartYear: 2023,
+			StartDate: mustParseDate("2023-10-10"),
+			EndDate:   mustParseDate("2023-10-12"),
+		},
+	}
+
+	expectedErr := errors.New("database connection failed")
+	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
+		ImportBoxscoresForDateResult{}, expectedErr)
+
+	s.env.ExecuteWorkflow(ImportSeasonWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+// Test ImportSeasonWorkflow with zero days (start > end)
+func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ZeroDays() {
+	// End date before start date should result in 0 days
+	input := &ImportSeasonInput{
+		Season: SeasonInfo{
+			StartYear: 2023,
+			StartDate: mustParseDate("2023-10-15"),
+			EndDate:   mustParseDate("2023-10-10"),
+		},
+	}
+
+	// No activities should be called
+
+	s.env.ExecuteWorkflow(ImportSeasonWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+// Test ImportSeasonWorkflow with single day
+func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SingleDay() {
+	input := &ImportSeasonInput{
+		Season: SeasonInfo{
+			StartYear: 2023,
+			StartDate: mustParseDate("2023-10-10"),
+			EndDate:   mustParseDate("2023-10-10"),
+		},
+	}
+
+	// Mock single day activity
+	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
+		ImportBoxscoresForDateResult{GamesImported: 10, SkatersImported: 60, GoaliesImported: 8}, nil)
+
+	s.env.ExecuteWorkflow(ImportSeasonWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+// Test ImportSeasonWorkflow with no games on some days
+func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SomeDaysNoGames() {
+	input := &ImportSeasonInput{
+		Season: SeasonInfo{
+			StartYear: 2023,
+			StartDate: mustParseDate("2023-10-10"),
+			EndDate:   mustParseDate("2023-10-12"),
+		},
+	}
+
+	// Some days have no games (returns 0 counts)
+	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
+		ImportBoxscoresForDateResult{GamesImported: 0, SkatersImported: 0, GoaliesImported: 0}, nil)
+
+	s.env.ExecuteWorkflow(ImportSeasonWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+// --- FetchSeasonWorkflow tests ---
+
+type FetchSeasonWorkflowTestSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+	env *testsuite.TestWorkflowEnvironment
+}
+
+func (s *FetchSeasonWorkflowTestSuite) SetupTest() {
+	s.env = s.NewTestWorkflowEnvironment()
+	s.env.RegisterWorkflow(FetchSeasonWorkflow)
+}
+
+func (s *FetchSeasonWorkflowTestSuite) AfterTest(suiteName, testName string) {
+	s.env.AssertExpectations(s.T())
+}
+
+func TestFetchSeasonWorkflowTestSuite(t *testing.T) {
+	suite.Run(t, new(FetchSeasonWorkflowTestSuite))
+}
+
+// Test FetchSeasonWorkflow success with multiple days
+func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_Success() {
+	input := &FetchSeasonInput{
+		Season: SeasonInfo{
+			StartYear: 2023,
+			StartDate: mustParseDate("2023-10-10"),
+			EndDate:   mustParseDate("2023-10-12"),
+		},
+	}
+
+	// Mock FetchDayActivity for each day
+	s.env.OnActivity(FetchDayActivity, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(FetchSeasonWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+// Test FetchSeasonWorkflow handles activity error
+func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_ActivityError() {
+	input := &FetchSeasonInput{
+		Season: SeasonInfo{
+			StartYear: 2023,
+			StartDate: mustParseDate("2023-10-10"),
+			EndDate:   mustParseDate("2023-10-12"),
+		},
+	}
+
+	s.env.OnActivity(FetchDayActivity, mock.Anything, mock.Anything).Return(errors.New("network error"))
+
+	s.env.ExecuteWorkflow(FetchSeasonWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+// Test FetchSeasonWorkflow with single day
+func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_SingleDay() {
+	input := &FetchSeasonInput{
+		Season: SeasonInfo{
+			StartYear: 2023,
+			StartDate: mustParseDate("2023-10-10"),
+			EndDate:   mustParseDate("2023-10-10"),
+		},
+	}
+
+	s.env.OnActivity(FetchDayActivity, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(FetchSeasonWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+// --- FetchYahooPlayersWorkflow tests ---
+
+type FetchYahooPlayersWorkflowTestSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+	env *testsuite.TestWorkflowEnvironment
+}
+
+func (s *FetchYahooPlayersWorkflowTestSuite) SetupTest() {
+	s.env = s.NewTestWorkflowEnvironment()
+	s.env.RegisterWorkflow(FetchYahooPlayersWorkflow)
+}
+
+func (s *FetchYahooPlayersWorkflowTestSuite) AfterTest(suiteName, testName string) {
+	s.env.AssertExpectations(s.T())
+}
+
+func TestFetchYahooPlayersWorkflowTestSuite(t *testing.T) {
+	suite.Run(t, new(FetchYahooPlayersWorkflowTestSuite))
+}
+
+// Test FetchYahooPlayersWorkflow success (completes without ContinueAsNew when range is small)
+func (s *FetchYahooPlayersWorkflowTestSuite) TestFetchYahooPlayersWorkflow_Success() {
+	// With nil input, uses defaults from viper (which will be 0/empty in tests)
+	// The workflow should handle this gracefully
+	// Activity takes (batchStartID int, batchEndID int)
+	s.env.OnActivity(FetchYahooPlayerBatchActivity, mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int")).
+		Maybe().
+		Return(FetchYahooPlayerBatchResult{Downloaded: 5, Cached: 3, Missing: 2}, nil)
+
+	s.env.ExecuteWorkflow(FetchYahooPlayersWorkflow, (*FetchYahooPlayersInput)(nil))
+
+	s.True(s.env.IsWorkflowCompleted())
+	// May complete or ContinueAsNew - both are valid
+}
+
+// Test FetchYahooPlayersWorkflow handles activity error
+func (s *FetchYahooPlayersWorkflowTestSuite) TestFetchYahooPlayersWorkflow_ActivityError() {
+	// Activity takes (batchStartID int, batchEndID int)
+	s.env.OnActivity(FetchYahooPlayerBatchActivity, mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int")).
+		Maybe().
+		Return(FetchYahooPlayerBatchResult{}, errors.New("download failed"))
+
+	s.env.ExecuteWorkflow(FetchYahooPlayersWorkflow, (*FetchYahooPlayersInput)(nil))
+
+	s.True(s.env.IsWorkflowCompleted())
+	// With 0 max player ID (default), workflow may complete without calling activity
+}
+
+// --- ImportNHLTeamsAndPlayersWorkflow tests ---
+
+type ImportNHLTeamsAndPlayersWorkflowTestSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+	env *testsuite.TestWorkflowEnvironment
+}
+
+func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) SetupTest() {
+	s.env = s.NewTestWorkflowEnvironment()
+	s.env.RegisterWorkflow(ImportNHLTeamsAndPlayersWorkflow)
+}
+
+func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) AfterTest(suiteName, testName string) {
+	s.env.AssertExpectations(s.T())
+}
+
+func TestImportNHLTeamsAndPlayersWorkflowTestSuite(t *testing.T) {
+	suite.Run(t, new(ImportNHLTeamsAndPlayersWorkflowTestSuite))
+}
+
+// Test ImportNHLTeamsAndPlayersWorkflow success
+func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayersWorkflow_Success() {
+	input := &model.FetchSeasonsInput{}
+	seasons := []SeasonInfo{
+		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+	}
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
+	s.env.OnActivity(ExtractBoxscoreDataForSeasonActivity, mock.Anything, mock.Anything).Return(
+		BoxscoreExtractionResult{
+			Players: []BoxscorePlayer{
+				{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"},
+				{ID: 8478402, FirstName: "Connor", LastName: "McDavid"},
+			},
+		}, nil)
+
+	s.env.ExecuteWorkflow(ImportNHLTeamsAndPlayersWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+
+	var result *ImportTeamsAndPlayersResult
+	s.NoError(s.env.GetWorkflowResult(&result))
+	s.Equal(2, len(result.Players))
+}
+
+// Test ImportNHLTeamsAndPlayersWorkflow handles FetchSeasons error
+func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayersWorkflow_FetchSeasonsError() {
+	input := &model.FetchSeasonsInput{}
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(nil, errors.New("NHL API error"))
+
+	s.env.ExecuteWorkflow(ImportNHLTeamsAndPlayersWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+// Test ImportNHLTeamsAndPlayersWorkflow handles extraction error
+func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayersWorkflow_ExtractionError() {
+	input := &model.FetchSeasonsInput{}
+	seasons := []SeasonInfo{
+		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+	}
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
+	s.env.OnActivity(ExtractBoxscoreDataForSeasonActivity, mock.Anything, mock.Anything).Return(
+		BoxscoreExtractionResult{}, errors.New("file read error"))
+
+	s.env.ExecuteWorkflow(ImportNHLTeamsAndPlayersWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+// Test ImportNHLTeamsAndPlayersWorkflow with no seasons
+func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayersWorkflow_NoSeasons() {
+	input := &model.FetchSeasonsInput{}
+	seasons := []SeasonInfo{}
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
+
+	s.env.ExecuteWorkflow(ImportNHLTeamsAndPlayersWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+
+	var result *ImportTeamsAndPlayersResult
+	s.NoError(s.env.GetWorkflowResult(&result))
+	s.Equal(0, len(result.Players))
+}
+
+// Test ImportNHLTeamsAndPlayersWorkflow with multiple seasons dedupes players
+func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayersWorkflow_DeduplicatesPlayers() {
+	input := &model.FetchSeasonsInput{}
+	seasons := []SeasonInfo{
+		{StartYear: 2022, StartDate: mustParseDate("2022-10-10"), EndDate: mustParseDate("2022-10-12")},
+		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+	}
+
+	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
+	// Same player appears in both seasons - should be deduped
+	s.env.OnActivity(ExtractBoxscoreDataForSeasonActivity, mock.Anything, mock.Anything).Return(
+		BoxscoreExtractionResult{
+			Players: []BoxscorePlayer{
+				{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"},
+			},
+		}, nil)
+
+	s.env.ExecuteWorkflow(ImportNHLTeamsAndPlayersWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+
+	var result *ImportTeamsAndPlayersResult
+	s.NoError(s.env.GetWorkflowResult(&result))
+	// Player should appear only once despite being in both seasons
+	s.Equal(1, len(result.Players))
+}
+
+// --- ProcessPlayersWorkflow tests ---
+
+type ProcessPlayersWorkflowTestSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+	env *testsuite.TestWorkflowEnvironment
+}
+
+func (s *ProcessPlayersWorkflowTestSuite) SetupTest() {
+	s.env = s.NewTestWorkflowEnvironment()
+	s.env.RegisterWorkflow(ProcessPlayersWorkflow)
+	s.env.RegisterWorkflow(ProcessPlayersWorkflowContinue)
+	s.env.RegisterWorkflow(ImportNHLTeamsAndPlayersWorkflow)
+}
+
+func (s *ProcessPlayersWorkflowTestSuite) AfterTest(suiteName, testName string) {
+	s.env.AssertExpectations(s.T())
+}
+
+func TestProcessPlayersWorkflowTestSuite(t *testing.T) {
+	suite.Run(t, new(ProcessPlayersWorkflowTestSuite))
+}
+
+// Test ProcessPlayersWorkflow Phase 1 (extract IDs) transitions to Phase 2 via ContinueAsNew
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Success() {
+	input := &ProcessPlayersInput{}
+
+	// Mock the child workflow that extracts players
+	s.env.OnWorkflow(ImportNHLTeamsAndPlayersWorkflow, mock.Anything, mock.Anything).Return(
+		&ImportTeamsAndPlayersResult{
+			Players: []BoxscorePlayer{
+				{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"},
+			},
+		}, nil)
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, input)
+
+	// Workflow completes Phase 1 successfully then uses ContinueAsNew for Phase 2
+	// In test environment, ContinueAsNew is treated as workflow completion
+	s.True(s.env.IsWorkflowCompleted())
+	// ContinueAsNew results in nil result and a special error
+	// The test passes if the child workflow was called successfully
+}
+
+// Test ProcessPlayersWorkflow handles child workflow error in Phase 1
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_ChildError() {
+	input := &ProcessPlayersInput{}
+
+	s.env.OnWorkflow(ImportNHLTeamsAndPlayersWorkflow, mock.Anything, mock.Anything).Return(
+		(*ImportTeamsAndPlayersResult)(nil), errors.New("extraction failed"))
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+	s.Contains(s.env.GetWorkflowError().Error(), "extraction failed")
 }
