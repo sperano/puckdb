@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -77,8 +77,8 @@ type processPlayersInternalInput struct {
 // ProcessPlayersResult contains the final result of the unified workflow.
 type ProcessPlayersResult struct {
 	// Player counts
-	TotalPlayers    int
-	ImportedPlayers int
+	TotalPlayers     int
+	ImportedPlayers  int
 	MatchedWithYahoo int
 
 	// Download stats
@@ -460,7 +460,6 @@ func runProcessPhase3ProcessPlayers(ctx workflow.Context, input *processPlayersI
 // runProcessPhase4VerifyUnmatched verifies unmatched Yahoo players.
 func runProcessPhase4VerifyUnmatched(ctx workflow.Context, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
 	logger := workflow.GetLogger(ctx)
-	startedAt := workflow.Now(ctx)
 
 	logger.Info("ProcessPlayersWorkflow Phase 4: verifying unmatched players")
 
@@ -544,17 +543,10 @@ func runProcessPhase4VerifyUnmatched(ctx workflow.Context, input *processPlayers
 	}
 
 	// Mark Phase 4 complete with comprehensive summary
-	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
-	yahooTotal := 0
-	if input.YahooPoolResult != nil {
-		yahooTotal = input.YahooPoolResult.TotalPlayers
-	}
-	summaryLine1 := fmt.Sprintf("Imported %d/%d players (%d Yahoo matched) | Downloads: %d new, %d cached, %d 404",
-		input.TotalImported, len(input.Players), input.TotalMatched,
-		input.TotalDownloaded, input.TotalCacheHits, input.TotalMissing)
-	summaryLine2 := fmt.Sprintf("Yahoo pool: %d | Truly unmatched: %d | Errors: %d | %s",
-		yahooTotal, len(unmatchedReport.TrulyUnmatched), len(input.AllErrors), elapsed)
-	tracker.SetItemCompletedDescription(phaseProcessVerifyUnmatch, summaryLine1+"\n"+summaryLine2)
+	elapsed := formatDuration(workflow.Now(ctx).Sub(input.StartedAt))
+	summaryLine1 := fmt.Sprintf("Imported %d players: %d Yahoo! matched, %d truly unmatched and %d errors in %s.",
+		input.TotalImported, input.TotalMatched, len(unmatchedReport.TrulyUnmatched), len(input.AllErrors), elapsed)
+	tracker.SetItemCompletedDescription(phaseProcessVerifyUnmatch, summaryLine1)
 	tracker.MarkItemCompleted(ctx, phaseProcessVerifyUnmatch)
 
 	logger.Info("ProcessPlayersWorkflow completed",
