@@ -48,7 +48,7 @@ func GetDatabaseURL() string {
 // OpenPGXPool opens a pgx connection pool for use with SQLC
 func OpenPGXPool(ctx context.Context) (*pgxpool.Pool, error) {
 	dbURL := GetDatabaseURL()
-	log.Info().Str("host", viper.GetString(config.FlagPostgresHost)).Msg("Initializing pgx pool")
+	log.Debug().Str("host", viper.GetString(config.FlagPostgresHost)).Msg("Initializing pgx pool")
 
 	poolConfig, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
@@ -71,7 +71,6 @@ func OpenPGXPool(ctx context.Context) (*pgxpool.Pool, error) {
 func NewQueries(pool *pgxpool.Pool) *sqlcdb.Queries {
 	return sqlcdb.New(pool)
 }
-
 
 // RunSQLMigrations runs the embedded SQL migrations
 func RunSQLMigrations() error {
