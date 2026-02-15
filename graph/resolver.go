@@ -100,7 +100,7 @@ func (r *Resolver) fetchSeasonsResult(ctx context.Context) (*model.WorkflowResul
 }
 
 func (r *Resolver) fetchSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDFetchSeasons)
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDFetchSeasons, worker.WorkflowIDFetchSeason)
 }
 
 func (r *Resolver) fetchYahooPlayers(ctx context.Context) (bool, error) {
@@ -123,7 +123,7 @@ func (r *Resolver) fetchYahooPlayersResult(ctx context.Context) (*model.Workflow
 }
 
 func (r *Resolver) fetchYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDFetchYahooPlayers)
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDFetchYahooPlayers, nil)
 }
 
 func (r *Resolver) processPlayers(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
@@ -153,7 +153,7 @@ func (r *Resolver) processPlayersResult(ctx context.Context) (*model.WorkflowRes
 }
 
 func (r *Resolver) processPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	progress, err := r.queryWorkflowProgress(ctx, worker.WorkflowIDProcessPlayers)
+	progress, err := r.queryWorkflowProgress(ctx, worker.WorkflowIDProcessPlayers, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +251,7 @@ func (r *Resolver) importSeasonsResult(ctx context.Context) (*model.WorkflowResu
 }
 
 func (r *Resolver) importSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDImportSeasons)
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDImportSeasons, worker.WorkflowIDImportSeason)
 }
 
 func (r *Resolver) initialize(ctx context.Context) (bool, error) {
@@ -274,7 +274,7 @@ func (r *Resolver) initializeResult(ctx context.Context) (*model.WorkflowResult,
 }
 
 func (r *Resolver) initializeProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDInitialize)
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDInitialize, nil)
 }
 
 func (r *Resolver) initializeResultData(ctx context.Context) (*model.InitializeResultData, error) {
@@ -317,7 +317,10 @@ func (r *Resolver) getWorkflowResult(ctx context.Context, workflowID string) (*m
 	return result, nil
 }
 
-func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string) (*model.WorkflowProgress, error) {
+// childWorkflowIDFunc maps an item ID (e.g., season start year) to a child workflow ID.
+type childWorkflowIDFunc func(itemID int) string
+
+func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string, childIDFunc childWorkflowIDFunc) (*model.WorkflowProgress, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, config.DefaultQueryTimeout)
 	defer cancel()
 
@@ -368,8 +371,8 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 				CompletedAt:          ptrStringIfNotEmpty(item.CompletedAt),
 			}
 
-			// Mark started but incomplete items for parallel querying
-			if item.Started && item.Completed < item.Total {
+			// Mark started but incomplete items for parallel querying (only if we have a child ID function)
+			if childIDFunc != nil && item.Started && item.Completed < item.Total {
 				queries = append(queries, childQuery{index: i, itemID: item.ID})
 			}
 		}
@@ -386,7 +389,7 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 				go func(idx, id int) {
 					results <- childResult{
 						index:    idx,
-						progress: r.queryChildItemProgress(ctx, id),
+						progress: r.queryChildItemProgress(ctx, childIDFunc, id),
 					}
 				}(q.index, q.itemID)
 			}
@@ -409,11 +412,11 @@ func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string)
 // queryChildItemProgress queries a child workflow for its progress.
 // For season-based workflows, itemID is the startYear.
 // Returns nil if the child workflow doesn't exist or can't be queried.
-func (r *Resolver) queryChildItemProgress(ctx context.Context, itemID int) *worker.WorkflowProgress {
+func (r *Resolver) queryChildItemProgress(ctx context.Context, childIDFunc childWorkflowIDFunc, itemID int) *worker.WorkflowProgress {
 	childCtx, cancel := context.WithTimeout(ctx, config.DefaultChildWorkflowTimeout)
 	defer cancel()
 
-	childWorkflowID := worker.WorkflowIDFetchSeason(itemID)
+	childWorkflowID := childIDFunc(itemID)
 	response, err := r.TemporalClient.QueryWorkflow(childCtx, childWorkflowID, "", worker.ProgressQueryName)
 	if err != nil {
 		return nil

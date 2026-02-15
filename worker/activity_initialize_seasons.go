@@ -305,7 +305,22 @@ func (r realSeasonTeamsInitializer) UpsertTeams(ctx context.Context, seasonID in
 
 // InitializeSeasonTeamsActivity downloads standings and upserts teams for a single season.
 func InitializeSeasonTeamsActivity(ctx context.Context, seasonID int) (InitializeSeasonTeamsResult, error) {
-	return initializeSeasonTeamsImpl(ctx, realSeasonTeamsInitializer{}, seasonID)
+	fs := store.NewStore()
+	client := newNHLClient()
+
+	pool, err := database.OpenPGXPool(ctx)
+	if err != nil {
+		return InitializeSeasonTeamsResult{SeasonID: seasonID}, fmt.Errorf("open database pool: %w", err)
+	}
+	defer pool.Close()
+
+	queries := sqlcdb.New(pool)
+
+	return initializeSeasonTeamsImpl(ctx, realSeasonTeamsInitializer{
+		fs:      fs,
+		client:  client,
+		queries: queries,
+	}, seasonID)
 }
 
 func initializeSeasonTeamsImpl(ctx context.Context, init seasonTeamsInitializer, seasonID int) (InitializeSeasonTeamsResult, error) {

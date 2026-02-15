@@ -140,7 +140,7 @@ func saveYahooPlayersToRedisImpl(ctx context.Context, client cache.Client, playe
 	excludedCount := 0
 	for _, player := range players {
 		if _, isVerifiedNonNHL := verifiedNonNHL[player.YahooID]; !isVerifiedNonNHL {
-			availableIDs = append(availableIDs, player.YahooID)
+			availableIDs = append(availableIDs, player.YahooID.String())
 		} else {
 			excludedCount++
 		}
