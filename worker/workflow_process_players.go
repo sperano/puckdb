@@ -543,10 +543,18 @@ func runProcessPhase4VerifyUnmatched(ctx workflow.Context, input *processPlayers
 		}
 	}
 
-	// Mark Phase 4 complete
+	// Mark Phase 4 complete with comprehensive summary
 	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
-	tracker.SetItemCompletedDescription(phaseProcessVerifyUnmatch,
-		fmt.Sprintf("Verified %d unmatched (%d truly unmatched) in %s.", len(unmatchedPlayers), len(unmatchedReport.TrulyUnmatched), elapsed))
+	yahooTotal := 0
+	if input.YahooPoolResult != nil {
+		yahooTotal = input.YahooPoolResult.TotalPlayers
+	}
+	summaryLine1 := fmt.Sprintf("Imported %d/%d players (%d Yahoo matched) | Downloads: %d new, %d cached, %d 404",
+		input.TotalImported, len(input.Players), input.TotalMatched,
+		input.TotalDownloaded, input.TotalCacheHits, input.TotalMissing)
+	summaryLine2 := fmt.Sprintf("Yahoo pool: %d | Truly unmatched: %d | Errors: %d | %s",
+		yahooTotal, len(unmatchedReport.TrulyUnmatched), len(input.AllErrors), elapsed)
+	tracker.SetItemCompletedDescription(phaseProcessVerifyUnmatch, summaryLine1+"\n"+summaryLine2)
 	tracker.MarkItemCompleted(ctx, phaseProcessVerifyUnmatch)
 
 	logger.Info("ProcessPlayersWorkflow completed",
