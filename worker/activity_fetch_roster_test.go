@@ -19,7 +19,7 @@ func TestFetchRosterForTeamOnDayImpl_FileExists(t *testing.T) {
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
 	mockFS.On("Exists", file).Return(true)
 
-	err := fetchRosterForTeamOnDayImpl(ctx, mockFS, 423, 12345, 1, day)
+	err := fetchRosterForTeamOnDayImpl(ctx, mockFS, 423, 12345, 1, day, mockDownloader(nil, nil))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
@@ -32,7 +32,7 @@ func TestFetchRosterForTeamOnDayImpl_ContextCancelled(t *testing.T) {
 	mockFS := NewMockFileSystem()
 	day := time.Date(2023, 11, 15, 0, 0, 0, 0, time.UTC)
 
-	err := fetchRosterForTeamOnDayImpl(ctx, mockFS, 423, 12345, 1, day)
+	err := fetchRosterForTeamOnDayImpl(ctx, mockFS, 423, 12345, 1, day, mockDownloader(nil, nil))
 
 	assert.ErrorIs(t, err, context.Canceled)
 }

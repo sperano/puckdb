@@ -20,7 +20,7 @@ func TestFetchLeagueImpl_FileExists(t *testing.T) {
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
 	mockFS.On("Exists", file).Return(true)
 
-	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345)
+	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345, mockDownloader(nil, nil))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
@@ -32,7 +32,7 @@ func TestFetchLeagueImpl_ContextCancelled(t *testing.T) {
 
 	mockFS := NewMockFileSystem()
 
-	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345)
+	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345, mockDownloader(nil, nil))
 
 	assert.ErrorIs(t, err, context.Canceled)
 }
@@ -45,7 +45,7 @@ func TestFetchLeagueImpl_MkdirAllError(t *testing.T) {
 
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(expectedErr)
 
-	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345)
+	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345, mockDownloader(nil, nil))
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), file.Dir())

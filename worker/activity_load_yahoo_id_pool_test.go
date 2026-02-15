@@ -277,3 +277,30 @@ func TestSaveYahooPlayersToRedisImpl_PipelineError(t *testing.T) {
 	assert.Contains(t, err.Error(), "redis connection failed")
 	assert.Nil(t, result)
 }
+
+func TestSaveYahooPlayersToRedisImpl_LoadVerifiedError(t *testing.T) {
+	ctx := context.Background()
+	client, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	players := []store.YahooPlayer{
+		{YahooID: 1, FirstName: "Connor", LastName: "McDavid"},
+	}
+
+	// SMembers fails - should log warning but continue with all players available
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetErr(errors.New("redis timeout"))
+
+	// Pipeline should still work - player is not excluded since we couldn't load verified set
+	anyArgs := func(expected, actual []interface{}) error { return nil }
+	mockRedis.CustomMatch(anyArgs).ExpectHSet(YahooIDPoolKey, "x", "x").SetVal(1)
+	mockRedis.CustomMatch(anyArgs).ExpectSAdd(YahooIDAvailableKey, "x").SetVal(1)
+	mockRedis.ExpectExpire(YahooIDPoolKey, ImportPlayersTTL).SetVal(true)
+	mockRedis.ExpectExpire(YahooIDAvailableKey, ImportPlayersTTL).SetVal(true)
+
+	result, err := saveYahooPlayersToRedisImpl(ctx, client, players)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.TotalPlayers)
+	assert.Equal(t, 1, result.AvailablePlayers) // All players available since verified set couldn't be loaded
+	assert.Equal(t, 0, result.SkippedNonNHL)
+}

@@ -17,7 +17,7 @@ func TestFetchTeamImpl_FileExists(t *testing.T) {
 	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
 	mockFS.On("Exists", file).Return(true)
 
-	err := fetchTeamImpl(ctx, mockFS, 2023, 423, 12345, 1)
+	err := fetchTeamImpl(ctx, mockFS, 2023, 423, 12345, 1, mockDownloader(nil, nil))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
@@ -29,7 +29,7 @@ func TestFetchTeamImpl_ContextCancelled(t *testing.T) {
 
 	mockFS := NewMockFileSystem()
 
-	err := fetchTeamImpl(ctx, mockFS, 2023, 423, 12345, 1)
+	err := fetchTeamImpl(ctx, mockFS, 2023, 423, 12345, 1, mockDownloader(nil, nil))
 
 	assert.ErrorIs(t, err, context.Canceled)
 }

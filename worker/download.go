@@ -108,8 +108,11 @@ func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
 	return data, nil
 }
 
+// Downloader fetches content from a URL.
+type Downloader func(url string) ([]byte, error)
+
 // doDownloadImpl is the testable implementation.
-func doDownloadImpl(ctx context.Context, fs store.Store, file store.File, url string) error {
+func doDownloadImpl(ctx context.Context, fs store.Store, file store.File, url string, download Downloader) error {
 	fileType := reflect.TypeOf(file).Name()
 
 	for {
@@ -126,7 +129,7 @@ func doDownloadImpl(ctx context.Context, fs store.Store, file store.File, url st
 				metrics.IncDownload(fileType, "hit")
 				return nil
 			}
-			content, err := DownloadFromYahoo(url)
+			content, err := download(url)
 			if err != nil {
 				metrics.IncDownload(fileType, "error")
 				return fmt.Errorf("%s: %w", url, err)

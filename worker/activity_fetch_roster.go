@@ -21,12 +21,12 @@ func FetchRosterForTeamOnDayActivity(ctx context.Context, season int, leagueID i
 		return err
 	}
 	fs := store.NewStore()
-	return fetchRosterForTeamOnDayImpl(ctx, fs, gameKey, leagueID, teamID, day)
+	return fetchRosterForTeamOnDayImpl(ctx, fs, gameKey, leagueID, teamID, day, DownloadFromYahoo)
 }
 
-func fetchRosterForTeamOnDayImpl(ctx context.Context, fs store.Store, gameKey int, leagueID int, teamID int, day time.Time) error {
+func fetchRosterForTeamOnDayImpl(ctx context.Context, fs store.Store, gameKey int, leagueID int, teamID int, day time.Time, download Downloader) error {
 	log.Trace().Time("day", day).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo roster")
 	file := store.RosterFile{Date: day, LeagueID: leagueID, TeamID: teamID}
 	url := http.YahooRosterURL(gameKey, leagueID, teamID, day)
-	return doDownloadImpl(ctx, fs, file, url)
+	return doDownloadImpl(ctx, fs, file, url, download)
 }

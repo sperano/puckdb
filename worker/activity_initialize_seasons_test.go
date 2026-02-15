@@ -283,6 +283,36 @@ func TestDownloadSeasonStandings_CacheCorrupt(t *testing.T) {
 	client.AssertExpectations(t)
 }
 
+func TestDownloadSeasonStandings_WriteError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+
+	seasonID := 20222023
+	file := store.SeasonStandingsFile{SeasonID: seasonID}
+
+	fs.On("Exists", file).Return(false)
+
+	standings := []nhl.Standing{
+		{TeamAbbrev: nhl.LocalizedString{Default: "MTL"}, TeamName: nhl.LocalizedString{Default: "Montreal Canadiens"}},
+	}
+	season, _ := nhl.SeasonFromInt(seasonID)
+	client.On("LeagueStandingsForSeason", ctx, season).Return(standings, nil)
+	fs.On("Write", file, mock.Anything).Return(errors.New("disk full"))
+
+	result, err := downloadSeasonStandingsImpl(ctx, fs, client, seasonID)
+
+	// Write error is logged but not fatal - should still return success
+	require.NoError(t, err)
+	assert.Equal(t, seasonID, result.SeasonID)
+	assert.Equal(t, 1, result.TeamCount)
+	assert.False(t, result.FromCache)
+	fs.AssertExpectations(t)
+	client.AssertExpectations(t)
+}
+
 // --- upsertSeasonsImpl tests ---
 
 func TestUpsertSeasons_Success(t *testing.T) {
@@ -484,4 +514,91 @@ func TestUpsertSeasonTeams_UpsertError(t *testing.T) {
 	assert.Equal(t, seasonID, result.SeasonID)
 	assert.Equal(t, 0, result.TeamsUpserted)
 	upserter.AssertExpectations(t)
+}
+
+// --- initializeSeasonTeamsImpl tests ---
+
+// mockSeasonTeamsInitializer is a test double for seasonTeamsInitializer.
+type mockSeasonTeamsInitializer struct {
+	downloadResult DownloadSeasonStandingsResult
+	downloadErr    error
+	upsertResult   UpsertSeasonTeamsResult
+	upsertErr      error
+}
+
+func (m *mockSeasonTeamsInitializer) DownloadStandings(_ context.Context, _ int) (DownloadSeasonStandingsResult, error) {
+	return m.downloadResult, m.downloadErr
+}
+
+func (m *mockSeasonTeamsInitializer) UpsertTeams(_ context.Context, _ int) (UpsertSeasonTeamsResult, error) {
+	return m.upsertResult, m.upsertErr
+}
+
+func TestInitializeSeasonTeamsImpl_Success(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	seasonID := 20222023
+
+	init := &mockSeasonTeamsInitializer{
+		downloadResult: DownloadSeasonStandingsResult{
+			SeasonID:  seasonID,
+			TeamCount: 32,
+			FromCache: false,
+		},
+		upsertResult: UpsertSeasonTeamsResult{
+			SeasonID:      seasonID,
+			TeamsUpserted: 32,
+		},
+	}
+
+	result, err := initializeSeasonTeamsImpl(ctx, init, seasonID)
+
+	require.NoError(t, err)
+	assert.Equal(t, seasonID, result.SeasonID)
+	assert.Equal(t, 32, result.DownloadResult.TeamCount)
+	assert.False(t, result.DownloadResult.FromCache)
+	assert.Equal(t, 32, result.UpsertResult.TeamsUpserted)
+}
+
+func TestInitializeSeasonTeamsImpl_DownloadError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	seasonID := 20222023
+
+	init := &mockSeasonTeamsInitializer{
+		downloadErr: errors.New("NHL API unavailable"),
+	}
+
+	result, err := initializeSeasonTeamsImpl(ctx, init, seasonID)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "download season standings")
+	assert.Contains(t, err.Error(), "NHL API unavailable")
+	assert.Equal(t, seasonID, result.SeasonID)
+}
+
+func TestInitializeSeasonTeamsImpl_UpsertError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	seasonID := 20222023
+
+	init := &mockSeasonTeamsInitializer{
+		downloadResult: DownloadSeasonStandingsResult{
+			SeasonID:  seasonID,
+			TeamCount: 32,
+			FromCache: true,
+		},
+		upsertErr: errors.New("database connection failed"),
+	}
+
+	result, err := initializeSeasonTeamsImpl(ctx, init, seasonID)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "upsert season teams")
+	assert.Contains(t, err.Error(), "database connection failed")
+	// Download should have succeeded
+	assert.Equal(t, 32, result.DownloadResult.TeamCount)
 }

@@ -1,9 +1,15 @@
 package worker
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	"github.com/go-redis/redismock/v8"
+	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNamesMatchForVerification_ExactMatch(t *testing.T) {
@@ -82,4 +88,323 @@ func TestNormalizeNameForVerification(t *testing.T) {
 			assert.Equal(t, tt.expected, normalizeNameForVerification(tt.input))
 		})
 	}
+}
+
+// --- verifyUnmatchedBatchImpl tests ---
+
+func TestVerifyUnmatchedBatchImpl_EmptyPlayers(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+
+	// Empty set of verified IDs
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	deps := verifyDeps{
+		client:      client,
+		fs:          fs,
+		redisClient: redisClient,
+	}
+
+	result, err := verifyUnmatchedBatchImpl(ctx, deps, []UnmatchedYahooPlayer{})
+
+	require.NoError(t, err)
+	assert.Empty(t, result.VerifiedNonNHL)
+	assert.Empty(t, result.TrulyUnmatched)
+	assert.Empty(t, result.NotFoundInNHL)
+	require.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+func TestVerifyUnmatchedBatchImpl_AlreadyVerified(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+
+	// Player 123 is already verified
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{"123"})
+
+	deps := verifyDeps{
+		client:      client,
+		fs:          fs,
+		redisClient: redisClient,
+	}
+
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 123, FirstName: "Test", LastName: "Player"},
+	}
+
+	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+
+	require.NoError(t, err)
+	assert.Len(t, result.VerifiedNonNHL, 1)
+	assert.Equal(t, store.YahooPlayerID(123), result.VerifiedNonNHL[0])
+	assert.Empty(t, result.TrulyUnmatched)
+	assert.Empty(t, result.NotFoundInNHL)
+	// SearchPlayer should not have been called
+	client.AssertNotCalled(t, "SearchPlayer")
+	require.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+func TestVerifyUnmatchedBatchImpl_PlayerNotFoundInNHL(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	// No pre-verified IDs
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	// Search returns empty results
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "John Doe", &limit).Return([]nhl.PlayerSearchResult{}, nil)
+
+	// SaveVerifiedNonNHLIDs uses a pipeline - just expect the pipeline to be executed
+	// We can't easily mock the pipeline, but the function logs a warning if it fails
+	// The save failing doesn't affect the return value
+
+	deps := verifyDeps{
+		client:      client,
+		fs:          fs,
+		redisClient: redisClient,
+	}
+
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 456, FirstName: "John", LastName: "Doe"},
+	}
+
+	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+
+	require.NoError(t, err)
+	assert.Empty(t, result.VerifiedNonNHL)
+	assert.Empty(t, result.TrulyUnmatched)
+	assert.Len(t, result.NotFoundInNHL, 1)
+	assert.Equal(t, store.YahooPlayerID(456), result.NotFoundInNHL[0].YahooID)
+	client.AssertExpectations(t)
+}
+
+func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	// No pre-verified IDs
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	// Search returns a matching player
+	playerID := nhl.PlayerID(8476453)
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "Minor Leaguer", &limit).Return([]nhl.PlayerSearchResult{
+		{PlayerID: playerID, Name: "Minor Leaguer"},
+	}, nil)
+
+	// Player landing file NOT in cache - need to fetch from API
+	landing := &nhl.PlayerLanding{
+		PlayerID:  playerID,
+		FirstName: nhl.LocalizedString{Default: "Minor"},
+		LastName:  nhl.LocalizedString{Default: "Leaguer"},
+		SeasonTotals: []nhl.SeasonTotal{
+			{LeagueAbbrev: "AHL", GameType: nhl.GameTypeRegularSeason, GamesPlayed: 50},
+		},
+	}
+	fs.On("Exists", store.PlayerLandingFile{PlayerID: playerID}).Return(false)
+	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
+
+	deps := verifyDeps{
+		client:      client,
+		fs:          fs,
+		redisClient: redisClient,
+	}
+
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 789, FirstName: "Minor", LastName: "Leaguer"},
+	}
+
+	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+
+	require.NoError(t, err)
+	assert.Len(t, result.VerifiedNonNHL, 1)
+	assert.Equal(t, store.YahooPlayerID(789), result.VerifiedNonNHL[0])
+	assert.Empty(t, result.TrulyUnmatched)
+	assert.Empty(t, result.NotFoundInNHL)
+	client.AssertExpectations(t)
+	fs.AssertExpectations(t)
+}
+
+func TestVerifyUnmatchedBatchImpl_PlayerFoundWithNHLGames(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	// No pre-verified IDs
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	// Search returns a matching player
+	playerID := nhl.PlayerID(8476453)
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "Connor McDavid", &limit).Return([]nhl.PlayerSearchResult{
+		{PlayerID: playerID, Name: "Connor McDavid"},
+	}, nil)
+
+	// Player landing NOT in cache - fetch from API
+	landing := &nhl.PlayerLanding{
+		PlayerID:  playerID,
+		FirstName: nhl.LocalizedString{Default: "Connor"},
+		LastName:  nhl.LocalizedString{Default: "McDavid"},
+		SeasonTotals: []nhl.SeasonTotal{
+			{LeagueAbbrev: "NHL", GameType: nhl.GameTypeRegularSeason, GamesPlayed: 82},
+			{LeagueAbbrev: "NHL", GameType: nhl.GameTypeRegularSeason, GamesPlayed: 78},
+		},
+	}
+	fs.On("Exists", store.PlayerLandingFile{PlayerID: playerID}).Return(false)
+	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
+
+	deps := verifyDeps{
+		client:      client,
+		fs:          fs,
+		redisClient: redisClient,
+	}
+
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 999, FirstName: "Connor", LastName: "McDavid"},
+	}
+
+	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+
+	require.NoError(t, err)
+	assert.Empty(t, result.VerifiedNonNHL)
+	assert.Len(t, result.TrulyUnmatched, 1)
+	assert.Equal(t, store.YahooPlayerID(999), result.TrulyUnmatched[0].YahooID)
+	assert.Equal(t, 160, result.TrulyUnmatched[0].NHLGames) // 82 + 78
+	assert.True(t, result.TrulyUnmatched[0].HasNHLGames)
+	assert.Empty(t, result.NotFoundInNHL)
+	client.AssertExpectations(t)
+	fs.AssertExpectations(t)
+}
+
+func TestVerifyUnmatchedBatchImpl_RedisLoadError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	// Redis load fails - should continue with empty set
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetErr(errors.New("redis connection refused"))
+
+	// Search returns empty results
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "Test Player", &limit).Return([]nhl.PlayerSearchResult{}, nil)
+
+	deps := verifyDeps{
+		client:      client,
+		fs:          fs,
+		redisClient: redisClient,
+	}
+
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 111, FirstName: "Test", LastName: "Player"},
+	}
+
+	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+
+	// Should still succeed despite Redis load error
+	require.NoError(t, err)
+	assert.Empty(t, result.VerifiedNonNHL)
+	assert.Len(t, result.NotFoundInNHL, 1)
+	client.AssertExpectations(t)
+}
+
+func TestVerifyUnmatchedBatchImpl_SearchError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	// No pre-verified IDs
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	// Search returns an error
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "Error Player", &limit).Return(nil, errors.New("API error"))
+
+	deps := verifyDeps{
+		client:      client,
+		fs:          fs,
+		redisClient: redisClient,
+	}
+
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 222, FirstName: "Error", LastName: "Player"},
+	}
+
+	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+
+	// Function should still succeed
+	require.NoError(t, err)
+	// Player should be in NotFoundInNHL since search failed
+	assert.Len(t, result.NotFoundInNHL, 1)
+	client.AssertExpectations(t)
+}
+
+func TestVerifyUnmatchedBatchImpl_NameMismatchInSearch(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	// No pre-verified IDs
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	// Search returns results but none match the name
+	playerID := nhl.PlayerID(8476453)
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "John Smith", &limit).Return([]nhl.PlayerSearchResult{
+		{PlayerID: playerID, Name: "Bob Jones"}, // Different name - no match
+	}, nil)
+
+	deps := verifyDeps{
+		client:      client,
+		fs:          fs,
+		redisClient: redisClient,
+	}
+
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 333, FirstName: "John", LastName: "Smith"},
+	}
+
+	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+
+	require.NoError(t, err)
+	// Player goes to NotFoundInNHL because name didn't match
+	assert.Empty(t, result.VerifiedNonNHL)
+	assert.Empty(t, result.TrulyUnmatched)
+	assert.Len(t, result.NotFoundInNHL, 1)
+	assert.Equal(t, store.YahooPlayerID(333), result.NotFoundInNHL[0].YahooID)
+	assert.False(t, result.NotFoundInNHL[0].FoundInNHL)
+	client.AssertExpectations(t)
 }

@@ -271,3 +271,31 @@ func TestFetchYahooPlayer_Write404MissingFileError(t *testing.T) {
 	assert.Equal(t, fetchStatus(0), status)
 	fs.AssertExpectations(t)
 }
+
+func TestFetchYahooPlayer_MkdirMissingDirError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	downloader := &MockHTTPDownloader{}
+
+	playerID := store.YahooPlayerID(12345)
+	missingFile := store.MissingYahooPlayerFile{PlayerID: playerID}
+	playerFile := store.YahooPlayerFile{PlayerID: playerID}
+
+	// Neither file exists
+	fs.On("Exists", missingFile).Return(false)
+	fs.On("Exists", playerFile).Return(false)
+
+	// First MkdirAll succeeds, second fails
+	fs.On("MkdirAll", playerFile.Dir(), mock.Anything).Return(nil)
+	fs.On("MkdirAll", missingFile.Dir(), mock.Anything).Return(errors.New("permission denied"))
+
+	status, err := fetchYahooPlayerImpl(ctx, fs, downloader, playerID)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mkdir missing dir")
+	assert.Equal(t, fetchStatus(0), status)
+	fs.AssertExpectations(t)
+	downloader.AssertNotCalled(t, "Download")
+}

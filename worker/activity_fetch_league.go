@@ -20,13 +20,13 @@ func FetchLeagueActivity(ctx context.Context, season int, leagueID int) error {
 		return err
 	}
 	fs := store.NewStore()
-	return fetchLeagueImpl(ctx, fs, season, gameKey, leagueID)
+	return fetchLeagueImpl(ctx, fs, season, gameKey, leagueID, DownloadFromYahoo)
 }
 
 // fetchLeagueImpl is the testable implementation.
-func fetchLeagueImpl(ctx context.Context, fs store.Store, season int, gameKey int, leagueID int) error {
+func fetchLeagueImpl(ctx context.Context, fs store.Store, season int, gameKey int, leagueID int, download Downloader) error {
 	log.Trace().Int("season", season).Int("gameKey", gameKey).Int("leagueID", leagueID).Msg("Fetching Yahoo League")
 	file := store.LeagueFile{Season: season, LeagueID: leagueID}
 	url := http.YahooLeagueURL(gameKey, leagueID)
-	return doDownloadImpl(ctx, fs, file, url)
+	return doDownloadImpl(ctx, fs, file, url, download)
 }

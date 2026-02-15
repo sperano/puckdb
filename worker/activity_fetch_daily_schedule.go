@@ -22,10 +22,13 @@ func FetchDailyScheduleActivity(ctx context.Context, day time.Time) error {
 
 	fs := store.NewStore()
 	client := newNHLClient()
-	return fetchDailyScheduleImpl(ctx, fs, client, day)
+	return fetchDailyScheduleImpl(ctx, fs, client, day, DownloadBoxscore)
 }
 
-func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClient, day time.Time) error {
+// BoxscoreDownloader downloads boxscore data for a game ID.
+type BoxscoreDownloader func(id nhl.GameID) ([]byte, error)
+
+func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClient, day time.Time, downloadBoxscore BoxscoreDownloader) error {
 	// Download schedule
 	gameIDs, err := downloadSchedule(ctx, fs, client, day)
 	if err != nil {
@@ -40,7 +43,7 @@ func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClien
 			return ctx.Err()
 		default:
 		}
-		if err := downloadBoxscoreToCache(ctx, fs, day, id); err != nil {
+		if err := downloadBoxscoreToCache(ctx, fs, day, id, downloadBoxscore); err != nil {
 			log.Warn().Err(err).Str("gameid", id.String()).Msg("Skipping boxscore")
 			continue
 		}
@@ -110,7 +113,7 @@ func downloadSchedule(ctx context.Context, fs store.Store, client NHLClient, day
 }
 
 // downloadBoxscoreToCache downloads a single boxscore to cache.
-func downloadBoxscoreToCache(ctx context.Context, fs store.Store, day time.Time, id nhl.GameID) error {
+func downloadBoxscoreToCache(ctx context.Context, fs store.Store, day time.Time, id nhl.GameID, downloadBoxscore BoxscoreDownloader) error {
 	file := store.BoxscoreFile{Date: day, GameID: id}
 	if fs.Exists(file) {
 		log.Debug().Str("gameid", id.String()).Msg("Boxscore already cached")
@@ -123,7 +126,7 @@ func downloadBoxscoreToCache(ctx context.Context, fs store.Store, day time.Time,
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
-	content, err := DownloadBoxscore(id)
+	content, err := downloadBoxscore(id)
 	if err != nil {
 		metrics.IncDownload("Boxscore", "error")
 		return fmt.Errorf("download: %w", err)

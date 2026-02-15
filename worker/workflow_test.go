@@ -197,3 +197,111 @@ func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_NoSeasons() {
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
 }
+
+// --- InitializeWorkflow tests ---
+
+type InitializeWorkflowTestSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+	env *testsuite.TestWorkflowEnvironment
+}
+
+func (s *InitializeWorkflowTestSuite) SetupTest() {
+	s.env = s.NewTestWorkflowEnvironment()
+	s.env.RegisterWorkflow(InitializeWorkflow)
+}
+
+func (s *InitializeWorkflowTestSuite) AfterTest(suiteName, testName string) {
+	s.env.AssertExpectations(s.T())
+}
+
+func TestInitializeWorkflowTestSuite(t *testing.T) {
+	suite.Run(t, new(InitializeWorkflowTestSuite))
+}
+
+func (s *InitializeWorkflowTestSuite) TestInitializeWorkflow_Success() {
+	// Mock all activities in the workflow
+	s.env.OnActivity(DownloadFranchisesActivity, mock.Anything).Return(
+		DownloadFranchisesResult{Count: 32, FromCache: false}, nil)
+	s.env.OnActivity(UpsertFranchisesActivity, mock.Anything).Return(
+		UpsertFranchisesResult{FranchisesUpserted: 32}, nil)
+	s.env.OnActivity(DownloadSeasonsManifestActivity, mock.Anything).Return(
+		DownloadSeasonsManifestResult{Count: 107, FromCache: false}, nil)
+	s.env.OnActivity(UpsertSeasonsActivity, mock.Anything).Return(
+		UpsertSeasonsResult{SeasonsUpserted: 107}, nil)
+	// Mock InitializeSeasonTeamsActivity - will be called for each season read from cache
+	// Use .Maybe() since the number of seasons comes from SideEffect reading real cache
+	s.env.OnActivity(InitializeSeasonTeamsActivity, mock.Anything, mock.AnythingOfType("int")).
+		Maybe().
+		Return(InitializeSeasonTeamsResult{
+			UpsertResult: UpsertSeasonTeamsResult{TeamsUpserted: 30},
+		}, nil)
+
+	s.env.ExecuteWorkflow(InitializeWorkflow)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+
+	var result InitializeResult
+	s.NoError(s.env.GetWorkflowResult(&result))
+	s.Equal(32, result.FranchisesFetched)
+	s.Equal(32, result.FranchisesUpserted)
+	s.Equal(107, result.SeasonsFetched)
+	s.Equal(107, result.SeasonsUpserted)
+}
+
+func (s *InitializeWorkflowTestSuite) TestInitializeWorkflow_FetchFranchisesError() {
+	s.env.OnActivity(DownloadFranchisesActivity, mock.Anything).Return(
+		DownloadFranchisesResult{}, errors.New("NHL API error"))
+
+	s.env.ExecuteWorkflow(InitializeWorkflow)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+	s.Contains(s.env.GetWorkflowError().Error(), "NHL API error")
+}
+
+func (s *InitializeWorkflowTestSuite) TestInitializeWorkflow_UpsertFranchisesError() {
+	s.env.OnActivity(DownloadFranchisesActivity, mock.Anything).Return(
+		DownloadFranchisesResult{Count: 32}, nil)
+	s.env.OnActivity(UpsertFranchisesActivity, mock.Anything).Return(
+		UpsertFranchisesResult{}, errors.New("database error"))
+
+	s.env.ExecuteWorkflow(InitializeWorkflow)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+	s.Contains(s.env.GetWorkflowError().Error(), "database error")
+}
+
+func (s *InitializeWorkflowTestSuite) TestInitializeWorkflow_FetchSeasonsError() {
+	s.env.OnActivity(DownloadFranchisesActivity, mock.Anything).Return(
+		DownloadFranchisesResult{Count: 32}, nil)
+	s.env.OnActivity(UpsertFranchisesActivity, mock.Anything).Return(
+		UpsertFranchisesResult{FranchisesUpserted: 32}, nil)
+	s.env.OnActivity(DownloadSeasonsManifestActivity, mock.Anything).Return(
+		DownloadSeasonsManifestResult{}, errors.New("manifest fetch error"))
+
+	s.env.ExecuteWorkflow(InitializeWorkflow)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+	s.Contains(s.env.GetWorkflowError().Error(), "manifest fetch error")
+}
+
+func (s *InitializeWorkflowTestSuite) TestInitializeWorkflow_UpsertSeasonsError() {
+	s.env.OnActivity(DownloadFranchisesActivity, mock.Anything).Return(
+		DownloadFranchisesResult{Count: 32}, nil)
+	s.env.OnActivity(UpsertFranchisesActivity, mock.Anything).Return(
+		UpsertFranchisesResult{FranchisesUpserted: 32}, nil)
+	s.env.OnActivity(DownloadSeasonsManifestActivity, mock.Anything).Return(
+		DownloadSeasonsManifestResult{Count: 107}, nil)
+	s.env.OnActivity(UpsertSeasonsActivity, mock.Anything).Return(
+		UpsertSeasonsResult{}, errors.New("seasons db error"))
+
+	s.env.ExecuteWorkflow(InitializeWorkflow)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+	s.Contains(s.env.GetWorkflowError().Error(), "seasons db error")
+}
