@@ -129,17 +129,22 @@ func downloadBoxscoreToCache(ctx context.Context, fs store.Store, day time.Time,
 	return nil
 }
 
-// filterRegularSeasonGames filters out preseason games.
+// shouldSkipGame returns true if the game should be skipped during processing.
+// This includes preseason games and games with invalid IDs.
+func shouldSkipGame(id nhl.GameID) bool {
+	gameType, err := id.GameType()
+	if err != nil {
+		log.Warn().Str("gameID", id.String()).Err(err).Msg("Skipping game with invalid ID")
+		return true
+	}
+	return nhl.GameType(gameType) == nhl.GameTypePreseason
+}
+
+// filterRegularSeasonGames filters out preseason games and invalid game IDs.
 func filterRegularSeasonGames(gameIDs []nhl.GameID) []nhl.GameID {
 	result := make([]nhl.GameID, 0, len(gameIDs))
 	for _, id := range gameIDs {
-		gameType, err := id.GameType()
-		if err != nil {
-			log.Warn().Str("gameid", id.String()).Err(err).Msg("Skipping game with invalid ID")
-			continue
-		}
-		if nhl.GameType(gameType) == nhl.GameTypePreseason {
-			log.Debug().Str("gameid", id.String()).Msg("Skipping preseason game")
+		if shouldSkipGame(id) {
 			continue
 		}
 		result = append(result, id)

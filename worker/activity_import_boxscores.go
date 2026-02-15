@@ -100,6 +100,12 @@ func importBoxscoresForDateImpl(
 			continue
 		}
 
+		// Skip preseason games and invalid IDs (matching download phase behavior)
+		if shouldSkipGame(game.ID) {
+			result.GamesSkipped++
+			continue
+		}
+
 		// Read the boxscore file
 		boxscoreFile := store.BoxscoreFile{Date: input.Date, GameID: game.ID}
 		if !fs.Exists(boxscoreFile) {
