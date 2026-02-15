@@ -319,15 +319,31 @@ type seasonTeamsInitializer interface {
 	UpsertTeams(ctx context.Context, seasonID int) (UpsertSeasonTeamsResult, error)
 }
 
-// realSeasonTeamsInitializer calls the actual activity functions.
-type realSeasonTeamsInitializer struct{}
-
-func (realSeasonTeamsInitializer) DownloadStandings(ctx context.Context, seasonID int) (DownloadSeasonStandingsResult, error) {
-	return DownloadSeasonStandingsActivity(ctx, seasonID)
+// realSeasonTeamsInitializer calls the impl functions directly with pre-initialized dependencies.
+type realSeasonTeamsInitializer struct {
+	fs      store.Store
+	client  NHLClient
+	queries seasonTeamsUpserter
 }
 
-func (realSeasonTeamsInitializer) UpsertTeams(ctx context.Context, seasonID int) (UpsertSeasonTeamsResult, error) {
-	return UpsertSeasonTeamsActivity(ctx, seasonID)
+func (r realSeasonTeamsInitializer) DownloadStandings(ctx context.Context, seasonID int) (DownloadSeasonStandingsResult, error) {
+	return downloadSeasonStandingsImpl(ctx, r.fs, r.client, seasonID)
+}
+
+func (r realSeasonTeamsInitializer) UpsertTeams(ctx context.Context, seasonID int) (UpsertSeasonTeamsResult, error) {
+	// Read standings from cache
+	file := store.SeasonStandingsFile{SeasonID: seasonID}
+	data, err := r.fs.Read(file)
+	if err != nil {
+		return UpsertSeasonTeamsResult{SeasonID: seasonID}, fmt.Errorf("read season standings from cache: %w", err)
+	}
+
+	var standings []nhl.Standing
+	if err := json.Unmarshal(data, &standings); err != nil {
+		return UpsertSeasonTeamsResult{SeasonID: seasonID}, fmt.Errorf("unmarshal season standings: %w", err)
+	}
+
+	return upsertSeasonTeamsImpl(ctx, r.queries, seasonID, standings)
 }
 
 // InitializeSeasonTeamsActivity downloads standings and upserts teams for a single season.

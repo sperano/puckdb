@@ -222,10 +222,14 @@ func countDownloadTasksForSeason(season SeasonInfo) int {
 		return days // Just daily child workflows
 	}
 	count := days // One child workflow per day
-	// Add league and team downloads (one-time per season)
+	// Add league downloads (one per league) and one batched teams download
+	teamCount := 0
 	for _, league := range yahooCfg.Leagues {
-		count++                      // DownloadLeague
-		count += len(league.TeamIDs) // DownloadTeam per team
+		count++                         // FetchLeagueActivity
+		teamCount += len(league.TeamIDs)
+	}
+	if teamCount > 0 {
+		count++ // FetchTeamsActivity (batched)
 	}
 	return count
 }

@@ -81,17 +81,13 @@ func cmdWorker() *cobra.Command {
 
 			// Yahoo fetch activities
 			w.RegisterActivity(workers.FetchLeagueActivity)
-			w.RegisterActivity(workers.FetchDailyScheduleActivity)
-			w.RegisterActivity(workers.FetchTeamActivity)
-			w.RegisterActivity(workers.FetchRosterForTeamOnDayActivity)
-			w.RegisterActivity(workers.FetchTeamSummaryForTeamOnDayActivity)
+			w.RegisterActivity(workers.FetchTeamsActivity)
 			w.RegisterActivity(workers.FetchYahooPlayerBatchActivity)
 			w.RegisterActivity(workers.FetchSeasonsDataActivity)
 			w.RegisterActivity(workers.FetchDayActivity)
 
 			w.RegisterWorkflow(workers.FetchSeasonsWorkflow)
 			w.RegisterWorkflow(workers.FetchSeasonWorkflow)
-			w.RegisterWorkflow(workers.FetchDayWorkflow)
 			w.RegisterWorkflow(workers.FetchYahooPlayersWorkflow)
 			w.RegisterWorkflow(workers.ImportNHLTeamsAndPlayersWorkflow)
 			w.RegisterWorkflow(workers.ProcessPlayersWorkflow)
@@ -103,9 +99,7 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.DownloadFranchisesActivity)
 			w.RegisterActivity(workers.UpsertFranchisesActivity)
 			w.RegisterActivity(workers.DownloadSeasonsManifestActivity)
-			w.RegisterActivity(workers.DownloadSeasonStandingsActivity)
 			w.RegisterActivity(workers.UpsertSeasonsActivity)
-			w.RegisterActivity(workers.UpsertSeasonTeamsActivity)
 			w.RegisterActivity(workers.InitializeSeasonTeamsActivity)
 
 			// ImportSeasons activities

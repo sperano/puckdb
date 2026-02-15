@@ -9,21 +9,9 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/store"
 )
-
-// FetchDailyScheduleActivity fetches the NHL schedule for a day and all boxscores.
-func FetchDailyScheduleActivity(ctx context.Context, day time.Time) error {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("FetchDailyScheduleActivity", time.Since(start))
-	}()
-
-	fs := store.NewStore()
-	client := newNHLClient()
-	return fetchDailyScheduleImpl(ctx, fs, client, day, DownloadBoxscore)
-}
 
 // BoxscoreDownloader downloads boxscore data for a game ID.
 type BoxscoreDownloader func(id nhl.GameID) ([]byte, error)

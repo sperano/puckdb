@@ -50,10 +50,10 @@ func TestFetchDay_WithTeams(t *testing.T) {
 	}
 
 	fetcher.On("FetchDailySchedule", ctx, day).Return(nil)
-	fetcher.On("FetchRoster", ctx, 2023, 123, 1, day).Return(nil)
-	fetcher.On("FetchTeamSummary", ctx, 2023, 123, 1, day).Return(nil)
-	fetcher.On("FetchRoster", ctx, 2023, 123, 2, day).Return(nil)
-	fetcher.On("FetchTeamSummary", ctx, 2023, 123, 2, day).Return(nil)
+	fetcher.On("FetchRoster", ctx, 123, 1, day).Return(nil)
+	fetcher.On("FetchTeamSummary", ctx, 123, 1, day).Return(nil)
+	fetcher.On("FetchRoster", ctx, 123, 2, day).Return(nil)
+	fetcher.On("FetchTeamSummary", ctx, 123, 2, day).Return(nil)
 
 	err := fetchDayImpl(ctx, fetcher, input)
 
@@ -99,7 +99,7 @@ func TestFetchDay_RosterError(t *testing.T) {
 	}
 
 	fetcher.On("FetchDailySchedule", ctx, day).Return(nil)
-	fetcher.On("FetchRoster", ctx, 2023, 123, 1, day).Return(errors.New("roster fetch failed"))
+	fetcher.On("FetchRoster", ctx, 123, 1, day).Return(errors.New("roster fetch failed"))
 
 	err := fetchDayImpl(ctx, fetcher, input)
 
@@ -123,8 +123,8 @@ func TestFetchDay_TeamSummaryError(t *testing.T) {
 	}
 
 	fetcher.On("FetchDailySchedule", ctx, day).Return(nil)
-	fetcher.On("FetchRoster", ctx, 2023, 123, 1, day).Return(nil)
-	fetcher.On("FetchTeamSummary", ctx, 2023, 123, 1, day).Return(errors.New("summary fetch failed"))
+	fetcher.On("FetchRoster", ctx, 123, 1, day).Return(nil)
+	fetcher.On("FetchTeamSummary", ctx, 123, 1, day).Return(errors.New("summary fetch failed"))
 
 	err := fetchDayImpl(ctx, fetcher, input)
 
@@ -150,13 +150,36 @@ func TestFetchDay_SecondTeamRosterError(t *testing.T) {
 	}
 
 	fetcher.On("FetchDailySchedule", ctx, day).Return(nil)
-	fetcher.On("FetchRoster", ctx, 2023, 123, 1, day).Return(nil)
-	fetcher.On("FetchTeamSummary", ctx, 2023, 123, 1, day).Return(nil)
-	fetcher.On("FetchRoster", ctx, 2023, 123, 2, day).Return(errors.New("second roster failed"))
+	fetcher.On("FetchRoster", ctx, 123, 1, day).Return(nil)
+	fetcher.On("FetchTeamSummary", ctx, 123, 1, day).Return(nil)
+	fetcher.On("FetchRoster", ctx, 123, 2, day).Return(errors.New("second roster failed"))
 
 	err := fetchDayImpl(ctx, fetcher, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "second roster failed")
 	fetcher.AssertExpectations(t)
+}
+
+func TestFetchDay_ContextCancelled(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	fetcher := &MockDayFetcher{}
+	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+
+	input := &FetchDayInput{
+		Day:       day,
+		StartYear: 2023,
+		TeamIDs: []TeamInfo{
+			{LeagueID: 123, TeamID: 1},
+		},
+	}
+
+	fetcher.On("FetchDailySchedule", ctx, day).Return(nil)
+	cancel() // Cancel before team processing
+
+	err := fetchDayImpl(ctx, fetcher, input)
+
+	assert.ErrorIs(t, err, context.Canceled)
 }

@@ -212,12 +212,12 @@ func (m *MockDayFetcher) FetchDailySchedule(ctx context.Context, day time.Time) 
 	return args.Error(0)
 }
 
-func (m *MockDayFetcher) FetchRoster(ctx context.Context, startYear int, leagueID, teamID int, day time.Time) error {
-	args := m.Called(ctx, startYear, leagueID, teamID, day)
+func (m *MockDayFetcher) FetchRoster(ctx context.Context, leagueID, teamID int, day time.Time) error {
+	args := m.Called(ctx, leagueID, teamID, day)
 	return args.Error(0)
 }
 
-func (m *MockDayFetcher) FetchTeamSummary(ctx context.Context, startYear int, leagueID, teamID int, day time.Time) error {
-	args := m.Called(ctx, startYear, leagueID, teamID, day)
+func (m *MockDayFetcher) FetchTeamSummary(ctx context.Context, leagueID, teamID int, day time.Time) error {
+	args := m.Called(ctx, leagueID, teamID, day)
 	return args.Error(0)
 }

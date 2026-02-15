@@ -40,21 +40,25 @@ func FetchSeasonWorkflow(ctx workflow.Context, input *FetchSeasonInput) error {
 	yahooConfig, err := config.GetYahooSeasonsConfig()
 	if err == nil {
 		if yahooCfg, inYahoo := yahooConfig[season.StartYear]; inYahoo {
+			// Build team list and fetch leagues
 			for _, league := range yahooCfg.Leagues {
-				// Fetch league
 				if err := workflow.ExecuteActivity(ctx, FetchLeagueActivity, season.StartYear, league.LeagueID).Get(ctx, nil); err != nil {
 					return err
 				}
 				tracker.Increment()
 
-				// Fetch teams
 				for _, teamid := range league.TeamIDs {
-					if err := workflow.ExecuteActivity(ctx, FetchTeamActivity, season.StartYear, league.LeagueID, teamid).Get(ctx, nil); err != nil {
-						return err
-					}
-					tracker.Increment()
 					teamIDs = append(teamIDs, TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
 				}
+			}
+
+			// Fetch all teams in one batched activity
+			if len(teamIDs) > 0 {
+				input := FetchTeamsInput{Season: season.StartYear, Teams: teamIDs}
+				if err := workflow.ExecuteActivity(ctx, FetchTeamsActivity, input).Get(ctx, nil); err != nil {
+					return err
+				}
+				tracker.Increment()
 			}
 		}
 	}
@@ -108,75 +112,11 @@ func WorkflowIDFetchSeason(startYear int) string {
 	return fmt.Sprintf("fetch-season-%d", startYear)
 }
 
-// WorkflowIDFetchDay returns the workflow ID for a single day fetch.
-func WorkflowIDFetchDay(startYear int, day time.Time) string {
-	return fmt.Sprintf("fetch-day-%d-%s", startYear, day.Format(config.DateFormat))
-}
-
-// FetchDayWorkflowInput contains parameters for the FetchDayWorkflow.
-// The workflow looks up Yahoo config itself to determine which teams to fetch.
-type FetchDayWorkflowInput struct {
-	Day       time.Time
-	StartYear int
-}
-
 // FetchDayInput contains parameters for FetchDayActivity.
 // TeamIDs are pre-computed by the parent workflow.
 type FetchDayInput struct {
 	Day       time.Time
 	StartYear int
 	TeamIDs   []TeamInfo // Teams to fetch Yahoo data for (empty if no Yahoo config)
-}
-
-// TeamInfo identifies a team for Yahoo downloads.
-type TeamInfo struct {
-	LeagueID int
-	TeamID   int
-}
-
-// FetchDayWorkflow fetches all data for a single day.
-// This includes NHL boxscores and Yahoo rosters/summaries for all configured teams.
-// It looks up the Yahoo config to determine which teams to fetch.
-func FetchDayWorkflow(ctx workflow.Context, input *FetchDayWorkflowInput) error {
-	logger := workflow.GetLogger(ctx)
-
-	// Look up Yahoo config for this season
-	var teamIDs []TeamInfo
-	yahooConfig, err := config.GetYahooSeasonsConfig()
-	if err == nil {
-		if yahooCfg, inYahoo := yahooConfig[input.StartYear]; inYahoo {
-			for _, league := range yahooCfg.Leagues {
-				for _, teamid := range league.TeamIDs {
-					teamIDs = append(teamIDs, TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
-				}
-			}
-		}
-	}
-
-	logger.Info("FetchDayWorkflow started",
-		"day", input.Day.Format(config.DateFormat),
-		"startYear", input.StartYear,
-		"numTeams", len(teamIDs))
-
-	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-
-	// Fetch daily schedule (boxscores)
-	if err := workflow.ExecuteActivity(ctx, FetchDailyScheduleActivity, input.Day).Get(ctx, nil); err != nil {
-		return err
-	}
-
-	// Fetch Yahoo rosters and summaries for each team
-	for _, team := range teamIDs {
-		if err := workflow.ExecuteActivity(ctx, FetchRosterForTeamOnDayActivity,
-			input.StartYear, team.LeagueID, team.TeamID, input.Day).Get(ctx, nil); err != nil {
-			return err
-		}
-		if err := workflow.ExecuteActivity(ctx, FetchTeamSummaryForTeamOnDayActivity,
-			input.StartYear, team.LeagueID, team.TeamID, input.Day).Get(ctx, nil); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
