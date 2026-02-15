@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
@@ -765,4 +766,177 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Chil
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
 	s.Contains(s.env.GetWorkflowError().Error(), "extraction failed")
+}
+
+// Test ProcessPlayersWorkflow Phase 2 (LoadYahoo) via ContinueAsNew entry point
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase2_Success() {
+	// Simulate state after Phase 1 completed
+	input := &processPlayersInternalInput{
+		Phase:               phaseProcessLoadYahoo,
+		BatchSize:           50,
+		Concurrency:         10,
+		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		Phase1CompletedDesc: "Extracted 1 player IDs in 0.1s.",
+	}
+
+	// Mock Phase 2 activities - use correct types
+	s.env.OnActivity(ListYahooPlayerFilesActivity, mock.Anything).Return(
+		[]store.YahooPlayerID{1, 2, 3}, nil)
+	s.env.OnActivity(ParseYahooPlayerBatchActivity, mock.Anything, mock.Anything).Return(
+		[]store.YahooPlayer{{YahooID: 1, FirstName: "Test", LastName: "Player"}}, nil)
+	s.env.OnActivity(SaveYahooPlayersToRedisActivity, mock.Anything, mock.Anything).Return(
+		&SaveYahooIDPoolResult{TotalPlayers: 100, AvailablePlayers: 95, SkippedNonNHL: 5}, nil)
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	// Should ContinueAsNew to Phase 3
+}
+
+// Test ProcessPlayersWorkflow Phase 2 handles activity error
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase2_ListError() {
+	input := &processPlayersInternalInput{
+		Phase:               phaseProcessLoadYahoo,
+		BatchSize:           50,
+		Concurrency:         10,
+		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		Phase1CompletedDesc: "Extracted 1 player IDs in 0.1s.",
+	}
+
+	s.env.OnActivity(ListYahooPlayerFilesActivity, mock.Anything).Return(
+		([]store.YahooPlayerID)(nil), errors.New("file system error"))
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+// Test ProcessPlayersWorkflow Phase 3 (ProcessPlayers) via ContinueAsNew entry point
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Success() {
+	// Simulate state after Phases 1 and 2 completed
+	input := &processPlayersInternalInput{
+		Phase:               phaseProcessPlayers,
+		BatchSize:           50,
+		Concurrency:         10,
+		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		YahooPoolResult:     &SaveYahooIDPoolResult{TotalPlayers: 100, AvailablePlayers: 95},
+		StartIndex:          0,
+		TotalCompleted:      0,
+		Phase1CompletedDesc: "Extracted 1 player IDs in 0.1s.",
+		Phase2CompletedDesc: "Loaded 100 Yahoo players in 0.5s.",
+	}
+
+	// Mock Phase 3 activities
+	s.env.OnActivity(ProcessPlayerBatchActivity, mock.Anything, mock.Anything).Return(
+		ProcessPlayerBatchResult{Downloaded: 1, CacheHits: 0, Missing: 0, Imported: 1, Matched: 1}, nil)
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	// Should ContinueAsNew to Phase 4
+}
+
+// Test ProcessPlayersWorkflow Phase 3 handles batch error
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_BatchError() {
+	input := &processPlayersInternalInput{
+		Phase:               phaseProcessPlayers,
+		BatchSize:           50,
+		Concurrency:         10,
+		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		YahooPoolResult:     &SaveYahooIDPoolResult{TotalPlayers: 100},
+		Phase1CompletedDesc: "Extracted 1 player IDs in 0.1s.",
+		Phase2CompletedDesc: "Loaded 100 Yahoo players in 0.5s.",
+	}
+
+	s.env.OnActivity(ProcessPlayerBatchActivity, mock.Anything, mock.Anything).Return(
+		ProcessPlayerBatchResult{}, errors.New("database connection failed"))
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+}
+
+// Test ProcessPlayersWorkflow Phase 4 (VerifyUnmatched) via ContinueAsNew entry point
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_Success() {
+	// Simulate state after Phases 1-3 completed
+	input := &processPlayersInternalInput{
+		Phase:               phaseProcessVerifyUnmatch,
+		BatchSize:           50,
+		Concurrency:         10,
+		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		YahooPoolResult:     &SaveYahooIDPoolResult{TotalPlayers: 100, AvailablePlayers: 95},
+		TotalDownloaded:     1,
+		TotalImported:       1,
+		TotalMatched:        1,
+		Phase1CompletedDesc: "Extracted 1 player IDs in 0.1s.",
+		Phase2CompletedDesc: "Loaded 100 Yahoo players in 0.5s.",
+	}
+
+	// Mock Phase 4 activities - no unmatched players
+	s.env.OnActivity(LoadUnmatchedYahooPlayersActivity, mock.Anything).Return(
+		[]UnmatchedYahooPlayer{}, nil)
+	s.env.OnActivity(CleanupYahooIDPoolActivity, mock.Anything).Maybe().Return(nil)
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+
+	// Phase 4 is the final phase - should return ProcessPlayersResult
+	var result *ProcessPlayersResult
+	s.NoError(s.env.GetWorkflowResult(&result))
+	s.Equal(1, result.TotalPlayers)
+	s.Equal(1, result.ImportedPlayers)
+}
+
+// Test ProcessPlayersWorkflow Phase 4 with unmatched players to verify
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_WithUnmatchedPlayers() {
+	input := &processPlayersInternalInput{
+		Phase:               phaseProcessVerifyUnmatch,
+		BatchSize:           50,
+		Concurrency:         10,
+		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		YahooPoolResult:     &SaveYahooIDPoolResult{TotalPlayers: 100, AvailablePlayers: 95},
+		TotalDownloaded:     1,
+		TotalImported:       1,
+		TotalMatched:        0,
+		Phase1CompletedDesc: "Extracted 1 player IDs in 0.1s.",
+		Phase2CompletedDesc: "Loaded 100 Yahoo players in 0.5s.",
+	}
+
+	// Mock Phase 4 activities - some unmatched players
+	s.env.OnActivity(LoadUnmatchedYahooPlayersActivity, mock.Anything).Return(
+		[]UnmatchedYahooPlayer{
+			{YahooID: 123, FirstName: "Unknown", LastName: "Player"},
+		}, nil)
+	s.env.OnActivity(VerifyUnmatchedBatchActivity, mock.Anything, mock.Anything).Return(
+		&VerifyUnmatchedResult{
+			VerifiedNonNHL: []store.YahooPlayerID{123},
+			TrulyUnmatched: []VerifiedPlayer{},
+		}, nil)
+	s.env.OnActivity(CleanupYahooIDPoolActivity, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+
+	var result *ProcessPlayersResult
+	s.NoError(s.env.GetWorkflowResult(&result))
+	s.Equal(1, result.VerifiedNonNHLThisRun)
+}
+
+// Test ProcessPlayersWorkflow invalid phase
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_InvalidPhase() {
+	input := &processPlayersInternalInput{
+		Phase: 99, // Invalid phase
+	}
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Error(s.env.GetWorkflowError())
+	s.Contains(s.env.GetWorkflowError().Error(), "unknown phase")
 }
