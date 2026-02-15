@@ -177,6 +177,9 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
 	fs.On("Exists", missingFile).Return(true)
 
+	// Expect UpsertPlayer call with minimal info from boxscore data
+	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
+
 	deps := processDeps{
 		fs:        fs,
 		nhlClient: client,
@@ -184,17 +187,23 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	// BoxscorePlayer contains the minimal player info
+	players := []BoxscorePlayer{{
+		ID:        int64(playerID),
+		FirstName: "John",
+		LastName:  "Doe",
+		Position:  "C",
+	}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
 	assert.Equal(t, 0, result.CacheHits)
 	assert.Equal(t, 1, result.Missing)
-	assert.Equal(t, 0, result.Imported) // Missing players are not imported
+	assert.Equal(t, 1, result.Imported) // Missing players ARE imported with minimal info
 	assert.Empty(t, result.Errors)
 	fs.AssertExpectations(t)
-	upserter.AssertNotCalled(t, "UpsertPlayer")
+	upserter.AssertExpectations(t)
 }
 
 func TestProcessPlayerBatch_UpsertError(t *testing.T) {

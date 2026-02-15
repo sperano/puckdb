@@ -112,7 +112,12 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []Box
 		case playerLandingMissing:
 			result.Missing++
 			metrics.IncDownload("PlayerLanding", "missing")
-			// Skip import for missing players (404s)
+			// Import missing player with minimal info from boxscore data
+			if err := importMissingPlayer(ctx, deps, &p); err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("player %d (missing): import error: %v", p.ID, err))
+			} else {
+				result.Imported++
+			}
 			continue
 		}
 
@@ -285,4 +290,30 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResu
 	}
 
 	return params
+}
+
+// importMissingPlayer imports a player with minimal info from boxscore data.
+// These are players who returned 404 from the NHL API but appear in boxscores.
+func importMissingPlayer(ctx context.Context, deps processDeps, p *BoxscorePlayer) error {
+	firstName := strings.TrimSpace(p.FirstName)
+	lastName := strings.TrimSpace(p.LastName)
+	position := strings.TrimSpace(p.Position)
+
+	params := sqlcdb.UpsertPlayerParams{
+		ID:                  p.ID,
+		FirstName:           firstName,
+		LastName:            lastName,
+		FirstNameNormalized: normalizeName(firstName),
+		LastNameNormalized:  normalizeName(lastName),
+		Position:            position,
+		IsActive:            false, // Assume inactive since they returned 404
+	}
+
+	log.Debug().
+		Int64("player_id", p.ID).
+		Str("name", firstName+" "+lastName).
+		Str("position", position).
+		Msg("Importing missing player with minimal info")
+
+	return deps.queries.UpsertPlayer(ctx, params)
 }
