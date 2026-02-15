@@ -5,7 +5,6 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -29,16 +28,6 @@ func GetDSN() string {
 	return getDSN(viper.GetString(config.FlagPostgresHost),
 		viper.GetString(config.FlagPostgresUser),
 		viper.GetString(config.FlagPostgresPassword),
-		viper.GetString(config.FlagPostgresDatabase),
-		viper.GetInt(config.FlagPostgresPort),
-		viper.GetString(config.FlagPostgresSSLMode),
-		viper.GetString(config.FlagPostgresTimeZone))
-}
-
-func getDSNForDisplay() string {
-	return getDSN(viper.GetString(config.FlagPostgresHost),
-		viper.GetString(config.FlagPostgresUser),
-		strings.Repeat("*", len(viper.GetString(config.FlagPostgresPassword))),
 		viper.GetString(config.FlagPostgresDatabase),
 		viper.GetInt(config.FlagPostgresPort),
 		viper.GetString(config.FlagPostgresSSLMode),

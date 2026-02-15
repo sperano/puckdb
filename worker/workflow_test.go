@@ -20,17 +20,6 @@ func mustParseDate(s string) time.Time {
 	return t
 }
 
-// isContinueAsNewError checks if the error is a ContinueAsNew error (expected in multi-phase workflows)
-func isContinueAsNewError(err error) bool {
-	if err == nil {
-		return false
-	}
-	// ContinueAsNew errors contain this specific text
-	return errors.Is(err, nil) || err.Error() == "" ||
-		(err != nil && (err.Error() == "continue as new" ||
-			len(err.Error()) > 0 && err.Error()[0:3] == "con"))
-}
-
 // Workflow test suite for FetchSeasons workflows
 type FetchSeasonsWorkflowTestSuite struct {
 	suite.Suite

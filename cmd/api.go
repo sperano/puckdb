@@ -192,7 +192,7 @@ func aroundResponsesLogger(ctx context.Context, next graphql.ResponseHandler) *g
 	log.Debug().Str("operation", req.OperationName).Msg("starting graphql operation")
 	log.Trace().Msg(req.RawQuery)
 	res := next(ctx)
-	diff := time.Now().Sub(req.Stats.OperationStart)
+	diff := time.Since(req.Stats.OperationStart)
 	if len(res.Errors) > 0 {
 		for _, e := range res.Errors {
 			log.Error().Str("path", e.Path.String()).Str("duration", diff.String()).Msg(e.Message)

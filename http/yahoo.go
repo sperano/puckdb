@@ -100,14 +100,6 @@ func YahooAuthenticatedHandlerWithConfig(redisClient cache.Client, conf *oauth2.
 	}
 }
 
-func exchangeCode(ctx context.Context, redisClient cache.Client, user string, code string) error {
-	conf, err := config.OauthConfig()
-	if err != nil {
-		return fmt.Errorf("failed to get OAuth config: %w", err)
-	}
-	return exchangeCodeWithConfig(ctx, redisClient, conf, user, code)
-}
-
 func exchangeCodeWithConfig(ctx context.Context, redisClient cache.Client, conf *oauth2.Config, user string, code string) error {
 	// Step 1: Check if we already have a valid token
 	// This prevents unnecessary code exchanges and protects against callback replays

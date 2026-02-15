@@ -7,8 +7,6 @@ import (
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/graph/model"
-	"github.com/sperano/puckdb/http"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/temporal"
 	"github.com/sperano/puckdb/worker"
 	temporalEnums "go.temporal.io/api/enums/v1"
@@ -66,18 +64,6 @@ func flushRedisDB(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	return true, nil
-}
-
-func currentFantasyGameKey(_ context.Context) (int, error) {
-	content, err := worker.DownloadFromYahoo(http.YahooFantasyGameURL())
-	if err != nil {
-		return 0, err
-	}
-	fantasy, err := store.ParseXML(content)
-	if err != nil {
-		return 0, err
-	}
-	return fantasy.Game.Key, nil
 }
 
 func (r *Resolver) fetchSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
