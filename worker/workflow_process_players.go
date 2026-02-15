@@ -202,7 +202,7 @@ func runProcessPhase1ExtractIDs(ctx workflow.Context, input *processPlayersInter
 			Concurrency:         input.Concurrency,
 			Players:             result.Players,
 			Phase:               phaseProcessLoadYahoo,
-			StartedAt:           workflow.Now(ctx),
+			StartedAt:           startedAt,
 			Phase1CompletedDesc: phase1CompletedDesc,
 		})
 }
@@ -285,7 +285,7 @@ func runProcessPhase2LoadYahoo(ctx workflow.Context, input *processPlayersIntern
 			StartIndex:          0,
 			TotalCompleted:      0,
 			Phase:               phaseProcessPlayers,
-			StartedAt:           workflow.Now(ctx),
+			StartedAt:           input.StartedAt,
 			Phase1CompletedDesc: input.Phase1CompletedDesc,
 			Phase2CompletedDesc: phase2CompletedDesc,
 		})
@@ -445,7 +445,7 @@ func runProcessPhase3ProcessPlayers(ctx workflow.Context, input *processPlayersI
 			Players:             input.Players,
 			YahooPoolResult:     input.YahooPoolResult,
 			Phase:               phaseProcessVerifyUnmatch,
-			StartedAt:           workflow.Now(ctx),
+			StartedAt:           startedAt,
 			TotalDownloaded:     totalDownloaded,
 			TotalCacheHits:      totalCacheHits,
 			TotalMissing:        totalMissing,
