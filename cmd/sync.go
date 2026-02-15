@@ -137,7 +137,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("processing players failed: %w", err)
 		}
 		// Fetch and print result data
-		resultData, err := client.GetProcessPlayersResultData(ctx)
+		_, err := client.GetProcessPlayersResultData(ctx)
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to fetch process players result data")
 			//} else if resultData != nil {
