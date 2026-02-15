@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/sperano/puckdb/config"
@@ -13,32 +12,10 @@ import (
 )
 
 const (
-	TaskQueueName = "puckdb-tasks"
-	//WorkflowIDImportEverything   = "import-everything" // TODO remove
+	TaskQueueName           = "puckdb-tasks"
 	WorkflowIDImportSeasons = "import-seasons"
-	//WorkflowIDDownloadEverything = "download-everything" // TODO remove
-	WorkflowIDFetchSeasons = "fetch-seasons"
+	WorkflowIDFetchSeasons  = "fetch-seasons"
 )
-
-func WorkflowIDImportLeague(season int, leagueID int) string {
-	return fmt.Sprintf("league-%d-%d", season, leagueID)
-}
-
-func WorkflowIDImportTeam(season int, leagueID int, teamID int) string {
-	return fmt.Sprintf("team-%d-%d", season, leagueID)
-}
-
-func WorkflowIDFetchGamesForSeason(season int) string {
-	return fmt.Sprintf("fetch-games-for-season-%d", season)
-}
-
-//func WorkflowIDDownloadEverythingForSeason(season int) string {
-//	return fmt.Sprintf("download-everything-for-season-%d", season)
-//}
-//
-//func WorkflowIDImportEverythingForSeason(season int) string {
-//	return fmt.Sprintf("import-everything-for-season-%d", season)
-//}
 
 func withChildOptions(ctx workflow.Context, id string) workflow.Context {
 	return workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{

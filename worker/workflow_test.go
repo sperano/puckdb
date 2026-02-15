@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/graph/model"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
@@ -18,102 +17,6 @@ func mustParseDate(s string) time.Time {
 		panic(err)
 	}
 	return t
-}
-
-func TestWorkflowIDImportLeague(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		season   int
-		leagueID int
-		expected string
-	}{
-		{
-			name:     "basic case",
-			season:   2023,
-			leagueID: 12345,
-			expected: "league-2023-12345",
-		},
-		{
-			name:     "different season",
-			season:   2022,
-			leagueID: 99999,
-			expected: "league-2022-99999",
-		},
-		{
-			name:     "zero values",
-			season:   0,
-			leagueID: 0,
-			expected: "league-0-0",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDImportLeague(tt.season, tt.leagueID)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestWorkflowIDImportTeam(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		season   int
-		leagueID int
-		teamID   int
-		expected string
-	}{
-		{
-			name:     "basic case",
-			season:   2023,
-			leagueID: 12345,
-			teamID:   1,
-			expected: "team-2023-12345",
-		},
-		{
-			name:     "different values",
-			season:   2022,
-			leagueID: 99999,
-			teamID:   5,
-			expected: "team-2022-99999",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDImportTeam(tt.season, tt.leagueID, tt.teamID)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestWorkflowIDFetchGamesForSeason(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		season   int
-		expected string
-	}{
-		{
-			name:     "2023 season",
-			season:   2023,
-			expected: "fetch-games-for-season-2023",
-		},
-		{
-			name:     "2022 season",
-			season:   2022,
-			expected: "fetch-games-for-season-2022",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := WorkflowIDFetchGamesForSeason(tt.season)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
 }
 
 // Workflow test suite for FetchSeasons workflows

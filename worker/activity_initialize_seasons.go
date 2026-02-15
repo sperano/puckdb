@@ -81,13 +81,6 @@ type DownloadSeasonStandingsResult struct {
 	FromCache bool // Whether data came from cache
 }
 
-// DownloadSeasonStandingsActivity downloads standings for a specific season.
-func DownloadSeasonStandingsActivity(ctx context.Context, seasonID int) (DownloadSeasonStandingsResult, error) {
-	fs := store.NewStore()
-	client := newNHLClient()
-	return downloadSeasonStandingsImpl(ctx, fs, client, seasonID)
-}
-
 func downloadSeasonStandingsImpl(
 	ctx context.Context,
 	fs store.Store,
@@ -221,42 +214,6 @@ type UpsertSeasonTeamsResult struct {
 	TeamsUpserted int `json:"teamsUpserted"`
 }
 
-// UpsertSeasonTeamsActivity reads standings for a season from cache and upserts teams to database.
-func UpsertSeasonTeamsActivity(ctx context.Context, seasonID int) (UpsertSeasonTeamsResult, error) {
-	logger := activity.GetLogger(ctx)
-
-	// Read standings from cache
-	fs := store.NewStore()
-	file := store.SeasonStandingsFile{SeasonID: seasonID}
-
-	data, err := fs.Read(file)
-	if err != nil {
-		return UpsertSeasonTeamsResult{SeasonID: seasonID}, fmt.Errorf("read season standings from cache: %w", err)
-	}
-
-	var standings []nhl.Standing
-	if err := json.Unmarshal(data, &standings); err != nil {
-		return UpsertSeasonTeamsResult{SeasonID: seasonID}, fmt.Errorf("unmarshal season standings: %w", err)
-	}
-
-	// Open database connection
-	pool, err := database.OpenPGXPool(ctx)
-	if err != nil {
-		return UpsertSeasonTeamsResult{SeasonID: seasonID}, fmt.Errorf("open database pool: %w", err)
-	}
-	defer pool.Close()
-
-	queries := sqlcdb.New(pool)
-
-	result, err := upsertSeasonTeamsImpl(ctx, queries, seasonID, standings)
-	if err != nil {
-		return result, err
-	}
-
-	logger.Info("Season teams upserted", "season", seasonID, "count", result.TeamsUpserted)
-	return result, nil
-}
-
 type seasonTeamsUpserter interface {
 	UpsertSeasonTeam(ctx context.Context, arg sqlcdb.UpsertSeasonTeamParams) error
 }
@@ -347,7 +304,6 @@ func (r realSeasonTeamsInitializer) UpsertTeams(ctx context.Context, seasonID in
 }
 
 // InitializeSeasonTeamsActivity downloads standings and upserts teams for a single season.
-// This combines DownloadSeasonStandingsActivity and UpsertSeasonTeamsActivity for efficient concurrent processing.
 func InitializeSeasonTeamsActivity(ctx context.Context, seasonID int) (InitializeSeasonTeamsResult, error) {
 	return initializeSeasonTeamsImpl(ctx, realSeasonTeamsInitializer{}, seasonID)
 }
