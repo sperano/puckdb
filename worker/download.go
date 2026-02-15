@@ -113,37 +113,34 @@ type Downloader func(url string) ([]byte, error)
 
 // doDownloadImpl is the testable implementation.
 func doDownloadImpl(ctx context.Context, fs store.Store, file store.File, url string, download Downloader) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	fileType := reflect.TypeOf(file).Name()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
-				metrics.IncDownload(fileType, "error")
-				return fmt.Errorf("%s: %w", file.Dir(), err)
-			}
-			if fs.Exists(file) {
-				log.Debug().Str("file", store.Path(file)).Msg("Already downloaded")
-				metrics.IncDownload(fileType, "hit")
-				return nil
-			}
-			content, err := download(url)
-			if err != nil {
-				metrics.IncDownload(fileType, "error")
-				return fmt.Errorf("%s: %w", url, err)
-			}
-			if err := fs.Write(file, content); err != nil {
-				metrics.IncDownload(fileType, "error")
-				return fmt.Errorf("%s: %w", store.Path(file), err)
-			}
-			log.Info().Str("file", store.Path(file)).Msg("Downloaded")
-			metrics.IncDownload(fileType, "miss")
-			sleepAfterYahooDownload()
-			return nil
-		}
+	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
+		metrics.IncDownload(fileType, "error")
+		return fmt.Errorf("%s: %w", file.Dir(), err)
 	}
+	if fs.Exists(file) {
+		log.Debug().Str("file", store.Path(file)).Msg("Already downloaded")
+		metrics.IncDownload(fileType, "hit")
+		return nil
+	}
+	content, err := download(url)
+	if err != nil {
+		metrics.IncDownload(fileType, "error")
+		return fmt.Errorf("%s: %w", url, err)
+	}
+	if err := fs.Write(file, content); err != nil {
+		metrics.IncDownload(fileType, "error")
+		return fmt.Errorf("%s: %w", store.Path(file), err)
+	}
+	log.Info().Str("file", store.Path(file)).Msg("Downloaded")
+	metrics.IncDownload(fileType, "miss")
+	sleepAfterYahooDownload()
+	return nil
 }
 
 // sleepAfterYahooDownload sleeps for a random duration between min and max after a Yahoo API download.
