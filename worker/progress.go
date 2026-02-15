@@ -195,11 +195,11 @@ func formatDuration(d time.Duration) string {
 	if d < time.Hour {
 		minutes := int(d.Minutes())
 		seconds := int(d.Seconds()) % 60
-		return fmt.Sprintf("%dm %ds", minutes, seconds)
+		return fmt.Sprintf("%dm%ds", minutes, seconds)
 	}
 	hours := int(d.Hours())
 	minutes := int(d.Minutes()) % 60
-	return fmt.Sprintf("%dh %dm", hours, minutes)
+	return fmt.Sprintf("%dh%dm", hours, minutes)
 }
 
 // InitializeWithSeasons sets up per-season progress tracking.

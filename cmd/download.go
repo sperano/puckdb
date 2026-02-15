@@ -67,12 +67,12 @@ func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher
 				if status.Progress != nil &&
 					status.Progress.CompletedHeader != nil && *status.Progress.CompletedHeader != "" &&
 					status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleGroupedItems {
-					elapsed := time.Since(startedAt).Seconds()
+					elapsed := time.Since(startedAt)
 					itemCount := len(status.Progress.Items)
 					// CompletedHeader is a template like "Fetched %d seasons"
 					header := fmt.Sprintf(*status.Progress.CompletedHeader, itemCount)
 					sp.mu.Lock()
-					sp.message = fmt.Sprintf("✓ %s in %.1fs.", header, elapsed)
+					sp.message = fmt.Sprintf("✓ %s in %s.", header, formatElapsed(elapsed))
 					sp.mu.Unlock()
 				}
 				sp.Stop()

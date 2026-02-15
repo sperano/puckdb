@@ -156,7 +156,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Println("- Skipping seasons import.")
 	}
 
-	fmt.Printf("✓ Sync completed in %.1fs\n", time.Since(start).Seconds())
+	fmt.Printf("✓ Sync completed in %s\n", formatElapsed(time.Since(start)))
 	return nil
 }
 
