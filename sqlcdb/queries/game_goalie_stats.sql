@@ -162,6 +162,39 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     penalty_minutes = EXCLUDED.penalty_minutes,
     updated_at = NOW();
 
+-- name: UpsertGameGoalieStatsBatch :batchexec
+INSERT INTO game_goalie_stats (
+    game_id, player_id, team_id, is_home, sweater_number,
+    decision, starter,
+    shots_against, saves, save_pctg,
+    goals_against, even_strength_goals_against, power_play_goals_against, shorthanded_goals_against,
+    toi_seconds, penalty_minutes,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7,
+    $8, $9, $10,
+    $11, $12, $13, $14,
+    $15, $16,
+    NOW()
+)
+ON CONFLICT (game_id, player_id) DO UPDATE SET
+    team_id = EXCLUDED.team_id,
+    is_home = EXCLUDED.is_home,
+    sweater_number = EXCLUDED.sweater_number,
+    decision = EXCLUDED.decision,
+    starter = EXCLUDED.starter,
+    shots_against = EXCLUDED.shots_against,
+    saves = EXCLUDED.saves,
+    save_pctg = EXCLUDED.save_pctg,
+    goals_against = EXCLUDED.goals_against,
+    even_strength_goals_against = EXCLUDED.even_strength_goals_against,
+    power_play_goals_against = EXCLUDED.power_play_goals_against,
+    shorthanded_goals_against = EXCLUDED.shorthanded_goals_against,
+    toi_seconds = EXCLUDED.toi_seconds,
+    penalty_minutes = EXCLUDED.penalty_minutes,
+    updated_at = NOW();
+
 -- name: DeleteGameGoalieStats :exec
 DELETE FROM game_goalie_stats WHERE game_id = $1 AND player_id = $2;
 

@@ -62,8 +62,8 @@ func ImportBoxscoresForDateActivity(ctx context.Context, input ImportBoxscoresFo
 // BoxscoreUpserter is the interface for database operations needed by boxscore import.
 type BoxscoreUpserter interface {
 	UpsertGame(ctx context.Context, arg sqlcdb.UpsertGameParams) error
-	UpsertGameSkaterStats(ctx context.Context, arg sqlcdb.UpsertGameSkaterStatsParams) error
-	UpsertGameGoalieStats(ctx context.Context, arg sqlcdb.UpsertGameGoalieStatsParams) error
+	UpsertGameSkaterStatsBatch(ctx context.Context, arg []sqlcdb.UpsertGameSkaterStatsBatchParams) *sqlcdb.UpsertGameSkaterStatsBatchBatchResults
+	UpsertGameGoalieStatsBatch(ctx context.Context, arg []sqlcdb.UpsertGameGoalieStatsBatchParams) *sqlcdb.UpsertGameGoalieStatsBatchBatchResults
 }
 
 
@@ -198,51 +198,67 @@ func boxscoreToGameParams(b *nhl.Boxscore, season int) sqlcdb.UpsertGameParams {
 	}
 }
 
-func upsertSkaterStats(ctx context.Context, queries BoxscoreUpserter, b *nhl.Boxscore) (int, error) {
-	count := 0
-
-	// Process away team skaters
-	for _, skater := range b.PlayerByGameStats.AwayTeam.Forwards {
-		params := skaterToParams(b.ID, int64(b.AwayTeam.ID), false, &skater)
-		if err := queries.UpsertGameSkaterStats(ctx, params); err != nil {
-			return count, err
-		}
-		count++
-	}
-	for _, skater := range b.PlayerByGameStats.AwayTeam.Defense {
-		params := skaterToParams(b.ID, int64(b.AwayTeam.ID), false, &skater)
-		if err := queries.UpsertGameSkaterStats(ctx, params); err != nil {
-			return count, err
-		}
-		count++
-	}
-
-	// Process home team skaters
-	for _, skater := range b.PlayerByGameStats.HomeTeam.Forwards {
-		params := skaterToParams(b.ID, int64(b.HomeTeam.ID), true, &skater)
-		if err := queries.UpsertGameSkaterStats(ctx, params); err != nil {
-			return count, err
-		}
-		count++
-	}
-	for _, skater := range b.PlayerByGameStats.HomeTeam.Defense {
-		params := skaterToParams(b.ID, int64(b.HomeTeam.ID), true, &skater)
-		if err := queries.UpsertGameSkaterStats(ctx, params); err != nil {
-			return count, err
-		}
-		count++
-	}
-
-	return count, nil
+// skaterWithMeta holds a skater and metadata for error reporting.
+type skaterWithMeta struct {
+	skater *nhl.SkaterStats
+	params sqlcdb.UpsertGameSkaterStatsBatchParams
 }
 
-func skaterToParams(gameID nhl.GameID, teamID int64, isHome bool, s *nhl.SkaterStats) sqlcdb.UpsertGameSkaterStatsParams {
+func upsertSkaterStats(ctx context.Context, queries BoxscoreUpserter, b *nhl.Boxscore) (int, error) {
+	// Collect all skaters with metadata for error reporting
+	var skaters []skaterWithMeta
+
+	collectSkaters := func(stats []nhl.SkaterStats, teamID int64, isHome bool) {
+		for i := range stats {
+			skaters = append(skaters, skaterWithMeta{
+				skater: &stats[i],
+				params: skaterToBatchParams(b.ID, teamID, isHome, &stats[i]),
+			})
+		}
+	}
+
+	// Collect from all positions
+	collectSkaters(b.PlayerByGameStats.AwayTeam.Forwards, int64(b.AwayTeam.ID), false)
+	collectSkaters(b.PlayerByGameStats.AwayTeam.Defense, int64(b.AwayTeam.ID), false)
+	collectSkaters(b.PlayerByGameStats.HomeTeam.Forwards, int64(b.HomeTeam.ID), true)
+	collectSkaters(b.PlayerByGameStats.HomeTeam.Defense, int64(b.HomeTeam.ID), true)
+
+	if len(skaters) == 0 {
+		return 0, nil
+	}
+
+	// Extract just the params for the batch call
+	params := make([]sqlcdb.UpsertGameSkaterStatsBatchParams, len(skaters))
+	for i, s := range skaters {
+		params[i] = s.params
+	}
+
+	// Execute batch and check for errors
+	var firstErr error
+	var errIdx int
+	results := queries.UpsertGameSkaterStatsBatch(ctx, params)
+	results.Exec(func(i int, err error) {
+		if err != nil && firstErr == nil {
+			firstErr = err
+			errIdx = i
+		}
+	})
+
+	if firstErr != nil {
+		s := skaters[errIdx].skater
+		return errIdx, fmt.Errorf("player %d (%s, %s): %w", s.PlayerID, s.Name, s.Position, firstErr)
+	}
+
+	return len(skaters), nil
+}
+
+func skaterToBatchParams(gameID nhl.GameID, teamID int64, isHome bool, s *nhl.SkaterStats) sqlcdb.UpsertGameSkaterStatsBatchParams {
 	var faceoffPctg pgtype.Float4
 	if s.FaceoffWinningPctg > 0 {
 		faceoffPctg = pgtype.Float4{Float32: float32(s.FaceoffWinningPctg), Valid: true}
 	}
 
-	return sqlcdb.UpsertGameSkaterStatsParams{
+	return sqlcdb.UpsertGameSkaterStatsBatchParams{
 		GameID:        int64(gameID),
 		PlayerID:      int64(s.PlayerID),
 		TeamID:        teamID,
@@ -271,31 +287,59 @@ func skaterToParams(gameID nhl.GameID, teamID int64, isHome bool, s *nhl.SkaterS
 	}
 }
 
-func upsertGoalieStats(ctx context.Context, queries BoxscoreUpserter, b *nhl.Boxscore) (int, error) {
-	count := 0
-
-	// Process away team goalies
-	for _, goalie := range b.PlayerByGameStats.AwayTeam.Goalies {
-		params := goalieToParams(b.ID, int64(b.AwayTeam.ID), false, &goalie)
-		if err := queries.UpsertGameGoalieStats(ctx, params); err != nil {
-			return count, err
-		}
-		count++
-	}
-
-	// Process home team goalies
-	for _, goalie := range b.PlayerByGameStats.HomeTeam.Goalies {
-		params := goalieToParams(b.ID, int64(b.HomeTeam.ID), true, &goalie)
-		if err := queries.UpsertGameGoalieStats(ctx, params); err != nil {
-			return count, err
-		}
-		count++
-	}
-
-	return count, nil
+// goalieWithMeta holds a goalie and metadata for error reporting.
+type goalieWithMeta struct {
+	goalie *nhl.GoalieStats
+	params sqlcdb.UpsertGameGoalieStatsBatchParams
 }
 
-func goalieToParams(gameID nhl.GameID, teamID int64, isHome bool, g *nhl.GoalieStats) sqlcdb.UpsertGameGoalieStatsParams {
+func upsertGoalieStats(ctx context.Context, queries BoxscoreUpserter, b *nhl.Boxscore) (int, error) {
+	// Collect all goalies with metadata for error reporting
+	var goalies []goalieWithMeta
+
+	collectGoalies := func(stats []nhl.GoalieStats, teamID int64, isHome bool) {
+		for i := range stats {
+			goalies = append(goalies, goalieWithMeta{
+				goalie: &stats[i],
+				params: goalieToBatchParams(b.ID, teamID, isHome, &stats[i]),
+			})
+		}
+	}
+
+	// Collect from both teams
+	collectGoalies(b.PlayerByGameStats.AwayTeam.Goalies, int64(b.AwayTeam.ID), false)
+	collectGoalies(b.PlayerByGameStats.HomeTeam.Goalies, int64(b.HomeTeam.ID), true)
+
+	if len(goalies) == 0 {
+		return 0, nil
+	}
+
+	// Extract just the params for the batch call
+	params := make([]sqlcdb.UpsertGameGoalieStatsBatchParams, len(goalies))
+	for i, g := range goalies {
+		params[i] = g.params
+	}
+
+	// Execute batch and check for errors
+	var firstErr error
+	var errIdx int
+	results := queries.UpsertGameGoalieStatsBatch(ctx, params)
+	results.Exec(func(i int, err error) {
+		if err != nil && firstErr == nil {
+			firstErr = err
+			errIdx = i
+		}
+	})
+
+	if firstErr != nil {
+		g := goalies[errIdx].goalie
+		return errIdx, fmt.Errorf("player %d (%s, %s): %w", g.PlayerID, g.Name, g.Position, firstErr)
+	}
+
+	return len(goalies), nil
+}
+
+func goalieToBatchParams(gameID nhl.GameID, teamID int64, isHome bool, g *nhl.GoalieStats) sqlcdb.UpsertGameGoalieStatsBatchParams {
 	var decision pgtype.Text
 	if g.Decision != nil {
 		decision = pgtype.Text{String: string(*g.Decision), Valid: true}
@@ -316,7 +360,7 @@ func goalieToParams(gameID nhl.GameID, teamID int64, isHome bool, g *nhl.GoalieS
 		pim = pgtype.Int2{Int16: int16(*g.PIM), Valid: true}
 	}
 
-	return sqlcdb.UpsertGameGoalieStatsParams{
+	return sqlcdb.UpsertGameGoalieStatsBatchParams{
 		GameID:        int64(gameID),
 		PlayerID:      int64(g.PlayerID),
 		TeamID:        teamID,

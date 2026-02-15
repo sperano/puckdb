@@ -148,6 +148,43 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     power_play_goals = EXCLUDED.power_play_goals,
     updated_at = NOW();
 
+-- name: UpsertGameSkaterStatsBatch :batchexec
+INSERT INTO game_skater_stats (
+    game_id, player_id, team_id, is_home, sweater_number, position,
+    goals, assists, points, plus_minus, shots_on_goal,
+    toi_seconds, shifts, faceoff_winning_pctg,
+    hits, blocked_shots, penalty_minutes,
+    giveaways, takeaways, power_play_goals,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10, $11,
+    $12, $13, $14,
+    $15, $16, $17,
+    $18, $19, $20,
+    NOW()
+)
+ON CONFLICT (game_id, player_id) DO UPDATE SET
+    team_id = EXCLUDED.team_id,
+    is_home = EXCLUDED.is_home,
+    sweater_number = EXCLUDED.sweater_number,
+    position = EXCLUDED.position,
+    goals = EXCLUDED.goals,
+    assists = EXCLUDED.assists,
+    points = EXCLUDED.points,
+    plus_minus = EXCLUDED.plus_minus,
+    shots_on_goal = EXCLUDED.shots_on_goal,
+    toi_seconds = EXCLUDED.toi_seconds,
+    shifts = EXCLUDED.shifts,
+    faceoff_winning_pctg = EXCLUDED.faceoff_winning_pctg,
+    hits = EXCLUDED.hits,
+    blocked_shots = EXCLUDED.blocked_shots,
+    penalty_minutes = EXCLUDED.penalty_minutes,
+    giveaways = EXCLUDED.giveaways,
+    takeaways = EXCLUDED.takeaways,
+    power_play_goals = EXCLUDED.power_play_goals,
+    updated_at = NOW();
+
 -- name: DeleteGameSkaterStats :exec
 DELETE FROM game_skater_stats WHERE game_id = $1 AND player_id = $2;
 
