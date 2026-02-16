@@ -39,14 +39,13 @@ func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClien
 		default:
 		}
 		if err := downloadBoxscoreToCache(ctx, fs, day, id, downloaders.Boxscore); err != nil {
-			log.Warn().Err(err).Str("gameid", id.String()).Msg("Skipping boxscore")
-			continue
+			return fmt.Errorf("boxscore gameid %s: %w", id.String(), err)
 		}
 		if err := downloadPlayByPlayToCache(ctx, fs, day, id, downloaders.PlayByPlay); err != nil {
-			log.Warn().Err(err).Str("gameid", id.String()).Msg("Skipping play-by-play")
+			return fmt.Errorf("play-by-play gameid %s: %w", id.String(), err)
 		}
 		if err := downloadShiftChartToCache(ctx, fs, day, id, downloaders.ShiftChart); err != nil {
-			log.Warn().Err(err).Str("gameid", id.String()).Msg("Skipping shift chart")
+			return fmt.Errorf("shift-chart gameid %s: %w", id.String(), err)
 		}
 	}
 	return nil
