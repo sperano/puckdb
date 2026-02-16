@@ -144,7 +144,7 @@ func getAllMetrics(ctx context.Context, redisClient cache.Client) ([]cacheMetric
 	return allMetrics, nil
 }
 
-// checkNHLSeasonCache checks NHL API files (daily schedule, boxscores)
+// checkNHLSeasonCache checks NHL API files (daily schedule, boxscores, play-by-play, shift charts)
 func checkNHLSeasonCache(ctx context.Context, fs store.Store, redisClient cache.Client, season simpleSeason) []cacheMetrics {
 	cacheData := make([]cacheMetrics, 0)
 	seasonYear := season.StartYear()
@@ -159,13 +159,25 @@ func checkNHLSeasonCache(ctx context.Context, fs store.Store, redisClient cache.
 		found:      dailyScheduleCount,
 	})
 
-	// Count boxscore files (depends on daily-schedule files)
-	expectedBoxscores, foundBoxscores := countBoxscoreFilesSimple(ctx, fs, redisClient, season)
+	// Count game data files (boxscore, play-by-play, shift chart)
+	gameFileCounts := countGameFilesSimple(ctx, fs, redisClient, season)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
 		fileType:   store.FileTypeBoxscore,
-		expected:   expectedBoxscores,
-		found:      foundBoxscores,
+		expected:   gameFileCounts.expectedGames,
+		found:      gameFileCounts.boxscores,
+	})
+	cacheData = append(cacheData, cacheMetrics{
+		seasonYear: seasonYear,
+		fileType:   store.FileTypePlayByPlay,
+		expected:   gameFileCounts.expectedGames,
+		found:      gameFileCounts.playByPlay,
+	})
+	cacheData = append(cacheData, cacheMetrics{
+		seasonYear: seasonYear,
+		fileType:   store.FileTypeShiftChart,
+		expected:   gameFileCounts.expectedGames,
+		found:      gameFileCounts.shiftCharts,
 	})
 
 	return cacheData
@@ -315,7 +327,16 @@ func countDailyScheduleFilesSimple(fs store.Store, season simpleSeason) int {
 	return count
 }
 
-func countBoxscoreFilesSimple(ctx context.Context, fs store.Store, redisClient cache.Client, season simpleSeason) (expected int, found int) {
+// gameFileCounts holds counts for all game-related file types
+type gameFileCounts struct {
+	expectedGames int
+	boxscores     int
+	playByPlay    int
+	shiftCharts   int
+}
+
+func countGameFilesSimple(ctx context.Context, fs store.Store, redisClient cache.Client, season simpleSeason) gameFileCounts {
+	counts := gameFileCounts{}
 	current := season.start
 	end := season.end
 	if end.After(time.Now()) {
@@ -339,19 +360,24 @@ func countBoxscoreFilesSimple(ctx context.Context, fs store.Store, redisClient c
 		// Filter out preseason games
 		gameIDs = filterRegularSeasonGames(gameIDs)
 
-		expected += len(gameIDs)
+		counts.expectedGames += len(gameIDs)
 
 		for _, gameID := range gameIDs {
-			boxscoreFile := store.BoxscoreFile{Date: current, GameID: gameID}
-			if fs.Exists(boxscoreFile) {
-				found++
+			if fs.Exists(store.BoxscoreFile{Date: current, GameID: gameID}) {
+				counts.boxscores++
+			}
+			if fs.Exists(store.PlayByPlayFile{Date: current, GameID: gameID}) {
+				counts.playByPlay++
+			}
+			if fs.Exists(store.ShiftChartFile{Date: current, GameID: gameID}) {
+				counts.shiftCharts++
 			}
 		}
 
 		current = current.AddDate(0, 0, 1)
 	}
 
-	return expected, found
+	return counts
 }
 
 // filterRegularSeasonGames filters out preseason games from a list of game IDs.

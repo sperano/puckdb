@@ -341,10 +341,11 @@ func TestFetchDailyScheduleImpl_BoxscoreMkdirError(t *testing.T) {
 	mockFS.On("Exists", boxscoreFile).Return(false)
 	mockFS.On("MkdirAll", boxscoreFile.Dir(), os.FileMode(0755)).Return(errors.New("mkdir error")).Once()
 
-	// Should continue (logs warning), not fail
+	// Should return error
 	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "mkdir error")
 	mockFS.AssertExpectations(t)
 }
 
@@ -371,10 +372,11 @@ func TestFetchDailyScheduleImpl_BoxscoreDownloadError(t *testing.T) {
 	mockFS.On("Exists", boxscoreFile).Return(false)
 	mockFS.On("MkdirAll", boxscoreFile.Dir(), os.FileMode(0755)).Return(nil).Once()
 
-	// Should continue (logs warning), not fail
+	// Should return error
 	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, errors.New("download error")))
 
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "download error")
 	mockFS.AssertExpectations(t)
 }
 
@@ -402,10 +404,11 @@ func TestFetchDailyScheduleImpl_BoxscoreWriteError(t *testing.T) {
 	mockFS.On("MkdirAll", boxscoreFile.Dir(), os.FileMode(0755)).Return(nil).Once()
 	mockFS.On("Write", boxscoreFile, []byte("boxscore data")).Return(errors.New("write error"))
 
-	// Should continue (logs warning), not fail
+	// Should return error
 	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders([]byte("boxscore data"), nil))
 
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "write error")
 	mockFS.AssertExpectations(t)
 }
 

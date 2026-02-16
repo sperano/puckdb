@@ -10,6 +10,8 @@ import (
 const (
 	FileTypeDailySchedule   = "DailySchedule"
 	FileTypeBoxscore        = "Boxscore"
+	FileTypePlayByPlay      = "PlayByPlay"
+	FileTypeShiftChart      = "ShiftChart"
 	FileTypeFranchises      = "Franchises"
 	FileTypeSeasonsManifest = "SeasonsManifest"
 	FileTypeSeasonStandings = "SeasonStandings"
