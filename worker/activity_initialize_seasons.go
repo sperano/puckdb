@@ -242,7 +242,7 @@ func upsertSeasonTeamsImpl(
 
 		params := sqlcdb.UpsertSeasonTeamParams{
 			SeasonID:         int32(seasonID),
-			TeamID:           0,                         // Will need to map from abbrev to ID
+			TeamID:           LookupTeamID(s.TeamAbbrev.String()),
 			FranchiseID:      pgtype.Int8{Valid: false}, // Will link later
 			FullName:         s.TeamName.String(),
 			Abbrev:           s.TeamAbbrev.String(),
