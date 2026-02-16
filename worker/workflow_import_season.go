@@ -61,11 +61,25 @@ func ImportSeasonWorkflow(ctx workflow.Context, input *ImportSeasonInput) error 
 			// Import all teams in one batched activity
 			if len(teamIDs) > 0 {
 				teamsInput := ImportYahooTeamsInput{
-					Season:   season.StartYear,
-					LeagueID: yahooCfg.Leagues[0].LeagueID, // Primary league for logging
-					Teams:    teamIDs,
+					Season: season.StartYear,
+					Teams:  teamIDs,
 				}
 				if err := workflow.ExecuteActivity(ctx, ImportYahooTeamsActivity, teamsInput).Get(ctx, nil); err != nil {
+					return err
+				}
+
+				// Import team summaries and rosters for the season date range
+				endDate := season.EndDate
+				if endDate.After(time.Now()) {
+					endDate = time.Now()
+				}
+				teamDataInput := ImportYahooTeamDataInput{
+					Season:    season.StartYear,
+					Teams:     teamIDs,
+					StartDate: season.StartDate,
+					EndDate:   endDate,
+				}
+				if err := workflow.ExecuteActivity(ctx, ImportYahooTeamDataActivity, teamDataInput).Get(ctx, nil); err != nil {
 					return err
 				}
 			}

@@ -226,3 +226,34 @@ type YahooTeamManager struct {
 	IsCurrentLogin bool   `json:"is_current_login"`
 	IsCommissioner bool   `json:"is_commissioner"`
 }
+
+type YahooTeamRoster struct {
+	LeagueID         int32              `json:"league_id"`
+	TeamID           int32              `json:"team_id"`
+	Date             pgtype.Date        `json:"date"`
+	PlayerID         int32              `json:"player_id"`
+	CoverageType     string             `json:"coverage_type"`
+	IsEditable       bool               `json:"is_editable"`
+	PlayerKey        string             `json:"player_key"`
+	SelectedPosition string             `json:"selected_position"`
+	IsFlex           bool               `json:"is_flex"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type YahooTeamSummary struct {
+	LeagueID     int32              `json:"league_id"`
+	TeamID       int32              `json:"team_id"`
+	Date         pgtype.Date        `json:"date"`
+	CoverageType string             `json:"coverage_type"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type YahooTeamSummaryStat struct {
+	LeagueID int32       `json:"league_id"`
+	TeamID   int32       `json:"team_id"`
+	Date     pgtype.Date `json:"date"`
+	StatID   int32       `json:"stat_id"`
+	Value    string      `json:"value"`
+}

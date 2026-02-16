@@ -16,9 +16,8 @@ import (
 
 // ImportYahooTeamsInput contains parameters for importing Yahoo teams.
 type ImportYahooTeamsInput struct {
-	Season   int
-	LeagueID int
-	Teams    []TeamInfo
+	Season int
+	Teams  []TeamInfo
 }
 
 // ImportYahooTeamsResult contains the results of importing Yahoo teams.
@@ -52,7 +51,6 @@ func ImportYahooTeamsActivity(ctx context.Context, input ImportYahooTeamsInput) 
 
 	logger.Info("Imported Yahoo teams",
 		"season", input.Season,
-		"leagueID", input.LeagueID,
 		"teams", result.TeamsImported,
 		"managers", result.ManagersImported)
 
@@ -114,7 +112,7 @@ func importYahooTeamsImpl(
 		}
 
 		teamParams = append(teamParams, sqlcdb.UpsertYahooTeamBatchParams{
-			LeagueID:              int32(input.LeagueID),
+			LeagueID:              int32(teamInfo.LeagueID),
 			ID:                    int32(team.ID),
 			TeamKey:               team.Key,
 			Name:                  team.Name,
@@ -130,7 +128,7 @@ func importYahooTeamsImpl(
 		// Collect managers for this team
 		for _, manager := range team.Managers.Slice {
 			managerParams = append(managerParams, sqlcdb.UpsertYahooTeamManagerBatchParams{
-				LeagueID:       int32(input.LeagueID),
+				LeagueID:       int32(teamInfo.LeagueID),
 				TeamID:         int32(team.ID),
 				ID:             int32(manager.ID),
 				Nickname:       manager.Nickname,
