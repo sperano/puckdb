@@ -386,6 +386,8 @@ github.com/sperano/nhl-api-go v0.0.0-20260216091954-4ccc0ff27c96 h1:tr/nTeWIumi5
 github.com/sperano/nhl-api-go v0.0.0-20260216091954-4ccc0ff27c96/go.mod h1:b9yzggYciaRaRHh9HXlcUtiHwNe6ZVcMck75AffkFn0=
 github.com/sperano/nhl-api-go v0.0.0-20260216161825-87701fe069d8 h1:RJRfinAxbuXMsyimsqsB++pLRXVe6D0Higkx28/AjDc=
 github.com/sperano/nhl-api-go v0.0.0-20260216161825-87701fe069d8/go.mod h1:b9yzggYciaRaRHh9HXlcUtiHwNe6ZVcMck75AffkFn0=
+github.com/sperano/nhl-api-go v0.0.0-20260216173439-ae312bc28803 h1:hGSpXGDNSgFZj5dW9yieGXAudkVD6PLRHqv4YGN8RiQ=
+github.com/sperano/nhl-api-go v0.0.0-20260216173439-ae312bc28803/go.mod h1:b9yzggYciaRaRHh9HXlcUtiHwNe6ZVcMck75AffkFn0=
 github.com/spf13/afero v1.6.0 h1:xoax2sJ2DT8S8xA2paPFjDCScCNeWsg75VG0DLRreiY=
 github.com/spf13/afero v1.6.0/go.mod h1:Ai8FlHk4v/PARR026UzYexafAt9roJ7LcLMAmO6Z93I=
 github.com/spf13/cast v1.3.1 h1:nFm6S0SMdyzrzcmThSipiEubIDy8WEXKNZ0UOgiRpng=

@@ -14,7 +14,7 @@ require (
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/zerolog v1.34.0
-	github.com/sperano/nhl-api-go v0.0.0-20260216161825-87701fe069d8
+	github.com/sperano/nhl-api-go v0.0.0-20260216173439-ae312bc28803
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
