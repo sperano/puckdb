@@ -140,3 +140,15 @@ services:
             - ./.docker/grafana/provisioning:/etc/grafana/provisioning
             - ../../grafana/dashboards:/var/lib/grafana/dashboards
         restart: unless-stopped
+
+    postgres-mcp:
+        image: crystaldba/postgres-mcp
+        depends_on:
+            db:
+                condition: service_healthy
+        environment:
+            DATABASE_URI: postgresql://puckdb:foo@db:5432/puckdb
+        ports:
+            - "8000:8000"
+        command: ["--access-mode=restricted", "--transport=sse"]
+        restart: unless-stopped

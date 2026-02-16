@@ -125,6 +125,83 @@ Worker exposes Prometheus metrics at `/metrics` (port 8788).
 | `puckdb_download_total` | Counter | Downloads by result (hit/miss/error) |
 | `puckdb_activity_duration_seconds` | Histogram | Temporal activity duration |
 
+## Database Schema
+
+PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two main data domains that link via player matching.
+
+### Data Volume
+| Table | Rows | Growth |
+|-------|------|--------|
+| game_skater_stats | ~2.2M | Per game per player |
+| yahoo_team_rosters | ~250K | Per day per roster slot |
+| game_goalie_stats | ~244K | Per game per goalie |
+| games | ~65K | ~1,300/season |
+| players | ~9.4K | Slow (new players only) |
+
+### NHL Data
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `players` | NHL players (skaters + goalies) | `id` (NHL ID), `yahoo_id`, `first_name`, `last_name`, `team_id`, `position` |
+| `seasons` | NHL seasons | `id` (e.g., 20242025), `standings_start`, `standings_end` |
+| `franchises` | NHL franchises (historical) | `id`, `full_name`, `team_common_name` |
+| `season_teams` | Teams per season (handles relocations) | `season_id`, `team_id`, `franchise_id`, `abbrev`, `division_name` |
+| `games` | Individual games | `id`, `season`, `game_type`, `game_date`, `home_team_id`, `away_team_id`, `game_state` |
+| `game_skater_stats` | Per-game skater stats | `game_id`, `player_id`, `goals`, `assists`, `points`, `toi_seconds`, `shots_on_goal` |
+| `game_goalie_stats` | Per-game goalie stats | `game_id`, `player_id`, `saves`, `goals_against`, `save_pctg`, `decision` |
+
+**Game types:** 1=preseason, 2=regular, 3=playoffs
+**Game states:** FUT=future, LIVE=in progress, OFF/FINAL=completed
+
+### Yahoo Fantasy Data
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `yahoo_leagues` | Fantasy leagues | `id`, `league_key`, `name`, `season`, `num_teams`, `scoring_type` |
+| `yahoo_teams` | Fantasy teams in leagues | `league_id`, `id`, `team_key`, `name`, `is_owned_by_current_login` |
+| `yahoo_team_rosters` | Daily roster snapshots | `league_id`, `team_id`, `date`, `player_id`, `selected_position` |
+| `yahoo_team_managers` | Team managers | `league_id`, `team_id`, `manager_id`, `nickname` |
+| `yahoo_team_summaries` | Team standings/records | `league_id`, `team_id`, `rank`, `wins`, `losses` |
+| `yahoo_league_stat_categories` | Scoring categories | `league_id`, `stat_id`, `name`, `is_only_display_stat` |
+| `yahoo_league_roster_positions` | Roster position config | `league_id`, `position`, `count` |
+
+### Key Relationships
+
+```
+players.id ←──── game_skater_stats.player_id
+players.id ←──── game_goalie_stats.player_id
+players.yahoo_id ───→ yahoo_team_rosters.player_id (matched via enrichment)
+
+seasons.id ←──── season_teams.season_id
+seasons.id ←──── games.season
+
+franchises.id ←──── season_teams.franchise_id
+
+games.id ←──── game_skater_stats.game_id
+games.id ←──── game_goalie_stats.game_id
+
+yahoo_leagues.id ←──── yahoo_teams.league_id
+yahoo_teams.(league_id, id) ←──── yahoo_team_rosters.(league_id, team_id)
+```
+
+### Common Queries
+
+```sql
+-- Player season totals
+SELECT p.first_name, p.last_name, SUM(s.goals), SUM(s.assists)
+FROM players p
+JOIN game_skater_stats s ON p.id = s.player_id
+JOIN games g ON s.game_id = g.id
+WHERE g.season = 20242025 AND g.game_type = 2
+GROUP BY p.id;
+
+-- Team roster on a date
+SELECT p.first_name, p.last_name, r.selected_position
+FROM yahoo_team_rosters r
+JOIN players p ON p.yahoo_id = r.player_id
+WHERE r.league_id = 12345 AND r.team_id = 1 AND r.date = '2024-12-01';
+```
+
 ## References
 
 - [Yahoo Fantasy Sports API Guide](https://developer.yahoo.com/fantasysports/guide/)
