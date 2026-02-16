@@ -115,7 +115,7 @@ func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
 type GameDataDownloader func(id nhl.GameID) ([]byte, error)
 
 func DownloadPlayByPlay(gameid nhl.GameID) ([]byte, error) {
-	log.Info().Str("gameid", gameid.String()).Msg("Downloading play-by-play NHL API")
+	log.Debug().Str("gameid", gameid.String()).Msg("Downloading play-by-play NHL API")
 	client := newNHLClient()
 
 	start := time.Now()
@@ -137,7 +137,7 @@ func DownloadPlayByPlay(gameid nhl.GameID) ([]byte, error) {
 }
 
 func DownloadShiftChart(gameid nhl.GameID) ([]byte, error) {
-	log.Info().Str("gameid", gameid.String()).Msg("Downloading shift chart NHL API")
+	log.Debug().Str("gameid", gameid.String()).Msg("Downloading shift chart NHL API")
 	client := newNHLClient()
 
 	start := time.Now()
@@ -160,7 +160,7 @@ func DownloadShiftChart(gameid nhl.GameID) ([]byte, error) {
 
 // DownloadPlayerGameLog downloads a player's game log for a specific season and game type.
 func DownloadPlayerGameLog(playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) ([]byte, error) {
-	log.Info().
+	log.Debug().
 		Str("playerID", playerID.String()).
 		Str("season", season.String()).
 		Str("gameType", gameType.String()).
