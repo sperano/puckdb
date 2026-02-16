@@ -35,6 +35,43 @@ func ImportSeasonWorkflow(ctx workflow.Context, input *ImportSeasonInput) error 
 
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 
+	// Import Yahoo league/team data if available for this season
+	var teamIDs []TeamInfo
+	yahooConfig, err := config.GetYahooSeasonsConfig()
+	if err == nil {
+		if yahooCfg, inYahoo := yahooConfig[season.StartYear]; inYahoo {
+			logger.Info("Importing Yahoo data for season", "startYear", season.StartYear)
+
+			// Import each league
+			for _, league := range yahooCfg.Leagues {
+				leagueInput := ImportYahooLeagueInput{
+					Season:   season.StartYear,
+					LeagueID: league.LeagueID,
+				}
+				if err := workflow.ExecuteActivity(ctx, ImportYahooLeagueActivity, leagueInput).Get(ctx, nil); err != nil {
+					return err
+				}
+
+				// Collect team IDs for team import
+				for _, teamID := range league.TeamIDs {
+					teamIDs = append(teamIDs, TeamInfo{LeagueID: league.LeagueID, TeamID: teamID})
+				}
+			}
+
+			// Import all teams in one batched activity
+			if len(teamIDs) > 0 {
+				teamsInput := ImportYahooTeamsInput{
+					Season:   season.StartYear,
+					LeagueID: yahooCfg.Leagues[0].LeagueID, // Primary league for logging
+					Teams:    teamIDs,
+				}
+				if err := workflow.ExecuteActivity(ctx, ImportYahooTeamsActivity, teamsInput).Get(ctx, nil); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	// Determine end date (don't import future days)
 	end := season.EndDate
 	if end.After(time.Now()) {
@@ -60,7 +97,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, input *ImportSeasonInput) error 
 	// Process days in parallel using RunWorkerPool
 	startDate := season.StartDate
 	startYear := season.StartYear
-	err := tracker.RunWorkerPool(ctx, numDays, dayConcurrency, func(ctx workflow.Context, i int) workflow.Future {
+	err = tracker.RunWorkerPool(ctx, numDays, dayConcurrency, func(ctx workflow.Context, i int) workflow.Future {
 		day := startDate.AddDate(0, 0, i)
 		dayInput := ImportBoxscoresForDateInput{
 			Date:   day,

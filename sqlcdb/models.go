@@ -141,3 +141,88 @@ type SeasonTeam struct {
 	ConferenceName   pgtype.Text `json:"conference_name"`
 	ConferenceAbbrev pgtype.Text `json:"conference_abbrev"`
 }
+
+type YahooLeague struct {
+	ID                    int32              `json:"id"`
+	LeagueKey             string             `json:"league_key"`
+	Name                  string             `json:"name"`
+	Url                   string             `json:"url"`
+	LogoUrl               string             `json:"logo_url"`
+	Season                int32              `json:"season"`
+	GameCode              string             `json:"game_code"`
+	NumTeams              int32              `json:"num_teams"`
+	ScoringType           string             `json:"scoring_type"`
+	LeagueType            string             `json:"league_type"`
+	DraftStatus           string             `json:"draft_status"`
+	IsProLeague           bool               `json:"is_pro_league"`
+	IsCashLeague          bool               `json:"is_cash_league"`
+	StartDate             pgtype.Date        `json:"start_date"`
+	EndDate               pgtype.Date        `json:"end_date"`
+	DraftType             string             `json:"draft_type"`
+	IsAuctionDraft        bool               `json:"is_auction_draft"`
+	DraftTime             pgtype.Timestamptz `json:"draft_time"`
+	DraftPickTime         pgtype.Int4        `json:"draft_pick_time"`
+	WaiverType            string             `json:"waiver_type"`
+	WaiverRule            string             `json:"waiver_rule"`
+	WaiverTime            pgtype.Int4        `json:"waiver_time"`
+	TradeEndDate          pgtype.Date        `json:"trade_end_date"`
+	TradeRatifyType       string             `json:"trade_ratify_type"`
+	TradeRejectTime       pgtype.Int4        `json:"trade_reject_time"`
+	MaxTeams              pgtype.Int4        `json:"max_teams"`
+	PlayerPool            string             `json:"player_pool"`
+	PostDraftPlayers      string             `json:"post_draft_players"`
+	CantCutList           string             `json:"cant_cut_list"`
+	UsesPlayoff           bool               `json:"uses_playoff"`
+	PersistentUrl         string             `json:"persistent_url"`
+	LeagueUpdateTimestamp pgtype.Int8        `json:"league_update_timestamp"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
+type YahooLeagueRosterPosition struct {
+	LeagueID           int32  `json:"league_id"`
+	Position           string `json:"position"`
+	PositionType       string `json:"position_type"`
+	Count              int32  `json:"count"`
+	IsStartingPosition bool   `json:"is_starting_position"`
+}
+
+type YahooLeagueStatCategory struct {
+	LeagueID  int32         `json:"league_id"`
+	StatID    int32         `json:"stat_id"`
+	Name      string        `json:"name"`
+	Abbr      string        `json:"abbr"`
+	StatGroup string        `json:"stat_group"`
+	Enabled   bool          `json:"enabled"`
+	Value     pgtype.Float4 `json:"value"`
+}
+
+type YahooTeam struct {
+	LeagueID              int32              `json:"league_id"`
+	ID                    int32              `json:"id"`
+	TeamKey               string             `json:"team_key"`
+	Name                  string             `json:"name"`
+	Url                   string             `json:"url"`
+	LogoUrl               string             `json:"logo_url"`
+	DraftPosition         pgtype.Int4        `json:"draft_position"`
+	WaiverPriority        pgtype.Int4        `json:"waiver_priority"`
+	NumberOfMoves         int32              `json:"number_of_moves"`
+	NumberOfTrades        int32              `json:"number_of_trades"`
+	IsOwnedByCurrentLogin bool               `json:"is_owned_by_current_login"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
+type YahooTeamManager struct {
+	LeagueID       int32  `json:"league_id"`
+	TeamID         int32  `json:"team_id"`
+	ID             int32  `json:"id"`
+	Nickname       string `json:"nickname"`
+	Guid           string `json:"guid"`
+	Email          string `json:"email"`
+	ImageUrl       string `json:"image_url"`
+	FeloScore      int32  `json:"felo_score"`
+	FeloTier       string `json:"felo_tier"`
+	IsCurrentLogin bool   `json:"is_current_login"`
+	IsCommissioner bool   `json:"is_commissioner"`
+}

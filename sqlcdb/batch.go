@@ -242,3 +242,296 @@ func (b *UpsertGameSkaterStatsBatchBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }
+
+const upsertYahooLeagueRosterPositionBatch = `-- name: UpsertYahooLeagueRosterPositionBatch :batchexec
+INSERT INTO yahoo_league_roster_positions (
+    league_id, position, position_type, count, is_starting_position
+)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (league_id, position) DO UPDATE SET
+    position_type = EXCLUDED.position_type,
+    count = EXCLUDED.count,
+    is_starting_position = EXCLUDED.is_starting_position
+`
+
+type UpsertYahooLeagueRosterPositionBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertYahooLeagueRosterPositionBatchParams struct {
+	LeagueID           int32  `json:"league_id"`
+	Position           string `json:"position"`
+	PositionType       string `json:"position_type"`
+	Count              int32  `json:"count"`
+	IsStartingPosition bool   `json:"is_starting_position"`
+}
+
+func (q *Queries) UpsertYahooLeagueRosterPositionBatch(ctx context.Context, arg []UpsertYahooLeagueRosterPositionBatchParams) *UpsertYahooLeagueRosterPositionBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueID,
+			a.Position,
+			a.PositionType,
+			a.Count,
+			a.IsStartingPosition,
+		}
+		batch.Queue(upsertYahooLeagueRosterPositionBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertYahooLeagueRosterPositionBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertYahooLeagueRosterPositionBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertYahooLeagueRosterPositionBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertYahooLeagueStatCategoryBatch = `-- name: UpsertYahooLeagueStatCategoryBatch :batchexec
+INSERT INTO yahoo_league_stat_categories (
+    league_id, stat_id, name, abbr, stat_group, enabled, value
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (league_id, stat_id) DO UPDATE SET
+    name = EXCLUDED.name,
+    abbr = EXCLUDED.abbr,
+    stat_group = EXCLUDED.stat_group,
+    enabled = EXCLUDED.enabled,
+    value = EXCLUDED.value
+`
+
+type UpsertYahooLeagueStatCategoryBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertYahooLeagueStatCategoryBatchParams struct {
+	LeagueID  int32         `json:"league_id"`
+	StatID    int32         `json:"stat_id"`
+	Name      string        `json:"name"`
+	Abbr      string        `json:"abbr"`
+	StatGroup string        `json:"stat_group"`
+	Enabled   bool          `json:"enabled"`
+	Value     pgtype.Float4 `json:"value"`
+}
+
+func (q *Queries) UpsertYahooLeagueStatCategoryBatch(ctx context.Context, arg []UpsertYahooLeagueStatCategoryBatchParams) *UpsertYahooLeagueStatCategoryBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueID,
+			a.StatID,
+			a.Name,
+			a.Abbr,
+			a.StatGroup,
+			a.Enabled,
+			a.Value,
+		}
+		batch.Queue(upsertYahooLeagueStatCategoryBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertYahooLeagueStatCategoryBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertYahooLeagueStatCategoryBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertYahooLeagueStatCategoryBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertYahooTeamBatch = `-- name: UpsertYahooTeamBatch :batchexec
+INSERT INTO yahoo_teams (
+    league_id, id, team_key, name, url, logo_url,
+    draft_position, waiver_priority, number_of_moves, number_of_trades,
+    is_owned_by_current_login
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+ON CONFLICT (league_id, id) DO UPDATE SET
+    team_key = EXCLUDED.team_key,
+    name = EXCLUDED.name,
+    url = EXCLUDED.url,
+    logo_url = EXCLUDED.logo_url,
+    draft_position = EXCLUDED.draft_position,
+    waiver_priority = EXCLUDED.waiver_priority,
+    number_of_moves = EXCLUDED.number_of_moves,
+    number_of_trades = EXCLUDED.number_of_trades,
+    is_owned_by_current_login = EXCLUDED.is_owned_by_current_login,
+    updated_at = NOW()
+`
+
+type UpsertYahooTeamBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertYahooTeamBatchParams struct {
+	LeagueID              int32       `json:"league_id"`
+	ID                    int32       `json:"id"`
+	TeamKey               string      `json:"team_key"`
+	Name                  string      `json:"name"`
+	Url                   string      `json:"url"`
+	LogoUrl               string      `json:"logo_url"`
+	DraftPosition         pgtype.Int4 `json:"draft_position"`
+	WaiverPriority        pgtype.Int4 `json:"waiver_priority"`
+	NumberOfMoves         int32       `json:"number_of_moves"`
+	NumberOfTrades        int32       `json:"number_of_trades"`
+	IsOwnedByCurrentLogin bool        `json:"is_owned_by_current_login"`
+}
+
+func (q *Queries) UpsertYahooTeamBatch(ctx context.Context, arg []UpsertYahooTeamBatchParams) *UpsertYahooTeamBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueID,
+			a.ID,
+			a.TeamKey,
+			a.Name,
+			a.Url,
+			a.LogoUrl,
+			a.DraftPosition,
+			a.WaiverPriority,
+			a.NumberOfMoves,
+			a.NumberOfTrades,
+			a.IsOwnedByCurrentLogin,
+		}
+		batch.Queue(upsertYahooTeamBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertYahooTeamBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertYahooTeamBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertYahooTeamBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertYahooTeamManagerBatch = `-- name: UpsertYahooTeamManagerBatch :batchexec
+INSERT INTO yahoo_team_managers (
+    league_id, team_id, id, nickname, guid, email, image_url,
+    felo_score, felo_tier, is_current_login, is_commissioner
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+ON CONFLICT (league_id, team_id, id) DO UPDATE SET
+    nickname = EXCLUDED.nickname,
+    guid = EXCLUDED.guid,
+    email = EXCLUDED.email,
+    image_url = EXCLUDED.image_url,
+    felo_score = EXCLUDED.felo_score,
+    felo_tier = EXCLUDED.felo_tier,
+    is_current_login = EXCLUDED.is_current_login,
+    is_commissioner = EXCLUDED.is_commissioner
+`
+
+type UpsertYahooTeamManagerBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertYahooTeamManagerBatchParams struct {
+	LeagueID       int32  `json:"league_id"`
+	TeamID         int32  `json:"team_id"`
+	ID             int32  `json:"id"`
+	Nickname       string `json:"nickname"`
+	Guid           string `json:"guid"`
+	Email          string `json:"email"`
+	ImageUrl       string `json:"image_url"`
+	FeloScore      int32  `json:"felo_score"`
+	FeloTier       string `json:"felo_tier"`
+	IsCurrentLogin bool   `json:"is_current_login"`
+	IsCommissioner bool   `json:"is_commissioner"`
+}
+
+func (q *Queries) UpsertYahooTeamManagerBatch(ctx context.Context, arg []UpsertYahooTeamManagerBatchParams) *UpsertYahooTeamManagerBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueID,
+			a.TeamID,
+			a.ID,
+			a.Nickname,
+			a.Guid,
+			a.Email,
+			a.ImageUrl,
+			a.FeloScore,
+			a.FeloTier,
+			a.IsCurrentLogin,
+			a.IsCommissioner,
+		}
+		batch.Queue(upsertYahooTeamManagerBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertYahooTeamManagerBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertYahooTeamManagerBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertYahooTeamManagerBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}

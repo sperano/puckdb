@@ -50,7 +50,7 @@ go run github.com/99designs/gqlgen generate   # GraphQL (schema: graph/schema.gr
 | `cmd/` | CLI commands (Cobra + Viper) |
 | `worker/` | Temporal workflows and activities |
 | `graph/` | GraphQL resolvers and schema (gqlgen) |
-| `database/` | GORM models for PostgreSQL |
+| `database/` | PostgreSQL connection (pgx), migrations |
 | `sqlcdb/` | sqlc-generated type-safe queries |
 | `cache/` | File-based caching, XML/JSON parsing |
 | `redis/` | OAuth2 tokens, player data cache |
