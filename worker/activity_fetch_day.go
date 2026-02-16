@@ -19,15 +19,15 @@ type dayFetcher interface {
 
 // realDayFetcher calls the impl functions directly with pre-initialized dependencies.
 type realDayFetcher struct {
-	fs               store.Store
-	nhlClient        NHLClient
-	gameKey          int
-	download         Downloader
-	downloadBoxscore BoxscoreDownloader
+	fs            store.Store
+	nhlClient     NHLClient
+	gameKey       int
+	download      Downloader
+	gameDownloads GameDataDownloaders
 }
 
 func (f realDayFetcher) FetchDailySchedule(ctx context.Context, day time.Time) error {
-	return fetchDailyScheduleImpl(ctx, f.fs, f.nhlClient, day, f.downloadBoxscore)
+	return fetchDailyScheduleImpl(ctx, f.fs, f.nhlClient, day, f.gameDownloads)
 }
 
 func (f realDayFetcher) FetchRoster(ctx context.Context, leagueID, teamID int, day time.Time) error {
@@ -69,11 +69,15 @@ func FetchDayActivity(ctx context.Context, input *FetchDayInput) error {
 	}
 
 	fetcher := realDayFetcher{
-		fs:               fs,
-		nhlClient:        nhlClient,
-		gameKey:          gameKey,
-		download:         DownloadFromYahoo,
-		downloadBoxscore: DownloadBoxscore,
+		fs:        fs,
+		nhlClient: nhlClient,
+		gameKey:   gameKey,
+		download:  DownloadFromYahoo,
+		gameDownloads: GameDataDownloaders{
+			Boxscore:   DownloadBoxscore,
+			PlayByPlay: DownloadPlayByPlay,
+			ShiftChart: DownloadShiftChart,
+		},
 	}
 	return fetchDayImpl(ctx, fetcher, input)
 }

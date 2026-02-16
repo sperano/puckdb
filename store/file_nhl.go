@@ -154,3 +154,53 @@ type SeasonStandingsFile struct {
 func (f SeasonStandingsFile) Ext() string  { return "json" }
 func (f SeasonStandingsFile) Dir() string  { return path.Join(franchisesDirName, standingsDirName) }
 func (f SeasonStandingsFile) Name() string { return fmt.Sprintf("standings-%d", f.SeasonID) }
+
+// ////////////////////////////////////////////////////////////////////////////
+// PLAY-BY-PLAY
+// ////////////////////////////////////////////////////////////////////////////
+
+// PlayByPlayFile represents the stored NHL play-by-play data for a specific game.
+// Contains every event in the game (shots, hits, faceoffs, penalties, goals).
+type PlayByPlayFile struct {
+	Date   time.Time
+	GameID nhl.GameID
+}
+
+func (f PlayByPlayFile) Ext() string  { return "json" }
+func (f PlayByPlayFile) Dir() string  { return gamesListDir(f.Date) }
+func (f PlayByPlayFile) Name() string { return fmt.Sprintf("playbyplay-%s", f.GameID.String()) }
+
+// ////////////////////////////////////////////////////////////////////////////
+// SHIFT CHART
+// ////////////////////////////////////////////////////////////////////////////
+
+// ShiftChartFile represents the stored NHL shift chart data for a specific game.
+// Contains player shift/TOI data (ice time per shift, line combinations).
+type ShiftChartFile struct {
+	Date   time.Time
+	GameID nhl.GameID
+}
+
+func (f ShiftChartFile) Ext() string  { return "json" }
+func (f ShiftChartFile) Dir() string  { return gamesListDir(f.Date) }
+func (f ShiftChartFile) Name() string { return fmt.Sprintf("shiftchart-%s", f.GameID.String()) }
+
+// ////////////////////////////////////////////////////////////////////////////
+// PLAYER GAME LOG
+// ////////////////////////////////////////////////////////////////////////////
+
+const playerGameLogDirName = "player-gamelogs"
+
+// PlayerGameLogFile represents the stored game log for a player in a specific season.
+// Contains per-game stats for the player.
+type PlayerGameLogFile struct {
+	PlayerID nhl.PlayerID
+	Season   int // e.g., 20242025
+	GameType int // 2 = regular season, 3 = playoffs
+}
+
+func (f PlayerGameLogFile) Ext() string { return "json" }
+func (f PlayerGameLogFile) Dir() string { return playerGameLogDirName }
+func (f PlayerGameLogFile) Name() string {
+	return fmt.Sprintf("player-%s-%d-%d", f.PlayerID.String(), f.Season, f.GameType)
+}

@@ -21,6 +21,23 @@ func mockBoxscoreDownloader(content []byte, err error) BoxscoreDownloader {
 	}
 }
 
+// mockGameDownloaders creates a GameDataDownloaders with the same mock for all types.
+func mockGameDownloaders(content []byte, err error) GameDataDownloaders {
+	dl := mockBoxscoreDownloader(content, err)
+	return GameDataDownloaders{
+		Boxscore:   dl,
+		PlayByPlay: dl,
+		ShiftChart: dl,
+	}
+}
+
+// mockAllGameFilesExist sets up mocks for all game data files (boxscore, play-by-play, shift chart) as existing.
+func mockAllGameFilesExist(mockFS *MockFileSystem, day time.Time, gameID nhl.GameID) {
+	mockFS.On("Exists", store.BoxscoreFile{Date: day, GameID: gameID}).Return(true)
+	mockFS.On("Exists", store.PlayByPlayFile{Date: day, GameID: gameID}).Return(true)
+	mockFS.On("Exists", store.ShiftChartFile{Date: day, GameID: gameID}).Return(true)
+}
+
 func TestFetchDailyScheduleImpl_ScheduleFromCache(t *testing.T) {
 	ctx := context.Background()
 	mockFS := NewMockFileSystem()
@@ -39,11 +56,10 @@ func TestFetchDailyScheduleImpl_ScheduleFromCache(t *testing.T) {
 	mockFS.On("Exists", scheduleFile).Return(true)
 	mockFS.On("Read", scheduleFile).Return(scheduleJSON, nil)
 
-	// Boxscore for the one game
-	boxscoreFile := store.BoxscoreFile{Date: day, GameID: nhl.GameID(2024020001)}
-	mockFS.On("Exists", boxscoreFile).Return(true) // Already cached
+	// All game data files already cached
+	mockAllGameFilesExist(mockFS, day, nhl.GameID(2024020001))
 
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
@@ -69,11 +85,10 @@ func TestFetchDailyScheduleImpl_DownloadSchedule(t *testing.T) {
 	mockFS.On("Write", scheduleFile, scheduleJSON).Return(nil)
 	mockFS.On("Read", scheduleFile).Return(scheduleJSON, nil)
 
-	// Boxscore for the one game
-	boxscoreFile := store.BoxscoreFile{Date: day, GameID: nhl.GameID(2024020001)}
-	mockFS.On("Exists", boxscoreFile).Return(true) // Already cached
+	// All game data files already cached
+	mockAllGameFilesExist(mockFS, day, nhl.GameID(2024020001))
 
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
@@ -92,7 +107,7 @@ func TestFetchDailyScheduleImpl_DownloadScheduleError(t *testing.T) {
 	mockFS.On("Exists", scheduleFile).Return(false)
 	mockClient.On("DailySchedule", ctx, nhl.FromDate(day)).Return(nil, errors.New("API error"))
 
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "download schedule")
@@ -109,7 +124,7 @@ func TestFetchDailyScheduleImpl_MkdirError(t *testing.T) {
 
 	mockFS.On("MkdirAll", scheduleFile.Dir(), os.FileMode(0755)).Return(errors.New("permission denied"))
 
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "mkdir")
@@ -131,7 +146,7 @@ func TestFetchDailyScheduleImpl_WriteScheduleError(t *testing.T) {
 	mockClient.On("DailySchedule", ctx, nhl.FromDate(day)).Return(schedule, nil)
 	mockFS.On("Write", scheduleFile, scheduleJSON).Return(errors.New("disk full"))
 
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "save schedule")
@@ -150,7 +165,7 @@ func TestFetchDailyScheduleImpl_ReadScheduleError(t *testing.T) {
 	mockFS.On("Exists", scheduleFile).Return(true)
 	mockFS.On("Read", scheduleFile).Return(nil, errors.New("file corrupted"))
 
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "read schedule")
@@ -169,7 +184,7 @@ func TestFetchDailyScheduleImpl_ParseScheduleError(t *testing.T) {
 	mockFS.On("Exists", scheduleFile).Return(true)
 	mockFS.On("Read", scheduleFile).Return([]byte("invalid json"), nil)
 
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "parse schedule")
@@ -195,11 +210,10 @@ func TestFetchDailyScheduleImpl_SkipsIncompleteGames(t *testing.T) {
 	mockFS.On("Exists", scheduleFile).Return(true)
 	mockFS.On("Read", scheduleFile).Return(scheduleJSON, nil)
 
-	// Only game 2 should be processed
-	boxscoreFile := store.BoxscoreFile{Date: day, GameID: nhl.GameID(2024020002)}
-	mockFS.On("Exists", boxscoreFile).Return(true)
+	// Only game 2 should be processed (all game data files cached)
+	mockAllGameFilesExist(mockFS, day, nhl.GameID(2024020002))
 
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
@@ -224,12 +238,25 @@ func TestFetchDailyScheduleImpl_DownloadsBoxscore(t *testing.T) {
 	mockFS.On("Read", scheduleFile).Return(scheduleJSON, nil)
 
 	// Boxscore not cached - needs download
-	boxscoreFile := store.BoxscoreFile{Date: day, GameID: nhl.GameID(2024020001)}
+	gameID := nhl.GameID(2024020001)
+	boxscoreFile := store.BoxscoreFile{Date: day, GameID: gameID}
 	mockFS.On("Exists", boxscoreFile).Return(false)
 	mockFS.On("MkdirAll", boxscoreFile.Dir(), os.FileMode(0755)).Return(nil)
 	mockFS.On("Write", boxscoreFile, []byte("boxscore data")).Return(nil)
 
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader([]byte("boxscore data"), nil))
+	// Play-by-play not cached - needs download
+	pbpFile := store.PlayByPlayFile{Date: day, GameID: gameID}
+	mockFS.On("Exists", pbpFile).Return(false)
+	mockFS.On("MkdirAll", pbpFile.Dir(), os.FileMode(0755)).Return(nil)
+	mockFS.On("Write", pbpFile, []byte("boxscore data")).Return(nil)
+
+	// Shift chart not cached - needs download
+	shiftFile := store.ShiftChartFile{Date: day, GameID: gameID}
+	mockFS.On("Exists", shiftFile).Return(false)
+	mockFS.On("MkdirAll", shiftFile.Dir(), os.FileMode(0755)).Return(nil)
+	mockFS.On("Write", shiftFile, []byte("boxscore data")).Return(nil)
+
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders([]byte("boxscore data"), nil))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
@@ -254,12 +281,12 @@ func TestFetchDailyScheduleImpl_BoxscoreDownloadErrorContinues(t *testing.T) {
 	mockFS.On("Exists", scheduleFile).Return(true)
 	mockFS.On("Read", scheduleFile).Return(scheduleJSON, nil)
 
-	// Both boxscores already cached
-	mockFS.On("Exists", store.BoxscoreFile{Date: day, GameID: nhl.GameID(2024020001)}).Return(true)
-	mockFS.On("Exists", store.BoxscoreFile{Date: day, GameID: nhl.GameID(2024020002)}).Return(true)
+	// All game data files already cached
+	mockAllGameFilesExist(mockFS, day, nhl.GameID(2024020001))
+	mockAllGameFilesExist(mockFS, day, nhl.GameID(2024020002))
 
 	// Even with a failing downloader, cached files should still work
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, errors.New("download error")))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, errors.New("download error")))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
@@ -286,7 +313,7 @@ func TestFetchDailyScheduleImpl_ContextCancelled(t *testing.T) {
 	// Cancel before processing boxscores
 	cancel()
 
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
 	assert.ErrorIs(t, err, context.Canceled)
 }
@@ -315,7 +342,7 @@ func TestFetchDailyScheduleImpl_BoxscoreMkdirError(t *testing.T) {
 	mockFS.On("MkdirAll", boxscoreFile.Dir(), os.FileMode(0755)).Return(errors.New("mkdir error")).Once()
 
 	// Should continue (logs warning), not fail
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, nil))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
@@ -345,7 +372,7 @@ func TestFetchDailyScheduleImpl_BoxscoreDownloadError(t *testing.T) {
 	mockFS.On("MkdirAll", boxscoreFile.Dir(), os.FileMode(0755)).Return(nil).Once()
 
 	// Should continue (logs warning), not fail
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader(nil, errors.New("download error")))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders(nil, errors.New("download error")))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)
@@ -376,7 +403,7 @@ func TestFetchDailyScheduleImpl_BoxscoreWriteError(t *testing.T) {
 	mockFS.On("Write", boxscoreFile, []byte("boxscore data")).Return(errors.New("write error"))
 
 	// Should continue (logs warning), not fail
-	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockBoxscoreDownloader([]byte("boxscore data"), nil))
+	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders([]byte("boxscore data"), nil))
 
 	assert.NoError(t, err)
 	mockFS.AssertExpectations(t)

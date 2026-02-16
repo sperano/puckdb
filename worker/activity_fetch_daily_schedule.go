@@ -16,14 +16,21 @@ import (
 // BoxscoreDownloader downloads boxscore data for a game ID.
 type BoxscoreDownloader func(id nhl.GameID) ([]byte, error)
 
-func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClient, day time.Time, downloadBoxscore BoxscoreDownloader) error {
+// GameDataDownloaders holds all game data downloaders.
+type GameDataDownloaders struct {
+	Boxscore   BoxscoreDownloader
+	PlayByPlay BoxscoreDownloader
+	ShiftChart BoxscoreDownloader
+}
+
+func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClient, day time.Time, downloaders GameDataDownloaders) error {
 	// Download schedule
 	gameIDs, err := downloadSchedule(ctx, fs, client, day)
 	if err != nil {
 		return err
 	}
 
-	// Filter and download boxscores
+	// Filter and download game data (boxscore, play-by-play, shift chart)
 	filtered := filterRegularSeasonGames(gameIDs)
 	for _, id := range filtered {
 		select {
@@ -31,9 +38,15 @@ func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClien
 			return ctx.Err()
 		default:
 		}
-		if err := downloadBoxscoreToCache(ctx, fs, day, id, downloadBoxscore); err != nil {
+		if err := downloadBoxscoreToCache(ctx, fs, day, id, downloaders.Boxscore); err != nil {
 			log.Warn().Err(err).Str("gameid", id.String()).Msg("Skipping boxscore")
 			continue
+		}
+		if err := downloadPlayByPlayToCache(ctx, fs, day, id, downloaders.PlayByPlay); err != nil {
+			log.Warn().Err(err).Str("gameid", id.String()).Msg("Skipping play-by-play")
+		}
+		if err := downloadShiftChartToCache(ctx, fs, day, id, downloaders.ShiftChart); err != nil {
+			log.Warn().Err(err).Str("gameid", id.String()).Msg("Skipping shift chart")
 		}
 	}
 	return nil
@@ -126,6 +139,64 @@ func downloadBoxscoreToCache(ctx context.Context, fs store.Store, day time.Time,
 	}
 	log.Info().Str("gameid", id.String()).Str("path", store.Path(file)).Msg("Saved boxscore")
 	metrics.IncDownload("Boxscore", "miss")
+	return nil
+}
+
+// downloadPlayByPlayToCache downloads play-by-play data to cache.
+func downloadPlayByPlayToCache(ctx context.Context, fs store.Store, day time.Time, id nhl.GameID, download BoxscoreDownloader) error {
+	file := store.PlayByPlayFile{Date: day, GameID: id}
+	if fs.Exists(file) {
+		log.Debug().Str("gameid", id.String()).Msg("PlayByPlay already cached")
+		metrics.IncDownload("PlayByPlay", "hit")
+		return nil
+	}
+
+	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
+		metrics.IncDownload("PlayByPlay", "error")
+		return fmt.Errorf("mkdir: %w", err)
+	}
+
+	content, err := download(id)
+	if err != nil {
+		metrics.IncDownload("PlayByPlay", "error")
+		return fmt.Errorf("download: %w", err)
+	}
+
+	if err := fs.Write(file, content); err != nil {
+		metrics.IncDownload("PlayByPlay", "error")
+		return fmt.Errorf("save: %w", err)
+	}
+	log.Info().Str("gameid", id.String()).Str("path", store.Path(file)).Msg("Saved play-by-play")
+	metrics.IncDownload("PlayByPlay", "miss")
+	return nil
+}
+
+// downloadShiftChartToCache downloads shift chart data to cache.
+func downloadShiftChartToCache(ctx context.Context, fs store.Store, day time.Time, id nhl.GameID, download BoxscoreDownloader) error {
+	file := store.ShiftChartFile{Date: day, GameID: id}
+	if fs.Exists(file) {
+		log.Debug().Str("gameid", id.String()).Msg("ShiftChart already cached")
+		metrics.IncDownload("ShiftChart", "hit")
+		return nil
+	}
+
+	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
+		metrics.IncDownload("ShiftChart", "error")
+		return fmt.Errorf("mkdir: %w", err)
+	}
+
+	content, err := download(id)
+	if err != nil {
+		metrics.IncDownload("ShiftChart", "error")
+		return fmt.Errorf("download: %w", err)
+	}
+
+	if err := fs.Write(file, content); err != nil {
+		metrics.IncDownload("ShiftChart", "error")
+		return fmt.Errorf("save: %w", err)
+	}
+	log.Info().Str("gameid", id.String()).Str("path", store.Path(file)).Msg("Saved shift chart")
+	metrics.IncDownload("ShiftChart", "miss")
 	return nil
 }
 

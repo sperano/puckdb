@@ -32,6 +32,9 @@ var (
 type NHLClient interface {
 	PlayerLanding(ctx context.Context, playerID nhl.PlayerID) (*nhl.PlayerLanding, error)
 	Boxscore(ctx context.Context, gameID nhl.GameID) (*nhl.Boxscore, error)
+	PlayByPlay(ctx context.Context, gameID nhl.GameID) (*nhl.PlayByPlay, error)
+	ShiftChart(ctx context.Context, gameID nhl.GameID) (*nhl.ShiftChart, error)
+	PlayerGameLog(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.PlayerGameLog, error)
 	DailySchedule(ctx context.Context, date nhl.GameDate) (*nhl.DailySchedule, error)
 	SeasonStandingManifest(ctx context.Context) ([]nhl.SeasonInfo, error)
 	LeagueStandingsForSeason(ctx context.Context, season nhl.Season) ([]nhl.Standing, error)
@@ -102,6 +105,80 @@ func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
 	data, err := json.Marshal(boxscore)
 	if err != nil {
 		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
+	}
+
+	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
+	return data, nil
+}
+
+// GameDataDownloader downloads game-related data (boxscore, play-by-play, shift chart).
+type GameDataDownloader func(id nhl.GameID) ([]byte, error)
+
+func DownloadPlayByPlay(gameid nhl.GameID) ([]byte, error) {
+	log.Info().Str("gameid", gameid.String()).Msg("Downloading play-by-play NHL API")
+	client := newNHLClient()
+
+	start := time.Now()
+	pbp, err := client.PlayByPlay(context.Background(), gameid)
+	duration := time.Since(start)
+
+	if err != nil {
+		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
+		return nil, err
+	}
+
+	data, err := json.Marshal(pbp)
+	if err != nil {
+		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
+	}
+
+	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
+	return data, nil
+}
+
+func DownloadShiftChart(gameid nhl.GameID) ([]byte, error) {
+	log.Info().Str("gameid", gameid.String()).Msg("Downloading shift chart NHL API")
+	client := newNHLClient()
+
+	start := time.Now()
+	shifts, err := client.ShiftChart(context.Background(), gameid)
+	duration := time.Since(start)
+
+	if err != nil {
+		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
+		return nil, err
+	}
+
+	data, err := json.Marshal(shifts)
+	if err != nil {
+		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
+	}
+
+	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
+	return data, nil
+}
+
+// DownloadPlayerGameLog downloads a player's game log for a specific season and game type.
+func DownloadPlayerGameLog(playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) ([]byte, error) {
+	log.Info().
+		Str("playerID", playerID.String()).
+		Str("season", season.String()).
+		Str("gameType", gameType.String()).
+		Msg("Downloading player game log NHL API")
+	client := newNHLClient()
+
+	start := time.Now()
+	gameLog, err := client.PlayerGameLog(context.Background(), playerID, season, gameType)
+	duration := time.Since(start)
+
+	if err != nil {
+		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
+		return nil, err
+	}
+
+	data, err := json.Marshal(gameLog)
+	if err != nil {
+		return nil, fmt.Errorf("player %s season %s: %w", playerID, season, err)
 	}
 
 	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))

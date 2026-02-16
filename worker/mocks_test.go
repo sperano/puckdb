@@ -85,6 +85,30 @@ func (m *MockNHLClient) Boxscore(ctx context.Context, gameID nhl.GameID) (*nhl.B
 	return args.Get(0).(*nhl.Boxscore), args.Error(1)
 }
 
+func (m *MockNHLClient) PlayByPlay(ctx context.Context, gameID nhl.GameID) (*nhl.PlayByPlay, error) {
+	args := m.Called(ctx, gameID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.PlayByPlay), args.Error(1)
+}
+
+func (m *MockNHLClient) ShiftChart(ctx context.Context, gameID nhl.GameID) (*nhl.ShiftChart, error) {
+	args := m.Called(ctx, gameID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.ShiftChart), args.Error(1)
+}
+
+func (m *MockNHLClient) PlayerGameLog(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.PlayerGameLog, error) {
+	args := m.Called(ctx, playerID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.PlayerGameLog), args.Error(1)
+}
+
 func (m *MockNHLClient) DailySchedule(ctx context.Context, date nhl.GameDate) (*nhl.DailySchedule, error) {
 	args := m.Called(ctx, date)
 	if args.Get(0) == nil {
