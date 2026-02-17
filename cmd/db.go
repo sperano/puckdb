@@ -285,10 +285,12 @@ func ensureRole(ctx context.Context, conn *pgx.Conn, username, password string) 
 			return fmt.Errorf("failed to create role: %w", err)
 		}
 	} else {
-		log.Info().Str("role", username).Msg("Role exists, updating password")
+		// Role exists - try to update password but don't fail if we lack permission
+		// (provisioner may not own this role if it was created by a superuser)
+		log.Info().Str("role", username).Msg("Role exists, attempting password update")
 		alterSQL := fmt.Sprintf(`ALTER ROLE %s PASSWORD '%s'`, sanitizedUser, escapedPassword)
 		if _, err := conn.Exec(ctx, alterSQL); err != nil {
-			return fmt.Errorf("failed to update password: %w", err)
+			log.Warn().Err(err).Str("role", username).Msg("Could not update password (may lack permission)")
 		}
 	}
 	return nil
