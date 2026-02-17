@@ -52,6 +52,20 @@ func TestClassifyFileType(t *testing.T) {
 			want:     store.FileTypeBoxscore,
 		},
 		{
+			name:     "playbyplay file",
+			dataPath: "/data",
+			filePath: "/data/games/2024/playbyplay-2024020001.json",
+			filename: "playbyplay-2024020001.json",
+			want:     store.FileTypePlayByPlay,
+		},
+		{
+			name:     "shiftchart file",
+			dataPath: "/data",
+			filePath: "/data/games/2024/shiftchart-2024020001.json",
+			filename: "shiftchart-2024020001.json",
+			want:     store.FileTypeShiftChart,
+		},
+		{
 			name:     "daily schedule file",
 			dataPath: "/data",
 			filePath: "/data/games/2024/daily-schedule-2024-10-15.json",
@@ -85,6 +99,27 @@ func TestClassifyFileType(t *testing.T) {
 			filePath: "/data/yahoo/2024/team-summary-12345-1-2024-10-15.json",
 			filename: "team-summary-12345-1-2024-10-15.json",
 			want:     store.FileTypeTeamSummary,
+		},
+		{
+			name:     "franchises file",
+			dataPath: "/data",
+			filePath: "/data/nhl/franchises.json",
+			filename: "franchises",
+			want:     store.FileTypeFranchises,
+		},
+		{
+			name:     "seasons manifest file",
+			dataPath: "/data",
+			filePath: "/data/nhl/seasons-manifest.json",
+			filename: "seasons-manifest",
+			want:     store.FileTypeSeasonsManifest,
+		},
+		{
+			name:     "season standings file",
+			dataPath: "/data",
+			filePath: "/data/nhl/standings/standings-20232024.json",
+			filename: "standings-20232024",
+			want:     store.FileTypeSeasonStandings,
 		},
 		{
 			name:     "unknown file",

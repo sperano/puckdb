@@ -70,6 +70,7 @@ func collectFileTypeStats(dataPath string) map[string]*fileTypeStats {
 }
 
 // classifyFileType determines the file type based on path and filename
+// TODO maybe this should be better integrated with store/ package
 func classifyFileType(dataPath, filePath, filename string) string {
 	relPath, _ := filepath.Rel(dataPath, filePath)
 	parts := strings.Split(relPath, string(filepath.Separator))
@@ -88,12 +89,31 @@ func classifyFileType(dataPath, filePath, filename string) string {
 		return store.FileTypeYahooPlayer
 	case "game-keys":
 		return store.FileTypeGameKey
+	case "nhl":
+		// nhl/franchises.json
+		if filename == "franchises" {
+			return store.FileTypeFranchises
+		}
+		// nhl/seasons-manifest.json
+		if filename == "seasons-manifest" {
+			return store.FileTypeSeasonsManifest
+		}
+		// nhl/standings/standings-*.json
+		if len(parts) >= 2 && parts[1] == "standings" && strings.HasPrefix(filename, "standings-") {
+			return store.FileTypeSeasonStandings
+		}
 	}
 
 	// Check filename patterns for files in nested directories
 	// Note: Order matters! More specific prefixes must come first.
 	if strings.HasPrefix(filename, "boxscore-") {
 		return store.FileTypeBoxscore
+	}
+	if strings.HasPrefix(filename, "playbyplay-") {
+		return store.FileTypePlayByPlay
+	}
+	if strings.HasPrefix(filename, "shiftchart-") {
+		return store.FileTypeShiftChart
 	}
 	if strings.HasPrefix(filename, "daily-schedule-") {
 		return store.FileTypeDailySchedule
