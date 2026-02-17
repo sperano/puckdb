@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/database"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -26,13 +27,58 @@ func cmdDB() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "db",
 		Short: "Database operations",
-		Long:  `Database management commands: init, drop, provision.`,
+		Long:  `Database management commands: init, drop, provision, migrate.`,
 	}
-	cmd.AddCommand(cmdDBInit(), cmdDBDrop(), cmdDBProvision())
+	cmd.AddCommand(cmdDBInit(), cmdDBDrop(), cmdDBProvision(), cmdDBMigrate())
 	return cmd
 }
 
 const dbInitLockName = "puckdb:db-init"
+const dbMigrateLockName = "puckdb:db-migrate"
+
+func cmdDBMigrate() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Run database migrations directly",
+		Long:  `Run database migrations directly without going through GraphQL API. Designed for init containers.`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := config.RedisFlags.Bind(cmd.Flags()); err != nil {
+				return err
+			}
+			return config.PostgresFlags.Bind(cmd.Flags())
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+
+			redisClient := cache.NewClient()
+			defer func() { _ = redisClient.Close() }()
+
+			locker := redislock.New(redisClient)
+			lock, err := locker.Obtain(ctx, dbMigrateLockName, config.DefaultDBInitLockTTL, nil)
+			if err == redislock.ErrNotObtained {
+				log.Warn().Msg("Could not obtain lock, another process is running migrations")
+				return nil
+			} else if err != nil {
+				return fmt.Errorf("failed to acquire lock: %w", err)
+			}
+			defer func() {
+				if err := lock.Release(ctx); err != nil {
+					log.Error().Err(err).Msg("Failed to release lock")
+				}
+			}()
+
+			if err := database.DoMigration(); err != nil {
+				return fmt.Errorf("migration failed: %w", err)
+			}
+			log.Info().Msg("Database migrations completed successfully")
+			return nil
+		},
+	}
+	flags := cmd.Flags()
+	config.RedisFlags.Init(flags)
+	config.PostgresFlags.Init(flags)
+	return cmd
+}
 
 func cmdDBInit() *cobra.Command {
 	cmd := &cobra.Command{
