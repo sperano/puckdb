@@ -172,17 +172,36 @@ func markSeasonComplete(tracker *ProgressTracker, startYear int) {
 	}
 }
 
-// countDaysInSeason returns the number of days from season start to min(season end, today).
-func countDaysInSeason(season SeasonInfo) int {
-	end := season.EndDate
+// effectiveEndDate returns the end date or today, whichever is earlier.
+// Used to avoid processing future dates.
+func effectiveEndDate(end time.Time) time.Time {
 	if end.After(time.Now()) {
-		end = time.Now()
+		return time.Now()
 	}
-	days := int(end.Sub(season.StartDate).Hours()/config.HoursPerDay) + 1
+	return end
+}
+
+// countDays returns the number of days between start and end (inclusive).
+func countDays(start, end time.Time) int {
+	days := int(end.Sub(start).Hours()/config.HoursPerDay) + 1
 	if days < 0 {
 		return 0
 	}
 	return days
+}
+
+// countDaysInSeason returns the number of days from season start to min(season end, today).
+func countDaysInSeason(season SeasonInfo) int {
+	return countDays(season.StartDate, effectiveEndDate(season.EndDate))
+}
+
+// getDayConcurrency returns the configured day concurrency for parallel processing.
+func getDayConcurrency() int {
+	concurrency := viper.GetInt(config.FlagDayConcurrency)
+	if concurrency <= 0 {
+		return config.DefaultDayConcurrency
+	}
+	return concurrency
 }
 
 // countDownloadTasksForSeason counts the total number of download tasks for a single season.

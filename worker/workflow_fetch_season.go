@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/config"
-	"github.com/spf13/viper"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -63,32 +62,19 @@ func FetchSeasonWorkflow(ctx workflow.Context, input *FetchSeasonInput) error {
 		}
 	}
 
-	// Determine end date (don't download future days)
-	end := season.EndDate
-	if end.After(time.Now()) {
-		end = time.Now()
-	}
-
-	// Calculate number of days to process
-	numDays := int(end.Sub(season.StartDate).Hours()/config.HoursPerDay) + 1
-	if numDays < 0 {
-		numDays = 0
-	}
-
-	// Get day concurrency from config
-	dayConcurrency := viper.GetInt(config.FlagDayConcurrency)
-	if dayConcurrency <= 0 {
-		dayConcurrency = 20
-	}
+	// Calculate days to process (up to today)
+	endDate := effectiveEndDate(season.EndDate)
+	numDays := countDays(season.StartDate, endDate)
+	concurrency := getDayConcurrency()
 
 	logger.Info("Processing days in parallel",
 		"numDays", numDays,
-		"concurrency", dayConcurrency)
+		"concurrency", concurrency)
 
 	// Process days in parallel using RunWorkerPool
 	startDate := season.StartDate
 	startYear := season.StartYear
-	err = tracker.RunWorkerPool(ctx, numDays, dayConcurrency, func(ctx workflow.Context, i int) workflow.Future {
+	err = tracker.RunWorkerPool(ctx, numDays, concurrency, func(ctx workflow.Context, i int) workflow.Future {
 		day := startDate.AddDate(0, 0, i)
 		dayInput := &FetchDayInput{
 			Day:       day,

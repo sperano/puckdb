@@ -47,11 +47,7 @@ func extractBoxscoreDataForSeasonImpl(
 	// Map by player ID to deduplicate while preserving player info
 	players := make(map[int64]BoxscorePlayer)
 
-	end := season.EndDate
-	if end.After(time.Now()) {
-		end = time.Now()
-	}
-
+	end := effectiveEndDate(season.EndDate)
 	dayCount := 0
 	for day := season.StartDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		select {

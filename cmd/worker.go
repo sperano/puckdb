@@ -107,7 +107,7 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(workers.ImportBoxscoresForDateActivity)
 			w.RegisterActivity(workers.ImportYahooLeagueActivity)
 			w.RegisterActivity(workers.ImportYahooTeamsActivity)
-			w.RegisterActivity(workers.ImportYahooTeamDataActivity)
+			w.RegisterActivity(workers.ImportYahooDataForDateActivity)
 
 			// Combined boxscore extraction (replaces separate player/team extraction)
 			w.RegisterActivity(workers.ExtractBoxscoreDataForSeasonActivity)
