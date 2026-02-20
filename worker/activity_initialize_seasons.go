@@ -4,17 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/store"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/sqlcdb"
+	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
+
+const redisSeasonsManifestKey = "seasons-manifest"
 
 // DownloadSeasonsManifestResult contains statistics from the seasons manifest download.
 type DownloadSeasonsManifestResult struct {
@@ -23,55 +28,105 @@ type DownloadSeasonsManifestResult struct {
 }
 
 // DownloadSeasonsManifestActivity downloads the NHL seasons manifest.
-// Uses SimpleFS cache; skips download if already cached.
+// Uses multi-layer caching: Redis (1h TTL) -> Filesystem (24h staleness) -> API.
 func DownloadSeasonsManifestActivity(ctx context.Context) (DownloadSeasonsManifestResult, error) {
 	fs := store.NewStore()
-	client := newNHLClient()
-	return downloadSeasonsManifestImpl(ctx, fs, client)
+	redisClient := cache.NewClient()
+	defer redisClient.Close()
+	nhlClient := newNHLClient()
+	return downloadSeasonsManifestImpl(ctx, fs, redisClient, nhlClient)
 }
 
 func downloadSeasonsManifestImpl(
 	ctx context.Context,
 	fs store.Store,
-	client NHLClient,
+	redisClient cache.Client,
+	nhlClient NHLClient,
 ) (DownloadSeasonsManifestResult, error) {
 	file := store.SeasonsManifestFile{}
 
-	// Check cache first
+	// Layer 1: Check Redis cache first
+	if data, err := redisClient.Get(ctx, redisSeasonsManifestKey).Bytes(); err == nil {
+		var seasons []nhl.SeasonInfo
+		if err := json.Unmarshal(data, &seasons); err == nil {
+			log.Debug().Int("count", len(seasons)).Msg("Seasons manifest loaded from Redis")
+			metrics.IncDownload(store.FileTypeSeasonsManifest, "redis_hit")
+			return DownloadSeasonsManifestResult{Count: len(seasons), FromCache: true}, nil
+		}
+		log.Debug().Err(err).Msg("Failed to unmarshal Redis seasons manifest")
+	}
+
+	// Layer 2: Check filesystem cache
+	var staleData []byte
 	if fs.Exists(file) {
 		data, err := fs.Read(file)
 		if err == nil {
-			var seasons []nhl.SeasonInfo
-			if err := json.Unmarshal(data, &seasons); err == nil {
-				log.Debug().Int("count", len(seasons)).Msg("Seasons manifest loaded from cache")
-				metrics.IncDownload(store.FileTypeSeasonsManifest, "hit")
-				return DownloadSeasonsManifestResult{Count: len(seasons), FromCache: true}, nil
+			// Check if file is stale
+			fullPath := fs.FullPath(file)
+			info, statErr := os.Stat(fullPath)
+			isStale := statErr != nil || time.Since(info.ModTime()) > config.DefaultSeasonsManifestStaleTTL
+
+			if !isStale {
+				var seasons []nhl.SeasonInfo
+				if err := json.Unmarshal(data, &seasons); err == nil {
+					log.Debug().Int("count", len(seasons)).Msg("Seasons manifest loaded from filesystem")
+					metrics.IncDownload(store.FileTypeSeasonsManifest, "fs_hit")
+					// Cache in Redis for faster subsequent reads
+					cacheInRedis(ctx, redisClient, data)
+					return DownloadSeasonsManifestResult{Count: len(seasons), FromCache: true}, nil
+				}
+			} else {
+				// Keep stale data for fallback
+				staleData = data
+				if statErr == nil {
+					log.Debug().Time("modTime", info.ModTime()).Msg("Seasons manifest is stale, will refresh")
+				} else {
+					log.Debug().Err(statErr).Msg("Seasons manifest stat failed, will refresh")
+				}
 			}
-			log.Debug().Err(err).Msg("Failed to unmarshal cached seasons manifest")
 		}
 	}
 
-	// Fetch from API
-	seasons, err := client.SeasonStandingManifest(ctx)
+	// Layer 3: Fetch from API
+	seasons, err := nhlClient.SeasonStandingManifest(ctx)
 	if err != nil {
+		// If download fails but we have stale data, use it with a warning
+		if len(staleData) > 0 {
+			var staleSeasons []nhl.SeasonInfo
+			if unmarshalErr := json.Unmarshal(staleData, &staleSeasons); unmarshalErr == nil {
+				log.Warn().Err(err).Int("count", len(staleSeasons)).Msg("API fetch failed, using stale seasons manifest")
+				metrics.IncDownload(store.FileTypeSeasonsManifest, "stale_fallback")
+				cacheInRedis(ctx, redisClient, staleData)
+				return DownloadSeasonsManifestResult{Count: len(staleSeasons), FromCache: true}, nil
+			}
+		}
 		metrics.IncDownload(store.FileTypeSeasonsManifest, "error")
 		return DownloadSeasonsManifestResult{}, err
 	}
 
-	// Save to cache
+	// Save to filesystem
 	data, err := json.Marshal(seasons)
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to marshal seasons manifest for cache")
+		log.Warn().Err(err).Msg("Failed to marshal seasons manifest")
 	} else {
 		if err := fs.Write(file, data); err != nil {
-			log.Warn().Err(err).Msg("Failed to write seasons manifest to cache")
+			log.Warn().Err(err).Msg("Failed to write seasons manifest to filesystem")
 		}
+		// Cache in Redis
+		cacheInRedis(ctx, redisClient, data)
 	}
 
 	log.Info().Int("count", len(seasons)).Msg("Seasons manifest downloaded from API")
-	metrics.IncDownload(store.FileTypeSeasonsManifest, "miss")
+	metrics.IncDownload(store.FileTypeSeasonsManifest, "api_fetch")
 
 	return DownloadSeasonsManifestResult{Count: len(seasons), FromCache: false}, nil
+}
+
+// cacheInRedis stores the seasons manifest in Redis with TTL.
+func cacheInRedis(ctx context.Context, client cache.Client, data []byte) {
+	if err := client.Set(ctx, redisSeasonsManifestKey, data, config.DefaultSeasonsManifestCacheTTL).Err(); err != nil {
+		log.Warn().Err(err).Msg("Failed to cache seasons manifest in Redis")
+	}
 }
 
 // DownloadSeasonStandingsResult contains statistics from downloading standings for a season.

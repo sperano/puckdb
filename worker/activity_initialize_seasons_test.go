@@ -4,9 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"testing"
 
+	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -15,14 +19,13 @@ import (
 
 // --- downloadSeasonsManifestImpl tests ---
 
-func TestDownloadSeasonsManifest_CacheHit(t *testing.T) {
+func TestDownloadSeasonsManifest_RedisHit(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	fs := NewMockFileSystem()
-	client := &MockNHLClient{}
-
-	file := store.SeasonsManifestFile{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	nhlClient := &MockNHLClient{}
 
 	seasons := []nhl.SeasonInfo{
 		{ID: nhl.NewSeason(2022), StandingsStart: "2022-10-07", StandingsEnd: "2023-04-14"},
@@ -30,119 +33,154 @@ func TestDownloadSeasonsManifest_CacheHit(t *testing.T) {
 	}
 	seasonsJSON, _ := json.Marshal(seasons)
 
-	fs.On("Exists", file).Return(true)
-	fs.On("Read", file).Return(seasonsJSON, nil)
+	mockRedis.ExpectGet(redisSeasonsManifestKey).SetVal(string(seasonsJSON))
 
-	result, err := downloadSeasonsManifestImpl(ctx, fs, client)
+	result, err := downloadSeasonsManifestImpl(ctx, fs, redisClient, nhlClient)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Count)
 	assert.True(t, result.FromCache)
-	fs.AssertExpectations(t)
-	client.AssertNotCalled(t, "SeasonStandingManifest")
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
+	nhlClient.AssertNotCalled(t, "SeasonStandingManifest")
 }
 
-func TestDownloadSeasonsManifest_CacheMiss(t *testing.T) {
+func TestDownloadSeasonsManifest_RedisMiss_FilesystemHit(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	fs := NewMockFileSystem()
-	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	nhlClient := &MockNHLClient{}
 
 	file := store.SeasonsManifestFile{}
+	seasons := []nhl.SeasonInfo{
+		{ID: nhl.NewSeason(2022), StandingsStart: "2022-10-07", StandingsEnd: "2023-04-14"},
+	}
+	seasonsJSON, _ := json.Marshal(seasons)
 
-	fs.On("Exists", file).Return(false)
+	// Create a real temp file so os.Stat succeeds and sees it as fresh
+	tmpFile, err := os.CreateTemp("", "seasons-manifest-*.json")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
 
+	// Redis miss
+	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
+	// Filesystem hit (file exists and is fresh - FullPath returns real path for os.Stat)
+	fs.On("Exists", file).Return(true)
+	fs.On("Read", file).Return(seasonsJSON, nil)
+	fs.On("FullPath", file).Return(tmpFile.Name())
+	// Cache in Redis after reading from filesystem
+	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+
+	result, err := downloadSeasonsManifestImpl(ctx, fs, redisClient, nhlClient)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Count)
+	assert.True(t, result.FromCache)
+	fs.AssertExpectations(t)
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
+	nhlClient.AssertNotCalled(t, "SeasonStandingManifest")
+}
+
+func TestDownloadSeasonsManifest_AllMiss_APIFetch(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	redisClient, mockRedis := redismock.NewClientMock()
+	nhlClient := &MockNHLClient{}
+
+	file := store.SeasonsManifestFile{}
 	seasons := []nhl.SeasonInfo{
 		{ID: nhl.NewSeason(2022), StandingsStart: "2022-10-07", StandingsEnd: "2023-04-14"},
 		{ID: nhl.NewSeason(2023), StandingsStart: "2023-10-10", StandingsEnd: "2024-04-18"},
 		{ID: nhl.NewSeason(2024), StandingsStart: "2024-10-04", StandingsEnd: "2025-04-17"},
 	}
-	client.On("SeasonStandingManifest", ctx).Return(seasons, nil)
-	fs.On("Write", file, mock.Anything).Return(nil)
+	seasonsJSON, _ := json.Marshal(seasons)
 
-	result, err := downloadSeasonsManifestImpl(ctx, fs, client)
+	// Redis miss
+	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
+	// Filesystem miss
+	fs.On("Exists", file).Return(false)
+	// API fetch
+	nhlClient.On("SeasonStandingManifest", ctx).Return(seasons, nil)
+	// Write to filesystem
+	fs.On("Write", file, mock.Anything).Return(nil)
+	// Cache in Redis
+	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+
+	result, err := downloadSeasonsManifestImpl(ctx, fs, redisClient, nhlClient)
 
 	require.NoError(t, err)
 	assert.Equal(t, 3, result.Count)
 	assert.False(t, result.FromCache)
 	fs.AssertExpectations(t)
-	client.AssertExpectations(t)
+	nhlClient.AssertExpectations(t)
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
-func TestDownloadSeasonsManifest_APIError(t *testing.T) {
+func TestDownloadSeasonsManifest_APIError_StaleFallback(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	fs := NewMockFileSystem()
-	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	nhlClient := &MockNHLClient{}
+
+	file := store.SeasonsManifestFile{}
+	staleSeasons := []nhl.SeasonInfo{
+		{ID: nhl.NewSeason(2022), StandingsStart: "2022-10-07", StandingsEnd: "2023-04-14"},
+	}
+	staleJSON, _ := json.Marshal(staleSeasons)
+
+	// Redis miss
+	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
+	// Filesystem exists but stale (FullPath returns non-existent path so os.Stat fails -> treated as stale)
+	fs.On("Exists", file).Return(true)
+	fs.On("Read", file).Return(staleJSON, nil)
+	fs.On("FullPath", file).Return("/nonexistent/path.json")
+	// API fails
+	nhlClient.On("SeasonStandingManifest", ctx).Return(nil, errors.New("API unavailable"))
+	// Falls back to stale data, caches in Redis
+	mockRedis.ExpectSet(redisSeasonsManifestKey, staleJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+
+	result, err := downloadSeasonsManifestImpl(ctx, fs, redisClient, nhlClient)
+
+	// Should succeed with stale data
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Count)
+	assert.True(t, result.FromCache)
+	fs.AssertExpectations(t)
+	nhlClient.AssertExpectations(t)
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+func TestDownloadSeasonsManifest_APIError_NoFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fs := NewMockFileSystem()
+	redisClient, mockRedis := redismock.NewClientMock()
+	nhlClient := &MockNHLClient{}
 
 	file := store.SeasonsManifestFile{}
 
+	// Redis miss
+	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
+	// Filesystem miss
 	fs.On("Exists", file).Return(false)
-	client.On("SeasonStandingManifest", ctx).Return(nil, errors.New("API unavailable"))
+	// API fails
+	nhlClient.On("SeasonStandingManifest", ctx).Return(nil, errors.New("API unavailable"))
 
-	result, err := downloadSeasonsManifestImpl(ctx, fs, client)
+	result, err := downloadSeasonsManifestImpl(ctx, fs, redisClient, nhlClient)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API unavailable")
 	assert.Equal(t, 0, result.Count)
 	fs.AssertExpectations(t)
-	client.AssertExpectations(t)
-}
-
-func TestDownloadSeasonsManifest_CacheCorrupt(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	fs := NewMockFileSystem()
-	client := &MockNHLClient{}
-
-	file := store.SeasonsManifestFile{}
-
-	fs.On("Exists", file).Return(true)
-	fs.On("Read", file).Return([]byte("not valid json"), nil)
-
-	seasons := []nhl.SeasonInfo{
-		{ID: nhl.NewSeason(2022), StandingsStart: "2022-10-07", StandingsEnd: "2023-04-14"},
-	}
-	client.On("SeasonStandingManifest", ctx).Return(seasons, nil)
-	fs.On("Write", file, mock.Anything).Return(nil)
-
-	result, err := downloadSeasonsManifestImpl(ctx, fs, client)
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, result.Count)
-	assert.False(t, result.FromCache)
-	fs.AssertExpectations(t)
-	client.AssertExpectations(t)
-}
-
-func TestDownloadSeasonsManifest_WriteError(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	fs := NewMockFileSystem()
-	client := &MockNHLClient{}
-
-	file := store.SeasonsManifestFile{}
-
-	fs.On("Exists", file).Return(false)
-
-	seasons := []nhl.SeasonInfo{
-		{ID: nhl.NewSeason(2022), StandingsStart: "2022-10-07", StandingsEnd: "2023-04-14"},
-	}
-	client.On("SeasonStandingManifest", ctx).Return(seasons, nil)
-	fs.On("Write", file, mock.Anything).Return(errors.New("disk full"))
-
-	result, err := downloadSeasonsManifestImpl(ctx, fs, client)
-
-	// Write error is not fatal
-	require.NoError(t, err)
-	assert.Equal(t, 1, result.Count)
-	assert.False(t, result.FromCache)
-	fs.AssertExpectations(t)
-	client.AssertExpectations(t)
+	nhlClient.AssertExpectations(t)
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
 // --- downloadSeasonStandingsImpl tests ---

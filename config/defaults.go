@@ -72,7 +72,9 @@ const (
 
 // Cache defaults
 const (
-	DefaultGameIDCacheTTL = 3600
+	DefaultGameIDCacheTTL          = 3600
+	DefaultSeasonsManifestCacheTTL = 1 * time.Hour  // Redis TTL
+	DefaultSeasonsManifestStaleTTL = 24 * time.Hour // Filesystem staleness
 )
 
 // Redis defaults
