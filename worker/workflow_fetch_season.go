@@ -70,7 +70,7 @@ func FetchSeasonWorkflow(ctx workflow.Context, season SeasonInfo) error {
 	startYear := season.StartYear()
 	err = tracker.RunWorkerPool(ctx, numDays, concurrency, func(ctx workflow.Context, i int) workflow.Future {
 		day := startDate.AddDate(0, 0, i)
-		dayInput := &FetchDayInput{
+		dayInput := FetchDayInput{
 			Day:       day,
 			StartYear: startYear,
 			TeamIDs:   teamIDs,

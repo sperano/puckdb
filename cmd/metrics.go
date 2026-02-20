@@ -31,40 +31,33 @@ Collectors:
 Each collector runs independently at its own interval.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			flags := cmd.Flags()
-			if err := config.DataPathFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
-				return err
-			}
+			// FlagMetricsPortLocal is aliased to config.FlagMetricsPort
 			if err := viper.BindPFlag(config.FlagMetricsPort, flags.Lookup(FlagMetricsPortLocal)); err != nil {
 				return err
 			}
-			if err := config.MetricsIntervalFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.RedisFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.PostgresFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.GameIDCacheFlags.Bind(flags); err != nil {
-				return err
-			}
-			return config.SeasonRangeFlags.Bind(flags)
+			return config.BindFlags(flags,
+				&config.DataPathFlags,
+				&config.YahooSeasonsFlags,
+				&config.MetricsIntervalFlags,
+				&config.RedisFlags,
+				&config.PostgresFlags,
+				&config.GameIDCacheFlags,
+				&config.SeasonRangeFlags,
+			)
 		},
 		RunE: runMetrics,
 	}
 	flags := cmd.Flags()
-	config.DataPathFlags.Init(flags)
-	config.SeasonRangeFlags.Init(flags)
-	config.RedisFlags.Init(flags)
-	config.PostgresFlags.Init(flags)
-	config.GameIDCacheFlags.Init(flags)
-	flags.StringP(config.FlagYahooSeasons, "S", config.DefaultYahooSeasonsFile, "Yahoo seasons config file (optional, enables Yahoo file checks)")
+	config.InitFlags(flags,
+		&config.DataPathFlags,
+		&config.YahooSeasonsFlags,
+		&config.SeasonRangeFlags,
+		&config.RedisFlags,
+		&config.PostgresFlags,
+		&config.GameIDCacheFlags,
+		&config.MetricsIntervalFlags,
+	)
 	flags.Int(FlagMetricsPortLocal, config.DefaultMetricsPort, "Port for metrics endpoint")
-	config.MetricsIntervalFlags.Init(flags)
 	return cmd
 }
 

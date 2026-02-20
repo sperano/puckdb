@@ -242,7 +242,7 @@ func TestEnsurePlayerLandingCached_WriteError(t *testing.T) {
 	// Write fails
 	fs.On("Write", landingFile, mock.Anything).Return(errors.New("disk full"))
 
-	status, err := ensurePlayerLandingCached(ctx, fs, client, playerID, &boxscorePlayer)
+	status, err := ensurePlayerLandingCached(ctx, fs, client, playerID, boxscorePlayer)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "write player")
@@ -275,7 +275,7 @@ func TestEnsurePlayerLandingCached_404SaveMissingError(t *testing.T) {
 	// Writing missing file fails (but operation should still succeed)
 	fs.On("Write", missingFile, mock.Anything).Return(errors.New("disk full"))
 
-	status, err := ensurePlayerLandingCached(ctx, fs, client, playerID, &boxscorePlayer)
+	status, err := ensurePlayerLandingCached(ctx, fs, client, playerID, boxscorePlayer)
 
 	// Should still succeed - save failure is logged but not fatal
 	require.NoError(t, err)

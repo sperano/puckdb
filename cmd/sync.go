@@ -39,9 +39,11 @@ func cmdSync() *cobra.Command {
 		},
 	}
 	flags := cmd.PersistentFlags()
-	config.SeasonRangeFlags.Init(flags)
-	config.SeasonConcurrencyFlags.Init(flags)
-	config.SyncSkipFlags.Init(flags)
+	config.InitFlags(flags,
+		&config.SeasonRangeFlags,
+		&config.SeasonConcurrencyFlags,
+		&config.SyncSkipFlags,
+	)
 	return cmd
 }
 
@@ -53,13 +55,11 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 	if err := config.APIServerAddrFlags.Bind(cmd.Root().PersistentFlags()); err != nil {
 		return err
 	}
-	if err := config.SeasonRangeFlags.Bind(flags); err != nil {
-		return err
-	}
-	if err := config.SeasonConcurrencyFlags.Bind(flags); err != nil {
-		return err
-	}
-	if err := config.SyncSkipFlags.Bind(flags); err != nil {
+	if err := config.BindFlags(flags,
+		&config.SeasonRangeFlags,
+		&config.SeasonConcurrencyFlags,
+		&config.SyncSkipFlags,
+	); err != nil {
 		return err
 	}
 	BindFlags(cmd.PersistentFlags())

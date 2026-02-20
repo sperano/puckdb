@@ -43,6 +43,23 @@ func NewGraphQLClient(endpoint string) *GraphQLClient {
 	}
 }
 
+// executeBoolMutation handles mutations that return a single boolean field.
+func (c *GraphQLClient) executeBoolMutation(ctx context.Context, mutation, field string, variables map[string]any) (bool, error) {
+	resp, err := c.execute(ctx, mutation, variables)
+	if err != nil {
+		return false, err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(resp.Data, &raw); err != nil {
+		return false, fmt.Errorf("parse response: %w", err)
+	}
+	var result bool
+	if err := json.Unmarshal(raw[field], &result); err != nil {
+		return false, fmt.Errorf("parse %s: %w", field, err)
+	}
+	return result, nil
+}
+
 // execute sends a GraphQL request and returns the response
 func (c *GraphQLClient) execute(ctx context.Context, query string, variables map[string]any) (*graphQLResponse, error) {
 	reqBody := graphQLRequest{

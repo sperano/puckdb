@@ -35,7 +35,7 @@ func downloadPlayerLandingBatchImpl(
 		}
 
 		playerID := nhl.PlayerID(p.ID)
-		status, err := ensurePlayerLandingCached(ctx, fs, client, playerID, &p)
+		status, err := ensurePlayerLandingCached(ctx, fs, client, playerID, p)
 		if err != nil {
 			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
 			return result, err
@@ -79,7 +79,7 @@ func ensurePlayerLandingCached(
 	fs store.Store,
 	client NHLClient,
 	playerID nhl.PlayerID,
-	boxscorePlayer *BoxscorePlayer,
+	boxscorePlayer BoxscorePlayer,
 ) (playerLandingStatus, error) {
 	landingFile := store.PlayerLandingFile{PlayerID: playerID}
 	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
@@ -123,7 +123,7 @@ func ensurePlayerLandingCached(
 }
 
 // saveMissingPlayerLanding saves boxscore player data to a missing player landing file.
-func saveMissingPlayerLanding(fs store.Store, file store.MissingPlayerLandingFile, player *BoxscorePlayer) error {
+func saveMissingPlayerLanding(fs store.Store, file store.MissingPlayerLandingFile, player BoxscorePlayer) error {
 	data := store.MissingPlayerLandingData{
 		FirstName: player.FirstName,
 		LastName:  player.LastName,

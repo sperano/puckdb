@@ -28,7 +28,7 @@ func Root() *cobra.Command {
 	config.InitLoggingFlags(flags, config.DefaultLogLevel, config.DefaultLogFile)
 	config.APIServerAddrFlags.Init(flags)
 
-	rootCmd.AddCommand(cmdAPI(), cmdCacheCheck(), cmdDB(), cmdInfo(), cmdMetrics(), cmdRedis(), cmdSync(), cmdWorker(), cmdYahoo())
+	rootCmd.AddCommand(cmdAPI(), cmdDB(), cmdInfo(), cmdMetrics(), cmdRedis(), cmdSync(), cmdWorker(), cmdYahoo())
 
 	cobra.OnInitialize(func() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})

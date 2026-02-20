@@ -42,10 +42,10 @@ func cmdDBMigrate() *cobra.Command {
 		Short: "Run database migrations directly",
 		Long:  `Run database migrations directly without going through GraphQL API. Designed for init containers.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := config.RedisFlags.Bind(cmd.Flags()); err != nil {
-				return err
-			}
-			return config.PostgresFlags.Bind(cmd.Flags())
+			return config.BindFlags(cmd.Flags(),
+				&config.RedisFlags,
+				&config.PostgresFlags,
+			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
@@ -75,8 +75,10 @@ func cmdDBMigrate() *cobra.Command {
 		},
 	}
 	flags := cmd.Flags()
-	config.RedisFlags.Init(flags)
-	config.PostgresFlags.Init(flags)
+	config.InitFlags(flags,
+		&config.RedisFlags,
+		&config.PostgresFlags,
+	)
 	return cmd
 }
 
@@ -86,7 +88,7 @@ func cmdDBInit() *cobra.Command {
 		Short: "Initialize database",
 		Long:  `Run database migrations via GraphQL API. Uses Redis lock to prevent concurrent migrations.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.RedisFlags.Bind(cmd.Flags())
+			return config.BindFlags(cmd.Flags(), &config.RedisFlags)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getGraphQLClient()
@@ -123,7 +125,7 @@ func cmdDBInit() *cobra.Command {
 			return nil
 		},
 	}
-	config.RedisFlags.Init(cmd.Flags())
+	config.InitFlags(cmd.Flags(), &config.RedisFlags)
 	return cmd
 }
 
@@ -161,21 +163,19 @@ func cmdDBProvision() *cobra.Command {
 Uses provisioner credentials to create the target database and user.
 This command is idempotent and uses a Redis lock to prevent concurrent runs.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			if err := config.RedisFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.ProvisionerFlags.Bind(flags); err != nil {
-				return err
-			}
-			return config.PostgresFlags.Bind(flags)
+			return config.BindFlags(cmd.Flags(),
+				&config.RedisFlags,
+				&config.ProvisionerFlags,
+				&config.PostgresFlags,
+			)
 		},
 		RunE: runDBProvision,
 	}
-	flags := cmd.Flags()
-	config.RedisFlags.Init(flags)
-	config.ProvisionerFlags.Init(flags)
-	config.PostgresFlags.Init(flags)
+	config.InitFlags(cmd.Flags(),
+		&config.RedisFlags,
+		&config.ProvisionerFlags,
+		&config.PostgresFlags,
+	)
 	return cmd
 }
 

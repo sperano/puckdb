@@ -13,7 +13,7 @@ import (
 func TestDownloadPlayerGameLogsImpl_EmptyInput(t *testing.T) {
 	mockFS := NewMockFileSystem()
 
-	input := &DownloadPlayerGameLogsInput{
+	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{},
 		StartYear: 2024,
 	}
@@ -37,7 +37,7 @@ func TestDownloadPlayerGameLogsImpl_CacheHit(t *testing.T) {
 	}
 	mockFS.On("Exists", file).Return(true)
 
-	input := &DownloadPlayerGameLogsInput{
+	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{8478402},
 		StartYear: 2024,
 		GameTypes: []int{nhl.GameTypeRegularSeason.ToInt()},
@@ -73,7 +73,7 @@ func TestDownloadPlayerGameLogsImpl_MultipleGameTypes(t *testing.T) {
 	}
 	mockFS.On("Exists", playoffsFile).Return(true)
 
-	input := &DownloadPlayerGameLogsInput{
+	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{8478402},
 		StartYear: 2024,
 		GameTypes: []int{nhl.GameTypeRegularSeason.ToInt(), nhl.GameTypePlayoffs.ToInt()},
@@ -91,7 +91,7 @@ func TestDownloadPlayerGameLogsImpl_MultipleGameTypes(t *testing.T) {
 func TestDownloadPlayerGameLogsImpl_InvalidGameType(t *testing.T) {
 	mockFS := NewMockFileSystem()
 
-	input := &DownloadPlayerGameLogsInput{
+	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{8478402},
 		StartYear: 2024,
 		GameTypes: []int{99}, // Invalid game type
@@ -117,7 +117,7 @@ func TestDownloadPlayerGameLogsImpl_DefaultsToRegularSeason(t *testing.T) {
 	}
 	mockFS.On("Exists", file).Return(true)
 
-	input := &DownloadPlayerGameLogsInput{
+	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{8478402},
 		StartYear: 2024,
 		// No GameTypes specified - should default to regular season
@@ -137,7 +137,7 @@ func TestDownloadPlayerGameLogsImpl_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	input := &DownloadPlayerGameLogsInput{
+	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{8478402, 8479318},
 		StartYear: 2024,
 	}

@@ -17,7 +17,7 @@ func TestFetchDay_NoTeams(t *testing.T) {
 	fetcher := &MockDayFetcher{}
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
-	input := &FetchDayInput{
+	input := FetchDayInput{
 		Day:       day,
 		StartYear: 2023,
 		TeamIDs:   []TeamInfo{},
@@ -40,7 +40,7 @@ func TestFetchDay_WithTeams(t *testing.T) {
 	fetcher := &MockDayFetcher{}
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
-	input := &FetchDayInput{
+	input := FetchDayInput{
 		Day:       day,
 		StartYear: 2023,
 		TeamIDs: []TeamInfo{
@@ -68,7 +68,7 @@ func TestFetchDay_DailyScheduleError(t *testing.T) {
 	fetcher := &MockDayFetcher{}
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
-	input := &FetchDayInput{
+	input := FetchDayInput{
 		Day:       day,
 		StartYear: 2023,
 		TeamIDs:   []TeamInfo{{LeagueID: 123, TeamID: 1}},
@@ -92,7 +92,7 @@ func TestFetchDay_RosterError(t *testing.T) {
 	fetcher := &MockDayFetcher{}
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
-	input := &FetchDayInput{
+	input := FetchDayInput{
 		Day:       day,
 		StartYear: 2023,
 		TeamIDs:   []TeamInfo{{LeagueID: 123, TeamID: 1}},
@@ -116,7 +116,7 @@ func TestFetchDay_TeamSummaryError(t *testing.T) {
 	fetcher := &MockDayFetcher{}
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
-	input := &FetchDayInput{
+	input := FetchDayInput{
 		Day:       day,
 		StartYear: 2023,
 		TeamIDs:   []TeamInfo{{LeagueID: 123, TeamID: 1}},
@@ -140,7 +140,7 @@ func TestFetchDay_SecondTeamRosterError(t *testing.T) {
 	fetcher := &MockDayFetcher{}
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
-	input := &FetchDayInput{
+	input := FetchDayInput{
 		Day:       day,
 		StartYear: 2023,
 		TeamIDs: []TeamInfo{
@@ -168,7 +168,7 @@ func TestFetchDay_ContextCancelled(t *testing.T) {
 	fetcher := &MockDayFetcher{}
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
-	input := &FetchDayInput{
+	input := FetchDayInput{
 		Day:       day,
 		StartYear: 2023,
 		TeamIDs: []TeamInfo{

@@ -96,7 +96,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []Box
 		playerID := nhl.PlayerID(p.ID)
 
 		// Step 1: Download player landing (if not cached)
-		downloadStatus, err := ensurePlayerLandingCached(ctx, deps.fs, deps.nhlClient, playerID, &p)
+		downloadStatus, err := ensurePlayerLandingCached(ctx, deps.fs, deps.nhlClient, playerID, p)
 		if err != nil {
 			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
 			return result, err
@@ -113,7 +113,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []Box
 			result.Missing++
 			metrics.IncDownload("PlayerLanding", "missing")
 			// Import missing player with minimal info from boxscore data
-			if err := importMissingPlayer(ctx, deps, &p); err != nil {
+			if err := importMissingPlayer(ctx, deps, p); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("player %d (missing): import error: %v", p.ID, err))
 			} else {
 				result.Imported++
@@ -294,7 +294,7 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResu
 
 // importMissingPlayer imports a player with minimal info from boxscore data.
 // These are players who returned 404 from the NHL API but appear in boxscores.
-func importMissingPlayer(ctx context.Context, deps processDeps, p *BoxscorePlayer) error {
+func importMissingPlayer(ctx context.Context, deps processDeps, p BoxscorePlayer) error {
 	firstName := strings.TrimSpace(p.FirstName)
 	lastName := strings.TrimSpace(p.LastName)
 	position := strings.TrimSpace(p.Position)

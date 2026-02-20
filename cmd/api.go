@@ -41,26 +41,16 @@ func cmdAPI() *cobra.Command {
 		Short: "Start HTTP/GraphQL server",
 		Long:  `Start the HTTP server with GraphQL endpoint and Yahoo OAuth handlers`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			if err := config.YahooOAuth2Flags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.DataPathFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.RedisFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.PostgresFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.TemporalFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.APIPortFlags.Bind(flags); err != nil {
-				return err
-			}
-			return config.TLSFlags.Bind(flags)
+			return config.BindFlags(cmd.Flags(),
+				&config.YahooOAuth2Flags,
+				&config.YahooSeasonsFlags,
+				&config.DataPathFlags,
+				&config.RedisFlags,
+				&config.PostgresFlags,
+				&config.TemporalFlags,
+				&config.APIPortFlags,
+				&config.TLSFlags,
+			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.LogFlagValues()
@@ -90,14 +80,16 @@ func cmdAPI() *cobra.Command {
 		},
 	}
 	flags := cmd.Flags()
-	config.DataPathFlags.Init(flags)
-	config.RedisFlags.Init(flags)
-	config.InitSeasonsFlag(cmd, flags, false)
-	config.YahooOAuth2Flags.Init(flags)
-	config.PostgresFlags.Init(flags)
-	config.TemporalFlags.Init(flags)
-	config.APIPortFlags.Init(flags)
-	config.TLSFlags.Init(flags)
+	config.InitFlags(flags,
+		&config.DataPathFlags,
+		&config.RedisFlags,
+		&config.YahooOAuth2Flags,
+		&config.YahooSeasonsFlags,
+		&config.PostgresFlags,
+		&config.TemporalFlags,
+		&config.APIPortFlags,
+		&config.TLSFlags,
+	)
 	return cmd
 }
 

@@ -21,38 +21,19 @@ func cmdInfo() *cobra.Command {
 		Short: "Show configuration",
 		Long:  `Display current configuration values and Yahoo OAuth token status.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
-				return err
-			}
-			if err := config.YahooOAuth2Flags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.DataPathFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.RedisFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.PostgresFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.TemporalFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.TemporalRetryFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.APIPortFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.MetricsPortFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.TLSFlags.Bind(flags); err != nil {
-				return err
-			}
-			return config.WorkerPortFlags.Bind(flags)
+			return config.BindFlags(cmd.Flags(),
+				&config.YahooOAuth2Flags,
+				&config.YahooSeasonsFlags,
+				&config.DataPathFlags,
+				&config.RedisFlags,
+				&config.PostgresFlags,
+				&config.TemporalFlags,
+				&config.TemporalRetryFlags,
+				&config.APIPortFlags,
+				&config.MetricsPortFlags,
+				&config.WorkerPortFlags,
+				&config.TLSFlags,
+			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			redisClient := cache.NewClient()
@@ -61,17 +42,19 @@ func cmdInfo() *cobra.Command {
 		},
 	}
 	flags := cmd.Flags()
-	config.APIPortFlags.Init(flags)
-	config.DataPathFlags.Init(flags)
-	config.MetricsPortFlags.Init(flags)
-	config.PostgresFlags.Init(flags)
-	config.RedisFlags.Init(flags)
-	config.InitSeasonsFlag(cmd, flags, false)
-	config.TemporalFlags.Init(flags)
-	config.TemporalRetryFlags.Init(flags)
-	config.WorkerPortFlags.Init(flags)
-	config.YahooOAuth2Flags.Init(flags)
-	config.TLSFlags.Init(flags)
+	config.InitFlags(flags,
+		&config.APIPortFlags,
+		&config.DataPathFlags,
+		&config.MetricsPortFlags,
+		&config.PostgresFlags,
+		&config.RedisFlags,
+		&config.YahooSeasonsFlags,
+		&config.TemporalFlags,
+		&config.TemporalRetryFlags,
+		&config.WorkerPortFlags,
+		&config.YahooOAuth2Flags,
+		&config.TLSFlags,
+	)
 	return cmd
 }
 

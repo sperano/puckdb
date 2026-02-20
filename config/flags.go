@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -71,6 +70,23 @@ func (g *FlagGroup) sensitiveFlags() map[string]bool {
 		}
 	}
 	return result
+}
+
+// BindFlags binds multiple flag groups to viper, returning first error.
+func BindFlags(flags *flag.FlagSet, groups ...*FlagGroup) error {
+	for _, g := range groups {
+		if err := g.Bind(flags); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// InitFlags registers multiple flag groups with the FlagSet.
+func InitFlags(flags *flag.FlagSet, groups ...*FlagGroup) {
+	for _, g := range groups {
+		g.Init(flags)
+	}
 }
 
 // Flag name constants - used by viper.Get* calls throughout the codebase
@@ -251,6 +267,13 @@ var YahooOAuth2Flags = FlagGroup{
 		{FlagYahooOAuth2ClientSecret, "", "", "Yahoo! OAuth2 Client Secret", true},
 		{FlagPublicURL, "", "", "Public URL for OAuth callbacks (e.g., https://localhost:8787 or http://api.example.com)", false},
 		{FlagYahooLogToken, "", false, "Log the token after successful authentication (for debugging)", false},
+	},
+}
+
+// YahooSeasonsFlags defines the Yahoo seasons configuration file flag.
+var YahooSeasonsFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagYahooSeasons, "S", DefaultYahooSeasonsFile, "Yahoo seasons config file", false},
 	},
 }
 
@@ -441,21 +464,6 @@ func BindLoggingFlags(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagLogFile, flags.Lookup(FlagLogFile))
 }
 
-// InitSeasonsFlag initializes the Yahoo seasons flag with required validation.
-func InitSeasonsFlag(cmd *cobra.Command, flags *flag.FlagSet, persistent bool) {
-	flags.StringP(FlagYahooSeasons, "S", DefaultYahooSeasonsFile, "Yahoo seasons config file")
-	var err error
-	if persistent {
-		err = cmd.MarkPersistentFlagRequired(FlagYahooSeasons)
-	} else {
-		err = cmd.MarkFlagRequired(FlagYahooSeasons)
-	}
-	if err != nil {
-		// This can only happen if FlagYahooSeasons doesn't exist, which is
-		// impossible since we just added it above. Panic on programmer error.
-		panic(fmt.Sprintf("failed to mark %s flag as required: %v", FlagYahooSeasons, err))
-	}
-}
 
 // GetSeasonRange returns start and end season years from flags.
 // If --season is set, it returns that value for both.
@@ -526,4 +534,3 @@ func LogFlagValues() {
 		}
 	}
 }
-

@@ -18,47 +18,22 @@ func cmdWorker() *cobra.Command {
 		Short: "Start Temporal worker",
 		Long:  `Start the Temporal worker to process import workflows`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			flags := cmd.Flags()
-			if err := config.YahooOAuth2Flags.Bind(flags); err != nil {
-				return err
-			}
-			if err := viper.BindPFlag(config.FlagYahooSeasons, flags.Lookup(config.FlagYahooSeasons)); err != nil {
-				return err
-			}
-			if err := config.DataPathFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.RedisFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.PostgresFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.TemporalFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.TemporalRetryFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.WorkerPortFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.DownloadConcurrencyFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.YahooPlayerFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.GameIDCacheFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.YahooDownloadSleepFlags.Bind(flags); err != nil {
-				return err
-			}
-			if err := config.WorkerConcurrencyFlags.Bind(flags); err != nil {
-				return err
-			}
-			return config.PlayerLandingFlags.Bind(flags)
+			return config.BindFlags(cmd.Flags(),
+				&config.YahooOAuth2Flags,
+				&config.YahooSeasonsFlags,
+				&config.DataPathFlags,
+				&config.RedisFlags,
+				&config.PostgresFlags,
+				&config.TemporalFlags,
+				&config.TemporalRetryFlags,
+				&config.WorkerPortFlags,
+				&config.DownloadConcurrencyFlags,
+				&config.YahooPlayerFlags,
+				&config.GameIDCacheFlags,
+				&config.YahooDownloadSleepFlags,
+				&config.WorkerConcurrencyFlags,
+				&config.PlayerLandingFlags,
+			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.LogFlagValues()
@@ -129,19 +104,21 @@ func cmdWorker() *cobra.Command {
 		},
 	}
 	flags := cmd.Flags()
-	config.YahooOAuth2Flags.Init(flags)
-	config.InitSeasonsFlag(cmd, flags, false)
-	config.DataPathFlags.Init(flags)
-	config.RedisFlags.Init(flags)
-	config.PostgresFlags.Init(flags)
-	config.TemporalFlags.Init(flags)
-	config.TemporalRetryFlags.Init(flags)
-	config.WorkerPortFlags.Init(flags)
-	config.DownloadConcurrencyFlags.Init(flags)
-	config.YahooPlayerFlags.Init(flags)
-	config.GameIDCacheFlags.Init(flags)
-	config.YahooDownloadSleepFlags.Init(flags)
-	config.WorkerConcurrencyFlags.Init(flags)
-	config.PlayerLandingFlags.Init(flags)
+	config.InitFlags(flags,
+		&config.YahooOAuth2Flags,
+		&config.YahooSeasonsFlags,
+		&config.DataPathFlags,
+		&config.RedisFlags,
+		&config.PostgresFlags,
+		&config.TemporalFlags,
+		&config.TemporalRetryFlags,
+		&config.WorkerPortFlags,
+		&config.DownloadConcurrencyFlags,
+		&config.YahooPlayerFlags,
+		&config.GameIDCacheFlags,
+		&config.YahooDownloadSleepFlags,
+		&config.WorkerConcurrencyFlags,
+		&config.PlayerLandingFlags,
+	)
 	return cmd
 }

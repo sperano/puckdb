@@ -26,7 +26,7 @@ type DownloadPlayerGameLogsResult struct {
 }
 
 // DownloadPlayerGameLogsActivity downloads player game logs for specified players and season.
-func DownloadPlayerGameLogsActivity(ctx context.Context, input *DownloadPlayerGameLogsInput) (*DownloadPlayerGameLogsResult, error) {
+func DownloadPlayerGameLogsActivity(ctx context.Context, input DownloadPlayerGameLogsInput) (*DownloadPlayerGameLogsResult, error) {
 	start := time.Now()
 	defer func() {
 		metrics.ObserveActivityDuration("DownloadPlayerGameLogsActivity", time.Since(start))
@@ -36,7 +36,7 @@ func DownloadPlayerGameLogsActivity(ctx context.Context, input *DownloadPlayerGa
 	return downloadPlayerGameLogsImpl(ctx, fs, input)
 }
 
-func downloadPlayerGameLogsImpl(ctx context.Context, fs store.Store, input *DownloadPlayerGameLogsInput) (*DownloadPlayerGameLogsResult, error) {
+func downloadPlayerGameLogsImpl(ctx context.Context, fs store.Store, input DownloadPlayerGameLogsInput) (*DownloadPlayerGameLogsResult, error) {
 	result := &DownloadPlayerGameLogsResult{}
 
 	if len(input.PlayerIDs) == 0 {

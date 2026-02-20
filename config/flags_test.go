@@ -6,7 +6,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -155,31 +154,17 @@ func TestBindLoggingFlags(t *testing.T) {
 	assert.Equal(t, "debug", viper.GetString(FlagLogLevel))
 }
 
-func TestInitSeasonsFlag(t *testing.T) {
+func TestYahooSeasonsFlags(t *testing.T) {
 	t.Parallel()
-	cmd := &cobra.Command{Use: "test"}
-	flags := cmd.Flags()
+	flags := flag.NewFlagSet("test", flag.ContinueOnError)
 
-	InitSeasonsFlag(cmd, flags, false)
+	YahooSeasonsFlags.Init(flags)
 
 	// Verify flag was registered
 	f := flags.Lookup(FlagYahooSeasons)
 	require.NotNil(t, f)
 	assert.Equal(t, DefaultYahooSeasonsFile, f.DefValue)
 	assert.Equal(t, "S", f.Shorthand)
-}
-
-func TestInitSeasonsFlag_Persistent(t *testing.T) {
-	t.Parallel()
-	cmd := &cobra.Command{Use: "test"}
-	flags := cmd.PersistentFlags()
-
-	InitSeasonsFlag(cmd, flags, true)
-
-	// Verify flag was registered on persistent flags
-	f := flags.Lookup(FlagYahooSeasons)
-	require.NotNil(t, f)
-	assert.Equal(t, DefaultYahooSeasonsFile, f.DefValue)
 }
 
 func TestSetupViper(t *testing.T) {
