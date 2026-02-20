@@ -12,6 +12,7 @@ import (
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
 
@@ -58,7 +59,7 @@ type GenericClient struct {
 const UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 func (c *GenericClient) Download(url string) ([]byte, error) {
-	log.Info().Str("url", url).Msg("Downloading")
+	log.Trace().Str("url", url).Msg("Downloading")
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -133,7 +134,13 @@ func DownloadYahoo(ctx context.Context, redisClient cache.Client, url string) ([
 	// this can fail if no oauth2 token is found in redis
 	client, err := NewYahooClient(ctx, redisClient)
 	if err != nil {
-		return nil, err
+		// Wrap OAuth2 token missing error with full login URL
+		var tokenErr *cache.OAuth2TokenMissingError
+		if errors.As(err, &tokenErr) {
+			publicURL := viper.GetString(config.FlagPublicURL)
+			return nil, fmt.Errorf("%s: %w", url, cache.NewOAuth2TokenMissingErrorWithURL(publicURL))
+		}
+		return nil, fmt.Errorf("%s: %w", url, err)
 	}
 	data, err := client.Download(url)
 	return data, err
