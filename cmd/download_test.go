@@ -136,10 +136,7 @@ func TestGraphQLClient_GetDownloadEverythingStatus(t *testing.T) {
 		},
 	}
 
-	expectedQuery := `query {
-		downloadEverythingResult { status failureReason }
-		downloadEverythingProgress { total completed message }
-	}`
+	expectedQuery := `query { downloadEverythingResult { status failureReason } downloadEverythingProgress { total completed message } }`
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -347,10 +344,7 @@ func TestGraphQLClient_GetDownloadEverythingForSeasonStatus(t *testing.T) {
 		},
 	}
 
-	expectedQuery := `query($season: Int!) {
-		downloadEverythingForSeasonResult(season: $season) { status failureReason }
-		downloadEverythingForSeasonProgress(season: $season) { total completed }
-	}`
+	expectedQuery := `query($season: Int!) { downloadEverythingForSeasonResult(season: $season) { status failureReason } downloadEverythingForSeasonProgress(season: $season) { total completed } }`
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

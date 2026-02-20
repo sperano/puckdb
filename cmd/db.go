@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bsm/redislock"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
 	"github.com/spf13/cobra"
@@ -48,34 +46,16 @@ func cmdDBMigrate() *cobra.Command {
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
-
-			redisClient := cache.NewClient()
-			defer func() { _ = redisClient.Close() }()
-
-			locker := redislock.New(redisClient)
-			lock, err := locker.Obtain(ctx, dbMigrateLockName, config.DefaultDBInitLockTTL, nil)
-			if err == redislock.ErrNotObtained {
-				log.Warn().Msg("Could not obtain lock, another process is running migrations")
-				return nil
-			} else if err != nil {
-				return fmt.Errorf("failed to acquire lock: %w", err)
-			}
-			defer func() {
-				if err := lock.Release(ctx); err != nil {
-					log.Error().Err(err).Msg("Failed to release lock")
+			return withRedisLock(cmd.Context(), dbMigrateLockName, config.DefaultDBInitLockTTL, func() error {
+				if err := database.DoMigration(); err != nil {
+					return fmt.Errorf("migration failed: %w", err)
 				}
-			}()
-
-			if err := database.DoMigration(); err != nil {
-				return fmt.Errorf("migration failed: %w", err)
-			}
-			log.Info().Msg("Database migrations completed successfully")
-			return nil
+				log.Info().Msg("Database migrations completed successfully")
+				return nil
+			})
 		},
 	}
-	flags := cmd.Flags()
-	config.InitFlags(flags,
+	config.InitFlags(cmd.Flags(),
 		&config.RedisFlags,
 		&config.PostgresFlags,
 	)
@@ -95,34 +75,17 @@ func cmdDBInit() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			ctx := context.Background()
-
-			redisClient := cache.NewClient()
-			defer func() { _ = redisClient.Close() }()
-
-			locker := redislock.New(redisClient)
-			lock, err := locker.Obtain(ctx, dbInitLockName, config.DefaultDBInitLockTTL, nil)
-			if err == redislock.ErrNotObtained {
-				log.Warn().Msg("Could not obtain lock, another process is probably doing the database migration")
-				return nil
-			} else if err != nil {
-				return fmt.Errorf("failed to acquire lock: %w", err)
-			}
-			defer func() {
-				if err := lock.Release(ctx); err != nil {
-					log.Error().Err(err).Msg("Failed to release lock")
+			ctx := cmd.Context()
+			return withRedisLock(ctx, dbInitLockName, config.DefaultDBInitLockTTL, func() error {
+				success, err := client.CreateDatabase(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to initialize database: %w", err)
 				}
-			}()
-
-			success, err := client.CreateDatabase(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to initialize database: %w", err)
-			}
-			if success {
-				log.Info().Msg("Database initialized successfully")
-			}
-			return nil
+				if success {
+					log.Info().Msg("Database initialized successfully")
+				}
+				return nil
+			})
 		},
 	}
 	config.InitFlags(cmd.Flags(), &config.RedisFlags)
@@ -139,8 +102,7 @@ func cmdDBDrop() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ctx := context.Background()
-			success, err := client.DropDatabase(ctx)
+			success, err := client.DropDatabase(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("failed to drop database: %w", err)
 			}
@@ -180,8 +142,6 @@ This command is idempotent and uses a Redis lock to prevent concurrent runs.`,
 }
 
 func runDBProvision(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
-
 	provisionerHost := viper.GetString(config.FlagProvisionerHost)
 	provisionerUser := viper.GetString(config.FlagProvisionerUser)
 	provisionerPassword := viper.GetString(config.FlagProvisionerPassword)
@@ -193,78 +153,58 @@ func runDBProvision(cmd *cobra.Command, args []string) error {
 	targetUser := viper.GetString(config.FlagPostgresUser)
 	targetPassword := viper.GetString(config.FlagPostgresPassword)
 	targetDB := viper.GetString(config.FlagPostgresDatabase)
+	ctx := cmd.Context()
 
-	// Acquire Redis lock to prevent concurrent provisioning
-	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
+	return withRedisLock(ctx, dbProvisionLockName, config.DefaultDBProvisionLockTTL, func() error {
+		log.Info().
+			Str("host", provisionerHost).
+			Str("user", provisionerUser).
+			Str("target_db", targetDB).
+			Str("target_user", targetUser).
+			Msg("Provisioning database")
 
-	locker := redislock.New(redisClient)
-	lock, err := locker.Obtain(ctx, dbProvisionLockName, config.DefaultDBProvisionLockTTL, nil)
-	if err == redislock.ErrNotObtained {
-		log.Warn().Msg("Could not obtain lock, another process is probably provisioning")
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("failed to acquire lock: %w", err)
-	}
-	defer func() {
-		if err := lock.Release(ctx); err != nil {
-			log.Error().Err(err).Msg("Failed to release lock")
+		connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/postgres",
+			provisionerUser, provisionerPassword, provisionerHost, config.DefaultPostgresPort)
+
+		conn, err := pgx.Connect(ctx, connStr)
+		if err != nil {
+			return fmt.Errorf("failed to connect as provisioner: %w", err)
 		}
-	}()
+		defer conn.Close(ctx)
 
-	log.Info().
-		Str("host", provisionerHost).
-		Str("user", provisionerUser).
-		Str("target_db", targetDB).
-		Str("target_user", targetUser).
-		Msg("Provisioning database")
+		if err := ensureRole(ctx, conn, targetUser, targetPassword); err != nil {
+			return err
+		}
 
-	// Connect as provisioner to postgres database
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/postgres",
-		provisionerUser, provisionerPassword, provisionerHost, config.DefaultPostgresPort)
+		if err := ensureDatabase(ctx, conn, targetDB, provisionerUser); err != nil {
+			return err
+		}
 
-	conn, err := pgx.Connect(ctx, connStr)
-	if err != nil {
-		return fmt.Errorf("failed to connect as provisioner: %w", err)
-	}
-	defer conn.Close(ctx)
+		grantSQL := fmt.Sprintf(`GRANT ALL PRIVILEGES ON DATABASE %s TO %s`,
+			pgx.Identifier{targetDB}.Sanitize(), pgx.Identifier{targetUser}.Sanitize())
+		if _, err := conn.Exec(ctx, grantSQL); err != nil {
+			return fmt.Errorf("failed to grant database privileges: %w", err)
+		}
+		log.Info().Str("database", targetDB).Str("user", targetUser).Msg("Granted database privileges")
 
-	// Create or update role
-	if err := ensureRole(ctx, conn, targetUser, targetPassword); err != nil {
-		return err
-	}
+		conn.Close(ctx)
+		connStr = fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+			provisionerUser, provisionerPassword, provisionerHost, config.DefaultPostgresPort, targetDB)
+		conn, err = pgx.Connect(ctx, connStr)
+		if err != nil {
+			return fmt.Errorf("failed to connect to %s: %w", targetDB, err)
+		}
 
-	// Create database if not exists
-	if err := ensureDatabase(ctx, conn, targetDB, provisionerUser); err != nil {
-		return err
-	}
+		grantSchemaSQL := fmt.Sprintf(`GRANT ALL ON SCHEMA public TO %s`,
+			pgx.Identifier{targetUser}.Sanitize())
+		if _, err := conn.Exec(ctx, grantSchemaSQL); err != nil {
+			return fmt.Errorf("failed to grant schema privileges: %w", err)
+		}
+		log.Info().Str("user", targetUser).Msg("Granted schema privileges")
 
-	// Grant privileges on database
-	grantSQL := fmt.Sprintf(`GRANT ALL PRIVILEGES ON DATABASE %s TO %s`,
-		pgx.Identifier{targetDB}.Sanitize(), pgx.Identifier{targetUser}.Sanitize())
-	if _, err := conn.Exec(ctx, grantSQL); err != nil {
-		return fmt.Errorf("failed to grant database privileges: %w", err)
-	}
-	log.Info().Str("database", targetDB).Str("user", targetUser).Msg("Granted database privileges")
-
-	// Close connection to postgres and connect to target database for schema privileges
-	conn.Close(ctx)
-	connStr = fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
-		provisionerUser, provisionerPassword, provisionerHost, config.DefaultPostgresPort, targetDB)
-	conn, err = pgx.Connect(ctx, connStr)
-	if err != nil {
-		return fmt.Errorf("failed to connect to %s: %w", targetDB, err)
-	}
-
-	grantSchemaSQL := fmt.Sprintf(`GRANT ALL ON SCHEMA public TO %s`,
-		pgx.Identifier{targetUser}.Sanitize())
-	if _, err := conn.Exec(ctx, grantSchemaSQL); err != nil {
-		return fmt.Errorf("failed to grant schema privileges: %w", err)
-	}
-	log.Info().Str("user", targetUser).Msg("Granted schema privileges")
-
-	log.Info().Msg("Database provisioning complete")
-	return nil
+		log.Info().Msg("Database provisioning complete")
+		return nil
+	})
 }
 
 func ensureRole(ctx context.Context, conn *pgx.Conn, username, password string) error {
