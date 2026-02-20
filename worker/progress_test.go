@@ -2,6 +2,7 @@ package worker
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -384,7 +385,7 @@ func TestNewProgressTrackerWithSeasons(t *testing.T) {
 		{
 			name: "single season",
 			seasons: []SeasonInfo{
-				{StartYear: 2023},
+				{StartDate: time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2024, 4, 15, 0, 0, 0, 0, time.UTC)},
 			},
 			expectedItems:  1,
 			checkItemIndex: true,
@@ -392,9 +393,9 @@ func TestNewProgressTrackerWithSeasons(t *testing.T) {
 		{
 			name: "multiple seasons",
 			seasons: []SeasonInfo{
-				{StartYear: 2021},
-				{StartYear: 2022},
-				{StartYear: 2023},
+				{StartDate: time.Date(2021, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2022, 4, 15, 0, 0, 0, 0, time.UTC)},
+				{StartDate: time.Date(2022, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2023, 4, 15, 0, 0, 0, 0, time.UTC)},
+				{StartDate: time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2024, 4, 15, 0, 0, 0, 0, time.UTC)},
 			},
 			expectedItems:  3,
 			checkItemIndex: true,
@@ -410,8 +411,8 @@ func TestNewProgressTrackerWithSeasons(t *testing.T) {
 
 			if tt.checkItemIndex {
 				for i, season := range tt.seasons {
-					assert.Equal(t, i, tracker.itemIndex[season.StartYear], "itemIndex should map season %d to index %d", season.StartYear, i)
-					assert.Equal(t, season.StartYear, tracker.progress.Items[i].ID)
+					assert.Equal(t, i, tracker.itemIndex[season.StartYear()], "itemIndex should map season %d to index %d", season.StartYear(), i)
+					assert.Equal(t, season.StartYear(), tracker.progress.Items[i].ID)
 					assert.Equal(t, season.Label(), tracker.progress.Items[i].Description)
 					assert.Greater(t, tracker.progress.Items[i].Total, 0, "season total should be calculated")
 					assert.Equal(t, 0, tracker.progress.Items[i].Completed)
@@ -459,8 +460,8 @@ func TestProgressTracker_InitializeWithSeasons(t *testing.T) {
 	assert.Equal(t, 0, len(tracker.progress.Items))
 
 	seasons := []SeasonInfo{
-		{StartYear: 2022},
-		{StartYear: 2023},
+		{StartDate: time.Date(2022, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2023, 4, 15, 0, 0, 0, 0, time.UTC)},
+		{StartDate: time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2024, 4, 15, 0, 0, 0, 0, time.UTC)},
 	}
 
 	tracker.InitializeWithSeasons(seasons, "", "")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/graph/model"
@@ -24,12 +25,12 @@ func TestFilterSeasons_NoFilters(t *testing.T) {
 		{ID: nhl.NewSeason(2024), StandingsStart: "2024-10-04", StandingsEnd: "2025-04-17"},
 	}
 
-	result := filterSeasons(seasons, &model.FetchSeasonsInput{})
+	result := filterSeasons(seasons, &model.SeasonsInput{})
 
 	assert.Len(t, result, 3)
-	assert.Equal(t, 2022, result[0].StartYear)
-	assert.Equal(t, 2023, result[1].StartYear)
-	assert.Equal(t, 2024, result[2].StartYear)
+	assert.Equal(t, 2022, result[0].StartYear())
+	assert.Equal(t, 2023, result[1].StartYear())
+	assert.Equal(t, 2024, result[2].StartYear())
 }
 
 func TestFilterSeasons_StartFilter(t *testing.T) {
@@ -42,11 +43,11 @@ func TestFilterSeasons_StartFilter(t *testing.T) {
 		{ID: nhl.NewSeason(2023), StandingsStart: "2023-10-10", StandingsEnd: "2024-04-18"},
 	}
 
-	result := filterSeasons(seasons, &model.FetchSeasonsInput{StartSeason: ptr(2022)})
+	result := filterSeasons(seasons, &model.SeasonsInput{StartSeason: ptr(2022)})
 
 	assert.Len(t, result, 2)
-	assert.Equal(t, 2022, result[0].StartYear)
-	assert.Equal(t, 2023, result[1].StartYear)
+	assert.Equal(t, 2022, result[0].StartYear())
+	assert.Equal(t, 2023, result[1].StartYear())
 }
 
 func TestFilterSeasons_EndFilter(t *testing.T) {
@@ -59,11 +60,11 @@ func TestFilterSeasons_EndFilter(t *testing.T) {
 		{ID: nhl.NewSeason(2023), StandingsStart: "2023-10-10", StandingsEnd: "2024-04-18"},
 	}
 
-	result := filterSeasons(seasons, &model.FetchSeasonsInput{EndSeason: ptr(2021)})
+	result := filterSeasons(seasons, &model.SeasonsInput{EndSeason: ptr(2021)})
 
 	assert.Len(t, result, 2)
-	assert.Equal(t, 2020, result[0].StartYear)
-	assert.Equal(t, 2021, result[1].StartYear)
+	assert.Equal(t, 2020, result[0].StartYear())
+	assert.Equal(t, 2021, result[1].StartYear())
 }
 
 func TestFilterSeasons_BothFilters(t *testing.T) {
@@ -76,14 +77,14 @@ func TestFilterSeasons_BothFilters(t *testing.T) {
 		{ID: nhl.NewSeason(2023), StandingsStart: "2023-10-10", StandingsEnd: "2024-04-18"},
 	}
 
-	result := filterSeasons(seasons, &model.FetchSeasonsInput{
+	result := filterSeasons(seasons, &model.SeasonsInput{
 		StartSeason: ptr(2021),
 		EndSeason:   ptr(2022),
 	})
 
 	assert.Len(t, result, 2)
-	assert.Equal(t, 2021, result[0].StartYear)
-	assert.Equal(t, 2022, result[1].StartYear)
+	assert.Equal(t, 2021, result[0].StartYear())
+	assert.Equal(t, 2022, result[1].StartYear())
 }
 
 func TestFilterSeasons_EmptyResult(t *testing.T) {
@@ -94,7 +95,7 @@ func TestFilterSeasons_EmptyResult(t *testing.T) {
 		{ID: nhl.NewSeason(2023), StandingsStart: "2023-10-10", StandingsEnd: "2024-04-18"},
 	}
 
-	result := filterSeasons(seasons, &model.FetchSeasonsInput{StartSeason: ptr(2099)})
+	result := filterSeasons(seasons, &model.SeasonsInput{StartSeason: ptr(2099)})
 
 	assert.Empty(t, result)
 }
@@ -108,11 +109,11 @@ func TestFilterSeasons_InvalidDates(t *testing.T) {
 		{ID: nhl.NewSeason(2024), StandingsStart: "2024-10-04", StandingsEnd: "2025-04-17"},
 	}
 
-	result := filterSeasons(seasons, &model.FetchSeasonsInput{})
+	result := filterSeasons(seasons, &model.SeasonsInput{})
 
 	// Only the valid season should be included
 	assert.Len(t, result, 1)
-	assert.Equal(t, 2024, result[0].StartYear)
+	assert.Equal(t, 2024, result[0].StartYear())
 }
 
 func TestFetchSeasonsData_Success(t *testing.T) {
@@ -128,14 +129,14 @@ func TestFetchSeasonsData_Success(t *testing.T) {
 	}
 	client.On("SeasonStandingManifest", ctx).Return(apiSeasons, nil)
 
-	result, err := fetchSeasonsDataImpl(ctx, client, &model.FetchSeasonsInput{
+	result, err := fetchSeasonsDataImpl(ctx, client, &model.SeasonsInput{
 		StartSeason: ptr(2023),
 	})
 
 	require.NoError(t, err)
 	assert.Len(t, result, 2)
-	assert.Equal(t, 2023, result[0].StartYear)
-	assert.Equal(t, 2024, result[1].StartYear)
+	assert.Equal(t, 2023, result[0].StartYear())
+	assert.Equal(t, 2024, result[1].StartYear())
 	client.AssertExpectations(t)
 }
 
@@ -148,7 +149,7 @@ func TestFetchSeasonsData_APIError(t *testing.T) {
 	expectedErr := errors.New("API connection failed")
 	client.On("SeasonStandingManifest", ctx).Return(nil, expectedErr)
 
-	result, err := fetchSeasonsDataImpl(ctx, client, &model.FetchSeasonsInput{})
+	result, err := fetchSeasonsDataImpl(ctx, client, &model.SeasonsInput{})
 
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -164,7 +165,7 @@ func TestFetchSeasonsData_EmptyResponse(t *testing.T) {
 
 	client.On("SeasonStandingManifest", ctx).Return([]nhl.SeasonInfo{}, nil)
 
-	result, err := fetchSeasonsDataImpl(ctx, client, &model.FetchSeasonsInput{})
+	result, err := fetchSeasonsDataImpl(ctx, client, &model.SeasonsInput{})
 
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -186,7 +187,7 @@ func TestSeasonInfo_Label(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			s := SeasonInfo{StartYear: tt.startYear}
+			s := SeasonInfo{StartDate: time.Date(tt.startYear, 10, 1, 0, 0, 0, 0, time.UTC)}
 			assert.Equal(t, tt.expected, s.Label())
 		})
 	}

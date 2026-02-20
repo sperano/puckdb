@@ -8,12 +8,6 @@ import (
 	"strconv"
 )
 
-type FetchSeasonsInput struct {
-	StartSeason       *int `json:"startSeason,omitempty"`
-	EndSeason         *int `json:"endSeason,omitempty"`
-	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`
-}
-
 type InitializeResultData struct {
 	FranchisesUpserted  int `json:"franchisesUpserted"`
 	SeasonsUpserted     int `json:"seasonsUpserted"`
@@ -49,6 +43,12 @@ type ProgressItem struct {
 }
 
 type Query struct {
+}
+
+type SeasonsInput struct {
+	StartSeason       *int `json:"startSeason,omitempty"`
+	EndSeason         *int `json:"endSeason,omitempty"`
+	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`
 }
 
 type TrulyUnmatchedPlayer struct {

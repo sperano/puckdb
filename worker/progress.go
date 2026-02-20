@@ -212,12 +212,12 @@ func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo, header, co
 	for i, season := range seasons {
 		count := countDownloadTasksForSeason(season)
 		itemProgress[i] = ItemProgress{
-			ID:          season.StartYear,
+			ID:          season.StartYear(),
 			Description: season.Label(),
 			Total:       count,
 			Completed:   0,
 		}
-		p.itemIndex[season.StartYear] = i
+		p.itemIndex[season.StartYear()] = i
 		total += count
 	}
 

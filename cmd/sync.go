@@ -214,7 +214,7 @@ func runFetchYahooPlayers(ctx context.Context, out io.Writer, client *GraphQLCli
 func runFetchSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	return workflowRunner{
 		workflowType: workflowFetchSeasons,
-		trigger:      func() (bool, error) { return client.FetchSeasons(ctx, buildFetchSeasonsInput()) },
+		trigger:      func() (bool, error) { return client.FetchSeasons(ctx, buildSeasonsInput()) },
 		getStatus:    client.GetFetchSeasonsStatus,
 		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)
@@ -223,7 +223,7 @@ func runFetchSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, 
 func runProcessPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	return workflowRunner{
 		workflowType: workflowProcessPlayers,
-		trigger:      func() (bool, error) { return client.ProcessPlayers(ctx, buildFetchSeasonsInput()) },
+		trigger:      func() (bool, error) { return client.ProcessPlayers(ctx, buildSeasonsInput()) },
 		getStatus:    client.GetProcessPlayersStatus,
 		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)
@@ -232,7 +232,7 @@ func runProcessPlayers(ctx context.Context, out io.Writer, client *GraphQLClient
 func runImportSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	return workflowRunner{
 		workflowType: workflowImportSeasons,
-		trigger:      func() (bool, error) { return client.ImportSeasons(ctx, buildFetchSeasonsInput()) },
+		trigger:      func() (bool, error) { return client.ImportSeasons(ctx, buildSeasonsInput()) },
 		getStatus:    client.GetImportSeasonsStatus,
 		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)

@@ -47,8 +47,8 @@ func (c *GraphQLClient) DownloadEverythingForSeason(ctx context.Context, season 
 }
 
 // FetchSeasons triggers the fetchSeasons mutation with an optional season range.
-func (c *GraphQLClient) FetchSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
-	const mutation = `mutation($input: FetchSeasonsInput) { fetchSeasons(input: $input) }`
+func (c *GraphQLClient) FetchSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	const mutation = `mutation($input: SeasonsInput) { fetchSeasons(input: $input) }`
 
 	resp, err := c.execute(ctx, mutation, map[string]any{"input": input})
 	if err != nil {
@@ -123,8 +123,8 @@ func (c *GraphQLClient) CancelFetchYahooPlayers(ctx context.Context) (bool, erro
 }
 
 // ProcessPlayers triggers the processPlayers mutation (combined fetch + import)
-func (c *GraphQLClient) ProcessPlayers(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
-	const mutation = `mutation($input: FetchSeasonsInput) { processPlayers(input: $input) }`
+func (c *GraphQLClient) ProcessPlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	const mutation = `mutation($input: SeasonsInput) { processPlayers(input: $input) }`
 
 	resp, err := c.execute(ctx, mutation, map[string]any{"input": input})
 	if err != nil {
@@ -161,8 +161,8 @@ func (c *GraphQLClient) CancelProcessPlayers(ctx context.Context) (bool, error) 
 }
 
 // ImportSeasons triggers the importSeasons mutation
-func (c *GraphQLClient) ImportSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
-	const mutation = `mutation($input: FetchSeasonsInput) { importSeasons(input: $input) }`
+func (c *GraphQLClient) ImportSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	const mutation = `mutation($input: SeasonsInput) { importSeasons(input: $input) }`
 
 	resp, err := c.execute(ctx, mutation, map[string]any{"input": input})
 	if err != nil {

@@ -66,7 +66,7 @@ func flushRedisDB(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (r *Resolver) fetchSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
+func (r *Resolver) fetchSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
 	opts := workflowOptions(worker.WorkflowIDFetchSeasons)
 	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.FetchSeasonsWorkflow, input); err != nil {
 		return false, err
@@ -112,7 +112,7 @@ func (r *Resolver) fetchYahooPlayersProgress(ctx context.Context) (*model.Workfl
 	return r.queryWorkflowProgress(ctx, worker.WorkflowIDFetchYahooPlayers, nil)
 }
 
-func (r *Resolver) processPlayers(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
+func (r *Resolver) processPlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
 	opts := workflowOptions(worker.WorkflowIDProcessPlayers)
 	// Convert GraphQL input to workflow input
 	workflowInput := &worker.ProcessPlayersInput{}
@@ -217,7 +217,7 @@ func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.Process
 	}, nil
 }
 
-func (r *Resolver) importSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error) {
+func (r *Resolver) importSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
 	opts := workflowOptions(worker.WorkflowIDImportSeasons)
 	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ImportSeasonsWorkflow, input); err != nil {
 		return false, err

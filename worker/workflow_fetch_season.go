@@ -8,20 +8,14 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// FetchSeasonInput contains parameters for fetching a single season.
-type FetchSeasonInput struct {
-	Season SeasonInfo
-}
-
 // FetchSeasonWorkflow fetches all data for a single season.
 // Each season runs in its own child workflow to isolate history.
 // A typical season (~270 days) generates ~600 history events, well under the 50K limit.
-func FetchSeasonWorkflow(ctx workflow.Context, input *FetchSeasonInput) error {
+func FetchSeasonWorkflow(ctx workflow.Context, season SeasonInfo) error {
 	logger := workflow.GetLogger(ctx)
-	season := input.Season
 
 	logger.Info("FetchSeasonWorkflow started",
-		"startYear", season.StartYear,
+		"startYear", season.StartYear(),
 		"startDate", season.StartDate.Format(config.DateFormat),
 		"endDate", season.EndDate.Format(config.DateFormat))
 
@@ -38,10 +32,10 @@ func FetchSeasonWorkflow(ctx workflow.Context, input *FetchSeasonInput) error {
 	var teamIDs []TeamInfo
 	yahooConfig, err := config.GetYahooSeasonsConfig()
 	if err == nil {
-		if yahooCfg, inYahoo := yahooConfig[season.StartYear]; inYahoo {
+		if yahooCfg, inYahoo := yahooConfig[season.StartYear()]; inYahoo {
 			// Build team list and fetch leagues
 			for _, league := range yahooCfg.Leagues {
-				if err := workflow.ExecuteActivity(ctx, FetchLeagueActivity, season.StartYear, league.LeagueID).Get(ctx, nil); err != nil {
+				if err := workflow.ExecuteActivity(ctx, FetchLeagueActivity, season.StartYear(), league.LeagueID).Get(ctx, nil); err != nil {
 					return err
 				}
 				tracker.Increment()
@@ -53,7 +47,7 @@ func FetchSeasonWorkflow(ctx workflow.Context, input *FetchSeasonInput) error {
 
 			// Fetch all teams in one batched activity
 			if len(teamIDs) > 0 {
-				input := FetchTeamsInput{Season: season.StartYear, Teams: teamIDs}
+				input := FetchTeamsInput{Season: season.StartYear(), Teams: teamIDs}
 				if err := workflow.ExecuteActivity(ctx, FetchTeamsActivity, input).Get(ctx, nil); err != nil {
 					return err
 				}
@@ -73,7 +67,7 @@ func FetchSeasonWorkflow(ctx workflow.Context, input *FetchSeasonInput) error {
 
 	// Process days in parallel using RunWorkerPool
 	startDate := season.StartDate
-	startYear := season.StartYear
+	startYear := season.StartYear()
 	err = tracker.RunWorkerPool(ctx, numDays, concurrency, func(ctx workflow.Context, i int) workflow.Future {
 		day := startDate.AddDate(0, 0, i)
 		dayInput := &FetchDayInput{
@@ -88,7 +82,7 @@ func FetchSeasonWorkflow(ctx workflow.Context, input *FetchSeasonInput) error {
 	}
 
 	logger.Info("FetchSeasonWorkflow completed",
-		"startYear", season.StartYear,
+		"startYear", season.StartYear(),
 		"completed", tracker.progress.Completed)
 	return nil
 }

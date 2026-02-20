@@ -207,7 +207,6 @@ func TestExtractBoxscoreDataForSeason_EmptySeason(t *testing.T) {
 
 	// Season where start > end (no days to process)
 	season := SeasonInfo{
-		StartYear: 2023,
 		StartDate: time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
 		EndDate:   time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC),
 	}
@@ -230,7 +229,6 @@ func TestExtractBoxscoreDataForSeason_SingleDay(t *testing.T) {
 
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 	season := SeasonInfo{
-		StartYear: 2023,
 		StartDate: day,
 		EndDate:   day,
 	}
@@ -254,7 +252,6 @@ func TestExtractBoxscoreDataForSeason_Deduplication(t *testing.T) {
 	ctx := context.Background()
 
 	season := SeasonInfo{
-		StartYear: 2023,
 		StartDate: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
 		EndDate:   time.Date(2024, 1, 17, 0, 0, 0, 0, time.UTC), // 3 days
 	}
@@ -282,7 +279,6 @@ func TestExtractBoxscoreDataForSeason_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	season := SeasonInfo{
-		StartYear: 2023,
 		StartDate: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
 		EndDate:   time.Date(2024, 1, 20, 0, 0, 0, 0, time.UTC),
 	}
@@ -309,7 +305,6 @@ func TestExtractBoxscoreDataForSeason_ExtractorError(t *testing.T) {
 	ctx := context.Background()
 
 	season := SeasonInfo{
-		StartYear: 2023,
 		StartDate: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
 		EndDate:   time.Date(2024, 1, 17, 0, 0, 0, 0, time.UTC), // 3 days
 	}
@@ -341,7 +336,6 @@ func TestExtractBoxscoreDataForSeason_FutureEndDate(t *testing.T) {
 	futureDate := now.AddDate(0, 0, 10) // 10 days in future
 
 	season := SeasonInfo{
-		StartYear: 2023,
 		StartDate: yesterday,
 		EndDate:   futureDate, // Should be clamped to now
 	}
@@ -367,7 +361,6 @@ func TestExtractBoxscoreDataForSeason_ProgressLogging(t *testing.T) {
 
 	// Create season with 35 days to trigger progress log at day 30
 	season := SeasonInfo{
-		StartYear: 2023,
 		StartDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		EndDate:   time.Date(2024, 2, 4, 0, 0, 0, 0, time.UTC), // 35 days
 	}

@@ -61,12 +61,12 @@ type ComplexityRoot struct {
 		ClearDatabase           func(childComplexity int) int
 		CreateDatabase          func(childComplexity int) int
 		DropDatabase            func(childComplexity int) int
-		FetchSeasons            func(childComplexity int, input *model.FetchSeasonsInput) int
+		FetchSeasons            func(childComplexity int, input *model.SeasonsInput) int
 		FetchYahooPlayers       func(childComplexity int) int
 		FlushRedisDb            func(childComplexity int) int
-		ImportSeasons           func(childComplexity int, input *model.FetchSeasonsInput) int
+		ImportSeasons           func(childComplexity int, input *model.SeasonsInput) int
 		Initialize              func(childComplexity int) int
-		ProcessPlayers          func(childComplexity int, input *model.FetchSeasonsInput) int
+		ProcessPlayers          func(childComplexity int, input *model.SeasonsInput) int
 	}
 
 	ProcessPlayersResultData struct {
@@ -142,13 +142,13 @@ type MutationResolver interface {
 	FlushRedisDb(ctx context.Context) (bool, error)
 	Initialize(ctx context.Context) (bool, error)
 	CancelInitialize(ctx context.Context) (bool, error)
-	FetchSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error)
+	FetchSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error)
 	CancelFetchSeasons(ctx context.Context) (bool, error)
 	FetchYahooPlayers(ctx context.Context) (bool, error)
 	CancelFetchYahooPlayers(ctx context.Context) (bool, error)
-	ProcessPlayers(ctx context.Context, input *model.FetchSeasonsInput) (bool, error)
+	ProcessPlayers(ctx context.Context, input *model.SeasonsInput) (bool, error)
 	CancelProcessPlayers(ctx context.Context) (bool, error)
-	ImportSeasons(ctx context.Context, input *model.FetchSeasonsInput) (bool, error)
+	ImportSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error)
 	CancelImportSeasons(ctx context.Context) (bool, error)
 }
 type QueryResolver interface {
@@ -273,7 +273,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.FetchSeasons(childComplexity, args["input"].(*model.FetchSeasonsInput)), true
+		return e.complexity.Mutation.FetchSeasons(childComplexity, args["input"].(*model.SeasonsInput)), true
 
 	case "Mutation.fetchYahooPlayers":
 		if e.complexity.Mutation.FetchYahooPlayers == nil {
@@ -299,7 +299,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.ImportSeasons(childComplexity, args["input"].(*model.FetchSeasonsInput)), true
+		return e.complexity.Mutation.ImportSeasons(childComplexity, args["input"].(*model.SeasonsInput)), true
 
 	case "Mutation.initialize":
 		if e.complexity.Mutation.Initialize == nil {
@@ -318,7 +318,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.ProcessPlayers(childComplexity, args["input"].(*model.FetchSeasonsInput)), true
+		return e.complexity.Mutation.ProcessPlayers(childComplexity, args["input"].(*model.SeasonsInput)), true
 
 	case "ProcessPlayersResultData.cacheHits":
 		if e.complexity.ProcessPlayersResultData.CacheHits == nil {
@@ -657,7 +657,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
-		ec.unmarshalInputFetchSeasonsInput,
+		ec.unmarshalInputSeasonsInput,
 	)
 	first := true
 
@@ -865,7 +865,7 @@ type Query {
 }
 
 
-input FetchSeasonsInput {
+input SeasonsInput {
 	startSeason: Int
 	endSeason: Int
 	seasonConcurrency: Int
@@ -880,13 +880,13 @@ type Mutation {
 
 	initialize: Boolean!
 	cancelInitialize: Boolean!
-	fetchSeasons(input: FetchSeasonsInput): Boolean!
+	fetchSeasons(input: SeasonsInput): Boolean!
 	cancelFetchSeasons: Boolean!
 	fetchYahooPlayers: Boolean!
 	cancelFetchYahooPlayers: Boolean!
-	processPlayers(input: FetchSeasonsInput): Boolean!
+	processPlayers(input: SeasonsInput): Boolean!
 	cancelProcessPlayers: Boolean!
-	importSeasons(input: FetchSeasonsInput): Boolean!
+	importSeasons(input: SeasonsInput): Boolean!
 	cancelImportSeasons: Boolean!
 }
 `, BuiltIn: false},
@@ -910,22 +910,22 @@ func (ec *executionContext) field_Mutation_fetchSeasons_args(ctx context.Context
 func (ec *executionContext) field_Mutation_fetchSeasons_argsInput(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (*model.FetchSeasonsInput, error) {
+) (*model.SeasonsInput, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["input"]
 	if !ok {
-		var zeroVal *model.FetchSeasonsInput
+		var zeroVal *model.SeasonsInput
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalOFetchSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐFetchSeasonsInput(ctx, tmp)
+		return ec.unmarshalOSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonsInput(ctx, tmp)
 	}
 
-	var zeroVal *model.FetchSeasonsInput
+	var zeroVal *model.SeasonsInput
 	return zeroVal, nil
 }
 
@@ -942,22 +942,22 @@ func (ec *executionContext) field_Mutation_importSeasons_args(ctx context.Contex
 func (ec *executionContext) field_Mutation_importSeasons_argsInput(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (*model.FetchSeasonsInput, error) {
+) (*model.SeasonsInput, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["input"]
 	if !ok {
-		var zeroVal *model.FetchSeasonsInput
+		var zeroVal *model.SeasonsInput
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalOFetchSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐFetchSeasonsInput(ctx, tmp)
+		return ec.unmarshalOSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonsInput(ctx, tmp)
 	}
 
-	var zeroVal *model.FetchSeasonsInput
+	var zeroVal *model.SeasonsInput
 	return zeroVal, nil
 }
 
@@ -974,22 +974,22 @@ func (ec *executionContext) field_Mutation_processPlayers_args(ctx context.Conte
 func (ec *executionContext) field_Mutation_processPlayers_argsInput(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (*model.FetchSeasonsInput, error) {
+) (*model.SeasonsInput, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["input"]
 	if !ok {
-		var zeroVal *model.FetchSeasonsInput
+		var zeroVal *model.SeasonsInput
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalOFetchSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐFetchSeasonsInput(ctx, tmp)
+		return ec.unmarshalOSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonsInput(ctx, tmp)
 	}
 
-	var zeroVal *model.FetchSeasonsInput
+	var zeroVal *model.SeasonsInput
 	return zeroVal, nil
 }
 
@@ -1507,7 +1507,7 @@ func (ec *executionContext) _Mutation_fetchSeasons(ctx context.Context, field gr
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().FetchSeasons(rctx, fc.Args["input"].(*model.FetchSeasonsInput))
+		return ec.resolvers.Mutation().FetchSeasons(rctx, fc.Args["input"].(*model.SeasonsInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1694,7 +1694,7 @@ func (ec *executionContext) _Mutation_processPlayers(ctx context.Context, field 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ProcessPlayers(rctx, fc.Args["input"].(*model.FetchSeasonsInput))
+		return ec.resolvers.Mutation().ProcessPlayers(rctx, fc.Args["input"].(*model.SeasonsInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1793,7 +1793,7 @@ func (ec *executionContext) _Mutation_importSeasons(ctx context.Context, field g
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ImportSeasons(rctx, fc.Args["input"].(*model.FetchSeasonsInput))
+		return ec.resolvers.Mutation().ImportSeasons(rctx, fc.Args["input"].(*model.SeasonsInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5971,8 +5971,8 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(_ context.Context
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputFetchSeasonsInput(ctx context.Context, obj interface{}) (model.FetchSeasonsInput, error) {
-	var it model.FetchSeasonsInput
+func (ec *executionContext) unmarshalInputSeasonsInput(ctx context.Context, obj interface{}) (model.SeasonsInput, error) {
+	var it model.SeasonsInput
 	asMap := map[string]interface{}{}
 	for k, v := range obj.(map[string]interface{}) {
 		asMap[k] = v
@@ -7604,14 +7604,6 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) unmarshalOFetchSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐFetchSeasonsInput(ctx context.Context, v interface{}) (*model.FetchSeasonsInput, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := ec.unmarshalInputFetchSeasonsInput(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
 func (ec *executionContext) marshalOInitializeResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐInitializeResultData(ctx context.Context, sel ast.SelectionSet, v *model.InitializeResultData) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -7703,6 +7695,14 @@ func (ec *executionContext) marshalOProgressItem2ᚕᚖgithubᚗcomᚋsperanoᚋ
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalOSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonsInput(ctx context.Context, v interface{}) (*model.SeasonsInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputSeasonsInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {

@@ -8,20 +8,14 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// ImportSeasonInput contains parameters for importing a single season.
-type ImportSeasonInput struct {
-	Season SeasonInfo
-}
-
 // ImportSeasonWorkflow imports all boxscores for a single season.
 // Each season runs in its own child workflow to isolate history.
 // A typical season (~270 days) generates ~600 history events, well under the 50K limit.
-func ImportSeasonWorkflow(ctx workflow.Context, input *ImportSeasonInput) error {
+func ImportSeasonWorkflow(ctx workflow.Context, season SeasonInfo) error {
 	logger := workflow.GetLogger(ctx)
-	season := input.Season
 
 	logger.Info("ImportSeasonWorkflow started",
-		"startYear", season.StartYear,
+		"startYear", season.StartYear(),
 		"startDate", season.StartDate.Format(config.DateFormat),
 		"endDate", season.EndDate.Format(config.DateFormat))
 
@@ -33,7 +27,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, input *ImportSeasonInput) error 
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 
 	// Import Yahoo leagues and teams (returns team IDs for per-day processing)
-	teamIDs, err := importYahooLeaguesAndTeams(ctx, season.StartYear)
+	teamIDs, err := importYahooLeaguesAndTeams(ctx, season.StartYear())
 	if err != nil {
 		return err
 	}
@@ -44,7 +38,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, input *ImportSeasonInput) error 
 	}
 
 	logger.Info("ImportSeasonWorkflow completed",
-		"startYear", season.StartYear,
+		"startYear", season.StartYear(),
 		"completed", tracker.progress.Completed)
 	return nil
 }
@@ -120,7 +114,7 @@ func processDaysInParallel(ctx workflow.Context, tracker *ProgressTracker, seaso
 
 	return tracker.RunWorkerPool(ctx, numDays, concurrency, func(ctx workflow.Context, i int) workflow.Future {
 		day := season.StartDate.AddDate(0, 0, i)
-		return importDayData(ctx, season.StartYear, day, teamIDs)
+		return importDayData(ctx, season.StartYear(), day, teamIDs)
 	})
 }
 

@@ -43,9 +43,9 @@ func TestFetchSeasonsWorkflowTestSuite(t *testing.T) {
 
 // Test FetchSeasonsWorkflow with mocked child workflows
 func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_Success() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{
-		{StartYear: 2023, StartDate: mustParseDate("2024-04-14"), EndDate: mustParseDate("2024-04-15")},
+		{StartDate: mustParseDate("2024-04-14"), EndDate: mustParseDate("2024-04-15")},
 	}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
@@ -60,7 +60,7 @@ func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_Success() {
 
 // Test FetchSeasonsWorkflow handles activity error
 func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_FetchSeasonsError() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	expectedErr := errors.New("failed to fetch seasons")
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(nil, expectedErr)
@@ -73,9 +73,9 @@ func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_FetchSeasonsErr
 
 // Test FetchSeasonsWorkflow handles child workflow error
 func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_ChildWorkflowError() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{
-		{StartYear: 2023, StartDate: mustParseDate("2024-04-14"), EndDate: mustParseDate("2024-04-15")},
+		{StartDate: mustParseDate("2024-04-14"), EndDate: mustParseDate("2024-04-15")},
 	}
 	expectedErr := errors.New("child workflow failed")
 
@@ -91,7 +91,7 @@ func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_ChildWorkflowEr
 
 // Test FetchSeasonsWorkflow with no seasons
 func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_NoSeasons() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
@@ -234,9 +234,9 @@ func TestImportSeasonsWorkflowTestSuite(t *testing.T) {
 
 // Test ImportSeasonsWorkflow with mocked child workflows
 func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_Success() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{
-		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+		{StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
 	}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
@@ -251,7 +251,7 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_Success() {
 
 // Test ImportSeasonsWorkflow handles activity error
 func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_FetchSeasonsError() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	expectedErr := errors.New("failed to fetch seasons")
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(nil, expectedErr)
@@ -264,9 +264,9 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_FetchSeasonsE
 
 // Test ImportSeasonsWorkflow handles child workflow error
 func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_ChildWorkflowError() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{
-		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+		{StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
 	}
 	expectedErr := errors.New("child workflow failed")
 
@@ -282,7 +282,7 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_ChildWorkflow
 
 // Test ImportSeasonsWorkflow with no seasons
 func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_NoSeasons() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
@@ -295,11 +295,11 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_NoSeasons() {
 
 // Test ImportSeasonsWorkflow with multiple seasons (parallel processing)
 func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_MultipleSeasons() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{
-		{StartYear: 2022, StartDate: mustParseDate("2022-10-07"), EndDate: mustParseDate("2022-10-09")},
-		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
-		{StartYear: 2024, StartDate: mustParseDate("2024-10-08"), EndDate: mustParseDate("2024-10-10")},
+		{StartDate: mustParseDate("2022-10-07"), EndDate: mustParseDate("2022-10-09")},
+		{StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+		{StartDate: mustParseDate("2024-10-08"), EndDate: mustParseDate("2024-10-10")},
 	}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
@@ -315,12 +315,12 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_MultipleSeaso
 // Test ImportSeasonsWorkflow with custom concurrency
 func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_WithConcurrency() {
 	concurrency := 2
-	input := &model.FetchSeasonsInput{
+	input := &model.SeasonsInput{
 		SeasonConcurrency: &concurrency,
 	}
 	seasons := []SeasonInfo{
-		{StartYear: 2022, StartDate: mustParseDate("2022-10-07"), EndDate: mustParseDate("2022-10-09")},
-		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+		{StartDate: mustParseDate("2022-10-07"), EndDate: mustParseDate("2022-10-09")},
+		{StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
 	}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
@@ -356,19 +356,16 @@ func TestImportSeasonWorkflowTestSuite(t *testing.T) {
 // Test ImportSeasonWorkflow success with multiple days
 func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_Success() {
 	// Create a 3-day season
-	input := &ImportSeasonInput{
-		Season: SeasonInfo{
-			StartYear: 2023,
-			StartDate: mustParseDate("2023-10-10"),
-			EndDate:   mustParseDate("2023-10-12"),
-		},
+	season := SeasonInfo{
+		StartDate: mustParseDate("2023-10-10"),
+		EndDate:   mustParseDate("2023-10-12"),
 	}
 
 	// Mock the activity for each day (3 days total)
 	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
 		ImportBoxscoresForDateResult{GamesImported: 5, SkatersImported: 30, GoaliesImported: 4}, nil)
 
-	s.env.ExecuteWorkflow(ImportSeasonWorkflow, input)
+	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
@@ -376,19 +373,16 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_Success() {
 
 // Test ImportSeasonWorkflow handles activity error
 func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ActivityError() {
-	input := &ImportSeasonInput{
-		Season: SeasonInfo{
-			StartYear: 2023,
-			StartDate: mustParseDate("2023-10-10"),
-			EndDate:   mustParseDate("2023-10-12"),
-		},
+	season := SeasonInfo{
+		StartDate: mustParseDate("2023-10-10"),
+		EndDate:   mustParseDate("2023-10-12"),
 	}
 
 	expectedErr := errors.New("database connection failed")
 	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
 		ImportBoxscoresForDateResult{}, expectedErr)
 
-	s.env.ExecuteWorkflow(ImportSeasonWorkflow, input)
+	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
@@ -397,17 +391,14 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ActivityError()
 // Test ImportSeasonWorkflow with zero days (start > end)
 func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ZeroDays() {
 	// End date before start date should result in 0 days
-	input := &ImportSeasonInput{
-		Season: SeasonInfo{
-			StartYear: 2023,
-			StartDate: mustParseDate("2023-10-15"),
-			EndDate:   mustParseDate("2023-10-10"),
-		},
+	season := SeasonInfo{
+		StartDate: mustParseDate("2023-10-15"),
+		EndDate:   mustParseDate("2023-10-10"),
 	}
 
 	// No activities should be called
 
-	s.env.ExecuteWorkflow(ImportSeasonWorkflow, input)
+	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
@@ -415,19 +406,16 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ZeroDays() {
 
 // Test ImportSeasonWorkflow with single day
 func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SingleDay() {
-	input := &ImportSeasonInput{
-		Season: SeasonInfo{
-			StartYear: 2023,
-			StartDate: mustParseDate("2023-10-10"),
-			EndDate:   mustParseDate("2023-10-10"),
-		},
+	season := SeasonInfo{
+		StartDate: mustParseDate("2023-10-10"),
+		EndDate:   mustParseDate("2023-10-10"),
 	}
 
 	// Mock single day activity
 	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
 		ImportBoxscoresForDateResult{GamesImported: 10, SkatersImported: 60, GoaliesImported: 8}, nil)
 
-	s.env.ExecuteWorkflow(ImportSeasonWorkflow, input)
+	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
@@ -435,19 +423,16 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SingleDay() {
 
 // Test ImportSeasonWorkflow with no games on some days
 func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SomeDaysNoGames() {
-	input := &ImportSeasonInput{
-		Season: SeasonInfo{
-			StartYear: 2023,
-			StartDate: mustParseDate("2023-10-10"),
-			EndDate:   mustParseDate("2023-10-12"),
-		},
+	season := SeasonInfo{
+		StartDate: mustParseDate("2023-10-10"),
+		EndDate:   mustParseDate("2023-10-12"),
 	}
 
 	// Some days have no games (returns 0 counts)
 	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
 		ImportBoxscoresForDateResult{GamesImported: 0, SkatersImported: 0, GoaliesImported: 0}, nil)
 
-	s.env.ExecuteWorkflow(ImportSeasonWorkflow, input)
+	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
@@ -476,18 +461,15 @@ func TestFetchSeasonWorkflowTestSuite(t *testing.T) {
 
 // Test FetchSeasonWorkflow success with multiple days
 func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_Success() {
-	input := &FetchSeasonInput{
-		Season: SeasonInfo{
-			StartYear: 2023,
-			StartDate: mustParseDate("2023-10-10"),
-			EndDate:   mustParseDate("2023-10-12"),
-		},
+	season := SeasonInfo{
+		StartDate: mustParseDate("2023-10-10"),
+		EndDate:   mustParseDate("2023-10-12"),
 	}
 
 	// Mock FetchDayActivity for each day
 	s.env.OnActivity(FetchDayActivity, mock.Anything, mock.Anything).Return(nil)
 
-	s.env.ExecuteWorkflow(FetchSeasonWorkflow, input)
+	s.env.ExecuteWorkflow(FetchSeasonWorkflow, season)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
@@ -495,17 +477,14 @@ func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_Success() {
 
 // Test FetchSeasonWorkflow handles activity error
 func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_ActivityError() {
-	input := &FetchSeasonInput{
-		Season: SeasonInfo{
-			StartYear: 2023,
-			StartDate: mustParseDate("2023-10-10"),
-			EndDate:   mustParseDate("2023-10-12"),
-		},
+	season := SeasonInfo{
+		StartDate: mustParseDate("2023-10-10"),
+		EndDate:   mustParseDate("2023-10-12"),
 	}
 
 	s.env.OnActivity(FetchDayActivity, mock.Anything, mock.Anything).Return(errors.New("network error"))
 
-	s.env.ExecuteWorkflow(FetchSeasonWorkflow, input)
+	s.env.ExecuteWorkflow(FetchSeasonWorkflow, season)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
@@ -513,17 +492,14 @@ func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_ActivityError() {
 
 // Test FetchSeasonWorkflow with single day
 func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_SingleDay() {
-	input := &FetchSeasonInput{
-		Season: SeasonInfo{
-			StartYear: 2023,
-			StartDate: mustParseDate("2023-10-10"),
-			EndDate:   mustParseDate("2023-10-10"),
-		},
+	season := SeasonInfo{
+		StartDate: mustParseDate("2023-10-10"),
+		EndDate:   mustParseDate("2023-10-10"),
 	}
 
 	s.env.OnActivity(FetchDayActivity, mock.Anything, mock.Anything).Return(nil)
 
-	s.env.ExecuteWorkflow(FetchSeasonWorkflow, input)
+	s.env.ExecuteWorkflow(FetchSeasonWorkflow, season)
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
@@ -601,9 +577,9 @@ func TestImportNHLTeamsAndPlayersWorkflowTestSuite(t *testing.T) {
 
 // Test ImportNHLTeamsAndPlayersWorkflow success
 func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayersWorkflow_Success() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{
-		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+		{StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
 	}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
@@ -627,7 +603,7 @@ func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayers
 
 // Test ImportNHLTeamsAndPlayersWorkflow handles FetchSeasons error
 func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayersWorkflow_FetchSeasonsError() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(nil, errors.New("NHL API error"))
 
@@ -639,9 +615,9 @@ func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayers
 
 // Test ImportNHLTeamsAndPlayersWorkflow handles extraction error
 func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayersWorkflow_ExtractionError() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{
-		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+		{StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
 	}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
@@ -656,7 +632,7 @@ func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayers
 
 // Test ImportNHLTeamsAndPlayersWorkflow with no seasons
 func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayersWorkflow_NoSeasons() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
@@ -673,10 +649,10 @@ func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayers
 
 // Test ImportNHLTeamsAndPlayersWorkflow with multiple seasons dedupes players
 func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayersWorkflow_DeduplicatesPlayers() {
-	input := &model.FetchSeasonsInput{}
+	input := &model.SeasonsInput{}
 	seasons := []SeasonInfo{
-		{StartYear: 2022, StartDate: mustParseDate("2022-10-10"), EndDate: mustParseDate("2022-10-12")},
-		{StartYear: 2023, StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
+		{StartDate: mustParseDate("2022-10-10"), EndDate: mustParseDate("2022-10-12")},
+		{StartDate: mustParseDate("2023-10-10"), EndDate: mustParseDate("2023-10-12")},
 	}
 
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)

@@ -15,21 +15,26 @@ import (
 // SeasonInfo represents season metadata for Temporal serialization.
 // This is a local copy of nhl.SeasonInfo to ensure proper serialization.
 type SeasonInfo struct {
-	StartYear int       `json:"startYear"`
 	StartDate time.Time `json:"startDate"`
 	EndDate   time.Time `json:"endDate"`
 }
 
+// StartYear returns the start year of the season.
+func (s SeasonInfo) StartYear() int {
+	return s.StartDate.Year()
+}
+
 // Label returns a display label for the season (e.g., "2024-25").
 func (s SeasonInfo) Label() string {
-	endYearShort := (s.StartYear + 1) % 100
-	return fmt.Sprintf("%d-%02d", s.StartYear, endYearShort)
+	startYear := s.StartYear()
+	endYearShort := (startYear + 1) % 100
+	return fmt.Sprintf("%d-%02d", startYear, endYearShort)
 }
 
 // FetchSeasonsDataActivity fetches season data and filters by input range.
 // It reads from the cached seasons manifest first (populated by DownloadSeasonsManifestActivity),
 // falling back to the NHL API only if the cache doesn't exist.
-func FetchSeasonsDataActivity(ctx context.Context, input *model.FetchSeasonsInput) ([]SeasonInfo, error) {
+func FetchSeasonsDataActivity(ctx context.Context, input *model.SeasonsInput) ([]SeasonInfo, error) {
 	fs := store.NewStore()
 	file := store.SeasonsManifestFile{}
 
@@ -49,7 +54,7 @@ func FetchSeasonsDataActivity(ctx context.Context, input *model.FetchSeasonsInpu
 	return fetchSeasonsDataImpl(ctx, client, input)
 }
 
-func fetchSeasonsDataImpl(ctx context.Context, client NHLClient, input *model.FetchSeasonsInput) ([]SeasonInfo, error) {
+func fetchSeasonsDataImpl(ctx context.Context, client NHLClient, input *model.SeasonsInput) ([]SeasonInfo, error) {
 	seasons, err := client.SeasonStandingManifest(ctx)
 	if err != nil {
 		return nil, err
@@ -58,7 +63,7 @@ func fetchSeasonsDataImpl(ctx context.Context, client NHLClient, input *model.Fe
 }
 
 // filterSeasons converts nhl.SeasonInfo to worker.SeasonInfo and filters by input range.
-func filterSeasons(seasons []nhl.SeasonInfo, input *model.FetchSeasonsInput) []SeasonInfo {
+func filterSeasons(seasons []nhl.SeasonInfo, input *model.SeasonsInput) []SeasonInfo {
 	var result []SeasonInfo
 	for _, s := range seasons {
 		startYear := s.ID.StartYear()
@@ -80,7 +85,6 @@ func filterSeasons(seasons []nhl.SeasonInfo, input *model.FetchSeasonsInput) []S
 		}
 
 		result = append(result, SeasonInfo{
-			StartYear: startYear,
 			StartDate: startDate,
 			EndDate:   endDate,
 		})

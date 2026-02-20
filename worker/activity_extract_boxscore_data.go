@@ -69,7 +69,7 @@ func extractBoxscoreDataForSeasonImpl(
 		dayCount++
 		if dayCount%30 == 0 {
 			log.Debug().
-				Int("season", season.StartYear).
+				Int("season", season.StartYear()).
 				Int("days_processed", dayCount).
 				Int("unique_players", len(players)).
 				Msg("Season extraction progress")
@@ -83,7 +83,7 @@ func extractBoxscoreDataForSeasonImpl(
 	}
 
 	log.Info().
-		Int("season", season.StartYear).
+		Int("season", season.StartYear()).
 		Int("days_processed", dayCount).
 		Int("unique_players", len(playerSlice)).
 		Msg("Season extraction complete")

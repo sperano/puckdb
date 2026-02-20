@@ -14,7 +14,7 @@ import (
 //
 // Each season runs in its own child workflow to isolate workflow history.
 // This matches the FetchSeasonsWorkflow pattern for consistency.
-func ImportSeasonsWorkflow(ctx workflow.Context, input *model.FetchSeasonsInput) error {
+func ImportSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
 	// Register query handler immediately so progress queries work from workflow start
@@ -69,12 +69,12 @@ func (p *ProgressTracker) initializeImportSeasons(seasons []SeasonInfo, header, 
 	for i, season := range seasons {
 		days := countDaysInSeason(season)
 		items[i] = ItemProgress{
-			ID:          season.StartYear,
+			ID:          season.StartYear(),
 			Description: season.Label(),
 			Total:       days,
 			Completed:   0,
 		}
-		p.itemIndex[season.StartYear] = i
+		p.itemIndex[season.StartYear()] = i
 		total += days
 	}
 
@@ -157,11 +157,11 @@ func processImportWithChildWorkflows(ctx workflow.Context, logger log.Logger, tr
 
 // startImportSeasonChildWorkflow spawns a child workflow for a season import
 func startImportSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, active map[int]*importChildWorkflowWork, season SeasonInfo) {
-	logger.Info("Starting season import child workflow", "startYear", season.StartYear)
-	tracker.MarkItemStarted(ctx, season.StartYear)
-	ctxo := withChildOptions(ctx, WorkflowIDImportSeason(season.StartYear))
-	future := workflow.ExecuteChildWorkflow(ctxo, ImportSeasonWorkflow, &ImportSeasonInput{Season: season})
-	active[season.StartYear] = &importChildWorkflowWork{
+	logger.Info("Starting season import child workflow", "startYear", season.StartYear())
+	tracker.MarkItemStarted(ctx, season.StartYear())
+	ctxo := withChildOptions(ctx, WorkflowIDImportSeason(season.StartYear()))
+	future := workflow.ExecuteChildWorkflow(ctxo, ImportSeasonWorkflow, season)
+	active[season.StartYear()] = &importChildWorkflowWork{
 		season: season,
 		future: future,
 	}

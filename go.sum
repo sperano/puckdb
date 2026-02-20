@@ -380,12 +380,6 @@ github.com/smartystreets/goconvey v1.6.4 h1:fv0U8FUIMPNf1L9lnHLvLhgicrIVChEkdzIK
 github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9QV7WQ/tjFTllLA=
 github.com/sosodev/duration v1.3.1 h1:qtHBDMQ6lvMQsL15g4aopM4HEfOaYuhWBw3NPTtlqq4=
 github.com/sosodev/duration v1.3.1/go.mod h1:RQIBBX0+fMLc/D9+Jb/fwvVmo0eZvDDEERAikUR6SDg=
-github.com/sperano/nhl-api-go v0.0.0-20260214035557-83cc32da4b78 h1:gUyabNXbyKoo7n2xJb4Hb+AE0KjuQR8k5+wYrmFSJOM=
-github.com/sperano/nhl-api-go v0.0.0-20260214035557-83cc32da4b78/go.mod h1:b9yzggYciaRaRHh9HXlcUtiHwNe6ZVcMck75AffkFn0=
-github.com/sperano/nhl-api-go v0.0.0-20260216091954-4ccc0ff27c96 h1:tr/nTeWIumi5P7Bskg25MQtmExe2PigXw319CEtq2/E=
-github.com/sperano/nhl-api-go v0.0.0-20260216091954-4ccc0ff27c96/go.mod h1:b9yzggYciaRaRHh9HXlcUtiHwNe6ZVcMck75AffkFn0=
-github.com/sperano/nhl-api-go v0.0.0-20260216161825-87701fe069d8 h1:RJRfinAxbuXMsyimsqsB++pLRXVe6D0Higkx28/AjDc=
-github.com/sperano/nhl-api-go v0.0.0-20260216161825-87701fe069d8/go.mod h1:b9yzggYciaRaRHh9HXlcUtiHwNe6ZVcMck75AffkFn0=
 github.com/sperano/nhl-api-go v0.0.0-20260216173439-ae312bc28803 h1:hGSpXGDNSgFZj5dW9yieGXAudkVD6PLRHqv4YGN8RiQ=
 github.com/sperano/nhl-api-go v0.0.0-20260216173439-ae312bc28803/go.mod h1:b9yzggYciaRaRHh9HXlcUtiHwNe6ZVcMck75AffkFn0=
 github.com/spf13/afero v1.6.0 h1:xoax2sJ2DT8S8xA2paPFjDCScCNeWsg75VG0DLRreiY=

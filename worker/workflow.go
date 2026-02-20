@@ -40,7 +40,7 @@ func defaultActivityOptions() workflow.ActivityOptions {
 	}
 }
 
-func FetchSeasonsWorkflow(ctx workflow.Context, input *model.FetchSeasonsInput) error {
+func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
 	// Register query handler immediately so progress queries work from workflow start
@@ -153,11 +153,11 @@ func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker 
 
 // startSeasonChildWorkflow spawns a child workflow for a season
 func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, active map[int]*childWorkflowWork, season SeasonInfo) {
-	logger.Info("Starting season child workflow", "startYear", season.StartYear)
-	tracker.MarkItemStarted(ctx, season.StartYear)
-	ctxo := withChildOptions(ctx, WorkflowIDFetchSeason(season.StartYear))
-	future := workflow.ExecuteChildWorkflow(ctxo, FetchSeasonWorkflow, &FetchSeasonInput{Season: season})
-	active[season.StartYear] = &childWorkflowWork{
+	logger.Info("Starting season child workflow", "startYear", season.StartYear())
+	tracker.MarkItemStarted(ctx, season.StartYear())
+	ctxo := withChildOptions(ctx, WorkflowIDFetchSeason(season.StartYear()))
+	future := workflow.ExecuteChildWorkflow(ctxo, FetchSeasonWorkflow, season)
+	active[season.StartYear()] = &childWorkflowWork{
 		season: season,
 		future: future,
 	}
@@ -213,7 +213,7 @@ func countDownloadTasksForSeason(season SeasonInfo) int {
 	if err != nil {
 		return days // Just daily child workflows
 	}
-	yahooCfg, inYahoo := yahooConfig[season.StartYear]
+	yahooCfg, inYahoo := yahooConfig[season.StartYear()]
 	if !inYahoo {
 		return days // Just daily child workflows
 	}
@@ -221,7 +221,7 @@ func countDownloadTasksForSeason(season SeasonInfo) int {
 	// Add league downloads (one per league) and one batched teams download
 	teamCount := 0
 	for _, league := range yahooCfg.Leagues {
-		count++                         // FetchLeagueActivity
+		count++ // FetchLeagueActivity
 		teamCount += len(league.TeamIDs)
 	}
 	if teamCount > 0 {

@@ -168,7 +168,7 @@ func runProcessPhase1ExtractIDs(ctx workflow.Context, input *processPlayersInter
 	tracker.MarkItemStarted(ctx, phaseProcessExtractIDs)
 
 	// Execute child workflow to extract players
-	childInput := &model.FetchSeasonsInput{
+	childInput := &model.SeasonsInput{
 		StartSeason:       input.StartSeason,
 		EndSeason:         input.EndSeason,
 		SeasonConcurrency: input.SeasonConcurrency,

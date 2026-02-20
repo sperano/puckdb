@@ -108,7 +108,7 @@ type Query {
 }
 
 
-input FetchSeasonsInput {
+input SeasonsInput {
 	startSeason: Int
 	endSeason: Int
 	seasonConcurrency: Int
@@ -123,12 +123,12 @@ type Mutation {
 
 	initialize: Boolean!
 	cancelInitialize: Boolean!
-	fetchSeasons(input: FetchSeasonsInput): Boolean!
+	fetchSeasons(input: SeasonsInput): Boolean!
 	cancelFetchSeasons: Boolean!
 	fetchYahooPlayers: Boolean!
 	cancelFetchYahooPlayers: Boolean!
-	processPlayers(input: FetchSeasonsInput): Boolean!
+	processPlayers(input: SeasonsInput): Boolean!
 	cancelProcessPlayers: Boolean!
-	importSeasons(input: FetchSeasonsInput): Boolean!
+	importSeasons(input: SeasonsInput): Boolean!
 	cancelImportSeasons: Boolean!
 }
