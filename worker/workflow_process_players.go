@@ -8,6 +8,7 @@ import (
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
+	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -175,7 +176,8 @@ func runProcessPhase1ExtractIDs(ctx workflow.Context, input *processPlayersInter
 	}
 
 	childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		WorkflowID: WorkflowIDImportNHLTeamsAndPlayers,
+		WorkflowID:           WorkflowIDImportNHLTeamsAndPlayers,
+		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING,
 	})
 
 	var result *ImportTeamsAndPlayersResult

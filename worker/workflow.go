@@ -6,6 +6,7 @@ import (
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/spf13/viper"
+	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -22,6 +23,8 @@ func withChildOptions(ctx workflow.Context, id string) workflow.Context {
 		WorkflowExecutionTimeout: config.DefaultWorkflowExecutionTimeout,
 		WorkflowTaskTimeout:      config.DefaultWorkflowExecutionTimeout,
 		WorkflowID:               id,
+		// Allow terminating orphaned child workflows from previous failed parent runs
+		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING,
 	})
 }
 
