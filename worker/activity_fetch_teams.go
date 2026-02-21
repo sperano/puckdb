@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/http"
@@ -43,10 +42,7 @@ func (f realTeamFetcher) FetchTeam(ctx context.Context, season, gameKey, leagueI
 // FetchTeamsActivity downloads Yahoo fantasy team pages for multiple teams.
 // This batches what would otherwise be N separate activity calls into one.
 func FetchTeamsActivity(ctx context.Context, input FetchTeamsInput) error {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("FetchTeamsActivity", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("FetchTeamsActivity")()
 
 	gameKey, err := GetGameKeyForSeason(input.Season)
 	if err != nil {

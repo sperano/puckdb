@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/http"
@@ -11,10 +10,7 @@ import (
 )
 
 func FetchLeagueActivity(ctx context.Context, season int, leagueID int) error {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("FetchLeagueActivity", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("FetchLeagueActivity")()
 	gameKey, err := GetGameKeyForSeason(season)
 	if err != nil {
 		return err

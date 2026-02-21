@@ -464,7 +464,6 @@ func BindLoggingFlags(flags *flag.FlagSet) error {
 	return viper.BindPFlag(FlagLogFile, flags.Lookup(FlagLogFile))
 }
 
-
 // GetSeasonRange returns start and end season years from flags.
 // If --season is set, it returns that value for both.
 // Otherwise returns --from-season and --to-season (0 means not set).

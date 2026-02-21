@@ -67,11 +67,7 @@ func flushRedisDB(ctx context.Context) (bool, error) {
 }
 
 func (r *Resolver) fetchSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	opts := workflowOptions(worker.WorkflowIDFetchSeasons)
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.FetchSeasonsWorkflow, input); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.executeWorkflow(ctx, worker.WorkflowIDFetchSeasons, worker.FetchSeasonsWorkflow, input)
 }
 
 func (r *Resolver) cancelFetchSeasons(ctx context.Context) (bool, error) {
@@ -90,11 +86,7 @@ func (r *Resolver) fetchSeasonsProgress(ctx context.Context) (*model.WorkflowPro
 }
 
 func (r *Resolver) fetchYahooPlayers(ctx context.Context) (bool, error) {
-	opts := workflowOptions(worker.WorkflowIDFetchYahooPlayers)
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.FetchYahooPlayersWorkflow, nil); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.executeWorkflow(ctx, worker.WorkflowIDFetchYahooPlayers, worker.FetchYahooPlayersWorkflow, nil)
 }
 
 func (r *Resolver) cancelFetchYahooPlayers(ctx context.Context) (bool, error) {
@@ -113,7 +105,6 @@ func (r *Resolver) fetchYahooPlayersProgress(ctx context.Context) (*model.Workfl
 }
 
 func (r *Resolver) processPlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	opts := workflowOptions(worker.WorkflowIDProcessPlayers)
 	// Convert GraphQL input to workflow input
 	workflowInput := &worker.ProcessPlayersInput{}
 	if input != nil {
@@ -121,10 +112,7 @@ func (r *Resolver) processPlayers(ctx context.Context, input *model.SeasonsInput
 		workflowInput.EndSeason = input.EndSeason
 		workflowInput.SeasonConcurrency = input.SeasonConcurrency
 	}
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ProcessPlayersWorkflow, workflowInput); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.executeWorkflow(ctx, worker.WorkflowIDProcessPlayers, worker.ProcessPlayersWorkflow, workflowInput)
 }
 
 func (r *Resolver) cancelProcessPlayers(ctx context.Context) (bool, error) {
@@ -218,11 +206,7 @@ func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.Process
 }
 
 func (r *Resolver) importSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	opts := workflowOptions(worker.WorkflowIDImportSeasons)
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.ImportSeasonsWorkflow, input); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.executeWorkflow(ctx, worker.WorkflowIDImportSeasons, worker.ImportSeasonsWorkflow, input)
 }
 
 func (r *Resolver) cancelImportSeasons(ctx context.Context) (bool, error) {
@@ -241,11 +225,7 @@ func (r *Resolver) importSeasonsProgress(ctx context.Context) (*model.WorkflowPr
 }
 
 func (r *Resolver) initialize(ctx context.Context) (bool, error) {
-	opts := workflowOptions(worker.WorkflowIDInitialize)
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.InitializeWorkflow); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.executeWorkflow(ctx, worker.WorkflowIDInitialize, worker.InitializeWorkflow, nil)
 }
 
 func (r *Resolver) cancelInitialize(ctx context.Context) (bool, error) {
@@ -425,6 +405,13 @@ func ptrStringIfNotEmpty(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// executeWorkflow starts a workflow and returns success status.
+func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workflow interface{}, arg interface{}) (bool, error) {
+	opts := workflowOptions(workflowID)
+	_, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow, arg)
+	return err == nil, err
 }
 
 // TODO move to temporal/worker

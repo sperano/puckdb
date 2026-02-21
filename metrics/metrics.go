@@ -217,6 +217,15 @@ func ObserveActivityDuration(activity string, duration time.Duration) {
 	activityDuration.WithLabelValues(activity).Observe(duration.Seconds())
 }
 
+// TrackActivityDuration returns a function to be deferred for timing activities.
+// Usage: defer TrackActivityDuration("ActivityName")()
+func TrackActivityDuration(activityName string) func() {
+	start := time.Now()
+	return func() {
+		ObserveActivityDuration(activityName, time.Since(start))
+	}
+}
+
 // HTTPMetricsMiddleware returns middleware that records HTTP request metrics for the API.
 func HTTPMetricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

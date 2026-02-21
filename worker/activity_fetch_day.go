@@ -50,10 +50,7 @@ func (f realDayFetcher) FetchTeamSummary(ctx context.Context, leagueID, teamID i
 // TeamIDs should be pre-computed by the parent workflow from the Yahoo seasons config.
 // If TeamIDs is empty, only NHL data (daily schedule/boxscores) is fetched.
 func FetchDayActivity(ctx context.Context, input FetchDayInput) error {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("FetchDayActivity", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("FetchDayActivity")()
 
 	fs := store.NewStore()
 	nhlClient := newNHLClient()

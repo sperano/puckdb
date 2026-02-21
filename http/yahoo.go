@@ -2,21 +2,25 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/config"
-	"golang.org/x/oauth2"
 	"net/http"
 
 	"github.com/rs/zerolog/log"
-
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/spf13/viper"
+	"golang.org/x/oauth2"
 )
 
 func handleError(w http.ResponseWriter, code int, err error) {
-	log.Error().Err(err)
-	json := fmt.Sprintf(`{"error":"%s"}`, err)
-	http.Error(w, json, code)
+	log.Error().Err(err).Msg("HTTP error")
+	resp := struct {
+		Error string `json:"error"`
+	}{Error: err.Error()}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func setNoCacheHeaders(w http.ResponseWriter) {
