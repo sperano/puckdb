@@ -225,7 +225,11 @@ func (r *Resolver) importSeasonsProgress(ctx context.Context) (*model.WorkflowPr
 }
 
 func (r *Resolver) initialize(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDInitialize, worker.InitializeWorkflow, nil)
+	opts := workflowOptions(worker.WorkflowIDInitialize)
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.InitializeWorkflow); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *Resolver) cancelInitialize(ctx context.Context) (bool, error) {
