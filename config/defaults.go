@@ -161,7 +161,7 @@ const (
 
 // Temporal workflow defaults
 const (
-	DefaultWorkflowExecutionTimeout    = 30 * time.Minute
+	DefaultWorkflowExecutionTimeout    = 3 * time.Hour
 	DefaultActivityStartToCloseTimeout = 3 * time.Minute
 	DefaultBackoffCoefficient          = 2.0
 	DefaultSeasonConcurrency           = 5

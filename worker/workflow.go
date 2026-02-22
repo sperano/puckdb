@@ -13,15 +13,16 @@ import (
 )
 
 const (
-	TaskQueueName           = "puckdb-tasks"
-	WorkflowIDImportSeasons = "import-seasons"
-	WorkflowIDFetchSeasons  = "fetch-seasons"
+	TaskQueueName            = "puckdb-tasks"
+	WorkflowIDImportSeasons  = "import-seasons"
+	WorkflowIDFetchSeasons   = "fetch-seasons"
+	WorkflowIDFetchPlayerLogs = "fetch-player-logs"
 )
 
 func withChildOptions(ctx workflow.Context, id string) workflow.Context {
 	return workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 		WorkflowExecutionTimeout: config.DefaultWorkflowExecutionTimeout,
-		WorkflowTaskTimeout:      config.DefaultWorkflowExecutionTimeout,
+		WorkflowTaskTimeout:      config.DefaultWorkflowTaskTimeout,
 		WorkflowID:               id,
 		// Allow terminating orphaned child workflows from previous failed parent runs
 		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING,
