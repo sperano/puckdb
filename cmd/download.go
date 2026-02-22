@@ -155,16 +155,13 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		}
 
 		// First pass: find max widths for alignment (including total line)
-		var maxCompleted, maxTotal, maxDescLen int
+		var maxTotal, maxDescLen int
 		const totalLabel = "Total"
 		maxDescLen = len(totalLabel)
 
 		for _, item := range status.Progress.Items {
 			if !item.Started || (item.Completed == item.Total && item.Total > 0) {
 				continue
-			}
-			if item.Completed > maxCompleted {
-				maxCompleted = item.Completed
 			}
 			if item.Total > maxTotal {
 				maxTotal = item.Total
@@ -179,15 +176,12 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		}
 
 		// Include overall totals in width calculation
-		if status.Progress.Completed > maxCompleted {
-			maxCompleted = status.Progress.Completed
-		}
 		if status.Progress.Total > maxTotal {
 			maxTotal = status.Progress.Total
 		}
 
-		completedWidth := len(fmt.Sprintf("%d", maxCompleted))
-		totalWidth := len(fmt.Sprintf("%d", maxTotal))
+		// Calculate combined width for "x/y" based on max possible "total/total"
+		progressWidth := len(fmt.Sprintf("%d/%d", maxTotal, maxTotal))
 
 		// Second pass: format with aligned columns
 		for _, item := range status.Progress.Items {
@@ -202,16 +196,18 @@ func formatStatusMessage(status *WorkflowStatus) string {
 
 			pct := float64(item.Completed) / float64(item.Total) * 100
 			bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-			lines = append(lines, fmt.Sprintf("%s %-*s %*d/%*d %s %d%%",
-				SpinnerPlaceholder, maxDescLen, description, completedWidth, item.Completed, totalWidth, item.Total, bar, int(pct)))
+			progress := fmt.Sprintf("%d/%d", item.Completed, item.Total)
+			lines = append(lines, fmt.Sprintf("%s %-*s %*s %s %d%%",
+				SpinnerPlaceholder, maxDescLen, description, progressWidth, progress, bar, int(pct)))
 		}
 
 		// Total progress line
 		if status.Progress.Total > 0 {
 			totalPct := float64(status.Progress.Completed) / float64(status.Progress.Total) * 100
 			totalBar := renderProgressBar(totalPct, config.DefaultProgressBarWidth)
-			lines = append(lines, fmt.Sprintf("  %-*s %*d/%*d %s %d%%",
-				maxDescLen, totalLabel, completedWidth, status.Progress.Completed, totalWidth, status.Progress.Total, totalBar, int(totalPct)))
+			totalProgress := fmt.Sprintf("%d/%d", status.Progress.Completed, status.Progress.Total)
+			lines = append(lines, fmt.Sprintf("  %-*s %*s %s %d%%",
+				maxDescLen, totalLabel, progressWidth, totalProgress, totalBar, int(totalPct)))
 		}
 
 		return strings.Join(lines, "\n")

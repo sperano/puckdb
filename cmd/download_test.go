@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/sperano/puckdb/graph/model"
@@ -476,4 +477,227 @@ func TestFormatStatusMessage(t *testing.T) {
 // ptr returns a pointer to the given string
 func ptr(s string) *string {
 	return &s
+}
+
+func displayStylePtr(s model.ProgressDisplayStyle) *model.ProgressDisplayStyle {
+	return &s
+}
+
+func TestFormatStatusMessage_GroupedItemsAlignment(t *testing.T) {
+	t.Parallel()
+
+	// Test the right-alignment of progress numbers
+	status := &WorkflowStatus{
+		Progress: &model.WorkflowProgress{
+			Total:        17406,
+			Completed:    13441,
+			Header:       ptr("Downloading seasons"),
+			DisplayStyle: displayStylePtr(model.ProgressDisplayStyleGroupedItems),
+			Items: []*model.ProgressItem{
+				{
+					ID:          2003,
+					Description: ptr("2003-04"),
+					Total:       182,
+					Completed:   0,
+					Started:     true,
+				},
+				{
+					ID:          2005,
+					Description: ptr("2005-06"),
+					Total:       198,
+					Completed:   123,
+					Started:     true,
+				},
+			},
+		},
+		Result: &model.WorkflowResult{Status: model.TemporalWorkflowStatusRunning},
+	}
+
+	got := formatStatusMessage(status)
+	lines := strings.Split(got, "\n")
+
+	// Should have: header, 2 items, total = 4 lines
+	if len(lines) != 4 {
+		t.Fatalf("expected 4 lines, got %d: %q", len(lines), got)
+	}
+
+	// Check header
+	if !strings.Contains(lines[0], "▶ Downloading seasons") {
+		t.Errorf("line 0 should contain header, got %q", lines[0])
+	}
+
+	// Check alignment: item lines should have "/" at the same position
+	line1SlashPos := strings.Index(lines[1], "/")
+	line2SlashPos := strings.Index(lines[2], "/")
+
+	if line1SlashPos != line2SlashPos {
+		t.Errorf("slash positions differ: line1=%d, line2=%d", line1SlashPos, line2SlashPos)
+	}
+
+	// Verify right-alignment: "0/182" should have leading spaces
+	if !strings.Contains(lines[1], "    0/182") {
+		t.Errorf("line 1 should have right-aligned 0/182, got %q", lines[1])
+	}
+
+	// Verify totals present
+	if !strings.Contains(lines[3], "Total") {
+		t.Errorf("line 3 should contain Total, got %q", lines[3])
+	}
+	if !strings.Contains(lines[3], "13441/17406") {
+		t.Errorf("line 3 should contain 13441/17406, got %q", lines[3])
+	}
+}
+
+func TestFormatStatusMessage_GroupedItemsCompletedSkipped(t *testing.T) {
+	t.Parallel()
+
+	status := &WorkflowStatus{
+		Progress: &model.WorkflowProgress{
+			Total:        300,
+			Completed:    200,
+			DisplayStyle: displayStylePtr(model.ProgressDisplayStyleGroupedItems),
+			Items: []*model.ProgressItem{
+				{
+					ID:          1,
+					Description: ptr("Completed"),
+					Total:       100,
+					Completed:   100, // completed - should be skipped
+					Started:     true,
+				},
+				{
+					ID:          2,
+					Description: ptr("In progress"),
+					Total:       100,
+					Completed:   50,
+					Started:     true,
+				},
+				{
+					ID:          3,
+					Description: ptr("Not started"),
+					Total:       100,
+					Completed:   0,
+					Started:     false, // not started - should be skipped
+				},
+			},
+		},
+		Result: &model.WorkflowResult{Status: model.TemporalWorkflowStatusRunning},
+	}
+
+	got := formatStatusMessage(status)
+
+	// Should only show "In progress" item + Total
+	if strings.Contains(got, "Completed") {
+		t.Errorf("should not contain completed item, got %q", got)
+	}
+	if strings.Contains(got, "Not started") {
+		t.Errorf("should not contain not-started item, got %q", got)
+	}
+	if !strings.Contains(got, "In progress") {
+		t.Errorf("should contain in-progress item, got %q", got)
+	}
+	if !strings.Contains(got, "Total") {
+		t.Errorf("should contain Total line, got %q", got)
+	}
+}
+
+func TestFormatStatusMessage_DefaultDisplayItems(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		status   *WorkflowStatus
+		contains []string
+		excludes []string
+	}{
+		{
+			name: "completed item shows checkmark",
+			status: &WorkflowStatus{
+				Progress: &model.WorkflowProgress{
+					Items: []*model.ProgressItem{
+						{
+							ID:                   1,
+							Description:          ptr("Phase 1"),
+							CompletedDescription: ptr("Phase 1 done in 5s"),
+							Total:                100,
+							Completed:            100,
+							Started:              true,
+						},
+					},
+				},
+				Result: &model.WorkflowResult{Status: model.TemporalWorkflowStatusRunning},
+			},
+			contains: []string{"✓ Phase 1 done in 5s"},
+		},
+		{
+			name: "in progress item shows arrow and bar",
+			status: &WorkflowStatus{
+				Progress: &model.WorkflowProgress{
+					Items: []*model.ProgressItem{
+						{
+							ID:          1,
+							Description: ptr("Downloading"),
+							Total:       200,
+							Completed:   100,
+							Started:     true,
+						},
+					},
+				},
+				Result: &model.WorkflowResult{Status: model.TemporalWorkflowStatusRunning},
+			},
+			contains: []string{"▶ Downloading", "100/200", "50%"},
+		},
+		{
+			name: "pending item is skipped",
+			status: &WorkflowStatus{
+				Progress: &model.WorkflowProgress{
+					Items: []*model.ProgressItem{
+						{
+							ID:          1,
+							Description: ptr("Pending task"),
+							Total:       100,
+							Completed:   0,
+							Started:     false,
+						},
+					},
+				},
+				Result: &model.WorkflowResult{Status: model.TemporalWorkflowStatusRunning},
+			},
+			excludes: []string{"Pending task"},
+		},
+		{
+			name: "message prepended to output",
+			status: &WorkflowStatus{
+				Progress: &model.WorkflowProgress{
+					Message: ptr("Starting workflow"),
+					Items: []*model.ProgressItem{
+						{
+							ID:          1,
+							Description: ptr("Task 1"),
+							Total:       50,
+							Completed:   25,
+							Started:     true,
+						},
+					},
+				},
+				Result: &model.WorkflowResult{Status: model.TemporalWorkflowStatusRunning},
+			},
+			contains: []string{"Starting workflow", "▶ Task 1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatStatusMessage(tt.status)
+			for _, substr := range tt.contains {
+				if !strings.Contains(got, substr) {
+					t.Errorf("formatStatusMessage() = %q, missing %q", got, substr)
+				}
+			}
+			for _, substr := range tt.excludes {
+				if strings.Contains(got, substr) {
+					t.Errorf("formatStatusMessage() = %q, should not contain %q", got, substr)
+				}
+			}
+		})
+	}
 }
