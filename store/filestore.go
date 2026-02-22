@@ -12,6 +12,7 @@ const (
 	FileTypeBoxscore        = "Boxscore"
 	FileTypePlayByPlay      = "PlayByPlay"
 	FileTypeShiftChart      = "ShiftChart"
+	FileTypeGameStory       = "GameStory"
 	FileTypeFranchises      = "Franchises"
 	FileTypeSeasonsManifest = "SeasonsManifest"
 	FileTypeSeasonStandings = "SeasonStandings"

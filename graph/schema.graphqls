@@ -96,6 +96,9 @@ type Query {
 	fetchSeasonsResult: WorkflowResult!
 	fetchSeasonsProgress: WorkflowProgress
 
+	fetchPlayerLogsResult: WorkflowResult!
+	fetchPlayerLogsProgress: WorkflowProgress
+
 	fetchYahooPlayersResult: WorkflowResult!
 	fetchYahooPlayersProgress: WorkflowProgress
 
@@ -125,6 +128,8 @@ type Mutation {
 	cancelInitialize: Boolean!
 	fetchSeasons(input: SeasonsInput): Boolean!
 	cancelFetchSeasons: Boolean!
+	fetchPlayerLogs(input: SeasonsInput): Boolean!
+	cancelFetchPlayerLogs: Boolean!
 	fetchYahooPlayers: Boolean!
 	cancelFetchYahooPlayers: Boolean!
 	processPlayers(input: SeasonsInput): Boolean!

@@ -176,19 +176,21 @@ const (
 
 // Download workflow flags
 const (
-	FlagMaxSeasonConcurrency = "max-season-concurrency"
-	FlagDayConcurrency       = "day-concurrency"
-	FlagSkipPreseason        = "skip-preseason"
-	FlagSkipProcessPlayers   = "skip-players"
-	FlagSkipYahooPlayers     = "skip-yahoo-players"
-	FlagSkipSeasons          = "skip-seasons"
-	FlagSkipInitializing     = "skip-initializing"
-	FlagSkipImportSeasons    = "skip-import-seasons"
-	FlagSeasonConcurrency    = "season-concurrency"
-	FlagMonitor              = "monitor"
-	FlagSeasonYear           = "season"
-	FlagFromSeasonYear       = "from-season"
-	FlagToSeasonYear         = "to-season"
+	FlagMaxSeasonConcurrency     = "max-season-concurrency"
+	FlagDayConcurrency           = "day-concurrency"
+	FlagSkipPreseason            = "skip-preseason"
+	FlagSkipProcessPlayers       = "skip-players"
+	FlagSkipYahooPlayers         = "skip-yahoo-players"
+	FlagSkipSeasons              = "skip-seasons"
+	FlagSkipPlayerLogs           = "skip-player-logs"
+	FlagSkipInitializing         = "skip-initializing"
+	FlagSkipImportSeasons        = "skip-import-seasons"
+	FlagRefreshCurrentPlayerLogs = "refresh-current-player-logs"
+	FlagSeasonConcurrency        = "season-concurrency"
+	FlagMonitor                  = "monitor"
+	FlagSeasonYear               = "season"
+	FlagFromSeasonYear           = "from-season"
+	FlagToSeasonYear             = "to-season"
 )
 
 // Cache flags
@@ -338,6 +340,8 @@ var SyncSkipFlags = FlagGroup{
 		{FlagSkipInitializing, "", false, "Skip the initialization workflow (franchises, seasons, league structure)", false},
 		{FlagSkipYahooPlayers, "", false, "Skip downloading Yahoo! players", false},
 		{FlagSkipSeasons, "", false, "Skip downloading season data (NHL schedules, boxscores, Yahoo! fantasy)", false},
+		{FlagSkipPlayerLogs, "", false, "Skip downloading player game logs for historical seasons", false},
+		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the current season (overwrites cached files)", false},
 		{FlagSkipProcessPlayers, "", false, "Skip processing players (download + import)", false},
 		{FlagSkipImportSeasons, "", false, "Skip importing seasons into the database", false},
 	},

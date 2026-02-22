@@ -148,6 +148,7 @@ const (
 	workflowInitialize
 	workflowYahooPlayers
 	workflowFetchSeasons
+	workflowFetchPlayerLogs
 	workflowProcessPlayers
 	workflowImportSeasons
 )

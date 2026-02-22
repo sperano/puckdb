@@ -74,6 +74,7 @@ func FetchDayActivity(ctx context.Context, input FetchDayInput) error {
 			Boxscore:   DownloadBoxscore,
 			PlayByPlay: DownloadPlayByPlay,
 			ShiftChart: DownloadShiftChart,
+			GameStory:  DownloadGameStory,
 		},
 	}
 	return fetchDayImpl(ctx, fetcher, input)

@@ -85,6 +85,25 @@ func (r *Resolver) fetchSeasonsProgress(ctx context.Context) (*model.WorkflowPro
 	return r.queryWorkflowProgress(ctx, worker.WorkflowIDFetchSeasons, worker.WorkflowIDFetchSeason)
 }
 
+func (r *Resolver) fetchPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return r.executeWorkflow(ctx, worker.WorkflowIDFetchPlayerLogs, worker.FetchPlayerLogsWorkflow, input)
+}
+
+func (r *Resolver) cancelFetchPlayerLogs(ctx context.Context) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDFetchPlayerLogs, ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) fetchPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, worker.WorkflowIDFetchPlayerLogs)
+}
+
+func (r *Resolver) fetchPlayerLogsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.queryWorkflowProgress(ctx, worker.WorkflowIDFetchPlayerLogs, worker.WorkflowIDFetchSeasonPlayerLogs)
+}
+
 func (r *Resolver) fetchYahooPlayers(ctx context.Context) (bool, error) {
 	return r.executeWorkflow(ctx, worker.WorkflowIDFetchYahooPlayers, worker.FetchYahooPlayersWorkflow, nil)
 }

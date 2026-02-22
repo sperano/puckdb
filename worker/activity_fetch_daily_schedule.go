@@ -21,6 +21,7 @@ type GameDataDownloaders struct {
 	Boxscore   BoxscoreDownloader
 	PlayByPlay BoxscoreDownloader
 	ShiftChart BoxscoreDownloader
+	GameStory  BoxscoreDownloader
 }
 
 func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClient, day time.Time, downloaders GameDataDownloaders) error {
@@ -46,6 +47,9 @@ func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClien
 		}
 		if err := downloadGameDataToCache(fs, store.ShiftChartFile{Date: day, GameID: id}, downloaders.ShiftChart, id, store.FileTypeShiftChart); err != nil {
 			return fmt.Errorf("shift-chart gameid %s: %w", id.String(), err)
+		}
+		if err := downloadGameDataToCache(fs, store.GameStoryFile{Date: day, GameID: id}, downloaders.GameStory, id, store.FileTypeGameStory); err != nil {
+			return fmt.Errorf("game-story gameid %s: %w", id.String(), err)
 		}
 	}
 	return nil

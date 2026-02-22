@@ -186,6 +186,21 @@ func (f ShiftChartFile) Dir() string  { return gamesListDir(f.Date) }
 func (f ShiftChartFile) Name() string { return fmt.Sprintf("shiftchart-%s", f.GameID.String()) }
 
 // ////////////////////////////////////////////////////////////////////////////
+// GAME STORY
+// ////////////////////////////////////////////////////////////////////////////
+
+// GameStoryFile represents the stored NHL game story for a specific game.
+// Contains three stars, goal summaries with highlight clips, penalty details, and shootout info.
+type GameStoryFile struct {
+	Date   time.Time
+	GameID nhl.GameID
+}
+
+func (f GameStoryFile) Ext() string  { return "json" }
+func (f GameStoryFile) Dir() string  { return gamesListDir(f.Date) }
+func (f GameStoryFile) Name() string { return fmt.Sprintf("gamestory-%s", f.GameID.String()) }
+
+// ////////////////////////////////////////////////////////////////////////////
 // PLAYER GAME LOG
 // ////////////////////////////////////////////////////////////////////////////
 

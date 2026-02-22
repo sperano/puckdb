@@ -32,6 +32,19 @@ func (c *GraphQLClient) CancelFetchSeasons(ctx context.Context) (bool, error) {
 	return c.executeBoolMutation(ctx, `mutation { cancelFetchSeasons }`, "cancelFetchSeasons", nil)
 }
 
+// FetchPlayerLogs triggers the fetchPlayerLogs mutation for historical seasons.
+func (c *GraphQLClient) FetchPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return c.executeBoolMutation(ctx,
+		`mutation($input: SeasonsInput) { fetchPlayerLogs(input: $input) }`,
+		"fetchPlayerLogs",
+		map[string]any{"input": input})
+}
+
+// CancelFetchPlayerLogs cancels the fetchPlayerLogs workflow
+func (c *GraphQLClient) CancelFetchPlayerLogs(ctx context.Context) (bool, error) {
+	return c.executeBoolMutation(ctx, `mutation { cancelFetchPlayerLogs }`, "cancelFetchPlayerLogs", nil)
+}
+
 // FetchYahooPlayers triggers the fetchYahooPlayers mutation
 func (c *GraphQLClient) FetchYahooPlayers(ctx context.Context) (bool, error) {
 	return c.executeBoolMutation(ctx, `mutation { fetchYahooPlayers }`, "fetchYahooPlayers", nil)

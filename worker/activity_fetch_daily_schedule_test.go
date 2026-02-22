@@ -28,14 +28,16 @@ func mockGameDownloaders(content []byte, err error) GameDataDownloaders {
 		Boxscore:   dl,
 		PlayByPlay: dl,
 		ShiftChart: dl,
+		GameStory:  dl,
 	}
 }
 
-// mockAllGameFilesExist sets up mocks for all game data files (boxscore, play-by-play, shift chart) as existing.
+// mockAllGameFilesExist sets up mocks for all game data files (boxscore, play-by-play, shift chart, game story) as existing.
 func mockAllGameFilesExist(mockFS *MockFileSystem, day time.Time, gameID nhl.GameID) {
 	mockFS.On("Exists", store.BoxscoreFile{Date: day, GameID: gameID}).Return(true)
 	mockFS.On("Exists", store.PlayByPlayFile{Date: day, GameID: gameID}).Return(true)
 	mockFS.On("Exists", store.ShiftChartFile{Date: day, GameID: gameID}).Return(true)
+	mockFS.On("Exists", store.GameStoryFile{Date: day, GameID: gameID}).Return(true)
 }
 
 func TestFetchDailyScheduleImpl_ScheduleFromCache(t *testing.T) {
@@ -255,6 +257,12 @@ func TestFetchDailyScheduleImpl_DownloadsBoxscore(t *testing.T) {
 	mockFS.On("Exists", shiftFile).Return(false)
 	mockFS.On("MkdirAll", shiftFile.Dir(), os.FileMode(0755)).Return(nil)
 	mockFS.On("Write", shiftFile, []byte("boxscore data")).Return(nil)
+
+	// Game story not cached - needs download
+	storyFile := store.GameStoryFile{Date: day, GameID: gameID}
+	mockFS.On("Exists", storyFile).Return(false)
+	mockFS.On("MkdirAll", storyFile.Dir(), os.FileMode(0755)).Return(nil)
+	mockFS.On("Write", storyFile, []byte("boxscore data")).Return(nil)
 
 	err := fetchDailyScheduleImpl(ctx, mockFS, mockClient, day, mockGameDownloaders([]byte("boxscore data"), nil))
 

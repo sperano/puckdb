@@ -34,6 +34,7 @@ type NHLClient interface {
 	Boxscore(ctx context.Context, gameID nhl.GameID) (*nhl.Boxscore, error)
 	PlayByPlay(ctx context.Context, gameID nhl.GameID) (*nhl.PlayByPlay, error)
 	ShiftChart(ctx context.Context, gameID nhl.GameID) (*nhl.ShiftChart, error)
+	GameStory(ctx context.Context, gameID nhl.GameID) (*nhl.GameStory, error)
 	PlayerGameLog(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.PlayerGameLog, error)
 	DailySchedule(ctx context.Context, date nhl.GameDate) (*nhl.DailySchedule, error)
 	SeasonStandingManifest(ctx context.Context) ([]nhl.SeasonInfo, error)
@@ -150,6 +151,28 @@ func DownloadShiftChart(gameid nhl.GameID) ([]byte, error) {
 	}
 
 	data, err := json.Marshal(shifts)
+	if err != nil {
+		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
+	}
+
+	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
+	return data, nil
+}
+
+func DownloadGameStory(gameid nhl.GameID) ([]byte, error) {
+	log.Debug().Str("gameid", gameid.String()).Msg("Downloading game story NHL API")
+	client := newNHLClient()
+
+	start := time.Now()
+	story, err := client.GameStory(context.Background(), gameid)
+	duration := time.Since(start)
+
+	if err != nil {
+		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
+		return nil, err
+	}
+
+	data, err := json.Marshal(story)
 	if err != nil {
 		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
 	}

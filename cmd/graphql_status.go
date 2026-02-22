@@ -37,6 +37,13 @@ func (c *GraphQLClient) GetFetchSeasonsStatus(ctx context.Context) (*WorkflowSta
 		"fetchSeasonsResult", "fetchSeasonsProgress", nil)
 }
 
+// GetFetchPlayerLogsStatus queries both workflow result and progress for player logs.
+func (c *GraphQLClient) GetFetchPlayerLogsStatus(ctx context.Context) (*WorkflowStatus, error) {
+	return c.executeWorkflowStatusQuery(ctx,
+		`query { fetchPlayerLogsResult `+resultFields+` fetchPlayerLogsProgress `+progressFieldsFull+` }`,
+		"fetchPlayerLogsResult", "fetchPlayerLogsProgress", nil)
+}
+
 // GetFetchYahooPlayersStatus queries both workflow result and progress
 func (c *GraphQLClient) GetFetchYahooPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
 	return c.executeWorkflowStatusQuery(ctx,

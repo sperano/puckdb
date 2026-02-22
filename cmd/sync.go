@@ -131,7 +131,16 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Println("- Skipping seasons fetch.")
 	}
 
-	// Step 4: Process players (download + import) unless skipped
+	// Step 4: Fetch player game logs for historical seasons (unless skipped)
+	if !viper.GetBool(config.FlagSkipPlayerLogs) {
+		if err := runFetchPlayerLogs(ctx, out, client, state); err != nil {
+			return fmt.Errorf("fetching player logs failed: %w", err)
+		}
+	} else {
+		fmt.Println("- Skipping player logs fetch.")
+	}
+
+	// Step 5: Process players (download + import) unless skipped
 	if !viper.GetBool(config.FlagSkipProcessPlayers) {
 		if err := runProcessPlayers(ctx, out, client, state); err != nil {
 			return fmt.Errorf("processing players failed: %w", err)
@@ -147,7 +156,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Println("- Skipping players processing.")
 	}
 
-	// Step 5: Import seasons (unless skipped)
+	// Step 6: Import seasons (unless skipped)
 	if !viper.GetBool(config.FlagSkipImportSeasons) {
 		if err := runImportSeasons(ctx, out, client, state); err != nil {
 			return fmt.Errorf("importing seasons failed: %w", err)
@@ -220,6 +229,15 @@ func runFetchSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, 
 	}.run(ctx, out, state)
 }
 
+func runFetchPlayerLogs(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+	return workflowRunner{
+		workflowType: workflowFetchPlayerLogs,
+		trigger:      func() (bool, error) { return client.FetchPlayerLogs(ctx, buildSeasonsInput()) },
+		getStatus:    client.GetFetchPlayerLogsStatus,
+		timeout:      config.DefaultWorkflowPollTimeout,
+	}.run(ctx, out, state)
+}
+
 func runProcessPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	return workflowRunner{
 		workflowType: workflowProcessPlayers,
@@ -253,11 +271,12 @@ func (s *syncState) cancel() {
 		fn   func(context.Context) (bool, error)
 	}
 	cancelers := map[workflowType]cancelInfo{
-		workflowYahooPlayers:   {"fetchYahooPlayers", s.client.CancelFetchYahooPlayers},
-		workflowInitialize:     {"initialize", s.client.CancelInitialize},
-		workflowFetchSeasons:   {"fetchSeasons", s.client.CancelFetchSeasons},
-		workflowProcessPlayers: {"processPlayers", s.client.CancelProcessPlayers},
-		workflowImportSeasons:  {"importSeasons", s.client.CancelImportSeasons},
+		workflowYahooPlayers:    {"fetchYahooPlayers", s.client.CancelFetchYahooPlayers},
+		workflowInitialize:      {"initialize", s.client.CancelInitialize},
+		workflowFetchSeasons:    {"fetchSeasons", s.client.CancelFetchSeasons},
+		workflowFetchPlayerLogs: {"fetchPlayerLogs", s.client.CancelFetchPlayerLogs},
+		workflowProcessPlayers:  {"processPlayers", s.client.CancelProcessPlayers},
+		workflowImportSeasons:   {"importSeasons", s.client.CancelImportSeasons},
 	}
 	info, ok := cancelers[s.current]
 	if !ok {

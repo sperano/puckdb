@@ -53,6 +53,16 @@ func (r *mutationResolver) CancelFetchSeasons(ctx context.Context) (bool, error)
 	return r.Resolver.cancelFetchSeasons(ctx)
 }
 
+// FetchPlayerLogs is the resolver for the fetchPlayerLogs field.
+func (r *mutationResolver) FetchPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return r.Resolver.fetchPlayerLogs(ctx, input)
+}
+
+// CancelFetchPlayerLogs is the resolver for the cancelFetchPlayerLogs field.
+func (r *mutationResolver) CancelFetchPlayerLogs(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelFetchPlayerLogs(ctx)
+}
+
 // FetchYahooPlayers is the resolver for the fetchYahooPlayers field.
 func (r *mutationResolver) FetchYahooPlayers(ctx context.Context) (bool, error) {
 	return r.Resolver.fetchYahooPlayers(ctx)
@@ -115,6 +125,16 @@ func (r *queryResolver) FetchSeasonsResult(ctx context.Context) (*model.Workflow
 // FetchSeasonsProgress is the resolver for the fetchSeasonsProgress field.
 func (r *queryResolver) FetchSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
 	return r.Resolver.fetchSeasonsProgress(ctx)
+}
+
+// FetchPlayerLogsResult is the resolver for the fetchPlayerLogsResult field.
+func (r *queryResolver) FetchPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.fetchPlayerLogsResult(ctx)
+}
+
+// FetchPlayerLogsProgress is the resolver for the fetchPlayerLogsProgress field.
+func (r *queryResolver) FetchPlayerLogsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+	return r.Resolver.fetchPlayerLogsProgress(ctx)
 }
 
 // FetchYahooPlayersResult is the resolver for the fetchYahooPlayersResult field.
