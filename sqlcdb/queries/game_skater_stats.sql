@@ -190,3 +190,12 @@ DELETE FROM game_skater_stats WHERE game_id = $1 AND player_id = $2;
 
 -- name: DeleteGameSkaterStatsByGame :exec
 DELETE FROM game_skater_stats WHERE game_id = $1;
+
+-- name: UpdateSkaterGameLogStats :exec
+-- Update player game log specific stats (PPP, GWG, OT goals) that aren't in boxscores
+UPDATE game_skater_stats
+SET power_play_points = $3,
+    game_winning_goals = $4,
+    ot_goals = $5,
+    updated_at = NOW()
+WHERE game_id = $1 AND player_id = $2;

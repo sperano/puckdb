@@ -118,7 +118,7 @@ func processDaysInParallel(ctx workflow.Context, tracker *ProgressTracker, seaso
 	})
 }
 
-// importDayData chains boxscore and Yahoo data imports for a single day.
+// importDayData chains boxscore, player game log, and Yahoo data imports for a single day.
 func importDayData(ctx workflow.Context, season int, day time.Time, teamIDs []TeamInfo) workflow.Future {
 	future, settable := workflow.NewFuture(ctx)
 
@@ -129,7 +129,19 @@ func importDayData(ctx workflow.Context, season int, day time.Time, teamIDs []Te
 			return
 		}
 
-		// Second: import Yahoo team data if teams configured
+		// Second: import player game log stats (PPP, GWG, OT goals)
+		if err := importPlayerGameLogsForDate(ctx, season, day); err != nil {
+			settable.SetError(err)
+			return
+		}
+
+		// Third: import game story data (three stars, highlights, shootouts)
+		if err := importGameStoryForDate(ctx, season, day); err != nil {
+			settable.SetError(err)
+			return
+		}
+
+		// Fourth: import Yahoo team data if teams configured
 		if len(teamIDs) > 0 {
 			if err := importYahooDataForDate(ctx, season, day, teamIDs); err != nil {
 				settable.SetError(err)
@@ -160,6 +172,24 @@ func importYahooDataForDate(ctx workflow.Context, season int, day time.Time, tea
 		Date:   day,
 	}
 	return workflow.ExecuteActivity(ctx, ImportYahooDataForDateActivity, input).Get(ctx, nil)
+}
+
+// importPlayerGameLogsForDate imports player game log stats for a single date.
+func importPlayerGameLogsForDate(ctx workflow.Context, season int, day time.Time) error {
+	input := ImportPlayerGameLogsForDateInput{
+		Season: season*10000 + season + 1, // Convert 2023 -> 20232024
+		Date:   day,
+	}
+	return workflow.ExecuteActivity(ctx, ImportPlayerGameLogsForDateActivity, input).Get(ctx, nil)
+}
+
+// importGameStoryForDate imports game story data for a single date.
+func importGameStoryForDate(ctx workflow.Context, season int, day time.Time) error {
+	input := ImportGameStoryForDateInput{
+		Season: season*10000 + season + 1, // Convert 2023 -> 20232024
+		Date:   day,
+	}
+	return workflow.ExecuteActivity(ctx, ImportGameStoryForDateActivity, input).Get(ctx, nil)
 }
 
 // WorkflowIDImportSeason returns the workflow ID for a single season import.

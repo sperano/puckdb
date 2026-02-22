@@ -364,6 +364,10 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_Success() {
 	// Mock the activity for each day (3 days total)
 	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
 		ImportBoxscoresForDateResult{GamesImported: 5, SkatersImported: 30, GoaliesImported: 4}, nil)
+	s.env.OnActivity(ImportPlayerGameLogsForDateActivity, mock.Anything, mock.Anything).Return(
+		&ImportPlayerGameLogsForDateResult{}, nil)
+	s.env.OnActivity(ImportGameStoryForDateActivity, mock.Anything, mock.Anything).Return(
+		&ImportGameStoryForDateResult{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
@@ -414,6 +418,10 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SingleDay() {
 	// Mock single day activity
 	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
 		ImportBoxscoresForDateResult{GamesImported: 10, SkatersImported: 60, GoaliesImported: 8}, nil)
+	s.env.OnActivity(ImportPlayerGameLogsForDateActivity, mock.Anything, mock.Anything).Return(
+		&ImportPlayerGameLogsForDateResult{}, nil)
+	s.env.OnActivity(ImportGameStoryForDateActivity, mock.Anything, mock.Anything).Return(
+		&ImportGameStoryForDateResult{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
@@ -431,6 +439,10 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SomeDaysNoGames
 	// Some days have no games (returns 0 counts)
 	s.env.OnActivity(ImportBoxscoresForDateActivity, mock.Anything, mock.Anything).Return(
 		ImportBoxscoresForDateResult{GamesImported: 0, SkatersImported: 0, GoaliesImported: 0}, nil)
+	s.env.OnActivity(ImportPlayerGameLogsForDateActivity, mock.Anything, mock.Anything).Return(
+		&ImportPlayerGameLogsForDateResult{}, nil)
+	s.env.OnActivity(ImportGameStoryForDateActivity, mock.Anything, mock.Anything).Return(
+		&ImportGameStoryForDateResult{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 

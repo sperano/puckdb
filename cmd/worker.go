@@ -82,6 +82,8 @@ func cmdWorker() *cobra.Command {
 
 			// ImportSeasons activities
 			w.RegisterActivity(workers.ImportBoxscoresForDateActivity)
+			w.RegisterActivity(workers.ImportPlayerGameLogsForDateActivity)
+			w.RegisterActivity(workers.ImportGameStoryForDateActivity)
 			w.RegisterActivity(workers.ImportYahooLeagueActivity)
 			w.RegisterActivity(workers.ImportYahooTeamsActivity)
 			w.RegisterActivity(workers.ImportYahooDataForDateActivity)

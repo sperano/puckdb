@@ -36,7 +36,7 @@ func (q *Queries) DeleteGameSkaterStatsByGame(ctx context.Context, gameID int64)
 
 const getGameSkaterStats = `-- name: GetGameSkaterStats :one
 
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
     p.first_name, p.last_name, p.position as player_position,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -74,6 +74,9 @@ type GetGameSkaterStatsRow struct {
 	PowerPlayGoals     int16              `json:"power_play_goals"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	PowerPlayPoints    int16              `json:"power_play_points"`
+	GameWinningGoals   int16              `json:"game_winning_goals"`
+	OtGoals            int16              `json:"ot_goals"`
 	FirstName          string             `json:"first_name"`
 	LastName           string             `json:"last_name"`
 	PlayerPosition     string             `json:"player_position"`
@@ -111,6 +114,9 @@ func (q *Queries) GetGameSkaterStats(ctx context.Context, arg GetGameSkaterStats
 		&i.PowerPlayGoals,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PowerPlayPoints,
+		&i.GameWinningGoals,
+		&i.OtGoals,
 		&i.FirstName,
 		&i.LastName,
 		&i.PlayerPosition,
@@ -121,7 +127,7 @@ func (q *Queries) GetGameSkaterStats(ctx context.Context, arg GetGameSkaterStats
 }
 
 const getGameSkaterStatsByGame = `-- name: GetGameSkaterStatsByGame :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
     p.first_name, p.last_name, p.position as player_position,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -155,6 +161,9 @@ type GetGameSkaterStatsByGameRow struct {
 	PowerPlayGoals     int16              `json:"power_play_goals"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	PowerPlayPoints    int16              `json:"power_play_points"`
+	GameWinningGoals   int16              `json:"game_winning_goals"`
+	OtGoals            int16              `json:"ot_goals"`
 	FirstName          string             `json:"first_name"`
 	LastName           string             `json:"last_name"`
 	PlayerPosition     string             `json:"player_position"`
@@ -195,6 +204,9 @@ func (q *Queries) GetGameSkaterStatsByGame(ctx context.Context, gameID int64) ([
 			&i.PowerPlayGoals,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PowerPlayPoints,
+			&i.GameWinningGoals,
+			&i.OtGoals,
 			&i.FirstName,
 			&i.LastName,
 			&i.PlayerPosition,
@@ -212,7 +224,7 @@ func (q *Queries) GetGameSkaterStatsByGame(ctx context.Context, gameID int64) ([
 }
 
 const getGameSkaterStatsByGameAndTeam = `-- name: GetGameSkaterStatsByGameAndTeam :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
     p.first_name, p.last_name, p.position as player_position,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -251,6 +263,9 @@ type GetGameSkaterStatsByGameAndTeamRow struct {
 	PowerPlayGoals     int16              `json:"power_play_goals"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	PowerPlayPoints    int16              `json:"power_play_points"`
+	GameWinningGoals   int16              `json:"game_winning_goals"`
+	OtGoals            int16              `json:"ot_goals"`
 	FirstName          string             `json:"first_name"`
 	LastName           string             `json:"last_name"`
 	PlayerPosition     string             `json:"player_position"`
@@ -291,6 +306,9 @@ func (q *Queries) GetGameSkaterStatsByGameAndTeam(ctx context.Context, arg GetGa
 			&i.PowerPlayGoals,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PowerPlayPoints,
+			&i.GameWinningGoals,
+			&i.OtGoals,
 			&i.FirstName,
 			&i.LastName,
 			&i.PlayerPosition,
@@ -375,7 +393,7 @@ func (q *Queries) GetSkaterSeasonTotals(ctx context.Context, arg GetSkaterSeason
 }
 
 const getSkaterStatsByPlayer = `-- name: GetSkaterStatsByPlayer :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -408,6 +426,9 @@ type GetSkaterStatsByPlayerRow struct {
 	PowerPlayGoals     int16              `json:"power_play_goals"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	PowerPlayPoints    int16              `json:"power_play_points"`
+	GameWinningGoals   int16              `json:"game_winning_goals"`
+	OtGoals            int16              `json:"ot_goals"`
 	GameDate           pgtype.Date        `json:"game_date"`
 	Season             int32              `json:"season"`
 	GameType           int16              `json:"game_type"`
@@ -448,6 +469,9 @@ func (q *Queries) GetSkaterStatsByPlayer(ctx context.Context, playerID int64) ([
 			&i.PowerPlayGoals,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PowerPlayPoints,
+			&i.GameWinningGoals,
+			&i.OtGoals,
 			&i.GameDate,
 			&i.Season,
 			&i.GameType,
@@ -465,7 +489,7 @@ func (q *Queries) GetSkaterStatsByPlayer(ctx context.Context, playerID int64) ([
 }
 
 const getSkaterStatsByPlayerAndDateRange = `-- name: GetSkaterStatsByPlayerAndDateRange :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -504,6 +528,9 @@ type GetSkaterStatsByPlayerAndDateRangeRow struct {
 	PowerPlayGoals     int16              `json:"power_play_goals"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	PowerPlayPoints    int16              `json:"power_play_points"`
+	GameWinningGoals   int16              `json:"game_winning_goals"`
+	OtGoals            int16              `json:"ot_goals"`
 	GameDate           pgtype.Date        `json:"game_date"`
 	Season             int32              `json:"season"`
 	GameType           int16              `json:"game_type"`
@@ -544,6 +571,9 @@ func (q *Queries) GetSkaterStatsByPlayerAndDateRange(ctx context.Context, arg Ge
 			&i.PowerPlayGoals,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PowerPlayPoints,
+			&i.GameWinningGoals,
+			&i.OtGoals,
 			&i.GameDate,
 			&i.Season,
 			&i.GameType,
@@ -561,7 +591,7 @@ func (q *Queries) GetSkaterStatsByPlayerAndDateRange(ctx context.Context, arg Ge
 }
 
 const getSkaterStatsByPlayerAndSeason = `-- name: GetSkaterStatsByPlayerAndSeason :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
     g.game_date, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -599,6 +629,9 @@ type GetSkaterStatsByPlayerAndSeasonRow struct {
 	PowerPlayGoals     int16              `json:"power_play_goals"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	PowerPlayPoints    int16              `json:"power_play_points"`
+	GameWinningGoals   int16              `json:"game_winning_goals"`
+	OtGoals            int16              `json:"ot_goals"`
 	GameDate           pgtype.Date        `json:"game_date"`
 	GameType           int16              `json:"game_type"`
 	TeamName           string             `json:"team_name"`
@@ -638,6 +671,9 @@ func (q *Queries) GetSkaterStatsByPlayerAndSeason(ctx context.Context, arg GetSk
 			&i.PowerPlayGoals,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PowerPlayPoints,
+			&i.GameWinningGoals,
+			&i.OtGoals,
 			&i.GameDate,
 			&i.GameType,
 			&i.TeamName,
@@ -722,6 +758,35 @@ func (q *Queries) GetTeamSkaterSeasonTotals(ctx context.Context, arg GetTeamSkat
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateSkaterGameLogStats = `-- name: UpdateSkaterGameLogStats :exec
+UPDATE game_skater_stats
+SET power_play_points = $3,
+    game_winning_goals = $4,
+    ot_goals = $5,
+    updated_at = NOW()
+WHERE game_id = $1 AND player_id = $2
+`
+
+type UpdateSkaterGameLogStatsParams struct {
+	GameID           int64 `json:"game_id"`
+	PlayerID         int64 `json:"player_id"`
+	PowerPlayPoints  int16 `json:"power_play_points"`
+	GameWinningGoals int16 `json:"game_winning_goals"`
+	OtGoals          int16 `json:"ot_goals"`
+}
+
+// Update player game log specific stats (PPP, GWG, OT goals) that aren't in boxscores
+func (q *Queries) UpdateSkaterGameLogStats(ctx context.Context, arg UpdateSkaterGameLogStatsParams) error {
+	_, err := q.db.Exec(ctx, updateSkaterGameLogStats,
+		arg.GameID,
+		arg.PlayerID,
+		arg.PowerPlayPoints,
+		arg.GameWinningGoals,
+		arg.OtGoals,
+	)
+	return err
 }
 
 const upsertGameSkaterStats = `-- name: UpsertGameSkaterStats :exec

@@ -219,3 +219,33 @@ func (f PlayerGameLogFile) Dir() string { return playerGameLogDirName }
 func (f PlayerGameLogFile) Name() string {
 	return fmt.Sprintf("player-%s-%d-%d", f.PlayerID.String(), f.Season, f.GameType)
 }
+
+// ParsePlayerGameLogFilename parses a filename like "player-8478402-20232024-2" into a PlayerGameLogFile.
+func ParsePlayerGameLogFilename(name string) File {
+	const prefix = "player-"
+	if !strings.HasPrefix(name, prefix) {
+		return nil
+	}
+	// Format: player-{playerID}-{season}-{gameType}
+	parts := strings.Split(name[len(prefix):], "-")
+	if len(parts) != 3 {
+		return nil
+	}
+	playerID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return nil
+	}
+	season, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil
+	}
+	gameType, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return nil
+	}
+	return PlayerGameLogFile{
+		PlayerID: nhl.PlayerID(playerID),
+		Season:   season,
+		GameType: gameType,
+	}
+}

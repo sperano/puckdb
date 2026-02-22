@@ -89,6 +89,27 @@ type GameSkaterStat struct {
 	PowerPlayGoals     int16              `json:"power_play_goals"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	PowerPlayPoints    int16              `json:"power_play_points"`
+	GameWinningGoals   int16              `json:"game_winning_goals"`
+	OtGoals            int16              `json:"ot_goals"`
+}
+
+type GameThreeStar struct {
+	GameID   int64 `json:"game_id"`
+	Star     int16 `json:"star"`
+	PlayerID int64 `json:"player_id"`
+}
+
+type GoalHighlight struct {
+	GameID           int64       `json:"game_id"`
+	EventID          int64       `json:"event_id"`
+	PlayerID         int64       `json:"player_id"`
+	Period           int16       `json:"period"`
+	TimeInPeriod     string      `json:"time_in_period"`
+	GoalsToDate      pgtype.Int2 `json:"goals_to_date"`
+	HighlightClipID  pgtype.Int8 `json:"highlight_clip_id"`
+	HighlightClipUrl pgtype.Text `json:"highlight_clip_url"`
+	DiscreteClipID   pgtype.Int8 `json:"discrete_clip_id"`
 }
 
 type Player struct {
@@ -140,6 +161,16 @@ type SeasonTeam struct {
 	DivisionAbbrev   string      `json:"division_abbrev"`
 	ConferenceName   pgtype.Text `json:"conference_name"`
 	ConferenceAbbrev pgtype.Text `json:"conference_abbrev"`
+}
+
+type ShootoutAttempt struct {
+	GameID     int64  `json:"game_id"`
+	Sequence   int16  `json:"sequence"`
+	PlayerID   int64  `json:"player_id"`
+	TeamID     int64  `json:"team_id"`
+	ShotType   string `json:"shot_type"`
+	Result     string `json:"result"`
+	GameWinner bool   `json:"game_winner"`
 }
 
 type YahooLeague struct {
