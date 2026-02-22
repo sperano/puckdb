@@ -154,7 +154,7 @@ func TestGetGameKey(t *testing.T) {
 		mockStore.On("Write", file, xmlData).Return(nil)
 
 		fetcher := func(url string) ([]byte, error) {
-			assert.Contains(t, url, "season=2024")
+			assert.Contains(t, url, "seasons=2024")
 			return xmlData, nil
 		}
 

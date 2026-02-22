@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/store"
+	"github.com/sperano/puckdb/urls"
 )
 
 // TeamInfo identifies a team within a league for Yahoo downloads.
@@ -35,7 +35,7 @@ type realTeamFetcher struct {
 func (f realTeamFetcher) FetchTeam(ctx context.Context, season, gameKey, leagueID, teamID int) error {
 	log.Trace().Int("season", season).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo Team")
 	file := store.TeamFile{Season: season, LeagueID: leagueID, TeamID: teamID}
-	url := http.YahooTeamURL(gameKey, leagueID, teamID)
+	url := urls.YahooTeamURL(gameKey, leagueID, teamID)
 	return doDownloadImpl(ctx, f.fs, file, url, f.download)
 }
 

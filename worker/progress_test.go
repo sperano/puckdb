@@ -385,7 +385,7 @@ func TestNewProgressTrackerWithSeasons(t *testing.T) {
 		{
 			name: "single season",
 			seasons: []SeasonInfo{
-				{StartDate: time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2024, 4, 15, 0, 0, 0, 0, time.UTC)},
+				{SeasonID: 2023, StartDate: time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2024, 4, 15, 0, 0, 0, 0, time.UTC)},
 			},
 			expectedItems:  1,
 			checkItemIndex: true,
@@ -393,9 +393,9 @@ func TestNewProgressTrackerWithSeasons(t *testing.T) {
 		{
 			name: "multiple seasons",
 			seasons: []SeasonInfo{
-				{StartDate: time.Date(2021, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2022, 4, 15, 0, 0, 0, 0, time.UTC)},
-				{StartDate: time.Date(2022, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2023, 4, 15, 0, 0, 0, 0, time.UTC)},
-				{StartDate: time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2024, 4, 15, 0, 0, 0, 0, time.UTC)},
+				{SeasonID: 2021, StartDate: time.Date(2021, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2022, 4, 15, 0, 0, 0, 0, time.UTC)},
+				{SeasonID: 2022, StartDate: time.Date(2022, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2023, 4, 15, 0, 0, 0, 0, time.UTC)},
+				{SeasonID: 2023, StartDate: time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2024, 4, 15, 0, 0, 0, 0, time.UTC)},
 			},
 			expectedItems:  3,
 			checkItemIndex: true,
@@ -460,8 +460,8 @@ func TestProgressTracker_InitializeWithSeasons(t *testing.T) {
 	assert.Equal(t, 0, len(tracker.progress.Items))
 
 	seasons := []SeasonInfo{
-		{StartDate: time.Date(2022, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2023, 4, 15, 0, 0, 0, 0, time.UTC)},
-		{StartDate: time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2024, 4, 15, 0, 0, 0, 0, time.UTC)},
+		{SeasonID: 2022, StartDate: time.Date(2022, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2023, 4, 15, 0, 0, 0, 0, time.UTC)},
+		{SeasonID: 2023, StartDate: time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2024, 4, 15, 0, 0, 0, 0, time.UTC)},
 	}
 
 	tracker.InitializeWithSeasons(seasons, "", "")

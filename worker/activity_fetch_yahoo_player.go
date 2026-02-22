@@ -10,6 +10,7 @@ import (
 	puckhttp "github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/store"
+	"github.com/sperano/puckdb/urls"
 )
 
 type fetchStatus int
@@ -109,7 +110,7 @@ func fetchYahooPlayerImpl(ctx context.Context, fs store.Store, downloader HTTPDo
 	}
 
 	// Download the player page
-	url := puckhttp.YahooPlayerURL(int(playerID))
+	url := urls.YahooPlayerURL(int(playerID))
 	content, err := downloader.Download(url)
 	if err != nil {
 		var httpErr *puckhttp.HTTPError

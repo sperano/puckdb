@@ -7,6 +7,7 @@ import (
 
 	puckhttp "github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/store"
+	"github.com/sperano/puckdb/urls"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -77,7 +78,7 @@ func TestFetchYahooPlayer_DownloadSuccess(t *testing.T) {
 
 	// Download succeeds
 	content := []byte("<html>Player Page</html>")
-	downloader.On("Download", puckhttp.YahooPlayerURL(int(playerID))).Return(content, nil)
+	downloader.On("Download", urls.YahooPlayerURL(int(playerID))).Return(content, nil)
 
 	// Write succeeds
 	fs.On("Write", playerFile, content).Return(nil)
@@ -111,7 +112,7 @@ func TestFetchYahooPlayer_Download404(t *testing.T) {
 
 	// Download returns 404
 	httpErr := &puckhttp.HTTPError{StatusCode: 404, Status: "404 Not Found"}
-	downloader.On("Download", puckhttp.YahooPlayerURL(int(playerID))).Return(nil, httpErr)
+	downloader.On("Download", urls.YahooPlayerURL(int(playerID))).Return(nil, httpErr)
 
 	// Write missing file
 	fs.On("Write", missingFile, []byte("404 Not Found")).Return(nil)
@@ -145,7 +146,7 @@ func TestFetchYahooPlayer_DownloadOtherError(t *testing.T) {
 
 	// Download returns 500 error
 	httpErr := &puckhttp.HTTPError{StatusCode: 500, Status: "500 Internal Server Error"}
-	downloader.On("Download", puckhttp.YahooPlayerURL(int(playerID))).Return(nil, httpErr)
+	downloader.On("Download", urls.YahooPlayerURL(int(playerID))).Return(nil, httpErr)
 
 	status, err := fetchYahooPlayerImpl(ctx, fs, downloader, playerID)
 
@@ -204,7 +205,7 @@ func TestFetchYahooPlayer_WriteError(t *testing.T) {
 
 	// Download succeeds
 	content := []byte("<html>Player Page</html>")
-	downloader.On("Download", puckhttp.YahooPlayerURL(int(playerID))).Return(content, nil)
+	downloader.On("Download", urls.YahooPlayerURL(int(playerID))).Return(content, nil)
 
 	// Write fails
 	fs.On("Write", playerFile, content).Return(errors.New("disk full"))
@@ -259,7 +260,7 @@ func TestFetchYahooPlayer_Write404MissingFileError(t *testing.T) {
 
 	// Download returns 404
 	httpErr := &puckhttp.HTTPError{StatusCode: 404, Status: "404 Not Found"}
-	downloader.On("Download", puckhttp.YahooPlayerURL(int(playerID))).Return(nil, httpErr)
+	downloader.On("Download", urls.YahooPlayerURL(int(playerID))).Return(nil, httpErr)
 
 	// Write missing file fails
 	fs.On("Write", missingFile, []byte("404 Not Found")).Return(errors.New("disk full"))

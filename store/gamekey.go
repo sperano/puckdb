@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/urls"
 	"github.com/spf13/viper"
 )
 
@@ -45,7 +46,7 @@ func GetGameKey(fs Store, season int, fetcher YahooFetcher, postDownload func())
 		}
 	} else {
 		log.Info().Int("season", season).Msg("Downloading game key from Yahoo")
-		url := fmt.Sprintf("https://fantasysports.yahooapis.com/fantasy/v2/game/nhl;season=%d", season)
+		url := urls.YahooFantasyGameBySeasonURL(season)
 		content, err = fetcher(url)
 		if err != nil {
 			return 0, fmt.Errorf("fetch game key for season %d: %w", season, err)

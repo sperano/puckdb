@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/store"
+	"github.com/sperano/puckdb/urls"
 )
 
 // dayFetcher abstracts fetching operations for testability.
@@ -33,14 +33,14 @@ func (f realDayFetcher) FetchDailySchedule(ctx context.Context, day time.Time) e
 func (f realDayFetcher) FetchRoster(ctx context.Context, leagueID, teamID int, day time.Time) error {
 	log.Trace().Time("day", day).Int("gameKey", f.gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo roster")
 	file := store.RosterFile{Date: day, LeagueID: leagueID, TeamID: teamID}
-	url := http.YahooRosterURL(f.gameKey, leagueID, teamID, day)
+	url := urls.YahooRosterURL(f.gameKey, leagueID, teamID, day)
 	return doDownloadImpl(ctx, f.fs, file, url, f.download)
 }
 
 func (f realDayFetcher) FetchTeamSummary(ctx context.Context, leagueID, teamID int, day time.Time) error {
 	log.Trace().Time("day", day).Int("gameKey", f.gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo team summary")
 	file := store.TeamSummaryFile{Date: day, LeagueID: leagueID, TeamID: teamID}
-	url := http.YahooTeamSummaryURL(f.gameKey, leagueID, teamID, day)
+	url := urls.YahooTeamSummaryURL(f.gameKey, leagueID, teamID, day)
 	return doDownloadImpl(ctx, f.fs, file, url, f.download)
 }
 

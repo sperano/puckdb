@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/graph/model"
@@ -187,7 +186,7 @@ func TestSeasonInfo_Label(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			s := SeasonInfo{StartDate: time.Date(tt.startYear, 10, 1, 0, 0, 0, 0, time.UTC)}
+			s := SeasonInfo{SeasonID: tt.startYear}
 			assert.Equal(t, tt.expected, s.Label())
 		})
 	}
