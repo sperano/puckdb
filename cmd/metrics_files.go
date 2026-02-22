@@ -83,6 +83,8 @@ func classifyFileType(dataPath, filePath, filename string) string {
 	switch parts[0] {
 	case "players":
 		return store.FileTypePlayerLanding
+	case "player-gamelogs":
+		return store.FileTypePlayerGameLog
 	case "yahoo-players":
 		return store.FileTypeYahooPlayer
 	case "yahoo-players-missing":
@@ -114,6 +116,9 @@ func classifyFileType(dataPath, filePath, filename string) string {
 	}
 	if strings.HasPrefix(filename, "shiftchart-") {
 		return store.FileTypeShiftChart
+	}
+	if strings.HasPrefix(filename, "gamestory-") {
+		return store.FileTypeGameStory
 	}
 	if strings.HasPrefix(filename, "daily-schedule-") {
 		return store.FileTypeDailySchedule

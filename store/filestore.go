@@ -21,6 +21,7 @@ const (
 	FileTypeRoster          = "Roster"
 	FileTypeTeamSummary     = "TeamSummary"
 	FileTypePlayerLanding   = "PlayerLanding"
+	FileTypePlayerGameLog   = "PlayerGameLog"
 	FileTypeYahooPlayer     = "YahooPlayer"
 	FileTypeGameKey         = "GameKey"
 	FileTypeUnknown         = "Unknown"

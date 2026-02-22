@@ -179,6 +179,12 @@ func checkNHLSeasonCache(ctx context.Context, fs store.Store, redisClient cache.
 		expected:   gameFileCounts.expectedGames,
 		found:      gameFileCounts.shiftCharts,
 	})
+	cacheData = append(cacheData, cacheMetrics{
+		seasonYear: seasonYear,
+		fileType:   store.FileTypeGameStory,
+		expected:   gameFileCounts.expectedGames,
+		found:      gameFileCounts.gameStories,
+	})
 
 	return cacheData
 }
@@ -333,6 +339,7 @@ type gameFileCounts struct {
 	boxscores     int
 	playByPlay    int
 	shiftCharts   int
+	gameStories   int
 }
 
 func countGameFilesSimple(ctx context.Context, fs store.Store, redisClient cache.Client, season simpleSeason) gameFileCounts {
@@ -371,6 +378,9 @@ func countGameFilesSimple(ctx context.Context, fs store.Store, redisClient cache
 			}
 			if fs.Exists(store.ShiftChartFile{Date: current, GameID: gameID}) {
 				counts.shiftCharts++
+			}
+			if fs.Exists(store.GameStoryFile{Date: current, GameID: gameID}) {
+				counts.gameStories++
 			}
 		}
 
