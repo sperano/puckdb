@@ -15,13 +15,18 @@ import (
 // SeasonInfo represents season metadata for Temporal serialization.
 // This is a local copy of nhl.SeasonInfo to ensure proper serialization.
 type SeasonInfo struct {
+	// SeasonID is the unique season identifier (e.g., 20122013 for the 2012-13 season).
+	// This is used for child workflow IDs because StartDate.Year() can be ambiguous
+	// for lockout/pandemic seasons (e.g., 2012-13 started in Jan 2013, same as 2013-14).
+	SeasonID  int       `json:"seasonId"`
 	StartDate time.Time `json:"startDate"`
 	EndDate   time.Time `json:"endDate"`
 }
 
-// StartYear returns the start year of the season.
+// StartYear returns the start year of the season from the SeasonID.
+// This is the canonical season identifier (e.g., 2012 for the 2012-13 season).
 func (s SeasonInfo) StartYear() int {
-	return s.StartDate.Year()
+	return s.SeasonID
 }
 
 // Label returns a display label for the season (e.g., "2024-25").
@@ -85,6 +90,7 @@ func filterSeasons(seasons []nhl.SeasonInfo, input *model.SeasonsInput) []Season
 		}
 
 		result = append(result, SeasonInfo{
+			SeasonID:  startYear,
 			StartDate: startDate,
 			EndDate:   endDate,
 		})
