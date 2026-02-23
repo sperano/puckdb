@@ -65,9 +65,15 @@ const (
 
 // NHL player landing download defaults
 const (
-	DefaultPlayerLandingConcurrency      = 20   // Concurrent activities
-	DefaultPlayerLandingBatchSize        = 50   // Players per activity
-	DefaultPlayerLandingPlayersPerExec   = 2000 // Players before ContinueAsNew
+	DefaultPlayerLandingConcurrency    = 20   // Concurrent activities
+	DefaultPlayerLandingBatchSize      = 50   // Players per activity
+	DefaultPlayerLandingPlayersPerExec = 2000 // Players before ContinueAsNew
+)
+
+// Player game logs download defaults
+const (
+	DefaultPlayerLogsBatchSize       = 10 // Players per batch (smaller = more frequent progress)
+	DefaultPlayerLogsBatchConcurrency = 10 // Concurrent batches
 )
 
 // Cache defaults

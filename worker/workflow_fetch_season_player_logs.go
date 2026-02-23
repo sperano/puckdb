@@ -40,54 +40,58 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 		return nil
 	}
 
-	// Set up progress tracking for this season
+	// Convert BoxscorePlayer to player IDs and calculate batch count
+	playerIDs := extractPlayerIDs(extraction.Players)
+	batchSize := config.DefaultPlayerLogsBatchSize
+	numBatches := (len(playerIDs) + batchSize - 1) / batchSize
+	concurrency := config.DefaultPlayerLogsBatchConcurrency
+
+	// Track by player count for granular progress display
 	tracker := NewProgressTracker(playerCount)
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
 
-	logger.Info("Extracted players from boxscores",
-		"startYear", season.StartYear(),
-		"playerCount", playerCount)
-
-	// Convert BoxscorePlayer to player IDs
-	playerIDs := extractPlayerIDs(extraction.Players)
-
-	// Download game logs in batches
-	batchSize := config.DefaultPlayerLandingBatchSize // Reuse existing batch size constant
 	gameTypes := []int{nhl.GameTypeRegularSeason.ToInt(), nhl.GameTypePlayoffs.ToInt()}
 
-	for i := 0; i < len(playerIDs); i += batchSize {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
+	logger.Info("Extracted players from boxscores",
+		"startYear", season.StartYear(),
+		"playerCount", playerCount,
+		"batches", numBatches,
+		"concurrency", concurrency)
 
-		end := i + batchSize
-		if end > len(playerIDs) {
-			end = len(playerIDs)
-		}
-		batch := playerIDs[i:end]
+	// Use RunWorkerPool with handler to increment by actual batch size
+	startYear := season.StartYear()
+	refreshCurrent := input.RefreshCurrent
+	err := tracker.RunWorkerPoolWithHandler(ctx, numBatches, concurrency,
+		func(_ workflow.Context, batchIdx int) workflow.Future {
+			start := batchIdx * batchSize
+			end := start + batchSize
+			if end > len(playerIDs) {
+				end = len(playerIDs)
+			}
+			batch := playerIDs[start:end]
 
-		activityInput := DownloadPlayerGameLogsInput{
-			PlayerIDs:      batch,
-			StartYear:      season.StartYear(),
-			GameTypes:      gameTypes,
-			RefreshCurrent: input.RefreshCurrent,
-		}
-
-		var result *DownloadPlayerGameLogsResult
-		if err := workflow.ExecuteActivity(ctx, DownloadPlayerGameLogsActivity, activityInput).Get(ctx, &result); err != nil {
-			return err
-		}
-
-		tracker.progress.Completed += len(batch)
-
-		logger.Debug("Batch complete",
-			"startYear", season.StartYear(),
-			"batch", i/batchSize+1,
-			"downloaded", result.Downloaded,
-			"cacheHits", result.CacheHits,
-			"skipped", result.Skipped)
+			activityInput := DownloadPlayerGameLogsInput{
+				PlayerIDs:      batch,
+				StartYear:      startYear,
+				GameTypes:      gameTypes,
+				RefreshCurrent: refreshCurrent,
+			}
+			return workflow.ExecuteActivity(ctx, DownloadPlayerGameLogsActivity, activityInput)
+		},
+		func(_ workflow.Context, batchIdx int, f workflow.Future) error {
+			// Increment by actual batch size (last batch may be smaller)
+			start := batchIdx * batchSize
+			end := start + batchSize
+			if end > len(playerIDs) {
+				end = len(playerIDs)
+			}
+			tracker.progress.Completed += end - start
+			return f.Get(ctx, nil)
+		})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("FetchSeasonPlayerLogsWorkflow completed",
