@@ -31,7 +31,7 @@ func buildSeasonsInput() *model.SeasonsInput {
 	return input
 }
 
-func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher, pollTimeout time.Duration) error {
+func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher) error {
 	sp := newSpinner(out, "Starting...")
 	sp.Start()
 	startedAt := time.Now()
@@ -41,7 +41,6 @@ func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher
 	ticker := time.NewTicker(config.DefaultWorkflowPollInterval) // TODO isnt this a flag instead of just a default?
 	defer ticker.Stop()
 
-	timeout := time.After(pollTimeout)
 	consecutiveFailures := 0
 
 	for {
@@ -104,9 +103,6 @@ func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher
 		case <-ctx.Done():
 			sp.Cancel()
 			return ctx.Err()
-		case <-timeout:
-			sp.Cancel()
-			return fmt.Errorf("workflow monitoring timed out after %v", pollTimeout)
 		case <-ticker.C:
 			// continue to next iteration
 		}

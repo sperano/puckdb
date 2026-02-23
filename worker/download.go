@@ -224,7 +224,7 @@ func doDownloadImpl(ctx context.Context, fs store.Store, file store.File, url st
 		return fmt.Errorf("%s: %w", file.Dir(), err)
 	}
 	if fs.Exists(file) {
-		log.Debug().Str("file", store.Path(file)).Msg("Already downloaded")
+		log.Debug().Str("path", store.Path(file)).Str("type", fileType).Msg("Cached")
 		metrics.IncDownload(fileType, "hit")
 		return nil
 	}
@@ -237,7 +237,7 @@ func doDownloadImpl(ctx context.Context, fs store.Store, file store.File, url st
 		metrics.IncDownload(fileType, "error")
 		return fmt.Errorf("%s: %w", store.Path(file), err)
 	}
-	log.Info().Str("file", store.Path(file)).Msg("Downloaded")
+	log.Info().Str("path", store.Path(file)).Str("type", fileType).Msg("Saved")
 	metrics.IncDownload(fileType, "miss")
 	sleepAfterYahooDownload()
 	return nil

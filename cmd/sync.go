@@ -174,7 +174,6 @@ type workflowRunner struct {
 	workflowType workflowType
 	trigger      func() (bool, error)
 	getStatus    statusFetcher
-	timeout      time.Duration
 }
 
 func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState) error {
@@ -192,7 +191,7 @@ func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState
 		log.Warn().Msg("Workflow was not started (may already be running)")
 	}
 
-	if err := monitorWorkflow(ctx, out, r.getStatus, r.timeout); err != nil {
+	if err := monitorWorkflow(ctx, out, r.getStatus); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
@@ -207,7 +206,6 @@ func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient, st
 		workflowType: workflowInitialize,
 		trigger:      func() (bool, error) { return client.Initialize(ctx) },
 		getStatus:    client.GetInitializeStatus,
-		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)
 }
 
@@ -216,7 +214,6 @@ func runFetchYahooPlayers(ctx context.Context, out io.Writer, client *GraphQLCli
 		workflowType: workflowYahooPlayers,
 		trigger:      func() (bool, error) { return client.FetchYahooPlayers(ctx) },
 		getStatus:    client.GetFetchYahooPlayersStatus,
-		timeout:      config.DefaultYahooPlayersTimeout,
 	}.run(ctx, out, state)
 }
 
@@ -225,7 +222,6 @@ func runFetchSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, 
 		workflowType: workflowFetchSeasons,
 		trigger:      func() (bool, error) { return client.FetchSeasons(ctx, buildSeasonsInput()) },
 		getStatus:    client.GetFetchSeasonsStatus,
-		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)
 }
 
@@ -234,7 +230,6 @@ func runFetchPlayerLogs(ctx context.Context, out io.Writer, client *GraphQLClien
 		workflowType: workflowFetchPlayerLogs,
 		trigger:      func() (bool, error) { return client.FetchPlayerLogs(ctx, buildSeasonsInput()) },
 		getStatus:    client.GetFetchPlayerLogsStatus,
-		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)
 }
 
@@ -243,7 +238,6 @@ func runProcessPlayers(ctx context.Context, out io.Writer, client *GraphQLClient
 		workflowType: workflowProcessPlayers,
 		trigger:      func() (bool, error) { return client.ProcessPlayers(ctx, buildSeasonsInput()) },
 		getStatus:    client.GetProcessPlayersStatus,
-		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)
 }
 
@@ -252,7 +246,6 @@ func runImportSeasons(ctx context.Context, out io.Writer, client *GraphQLClient,
 		workflowType: workflowImportSeasons,
 		trigger:      func() (bool, error) { return client.ImportSeasons(ctx, buildSeasonsInput()) },
 		getStatus:    client.GetImportSeasonsStatus,
-		timeout:      config.DefaultWorkflowPollTimeout,
 	}.run(ctx, out, state)
 }
 

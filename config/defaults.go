@@ -108,14 +108,11 @@ const (
 	DefaultAPIServerAddr = "http://localhost:8080"
 )
 
-// Workflow timeout defaults
+// Workflow polling defaults
 const (
-	DefaultWorkflowStartupDelay   = 500 * time.Millisecond
-	DefaultWorkflowPollInterval   = 2 * time.Second
-	DefaultWorkflowPollTimeout    = 30 * time.Minute
-	DefaultYahooPlayersTimeout    = 4 * time.Hour
-	DefaultDownloadPlayersTimeout = 2 * time.Hour
-	MaxConsecutiveQueryFailures   = 3
+	DefaultWorkflowStartupDelay = 500 * time.Millisecond
+	DefaultWorkflowPollInterval = 2 * time.Second
+	MaxConsecutiveQueryFailures = 3
 )
 
 // UI defaults
