@@ -46,8 +46,8 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 	numBatches := (len(playerIDs) + batchSize - 1) / batchSize
 	concurrency := config.DefaultPlayerLogsBatchConcurrency
 
-	// Track by player count for granular progress display
-	tracker := NewProgressTracker(playerCount)
+	// Track by batch count (each batch = 1 progress unit)
+	tracker := NewProgressTracker(numBatches)
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
@@ -60,36 +60,25 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 		"batches", numBatches,
 		"concurrency", concurrency)
 
-	// Use RunWorkerPool with handler to increment by actual batch size
+	// Run batches concurrently - pool increments by 1 per completion
 	startYear := season.StartYear()
 	refreshCurrent := input.RefreshCurrent
-	err := tracker.RunWorkerPoolWithHandler(ctx, numBatches, concurrency,
-		func(_ workflow.Context, batchIdx int) workflow.Future {
-			start := batchIdx * batchSize
-			end := start + batchSize
-			if end > len(playerIDs) {
-				end = len(playerIDs)
-			}
-			batch := playerIDs[start:end]
+	err := tracker.RunWorkerPool(ctx, numBatches, concurrency, func(_ workflow.Context, batchIdx int) workflow.Future {
+		start := batchIdx * batchSize
+		end := start + batchSize
+		if end > len(playerIDs) {
+			end = len(playerIDs)
+		}
+		batch := playerIDs[start:end]
 
-			activityInput := DownloadPlayerGameLogsInput{
-				PlayerIDs:      batch,
-				StartYear:      startYear,
-				GameTypes:      gameTypes,
-				RefreshCurrent: refreshCurrent,
-			}
-			return workflow.ExecuteActivity(ctx, DownloadPlayerGameLogsActivity, activityInput)
-		},
-		func(_ workflow.Context, batchIdx int, f workflow.Future) error {
-			// Increment by actual batch size (last batch may be smaller)
-			start := batchIdx * batchSize
-			end := start + batchSize
-			if end > len(playerIDs) {
-				end = len(playerIDs)
-			}
-			tracker.progress.Completed += end - start
-			return f.Get(ctx, nil)
-		})
+		activityInput := DownloadPlayerGameLogsInput{
+			PlayerIDs:      batch,
+			StartYear:      startYear,
+			GameTypes:      gameTypes,
+			RefreshCurrent: refreshCurrent,
+		}
+		return workflow.ExecuteActivity(ctx, DownloadPlayerGameLogsActivity, activityInput)
+	})
 	if err != nil {
 		return err
 	}
