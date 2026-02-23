@@ -66,16 +66,18 @@ func FetchSeasonWorkflow(ctx workflow.Context, season SeasonInfo) error {
 		"concurrency", concurrency)
 
 	// Process days in parallel using RunWorkerPool
+	// FetchDayActivity needs longer timeout due to rate-limited Yahoo downloads
+	dayCtx := workflow.WithActivityOptions(ctx, fetchDayActivityOptions())
 	startDate := season.StartDate
 	startYear := season.StartYear()
-	err = tracker.RunWorkerPool(ctx, numDays, concurrency, func(ctx workflow.Context, i int) workflow.Future {
+	err = tracker.RunWorkerPool(ctx, numDays, concurrency, func(_ workflow.Context, i int) workflow.Future {
 		day := startDate.AddDate(0, 0, i)
 		dayInput := FetchDayInput{
 			Day:       day,
 			StartYear: startYear,
 			TeamIDs:   teamIDs,
 		}
-		return workflow.ExecuteActivity(ctx, FetchDayActivity, dayInput)
+		return workflow.ExecuteActivity(dayCtx, FetchDayActivity, dayInput)
 	})
 	if err != nil {
 		return err

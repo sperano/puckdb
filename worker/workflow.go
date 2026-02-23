@@ -44,6 +44,14 @@ func defaultActivityOptions() workflow.ActivityOptions {
 	}
 }
 
+// fetchDayActivityOptions returns activity options with longer timeout for FetchDayActivity.
+// This activity downloads multiple files with rate limiting, requiring more time.
+func fetchDayActivityOptions() workflow.ActivityOptions {
+	opts := defaultActivityOptions()
+	opts.StartToCloseTimeout = config.DefaultFetchDayActivityTimeout
+	return opts
+}
+
 func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
