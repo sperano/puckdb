@@ -46,38 +46,71 @@ func (s *spinner) Start() {
 
 	go func() {
 		defer close(s.done)
-		i := 0
+		frameIdx := 0
 		for {
 			select {
 			case <-s.stop:
 				// Exit cleanly, Stop() will render final state in place
 				return
 			default:
-				s.mu.Lock()
-				// Move cursor up and clear previous lines if multi-line
-				s.clearLines()
-				// Count lines in new message
-				s.lineCount = strings.Count(s.message, "\n") + 1
-
-				// Replace placeholder with spinner frame, or put spinner on last line
-				if strings.Contains(s.message, SpinnerPlaceholder) {
-					// Placeholder mode: replace all placeholders with spinner frame
-					output := strings.ReplaceAll(s.message, SpinnerPlaceholder, s.frames[i])
-					fmt.Fprint(s.writer, output)
-				} else {
-					// Legacy mode: spinner on last line
-					lines := strings.Split(s.message, "\n")
-					for j := 0; j < len(lines)-1; j++ {
-						fmt.Fprintf(s.writer, "%s\n", lines[j])
-					}
-					fmt.Fprintf(s.writer, "%s %s", s.frames[i], lines[len(lines)-1])
-				}
-				s.mu.Unlock()
-				i = (i + 1) % len(s.frames)
+				s.render(frameIdx)
+				frameIdx = (frameIdx + 1) % len(s.frames)
 				time.Sleep(s.interval)
 			}
 		}
 	}()
+}
+
+// render draws the current message with spinner frame, using in-place updates
+// to avoid flicker. Uses clear-to-EOL (\033[K) instead of full screen clear.
+func (s *spinner) render(frameIdx int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Move cursor back to start of output area (without clearing)
+	if s.lineCount > 1 {
+		fmt.Fprintf(s.writer, "\033[%dA", s.lineCount-1)
+	}
+	fmt.Fprint(s.writer, "\r")
+
+	// Build lines with spinner frame substituted
+	var lines []string
+	if strings.Contains(s.message, SpinnerPlaceholder) {
+		for _, line := range strings.Split(s.message, "\n") {
+			lines = append(lines, strings.ReplaceAll(line, SpinnerPlaceholder, s.frames[frameIdx]))
+		}
+	} else {
+		msgLines := strings.Split(s.message, "\n")
+		for i, line := range msgLines {
+			if i == len(msgLines)-1 {
+				lines = append(lines, s.frames[frameIdx]+" "+line)
+			} else {
+				lines = append(lines, line)
+			}
+		}
+	}
+
+	newLineCount := len(lines)
+
+	// Write lines, clearing to end of each line (handles varying line lengths)
+	for i, line := range lines {
+		fmt.Fprint(s.writer, line)
+		fmt.Fprint(s.writer, "\033[K") // clear to end of line
+		if i < len(lines)-1 {
+			fmt.Fprint(s.writer, "\n")
+		}
+	}
+
+	// Clear any extra lines from previous render
+	if newLineCount < s.lineCount {
+		for i := newLineCount; i < s.lineCount; i++ {
+			fmt.Fprint(s.writer, "\n\033[K")
+		}
+		// Move cursor back up to end of content
+		fmt.Fprintf(s.writer, "\033[%dA", s.lineCount-newLineCount)
+	}
+
+	s.lineCount = newLineCount
 }
 
 func (s *spinner) clearLines() {
