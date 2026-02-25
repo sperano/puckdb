@@ -33,7 +33,7 @@ func TestProcessPlayerBatch_EmptyPlayers(t *testing.T) {
 		queries:   upserter,
 	}
 
-	result, err := processPlayerBatchImpl(ctx, deps, []BoxscorePlayer{})
+	result, err := processPlayerBatchImpl(ctx, deps, []store.BoxscorePlayer{})
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
@@ -63,7 +63,7 @@ func TestProcessPlayerBatch_LoadYahooPoolError(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: 8476453}}
+	players := []store.BoxscorePlayer{{ID: 8476453}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.Error(t, err)
@@ -94,7 +94,7 @@ func TestProcessPlayerBatch_ContextCancellation(t *testing.T) {
 	// Cancel context before processing
 	cancel()
 
-	players := []BoxscorePlayer{{ID: 8476453}}
+	players := []store.BoxscorePlayer{{ID: 8476453}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.Error(t, err)
@@ -144,7 +144,7 @@ func TestProcessPlayerBatch_CacheHitAndImport(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.NoError(t, err)
@@ -188,7 +188,7 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 	}
 
 	// BoxscorePlayer contains the minimal player info
-	players := []BoxscorePlayer{{
+	players := []store.BoxscorePlayer{{
 		ID:        int64(playerID),
 		FirstName: "John",
 		LastName:  "Doe",
@@ -248,7 +248,7 @@ func TestProcessPlayerBatch_UpsertError(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	// No error returned - errors are collected in result.Errors
@@ -291,7 +291,7 @@ func TestProcessPlayerBatch_FileReadError(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	// No error returned - errors are collected in result.Errors
@@ -334,7 +334,7 @@ func TestProcessPlayerBatch_JSONParseError(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	// No error returned - errors are collected in result.Errors
@@ -397,7 +397,7 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.NoError(t, err)
@@ -443,7 +443,7 @@ func TestProcessPlayerBatch_DownloadAPIError(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.Error(t, err)
@@ -493,7 +493,7 @@ func TestProcessPlayerBatch_WriteErrorAfterDownload(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.Error(t, err)
@@ -565,7 +565,7 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.NoError(t, err)
@@ -631,7 +631,7 @@ func TestProcessPlayerBatch_ClearConflictingYahooIDError(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	// Should succeed despite ClearConflictingYahooID error
@@ -693,7 +693,7 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.NoError(t, err)
@@ -747,7 +747,7 @@ func TestProcessPlayerBatch_FileNotFoundAfterDownload(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.NoError(t, err)
@@ -832,7 +832,7 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 		queries:   upserter,
 	}
 
-	players := []BoxscorePlayer{{ID: int64(playerID)}}
+	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.NoError(t, err)

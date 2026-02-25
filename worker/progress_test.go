@@ -404,7 +404,7 @@ func TestNewProgressTrackerWithSeasons(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tracker := NewProgressTrackerWithSeasons(tt.seasons, "", "")
+			tracker := NewProgressTrackerWithSeasons(tt.seasons, countDaysInSeason, "", "")
 			assert.NotNil(t, tracker)
 			assert.Equal(t, tt.expectedItems, len(tracker.progress.Items))
 			assert.Equal(t, 0, tracker.progress.Completed)
@@ -464,7 +464,8 @@ func TestProgressTracker_InitializeWithSeasons(t *testing.T) {
 		{SeasonID: 2023, StartDate: time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2024, 4, 15, 0, 0, 0, 0, time.UTC)},
 	}
 
-	tracker.InitializeWithSeasons(seasons, "", "")
+	// Test with countDaysInSeason (pre-calculated totals)
+	tracker.InitializeWithSeasons(seasons, countDaysInSeason, "", "")
 
 	assert.Greater(t, tracker.progress.Total, 0, "total should be calculated from seasons")
 	assert.Equal(t, 0, tracker.progress.Completed)
@@ -480,6 +481,22 @@ func TestProgressTracker_InitializeWithSeasons(t *testing.T) {
 	assert.Equal(t, 2023, tracker.progress.Items[1].ID)
 	assert.Equal(t, "2023-24", tracker.progress.Items[1].Description)
 	assert.Greater(t, tracker.progress.Items[1].Total, 0)
+}
+
+func TestProgressTracker_InitializeWithSeasonsDeferred(t *testing.T) {
+	t.Parallel()
+
+	tracker := NewProgressTracker(0)
+
+	seasons := []SeasonInfo{
+		{SeasonID: 2022, StartDate: time.Date(2022, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2023, 4, 15, 0, 0, 0, 0, time.UTC)},
+	}
+
+	// Test with CountDeferredTasks (totals populated from child workflows)
+	tracker.InitializeWithSeasons(seasons, CountDeferredTasks, "", "")
+
+	assert.Equal(t, 0, tracker.progress.Total)
+	assert.Equal(t, 0, tracker.progress.Items[0].Total)
 }
 
 func TestProgressTracker_SetFutureItem(t *testing.T) {

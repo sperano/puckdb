@@ -70,6 +70,12 @@ const (
 	DefaultPlayerLandingPlayersPerExec = 2000 // Players before ContinueAsNew
 )
 
+// Process players workflow defaults
+const (
+	DefaultProcessPlayersConcurrency = 10 // Concurrent batch activities
+	DefaultProcessPlayersBatchSize   = 50 // Players per batch activity
+)
+
 // Player game logs download defaults
 const (
 	DefaultPlayerLogsBatchSize       = 10 // Players per batch (smaller = more frequent progress)

@@ -205,6 +205,7 @@ func (f GameStoryFile) Name() string { return fmt.Sprintf("gamestory-%s", f.Game
 // ////////////////////////////////////////////////////////////////////////////
 
 const playerGameLogDirName = "player-gamelogs"
+const seasonIDDivisor = 10000 // 20242025 / 10000 = 2024
 
 // PlayerGameLogFile represents the stored game log for a player in a specific season.
 // Contains per-game stats for the player.
@@ -215,31 +216,31 @@ type PlayerGameLogFile struct {
 }
 
 func (f PlayerGameLogFile) Ext() string { return "json" }
-func (f PlayerGameLogFile) Dir() string { return playerGameLogDirName }
+func (f PlayerGameLogFile) Dir() string {
+	startYear := f.Season / seasonIDDivisor
+	return fmt.Sprintf("%d/%s", startYear, playerGameLogDirName)
+}
 func (f PlayerGameLogFile) Name() string {
-	return fmt.Sprintf("player-%s-%d-%d", f.PlayerID.String(), f.Season, f.GameType)
+	return fmt.Sprintf("player-%s-%d", f.PlayerID.String(), f.GameType)
 }
 
-// ParsePlayerGameLogFilename parses a filename like "player-8478402-20232024-2" into a PlayerGameLogFile.
-func ParsePlayerGameLogFilename(name string) File {
+// ParsePlayerGameLogFilename parses a filename like "player-8478402-2" into a PlayerGameLogFile.
+// Note: Season must be provided separately since it's now part of the directory path.
+func ParsePlayerGameLogFilename(name string, season int) File {
 	const prefix = "player-"
 	if !strings.HasPrefix(name, prefix) {
 		return nil
 	}
-	// Format: player-{playerID}-{season}-{gameType}
+	// Format: player-{playerID}-{gameType}
 	parts := strings.Split(name[len(prefix):], "-")
-	if len(parts) != 3 {
+	if len(parts) != 2 {
 		return nil
 	}
 	playerID, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
 		return nil
 	}
-	season, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return nil
-	}
-	gameType, err := strconv.Atoi(parts[2])
+	gameType, err := strconv.Atoi(parts[1])
 	if err != nil {
 		return nil
 	}

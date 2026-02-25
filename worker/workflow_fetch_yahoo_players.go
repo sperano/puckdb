@@ -19,6 +19,21 @@ type FetchYahooPlayersInput struct {
 	StartedAt      time.Time // Original workflow start time (for elapsed calculation)
 }
 
+// Group index for FetchYahooPlayers workflow progress
+const GroupFetchYahooPlayers = 0
+
+// NewFetchYahooPlayersProgressReport creates the initial progress structure.
+// completed is the cumulative count from previous ContinueAsNew executions.
+func NewFetchYahooPlayersProgressReport(total, completed int) *ProgressReport {
+	return &ProgressReport{
+		Total:     total,
+		Completed: completed,
+		Groups: []ProgressGroup{
+			{Header: "Fetching Yahoo! players...", Bars: []ProgressBar{{Total: total, Current: completed}}},
+		},
+	}
+}
+
 // FetchYahooPlayersWorkflow fetches all Yahoo player pages from ID 1 to max-yahoo-player-id.
 // Uses ContinueAsNew to avoid hitting Temporal's history size limit.
 func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInput) error {
@@ -63,12 +78,12 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 		"numActivityBatches", numActivityBatches,
 		"totalCompleted", totalCompleted)
 
-	// Track progress with single phase for phase-based display
-	const phaseID = 1
-	tracker := NewProgressTrackerSinglePhase("Fetching Yahoo! players...", maxPlayerID, totalCompleted)
+	// Set up progress tracking with the new ReportTracker
+	tracker := NewReportTracker(NewFetchYahooPlayersProgressReport(maxPlayerID, totalCompleted))
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
+	tracker.StartGroup(ctx, GroupFetchYahooPlayers)
 
 	activityCtx := workflow.WithActivityOptions(ctx, defaultActivityOptions())
 	startActivity := func(ctx workflow.Context, batchIndex int) workflow.Future {
@@ -90,7 +105,8 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 		return nil
 	}
 
-	if err := tracker.RunWorkerPoolForItem(ctx, numActivityBatches, concurrency, phaseID, startActivity, handler); err != nil {
+	// Run worker pool with activity batch size as increment (each activity handles a batch of players)
+	if err := tracker.RunWorkerPoolBy(ctx, GroupFetchYahooPlayers, 0, numActivityBatches, concurrency, activityBatchSize, startActivity, handler); err != nil {
 		return err
 	}
 
@@ -105,12 +121,12 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 			})
 	}
 
-	// Mark phase complete with final count and total elapsed time
+	// Mark group complete with final count and total elapsed time
 	finalFound := totalFound + executionFound
 	finalCount := totalCompleted + totalPlayers
 	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
-	tracker.SetItemCompletedDescription(phaseID, fmt.Sprintf("Found %d/%d Yahoo! players in %s.", finalFound, finalCount, elapsed))
-	tracker.MarkItemCompleted(ctx, phaseID)
+	tracker.CompleteGroup(ctx, GroupFetchYahooPlayers,
+		fmt.Sprintf("Found %d/%d Yahoo! players in %s.", finalFound, finalCount, elapsed))
 
 	logger.Info("FetchYahooPlayersWorkflow completed", "maxPlayerID", maxPlayerID)
 	return nil

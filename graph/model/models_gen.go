@@ -8,6 +8,18 @@ import (
 	"strconv"
 )
 
+type ExtractBoxscorePlayersInput struct {
+	StartSeason       *int `json:"startSeason,omitempty"`
+	EndSeason         *int `json:"endSeason,omitempty"`
+	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`
+	TTLMinutes        *int `json:"ttlMinutes,omitempty"`
+}
+
+type FetchPlayerLandingsInput struct {
+	BatchSize   *int `json:"batchSize,omitempty"`
+	Concurrency *int `json:"concurrency,omitempty"`
+}
+
 type InitializeResultData struct {
 	FranchisesUpserted  int `json:"franchisesUpserted"`
 	SeasonsUpserted     int `json:"seasonsUpserted"`
@@ -31,6 +43,21 @@ type ProcessPlayersResultData struct {
 	Errors                []string                `json:"errors"`
 }
 
+type ProgressBar struct {
+	Label   *string `json:"label,omitempty"`
+	Current int     `json:"current"`
+	Total   int     `json:"total"`
+	Started bool    `json:"started"`
+}
+
+type ProgressGroup struct {
+	Header       string         `json:"header"`
+	CompletedMsg string         `json:"completedMsg"`
+	Bars         []*ProgressBar `json:"bars"`
+	StartedAt    int64          `json:"startedAt"`
+	CompletedAt  int64          `json:"completedAt"`
+}
+
 type ProgressItem struct {
 	ID                   int     `json:"id"`
 	Description          *string `json:"description,omitempty"`
@@ -40,6 +67,13 @@ type ProgressItem struct {
 	Started              bool    `json:"started"`
 	StartedAt            *string `json:"startedAt,omitempty"`
 	CompletedAt          *string `json:"completedAt,omitempty"`
+}
+
+type ProgressReport struct {
+	Total     int              `json:"total"`
+	Completed int              `json:"completed"`
+	Message   *string          `json:"message,omitempty"`
+	Groups    []*ProgressGroup `json:"groups"`
 }
 
 type Query struct {
@@ -78,18 +112,18 @@ type WorkflowResult struct {
 type ProgressDisplayStyle string
 
 const (
-	ProgressDisplayStylePhases       ProgressDisplayStyle = "PHASES"
-	ProgressDisplayStyleGroupedItems ProgressDisplayStyle = "GROUPED_ITEMS"
+	ProgressDisplayStyleSequential ProgressDisplayStyle = "SEQUENTIAL"
+	ProgressDisplayStyleParallel   ProgressDisplayStyle = "PARALLEL"
 )
 
 var AllProgressDisplayStyle = []ProgressDisplayStyle{
-	ProgressDisplayStylePhases,
-	ProgressDisplayStyleGroupedItems,
+	ProgressDisplayStyleSequential,
+	ProgressDisplayStyleParallel,
 }
 
 func (e ProgressDisplayStyle) IsValid() bool {
 	switch e {
-	case ProgressDisplayStylePhases, ProgressDisplayStyleGroupedItems:
+	case ProgressDisplayStyleSequential, ProgressDisplayStyleParallel:
 		return true
 	}
 	return false

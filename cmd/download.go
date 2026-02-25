@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -31,14 +30,32 @@ func buildSeasonsInput() *model.SeasonsInput {
 	return input
 }
 
-func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher) error {
-	sp := newSpinner(out, "Starting...")
-	sp.Start()
+func buildExtractBoxscorePlayersInput() *model.ExtractBoxscorePlayersInput {
+	input := &model.ExtractBoxscorePlayersInput{}
+
+	start, end := config.GetSeasonRange()
+	if start > 0 {
+		input.StartSeason = &start
+	}
+	if end > 0 {
+		input.EndSeason = &end
+	}
+
+	if concurrency := viper.GetInt(config.FlagSeasonConcurrency); concurrency > 0 {
+		input.SeasonConcurrency = &concurrency
+	}
+
+	// TTLMinutes uses default from cache package if not specified
+
+	return input
+}
+
+func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher) error {
 	startedAt := time.Now()
 
 	// Wait briefly for workflow to start and register query handlers
-	time.Sleep(config.DefaultWorkflowStartupDelay)               // TODO: make this smarter by detecting when workflow is actually ready instead of fixed sleep
-	ticker := time.NewTicker(config.DefaultWorkflowPollInterval) // TODO isnt this a flag instead of just a default?
+	time.Sleep(config.DefaultWorkflowStartupDelay)
+	ticker := time.NewTicker(config.DefaultWorkflowPollInterval)
 	defer ticker.Stop()
 
 	consecutiveFailures := 0
@@ -62,10 +79,10 @@ func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher
 
 			switch status.Result.Status {
 			case model.TemporalWorkflowStatusCompleted:
-				// For GROUPED_ITEMS with completedHeader, format with stats
+				// For PARALLEL with completedHeader, format with stats
 				if status.Progress != nil &&
 					status.Progress.CompletedHeader != nil && *status.Progress.CompletedHeader != "" &&
-					status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleGroupedItems {
+					status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleParallel {
 					elapsed := time.Since(startedAt)
 					itemCount := len(status.Progress.Items)
 					// CompletedHeader is a template like "Fetched %d seasons"
@@ -110,6 +127,11 @@ func monitorWorkflow(ctx context.Context, out io.Writer, getStatus statusFetcher
 }
 
 func formatStatusMessage(status *WorkflowStatus) string {
+	// New ProgressReport format (Initialize workflow)
+	if status.ProgressReport != nil {
+		return formatProgressReport(status.ProgressReport)
+	}
+
 	if status.Progress == nil {
 		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
 	}
@@ -145,7 +167,7 @@ func formatStatusMessage(status *WorkflowStatus) string {
 	}
 
 	// Grouped items display: single header with multiple concurrent progress bars
-	if status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleGroupedItems {
+	if status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleParallel {
 		if header != "" {
 			lines = append(lines, fmt.Sprintf("▶ %s", header))
 		}
@@ -226,12 +248,17 @@ func formatStatusMessage(status *WorkflowStatus) string {
 			// Completed: checkmark with completed description
 			lines = append(lines, fmt.Sprintf("✓ %s", completedDescription))
 		} else if item.Started {
-			// In progress: arrow + name, then progress bar with spinner
-			lines = append(lines, fmt.Sprintf("▶ %s", description))
-			pct := float64(item.Completed) / float64(item.Total) * 100
-			bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-			lines = append(lines, fmt.Sprintf("%s %d/%d %s %d%%",
-				SpinnerPlaceholder, item.Completed, item.Total, bar, int(pct)))
+			// In progress: show spinner with description
+			if item.Total <= 1 {
+				// Skip progress bar when total is 1
+				lines = append(lines, fmt.Sprintf("%s %s", SpinnerPlaceholder, description))
+			} else {
+				lines = append(lines, fmt.Sprintf("▶ %s", description))
+				pct := float64(item.Completed) / float64(item.Total) * 100
+				bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
+				lines = append(lines, fmt.Sprintf("%s %d/%d %s %d%%",
+					SpinnerPlaceholder, item.Completed, item.Total, bar, int(pct)))
+			}
 		} else {
 			// Pending: don't display
 			continue
@@ -251,4 +278,106 @@ func renderProgressBar(pct float64, width int) string {
 	}
 	empty := width - filled
 	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
+}
+
+// formatProgressReport renders the new ProgressReport format.
+func formatProgressReport(report *model.ProgressReport) string {
+	var lines []string
+	for _, g := range report.Groups {
+		lines = append(lines, renderProgressGroup(g))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// renderProgressGroup renders a single group (completed or in-progress).
+func renderProgressGroup(g *model.ProgressGroup) string {
+	// Check if complete: all bars at 100%
+	complete := len(g.Bars) > 0
+	for _, b := range g.Bars {
+		if b.Total == 0 || b.Current < b.Total {
+			complete = false
+			break
+		}
+	}
+
+	if complete {
+		return "✓ " + g.CompletedMsg
+	}
+
+	// Single bar: no label
+	if len(g.Bars) == 1 {
+		b := g.Bars[0]
+		// Skip progress bar when total is 1 - just show header with spinner
+		if b.Total <= 1 {
+			return fmt.Sprintf("%s %s", SpinnerPlaceholder, g.Header)
+		}
+		pct := float64(b.Current) / float64(b.Total) * 100
+		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
+		return fmt.Sprintf("▶ %s\n%s %d/%d %s %d%%",
+			g.Header, SpinnerPlaceholder, b.Current, b.Total, bar, int(pct))
+	}
+
+	// Multi-bar: with labels and total line
+	return renderMultiBarGroup(g)
+}
+
+func renderMultiBarGroup(g *model.ProgressGroup) string {
+	var activeBars []*model.ProgressBar
+	var totalCurrent, totalTotal int
+
+	for _, b := range g.Bars {
+		totalCurrent += b.Current
+		totalTotal += b.Total
+		if b.Started && b.Current < b.Total {
+			activeBars = append(activeBars, b)
+		}
+	}
+
+	// Calculate alignment widths
+	const totalLabel = "Total"
+	maxLabelLen := len(totalLabel)
+	maxTotal := totalTotal
+
+	for _, b := range activeBars {
+		label := ""
+		if b.Label != nil {
+			label = *b.Label
+		}
+		if len(label) > maxLabelLen {
+			maxLabelLen = len(label)
+		}
+		if b.Total > maxTotal {
+			maxTotal = b.Total
+		}
+	}
+
+	progressWidth := len(fmt.Sprintf("%d/%d", maxTotal, maxTotal))
+
+	lines := []string{"▶ " + g.Header}
+
+	for _, b := range activeBars {
+		label := ""
+		if b.Label != nil {
+			label = *b.Label
+		}
+		pct := 0.0
+		if b.Total > 0 {
+			pct = float64(b.Current) / float64(b.Total) * 100
+		}
+		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
+		progress := fmt.Sprintf("%d/%d", b.Current, b.Total)
+		lines = append(lines, fmt.Sprintf("%s %-*s %*s %s %d%%",
+			SpinnerPlaceholder, maxLabelLen, label, progressWidth, progress, bar, int(pct)))
+	}
+
+	// Total line
+	if totalTotal > 0 {
+		pct := float64(totalCurrent) / float64(totalTotal) * 100
+		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
+		progress := fmt.Sprintf("%d/%d", totalCurrent, totalTotal)
+		lines = append(lines, fmt.Sprintf("  %-*s %*s %s %d%%",
+			maxLabelLen, totalLabel, progressWidth, progress, bar, int(pct)))
+	}
+
+	return strings.Join(lines, "\n")
 }

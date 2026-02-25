@@ -15,22 +15,22 @@ import (
 
 // ClearDatabase is the resolver for the clearDatabase field.
 func (r *mutationResolver) ClearDatabase(ctx context.Context) (bool, error) {
-	return clearDatabase(ctx)
+	return r.Resolver.clearDatabase(ctx)
 }
 
 // DropDatabase is the resolver for the dropDatabase field.
 func (r *mutationResolver) DropDatabase(ctx context.Context) (bool, error) {
-	return dropDatabase(ctx)
+	return r.Resolver.dropDatabase(ctx)
 }
 
 // CreateDatabase is the resolver for the createDatabase field.
 func (r *mutationResolver) CreateDatabase(ctx context.Context) (bool, error) {
-	return createDatabase(ctx)
+	return r.Resolver.createDatabase(ctx)
 }
 
 // FlushRedisDb is the resolver for the flushRedisDB field.
 func (r *mutationResolver) FlushRedisDb(ctx context.Context) (bool, error) {
-	return flushRedisDB(ctx)
+	return r.Resolver.flushRedisDB(ctx)
 }
 
 // Initialize is the resolver for the initialize field.
@@ -93,6 +93,26 @@ func (r *mutationResolver) CancelImportSeasons(ctx context.Context) (bool, error
 	return r.Resolver.cancelImportSeasons(ctx)
 }
 
+// ExtractBoxscorePlayers is the resolver for the extractBoxscorePlayers field.
+func (r *mutationResolver) ExtractBoxscorePlayers(ctx context.Context, input *model.ExtractBoxscorePlayersInput) (bool, error) {
+	return r.Resolver.extractBoxscorePlayers(ctx, input)
+}
+
+// CancelExtractBoxscorePlayers is the resolver for the cancelExtractBoxscorePlayers field.
+func (r *mutationResolver) CancelExtractBoxscorePlayers(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelExtractBoxscorePlayers(ctx)
+}
+
+// FetchPlayerLandings is the resolver for the fetchPlayerLandings field.
+func (r *mutationResolver) FetchPlayerLandings(ctx context.Context, input *model.FetchPlayerLandingsInput) (bool, error) {
+	return r.Resolver.fetchPlayerLandings(ctx, input)
+}
+
+// CancelFetchPlayerLandings is the resolver for the cancelFetchPlayerLandings field.
+func (r *mutationResolver) CancelFetchPlayerLandings(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelFetchPlayerLandings(ctx)
+}
+
 // BuildNumber is the resolver for the buildNumber field.
 func (r *queryResolver) BuildNumber(ctx context.Context) (int, error) {
 	_ = ctx
@@ -108,7 +128,7 @@ func (r *queryResolver) InitializeResult(ctx context.Context) (*model.WorkflowRe
 }
 
 // InitializeProgress is the resolver for the initializeProgress field.
-func (r *queryResolver) InitializeProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+func (r *queryResolver) InitializeProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.initializeProgress(ctx)
 }
 
@@ -123,7 +143,7 @@ func (r *queryResolver) FetchSeasonsResult(ctx context.Context) (*model.Workflow
 }
 
 // FetchSeasonsProgress is the resolver for the fetchSeasonsProgress field.
-func (r *queryResolver) FetchSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+func (r *queryResolver) FetchSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.fetchSeasonsProgress(ctx)
 }
 
@@ -143,7 +163,7 @@ func (r *queryResolver) FetchYahooPlayersResult(ctx context.Context) (*model.Wor
 }
 
 // FetchYahooPlayersProgress is the resolver for the fetchYahooPlayersProgress field.
-func (r *queryResolver) FetchYahooPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+func (r *queryResolver) FetchYahooPlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.fetchYahooPlayersProgress(ctx)
 }
 
@@ -170,6 +190,26 @@ func (r *queryResolver) ImportSeasonsResult(ctx context.Context) (*model.Workflo
 // ImportSeasonsProgress is the resolver for the importSeasonsProgress field.
 func (r *queryResolver) ImportSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
 	return r.Resolver.importSeasonsProgress(ctx)
+}
+
+// ExtractBoxscorePlayersResult is the resolver for the extractBoxscorePlayersResult field.
+func (r *queryResolver) ExtractBoxscorePlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.extractBoxscorePlayersResult(ctx)
+}
+
+// ExtractBoxscorePlayersProgress is the resolver for the extractBoxscorePlayersProgress field.
+func (r *queryResolver) ExtractBoxscorePlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.Resolver.extractBoxscorePlayersProgress(ctx)
+}
+
+// FetchPlayerLandingsResult is the resolver for the fetchPlayerLandingsResult field.
+func (r *queryResolver) FetchPlayerLandingsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.fetchPlayerLandingsResult(ctx)
+}
+
+// FetchPlayerLandingsProgress is the resolver for the fetchPlayerLandingsProgress field.
+func (r *queryResolver) FetchPlayerLandingsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.Resolver.fetchPlayerLandingsProgress(ctx)
 }
 
 // Mutation returns generated.MutationResolver implementation.

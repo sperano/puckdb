@@ -9,9 +9,13 @@ import (
 )
 
 // FetchPlayerLogsWorkflow fetches player game logs for all seasons.
-// It processes each season in a child workflow, extracting player IDs from boxscores
-// and downloading their game logs. For the current season, files are only overwritten
+// It processes each season in a child workflow, downloading game logs for players
+// extracted from boxscores. For the current season, files are only overwritten
 // if the --refresh-current-player-logs flag is set.
+//
+// The workflow has two phases:
+// 1. Extract player counts for all seasons (parallel) - caches results in Redis
+// 2. Download player logs for each season (child workflows use cached extraction)
 func FetchPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
@@ -58,10 +62,91 @@ func FetchPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) er
 		return nil
 	}
 
-	// Update tracker with all seasons
-	tracker.InitializeWithSeasons(seasons, "Fetching player logs...", "Fetched player logs for %d seasons")
+	// Phase 1: Extract player counts for all seasons (parallel)
+	// This caches extraction results in Redis for child workflows to use
+	playerCounts, err := countPlayersForAllSeasons(ctx, logger, tracker, seasons, concurrency)
+	if err != nil {
+		return err
+	}
 
+	// Create counter function using pre-computed counts
+	counter := func(season SeasonInfo) int {
+		return playerCounts[season.StartYear()]
+	}
+
+	// Initialize tracker with actual player counts
+	tracker.InitializeWithSeasons(seasons, counter, "Fetching player logs...", "Fetched player logs for %d seasons")
+
+	// Phase 2: Download player logs for each season
 	return processPlayerLogsWithChildWorkflows(ctx, logger, tracker, seasons, concurrency, refreshCurrent)
+}
+
+// countPlayersForAllSeasons extracts player counts for all seasons in parallel.
+// Results are cached in Redis for child workflows to use.
+func countPlayersForAllSeasons(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, seasons []SeasonInfo, concurrency int) (map[int]int, error) {
+	logger.Info("Counting players for all seasons", "seasons", len(seasons), "concurrency", concurrency)
+
+	// Initialize tracker for counting phase (1 task per season)
+	countOne := func(_ SeasonInfo) int { return 1 }
+	tracker.InitializeWithSeasons(seasons, countOne, "Counting players...", "Counted players for %d seasons")
+
+	counts := make(map[int]int)
+	pending := make([]SeasonInfo, len(seasons))
+	copy(pending, seasons)
+
+	// Track active futures
+	type countWork struct {
+		season SeasonInfo
+		future workflow.Future
+	}
+	active := make(map[int]*countWork)
+
+	// Start initial batch
+	for i := 0; i < concurrency && len(pending) > 0; i++ {
+		season := pending[0]
+		pending = pending[1:]
+		tracker.MarkItemStarted(ctx, season.StartYear())
+		future := workflow.ExecuteActivity(ctx, CountPlayersForSeasonActivity, season)
+		active[season.StartYear()] = &countWork{season: season, future: future}
+	}
+
+	// Process until all done
+	for len(active) > 0 {
+		selector := workflow.NewSelector(ctx)
+
+		for startYear, work := range active {
+			year := startYear
+			w := work
+			selector.AddFuture(w.future, func(f workflow.Future) {
+				var count int
+				if err := f.Get(ctx, &count); err != nil {
+					logger.Error("Failed to count players for season", "startYear", year, "error", err)
+					counts[year] = 0
+				} else {
+					counts[year] = count
+					logger.Info("Counted players for season", "startYear", year, "players", count)
+				}
+
+				// Mark season complete and update progress
+				tracker.IncrementItem(year)
+				delete(active, year)
+
+				// Start next pending season
+				if len(pending) > 0 {
+					nextSeason := pending[0]
+					pending = pending[1:]
+					tracker.MarkItemStarted(ctx, nextSeason.StartYear())
+					future := workflow.ExecuteActivity(ctx, CountPlayersForSeasonActivity, nextSeason)
+					active[nextSeason.StartYear()] = &countWork{season: nextSeason, future: future}
+				}
+			})
+		}
+
+		selector.Select(ctx)
+	}
+
+	logger.Info("Player counting complete", "seasons", len(counts))
+	return counts, nil
 }
 
 // processPlayerLogsWithChildWorkflows spawns child workflows for each season's player logs.

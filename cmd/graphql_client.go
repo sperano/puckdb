@@ -84,6 +84,30 @@ func (c *GraphQLClient) executeWorkflowStatusQuery(ctx context.Context, query, r
 	return &status, nil
 }
 
+// executeProgressReportQuery is like executeWorkflowStatusQuery but parses into ProgressReport.
+func (c *GraphQLClient) executeProgressReportQuery(ctx context.Context, query, resultField, progressField string) (*WorkflowStatus, error) {
+	resp, err := c.execute(ctx, query, nil)
+	if err != nil {
+		return nil, err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(resp.Data, &raw); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+	var status WorkflowStatus
+	if data, ok := raw[resultField]; ok {
+		if err := json.Unmarshal(data, &status.Result); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", resultField, err)
+		}
+	}
+	if data, ok := raw[progressField]; ok {
+		if err := json.Unmarshal(data, &status.ProgressReport); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", progressField, err)
+		}
+	}
+	return &status, nil
+}
+
 // execute sends a GraphQL request and returns the response
 func (c *GraphQLClient) execute(ctx context.Context, query string, variables map[string]any) (*graphQLResponse, error) {
 	reqBody := graphQLRequest{
@@ -133,8 +157,9 @@ func (c *GraphQLClient) execute(ctx context.Context, query string, variables map
 
 // WorkflowStatus combines result and progress from a workflow query
 type WorkflowStatus struct {
-	Result   *model.WorkflowResult
-	Progress *model.WorkflowProgress
+	Result         *model.WorkflowResult
+	Progress       *model.WorkflowProgress // Old format (most workflows)
+	ProgressReport *model.ProgressReport   // New format (Initialize)
 }
 
 // statusFetcher is a function type for fetching workflow status (result and progress)
@@ -148,6 +173,8 @@ const (
 	workflowInitialize
 	workflowYahooPlayers
 	workflowFetchSeasons
+	workflowExtractBoxscorePlayers
+	workflowFetchPlayerLandings
 	workflowFetchPlayerLogs
 	workflowProcessPlayers
 	workflowImportSeasons

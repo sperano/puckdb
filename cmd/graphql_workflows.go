@@ -110,3 +110,29 @@ func (c *GraphQLClient) CreateDatabase(ctx context.Context) (bool, error) {
 func (c *GraphQLClient) ClearDatabase(ctx context.Context) (bool, error) {
 	return c.executeBoolMutation(ctx, `mutation { clearDatabase }`, "clearDatabase", nil)
 }
+
+// ExtractBoxscorePlayers triggers the extractBoxscorePlayers mutation to extract and cache player data.
+func (c *GraphQLClient) ExtractBoxscorePlayers(ctx context.Context, input *model.ExtractBoxscorePlayersInput) (bool, error) {
+	return c.executeBoolMutation(ctx,
+		`mutation($input: ExtractBoxscorePlayersInput) { extractBoxscorePlayers(input: $input) }`,
+		"extractBoxscorePlayers",
+		map[string]any{"input": input})
+}
+
+// CancelExtractBoxscorePlayers cancels the extractBoxscorePlayers workflow.
+func (c *GraphQLClient) CancelExtractBoxscorePlayers(ctx context.Context) (bool, error) {
+	return c.executeBoolMutation(ctx, `mutation { cancelExtractBoxscorePlayers }`, "cancelExtractBoxscorePlayers", nil)
+}
+
+// FetchPlayerLandings triggers the fetchPlayerLandings mutation to download player landing pages.
+func (c *GraphQLClient) FetchPlayerLandings(ctx context.Context, input *model.FetchPlayerLandingsInput) (bool, error) {
+	return c.executeBoolMutation(ctx,
+		`mutation($input: FetchPlayerLandingsInput) { fetchPlayerLandings(input: $input) }`,
+		"fetchPlayerLandings",
+		map[string]any{"input": input})
+}
+
+// CancelFetchPlayerLandings cancels the fetchPlayerLandings workflow.
+func (c *GraphQLClient) CancelFetchPlayerLandings(ctx context.Context) (bool, error) {
+	return c.executeBoolMutation(ctx, `mutation { cancelFetchPlayerLandings }`, "cancelFetchPlayerLandings", nil)
+}

@@ -17,7 +17,6 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/graph"
 	"github.com/sperano/puckdb/graph/generated"
 	"github.com/sperano/puckdb/cache"
@@ -43,10 +42,7 @@ func cmdAPI() *cobra.Command {
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return config.BindFlags(cmd.Flags(),
 				&config.YahooOAuth2Flags,
-				&config.YahooSeasonsFlags,
-				&config.DataPathFlags,
 				&config.RedisFlags,
-				&config.PostgresFlags,
 				&config.TemporalFlags,
 				&config.APIPortFlags,
 				&config.TLSFlags,
@@ -68,6 +64,7 @@ func cmdAPI() *cobra.Command {
 
 			resolver := &graph.Resolver{
 				TemporalClient: temporalClient,
+				RedisClient:    redisClient,
 			}
 
 			listen := fmt.Sprintf(":%d", viper.GetInt(config.FlagAPIPort))
@@ -81,11 +78,8 @@ func cmdAPI() *cobra.Command {
 	}
 	flags := cmd.Flags()
 	config.InitFlags(flags,
-		&config.DataPathFlags,
 		&config.RedisFlags,
 		&config.YahooOAuth2Flags,
-		&config.YahooSeasonsFlags,
-		&config.PostgresFlags,
 		&config.TemporalFlags,
 		&config.APIPortFlags,
 		&config.TLSFlags,
@@ -98,7 +92,6 @@ func setupAPIRouter(redisClient cache.Client, resolver *graph.Resolver) *chi.Mux
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(handlers.ChiLogger)
 
-	r.Use(database.SQLCMiddleware)
 	// Basic CORS
 	// for more ideas, see: https://developer.github.com/v3/#cross-origin-resource-sharing
 	r.Use(cors.Handler(cors.Options{

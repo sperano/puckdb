@@ -24,13 +24,14 @@ type ItemProgress struct {
 type ProgressDisplayStyle string
 
 const (
-	// DisplayStylePhases shows items as sequential steps with ✓/▶/indent prefixes
-	DisplayStylePhases ProgressDisplayStyle = "PHASES"
-	// DisplayStyleGroupedItems shows items under a single header with progress bars
-	DisplayStyleGroupedItems ProgressDisplayStyle = "GROUPED_ITEMS"
+	// DisplayStyleSequential shows items as sequential steps with ✓/▶ prefixes, completed items remain visible
+	DisplayStyleSequential ProgressDisplayStyle = "SEQUENTIAL"
+	// DisplayStyleParallel shows concurrent items with progress bars, completed items hidden
+	DisplayStyleParallel ProgressDisplayStyle = "PARALLEL"
 )
 
 // WorkflowProgress represents the progress of a workflow.
+// DEPRECATED: Use ProgressReport for new workflows.
 type WorkflowProgress struct {
 	Total           int                  `json:"total"`
 	Completed       int                  `json:"completed"`
@@ -41,8 +42,264 @@ type WorkflowProgress struct {
 	DisplayStyle    ProgressDisplayStyle `json:"displayStyle,omitempty"`
 }
 
+// ProgressBar represents a single progress bar within a group.
+type ProgressBar struct {
+	Label           string `json:"label,omitempty"`
+	Current         int    `json:"current"`
+	Total           int    `json:"total"`
+	Started         bool   `json:"started,omitempty"`
+	ChildWorkflowID string `json:"childWorkflowID,omitempty"` // If set, resolver queries this child for progress
+}
+
+// ProgressGroup is a unit of display: header + bars + completion message.
+type ProgressGroup struct {
+	Header       string        `json:"header"`
+	CompletedMsg string        `json:"completedMsg"`
+	Bars         []ProgressBar `json:"bars"`
+	StartedAt    int64         `json:"startedAt"`
+	CompletedAt  int64         `json:"completedAt"`
+}
+
+// ProgressReport is the new group-based progress structure.
+type ProgressReport struct {
+	Total     int             `json:"total"`
+	Completed int             `json:"completed"`
+	Message   string          `json:"message,omitempty"`
+	Groups    []ProgressGroup `json:"groups"`
+}
+
 // ProgressQueryName is the name of the query handler for progress.
+// DEPRECATED: Use ProgressReportQueryName for new workflows.
 const ProgressQueryName = "progress"
+
+// ProgressReportQueryName is the query name for the new group-based progress.
+const ProgressReportQueryName = "progressReport"
+
+// ReportTracker wraps ProgressReport and provides helper methods for workflows.
+type ReportTracker struct {
+	report *ProgressReport
+}
+
+// NewReportTracker creates a tracker wrapping the given report.
+func NewReportTracker(report *ProgressReport) *ReportTracker {
+	return &ReportTracker{report: report}
+}
+
+// RegisterQueryHandler registers the progressReport query handler.
+func (t *ReportTracker) RegisterQueryHandler(ctx workflow.Context) error {
+	return workflow.SetQueryHandler(ctx, ProgressReportQueryName, func() (*ProgressReport, error) {
+		return t.report, nil
+	})
+}
+
+// StartGroup marks a group as started with the current timestamp.
+func (t *ReportTracker) StartGroup(ctx workflow.Context, groupIdx int) {
+	t.report.Groups[groupIdx].StartedAt = workflow.Now(ctx).UnixMilli()
+}
+
+// CompleteGroup marks a group as completed with message and timestamp.
+// Sets all bars to complete and increments the report's Completed count.
+func (t *ReportTracker) CompleteGroup(ctx workflow.Context, groupIdx int, msg string) {
+	g := &t.report.Groups[groupIdx]
+	for i := range g.Bars {
+		g.Bars[i].Current = g.Bars[i].Total
+	}
+	g.CompletedAt = workflow.Now(ctx).UnixMilli()
+	g.CompletedMsg = msg
+	t.report.Completed++
+}
+
+// IncrementBar increments the current count of a specific bar.
+func (t *ReportTracker) IncrementBar(groupIdx, barIdx int) {
+	t.report.Groups[groupIdx].Bars[barIdx].Current++
+}
+
+// IncrementBarBy increments the current count of a specific bar by the given amount.
+func (t *ReportTracker) IncrementBarBy(groupIdx, barIdx, amount int) {
+	t.report.Groups[groupIdx].Bars[barIdx].Current += amount
+}
+
+// SetBarTotal sets the total for a specific bar.
+func (t *ReportTracker) SetBarTotal(groupIdx, barIdx, total int) {
+	t.report.Groups[groupIdx].Bars[barIdx].Total = total
+}
+
+// SetBarLabel sets the label for a specific bar.
+func (t *ReportTracker) SetBarLabel(groupIdx, barIdx int, label string) {
+	t.report.Groups[groupIdx].Bars[barIdx].Label = label
+}
+
+// StartBar marks a bar as started.
+func (t *ReportTracker) StartBar(groupIdx, barIdx int) {
+	t.report.Groups[groupIdx].Bars[barIdx].Started = true
+}
+
+// CompleteBar marks a specific bar as complete (sets Current = Total).
+func (t *ReportTracker) CompleteBar(groupIdx, barIdx int) {
+	bar := &t.report.Groups[groupIdx].Bars[barIdx]
+	bar.Current = bar.Total
+}
+
+// ChildWorkflowIDFunc maps a season to its child workflow ID.
+type ChildWorkflowIDFunc func(startYear int) string
+
+// AddBarsForSeasons adds one bar per season to a group.
+// If childIDFunc is provided, sets ChildWorkflowID so resolver can query children for progress.
+// Returns a map of startYear -> barIdx for looking up bars later.
+func (t *ReportTracker) AddBarsForSeasons(groupIdx int, seasons []SeasonInfo, counter SeasonCounterFunc, childIDFunc ChildWorkflowIDFunc) map[int]int {
+	barIndex := make(map[int]int)
+	total := 0
+
+	for i, season := range seasons {
+		count := counter(season)
+		bar := ProgressBar{
+			Label: season.Label(),
+			Total: count,
+		}
+		if childIDFunc != nil {
+			bar.ChildWorkflowID = childIDFunc(season.StartYear())
+		}
+		t.report.Groups[groupIdx].Bars = append(t.report.Groups[groupIdx].Bars, bar)
+		barIndex[season.StartYear()] = i
+		total += count
+	}
+
+	t.report.Total = total
+	return barIndex
+}
+
+// GetElapsed returns the formatted elapsed time since group started.
+func (t *ReportTracker) GetElapsed(ctx workflow.Context, groupIdx int) string {
+	startedAt := t.report.Groups[groupIdx].StartedAt
+	if startedAt == 0 {
+		return ""
+	}
+	elapsed := workflow.Now(ctx).UnixMilli() - startedAt
+	return formatElapsedMilli(elapsed)
+}
+
+// formatElapsedMilli formats milliseconds as a human-readable duration.
+func formatElapsedMilli(ms int64) string {
+	d := time.Duration(ms) * time.Millisecond
+	return formatDuration(d)
+}
+
+// RunWorkerPool runs activities concurrently with a fixed concurrency limit.
+// All activities update a SINGLE bar at barIdx, incrementing by 1 on each completion.
+// Use RunWorkerPoolMultiBar if each activity should have its own bar.
+func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, groupIdx, barIdx, total, concurrency int, startActivity ActivityStarter, handler ResultHandler) error {
+	return t.RunWorkerPoolBy(ctx, groupIdx, barIdx, total, concurrency, 1, startActivity, handler)
+}
+
+// RunWorkerPoolBy is like RunWorkerPool but increments the bar by a custom amount per completion.
+func (t *ReportTracker) RunWorkerPoolBy(ctx workflow.Context, groupIdx, barIdx, total, concurrency, incrementBy int, startActivity ActivityStarter, handler ResultHandler) error {
+	if total == 0 {
+		return nil
+	}
+
+	nextIndex := 0
+	active := make(map[int]workflow.Future)
+	var firstErr error
+
+	// Start initial batch
+	for len(active) < concurrency && nextIndex < total {
+		idx := nextIndex
+		active[idx] = startActivity(ctx, idx)
+		nextIndex++
+	}
+
+	// Process until all work is done
+	for len(active) > 0 {
+		selector := workflow.NewSelector(ctx)
+
+		for idx, future := range active {
+			capturedIdx := idx
+			capturedFuture := future
+			selector.AddFuture(capturedFuture, func(f workflow.Future) {
+				if handler != nil {
+					if err := handler(ctx, capturedIdx, f); err != nil && firstErr == nil {
+						firstErr = err
+					}
+				} else if err := f.Get(ctx, nil); err != nil && firstErr == nil {
+					firstErr = err
+				}
+				t.IncrementBarBy(groupIdx, barIdx, incrementBy)
+				delete(active, capturedIdx)
+			})
+		}
+
+		selector.Select(ctx)
+		if firstErr != nil {
+			return firstErr
+		}
+
+		// Start next batch
+		for len(active) < concurrency && nextIndex < total {
+			idx := nextIndex
+			active[idx] = startActivity(ctx, idx)
+			nextIndex++
+		}
+	}
+
+	return nil
+}
+
+// RunWorkerPoolMultiBar runs activities concurrently where each activity has its own bar.
+// Bar[barStart + i] corresponds to activity i. Marks bars as Started when dispatched
+// and sets them complete on activity completion.
+func (t *ReportTracker) RunWorkerPoolMultiBar(ctx workflow.Context, groupIdx, barStart, total, concurrency int, startActivity ActivityStarter, handler ResultHandler) error {
+	if total == 0 {
+		return nil
+	}
+
+	nextIndex := 0
+	active := make(map[int]workflow.Future)
+	var firstErr error
+
+	// Start initial batch
+	for len(active) < concurrency && nextIndex < total {
+		idx := nextIndex
+		t.StartBar(groupIdx, barStart+idx)
+		active[idx] = startActivity(ctx, idx)
+		nextIndex++
+	}
+
+	// Process until all work is done
+	for len(active) > 0 {
+		selector := workflow.NewSelector(ctx)
+
+		for idx, future := range active {
+			capturedIdx := idx
+			capturedFuture := future
+			selector.AddFuture(capturedFuture, func(f workflow.Future) {
+				if handler != nil {
+					if err := handler(ctx, capturedIdx, f); err != nil && firstErr == nil {
+						firstErr = err
+					}
+				} else if err := f.Get(ctx, nil); err != nil && firstErr == nil {
+					firstErr = err
+				}
+				t.IncrementBarBy(groupIdx, barStart+capturedIdx, 1)
+				delete(active, capturedIdx)
+			})
+		}
+
+		selector.Select(ctx)
+		if firstErr != nil {
+			return firstErr
+		}
+
+		// Start next batch
+		for len(active) < concurrency && nextIndex < total {
+			idx := nextIndex
+			t.StartBar(groupIdx, barStart+idx)
+			active[idx] = startActivity(ctx, idx)
+			nextIndex++
+		}
+	}
+
+	return nil
+}
 
 // ProgressTracker tracks workflow progress and handles completion via Selector.
 type ProgressTracker struct {
@@ -96,12 +353,12 @@ func NewProgressTrackerSinglePhase(description string, total, completed int) *Pr
 }
 
 // NewProgressTrackerWithSeasons creates a ProgressTracker that tracks per-season progress.
-func NewProgressTrackerWithSeasons(seasons []SeasonInfo, header, completedHeader string) *ProgressTracker {
+func NewProgressTrackerWithSeasons(seasons []SeasonInfo, counter SeasonCounterFunc, header, completedHeader string) *ProgressTracker {
 	tracker := &ProgressTracker{
 		itemIndex:  make(map[int]int),
 		futureToID: make(map[int]int),
 	}
-	tracker.InitializeWithSeasons(seasons, header, completedHeader)
+	tracker.InitializeWithSeasons(seasons, counter, header, completedHeader)
 	return tracker
 }
 
@@ -144,7 +401,7 @@ func (p *ProgressTracker) InitializeWithPhases(phases []PhaseInfo) {
 		Total:        total,
 		Completed:    0,
 		Items:        itemProgress,
-		DisplayStyle: DisplayStylePhases,
+		DisplayStyle: DisplayStyleSequential,
 	}
 }
 
@@ -202,15 +459,18 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dh%dm", hours, minutes)
 }
 
+// SeasonCounterFunc returns the total count for a season's progress tracking.
+type SeasonCounterFunc func(season SeasonInfo) int
+
 // InitializeWithSeasons sets up per-season progress tracking.
+// The counter function determines each season's total (e.g., countDaysInSeason).
 // Can be called after RegisterQueryHandler to update progress state once seasons are known.
-// Both header (in-progress) and completedHeader (done) are set at init time to avoid race conditions.
-func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo, header, completedHeader string) {
+func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo, counter SeasonCounterFunc, header, completedHeader string) {
 	total := 0
 	itemProgress := make([]ItemProgress, len(seasons))
 
 	for i, season := range seasons {
-		count := countDownloadTasksForSeason(season)
+		count := counter(season)
 		itemProgress[i] = ItemProgress{
 			ID:          season.StartYear(),
 			Description: season.Label(),
@@ -227,8 +487,14 @@ func (p *ProgressTracker) InitializeWithSeasons(seasons []SeasonInfo, header, co
 		Header:          header,
 		CompletedHeader: completedHeader,
 		Items:           itemProgress,
-		DisplayStyle:    DisplayStyleGroupedItems,
+		DisplayStyle:    DisplayStyleParallel,
 	}
+}
+
+// CountDeferredTasks returns 0, indicating totals will be populated from child workflows.
+// Use for workflows where the parent doesn't know totals upfront (e.g., player logs).
+func CountDeferredTasks(_ SeasonInfo) int {
+	return 0
 }
 
 // SetFutureItem associates a future index with an item ID for tracking.
@@ -405,6 +671,11 @@ func (p *ProgressTracker) WaitAllWithResults(ctx workflow.Context, futures []wor
 // Increment manually increments the completed count by 1.
 func (p *ProgressTracker) Increment() {
 	p.progress.Completed++
+}
+
+// IncrementBy manually increments the completed count by the given amount.
+func (p *ProgressTracker) IncrementBy(amount int) {
+	p.progress.Completed += amount
 }
 
 // SetMessage sets the progress message describing the current phase.

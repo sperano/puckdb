@@ -36,10 +36,10 @@ type ProgressItem {
 
 # ProgressDisplayStyle determines how items are rendered in the CLI.
 enum ProgressDisplayStyle {
-	# PHASES: Sequential steps shown with ✓/▶/indent prefixes (default)
-	PHASES
-	# GROUPED_ITEMS: Concurrent items shown under a single header with progress bars
-	GROUPED_ITEMS
+	# SEQUENTIAL: Steps shown with ✓/▶ prefixes, completed items remain visible
+	SEQUENTIAL
+	# PARALLEL: Concurrent items with progress bars, completed items hidden
+	PARALLEL
 }
 
 type WorkflowProgress {
@@ -50,6 +50,28 @@ type WorkflowProgress {
 	completedHeader: String
 	items: [ProgressItem!]
 	displayStyle: ProgressDisplayStyle
+}
+
+type ProgressBar {
+	label: String
+	current: Int!
+	total: Int!
+	started: Boolean!
+}
+
+type ProgressGroup {
+	header: String!
+	completedMsg: String!
+	bars: [ProgressBar!]!
+	startedAt: Int64!
+	completedAt: Int64!
+}
+
+type ProgressReport {
+	total: Int!
+	completed: Int!
+	message: String
+	groups: [ProgressGroup!]!
 }
 
 # TrulyUnmatchedPlayer represents a Yahoo player who has NHL games but wasn't matched.
@@ -90,17 +112,17 @@ type Query {
 	buildNumber: Int!
 
 	initializeResult: WorkflowResult!
-	initializeProgress: WorkflowProgress
+	initializeProgress: ProgressReport
 	initializeResultData: InitializeResultData
 
 	fetchSeasonsResult: WorkflowResult!
-	fetchSeasonsProgress: WorkflowProgress
+	fetchSeasonsProgress: ProgressReport
 
 	fetchPlayerLogsResult: WorkflowResult!
 	fetchPlayerLogsProgress: WorkflowProgress
 
 	fetchYahooPlayersResult: WorkflowResult!
-	fetchYahooPlayersProgress: WorkflowProgress
+	fetchYahooPlayersProgress: ProgressReport
 
 	processPlayersResult: WorkflowResult!
 	processPlayersProgress: WorkflowProgress
@@ -108,6 +130,12 @@ type Query {
 
 	importSeasonsResult: WorkflowResult!
 	importSeasonsProgress: WorkflowProgress
+
+	extractBoxscorePlayersResult: WorkflowResult!
+	extractBoxscorePlayersProgress: ProgressReport
+
+	fetchPlayerLandingsResult: WorkflowResult!
+	fetchPlayerLandingsProgress: ProgressReport
 }
 
 
@@ -115,6 +143,18 @@ input SeasonsInput {
 	startSeason: Int
 	endSeason: Int
 	seasonConcurrency: Int
+}
+
+input ExtractBoxscorePlayersInput {
+	startSeason: Int
+	endSeason: Int
+	seasonConcurrency: Int
+	ttlMinutes: Int
+}
+
+input FetchPlayerLandingsInput {
+	batchSize: Int
+	concurrency: Int
 }
 
 type Mutation {
@@ -136,4 +176,8 @@ type Mutation {
 	cancelProcessPlayers: Boolean!
 	importSeasons(input: SeasonsInput): Boolean!
 	cancelImportSeasons: Boolean!
+	extractBoxscorePlayers(input: ExtractBoxscorePlayersInput): Boolean!
+	cancelExtractBoxscorePlayers: Boolean!
+	fetchPlayerLandings(input: FetchPlayerLandingsInput): Boolean!
+	cancelFetchPlayerLandings: Boolean!
 }

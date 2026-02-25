@@ -492,7 +492,7 @@ func TestFormatStatusMessage_GroupedItemsAlignment(t *testing.T) {
 			Total:        17406,
 			Completed:    13441,
 			Header:       ptr("Downloading seasons"),
-			DisplayStyle: displayStylePtr(model.ProgressDisplayStyleGroupedItems),
+			DisplayStyle: displayStylePtr(model.ProgressDisplayStyleParallel),
 			Items: []*model.ProgressItem{
 				{
 					ID:          2003,
@@ -555,7 +555,7 @@ func TestFormatStatusMessage_GroupedItemsCompletedSkipped(t *testing.T) {
 		Progress: &model.WorkflowProgress{
 			Total:        300,
 			Completed:    200,
-			DisplayStyle: displayStylePtr(model.ProgressDisplayStyleGroupedItems),
+			DisplayStyle: displayStylePtr(model.ProgressDisplayStyleParallel),
 			Items: []*model.ProgressItem{
 				{
 					ID:          1,

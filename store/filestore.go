@@ -107,17 +107,6 @@ func (fs *FileStore) Remove(file File) error {
 // The sample file is used to determine the directory and extension to scan.
 // Returns file metadata only; caller is responsible for reading/processing contents.
 func (fs *FileStore) ListFiles(sample File, parser FilenameParser) ([]File, error) {
-	return listAll(fs, sample, parser)
-}
-
-// listAll returns all files in a directory matching the sample file's extension.
-// The sample file is used to determine the directory and extension to scan.
-// Returns file metadata only; caller is responsible for reading/processing contents.
-func listAll(
-	fs *FileStore,
-	sample File,
-	filenameParser FilenameParser,
-) ([]File, error) {
 	dir := sample.Dir()
 	ext := sample.Ext()
 	dirPath := path.Join(fs.RootPath, dir)
@@ -142,7 +131,7 @@ func listAll(
 		// Strip extension to get the name
 		name := filename[:len(filename)-len(expectedSuffix)]
 
-		file := filenameParser(name)
+		file := parser(name)
 		if file == nil {
 			continue
 		}

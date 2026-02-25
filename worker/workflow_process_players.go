@@ -23,11 +23,6 @@ const (
 	phaseProcessVerifyUnmatch = 4
 )
 
-// Default batch sizes for player processing
-const (
-	DefaultProcessPlayersBatchSize   = 50
-	DefaultProcessPlayersConcurrency = 10
-)
 
 // ProcessPlayersInput combines download and import configuration.
 type ProcessPlayersInput struct {
@@ -51,7 +46,7 @@ type processPlayersInternalInput struct {
 	Concurrency       int
 
 	// Phase 1 result
-	Players []BoxscorePlayer
+	Players []store.BoxscorePlayer
 
 	// Phase 2 result (Yahoo pool metadata)
 	YahooPoolResult *SaveYahooIDPoolResult
@@ -100,12 +95,12 @@ type ProcessPlayersResult struct {
 // ProcessPlayersWorkflow extracts player IDs, downloads landing pages, and imports to database.
 // This combines DownloadPlayersWorkflow and ImportPlayersWorkflow into a single pass.
 func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*ProcessPlayersResult, error) {
-	// Parse configuration with defaults
-	batchSize := DefaultProcessPlayersBatchSize
+	// Parse configuration - use viper config, allow input override
+	batchSize := viper.GetInt(config.FlagProcessPlayersBatchSize)
 	if input != nil && input.BatchSize != nil && *input.BatchSize > 0 {
 		batchSize = *input.BatchSize
 	}
-	concurrency := DefaultProcessPlayersConcurrency
+	concurrency := viper.GetInt(config.FlagProcessPlayersConcurrency)
 	if input != nil && input.Concurrency != nil && *input.Concurrency > 0 {
 		concurrency = *input.Concurrency
 	}

@@ -174,6 +174,18 @@ const (
 	FlagPlayerLandingPlayersPerExec = "player-landing-players-per-exec"
 )
 
+// Process players workflow flags
+const (
+	FlagProcessPlayersConcurrency = "process-players-concurrency"
+	FlagProcessPlayersBatchSize   = "process-players-batch-size"
+)
+
+// Player logs workflow flags
+const (
+	FlagPlayerLogsBatchSize       = "player-logs-batch-size"
+	FlagPlayerLogsBatchConcurrency = "player-logs-batch-concurrency"
+)
+
 // Download workflow flags
 const (
 	FlagMaxSeasonConcurrency     = "max-season-concurrency"
@@ -181,10 +193,12 @@ const (
 	FlagSkipPreseason            = "skip-preseason"
 	FlagSkipProcessPlayers       = "skip-players"
 	FlagSkipYahooPlayers         = "skip-yahoo-players"
-	FlagSkipSeasons              = "skip-seasons"
-	FlagSkipPlayerLogs           = "skip-player-logs"
-	FlagSkipInitializing         = "skip-initializing"
-	FlagSkipImportSeasons        = "skip-import-seasons"
+	FlagSkipFetchSeasons           = "skip-fetch-seasons"
+	FlagSkipExtractBoxscorePlayers = "skip-extract-boxscore-players"
+	FlagSkipFetchPlayerLandings    = "skip-fetch-player-landings"
+	FlagSkipPlayerLogs             = "skip-player-logs"
+	FlagSkipInit                   = "skip-init"
+	FlagSkipImportSeasons          = "skip-import-seasons"
 	FlagRefreshCurrentPlayerLogs = "refresh-current-player-logs"
 	FlagSeasonConcurrency        = "season-concurrency"
 	FlagMonitor                  = "monitor"
@@ -306,6 +320,22 @@ var PlayerLandingFlags = FlagGroup{
 	},
 }
 
+// ProcessPlayersFlags defines process players workflow flags.
+var ProcessPlayersFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagProcessPlayersConcurrency, "", DefaultProcessPlayersConcurrency, "Number of concurrent batch activities for processing players", false},
+		{FlagProcessPlayersBatchSize, "", DefaultProcessPlayersBatchSize, "Number of players per batch activity", false},
+	},
+}
+
+// PlayerLogsFlags defines player logs workflow flags.
+var PlayerLogsFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagPlayerLogsBatchSize, "", DefaultPlayerLogsBatchSize, "Number of players per batch when downloading game logs", false},
+		{FlagPlayerLogsBatchConcurrency, "", DefaultPlayerLogsBatchConcurrency, "Number of concurrent batches for player logs download", false},
+	},
+}
+
 // WorkerConcurrencyFlags defines Temporal worker concurrency flags.
 var WorkerConcurrencyFlags = FlagGroup{
 	Flags: []FlagDef{
@@ -337,9 +367,11 @@ var SeasonRangeFlags = FlagGroup{
 // SyncSkipFlags defines sync workflow skip flags.
 var SyncSkipFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagSkipInitializing, "", false, "Skip the initialization workflow (franchises, seasons, league structure)", false},
+		{FlagSkipInit, "", false, "Skip the initialization workflow (franchises, seasons, league structure)", false},
 		{FlagSkipYahooPlayers, "", false, "Skip downloading Yahoo! players", false},
-		{FlagSkipSeasons, "", false, "Skip downloading season data (NHL schedules, boxscores, Yahoo! fantasy)", false},
+		{FlagSkipFetchSeasons, "", false, "Skip downloading season data (NHL schedules, boxscores, Yahoo! fantasy)", false},
+		{FlagSkipExtractBoxscorePlayers, "", false, "Skip extracting boxscore players to Redis", false},
+		{FlagSkipFetchPlayerLandings, "", false, "Skip fetching player landing pages from NHL API", false},
 		{FlagSkipPlayerLogs, "", false, "Skip downloading player game logs for historical seasons", false},
 		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the current season (overwrites cached files)", false},
 		{FlagSkipProcessPlayers, "", false, "Skip processing players (download + import)", false},

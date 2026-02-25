@@ -54,7 +54,7 @@ func ImportSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) erro
 	// Teams must already exist in the database before importing boxscores.
 	// This is ensured by running ImportNHLTeamsAndPlayersWorkflow first.
 
-	// Initialize progress with headers for GROUPED_ITEMS display (matching FetchSeasons pattern)
+	// Initialize progress with headers for PARALLEL display (matching FetchSeasons pattern)
 	tracker.initializeImportSeasons(seasons, "Importing seasons...", "Imported %d seasons")
 
 	return processImportWithChildWorkflows(ctx, logger, tracker, seasons, concurrency)
@@ -84,7 +84,7 @@ func (p *ProgressTracker) initializeImportSeasons(seasons []SeasonInfo, header, 
 		Header:          header,
 		CompletedHeader: completedHeader,
 		Items:           items,
-		DisplayStyle:    DisplayStyleGroupedItems,
+		DisplayStyle:    DisplayStyleParallel,
 	}
 }
 

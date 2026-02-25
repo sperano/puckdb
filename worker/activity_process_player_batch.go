@@ -40,7 +40,7 @@ type ProcessPlayerBatchResult struct {
 
 // ProcessPlayerBatchActivity downloads player landing pages (if needed) and imports them to the database.
 // This combines DownloadPlayerLandingBatchActivity and ImportPlayerBatchActivity into a single pass.
-func ProcessPlayerBatchActivity(ctx context.Context, players []BoxscorePlayer) (ProcessPlayerBatchResult, error) {
+func ProcessPlayerBatchActivity(ctx context.Context, players []store.BoxscorePlayer) (ProcessPlayerBatchResult, error) {
 	fs := store.NewStore()
 	nhlClient := newNHLClient()
 
@@ -71,7 +71,7 @@ type processDeps struct {
 	queries   PlayerUpserter
 }
 
-func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []BoxscorePlayer) (ProcessPlayerBatchResult, error) {
+func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []store.BoxscorePlayer) (ProcessPlayerBatchResult, error) {
 	result := ProcessPlayerBatchResult{}
 
 	if len(players) == 0 {
@@ -294,7 +294,7 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResu
 
 // importMissingPlayer imports a player with minimal info from boxscore data.
 // These are players who returned 404 from the NHL API but appear in boxscores.
-func importMissingPlayer(ctx context.Context, deps processDeps, p BoxscorePlayer) error {
+func importMissingPlayer(ctx context.Context, deps processDeps, p store.BoxscorePlayer) error {
 	firstName := strings.TrimSpace(p.FirstName)
 	lastName := strings.TrimSpace(p.LastName)
 	position := strings.TrimSpace(p.Position)

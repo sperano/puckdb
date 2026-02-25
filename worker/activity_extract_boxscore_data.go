@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -12,42 +11,40 @@ import (
 	"github.com/sperano/puckdb/store"
 )
 
-// BoxscorePlayer holds minimal player info extracted from boxscore appearances.
-// This is used to carry player data from extraction to download phases.
-type BoxscorePlayer struct {
-	ID        int64  `json:"id"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	Position  string `json:"position"`
-}
-
 // BoxscoreExtractionResult contains players extracted from boxscores for a season.
 type BoxscoreExtractionResult struct {
-	Players []BoxscorePlayer `json:"players"`
+	Players []store.BoxscorePlayer `json:"players"`
 }
 
 // dayPlayerExtractor extracts players for a single day.
-type dayPlayerExtractor func(ctx context.Context, day time.Time) ([]BoxscorePlayer, error)
+type dayPlayerExtractor func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error)
 
 // ExtractBoxscoreDataForSeasonActivity extracts player info from all boxscores for a season.
 func ExtractBoxscoreDataForSeasonActivity(ctx context.Context, season SeasonInfo) (BoxscoreExtractionResult, error) {
 	fs := store.NewStore()
 	redisClient := cache.NewClient()
-	extractor := func(ctx context.Context, day time.Time) ([]BoxscorePlayer, error) {
+	defer func() { _ = redisClient.Close() }()
+
+	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
 		return extractPlayersForDay(ctx, fs, redisClient, day)
 	}
-	return extractBoxscoreDataForSeasonImpl(ctx, extractor, season)
+	return extractBoxscoreDataForSeasonImpl(ctx, extractor, redisClient, season)
 }
 
 func extractBoxscoreDataForSeasonImpl(
 	ctx context.Context,
 	extractForDay dayPlayerExtractor,
+	redisClient cache.Client,
 	season SeasonInfo,
 ) (BoxscoreExtractionResult, error) {
 	// Map by player ID to deduplicate while preserving player info
-	players := make(map[int64]BoxscorePlayer)
+	players := make(map[int64]store.BoxscorePlayer)
 
 	end := effectiveEndDate(season.EndDate)
+
+	// Calculate total days for progress tracking
+	totalDays := countDays(season.StartDate, end)
+
 	dayCount := 0
 	for day := season.StartDate; !day.After(end); day = day.AddDate(0, 0, 1) {
 		select {
@@ -67,6 +64,13 @@ func extractBoxscoreDataForSeasonImpl(
 		}
 
 		dayCount++
+
+		// Fire-and-forget progress update to Redis (skip if no client)
+		if redisClient != nil {
+			workflowID := WorkflowIDExtractSeason(season.StartYear())
+			_ = cache.SaveProgress(ctx, redisClient, workflowID, dayCount, totalDays)
+		}
+
 		if dayCount%30 == 0 {
 			log.Debug().
 				Int("season", season.StartYear()).
@@ -77,7 +81,7 @@ func extractBoxscoreDataForSeasonImpl(
 	}
 
 	// Convert map to slice
-	playerSlice := make([]BoxscorePlayer, 0, len(players))
+	playerSlice := make([]store.BoxscorePlayer, 0, len(players))
 	for _, p := range players {
 		playerSlice = append(playerSlice, p)
 	}
@@ -99,13 +103,13 @@ func extractPlayersForDay(
 	fs store.Store,
 	redisClient cache.Client,
 	day time.Time,
-) ([]BoxscorePlayer, error) {
+) ([]store.BoxscorePlayer, error) {
 	boxscoreFiles, err := getBoxscoreFilesForDay(ctx, fs, redisClient, day)
 	if err != nil {
 		return nil, err
 	}
 
-	var players []BoxscorePlayer
+	var players []store.BoxscorePlayer
 
 	for _, file := range boxscoreFiles {
 		select {
@@ -137,12 +141,12 @@ func extractPlayersForDay(
 }
 
 // extractTeamPlayers extracts all players from a team's player stats.
-func extractTeamPlayers(stats *nhl.TeamPlayerStats) []BoxscorePlayer {
-	var players []BoxscorePlayer
+func extractTeamPlayers(stats *nhl.TeamPlayerStats) []store.BoxscorePlayer {
+	var players []store.BoxscorePlayer
 
 	for _, s := range stats.Forwards {
-		first, last := parseCombinedName(s.Name.String())
-		players = append(players, BoxscorePlayer{
+		first, last := store.ParseCombinedName(s.Name.String())
+		players = append(players, store.BoxscorePlayer{
 			ID:        s.PlayerID.AsInt64(),
 			FirstName: first,
 			LastName:  last,
@@ -150,8 +154,8 @@ func extractTeamPlayers(stats *nhl.TeamPlayerStats) []BoxscorePlayer {
 		})
 	}
 	for _, s := range stats.Defense {
-		first, last := parseCombinedName(s.Name.String())
-		players = append(players, BoxscorePlayer{
+		first, last := store.ParseCombinedName(s.Name.String())
+		players = append(players, store.BoxscorePlayer{
 			ID:        s.PlayerID.AsInt64(),
 			FirstName: first,
 			LastName:  last,
@@ -159,8 +163,8 @@ func extractTeamPlayers(stats *nhl.TeamPlayerStats) []BoxscorePlayer {
 		})
 	}
 	for _, g := range stats.Goalies {
-		first, last := parseCombinedName(g.Name.String())
-		players = append(players, BoxscorePlayer{
+		first, last := store.ParseCombinedName(g.Name.String())
+		players = append(players, store.BoxscorePlayer{
 			ID:        g.PlayerID.AsInt64(),
 			FirstName: first,
 			LastName:  last,
@@ -169,21 +173,4 @@ func extractTeamPlayers(stats *nhl.TeamPlayerStats) []BoxscorePlayer {
 	}
 
 	return players
-}
-
-// parseCombinedName splits a combined name like "Connor McDavid" into first and last name.
-// For multi-part names, the first token is the first name and the rest is the last name.
-// Examples:
-//   - "Connor McDavid" -> ("Connor", "McDavid")
-//   - "Pierre-Luc Dubois" -> ("Pierre-Luc", "Dubois")
-//   - "James van Riemsdyk" -> ("James", "van Riemsdyk")
-func parseCombinedName(fullName string) (firstName, lastName string) {
-	parts := strings.SplitN(strings.TrimSpace(fullName), " ", 2)
-	if len(parts) >= 1 {
-		firstName = parts[0]
-	}
-	if len(parts) >= 2 {
-		lastName = parts[1]
-	}
-	return firstName, lastName
 }

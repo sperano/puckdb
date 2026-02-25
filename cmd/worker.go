@@ -33,6 +33,8 @@ func cmdWorker() *cobra.Command {
 				&config.YahooDownloadSleepFlags,
 				&config.WorkerConcurrencyFlags,
 				&config.PlayerLandingFlags,
+				&config.ProcessPlayersFlags,
+				&config.PlayerLogsFlags,
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -54,6 +56,9 @@ func cmdWorker() *cobra.Command {
 				MaxConcurrentActivityExecutionSize:     viper.GetInt(config.FlagWorkerMaxActivityExecution),
 			})
 
+			// Progress tracking activities
+			w.RegisterActivity(workers.ClearProgressActivity)
+
 			// Yahoo fetch activities
 			w.RegisterActivity(workers.FetchLeagueActivity)
 			w.RegisterActivity(workers.FetchTeamsActivity)
@@ -72,6 +77,19 @@ func cmdWorker() *cobra.Command {
 			w.RegisterWorkflow(workers.ImportSeasonsWorkflow)
 			w.RegisterWorkflow(workers.ImportSeasonWorkflow)
 			w.RegisterWorkflow(workers.InitializeWorkflow)
+			w.RegisterWorkflow(workers.ExtractBoxscorePlayersWorkflow)
+			w.RegisterWorkflow(workers.FetchPlayerLandingsWorkflow)
+
+			// Database admin workflows
+			w.RegisterWorkflow(workers.DropDatabaseWorkflow)
+			w.RegisterWorkflow(workers.MigrateDatabaseWorkflow)
+			w.RegisterWorkflow(workers.ResetDatabaseWorkflow)
+			w.RegisterWorkflow(workers.FlushRedisWorkflow)
+
+			// Database admin activities
+			w.RegisterActivity(workers.DropDatabaseActivity)
+			w.RegisterActivity(workers.MigrateDatabaseActivity)
+			w.RegisterActivity(workers.FlushRedisActivity)
 
 			// Initialize activities
 			w.RegisterActivity(workers.DownloadFranchisesActivity)
@@ -90,6 +108,16 @@ func cmdWorker() *cobra.Command {
 
 			// Combined boxscore extraction (replaces separate player/team extraction)
 			w.RegisterActivity(workers.ExtractBoxscoreDataForSeasonActivity)
+			w.RegisterActivity(workers.ExtractAndSaveBoxscorePlayersActivity)
+			w.RegisterActivity(workers.ConsolidateBoxscorePlayersActivity)
+
+			// Fetch player landings from NHL API
+			w.RegisterActivity(workers.LoadAllBoxscorePlayersActivity)
+			w.RegisterActivity(workers.FetchPlayerLandingsBatchActivity)
+
+			// Player counting and cached extraction
+			w.RegisterActivity(workers.CountPlayersForSeasonActivity)
+			w.RegisterActivity(workers.GetCachedExtractionActivity)
 
 			// Player game logs
 			w.RegisterActivity(workers.DownloadPlayerGameLogsActivity)
@@ -126,6 +154,8 @@ func cmdWorker() *cobra.Command {
 		&config.YahooDownloadSleepFlags,
 		&config.WorkerConcurrencyFlags,
 		&config.PlayerLandingFlags,
+		&config.ProcessPlayersFlags,
+		&config.PlayerLogsFlags,
 	)
 	return cmd
 }

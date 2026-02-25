@@ -23,7 +23,7 @@ func downloadPlayerLandingBatchImpl(
 	ctx context.Context,
 	fs store.Store,
 	client NHLClient,
-	players []BoxscorePlayer,
+	players []store.BoxscorePlayer,
 ) (DownloadPlayerLandingBatchResult, error) {
 	result := DownloadPlayerLandingBatchResult{}
 
@@ -79,7 +79,7 @@ func ensurePlayerLandingCached(
 	fs store.Store,
 	client NHLClient,
 	playerID nhl.PlayerID,
-	boxscorePlayer BoxscorePlayer,
+	boxscorePlayer store.BoxscorePlayer,
 ) (playerLandingStatus, error) {
 	landingFile := store.PlayerLandingFile{PlayerID: playerID}
 	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
@@ -123,7 +123,7 @@ func ensurePlayerLandingCached(
 }
 
 // saveMissingPlayerLanding saves boxscore player data to a missing player landing file.
-func saveMissingPlayerLanding(fs store.Store, file store.MissingPlayerLandingFile, player BoxscorePlayer) error {
+func saveMissingPlayerLanding(fs store.Store, file store.MissingPlayerLandingFile, player store.BoxscorePlayer) error {
 	data := store.MissingPlayerLandingData{
 		FirstName: player.FirstName,
 		LastName:  player.LastName,

@@ -5,6 +5,7 @@ import (
 
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/workflow"
 )
@@ -13,7 +14,7 @@ const WorkflowIDImportNHLTeamsAndPlayers = "import-nhl-teams-and-players"
 
 // ImportTeamsAndPlayersResult contains the result of the player extraction.
 type ImportTeamsAndPlayersResult struct {
-	Players []BoxscorePlayer `json:"players"`
+	Players []store.BoxscorePlayer `json:"players"`
 }
 
 // ImportNHLTeamsAndPlayersWorkflow extracts teams and player IDs from boxscores,
@@ -63,7 +64,7 @@ func ImportNHLTeamsAndPlayersWorkflow(ctx workflow.Context, input *model.Seasons
 	}
 
 	// Merge results: dedupe players by ID
-	playerMap := make(map[int64]BoxscorePlayer)
+	playerMap := make(map[int64]store.BoxscorePlayer)
 
 	for _, result := range allResults {
 		for _, p := range result.Players {
@@ -72,7 +73,7 @@ func ImportNHLTeamsAndPlayersWorkflow(ctx workflow.Context, input *model.Seasons
 	}
 
 	// Convert to sorted slice for determinism
-	players := make([]BoxscorePlayer, 0, len(playerMap))
+	players := make([]store.BoxscorePlayer, 0, len(playerMap))
 	for _, p := range playerMap {
 		players = append(players, p)
 	}

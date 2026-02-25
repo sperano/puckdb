@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/urls"
@@ -77,7 +78,19 @@ func FetchDayActivity(ctx context.Context, input FetchDayInput) error {
 			GameStory:  DownloadGameStory,
 		},
 	}
-	return fetchDayImpl(ctx, fetcher, input)
+	if err := fetchDayImpl(ctx, fetcher, input); err != nil {
+		return err
+	}
+
+	// Fire-and-forget progress update to Redis
+	if input.TotalDays > 0 {
+		redisClient := cache.NewClient()
+		defer redisClient.Close()
+		workflowID := WorkflowIDFetchSeason(input.StartYear)
+		_ = cache.SaveProgress(ctx, redisClient, workflowID, input.DayIndex+1, input.TotalDays)
+	}
+
+	return nil
 }
 
 func fetchDayImpl(ctx context.Context, fetcher dayFetcher, input FetchDayInput) error {

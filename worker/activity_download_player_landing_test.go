@@ -30,8 +30,8 @@ func testPlayerLanding(id int64) *nhl.PlayerLanding {
 }
 
 // testBoxscorePlayer creates a BoxscorePlayer for testing.
-func testBoxscorePlayer(id int64) BoxscorePlayer {
-	return BoxscorePlayer{
+func testBoxscorePlayer(id int64) store.BoxscorePlayer {
+	return store.BoxscorePlayer{
 		ID:        id,
 		FirstName: "Test",
 		LastName:  "Player",
@@ -40,8 +40,8 @@ func testBoxscorePlayer(id int64) BoxscorePlayer {
 }
 
 // testBoxscorePlayers creates a slice of BoxscorePlayers for testing.
-func testBoxscorePlayers(ids ...int64) []BoxscorePlayer {
-	players := make([]BoxscorePlayer, len(ids))
+func testBoxscorePlayers(ids ...int64) []store.BoxscorePlayer {
+	players := make([]store.BoxscorePlayer, len(ids))
 	for i, id := range ids {
 		players[i] = testBoxscorePlayer(id)
 	}
@@ -194,7 +194,7 @@ func TestDownloadPlayerLandingBatch_EmptyBatch(t *testing.T) {
 	fs := NewMockFileSystem()
 	client := &MockNHLClient{}
 
-	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, []BoxscorePlayer{})
+	result, err := downloadPlayerLandingBatchImpl(ctx, fs, client, []store.BoxscorePlayer{})
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)

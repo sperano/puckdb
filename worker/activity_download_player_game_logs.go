@@ -21,6 +21,7 @@ type DownloadPlayerGameLogsInput struct {
 
 // DownloadPlayerGameLogsResult contains download statistics.
 type DownloadPlayerGameLogsResult struct {
+	Players    int // Number of players processed in this batch
 	Downloaded int
 	CacheHits  int
 	Skipped    int // Files skipped for current season (not refreshing)
@@ -39,7 +40,9 @@ func DownloadPlayerGameLogsActivity(ctx context.Context, input DownloadPlayerGam
 }
 
 func downloadPlayerGameLogsImpl(ctx context.Context, fs store.Store, input DownloadPlayerGameLogsInput) (*DownloadPlayerGameLogsResult, error) {
-	result := &DownloadPlayerGameLogsResult{}
+	result := &DownloadPlayerGameLogsResult{
+		Players: len(input.PlayerIDs),
+	}
 
 	if len(input.PlayerIDs) == 0 {
 		return result, nil

@@ -6,7 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,7 +76,7 @@ func TestParseCombinedName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			firstName, lastName := parseCombinedName(tt.input)
+			firstName, lastName := store.ParseCombinedName(tt.input)
 			assert.Equal(t, tt.wantFirstName, firstName, "firstName mismatch")
 			assert.Equal(t, tt.wantLastName, lastName, "lastName mismatch")
 		})
@@ -211,12 +214,12 @@ func TestExtractBoxscoreDataForSeason_EmptySeason(t *testing.T) {
 		EndDate:   time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC),
 	}
 
-	extractor := func(ctx context.Context, day time.Time) ([]BoxscorePlayer, error) {
+	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
 		t.Fatal("extractor should not be called for empty season")
 		return nil, nil
 	}
 
-	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, season)
+	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, nil, season)
 
 	require.NoError(t, err)
 	assert.Empty(t, result.Players)
@@ -233,14 +236,14 @@ func TestExtractBoxscoreDataForSeason_SingleDay(t *testing.T) {
 		EndDate:   day,
 	}
 
-	extractor := func(ctx context.Context, d time.Time) ([]BoxscorePlayer, error) {
-		return []BoxscorePlayer{
+	extractor := func(ctx context.Context, d time.Time) ([]store.BoxscorePlayer, error) {
+		return []store.BoxscorePlayer{
 			{ID: 1, FirstName: "Connor", LastName: "McDavid", Position: "C"},
 			{ID: 2, FirstName: "Leon", LastName: "Draisaitl", Position: "C"},
 		}, nil
 	}
 
-	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, season)
+	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, nil, season)
 
 	require.NoError(t, err)
 	assert.Len(t, result.Players, 2)
@@ -257,15 +260,15 @@ func TestExtractBoxscoreDataForSeason_Deduplication(t *testing.T) {
 	}
 
 	callCount := 0
-	extractor := func(ctx context.Context, day time.Time) ([]BoxscorePlayer, error) {
+	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
 		callCount++
 		// Return same player each day - should be deduplicated
-		return []BoxscorePlayer{
+		return []store.BoxscorePlayer{
 			{ID: 1, FirstName: "Connor", LastName: "McDavid", Position: "C"},
 		}, nil
 	}
 
-	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, season)
+	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, nil, season)
 
 	require.NoError(t, err)
 	assert.Equal(t, 3, callCount)        // Called for each day
@@ -284,15 +287,15 @@ func TestExtractBoxscoreDataForSeason_ContextCancellation(t *testing.T) {
 	}
 
 	callCount := 0
-	extractor := func(ctx context.Context, day time.Time) ([]BoxscorePlayer, error) {
+	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
 		callCount++
 		if callCount == 2 {
 			cancel() // Cancel after second day
 		}
-		return []BoxscorePlayer{{ID: int64(callCount)}}, nil
+		return []store.BoxscorePlayer{{ID: int64(callCount)}}, nil
 	}
 
-	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, season)
+	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, nil, season)
 
 	require.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
@@ -310,15 +313,15 @@ func TestExtractBoxscoreDataForSeason_ExtractorError(t *testing.T) {
 	}
 
 	callCount := 0
-	extractor := func(ctx context.Context, day time.Time) ([]BoxscorePlayer, error) {
+	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
 		callCount++
 		if callCount == 2 {
 			return nil, errors.New("extraction failed")
 		}
-		return []BoxscorePlayer{{ID: int64(callCount)}}, nil
+		return []store.BoxscorePlayer{{ID: int64(callCount)}}, nil
 	}
 
-	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, season)
+	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, nil, season)
 
 	// Errors are logged but don't stop processing
 	require.NoError(t, err)
@@ -341,12 +344,12 @@ func TestExtractBoxscoreDataForSeason_FutureEndDate(t *testing.T) {
 	}
 
 	daysProcessed := 0
-	extractor := func(ctx context.Context, day time.Time) ([]BoxscorePlayer, error) {
+	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
 		daysProcessed++
 		return nil, nil
 	}
 
-	_, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, season)
+	_, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, nil, season)
 
 	require.NoError(t, err)
 	// Should process yesterday and today (2 days), not 11 days
@@ -366,14 +369,91 @@ func TestExtractBoxscoreDataForSeason_ProgressLogging(t *testing.T) {
 	}
 
 	daysProcessed := 0
-	extractor := func(ctx context.Context, day time.Time) ([]BoxscorePlayer, error) {
+	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
 		daysProcessed++
-		return []BoxscorePlayer{{ID: int64(daysProcessed)}}, nil
+		return []store.BoxscorePlayer{{ID: int64(daysProcessed)}}, nil
 	}
 
-	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, season)
+	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, nil, season)
 
 	require.NoError(t, err)
 	assert.Equal(t, 35, daysProcessed)
 	assert.Len(t, result.Players, 35) // Each day returns unique player
+}
+
+func TestExtractBoxscoreDataForSeason_ProgressWritesToRedis(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	client, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	season := SeasonInfo{
+		SeasonID:  2024,
+		StartDate: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2024, 1, 17, 0, 0, 0, 0, time.UTC), // 3 days
+	}
+
+	progressKey := cache.ProgressKey(WorkflowIDExtractSeason(2024))
+
+	// Track progress values written to Redis
+	var progressWrites []cache.WorkflowProgress
+	progressMatcher := func(expected, actual []interface{}) error {
+		// In redismock, actual contains the real arguments passed to the mock
+		// For Set: actual = [value] (key and TTL are matched separately)
+		for _, arg := range actual {
+			if data, ok := arg.([]byte); ok {
+				var progress cache.WorkflowProgress
+				if err := cache.DecodeProgress(data, &progress); err == nil {
+					progressWrites = append(progressWrites, progress)
+				}
+			}
+		}
+		return nil // Always accept
+	}
+
+	// Expect 3 progress writes (one per day) - use "x" as placeholder for gob-encoded data
+	mockRedis.CustomMatch(progressMatcher).ExpectSet(progressKey, "x", cache.ProgressTTL).SetVal("OK")
+	mockRedis.CustomMatch(progressMatcher).ExpectSet(progressKey, "x", cache.ProgressTTL).SetVal("OK")
+	mockRedis.CustomMatch(progressMatcher).ExpectSet(progressKey, "x", cache.ProgressTTL).SetVal("OK")
+
+	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
+		return []store.BoxscorePlayer{{ID: 1}}, nil
+	}
+
+	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, client, season)
+
+	require.NoError(t, err)
+	assert.Len(t, result.Players, 1) // Deduplicated
+	require.NoError(t, mockRedis.ExpectationsWereMet())
+
+	// Verify progress values: 1/3, 2/3, 3/3
+	require.Len(t, progressWrites, 3)
+	assert.Equal(t, 1, progressWrites[0].Current)
+	assert.Equal(t, 3, progressWrites[0].Total)
+	assert.Equal(t, 2, progressWrites[1].Current)
+	assert.Equal(t, 3, progressWrites[1].Total)
+	assert.Equal(t, 3, progressWrites[2].Current)
+	assert.Equal(t, 3, progressWrites[2].Total)
+}
+
+func TestExtractBoxscoreDataForSeason_NilRedisClientSkipsProgress(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	season := SeasonInfo{
+		StartDate: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2024, 1, 17, 0, 0, 0, 0, time.UTC),
+	}
+
+	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
+		return []store.BoxscorePlayer{{ID: 1}}, nil
+	}
+
+	// Should not panic with nil client
+	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, nil, season)
+
+	require.NoError(t, err)
+	assert.Len(t, result.Players, 1)
 }

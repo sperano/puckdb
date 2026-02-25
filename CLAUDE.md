@@ -25,8 +25,16 @@ go test -cover ./...                 # With coverage
 
 ### Generate Code
 ```bash
-go run github.com/99designs/gqlgen generate   # GraphQL (schema: graph/schema.graphqls)
+go run github.com/99designs/gqlgen generate   # GraphQL (from puckdb root dir)
 ```
+
+**GraphQL code generation:**
+1. Edit `graph/schema.graphqls` (schema, types, queries, mutations)
+2. Run `go run github.com/99designs/gqlgen generate` from puckdb directory
+3. Generated files: `graph/generated/generated.go`, `graph/model/models_gen.go`
+4. New resolvers appear as `panic("not implemented")` stubs in `graph/schema.resolvers.go`
+5. Implement resolver logic in `graph/resolver.go` (private methods like `fetchPlayerLandings`)
+6. Update `schema.resolvers.go` stubs to call the new `resolver.go` methods
 
 ## CLI Commands
 

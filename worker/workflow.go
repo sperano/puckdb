@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/sperano/puckdb/config"
@@ -52,11 +53,24 @@ func fetchDayActivityOptions() workflow.ActivityOptions {
 	return opts
 }
 
+// Group index for FetchSeasonsWorkflow progress (separate from Initialize's GroupFetchSeasons)
+const GroupFetchSeasonsData = 0
+
+// NewFetchSeasonsProgressReport creates the initial progress structure.
+// Bars are added dynamically once seasons are known.
+func NewFetchSeasonsProgressReport() *ProgressReport {
+	return &ProgressReport{
+		Groups: []ProgressGroup{
+			{Header: "Fetching seasons...", Bars: []ProgressBar{}},
+		},
+	}
+}
+
 func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
 	// Register query handler immediately so progress queries work from workflow start
-	tracker := NewProgressTracker(0)
+	tracker := NewReportTracker(NewFetchSeasonsProgressReport())
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
@@ -89,11 +103,20 @@ func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error
 		return err
 	}
 
-	// Update tracker with actual season data now that we know the seasons
-	// Both headers set at init time so client sees them before workflow completes
-	tracker.InitializeWithSeasons(seasons, "Fetching seasons...", "Fetched %d seasons")
+	// Clear stale progress from previous runs
+	workflowIDs := make([]string, len(seasons))
+	for i, s := range seasons {
+		workflowIDs[i] = WorkflowIDFetchSeason(s.StartYear())
+	}
+	if err := workflow.ExecuteActivity(ctx, ClearProgressActivity, workflowIDs).Get(ctx, nil); err != nil {
+		logger.Warn("Failed to clear progress", "error", err)
+	}
 
-	return processWithChildWorkflows(ctx, logger, tracker, seasons, concurrency)
+	// Add bars for each season now that we know them (use countDaysInSeason for consistency)
+	barIndex := tracker.AddBarsForSeasons(GroupFetchSeasonsData, seasons, countDaysInSeason, WorkflowIDFetchSeason)
+	tracker.StartGroup(ctx, GroupFetchSeasonsData)
+
+	return processWithChildWorkflows(ctx, logger, tracker, barIndex, seasons, concurrency)
 }
 
 // childWorkflowWork tracks a child workflow for a single season
@@ -106,7 +129,7 @@ type childWorkflowWork struct {
 // Each season runs in its own child workflow, isolating workflow history.
 // - Maintains exactly `concurrency` seasons in flight at any time
 // - Starts a new season immediately when one completes
-func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, seasons []SeasonInfo, concurrency int) error {
+func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker *ReportTracker, barIndex map[int]int, seasons []SeasonInfo, concurrency int) error {
 	if len(seasons) == 0 {
 		return nil
 	}
@@ -121,7 +144,7 @@ func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker 
 	for i := 0; i < concurrency && len(pending) > 0; i++ {
 		season := pending[0]
 		pending = pending[1:]
-		startSeasonChildWorkflow(ctx, logger, tracker, active, season)
+		startSeasonChildWorkflow(ctx, logger, tracker, barIndex, active, season)
 	}
 
 	var firstErr error
@@ -139,15 +162,17 @@ func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker 
 					firstErr = err
 				}
 				logger.Info("Season completed", "startYear", year)
-				// Mark all tasks for this season as complete
-				markSeasonComplete(tracker, year)
+				// Mark this season's bar as complete
+				if barIdx, ok := barIndex[year]; ok {
+					tracker.CompleteBar(GroupFetchSeasonsData, barIdx)
+				}
 				delete(active, year)
 
 				// Start next pending season immediately
 				if len(pending) > 0 {
 					nextSeason := pending[0]
 					pending = pending[1:]
-					startSeasonChildWorkflow(ctx, logger, tracker, active, nextSeason)
+					startSeasonChildWorkflow(ctx, logger, tracker, barIndex, active, nextSeason)
 				}
 			})
 		}
@@ -160,13 +185,19 @@ func processWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker 
 		}
 	}
 
+	// Mark group complete
+	tracker.CompleteGroup(ctx, GroupFetchSeasonsData, fmt.Sprintf("Fetched %d seasons in %s.", len(seasons), tracker.GetElapsed(ctx, GroupFetchSeasonsData)))
+
 	return nil
 }
 
-// startSeasonChildWorkflow spawns a child workflow for a season
-func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, active map[int]*childWorkflowWork, season SeasonInfo) {
+// startSeasonChildWorkflow spawns a child workflow for a season and marks the bar as started.
+func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *ReportTracker, barIndex map[int]int, active map[int]*childWorkflowWork, season SeasonInfo) {
 	logger.Info("Starting season child workflow", "startYear", season.StartYear())
-	tracker.MarkItemStarted(ctx, season.StartYear())
+	// Mark bar as started when spawning (before child registers query handler)
+	if barIdx, ok := barIndex[season.StartYear()]; ok {
+		tracker.StartBar(GroupFetchSeasonsData, barIdx)
+	}
 	ctxo := withChildOptions(ctx, WorkflowIDFetchSeason(season.StartYear()))
 	future := workflow.ExecuteChildWorkflow(ctxo, FetchSeasonWorkflow, season)
 	active[season.StartYear()] = &childWorkflowWork{
@@ -175,7 +206,8 @@ func startSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *
 	}
 }
 
-// markSeasonComplete sets all tasks for a season as completed in the tracker
+// markSeasonComplete sets all tasks for a season as completed in the legacy ProgressTracker.
+// Used by workflows that still use ProgressTracker (fetch_player_logs, import_seasons).
 func markSeasonComplete(tracker *ProgressTracker, startYear int) {
 	if idx, ok := tracker.itemIndex[startYear]; ok {
 		remaining := tracker.progress.Items[idx].Total - tracker.progress.Items[idx].Completed
@@ -214,30 +246,4 @@ func getDayConcurrency() int {
 		return config.DefaultDayConcurrency
 	}
 	return concurrency
-}
-
-// countDownloadTasksForSeason counts the total number of download tasks for a single season.
-// Each day is a child workflow that counts as 1 task, plus one-time league/team downloads.
-func countDownloadTasksForSeason(season SeasonInfo) int {
-	days := countDaysInSeason(season)
-	// Check if the season is in the Yahoo config
-	yahooConfig, err := config.GetYahooSeasonsConfig()
-	if err != nil {
-		return days // Just daily child workflows
-	}
-	yahooCfg, inYahoo := yahooConfig[season.StartYear()]
-	if !inYahoo {
-		return days // Just daily child workflows
-	}
-	count := days // One child workflow per day
-	// Add league downloads (one per league) and one batched teams download
-	teamCount := 0
-	for _, league := range yahooCfg.Leagues {
-		count++ // FetchLeagueActivity
-		teamCount += len(league.TeamIDs)
-	}
-	if teamCount > 0 {
-		count++ // FetchTeamsActivity (batched)
-	}
-	return count
 }

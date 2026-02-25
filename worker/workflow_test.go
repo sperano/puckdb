@@ -597,7 +597,7 @@ func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayers
 	s.env.OnActivity(FetchSeasonsDataActivity, mock.Anything, input).Return(seasons, nil)
 	s.env.OnActivity(ExtractBoxscoreDataForSeasonActivity, mock.Anything, mock.Anything).Return(
 		BoxscoreExtractionResult{
-			Players: []BoxscorePlayer{
+			Players: []store.BoxscorePlayer{
 				{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"},
 				{ID: 8478402, FirstName: "Connor", LastName: "McDavid"},
 			},
@@ -671,7 +671,7 @@ func (s *ImportNHLTeamsAndPlayersWorkflowTestSuite) TestImportNHLTeamsAndPlayers
 	// Same player appears in both seasons - should be deduped
 	s.env.OnActivity(ExtractBoxscoreDataForSeasonActivity, mock.Anything, mock.Anything).Return(
 		BoxscoreExtractionResult{
-			Players: []BoxscorePlayer{
+			Players: []store.BoxscorePlayer{
 				{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"},
 			},
 		}, nil)
@@ -717,7 +717,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Succ
 	// Mock the child workflow that extracts players
 	s.env.OnWorkflow(ImportNHLTeamsAndPlayersWorkflow, mock.Anything, mock.Anything).Return(
 		&ImportTeamsAndPlayersResult{
-			Players: []BoxscorePlayer{
+			Players: []store.BoxscorePlayer{
 				{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"},
 			},
 		}, nil)
@@ -752,7 +752,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase2_Succ
 		Phase:               phaseProcessLoadYahoo,
 		BatchSize:           50,
 		Concurrency:         10,
-		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		Players:             []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
 		Phase1CompletedDesc: "Extracted 1 player IDs in 0.1s.",
 	}
 
@@ -776,7 +776,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase2_List
 		Phase:               phaseProcessLoadYahoo,
 		BatchSize:           50,
 		Concurrency:         10,
-		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		Players:             []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
 		Phase1CompletedDesc: "Extracted 1 player IDs in 0.1s.",
 	}
 
@@ -796,7 +796,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Succ
 		Phase:               phaseProcessPlayers,
 		BatchSize:           50,
 		Concurrency:         10,
-		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		Players:             []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
 		YahooPoolResult:     &SaveYahooIDPoolResult{TotalPlayers: 100, AvailablePlayers: 95},
 		StartIndex:          0,
 		TotalCompleted:      0,
@@ -820,7 +820,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Batc
 		Phase:               phaseProcessPlayers,
 		BatchSize:           50,
 		Concurrency:         10,
-		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		Players:             []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
 		YahooPoolResult:     &SaveYahooIDPoolResult{TotalPlayers: 100},
 		Phase1CompletedDesc: "Extracted 1 player IDs in 0.1s.",
 		Phase2CompletedDesc: "Loaded 100 Yahoo players in 0.5s.",
@@ -842,7 +842,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_Succ
 		Phase:               phaseProcessVerifyUnmatch,
 		BatchSize:           50,
 		Concurrency:         10,
-		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		Players:             []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
 		YahooPoolResult:     &SaveYahooIDPoolResult{TotalPlayers: 100, AvailablePlayers: 95},
 		TotalDownloaded:     1,
 		TotalImported:       1,
@@ -874,7 +874,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_With
 		Phase:               phaseProcessVerifyUnmatch,
 		BatchSize:           50,
 		Concurrency:         10,
-		Players:             []BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+		Players:             []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
 		YahooPoolResult:     &SaveYahooIDPoolResult{TotalPlayers: 100, AvailablePlayers: 95},
 		TotalDownloaded:     1,
 		TotalImported:       1,
