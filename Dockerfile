@@ -1,6 +1,6 @@
 FROM golang:1.25-alpine AS build
 ARG TARGETARCH
-ARG GITHUB_RUN_NUMBER
+ARG VERSION
 WORKDIR /src
 
 # Cache dependencies
@@ -9,7 +9,7 @@ RUN go mod download
 
 COPY . .
 RUN GOOS=linux GOARCH=${TARGETARCH} CGO_ENABLED=0 go build \
-    -ldflags "-s -w -X github.com/sperano/puckdb/config.BuildNumber=${GITHUB_RUN_NUMBER}"
+    -ldflags "-s -w -X github.com/sperano/puckdb/config.BuildNumber=${VERSION}"
 
 FROM scratch
 COPY --from=build /src/puckdb /

@@ -1,18 +1,17 @@
 name: build
 
-#https://docs.github.com/en/actions/advanced-guides/storing-workflow-data-as-artifacts
-
 on:
   push:
-    branches: [main, dev-actions]
+    tags:
+      - 'v*'
+
 jobs:
-  build-main:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Install buildx
-        id: buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to docker hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
@@ -21,10 +20,9 @@ jobs:
       - name: Build the image
         run: |
           docker buildx build --push \
-          --build-arg GITHUB_RUN_NUMBER=${{github.run_number}} \
+          --build-arg VERSION=${{ github.ref_name }} \
+          --tag ericsperano/puckdb:${{ github.ref_name }} \
           --tag ericsperano/puckdb:latest \
-          --tag ericsperano/puckdb:${{github.sha}} \
-          --tag ericsperano/puckdb:build-${{github.run_number}} \
           --cache-from type=gha \
           --cache-to type=gha,mode=max \
           --platform linux/amd64,linux/arm64 .
