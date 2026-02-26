@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -53,7 +52,7 @@ func ImportPlayerGameLogsForDateActivity(ctx context.Context, input ImportPlayer
 	}()
 
 	logger := activity.GetLogger(ctx)
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 	redisClient := cache.NewClient()
 	defer redisClient.Close()
 
@@ -65,7 +64,7 @@ func ImportPlayerGameLogsForDateActivity(ctx context.Context, input ImportPlayer
 
 	queries := sqlcdb.New(pool)
 
-	result, err := importPlayerGameLogsForDateImpl(ctx, fs, redisClient, queries, input)
+	result, err := importPlayerGameLogsForDateImpl(ctx, repos, redisClient, queries, input)
 	if err != nil {
 		return result, err
 	}
@@ -88,7 +87,7 @@ type PlayerGameLogUpdater interface {
 
 func importPlayerGameLogsForDateImpl(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	redisClient cache.Client,
 	queries PlayerGameLogUpdater,
 	input ImportPlayerGameLogsForDateInput,
@@ -96,19 +95,13 @@ func importPlayerGameLogsForDateImpl(
 	result := &ImportPlayerGameLogsForDateResult{}
 
 	// Read daily schedule to get game IDs
-	scheduleFile := store.DailyScheduleFile{Date: input.Date}
-	if !fs.Exists(scheduleFile) {
+	if !repos.Schedule.Exists(input.Date) {
 		return result, nil // No games on this date
 	}
 
-	scheduleData, err := fs.Read(scheduleFile)
+	schedule, err := repos.Schedule.Get(input.Date)
 	if err != nil {
 		return result, fmt.Errorf("read schedule: %w", err)
-	}
-
-	var schedule nhl.DailySchedule
-	if err := json.Unmarshal(scheduleData, &schedule); err != nil {
-		return result, fmt.Errorf("parse schedule: %w", err)
 	}
 
 	if len(schedule.Games) == 0 {
@@ -122,7 +115,7 @@ func importPlayerGameLogsForDateImpl(
 	}
 
 	// Extract player IDs from boxscores
-	playerIDs := extractPlayerIDsFromBoxscores(fs, schedule.Games)
+	playerIDs := extractPlayerIDsFromBoxscores(repos, input.Date, schedule.Games)
 	if len(playerIDs) == 0 {
 		return result, nil
 	}
@@ -137,7 +130,7 @@ func importPlayerGameLogsForDateImpl(
 		default:
 		}
 
-		updated, cacheHit, errs := processPlayerGameLogForDate(ctx, fs, gameLogCache, queries, playerID, input.Season, gameIDs)
+		updated, cacheHit, errs := processPlayerGameLogForDate(ctx, repos, gameLogCache, queries, playerID, input.Season, gameIDs)
 		result.PlayersProcessed++
 		result.GamesUpdated += updated
 		if cacheHit {
@@ -152,22 +145,16 @@ func importPlayerGameLogsForDateImpl(
 }
 
 // extractPlayerIDsFromBoxscores reads boxscores and returns unique player IDs.
-func extractPlayerIDsFromBoxscores(fs store.Store, games []nhl.ScheduleGame) map[int64]bool {
+func extractPlayerIDsFromBoxscores(repos *store.Repos, date time.Time, games []nhl.ScheduleGame) map[int64]bool {
 	playerIDs := make(map[int64]bool)
 
 	for _, game := range games {
-		boxscoreFile := store.BoxscoreFile{GameID: game.ID}
-		if !fs.Exists(boxscoreFile) {
+		if !repos.Boxscore.Exists(date, game.ID) {
 			continue
 		}
 
-		data, err := fs.Read(boxscoreFile)
+		boxscore, err := repos.Boxscore.Get(date, game.ID)
 		if err != nil {
-			continue
-		}
-
-		var boxscore nhl.Boxscore
-		if err := json.Unmarshal(data, &boxscore); err != nil {
 			continue
 		}
 
@@ -241,7 +228,7 @@ func (c *gameLogCache) set(ctx context.Context, playerID int64, gameType int, en
 // processPlayerGameLogForDate reads a player's game log and updates stats for matching games.
 func processPlayerGameLogForDate(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	gameLogCache *gameLogCache,
 	queries PlayerGameLogUpdater,
 	playerID int64,
@@ -260,25 +247,13 @@ func processPlayerGameLogForDate(
 			cacheHit = true
 		} else {
 			// Load from file
-			file := store.PlayerGameLogFile{
-				PlayerID: pid,
-				Season:   season,
-				GameType: gameType,
-			}
-
-			if !fs.Exists(file) {
+			if !repos.Player.GameLogExists(pid, season, gameType) {
 				continue
 			}
 
-			content, err := fs.Read(file)
+			gameLog, err := repos.Player.GetGameLog(pid, season, gameType)
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("player %d: read error: %v", playerID, err))
-				continue
-			}
-
-			var gameLog nhl.PlayerGameLog
-			if err := json.Unmarshal(content, &gameLog); err != nil {
-				errors = append(errors, fmt.Sprintf("player %d: parse error: %v", playerID, err))
 				continue
 			}
 

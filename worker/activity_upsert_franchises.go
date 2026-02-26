@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
@@ -21,17 +20,11 @@ type UpsertFranchisesResult struct {
 func UpsertFranchisesActivity(ctx context.Context) (UpsertFranchisesResult, error) {
 	logger := activity.GetLogger(ctx)
 
-	fs := store.NewStore()
-	file := store.FranchisesFile{}
+	repos := store.NewDefaultRepos()
 
-	data, err := fs.Read(file)
+	franchises, err := repos.Franchise.Get()
 	if err != nil {
 		return UpsertFranchisesResult{}, fmt.Errorf("read franchises from cache: %w", err)
-	}
-
-	var franchises []nhl.Franchise
-	if err := json.Unmarshal(data, &franchises); err != nil {
-		return UpsertFranchisesResult{}, fmt.Errorf("unmarshal franchises: %w", err)
 	}
 
 	pool, err := database.OpenPGXPool(ctx)

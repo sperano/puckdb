@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -394,179 +395,111 @@ func TestImportBoxscoresForDateImpl(t *testing.T) {
 	testInput := ImportBoxscoresForDateInput{Date: testDate, Season: 2023}
 
 	t.Run("no schedule file", func(t *testing.T) {
-		fs := NewMockFileSystem()
+		repos := store.NewMemRepos()
 		upserter := NewMockBoxscoreUpserter()
 
-		scheduleFile := store.DailyScheduleFile{Date: testDate}
-		fs.On("Exists", scheduleFile).Return(false)
-
-		result, err := importBoxscoresForDateImpl(context.Background(), fs, upserter, testInput)
+		// No schedule file set up - it doesn't exist
+		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, result.GamesImported)
 		assert.Equal(t, 0, result.GamesSkipped)
-		fs.AssertExpectations(t)
 	})
 
-	t.Run("schedule file read error", func(t *testing.T) {
-		fs := NewMockFileSystem()
+	t.Run("schedule file parse error", func(t *testing.T) {
+		repos := store.NewMemRepos()
 		upserter := NewMockBoxscoreUpserter()
 
-		scheduleFile := store.DailyScheduleFile{Date: testDate}
-		fs.On("Exists", scheduleFile).Return(true)
-		fs.On("Read", scheduleFile).Return(nil, errors.New("read error"))
+		// Save invalid JSON to schedule
+		repos.Schedule.Save(testDate, []byte("invalid json"))
 
-		result, err := importBoxscoresForDateImpl(context.Background(), fs, upserter, testInput)
+		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "read daily schedule")
 		assert.Equal(t, 0, result.GamesImported)
-		fs.AssertExpectations(t)
-	})
-
-	t.Run("schedule file parse error", func(t *testing.T) {
-		fs := NewMockFileSystem()
-		upserter := NewMockBoxscoreUpserter()
-
-		scheduleFile := store.DailyScheduleFile{Date: testDate}
-		fs.On("Exists", scheduleFile).Return(true)
-		fs.On("Read", scheduleFile).Return([]byte("invalid json"), nil)
-
-		result, err := importBoxscoresForDateImpl(context.Background(), fs, upserter, testInput)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "parse daily schedule")
-		assert.Equal(t, 0, result.GamesImported)
-		fs.AssertExpectations(t)
 	})
 
 	t.Run("skips non-final games", func(t *testing.T) {
-		fs := NewMockFileSystem()
+		repos := store.NewMemRepos()
 		upserter := NewMockBoxscoreUpserter()
 
 		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"LIVE"},{"id":2024020002,"gameState":"PRE"}]}`)
+		repos.Schedule.Save(testDate, scheduleJSON)
 
-		scheduleFile := store.DailyScheduleFile{Date: testDate}
-		fs.On("Exists", scheduleFile).Return(true)
-		fs.On("Read", scheduleFile).Return(scheduleJSON, nil)
-
-		result, err := importBoxscoresForDateImpl(context.Background(), fs, upserter, testInput)
+		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, result.GamesImported)
 		assert.Equal(t, 2, result.GamesSkipped)
-		fs.AssertExpectations(t)
 	})
 
 	t.Run("skips preseason games", func(t *testing.T) {
-		fs := NewMockFileSystem()
+		repos := store.NewMemRepos()
 		upserter := NewMockBoxscoreUpserter()
 
 		// Preseason game ID: 2024010001 (01 = preseason)
 		scheduleJSON := []byte(`{"games":[{"id":2024010001,"gameState":"OFF"}]}`)
+		repos.Schedule.Save(testDate, scheduleJSON)
 
-		scheduleFile := store.DailyScheduleFile{Date: testDate}
-		fs.On("Exists", scheduleFile).Return(true)
-		fs.On("Read", scheduleFile).Return(scheduleJSON, nil)
-
-		result, err := importBoxscoresForDateImpl(context.Background(), fs, upserter, testInput)
+		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, result.GamesImported)
 		assert.Equal(t, 1, result.GamesSkipped)
-		fs.AssertExpectations(t)
 	})
 
 	t.Run("boxscore file missing", func(t *testing.T) {
-		fs := NewMockFileSystem()
+		repos := store.NewMemRepos()
 		upserter := NewMockBoxscoreUpserter()
 
 		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
+		repos.Schedule.Save(testDate, scheduleJSON)
+		// Boxscore not saved - it's missing
 
-		scheduleFile := store.DailyScheduleFile{Date: testDate}
-		boxscoreFile := store.BoxscoreFile{Date: testDate, GameID: nhl.GameID(2024020001)}
-
-		fs.On("Exists", scheduleFile).Return(true)
-		fs.On("Read", scheduleFile).Return(scheduleJSON, nil)
-		fs.On("Exists", boxscoreFile).Return(false)
-
-		result, err := importBoxscoresForDateImpl(context.Background(), fs, upserter, testInput)
+		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, result.GamesImported)
 		assert.Equal(t, 1, result.GamesSkipped)
-		fs.AssertExpectations(t)
-	})
-
-	t.Run("boxscore file read error", func(t *testing.T) {
-		fs := NewMockFileSystem()
-		upserter := NewMockBoxscoreUpserter()
-
-		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-
-		scheduleFile := store.DailyScheduleFile{Date: testDate}
-		boxscoreFile := store.BoxscoreFile{Date: testDate, GameID: nhl.GameID(2024020001)}
-
-		fs.On("Exists", scheduleFile).Return(true)
-		fs.On("Read", scheduleFile).Return(scheduleJSON, nil)
-		fs.On("Exists", boxscoreFile).Return(true)
-		fs.On("Read", boxscoreFile).Return(nil, errors.New("read error"))
-
-		result, err := importBoxscoresForDateImpl(context.Background(), fs, upserter, testInput)
-
-		require.NoError(t, err)
-		assert.Equal(t, 0, result.GamesImported)
-		assert.Equal(t, 1, result.GamesSkipped)
-		fs.AssertExpectations(t)
 	})
 
 	t.Run("boxscore file parse error", func(t *testing.T) {
-		fs := NewMockFileSystem()
+		repos := store.NewMemRepos()
 		upserter := NewMockBoxscoreUpserter()
 
 		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
+		repos.Schedule.Save(testDate, scheduleJSON)
+		repos.Boxscore.Save(testDate, nhl.GameID(2024020001), []byte("invalid json"))
 
-		scheduleFile := store.DailyScheduleFile{Date: testDate}
-		boxscoreFile := store.BoxscoreFile{Date: testDate, GameID: nhl.GameID(2024020001)}
-
-		fs.On("Exists", scheduleFile).Return(true)
-		fs.On("Read", scheduleFile).Return(scheduleJSON, nil)
-		fs.On("Exists", boxscoreFile).Return(true)
-		fs.On("Read", boxscoreFile).Return([]byte("invalid json"), nil)
-
-		result, err := importBoxscoresForDateImpl(context.Background(), fs, upserter, testInput)
+		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, result.GamesImported)
 		assert.Equal(t, 1, result.GamesSkipped)
-		fs.AssertExpectations(t)
 	})
 
 	t.Run("UpsertGame error", func(t *testing.T) {
-		fs := NewMockFileSystem()
+		repos := store.NewMemRepos()
 		upserter := NewMockBoxscoreUpserter()
 		ctx := context.Background()
 
 		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-		boxscoreJSON := []byte(`{"id":2024020001,"gameType":2,"gameDate":"2024-01-15","gameState":"OFF","homeTeam":{"id":1},"awayTeam":{"id":2}}`)
+		boxscore := createTestBoxscore(nhl.GameID(2024020001))
+		boxscoreJSON, err := json.Marshal(boxscore)
+		require.NoError(t, err)
 
-		scheduleFile := store.DailyScheduleFile{Date: testDate}
-		boxscoreFile := store.BoxscoreFile{Date: testDate, GameID: nhl.GameID(2024020001)}
-
-		fs.On("Exists", scheduleFile).Return(true)
-		fs.On("Read", scheduleFile).Return(scheduleJSON, nil)
-		fs.On("Exists", boxscoreFile).Return(true)
-		fs.On("Read", boxscoreFile).Return(boxscoreJSON, nil)
+		require.NoError(t, repos.Schedule.Save(testDate, scheduleJSON))
+		require.NoError(t, repos.Boxscore.Save(testDate, nhl.GameID(2024020001), boxscoreJSON))
 
 		upserter.On("UpsertGame", ctx, mock.AnythingOfType("sqlcdb.UpsertGameParams")).
 			Return(errors.New("database error"))
 
-		result, err := importBoxscoresForDateImpl(ctx, fs, upserter, testInput)
+		result, err := importBoxscoresForDateImpl(ctx, repos, upserter, testInput)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "upsert game")
 		assert.Equal(t, 0, result.GamesImported)
-		fs.AssertExpectations(t)
 		upserter.AssertExpectations(t)
 	})
 }
@@ -626,6 +559,7 @@ func TestUpsertGoalieStats(t *testing.T) {
 func createTestBoxscore(gameID nhl.GameID) *nhl.Boxscore {
 	return &nhl.Boxscore{
 		ID:           gameID,
+		Season:       nhl.NewSeason(2023), // 2023-2024 season
 		GameType:     2,
 		GameDate:     "2024-01-15",
 		StartTimeUTC: "2024-01-15T19:00:00Z",

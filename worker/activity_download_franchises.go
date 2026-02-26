@@ -5,9 +5,8 @@ import (
 	"encoding/json"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/store"
 )
 
 // DownloadFranchisesResult contains statistics from the franchises download.
@@ -19,30 +18,25 @@ type DownloadFranchisesResult struct {
 // DownloadFranchisesActivity downloads all NHL franchises from the API.
 // Uses SimpleFS cache; skips download if already cached.
 func DownloadFranchisesActivity(ctx context.Context) (DownloadFranchisesResult, error) {
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 	client := newNHLClient()
-	return downloadFranchisesImpl(ctx, fs, client)
+	return downloadFranchisesImpl(ctx, repos, client)
 }
 
 func downloadFranchisesImpl(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	client NHLClient,
 ) (DownloadFranchisesResult, error) {
-	file := store.FranchisesFile{}
-
 	// Check cache first
-	if fs.Exists(file) {
-		data, err := fs.Read(file)
+	if repos.Franchise.Exists() {
+		franchises, err := repos.Franchise.Get()
 		if err == nil {
-			var franchises []nhl.Franchise
-			if err := json.Unmarshal(data, &franchises); err == nil {
-				log.Debug().Int("count", len(franchises)).Msg("Franchises loaded from cache")
-				metrics.IncDownload(store.FileTypeFranchises, "hit")
-				return DownloadFranchisesResult{Count: len(franchises), FromCache: true}, nil
-			}
-			log.Debug().Err(err).Msg("Failed to unmarshal cached franchises")
+			log.Debug().Int("count", len(franchises)).Msg("Franchises loaded from cache")
+			metrics.IncDownload(store.FileTypeFranchises, "hit")
+			return DownloadFranchisesResult{Count: len(franchises), FromCache: true}, nil
 		}
+		log.Debug().Err(err).Msg("Failed to read cached franchises")
 	}
 
 	// Fetch from API
@@ -54,7 +48,7 @@ func downloadFranchisesImpl(
 
 	// Save to cache (json.Marshal won't fail for []nhl.Franchise)
 	data, _ := json.Marshal(franchises)
-	if err := fs.Write(file, data); err != nil {
+	if err := repos.Franchise.Save(data); err != nil {
 		log.Warn().Err(err).Msg("Failed to write franchises to cache")
 	}
 

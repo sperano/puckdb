@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -21,12 +20,12 @@ type dayPlayerExtractor func(ctx context.Context, day time.Time) ([]store.Boxsco
 
 // ExtractBoxscoreDataForSeasonActivity extracts player info from all boxscores for a season.
 func ExtractBoxscoreDataForSeasonActivity(ctx context.Context, season SeasonInfo) (BoxscoreExtractionResult, error) {
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
-		return extractPlayersForDay(ctx, fs, redisClient, day)
+		return extractPlayersForDay(ctx, repos, day)
 	}
 	return extractBoxscoreDataForSeasonImpl(ctx, extractor, redisClient, season)
 }
@@ -100,35 +99,34 @@ func extractBoxscoreDataForSeasonImpl(
 // extractPlayersForDay extracts player info from all boxscores for a single day.
 func extractPlayersForDay(
 	ctx context.Context,
-	fs store.Store,
-	redisClient cache.Client,
+	repos *store.Repos,
 	day time.Time,
 ) ([]store.BoxscorePlayer, error) {
-	boxscoreFiles, err := getBoxscoreFilesForDay(ctx, fs, redisClient, day)
+	// Get schedule for the day to find game IDs
+	if !repos.Schedule.Exists(day) {
+		return nil, nil
+	}
+
+	schedule, err := repos.Schedule.Get(day)
 	if err != nil {
 		return nil, err
 	}
 
 	var players []store.BoxscorePlayer
 
-	for _, file := range boxscoreFiles {
+	for _, game := range schedule.Games {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 		}
 
-		if !fs.Exists(file) {
+		if !repos.Boxscore.Exists(day, game.ID) {
 			continue
 		}
 
-		content, err := fs.Read(file)
+		boxscore, err := repos.Boxscore.Get(day, game.ID)
 		if err != nil {
-			continue
-		}
-
-		var boxscore nhl.Boxscore
-		if err := json.Unmarshal(content, &boxscore); err != nil {
 			continue
 		}
 

@@ -13,6 +13,14 @@ import (
 	"github.com/sperano/puckdb/store"
 )
 
+// File type constants for metrics labels.
+const (
+	fileTypeBoxscore   = "BoxscoreFile"
+	fileTypePlayByPlay = "PlayByPlayFile"
+	fileTypeShiftChart = "ShiftChartFile"
+	fileTypeGameStory  = "GameStoryFile"
+)
+
 // BoxscoreDownloader downloads boxscore data for a game ID.
 type BoxscoreDownloader func(id nhl.GameID) ([]byte, error)
 
@@ -24,9 +32,9 @@ type GameDataDownloaders struct {
 	GameStory  BoxscoreDownloader
 }
 
-func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClient, day time.Time, downloaders GameDataDownloaders) error {
+func fetchDailyScheduleImpl(ctx context.Context, repos *store.Repos, client NHLClient, day time.Time, downloaders GameDataDownloaders) error {
 	// Download schedule
-	gameIDs, err := downloadSchedule(ctx, fs, client, day)
+	gameIDs, err := downloadSchedule(ctx, repos, client, day)
 	if err != nil {
 		return err
 	}
@@ -39,16 +47,16 @@ func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClien
 			return ctx.Err()
 		default:
 		}
-		if err := downloadGameDataToCache(fs, store.BoxscoreFile{Date: day, GameID: id}, downloaders.Boxscore, id, store.FileTypeBoxscore); err != nil {
+		if err := downloadGameDataToCache(repos.Storage, store.BoxscorePath(day, id), downloaders.Boxscore, id, fileTypeBoxscore); err != nil {
 			return fmt.Errorf("boxscore gameid %s: %w", id.String(), err)
 		}
-		if err := downloadGameDataToCache(fs, store.PlayByPlayFile{Date: day, GameID: id}, downloaders.PlayByPlay, id, store.FileTypePlayByPlay); err != nil {
+		if err := downloadGameDataToCache(repos.Storage, store.PlayByPlayPath(day, id), downloaders.PlayByPlay, id, fileTypePlayByPlay); err != nil {
 			return fmt.Errorf("play-by-play gameid %s: %w", id.String(), err)
 		}
-		if err := downloadGameDataToCache(fs, store.ShiftChartFile{Date: day, GameID: id}, downloaders.ShiftChart, id, store.FileTypeShiftChart); err != nil {
+		if err := downloadGameDataToCache(repos.Storage, store.ShiftChartPath(day, id), downloaders.ShiftChart, id, fileTypeShiftChart); err != nil {
 			return fmt.Errorf("shift-chart gameid %s: %w", id.String(), err)
 		}
-		if err := downloadGameDataToCache(fs, store.GameStoryFile{Date: day, GameID: id}, downloaders.GameStory, id, store.FileTypeGameStory); err != nil {
+		if err := downloadGameDataToCache(repos.Storage, store.GameStoryPath(day, id), downloaders.GameStory, id, fileTypeGameStory); err != nil {
 			return fmt.Errorf("game-story gameid %s: %w", id.String(), err)
 		}
 	}
@@ -56,15 +64,12 @@ func fetchDailyScheduleImpl(ctx context.Context, fs store.Store, client NHLClien
 }
 
 // downloadSchedule downloads and parses the daily schedule.
-func downloadSchedule(ctx context.Context, fs store.Store, client NHLClient, day time.Time) ([]nhl.GameID, error) {
-	file := store.DailyScheduleFile{Date: day}
-	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
-		return nil, fmt.Errorf("mkdir: %w", err)
-	}
+func downloadSchedule(ctx context.Context, repos *store.Repos, client NHLClient, day time.Time) ([]nhl.GameID, error) {
+	path := store.DailySchedulePath(day)
 
-	if fs.Exists(file) {
+	if repos.Schedule.Exists(day) {
 		log.Debug().Time("day", day).Msg("Daily schedule cache hit")
-		metrics.IncDownload("DailySchedule", "hit")
+		metrics.IncDownload("DailyScheduleFile", "hit")
 	} else {
 		log.Info().Time("day", day).Msg("Downloading daily schedule")
 
@@ -74,34 +79,30 @@ func downloadSchedule(ctx context.Context, fs store.Store, client NHLClient, day
 
 		if err != nil {
 			metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
-			metrics.IncDownload("DailySchedule", "error")
+			metrics.IncDownload("DailyScheduleFile", "error")
 			return nil, fmt.Errorf("download schedule: %w", err)
 		}
 
 		content, err := json.Marshal(schedule)
 		if err != nil {
-			metrics.IncDownload("DailySchedule", "error")
+			metrics.IncDownload("DailyScheduleFile", "error")
 			return nil, fmt.Errorf("marshal schedule: %w", err)
 		}
 
 		metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(content))
 
-		if err := fs.Write(file, content); err != nil {
-			metrics.IncDownload("DailySchedule", "error")
+		if err := repos.Schedule.Save(day, content); err != nil {
+			metrics.IncDownload("DailyScheduleFile", "error")
 			return nil, fmt.Errorf("save schedule: %w", err)
 		}
-		log.Info().Str("path", store.Path(file)).Msg("Saved schedule")
-		metrics.IncDownload("DailySchedule", "miss")
+		log.Info().Str("path", path).Msg("Saved schedule")
+		metrics.IncDownload("DailyScheduleFile", "miss")
 	}
 
-	// Parse schedule
-	content, err := fs.Read(file)
+	// Parse schedule using typed repo method
+	schedule, err := repos.Schedule.Get(day)
 	if err != nil {
 		return nil, fmt.Errorf("read schedule: %w", err)
-	}
-	var schedule nhl.DailySchedule
-	if err := json.Unmarshal(content, &schedule); err != nil {
-		return nil, fmt.Errorf("parse schedule: %w", err)
 	}
 
 	// Only return completed games
@@ -117,17 +118,12 @@ func downloadSchedule(ctx context.Context, fs store.Store, client NHLClient, day
 }
 
 // downloadGameDataToCache downloads game data to cache with metrics tracking.
-// This is a generic helper that handles boxscores, play-by-play, and shift charts.
-func downloadGameDataToCache(fs store.Store, file store.File, download BoxscoreDownloader, id nhl.GameID, fileType string) error {
-	if fs.Exists(file) {
+// This is a generic helper that handles boxscores, play-by-play, shift charts, and game stories.
+func downloadGameDataToCache(storage store.Storage, path string, download BoxscoreDownloader, id nhl.GameID, fileType string) error {
+	if storage.Exists(path) {
 		log.Debug().Str("gameid", id.String()).Str("type", fileType).Msg("Already cached")
 		metrics.IncDownload(fileType, "hit")
 		return nil
-	}
-
-	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
-		metrics.IncDownload(fileType, "error")
-		return fmt.Errorf("mkdir: %w", err)
 	}
 
 	content, err := download(id)
@@ -136,11 +132,11 @@ func downloadGameDataToCache(fs store.Store, file store.File, download BoxscoreD
 		return fmt.Errorf("download: %w", err)
 	}
 
-	if err := fs.Write(file, content); err != nil {
+	if err := storage.Write(path, content); err != nil {
 		metrics.IncDownload(fileType, "error")
 		return fmt.Errorf("save: %w", err)
 	}
-	log.Info().Str("gameid", id.String()).Str("path", store.Path(file)).Str("type", fileType).Msg("Saved")
+	log.Info().Str("gameid", id.String()).Str("path", path).Str("type", fileType).Msg("Saved")
 	metrics.IncDownload(fileType, "miss")
 	return nil
 }

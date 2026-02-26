@@ -21,7 +21,7 @@ type DownloadPlayerLandingBatchResult struct {
 
 func downloadPlayerLandingBatchImpl(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	client NHLClient,
 	players []store.BoxscorePlayer,
 ) (DownloadPlayerLandingBatchResult, error) {
@@ -35,7 +35,7 @@ func downloadPlayerLandingBatchImpl(
 		}
 
 		playerID := nhl.PlayerID(p.ID)
-		status, err := ensurePlayerLandingCached(ctx, fs, client, playerID, p)
+		status, err := ensurePlayerLandingCached(ctx, repos, client, playerID, p)
 		if err != nil {
 			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
 			return result, err
@@ -76,22 +76,19 @@ const (
 // Returns a status indicating whether data was downloaded, already cached, or missing (404).
 func ensurePlayerLandingCached(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	client NHLClient,
 	playerID nhl.PlayerID,
 	boxscorePlayer store.BoxscorePlayer,
 ) (playerLandingStatus, error) {
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-
 	// Check if already marked as missing (most common case for 404s)
-	if fs.Exists(missingFile) {
+	if repos.Player.IsMissing(playerID) {
 		log.Debug().Str("player_id", playerID.String()).Msg("Player landing already marked as missing")
 		return playerLandingMissing, nil
 	}
 
 	// Check if landing page is already cached
-	if fs.Exists(landingFile) {
+	if repos.Player.LandingExists(playerID) {
 		log.Debug().Str("player_id", playerID.String()).Msg("Player landing already cached")
 		return playerLandingCached, nil
 	}
@@ -103,7 +100,12 @@ func ensurePlayerLandingCached(
 		var notFoundErr *nhl.ResourceNotFoundError
 		if errors.As(err, &notFoundErr) {
 			// Cache the 404 with boxscore player data
-			if saveErr := saveMissingPlayerLanding(fs, missingFile, boxscorePlayer); saveErr != nil {
+			missingInfo := store.MissingPlayerLandingData{
+				FirstName: boxscorePlayer.FirstName,
+				LastName:  boxscorePlayer.LastName,
+				Position:  boxscorePlayer.Position,
+			}
+			if saveErr := repos.Player.MarkMissing(playerID, missingInfo); saveErr != nil {
 				log.Warn().Err(saveErr).Str("player_id", playerID.String()).Msg("Failed to save missing player landing")
 			} else {
 				log.Info().Str("player_id", playerID.String()).Msg("Saved player as missing (404)")
@@ -115,22 +117,9 @@ func ensurePlayerLandingCached(
 
 	// Save successful response to cache (json.Marshal won't fail for *nhl.PlayerLanding)
 	data, _ := json.Marshal(landing)
-	if err := fs.Write(landingFile, data); err != nil {
+	if err := repos.Player.SaveLanding(playerID, data); err != nil {
 		return 0, fmt.Errorf("write player %s landing to cache: %w", playerID.String(), err)
 	}
 
 	return playerLandingDownloaded, nil
-}
-
-// saveMissingPlayerLanding saves boxscore player data to a missing player landing file.
-func saveMissingPlayerLanding(fs store.Store, file store.MissingPlayerLandingFile, player store.BoxscorePlayer) error {
-	data := store.MissingPlayerLandingData{
-		FirstName: player.FirstName,
-		LastName:  player.LastName,
-		Position:  player.Position,
-	}
-
-	// json.Marshal won't fail for MissingPlayerLandingData (simple string fields)
-	content, _ := json.Marshal(data)
-	return fs.Write(file, content)
 }

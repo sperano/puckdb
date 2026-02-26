@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -13,8 +12,8 @@ import (
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/sqlcdb"
+	"github.com/sperano/puckdb/store"
 )
 
 const yahooPlayerBaseURL = "https://sports.yahoo.com/nhl/players/"
@@ -41,7 +40,7 @@ type ProcessPlayerBatchResult struct {
 // ProcessPlayerBatchActivity downloads player landing pages (if needed) and imports them to the database.
 // This combines DownloadPlayerLandingBatchActivity and ImportPlayerBatchActivity into a single pass.
 func ProcessPlayerBatchActivity(ctx context.Context, players []store.BoxscorePlayer) (ProcessPlayerBatchResult, error) {
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 	nhlClient := newNHLClient()
 
 	redisClient := cache.NewClient()
@@ -54,7 +53,7 @@ func ProcessPlayerBatchActivity(ctx context.Context, players []store.BoxscorePla
 	defer pool.Close()
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: nhlClient,
 		redis:     redisClient,
 		queries:   database.NewQueries(pool),
@@ -65,7 +64,7 @@ func ProcessPlayerBatchActivity(ctx context.Context, players []store.BoxscorePla
 
 // processDeps holds dependencies for the combined process activity.
 type processDeps struct {
-	fs        store.Store
+	repos     *store.Repos
 	nhlClient NHLClient
 	redis     cache.Client
 	queries   PlayerUpserter
@@ -96,7 +95,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 		playerID := nhl.PlayerID(p.ID)
 
 		// Step 1: Download player landing (if not cached)
-		downloadStatus, err := ensurePlayerLandingCached(ctx, deps.fs, deps.nhlClient, playerID, p)
+		downloadStatus, err := ensurePlayerLandingCached(ctx, deps.repos, deps.nhlClient, playerID, p)
 		if err != nil {
 			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
 			return result, err
@@ -122,22 +121,15 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 		}
 
 		// Step 2: Import player to database
-		file := store.PlayerLandingFile{PlayerID: playerID}
-		if !deps.fs.Exists(file) {
+		if !deps.repos.Player.LandingExists(playerID) {
 			// This shouldn't happen after successful download, but handle gracefully
 			result.Errors = append(result.Errors, fmt.Sprintf("player %d: file not found after download", p.ID))
 			continue
 		}
 
-		content, err := deps.fs.Read(file)
+		landing, err := deps.repos.Player.GetLanding(playerID)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("player %d: read error: %v", p.ID, err))
-			continue
-		}
-
-		var landing nhl.PlayerLanding
-		if err := json.Unmarshal(content, &landing); err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("player %d: parse error: %v", p.ID, err))
 			continue
 		}
 
@@ -150,7 +142,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 		if landing.BirthDate != "" {
 			nhlBirthDate, _ = time.Parse("2006-01-02", landing.BirthDate)
 		}
-		matchResult, err := MatchYahooID(&landing, teamAbbrev, nhlBirthDate, yahooPool)
+		matchResult, err := MatchYahooID(landing, teamAbbrev, nhlBirthDate, yahooPool)
 		if err != nil {
 			log.Debug().
 				Err(err).
@@ -160,7 +152,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 		}
 
 		// Build UpsertPlayerParams
-		params := buildProcessUpsertParams(&landing, matchResult)
+		params := buildProcessUpsertParams(landing, matchResult)
 
 		// Clear any conflicting yahoo_id assignment before upserting
 		if matchResult.Matched {

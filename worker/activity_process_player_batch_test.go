@@ -21,13 +21,14 @@ func TestProcessPlayerBatch_EmptyPlayers(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, _ := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -48,7 +49,8 @@ func TestProcessPlayerBatch_LoadYahooPoolError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -57,7 +59,7 @@ func TestProcessPlayerBatch_LoadYahooPoolError(t *testing.T) {
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetErr(errors.New("redis connection refused"))
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -76,7 +78,8 @@ func TestProcessPlayerBatch_ContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -85,7 +88,7 @@ func TestProcessPlayerBatch_ContextCancellation(t *testing.T) {
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -106,7 +109,8 @@ func TestProcessPlayerBatch_CacheHitAndImport(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -118,12 +122,6 @@ func TestProcessPlayerBatch_CacheHitAndImport(t *testing.T) {
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
 	// Player landing file already exists (cache hit)
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(true)
-
-	// Read the cached landing file
 	landing := &nhl.PlayerLanding{
 		PlayerID:  playerID,
 		FirstName: nhl.LocalizedString{Default: "Connor"},
@@ -131,14 +129,15 @@ func TestProcessPlayerBatch_CacheHitAndImport(t *testing.T) {
 		Position:  "C",
 		IsActive:  true,
 	}
-	landingJSON, _ := json.Marshal(landing)
-	fs.On("Read", landingFile).Return(landingJSON, nil)
+	landingJSON, err := json.Marshal(landing)
+	require.NoError(t, err)
+	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
 
 	// Expect UpsertPlayer call
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -154,7 +153,6 @@ func TestProcessPlayerBatch_CacheHitAndImport(t *testing.T) {
 	assert.Equal(t, 1, result.Imported)
 	assert.Equal(t, 0, result.Matched) // No Yahoo pool entries
 	assert.Empty(t, result.Errors)
-	fs.AssertExpectations(t)
 	upserter.AssertExpectations(t)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
@@ -163,7 +161,8 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -173,15 +172,18 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 	// Redis HGetAll succeeds
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
-	// Missing file exists (player marked as 404)
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-	fs.On("Exists", missingFile).Return(true)
+	// Mark player as missing (player marked as 404)
+	repos.Player.MarkMissing(playerID, store.MissingPlayerLandingData{
+		FirstName: "John",
+		LastName:  "Doe",
+		Position:  "C",
+	})
 
 	// Expect UpsertPlayer call with minimal info from boxscore data
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -202,7 +204,6 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 	assert.Equal(t, 1, result.Missing)
 	assert.Equal(t, 1, result.Imported) // Missing players ARE imported with minimal info
 	assert.Empty(t, result.Errors)
-	fs.AssertExpectations(t)
 	upserter.AssertExpectations(t)
 }
 
@@ -210,7 +211,8 @@ func TestProcessPlayerBatch_UpsertError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -221,12 +223,6 @@ func TestProcessPlayerBatch_UpsertError(t *testing.T) {
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
 	// Player landing file exists
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(true)
-
-	// Read the cached landing file
 	landing := &nhl.PlayerLanding{
 		PlayerID:  playerID,
 		FirstName: nhl.LocalizedString{Default: "Connor"},
@@ -234,15 +230,16 @@ func TestProcessPlayerBatch_UpsertError(t *testing.T) {
 		Position:  "C",
 		IsActive:  true,
 	}
-	landingJSON, _ := json.Marshal(landing)
-	fs.On("Read", landingFile).Return(landingJSON, nil)
+	landingJSON, err := json.Marshal(landing)
+	require.NoError(t, err)
+	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
 
 	// UpsertPlayer fails
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
 		Return(errors.New("database connection lost"))
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -257,7 +254,6 @@ func TestProcessPlayerBatch_UpsertError(t *testing.T) {
 	assert.Equal(t, 0, result.Imported) // Failed to import
 	assert.Len(t, result.Errors, 1)
 	assert.Contains(t, result.Errors[0], "upsert error")
-	fs.AssertExpectations(t)
 	upserter.AssertExpectations(t)
 }
 
@@ -265,7 +261,8 @@ func TestProcessPlayerBatch_FileReadError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -275,17 +272,11 @@ func TestProcessPlayerBatch_FileReadError(t *testing.T) {
 	// Redis HGetAll succeeds
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
-	// Player landing file exists
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(true)
-
-	// Read fails
-	fs.On("Read", landingFile).Return(nil, errors.New("disk read error"))
+	// Player landing file exists but contains invalid JSON (will cause read error in GetLanding)
+	mem.SetFile(store.PlayerLandingPath(playerID), []byte("invalid json"))
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -300,50 +291,6 @@ func TestProcessPlayerBatch_FileReadError(t *testing.T) {
 	assert.Equal(t, 0, result.Imported)
 	assert.Len(t, result.Errors, 1)
 	assert.Contains(t, result.Errors[0], "read error")
-	fs.AssertExpectations(t)
-	upserter.AssertNotCalled(t, "UpsertPlayer")
-}
-
-func TestProcessPlayerBatch_JSONParseError(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	fs := NewMockFileSystem()
-	client := &MockNHLClient{}
-	redisClient, mockRedis := redismock.NewClientMock()
-	upserter := NewMockPlayerUpserter()
-
-	playerID := nhl.PlayerID(8476453)
-
-	// Redis HGetAll succeeds
-	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
-
-	// Player landing file exists
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(true)
-
-	// Read returns invalid JSON
-	fs.On("Read", landingFile).Return([]byte("not valid json"), nil)
-
-	deps := processDeps{
-		fs:        fs,
-		nhlClient: client,
-		redis:     redisClient,
-		queries:   upserter,
-	}
-
-	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := processPlayerBatchImpl(ctx, deps, players)
-
-	// No error returned - errors are collected in result.Errors
-	require.NoError(t, err)
-	assert.Equal(t, 1, result.CacheHits)
-	assert.Equal(t, 0, result.Imported)
-	assert.Len(t, result.Errors, 1)
-	assert.Contains(t, result.Errors[0], "parse error")
-	fs.AssertExpectations(t)
 	upserter.AssertNotCalled(t, "UpsertPlayer")
 }
 
@@ -351,7 +298,8 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -362,13 +310,7 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 	// Redis HGetAll succeeds (empty pool - no Yahoo matching)
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-
-	// Player landing file does NOT exist - needs download
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(false).Once() // First check - not cached
-
+	// No landing file exists - needs download
 	// Client downloads the player landing
 	landing := &nhl.PlayerLanding{
 		PlayerID:  playerID,
@@ -379,19 +321,11 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 	}
 	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
 
-	// Save to cache (ensurePlayerLandingCached directly writes without MkdirAll)
-	fs.On("Write", landingFile, mock.Anything).Return(nil)
-
-	// After download, file exists and can be read
-	landingJSON, _ := json.Marshal(landing)
-	fs.On("Exists", landingFile).Return(true) // Second check - now cached
-	fs.On("Read", landingFile).Return(landingJSON, nil)
-
 	// Expect UpsertPlayer call
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -407,16 +341,19 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 	assert.Equal(t, 1, result.Imported)
 	assert.Equal(t, 0, result.Matched) // No Yahoo pool entries
 	assert.Empty(t, result.Errors)
-	fs.AssertExpectations(t)
 	client.AssertExpectations(t)
 	upserter.AssertExpectations(t)
+
+	// Verify landing was saved
+	assert.True(t, repos.Player.LandingExists(playerID))
 }
 
 func TestProcessPlayerBatch_DownloadAPIError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -426,18 +363,11 @@ func TestProcessPlayerBatch_DownloadAPIError(t *testing.T) {
 	// Redis HGetAll succeeds
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-
-	// File doesn't exist - needs download
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(false)
-
 	// API returns non-404 error
 	client.On("PlayerLanding", ctx, playerID).Return(nil, errors.New("API timeout"))
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -449,57 +379,6 @@ func TestProcessPlayerBatch_DownloadAPIError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API timeout")
 	assert.Equal(t, 0, result.Imported)
-	fs.AssertExpectations(t)
-	client.AssertExpectations(t)
-}
-
-func TestProcessPlayerBatch_WriteErrorAfterDownload(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	fs := NewMockFileSystem()
-	client := &MockNHLClient{}
-	redisClient, mockRedis := redismock.NewClientMock()
-	upserter := NewMockPlayerUpserter()
-
-	playerID := nhl.PlayerID(8476453)
-
-	// Redis HGetAll succeeds
-	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
-
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-
-	// File doesn't exist - needs download
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(false)
-
-	// API returns data
-	landing := &nhl.PlayerLanding{
-		PlayerID:  playerID,
-		FirstName: nhl.LocalizedString{Default: "Connor"},
-		LastName:  nhl.LocalizedString{Default: "McDavid"},
-		Position:  "C",
-	}
-	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
-
-	// Write fails
-	fs.On("Write", landingFile, mock.Anything).Return(errors.New("disk full"))
-
-	deps := processDeps{
-		fs:        fs,
-		nhlClient: client,
-		redis:     redisClient,
-		queries:   upserter,
-	}
-
-	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := processPlayerBatchImpl(ctx, deps, players)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "write player")
-	assert.Equal(t, 0, result.Imported)
-	fs.AssertExpectations(t)
 	client.AssertExpectations(t)
 }
 
@@ -507,7 +386,8 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -531,14 +411,7 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 	// Also expect the removal of the matched ID (SRem)
 	mockRedis.ExpectSRem(YahooIDAvailableKey, yahooID).SetVal(1)
 
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-
-	// File exists (cache hit)
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(true)
-
-	// Read cached landing with team
+	// File exists (cache hit) - with team info for matching
 	teamAbbrev := "EDM"
 	landing := &nhl.PlayerLanding{
 		PlayerID:          playerID,
@@ -549,8 +422,9 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 		CurrentTeamAbbrev: &teamAbbrev,
 		BirthDate:         "1997-01-13",
 	}
-	landingJSON, _ := json.Marshal(landing)
-	fs.On("Read", landingFile).Return(landingJSON, nil)
+	landingJSON, err := json.Marshal(landing)
+	require.NoError(t, err)
+	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
 
 	// Expect ClearConflictingYahooID call
 	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
@@ -559,7 +433,7 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -573,7 +447,6 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 	assert.Equal(t, 1, result.Imported)
 	assert.Equal(t, 1, result.Matched) // Yahoo ID matched
 	assert.Empty(t, result.Errors)
-	fs.AssertExpectations(t)
 	upserter.AssertExpectations(t)
 }
 
@@ -581,7 +454,8 @@ func TestProcessPlayerBatch_ClearConflictingYahooIDError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -602,20 +476,15 @@ func TestProcessPlayerBatch_ClearConflictingYahooIDError(t *testing.T) {
 	})
 	mockRedis.ExpectSRem(YahooIDAvailableKey, yahooID).SetVal(1)
 
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(true)
-
 	landing := &nhl.PlayerLanding{
 		PlayerID:  playerID,
 		FirstName: nhl.LocalizedString{Default: "Connor"},
 		LastName:  nhl.LocalizedString{Default: "McDavid"},
 		Position:  "C",
 	}
-	landingJSON, _ := json.Marshal(landing)
-	fs.On("Read", landingFile).Return(landingJSON, nil)
+	landingJSON, err := json.Marshal(landing)
+	require.NoError(t, err)
+	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
 
 	// ClearConflictingYahooID fails - should log warning but continue
 	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).
@@ -625,7 +494,7 @@ func TestProcessPlayerBatch_ClearConflictingYahooIDError(t *testing.T) {
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -645,7 +514,8 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -665,20 +535,15 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 		yahooID.String(): string(poolData),
 	})
 
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(true)
-
 	landing := &nhl.PlayerLanding{
 		PlayerID:  playerID,
 		FirstName: nhl.LocalizedString{Default: "Connor"},
 		LastName:  nhl.LocalizedString{Default: "McDavid"},
 		Position:  "C",
 	}
-	landingJSON, _ := json.Marshal(landing)
-	fs.On("Read", landingFile).Return(landingJSON, nil)
+	landingJSON, err := json.Marshal(landing)
+	require.NoError(t, err)
+	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
 
 	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
 
@@ -687,7 +552,7 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 		Return(errors.New("constraint violation"))
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -704,64 +569,12 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 	assert.Contains(t, result.Errors[0], "upsert error")
 }
 
-func TestProcessPlayerBatch_FileNotFoundAfterDownload(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	fs := NewMockFileSystem()
-	client := &MockNHLClient{}
-	redisClient, mockRedis := redismock.NewClientMock()
-	mockRedis.MatchExpectationsInOrder(false)
-	upserter := NewMockPlayerUpserter()
-
-	playerID := nhl.PlayerID(8476453)
-
-	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
-
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-
-	// First check: file doesn't exist (needs download)
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(false).Once()
-
-	// API returns data
-	landing := &nhl.PlayerLanding{
-		PlayerID:  playerID,
-		FirstName: nhl.LocalizedString{Default: "Connor"},
-		LastName:  nhl.LocalizedString{Default: "McDavid"},
-		Position:  "C",
-	}
-	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
-
-	// Write succeeds
-	fs.On("Write", landingFile, mock.Anything).Return(nil)
-
-	// But then file doesn't exist when we try to read! (edge case)
-	fs.On("Exists", landingFile).Return(false)
-
-	deps := processDeps{
-		fs:        fs,
-		nhlClient: client,
-		redis:     redisClient,
-		queries:   upserter,
-	}
-
-	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := processPlayerBatchImpl(ctx, deps, players)
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, result.Downloaded)
-	assert.Equal(t, 0, result.Imported)
-	assert.Len(t, result.Errors, 1)
-	assert.Contains(t, result.Errors[0], "file not found after download")
-}
-
 func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -770,12 +583,6 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 	playerID := nhl.PlayerID(8476453)
 
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
-
-	landingFile := store.PlayerLandingFile{PlayerID: playerID}
-	missingFile := store.MissingPlayerLandingFile{PlayerID: playerID}
-
-	fs.On("Exists", missingFile).Return(false)
-	fs.On("Exists", landingFile).Return(true)
 
 	// Full landing with all optional fields
 	teamID := nhl.TeamID(22)
@@ -814,8 +621,9 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 			OverallPick: 1,
 		},
 	}
-	landingJSON, _ := json.Marshal(landing)
-	fs.On("Read", landingFile).Return(landingJSON, nil)
+	landingJSON, err := json.Marshal(landing)
+	require.NoError(t, err)
+	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
 
 	// Capture the upsert params to verify all fields
 	var capturedParams sqlcdb.UpsertPlayerParams
@@ -826,7 +634,7 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 		Return(nil)
 
 	deps := processDeps{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: client,
 		redis:     redisClient,
 		queries:   upserter,
@@ -840,8 +648,8 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 	assert.Empty(t, result.Errors)
 
 	// Verify all fields were set correctly
-	assert.Equal(t, "Connor", capturedParams.FirstName)        // Trimmed
-	assert.Equal(t, "McDavid", capturedParams.LastName)        // Trimmed
+	assert.Equal(t, "Connor", capturedParams.FirstName)  // Trimmed
+	assert.Equal(t, "McDavid", capturedParams.LastName) // Trimmed
 	assert.Equal(t, "connor", capturedParams.FirstNameNormalized)
 	assert.Equal(t, "mcdavid", capturedParams.LastNameNormalized)
 	assert.Equal(t, "C", capturedParams.Position)

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"reflect"
 	"sync"
 	"time"
 
@@ -76,8 +75,8 @@ func GetGameKeyForSeason(season int) (int, error) {
 	}
 	gameKeyCacheMu.RUnlock()
 
-	fs := store.NewStore()
-	gameKey, err := store.GetGameKey(fs, season, DownloadFromYahoo, sleepAfterYahooDownload)
+	repos := store.NewDefaultRepos()
+	gameKey, err := store.GetGameKey(repos, season, DownloadFromYahoo, sleepAfterYahooDownload)
 	if err != nil {
 		return 0, err
 	}
@@ -212,19 +211,14 @@ func DownloadPlayerGameLog(playerID nhl.PlayerID, season nhl.Season, gameType nh
 type Downloader func(url string) ([]byte, error)
 
 // doDownloadImpl is the testable implementation.
-func doDownloadImpl(ctx context.Context, fs store.Store, file store.File, url string, download Downloader) error {
+// fileType is used for metrics labels.
+func doDownloadImpl(ctx context.Context, storage store.Storage, path string, url string, download Downloader, fileType string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	fileType := reflect.TypeOf(file).Name()
-
-	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
-		metrics.IncDownload(fileType, "error")
-		return fmt.Errorf("%s: %w", file.Dir(), err)
-	}
-	if fs.Exists(file) {
-		log.Debug().Str("path", store.Path(file)).Str("type", fileType).Msg("Cached")
+	if storage.Exists(path) {
+		log.Debug().Str("path", path).Str("type", fileType).Msg("Cached")
 		metrics.IncDownload(fileType, "hit")
 		return nil
 	}
@@ -233,11 +227,11 @@ func doDownloadImpl(ctx context.Context, fs store.Store, file store.File, url st
 		metrics.IncDownload(fileType, "error")
 		return fmt.Errorf("%s: %w", url, err)
 	}
-	if err := fs.Write(file, content); err != nil {
+	if err := storage.Write(path, content); err != nil {
 		metrics.IncDownload(fileType, "error")
-		return fmt.Errorf("%s: %w", store.Path(file), err)
+		return fmt.Errorf("%s: %w", path, err)
 	}
-	log.Info().Str("path", store.Path(file)).Str("type", fileType).Msg("Saved")
+	log.Info().Str("path", path).Str("type", fileType).Msg("Saved")
 	metrics.IncDownload(fileType, "miss")
 	sleepAfterYahooDownload()
 	return nil

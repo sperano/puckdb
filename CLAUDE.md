@@ -210,6 +210,18 @@ JOIN players p ON p.yahoo_id = r.player_id
 WHERE r.league_id = 12345 AND r.team_id = 1 AND r.date = '2024-12-01';
 ```
 
+## Testing Guidelines
+
+### Serialization Error Handling
+
+When testing code that serializes/deserializes domain objects:
+
+1. **Never ignore marshal/unmarshal errors** - Use `require.NoError(t, err)` instead of `_, _ :=`
+2. **Use realistic test data** - Types like `nhl.Position` and `nhl.Season` have custom marshalers that require valid values
+3. **Understand mock vs storage patterns**:
+   - **Mock returns**: Pass structs directly, no serialization validation
+   - **Storage pre-population**: Goes through JSON round-trip, all fields must be valid
+
 ## References
 
 - [Yahoo Fantasy Sports API Guide](https://developer.yahoo.com/fantasysports/guide/)

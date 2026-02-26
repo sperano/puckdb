@@ -2,14 +2,13 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/store"
 )
 
 // SeasonInfo represents season metadata for Temporal serialization.
@@ -40,17 +39,13 @@ func (s SeasonInfo) Label() string {
 // It reads from the cached seasons manifest first (populated by DownloadSeasonsManifestActivity),
 // falling back to the NHL API only if the cache doesn't exist.
 func FetchSeasonsDataActivity(ctx context.Context, input *model.SeasonsInput) ([]SeasonInfo, error) {
-	fs := store.NewStore()
-	file := store.SeasonsManifestFile{}
+	repos := store.NewDefaultRepos()
 
 	// Try cache first
-	if fs.Exists(file) {
-		data, err := fs.Read(file)
+	if repos.Season.ManifestExists() {
+		seasons, err := repos.Season.GetManifest()
 		if err == nil {
-			var seasons []nhl.SeasonInfo
-			if err := json.Unmarshal(data, &seasons); err == nil {
-				return filterSeasons(seasons, input), nil
-			}
+			return filterSeasons(seasons, input), nil
 		}
 	}
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -30,21 +29,19 @@ type DownloadSeasonsManifestResult struct {
 // DownloadSeasonsManifestActivity downloads the NHL seasons manifest.
 // Uses multi-layer caching: Redis (1h TTL) -> Filesystem (24h staleness) -> API.
 func DownloadSeasonsManifestActivity(ctx context.Context) (DownloadSeasonsManifestResult, error) {
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 	redisClient := cache.NewClient()
 	defer redisClient.Close()
 	nhlClient := newNHLClient()
-	return downloadSeasonsManifestImpl(ctx, fs, redisClient, nhlClient)
+	return downloadSeasonsManifestImpl(ctx, repos, redisClient, nhlClient)
 }
 
 func downloadSeasonsManifestImpl(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	redisClient cache.Client,
 	nhlClient NHLClient,
 ) (DownloadSeasonsManifestResult, error) {
-	file := store.SeasonsManifestFile{}
-
 	// Layer 1: Check Redis cache first
 	if data, err := redisClient.Get(ctx, redisSeasonsManifestKey).Bytes(); err == nil {
 		var seasons []nhl.SeasonInfo
@@ -58,12 +55,11 @@ func downloadSeasonsManifestImpl(
 
 	// Layer 2: Check filesystem cache
 	var staleData []byte
-	if fs.Exists(file) {
-		data, err := fs.Read(file)
+	if repos.Season.ManifestExists() {
+		data, err := repos.Season.GetManifestRaw()
 		if err == nil {
 			// Check if file is stale
-			fullPath := fs.FullPath(file)
-			info, statErr := os.Stat(fullPath)
+			info, statErr := repos.Storage.Stat(store.SeasonsManifestPath())
 			isStale := statErr != nil || time.Since(info.ModTime()) > config.DefaultSeasonsManifestStaleTTL
 
 			if !isStale {
@@ -109,7 +105,7 @@ func downloadSeasonsManifestImpl(
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to marshal seasons manifest")
 	} else {
-		if err := fs.Write(file, data); err != nil {
+		if err := repos.Season.SaveManifest(data); err != nil {
 			log.Warn().Err(err).Msg("Failed to write seasons manifest to filesystem")
 		}
 		// Cache in Redis
@@ -138,24 +134,19 @@ type DownloadSeasonStandingsResult struct {
 
 func downloadSeasonStandingsImpl(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	client NHLClient,
 	seasonID int,
 ) (DownloadSeasonStandingsResult, error) {
-	file := store.SeasonStandingsFile{SeasonID: seasonID}
-
 	// Check cache first
-	if fs.Exists(file) {
-		data, err := fs.Read(file)
+	if repos.Season.StandingsExists(seasonID) {
+		standings, err := repos.Season.GetStandings(seasonID)
 		if err == nil {
-			var standings []nhl.Standing
-			if err := json.Unmarshal(data, &standings); err == nil {
-				log.Debug().Int("season", seasonID).Int("teams", len(standings)).Msg("Season standings loaded from cache")
-				metrics.IncDownload(store.FileTypeSeasonStandings, "hit")
-				return DownloadSeasonStandingsResult{SeasonID: seasonID, TeamCount: len(standings), FromCache: true}, nil
-			}
-			log.Debug().Err(err).Int("season", seasonID).Msg("Failed to unmarshal cached season standings")
+			log.Debug().Int("season", seasonID).Int("teams", len(standings)).Msg("Season standings loaded from cache")
+			metrics.IncDownload(store.FileTypeSeasonStandings, "hit")
+			return DownloadSeasonStandingsResult{SeasonID: seasonID, TeamCount: len(standings), FromCache: true}, nil
 		}
+		log.Debug().Err(err).Int("season", seasonID).Msg("Failed to read cached season standings")
 	}
 
 	// Fetch from API
@@ -174,7 +165,7 @@ func downloadSeasonStandingsImpl(
 	if err != nil {
 		log.Warn().Err(err).Int("season", seasonID).Msg("Failed to marshal season standings for cache")
 	} else {
-		if err := fs.Write(file, data); err != nil {
+		if err := repos.Season.SaveStandings(seasonID, data); err != nil {
 			log.Warn().Err(err).Int("season", seasonID).Msg("Failed to write season standings to cache")
 		}
 	}
@@ -195,17 +186,11 @@ func UpsertSeasonsActivity(ctx context.Context) (UpsertSeasonsResult, error) {
 	logger := activity.GetLogger(ctx)
 
 	// Read seasons manifest from cache
-	fs := store.NewStore()
-	file := store.SeasonsManifestFile{}
+	repos := store.NewDefaultRepos()
 
-	data, err := fs.Read(file)
+	seasons, err := repos.Season.GetManifest()
 	if err != nil {
 		return UpsertSeasonsResult{}, fmt.Errorf("read seasons manifest from cache: %w", err)
-	}
-
-	var seasons []nhl.SeasonInfo
-	if err := json.Unmarshal(data, &seasons); err != nil {
-		return UpsertSeasonsResult{}, fmt.Errorf("unmarshal seasons manifest: %w", err)
 	}
 
 	// Open database connection
@@ -333,26 +318,20 @@ type seasonTeamsInitializer interface {
 
 // realSeasonTeamsInitializer calls the impl functions directly with pre-initialized dependencies.
 type realSeasonTeamsInitializer struct {
-	fs      store.Store
+	repos   *store.Repos
 	client  NHLClient
 	queries seasonTeamsUpserter
 }
 
 func (r realSeasonTeamsInitializer) DownloadStandings(ctx context.Context, seasonID int) (DownloadSeasonStandingsResult, error) {
-	return downloadSeasonStandingsImpl(ctx, r.fs, r.client, seasonID)
+	return downloadSeasonStandingsImpl(ctx, r.repos, r.client, seasonID)
 }
 
 func (r realSeasonTeamsInitializer) UpsertTeams(ctx context.Context, seasonID int) (UpsertSeasonTeamsResult, error) {
 	// Read standings from cache
-	file := store.SeasonStandingsFile{SeasonID: seasonID}
-	data, err := r.fs.Read(file)
+	standings, err := r.repos.Season.GetStandings(seasonID)
 	if err != nil {
 		return UpsertSeasonTeamsResult{SeasonID: seasonID}, fmt.Errorf("read season standings from cache: %w", err)
-	}
-
-	var standings []nhl.Standing
-	if err := json.Unmarshal(data, &standings); err != nil {
-		return UpsertSeasonTeamsResult{SeasonID: seasonID}, fmt.Errorf("unmarshal season standings: %w", err)
 	}
 
 	return upsertSeasonTeamsImpl(ctx, r.queries, seasonID, standings)
@@ -360,7 +339,7 @@ func (r realSeasonTeamsInitializer) UpsertTeams(ctx context.Context, seasonID in
 
 // InitializeSeasonTeamsActivity downloads standings and upserts teams for a single season.
 func InitializeSeasonTeamsActivity(ctx context.Context, seasonID int) (InitializeSeasonTeamsResult, error) {
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 	client := newNHLClient()
 
 	pool, err := database.OpenPGXPool(ctx)
@@ -372,7 +351,7 @@ func InitializeSeasonTeamsActivity(ctx context.Context, seasonID int) (Initializ
 	queries := sqlcdb.New(pool)
 
 	return initializeSeasonTeamsImpl(ctx, realSeasonTeamsInitializer{
-		fs:      fs,
+		repos:   repos,
 		client:  client,
 		queries: queries,
 	}, seasonID)

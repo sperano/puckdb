@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/sperano/puckdb/store"
@@ -14,40 +13,58 @@ import (
 
 func TestFetchLeagueImpl_FileExists(t *testing.T) {
 	ctx := context.Background()
-	mockFS := NewMockFileSystem()
-	file := store.LeagueFile{Season: 2023, LeagueID: 12345}
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
-	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(nil)
-	mockFS.On("Exists", file).Return(true)
+	// Pre-populate the file
+	path := store.LeaguePath(2023, 12345)
+	mem.SetFile(path, []byte("existing data"))
 
-	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345, mockDownloader(nil, nil))
+	err := fetchLeagueImpl(ctx, repos, 2023, 423, 12345, mockDownloader(nil, nil))
 
 	assert.NoError(t, err)
-	mockFS.AssertExpectations(t)
+	// Downloader should not have been called (file exists)
 }
 
 func TestFetchLeagueImpl_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	mockFS := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
-	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345, mockDownloader(nil, nil))
+	err := fetchLeagueImpl(ctx, repos, 2023, 423, 12345, mockDownloader(nil, nil))
 
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
-func TestFetchLeagueImpl_MkdirAllError(t *testing.T) {
+func TestFetchLeagueImpl_DownloadAndSave(t *testing.T) {
 	ctx := context.Background()
-	mockFS := NewMockFileSystem()
-	file := store.LeagueFile{Season: 2023, LeagueID: 12345}
-	expectedErr := errors.New("mkdir failed")
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
-	mockFS.On("MkdirAll", file.Dir(), os.FileMode(0755)).Return(expectedErr)
+	content := []byte("<league>data</league>")
 
-	err := fetchLeagueImpl(ctx, mockFS, 2023, 423, 12345, mockDownloader(nil, nil))
+	err := fetchLeagueImpl(ctx, repos, 2023, 423, 12345, mockDownloader(content, nil))
+
+	assert.NoError(t, err)
+
+	// Verify file was saved
+	path := store.LeaguePath(2023, 12345)
+	assert.True(t, mem.Has(path))
+	saved := mem.Get(path)
+	assert.Equal(t, content, saved)
+}
+
+func TestFetchLeagueImpl_DownloadError(t *testing.T) {
+	ctx := context.Background()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
+
+	expectedErr := errors.New("network error")
+
+	err := fetchLeagueImpl(ctx, repos, 2023, 423, 12345, mockDownloader(nil, expectedErr))
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), file.Dir())
-	mockFS.AssertExpectations(t)
+	assert.Contains(t, err.Error(), "network error")
 }

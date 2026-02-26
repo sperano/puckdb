@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"time"
 	"unicode"
@@ -59,7 +58,7 @@ type VerifyUnmatchedResult struct {
 // verifyDeps contains the dependencies for verifying unmatched players.
 type verifyDeps struct {
 	client      NHLClient
-	fs          store.Store
+	repos       *store.Repos
 	redisClient cache.Client
 }
 
@@ -76,7 +75,7 @@ func VerifyUnmatchedBatchActivity(ctx context.Context, players []UnmatchedYahooP
 
 	deps := verifyDeps{
 		client:      nhl.NewClient(),
-		fs:          store.NewStore(),
+		repos:       store.NewDefaultRepos(),
 		redisClient: redisClient,
 	}
 
@@ -119,7 +118,7 @@ func verifyUnmatchedBatchImpl(ctx context.Context, deps verifyDeps, players []Un
 		}
 
 		// Verify this player
-		verified := verifyPlayer(ctx, deps.client, deps.fs, player)
+		verified := verifyPlayer(ctx, deps.client, deps.repos, player)
 
 		if !verified.FoundInNHL {
 			result.NotFoundInNHL = append(result.NotFoundInNHL, verified)
@@ -149,7 +148,7 @@ func verifyUnmatchedBatchImpl(ctx context.Context, deps verifyDeps, players []Un
 }
 
 // verifyPlayer checks if a Yahoo player has any NHL regular season games.
-func verifyPlayer(ctx context.Context, client NHLClient, fs store.Store, player UnmatchedYahooPlayer) VerifiedPlayer {
+func verifyPlayer(ctx context.Context, client NHLClient, repos *store.Repos, player UnmatchedYahooPlayer) VerifiedPlayer {
 	result := VerifiedPlayer{
 		YahooID:   player.YahooID,
 		FirstName: player.FirstName,
@@ -181,7 +180,7 @@ func verifyPlayer(ctx context.Context, client NHLClient, fs store.Store, player 
 	result.NHLName = matchedResult.Name
 
 	// Get full player landing data - check cache first
-	landing, err := fetchPlayerLanding(ctx, client, fs, matchedResult.PlayerID)
+	landing, err := fetchPlayerLanding(ctx, client, repos, matchedResult.PlayerID)
 	if err != nil {
 		log.Warn().Err(err).Str("name", playerName).Msg("Failed to get landing data")
 		return result
@@ -204,17 +203,12 @@ func verifyPlayer(ctx context.Context, client NHLClient, fs store.Store, player 
 }
 
 // fetchPlayerLanding retrieves player landing data, using cache if available.
-func fetchPlayerLanding(ctx context.Context, client NHLClient, fs store.Store, playerID nhl.PlayerID) (*nhl.PlayerLanding, error) {
-	file := store.PlayerLandingFile{PlayerID: playerID}
-
+func fetchPlayerLanding(ctx context.Context, client NHLClient, repos *store.Repos, playerID nhl.PlayerID) (*nhl.PlayerLanding, error) {
 	// Check cache first
-	if fs.Exists(file) {
-		content, err := fs.Read(file)
+	if repos.Player.LandingExists(playerID) {
+		landing, err := repos.Player.GetLanding(playerID)
 		if err == nil {
-			var landing nhl.PlayerLanding
-			if err := json.Unmarshal(content, &landing); err == nil {
-				return &landing, nil
-			}
+			return landing, nil
 		}
 	}
 

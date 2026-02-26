@@ -16,11 +16,11 @@ type FetchPlayerLandingsBatchResult struct {
 // FetchPlayerLandingsBatchActivity fetches player landing pages for a batch of players.
 // Reuses the existing downloadPlayerLandingBatchImpl logic.
 func FetchPlayerLandingsBatchActivity(ctx context.Context, players []store.BoxscorePlayer) (FetchPlayerLandingsBatchResult, error) {
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 	nhlClient := newNHLClient()
 
 	// Reuse existing download implementation
-	result, err := downloadPlayerLandingBatchImpl(ctx, fs, nhlClient, players)
+	result, err := downloadPlayerLandingBatchImpl(ctx, repos, nhlClient, players)
 	if err != nil {
 		return FetchPlayerLandingsBatchResult{}, err
 	}

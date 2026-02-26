@@ -43,7 +43,7 @@ func ImportYahooDataForDateActivity(ctx context.Context, input ImportYahooDataFo
 		return result, nil
 	}
 
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 
 	pool, err := database.OpenPGXPool(ctx)
 	if err != nil {
@@ -54,8 +54,8 @@ func ImportYahooDataForDateActivity(ctx context.Context, input ImportYahooDataFo
 	queries := sqlcdb.New(pool)
 
 	// Collect params for this date across all teams
-	summaryParams, statParams := collectSummaryParams(fs, input.Teams, input.Date)
-	rosterParams := collectRosterParams(fs, input.Teams, input.Date)
+	summaryParams, statParams := collectSummaryParams(repos, input.Teams, input.Date)
+	rosterParams := collectRosterParams(repos, input.Teams, input.Date)
 
 	// Batch upsert summaries
 	if len(summaryParams) > 0 {
@@ -93,7 +93,7 @@ func ImportYahooDataForDateActivity(ctx context.Context, input ImportYahooDataFo
 }
 
 // collectSummaryParams reads team summary files and returns params for summaries and stats.
-func collectSummaryParams(fs store.Store, teams []TeamInfo, date time.Time) (
+func collectSummaryParams(repos *store.Repos, teams []TeamInfo, date time.Time) (
 	[]sqlcdb.UpsertYahooTeamSummaryBatchParams,
 	[]sqlcdb.UpsertYahooTeamSummaryStatBatchParams,
 ) {
@@ -102,31 +102,16 @@ func collectSummaryParams(fs store.Store, teams []TeamInfo, date time.Time) (
 	pgDate := pgtype.Date{Time: date, Valid: true}
 
 	for _, teamInfo := range teams {
-		summaryFile := store.TeamSummaryFile{
-			TeamID:   teamInfo.TeamID,
-			LeagueID: teamInfo.LeagueID,
-			Date:     date,
-		}
-
-		if !fs.Exists(summaryFile) {
+		if !repos.Yahoo.TeamSummaryExists(teamInfo.LeagueID, teamInfo.TeamID, date) {
 			continue
 		}
 
-		data, err := fs.Read(summaryFile)
+		fantasy, err := repos.Yahoo.GetTeamSummary(teamInfo.LeagueID, teamInfo.TeamID, date)
 		if err != nil {
 			log.Debug().Err(err).
 				Int("teamID", teamInfo.TeamID).
 				Str("date", date.Format("2006-01-02")).
 				Msg("Failed to read summary file")
-			continue
-		}
-
-		fantasy, err := store.ParseXML(data)
-		if err != nil {
-			log.Debug().Err(err).
-				Int("teamID", teamInfo.TeamID).
-				Str("date", date.Format("2006-01-02")).
-				Msg("Failed to parse summary XML")
 			continue
 		}
 
@@ -159,36 +144,21 @@ func collectSummaryParams(fs store.Store, teams []TeamInfo, date time.Time) (
 }
 
 // collectRosterParams reads team roster files and returns params for rosters.
-func collectRosterParams(fs store.Store, teams []TeamInfo, date time.Time) []sqlcdb.UpsertYahooTeamRosterBatchParams {
+func collectRosterParams(repos *store.Repos, teams []TeamInfo, date time.Time) []sqlcdb.UpsertYahooTeamRosterBatchParams {
 	var rosterParams []sqlcdb.UpsertYahooTeamRosterBatchParams
 	pgDate := pgtype.Date{Time: date, Valid: true}
 
 	for _, teamInfo := range teams {
-		rosterFile := store.RosterFile{
-			TeamID:   teamInfo.TeamID,
-			LeagueID: teamInfo.LeagueID,
-			Date:     date,
-		}
-
-		if !fs.Exists(rosterFile) {
+		if !repos.Yahoo.RosterExists(teamInfo.LeagueID, teamInfo.TeamID, date) {
 			continue
 		}
 
-		data, err := fs.Read(rosterFile)
+		fantasy, err := repos.Yahoo.GetRoster(teamInfo.LeagueID, teamInfo.TeamID, date)
 		if err != nil {
 			log.Debug().Err(err).
 				Int("teamID", teamInfo.TeamID).
 				Str("date", date.Format("2006-01-02")).
 				Msg("Failed to read roster file")
-			continue
-		}
-
-		fantasy, err := store.ParseXML(data)
-		if err != nil {
-			log.Debug().Err(err).
-				Int("teamID", teamInfo.TeamID).
-				Str("date", date.Format("2006-01-02")).
-				Msg("Failed to parse roster XML")
 			continue
 		}
 

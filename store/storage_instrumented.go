@@ -1,0 +1,128 @@
+package store
+
+import (
+	"os"
+	"regexp"
+	"time"
+
+	"github.com/sperano/puckdb/metrics"
+)
+
+// InstrumentedStorage wraps a Storage to record metrics for all operations.
+type InstrumentedStorage struct {
+	inner Storage
+}
+
+// NewInstrumentedStorage creates an instrumented wrapper around the given Storage.
+func NewInstrumentedStorage(inner Storage) *InstrumentedStorage {
+	return &InstrumentedStorage{inner: inner}
+}
+
+// Read reads from storage and records timing/size metrics.
+func (s *InstrumentedStorage) Read(path string) ([]byte, error) {
+	start := time.Now()
+	data, err := s.inner.Read(path)
+	duration := time.Since(start)
+
+	ft := inferFileType(path)
+	if err == nil {
+		metrics.ObserveFSOp("read", ft, duration, len(data))
+	} else {
+		metrics.ObserveFSOp("read", ft, duration, 0)
+	}
+	return data, err
+}
+
+// Write writes to storage and records timing/size metrics.
+func (s *InstrumentedStorage) Write(path string, data []byte) error {
+	start := time.Now()
+	err := s.inner.Write(path, data)
+	duration := time.Since(start)
+
+	ft := inferFileType(path)
+	if err == nil {
+		metrics.ObserveFSOp("write", ft, duration, len(data))
+	} else {
+		metrics.ObserveFSOp("write", ft, duration, 0)
+	}
+	return err
+}
+
+// Exists checks if a path exists and records timing metrics.
+func (s *InstrumentedStorage) Exists(path string) bool {
+	start := time.Now()
+	exists := s.inner.Exists(path)
+	duration := time.Since(start)
+
+	metrics.ObserveFSOp("exists", inferFileType(path), duration, 0)
+	return exists
+}
+
+// Delete removes a path and records timing metrics.
+func (s *InstrumentedStorage) Delete(path string) error {
+	start := time.Now()
+	err := s.inner.Delete(path)
+	duration := time.Since(start)
+
+	metrics.ObserveFSOp("delete", inferFileType(path), duration, 0)
+	return err
+}
+
+// List lists files and records timing metrics.
+func (s *InstrumentedStorage) List(dir string, ext string) ([]string, error) {
+	start := time.Now()
+	files, err := s.inner.List(dir, ext)
+	duration := time.Since(start)
+
+	metrics.ObserveFSOp("list", inferFileType(dir), duration, len(files))
+	return files, err
+}
+
+// Stat returns file information and records timing metrics.
+func (s *InstrumentedStorage) Stat(path string) (os.FileInfo, error) {
+	start := time.Now()
+	info, err := s.inner.Stat(path)
+	duration := time.Since(start)
+
+	metrics.ObserveFSOp("stat", inferFileType(path), duration, 0)
+	return info, err
+}
+
+// File type patterns for path-based inference.
+// Order matters: more specific patterns should come before general ones.
+var fileTypePatterns = []struct {
+	pattern  *regexp.Regexp
+	fileType string
+}{
+	// NHL patterns
+	{regexp.MustCompile(`/daily-schedule/`), "DailyScheduleFile"},
+	{regexp.MustCompile(`/boxscores/`), "BoxscoreFile"},
+	{regexp.MustCompile(`/play-by-play/`), "PlayByPlayFile"},
+	{regexp.MustCompile(`/shiftcharts/`), "ShiftChartFile"},
+	{regexp.MustCompile(`/gamestory/`), "GameStoryFile"},
+	{regexp.MustCompile(`player-landings/missing/`), "PlayerLandingMissingFile"},
+	{regexp.MustCompile(`player-landings/`), "PlayerLandingFile"},
+	{regexp.MustCompile(`/player-gamelogs/`), "PlayerGameLogFile"},
+	{regexp.MustCompile(`^franchises\.json$`), "FranchisesFile"},
+	{regexp.MustCompile(`^seasons\.json$`), "SeasonsManifestFile"},
+	{regexp.MustCompile(`/standings\.json$`), "SeasonStandingsFile"},
+
+	// Yahoo patterns
+	{regexp.MustCompile(`yahoo/players/missing/`), "MissingYahooPlayerFile"},
+	{regexp.MustCompile(`yahoo/players/`), "YahooPlayerFile"},
+	{regexp.MustCompile(`yahoo/rosters/`), "RosterFile"},
+	{regexp.MustCompile(`yahoo/team-summary/`), "TeamSummaryFile"},
+	{regexp.MustCompile(`yahoo/.*/teams/.*/team\.xml$`), "TeamFile"},
+	{regexp.MustCompile(`yahoo/.*/leagues/.*/league\.xml$`), "LeagueFile"},
+	{regexp.MustCompile(`yahoo/.*/game-key\.xml$`), "GameKeyFile"},
+}
+
+// inferFileType determines the file type label from a path string.
+func inferFileType(path string) string {
+	for _, p := range fileTypePatterns {
+		if p.pattern.MatchString(path) {
+			return p.fileType
+		}
+	}
+	return "unknown"
+}

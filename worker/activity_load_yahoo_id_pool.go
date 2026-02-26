@@ -16,29 +16,14 @@ import (
 // This is a fast operation that just reads the directory listing.
 func ListYahooPlayerFilesActivity(ctx context.Context) ([]store.YahooPlayerID, error) {
 	logger := activity.GetLogger(ctx)
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 
-	ids, err := listYahooPlayerFilesImpl(fs)
+	ids, err := repos.Yahoo.ListPlayers()
 	if err != nil {
 		return nil, err
 	}
 
 	logger.Info("Listed Yahoo player files", "count", len(ids))
-	return ids, nil
-}
-
-// listYahooPlayerFilesImpl contains the testable logic for ListYahooPlayerFilesActivity.
-func listYahooPlayerFilesImpl(fs store.Store) ([]store.YahooPlayerID, error) {
-	files, err := fs.ListFiles(store.YahooPlayerFile{}, store.ParseYahooPlayerFilename)
-	if err != nil {
-		return nil, err
-	}
-
-	ids := make([]store.YahooPlayerID, len(files))
-	for i, f := range files {
-		ids[i] = f.(store.YahooPlayerFile).PlayerID
-	}
-
 	return ids, nil
 }
 
@@ -53,9 +38,9 @@ type ParseYahooPlayerBatchResult struct {
 // Returns the parsed players for aggregation by the workflow.
 func ParseYahooPlayerBatchActivity(ctx context.Context, playerIDs []store.YahooPlayerID) ([]store.YahooPlayer, error) {
 	logger := activity.GetLogger(ctx)
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 
-	result := parseYahooPlayerBatchImpl(fs, playerIDs)
+	result := parseYahooPlayerBatchImpl(repos, playerIDs)
 
 	if result.ReadErrors > 0 || result.ParseErrors > 0 {
 		logger.Warn("Some players failed to parse",
@@ -67,14 +52,13 @@ func ParseYahooPlayerBatchActivity(ctx context.Context, playerIDs []store.YahooP
 }
 
 // parseYahooPlayerBatchImpl contains the testable logic for ParseYahooPlayerBatchActivity.
-func parseYahooPlayerBatchImpl(fs store.Store, playerIDs []store.YahooPlayerID) ParseYahooPlayerBatchResult {
+func parseYahooPlayerBatchImpl(repos *store.Repos, playerIDs []store.YahooPlayerID) ParseYahooPlayerBatchResult {
 	result := ParseYahooPlayerBatchResult{
 		Players: make([]store.YahooPlayer, 0, len(playerIDs)),
 	}
 
 	for _, id := range playerIDs {
-		file := store.YahooPlayerFile{PlayerID: id}
-		content, err := fs.Read(file)
+		content, err := repos.Yahoo.GetPlayer(id)
 		if err != nil {
 			result.ReadErrors++
 			continue

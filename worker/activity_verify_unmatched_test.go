@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -96,7 +97,8 @@ func TestVerifyUnmatchedBatchImpl_EmptyPlayers(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 
@@ -105,7 +107,7 @@ func TestVerifyUnmatchedBatchImpl_EmptyPlayers(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		fs:          fs,
+		repos:       repos,
 		redisClient: redisClient,
 	}
 
@@ -122,7 +124,8 @@ func TestVerifyUnmatchedBatchImpl_AlreadyVerified(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 
@@ -131,7 +134,7 @@ func TestVerifyUnmatchedBatchImpl_AlreadyVerified(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		fs:          fs,
+		repos:       repos,
 		redisClient: redisClient,
 	}
 
@@ -155,7 +158,8 @@ func TestVerifyUnmatchedBatchImpl_PlayerNotFoundInNHL(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -173,7 +177,7 @@ func TestVerifyUnmatchedBatchImpl_PlayerNotFoundInNHL(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		fs:          fs,
+		repos:       repos,
 		redisClient: redisClient,
 	}
 
@@ -195,7 +199,8 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -219,12 +224,11 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
 			{LeagueAbbrev: "AHL", GameType: nhl.GameTypeRegularSeason, GamesPlayed: 50},
 		},
 	}
-	fs.On("Exists", store.PlayerLandingFile{PlayerID: playerID}).Return(false)
 	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
 
 	deps := verifyDeps{
 		client:      client,
-		fs:          fs,
+		repos:       repos,
 		redisClient: redisClient,
 	}
 
@@ -240,14 +244,14 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
 	assert.Empty(t, result.TrulyUnmatched)
 	assert.Empty(t, result.NotFoundInNHL)
 	client.AssertExpectations(t)
-	fs.AssertExpectations(t)
 }
 
 func TestVerifyUnmatchedBatchImpl_PlayerFoundWithNHLGames(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -272,12 +276,11 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithNHLGames(t *testing.T) {
 			{LeagueAbbrev: "NHL", GameType: nhl.GameTypeRegularSeason, GamesPlayed: 78},
 		},
 	}
-	fs.On("Exists", store.PlayerLandingFile{PlayerID: playerID}).Return(false)
 	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
 
 	deps := verifyDeps{
 		client:      client,
-		fs:          fs,
+		repos:       repos,
 		redisClient: redisClient,
 	}
 
@@ -295,14 +298,14 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithNHLGames(t *testing.T) {
 	assert.True(t, result.TrulyUnmatched[0].HasNHLGames)
 	assert.Empty(t, result.NotFoundInNHL)
 	client.AssertExpectations(t)
-	fs.AssertExpectations(t)
 }
 
 func TestVerifyUnmatchedBatchImpl_RedisLoadError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -316,7 +319,7 @@ func TestVerifyUnmatchedBatchImpl_RedisLoadError(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		fs:          fs,
+		repos:       repos,
 		redisClient: redisClient,
 	}
 
@@ -337,7 +340,8 @@ func TestVerifyUnmatchedBatchImpl_SearchError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -351,7 +355,7 @@ func TestVerifyUnmatchedBatchImpl_SearchError(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		fs:          fs,
+		repos:       repos,
 		redisClient: redisClient,
 	}
 
@@ -372,7 +376,8 @@ func TestVerifyUnmatchedBatchImpl_NameMismatchInSearch(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -389,7 +394,7 @@ func TestVerifyUnmatchedBatchImpl_NameMismatchInSearch(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		fs:          fs,
+		repos:       repos,
 		redisClient: redisClient,
 	}
 
@@ -406,5 +411,73 @@ func TestVerifyUnmatchedBatchImpl_NameMismatchInSearch(t *testing.T) {
 	assert.Len(t, result.NotFoundInNHL, 1)
 	assert.Equal(t, store.YahooPlayerID(333), result.NotFoundInNHL[0].YahooID)
 	assert.False(t, result.NotFoundInNHL[0].FoundInNHL)
+	client.AssertExpectations(t)
+}
+
+// TestVerifyUnmatchedBatchImpl_CachedLandingUsed verifies that cached landing data is used
+// instead of making API calls.
+//
+// IMPORTANT: When pre-populating storage with serialized data, you MUST:
+// 1. Include all required fields that have custom JSON marshalers (e.g., nhl.Position, nhl.Season)
+// 2. Always check the error from json.Marshal - never ignore it with `_, _ :=`
+// 3. Use require.NoError to fail fast if marshaling fails
+//
+// Unlike mock returns which pass structs directly (no serialization), storage pre-population
+// goes through JSON marshal/unmarshal, so all field validation rules apply.
+func TestVerifyUnmatchedBatchImpl_CachedLandingUsed(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	// No pre-verified IDs
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	// Search returns a matching player
+	playerID := nhl.PlayerID(8476453)
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "Cached Player", &limit).Return([]nhl.PlayerSearchResult{
+		{PlayerID: playerID, Name: "Cached Player"},
+	}, nil)
+
+	// Player landing IS in cache - no API call needed for landing.
+	// NOTE: Position and Season are required for successful JSON round-trip.
+	landing := &nhl.PlayerLanding{
+		PlayerID:  playerID,
+		FirstName: nhl.LocalizedString{Default: "Cached"},
+		LastName:  nhl.LocalizedString{Default: "Player"},
+		Position:  nhl.PositionCenter,
+		SeasonTotals: []nhl.SeasonTotal{
+			{Season: nhl.NewSeason(2024), LeagueAbbrev: "AHL", GameType: nhl.GameTypeRegularSeason, GamesPlayed: 30},
+		},
+	}
+	landingJSON, err := json.Marshal(landing)
+	require.NoError(t, err, "landing must marshal successfully")
+	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
+
+	deps := verifyDeps{
+		client:      client,
+		repos:       repos,
+		redisClient: redisClient,
+	}
+
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 444, FirstName: "Cached", LastName: "Player"},
+	}
+
+	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+
+	require.NoError(t, err)
+	// Player has 0 NHL games (only AHL), should be verified non-NHL
+	assert.Len(t, result.VerifiedNonNHL, 1)
+	assert.Equal(t, store.YahooPlayerID(444), result.VerifiedNonNHL[0])
+	assert.Empty(t, result.TrulyUnmatched)
+	assert.Empty(t, result.NotFoundInNHL)
+	// PlayerLanding should NOT have been called (used cache)
+	client.AssertNotCalled(t, "PlayerLanding")
 	client.AssertExpectations(t)
 }

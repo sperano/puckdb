@@ -35,11 +35,11 @@ func DownloadPlayerGameLogsActivity(ctx context.Context, input DownloadPlayerGam
 		metrics.ObserveActivityDuration("DownloadPlayerGameLogsActivity", time.Since(start))
 	}()
 
-	fs := store.NewStore()
-	return downloadPlayerGameLogsImpl(ctx, fs, input)
+	repos := store.NewDefaultRepos()
+	return downloadPlayerGameLogsImpl(ctx, repos, input)
 }
 
-func downloadPlayerGameLogsImpl(ctx context.Context, fs store.Store, input DownloadPlayerGameLogsInput) (*DownloadPlayerGameLogsResult, error) {
+func downloadPlayerGameLogsImpl(ctx context.Context, repos *store.Repos, input DownloadPlayerGameLogsInput) (*DownloadPlayerGameLogsResult, error) {
 	result := &DownloadPlayerGameLogsResult{
 		Players: len(input.PlayerIDs),
 	}
@@ -83,7 +83,7 @@ func downloadPlayerGameLogsImpl(ctx context.Context, fs store.Store, input Downl
 				isCurrent:      isCurrent,
 				refreshCurrent: input.RefreshCurrent,
 			}
-			status, err := downloadPlayerGameLogToCache(ctx, fs, pid, season, gameType, opts)
+			status, err := downloadPlayerGameLogToCache(ctx, repos, pid, season, gameType, opts)
 			if err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("player %d season %s %s: %v", playerID, season, gameType, err))
 				continue
@@ -129,14 +129,11 @@ type downloadOptions struct {
 
 // downloadPlayerGameLogToCache downloads a single player game log to cache.
 // Returns the download status indicating whether it was downloaded, cached, or skipped.
-func downloadPlayerGameLogToCache(ctx context.Context, fs store.Store, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType, opts downloadOptions) (downloadStatus, error) {
-	file := store.PlayerGameLogFile{
-		PlayerID: playerID,
-		Season:   seasonToInt(season),
-		GameType: gameType.ToInt(),
-	}
+func downloadPlayerGameLogToCache(ctx context.Context, repos *store.Repos, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType, opts downloadOptions) (downloadStatus, error) {
+	seasonID := seasonToInt(season)
+	gameTypeID := gameType.ToInt()
 
-	fileExists := fs.Exists(file)
+	fileExists := repos.Player.GameLogExists(playerID, seasonID, gameTypeID)
 
 	if fileExists {
 		// Current season with refresh disabled: skip with message
@@ -169,18 +166,13 @@ func downloadPlayerGameLogToCache(ctx context.Context, fs store.Store, playerID 
 			Msg("Refreshing current season player log")
 	}
 
-	if err := fs.MkdirAll(file.Dir(), 0755); err != nil {
-		metrics.IncDownload("PlayerGameLog", "error")
-		return downloadStatusDownloaded, fmt.Errorf("mkdir: %w", err)
-	}
-
 	content, err := DownloadPlayerGameLog(playerID, season, gameType)
 	if err != nil {
 		metrics.IncDownload("PlayerGameLog", "error")
 		return downloadStatusDownloaded, fmt.Errorf("download: %w", err)
 	}
 
-	if err := fs.Write(file, content); err != nil {
+	if err := repos.Player.SaveGameLog(playerID, seasonID, gameTypeID, content); err != nil {
 		metrics.IncDownload("PlayerGameLog", "error")
 		return downloadStatusDownloaded, fmt.Errorf("save: %w", err)
 	}
@@ -189,7 +181,7 @@ func downloadPlayerGameLogToCache(ctx context.Context, fs store.Store, playerID 
 		Str("playerID", playerID.String()).
 		Str("season", season.String()).
 		Str("gameType", gameType.String()).
-		Str("path", store.Path(file)).
+		Str("path", store.PlayerGameLogPath(playerID, seasonID, gameTypeID)).
 		Msg("Saved player game log")
 	metrics.IncDownload("PlayerGameLog", "miss")
 

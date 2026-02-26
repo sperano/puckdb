@@ -45,7 +45,8 @@ func TestLoadUnmatchedYahooPlayers_Success(t *testing.T) {
 		Team:         "EDM",
 		JerseyNumber: 97,
 	}
-	player1JSON, _ := json.Marshal(player1)
+	player1JSON, err := json.Marshal(player1)
+	require.NoError(t, err)
 	mockRedis.ExpectHGet(YahooIDPoolKey, "123").SetVal(string(player1JSON))
 
 	player2 := store.YahooPlayer{
@@ -55,7 +56,8 @@ func TestLoadUnmatchedYahooPlayers_Success(t *testing.T) {
 		Team:         "EDM",
 		JerseyNumber: 29,
 	}
-	player2JSON, _ := json.Marshal(player2)
+	player2JSON, err := json.Marshal(player2)
+	require.NoError(t, err)
 	mockRedis.ExpectHGet(YahooIDPoolKey, "456").SetVal(string(player2JSON))
 
 	result, err := loadUnmatchedYahooPlayersImpl(ctx, client)

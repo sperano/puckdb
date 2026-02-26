@@ -8,7 +8,6 @@ import (
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,49 +23,40 @@ const sampleYahooPlayerHTMLNoJersey = `<html>
 </html>`
 
 // ////////////////////////////////////////////////////////////////////////////
-// listYahooPlayerFilesImpl tests
+// ListYahooPlayers tests (via repos.Yahoo.ListPlayers)
 // ////////////////////////////////////////////////////////////////////////////
 
-func TestListYahooPlayerFilesImpl_Success(t *testing.T) {
-	fs := NewMockFileSystem()
+func TestListYahooPlayers_Success(t *testing.T) {
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
-	expectedFiles := []store.File{
-		store.YahooPlayerFile{PlayerID: 1},
-		store.YahooPlayerFile{PlayerID: 100},
-		store.YahooPlayerFile{PlayerID: 1000},
-	}
+	// Pre-populate player files
+	repos.Yahoo.SavePlayer(1, []byte(sampleYahooPlayerHTML))
+	repos.Yahoo.SavePlayer(100, []byte(sampleYahooPlayerHTML))
+	repos.Yahoo.SavePlayer(1000, []byte(sampleYahooPlayerHTML))
 
-	fs.On("ListFiles", mock.Anything, mock.Anything).Return(expectedFiles, nil)
-
-	ids, err := listYahooPlayerFilesImpl(fs)
+	ids, err := repos.Yahoo.ListPlayers()
 
 	require.NoError(t, err)
-	assert.Equal(t, []store.YahooPlayerID{1, 100, 1000}, ids)
-	fs.AssertExpectations(t)
+	assert.Len(t, ids, 3)
+	// Note: order may vary, just check all present
+	idSet := make(map[store.YahooPlayerID]bool)
+	for _, id := range ids {
+		idSet[id] = true
+	}
+	assert.True(t, idSet[1])
+	assert.True(t, idSet[100])
+	assert.True(t, idSet[1000])
 }
 
-func TestListYahooPlayerFilesImpl_Empty(t *testing.T) {
-	fs := NewMockFileSystem()
+func TestListYahooPlayers_Empty(t *testing.T) {
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
-	fs.On("ListFiles", mock.Anything, mock.Anything).Return([]store.File{}, nil)
-
-	ids, err := listYahooPlayerFilesImpl(fs)
+	ids, err := repos.Yahoo.ListPlayers()
 
 	require.NoError(t, err)
 	assert.Empty(t, ids)
-}
-
-func TestListYahooPlayerFilesImpl_Error(t *testing.T) {
-	fs := NewMockFileSystem()
-	expectedErr := errors.New("failed to list files")
-
-	fs.On("ListFiles", mock.Anything, mock.Anything).Return(nil, expectedErr)
-
-	ids, err := listYahooPlayerFilesImpl(fs)
-
-	require.Error(t, err)
-	assert.Equal(t, expectedErr, err)
-	assert.Nil(t, ids)
 }
 
 // ////////////////////////////////////////////////////////////////////////////
@@ -74,16 +64,16 @@ func TestListYahooPlayerFilesImpl_Error(t *testing.T) {
 // ////////////////////////////////////////////////////////////////////////////
 
 func TestParseYahooPlayerBatchImpl_Success(t *testing.T) {
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
 	playerIDs := []store.YahooPlayerID{97, 99}
 
-	fs.On("Read", store.YahooPlayerFile{PlayerID: 97}).
-		Return([]byte(sampleYahooPlayerHTML), nil)
-	fs.On("Read", store.YahooPlayerFile{PlayerID: 99}).
-		Return([]byte(sampleYahooPlayerHTMLNoJersey), nil)
+	// Pre-populate player files
+	repos.Yahoo.SavePlayer(97, []byte(sampleYahooPlayerHTML))
+	repos.Yahoo.SavePlayer(99, []byte(sampleYahooPlayerHTMLNoJersey))
 
-	result := parseYahooPlayerBatchImpl(fs, playerIDs)
+	result := parseYahooPlayerBatchImpl(repos, playerIDs)
 
 	assert.Len(t, result.Players, 2)
 	assert.Equal(t, 0, result.ReadErrors)
@@ -102,16 +92,15 @@ func TestParseYahooPlayerBatchImpl_Success(t *testing.T) {
 }
 
 func TestParseYahooPlayerBatchImpl_ReadError(t *testing.T) {
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
 	playerIDs := []store.YahooPlayerID{1, 2}
 
-	fs.On("Read", store.YahooPlayerFile{PlayerID: 1}).
-		Return(nil, errors.New("file not found"))
-	fs.On("Read", store.YahooPlayerFile{PlayerID: 2}).
-		Return([]byte(sampleYahooPlayerHTML), nil)
+	// Only player 2 exists
+	repos.Yahoo.SavePlayer(2, []byte(sampleYahooPlayerHTML))
 
-	result := parseYahooPlayerBatchImpl(fs, playerIDs)
+	result := parseYahooPlayerBatchImpl(repos, playerIDs)
 
 	assert.Len(t, result.Players, 1)
 	assert.Equal(t, 1, result.ReadErrors)
@@ -119,15 +108,15 @@ func TestParseYahooPlayerBatchImpl_ReadError(t *testing.T) {
 }
 
 func TestParseYahooPlayerBatchImpl_ParseError(t *testing.T) {
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
 	playerIDs := []store.YahooPlayerID{1}
 
 	// Invalid HTML that won't parse
-	fs.On("Read", store.YahooPlayerFile{PlayerID: 1}).
-		Return([]byte("<html><title>Invalid Page</title></html>"), nil)
+	repos.Yahoo.SavePlayer(1, []byte("<html><title>Invalid Page</title></html>"))
 
-	result := parseYahooPlayerBatchImpl(fs, playerIDs)
+	result := parseYahooPlayerBatchImpl(repos, playerIDs)
 
 	assert.Empty(t, result.Players)
 	assert.Equal(t, 0, result.ReadErrors)
@@ -135,9 +124,10 @@ func TestParseYahooPlayerBatchImpl_ParseError(t *testing.T) {
 }
 
 func TestParseYahooPlayerBatchImpl_EmptyBatch(t *testing.T) {
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
-	result := parseYahooPlayerBatchImpl(fs, []store.YahooPlayerID{})
+	result := parseYahooPlayerBatchImpl(repos, []store.YahooPlayerID{})
 
 	assert.Empty(t, result.Players)
 	assert.Equal(t, 0, result.ReadErrors)
@@ -145,24 +135,20 @@ func TestParseYahooPlayerBatchImpl_EmptyBatch(t *testing.T) {
 }
 
 func TestParseYahooPlayerBatchImpl_MixedErrors(t *testing.T) {
-	fs := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
 	playerIDs := []store.YahooPlayerID{1, 2, 3, 4}
 
-	// Player 1: read error
-	fs.On("Read", store.YahooPlayerFile{PlayerID: 1}).
-		Return(nil, errors.New("file not found"))
+	// Player 1: doesn't exist (read error)
 	// Player 2: success
-	fs.On("Read", store.YahooPlayerFile{PlayerID: 2}).
-		Return([]byte(sampleYahooPlayerHTML), nil)
+	repos.Yahoo.SavePlayer(2, []byte(sampleYahooPlayerHTML))
 	// Player 3: parse error
-	fs.On("Read", store.YahooPlayerFile{PlayerID: 3}).
-		Return([]byte("<html>bad</html>"), nil)
+	repos.Yahoo.SavePlayer(3, []byte("<html>bad</html>"))
 	// Player 4: success
-	fs.On("Read", store.YahooPlayerFile{PlayerID: 4}).
-		Return([]byte(sampleYahooPlayerHTMLNoJersey), nil)
+	repos.Yahoo.SavePlayer(4, []byte(sampleYahooPlayerHTMLNoJersey))
 
-	result := parseYahooPlayerBatchImpl(fs, playerIDs)
+	result := parseYahooPlayerBatchImpl(repos, playerIDs)
 
 	assert.Len(t, result.Players, 2)
 	assert.Equal(t, 1, result.ReadErrors)

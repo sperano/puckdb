@@ -28,15 +28,15 @@ type teamFetcher interface {
 
 // realTeamFetcher calls the actual fetch implementation.
 type realTeamFetcher struct {
-	fs       store.Store
+	repos    *store.Repos
 	download Downloader
 }
 
 func (f realTeamFetcher) FetchTeam(ctx context.Context, season, gameKey, leagueID, teamID int) error {
 	log.Trace().Int("season", season).Int("gameKey", gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo Team")
-	file := store.TeamFile{Season: season, LeagueID: leagueID, TeamID: teamID}
+	path := store.TeamPath(season, leagueID, teamID)
 	url := urls.YahooTeamURL(gameKey, leagueID, teamID)
-	return doDownloadImpl(ctx, f.fs, file, url, f.download)
+	return doDownloadImpl(ctx, f.repos.Storage, path, url, f.download, "TeamFile")
 }
 
 // FetchTeamsActivity downloads Yahoo fantasy team pages for multiple teams.
@@ -49,8 +49,8 @@ func FetchTeamsActivity(ctx context.Context, input FetchTeamsInput) error {
 		return err
 	}
 
-	fs := store.NewStore()
-	fetcher := realTeamFetcher{fs: fs, download: DownloadFromYahoo}
+	repos := store.NewDefaultRepos()
+	fetcher := realTeamFetcher{repos: repos, download: DownloadFromYahoo}
 	return fetchTeamsImpl(ctx, fetcher, input.Season, gameKey, input.Teams)
 }
 

@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -39,7 +38,7 @@ func ImportGameStoryForDateActivity(ctx context.Context, input ImportGameStoryFo
 	}()
 
 	logger := activity.GetLogger(ctx)
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 
 	pool, err := database.OpenPGXPool(ctx)
 	if err != nil {
@@ -49,7 +48,7 @@ func ImportGameStoryForDateActivity(ctx context.Context, input ImportGameStoryFo
 
 	queries := sqlcdb.New(pool)
 
-	result, err := importGameStoryForDateImpl(ctx, fs, queries, input)
+	result, err := importGameStoryForDateImpl(ctx, repos, queries, input)
 	if err != nil {
 		return result, err
 	}
@@ -75,26 +74,20 @@ type GameStoryUpdater interface {
 
 func importGameStoryForDateImpl(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	queries GameStoryUpdater,
 	input ImportGameStoryForDateInput,
 ) (*ImportGameStoryForDateResult, error) {
 	result := &ImportGameStoryForDateResult{}
 
 	// Read daily schedule to get game IDs
-	scheduleFile := store.DailyScheduleFile{Date: input.Date}
-	if !fs.Exists(scheduleFile) {
+	if !repos.Schedule.Exists(input.Date) {
 		return result, nil // No games on this date
 	}
 
-	scheduleData, err := fs.Read(scheduleFile)
+	schedule, err := repos.Schedule.Get(input.Date)
 	if err != nil {
 		return result, fmt.Errorf("read schedule: %w", err)
-	}
-
-	var schedule nhl.DailySchedule
-	if err := json.Unmarshal(scheduleData, &schedule); err != nil {
-		return result, fmt.Errorf("parse schedule: %w", err)
 	}
 
 	if len(schedule.Games) == 0 {
@@ -109,7 +102,7 @@ func importGameStoryForDateImpl(
 		default:
 		}
 
-		stats, errs := processGameStory(ctx, fs, queries, game.ID, input.Season, input.Date)
+		stats, errs := processGameStory(ctx, repos, queries, game.ID, input.Season, input.Date)
 		result.GamesProcessed++
 		result.ThreeStarsImported += stats.threeStars
 		result.HighlightsImported += stats.highlights
@@ -128,7 +121,7 @@ type gameStoryStats struct {
 
 func processGameStory(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	queries GameStoryUpdater,
 	gameID nhl.GameID,
 	season int,
@@ -138,20 +131,13 @@ func processGameStory(
 	var errors []string
 
 	// Read game story file
-	storyFile := store.GameStoryFile{Date: date, GameID: gameID}
-	if !fs.Exists(storyFile) {
+	if !repos.GameStory.Exists(date, gameID) {
 		return stats, errors // No game story for this game
 	}
 
-	data, err := fs.Read(storyFile)
+	story, err := repos.GameStory.Get(date, gameID)
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("game %d: read error: %v", gameID, err))
-		return stats, errors
-	}
-
-	var story nhl.GameStory
-	if err := json.Unmarshal(data, &story); err != nil {
-		errors = append(errors, fmt.Sprintf("game %d: parse error: %v", gameID, err))
 		return stats, errors
 	}
 

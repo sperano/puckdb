@@ -34,7 +34,7 @@ func ImportYahooTeamsActivity(ctx context.Context, input ImportYahooTeamsInput) 
 	}()
 
 	logger := activity.GetLogger(ctx)
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 
 	pool, err := database.OpenPGXPool(ctx)
 	if err != nil {
@@ -44,7 +44,7 @@ func ImportYahooTeamsActivity(ctx context.Context, input ImportYahooTeamsInput) 
 
 	queries := sqlcdb.New(pool)
 
-	result, err := importYahooTeamsImpl(ctx, fs, queries, input)
+	result, err := importYahooTeamsImpl(ctx, repos, queries, input)
 	if err != nil {
 		return result, err
 	}
@@ -65,7 +65,7 @@ type YahooTeamUpserter interface {
 
 func importYahooTeamsImpl(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	queries YahooTeamUpserter,
 	input ImportYahooTeamsInput,
 ) (ImportYahooTeamsResult, error) {
@@ -81,8 +81,7 @@ func importYahooTeamsImpl(
 
 	for _, teamInfo := range input.Teams {
 		// Read the team file
-		teamFile := store.TeamFile{Season: input.Season, LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID}
-		if !fs.Exists(teamFile) {
+		if !repos.Yahoo.TeamExists(input.Season, teamInfo.LeagueID, teamInfo.TeamID) {
 			log.Debug().
 				Int("season", input.Season).
 				Int("leagueID", teamInfo.LeagueID).
@@ -91,14 +90,9 @@ func importYahooTeamsImpl(
 			continue
 		}
 
-		data, err := fs.Read(teamFile)
+		fantasy, err := repos.Yahoo.GetTeam(input.Season, teamInfo.LeagueID, teamInfo.TeamID)
 		if err != nil {
 			return result, fmt.Errorf("read team file %d: %w", teamInfo.TeamID, err)
-		}
-
-		fantasy, err := store.ParseXML(data)
-		if err != nil {
-			return result, fmt.Errorf("parse team XML %d: %w", teamInfo.TeamID, err)
 		}
 
 		team := fantasy.Team

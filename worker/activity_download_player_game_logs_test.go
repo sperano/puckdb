@@ -7,18 +7,18 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestDownloadPlayerGameLogsImpl_EmptyInput(t *testing.T) {
-	mockFS := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
 	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{},
 		StartYear: 2024,
 	}
 
-	result, err := downloadPlayerGameLogsImpl(context.Background(), mockFS, input)
+	result, err := downloadPlayerGameLogsImpl(context.Background(), repos, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
@@ -27,15 +27,14 @@ func TestDownloadPlayerGameLogsImpl_EmptyInput(t *testing.T) {
 }
 
 func TestDownloadPlayerGameLogsImpl_CacheHit(t *testing.T) {
-	mockFS := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
-	// Set up cache hit - file already exists
-	file := store.PlayerGameLogFile{
-		PlayerID: nhl.PlayerID(8478402),
-		Season:   20242025,
-		GameType: nhl.GameTypeRegularSeason.ToInt(),
-	}
-	mockFS.On("Exists", file).Return(true)
+	// Pre-populate file in cache
+	playerID := nhl.PlayerID(8478402)
+	seasonID := 20242025
+	gameTypeID := nhl.GameTypeRegularSeason.ToInt()
+	repos.Player.SaveGameLog(playerID, seasonID, gameTypeID, []byte(`{"gameLog":[]}`))
 
 	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{8478402},
@@ -43,35 +42,24 @@ func TestDownloadPlayerGameLogsImpl_CacheHit(t *testing.T) {
 		GameTypes: []int{nhl.GameTypeRegularSeason.ToInt()},
 	}
 
-	result, err := downloadPlayerGameLogsImpl(context.Background(), mockFS, input)
+	result, err := downloadPlayerGameLogsImpl(context.Background(), repos, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
 	assert.Equal(t, 1, result.CacheHits)
 	assert.Empty(t, result.Errors)
-	mockFS.AssertExpectations(t)
 }
 
 func TestDownloadPlayerGameLogsImpl_MultipleGameTypes(t *testing.T) {
-	mockFS := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
 	playerID := nhl.PlayerID(8478402)
+	seasonID := 20242025
 
-	// Regular season cached
-	regularFile := store.PlayerGameLogFile{
-		PlayerID: playerID,
-		Season:   20242025,
-		GameType: nhl.GameTypeRegularSeason.ToInt(),
-	}
-	mockFS.On("Exists", regularFile).Return(true)
-
-	// Playoffs cached
-	playoffsFile := store.PlayerGameLogFile{
-		PlayerID: playerID,
-		Season:   20242025,
-		GameType: nhl.GameTypePlayoffs.ToInt(),
-	}
-	mockFS.On("Exists", playoffsFile).Return(true)
+	// Pre-populate both game types
+	repos.Player.SaveGameLog(playerID, seasonID, nhl.GameTypeRegularSeason.ToInt(), []byte(`{"gameLog":[]}`))
+	repos.Player.SaveGameLog(playerID, seasonID, nhl.GameTypePlayoffs.ToInt(), []byte(`{"gameLog":[]}`))
 
 	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{8478402},
@@ -79,17 +67,17 @@ func TestDownloadPlayerGameLogsImpl_MultipleGameTypes(t *testing.T) {
 		GameTypes: []int{nhl.GameTypeRegularSeason.ToInt(), nhl.GameTypePlayoffs.ToInt()},
 	}
 
-	result, err := downloadPlayerGameLogsImpl(context.Background(), mockFS, input)
+	result, err := downloadPlayerGameLogsImpl(context.Background(), repos, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
 	assert.Equal(t, 2, result.CacheHits)
 	assert.Empty(t, result.Errors)
-	mockFS.AssertExpectations(t)
 }
 
 func TestDownloadPlayerGameLogsImpl_InvalidGameType(t *testing.T) {
-	mockFS := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
 	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{8478402},
@@ -97,7 +85,7 @@ func TestDownloadPlayerGameLogsImpl_InvalidGameType(t *testing.T) {
 		GameTypes: []int{99}, // Invalid game type
 	}
 
-	result, err := downloadPlayerGameLogsImpl(context.Background(), mockFS, input)
+	result, err := downloadPlayerGameLogsImpl(context.Background(), repos, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
@@ -107,15 +95,13 @@ func TestDownloadPlayerGameLogsImpl_InvalidGameType(t *testing.T) {
 }
 
 func TestDownloadPlayerGameLogsImpl_DefaultsToRegularSeason(t *testing.T) {
-	mockFS := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
-	// Should default to regular season (game type 2)
-	file := store.PlayerGameLogFile{
-		PlayerID: nhl.PlayerID(8478402),
-		Season:   20242025,
-		GameType: nhl.GameTypeRegularSeason.ToInt(),
-	}
-	mockFS.On("Exists", file).Return(true)
+	// Pre-populate regular season file
+	playerID := nhl.PlayerID(8478402)
+	seasonID := 20242025
+	repos.Player.SaveGameLog(playerID, seasonID, nhl.GameTypeRegularSeason.ToInt(), []byte(`{"gameLog":[]}`))
 
 	input := DownloadPlayerGameLogsInput{
 		PlayerIDs: []int64{8478402},
@@ -123,16 +109,16 @@ func TestDownloadPlayerGameLogsImpl_DefaultsToRegularSeason(t *testing.T) {
 		// No GameTypes specified - should default to regular season
 	}
 
-	result, err := downloadPlayerGameLogsImpl(context.Background(), mockFS, input)
+	result, err := downloadPlayerGameLogsImpl(context.Background(), repos, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
 	assert.Equal(t, 1, result.CacheHits)
-	mockFS.AssertExpectations(t)
 }
 
 func TestDownloadPlayerGameLogsImpl_ContextCancellation(t *testing.T) {
-	mockFS := NewMockFileSystem()
+	mem := store.NewMemStorage()
+	repos := store.NewRepos(mem)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
@@ -142,7 +128,7 @@ func TestDownloadPlayerGameLogsImpl_ContextCancellation(t *testing.T) {
 		StartYear: 2024,
 	}
 
-	result, err := downloadPlayerGameLogsImpl(ctx, mockFS, input)
+	result, err := downloadPlayerGameLogsImpl(ctx, repos, input)
 
 	assert.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
@@ -165,32 +151,4 @@ func TestSeasonToInt(t *testing.T) {
 		result := seasonToInt(season)
 		assert.Equal(t, tc.expected, result, "Season %d-%d", tc.startYear, tc.startYear+1)
 	}
-}
-
-// MockPlayerGameLogFS extends MockFileSystem with additional setup helpers.
-type MockPlayerGameLogFS struct {
-	mock.Mock
-}
-
-func (m *MockPlayerGameLogFS) Exists(file store.File) bool {
-	args := m.Called(file)
-	return args.Bool(0)
-}
-
-func (m *MockPlayerGameLogFS) MkdirAll(dir string, perm int) error {
-	args := m.Called(dir, perm)
-	return args.Error(0)
-}
-
-func (m *MockPlayerGameLogFS) Write(file store.File, content []byte) error {
-	args := m.Called(file, content)
-	return args.Error(0)
-}
-
-func (m *MockPlayerGameLogFS) Read(file store.File) ([]byte, error) {
-	args := m.Called(file)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]byte), args.Error(1)
 }

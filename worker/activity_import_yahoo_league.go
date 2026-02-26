@@ -34,7 +34,7 @@ func ImportYahooLeagueActivity(ctx context.Context, input ImportYahooLeagueInput
 	}()
 
 	logger := activity.GetLogger(ctx)
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 
 	pool, err := database.OpenPGXPool(ctx)
 	if err != nil {
@@ -44,7 +44,7 @@ func ImportYahooLeagueActivity(ctx context.Context, input ImportYahooLeagueInput
 
 	queries := sqlcdb.New(pool)
 
-	result, err := importYahooLeagueImpl(ctx, fs, queries, input)
+	result, err := importYahooLeagueImpl(ctx, repos, queries, input)
 	if err != nil {
 		return result, err
 	}
@@ -67,27 +67,21 @@ type YahooLeagueUpserter interface {
 
 func importYahooLeagueImpl(
 	ctx context.Context,
-	fs store.Store,
+	repos *store.Repos,
 	queries YahooLeagueUpserter,
 	input ImportYahooLeagueInput,
 ) (ImportYahooLeagueResult, error) {
 	result := ImportYahooLeagueResult{}
 
 	// Read the league file
-	leagueFile := store.LeagueFile{Season: input.Season, LeagueID: input.LeagueID}
-	if !fs.Exists(leagueFile) {
+	if !repos.Yahoo.LeagueExists(input.Season, input.LeagueID) {
 		log.Debug().Int("season", input.Season).Int("leagueID", input.LeagueID).Msg("No league file found")
 		return result, nil
 	}
 
-	data, err := fs.Read(leagueFile)
+	fantasy, err := repos.Yahoo.GetLeague(input.Season, input.LeagueID)
 	if err != nil {
 		return result, fmt.Errorf("read league file: %w", err)
-	}
-
-	fantasy, err := store.ParseXML(data)
-	if err != nil {
-		return result, fmt.Errorf("parse league XML: %w", err)
 	}
 
 	league := fantasy.League

@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-redis/redismock/v8"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 )
 
@@ -44,13 +45,14 @@ func TestCmdInfoImpl_WithToken(t *testing.T) {
 		RefreshToken: "test-refresh-token",
 		Expiry:       expiry,
 	}
-	tokenJSON, _ := json.Marshal(token)
+	tokenJSON, err := json.Marshal(token)
+	require.NoError(t, err)
 
 	// Mock Get to return the token
 	mock.ExpectGet("eric_yahoo_oauth2_token").SetVal(string(tokenJSON))
 
 	b := bytes.NewBufferString("")
-	err := cmdInfoImpl(b, client)
+	err = cmdInfoImpl(b, client)
 
 	assert.NoError(t, err)
 	output := b.String()
@@ -78,13 +80,14 @@ func TestCmdInfoImpl_WithExpiredToken(t *testing.T) {
 		RefreshToken: "expired-refresh-token",
 		Expiry:       expiry,
 	}
-	tokenJSON, _ := json.Marshal(token)
+	tokenJSON, err := json.Marshal(token)
+	require.NoError(t, err)
 
 	// Mock Get to return the token
 	mock.ExpectGet("eric_yahoo_oauth2_token").SetVal(string(tokenJSON))
 
 	b := bytes.NewBufferString("")
-	err := cmdInfoImpl(b, client)
+	err = cmdInfoImpl(b, client)
 
 	assert.NoError(t, err)
 	output := b.String()

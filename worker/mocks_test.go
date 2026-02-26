@@ -2,67 +2,12 @@ package worker
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/sqlcdb"
-	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/mock"
 )
-
-// MockFileSystem implements store.FileSystem for testing.
-type MockFileSystem struct {
-	mock.Mock
-	files map[string][]byte
-}
-
-func NewMockFileSystem() *MockFileSystem {
-	return &MockFileSystem{
-		files: make(map[string][]byte),
-	}
-}
-
-func (m *MockFileSystem) Read(file store.File) ([]byte, error) {
-	args := m.Called(file)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]byte), args.Error(1)
-}
-
-func (m *MockFileSystem) Write(file store.File, content []byte) error {
-	args := m.Called(file, content)
-	return args.Error(0)
-}
-
-func (m *MockFileSystem) Exists(file store.File) bool {
-	args := m.Called(file)
-	return args.Bool(0)
-}
-
-func (m *MockFileSystem) MkdirAll(dir string, perm os.FileMode) error {
-	args := m.Called(dir, perm)
-	return args.Error(0)
-}
-
-func (m *MockFileSystem) Remove(file store.File) error {
-	args := m.Called(file)
-	return args.Error(0)
-}
-
-func (m *MockFileSystem) FullPath(file store.File) string {
-	args := m.Called(file)
-	return args.String(0)
-}
-
-func (m *MockFileSystem) ListFiles(sample store.File, parser store.FilenameParser) ([]store.File, error) {
-	args := m.Called(sample, parser)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]store.File), args.Error(1)
-}
 
 // MockNHLClient implements NHLClient for testing.
 type MockNHLClient struct {
@@ -192,17 +137,6 @@ func (m *MockHTTPDownloader) Download(url string) ([]byte, error) {
 	}
 	return args.Get(0).([]byte), args.Error(1)
 }
-
-// MockFile implements store.File for testing.
-type MockFile struct {
-	DirVal  string
-	NameVal string
-	ExtVal  string
-}
-
-func (f MockFile) Dir() string  { return f.DirVal }
-func (f MockFile) Name() string { return f.NameVal }
-func (f MockFile) Ext() string  { return f.ExtVal }
 
 // MockSeasonsUpserter implements seasonsUpserter for testing.
 type MockSeasonsUpserter struct {

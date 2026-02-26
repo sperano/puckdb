@@ -29,12 +29,12 @@ func extractionCacheKey(startYear int) string {
 // and returns just the count. This is called by the parent workflow to get counts
 // upfront before spawning child workflows.
 func CountPlayersForSeasonActivity(ctx context.Context, season SeasonInfo) (int, error) {
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
 
 	extractor := func(ctx context.Context, day time.Time) ([]store.BoxscorePlayer, error) {
-		return extractPlayersForDay(ctx, fs, redisClient, day)
+		return extractPlayersForDay(ctx, repos, day)
 	}
 
 	result, err := extractBoxscoreDataForSeasonImpl(ctx, extractor, redisClient, season)

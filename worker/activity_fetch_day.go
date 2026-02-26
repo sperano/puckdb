@@ -20,7 +20,7 @@ type dayFetcher interface {
 
 // realDayFetcher calls the impl functions directly with pre-initialized dependencies.
 type realDayFetcher struct {
-	fs            store.Store
+	repos         *store.Repos
 	nhlClient     NHLClient
 	gameKey       int
 	download      Downloader
@@ -28,21 +28,21 @@ type realDayFetcher struct {
 }
 
 func (f realDayFetcher) FetchDailySchedule(ctx context.Context, day time.Time) error {
-	return fetchDailyScheduleImpl(ctx, f.fs, f.nhlClient, day, f.gameDownloads)
+	return fetchDailyScheduleImpl(ctx, f.repos, f.nhlClient, day, f.gameDownloads)
 }
 
 func (f realDayFetcher) FetchRoster(ctx context.Context, leagueID, teamID int, day time.Time) error {
 	log.Trace().Time("day", day).Int("gameKey", f.gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo roster")
-	file := store.RosterFile{Date: day, LeagueID: leagueID, TeamID: teamID}
+	path := store.RosterPath(leagueID, teamID, day)
 	url := urls.YahooRosterURL(f.gameKey, leagueID, teamID, day)
-	return doDownloadImpl(ctx, f.fs, file, url, f.download)
+	return doDownloadImpl(ctx, f.repos.Storage, path, url, f.download, "RosterFile")
 }
 
 func (f realDayFetcher) FetchTeamSummary(ctx context.Context, leagueID, teamID int, day time.Time) error {
 	log.Trace().Time("day", day).Int("gameKey", f.gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo team summary")
-	file := store.TeamSummaryFile{Date: day, LeagueID: leagueID, TeamID: teamID}
+	path := store.TeamSummaryPath(leagueID, teamID, day)
 	url := urls.YahooTeamSummaryURL(f.gameKey, leagueID, teamID, day)
-	return doDownloadImpl(ctx, f.fs, file, url, f.download)
+	return doDownloadImpl(ctx, f.repos.Storage, path, url, f.download, "TeamSummaryFile")
 }
 
 // FetchDayActivity fetches all data for a single day.
@@ -53,7 +53,7 @@ func (f realDayFetcher) FetchTeamSummary(ctx context.Context, leagueID, teamID i
 func FetchDayActivity(ctx context.Context, input FetchDayInput) error {
 	defer metrics.TrackActivityDuration("FetchDayActivity")()
 
-	fs := store.NewStore()
+	repos := store.NewDefaultRepos()
 	nhlClient := newNHLClient()
 
 	// Only look up gameKey if we have teams to fetch
@@ -67,7 +67,7 @@ func FetchDayActivity(ctx context.Context, input FetchDayInput) error {
 	}
 
 	fetcher := realDayFetcher{
-		fs:        fs,
+		repos:     repos,
 		nhlClient: nhlClient,
 		gameKey:   gameKey,
 		download:  DownloadFromYahoo,
