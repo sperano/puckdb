@@ -1,298 +1,165 @@
 package worker
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
 	"fmt"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
-	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
 
-const (
-	// GameLogCacheTTL is the expiration time for game log data in Redis.
-	// 1 hour is reasonable since this only needs to survive the import workflow.
-	GameLogCacheTTL = 1 * time.Hour
+const regularSeasonGameType = 2
 
-	// gameLogCachePrefix is the Redis key prefix for cached game logs.
-	gameLogCachePrefix = "puckdb:import:gamelog:"
-)
-
-// ImportPlayerGameLogsForDateInput specifies which date's player game logs to import.
-type ImportPlayerGameLogsForDateInput struct {
-	Season int       // Season ID (e.g., 20232024)
-	Date   time.Time // Date to import
+// ImportPlayerGameLogsBatchInput contains parameters for importing player game logs.
+type ImportPlayerGameLogsBatchInput struct {
+	Season    nhl.Season `json:"season"`
+	PlayerIDs []int64    `json:"playerIDs"`
 }
 
-// ImportPlayerGameLogsForDateResult contains import statistics.
-type ImportPlayerGameLogsForDateResult struct {
-	PlayersProcessed int
-	GamesUpdated     int
-	CacheHits        int
-	CacheMisses      int
-	Errors           []string
+// ImportPlayerGameLogsBatchResult contains results of importing player game logs.
+type ImportPlayerGameLogsBatchResult struct {
+	PlayersProcessed int `json:"playersProcessed"`
+	GamesUpdated     int `json:"gamesUpdated"`
 }
 
-// ImportPlayerGameLogsForDateActivity imports player game log stats (PPP, GWG, OT goals)
-// for games played on a specific date. It reads boxscores to identify players,
-// then extracts the relevant entries from their cached game log files.
-// Uses Redis to cache parsed game logs to avoid repeated file reads.
-func ImportPlayerGameLogsForDateActivity(ctx context.Context, input ImportPlayerGameLogsForDateInput) (*ImportPlayerGameLogsForDateResult, error) {
+// ImportPlayerGameLogsBatch imports game log stats (PPP, GWG, OT goals) for a batch of players.
+// These stats are available in the player game log API but not in boxscores.
+func (a *SeasonsActivities) ImportPlayerGameLogsBatch(ctx context.Context, input ImportPlayerGameLogsBatchInput) (*ImportPlayerGameLogsBatchResult, error) {
 	start := time.Now()
 	defer func() {
-		metrics.ObserveActivityDuration("ImportPlayerGameLogsForDateActivity", time.Since(start))
+		metrics.ObserveActivityDuration("ImportPlayerGameLogsBatch", time.Since(start))
 	}()
 
 	logger := activity.GetLogger(ctx)
-	repos := store.NewDefaultRepos()
-	redisClient := cache.NewClient()
-	defer redisClient.Close()
+	result := &ImportPlayerGameLogsBatchResult{}
 
-	pool, err := database.OpenPGXPool(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("open database pool: %w", err)
-	}
-	defer pool.Close()
-
-	queries := sqlcdb.New(pool)
-
-	result, err := importPlayerGameLogsForDateImpl(ctx, repos, redisClient, queries, input)
-	if err != nil {
-		return result, err
-	}
-
-	logger.Debug("Imported player game logs for date",
-		"date", input.Date.Format("2006-01-02"),
-		"players", result.PlayersProcessed,
-		"updated", result.GamesUpdated,
-		"cacheHits", result.CacheHits,
-		"cacheMisses", result.CacheMisses,
-		"errors", len(result.Errors))
-
-	return result, nil
-}
-
-// PlayerGameLogUpdater is the interface for database operations needed by game log import.
-type PlayerGameLogUpdater interface {
-	UpdateSkaterGameLogStats(ctx context.Context, arg sqlcdb.UpdateSkaterGameLogStatsParams) error
-}
-
-func importPlayerGameLogsForDateImpl(
-	ctx context.Context,
-	repos *store.Repos,
-	redisClient cache.Client,
-	queries PlayerGameLogUpdater,
-	input ImportPlayerGameLogsForDateInput,
-) (*ImportPlayerGameLogsForDateResult, error) {
-	result := &ImportPlayerGameLogsForDateResult{}
-
-	// Read daily schedule to get game IDs
-	if !repos.Schedule.Exists(input.Date) {
-		return result, nil // No games on this date
-	}
-
-	schedule, err := repos.Schedule.Get(input.Date)
-	if err != nil {
-		return result, fmt.Errorf("read schedule: %w", err)
-	}
-
-	if len(schedule.Games) == 0 {
-		return result, nil
-	}
-
-	// Build set of game IDs for this date
-	gameIDs := make(map[int64]bool)
-	for _, game := range schedule.Games {
-		gameIDs[int64(game.ID)] = true
-	}
-
-	// Extract player IDs from boxscores
-	playerIDs := extractPlayerIDsFromBoxscores(repos, input.Date, schedule.Games)
-	if len(playerIDs) == 0 {
-		return result, nil
-	}
-
-	// Process each player's game log
-	gameLogCache := newGameLogCache(redisClient, input.Season)
-
-	for playerID := range playerIDs {
-		select {
-		case <-ctx.Done():
-			return result, ctx.Err()
-		default:
+	for _, playerID := range input.PlayerIDs {
+		gameLogRes := resource.PlayerGameLog{
+			PlayerID: nhl.NewPlayerID(playerID),
+			Season:   input.Season,
+			GameType: regularSeasonGameType,
 		}
 
-		updated, cacheHit, errs := processPlayerGameLogForDate(ctx, repos, gameLogCache, queries, playerID, input.Season, gameIDs)
-		result.PlayersProcessed++
-		result.GamesUpdated += updated
-		if cacheHit {
-			result.CacheHits++
-		} else {
-			result.CacheMisses++
-		}
-		result.Errors = append(result.Errors, errs...)
-	}
-
-	return result, nil
-}
-
-// extractPlayerIDsFromBoxscores reads boxscores and returns unique player IDs.
-func extractPlayerIDsFromBoxscores(repos *store.Repos, date time.Time, games []nhl.ScheduleGame) map[int64]bool {
-	playerIDs := make(map[int64]bool)
-
-	for _, game := range games {
-		if !repos.Boxscore.Exists(date, game.ID) {
+		if !a.Storage.Exists(gameLogRes.Path()) {
 			continue
 		}
 
-		boxscore, err := repos.Boxscore.Get(date, game.ID)
+		gameLog, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, gameLogRes)
+		if err != nil {
+			log.Debug().Err(err).Int64("playerID", playerID).Msg("Failed to read player game log")
+			continue
+		}
+
+		updated, err := importPlayerGameLog(ctx, a.ImportQueries, playerID, gameLog)
+		if err != nil {
+			return result, fmt.Errorf("import game log for player %d: %w", playerID, err)
+		}
+		result.GamesUpdated += updated
+		result.PlayersProcessed++
+	}
+
+	logger.Info("Imported player game logs batch",
+		"players", result.PlayersProcessed,
+		"games", result.GamesUpdated)
+
+	return result, nil
+}
+
+// importPlayerGameLog updates game stats for a single player from their game log.
+func importPlayerGameLog(ctx context.Context, queries PlayerGameLogUpdater, playerID int64, gameLog *nhl.PlayerGameLog) (int, error) {
+	updated := 0
+	for _, entry := range gameLog.GameLog {
+		ppp := int16(entry.PowerPlayPoints)
+		var gwg, otg int16
+		if entry.GameWinningGoals != nil {
+			gwg = int16(*entry.GameWinningGoals)
+		}
+		if entry.OTGoals != nil {
+			otg = int16(*entry.OTGoals)
+		}
+
+		// Skip entries with no extra stats to update
+		if ppp == 0 && gwg == 0 && otg == 0 {
+			continue
+		}
+
+		if err := queries.UpdateSkaterGameLogStats(ctx, sqlcdb.UpdateSkaterGameLogStatsParams{
+			GameID:           int64(entry.GameID),
+			PlayerID:         playerID,
+			PowerPlayPoints:  ppp,
+			GameWinningGoals: gwg,
+			OtGoals:          otg,
+		}); err != nil {
+			return updated, err
+		}
+		updated++
+	}
+	return updated, nil
+}
+
+// CollectSeasonPlayerIDs reads all boxscores for a season and returns unique skater player IDs.
+func (a *SeasonsActivities) CollectSeasonPlayerIDs(ctx context.Context, season nhl.SeasonInfo) ([]int64, error) {
+	start := time.Now()
+	defer func() {
+		metrics.ObserveActivityDuration("CollectSeasonPlayerIDs", time.Since(start))
+	}()
+
+	seen := make(map[int64]struct{})
+
+	endDate := effectiveEndDate(season.StandingsEnd.Time)
+	for d := season.StandingsStart.Time; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+		scheduleRes := resource.DailySchedule{Date: d}
+		if !a.Storage.Exists(scheduleRes.Path()) {
+			continue
+		}
+
+		schedule, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
 		if err != nil {
 			continue
 		}
 
-		// Extract skater IDs (forwards and defense)
-		for _, player := range boxscore.PlayerByGameStats.HomeTeam.Forwards {
-			playerIDs[int64(player.PlayerID)] = true
-		}
-		for _, player := range boxscore.PlayerByGameStats.HomeTeam.Defense {
-			playerIDs[int64(player.PlayerID)] = true
-		}
-		for _, player := range boxscore.PlayerByGameStats.AwayTeam.Forwards {
-			playerIDs[int64(player.PlayerID)] = true
-		}
-		for _, player := range boxscore.PlayerByGameStats.AwayTeam.Defense {
-			playerIDs[int64(player.PlayerID)] = true
-		}
-	}
-
-	return playerIDs
-}
-
-// gameLogCache provides Redis-backed caching for player game logs.
-type gameLogCache struct {
-	client cache.Client
-	key    string // Redis hash key for this season
-}
-
-func newGameLogCache(client cache.Client, season int) *gameLogCache {
-	return &gameLogCache{
-		client: client,
-		key:    fmt.Sprintf("%s%d", gameLogCachePrefix, season),
-	}
-}
-
-// cachedGameLog is the serializable struct for Redis storage.
-type cachedGameLog struct {
-	Entries []nhl.GameLog
-}
-
-// get retrieves a player's game log entries from cache.
-func (c *gameLogCache) get(ctx context.Context, playerID int64, gameType int) ([]nhl.GameLog, bool) {
-	field := fmt.Sprintf("%d:%d", playerID, gameType)
-	data, err := c.client.HGet(ctx, c.key, field).Bytes()
-	if err != nil {
-		return nil, false
-	}
-
-	var cached cachedGameLog
-	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&cached); err != nil {
-		return nil, false
-	}
-
-	return cached.Entries, true
-}
-
-// set stores a player's game log entries in cache.
-func (c *gameLogCache) set(ctx context.Context, playerID int64, gameType int, entries []nhl.GameLog) {
-	field := fmt.Sprintf("%d:%d", playerID, gameType)
-
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(cachedGameLog{Entries: entries}); err != nil {
-		return
-	}
-
-	pipe := c.client.Pipeline()
-	pipe.HSet(ctx, c.key, field, buf.Bytes())
-	pipe.Expire(ctx, c.key, GameLogCacheTTL)
-	_, _ = pipe.Exec(ctx)
-}
-
-// processPlayerGameLogForDate reads a player's game log and updates stats for matching games.
-func processPlayerGameLogForDate(
-	ctx context.Context,
-	repos *store.Repos,
-	gameLogCache *gameLogCache,
-	queries PlayerGameLogUpdater,
-	playerID int64,
-	season int,
-	gameIDs map[int64]bool,
-) (updated int, cacheHit bool, errors []string) {
-	pid := nhl.PlayerID(playerID)
-
-	// Try both regular season and playoffs
-	gameTypes := []int{nhl.GameTypeRegularSeason.ToInt(), nhl.GameTypePlayoffs.ToInt()}
-
-	for _, gameType := range gameTypes {
-		// Try cache first
-		entries, hit := gameLogCache.get(ctx, playerID, gameType)
-		if hit {
-			cacheHit = true
-		} else {
-			// Load from file
-			if !repos.Player.GameLogExists(pid, season, gameType) {
+		for _, game := range schedule.Games {
+			if shouldSkipGame(game) {
 				continue
 			}
 
-			gameLog, err := repos.Player.GetGameLog(pid, season, gameType)
+			boxscoreRes := resource.Boxscore{Date: d, GameID: game.ID}
+			if !a.Storage.Exists(boxscoreRes.Path()) {
+				continue
+			}
+
+			boxscore, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, boxscoreRes)
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("player %d: read error: %v", playerID, err))
 				continue
 			}
 
-			entries = gameLog.GameLog
-
-			// Cache for future days
-			gameLogCache.set(ctx, playerID, gameType, entries)
+			collectPlayerIDs(boxscore, seen)
 		}
 
-		// Process only entries matching today's games
-		for _, entry := range entries {
-			gid := int64(entry.GameID)
-			if !gameIDs[gid] {
-				continue
-			}
-
-			var gwg, otg int16
-			if entry.GameWinningGoals != nil {
-				gwg = int16(*entry.GameWinningGoals)
-			}
-			if entry.OTGoals != nil {
-				otg = int16(*entry.OTGoals)
-			}
-
-			params := sqlcdb.UpdateSkaterGameLogStatsParams{
-				GameID:           gid,
-				PlayerID:         playerID,
-				PowerPlayPoints:  int16(entry.PowerPlayPoints),
-				GameWinningGoals: gwg,
-				OtGoals:          otg,
-			}
-
-			if err := queries.UpdateSkaterGameLogStats(ctx, params); err != nil {
-				log.Debug().Err(err).Int64("player", playerID).Int64("game", gid).Msg("Failed to update game log stats")
-				continue
-			}
-			updated++
-		}
+		activity.RecordHeartbeat(ctx, d.Format("2006-01-02"))
 	}
 
-	return updated, cacheHit, errors
+	ids := make([]int64, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// collectPlayerIDs extracts unique skater player IDs from a boxscore.
+func collectPlayerIDs(b *nhl.Boxscore, seen map[int64]struct{}) {
+	for _, teams := range []nhl.TeamPlayerStats{b.PlayerByGameStats.AwayTeam, b.PlayerByGameStats.HomeTeam} {
+		for _, s := range teams.Forwards {
+			seen[int64(s.PlayerID)] = struct{}{}
+		}
+		for _, s := range teams.Defense {
+			seen[int64(s.PlayerID)] = struct{}{}
+		}
+	}
 }

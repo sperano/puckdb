@@ -41,7 +41,7 @@ Each collector runs independently at its own interval.`,
 				&config.MetricsIntervalFlags,
 				&config.RedisFlags,
 				&config.PostgresFlags,
-				&config.GameIDCacheFlags,
+				&config.GobCacheFlags,
 				&config.SeasonRangeFlags,
 			)
 		},
@@ -54,7 +54,7 @@ Each collector runs independently at its own interval.`,
 		&config.SeasonRangeFlags,
 		&config.RedisFlags,
 		&config.PostgresFlags,
-		&config.GameIDCacheFlags,
+		&config.GobCacheFlags,
 		&config.MetricsIntervalFlags,
 	)
 	flags.Int(FlagMetricsPortLocal, config.DefaultMetricsPort, "Port for metrics endpoint")
@@ -77,7 +77,7 @@ func runMetrics(cmd *cobra.Command, _ []string) error {
 		Dur("db_interval_ms", dbInterval).
 		Msg("Starting metrics server")
 
-	metrics.SetBuildInfo(config.GetBuildNumberAsInt())
+	metrics.SetBuildInfo(config.BuildNumber)
 
 	// Start collectors with independent intervals
 	go runCacheCollector(ctx, cacheInterval)

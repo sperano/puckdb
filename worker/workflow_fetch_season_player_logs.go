@@ -6,122 +6,109 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/store"
-	"github.com/spf13/viper"
 	"go.temporal.io/sdk/workflow"
 )
 
 // FetchSeasonPlayerLogsInput contains parameters for the child workflow.
 type FetchSeasonPlayerLogsInput struct {
-	Season         SeasonInfo
+	Season         nhl.SeasonInfo
 	RefreshCurrent bool // If true, overwrite files for the current season
 }
 
+// GroupFetchSeasonPlayerLogs is the group index for per-season progress.
+const GroupFetchSeasonPlayerLogs = 0
+
+// NewFetchSeasonPlayerLogsReport creates the progress report for a single season.
+func NewFetchSeasonPlayerLogsReport(playerCount int) *ProgressReport {
+	return &ProgressReport{
+		Total: playerCount,
+		Groups: []ProgressGroup{
+			{Header: "Fetching player game logs...", Bars: []ProgressBar{{Label: "Players", Total: playerCount}}},
+		},
+	}
+}
+
 // FetchSeasonPlayerLogsWorkflow fetches player game logs for all players in a season.
-// It uses cached extraction from Redis (populated by parent workflow) or falls back to
-// extracting from boxscores if cache is empty.
+// It uses cached extraction from Redis (populated by ExtractBoxscorePlayersWorkflow).
 func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayerLogsInput) error {
 	logger := workflow.GetLogger(ctx)
 	season := input.Season
 
 	logger.Info("FetchSeasonPlayerLogsWorkflow started",
-		"startYear", season.StartYear(),
-		"startDate", season.StartDate.Format(config.DateFormat),
-		"endDate", season.EndDate.Format(config.DateFormat),
+		"startYear", season.ID.StartYear(),
+		"startDate", season.StandingsStart.Format(config.DateFormat),
+		"endDate", season.StandingsEnd.Format(config.DateFormat),
 		"refreshCurrent", input.RefreshCurrent)
 
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 
-	// Try to get cached extraction from Redis (populated by parent's counting phase)
-	var extraction BoxscoreExtractionResult
-	if err := workflow.ExecuteActivity(ctx, GetCachedExtractionActivity, season.StartYear()).Get(ctx, &extraction); err != nil {
+	// Load players from Redis via PlayerActivities
+	var playerAct *PlayerActivities
+	var players []store.BoxscorePlayer
+	if err := workflow.ExecuteActivity(ctx, playerAct.LoadSeasonBoxscorePlayers, season.ID.StartYear()).Get(ctx, &players); err != nil {
 		return err
 	}
 
-	// Fall back to extracting if cache was empty
-	if len(extraction.Players) == 0 {
-		logger.Info("Extraction cache miss, extracting from boxscores", "startYear", season.StartYear())
-		if err := workflow.ExecuteActivity(ctx, ExtractBoxscoreDataForSeasonActivity, season).Get(ctx, &extraction); err != nil {
-			return err
-		}
-	} else {
-		logger.Info("Using cached extraction", "startYear", season.StartYear(), "players", len(extraction.Players))
-	}
-
-	playerCount := len(extraction.Players)
+	playerCount := len(players)
 	if playerCount == 0 {
-		logger.Warn("No players found for season", "startYear", season.StartYear())
+		logger.Warn("No players found for season", "startYear", season.ID.StartYear())
 		return nil
 	}
 
-	// Convert BoxscorePlayer to player IDs and calculate batch count
-	playerIDs := extractPlayerIDs(extraction.Players)
-	batchSize := viper.GetInt(config.FlagPlayerLogsBatchSize)
-	if batchSize <= 0 {
-		batchSize = config.DefaultPlayerLogsBatchSize
-	}
-	numBatches := (len(playerIDs) + batchSize - 1) / batchSize
-	concurrency := viper.GetInt(config.FlagPlayerLogsBatchConcurrency)
-	if concurrency <= 0 {
-		concurrency = config.DefaultPlayerLogsBatchConcurrency
-	}
+	playerIDs := extractPlayerIDs(players)
+	batchSize := resolveConfigInt(nil, playerLogsBatchSizeParam, nil)
+	numBatches := batchCount(len(playerIDs), batchSize)
+	concurrency := resolveConfigInt(nil, playerLogsConcurrencyParam, nil)
 
-	// Track by player count (more intuitive than batch count)
-	tracker := NewProgressTracker(playerCount)
+	// Set up ReportTracker
+	tracker := NewReportTracker(NewFetchSeasonPlayerLogsReport(playerCount))
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
+	tracker.StartGroup(ctx, GroupFetchSeasonPlayerLogs)
 
-	logger.Info("Progress tracker initialized",
-		"total", tracker.progress.Total,
-		"playerCount", playerCount,
-		"numBatches", numBatches,
-		"batchSize", batchSize)
-
-	gameTypes := []int{nhl.GameTypeRegularSeason.ToInt(), nhl.GameTypePlayoffs.ToInt()}
-
-	logger.Info("Extracted players from boxscores",
-		"startYear", season.StartYear(),
+	logger.Info("Fetching player game logs",
+		"startYear", season.ID.StartYear(),
 		"playerCount", playerCount,
 		"batches", numBatches,
+		"batchSize", batchSize,
 		"concurrency", concurrency)
 
-	// Run batches concurrently
-	startYear := season.StartYear()
+	gameTypes := []int{nhl.GameTypeRegularSeason.ToInt(), nhl.GameTypePlayoffs.ToInt()}
+	startYear := season.ID.StartYear()
 	refreshCurrent := input.RefreshCurrent
 
-	startActivity := func(_ workflow.Context, batchIdx int) workflow.Future {
-		start := batchIdx * batchSize
-		end := start + batchSize
-		if end > playerCount {
-			end = playerCount
-		}
-		batch := playerIDs[start:end]
-
-		activityInput := DownloadPlayerGameLogsInput{
-			PlayerIDs:      batch,
-			StartYear:      startYear,
-			GameTypes:      gameTypes,
-			RefreshCurrent: refreshCurrent,
-		}
-		return workflow.ExecuteActivity(ctx, DownloadPlayerGameLogsActivity, activityInput)
-	}
-
-	handler := func(_ workflow.Context, batchIdx int, f workflow.Future) error {
-		var result DownloadPlayerGameLogsResult
-		if err := f.Get(ctx, &result); err != nil {
-			return err
-		}
-		tracker.IncrementBy(result.Players)
-		return nil
-	}
-
-	err := tracker.RunWorkerPoolForItemBy(ctx, numBatches, concurrency, 0, 0, startActivity, handler)
+	err := tracker.RunWorkerPool(ctx, GroupFetchSeasonPlayerLogs, 0, numBatches, concurrency,
+		func(_ workflow.Context, batchIdx int) workflow.Future {
+			batch := batchSlice(playerIDs, batchIdx, batchSize)
+			activityInput := DownloadPlayerGameLogsInput{
+				PlayerIDs:      batch,
+				StartSeason:    startYear,
+				GameTypes:      gameTypes,
+				RefreshCurrent: refreshCurrent,
+				TotalPlayers:   playerCount,
+			}
+			return workflow.ExecuteActivity(ctx, playerAct.DownloadPlayerGameLogsBatch, activityInput)
+		},
+		func(ctx workflow.Context, batchIdx int, f workflow.Future) error {
+			var result DownloadPlayerGameLogsResult
+			if err := f.Get(ctx, &result); err != nil {
+				return err
+			}
+			actualBatchSize := len(batchSlice(playerIDs, batchIdx, batchSize))
+			tracker.IncrementBarBy(ctx, GroupFetchSeasonPlayerLogs, 0, actualBatchSize-1) // -1 because RunWorkerPool already adds 1
+			return nil
+		})
 	if err != nil {
 		return err
 	}
 
+	tracker.CompleteGroup(ctx, GroupFetchSeasonPlayerLogs,
+		fmt.Sprintf("Fetched player logs for %d players in %s.",
+			playerCount, tracker.GetElapsed(ctx, GroupFetchSeasonPlayerLogs)))
+
 	logger.Info("FetchSeasonPlayerLogsWorkflow completed",
-		"startYear", season.StartYear(),
+		"startYear", season.ID.StartYear(),
 		"players", playerCount)
 
 	return nil

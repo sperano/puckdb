@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -98,7 +99,6 @@ func TestVerifyUnmatchedBatchImpl_EmptyPlayers(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 
@@ -107,7 +107,8 @@ func TestVerifyUnmatchedBatchImpl_EmptyPlayers(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		repos:       repos,
+		storage:     mem,
+		gobCache:    nil,
 		redisClient: redisClient,
 	}
 
@@ -125,7 +126,6 @@ func TestVerifyUnmatchedBatchImpl_AlreadyVerified(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 
@@ -134,7 +134,8 @@ func TestVerifyUnmatchedBatchImpl_AlreadyVerified(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		repos:       repos,
+		storage:     mem,
+		gobCache:    nil,
 		redisClient: redisClient,
 	}
 
@@ -159,7 +160,6 @@ func TestVerifyUnmatchedBatchImpl_PlayerNotFoundInNHL(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -177,7 +177,8 @@ func TestVerifyUnmatchedBatchImpl_PlayerNotFoundInNHL(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		repos:       repos,
+		storage:     mem,
+		gobCache:    nil,
 		redisClient: redisClient,
 	}
 
@@ -200,7 +201,6 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -228,7 +228,8 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		repos:       repos,
+		storage:     mem,
+		gobCache:    nil,
 		redisClient: redisClient,
 	}
 
@@ -251,7 +252,6 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithNHLGames(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -280,7 +280,8 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithNHLGames(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		repos:       repos,
+		storage:     mem,
+		gobCache:    nil,
 		redisClient: redisClient,
 	}
 
@@ -305,7 +306,6 @@ func TestVerifyUnmatchedBatchImpl_RedisLoadError(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -319,7 +319,8 @@ func TestVerifyUnmatchedBatchImpl_RedisLoadError(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		repos:       repos,
+		storage:     mem,
+		gobCache:    nil,
 		redisClient: redisClient,
 	}
 
@@ -341,7 +342,6 @@ func TestVerifyUnmatchedBatchImpl_SearchError(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -355,7 +355,8 @@ func TestVerifyUnmatchedBatchImpl_SearchError(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		repos:       repos,
+		storage:     mem,
+		gobCache:    nil,
 		redisClient: redisClient,
 	}
 
@@ -377,7 +378,6 @@ func TestVerifyUnmatchedBatchImpl_NameMismatchInSearch(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -394,7 +394,8 @@ func TestVerifyUnmatchedBatchImpl_NameMismatchInSearch(t *testing.T) {
 
 	deps := verifyDeps{
 		client:      client,
-		repos:       repos,
+		storage:     mem,
+		gobCache:    nil,
 		redisClient: redisClient,
 	}
 
@@ -429,7 +430,6 @@ func TestVerifyUnmatchedBatchImpl_CachedLandingUsed(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -457,11 +457,12 @@ func TestVerifyUnmatchedBatchImpl_CachedLandingUsed(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err, "landing must marshal successfully")
-	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
+	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	deps := verifyDeps{
 		client:      client,
-		repos:       repos,
+		storage:     mem,
+		gobCache:    nil,
 		redisClient: redisClient,
 	}
 

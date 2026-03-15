@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -168,22 +167,3 @@ func (m *MockFranchiseUpserter) UpsertFranchise(ctx context.Context, arg sqlcdb.
 	return args.Error(0)
 }
 
-// MockDayFetcher implements dayFetcher for testing.
-type MockDayFetcher struct {
-	mock.Mock
-}
-
-func (m *MockDayFetcher) FetchDailySchedule(ctx context.Context, day time.Time) error {
-	args := m.Called(ctx, day)
-	return args.Error(0)
-}
-
-func (m *MockDayFetcher) FetchRoster(ctx context.Context, leagueID, teamID int, day time.Time) error {
-	args := m.Called(ctx, leagueID, teamID, day)
-	return args.Error(0)
-}
-
-func (m *MockDayFetcher) FetchTeamSummary(ctx context.Context, leagueID, teamID int, day time.Time) error {
-	args := m.Called(ctx, leagueID, teamID, day)
-	return args.Error(0)
-}

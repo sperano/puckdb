@@ -1,11 +1,70 @@
 package store
 
 import (
+	"encoding/xml"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestFlexTimestamp_UnmarshalXML(t *testing.T) {
+	t.Parallel()
+
+	type wrapper struct {
+		XMLName xml.Name      `xml:"root"`
+		Value   FlexTimestamp `xml:"value"`
+	}
+
+	t.Run("unix epoch integer", func(t *testing.T) {
+		input := `<root><value>1081152249</value></root>`
+		var w wrapper
+		require.NoError(t, xml.Unmarshal([]byte(input), &w))
+		assert.Equal(t, FlexTimestamp(1081152249), w.Value)
+	})
+
+	t.Run("ISO 8601 datetime", func(t *testing.T) {
+		input := `<root><value>2003-10-05T14:55:00</value></root>`
+		var w wrapper
+		require.NoError(t, xml.Unmarshal([]byte(input), &w))
+		assert.Equal(t, FlexTimestamp(1065365700), w.Value)
+	})
+
+	t.Run("empty string", func(t *testing.T) {
+		input := `<root><value></value></root>`
+		var w wrapper
+		require.NoError(t, xml.Unmarshal([]byte(input), &w))
+		assert.Equal(t, FlexTimestamp(0), w.Value)
+	})
+
+	t.Run("invalid format", func(t *testing.T) {
+		input := `<root><value>not-a-timestamp</value></root>`
+		var w wrapper
+		err := xml.Unmarshal([]byte(input), &w)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "parse league_update_timestamp")
+	})
+}
+
+func TestLeagueUnmarshal_2003DraftTime(t *testing.T) {
+	t.Parallel()
+	// Minimal reproduction of the 2003 league XML that caused strconv.ParseInt failures.
+	input := `<fantasy_content>
+		<league>
+			<league_id>7539</league_id>
+			<league_update_timestamp>1081152249</league_update_timestamp>
+			<settings>
+				<draft_time>2003-10-05T14:55:00</draft_time>
+			</settings>
+		</league>
+	</fantasy_content>`
+
+	var content FantasyContent
+	require.NoError(t, xml.Unmarshal([]byte(input), &content))
+	assert.Equal(t, 7539, content.League.ID)
+	assert.Equal(t, FlexTimestamp(1081152249), content.League.LeagueUpdateTimestamp)
+	assert.Equal(t, FlexTimestamp(1065365700), content.League.Settings.DraftTime)
+}
 
 func TestPlayerName_Validate(t *testing.T) {
 	t.Parallel()

@@ -18,7 +18,7 @@ func TestFormatElapsed(t *testing.T) {
 		{
 			name:     "under one second",
 			duration: 500 * time.Millisecond,
-			expected: "0.5s",
+			expected: "500ms",
 		},
 		{
 			name:     "seconds",

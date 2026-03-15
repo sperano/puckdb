@@ -68,15 +68,15 @@ func TestIncDownload(t *testing.T) {
 		fileType string
 		result   string
 	}{
-		{"boxscore", "hit"},
-		{"schedule", "miss"},
-		{"standings", "error"},
+		{"boxscore", ResultHit},
+		{"schedule", ResultMiss},
+		{"standings", ResultError},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.fileType+"_"+tt.result, func(t *testing.T) {
 			assert.NotPanics(t, func() {
-				IncDownload(tt.fileType, tt.result)
+				LegacyIncDownload(tt.fileType, tt.result)
 			})
 		})
 	}

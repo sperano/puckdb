@@ -12,7 +12,6 @@ import (
 const (
 	resultFields         = "{ status failureReason }"
 	progressFieldsBasic  = "{ total completed message }"
-	progressFieldsFull   = "{ total completed message header completedHeader displayStyle items { id description completedDescription total completed started startedAt completedAt } }"
 	progressReportFields = "{ total completed message groups { header completedMsg bars { label current total started } startedAt completedAt } }"
 )
 
@@ -38,11 +37,11 @@ func (c *GraphQLClient) GetFetchSeasonsStatus(ctx context.Context) (*WorkflowSta
 		"fetchSeasonsResult", "fetchSeasonsProgress")
 }
 
-// GetFetchPlayerLogsStatus queries both workflow result and progress for player logs.
+// GetFetchPlayerLogsStatus queries both workflow result and progress (uses ProgressReport format)
 func (c *GraphQLClient) GetFetchPlayerLogsStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeWorkflowStatusQuery(ctx,
-		`query { fetchPlayerLogsResult `+resultFields+` fetchPlayerLogsProgress `+progressFieldsFull+` }`,
-		"fetchPlayerLogsResult", "fetchPlayerLogsProgress", nil)
+	return c.executeProgressReportQuery(ctx,
+		`query { fetchPlayerLogsResult `+resultFields+` fetchPlayerLogsProgress `+progressReportFields+` }`,
+		"fetchPlayerLogsResult", "fetchPlayerLogsProgress")
 }
 
 // GetFetchYahooPlayersStatus queries both workflow result and progress (uses ProgressReport format)
@@ -52,11 +51,11 @@ func (c *GraphQLClient) GetFetchYahooPlayersStatus(ctx context.Context) (*Workfl
 		"fetchYahooPlayersResult", "fetchYahooPlayersProgress")
 }
 
-// GetProcessPlayersStatus queries both workflow result and progress
+// GetProcessPlayersStatus queries both workflow result and progress (uses ProgressReport format)
 func (c *GraphQLClient) GetProcessPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeWorkflowStatusQuery(ctx,
-		`query { processPlayersResult `+resultFields+` processPlayersProgress `+progressFieldsFull+` }`,
-		"processPlayersResult", "processPlayersProgress", nil)
+	return c.executeProgressReportQuery(ctx,
+		`query { processPlayersResult `+resultFields+` processPlayersProgress `+progressReportFields+` }`,
+		"processPlayersResult", "processPlayersProgress")
 }
 
 // GetProcessPlayersResultData queries the process players workflow result data
@@ -83,9 +82,9 @@ func (c *GraphQLClient) GetProcessPlayersResultData(ctx context.Context) (*model
 
 // GetImportSeasonsStatus queries both workflow result and progress
 func (c *GraphQLClient) GetImportSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeWorkflowStatusQuery(ctx,
-		`query { importSeasonsResult `+resultFields+` importSeasonsProgress `+progressFieldsFull+` }`,
-		"importSeasonsResult", "importSeasonsProgress", nil)
+	return c.executeProgressReportQuery(ctx,
+		`query { importSeasonsResult `+resultFields+` importSeasonsProgress `+progressReportFields+` }`,
+		"importSeasonsResult", "importSeasonsProgress")
 }
 
 // GetInitializeStatus queries both workflow result and progress (uses ProgressReport format)
@@ -93,24 +92,6 @@ func (c *GraphQLClient) GetInitializeStatus(ctx context.Context) (*WorkflowStatu
 	return c.executeProgressReportQuery(ctx,
 		`query { initializeResult `+resultFields+` initializeProgress `+progressReportFields+` }`,
 		"initializeResult", "initializeProgress")
-}
-
-// GetInitializeResultData queries the initialize workflow result data
-func (c *GraphQLClient) GetInitializeResultData(ctx context.Context) (*model.InitializeResultData, error) {
-	const query = `query { initializeResultData { franchisesUpserted seasonsUpserted seasonTeamsUpserted }}`
-	resp, err := c.execute(ctx, query, nil)
-	if err != nil {
-		return nil, err
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(resp.Data, &raw); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
-	}
-	var result *model.InitializeResultData
-	if err := json.Unmarshal(raw["initializeResultData"], &result); err != nil {
-		return nil, fmt.Errorf("parse initializeResultData: %w", err)
-	}
-	return result, nil
 }
 
 // GetExtractBoxscorePlayersStatus queries both workflow result and progress (uses ProgressReport format)

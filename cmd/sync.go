@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -43,6 +44,7 @@ func cmdSync() *cobra.Command {
 		&config.SeasonRangeFlags,
 		&config.SeasonConcurrencyFlags,
 		&config.SyncSkipFlags,
+		&config.SpinnerFlags,
 	)
 	return cmd
 }
@@ -59,6 +61,7 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 		&config.SeasonRangeFlags,
 		&config.SeasonConcurrencyFlags,
 		&config.SyncSkipFlags,
+		&config.SpinnerFlags,
 	); err != nil {
 		return err
 	}
@@ -88,7 +91,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	client := NewGraphQLClient(apiAddr)
-	state := &syncState{client: client, current: workflowNone}
+	state := &syncState{client: client}
 	out := cmd.OutOrStdout()
 
 	ctx, cancel := context.WithCancel(cmd.Context())
@@ -99,36 +102,56 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	go func() {
 		<-sigChan
-		state.cancel()
 		cancel()
+		// Cancel active Temporal workflows after context is done.
+		// Must happen here (not in a defer) because workflowRunner.run()
+		// clears its workflow from state.current on return — by the time
+		// runSync's defers fire, the active list is already empty.
+		state.cancel()
 	}()
 	defer signal.Stop(sigChan)
 
-	// Step 1: Initialize reference data (franchises, seasons, league structure)
-	if !viper.GetBool(config.FlagSkipInit) {
-		if err := runInitialize(ctx, out, client, state); err != nil {
-			return fmt.Errorf("initialization failed: %w", err)
-		}
-	} else {
+	// Steps 1-3: Initialize + Yahoo players + Fetch seasons (in parallel)
+	var parallelRunners []workflowRunner
+
+	if viper.GetBool(config.FlagSkipInit) {
 		fmt.Println("- Skipping initialization.")
+	} else {
+		parallelRunners = append(parallelRunners, workflowRunner{
+			workflowType: workflowInitialize,
+			trigger:      func() (bool, error) { return client.Initialize(ctx) },
+			getStatus:    client.GetInitializeStatus,
+		})
 	}
 
-	// Step 2: Fetch Yahoo players
-	if !viper.GetBool(config.FlagSkipYahooPlayers) {
-		if err := runFetchYahooPlayers(ctx, out, client, state); err != nil {
-			return fmt.Errorf("fetching Yahoo! players failed: %w", err)
-		}
-	} else {
+	if viper.GetBool(config.FlagSkipYahooPlayers) {
 		fmt.Println("- Skipping Yahoo players fetch.")
+	} else {
+		parallelRunners = append(parallelRunners, workflowRunner{
+			workflowType: workflowYahooPlayers,
+			trigger:      func() (bool, error) { return client.FetchYahooPlayers(ctx) },
+			getStatus:    client.GetFetchYahooPlayersStatus,
+		})
 	}
 
-	// Step 3: Fetch seasons data
-	if !viper.GetBool(config.FlagSkipFetchSeasons) {
-		if err := runFetchSeasons(ctx, out, client, state); err != nil {
-			return fmt.Errorf("fetching seasons failed: %w", err)
-		}
-	} else {
+	if viper.GetBool(config.FlagSkipFetchSeasons) {
 		fmt.Println("- Skipping seasons fetch.")
+	} else {
+		parallelRunners = append(parallelRunners, workflowRunner{
+			workflowType: workflowFetchSeasons,
+			trigger:      func() (bool, error) { return client.FetchSeasons(ctx, buildSeasonsInput()) },
+			getStatus:    client.GetFetchSeasonsStatus,
+		})
+	}
+
+	if len(parallelRunners) == 1 {
+		if err := parallelRunners[0].run(ctx, out, state); err != nil {
+			return err
+		}
+	} else if len(parallelRunners) > 1 {
+		if err := runParallel(ctx, out, state, parallelRunners...); err != nil {
+			return err
+		}
 	}
 
 	// Step 4: Extract boxscore players to Redis
@@ -149,46 +172,40 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Println("- Skipping player landings fetch.")
 	}
 
+	// Step 6: Fetch player game logs for historical seasons
+	if !viper.GetBool(config.FlagSkipFetchPlayerLogs) {
+		if err := runFetchPlayerLogs(ctx, out, client, state); err != nil {
+			return fmt.Errorf("fetching player logs failed: %w", err)
+		}
+	} else {
+		fmt.Println("- Skipping player logs fetch.")
+	}
+
+	// Step 7: Process players (download + import) unless skipped
+	if !viper.GetBool(config.FlagSkipProcessPlayers) {
+		if err := runProcessPlayers(ctx, out, client, state); err != nil {
+			return fmt.Errorf("processing players failed: %w", err)
+		}
+		//resultData, err := client.GetProcessPlayersResultData(ctx)
+		//if err != nil {
+		//	log.Warn().Err(err).Msg("Failed to fetch process players result data")
+		//} else if resultData != nil {
+		//	printProcessPlayersResult(out, resultData)
+		//}
+	} else {
+		fmt.Println("- Skipping players processing.")
+	}
+
+	// Step 8: Import seasons (boxscores, game stories, Yahoo data, player game logs)
+	if !viper.GetBool(config.FlagSkipImportSeasons) {
+		if err := runImportSeasons(ctx, out, client, state); err != nil {
+			return fmt.Errorf("importing seasons failed: %w", err)
+		}
+	} else {
+		fmt.Println("- Skipping seasons import.")
+	}
+
 	fmt.Printf("✓ Sync completed in %s\n", formatElapsed(time.Since(start)))
-
-	/*
-		// Step 4: Fetch player game logs for historical seasons (unless skipped)
-		if !viper.GetBool(config.FlagSkipPlayerLogs) {
-			if err := runFetchPlayerLogs(ctx, out, client, state); err != nil {
-				return fmt.Errorf("fetching player logs failed: %w", err)
-			}
-		} else {
-			fmt.Println("- Skipping player logs fetch.")
-		}
-
-		// Step 5: Process players (download + import) unless skipped
-		if !viper.GetBool(config.FlagSkipProcessPlayers) {
-			if err := runProcessPlayers(ctx, out, client, state); err != nil {
-				return fmt.Errorf("processing players failed: %w", err)
-			}
-			// Fetch and print result data
-			_, err := client.GetProcessPlayersResultData(ctx)
-			if err != nil {
-				log.Warn().Err(err).Msg("Failed to fetch process players result data")
-				//} else if resultData != nil {
-				//	printProcessPlayersResult(out, resultData)
-			}
-		} else {
-			fmt.Println("- Skipping players processing.")
-		}
-
-		// Step 6: Import seasons (unless skipped)
-		if !viper.GetBool(config.FlagSkipImportSeasons) {
-			if err := runImportSeasons(ctx, out, client, state); err != nil {
-				return fmt.Errorf("importing seasons failed: %w", err)
-			}
-		} else {
-			fmt.Println("- Skipping seasons import.")
-		}
-
-		fmt.Printf("✓ Sync completed in %s\n", formatElapsed(time.Since(start)))
-
-	*/
 	return nil
 }
 
@@ -200,10 +217,12 @@ type workflowRunner struct {
 }
 
 func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState) error {
-	state.current = r.workflowType
+	state.setActive(r.workflowType)
+	defer state.clearActive(r.workflowType)
 
 	// Start spinner immediately so user sees feedback during trigger call
 	sp := newSpinner(out, "Starting...")
+	sp.SetColorEnabled(viper.GetBool(config.FlagColorSpinner))
 	sp.Start()
 
 	started, err := r.trigger()
@@ -227,6 +246,132 @@ func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState
 	}
 
 	return nil
+}
+
+// runParallel runs multiple workflows concurrently with a combined progress display.
+func runParallel(ctx context.Context, out io.Writer, state *syncState, runners ...workflowRunner) error {
+	// Mark all workflows as active
+	for _, r := range runners {
+		state.setActive(r.workflowType)
+	}
+	defer func() {
+		for _, r := range runners {
+			state.clearActive(r.workflowType)
+		}
+	}()
+
+	// Start spinner
+	sp := newSpinner(out, "Starting...")
+	sp.SetColorEnabled(viper.GetBool(config.FlagColorSpinner))
+	sp.Start()
+
+	// Trigger all workflows
+	for _, r := range runners {
+		started, err := r.trigger()
+		if err != nil {
+			sp.Cancel()
+			if ctx.Err() != nil {
+				return fmt.Errorf("workflow canceled by user")
+			}
+			return fmt.Errorf("failed to trigger workflow: %w", err)
+		}
+		if !started {
+			log.Warn().Msg("Workflow was not started (may already be running)")
+		}
+	}
+
+	// Collect status fetchers
+	fetchers := make([]statusFetcher, len(runners))
+	for i, r := range runners {
+		fetchers[i] = r.getStatus
+	}
+
+	// Monitor all workflows
+	if err := monitorWorkflows(ctx, sp, fetchers); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
+		}
+		return err
+	}
+
+	return nil
+}
+
+// monitorWorkflows polls multiple status endpoints and combines their display.
+func monitorWorkflows(ctx context.Context, sp *spinner, fetchers []statusFetcher) error {
+	time.Sleep(config.DefaultWorkflowStartupDelay)
+
+	consecutiveFailures := 0
+	done := make([]bool, len(fetchers))
+	statuses := make([]*WorkflowStatus, len(fetchers))
+
+	for {
+		allDone := true
+		var messages []string
+
+		for i, fetch := range fetchers {
+			if done[i] {
+				// Already completed, use cached final message
+				if statuses[i] != nil {
+					messages = append(messages, formatStatusMessage(statuses[i]))
+				}
+				continue
+			}
+
+			status, err := fetch(ctx)
+			if err != nil {
+				consecutiveFailures++
+				if consecutiveFailures >= config.MaxConsecutiveQueryFailures {
+					sp.Cancel()
+					return fmt.Errorf("workflow query failed %d times consecutively: %w", consecutiveFailures, err)
+				}
+				allDone = false
+				continue
+			}
+
+			consecutiveFailures = 0
+			statuses[i] = status
+			messages = append(messages, formatStatusMessage(status))
+
+			switch status.Result.Status {
+			case model.TemporalWorkflowStatusCompleted:
+				done[i] = true
+			case model.TemporalWorkflowStatusFailed:
+				sp.Cancel()
+				if status.Result.FailureReason != nil {
+					return fmt.Errorf("workflow failed: %s", *status.Result.FailureReason)
+				}
+				return fmt.Errorf("workflow failed")
+			case model.TemporalWorkflowStatusCanceled:
+				sp.Cancel()
+				return fmt.Errorf("workflow was canceled")
+			default:
+				allDone = false
+			}
+		}
+
+		// Combine all messages
+		combined := ""
+		for i, msg := range messages {
+			if i > 0 {
+				combined += "\n"
+			}
+			combined += msg
+		}
+		sp.SetMessage(combined)
+
+		if allDone {
+			sp.Stop()
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			sp.Cancel()
+			return ctx.Err()
+		case <-time.After(pollDelay(consecutiveFailures)):
+		}
+	}
 }
 
 func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
@@ -256,7 +401,7 @@ func runFetchSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, 
 func runExtractBoxscorePlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	return workflowRunner{
 		workflowType: workflowExtractBoxscorePlayers,
-		trigger:      func() (bool, error) { return client.ExtractBoxscorePlayers(ctx, buildExtractBoxscorePlayersInput()) },
+		trigger:      func() (bool, error) { return client.ExtractBoxscorePlayers(ctx, buildSeasonsInput()) },
 		getStatus:    client.GetExtractBoxscorePlayersStatus,
 	}.run(ctx, out, state)
 }
@@ -280,7 +425,7 @@ func runFetchPlayerLogs(ctx context.Context, out io.Writer, client *GraphQLClien
 func runProcessPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
 	return workflowRunner{
 		workflowType: workflowProcessPlayers,
-		trigger:      func() (bool, error) { return client.ProcessPlayers(ctx, buildSeasonsInput()) },
+		trigger:      func() (bool, error) { return client.ProcessPlayers(ctx, nil) },
 		getStatus:    client.GetProcessPlayersStatus,
 	}.run(ctx, out, state)
 }
@@ -293,13 +438,40 @@ func runImportSeasons(ctx context.Context, out io.Writer, client *GraphQLClient,
 	}.run(ctx, out, state)
 }
 
-// syncState tracks the current workflow for signal handling
+// syncState tracks the current workflow(s) for signal handling
 type syncState struct {
 	client  *GraphQLClient
-	current workflowType
+	current []workflowType
+	mu      sync.Mutex
+}
+
+func (s *syncState) setActive(wt workflowType) {
+	s.mu.Lock()
+	s.current = append(s.current, wt)
+	s.mu.Unlock()
+}
+
+func (s *syncState) clearActive(wt workflowType) {
+	s.mu.Lock()
+	for i, w := range s.current {
+		if w == wt {
+			s.current = append(s.current[:i], s.current[i+1:]...)
+			break
+		}
+	}
+	s.mu.Unlock()
 }
 
 func (s *syncState) cancel() {
+	s.mu.Lock()
+	active := make([]workflowType, len(s.current))
+	copy(active, s.current)
+	s.mu.Unlock()
+
+	if len(active) == 0 {
+		return
+	}
+
 	cancelCtx, cancel := context.WithTimeout(context.Background(), config.DefaultCancelTimeout)
 	defer cancel()
 
@@ -317,14 +489,16 @@ func (s *syncState) cancel() {
 		workflowProcessPlayers:         {"processPlayers", s.client.CancelProcessPlayers},
 		workflowImportSeasons:          {"importSeasons", s.client.CancelImportSeasons},
 	}
-	info, ok := cancelers[s.current]
-	if !ok {
-		return
-	}
 
-	fmt.Printf("\nCanceling %s workflow...\n", info.name)
-	if _, err := info.fn(cancelCtx); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed to cancel %s workflow\n", info.name)
+	for _, wt := range active {
+		info, ok := cancelers[wt]
+		if !ok {
+			continue
+		}
+		fmt.Printf("\nCanceling %s workflow...\n", info.name)
+		if _, err := info.fn(cancelCtx); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to cancel %s workflow\n", info.name)
+		}
 	}
 }
 

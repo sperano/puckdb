@@ -8,25 +8,17 @@ import (
 	"strconv"
 )
 
-type ExtractBoxscorePlayersInput struct {
-	StartSeason       *int `json:"startSeason,omitempty"`
-	EndSeason         *int `json:"endSeason,omitempty"`
-	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`
-	TTLMinutes        *int `json:"ttlMinutes,omitempty"`
-}
-
 type FetchPlayerLandingsInput struct {
 	BatchSize   *int `json:"batchSize,omitempty"`
 	Concurrency *int `json:"concurrency,omitempty"`
 }
 
-type InitializeResultData struct {
-	FranchisesUpserted  int `json:"franchisesUpserted"`
-	SeasonsUpserted     int `json:"seasonsUpserted"`
-	SeasonTeamsUpserted int `json:"seasonTeamsUpserted"`
+type Mutation struct {
 }
 
-type Mutation struct {
+type ProcessPlayersInput struct {
+	BatchSize   *int `json:"batchSize,omitempty"`
+	Concurrency *int `json:"concurrency,omitempty"`
 }
 
 type ProcessPlayersResultData struct {
@@ -80,7 +72,9 @@ type Query struct {
 }
 
 type SeasonsInput struct {
-	StartSeason       *int `json:"startSeason,omitempty"`
+	// Season start year (e.g., 2023 for the 2023-2024 season)
+	StartSeason *int `json:"startSeason,omitempty"`
+	// Season start year to filter up to (inclusive)
 	EndSeason         *int `json:"endSeason,omitempty"`
 	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`
 }

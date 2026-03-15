@@ -8,6 +8,9 @@ import (
 // formatElapsed formats an elapsed duration in a human-readable way for CLI output.
 // Shows seconds with decimals for <1min, then Xm Ys format for longer durations.
 func formatElapsed(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
 	if d < time.Minute {
 		return fmt.Sprintf("%.1fs", d.Seconds())
 	}

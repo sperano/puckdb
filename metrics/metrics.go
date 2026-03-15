@@ -1,14 +1,32 @@
 package metrics
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/core"
+)
+
+const healthCheckTimeout = 5 * time.Second
+
+// Download result constants for metrics labels.
+const (
+	ResultHit           = "hit"            // Data found in cache
+	ResultMiss          = "miss"           // Cache miss, fetched from source
+	ResultError         = "error"          // Error during fetch or cache read
+	ResultRedisHit      = "redis_hit"      // Data found in Redis cache
+	ResultFSHit         = "fs_hit"         // Data found in filesystem cache
+	ResultAPIFetch      = "api_fetch"      // Successfully fetched from API
+	ResultStaleFallback = "stale_fallback" // Used stale data after API failure
+	ResultMissing       = "missing"        // Resource confirmed not to exist (404)
+	ResultSkip          = "skip"           // Skipped processing (e.g., no games played)
 )
 
 // Separate registries for different components
@@ -139,10 +157,10 @@ var (
 		Help: "Unix timestamp of last database metrics update",
 	})
 
-	buildInfo = prometheus.NewGauge(prometheus.GaugeOpts{
+	buildInfo = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "puckdb_build_info",
-		Help: "Build number of the running binary",
-	})
+		Help: "Build version of the running binary",
+	}, []string{"version"})
 
 	dataPathFilesTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "puckdb_data_path_files_total",
@@ -206,10 +224,16 @@ func ObserveHTTP(api, method string, statusCode int, duration time.Duration, byt
 	}
 }
 
+// LegacyIncDownload increments the download counter
+// result should be "hit", "miss", or "error"
+func LegacyIncDownload(fileType, result string) {
+	downloadTotal.WithLabelValues(fileType, result).Inc()
+}
+
 // IncDownload increments the download counter
 // result should be "hit", "miss", or "error"
-func IncDownload(fileType, result string) {
-	downloadTotal.WithLabelValues(fileType, result).Inc()
+func IncDownload(fileType core.FileType, result string) {
+	downloadTotal.WithLabelValues(fileType.String(), result).Inc()
 }
 
 // ObserveActivityDuration records a Temporal activity's total duration
@@ -272,13 +296,32 @@ func StartServer(addr string) {
 	}
 }
 
-// StartWorkerServer starts the Prometheus metrics HTTP server for the worker
-func StartWorkerServer(addr string) {
+// StartWorkerServer starts the Prometheus metrics HTTP server for the worker.
+// dataPath is the filesystem path to check in the health endpoint (e.g. JuiceFS mount).
+func StartWorkerServer(addr, dataPath string) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", HandlerFor(WorkerRegistry))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		ctx, cancel := context.WithTimeout(r.Context(), healthCheckTimeout)
+		defer cancel()
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := os.Stat(dataPath)
+			done <- err
+		}()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				http.Error(w, "data path unhealthy: "+err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("ok"))
+		case <-ctx.Done():
+			http.Error(w, "data path timeout", http.StatusServiceUnavailable)
+		}
 	})
 
 	if err := http.ListenAndServe(addr, mux); err != nil {
@@ -341,9 +384,9 @@ func SetDBMetricsTimestamp() {
 	dbLastUpdated.Set(float64(time.Now().Unix()))
 }
 
-// SetBuildInfo records the build number as the metric value
-func SetBuildInfo(buildNumber int) {
-	buildInfo.Set(float64(buildNumber))
+// SetBuildInfo records the build version as a label with gauge value 1
+func SetBuildInfo(version string) {
+	buildInfo.WithLabelValues(version).Set(1)
 }
 
 // SetDataPathFileStats records file count and size for a file type

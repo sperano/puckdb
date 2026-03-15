@@ -1,7 +1,9 @@
 package graph
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
@@ -80,12 +82,12 @@ func (r *Resolver) fetchPlayerLogsResult(ctx context.Context) (*model.WorkflowRe
 	return r.getWorkflowResult(ctx, worker.WorkflowIDFetchPlayerLogs)
 }
 
-func (r *Resolver) fetchPlayerLogsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDFetchPlayerLogs, worker.WorkflowIDFetchSeasonPlayerLogs)
+func (r *Resolver) fetchPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.queryProgressReport(ctx, worker.WorkflowIDFetchPlayerLogs)
 }
 
 func (r *Resolver) fetchYahooPlayers(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDFetchYahooPlayers, worker.FetchYahooPlayersWorkflow, nil)
+	return r.executeWorkflow(ctx, worker.WorkflowIDFetchYahooPlayers, worker.FetchYahooPlayersWorkflow, (*worker.FetchYahooPlayersInput)(nil))
 }
 
 func (r *Resolver) cancelFetchYahooPlayers(ctx context.Context) (bool, error) {
@@ -103,13 +105,12 @@ func (r *Resolver) fetchYahooPlayersProgress(ctx context.Context) (*model.Progre
 	return r.queryProgressReport(ctx, worker.WorkflowIDFetchYahooPlayers)
 }
 
-func (r *Resolver) processPlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+func (r *Resolver) processPlayers(ctx context.Context, input *model.ProcessPlayersInput) (bool, error) {
 	// Convert GraphQL input to workflow input
 	workflowInput := &worker.ProcessPlayersInput{}
 	if input != nil {
-		workflowInput.StartSeason = input.StartSeason
-		workflowInput.EndSeason = input.EndSeason
-		workflowInput.SeasonConcurrency = input.SeasonConcurrency
+		workflowInput.BatchSize = input.BatchSize
+		workflowInput.Concurrency = input.Concurrency
 	}
 	return r.executeWorkflow(ctx, worker.WorkflowIDProcessPlayers, worker.ProcessPlayersWorkflow, workflowInput)
 }
@@ -125,47 +126,8 @@ func (r *Resolver) processPlayersResult(ctx context.Context) (*model.WorkflowRes
 	return r.getWorkflowResult(ctx, worker.WorkflowIDProcessPlayers)
 }
 
-func (r *Resolver) processPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	progress, err := r.queryWorkflowProgress(ctx, worker.WorkflowIDProcessPlayers, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if Phase 1 (extracting player IDs) is in progress - query child workflow
-	const phaseExtractIDs = 1
-	if progress != nil && len(progress.Items) > 0 {
-		for i, item := range progress.Items {
-			if item.ID == phaseExtractIDs && item.Started && (item.CompletedAt == nil || *item.CompletedAt == "") {
-				// Phase 1 in progress - query the child workflow for real progress
-				childProgress := r.queryChildWorkflowProgress(ctx, worker.WorkflowIDImportNHLTeamsAndPlayers)
-				if childProgress != nil {
-					progress.Items[i].Total = childProgress.Total
-					progress.Items[i].Completed = childProgress.Completed
-				}
-				break
-			}
-		}
-	}
-
-	return progress, nil
-}
-
-// queryChildWorkflowProgress queries a specific child workflow by ID for its progress.
-func (r *Resolver) queryChildWorkflowProgress(ctx context.Context, workflowID string) *worker.WorkflowProgress {
-	childCtx, cancel := context.WithTimeout(ctx, config.DefaultChildWorkflowTimeout)
-	defer cancel()
-
-	response, err := r.TemporalClient.QueryWorkflow(childCtx, workflowID, "", worker.ProgressQueryName)
-	if err != nil {
-		return nil
-	}
-
-	var childProgress worker.WorkflowProgress
-	if err := response.Get(&childProgress); err != nil {
-		return nil
-	}
-
-	return &childProgress
+func (r *Resolver) processPlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.queryProgressReport(ctx, worker.WorkflowIDProcessPlayers)
 }
 
 func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.ProcessPlayersResultData, error) {
@@ -219,20 +181,12 @@ func (r *Resolver) importSeasonsResult(ctx context.Context) (*model.WorkflowResu
 	return r.getWorkflowResult(ctx, worker.WorkflowIDImportSeasons)
 }
 
-func (r *Resolver) importSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
-	return r.queryWorkflowProgress(ctx, worker.WorkflowIDImportSeasons, worker.WorkflowIDImportSeason)
+func (r *Resolver) importSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.queryProgressReport(ctx, worker.WorkflowIDImportSeasons)
 }
 
-func (r *Resolver) extractBoxscorePlayers(ctx context.Context, input *model.ExtractBoxscorePlayersInput) (bool, error) {
-	// Convert GraphQL input to workflow input
-	workflowInput := &worker.ExtractBoxscorePlayersInput{}
-	if input != nil {
-		workflowInput.StartSeason = input.StartSeason
-		workflowInput.EndSeason = input.EndSeason
-		workflowInput.SeasonConcurrency = input.SeasonConcurrency
-		workflowInput.TTLMinutes = input.TTLMinutes
-	}
-	return r.executeWorkflow(ctx, worker.WorkflowIDExtractBoxscorePlayers, worker.ExtractBoxscorePlayersWorkflow, workflowInput)
+func (r *Resolver) extractBoxscorePlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return r.executeWorkflow(ctx, worker.WorkflowIDExtractBoxscorePlayers, worker.ExtractBoxscorePlayersWorkflow, input)
 }
 
 func (r *Resolver) cancelExtractBoxscorePlayers(ctx context.Context) (bool, error) {
@@ -298,21 +252,6 @@ func (r *Resolver) initializeProgress(ctx context.Context) (*model.ProgressRepor
 	return r.queryProgressReport(ctx, worker.WorkflowIDInitialize)
 }
 
-func (r *Resolver) initializeResultData(ctx context.Context) (*model.InitializeResultData, error) {
-	run := r.TemporalClient.GetWorkflow(ctx, worker.WorkflowIDInitialize, "")
-
-	var result worker.InitializeResult
-	if err := run.Get(ctx, &result); err != nil {
-		return nil, err
-	}
-
-	return &model.InitializeResultData{
-		FranchisesUpserted:  result.FranchisesUpserted,
-		SeasonsUpserted:     result.SeasonsUpserted,
-		SeasonTeamsUpserted: result.SeasonTeamsUpserted,
-	}, nil
-}
-
 func (r *Resolver) getWorkflowResult(ctx context.Context, workflowID string) (*model.WorkflowResult, error) {
 	resp, err := r.TemporalClient.DescribeWorkflowExecution(ctx, workflowID, "")
 	if err != nil {
@@ -338,117 +277,17 @@ func (r *Resolver) getWorkflowResult(ctx context.Context, workflowID string) (*m
 	return result, nil
 }
 
-// childWorkflowIDFunc maps an item ID (e.g., season start year) to a child workflow ID.
-type childWorkflowIDFunc func(itemID int) string
-
-func (r *Resolver) queryWorkflowProgress(ctx context.Context, workflowID string, childIDFunc childWorkflowIDFunc) (*model.WorkflowProgress, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, config.DefaultQueryTimeout)
-	defer cancel()
-
-	response, err := r.TemporalClient.QueryWorkflow(queryCtx, workflowID, "", worker.ProgressQueryName)
-	if err != nil {
-		// Workflow may not exist or not have query handler registered yet
-		return nil, err
-	}
-
-	var progress worker.WorkflowProgress
-	if err := response.Get(&progress); err != nil {
-		return nil, err
-	}
-
-	result := &model.WorkflowProgress{
-		Total:           progress.Total,
-		Completed:       progress.Completed,
-		Message:         ptrStringIfNotEmpty(progress.Message),
-		Header:          ptrStringIfNotEmpty(progress.Header),
-		CompletedHeader: ptrStringIfNotEmpty(progress.CompletedHeader),
-	}
-
-	// Convert display style if set
-	if progress.DisplayStyle != "" {
-		style := model.ProgressDisplayStyle(progress.DisplayStyle)
-		result.DisplayStyle = &style
-	}
-
-	if len(progress.Items) > 0 {
-		result.Items = make([]*model.ProgressItem, len(progress.Items))
-
-		// Identify items that need child workflow queries
-		type childQuery struct {
-			index  int
-			itemID int
-		}
-		var queries []childQuery
-
-		for i, item := range progress.Items {
-			result.Items[i] = &model.ProgressItem{
-				ID:                   item.ID,
-				Description:          ptrStringIfNotEmpty(item.Description),
-				CompletedDescription: ptrStringIfNotEmpty(item.CompletedDescription),
-				Total:                item.Total,
-				Completed:            item.Completed,
-				Started:              item.Started,
-				StartedAt:            ptrStringIfNotEmpty(item.StartedAt),
-				CompletedAt:          ptrStringIfNotEmpty(item.CompletedAt),
-			}
-
-			// Mark started items for parallel querying (only if we have a child ID function)
-			// Query if: incomplete (Completed < Total) OR deferred totals (Total == 0)
-			if childIDFunc != nil && item.Started && (item.Completed < item.Total || item.Total == 0) {
-				queries = append(queries, childQuery{index: i, itemID: item.ID})
-			}
-		}
-
-		// Query child workflows in parallel
-		if len(queries) > 0 {
-			type childResult struct {
-				index    int
-				progress *worker.WorkflowProgress
-			}
-			results := make(chan childResult, len(queries))
-
-			for _, q := range queries {
-				go func(idx, id int) {
-					results <- childResult{
-						index:    idx,
-						progress: r.queryChildItemProgress(ctx, childIDFunc, id),
-					}
-				}(q.index, q.itemID)
-			}
-
-			// Collect results - propagate both Total and Completed from children
-			for range queries {
-				cr := <-results
-				if cr.progress != nil {
-					if cr.progress.Total > 0 && cr.progress.Total != result.Items[cr.index].Total {
-						totalDiff := cr.progress.Total - result.Items[cr.index].Total
-						result.Items[cr.index].Total = cr.progress.Total
-						result.Total += totalDiff
-					}
-					if cr.progress.Completed > result.Items[cr.index].Completed {
-						diff := cr.progress.Completed - result.Items[cr.index].Completed
-						result.Items[cr.index].Completed = cr.progress.Completed
-						result.Completed += diff
-					}
-				}
-			}
-		}
-	}
-
-	return result, nil
-}
-
 func (r *Resolver) queryProgressReport(ctx context.Context, workflowID string) (*model.ProgressReport, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, config.DefaultQueryTimeout)
-	defer cancel()
-
-	response, err := r.TemporalClient.QueryWorkflow(queryCtx, workflowID, "", worker.ProgressReportQueryName)
+	data, err := cache.LoadProgressReport(ctx, r.RedisClient, workflowID)
 	if err != nil {
 		return nil, err
+	}
+	if data == nil {
+		return nil, nil
 	}
 
 	var progress worker.ProgressReport
-	if err := response.Get(&progress); err != nil {
+	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&progress); err != nil {
 		return nil, err
 	}
 
@@ -477,8 +316,9 @@ func (r *Resolver) queryProgressReport(ctx context.Context, workflowID string) (
 				Total:   b.Total,
 				Started: b.Started,
 			}
-			// If bar has a child workflow and isn't complete, queue it for querying
-			if b.ChildWorkflowID != "" && b.Current < b.Total {
+			// Queue all bars with child workflows — started state will be
+			// inferred from Redis child progress in mergeChildWorkflowProgress.
+			if b.ChildWorkflowID != "" {
 				childQueries = append(childQueries, childQuery{
 					groupIdx:   groupIdx,
 					barIdx:     j,
@@ -495,7 +335,7 @@ func (r *Resolver) queryProgressReport(ctx context.Context, workflowID string) (
 		})
 	}
 
-	// Query child workflows in parallel and merge progress
+	// Merge live child progress from Redis
 	if len(childQueries) > 0 {
 		r.mergeChildWorkflowProgress(ctx, result, childQueries)
 	}
@@ -503,17 +343,17 @@ func (r *Resolver) queryProgressReport(ctx context.Context, workflowID string) (
 	return result, nil
 }
 
-// mergeChildWorkflowProgress reads progress from Redis and updates bar progress.
-// Activities write progress to Redis keys like "fetch-season-1945" or "extract-season-1945".
+// mergeChildWorkflowProgress reads child workflow ProgressReports from Redis
+// and extracts the first bar's Current value as the child's day/player progress.
+// This is exactly-once safe because ProgressReports are saved via local activities
+// (workflow-side), not from retryable activities.
 func (r *Resolver) mergeChildWorkflowProgress(ctx context.Context, report *model.ProgressReport, queries []childQuery) {
 	if len(queries) == 0 {
 		return
 	}
 
-	// Collect all workflow IDs for batch read
 	var workflowIDs []string
 	queryMap := make(map[string][]childQuery)
-
 	for _, q := range queries {
 		if _, exists := queryMap[q.workflowID]; !exists {
 			workflowIDs = append(workflowIDs, q.workflowID)
@@ -521,22 +361,33 @@ func (r *Resolver) mergeChildWorkflowProgress(ctx context.Context, report *model
 		queryMap[q.workflowID] = append(queryMap[q.workflowID], q)
 	}
 
-	// Batch read from Redis
-	progressMap, err := cache.LoadProgressBatch(ctx, r.RedisClient, workflowIDs)
+	reportMap, err := cache.LoadProgressReportBatch(ctx, r.RedisClient, workflowIDs)
 	if err != nil {
 		return // Gracefully degrade - show parent-only progress
 	}
 
-	// Merge progress into bars
-	for workflowID, progress := range progressMap {
-		if progress == nil {
+	for workflowID, data := range reportMap {
+		var childReport worker.ProgressReport
+		if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&childReport); err != nil {
 			continue
 		}
+		// Extract the first group's first bar as the child's primary progress.
+		if len(childReport.Groups) == 0 || len(childReport.Groups[0].Bars) == 0 {
+			continue
+		}
+		childBar := childReport.Groups[0].Bars[0]
+
 		for _, q := range queryMap[workflowID] {
 			bar := report.Groups[q.groupIdx].Bars[q.barIdx]
-			if progress.Current > bar.Current {
-				diff := progress.Current - bar.Current
-				bar.Current = progress.Current
+			bar.Started = true
+
+			current := childBar.Current
+			if current > bar.Total {
+				current = bar.Total // Safety cap
+			}
+			if current > bar.Current {
+				diff := current - bar.Current
+				bar.Current = current
 				report.Completed += diff
 			}
 		}
@@ -550,26 +401,6 @@ type childQuery struct {
 	workflowID string
 }
 
-// queryChildItemProgress queries a child workflow for its progress.
-// For season-based workflows, itemID is the startYear.
-// Returns nil if the child workflow doesn't exist or can't be queried.
-func (r *Resolver) queryChildItemProgress(ctx context.Context, childIDFunc childWorkflowIDFunc, itemID int) *worker.WorkflowProgress {
-	childCtx, cancel := context.WithTimeout(ctx, config.DefaultChildWorkflowTimeout)
-	defer cancel()
-
-	childWorkflowID := childIDFunc(itemID)
-	response, err := r.TemporalClient.QueryWorkflow(childCtx, childWorkflowID, "", worker.ProgressQueryName)
-	if err != nil {
-		return nil
-	}
-
-	var childProgress worker.WorkflowProgress
-	if err := response.Get(&childProgress); err != nil {
-		return nil
-	}
-
-	return &childProgress
-}
 
 func ptrString(s string) *string {
 	return &s
@@ -585,7 +416,12 @@ func ptrStringIfNotEmpty(s string) *string {
 // executeWorkflow starts a workflow and returns success status.
 func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workflow interface{}, arg interface{}) (bool, error) {
 	opts := workflowOptions(workflowID)
-	_, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow, arg)
+	var err error
+	if arg == nil {
+		_, err = r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow)
+	} else {
+		_, err = r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow, arg)
+	}
 	return err == nil, err
 }
 

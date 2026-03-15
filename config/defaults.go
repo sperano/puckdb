@@ -49,8 +49,9 @@ const (
 
 // Download concurrency defaults
 const (
-	DefaultMaxSeasonConcurrency = 10
-	DefaultDayConcurrency       = 20
+	DefaultMaxSeasonConcurrency     = 10
+	DefaultDayConcurrency           = 20
+	DefaultGameDownloadConcurrency  = 8
 )
 
 // Yahoo player download defaults
@@ -78,15 +79,16 @@ const (
 
 // Player game logs download defaults
 const (
-	DefaultPlayerLogsBatchSize       = 10 // Players per batch (smaller = more frequent progress)
+	DefaultPlayerLogsBatchSize        = 10 // Players per batch (smaller = more frequent progress)
 	DefaultPlayerLogsBatchConcurrency = 10 // Concurrent batches
 )
 
 // Cache defaults
 const (
-	DefaultGameIDCacheTTL          = 3600
-	DefaultSeasonsManifestCacheTTL = 1 * time.Hour  // Redis TTL
-	DefaultSeasonsManifestStaleTTL = 24 * time.Hour // Filesystem staleness
+	DefaultGobCacheTTL                = 60
+	DefaultBoxscorePlayerCacheTTL     = 60
+	DefaultSeasonsManifestCacheTTL    = 1 * time.Hour  // Redis TTL
+	DefaultSeasonsManifestStaleTTL    = 24 * time.Hour // Filesystem staleness
 )
 
 // Redis defaults
@@ -124,13 +126,15 @@ const (
 const (
 	DefaultWorkflowStartupDelay = 500 * time.Millisecond
 	DefaultWorkflowPollInterval = 2 * time.Second
-	MaxConsecutiveQueryFailures = 3
+	MaxWorkflowPollBackoff      = 30 * time.Second
+	MaxConsecutiveQueryFailures  = 10
 )
 
 // UI defaults
 const (
-	DefaultSpinnerInterval = 125 * time.Millisecond
-	DefaultProgressBarWidth = 40
+	DefaultSpinnerInterval  = 125 * time.Millisecond
+	DefaultProgressBarWidth = 80 // Inner width of progress bar (adds 2 for brackets)
+	ProgressLabelAreaWidth  = 17 // Fixed width for label + x/y area (x/y right-aligned within)
 )
 
 // Database operations defaults
@@ -141,19 +145,19 @@ const (
 
 // HTTP/GraphQL server defaults
 const (
-	DefaultHTTPClientTimeout      = 60 * time.Second
-	DefaultWebsocketKeepAlive     = 10 * time.Second
-	DefaultCancelTimeout          = 10 * time.Second
-	DefaultCORSMaxAge             = 300
-	DefaultGraphQLQueryCacheSize  = 1000
-	DefaultGraphQLAPQCacheSize    = 100
-	DefaultViteDevServerOrigin    = "http://localhost:5173"
+	DefaultHTTPClientTimeout     = 60 * time.Second
+	DefaultWebsocketKeepAlive    = 10 * time.Second
+	DefaultCancelTimeout         = 10 * time.Second
+	DefaultCORSMaxAge            = 300
+	DefaultGraphQLQueryCacheSize = 1000
+	DefaultGraphQLAPQCacheSize   = 100
+	DefaultViteDevServerOrigin   = "http://localhost:5173"
 )
 
 // GraphQL resolver timeout defaults
 const (
 	DefaultQueryTimeout         = 30 * time.Second
-	DefaultChildWorkflowTimeout = 1 * time.Second
+	DefaultChildWorkflowTimeout = 5 * time.Second
 	DefaultWorkflowTaskTimeout  = 60 * time.Second
 )
 
@@ -170,9 +174,10 @@ const (
 
 // Temporal workflow defaults
 const (
-	DefaultWorkflowExecutionTimeout    = 3 * time.Hour
-	DefaultActivityStartToCloseTimeout = 3 * time.Minute
-	DefaultFetchDayActivityTimeout     = 10 * time.Minute
+	DefaultWorkflowExecutionTimeout    = 180 // minutes
+	DefaultActivityStartToCloseTimeout = 10  // minutes
+	DefaultFetchDayActivityTimeout     = 10  // minutes
+	DefaultActivityHeartbeatTimeout    = 60  // seconds
 	DefaultBackoffCoefficient          = 2.0
 	DefaultSeasonConcurrency           = 5
 )
@@ -191,7 +196,6 @@ const (
 // Build version constants
 const (
 	BuildNumberNotAvailable = "n/a"
-	BuildNumberInvalid      = -1
 )
 
 // Yahoo OAuth2 scopes

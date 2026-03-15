@@ -46,12 +46,6 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
-	InitializeResultData struct {
-		FranchisesUpserted  func(childComplexity int) int
-		SeasonTeamsUpserted func(childComplexity int) int
-		SeasonsUpserted     func(childComplexity int) int
-	}
-
 	Mutation struct {
 		CancelExtractBoxscorePlayers func(childComplexity int) int
 		CancelFetchPlayerLandings    func(childComplexity int) int
@@ -64,7 +58,7 @@ type ComplexityRoot struct {
 		ClearDatabase                func(childComplexity int) int
 		CreateDatabase               func(childComplexity int) int
 		DropDatabase                 func(childComplexity int) int
-		ExtractBoxscorePlayers       func(childComplexity int, input *model.ExtractBoxscorePlayersInput) int
+		ExtractBoxscorePlayers       func(childComplexity int, input *model.SeasonsInput) int
 		FetchPlayerLandings          func(childComplexity int, input *model.FetchPlayerLandingsInput) int
 		FetchPlayerLogs              func(childComplexity int, input *model.SeasonsInput) int
 		FetchSeasons                 func(childComplexity int, input *model.SeasonsInput) int
@@ -72,7 +66,7 @@ type ComplexityRoot struct {
 		FlushRedisDb                 func(childComplexity int) int
 		ImportSeasons                func(childComplexity int, input *model.SeasonsInput) int
 		Initialize                   func(childComplexity int) int
-		ProcessPlayers               func(childComplexity int, input *model.SeasonsInput) int
+		ProcessPlayers               func(childComplexity int, input *model.ProcessPlayersInput) int
 	}
 
 	ProcessPlayersResultData struct {
@@ -138,7 +132,6 @@ type ComplexityRoot struct {
 		ImportSeasonsResult            func(childComplexity int) int
 		InitializeProgress             func(childComplexity int) int
 		InitializeResult               func(childComplexity int) int
-		InitializeResultData           func(childComplexity int) int
 		ProcessPlayersProgress         func(childComplexity int) int
 		ProcessPlayersResult           func(childComplexity int) int
 		ProcessPlayersResultData       func(childComplexity int) int
@@ -182,31 +175,30 @@ type MutationResolver interface {
 	CancelFetchPlayerLogs(ctx context.Context) (bool, error)
 	FetchYahooPlayers(ctx context.Context) (bool, error)
 	CancelFetchYahooPlayers(ctx context.Context) (bool, error)
-	ProcessPlayers(ctx context.Context, input *model.SeasonsInput) (bool, error)
+	ProcessPlayers(ctx context.Context, input *model.ProcessPlayersInput) (bool, error)
 	CancelProcessPlayers(ctx context.Context) (bool, error)
 	ImportSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error)
 	CancelImportSeasons(ctx context.Context) (bool, error)
-	ExtractBoxscorePlayers(ctx context.Context, input *model.ExtractBoxscorePlayersInput) (bool, error)
+	ExtractBoxscorePlayers(ctx context.Context, input *model.SeasonsInput) (bool, error)
 	CancelExtractBoxscorePlayers(ctx context.Context) (bool, error)
 	FetchPlayerLandings(ctx context.Context, input *model.FetchPlayerLandingsInput) (bool, error)
 	CancelFetchPlayerLandings(ctx context.Context) (bool, error)
 }
 type QueryResolver interface {
-	BuildNumber(ctx context.Context) (int, error)
+	BuildNumber(ctx context.Context) (string, error)
 	InitializeResult(ctx context.Context) (*model.WorkflowResult, error)
 	InitializeProgress(ctx context.Context) (*model.ProgressReport, error)
-	InitializeResultData(ctx context.Context) (*model.InitializeResultData, error)
 	FetchSeasonsResult(ctx context.Context) (*model.WorkflowResult, error)
 	FetchSeasonsProgress(ctx context.Context) (*model.ProgressReport, error)
 	FetchPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error)
-	FetchPlayerLogsProgress(ctx context.Context) (*model.WorkflowProgress, error)
+	FetchPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error)
 	FetchYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
 	FetchYahooPlayersProgress(ctx context.Context) (*model.ProgressReport, error)
 	ProcessPlayersResult(ctx context.Context) (*model.WorkflowResult, error)
-	ProcessPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error)
+	ProcessPlayersProgress(ctx context.Context) (*model.ProgressReport, error)
 	ProcessPlayersResultData(ctx context.Context) (*model.ProcessPlayersResultData, error)
 	ImportSeasonsResult(ctx context.Context) (*model.WorkflowResult, error)
-	ImportSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error)
+	ImportSeasonsProgress(ctx context.Context) (*model.ProgressReport, error)
 	ExtractBoxscorePlayersResult(ctx context.Context) (*model.WorkflowResult, error)
 	ExtractBoxscorePlayersProgress(ctx context.Context) (*model.ProgressReport, error)
 	FetchPlayerLandingsResult(ctx context.Context) (*model.WorkflowResult, error)
@@ -231,27 +223,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e, 0, 0, nil}
 	_ = ec
 	switch typeName + "." + field {
-
-	case "InitializeResultData.franchisesUpserted":
-		if e.complexity.InitializeResultData.FranchisesUpserted == nil {
-			break
-		}
-
-		return e.complexity.InitializeResultData.FranchisesUpserted(childComplexity), true
-
-	case "InitializeResultData.seasonTeamsUpserted":
-		if e.complexity.InitializeResultData.SeasonTeamsUpserted == nil {
-			break
-		}
-
-		return e.complexity.InitializeResultData.SeasonTeamsUpserted(childComplexity), true
-
-	case "InitializeResultData.seasonsUpserted":
-		if e.complexity.InitializeResultData.SeasonsUpserted == nil {
-			break
-		}
-
-		return e.complexity.InitializeResultData.SeasonsUpserted(childComplexity), true
 
 	case "Mutation.cancelExtractBoxscorePlayers":
 		if e.complexity.Mutation.CancelExtractBoxscorePlayers == nil {
@@ -340,7 +311,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.ExtractBoxscorePlayers(childComplexity, args["input"].(*model.ExtractBoxscorePlayersInput)), true
+		return e.complexity.Mutation.ExtractBoxscorePlayers(childComplexity, args["input"].(*model.SeasonsInput)), true
 
 	case "Mutation.fetchPlayerLandings":
 		if e.complexity.Mutation.FetchPlayerLandings == nil {
@@ -421,7 +392,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.ProcessPlayers(childComplexity, args["input"].(*model.SeasonsInput)), true
+		return e.complexity.Mutation.ProcessPlayers(childComplexity, args["input"].(*model.ProcessPlayersInput)), true
 
 	case "ProcessPlayersResultData.cacheHits":
 		if e.complexity.ProcessPlayersResultData.CacheHits == nil {
@@ -752,13 +723,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.InitializeResult(childComplexity), true
 
-	case "Query.initializeResultData":
-		if e.complexity.Query.InitializeResultData == nil {
-			break
-		}
-
-		return e.complexity.Query.InitializeResultData(childComplexity), true
-
 	case "Query.processPlayersProgress":
 		if e.complexity.Query.ProcessPlayersProgress == nil {
 			break
@@ -893,8 +857,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
-		ec.unmarshalInputExtractBoxscorePlayersInput,
 		ec.unmarshalInputFetchPlayerLandingsInput,
+		ec.unmarshalInputProcessPlayersInput,
 		ec.unmarshalInputSeasonsInput,
 	)
 	first := true
@@ -1097,34 +1061,27 @@ type ProcessPlayersResultData {
 	errors: [String!]!
 }
 
-type InitializeResultData {
-	franchisesUpserted: Int!
-	seasonsUpserted: Int!
-	seasonTeamsUpserted: Int!
-}
-
 type Query {
-	buildNumber: Int!
+	buildNumber: String!
 
 	initializeResult: WorkflowResult!
 	initializeProgress: ProgressReport
-	initializeResultData: InitializeResultData
 
 	fetchSeasonsResult: WorkflowResult!
 	fetchSeasonsProgress: ProgressReport
 
 	fetchPlayerLogsResult: WorkflowResult!
-	fetchPlayerLogsProgress: WorkflowProgress
+	fetchPlayerLogsProgress: ProgressReport
 
 	fetchYahooPlayersResult: WorkflowResult!
 	fetchYahooPlayersProgress: ProgressReport
 
 	processPlayersResult: WorkflowResult!
-	processPlayersProgress: WorkflowProgress
+	processPlayersProgress: ProgressReport
 	processPlayersResultData: ProcessPlayersResultData
 
 	importSeasonsResult: WorkflowResult!
-	importSeasonsProgress: WorkflowProgress
+	importSeasonsProgress: ProgressReport
 
 	extractBoxscorePlayersResult: WorkflowResult!
 	extractBoxscorePlayersProgress: ProgressReport
@@ -1135,16 +1092,16 @@ type Query {
 
 
 input SeasonsInput {
+	"""Season start year (e.g., 2023 for the 2023-2024 season)"""
 	startSeason: Int
+	"""Season start year to filter up to (inclusive)"""
 	endSeason: Int
 	seasonConcurrency: Int
 }
 
-input ExtractBoxscorePlayersInput {
-	startSeason: Int
-	endSeason: Int
-	seasonConcurrency: Int
-	ttlMinutes: Int
+input ProcessPlayersInput {
+	batchSize: Int
+	concurrency: Int
 }
 
 input FetchPlayerLandingsInput {
@@ -1167,11 +1124,11 @@ type Mutation {
 	cancelFetchPlayerLogs: Boolean!
 	fetchYahooPlayers: Boolean!
 	cancelFetchYahooPlayers: Boolean!
-	processPlayers(input: SeasonsInput): Boolean!
+	processPlayers(input: ProcessPlayersInput): Boolean!
 	cancelProcessPlayers: Boolean!
 	importSeasons(input: SeasonsInput): Boolean!
 	cancelImportSeasons: Boolean!
-	extractBoxscorePlayers(input: ExtractBoxscorePlayersInput): Boolean!
+	extractBoxscorePlayers(input: SeasonsInput): Boolean!
 	cancelExtractBoxscorePlayers: Boolean!
 	fetchPlayerLandings(input: FetchPlayerLandingsInput): Boolean!
 	cancelFetchPlayerLandings: Boolean!
@@ -1197,22 +1154,22 @@ func (ec *executionContext) field_Mutation_extractBoxscorePlayers_args(ctx conte
 func (ec *executionContext) field_Mutation_extractBoxscorePlayers_argsInput(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (*model.ExtractBoxscorePlayersInput, error) {
+) (*model.SeasonsInput, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["input"]
 	if !ok {
-		var zeroVal *model.ExtractBoxscorePlayersInput
+		var zeroVal *model.SeasonsInput
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalOExtractBoxscorePlayersInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐExtractBoxscorePlayersInput(ctx, tmp)
+		return ec.unmarshalOSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonsInput(ctx, tmp)
 	}
 
-	var zeroVal *model.ExtractBoxscorePlayersInput
+	var zeroVal *model.SeasonsInput
 	return zeroVal, nil
 }
 
@@ -1357,22 +1314,22 @@ func (ec *executionContext) field_Mutation_processPlayers_args(ctx context.Conte
 func (ec *executionContext) field_Mutation_processPlayers_argsInput(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (*model.SeasonsInput, error) {
+) (*model.ProcessPlayersInput, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["input"]
 	if !ok {
-		var zeroVal *model.SeasonsInput
+		var zeroVal *model.ProcessPlayersInput
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalOSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonsInput(ctx, tmp)
+		return ec.unmarshalOProcessPlayersInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProcessPlayersInput(ctx, tmp)
 	}
 
-	var zeroVal *model.SeasonsInput
+	var zeroVal *model.ProcessPlayersInput
 	return zeroVal, nil
 }
 
@@ -1479,138 +1436,6 @@ func (ec *executionContext) field___Type_fields_argsIncludeDeprecated(
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
-
-func (ec *executionContext) _InitializeResultData_franchisesUpserted(ctx context.Context, field graphql.CollectedField, obj *model.InitializeResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_InitializeResultData_franchisesUpserted(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.FranchisesUpserted, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_InitializeResultData_franchisesUpserted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "InitializeResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _InitializeResultData_seasonsUpserted(ctx context.Context, field graphql.CollectedField, obj *model.InitializeResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_InitializeResultData_seasonsUpserted(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.SeasonsUpserted, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_InitializeResultData_seasonsUpserted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "InitializeResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _InitializeResultData_seasonTeamsUpserted(ctx context.Context, field graphql.CollectedField, obj *model.InitializeResultData) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_InitializeResultData_seasonTeamsUpserted(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.SeasonTeamsUpserted, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_InitializeResultData_seasonTeamsUpserted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "InitializeResultData",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
 
 func (ec *executionContext) _Mutation_clearDatabase(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_clearDatabase(ctx, field)
@@ -2176,7 +2001,7 @@ func (ec *executionContext) _Mutation_processPlayers(ctx context.Context, field 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ProcessPlayers(rctx, fc.Args["input"].(*model.SeasonsInput))
+		return ec.resolvers.Mutation().ProcessPlayers(rctx, fc.Args["input"].(*model.ProcessPlayersInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2374,7 +2199,7 @@ func (ec *executionContext) _Mutation_extractBoxscorePlayers(ctx context.Context
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ExtractBoxscorePlayers(rctx, fc.Args["input"].(*model.ExtractBoxscorePlayersInput))
+		return ec.resolvers.Mutation().ExtractBoxscorePlayers(rctx, fc.Args["input"].(*model.SeasonsInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -4010,9 +3835,9 @@ func (ec *executionContext) _Query_buildNumber(ctx context.Context, field graphq
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(string)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_buildNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -4022,7 +3847,7 @@ func (ec *executionContext) fieldContext_Query_buildNumber(_ context.Context, fi
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -4124,55 +3949,6 @@ func (ec *executionContext) fieldContext_Query_initializeProgress(_ context.Cont
 				return ec.fieldContext_ProgressReport_groups(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ProgressReport", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_initializeResultData(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_initializeResultData(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().InitializeResultData(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.InitializeResultData)
-	fc.Result = res
-	return ec.marshalOInitializeResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐInitializeResultData(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_initializeResultData(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "franchisesUpserted":
-				return ec.fieldContext_InitializeResultData_franchisesUpserted(ctx, field)
-			case "seasonsUpserted":
-				return ec.fieldContext_InitializeResultData_seasonsUpserted(ctx, field)
-			case "seasonTeamsUpserted":
-				return ec.fieldContext_InitializeResultData_seasonTeamsUpserted(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type InitializeResultData", field.Name)
 		},
 	}
 	return fc, nil
@@ -4352,9 +4128,9 @@ func (ec *executionContext) _Query_fetchPlayerLogsProgress(ctx context.Context, 
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*model.WorkflowProgress)
+	res := resTmp.(*model.ProgressReport)
 	fc.Result = res
-	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
+	return ec.marshalOProgressReport2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressReport(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_fetchPlayerLogsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -4366,21 +4142,15 @@ func (ec *executionContext) fieldContext_Query_fetchPlayerLogsProgress(_ context
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "total":
-				return ec.fieldContext_WorkflowProgress_total(ctx, field)
+				return ec.fieldContext_ProgressReport_total(ctx, field)
 			case "completed":
-				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+				return ec.fieldContext_ProgressReport_completed(ctx, field)
 			case "message":
-				return ec.fieldContext_WorkflowProgress_message(ctx, field)
-			case "header":
-				return ec.fieldContext_WorkflowProgress_header(ctx, field)
-			case "completedHeader":
-				return ec.fieldContext_WorkflowProgress_completedHeader(ctx, field)
-			case "items":
-				return ec.fieldContext_WorkflowProgress_items(ctx, field)
-			case "displayStyle":
-				return ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
+				return ec.fieldContext_ProgressReport_message(ctx, field)
+			case "groups":
+				return ec.fieldContext_ProgressReport_groups(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type ProgressReport", field.Name)
 		},
 	}
 	return fc, nil
@@ -4560,9 +4330,9 @@ func (ec *executionContext) _Query_processPlayersProgress(ctx context.Context, f
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*model.WorkflowProgress)
+	res := resTmp.(*model.ProgressReport)
 	fc.Result = res
-	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
+	return ec.marshalOProgressReport2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressReport(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_processPlayersProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -4574,21 +4344,15 @@ func (ec *executionContext) fieldContext_Query_processPlayersProgress(_ context.
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "total":
-				return ec.fieldContext_WorkflowProgress_total(ctx, field)
+				return ec.fieldContext_ProgressReport_total(ctx, field)
 			case "completed":
-				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+				return ec.fieldContext_ProgressReport_completed(ctx, field)
 			case "message":
-				return ec.fieldContext_WorkflowProgress_message(ctx, field)
-			case "header":
-				return ec.fieldContext_WorkflowProgress_header(ctx, field)
-			case "completedHeader":
-				return ec.fieldContext_WorkflowProgress_completedHeader(ctx, field)
-			case "items":
-				return ec.fieldContext_WorkflowProgress_items(ctx, field)
-			case "displayStyle":
-				return ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
+				return ec.fieldContext_ProgressReport_message(ctx, field)
+			case "groups":
+				return ec.fieldContext_ProgressReport_groups(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type ProgressReport", field.Name)
 		},
 	}
 	return fc, nil
@@ -4732,9 +4496,9 @@ func (ec *executionContext) _Query_importSeasonsProgress(ctx context.Context, fi
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*model.WorkflowProgress)
+	res := resTmp.(*model.ProgressReport)
 	fc.Result = res
-	return ec.marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx, field.Selections, res)
+	return ec.marshalOProgressReport2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressReport(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_importSeasonsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -4746,21 +4510,15 @@ func (ec *executionContext) fieldContext_Query_importSeasonsProgress(_ context.C
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "total":
-				return ec.fieldContext_WorkflowProgress_total(ctx, field)
+				return ec.fieldContext_ProgressReport_total(ctx, field)
 			case "completed":
-				return ec.fieldContext_WorkflowProgress_completed(ctx, field)
+				return ec.fieldContext_ProgressReport_completed(ctx, field)
 			case "message":
-				return ec.fieldContext_WorkflowProgress_message(ctx, field)
-			case "header":
-				return ec.fieldContext_WorkflowProgress_header(ctx, field)
-			case "completedHeader":
-				return ec.fieldContext_WorkflowProgress_completedHeader(ctx, field)
-			case "items":
-				return ec.fieldContext_WorkflowProgress_items(ctx, field)
-			case "displayStyle":
-				return ec.fieldContext_WorkflowProgress_displayStyle(ctx, field)
+				return ec.fieldContext_ProgressReport_message(ctx, field)
+			case "groups":
+				return ec.fieldContext_ProgressReport_groups(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkflowProgress", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type ProgressReport", field.Name)
 		},
 	}
 	return fc, nil
@@ -7530,56 +7288,42 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(_ context.Context
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputExtractBoxscorePlayersInput(ctx context.Context, obj interface{}) (model.ExtractBoxscorePlayersInput, error) {
-	var it model.ExtractBoxscorePlayersInput
+func (ec *executionContext) unmarshalInputFetchPlayerLandingsInput(ctx context.Context, obj interface{}) (model.FetchPlayerLandingsInput, error) {
+	var it model.FetchPlayerLandingsInput
 	asMap := map[string]interface{}{}
 	for k, v := range obj.(map[string]interface{}) {
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"startSeason", "endSeason", "seasonConcurrency", "ttlMinutes"}
+	fieldsInOrder := [...]string{"batchSize", "concurrency"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "startSeason":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startSeason"))
+		case "batchSize":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("batchSize"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.StartSeason = data
-		case "endSeason":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endSeason"))
+			it.BatchSize = data
+		case "concurrency":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("concurrency"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.EndSeason = data
-		case "seasonConcurrency":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("seasonConcurrency"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.SeasonConcurrency = data
-		case "ttlMinutes":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ttlMinutes"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TTLMinutes = data
+			it.Concurrency = data
 		}
 	}
 
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputFetchPlayerLandingsInput(ctx context.Context, obj interface{}) (model.FetchPlayerLandingsInput, error) {
-	var it model.FetchPlayerLandingsInput
+func (ec *executionContext) unmarshalInputProcessPlayersInput(ctx context.Context, obj interface{}) (model.ProcessPlayersInput, error) {
+	var it model.ProcessPlayersInput
 	asMap := map[string]interface{}{}
 	for k, v := range obj.(map[string]interface{}) {
 		asMap[k] = v
@@ -7660,55 +7404,6 @@ func (ec *executionContext) unmarshalInputSeasonsInput(ctx context.Context, obj 
 // endregion ************************** interface.gotpl ***************************
 
 // region    **************************** object.gotpl ****************************
-
-var initializeResultDataImplementors = []string{"InitializeResultData"}
-
-func (ec *executionContext) _InitializeResultData(ctx context.Context, sel ast.SelectionSet, obj *model.InitializeResultData) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, initializeResultDataImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("InitializeResultData")
-		case "franchisesUpserted":
-			out.Values[i] = ec._InitializeResultData_franchisesUpserted(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "seasonsUpserted":
-			out.Values[i] = ec._InitializeResultData_seasonsUpserted(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "seasonTeamsUpserted":
-			out.Values[i] = ec._InitializeResultData_seasonTeamsUpserted(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
 
 var mutationImplementors = []string{"Mutation"}
 
@@ -8277,25 +7972,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_initializeProgress(ctx, field)
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "initializeResultData":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_initializeResultData(ctx, field)
 				return res
 			}
 
@@ -9694,27 +9370,12 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) unmarshalOExtractBoxscorePlayersInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐExtractBoxscorePlayersInput(ctx context.Context, v interface{}) (*model.ExtractBoxscorePlayersInput, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := ec.unmarshalInputExtractBoxscorePlayersInput(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
 func (ec *executionContext) unmarshalOFetchPlayerLandingsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐFetchPlayerLandingsInput(ctx context.Context, v interface{}) (*model.FetchPlayerLandingsInput, error) {
 	if v == nil {
 		return nil, nil
 	}
 	res, err := ec.unmarshalInputFetchPlayerLandingsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalOInitializeResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐInitializeResultData(ctx context.Context, sel ast.SelectionSet, v *model.InitializeResultData) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return ec._InitializeResultData(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
@@ -9731,6 +9392,14 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	}
 	res := graphql.MarshalInt(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOProcessPlayersInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProcessPlayersInput(ctx context.Context, v interface{}) (*model.ProcessPlayersInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputProcessPlayersInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOProcessPlayersResultData2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProcessPlayersResultData(ctx context.Context, sel ast.SelectionSet, v *model.ProcessPlayersResultData) graphql.Marshaler {
@@ -9832,13 +9501,6 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	}
 	res := graphql.MarshalString(*v)
 	return res
-}
-
-func (ec *executionContext) marshalOWorkflowProgress2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowProgress(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowProgress) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return ec._WorkflowProgress(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

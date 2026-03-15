@@ -1,14 +1,10 @@
 package worker
 
 import (
-	"context"
 	"fmt"
-	"time"
 
-	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/config"
+	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/graph/model"
-	"github.com/spf13/viper"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -29,14 +25,6 @@ func WorkflowIDExtractSeason(startYear int) string {
 	return fmt.Sprintf("extract-season-%d", startYear)
 }
 
-// ExtractBoxscorePlayersInput contains parameters for the extract boxscore players workflow.
-type ExtractBoxscorePlayersInput struct {
-	StartSeason       *int
-	EndSeason         *int
-	SeasonConcurrency *int
-	TTLMinutes        *int // Redis TTL in minutes (default: 30)
-}
-
 // NewExtractBoxscorePlayersProgressReport creates the initial progress structure.
 // Bars are added dynamically once seasons are known.
 func NewExtractBoxscorePlayersProgressReport() *ProgressReport {
@@ -51,7 +39,7 @@ func NewExtractBoxscorePlayersProgressReport() *ProgressReport {
 // ExtractBoxscorePlayersWorkflow extracts unique players from boxscores for each season
 // and stores them in Redis. This enables downstream workflows to access player data
 // without re-extracting from files.
-func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *ExtractBoxscorePlayersInput) error {
+func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
 	// Register query handler immediately so progress queries work from workflow start
@@ -60,103 +48,57 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *ExtractBoxscore
 		return err
 	}
 
-	maxConcurrency := viper.GetInt(config.FlagMaxSeasonConcurrency)
-	if maxConcurrency <= 0 {
-		maxConcurrency = config.DefaultMaxSeasonConcurrency
+	var seasonOverride *int
+	if input != nil {
+		seasonOverride = input.SeasonConcurrency
 	}
+	concurrency := resolveConfigInt(logger, seasonConcurrencyParam, seasonOverride)
 
-	concurrency := config.DefaultSeasonConcurrency
-	if input != nil && input.SeasonConcurrency != nil && *input.SeasonConcurrency > 0 {
-		concurrency = *input.SeasonConcurrency
+	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
+	seasons, err := loadSeasonsManifest(ctx, logger, input)
+	if err != nil {
+		return err
 	}
-	if concurrency > maxConcurrency {
-		logger.Warn("Requested concurrency exceeds maximum, capping",
-			"requested", concurrency,
-			"max", maxConcurrency)
-		concurrency = maxConcurrency
-	}
-
-	// Determine TTL for Redis storage
-	ttl := cache.BoxscorePlayersTTL
-	if input != nil && input.TTLMinutes != nil && *input.TTLMinutes > 0 {
-		ttl = time.Duration(*input.TTLMinutes) * time.Minute
-	}
-
 	logger.Info("ExtractBoxscorePlayersWorkflow started",
 		"startSeason", input.StartSeason,
 		"endSeason", input.EndSeason,
-		"concurrency", concurrency,
-		"ttlMinutes", int(ttl.Minutes()))
-
-	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-
-	// Fetch seasons list
-	seasonsInput := buildSeasonsInputFromExtract(input)
-	var seasons []SeasonInfo
-	if err := workflow.ExecuteActivity(ctx, FetchSeasonsDataActivity, seasonsInput).Get(ctx, &seasons); err != nil {
-		return err
-	}
+		"concurrency", concurrency)
 
 	if len(seasons) == 0 {
 		logger.Info("No seasons to process")
 		return nil
 	}
 
-	// Clear stale progress from previous runs
-	workflowIDs := make([]string, len(seasons))
-	for i, s := range seasons {
-		workflowIDs[i] = WorkflowIDExtractSeason(s.StartYear())
-	}
-	if err := workflow.ExecuteActivity(ctx, ClearProgressActivity, workflowIDs).Get(ctx, nil); err != nil {
-		logger.Warn("Failed to clear progress", "error", err)
-	}
-
-	// Add one bar per season with day count as total
-	// Set ChildWorkflowID to the Redis key pattern so resolver can read progress
-	totalDays := 0
-	for _, season := range seasons {
-		days := countDaysInSeason(season)
-		tracker.report.Groups[GroupExtractBoxscorePlayers].Bars = append(
-			tracker.report.Groups[GroupExtractBoxscorePlayers].Bars,
-			ProgressBar{
-				Label:           season.Label(),
-				Total:           days,
-				ChildWorkflowID: WorkflowIDExtractSeason(season.StartYear()),
-			},
-		)
-		totalDays += days
-	}
-	tracker.report.Total = totalDays
-	tracker.StartGroup(ctx, GroupExtractBoxscorePlayers)
-
-	// Process seasons concurrently using worker pool (one bar per season)
-	err := tracker.RunWorkerPoolMultiBar(ctx, GroupExtractBoxscorePlayers, 0, len(seasons), concurrency,
-		func(_ workflow.Context, i int) workflow.Future {
-			return workflow.ExecuteActivity(ctx, ExtractAndSaveBoxscorePlayersActivity,
-				ExtractAndSaveInput{Season: seasons[i], TTL: ttl})
-		}, nil)
-	if err != nil {
+	// Phase 1: Extract boxscore players per season
+	var ba *BoxscoreActivities
+	if _, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
+		GroupIdx:    GroupExtractBoxscorePlayers,
+		Counter:     countDaysInSeason,
+		ChildIDFunc: WorkflowIDExtractSeason,
+		GroupLabel:  "Extracted players for",
+		CountLabel:  "boxscore reads",
+	}, func(_ workflow.Context, i int) workflow.Future {
+		return workflow.ExecuteActivity(ctx, ba.ExtractAndSaveBoxscorePlayers,
+			ExtractAndSaveInput{Season: seasons[i]})
+	}); err != nil {
 		return err
 	}
-
-	tracker.CompleteGroup(ctx, GroupExtractBoxscorePlayers,
-		fmt.Sprintf("Extracted players for %d seasons in %s.", len(seasons), tracker.GetElapsed(ctx, GroupExtractBoxscorePlayers)))
 
 	// Phase 2: Consolidate all seasons into one unique set
 	tracker.StartGroup(ctx, GroupConsolidatePlayers)
 
-	seasonIDs := make([]int, len(seasons))
+	seasonIDs := make([]nhl.Season, len(seasons))
 	for i, s := range seasons {
-		seasonIDs[i] = s.StartYear()
+		seasonIDs[i] = s.ID
 	}
 
 	var consolidateResult ConsolidatePlayersResult
-	consolidateInput := ConsolidatePlayersInput{Seasons: seasonIDs, TTL: ttl}
+	consolidateInput := ConsolidatePlayersInput{Seasons: seasonIDs}
 	if err := workflow.ExecuteActivity(ctx, ConsolidateBoxscorePlayersActivity, consolidateInput).Get(ctx, &consolidateResult); err != nil {
 		return err
 	}
 
-	tracker.IncrementBar(GroupConsolidatePlayers, 0)
+	tracker.IncrementBar(ctx, GroupConsolidatePlayers, 0)
 	tracker.CompleteGroup(ctx, GroupConsolidatePlayers,
 		fmt.Sprintf("Consolidated %d unique players from %d total in %s.",
 			consolidateResult.UniquePlayers, consolidateResult.TotalPlayers,
@@ -165,43 +107,5 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *ExtractBoxscore
 	logger.Info("ExtractBoxscorePlayersWorkflow completed",
 		"seasons", len(seasons),
 		"uniquePlayers", consolidateResult.UniquePlayers)
-	return nil
-}
-
-// buildSeasonsInputFromExtract converts ExtractBoxscorePlayersInput to SeasonsInput.
-func buildSeasonsInputFromExtract(input *ExtractBoxscorePlayersInput) *model.SeasonsInput {
-	if input == nil {
-		return nil
-	}
-	return &model.SeasonsInput{
-		StartSeason:       input.StartSeason,
-		EndSeason:         input.EndSeason,
-		SeasonConcurrency: input.SeasonConcurrency,
-	}
-}
-
-// ExtractAndSaveInput contains parameters for the ExtractAndSaveBoxscorePlayersActivity.
-type ExtractAndSaveInput struct {
-	Season SeasonInfo
-	TTL    time.Duration
-}
-
-// ExtractAndSaveBoxscorePlayersActivity extracts players from boxscores for a season
-// and saves them to Redis.
-func ExtractAndSaveBoxscorePlayersActivity(ctx context.Context, input ExtractAndSaveInput) error {
-	// Extract players from boxscores
-	result, err := ExtractBoxscoreDataForSeasonActivity(ctx, input.Season)
-	if err != nil {
-		return fmt.Errorf("extract boxscore data: %w", err)
-	}
-
-	// Save to Redis
-	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
-
-	if err := cache.SaveBoxscorePlayers(ctx, redisClient, input.Season.StartYear(), result.Players, input.TTL); err != nil {
-		return fmt.Errorf("save boxscore players to redis: %w", err)
-	}
-
 	return nil
 }

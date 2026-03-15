@@ -10,8 +10,10 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/store"
 )
@@ -32,16 +34,17 @@ type ProcessPlayerBatchResult struct {
 	Missing    int // 404 responses (cached for future runs)
 
 	// Import stats
-	Imported int      // Players imported to database
-	Matched  int      // Players matched with Yahoo IDs
-	Errors   []string // Error messages for failed players
+	Imported int              // Players imported to database
+	Matched  int              // Players matched with Yahoo IDs
+	Origins  core.OriginCounts // Tracks where player landings were read from
+	Errors   []string         // Error messages for failed players
 }
 
 // ProcessPlayerBatchActivity downloads player landing pages (if needed) and imports them to the database.
 // This combines DownloadPlayerLandingBatchActivity and ImportPlayerBatchActivity into a single pass.
 func ProcessPlayerBatchActivity(ctx context.Context, players []store.BoxscorePlayer) (ProcessPlayerBatchResult, error) {
-	repos := store.NewDefaultRepos()
-	nhlClient := newNHLClient()
+	storage := store.NewDefaultStorage()
+	nhlClient := NewNHLClient()
 
 	redisClient := cache.NewClient()
 	defer func() { _ = redisClient.Close() }()
@@ -51,27 +54,29 @@ func ProcessPlayerBatchActivity(ctx context.Context, players []store.BoxscorePla
 		return ProcessPlayerBatchResult{}, err
 	}
 	defer pool.Close()
-
 	deps := processDeps{
-		repos:     repos,
+		storage:   storage,
 		nhlClient: nhlClient,
 		redis:     redisClient,
+		gobCache:  cache.NewGobCache(redisClient),
 		queries:   database.NewQueries(pool),
 	}
-
 	return processPlayerBatchImpl(ctx, deps, players)
 }
 
 // processDeps holds dependencies for the combined process activity.
 type processDeps struct {
-	repos     *store.Repos
+	storage   store.Storage
 	nhlClient NHLClient
 	redis     cache.Client
+	gobCache  *cache.GobCache
 	queries   PlayerUpserter
 }
 
 func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []store.BoxscorePlayer) (ProcessPlayerBatchResult, error) {
-	result := ProcessPlayerBatchResult{}
+	result := ProcessPlayerBatchResult{
+		Origins: core.OriginCounts{},
+	}
 
 	if len(players) == 0 {
 		return result, nil
@@ -84,6 +89,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 	}
 
 	var matchedYahooIDs []store.YahooPlayerID
+	playerAct := &PlayerActivities{Storage: deps.storage, NHLClient: deps.nhlClient}
 
 	for _, p := range players {
 		select {
@@ -94,46 +100,44 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 
 		playerID := nhl.PlayerID(p.ID)
 
-		// Step 1: Download player landing (if not cached)
-		downloadStatus, err := ensurePlayerLandingCached(ctx, deps.repos, deps.nhlClient, playerID, p)
+		// Step 1: Ensure player landing is in storage (download from API if needed)
+		downloadStatus, err := playerAct.ensurePlayerLandingCached(ctx, playerID, p)
 		if err != nil {
 			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
 			return result, err
 		}
 
 		switch downloadStatus {
-		case playerLandingCached:
-			result.CacheHits++
-			metrics.IncDownload("PlayerLanding", "hit")
 		case playerLandingDownloaded:
 			result.Downloaded++
-			metrics.IncDownload("PlayerLanding", "miss")
+			result.Origins.Record(core.OriginRemoteNHLAPI)
+			metrics.LegacyIncDownload("PlayerLanding", metrics.ResultMiss)
 		case playerLandingMissing:
 			result.Missing++
-			metrics.IncDownload("PlayerLanding", "missing")
-			// Import missing player with minimal info from boxscore data
+			metrics.LegacyIncDownload("PlayerLanding", metrics.ResultMissing)
 			if err := importMissingPlayer(ctx, deps, p); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("player %d (missing): import error: %v", p.ID, err))
 			} else {
 				result.Imported++
 			}
 			continue
+		case playerLandingCached:
+			// File exists in storage — will be read via GobCache below
 		}
 
-		// Step 2: Import player to database
-		if !deps.repos.Player.LandingExists(playerID) {
-			// This shouldn't happen after successful download, but handle gracefully
-			result.Errors = append(result.Errors, fmt.Sprintf("player %d: file not found after download", p.ID))
-			continue
-		}
-
-		landing, err := deps.repos.Player.GetLanding(playerID)
+		// Step 2: Read player landing via GobCache (Redis gob → filesystem JSON)
+		landingRes := resource.PlayerLanding{PlayerID: playerID}
+		landing, origin, err := cache.ReadParsedCached[*nhl.PlayerLanding](ctx, deps.storage, deps.gobCache, landingRes)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("player %d: read error: %v", p.ID, err))
 			continue
 		}
+		// Only record origin for cache hits (downloads already recorded above)
+		if downloadStatus == playerLandingCached {
+			result.Origins.Record(origin)
+		}
 
-		// Match with Yahoo player
+		// Step 3: Match with Yahoo player
 		var teamAbbrev string
 		if landing.CurrentTeamAbbrev != nil {
 			teamAbbrev = *landing.CurrentTeamAbbrev
@@ -197,7 +201,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 	log.Info().
 		Int("batch_size", len(players)).
 		Int("downloaded", result.Downloaded).
-		Int("cache_hits", result.CacheHits).
+		Int("cache_hits", result.Origins.Total()-result.Downloaded).
 		Int("missing", result.Missing).
 		Int("imported", result.Imported).
 		Int("matched", result.Matched).

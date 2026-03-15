@@ -10,6 +10,7 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
 )
@@ -67,21 +68,21 @@ func fetchSeasonsFromNHL(ctx context.Context) ([]simpleSeason, error) {
 			continue
 		}
 
-		start, err := time.Parse(config.DateFormat, s.StandingsStart)
-		if err != nil {
-			log.Warn().Err(err).Int("season", startYear).Msg("Failed to parse standings start")
-			continue
-		}
-		end, err := time.Parse(config.DateFormat, s.StandingsEnd)
-		if err != nil {
-			log.Warn().Err(err).Int("season", startYear).Msg("Failed to parse standings end")
-			continue
-		}
+		//start, err := time.Parse(config.DateFormat, s.StandingsStart.Date())
+		//if err != nil {
+		//	log.Warn().Err(err).Int("season", startYear).Msg("Failed to parse standings start")
+		//	continue
+		//}
+		//end, err := time.Parse(config.DateFormat, s.StandingsEnd)
+		//if err != nil {
+		//	log.Warn().Err(err).Int("season", startYear).Msg("Failed to parse standings end")
+		//	continue
+		//}
 
 		result = append(result, simpleSeason{
 			startYear: startYear,
-			start:     start,
-			end:       end,
+			start:     s.StandingsStart.Time,
+			end:       s.StandingsEnd.Time,
 		})
 	}
 
@@ -114,14 +115,14 @@ func getAllMetrics(ctx context.Context, redisClient cache.Client) ([]cacheMetric
 		wg.Add(1)
 		go func(s simpleSeason) {
 			defer wg.Done()
-			repos := store.NewDefaultRepos()
-
+			storage := store.NewDefaultStorage()
+			gobCache := cache.NewGobCache(redisClient)
 			// Always check NHL API files
-			cacheData := checkNHLSeasonCache(context.Background(), repos, redisClient, s)
+			cacheData := checkNHLSeasonCache(context.Background(), storage, gobCache, s)
 
 			// If season is in Yahoo config, also check Yahoo fantasy files
 			if yahooCfg, ok := yahooConfig[s.StartYear()]; ok {
-				cacheData = append(cacheData, checkYahooSeasonCache(repos, s, yahooCfg)...)
+				cacheData = append(cacheData, checkYahooSeasonCache(storage, s, yahooCfg)...)
 			}
 
 			results <- seasonResult{stats: cacheData, err: nil, year: s.StartYear()}
@@ -145,13 +146,13 @@ func getAllMetrics(ctx context.Context, redisClient cache.Client) ([]cacheMetric
 }
 
 // checkNHLSeasonCache checks NHL API files (daily schedule, boxscores, play-by-play, shift charts)
-func checkNHLSeasonCache(ctx context.Context, repos *store.Repos, redisClient cache.Client, season simpleSeason) []cacheMetrics {
+func checkNHLSeasonCache(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season simpleSeason) []cacheMetrics {
 	cacheData := make([]cacheMetrics, 0)
 	seasonYear := season.StartYear()
 	daysInSeason := countDays(season.start, season.end)
 
 	// Count daily schedule files (1 per day)
-	dailyScheduleCount := countDailyScheduleFilesSimple(repos, season)
+	dailyScheduleCount := countDailyScheduleFilesSimple(storage, season)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
 		fileType:   store.FileTypeDailySchedule,
@@ -160,7 +161,7 @@ func checkNHLSeasonCache(ctx context.Context, repos *store.Repos, redisClient ca
 	})
 
 	// Count game data files (boxscore, play-by-play, shift chart)
-	gameFileCounts := countGameFilesSimple(ctx, repos, redisClient, season)
+	gameFileCounts := countGameFilesSimple(ctx, storage, gobCache, season)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
 		fileType:   store.FileTypeBoxscore,
@@ -190,13 +191,13 @@ func checkNHLSeasonCache(ctx context.Context, repos *store.Repos, redisClient ca
 }
 
 // checkYahooSeasonCache checks Yahoo fantasy files (leagues, teams, rosters, summaries)
-func checkYahooSeasonCache(repos *store.Repos, nhlSeason simpleSeason, yahooCfg config.Season) []cacheMetrics {
+func checkYahooSeasonCache(storage store.Storage, nhlSeason simpleSeason, yahooCfg config.Season) []cacheMetrics {
 	cacheData := make([]cacheMetrics, 0)
 	seasonYear := nhlSeason.startYear
 	daysInSeason := countDays(nhlSeason.start, nhlSeason.end)
 
 	// Count leagues
-	leagueCount := countLeagueFiles(repos, seasonYear, yahooCfg)
+	leagueCount := countLeagueFiles(storage, seasonYear, yahooCfg)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
 		fileType:   store.FileTypeLeague,
@@ -209,7 +210,7 @@ func checkYahooSeasonCache(repos *store.Repos, nhlSeason simpleSeason, yahooCfg 
 	for _, league := range yahooCfg.Leagues {
 		totalTeams += len(league.TeamIDs)
 	}
-	teamCount := countTeamFiles(repos, seasonYear, yahooCfg)
+	teamCount := countTeamFiles(storage, seasonYear, yahooCfg)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
 		fileType:   store.FileTypeTeam,
@@ -219,7 +220,7 @@ func checkYahooSeasonCache(repos *store.Repos, nhlSeason simpleSeason, yahooCfg 
 
 	// Count rosters (1 per team per day)
 	expectedRosters := totalTeams * daysInSeason
-	rosterCount := countRosterFiles(repos, nhlSeason, yahooCfg)
+	rosterCount := countRosterFiles(storage, nhlSeason, yahooCfg)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
 		fileType:   store.FileTypeRoster,
@@ -229,7 +230,7 @@ func checkYahooSeasonCache(repos *store.Repos, nhlSeason simpleSeason, yahooCfg 
 
 	// Count team summaries (1 per team per day)
 	expectedSummaries := totalTeams * daysInSeason
-	summaryCount := countTeamSummaryFiles(repos, nhlSeason, yahooCfg)
+	summaryCount := countTeamSummaryFiles(storage, nhlSeason, yahooCfg)
 	cacheData = append(cacheData, cacheMetrics{
 		seasonYear: seasonYear,
 		fileType:   store.FileTypeTeamSummary,
@@ -247,21 +248,21 @@ func countDays(start, end time.Time) int {
 	return int(end.Sub(start).Hours()/24) + 1
 }
 
-func countLeagueFiles(repos *store.Repos, seasonYear int, cfg config.Season) int {
+func countLeagueFiles(storage store.Storage, seasonYear int, cfg config.Season) int {
 	count := 0
 	for _, league := range cfg.Leagues {
-		if repos.Yahoo.LeagueExists(seasonYear, league.LeagueID) {
+		if storage.Exists(resource.League{Season: seasonYear, LeagueID: league.LeagueID}.Path()) {
 			count++
 		}
 	}
 	return count
 }
 
-func countTeamFiles(repos *store.Repos, seasonYear int, cfg config.Season) int {
+func countTeamFiles(storage store.Storage, seasonYear int, cfg config.Season) int {
 	count := 0
 	for _, league := range cfg.Leagues {
 		for _, teamID := range league.TeamIDs {
-			if repos.Yahoo.TeamExists(seasonYear, league.LeagueID, teamID) {
+			if storage.Exists(resource.Team{Season: seasonYear, LeagueID: league.LeagueID, TeamID: teamID}.Path()) {
 				count++
 			}
 		}
@@ -269,7 +270,7 @@ func countTeamFiles(repos *store.Repos, seasonYear int, cfg config.Season) int {
 	return count
 }
 
-func countRosterFiles(repos *store.Repos, nhlSeason simpleSeason, cfg config.Season) int {
+func countRosterFiles(storage store.Storage, nhlSeason simpleSeason, cfg config.Season) int {
 	count := 0
 	current := nhlSeason.start
 	end := nhlSeason.end
@@ -280,7 +281,7 @@ func countRosterFiles(repos *store.Repos, nhlSeason simpleSeason, cfg config.Sea
 	for !current.After(end) {
 		for _, league := range cfg.Leagues {
 			for _, teamID := range league.TeamIDs {
-				if repos.Yahoo.RosterExists(league.LeagueID, teamID, current) {
+				if storage.Exists(resource.Roster{LeagueID: league.LeagueID, TeamID: teamID, Date: current}.Path()) {
 					count++
 				}
 			}
@@ -290,7 +291,7 @@ func countRosterFiles(repos *store.Repos, nhlSeason simpleSeason, cfg config.Sea
 	return count
 }
 
-func countTeamSummaryFiles(repos *store.Repos, nhlSeason simpleSeason, cfg config.Season) int {
+func countTeamSummaryFiles(storage store.Storage, nhlSeason simpleSeason, cfg config.Season) int {
 	count := 0
 	current := nhlSeason.start
 	end := nhlSeason.end
@@ -301,7 +302,7 @@ func countTeamSummaryFiles(repos *store.Repos, nhlSeason simpleSeason, cfg confi
 	for !current.After(end) {
 		for _, league := range cfg.Leagues {
 			for _, teamID := range league.TeamIDs {
-				if repos.Yahoo.TeamSummaryExists(league.LeagueID, teamID, current) {
+				if storage.Exists(resource.TeamSummary{LeagueID: league.LeagueID, TeamID: teamID, Date: current}.Path()) {
 					count++
 				}
 			}
@@ -311,7 +312,7 @@ func countTeamSummaryFiles(repos *store.Repos, nhlSeason simpleSeason, cfg confi
 	return count
 }
 
-func countDailyScheduleFilesSimple(repos *store.Repos, season simpleSeason) int {
+func countDailyScheduleFilesSimple(storage store.Storage, season simpleSeason) int {
 	count := 0
 	current := season.start
 	end := season.end
@@ -320,7 +321,7 @@ func countDailyScheduleFilesSimple(repos *store.Repos, season simpleSeason) int 
 	}
 
 	for !current.After(end) {
-		if repos.Schedule.Exists(current) {
+		if storage.Exists(resource.DailySchedule{Date: current}.Path()) {
 			count++
 		}
 		current = current.AddDate(0, 0, 1)
@@ -337,7 +338,7 @@ type gameFileCounts struct {
 	gameStories   int
 }
 
-func countGameFilesSimple(ctx context.Context, repos *store.Repos, redisClient cache.Client, season simpleSeason) gameFileCounts {
+func countGameFilesSimple(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season simpleSeason) gameFileCounts {
 	counts := gameFileCounts{}
 	current := season.start
 	end := season.end
@@ -346,16 +347,22 @@ func countGameFilesSimple(ctx context.Context, repos *store.Repos, redisClient c
 	}
 
 	for !current.After(end) {
-		if !repos.Schedule.Exists(current) {
+		scheduleRes := resource.DailySchedule{Date: current}
+		if !storage.Exists(scheduleRes.Path()) {
 			current = current.AddDate(0, 0, 1)
 			continue
 		}
 
-		gameIDs, err := cache.GetGameIds(ctx, repos, redisClient, current)
+		schedule, _, err := cache.ReadParsedCached(ctx, storage, gobCache, scheduleRes)
 		if err != nil {
 			log.Warn().Err(err).Time("date", current).Msg("Error parsing daily-schedule file")
 			current = current.AddDate(0, 0, 1)
 			continue
+		}
+
+		gameIDs := make([]nhl.GameID, len(schedule.Games))
+		for i, game := range schedule.Games {
+			gameIDs[i] = game.ID
 		}
 
 		// Filter out preseason games
@@ -364,16 +371,16 @@ func countGameFilesSimple(ctx context.Context, repos *store.Repos, redisClient c
 		counts.expectedGames += len(gameIDs)
 
 		for _, gameID := range gameIDs {
-			if repos.Boxscore.Exists(current, gameID) {
+			if storage.Exists(resource.Boxscore{Date: current, GameID: gameID}.Path()) {
 				counts.boxscores++
 			}
-			if repos.PlayByPlay.Exists(current, gameID) {
+			if storage.Exists(resource.PlayByPlay{Date: current, GameID: gameID}.Path()) {
 				counts.playByPlay++
 			}
-			if repos.ShiftChart.Exists(current, gameID) {
+			if storage.Exists(resource.ShiftChart{Date: current, GameID: gameID}.Path()) {
 				counts.shiftCharts++
 			}
-			if repos.GameStory.Exists(current, gameID) {
+			if storage.Exists(resource.GameStory{Date: current, GameID: gameID}.Path()) {
 				counts.gameStories++
 			}
 		}

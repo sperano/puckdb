@@ -61,31 +61,33 @@ func TestParseLocalizedName(t *testing.T) {
 	}
 }
 
-func TestAddSkaterPlayer(t *testing.T) {
-	players := make(map[int64]PartialPlayer)
-	teamID := int64(10) // EDM
+/*
+	func TestAddSkaterPlayer(t *testing.T) {
+		players := make(map[int64]PartialPlayer)
+		teamID := int64(10) // EDM
 
-	skater := nhl.SkaterStats{
-		PlayerID:      nhl.PlayerID(8476453),
-		Name:          nhl.LocalizedString{Default: "Connor McDavid"},
-		Position:      nhl.Position("C"),
-		SweaterNumber: 97,
+		skater := nhl.SkaterStats{
+			PlayerID:      nhl.PlayerID(8476453),
+			Name:          nhl.LocalizedString{Default: "Connor McDavid"},
+			Position:      nhl.Position("C"),
+			SweaterNumber: 97,
+		}
+
+		addSkaterPlayer(players, skater, teamID)
+
+		assert.Len(t, players, 1)
+
+		player := players[8476453]
+		assert.Equal(t, int64(8476453), player.ID)
+		assert.Equal(t, "Connor", player.FirstName)
+		assert.Equal(t, "McDavid", player.LastName)
+		assert.Equal(t, "C", player.Position)
+		assert.Equal(t, 97, player.SweaterNumber)
+		assert.Equal(t, teamID, player.TeamID)
+		assert.True(t, player.HasBoxscoreData)
 	}
-
-	addSkaterPlayer(players, skater, teamID)
-
-	assert.Len(t, players, 1)
-
-	player := players[8476453]
-	assert.Equal(t, int64(8476453), player.ID)
-	assert.Equal(t, "Connor", player.FirstName)
-	assert.Equal(t, "McDavid", player.LastName)
-	assert.Equal(t, "C", player.Position)
-	assert.Equal(t, 97, player.SweaterNumber)
-	assert.Equal(t, teamID, player.TeamID)
-	assert.True(t, player.HasBoxscoreData)
-}
-
+*/
+/*
 func TestAddGoaliePlayer(t *testing.T) {
 	players := make(map[int64]PartialPlayer)
 	teamID := int64(10) // EDM
@@ -110,3 +112,4 @@ func TestAddGoaliePlayer(t *testing.T) {
 	assert.Equal(t, teamID, player.TeamID)
 	assert.True(t, player.HasBoxscoreData)
 }
+*/

@@ -6,7 +6,6 @@ package graph
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/generated"
@@ -74,7 +73,7 @@ func (r *mutationResolver) CancelFetchYahooPlayers(ctx context.Context) (bool, e
 }
 
 // ProcessPlayers is the resolver for the processPlayers field.
-func (r *mutationResolver) ProcessPlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+func (r *mutationResolver) ProcessPlayers(ctx context.Context, input *model.ProcessPlayersInput) (bool, error) {
 	return r.Resolver.processPlayers(ctx, input)
 }
 
@@ -94,7 +93,7 @@ func (r *mutationResolver) CancelImportSeasons(ctx context.Context) (bool, error
 }
 
 // ExtractBoxscorePlayers is the resolver for the extractBoxscorePlayers field.
-func (r *mutationResolver) ExtractBoxscorePlayers(ctx context.Context, input *model.ExtractBoxscorePlayersInput) (bool, error) {
+func (r *mutationResolver) ExtractBoxscorePlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
 	return r.Resolver.extractBoxscorePlayers(ctx, input)
 }
 
@@ -114,12 +113,9 @@ func (r *mutationResolver) CancelFetchPlayerLandings(ctx context.Context) (bool,
 }
 
 // BuildNumber is the resolver for the buildNumber field.
-func (r *queryResolver) BuildNumber(ctx context.Context) (int, error) {
+func (r *queryResolver) BuildNumber(ctx context.Context) (string, error) {
 	_ = ctx
-	if config.BuildNumber == "n/a" { // not always true
-		return 0, nil
-	}
-	return strconv.Atoi(config.BuildNumber)
+	return config.BuildNumber, nil
 }
 
 // InitializeResult is the resolver for the initializeResult field.
@@ -130,11 +126,6 @@ func (r *queryResolver) InitializeResult(ctx context.Context) (*model.WorkflowRe
 // InitializeProgress is the resolver for the initializeProgress field.
 func (r *queryResolver) InitializeProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.initializeProgress(ctx)
-}
-
-// InitializeResultData is the resolver for the initializeResultData field.
-func (r *queryResolver) InitializeResultData(ctx context.Context) (*model.InitializeResultData, error) {
-	return r.Resolver.initializeResultData(ctx)
 }
 
 // FetchSeasonsResult is the resolver for the fetchSeasonsResult field.
@@ -153,7 +144,7 @@ func (r *queryResolver) FetchPlayerLogsResult(ctx context.Context) (*model.Workf
 }
 
 // FetchPlayerLogsProgress is the resolver for the fetchPlayerLogsProgress field.
-func (r *queryResolver) FetchPlayerLogsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+func (r *queryResolver) FetchPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.fetchPlayerLogsProgress(ctx)
 }
 
@@ -173,7 +164,7 @@ func (r *queryResolver) ProcessPlayersResult(ctx context.Context) (*model.Workfl
 }
 
 // ProcessPlayersProgress is the resolver for the processPlayersProgress field.
-func (r *queryResolver) ProcessPlayersProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+func (r *queryResolver) ProcessPlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.processPlayersProgress(ctx)
 }
 
@@ -188,7 +179,7 @@ func (r *queryResolver) ImportSeasonsResult(ctx context.Context) (*model.Workflo
 }
 
 // ImportSeasonsProgress is the resolver for the importSeasonsProgress field.
-func (r *queryResolver) ImportSeasonsProgress(ctx context.Context) (*model.WorkflowProgress, error) {
+func (r *queryResolver) ImportSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.importSeasonsProgress(ctx)
 }
 

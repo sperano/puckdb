@@ -459,8 +459,8 @@ func TestFormatStatusMessage(t *testing.T) {
 					Header:    ptr("Processing"),
 				},
 			},
-			// Progress bar uses config.DefaultProgressBarWidth (40 chars)
-			want: "▶ Processing\n\x00 5/10 [████████████████████░░░░░░░░░░░░░░░░░░░░] 50%",
+			// 17-char label area (x/y right-aligned) + 80-char bar + percent
+			want: "▶ Processing\n\x00              5/10 [████████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 50%",
 		},
 	}
 

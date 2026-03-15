@@ -5,72 +5,61 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
-	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
 const WorkflowIDProcessPlayers = "process-players"
 
-// Phase IDs for process players workflow
+// Group indices for ProcessPlayers progress tracking.
 const (
-	phaseProcessExtractIDs    = 1
-	phaseProcessLoadYahoo     = 2
-	phaseProcessPlayers       = 3
-	phaseProcessVerifyUnmatch = 4
+	GroupLoadYahoo       = 0
+	GroupProcessPlayers  = 1
+	GroupVerifyUnmatched = 2
 )
 
+// Phase IDs for ContinueAsNew dispatch.
+const (
+	phaseLoadYahoo       = 1
+	phaseProcessPlayers  = 2
+	phaseVerifyUnmatched = 3
+)
 
-// ProcessPlayersInput combines download and import configuration.
+// ProcessPlayersInput contains parameters for the process players workflow.
 type ProcessPlayersInput struct {
-	// Season range for player extraction
-	StartSeason       *int
-	EndSeason         *int
-	SeasonConcurrency *int
-
-	// Processing config
-	BatchSize   *int // Players per batch activity (default: 50)
-	Concurrency *int // Parallel activities (default: 10)
+	BatchSize   *int // Players per batch activity
+	Concurrency *int // Parallel activities
 }
 
 // processPlayersInternalInput supports ContinueAsNew between phases.
 type processPlayersInternalInput struct {
-	// Original input params
-	StartSeason       *int
-	EndSeason         *int
-	SeasonConcurrency *int
-	BatchSize         int
-	Concurrency       int
+	BatchSize   int
+	Concurrency int
 
-	// Phase 1 result
+	// Player data (loaded from Redis at workflow start)
 	Players []store.BoxscorePlayer
 
-	// Phase 2 result (Yahoo pool metadata)
+	// Phase 1 result (Yahoo pool metadata)
 	YahooPoolResult *SaveYahooIDPoolResult
 
-	// Processing state
+	// Phase 2 ContinueAsNew state
 	StartIndex     int
 	TotalCompleted int
 	Phase          int
-	StartedAt      time.Time
 
 	// Aggregated results across ContinueAsNew
 	TotalDownloaded int
-	TotalCacheHits  int
 	TotalMissing    int
 	TotalImported   int
 	TotalMatched    int
 	AllErrors       []string
-
-	// Progress state preserved across ContinueAsNew
-	Phase1CompletedDesc string
-	Phase2CompletedDesc string
+	Origins         core.OriginCounts
 }
 
-// ProcessPlayersResult contains the final result of the unified workflow.
+// ProcessPlayersResult contains the final result of the workflow.
 type ProcessPlayersResult struct {
 	// Player counts
 	TotalPlayers     int
@@ -92,140 +81,33 @@ type ProcessPlayersResult struct {
 	Errors []string
 }
 
-// ProcessPlayersWorkflow extracts player IDs, downloads landing pages, and imports to database.
-// This combines DownloadPlayersWorkflow and ImportPlayersWorkflow into a single pass.
+// NewProcessPlayersProgressReport creates the initial progress structure.
+func NewProcessPlayersProgressReport(totalPlayers int) *ProgressReport {
+	return &ProgressReport{
+		Groups: []ProgressGroup{
+			{Header: "Loading Yahoo player pool...", Bars: []ProgressBar{{Label: "Yahoo", Total: 1}}},
+			{Header: "Processing players...", Bars: []ProgressBar{{Label: "Players", Total: totalPlayers}}},
+			{Header: "Verifying unmatched players...", Bars: []ProgressBar{{Label: "Unmatched", Total: 1}}},
+		},
+	}
+}
+
+// ProcessPlayersWorkflow loads boxscore players from Redis (extracted by ExtractBoxscorePlayersWorkflow),
+// downloads their landing pages, imports to database, and matches with Yahoo players.
 func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*ProcessPlayersResult, error) {
-	// Parse configuration - use viper config, allow input override
-	batchSize := viper.GetInt(config.FlagProcessPlayersBatchSize)
-	if input != nil && input.BatchSize != nil && *input.BatchSize > 0 {
-		batchSize = *input.BatchSize
-	}
-	concurrency := viper.GetInt(config.FlagProcessPlayersConcurrency)
-	if input != nil && input.Concurrency != nil && *input.Concurrency > 0 {
-		concurrency = *input.Concurrency
-	}
+	logger := workflow.GetLogger(ctx)
 
-	internalInput := &processPlayersInternalInput{
-		StartSeason:       nil,
-		EndSeason:         nil,
-		SeasonConcurrency: nil,
-		BatchSize:         batchSize,
-		Concurrency:       concurrency,
-		Phase:             phaseProcessExtractIDs,
-	}
+	// Parse configuration
+	var batchOverride, concurrencyOverride *int
 	if input != nil {
-		internalInput.StartSeason = input.StartSeason
-		internalInput.EndSeason = input.EndSeason
-		internalInput.SeasonConcurrency = input.SeasonConcurrency
+		batchOverride = input.BatchSize
+		concurrencyOverride = input.Concurrency
 	}
-
-	return processPlayersWorkflowImpl(ctx, internalInput)
-}
-
-// ProcessPlayersWorkflowContinue is the entry point for ContinueAsNew.
-func ProcessPlayersWorkflowContinue(ctx workflow.Context, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
-	return processPlayersWorkflowImpl(ctx, input)
-}
-
-func processPlayersWorkflowImpl(ctx workflow.Context, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
-	switch input.Phase {
-	case phaseProcessExtractIDs:
-		return runProcessPhase1ExtractIDs(ctx, input)
-	case phaseProcessLoadYahoo:
-		return runProcessPhase2LoadYahoo(ctx, input)
-	case phaseProcessPlayers:
-		return runProcessPhase3ProcessPlayers(ctx, input)
-	case phaseProcessVerifyUnmatch:
-		return runProcessPhase4VerifyUnmatched(ctx, input)
-	default:
-		return nil, fmt.Errorf("unknown phase: %d", input.Phase)
-	}
-}
-
-// runProcessPhase1ExtractIDs extracts player IDs from boxscores via child workflow.
-func runProcessPhase1ExtractIDs(ctx workflow.Context, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
-	logger := workflow.GetLogger(ctx)
-	startedAt := workflow.Now(ctx)
-
-	logger.Info("ProcessPlayersWorkflow Phase 1: extracting player IDs",
-		"startSeason", input.StartSeason,
-		"endSeason", input.EndSeason)
-
-	// Set up progress tracker
-	tracker := NewProgressTrackerWithPhases([]PhaseInfo{
-		{ID: phaseProcessExtractIDs, Description: "Extracting player IDs..."},
-		{ID: phaseProcessLoadYahoo, Description: "Loading Yahoo player pool..."},
-		{ID: phaseProcessPlayers, Description: "Processing players..."},
-		{ID: phaseProcessVerifyUnmatch, Description: "Verifying unmatched players..."},
-	})
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
-		return nil, err
-	}
-	tracker.MarkItemStarted(ctx, phaseProcessExtractIDs)
-
-	// Execute child workflow to extract players
-	childInput := &model.SeasonsInput{
-		StartSeason:       input.StartSeason,
-		EndSeason:         input.EndSeason,
-		SeasonConcurrency: input.SeasonConcurrency,
-	}
-
-	childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-		WorkflowID:           WorkflowIDImportNHLTeamsAndPlayers,
-		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING,
-	})
-
-	var result *ImportTeamsAndPlayersResult
-	if err := workflow.ExecuteChildWorkflow(childCtx, ImportNHLTeamsAndPlayersWorkflow, childInput).Get(ctx, &result); err != nil {
-		return nil, err
-	}
-
-	// Mark Phase 1 complete
-	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
-	phase1CompletedDesc := fmt.Sprintf("Extracted %d player IDs in %s.", len(result.Players), elapsed)
-	tracker.SetItemCompletedDescription(phaseProcessExtractIDs, phase1CompletedDesc)
-	tracker.MarkItemCompleted(ctx, phaseProcessExtractIDs)
-
-	logger.Info("Phase 1 complete, transitioning to Phase 2",
-		"total_unique_players", len(result.Players))
-
-	// ContinueAsNew into Phase 2
-	return nil, workflow.NewContinueAsNewError(ctx, ProcessPlayersWorkflowContinue,
-		&processPlayersInternalInput{
-			StartSeason:         input.StartSeason,
-			EndSeason:           input.EndSeason,
-			SeasonConcurrency:   input.SeasonConcurrency,
-			BatchSize:           input.BatchSize,
-			Concurrency:         input.Concurrency,
-			Players:             result.Players,
-			Phase:               phaseProcessLoadYahoo,
-			StartedAt:           startedAt,
-			Phase1CompletedDesc: phase1CompletedDesc,
-		})
-}
-
-// runProcessPhase2LoadYahoo loads Yahoo player pool into Redis.
-func runProcessPhase2LoadYahoo(ctx workflow.Context, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
-	logger := workflow.GetLogger(ctx)
-	startedAt := workflow.Now(ctx)
-
-	logger.Info("ProcessPlayersWorkflow Phase 2: loading Yahoo player pool")
-
-	// Set up progress tracker with Phase 1 already completed
-	tracker := NewProgressTrackerWithPhases([]PhaseInfo{
-		{ID: phaseProcessExtractIDs, Description: "Extracting player IDs...", CompletedDescription: input.Phase1CompletedDesc, Total: 1},
-		{ID: phaseProcessLoadYahoo, Description: "Loading Yahoo player pool..."},
-		{ID: phaseProcessPlayers, Description: "Processing players...", Total: len(input.Players)},
-		{ID: phaseProcessVerifyUnmatch, Description: "Verifying unmatched players..."},
-	})
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
-		return nil, err
-	}
-	tracker.MarkItemCompleted(ctx, phaseProcessExtractIDs)
-	tracker.MarkItemStarted(ctx, phaseProcessLoadYahoo)
+	batchSize := resolveConfigInt(nil, processPlayersBatchSizeParam, batchOverride)
+	concurrency := resolveConfigInt(logger, processPlayersConcurrencyParam, concurrencyOverride)
 
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 10 * time.Minute,
+		StartToCloseTimeout: 5 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second,
 			MaximumInterval:    time.Minute,
@@ -234,62 +116,127 @@ func runProcessPhase2LoadYahoo(ctx workflow.Context, input *processPlayersIntern
 		},
 	})
 
-	// Step 2a: List all Yahoo player files
+	// Load players from Redis (previously extracted by ExtractBoxscorePlayersWorkflow)
+	var playerAct *PlayerActivities
+	var players []store.BoxscorePlayer
+	if err := workflow.ExecuteActivity(ctx, playerAct.LoadAllBoxscorePlayers).Get(ctx, &players); err != nil {
+		return nil, fmt.Errorf("load boxscore players from redis: %w", err)
+	}
+
+	if len(players) == 0 {
+		logger.Info("No players to process")
+		return &ProcessPlayersResult{}, nil
+	}
+
+	logger.Info("ProcessPlayersWorkflow started",
+		"totalPlayers", len(players),
+		"batchSize", batchSize,
+		"concurrency", concurrency)
+
+	// Create and save progress tracker
+	tracker := NewReportTracker(NewProcessPlayersProgressReport(len(players)))
+	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+		return nil, err
+	}
+
+	// Run Phase 1 inline (no ContinueAsNew yet — it's fast)
+	return runPhaseLoadYahoo(ctx, tracker, &processPlayersInternalInput{
+		BatchSize:   batchSize,
+		Concurrency: concurrency,
+		Players:     players,
+		Phase:       phaseLoadYahoo,
+		Origins:     core.OriginCounts{},
+	})
+}
+
+// ProcessPlayersWorkflowContinue is the entry point for ContinueAsNew.
+func ProcessPlayersWorkflowContinue(ctx workflow.Context, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
+	// Load tracker from Redis (persisted by previous execution)
+	tracker, err := LoadReportTracker(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+		return nil, err
+	}
+
+	switch input.Phase {
+	case phaseProcessPlayers:
+		return runPhaseProcessPlayers(ctx, tracker, input)
+	case phaseVerifyUnmatched:
+		return runPhaseVerifyUnmatched(ctx, tracker, input)
+	default:
+		return nil, fmt.Errorf("unknown phase: %d", input.Phase)
+	}
+}
+
+// runPhaseLoadYahoo loads Yahoo player pool into Redis.
+func runPhaseLoadYahoo(ctx workflow.Context, tracker *ReportTracker, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
+	logger := workflow.GetLogger(ctx)
+
+	logger.Info("ProcessPlayersWorkflow Phase 1: loading Yahoo player pool")
+	tracker.StartGroup(ctx, GroupLoadYahoo)
+
+	// Step 1a: List all Yahoo player files
 	var yahooPlayerIDs []int
 	if err := workflow.ExecuteActivity(ctx, ListYahooPlayerFilesActivity).Get(ctx, &yahooPlayerIDs); err != nil {
-		logger.Error("Failed to list Yahoo player files", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("list yahoo player files: %w", err)
 	}
 	logger.Info("Listed Yahoo player files", "count", len(yahooPlayerIDs))
 
-	// Step 2b: Parse Yahoo players in batches
+	// Step 1b: Parse Yahoo players in batches with concurrency
 	var allYahooPlayers []store.YahooPlayer
-	if err := runYahooParseBatches(ctx, yahooPlayerIDs, input.BatchSize, input.Concurrency, &allYahooPlayers); err != nil {
-		logger.Error("Failed to parse Yahoo players", "error", err)
-		return nil, err
+	numBatches := batchCount(len(yahooPlayerIDs), input.BatchSize)
+
+	if err := tracker.RunWorkerPool(ctx, GroupLoadYahoo, 0, numBatches, input.Concurrency,
+		func(_ workflow.Context, batchIndex int) workflow.Future {
+			batch := batchSlice(yahooPlayerIDs, batchIndex, input.BatchSize)
+			return workflow.ExecuteActivity(ctx, ParseYahooPlayerBatchActivity, batch)
+		},
+		func(ctx workflow.Context, _ int, f workflow.Future) error {
+			var batchResult []store.YahooPlayer
+			if err := f.Get(ctx, &batchResult); err != nil {
+				return err
+			}
+			allYahooPlayers = append(allYahooPlayers, batchResult...)
+			return nil
+		}); err != nil {
+		return nil, fmt.Errorf("parse yahoo players: %w", err)
 	}
 	logger.Info("Parsed Yahoo players", "count", len(allYahooPlayers))
 
-	// Step 2c: Save all players to Redis
+	// Step 1c: Save all players to Redis
 	var saveResult *SaveYahooIDPoolResult
 	if err := workflow.ExecuteActivity(ctx, SaveYahooPlayersToRedisActivity, allYahooPlayers).Get(ctx, &saveResult); err != nil {
-		logger.Error("Failed to save Yahoo players to Redis", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("save yahoo players to redis: %w", err)
 	}
 	logger.Info("Saved Yahoo pool to Redis",
 		"total", saveResult.TotalPlayers,
 		"available", saveResult.AvailablePlayers,
 		"skipped_non_nhl", saveResult.SkippedNonNHL)
 
-	// Mark Phase 2 complete
-	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
-	phase2CompletedDesc := fmt.Sprintf("Loaded %d Yahoo players in %s.", saveResult.TotalPlayers, elapsed)
-	tracker.SetItemCompletedDescription(phaseProcessLoadYahoo, phase2CompletedDesc)
-	tracker.MarkItemCompleted(ctx, phaseProcessLoadYahoo)
+	tracker.CompleteGroup(ctx, GroupLoadYahoo,
+		fmt.Sprintf("Loaded %d Yahoo players in %s.",
+			saveResult.TotalPlayers, tracker.GetElapsed(ctx, GroupLoadYahoo)))
 
-	logger.Info("Phase 2 complete, transitioning to Phase 3")
+	// Start next group before ContinueAsNew so the spinner has an in-progress
+	// line to attach to (avoids "⠋ ✓ completed msg" rendering).
+	tracker.StartGroup(ctx, GroupProcessPlayers)
 
-	// ContinueAsNew into Phase 3
+	// ContinueAsNew into Phase 2
 	return nil, workflow.NewContinueAsNewError(ctx, ProcessPlayersWorkflowContinue,
 		&processPlayersInternalInput{
-			StartSeason:         input.StartSeason,
-			EndSeason:           input.EndSeason,
-			SeasonConcurrency:   input.SeasonConcurrency,
-			BatchSize:           input.BatchSize,
-			Concurrency:         input.Concurrency,
-			Players:             input.Players,
-			YahooPoolResult:     saveResult,
-			StartIndex:          0,
-			TotalCompleted:      0,
-			Phase:               phaseProcessPlayers,
-			StartedAt:           input.StartedAt,
-			Phase1CompletedDesc: input.Phase1CompletedDesc,
-			Phase2CompletedDesc: phase2CompletedDesc,
+			BatchSize:       input.BatchSize,
+			Concurrency:     input.Concurrency,
+			Players:         input.Players,
+			YahooPoolResult: saveResult,
+			Phase:           phaseProcessPlayers,
+			Origins:         core.OriginCounts{},
 		})
 }
 
-// runProcessPhase3ProcessPlayers downloads and imports players in batches.
-func runProcessPhase3ProcessPlayers(ctx workflow.Context, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
+// runPhaseProcessPlayers downloads and imports players in batches.
+func runPhaseProcessPlayers(ctx workflow.Context, tracker *ReportTracker, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	playersPerExec := viper.GetInt(config.FlagPlayerLandingPlayersPerExec)
@@ -304,16 +251,10 @@ func runProcessPhase3ProcessPlayers(ctx workflow.Context, input *processPlayersI
 		endIdx = totalPlayers
 	}
 
-	// Track start time for elapsed calculation
-	startedAt := input.StartedAt
-	if startedAt.IsZero() {
-		startedAt = workflow.Now(ctx)
-	}
-
 	playersThisExec := endIdx - startIdx
-	numBatches := (playersThisExec + input.BatchSize - 1) / input.BatchSize
+	numBatches := batchCount(playersThisExec, input.BatchSize)
 
-	logger.Info("ProcessPlayersWorkflow Phase 3: processing players",
+	logger.Info("ProcessPlayersWorkflow Phase 2: processing players",
 		"total_players", totalPlayers,
 		"start_index", startIdx,
 		"end_index", endIdx,
@@ -322,23 +263,7 @@ func runProcessPhase3ProcessPlayers(ctx workflow.Context, input *processPlayersI
 		"concurrency", input.Concurrency,
 		"batch_size", input.BatchSize)
 
-	// Set up progress tracker with Phases 1 and 2 already completed
-	tracker := NewProgressTrackerWithPhases([]PhaseInfo{
-		{ID: phaseProcessExtractIDs, Description: "Extracting player IDs...", CompletedDescription: input.Phase1CompletedDesc, Total: 1},
-		{ID: phaseProcessLoadYahoo, Description: "Loading Yahoo player pool...", CompletedDescription: input.Phase2CompletedDesc, Total: 1},
-		{ID: phaseProcessPlayers, Description: "Processing players...", Total: totalPlayers},
-		{ID: phaseProcessVerifyUnmatch, Description: "Verifying unmatched players..."},
-	})
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
-		return nil, err
-	}
-
-	tracker.MarkItemCompleted(ctx, phaseProcessExtractIDs)
-	tracker.MarkItemCompleted(ctx, phaseProcessLoadYahoo)
-	tracker.MarkItemStarted(ctx, phaseProcessPlayers)
-	tracker.IncrementItemBy(phaseProcessPlayers, input.TotalCompleted)
-
-	// Activity options
+	// Activity options for player processing
 	activityCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 5 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -349,9 +274,8 @@ func runProcessPhase3ProcessPlayers(ctx workflow.Context, input *processPlayersI
 		},
 	})
 
-	// Aggregate results
+	// Aggregate results from previous ContinueAsNew executions
 	totalDownloaded := input.TotalDownloaded
-	totalCacheHits := input.TotalCacheHits
 	totalMissing := input.TotalMissing
 	totalImported := input.TotalImported
 	totalMatched := input.TotalMatched
@@ -359,33 +283,38 @@ func runProcessPhase3ProcessPlayers(ctx workflow.Context, input *processPlayersI
 	if allErrors == nil {
 		allErrors = []string{}
 	}
-
-	// Run batches with concurrency control using worker pool
-	startActivity := func(ctx workflow.Context, batchIndex int) workflow.Future {
-		batchStart := startIdx + (batchIndex * input.BatchSize)
-		batchEnd := batchStart + input.BatchSize
-		if batchEnd > endIdx {
-			batchEnd = endIdx
-		}
-		batch := input.Players[batchStart:batchEnd]
-		return workflow.ExecuteActivity(activityCtx, ProcessPlayerBatchActivity, batch)
+	origins := input.Origins
+	if origins == nil {
+		origins = core.OriginCounts{}
 	}
 
-	// Collect results
-	var results []ProcessPlayerBatchResult
-	err := runProcessBatches(ctx, tracker, phaseProcessPlayers, numBatches, input.Concurrency, input.BatchSize, playersThisExec, startActivity, &results)
-	if err != nil {
+	// Run batches with concurrency control
+	window := input.Players[startIdx:endIdx]
+	if err := tracker.RunWorkerPoolBy(ctx, GroupProcessPlayers, 0, numBatches, input.Concurrency, input.BatchSize,
+		func(_ workflow.Context, batchIndex int) workflow.Future {
+			batch := batchSlice(window, batchIndex, input.BatchSize)
+			return workflow.ExecuteActivity(activityCtx, ProcessPlayerBatchActivity, batch)
+		},
+		func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
+			var result ProcessPlayerBatchResult
+			if err := f.Get(ctx, &result); err != nil {
+				return err
+			}
+			totalDownloaded += result.Downloaded
+			totalMissing += result.Missing
+			totalImported += result.Imported
+			totalMatched += result.Matched
+			allErrors = append(allErrors, result.Errors...)
+			origins.Add(result.Origins)
+
+			// Correct the increment: RunWorkerPoolBy adds batchSize, but last batch may be smaller
+			actualBatchSize := len(batchSlice(window, batchIndex, input.BatchSize))
+			if actualBatchSize < input.BatchSize {
+				tracker.IncrementBarBy(ctx, GroupProcessPlayers, 0, actualBatchSize-input.BatchSize)
+			}
+			return nil
+		}); err != nil {
 		return nil, err
-	}
-
-	// Aggregate batch results
-	for _, r := range results {
-		totalDownloaded += r.Downloaded
-		totalCacheHits += r.CacheHits
-		totalMissing += r.Missing
-		totalImported += r.Imported
-		totalMatched += r.Matched
-		allErrors = append(allErrors, r.Errors...)
 	}
 
 	// ContinueAsNew if more players remain
@@ -396,85 +325,62 @@ func runProcessPhase3ProcessPlayers(ctx workflow.Context, input *processPlayersI
 
 		return nil, workflow.NewContinueAsNewError(ctx, ProcessPlayersWorkflowContinue,
 			&processPlayersInternalInput{
-				StartSeason:         input.StartSeason,
-				EndSeason:           input.EndSeason,
-				SeasonConcurrency:   input.SeasonConcurrency,
-				BatchSize:           input.BatchSize,
-				Concurrency:         input.Concurrency,
-				Players:             input.Players,
-				YahooPoolResult:     input.YahooPoolResult,
-				StartIndex:          endIdx,
-				TotalCompleted:      input.TotalCompleted + playersThisExec,
-				Phase:               phaseProcessPlayers,
-				StartedAt:           startedAt,
-				TotalDownloaded:     totalDownloaded,
-				TotalCacheHits:      totalCacheHits,
-				TotalMissing:        totalMissing,
-				TotalImported:       totalImported,
-				TotalMatched:        totalMatched,
-				AllErrors:           allErrors,
-				Phase1CompletedDesc: input.Phase1CompletedDesc,
-				Phase2CompletedDesc: input.Phase2CompletedDesc,
+				BatchSize:       input.BatchSize,
+				Concurrency:     input.Concurrency,
+				Players:         input.Players,
+				YahooPoolResult: input.YahooPoolResult,
+				StartIndex:      endIdx,
+				TotalCompleted:  input.TotalCompleted + playersThisExec,
+				Phase:           phaseProcessPlayers,
+				TotalDownloaded: totalDownloaded,
+				TotalMissing:    totalMissing,
+				TotalImported:   totalImported,
+				TotalMatched:    totalMatched,
+				AllErrors:       allErrors,
+				Origins:         origins,
 			})
 	}
 
-	// Mark Phase 3 complete
-	elapsed := formatDuration(workflow.Now(ctx).Sub(startedAt))
-	tracker.SetItemCompletedDescription(phaseProcessPlayers,
-		fmt.Sprintf("Processed %d players (%d imported, %d matched) in %s.", totalPlayers, totalImported, totalMatched, elapsed))
-	tracker.MarkItemCompleted(ctx, phaseProcessPlayers)
+	// Phase complete
+	cacheHits := origins[core.OriginRedis] + origins[core.OriginFileSystem]
+	msg := fmt.Sprintf("Processed %d players (%d imported, %d matched) in %s.",
+		totalPlayers, totalImported, totalMatched, tracker.GetElapsed(ctx, GroupProcessPlayers))
+	msg = origins.AppendSummary(msg, "landing origins")
+	tracker.CompleteGroup(ctx, GroupProcessPlayers, msg)
 
-	logger.Info("Phase 3 complete, transitioning to Phase 4",
+	// Start next group before ContinueAsNew so the spinner has an in-progress
+	// line to attach to (avoids "⠋ ✓ completed msg" rendering).
+	tracker.StartGroup(ctx, GroupVerifyUnmatched)
+
+	logger.Info("Phase 2 complete",
 		"downloaded", totalDownloaded,
-		"cache_hits", totalCacheHits,
+		"cache_hits", cacheHits,
 		"missing", totalMissing,
 		"imported", totalImported,
 		"matched", totalMatched)
 
-	// ContinueAsNew into Phase 4
+	// ContinueAsNew into Phase 3
 	return nil, workflow.NewContinueAsNewError(ctx, ProcessPlayersWorkflowContinue,
 		&processPlayersInternalInput{
-			StartSeason:         input.StartSeason,
-			EndSeason:           input.EndSeason,
-			SeasonConcurrency:   input.SeasonConcurrency,
-			BatchSize:           input.BatchSize,
-			Concurrency:         input.Concurrency,
-			Players:             input.Players,
-			YahooPoolResult:     input.YahooPoolResult,
-			Phase:               phaseProcessVerifyUnmatch,
-			StartedAt:           startedAt,
-			TotalDownloaded:     totalDownloaded,
-			TotalCacheHits:      totalCacheHits,
-			TotalMissing:        totalMissing,
-			TotalImported:       totalImported,
-			TotalMatched:        totalMatched,
-			AllErrors:           allErrors,
-			Phase1CompletedDesc: input.Phase1CompletedDesc,
-			Phase2CompletedDesc: input.Phase2CompletedDesc,
+			BatchSize:       input.BatchSize,
+			Concurrency:     input.Concurrency,
+			Players:         input.Players,
+			YahooPoolResult: input.YahooPoolResult,
+			Phase:           phaseVerifyUnmatched,
+			TotalDownloaded: totalDownloaded,
+			TotalMissing:    totalMissing,
+			TotalImported:   totalImported,
+			TotalMatched:    totalMatched,
+			AllErrors:       allErrors,
+			Origins:         origins,
 		})
 }
 
-// runProcessPhase4VerifyUnmatched verifies unmatched Yahoo players.
-func runProcessPhase4VerifyUnmatched(ctx workflow.Context, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
+// runPhaseVerifyUnmatched verifies unmatched Yahoo players.
+func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *ReportTracker, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
 	logger := workflow.GetLogger(ctx)
 
-	logger.Info("ProcessPlayersWorkflow Phase 4: verifying unmatched players")
-
-	// Set up progress tracker with Phases 1-3 already completed
-	tracker := NewProgressTrackerWithPhases([]PhaseInfo{
-		{ID: phaseProcessExtractIDs, Description: "Extracting player IDs...", CompletedDescription: input.Phase1CompletedDesc, Total: 1},
-		{ID: phaseProcessLoadYahoo, Description: "Loading Yahoo player pool...", CompletedDescription: input.Phase2CompletedDesc, Total: 1},
-		{ID: phaseProcessPlayers, Description: "Processing players...", CompletedDescription: fmt.Sprintf("Processed %d players.", len(input.Players)), Total: 1},
-		{ID: phaseProcessVerifyUnmatch, Description: "Verifying unmatched players..."},
-	})
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
-		return nil, err
-	}
-
-	tracker.MarkItemCompleted(ctx, phaseProcessExtractIDs)
-	tracker.MarkItemCompleted(ctx, phaseProcessLoadYahoo)
-	tracker.MarkItemCompleted(ctx, phaseProcessPlayers)
-	tracker.MarkItemStarted(ctx, phaseProcessVerifyUnmatch)
+	logger.Info("ProcessPlayersWorkflow Phase 3: verifying unmatched players")
 
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Minute,
@@ -493,7 +399,7 @@ func runProcessPhase4VerifyUnmatched(ctx workflow.Context, input *processPlayers
 		unmatchedPlayers = []UnmatchedYahooPlayer{}
 	}
 
-	tracker.SetItemTotal(phaseProcessVerifyUnmatch, len(unmatchedPlayers))
+	tracker.SetBarTotal(GroupVerifyUnmatched, 0, len(unmatchedPlayers))
 	logger.Info("Loaded unmatched Yahoo players", "count", len(unmatchedPlayers))
 
 	// Verify unmatched players in batches
@@ -502,11 +408,8 @@ func runProcessPhase4VerifyUnmatched(ctx workflow.Context, input *processPlayers
 	}
 
 	if len(unmatchedPlayers) > 0 {
-		tracker.SetMessage("Verifying unmatched players against NHL API")
-
-		verifyBatchSize := DefaultVerifyBatchSize
-		for i := 0; i < len(unmatchedPlayers); i += verifyBatchSize {
-			end := i + verifyBatchSize
+		for i := 0; i < len(unmatchedPlayers); i += DefaultVerifyBatchSize {
+			end := i + DefaultVerifyBatchSize
 			if end > len(unmatchedPlayers) {
 				end = len(unmatchedPlayers)
 			}
@@ -521,7 +424,7 @@ func runProcessPhase4VerifyUnmatched(ctx workflow.Context, input *processPlayers
 				unmatchedReport.NotFoundCount += len(batchResult.NotFoundInNHL)
 			}
 
-			tracker.IncrementItemBy(phaseProcessVerifyUnmatch, len(batch))
+			tracker.IncrementBarBy(ctx, GroupVerifyUnmatched, 0, len(batch))
 		}
 
 		// Log truly unmatched players
@@ -539,17 +442,22 @@ func runProcessPhase4VerifyUnmatched(ctx workflow.Context, input *processPlayers
 		}
 	}
 
-	// Mark Phase 4 complete with comprehensive summary
-	elapsed := formatDuration(workflow.Now(ctx).Sub(input.StartedAt))
-	summaryLine1 := fmt.Sprintf("Imported %d players: %d Yahoo! matched, %d truly unmatched and %d errors in %s.",
-		input.TotalImported, input.TotalMatched, len(unmatchedReport.TrulyUnmatched), len(input.AllErrors), elapsed)
-	tracker.SetItemCompletedDescription(phaseProcessVerifyUnmatch, summaryLine1)
-	tracker.MarkItemCompleted(ctx, phaseProcessVerifyUnmatch)
+	origins := input.Origins
+	if origins == nil {
+		origins = core.OriginCounts{}
+	}
+	cacheHits := origins[core.OriginRedis] + origins[core.OriginFileSystem]
+
+	// Mark Phase 3 complete with comprehensive summary
+	tracker.CompleteGroup(ctx, GroupVerifyUnmatched,
+		fmt.Sprintf("Imported %d players: %d Yahoo! matched, %d truly unmatched and %d errors in %s.",
+			input.TotalImported, input.TotalMatched, len(unmatchedReport.TrulyUnmatched),
+			len(input.AllErrors), tracker.GetElapsed(ctx, GroupVerifyUnmatched)))
 
 	logger.Info("ProcessPlayersWorkflow completed",
 		"totalPlayers", len(input.Players),
 		"downloaded", input.TotalDownloaded,
-		"cacheHits", input.TotalCacheHits,
+		"cacheHits", cacheHits,
 		"missing", input.TotalMissing,
 		"imported", input.TotalImported,
 		"matchedWithYahoo", input.TotalMatched,
@@ -565,7 +473,7 @@ func runProcessPhase4VerifyUnmatched(ctx workflow.Context, input *processPlayers
 		ImportedPlayers:       input.TotalImported,
 		MatchedWithYahoo:      input.TotalMatched,
 		Downloaded:            input.TotalDownloaded,
-		CacheHits:             input.TotalCacheHits,
+		CacheHits:             cacheHits,
 		Missing:               input.TotalMissing,
 		TotalYahooPlayers:     yahooPoolResult.TotalPlayers,
 		SkippedNonNHL:         yahooPoolResult.SkippedNonNHL,
@@ -573,154 +481,4 @@ func runProcessPhase4VerifyUnmatched(ctx workflow.Context, input *processPlayers
 		TrulyUnmatched:        unmatchedReport.TrulyUnmatched,
 		Errors:                input.AllErrors,
 	}, nil
-}
-
-// runProcessBatches executes process batches with concurrency control.
-func runProcessBatches(
-	ctx workflow.Context,
-	tracker *ProgressTracker,
-	phaseID int,
-	numBatches, concurrency, batchSize, totalItems int,
-	startActivity func(workflow.Context, int) workflow.Future,
-	results *[]ProcessPlayerBatchResult,
-) error {
-	logger := workflow.GetLogger(ctx)
-
-	type activeWork struct {
-		index  int
-		future workflow.Future
-	}
-	active := make(map[int]*activeWork)
-	nextIdx := 0
-
-	// Start initial batches
-	for i := 0; i < concurrency && nextIdx < numBatches; i++ {
-		future := startActivity(ctx, nextIdx)
-		active[nextIdx] = &activeWork{index: nextIdx, future: future}
-		nextIdx++
-	}
-
-	var firstErr error
-
-	// Process until all work is done
-	for len(active) > 0 {
-		selector := workflow.NewSelector(ctx)
-
-		for idx, work := range active {
-			capturedIdx := idx
-			capturedWork := work
-			selector.AddFuture(capturedWork.future, func(f workflow.Future) {
-				var result ProcessPlayerBatchResult
-				if err := f.Get(ctx, &result); err != nil {
-					if firstErr == nil {
-						firstErr = err
-					}
-					logger.Error("Process batch failed", "index", capturedIdx, "error", err)
-					delete(active, capturedIdx)
-					return
-				}
-
-				*results = append(*results, result)
-				// Calculate actual batch size (last batch may be smaller)
-				batchStart := capturedIdx * batchSize
-				actualBatchSize := batchSize
-				if batchStart+batchSize > totalItems {
-					actualBatchSize = totalItems - batchStart
-				}
-				tracker.IncrementItemBy(phaseID, actualBatchSize)
-				delete(active, capturedIdx)
-
-				// Start next batch if available
-				if nextIdx < numBatches {
-					future := startActivity(ctx, nextIdx)
-					active[nextIdx] = &activeWork{index: nextIdx, future: future}
-					nextIdx++
-				}
-			})
-		}
-
-		selector.Select(ctx)
-
-		if firstErr != nil {
-			return firstErr
-		}
-	}
-
-	return nil
-}
-
-// runYahooParseBatches parses Yahoo player files in concurrent batches.
-func runYahooParseBatches(
-	ctx workflow.Context,
-	playerIDs []int,
-	batchSize, concurrency int,
-	results *[]store.YahooPlayer,
-) error {
-	logger := workflow.GetLogger(ctx)
-	numBatches := (len(playerIDs) + batchSize - 1) / batchSize
-
-	type activeWork struct {
-		index  int
-		future workflow.Future
-	}
-	active := make(map[int]*activeWork)
-	nextIdx := 0
-
-	startActivity := func(batchIndex int) workflow.Future {
-		batchStart := batchIndex * batchSize
-		batchEnd := batchStart + batchSize
-		if batchEnd > len(playerIDs) {
-			batchEnd = len(playerIDs)
-		}
-		batch := playerIDs[batchStart:batchEnd]
-		return workflow.ExecuteActivity(ctx, ParseYahooPlayerBatchActivity, batch)
-	}
-
-	// Start initial batches
-	for i := 0; i < concurrency && nextIdx < numBatches; i++ {
-		future := startActivity(nextIdx)
-		active[nextIdx] = &activeWork{index: nextIdx, future: future}
-		nextIdx++
-	}
-
-	var firstErr error
-
-	// Process until all work is done
-	for len(active) > 0 {
-		selector := workflow.NewSelector(ctx)
-
-		for idx, work := range active {
-			capturedIdx := idx
-			capturedWork := work
-			selector.AddFuture(capturedWork.future, func(f workflow.Future) {
-				var batchResult []store.YahooPlayer
-				if err := f.Get(ctx, &batchResult); err != nil {
-					if firstErr == nil {
-						firstErr = err
-					}
-					logger.Error("Yahoo parse batch failed", "index", capturedIdx, "error", err)
-					delete(active, capturedIdx)
-					return
-				}
-
-				*results = append(*results, batchResult...)
-				delete(active, capturedIdx)
-
-				// Start next batch if available
-				if nextIdx < numBatches {
-					future := startActivity(nextIdx)
-					active[nextIdx] = &activeWork{index: nextIdx, future: future}
-					nextIdx++
-				}
-			})
-		}
-
-		selector.Select(ctx)
-
-		if firstErr != nil {
-			return firstErr
-		}
-	}
-
-	return nil
 }

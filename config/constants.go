@@ -10,4 +10,5 @@ const (
 const (
 	YahooAuthCallbackPath = "/yahoo/authenticated"
 	YahooLandedPath       = "/yahoo/landed"
+	YahooLoginPath        = "/yahoo/login"
 )

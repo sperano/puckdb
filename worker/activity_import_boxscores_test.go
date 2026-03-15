@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
@@ -385,21 +386,25 @@ func TestGoalieToBatchParams(t *testing.T) {
 }
 
 // =============================================================================
-// Test importBoxscoresForDateImpl
+// Test ImportBoxscoresForDate
 // =============================================================================
 
-func TestImportBoxscoresForDateImpl(t *testing.T) {
+func TestImportBoxscoresForDate(t *testing.T) {
 	t.Parallel()
 
 	testDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 	testInput := ImportBoxscoresForDateInput{Date: testDate, Season: 2023}
 
+	newActivity := func(mem store.Storage) *SeasonsActivities {
+		return &SeasonsActivities{Storage: mem}
+	}
+
 	t.Run("no schedule file", func(t *testing.T) {
-		repos := store.NewMemRepos()
+		mem := store.NewMemStorage()
 		upserter := NewMockBoxscoreUpserter()
 
 		// No schedule file set up - it doesn't exist
-		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
+		result, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, result.GamesImported)
@@ -407,13 +412,13 @@ func TestImportBoxscoresForDateImpl(t *testing.T) {
 	})
 
 	t.Run("schedule file parse error", func(t *testing.T) {
-		repos := store.NewMemRepos()
+		mem := store.NewMemStorage()
 		upserter := NewMockBoxscoreUpserter()
 
 		// Save invalid JSON to schedule
-		repos.Schedule.Save(testDate, []byte("invalid json"))
+		mem.Write(resource.DailySchedule{Date: testDate}.Path(), []byte("invalid json"))
 
-		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
+		result, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "read daily schedule")
@@ -421,13 +426,13 @@ func TestImportBoxscoresForDateImpl(t *testing.T) {
 	})
 
 	t.Run("skips non-final games", func(t *testing.T) {
-		repos := store.NewMemRepos()
+		mem := store.NewMemStorage()
 		upserter := NewMockBoxscoreUpserter()
 
 		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"LIVE"},{"id":2024020002,"gameState":"PRE"}]}`)
-		repos.Schedule.Save(testDate, scheduleJSON)
+		mem.Write(resource.DailySchedule{Date: testDate}.Path(), scheduleJSON)
 
-		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
+		result, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, result.GamesImported)
@@ -435,14 +440,14 @@ func TestImportBoxscoresForDateImpl(t *testing.T) {
 	})
 
 	t.Run("skips preseason games", func(t *testing.T) {
-		repos := store.NewMemRepos()
+		mem := store.NewMemStorage()
 		upserter := NewMockBoxscoreUpserter()
 
 		// Preseason game ID: 2024010001 (01 = preseason)
 		scheduleJSON := []byte(`{"games":[{"id":2024010001,"gameState":"OFF"}]}`)
-		repos.Schedule.Save(testDate, scheduleJSON)
+		mem.Write(resource.DailySchedule{Date: testDate}.Path(), scheduleJSON)
 
-		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
+		result, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, result.GamesImported)
@@ -450,37 +455,35 @@ func TestImportBoxscoresForDateImpl(t *testing.T) {
 	})
 
 	t.Run("boxscore file missing", func(t *testing.T) {
-		repos := store.NewMemRepos()
+		mem := store.NewMemStorage()
 		upserter := NewMockBoxscoreUpserter()
 
 		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-		repos.Schedule.Save(testDate, scheduleJSON)
+		mem.Write(resource.DailySchedule{Date: testDate}.Path(), scheduleJSON)
 		// Boxscore not saved - it's missing
 
-		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
+		_, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
 
-		require.NoError(t, err)
-		assert.Equal(t, 0, result.GamesImported)
-		assert.Equal(t, 1, result.GamesSkipped)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "boxscore file missing")
 	})
 
 	t.Run("boxscore file parse error", func(t *testing.T) {
-		repos := store.NewMemRepos()
+		mem := store.NewMemStorage()
 		upserter := NewMockBoxscoreUpserter()
 
 		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-		repos.Schedule.Save(testDate, scheduleJSON)
-		repos.Boxscore.Save(testDate, nhl.GameID(2024020001), []byte("invalid json"))
+		mem.Write(resource.DailySchedule{Date: testDate}.Path(), scheduleJSON)
+		mem.Write(resource.Boxscore{Date: testDate, GameID: nhl.GameID(2024020001)}.Path(), []byte("invalid json"))
 
-		result, err := importBoxscoresForDateImpl(context.Background(), repos, upserter, testInput)
+		_, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
 
-		require.NoError(t, err)
-		assert.Equal(t, 0, result.GamesImported)
-		assert.Equal(t, 1, result.GamesSkipped)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "read boxscore")
 	})
 
 	t.Run("UpsertGame error", func(t *testing.T) {
-		repos := store.NewMemRepos()
+		mem := store.NewMemStorage()
 		upserter := NewMockBoxscoreUpserter()
 		ctx := context.Background()
 
@@ -489,13 +492,13 @@ func TestImportBoxscoresForDateImpl(t *testing.T) {
 		boxscoreJSON, err := json.Marshal(boxscore)
 		require.NoError(t, err)
 
-		require.NoError(t, repos.Schedule.Save(testDate, scheduleJSON))
-		require.NoError(t, repos.Boxscore.Save(testDate, nhl.GameID(2024020001), boxscoreJSON))
+		require.NoError(t, mem.Write(resource.DailySchedule{Date: testDate}.Path(), scheduleJSON))
+		require.NoError(t, mem.Write(resource.Boxscore{Date: testDate, GameID: nhl.GameID(2024020001)}.Path(), boxscoreJSON))
 
 		upserter.On("UpsertGame", ctx, mock.AnythingOfType("sqlcdb.UpsertGameParams")).
 			Return(errors.New("database error"))
 
-		result, err := importBoxscoresForDateImpl(ctx, repos, upserter, testInput)
+		result, err := newActivity(mem).importBoxscoresForDate(ctx, upserter, testInput)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "upsert game")

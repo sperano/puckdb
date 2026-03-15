@@ -169,3 +169,42 @@ func TestSpinner_DoubleCancel(t *testing.T) {
 	sp.Cancel()
 	sp.Cancel()
 }
+
+func TestSpinner_ColorEnabled(t *testing.T) {
+	var buf bytes.Buffer
+	sp := newSpinner(&buf, "Test")
+	sp.SetColorEnabled(true)
+
+	sp.Start()
+	time.Sleep(100 * time.Millisecond)
+	sp.Stop()
+
+	output := buf.String()
+
+	// Should contain ANSI 256-color escape sequence (38;5;)
+	if !strings.Contains(output, "\033[38;5;") {
+		t.Error("expected 256-color ANSI escape sequence when color enabled")
+	}
+
+	// Should contain reset sequence
+	if !strings.Contains(output, "\033[0m") {
+		t.Error("expected ANSI reset sequence when color enabled")
+	}
+}
+
+func TestSpinner_ColorDisabled(t *testing.T) {
+	var buf bytes.Buffer
+	sp := newSpinner(&buf, "Test")
+	// colorEnabled is false by default
+
+	sp.Start()
+	time.Sleep(100 * time.Millisecond)
+	sp.Stop()
+
+	output := buf.String()
+
+	// Should not contain 256-color escape sequence (except cursor hide/show)
+	if strings.Contains(output, "\033[38;5;") {
+		t.Error("should not contain 256-color sequence when color disabled")
+	}
+}

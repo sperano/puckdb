@@ -8,10 +8,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
-	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -29,11 +29,11 @@ type ImportYahooDataForDateResult struct {
 	RostersImported   int
 }
 
-// ImportYahooDataForDateActivity imports Yahoo team summaries and rosters for a single date.
-func ImportYahooDataForDateActivity(ctx context.Context, input ImportYahooDataForDateInput) (ImportYahooDataForDateResult, error) {
+// ImportYahooDataForDate imports Yahoo team summaries and rosters for a single date.
+func (a *SeasonsActivities) ImportYahooDataForDate(ctx context.Context, input ImportYahooDataForDateInput) (ImportYahooDataForDateResult, error) {
 	start := time.Now()
 	defer func() {
-		metrics.ObserveActivityDuration("ImportYahooDataForDateActivity", time.Since(start))
+		metrics.ObserveActivityDuration("ImportYahooDataForDate", time.Since(start))
 	}()
 
 	logger := activity.GetLogger(ctx)
@@ -43,23 +43,13 @@ func ImportYahooDataForDateActivity(ctx context.Context, input ImportYahooDataFo
 		return result, nil
 	}
 
-	repos := store.NewDefaultRepos()
-
-	pool, err := database.OpenPGXPool(ctx)
-	if err != nil {
-		return result, fmt.Errorf("open database pool: %w", err)
-	}
-	defer pool.Close()
-
-	queries := sqlcdb.New(pool)
-
 	// Collect params for this date across all teams
-	summaryParams, statParams := collectSummaryParams(repos, input.Teams, input.Date)
-	rosterParams := collectRosterParams(repos, input.Teams, input.Date)
+	summaryParams, statParams := a.collectSummaryParams(ctx, input.Teams, input.Date)
+	rosterParams := a.collectRosterParams(ctx, input.Teams, input.Date)
 
 	// Batch upsert summaries
 	if len(summaryParams) > 0 {
-		if err := upsertSummaries(ctx, queries, summaryParams); err != nil {
+		if err := upsertSummaries(ctx, a.ImportQueries, summaryParams); err != nil {
 			return result, err
 		}
 		result.SummariesImported = len(summaryParams)
@@ -67,7 +57,7 @@ func ImportYahooDataForDateActivity(ctx context.Context, input ImportYahooDataFo
 
 	// Batch upsert stats
 	if len(statParams) > 0 {
-		if err := upsertStats(ctx, queries, statParams); err != nil {
+		if err := upsertStats(ctx, a.ImportQueries, statParams); err != nil {
 			return result, err
 		}
 		result.StatsImported = len(statParams)
@@ -75,7 +65,7 @@ func ImportYahooDataForDateActivity(ctx context.Context, input ImportYahooDataFo
 
 	// Batch upsert rosters
 	if len(rosterParams) > 0 {
-		if err := upsertRosters(ctx, queries, rosterParams); err != nil {
+		if err := upsertRosters(ctx, a.ImportQueries, rosterParams); err != nil {
 			return result, err
 		}
 		result.RostersImported = len(rosterParams)
@@ -93,7 +83,7 @@ func ImportYahooDataForDateActivity(ctx context.Context, input ImportYahooDataFo
 }
 
 // collectSummaryParams reads team summary files and returns params for summaries and stats.
-func collectSummaryParams(repos *store.Repos, teams []TeamInfo, date time.Time) (
+func (a *SeasonsActivities) collectSummaryParams(ctx context.Context, teams []TeamInfo, date time.Time) (
 	[]sqlcdb.UpsertYahooTeamSummaryBatchParams,
 	[]sqlcdb.UpsertYahooTeamSummaryStatBatchParams,
 ) {
@@ -102,11 +92,12 @@ func collectSummaryParams(repos *store.Repos, teams []TeamInfo, date time.Time) 
 	pgDate := pgtype.Date{Time: date, Valid: true}
 
 	for _, teamInfo := range teams {
-		if !repos.Yahoo.TeamSummaryExists(teamInfo.LeagueID, teamInfo.TeamID, date) {
+		summaryRes := resource.TeamSummary{LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID, Date: date}
+		if !a.Storage.Exists(summaryRes.Path()) {
 			continue
 		}
 
-		fantasy, err := repos.Yahoo.GetTeamSummary(teamInfo.LeagueID, teamInfo.TeamID, date)
+		fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, summaryRes)
 		if err != nil {
 			log.Debug().Err(err).
 				Int("teamID", teamInfo.TeamID).
@@ -144,16 +135,17 @@ func collectSummaryParams(repos *store.Repos, teams []TeamInfo, date time.Time) 
 }
 
 // collectRosterParams reads team roster files and returns params for rosters.
-func collectRosterParams(repos *store.Repos, teams []TeamInfo, date time.Time) []sqlcdb.UpsertYahooTeamRosterBatchParams {
+func (a *SeasonsActivities) collectRosterParams(ctx context.Context, teams []TeamInfo, date time.Time) []sqlcdb.UpsertYahooTeamRosterBatchParams {
 	var rosterParams []sqlcdb.UpsertYahooTeamRosterBatchParams
 	pgDate := pgtype.Date{Time: date, Valid: true}
 
 	for _, teamInfo := range teams {
-		if !repos.Yahoo.RosterExists(teamInfo.LeagueID, teamInfo.TeamID, date) {
+		rosterRes := resource.Roster{LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID, Date: date}
+		if !a.Storage.Exists(rosterRes.Path()) {
 			continue
 		}
 
-		fantasy, err := repos.Yahoo.GetRoster(teamInfo.LeagueID, teamInfo.TeamID, date)
+		fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, rosterRes)
 		if err != nil {
 			log.Debug().Err(err).
 				Int("teamID", teamInfo.TeamID).
@@ -184,7 +176,7 @@ func collectRosterParams(repos *store.Repos, teams []TeamInfo, date time.Time) [
 }
 
 // upsertSummaries batch upserts team summary records.
-func upsertSummaries(ctx context.Context, queries *sqlcdb.Queries, params []sqlcdb.UpsertYahooTeamSummaryBatchParams) error {
+func upsertSummaries(ctx context.Context, queries YahooDataUpserter, params []sqlcdb.UpsertYahooTeamSummaryBatchParams) error {
 	var batchErr error
 	results := queries.UpsertYahooTeamSummaryBatch(ctx, params)
 	results.Exec(func(i int, err error) {
@@ -198,7 +190,7 @@ func upsertSummaries(ctx context.Context, queries *sqlcdb.Queries, params []sqlc
 }
 
 // upsertStats batch upserts team summary stat records.
-func upsertStats(ctx context.Context, queries *sqlcdb.Queries, params []sqlcdb.UpsertYahooTeamSummaryStatBatchParams) error {
+func upsertStats(ctx context.Context, queries YahooDataUpserter, params []sqlcdb.UpsertYahooTeamSummaryStatBatchParams) error {
 	var batchErr error
 	results := queries.UpsertYahooTeamSummaryStatBatch(ctx, params)
 	results.Exec(func(i int, err error) {
@@ -212,7 +204,7 @@ func upsertStats(ctx context.Context, queries *sqlcdb.Queries, params []sqlcdb.U
 }
 
 // upsertRosters batch upserts team roster records.
-func upsertRosters(ctx context.Context, queries *sqlcdb.Queries, params []sqlcdb.UpsertYahooTeamRosterBatchParams) error {
+func upsertRosters(ctx context.Context, queries YahooDataUpserter, params []sqlcdb.UpsertYahooTeamRosterBatchParams) error {
 	var batchErr error
 	results := queries.UpsertYahooTeamRosterBatch(ctx, params)
 	results.Exec(func(i int, err error) {

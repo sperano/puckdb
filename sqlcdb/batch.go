@@ -243,6 +243,305 @@ func (b *UpsertGameSkaterStatsBatchBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const upsertPlayEventBatch = `-- name: UpsertPlayEventBatch :batchexec
+INSERT INTO play_events (
+    game_id, event_id, period, period_type, time_in_period, time_remaining,
+    situation_code, home_team_defending_side, type_code, type_desc_key, sort_order,
+    x_coord, y_coord, zone_code, event_owner_team_id,
+    shot_type, shooting_player_id, goalie_in_net_id,
+    blocking_player_id,
+    scoring_player_id, scoring_player_total,
+    assist1_player_id, assist1_player_total,
+    assist2_player_id, assist2_player_total,
+    away_score, home_score,
+    highlight_clip_id, highlight_clip_url, discrete_clip_id,
+    penalty_type_code, penalty_desc_key, penalty_duration,
+    committed_by_player_id, drawn_by_player_id,
+    hitting_player_id, hittee_player_id,
+    winning_player_id, losing_player_id,
+    player_id, reason, away_sog, home_sog
+) VALUES (
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10, $11,
+    $12, $13, $14, $15,
+    $16, $17, $18,
+    $19,
+    $20, $21,
+    $22, $23,
+    $24, $25,
+    $26, $27,
+    $28, $29, $30,
+    $31, $32, $33,
+    $34, $35,
+    $36, $37,
+    $38, $39,
+    $40, $41, $42, $43
+)
+ON CONFLICT (game_id, event_id) DO UPDATE SET
+    period = EXCLUDED.period,
+    period_type = EXCLUDED.period_type,
+    time_in_period = EXCLUDED.time_in_period,
+    time_remaining = EXCLUDED.time_remaining,
+    situation_code = EXCLUDED.situation_code,
+    home_team_defending_side = EXCLUDED.home_team_defending_side,
+    type_code = EXCLUDED.type_code,
+    type_desc_key = EXCLUDED.type_desc_key,
+    sort_order = EXCLUDED.sort_order,
+    x_coord = EXCLUDED.x_coord,
+    y_coord = EXCLUDED.y_coord,
+    zone_code = EXCLUDED.zone_code,
+    event_owner_team_id = EXCLUDED.event_owner_team_id,
+    shot_type = EXCLUDED.shot_type,
+    shooting_player_id = EXCLUDED.shooting_player_id,
+    goalie_in_net_id = EXCLUDED.goalie_in_net_id,
+    blocking_player_id = EXCLUDED.blocking_player_id,
+    scoring_player_id = EXCLUDED.scoring_player_id,
+    scoring_player_total = EXCLUDED.scoring_player_total,
+    assist1_player_id = EXCLUDED.assist1_player_id,
+    assist1_player_total = EXCLUDED.assist1_player_total,
+    assist2_player_id = EXCLUDED.assist2_player_id,
+    assist2_player_total = EXCLUDED.assist2_player_total,
+    away_score = EXCLUDED.away_score,
+    home_score = EXCLUDED.home_score,
+    highlight_clip_id = EXCLUDED.highlight_clip_id,
+    highlight_clip_url = EXCLUDED.highlight_clip_url,
+    discrete_clip_id = EXCLUDED.discrete_clip_id,
+    penalty_type_code = EXCLUDED.penalty_type_code,
+    penalty_desc_key = EXCLUDED.penalty_desc_key,
+    penalty_duration = EXCLUDED.penalty_duration,
+    committed_by_player_id = EXCLUDED.committed_by_player_id,
+    drawn_by_player_id = EXCLUDED.drawn_by_player_id,
+    hitting_player_id = EXCLUDED.hitting_player_id,
+    hittee_player_id = EXCLUDED.hittee_player_id,
+    winning_player_id = EXCLUDED.winning_player_id,
+    losing_player_id = EXCLUDED.losing_player_id,
+    player_id = EXCLUDED.player_id,
+    reason = EXCLUDED.reason,
+    away_sog = EXCLUDED.away_sog,
+    home_sog = EXCLUDED.home_sog
+`
+
+type UpsertPlayEventBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertPlayEventBatchParams struct {
+	GameID                int64       `json:"game_id"`
+	EventID               int64       `json:"event_id"`
+	Period                int32       `json:"period"`
+	PeriodType            string      `json:"period_type"`
+	TimeInPeriod          string      `json:"time_in_period"`
+	TimeRemaining         string      `json:"time_remaining"`
+	SituationCode         pgtype.Text `json:"situation_code"`
+	HomeTeamDefendingSide pgtype.Text `json:"home_team_defending_side"`
+	TypeCode              int32       `json:"type_code"`
+	TypeDescKey           string      `json:"type_desc_key"`
+	SortOrder             int32       `json:"sort_order"`
+	XCoord                pgtype.Int4 `json:"x_coord"`
+	YCoord                pgtype.Int4 `json:"y_coord"`
+	ZoneCode              pgtype.Text `json:"zone_code"`
+	EventOwnerTeamID      pgtype.Int8 `json:"event_owner_team_id"`
+	ShotType              pgtype.Text `json:"shot_type"`
+	ShootingPlayerID      pgtype.Int8 `json:"shooting_player_id"`
+	GoalieInNetID         pgtype.Int8 `json:"goalie_in_net_id"`
+	BlockingPlayerID      pgtype.Int8 `json:"blocking_player_id"`
+	ScoringPlayerID       pgtype.Int8 `json:"scoring_player_id"`
+	ScoringPlayerTotal    pgtype.Int4 `json:"scoring_player_total"`
+	Assist1PlayerID       pgtype.Int8 `json:"assist1_player_id"`
+	Assist1PlayerTotal    pgtype.Int4 `json:"assist1_player_total"`
+	Assist2PlayerID       pgtype.Int8 `json:"assist2_player_id"`
+	Assist2PlayerTotal    pgtype.Int4 `json:"assist2_player_total"`
+	AwayScore             pgtype.Int4 `json:"away_score"`
+	HomeScore             pgtype.Int4 `json:"home_score"`
+	HighlightClipID       pgtype.Int8 `json:"highlight_clip_id"`
+	HighlightClipUrl      pgtype.Text `json:"highlight_clip_url"`
+	DiscreteClipID        pgtype.Int8 `json:"discrete_clip_id"`
+	PenaltyTypeCode       pgtype.Text `json:"penalty_type_code"`
+	PenaltyDescKey        pgtype.Text `json:"penalty_desc_key"`
+	PenaltyDuration       pgtype.Int4 `json:"penalty_duration"`
+	CommittedByPlayerID   pgtype.Int8 `json:"committed_by_player_id"`
+	DrawnByPlayerID       pgtype.Int8 `json:"drawn_by_player_id"`
+	HittingPlayerID       pgtype.Int8 `json:"hitting_player_id"`
+	HitteePlayerID        pgtype.Int8 `json:"hittee_player_id"`
+	WinningPlayerID       pgtype.Int8 `json:"winning_player_id"`
+	LosingPlayerID        pgtype.Int8 `json:"losing_player_id"`
+	PlayerID              pgtype.Int8 `json:"player_id"`
+	Reason                pgtype.Text `json:"reason"`
+	AwaySog               pgtype.Int4 `json:"away_sog"`
+	HomeSog               pgtype.Int4 `json:"home_sog"`
+}
+
+func (q *Queries) UpsertPlayEventBatch(ctx context.Context, arg []UpsertPlayEventBatchParams) *UpsertPlayEventBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.GameID,
+			a.EventID,
+			a.Period,
+			a.PeriodType,
+			a.TimeInPeriod,
+			a.TimeRemaining,
+			a.SituationCode,
+			a.HomeTeamDefendingSide,
+			a.TypeCode,
+			a.TypeDescKey,
+			a.SortOrder,
+			a.XCoord,
+			a.YCoord,
+			a.ZoneCode,
+			a.EventOwnerTeamID,
+			a.ShotType,
+			a.ShootingPlayerID,
+			a.GoalieInNetID,
+			a.BlockingPlayerID,
+			a.ScoringPlayerID,
+			a.ScoringPlayerTotal,
+			a.Assist1PlayerID,
+			a.Assist1PlayerTotal,
+			a.Assist2PlayerID,
+			a.Assist2PlayerTotal,
+			a.AwayScore,
+			a.HomeScore,
+			a.HighlightClipID,
+			a.HighlightClipUrl,
+			a.DiscreteClipID,
+			a.PenaltyTypeCode,
+			a.PenaltyDescKey,
+			a.PenaltyDuration,
+			a.CommittedByPlayerID,
+			a.DrawnByPlayerID,
+			a.HittingPlayerID,
+			a.HitteePlayerID,
+			a.WinningPlayerID,
+			a.LosingPlayerID,
+			a.PlayerID,
+			a.Reason,
+			a.AwaySog,
+			a.HomeSog,
+		}
+		batch.Queue(upsertPlayEventBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertPlayEventBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertPlayEventBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertPlayEventBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertShiftBatch = `-- name: UpsertShiftBatch :batchexec
+INSERT INTO shifts (
+    id, game_id, player_id, team_id, period,
+    start_time, end_time, duration,
+    shift_number, type_code, detail_code,
+    event_number, event_description
+) VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8,
+    $9, $10, $11,
+    $12, $13
+)
+ON CONFLICT (id) DO UPDATE SET
+    game_id = EXCLUDED.game_id,
+    player_id = EXCLUDED.player_id,
+    team_id = EXCLUDED.team_id,
+    period = EXCLUDED.period,
+    start_time = EXCLUDED.start_time,
+    end_time = EXCLUDED.end_time,
+    duration = EXCLUDED.duration,
+    shift_number = EXCLUDED.shift_number,
+    type_code = EXCLUDED.type_code,
+    detail_code = EXCLUDED.detail_code,
+    event_number = EXCLUDED.event_number,
+    event_description = EXCLUDED.event_description
+`
+
+type UpsertShiftBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertShiftBatchParams struct {
+	ID               int64       `json:"id"`
+	GameID           int64       `json:"game_id"`
+	PlayerID         int64       `json:"player_id"`
+	TeamID           int64       `json:"team_id"`
+	Period           int32       `json:"period"`
+	StartTime        string      `json:"start_time"`
+	EndTime          string      `json:"end_time"`
+	Duration         string      `json:"duration"`
+	ShiftNumber      int32       `json:"shift_number"`
+	TypeCode         int32       `json:"type_code"`
+	DetailCode       int32       `json:"detail_code"`
+	EventNumber      int64       `json:"event_number"`
+	EventDescription pgtype.Text `json:"event_description"`
+}
+
+func (q *Queries) UpsertShiftBatch(ctx context.Context, arg []UpsertShiftBatchParams) *UpsertShiftBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.ID,
+			a.GameID,
+			a.PlayerID,
+			a.TeamID,
+			a.Period,
+			a.StartTime,
+			a.EndTime,
+			a.Duration,
+			a.ShiftNumber,
+			a.TypeCode,
+			a.DetailCode,
+			a.EventNumber,
+			a.EventDescription,
+		}
+		batch.Queue(upsertShiftBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertShiftBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertShiftBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertShiftBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const upsertYahooLeagueRosterPositionBatch = `-- name: UpsertYahooLeagueRosterPositionBatch :batchexec
 INSERT INTO yahoo_league_roster_positions (
     league_id, position, position_type, count, is_starting_position

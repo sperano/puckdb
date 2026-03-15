@@ -26,30 +26,3 @@ func TestLogIntro(t *testing.T) {
 	assert.Contains(t, output, "CPUs")
 	assert.Contains(t, output, "build")
 }
-
-func TestGetBuildNumberAsInt_ValidNumber(t *testing.T) {
-	t.Parallel()
-	original := BuildNumber
-	t.Cleanup(func() { BuildNumber = original })
-
-	BuildNumber = "123"
-	assert.Equal(t, 123, GetBuildNumberAsInt())
-}
-
-func TestGetBuildNumberAsInt_InvalidNumber(t *testing.T) {
-	t.Parallel()
-	original := BuildNumber
-	t.Cleanup(func() { BuildNumber = original })
-
-	BuildNumber = BuildNumberNotAvailable
-	assert.Equal(t, BuildNumberInvalid, GetBuildNumberAsInt())
-}
-
-func TestGetBuildNumberAsInt_EmptyString(t *testing.T) {
-	t.Parallel()
-	original := BuildNumber
-	t.Cleanup(func() { BuildNumber = original })
-
-	BuildNumber = ""
-	assert.Equal(t, BuildNumberInvalid, GetBuildNumberAsInt())
-}

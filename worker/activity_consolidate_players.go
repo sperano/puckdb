@@ -5,14 +5,16 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/store"
+	"github.com/spf13/viper"
 )
 
 // ConsolidatePlayersInput contains parameters for the consolidation activity.
 type ConsolidatePlayersInput struct {
-	Seasons []int
-	TTL     time.Duration
+	Seasons []nhl.Season
 }
 
 // ConsolidatePlayersResult contains the result of consolidation.
@@ -34,7 +36,7 @@ func ConsolidateBoxscorePlayersActivity(ctx context.Context, input ConsolidatePl
 	for _, season := range input.Seasons {
 		players, err := cache.LoadBoxscorePlayers(ctx, redisClient, season)
 		if err != nil {
-			log.Warn().Err(err).Int("season", season).Msg("Failed to load players for season, skipping")
+			log.Warn().Err(err).Int("season", season.ID()).Msg("Failed to load players for season, skipping")
 			continue
 		}
 
@@ -51,7 +53,8 @@ func ConsolidateBoxscorePlayersActivity(ctx context.Context, input ConsolidatePl
 	}
 
 	// Save consolidated set
-	if err := cache.SaveAllBoxscorePlayers(ctx, redisClient, uniquePlayers, input.TTL); err != nil {
+	ttl := time.Duration(viper.GetInt(config.FlagBoxscorePlayerCacheTTL)) * time.Minute
+	if err := cache.SaveAllBoxscorePlayers(ctx, redisClient, uniquePlayers, ttl); err != nil {
 		return ConsolidatePlayersResult{}, err
 	}
 

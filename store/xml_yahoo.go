@@ -5,12 +5,38 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ////////////////////////////////////////////////////////////////////////////
 // YAHOO FANTASY API XML TYPES
 // This file contains all XML deserialization types for the Yahoo Fantasy API.
 // ////////////////////////////////////////////////////////////////////////////
+
+// FlexTimestamp handles Yahoo's league_update_timestamp which is a Unix epoch
+// in modern seasons but an ISO 8601 datetime string in older seasons (e.g. 2003).
+type FlexTimestamp int64
+
+func (f *FlexTimestamp) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	var s string
+	if err := d.DecodeElement(&s, &start); err != nil {
+		return err
+	}
+	if s == "" {
+		*f = 0
+		return nil
+	}
+	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+		*f = FlexTimestamp(n)
+		return nil
+	}
+	t, err := time.Parse("2006-01-02T15:04:05", s)
+	if err != nil {
+		return fmt.Errorf("parse league_update_timestamp %q: %w", s, err)
+	}
+	*f = FlexTimestamp(t.Unix())
+	return nil
+}
 
 // ============================================================================
 // ROOT TYPES (fantasy_content)
@@ -55,7 +81,7 @@ type League struct {
 	DraftStatus           string   `xml:"draft_status"`
 	NumTeams              int      `xml:"num_teams"`
 	EditKey               string   `xml:"edit_key"`
-	LeagueUpdateTimestamp int64    `xml:"league_update_timestamp"`
+	LeagueUpdateTimestamp FlexTimestamp `xml:"league_update_timestamp"`
 	ScoringType           string   `xml:"scoring_type"`
 	LeagueType            string   `xml:"league_type"`
 	IsProLeague           int      `xml:"is_pro_league"`
@@ -76,7 +102,7 @@ type Settings struct {
 	UsesPlayoff        int      `xml:"uses_playoff"`
 	WaiverType         string   `xml:"waiver_type"`
 	WaiverRule         string   `xml:"waiver_rule"`
-	DraftTime          int      `xml:"draft_time"`
+	DraftTime          FlexTimestamp `xml:"draft_time"`
 	DraftPickTime      int      `xml:"draft_pick_time"`
 	PostDraftPlayers   string   `xml:"post_draft_players"`
 	MaxTeams           int      `xml:"max_teams"`

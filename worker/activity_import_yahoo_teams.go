@@ -7,10 +7,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
-	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -26,49 +26,14 @@ type ImportYahooTeamsResult struct {
 	ManagersImported int
 }
 
-// ImportYahooTeamsActivity imports Yahoo teams from cached XML into the database.
-func ImportYahooTeamsActivity(ctx context.Context, input ImportYahooTeamsInput) (ImportYahooTeamsResult, error) {
+// ImportYahooTeams imports Yahoo teams from cached XML into the database.
+func (a *SeasonsActivities) ImportYahooTeams(ctx context.Context, input ImportYahooTeamsInput) (ImportYahooTeamsResult, error) {
 	start := time.Now()
 	defer func() {
-		metrics.ObserveActivityDuration("ImportYahooTeamsActivity", time.Since(start))
+		metrics.ObserveActivityDuration("ImportYahooTeams", time.Since(start))
 	}()
 
 	logger := activity.GetLogger(ctx)
-	repos := store.NewDefaultRepos()
-
-	pool, err := database.OpenPGXPool(ctx)
-	if err != nil {
-		return ImportYahooTeamsResult{}, fmt.Errorf("open database pool: %w", err)
-	}
-	defer pool.Close()
-
-	queries := sqlcdb.New(pool)
-
-	result, err := importYahooTeamsImpl(ctx, repos, queries, input)
-	if err != nil {
-		return result, err
-	}
-
-	logger.Info("Imported Yahoo teams",
-		"season", input.Season,
-		"teams", result.TeamsImported,
-		"managers", result.ManagersImported)
-
-	return result, nil
-}
-
-// YahooTeamUpserter is the interface for database operations needed by Yahoo team import.
-type YahooTeamUpserter interface {
-	UpsertYahooTeamBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamBatchParams) *sqlcdb.UpsertYahooTeamBatchBatchResults
-	UpsertYahooTeamManagerBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamManagerBatchParams) *sqlcdb.UpsertYahooTeamManagerBatchBatchResults
-}
-
-func importYahooTeamsImpl(
-	ctx context.Context,
-	repos *store.Repos,
-	queries YahooTeamUpserter,
-	input ImportYahooTeamsInput,
-) (ImportYahooTeamsResult, error) {
 	result := ImportYahooTeamsResult{}
 
 	if len(input.Teams) == 0 {
@@ -81,7 +46,8 @@ func importYahooTeamsImpl(
 
 	for _, teamInfo := range input.Teams {
 		// Read the team file
-		if !repos.Yahoo.TeamExists(input.Season, teamInfo.LeagueID, teamInfo.TeamID) {
+		teamRes := resource.Team{Season: input.Season, LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID}
+		if !a.Storage.Exists(teamRes.Path()) {
 			log.Debug().
 				Int("season", input.Season).
 				Int("leagueID", teamInfo.LeagueID).
@@ -90,7 +56,7 @@ func importYahooTeamsImpl(
 			continue
 		}
 
-		fantasy, err := repos.Yahoo.GetTeam(input.Season, teamInfo.LeagueID, teamInfo.TeamID)
+		fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, teamRes)
 		if err != nil {
 			return result, fmt.Errorf("read team file %d: %w", teamInfo.TeamID, err)
 		}
@@ -140,7 +106,7 @@ func importYahooTeamsImpl(
 	// Batch upsert teams
 	if len(teamParams) > 0 {
 		var batchErr error
-		results := queries.UpsertYahooTeamBatch(ctx, teamParams)
+		results := a.ImportQueries.UpsertYahooTeamBatch(ctx, teamParams)
 		results.Exec(func(i int, err error) {
 			if err != nil && batchErr == nil {
 				batchErr = fmt.Errorf("team %d: %w", teamParams[i].ID, err)
@@ -155,7 +121,7 @@ func importYahooTeamsImpl(
 	// Batch upsert managers
 	if len(managerParams) > 0 {
 		var batchErr error
-		results := queries.UpsertYahooTeamManagerBatch(ctx, managerParams)
+		results := a.ImportQueries.UpsertYahooTeamManagerBatch(ctx, managerParams)
 		results.Exec(func(i int, err error) {
 			if err != nil && batchErr == nil {
 				batchErr = fmt.Errorf("manager %d (team %d): %w", managerParams[i].ID, managerParams[i].TeamID, err)
@@ -167,5 +133,16 @@ func importYahooTeamsImpl(
 		result.ManagersImported = len(managerParams)
 	}
 
+	logger.Info("Imported Yahoo teams",
+		"season", input.Season,
+		"teams", result.TeamsImported,
+		"managers", result.ManagersImported)
+
 	return result, nil
+}
+
+// YahooTeamUpserter is the interface for database operations needed by Yahoo team import.
+type YahooTeamUpserter interface {
+	UpsertYahooTeamBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamBatchParams) *sqlcdb.UpsertYahooTeamBatchBatchResults
+	UpsertYahooTeamManagerBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamManagerBatchParams) *sqlcdb.UpsertYahooTeamManagerBatchBatchResults
 }

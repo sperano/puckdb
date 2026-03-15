@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"regexp"
+	"strconv"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
@@ -16,9 +19,7 @@ import (
 // This is a fast operation that just reads the directory listing.
 func ListYahooPlayerFilesActivity(ctx context.Context) ([]store.YahooPlayerID, error) {
 	logger := activity.GetLogger(ctx)
-	repos := store.NewDefaultRepos()
-
-	ids, err := repos.Yahoo.ListPlayers()
+	ids, err := listYahooPlayers(store.NewDefaultStorage())
 	if err != nil {
 		return nil, err
 	}
@@ -27,10 +28,30 @@ func ListYahooPlayerFilesActivity(ctx context.Context) ([]store.YahooPlayerID, e
 	return ids, nil
 }
 
+// listYahooPlayers returns all Yahoo player IDs that have data stored.
+func listYahooPlayers(storage store.Storage) ([]store.YahooPlayerID, error) {
+	names, err := storage.List(resource.YahooPlayersDir, "html")
+	if err != nil {
+		return nil, err
+	}
+
+	pattern := regexp.MustCompile(`^player-(\d+)$`)
+	var ids []store.YahooPlayerID
+
+	for _, name := range names {
+		if m := pattern.FindStringSubmatch(name); m != nil {
+			id, _ := strconv.Atoi(m[1])
+			ids = append(ids, store.YahooPlayerID(id))
+		}
+	}
+
+	return ids, nil
+}
+
 // ParseYahooPlayerBatchResult contains the results of parsing a batch of Yahoo player files.
 type ParseYahooPlayerBatchResult struct {
-	Players    []store.YahooPlayer
-	ReadErrors int
+	Players     []store.YahooPlayer
+	ReadErrors  int
 	ParseErrors int
 }
 
@@ -38,9 +59,7 @@ type ParseYahooPlayerBatchResult struct {
 // Returns the parsed players for aggregation by the workflow.
 func ParseYahooPlayerBatchActivity(ctx context.Context, playerIDs []store.YahooPlayerID) ([]store.YahooPlayer, error) {
 	logger := activity.GetLogger(ctx)
-	repos := store.NewDefaultRepos()
-
-	result := parseYahooPlayerBatchImpl(repos, playerIDs)
+	result := parseYahooPlayerBatchImpl(ctx, store.NewDefaultStorage(), nil, playerIDs)
 
 	if result.ReadErrors > 0 || result.ParseErrors > 0 {
 		logger.Warn("Some players failed to parse",
@@ -52,13 +71,14 @@ func ParseYahooPlayerBatchActivity(ctx context.Context, playerIDs []store.YahooP
 }
 
 // parseYahooPlayerBatchImpl contains the testable logic for ParseYahooPlayerBatchActivity.
-func parseYahooPlayerBatchImpl(repos *store.Repos, playerIDs []store.YahooPlayerID) ParseYahooPlayerBatchResult {
+func parseYahooPlayerBatchImpl(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, playerIDs []store.YahooPlayerID) ParseYahooPlayerBatchResult {
 	result := ParseYahooPlayerBatchResult{
 		Players: make([]store.YahooPlayer, 0, len(playerIDs)),
 	}
 
 	for _, id := range playerIDs {
-		content, err := repos.Yahoo.GetPlayer(id)
+		playerRes := resource.YahooPlayer{PlayerID: id}
+		content, _, err := cache.ReadParsedCached(ctx, storage, gobCache, playerRes)
 		if err != nil {
 			result.ReadErrors++
 			continue

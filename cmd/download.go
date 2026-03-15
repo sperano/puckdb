@@ -30,33 +30,11 @@ func buildSeasonsInput() *model.SeasonsInput {
 	return input
 }
 
-func buildExtractBoxscorePlayersInput() *model.ExtractBoxscorePlayersInput {
-	input := &model.ExtractBoxscorePlayersInput{}
-
-	start, end := config.GetSeasonRange()
-	if start > 0 {
-		input.StartSeason = &start
-	}
-	if end > 0 {
-		input.EndSeason = &end
-	}
-
-	if concurrency := viper.GetInt(config.FlagSeasonConcurrency); concurrency > 0 {
-		input.SeasonConcurrency = &concurrency
-	}
-
-	// TTLMinutes uses default from cache package if not specified
-
-	return input
-}
-
 func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher) error {
 	startedAt := time.Now()
 
 	// Wait briefly for workflow to start and register query handlers
 	time.Sleep(config.DefaultWorkflowStartupDelay)
-	ticker := time.NewTicker(config.DefaultWorkflowPollInterval)
-	defer ticker.Stop()
 
 	consecutiveFailures := 0
 
@@ -66,7 +44,7 @@ func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher) 
 			consecutiveFailures++
 			if consecutiveFailures >= config.MaxConsecutiveQueryFailures {
 				sp.Cancel()
-				return fmt.Errorf("workflow query failed %d times consecutively - workflow may be stuck or a previous run is blocking. Check Temporal UI and terminate stale workflows", consecutiveFailures)
+				return fmt.Errorf("workflow query failed %d times consecutively: %w", consecutiveFailures, err)
 			}
 			sp.PrintAbove(func() {
 				log.Warn().Err(err).Int("attempt", consecutiveFailures).Msg("Failed to get status, retrying...")
@@ -120,10 +98,21 @@ func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher) 
 		case <-ctx.Done():
 			sp.Cancel()
 			return ctx.Err()
-		case <-ticker.C:
-			// continue to next iteration
+		case <-time.After(pollDelay(consecutiveFailures)):
 		}
 	}
+}
+
+// pollDelay returns the poll interval, backing off exponentially on consecutive failures.
+func pollDelay(consecutiveFailures int) time.Duration {
+	if consecutiveFailures == 0 {
+		return config.DefaultWorkflowPollInterval
+	}
+	delay := config.DefaultWorkflowPollInterval << consecutiveFailures
+	if delay > config.MaxWorkflowPollBackoff {
+		return config.MaxWorkflowPollBackoff
+	}
+	return delay
 }
 
 func formatStatusMessage(status *WorkflowStatus) string {
@@ -161,8 +150,8 @@ func formatStatusMessage(status *WorkflowStatus) string {
 		}
 		pct := float64(status.Progress.Completed) / float64(status.Progress.Total) * 100
 		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-		lines = append(lines, fmt.Sprintf("%s %d/%d %s %d%%",
-			SpinnerPlaceholder, status.Progress.Completed, status.Progress.Total, bar, int(pct)))
+		lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
+			SpinnerPlaceholder, formatLabelArea("", status.Progress.Completed, status.Progress.Total), bar, int(pct)))
 		return strings.Join(lines, "\n")
 	}
 
@@ -172,36 +161,7 @@ func formatStatusMessage(status *WorkflowStatus) string {
 			lines = append(lines, fmt.Sprintf("▶ %s", header))
 		}
 
-		// First pass: find max widths for alignment (including total line)
-		var maxTotal, maxDescLen int
-		const totalLabel = "Total"
-		maxDescLen = len(totalLabel)
-
-		for _, item := range status.Progress.Items {
-			if !item.Started || (item.Completed == item.Total && item.Total > 0) {
-				continue
-			}
-			if item.Total > maxTotal {
-				maxTotal = item.Total
-			}
-			desc := fmt.Sprintf("Item %d", item.ID)
-			if item.Description != nil && *item.Description != "" {
-				desc = *item.Description
-			}
-			if len(desc) > maxDescLen {
-				maxDescLen = len(desc)
-			}
-		}
-
-		// Include overall totals in width calculation
-		if status.Progress.Total > maxTotal {
-			maxTotal = status.Progress.Total
-		}
-
-		// Calculate combined width for "x/y" based on max possible "total/total"
-		progressWidth := len(fmt.Sprintf("%d/%d", maxTotal, maxTotal))
-
-		// Second pass: format with aligned columns
+		// Format: spinner + 22-char label area (label left, x/y right) + bar + percent
 		for _, item := range status.Progress.Items {
 			if !item.Started || (item.Completed == item.Total && item.Total > 0) {
 				continue
@@ -214,18 +174,16 @@ func formatStatusMessage(status *WorkflowStatus) string {
 
 			pct := float64(item.Completed) / float64(item.Total) * 100
 			bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-			progress := fmt.Sprintf("%d/%d", item.Completed, item.Total)
-			lines = append(lines, fmt.Sprintf("%s %-*s %*s %s %d%%",
-				SpinnerPlaceholder, maxDescLen, description, progressWidth, progress, bar, int(pct)))
+			lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
+				SpinnerPlaceholder, formatLabelArea(description, item.Completed, item.Total), bar, int(pct)))
 		}
 
 		// Total progress line
 		if status.Progress.Total > 0 {
 			totalPct := float64(status.Progress.Completed) / float64(status.Progress.Total) * 100
 			totalBar := renderProgressBar(totalPct, config.DefaultProgressBarWidth)
-			totalProgress := fmt.Sprintf("%d/%d", status.Progress.Completed, status.Progress.Total)
-			lines = append(lines, fmt.Sprintf("  %-*s %*s %s %d%%",
-				maxDescLen, totalLabel, progressWidth, totalProgress, totalBar, int(totalPct)))
+			lines = append(lines, fmt.Sprintf("  %s %s %d%%",
+				formatLabelArea("Total", status.Progress.Completed, status.Progress.Total), totalBar, int(totalPct)))
 		}
 
 		return strings.Join(lines, "\n")
@@ -256,8 +214,8 @@ func formatStatusMessage(status *WorkflowStatus) string {
 				lines = append(lines, fmt.Sprintf("▶ %s", description))
 				pct := float64(item.Completed) / float64(item.Total) * 100
 				bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-				lines = append(lines, fmt.Sprintf("%s %d/%d %s %d%%",
-					SpinnerPlaceholder, item.Completed, item.Total, bar, int(pct)))
+				lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
+					SpinnerPlaceholder, formatLabelArea("", item.Completed, item.Total), bar, int(pct)))
 			}
 		} else {
 			// Pending: don't display
@@ -280,6 +238,23 @@ func renderProgressBar(pct float64, width int) string {
 	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
 }
 
+// formatLabelArea formats the label + x/y portion with fixed 22-char width.
+// For single bar (no label): x/y is right-aligned to fill 22 chars.
+// For multi-bar: label is left-aligned, x/y is right-aligned, total 22 chars.
+func formatLabelArea(label string, current, total int) string {
+	progress := fmt.Sprintf("%d/%d", current, total)
+	if label == "" {
+		// No label: right-align x/y to fill entire width
+		return fmt.Sprintf("%*s", config.ProgressLabelAreaWidth, progress)
+	}
+	// With label: label left, x/y right, pad between them
+	padding := config.ProgressLabelAreaWidth - len(label) - len(progress)
+	if padding < 1 {
+		padding = 1
+	}
+	return label + strings.Repeat(" ", padding) + progress
+}
+
 // formatProgressReport renders the new ProgressReport format.
 func formatProgressReport(report *model.ProgressReport) string {
 	var lines []string
@@ -291,16 +266,9 @@ func formatProgressReport(report *model.ProgressReport) string {
 
 // renderProgressGroup renders a single group (completed or in-progress).
 func renderProgressGroup(g *model.ProgressGroup) string {
-	// Check if complete: all bars at 100%
-	complete := len(g.Bars) > 0
-	for _, b := range g.Bars {
-		if b.Total == 0 || b.Current < b.Total {
-			complete = false
-			break
-		}
-	}
-
-	if complete {
+	// CompletedAt is set by CompleteGroup — it's the authoritative signal.
+	// Bar-based checks break when Total is 0 (e.g., no unmatched players).
+	if g.CompletedAt > 0 {
 		return "✓ " + g.CompletedMsg
 	}
 
@@ -313,8 +281,8 @@ func renderProgressGroup(g *model.ProgressGroup) string {
 		}
 		pct := float64(b.Current) / float64(b.Total) * 100
 		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-		return fmt.Sprintf("▶ %s\n%s %d/%d %s %d%%",
-			g.Header, SpinnerPlaceholder, b.Current, b.Total, bar, int(pct))
+		return fmt.Sprintf("▶ %s\n%s %s %s %d%%",
+			g.Header, SpinnerPlaceholder, formatLabelArea("", b.Current, b.Total), bar, int(pct))
 	}
 
 	// Multi-bar: with labels and total line
@@ -333,28 +301,9 @@ func renderMultiBarGroup(g *model.ProgressGroup) string {
 		}
 	}
 
-	// Calculate alignment widths
-	const totalLabel = "Total"
-	maxLabelLen := len(totalLabel)
-	maxTotal := totalTotal
-
-	for _, b := range activeBars {
-		label := ""
-		if b.Label != nil {
-			label = *b.Label
-		}
-		if len(label) > maxLabelLen {
-			maxLabelLen = len(label)
-		}
-		if b.Total > maxTotal {
-			maxTotal = b.Total
-		}
-	}
-
-	progressWidth := len(fmt.Sprintf("%d/%d", maxTotal, maxTotal))
-
 	lines := []string{"▶ " + g.Header}
 
+	// Format: spinner + 22-char label area (label left, x/y right) + bar + percent
 	for _, b := range activeBars {
 		label := ""
 		if b.Label != nil {
@@ -365,18 +314,16 @@ func renderMultiBarGroup(g *model.ProgressGroup) string {
 			pct = float64(b.Current) / float64(b.Total) * 100
 		}
 		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-		progress := fmt.Sprintf("%d/%d", b.Current, b.Total)
-		lines = append(lines, fmt.Sprintf("%s %-*s %*s %s %d%%",
-			SpinnerPlaceholder, maxLabelLen, label, progressWidth, progress, bar, int(pct)))
+		lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
+			SpinnerPlaceholder, formatLabelArea(label, b.Current, b.Total), bar, int(pct)))
 	}
 
 	// Total line
 	if totalTotal > 0 {
 		pct := float64(totalCurrent) / float64(totalTotal) * 100
 		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-		progress := fmt.Sprintf("%d/%d", totalCurrent, totalTotal)
-		lines = append(lines, fmt.Sprintf("  %-*s %*s %s %d%%",
-			maxLabelLen, totalLabel, progressWidth, progress, bar, int(pct)))
+		lines = append(lines, fmt.Sprintf("  %s %s %d%%",
+			formatLabelArea("Total", totalCurrent, totalTotal), bar, int(pct)))
 	}
 
 	return strings.Join(lines, "\n")

@@ -2,45 +2,85 @@ package worker
 
 import (
 	"fmt"
-	"time"
 
+	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/core"
 	"go.temporal.io/sdk/workflow"
 )
 
-// ImportSeasonWorkflow imports all boxscores for a single season.
-// Each season runs in its own child workflow to isolate history.
-// A typical season (~270 days) generates ~600 history events, well under the 50K limit.
-func ImportSeasonWorkflow(ctx workflow.Context, season SeasonInfo) error {
+// GroupImportDays is the single progress group for ImportSeasonWorkflow.
+const GroupImportDays = 0
+
+// NewImportSeasonProgressReport creates the progress structure for a single season import.
+func NewImportSeasonProgressReport(season nhl.SeasonInfo) *ProgressReport {
+	total, _ := countDaysInSeason(season)
+	return &ProgressReport{
+		Total: total,
+		Groups: []ProgressGroup{
+			{Header: fmt.Sprintf("Importing games for %s...", season.Label()), Bars: []ProgressBar{{Total: total}}},
+		},
+	}
+}
+
+// ImportSeasonWorkflow imports day-level data for a single season.
+// Per-day boxscores, game stories, and Yahoo data via ImportDay.
+// Player game log imports are handled separately by ImportSeasonPlayerLogsWorkflow.
+func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 
 	logger.Info("ImportSeasonWorkflow started",
-		"startYear", season.StartYear(),
-		"startDate", season.StartDate.Format(config.DateFormat),
-		"endDate", season.EndDate.Format(config.DateFormat))
+		"startYear", season.ID.StartYear(),
+		"startDate", season.StandingsStart.Format(config.DateFormat),
+		"endDate", season.StandingsEnd.Format(config.DateFormat))
 
-	tracker := NewProgressTracker(countDaysInSeason(season))
+	tracker := NewReportTracker(NewImportSeasonProgressReport(season))
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
-		return err
+		return nil, err
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 
-	// Import Yahoo leagues and teams (returns team IDs for per-day processing)
-	teamIDs, err := importYahooLeaguesAndTeams(ctx, season.StartYear())
+	// Yahoo setup (not tracked in progress)
+	teamIDs, err := importYahooLeaguesAndTeams(ctx, season.ID.StartYear())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Process each day's data in parallel
-	if err := processDaysInParallel(ctx, tracker, season, teamIDs); err != nil {
-		return err
+	// --- Import days ---
+	tracker.StartGroup(ctx, GroupImportDays)
+
+	endDate := effectiveEndDate(season.StandingsEnd.Time)
+	numDays := countDays(season.StandingsStart.Time, endDate)
+	dayConcurrency := getDayConcurrency()
+	startDate := season.StandingsStart.Time
+	startYear := season.ID.StartYear()
+	seasonID := season.ID.ToInt()
+
+	var sa *SeasonsActivities
+	err = tracker.RunWorkerPool(ctx, GroupImportDays, 0, numDays, dayConcurrency,
+		func(_ workflow.Context, i int) workflow.Future {
+			day := startDate.AddDate(0, 0, i)
+			input := ImportDayInput{
+				Date:      day,
+				Season:    startYear,
+				SeasonID:  seasonID,
+				TeamIDs:   teamIDs,
+				TotalDays: numDays,
+			}
+			return workflow.ExecuteActivity(ctx, sa.ImportDay, input)
+		}, nil)
+	if err != nil {
+		return nil, err
 	}
+
+	tracker.CompleteGroup(ctx, GroupImportDays,
+		fmt.Sprintf("Imported %d days for %s in %s.", numDays, season.Label(), tracker.GetElapsed(ctx, GroupImportDays)))
 
 	logger.Info("ImportSeasonWorkflow completed",
-		"startYear", season.StartYear(),
-		"completed", tracker.progress.Completed)
-	return nil
+		"startYear", season.ID.StartYear())
+
+	return nil, nil
 }
 
 // importYahooLeaguesAndTeams imports Yahoo league and team metadata.
@@ -61,9 +101,12 @@ func importYahooLeaguesAndTeams(ctx workflow.Context, startYear int) ([]TeamInfo
 
 	logger.Info("Importing Yahoo data for season", "startYear", startYear)
 
+	var sa *SeasonsActivities
+
 	// Import each league and collect team IDs
 	for _, league := range yahooCfg.Leagues {
-		if err := importYahooLeague(ctx, startYear, league.LeagueID); err != nil {
+		input := ImportYahooLeagueInput{Season: startYear, LeagueID: league.LeagueID}
+		if err := workflow.ExecuteActivity(ctx, sa.ImportYahooLeague, input).Get(ctx, nil); err != nil {
 			return nil, err
 		}
 
@@ -74,122 +117,13 @@ func importYahooLeaguesAndTeams(ctx workflow.Context, startYear int) ([]TeamInfo
 
 	// Import all teams in one batched activity
 	if len(teamIDs) > 0 {
-		if err := importYahooTeams(ctx, startYear, teamIDs); err != nil {
+		input := ImportYahooTeamsInput{Season: startYear, Teams: teamIDs}
+		if err := workflow.ExecuteActivity(ctx, sa.ImportYahooTeams, input).Get(ctx, nil); err != nil {
 			return nil, err
 		}
 	}
 
 	return teamIDs, nil
-}
-
-// importYahooLeague imports a single Yahoo fantasy league.
-func importYahooLeague(ctx workflow.Context, season, leagueID int) error {
-	input := ImportYahooLeagueInput{
-		Season:   season,
-		LeagueID: leagueID,
-	}
-	return workflow.ExecuteActivity(ctx, ImportYahooLeagueActivity, input).Get(ctx, nil)
-}
-
-// importYahooTeams imports Yahoo team metadata in a single batch.
-func importYahooTeams(ctx workflow.Context, season int, teams []TeamInfo) error {
-	input := ImportYahooTeamsInput{
-		Season: season,
-		Teams:  teams,
-	}
-	return workflow.ExecuteActivity(ctx, ImportYahooTeamsActivity, input).Get(ctx, nil)
-}
-
-// processDaysInParallel processes boxscores and Yahoo data for each day in the season.
-func processDaysInParallel(ctx workflow.Context, tracker *ProgressTracker, season SeasonInfo, teamIDs []TeamInfo) error {
-	logger := workflow.GetLogger(ctx)
-
-	endDate := effectiveEndDate(season.EndDate)
-	numDays := countDays(season.StartDate, endDate)
-	concurrency := getDayConcurrency()
-
-	logger.Info("Processing days in parallel",
-		"numDays", numDays,
-		"concurrency", concurrency)
-
-	return tracker.RunWorkerPool(ctx, numDays, concurrency, func(ctx workflow.Context, i int) workflow.Future {
-		day := season.StartDate.AddDate(0, 0, i)
-		return importDayData(ctx, season.StartYear(), day, teamIDs)
-	})
-}
-
-// importDayData chains boxscore, player game log, and Yahoo data imports for a single day.
-func importDayData(ctx workflow.Context, season int, day time.Time, teamIDs []TeamInfo) workflow.Future {
-	future, settable := workflow.NewFuture(ctx)
-
-	workflow.Go(ctx, func(ctx workflow.Context) {
-		// First: import boxscores
-		if err := importBoxscoresForDate(ctx, season, day); err != nil {
-			settable.SetError(err)
-			return
-		}
-
-		// Second: import player game log stats (PPP, GWG, OT goals)
-		if err := importPlayerGameLogsForDate(ctx, season, day); err != nil {
-			settable.SetError(err)
-			return
-		}
-
-		// Third: import game story data (three stars, highlights, shootouts)
-		if err := importGameStoryForDate(ctx, season, day); err != nil {
-			settable.SetError(err)
-			return
-		}
-
-		// Fourth: import Yahoo team data if teams configured
-		if len(teamIDs) > 0 {
-			if err := importYahooDataForDate(ctx, season, day, teamIDs); err != nil {
-				settable.SetError(err)
-				return
-			}
-		}
-
-		settable.Set(nil, nil)
-	})
-
-	return future
-}
-
-// importBoxscoresForDate imports boxscores for a single date.
-func importBoxscoresForDate(ctx workflow.Context, season int, day time.Time) error {
-	input := ImportBoxscoresForDateInput{
-		Date:   day,
-		Season: season,
-	}
-	return workflow.ExecuteActivity(ctx, ImportBoxscoresForDateActivity, input).Get(ctx, nil)
-}
-
-// importYahooDataForDate imports Yahoo team summaries and rosters for a single date.
-func importYahooDataForDate(ctx workflow.Context, season int, day time.Time, teams []TeamInfo) error {
-	input := ImportYahooDataForDateInput{
-		Season: season,
-		Teams:  teams,
-		Date:   day,
-	}
-	return workflow.ExecuteActivity(ctx, ImportYahooDataForDateActivity, input).Get(ctx, nil)
-}
-
-// importPlayerGameLogsForDate imports player game log stats for a single date.
-func importPlayerGameLogsForDate(ctx workflow.Context, season int, day time.Time) error {
-	input := ImportPlayerGameLogsForDateInput{
-		Season: season*10000 + season + 1, // Convert 2023 -> 20232024
-		Date:   day,
-	}
-	return workflow.ExecuteActivity(ctx, ImportPlayerGameLogsForDateActivity, input).Get(ctx, nil)
-}
-
-// importGameStoryForDate imports game story data for a single date.
-func importGameStoryForDate(ctx workflow.Context, season int, day time.Time) error {
-	input := ImportGameStoryForDateInput{
-		Season: season*10000 + season + 1, // Convert 2023 -> 20232024
-		Date:   day,
-	}
-	return workflow.ExecuteActivity(ctx, ImportGameStoryForDateActivity, input).Get(ctx, nil)
 }
 
 // WorkflowIDImportSeason returns the workflow ID for a single season import.

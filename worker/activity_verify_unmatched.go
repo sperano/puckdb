@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 	"golang.org/x/text/runes"
@@ -58,7 +59,8 @@ type VerifyUnmatchedResult struct {
 // verifyDeps contains the dependencies for verifying unmatched players.
 type verifyDeps struct {
 	client      NHLClient
-	repos       *store.Repos
+	storage     store.Storage
+	gobCache    *cache.GobCache
 	redisClient cache.Client
 }
 
@@ -75,7 +77,8 @@ func VerifyUnmatchedBatchActivity(ctx context.Context, players []UnmatchedYahooP
 
 	deps := verifyDeps{
 		client:      nhl.NewClient(),
-		repos:       store.NewDefaultRepos(),
+		storage:     store.NewDefaultStorage(),
+		gobCache:    nil,
 		redisClient: redisClient,
 	}
 
@@ -118,7 +121,7 @@ func verifyUnmatchedBatchImpl(ctx context.Context, deps verifyDeps, players []Un
 		}
 
 		// Verify this player
-		verified := verifyPlayer(ctx, deps.client, deps.repos, player)
+		verified := verifyPlayer(ctx, deps.client, deps.storage, deps.gobCache, player)
 
 		if !verified.FoundInNHL {
 			result.NotFoundInNHL = append(result.NotFoundInNHL, verified)
@@ -148,7 +151,7 @@ func verifyUnmatchedBatchImpl(ctx context.Context, deps verifyDeps, players []Un
 }
 
 // verifyPlayer checks if a Yahoo player has any NHL regular season games.
-func verifyPlayer(ctx context.Context, client NHLClient, repos *store.Repos, player UnmatchedYahooPlayer) VerifiedPlayer {
+func verifyPlayer(ctx context.Context, client NHLClient, storage store.Storage, gobCache *cache.GobCache, player UnmatchedYahooPlayer) VerifiedPlayer {
 	result := VerifiedPlayer{
 		YahooID:   player.YahooID,
 		FirstName: player.FirstName,
@@ -180,7 +183,7 @@ func verifyPlayer(ctx context.Context, client NHLClient, repos *store.Repos, pla
 	result.NHLName = matchedResult.Name
 
 	// Get full player landing data - check cache first
-	landing, err := fetchPlayerLanding(ctx, client, repos, matchedResult.PlayerID)
+	landing, err := fetchPlayerLanding(ctx, client, storage, gobCache, matchedResult.PlayerID)
 	if err != nil {
 		log.Warn().Err(err).Str("name", playerName).Msg("Failed to get landing data")
 		return result
@@ -203,10 +206,11 @@ func verifyPlayer(ctx context.Context, client NHLClient, repos *store.Repos, pla
 }
 
 // fetchPlayerLanding retrieves player landing data, using cache if available.
-func fetchPlayerLanding(ctx context.Context, client NHLClient, repos *store.Repos, playerID nhl.PlayerID) (*nhl.PlayerLanding, error) {
+func fetchPlayerLanding(ctx context.Context, client NHLClient, storage store.Storage, gobCache *cache.GobCache, playerID nhl.PlayerID) (*nhl.PlayerLanding, error) {
 	// Check cache first
-	if repos.Player.LandingExists(playerID) {
-		landing, err := repos.Player.GetLanding(playerID)
+	landingRes := resource.PlayerLanding{PlayerID: playerID}
+	if storage.Exists(landingRes.Path()) {
+		landing, _, err := cache.ReadParsedCached(ctx, storage, gobCache, landingRes)
 		if err == nil {
 			return landing, nil
 		}

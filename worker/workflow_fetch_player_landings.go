@@ -1,11 +1,9 @@
 package worker
 
 import (
-	"context"
 	"fmt"
 	"time"
 
-	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
@@ -20,11 +18,6 @@ const (
 	// GroupFetchPlayerLandings is the group index for fetch progress tracking.
 	GroupFetchPlayerLandings = 0
 
-	// DefaultFetchLandingsBatchSize is the default number of players per batch.
-	DefaultFetchLandingsBatchSize = 50
-
-	// DefaultFetchLandingsConcurrency is the default number of concurrent batch activities.
-	DefaultFetchLandingsConcurrency = 10
 )
 
 // FetchPlayerLandingsInput contains parameters for the fetch player landings workflow.
@@ -57,22 +50,13 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 	logger := workflow.GetLogger(ctx)
 
 	// Parse configuration
-	batchSize := DefaultFetchLandingsBatchSize
-	if input != nil && input.BatchSize != nil && *input.BatchSize > 0 {
-		batchSize = *input.BatchSize
+	var batchOverride, concurrencyOverride *int
+	if input != nil {
+		batchOverride = input.BatchSize
+		concurrencyOverride = input.Concurrency
 	}
-	concurrency := DefaultFetchLandingsConcurrency
-	if input != nil && input.Concurrency != nil && *input.Concurrency > 0 {
-		concurrency = *input.Concurrency
-	}
-
-	maxConcurrency := viper.GetInt(config.FlagMaxSeasonConcurrency)
-	if maxConcurrency > 0 && concurrency > maxConcurrency {
-		logger.Warn("Requested concurrency exceeds maximum, capping",
-			"requested", concurrency,
-			"max", maxConcurrency)
-		concurrency = maxConcurrency
-	}
+	batchSize := resolveConfigInt(nil, playerLandingBatchSizeParam, batchOverride)
+	concurrency := resolveConfigInt(logger, playerLandingConcurrencyParam, concurrencyOverride)
 
 	logger.Info("FetchPlayerLandingsWorkflow started",
 		"batchSize", batchSize,
@@ -90,8 +74,9 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 	})
 
 	// Load consolidated players from Redis
+	var playerAct *PlayerActivities
 	var players []store.BoxscorePlayer
-	if err := workflow.ExecuteActivity(loadCtx, LoadAllBoxscorePlayersActivity).Get(ctx, &players); err != nil {
+	if err := workflow.ExecuteActivity(loadCtx, playerAct.LoadAllBoxscorePlayers).Get(ctx, &players); err != nil {
 		return nil, fmt.Errorf("load boxscore players from redis: %w", err)
 	}
 
@@ -119,7 +104,7 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 	})
 
 	// Calculate number of batches
-	numBatches := (len(players) + batchSize - 1) / batchSize
+	numBatches := batchCount(len(players), batchSize)
 
 	// Aggregate results
 	result := &FetchPlayerLandingsResult{TotalPlayers: len(players)}
@@ -127,16 +112,11 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 	// Run batches with concurrency control
 	err := tracker.RunWorkerPool(ctx, GroupFetchPlayerLandings, 0, numBatches, concurrency,
 		func(_ workflow.Context, batchIndex int) workflow.Future {
-			batchStart := batchIndex * batchSize
-			batchEnd := batchStart + batchSize
-			if batchEnd > len(players) {
-				batchEnd = len(players)
-			}
-			batch := players[batchStart:batchEnd]
-			return workflow.ExecuteActivity(fetchCtx, FetchPlayerLandingsBatchActivity, batch)
+			batch := batchSlice(players, batchIndex, batchSize)
+			return workflow.ExecuteActivity(fetchCtx, playerAct.FetchPlayerLandingsBatch, batch)
 		},
 		func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
-			var batchResult FetchPlayerLandingsBatchResult
+			var batchResult DownloadPlayerLandingBatchResult
 			if err := f.Get(ctx, &batchResult); err != nil {
 				return err
 			}
@@ -144,14 +124,8 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 			result.CacheHits += batchResult.CacheHits
 			result.Missing += batchResult.Missing
 
-			// Calculate actual batch size for progress increment
-			batchStart := batchIndex * batchSize
-			batchEnd := batchStart + batchSize
-			if batchEnd > len(players) {
-				batchEnd = len(players)
-			}
-			actualBatchSize := batchEnd - batchStart
-			tracker.IncrementBarBy(GroupFetchPlayerLandings, 0, actualBatchSize-1) // -1 because RunWorkerPool already adds 1
+			actualBatchSize := len(batchSlice(players, batchIndex, batchSize))
+			tracker.IncrementBarBy(ctx, GroupFetchPlayerLandings, 0, actualBatchSize-1) // -1 because RunWorkerPool already adds 1
 			return nil
 		})
 	if err != nil {
@@ -172,10 +146,3 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 	return result, nil
 }
 
-// LoadAllBoxscorePlayersActivity loads the consolidated player set from Redis.
-func LoadAllBoxscorePlayersActivity(ctx context.Context) ([]store.BoxscorePlayer, error) {
-	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
-
-	return cache.LoadAllBoxscorePlayers(ctx, redisClient)
-}

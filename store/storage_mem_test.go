@@ -83,7 +83,7 @@ func TestMemStorage_List(t *testing.T) {
 	s.SetFile(dir+"/boxscore-2024020001.json", []byte("{}"))
 	s.SetFile(dir+"/boxscore-2024020002.json", []byte("{}"))
 	s.SetFile(dir+"/daily-schedule-2024-01-15.json", []byte("{}"))
-	s.SetFile(dir+"/readme.txt", []byte("ignored")) // different extension
+	s.SetFile(dir+"/readme.txt", []byte("ignored"))    // different extension
 	s.SetFile(dir+"/subdir/nested.json", []byte("{}")) // in subdirectory
 
 	// List JSON files

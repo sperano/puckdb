@@ -85,6 +85,7 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 	}
 	tracker.StartGroup(ctx, GroupFetchYahooPlayers)
 
+	var yahooAct *YahooActivities
 	activityCtx := workflow.WithActivityOptions(ctx, defaultActivityOptions())
 	startActivity := func(ctx workflow.Context, batchIndex int) workflow.Future {
 		batchStartID := startID + (batchIndex * activityBatchSize)
@@ -92,7 +93,7 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 		if batchEndID > endID {
 			batchEndID = endID
 		}
-		return workflow.ExecuteActivity(activityCtx, FetchYahooPlayerBatchActivity, batchStartID, batchEndID)
+		return workflow.ExecuteActivity(activityCtx, yahooAct.FetchYahooPlayerBatch, batchStartID, batchEndID)
 	}
 
 	executionFound := 0

@@ -1,0 +1,2 @@
+- make sure we use nhl.Season instad of nhl.SeasonInfo wherever we can
+- cache completeness & player logs, player landings, etc

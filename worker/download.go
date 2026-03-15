@@ -15,6 +15,7 @@ import (
 	"github.com/sperano/puckdb/config"
 	puckhttp "github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
 )
@@ -45,8 +46,8 @@ type NHLClient interface {
 // Compile-time check that nhl.Client implements NHLClient
 var _ NHLClient = (*nhl.Client)(nil)
 
-// newNHLClient creates an NHL API client with the configured timeout.
-func newNHLClient() *nhl.Client {
+// NewNHLClient creates an NHL API client with the configured timeout.
+func NewNHLClient() *nhl.Client {
 	cfg := nhl.NewClientConfig(nhl.WithConfigTimeout(nhlAPITimeout))
 	return nhl.NewClientWithConfig(cfg)
 }
@@ -66,6 +67,7 @@ func downloadFromYahooImpl(redisClient cache.Client, url string) ([]byte, error)
 
 // GetGameKeyForSeason fetches the Yahoo Fantasy game key for a given NHL season.
 // Results are cached in memory and on disk since game keys never change.
+// TODO: use 3 layers cache
 func GetGameKeyForSeason(season int) (int, error) {
 	// Check memory cache first
 	gameKeyCacheMu.RLock()
@@ -75,8 +77,7 @@ func GetGameKeyForSeason(season int) (int, error) {
 	}
 	gameKeyCacheMu.RUnlock()
 
-	repos := store.NewDefaultRepos()
-	gameKey, err := store.GetGameKey(repos, season, DownloadFromYahoo, sleepAfterYahooDownload)
+	gameKey, err := getGameKeyImpl(context.Background(), store.NewDefaultStorage(), nil, season, DownloadFromYahoo, sleepAfterYahooDownload)
 	if err != nil {
 		return 0, err
 	}
@@ -89,9 +90,59 @@ func GetGameKeyForSeason(season int) (int, error) {
 	return gameKey, nil
 }
 
+// getGameKeyImpl fetches the game key, using cache or downloading if needed.
+func getGameKeyImpl(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season int, fetcher func(string) ([]byte, error), postDownload func()) (int, error) {
+	gameKeyRes := resource.GameKey{Season: season}
+
+	if storage.Exists(gameKeyRes.Path()) {
+		log.Debug().Int("season", season).Msg("Game key file found")
+		fantasy, _, err := cache.ReadParsedCached(ctx, storage, gobCache, gameKeyRes)
+		if err != nil {
+			return 0, fmt.Errorf("read stored game key for season %d: %w", season, err)
+		}
+		return extractGameKey(fantasy, season)
+	}
+
+	log.Info().Int("season", season).Msg("Downloading game key from Yahoo")
+	content, err := fetcher(gameKeyRes.URL())
+	if err != nil {
+		return 0, fmt.Errorf("fetch game key for season %d: %w", season, err)
+	}
+
+	if err := storage.Write(gameKeyRes.Path(), content); err != nil {
+		return 0, fmt.Errorf("save game key for season %d: %w", season, err)
+	}
+	log.Info().Int("season", season).Str("path", gameKeyRes.Path()).Msg("Saved game key")
+	if postDownload != nil {
+		postDownload()
+	}
+
+	fantasy, err := gameKeyRes.Parse(content)
+	if err != nil {
+		return 0, fmt.Errorf("parse game key response for season %d: %w", season, err)
+	}
+
+	return extractGameKey(fantasy, season)
+}
+
+// extractGameKey extracts the game key from parsed fantasy content.
+func extractGameKey(fantasy *store.FantasyContent, season int) (int, error) {
+	var gameKey int
+	if len(fantasy.Games) > 0 {
+		gameKey = fantasy.Games[0].Key
+	} else if fantasy.Game.Key != 0 {
+		gameKey = fantasy.Game.Key
+	} else {
+		return 0, fmt.Errorf("no game key found for season %d", season)
+	}
+
+	log.Info().Int("season", season).Int("game_key", gameKey).Msg("Loaded Yahoo game key")
+	return gameKey, nil
+}
+
 func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
 	log.Info().Str("gameid", gameid.String()).Msg("Downloading boxscore NHL API")
-	client := newNHLClient()
+	client := NewNHLClient()
 
 	start := time.Now()
 	boxscore, err := client.Boxscore(context.Background(), gameid)
@@ -116,7 +167,7 @@ type GameDataDownloader func(id nhl.GameID) ([]byte, error)
 
 func DownloadPlayByPlay(gameid nhl.GameID) ([]byte, error) {
 	log.Debug().Str("gameid", gameid.String()).Msg("Downloading play-by-play NHL API")
-	client := newNHLClient()
+	client := NewNHLClient()
 
 	start := time.Now()
 	pbp, err := client.PlayByPlay(context.Background(), gameid)
@@ -138,7 +189,7 @@ func DownloadPlayByPlay(gameid nhl.GameID) ([]byte, error) {
 
 func DownloadShiftChart(gameid nhl.GameID) ([]byte, error) {
 	log.Debug().Str("gameid", gameid.String()).Msg("Downloading shift chart NHL API")
-	client := newNHLClient()
+	client := NewNHLClient()
 
 	start := time.Now()
 	shifts, err := client.ShiftChart(context.Background(), gameid)
@@ -160,7 +211,7 @@ func DownloadShiftChart(gameid nhl.GameID) ([]byte, error) {
 
 func DownloadGameStory(gameid nhl.GameID) ([]byte, error) {
 	log.Debug().Str("gameid", gameid.String()).Msg("Downloading game story NHL API")
-	client := newNHLClient()
+	client := NewNHLClient()
 
 	start := time.Now()
 	story, err := client.GameStory(context.Background(), gameid)
@@ -180,62 +231,8 @@ func DownloadGameStory(gameid nhl.GameID) ([]byte, error) {
 	return data, nil
 }
 
-// DownloadPlayerGameLog downloads a player's game log for a specific season and game type.
-func DownloadPlayerGameLog(playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) ([]byte, error) {
-	log.Debug().
-		Str("playerID", playerID.String()).
-		Str("season", season.String()).
-		Str("gameType", gameType.String()).
-		Msg("Downloading player game log NHL API")
-	client := newNHLClient()
-
-	start := time.Now()
-	gameLog, err := client.PlayerGameLog(context.Background(), playerID, season, gameType)
-	duration := time.Since(start)
-
-	if err != nil {
-		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
-		return nil, err
-	}
-
-	data, err := json.Marshal(gameLog)
-	if err != nil {
-		return nil, fmt.Errorf("player %s season %s: %w", playerID, season, err)
-	}
-
-	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
-	return data, nil
-}
-
 // Downloader fetches content from a URL.
 type Downloader func(url string) ([]byte, error)
-
-// doDownloadImpl is the testable implementation.
-// fileType is used for metrics labels.
-func doDownloadImpl(ctx context.Context, storage store.Storage, path string, url string, download Downloader, fileType string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	if storage.Exists(path) {
-		log.Debug().Str("path", path).Str("type", fileType).Msg("Cached")
-		metrics.IncDownload(fileType, "hit")
-		return nil
-	}
-	content, err := download(url)
-	if err != nil {
-		metrics.IncDownload(fileType, "error")
-		return fmt.Errorf("%s: %w", url, err)
-	}
-	if err := storage.Write(path, content); err != nil {
-		metrics.IncDownload(fileType, "error")
-		return fmt.Errorf("%s: %w", path, err)
-	}
-	log.Info().Str("path", path).Str("type", fileType).Msg("Saved")
-	metrics.IncDownload(fileType, "miss")
-	sleepAfterYahooDownload()
-	return nil
-}
 
 // sleepAfterYahooDownload sleeps for a random duration between min and max after a Yahoo API download.
 func sleepAfterYahooDownload() {

@@ -90,25 +90,20 @@ func (s *MemStorage) List(dir string, ext string) ([]string, error) {
 		if !strings.HasPrefix(p, prefix) {
 			continue
 		}
-
 		// Extract relative path from directory
 		rel := p[len(prefix):]
-
 		// Skip if it's in a subdirectory
 		if strings.Contains(rel, "/") {
 			continue
 		}
-
 		// Must have the correct extension
 		if !strings.HasSuffix(rel, suffix) {
 			continue
 		}
-
 		// Strip extension
 		name := rel[:len(rel)-len(suffix)]
 		names = append(names, name)
 	}
-
 	// Sort for deterministic output
 	sort.Strings(names)
 	return names, nil

@@ -112,6 +112,52 @@ type GoalHighlight struct {
 	DiscreteClipID   pgtype.Int8 `json:"discrete_clip_id"`
 }
 
+type PlayEvent struct {
+	GameID                int64       `json:"game_id"`
+	EventID               int64       `json:"event_id"`
+	Period                int32       `json:"period"`
+	PeriodType            string      `json:"period_type"`
+	TimeInPeriod          string      `json:"time_in_period"`
+	TimeRemaining         string      `json:"time_remaining"`
+	SituationCode         pgtype.Text `json:"situation_code"`
+	HomeTeamDefendingSide pgtype.Text `json:"home_team_defending_side"`
+	TypeCode              int32       `json:"type_code"`
+	TypeDescKey           string      `json:"type_desc_key"`
+	SortOrder             int32       `json:"sort_order"`
+	XCoord                pgtype.Int4 `json:"x_coord"`
+	YCoord                pgtype.Int4 `json:"y_coord"`
+	ZoneCode              pgtype.Text `json:"zone_code"`
+	EventOwnerTeamID      pgtype.Int8 `json:"event_owner_team_id"`
+	ShotType              pgtype.Text `json:"shot_type"`
+	ShootingPlayerID      pgtype.Int8 `json:"shooting_player_id"`
+	GoalieInNetID         pgtype.Int8 `json:"goalie_in_net_id"`
+	BlockingPlayerID      pgtype.Int8 `json:"blocking_player_id"`
+	ScoringPlayerID       pgtype.Int8 `json:"scoring_player_id"`
+	ScoringPlayerTotal    pgtype.Int4 `json:"scoring_player_total"`
+	Assist1PlayerID       pgtype.Int8 `json:"assist1_player_id"`
+	Assist1PlayerTotal    pgtype.Int4 `json:"assist1_player_total"`
+	Assist2PlayerID       pgtype.Int8 `json:"assist2_player_id"`
+	Assist2PlayerTotal    pgtype.Int4 `json:"assist2_player_total"`
+	AwayScore             pgtype.Int4 `json:"away_score"`
+	HomeScore             pgtype.Int4 `json:"home_score"`
+	HighlightClipID       pgtype.Int8 `json:"highlight_clip_id"`
+	HighlightClipUrl      pgtype.Text `json:"highlight_clip_url"`
+	DiscreteClipID        pgtype.Int8 `json:"discrete_clip_id"`
+	PenaltyTypeCode       pgtype.Text `json:"penalty_type_code"`
+	PenaltyDescKey        pgtype.Text `json:"penalty_desc_key"`
+	PenaltyDuration       pgtype.Int4 `json:"penalty_duration"`
+	CommittedByPlayerID   pgtype.Int8 `json:"committed_by_player_id"`
+	DrawnByPlayerID       pgtype.Int8 `json:"drawn_by_player_id"`
+	HittingPlayerID       pgtype.Int8 `json:"hitting_player_id"`
+	HitteePlayerID        pgtype.Int8 `json:"hittee_player_id"`
+	WinningPlayerID       pgtype.Int8 `json:"winning_player_id"`
+	LosingPlayerID        pgtype.Int8 `json:"losing_player_id"`
+	PlayerID              pgtype.Int8 `json:"player_id"`
+	Reason                pgtype.Text `json:"reason"`
+	AwaySog               pgtype.Int4 `json:"away_sog"`
+	HomeSog               pgtype.Int4 `json:"home_sog"`
+}
+
 type Player struct {
 	ID                  int64       `json:"id"`
 	YahooID             pgtype.Int8 `json:"yahoo_id"`
@@ -161,6 +207,22 @@ type SeasonTeam struct {
 	DivisionAbbrev   string      `json:"division_abbrev"`
 	ConferenceName   pgtype.Text `json:"conference_name"`
 	ConferenceAbbrev pgtype.Text `json:"conference_abbrev"`
+}
+
+type Shift struct {
+	ID               int64       `json:"id"`
+	GameID           int64       `json:"game_id"`
+	PlayerID         int64       `json:"player_id"`
+	TeamID           int64       `json:"team_id"`
+	Period           int32       `json:"period"`
+	StartTime        string      `json:"start_time"`
+	EndTime          string      `json:"end_time"`
+	Duration         string      `json:"duration"`
+	ShiftNumber      int32       `json:"shift_number"`
+	TypeCode         int32       `json:"type_code"`
+	DetailCode       int32       `json:"detail_code"`
+	EventNumber      int64       `json:"event_number"`
+	EventDescription pgtype.Text `json:"event_description"`
 }
 
 type ShootoutAttempt struct {

@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
-	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -30,20 +30,11 @@ type ImportBoxscoresForDateResult struct {
 	GamesSkipped    int `json:"gamesSkipped"` // Games not yet final
 }
 
-// ImportBoxscoresForDateActivity imports all boxscores for a single date from the cache into the database.
-func ImportBoxscoresForDateActivity(ctx context.Context, input ImportBoxscoresForDateInput) (ImportBoxscoresForDateResult, error) {
+// ImportBoxscoresForDate imports all boxscores for a single date from the cache into the database.
+func (a *SeasonsActivities) ImportBoxscoresForDate(ctx context.Context, input ImportBoxscoresForDateInput) (ImportBoxscoresForDateResult, error) {
 	logger := activity.GetLogger(ctx)
-	repos := store.NewDefaultRepos()
 
-	pool, err := database.OpenPGXPool(ctx)
-	if err != nil {
-		return ImportBoxscoresForDateResult{}, fmt.Errorf("open database pool: %w", err)
-	}
-	defer pool.Close()
-
-	queries := sqlcdb.New(pool)
-
-	result, err := importBoxscoresForDateImpl(ctx, repos, queries, input)
+	result, err := a.importBoxscoresForDate(ctx, a.ImportQueries, input)
 	if err != nil {
 		return result, err
 	}
@@ -58,59 +49,40 @@ func ImportBoxscoresForDateActivity(ctx context.Context, input ImportBoxscoresFo
 	return result, nil
 }
 
-// BoxscoreUpserter is the interface for database operations needed by boxscore import.
-type BoxscoreUpserter interface {
-	UpsertGame(ctx context.Context, arg sqlcdb.UpsertGameParams) error
-	UpsertGameSkaterStatsBatch(ctx context.Context, arg []sqlcdb.UpsertGameSkaterStatsBatchParams) *sqlcdb.UpsertGameSkaterStatsBatchBatchResults
-	UpsertGameGoalieStatsBatch(ctx context.Context, arg []sqlcdb.UpsertGameGoalieStatsBatchParams) *sqlcdb.UpsertGameGoalieStatsBatchBatchResults
-}
-
-
-func importBoxscoresForDateImpl(
-	ctx context.Context,
-	repos *store.Repos,
-	queries BoxscoreUpserter,
-	input ImportBoxscoresForDateInput,
-) (ImportBoxscoresForDateResult, error) {
+// importBoxscoresForDate contains the core boxscore import logic.
+// Separated from ImportBoxscoresForDate to allow testing with a narrower queries interface.
+func (a *SeasonsActivities) importBoxscoresForDate(ctx context.Context, queries BoxscoreUpserter, input ImportBoxscoresForDateInput) (ImportBoxscoresForDateResult, error) {
 	result := ImportBoxscoresForDateResult{}
 
 	// Read the daily schedule to get game IDs
-	if !repos.Schedule.Exists(input.Date) {
+	scheduleRes := resource.DailySchedule{Date: input.Date}
+	if !a.Storage.Exists(scheduleRes.Path()) {
 		log.Debug().Str("date", input.Date.Format("2006-01-02")).Msg("No daily schedule file for date")
 		return result, nil
 	}
 
-	schedule, err := repos.Schedule.Get(input.Date)
+	schedule, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
 	if err != nil {
 		return result, fmt.Errorf("read daily schedule: %w", err)
 	}
 
 	// Process each game
 	for _, game := range schedule.Games {
-		// Skip games that aren't final
-		if !game.GameState.IsFinal() {
-			result.GamesSkipped++
-			continue
-		}
-
 		// Skip preseason games and invalid IDs (matching download phase behavior)
-		if shouldSkipGame(game.ID) {
+		if shouldSkipGame(game) {
 			result.GamesSkipped++
 			continue
 		}
 
 		// Read the boxscore file
-		if !repos.Boxscore.Exists(input.Date, game.ID) {
-			log.Warn().Str("gameID", game.ID.String()).Msg("Boxscore file missing for final game")
-			result.GamesSkipped++
-			continue
+		boxscoreRes := resource.Boxscore{Date: input.Date, GameID: game.ID}
+		if !a.Storage.Exists(boxscoreRes.Path()) {
+			return result, fmt.Errorf("boxscore file missing for game %s", game.ID.String())
 		}
 
-		boxscore, err := repos.Boxscore.Get(input.Date, game.ID)
+		boxscore, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, boxscoreRes)
 		if err != nil {
-			log.Warn().Err(err).Str("gameID", game.ID.String()).Msg("Failed to read boxscore file")
-			result.GamesSkipped++
-			continue
+			return result, fmt.Errorf("read boxscore for game %s: %w", game.ID.String(), err)
 		}
 
 		// Upsert the game
@@ -136,6 +108,13 @@ func importBoxscoresForDateImpl(
 	}
 
 	return result, nil
+}
+
+// BoxscoreUpserter is the interface for database operations needed by boxscore import.
+type BoxscoreUpserter interface {
+	UpsertGame(ctx context.Context, arg sqlcdb.UpsertGameParams) error
+	UpsertGameSkaterStatsBatch(ctx context.Context, arg []sqlcdb.UpsertGameSkaterStatsBatchParams) *sqlcdb.UpsertGameSkaterStatsBatchBatchResults
+	UpsertGameGoalieStatsBatch(ctx context.Context, arg []sqlcdb.UpsertGameGoalieStatsBatchParams) *sqlcdb.UpsertGameGoalieStatsBatchBatchResults
 }
 
 // boxscoreToGameParams converts an NHL API Boxscore to sqlcdb.UpsertGameParams.

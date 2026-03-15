@@ -1,44 +1,42 @@
 package worker
 
 import (
-	"github.com/sperano/puckdb/config"
+	"fmt"
+
+	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/graph/model"
-	"github.com/spf13/viper"
-	"go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/workflow"
 )
 
-// ImportSeasonsWorkflow imports season data from cached boxscores into the database.
-// It reads boxscore files from SimpleFS (previously downloaded) and upserts them
-// into the nhl_games, nhl_game_skater_stats, and nhl_game_goalie_stats tables.
-//
-// Each season runs in its own child workflow to isolate workflow history.
-// This matches the FetchSeasonsWorkflow pattern for consistency.
+// Group indices for ImportSeasonsWorkflow progress.
+const (
+	GroupImportSeasonsData       = 0
+	GroupImportSeasonsPlayerLogs = 1
+)
+
+// NewImportSeasonsProgressReport creates the initial progress structure for import seasons.
+// Two groups: one for day imports, one for player log imports.
+func NewImportSeasonsProgressReport() *ProgressReport {
+	return &ProgressReport{
+		Groups: []ProgressGroup{
+			{Header: "Importing seasons...", Bars: []ProgressBar{}},
+			{Header: "Importing player logs...", Bars: []ProgressBar{}},
+		},
+	}
+}
+
+// ImportSeasonsWorkflow imports season data from cached files into the database.
+// Phase 1: spawn ImportSeasonWorkflow children for day-level imports.
+// Phase 2: spawn ImportSeasonPlayerLogsWorkflow children for player game log imports.
 func ImportSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
-	// Register query handler immediately so progress queries work from workflow start
-	tracker := NewProgressTracker(0)
+	tracker := NewReportTracker(NewImportSeasonsProgressReport())
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
 
-	maxConcurrency := viper.GetInt(config.FlagMaxSeasonConcurrency)
-	if maxConcurrency <= 0 {
-		maxConcurrency = config.DefaultMaxSeasonConcurrency
-	}
-
-	concurrency := config.DefaultSeasonConcurrency
-	if input != nil && input.SeasonConcurrency != nil && *input.SeasonConcurrency > 0 {
-		concurrency = *input.SeasonConcurrency
-	}
-	if concurrency > maxConcurrency {
-		logger.Warn("Requested concurrency exceeds maximum, capping",
-			"requested", concurrency,
-			"max", maxConcurrency)
-		concurrency = maxConcurrency
-	}
-
+	concurrency := resolveConfigInt(logger, seasonConcurrencyParam, input.SeasonConcurrency)
 	logger.Info("ImportSeasonsWorkflow started",
 		"startSeason", input.StartSeason,
 		"endSeason", input.EndSeason,
@@ -46,123 +44,64 @@ func ImportSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) erro
 
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 
-	var seasons []SeasonInfo
-	if err := workflow.ExecuteActivity(ctx, FetchSeasonsDataActivity, input).Get(ctx, &seasons); err != nil {
+	seasons, err := loadSeasonsManifest(ctx, logger, input)
+	if err != nil {
 		return err
 	}
-
-	// Teams must already exist in the database before importing boxscores.
-	// This is ensured by running ImportNHLTeamsAndPlayersWorkflow first.
-
-	// Initialize progress with headers for PARALLEL display (matching FetchSeasons pattern)
-	tracker.initializeImportSeasons(seasons, "Importing seasons...", "Imported %d seasons")
-
-	return processImportWithChildWorkflows(ctx, logger, tracker, seasons, concurrency)
-}
-
-// initializeImportSeasons sets up per-season progress for import.
-// Each season tracks days as its total (no Yahoo league/team tasks for imports).
-func (p *ProgressTracker) initializeImportSeasons(seasons []SeasonInfo, header, completedHeader string) {
-	total := 0
-	items := make([]ItemProgress, len(seasons))
-
-	for i, season := range seasons {
-		days := countDaysInSeason(season)
-		items[i] = ItemProgress{
-			ID:          season.StartYear(),
-			Description: season.Label(),
-			Total:       days,
-			Completed:   0,
-		}
-		p.itemIndex[season.StartYear()] = i
-		total += days
-	}
-
-	p.progress = WorkflowProgress{
-		Total:           total,
-		Completed:       0,
-		Header:          header,
-		CompletedHeader: completedHeader,
-		Items:           items,
-		DisplayStyle:    DisplayStyleParallel,
-	}
-}
-
-// importChildWorkflowWork tracks a child workflow for a single season import
-type importChildWorkflowWork struct {
-	season SeasonInfo
-	future workflow.ChildWorkflowFuture
-}
-
-// processImportWithChildWorkflows spawns child workflows for each season.
-// Each season runs in its own child workflow, isolating workflow history.
-// - Maintains exactly `concurrency` seasons in flight at any time
-// - Starts a new season immediately when one completes
-func processImportWithChildWorkflows(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, seasons []SeasonInfo, concurrency int) error {
 	if len(seasons) == 0 {
 		return nil
 	}
 
-	// Track active child workflows (startYear -> work)
-	active := make(map[int]*importChildWorkflowWork)
-	// Queue of pending seasons
-	pending := make([]SeasonInfo, len(seasons))
-	copy(pending, seasons)
-
-	// Start initial batch of seasons (up to concurrency)
-	for i := 0; i < concurrency && len(pending) > 0; i++ {
-		season := pending[0]
-		pending = pending[1:]
-		startImportSeasonChildWorkflow(ctx, logger, tracker, active, season)
+	// --- Phase 1: Import days ---
+	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
+		GroupIdx:    GroupImportSeasonsData,
+		Counter:     countDaysInSeason,
+		ChildIDFunc: WorkflowIDImportSeason,
+		GroupLabel:  "Imported",
+	}, func(ctx workflow.Context, i int) workflow.Future {
+		season := seasons[i]
+		return workflow.ExecuteChildWorkflow(
+			withChildOptions(ctx, WorkflowIDImportSeason(season.ID.StartYear())),
+			ImportSeasonWorkflow, season)
+	})
+	if err != nil {
+		return err
 	}
 
-	var firstErr error
-
-	// Process until all work is done
-	for len(active) > 0 {
-		selector := workflow.NewSelector(ctx)
-
-		// Add all active child workflow futures to selector
-		for startYear, work := range active {
-			year := startYear
-			sw := work
-			selector.AddFuture(sw.future, func(f workflow.Future) {
-				if err := f.Get(ctx, nil); err != nil && firstErr == nil {
-					firstErr = err
-				}
-				logger.Info("Season import completed", "startYear", year)
-				// Mark all tasks for this season as complete
-				markSeasonComplete(tracker, year)
-				delete(active, year)
-
-				// Start next pending season immediately
-				if len(pending) > 0 {
-					nextSeason := pending[0]
-					pending = pending[1:]
-					startImportSeasonChildWorkflow(ctx, logger, tracker, active, nextSeason)
-				}
-			})
-		}
-
-		// Wait for any child workflow to complete
-		selector.Select(ctx)
-
-		if firstErr != nil {
-			return firstErr
-		}
+	// --- Phase 2: Import player game logs ---
+	startYears := make([]int, len(seasons))
+	for i, s := range seasons {
+		startYears[i] = s.ID.StartYear()
 	}
 
-	return nil
+	var playerAct *PlayerActivities
+	var playerCounts map[int]int
+	if err := workflow.ExecuteActivity(ctx, playerAct.CountPlayersForAllSeasons, startYears).Get(ctx, &playerCounts); err != nil {
+		return fmt.Errorf("count players for all seasons: %w", err)
+	}
+
+	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
+		GroupIdx:    GroupImportSeasonsPlayerLogs,
+		Counter:     playerBatchCounter(playerCounts),
+		ChildIDFunc: WorkflowIDImportSeasonPlayerLogs,
+		GroupLabel:  "Imported player logs for",
+	}, func(ctx workflow.Context, i int) workflow.Future {
+		season := seasons[i]
+		return workflow.ExecuteChildWorkflow(
+			withChildOptions(ctx, WorkflowIDImportSeasonPlayerLogs(season.ID.StartYear())),
+			ImportSeasonPlayerLogsWorkflow, season)
+	})
+	return err
 }
 
-// startImportSeasonChildWorkflow spawns a child workflow for a season import
-func startImportSeasonChildWorkflow(ctx workflow.Context, logger log.Logger, tracker *ProgressTracker, active map[int]*importChildWorkflowWork, season SeasonInfo) {
-	logger.Info("Starting season import child workflow", "startYear", season.StartYear())
-	tracker.MarkItemStarted(ctx, season.StartYear())
-	ctxo := withChildOptions(ctx, WorkflowIDImportSeason(season.StartYear()))
-	future := workflow.ExecuteChildWorkflow(ctxo, ImportSeasonWorkflow, season)
-	active[season.StartYear()] = &importChildWorkflowWork{
-		season: season,
-		future: future,
+// playerBatchCounter returns a SeasonCounterFunc that computes the number of
+// player game log batches for each season from pre-fetched player counts.
+func playerBatchCounter(playerCounts map[int]int) SeasonCounterFunc {
+	return func(season nhl.SeasonInfo) (int, error) {
+		count := playerCounts[season.ID.StartYear()]
+		if count == 0 {
+			return 0, nil
+		}
+		return batchCount(count, playerGameLogBatchSize), nil
 	}
 }

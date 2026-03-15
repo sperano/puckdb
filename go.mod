@@ -13,7 +13,7 @@ require (
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/zerolog v1.34.0
-	github.com/sperano/nhl-api-go v0.0.0-20260221160654-60dc998cf899
+	github.com/sperano/nhl-api-go v0.0.0-20260301001712-77b44e4347b2
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
@@ -22,6 +22,7 @@ require (
 	go.temporal.io/api v1.61.0
 	go.temporal.io/sdk v1.39.0
 	golang.org/x/oauth2 v0.30.0
+	golang.org/x/sync v0.18.0
 	golang.org/x/text v0.31.0
 	google.golang.org/grpc v1.74.2
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -76,7 +77,6 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect

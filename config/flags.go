@@ -138,6 +138,10 @@ const (
 	FlagTemporalRetryInitialInterval = "temporal-retry-initial-interval"
 	FlagTemporalRetryMaxInterval     = "temporal-retry-max-interval"
 	FlagTemporalRetryMaxAttempts     = "temporal-retry-max-attempts"
+	FlagWorkflowExecutionTimeout     = "workflow-execution-timeout"
+	FlagActivityStartToCloseTimeout  = "activity-start-to-close-timeout"
+	FlagFetchDayActivityTimeout      = "fetch-day-activity-timeout"
+	FlagActivityHeartbeatTimeout     = "activity-heartbeat-timeout"
 )
 
 // Worker concurrency flags
@@ -188,6 +192,7 @@ const (
 
 // Download workflow flags
 const (
+	FlagGameDownloadConcurrency  = "game-download-concurrency"
 	FlagMaxSeasonConcurrency     = "max-season-concurrency"
 	FlagDayConcurrency           = "day-concurrency"
 	FlagSkipPreseason            = "skip-preseason"
@@ -196,7 +201,7 @@ const (
 	FlagSkipFetchSeasons           = "skip-fetch-seasons"
 	FlagSkipExtractBoxscorePlayers = "skip-extract-boxscore-players"
 	FlagSkipFetchPlayerLandings    = "skip-fetch-player-landings"
-	FlagSkipPlayerLogs             = "skip-player-logs"
+	FlagSkipFetchPlayerLogs        = "skip-fetch-player-logs"
 	FlagSkipInit                   = "skip-init"
 	FlagSkipImportSeasons          = "skip-import-seasons"
 	FlagRefreshCurrentPlayerLogs = "refresh-current-player-logs"
@@ -209,7 +214,8 @@ const (
 
 // Cache flags
 const (
-	FlagGameIDCacheTTL = "game-id-cache-ttl"
+	FlagGobCacheTTL               = "gob-cache-ttl"
+	FlagBoxscorePlayerCacheTTL    = "boxscore-player-cache-ttl"
 )
 
 // Metrics collection flags
@@ -222,8 +228,9 @@ const (
 
 // CLI display flags
 const (
-	FlagVerbose    = "verbose"
-	FlagIncomplete = "incomplete"
+	FlagVerbose      = "verbose"
+	FlagIncomplete   = "incomplete"
+	FlagColorSpinner = "color-spinner"
 )
 
 // Provisioner flags
@@ -267,12 +274,16 @@ var TemporalFlags = FlagGroup{
 	},
 }
 
-// TemporalRetryFlags defines Temporal retry policy flags.
+// TemporalRetryFlags defines Temporal retry policy and timeout flags.
 var TemporalRetryFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagTemporalRetryInitialInterval, "", DefaultTemporalRetryInitialInterval, "Initial interval in seconds between activity retries", false},
 		{FlagTemporalRetryMaxInterval, "", DefaultTemporalRetryMaxInterval, "Maximum interval in seconds between activity retries (for rate limit recovery)", false},
 		{FlagTemporalRetryMaxAttempts, "", DefaultTemporalRetryMaxAttempts, "Maximum number of activity retry attempts (0 for unlimited)", false},
+		{FlagWorkflowExecutionTimeout, "", DefaultWorkflowExecutionTimeout, "Workflow execution timeout in minutes", false},
+		{FlagActivityStartToCloseTimeout, "", DefaultActivityStartToCloseTimeout, "Activity start-to-close timeout in minutes", false},
+		{FlagFetchDayActivityTimeout, "", DefaultFetchDayActivityTimeout, "Fetch day activity timeout in minutes", false},
+		{FlagActivityHeartbeatTimeout, "", DefaultActivityHeartbeatTimeout, "Activity heartbeat timeout in seconds", false},
 	},
 }
 
@@ -367,15 +378,15 @@ var SeasonRangeFlags = FlagGroup{
 // SyncSkipFlags defines sync workflow skip flags.
 var SyncSkipFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagSkipInit, "", false, "Skip the initialization workflow (franchises, seasons, league structure)", false},
-		{FlagSkipYahooPlayers, "", false, "Skip downloading Yahoo! players", false},
-		{FlagSkipFetchSeasons, "", false, "Skip downloading season data (NHL schedules, boxscores, Yahoo! fantasy)", false},
-		{FlagSkipExtractBoxscorePlayers, "", false, "Skip extracting boxscore players to Redis", false},
-		{FlagSkipFetchPlayerLandings, "", false, "Skip fetching player landing pages from NHL API", false},
-		{FlagSkipPlayerLogs, "", false, "Skip downloading player game logs for historical seasons", false},
+		{FlagSkipInit, "I", false, "Skip the initialization workflow (franchises, seasons, league structure)", false},
+		{FlagSkipYahooPlayers, "Y", false, "Skip downloading Yahoo! players", false},
+		{FlagSkipFetchSeasons, "S", false, "Skip downloading season data (NHL schedules, boxscores, Yahoo! fantasy)", false},
+		{FlagSkipExtractBoxscorePlayers, "B", false, "Skip extracting boxscore players to Redis", false},
+		{FlagSkipFetchPlayerLandings, "N", false, "Skip fetching player landing pages from NHL API", false},
+		{FlagSkipFetchPlayerLogs, "G", false, "Skip downloading player game logs for historical seasons", false},
 		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the current season (overwrites cached files)", false},
-		{FlagSkipProcessPlayers, "", false, "Skip processing players (download + import)", false},
-		{FlagSkipImportSeasons, "", false, "Skip importing seasons into the database", false},
+		{FlagSkipProcessPlayers, "P", false, "Skip processing players (download + import)", false},
+		{FlagSkipImportSeasons, "M", false, "Skip importing seasons into the database", false},
 	},
 }
 
@@ -393,6 +404,13 @@ var DisplayFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagVerbose, "v", false, "Show detailed output per season", false},
 		{FlagIncomplete, "i", false, "Only show seasons with less than 100% completion", false},
+	},
+}
+
+// SpinnerFlags defines spinner display option flags.
+var SpinnerFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagColorSpinner, "", false, "Render spinner in random 256 colors", false},
 	},
 }
 
@@ -459,14 +477,16 @@ var DownloadConcurrencyFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagMaxSeasonConcurrency, "", DefaultMaxSeasonConcurrency, "Maximum number of seasons to download concurrently", false},
 		{FlagDayConcurrency, "", DefaultDayConcurrency, "Number of days to download concurrently within each season", false},
+		{FlagGameDownloadConcurrency, "", DefaultGameDownloadConcurrency, "Maximum concurrent game file downloads per daily schedule", false},
 		{FlagSkipPreseason, "", false, "Skip downloading and importing preseason games", false},
 	},
 }
 
-// GameIDCacheFlags defines game ID cache TTL flag.
-var GameIDCacheFlags = FlagGroup{
+// GobCacheFlags defines gob cache TTL flags.
+var GobCacheFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagGameIDCacheTTL, "", DefaultGameIDCacheTTL, "TTL in seconds for game ID cache in Redis", false},
+		{FlagGobCacheTTL, "", DefaultGobCacheTTL, "TTL in minutes for gob-encoded object cache in Redis", false},
+		{FlagBoxscorePlayerCacheTTL, "", DefaultBoxscorePlayerCacheTTL, "TTL in minutes for boxscore player cache in Redis", false},
 	},
 }
 

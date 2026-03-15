@@ -1,6 +1,12 @@
 package store
 
-import "os"
+import (
+	"os"
+
+	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/config"
+	"github.com/spf13/viper"
+)
 
 // Storage defines the low-level interface for file I/O operations.
 // This replaces the old Store interface with a simpler, path-based API.
@@ -31,4 +37,12 @@ type Storage interface {
 	// Returns os.ErrNotExist if the file does not exist.
 	// Useful for checking file modification time for cache staleness.
 	Stat(path string) (os.FileInfo, error)
+}
+
+// NewDefaultStorage creates a Storage instance using the configured data path.
+// Uses instrumented storage for metrics collection.
+func NewDefaultStorage() Storage {
+	dataPath := viper.GetString(config.FlagDataPath)
+	log.Trace().Str("path", dataPath).Msg("Initializing storage")
+	return NewInstrumentedStorage(NewFSStorage(dataPath))
 }

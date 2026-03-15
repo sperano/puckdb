@@ -2,124 +2,110 @@ package worker
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
-	"github.com/sperano/puckdb/urls"
+	"go.temporal.io/sdk/activity"
 )
 
-// dayFetcher abstracts fetching operations for testability.
-type dayFetcher interface {
-	FetchDailySchedule(ctx context.Context, day time.Time) error
-	FetchRoster(ctx context.Context, leagueID, teamID int, day time.Time) error
-	FetchTeamSummary(ctx context.Context, leagueID, teamID int, day time.Time) error
+// fetchableYahooResource combines URL fetching and parsing capabilities.
+// Both resource.Roster and resource.TeamSummary satisfy this interface.
+type fetchableYahooResource interface {
+	core.URLResource
+	Parse(data []byte) (*store.FantasyContent, error)
 }
 
-// realDayFetcher calls the impl functions directly with pre-initialized dependencies.
-type realDayFetcher struct {
-	repos         *store.Repos
-	nhlClient     NHLClient
-	gameKey       int
-	download      Downloader
-	gameDownloads GameDataDownloaders
+func (a *DailyScheduleActivities) fetchYahooResource(ctx context.Context, res fetchableYahooResource) error {
+	logger := activity.GetLogger(ctx)
+	typeName := res.Type().String()
+
+	_, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
+	if err == nil {
+		logger.Debug(typeName+" loaded from cache", "path", res.Path())
+		metrics.IncDownload(res.Type(), metrics.ResultHit)
+		return nil
+	}
+
+	start := time.Now()
+	content, err := a.Download(res.URL())
+	duration := time.Since(start)
+	if err != nil {
+		metrics.ObserveHTTP("yahoo", http.MethodGet, 0, duration, 0)
+		metrics.IncDownload(res.Type(), metrics.ResultError)
+		return fmt.Errorf("download %s: %w", typeName, err)
+	}
+	metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
+
+	if err := a.Storage.Write(res.Path(), content); err != nil {
+		return fmt.Errorf("save %s: %w", typeName, err)
+	}
+
+	parsed, err := res.Parse(content)
+	if err != nil {
+		return err
+	}
+	if err := cache.Set(a.GobCache, ctx, core.RedisKey(res), parsed); err != nil {
+		return fmt.Errorf("gob cache set %s: %w", typeName, err)
+	}
+
+	logger.Info(typeName+" downloaded", "path", res.Path())
+	metrics.IncDownload(res.Type(), metrics.ResultMiss)
+	sleepAfterYahooDownload()
+	return nil
 }
 
-func (f realDayFetcher) FetchDailySchedule(ctx context.Context, day time.Time) error {
-	return fetchDailyScheduleImpl(ctx, f.repos, f.nhlClient, day, f.gameDownloads)
-}
-
-func (f realDayFetcher) FetchRoster(ctx context.Context, leagueID, teamID int, day time.Time) error {
-	log.Trace().Time("day", day).Int("gameKey", f.gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo roster")
-	path := store.RosterPath(leagueID, teamID, day)
-	url := urls.YahooRosterURL(f.gameKey, leagueID, teamID, day)
-	return doDownloadImpl(ctx, f.repos.Storage, path, url, f.download, "RosterFile")
-}
-
-func (f realDayFetcher) FetchTeamSummary(ctx context.Context, leagueID, teamID int, day time.Time) error {
-	log.Trace().Time("day", day).Int("gameKey", f.gameKey).Int("leagueID", leagueID).Int("team", teamID).Msg("Fetching Yahoo team summary")
-	path := store.TeamSummaryPath(leagueID, teamID, day)
-	url := urls.YahooTeamSummaryURL(f.gameKey, leagueID, teamID, day)
-	return doDownloadImpl(ctx, f.repos.Storage, path, url, f.download, "TeamSummaryFile")
-}
-
-// FetchDayActivity fetches all data for a single day.
+// FetchDay fetches all data for a single day.
 // This is used by FetchSeasonWorkflow for better performance (avoiding child workflow overhead).
 //
-// TeamIDs should be pre-computed by the parent workflow from the Yahoo seasons config.
-// If TeamIDs is empty, only NHL data (daily schedule/boxscores) is fetched.
-func FetchDayActivity(ctx context.Context, input FetchDayInput) error {
-	defer metrics.TrackActivityDuration("FetchDayActivity")()
-
-	repos := store.NewDefaultRepos()
-	nhlClient := newNHLClient()
-
-	// Only look up gameKey if we have teams to fetch
+// YahooTeamIDs should be pre-computed by the parent workflow from the Yahoo seasons config.
+// If YahooTeamIDs is empty, only NHL data (daily schedule/boxscores) is fetched.
+func (a *DailyScheduleActivities) FetchDay(ctx context.Context, input FetchDayInput) (core.OriginCounts, error) {
+	defer metrics.TrackActivityDuration("FetchDay")()
+	activity.RecordHeartbeat(ctx, nil)
 	var gameKey int
 	if len(input.TeamIDs) > 0 {
 		var err error
-		gameKey, err = GetGameKeyForSeason(input.StartYear)
+		gameKey, err = GetGameKeyForSeason(input.StartSeason)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	fetcher := realDayFetcher{
-		repos:     repos,
-		nhlClient: nhlClient,
-		gameKey:   gameKey,
-		download:  DownloadFromYahoo,
-		gameDownloads: GameDataDownloaders{
-			Boxscore:   DownloadBoxscore,
-			PlayByPlay: DownloadPlayByPlay,
-			ShiftChart: DownloadShiftChart,
-			GameStory:  DownloadGameStory,
-		},
-	}
-	if err := fetchDayImpl(ctx, fetcher, input); err != nil {
-		return err
-	}
-
-	// Fire-and-forget progress update to Redis
-	if input.TotalDays > 0 {
-		redisClient := cache.NewClient()
-		defer redisClient.Close()
-		workflowID := WorkflowIDFetchSeason(input.StartYear)
-		_ = cache.SaveProgress(ctx, redisClient, workflowID, input.DayIndex+1, input.TotalDays)
-	}
-
-	return nil
-}
-
-func fetchDayImpl(ctx context.Context, fetcher dayFetcher, input FetchDayInput) error {
 	log.Debug().
 		Time("day", input.Day).
-		Int("startYear", input.StartYear).
+		Int("startYear", input.StartSeason).
 		Int("numTeams", len(input.TeamIDs)).
-		Msg("FetchDayActivity started")
+		Msg("FetchDay started")
 
-	// Fetch daily schedule (boxscores)
-	if err := fetcher.FetchDailySchedule(ctx, input.Day); err != nil {
-		return err
+	counts := core.OriginCounts{}
+
+	result, err := a.FetchDailySchedule(ctx, input.Day)
+	if err != nil {
+		return nil, err
 	}
+	counts.Record(result.Origin)
 
-	// Fetch Yahoo rosters and summaries for each team (if any configured)
 	for _, team := range input.TeamIDs {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil, ctx.Err()
 		default:
 		}
-
-		if err := fetcher.FetchRoster(ctx, team.LeagueID, team.TeamID, input.Day); err != nil {
-			return err
+		activity.RecordHeartbeat(ctx, nil)
+		if err := a.fetchYahooResource(ctx, resource.Roster{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: input.Day, GameKey: gameKey}); err != nil {
+			return nil, err
 		}
-		if err := fetcher.FetchTeamSummary(ctx, team.LeagueID, team.TeamID, input.Day); err != nil {
-			return err
+		if err := a.fetchYahooResource(ctx, resource.TeamSummary{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: input.Day, GameKey: gameKey}); err != nil {
+			return nil, err
 		}
 	}
 
-	return nil
+	return counts, nil
 }

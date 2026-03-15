@@ -7,10 +7,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
-	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -26,60 +26,24 @@ type ImportYahooLeagueResult struct {
 	StatCategories  int
 }
 
-// ImportYahooLeagueActivity imports a Yahoo league from cached XML into the database.
-func ImportYahooLeagueActivity(ctx context.Context, input ImportYahooLeagueInput) (ImportYahooLeagueResult, error) {
+// ImportYahooLeague imports a Yahoo league from cached XML into the database.
+func (a *SeasonsActivities) ImportYahooLeague(ctx context.Context, input ImportYahooLeagueInput) (ImportYahooLeagueResult, error) {
 	start := time.Now()
 	defer func() {
-		metrics.ObserveActivityDuration("ImportYahooLeagueActivity", time.Since(start))
+		metrics.ObserveActivityDuration("ImportYahooLeague", time.Since(start))
 	}()
 
 	logger := activity.GetLogger(ctx)
-	repos := store.NewDefaultRepos()
-
-	pool, err := database.OpenPGXPool(ctx)
-	if err != nil {
-		return ImportYahooLeagueResult{}, fmt.Errorf("open database pool: %w", err)
-	}
-	defer pool.Close()
-
-	queries := sqlcdb.New(pool)
-
-	result, err := importYahooLeagueImpl(ctx, repos, queries, input)
-	if err != nil {
-		return result, err
-	}
-
-	logger.Info("Imported Yahoo league",
-		"season", input.Season,
-		"leagueID", input.LeagueID,
-		"rosterPositions", result.RosterPositions,
-		"statCategories", result.StatCategories)
-
-	return result, nil
-}
-
-// YahooLeagueUpserter is the interface for database operations needed by Yahoo league import.
-type YahooLeagueUpserter interface {
-	UpsertYahooLeague(ctx context.Context, arg sqlcdb.UpsertYahooLeagueParams) error
-	UpsertYahooLeagueRosterPositionBatch(ctx context.Context, arg []sqlcdb.UpsertYahooLeagueRosterPositionBatchParams) *sqlcdb.UpsertYahooLeagueRosterPositionBatchBatchResults
-	UpsertYahooLeagueStatCategoryBatch(ctx context.Context, arg []sqlcdb.UpsertYahooLeagueStatCategoryBatchParams) *sqlcdb.UpsertYahooLeagueStatCategoryBatchBatchResults
-}
-
-func importYahooLeagueImpl(
-	ctx context.Context,
-	repos *store.Repos,
-	queries YahooLeagueUpserter,
-	input ImportYahooLeagueInput,
-) (ImportYahooLeagueResult, error) {
 	result := ImportYahooLeagueResult{}
 
 	// Read the league file
-	if !repos.Yahoo.LeagueExists(input.Season, input.LeagueID) {
+	leagueRes := resource.League{Season: input.Season, LeagueID: input.LeagueID}
+	if !a.Storage.Exists(leagueRes.Path()) {
 		log.Debug().Int("season", input.Season).Int("leagueID", input.LeagueID).Msg("No league file found")
 		return result, nil
 	}
 
-	fantasy, err := repos.Yahoo.GetLeague(input.Season, input.LeagueID)
+	fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, leagueRes)
 	if err != nil {
 		return result, fmt.Errorf("read league file: %w", err)
 	}
@@ -140,10 +104,10 @@ func importYahooLeagueImpl(
 		CantCutList:           league.Settings.CantCutList,
 		UsesPlayoff:           league.Settings.UsesPlayoff == 1,
 		PersistentUrl:         league.Settings.PersistentURL,
-		LeagueUpdateTimestamp: pgtype.Int8{Int64: league.LeagueUpdateTimestamp, Valid: league.LeagueUpdateTimestamp > 0},
+		LeagueUpdateTimestamp: pgtype.Int8{Int64: int64(league.LeagueUpdateTimestamp), Valid: league.LeagueUpdateTimestamp > 0},
 	}
 
-	if err := queries.UpsertYahooLeague(ctx, leagueParams); err != nil {
+	if err := a.ImportQueries.UpsertYahooLeague(ctx, leagueParams); err != nil {
 		return result, fmt.Errorf("upsert league %d: %w", league.ID, err)
 	}
 
@@ -161,7 +125,7 @@ func importYahooLeagueImpl(
 		}
 
 		var batchErr error
-		results := queries.UpsertYahooLeagueRosterPositionBatch(ctx, posParams)
+		results := a.ImportQueries.UpsertYahooLeagueRosterPositionBatch(ctx, posParams)
 		results.Exec(func(i int, err error) {
 			if err != nil && batchErr == nil {
 				batchErr = fmt.Errorf("roster position %s: %w", posParams[i].Position, err)
@@ -189,7 +153,7 @@ func importYahooLeagueImpl(
 		}
 
 		var batchErr error
-		results := queries.UpsertYahooLeagueStatCategoryBatch(ctx, statParams)
+		results := a.ImportQueries.UpsertYahooLeagueStatCategoryBatch(ctx, statParams)
 		results.Exec(func(i int, err error) {
 			if err != nil && batchErr == nil {
 				batchErr = fmt.Errorf("stat category %d: %w", statParams[i].StatID, err)
@@ -201,5 +165,18 @@ func importYahooLeagueImpl(
 		result.StatCategories = len(statParams)
 	}
 
+	logger.Info("Imported Yahoo league",
+		"season", input.Season,
+		"leagueID", input.LeagueID,
+		"rosterPositions", result.RosterPositions,
+		"statCategories", result.StatCategories)
+
 	return result, nil
+}
+
+// YahooLeagueUpserter is the interface for database operations needed by Yahoo league import.
+type YahooLeagueUpserter interface {
+	UpsertYahooLeague(ctx context.Context, arg sqlcdb.UpsertYahooLeagueParams) error
+	UpsertYahooLeagueRosterPositionBatch(ctx context.Context, arg []sqlcdb.UpsertYahooLeagueRosterPositionBatchParams) *sqlcdb.UpsertYahooLeagueRosterPositionBatchBatchResults
+	UpsertYahooLeagueStatCategoryBatch(ctx context.Context, arg []sqlcdb.UpsertYahooLeagueStatCategoryBatchParams) *sqlcdb.UpsertYahooLeagueStatCategoryBatchBatchResults
 }

@@ -56,9 +56,9 @@ func (c *GraphQLClient) CancelFetchYahooPlayers(ctx context.Context) (bool, erro
 }
 
 // ProcessPlayers triggers the processPlayers mutation (combined fetch + import)
-func (c *GraphQLClient) ProcessPlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+func (c *GraphQLClient) ProcessPlayers(ctx context.Context, input *model.ProcessPlayersInput) (bool, error) {
 	return c.executeBoolMutation(ctx,
-		`mutation($input: SeasonsInput) { processPlayers(input: $input) }`,
+		`mutation($input: ProcessPlayersInput) { processPlayers(input: $input) }`,
 		"processPlayers",
 		map[string]any{"input": input})
 }
@@ -112,9 +112,9 @@ func (c *GraphQLClient) ClearDatabase(ctx context.Context) (bool, error) {
 }
 
 // ExtractBoxscorePlayers triggers the extractBoxscorePlayers mutation to extract and cache player data.
-func (c *GraphQLClient) ExtractBoxscorePlayers(ctx context.Context, input *model.ExtractBoxscorePlayersInput) (bool, error) {
+func (c *GraphQLClient) ExtractBoxscorePlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
 	return c.executeBoolMutation(ctx,
-		`mutation($input: ExtractBoxscorePlayersInput) { extractBoxscorePlayers(input: $input) }`,
+		`mutation($input: SeasonsInput) { extractBoxscorePlayers(input: $input) }`,
 		"extractBoxscorePlayers",
 		map[string]any{"input": input})
 }

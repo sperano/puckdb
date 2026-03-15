@@ -102,34 +102,27 @@ type ProcessPlayersResultData {
 	errors: [String!]!
 }
 
-type InitializeResultData {
-	franchisesUpserted: Int!
-	seasonsUpserted: Int!
-	seasonTeamsUpserted: Int!
-}
-
 type Query {
-	buildNumber: Int!
+	buildNumber: String!
 
 	initializeResult: WorkflowResult!
 	initializeProgress: ProgressReport
-	initializeResultData: InitializeResultData
 
 	fetchSeasonsResult: WorkflowResult!
 	fetchSeasonsProgress: ProgressReport
 
 	fetchPlayerLogsResult: WorkflowResult!
-	fetchPlayerLogsProgress: WorkflowProgress
+	fetchPlayerLogsProgress: ProgressReport
 
 	fetchYahooPlayersResult: WorkflowResult!
 	fetchYahooPlayersProgress: ProgressReport
 
 	processPlayersResult: WorkflowResult!
-	processPlayersProgress: WorkflowProgress
+	processPlayersProgress: ProgressReport
 	processPlayersResultData: ProcessPlayersResultData
 
 	importSeasonsResult: WorkflowResult!
-	importSeasonsProgress: WorkflowProgress
+	importSeasonsProgress: ProgressReport
 
 	extractBoxscorePlayersResult: WorkflowResult!
 	extractBoxscorePlayersProgress: ProgressReport
@@ -140,16 +133,16 @@ type Query {
 
 
 input SeasonsInput {
+	"""Season start year (e.g., 2023 for the 2023-2024 season)"""
 	startSeason: Int
+	"""Season start year to filter up to (inclusive)"""
 	endSeason: Int
 	seasonConcurrency: Int
 }
 
-input ExtractBoxscorePlayersInput {
-	startSeason: Int
-	endSeason: Int
-	seasonConcurrency: Int
-	ttlMinutes: Int
+input ProcessPlayersInput {
+	batchSize: Int
+	concurrency: Int
 }
 
 input FetchPlayerLandingsInput {
@@ -172,11 +165,11 @@ type Mutation {
 	cancelFetchPlayerLogs: Boolean!
 	fetchYahooPlayers: Boolean!
 	cancelFetchYahooPlayers: Boolean!
-	processPlayers(input: SeasonsInput): Boolean!
+	processPlayers(input: ProcessPlayersInput): Boolean!
 	cancelProcessPlayers: Boolean!
 	importSeasons(input: SeasonsInput): Boolean!
 	cancelImportSeasons: Boolean!
-	extractBoxscorePlayers(input: ExtractBoxscorePlayersInput): Boolean!
+	extractBoxscorePlayers(input: SeasonsInput): Boolean!
 	cancelExtractBoxscorePlayers: Boolean!
 	fetchPlayerLandings(input: FetchPlayerLandingsInput): Boolean!
 	cancelFetchPlayerLandings: Boolean!

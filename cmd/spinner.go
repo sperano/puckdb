@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -10,22 +11,25 @@ import (
 	"github.com/sperano/puckdb/config"
 )
 
+const ansi256ColorCount = 256
+
 // SpinnerPlaceholder is replaced with the current spinner frame when rendering.
 // Use this in the message to position the spinner on a specific line.
 const SpinnerPlaceholder = "\x00"
 
 // spinner displays an animated spinner with a message (supports multi-line)
 type spinner struct {
-	frames    []string
-	message   string
-	header    string // in-progress header (e.g., "Downloading...")
-	writer    io.Writer
-	interval  time.Duration
-	stop      chan struct{}
-	done      chan struct{}
-	mu        sync.Mutex
-	once      sync.Once
-	lineCount int // tracks number of lines in current message
+	frames       []string
+	message      string
+	header       string // in-progress header (e.g., "Downloading...")
+	writer       io.Writer
+	interval     time.Duration
+	stop         chan struct{}
+	done         chan struct{}
+	mu           sync.Mutex
+	once         sync.Once
+	lineCount    int  // tracks number of lines in current message
+	colorEnabled bool // when true, renders spinner in random 256 colors
 }
 
 func newSpinner(w io.Writer, header string) *spinner {
@@ -38,6 +42,20 @@ func newSpinner(w io.Writer, header string) *spinner {
 		stop:     make(chan struct{}),
 		done:     make(chan struct{}),
 	}
+}
+
+// SetColorEnabled enables or disables random 256-color rendering for the spinner.
+func (s *spinner) SetColorEnabled(enabled bool) {
+	s.colorEnabled = enabled
+}
+
+// colorizeSpinner wraps the spinner frame in a random 256-color ANSI escape sequence.
+func (s *spinner) colorizeSpinner(frame string) string {
+	if !s.colorEnabled {
+		return frame
+	}
+	color := rand.Intn(ansi256ColorCount)
+	return fmt.Sprintf("\033[38;5;%dm%s\033[0m", color, frame)
 }
 
 func (s *spinner) Start() {
@@ -74,16 +92,17 @@ func (s *spinner) render(frameIdx int) {
 	fmt.Fprint(s.writer, "\r")
 
 	// Build lines with spinner frame substituted
+	colorizedFrame := s.colorizeSpinner(s.frames[frameIdx])
 	var lines []string
 	if strings.Contains(s.message, SpinnerPlaceholder) {
 		for _, line := range strings.Split(s.message, "\n") {
-			lines = append(lines, strings.ReplaceAll(line, SpinnerPlaceholder, s.frames[frameIdx]))
+			lines = append(lines, strings.ReplaceAll(line, SpinnerPlaceholder, colorizedFrame))
 		}
 	} else {
 		msgLines := strings.Split(s.message, "\n")
 		for i, line := range msgLines {
 			if i == len(msgLines)-1 {
-				lines = append(lines, s.frames[frameIdx]+" "+line)
+				lines = append(lines, colorizedFrame+" "+line)
 			} else {
 				lines = append(lines, line)
 			}
@@ -140,13 +159,20 @@ func (s *spinner) Stop() {
 	})
 }
 
-// Cancel stops the spinner without clearing or printing.
+// Cancel stops the spinner, leaving the last rendered output visible.
 // Use this when the operation was interrupted rather than completed.
-// Leaves the current display as-is.
 func (s *spinner) Cancel() {
 	s.once.Do(func() {
 		close(s.stop)
 		<-s.done
+
+		// Move cursor below the last rendered output so subsequent
+		// prints don't overwrite it.
+		s.mu.Lock()
+		if s.lineCount > 0 {
+			fmt.Fprint(s.writer, "\n")
+		}
+		s.mu.Unlock()
 
 		// Show cursor
 		fmt.Fprint(s.writer, "\033[?25h")
@@ -161,4 +187,11 @@ func (s *spinner) PrintAbove(fn func()) {
 	s.clearLines()
 	s.lineCount = 0
 	fn()
+}
+
+// SetMessage updates the spinner's message text.
+func (s *spinner) SetMessage(msg string) {
+	s.mu.Lock()
+	s.message = msg
+	s.mu.Unlock()
 }

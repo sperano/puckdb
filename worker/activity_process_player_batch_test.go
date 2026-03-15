@@ -9,7 +9,11 @@ import (
 	"testing"
 
 	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
@@ -17,20 +21,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// newTestGobCache creates a permissive GobCache: Get always misses, Set always succeeds.
+func newTestGobCache() *cache.GobCache {
+	client, mock := redismock.NewClientMock()
+	mock.MatchExpectationsInOrder(false)
+	keyPattern := core.RedisResourceKeyPrefix + ".*"
+	mock.Regexp().ExpectGet(keyPattern).SetErr(redis.Nil)
+	mock.Regexp().CustomMatch(anyArgs).ExpectSet(keyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	return cache.NewGobCache(client)
+}
+
 func TestProcessPlayerBatch_EmptyPlayers(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, _ := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -38,7 +52,7 @@ func TestProcessPlayerBatch_EmptyPlayers(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
-	assert.Equal(t, 0, result.CacheHits)
+	assert.Equal(t, 0, result.Origins[core.OriginFileSystem])
 	assert.Equal(t, 0, result.Missing)
 	assert.Equal(t, 0, result.Imported)
 	assert.Equal(t, 0, result.Matched)
@@ -50,7 +64,6 @@ func TestProcessPlayerBatch_LoadYahooPoolError(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -59,9 +72,10 @@ func TestProcessPlayerBatch_LoadYahooPoolError(t *testing.T) {
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetErr(errors.New("redis connection refused"))
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -70,7 +84,8 @@ func TestProcessPlayerBatch_LoadYahooPoolError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "load yahoo pool")
-	assert.Equal(t, ProcessPlayerBatchResult{}, result)
+	assert.Equal(t, 0, result.Imported)
+	assert.Equal(t, 0, result.Downloaded)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
@@ -79,7 +94,6 @@ func TestProcessPlayerBatch_ContextCancellation(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -88,9 +102,10 @@ func TestProcessPlayerBatch_ContextCancellation(t *testing.T) {
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -110,7 +125,6 @@ func TestProcessPlayerBatch_CacheHitAndImport(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -131,15 +145,16 @@ func TestProcessPlayerBatch_CacheHitAndImport(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
+	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// Expect UpsertPlayer call
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -148,7 +163,7 @@ func TestProcessPlayerBatch_CacheHitAndImport(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
-	assert.Equal(t, 1, result.CacheHits)
+	assert.Equal(t, 1, result.Origins[core.OriginFileSystem])
 	assert.Equal(t, 0, result.Missing)
 	assert.Equal(t, 1, result.Imported)
 	assert.Equal(t, 0, result.Matched) // No Yahoo pool entries
@@ -162,7 +177,6 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -173,19 +187,21 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
 	// Mark player as missing (player marked as 404)
-	repos.Player.MarkMissing(playerID, store.MissingPlayerLandingData{
+	missingData, _ := json.Marshal(store.MissingPlayerLandingData{
 		FirstName: "John",
 		LastName:  "Doe",
 		Position:  "C",
 	})
+	require.NoError(t, mem.Write(resource.MissingPlayerLanding{PlayerID: playerID}.Path(), missingData))
 
 	// Expect UpsertPlayer call with minimal info from boxscore data
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -200,7 +216,7 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
-	assert.Equal(t, 0, result.CacheHits)
+	assert.Equal(t, 0, result.Origins[core.OriginFileSystem])
 	assert.Equal(t, 1, result.Missing)
 	assert.Equal(t, 1, result.Imported) // Missing players ARE imported with minimal info
 	assert.Empty(t, result.Errors)
@@ -212,7 +228,6 @@ func TestProcessPlayerBatch_UpsertError(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -232,16 +247,17 @@ func TestProcessPlayerBatch_UpsertError(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
+	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// UpsertPlayer fails
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
 		Return(errors.New("database connection lost"))
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -250,7 +266,7 @@ func TestProcessPlayerBatch_UpsertError(t *testing.T) {
 
 	// No error returned - errors are collected in result.Errors
 	require.NoError(t, err)
-	assert.Equal(t, 1, result.CacheHits)
+	assert.Equal(t, 1, result.Origins[core.OriginFileSystem])
 	assert.Equal(t, 0, result.Imported) // Failed to import
 	assert.Len(t, result.Errors, 1)
 	assert.Contains(t, result.Errors[0], "upsert error")
@@ -262,7 +278,6 @@ func TestProcessPlayerBatch_FileReadError(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -273,12 +288,14 @@ func TestProcessPlayerBatch_FileReadError(t *testing.T) {
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
 	// Player landing file exists but contains invalid JSON (will cause read error in GetLanding)
-	mem.SetFile(store.PlayerLandingPath(playerID), []byte("invalid json"))
+	landingRes := resource.PlayerLanding{PlayerID: playerID}
+	mem.SetFile(landingRes.Path(), []byte("invalid json"))
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -287,7 +304,7 @@ func TestProcessPlayerBatch_FileReadError(t *testing.T) {
 
 	// No error returned - errors are collected in result.Errors
 	require.NoError(t, err)
-	assert.Equal(t, 1, result.CacheHits)
+	assert.Equal(t, 0, result.Origins[core.OriginFileSystem]) // No origin recorded for failed reads
 	assert.Equal(t, 0, result.Imported)
 	assert.Len(t, result.Errors, 1)
 	assert.Contains(t, result.Errors[0], "read error")
@@ -299,7 +316,6 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -325,9 +341,10 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -336,7 +353,7 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Downloaded)
-	assert.Equal(t, 0, result.CacheHits)
+	assert.Equal(t, 0, result.Origins[core.OriginFileSystem])
 	assert.Equal(t, 0, result.Missing)
 	assert.Equal(t, 1, result.Imported)
 	assert.Equal(t, 0, result.Matched) // No Yahoo pool entries
@@ -345,7 +362,7 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 	upserter.AssertExpectations(t)
 
 	// Verify landing was saved
-	assert.True(t, repos.Player.LandingExists(playerID))
+	assert.True(t, mem.Exists(resource.PlayerLanding{PlayerID: playerID}.Path()))
 }
 
 func TestProcessPlayerBatch_DownloadAPIError(t *testing.T) {
@@ -353,7 +370,6 @@ func TestProcessPlayerBatch_DownloadAPIError(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := NewMockPlayerUpserter()
@@ -367,9 +383,10 @@ func TestProcessPlayerBatch_DownloadAPIError(t *testing.T) {
 	client.On("PlayerLanding", ctx, playerID).Return(nil, errors.New("API timeout"))
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -387,7 +404,6 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -424,7 +440,7 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
+	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// Expect ClearConflictingYahooID call
 	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
@@ -433,9 +449,10 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -443,7 +460,7 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 	result, err := processPlayerBatchImpl(ctx, deps, players)
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, result.CacheHits)
+	assert.Equal(t, 1, result.Origins[core.OriginFileSystem])
 	assert.Equal(t, 1, result.Imported)
 	assert.Equal(t, 1, result.Matched) // Yahoo ID matched
 	assert.Empty(t, result.Errors)
@@ -455,7 +472,6 @@ func TestProcessPlayerBatch_ClearConflictingYahooIDError(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -484,7 +500,7 @@ func TestProcessPlayerBatch_ClearConflictingYahooIDError(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
+	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// ClearConflictingYahooID fails - should log warning but continue
 	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).
@@ -494,9 +510,10 @@ func TestProcessPlayerBatch_ClearConflictingYahooIDError(t *testing.T) {
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -515,7 +532,6 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -543,7 +559,7 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
+	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
 
@@ -552,9 +568,10 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 		Return(errors.New("constraint violation"))
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
@@ -574,7 +591,6 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
-	repos := store.NewRepos(mem)
 	client := &MockNHLClient{}
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
@@ -623,7 +639,7 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, repos.Player.SaveLanding(playerID, landingJSON))
+	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// Capture the upsert params to verify all fields
 	var capturedParams sqlcdb.UpsertPlayerParams
@@ -634,9 +650,10 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 		Return(nil)
 
 	deps := processDeps{
-		repos:     repos,
+		storage:   mem,
 		nhlClient: client,
 		redis:     redisClient,
+		gobCache:  newTestGobCache(),
 		queries:   upserter,
 	}
 
