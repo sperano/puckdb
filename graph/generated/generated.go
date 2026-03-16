@@ -52,6 +52,7 @@ type ComplexityRoot struct {
 		CancelFetchPlayerLogs        func(childComplexity int) int
 		CancelFetchSeasons           func(childComplexity int) int
 		CancelFetchYahooPlayers      func(childComplexity int) int
+		CancelImportPlayerLogs       func(childComplexity int) int
 		CancelImportSeasons          func(childComplexity int) int
 		CancelInitialize             func(childComplexity int) int
 		CancelProcessPlayers         func(childComplexity int) int
@@ -64,6 +65,7 @@ type ComplexityRoot struct {
 		FetchSeasons                 func(childComplexity int, input *model.SeasonsInput) int
 		FetchYahooPlayers            func(childComplexity int) int
 		FlushRedisDb                 func(childComplexity int) int
+		ImportPlayerLogs             func(childComplexity int, input *model.SeasonsInput) int
 		ImportSeasons                func(childComplexity int, input *model.SeasonsInput) int
 		Initialize                   func(childComplexity int) int
 		ProcessPlayers               func(childComplexity int, input *model.ProcessPlayersInput) int
@@ -128,6 +130,8 @@ type ComplexityRoot struct {
 		FetchSeasonsResult             func(childComplexity int) int
 		FetchYahooPlayersProgress      func(childComplexity int) int
 		FetchYahooPlayersResult        func(childComplexity int) int
+		ImportPlayerLogsProgress       func(childComplexity int) int
+		ImportPlayerLogsResult         func(childComplexity int) int
 		ImportSeasonsProgress          func(childComplexity int) int
 		ImportSeasonsResult            func(childComplexity int) int
 		InitializeProgress             func(childComplexity int) int
@@ -179,6 +183,8 @@ type MutationResolver interface {
 	CancelProcessPlayers(ctx context.Context) (bool, error)
 	ImportSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error)
 	CancelImportSeasons(ctx context.Context) (bool, error)
+	ImportPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error)
+	CancelImportPlayerLogs(ctx context.Context) (bool, error)
 	ExtractBoxscorePlayers(ctx context.Context, input *model.SeasonsInput) (bool, error)
 	CancelExtractBoxscorePlayers(ctx context.Context) (bool, error)
 	FetchPlayerLandings(ctx context.Context, input *model.FetchPlayerLandingsInput) (bool, error)
@@ -199,6 +205,8 @@ type QueryResolver interface {
 	ProcessPlayersResultData(ctx context.Context) (*model.ProcessPlayersResultData, error)
 	ImportSeasonsResult(ctx context.Context) (*model.WorkflowResult, error)
 	ImportSeasonsProgress(ctx context.Context) (*model.ProgressReport, error)
+	ImportPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error)
+	ImportPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error)
 	ExtractBoxscorePlayersResult(ctx context.Context) (*model.WorkflowResult, error)
 	ExtractBoxscorePlayersProgress(ctx context.Context) (*model.ProgressReport, error)
 	FetchPlayerLandingsResult(ctx context.Context) (*model.WorkflowResult, error)
@@ -258,6 +266,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.CancelFetchYahooPlayers(childComplexity), true
+
+	case "Mutation.cancelImportPlayerLogs":
+		if e.complexity.Mutation.CancelImportPlayerLogs == nil {
+			break
+		}
+
+		return e.complexity.Mutation.CancelImportPlayerLogs(childComplexity), true
 
 	case "Mutation.cancelImportSeasons":
 		if e.complexity.Mutation.CancelImportSeasons == nil {
@@ -362,6 +377,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.FlushRedisDb(childComplexity), true
+
+	case "Mutation.importPlayerLogs":
+		if e.complexity.Mutation.ImportPlayerLogs == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_importPlayerLogs_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ImportPlayerLogs(childComplexity, args["input"].(*model.SeasonsInput)), true
 
 	case "Mutation.importSeasons":
 		if e.complexity.Mutation.ImportSeasons == nil {
@@ -694,6 +721,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.FetchYahooPlayersResult(childComplexity), true
+
+	case "Query.importPlayerLogsProgress":
+		if e.complexity.Query.ImportPlayerLogsProgress == nil {
+			break
+		}
+
+		return e.complexity.Query.ImportPlayerLogsProgress(childComplexity), true
+
+	case "Query.importPlayerLogsResult":
+		if e.complexity.Query.ImportPlayerLogsResult == nil {
+			break
+		}
+
+		return e.complexity.Query.ImportPlayerLogsResult(childComplexity), true
 
 	case "Query.importSeasonsProgress":
 		if e.complexity.Query.ImportSeasonsProgress == nil {
@@ -1083,6 +1124,9 @@ type Query {
 	importSeasonsResult: WorkflowResult!
 	importSeasonsProgress: ProgressReport
 
+	importPlayerLogsResult: WorkflowResult!
+	importPlayerLogsProgress: ProgressReport
+
 	extractBoxscorePlayersResult: WorkflowResult!
 	extractBoxscorePlayersProgress: ProgressReport
 
@@ -1128,6 +1172,8 @@ type Mutation {
 	cancelProcessPlayers: Boolean!
 	importSeasons(input: SeasonsInput): Boolean!
 	cancelImportSeasons: Boolean!
+	importPlayerLogs(input: SeasonsInput): Boolean!
+	cancelImportPlayerLogs: Boolean!
 	extractBoxscorePlayers(input: SeasonsInput): Boolean!
 	cancelExtractBoxscorePlayers: Boolean!
 	fetchPlayerLandings(input: FetchPlayerLandingsInput): Boolean!
@@ -1248,6 +1294,38 @@ func (ec *executionContext) field_Mutation_fetchSeasons_args(ctx context.Context
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_fetchSeasons_argsInput(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.SeasonsInput, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["input"]
+	if !ok {
+		var zeroVal *model.SeasonsInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalOSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonsInput(ctx, tmp)
+	}
+
+	var zeroVal *model.SeasonsInput
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_importPlayerLogs_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_importPlayerLogs_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_importPlayerLogs_argsInput(
 	ctx context.Context,
 	rawArgs map[string]interface{},
 ) (*model.SeasonsInput, error) {
@@ -2173,6 +2251,105 @@ func (ec *executionContext) _Mutation_cancelImportSeasons(ctx context.Context, f
 }
 
 func (ec *executionContext) fieldContext_Mutation_cancelImportSeasons(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_importPlayerLogs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_importPlayerLogs(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().ImportPlayerLogs(rctx, fc.Args["input"].(*model.SeasonsInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_importPlayerLogs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_importPlayerLogs_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelImportPlayerLogs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelImportPlayerLogs(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CancelImportPlayerLogs(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_cancelImportPlayerLogs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -4502,6 +4679,107 @@ func (ec *executionContext) _Query_importSeasonsProgress(ctx context.Context, fi
 }
 
 func (ec *executionContext) fieldContext_Query_importSeasonsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "total":
+				return ec.fieldContext_ProgressReport_total(ctx, field)
+			case "completed":
+				return ec.fieldContext_ProgressReport_completed(ctx, field)
+			case "message":
+				return ec.fieldContext_ProgressReport_message(ctx, field)
+			case "groups":
+				return ec.fieldContext_ProgressReport_groups(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProgressReport", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_importPlayerLogsResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_importPlayerLogsResult(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().ImportPlayerLogsResult(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.WorkflowResult)
+	fc.Result = res
+	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_importPlayerLogsResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "status":
+				return ec.fieldContext_WorkflowResult_status(ctx, field)
+			case "failureReason":
+				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_importPlayerLogsProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_importPlayerLogsProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().ImportPlayerLogsProgress(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.ProgressReport)
+	fc.Result = res
+	return ec.marshalOProgressReport2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressReport(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_importPlayerLogsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -7536,6 +7814,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "importPlayerLogs":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_importPlayerLogs(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelImportPlayerLogs":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelImportPlayerLogs(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "extractBoxscorePlayers":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_extractBoxscorePlayers(ctx, field)
@@ -8196,6 +8488,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_importSeasonsProgress(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "importPlayerLogsResult":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_importPlayerLogsResult(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "importPlayerLogsProgress":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_importPlayerLogsProgress(ctx, field)
 				return res
 			}
 

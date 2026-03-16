@@ -92,6 +92,16 @@ func (r *mutationResolver) CancelImportSeasons(ctx context.Context) (bool, error
 	return r.Resolver.cancelImportSeasons(ctx)
 }
 
+// ImportPlayerLogs is the resolver for the importPlayerLogs field.
+func (r *mutationResolver) ImportPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return r.Resolver.importPlayerLogs(ctx, input)
+}
+
+// CancelImportPlayerLogs is the resolver for the cancelImportPlayerLogs field.
+func (r *mutationResolver) CancelImportPlayerLogs(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelImportPlayerLogs(ctx)
+}
+
 // ExtractBoxscorePlayers is the resolver for the extractBoxscorePlayers field.
 func (r *mutationResolver) ExtractBoxscorePlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
 	return r.Resolver.extractBoxscorePlayers(ctx, input)
@@ -181,6 +191,16 @@ func (r *queryResolver) ImportSeasonsResult(ctx context.Context) (*model.Workflo
 // ImportSeasonsProgress is the resolver for the importSeasonsProgress field.
 func (r *queryResolver) ImportSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.importSeasonsProgress(ctx)
+}
+
+// ImportPlayerLogsResult is the resolver for the importPlayerLogsResult field.
+func (r *queryResolver) ImportPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.importPlayerLogsResult(ctx)
+}
+
+// ImportPlayerLogsProgress is the resolver for the importPlayerLogsProgress field.
+func (r *queryResolver) ImportPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.Resolver.importPlayerLogsProgress(ctx)
 }
 
 // ExtractBoxscorePlayersResult is the resolver for the extractBoxscorePlayersResult field.

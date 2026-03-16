@@ -178,4 +178,5 @@ const (
 	workflowFetchPlayerLogs
 	workflowProcessPlayers
 	workflowImportSeasons
+	workflowImportPlayerLogs
 )

@@ -271,7 +271,6 @@ func (s *ImportSeasonsWorkflowTestSuite) SetupTest() {
 	s.env = s.NewTestWorkflowEnvironment()
 	s.env.RegisterWorkflow(ImportSeasonsWorkflow)
 	s.env.RegisterWorkflow(ImportSeasonWorkflow)
-	s.env.RegisterWorkflow(ImportSeasonPlayerLogsWorkflow)
 }
 
 func (s *ImportSeasonsWorkflowTestSuite) AfterTest(suiteName, testName string) {
@@ -295,9 +294,6 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_Success() {
 	var sa *SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
 	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
-	var pa *PlayerActivities
-	s.env.OnActivity(pa.CountPlayersForAllSeasons, mock.Anything, mock.Anything).Return(map[int]int{2023: 100}, nil)
-	s.env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 
@@ -372,9 +368,6 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_MultipleSeaso
 	var sa *SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
 	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
-	var pa *PlayerActivities
-	s.env.OnActivity(pa.CountPlayersForAllSeasons, mock.Anything, mock.Anything).Return(map[int]int{2022: 50, 2023: 100, 2024: 75}, nil)
-	s.env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 
@@ -399,9 +392,6 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_WithConcurren
 	var sa *SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
 	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
-	var pa *PlayerActivities
-	s.env.OnActivity(pa.CountPlayersForAllSeasons, mock.Anything, mock.Anything).Return(map[int]int{2022: 50, 2023: 100}, nil)
-	s.env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 
@@ -565,6 +555,87 @@ func (s *ImportSeasonPlayerLogsWorkflowTestSuite) TestBatchError() {
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
+}
+
+// --- ImportPlayerLogsWorkflow tests ---
+
+type ImportPlayerLogsWorkflowTestSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+	env *testsuite.TestWorkflowEnvironment
+}
+
+func (s *ImportPlayerLogsWorkflowTestSuite) SetupTest() {
+	s.env = s.NewTestWorkflowEnvironment()
+	s.env.RegisterWorkflow(ImportPlayerLogsWorkflow)
+	s.env.RegisterWorkflow(ImportSeasonPlayerLogsWorkflow)
+}
+
+func (s *ImportPlayerLogsWorkflowTestSuite) AfterTest(suiteName, testName string) {
+	s.env.AssertExpectations(s.T())
+}
+
+func TestImportPlayerLogsWorkflowTestSuite(t *testing.T) {
+	suite.Run(t, new(ImportPlayerLogsWorkflowTestSuite))
+}
+
+func (s *ImportPlayerLogsWorkflowTestSuite) TestSuccess() {
+	input := &model.SeasonsInput{}
+	result := FetchSeasonsManifestResult{
+		Seasons: []nhl.SeasonInfo{
+			testSeasonW(2023, "2023-10-10", "2023-10-12"),
+		},
+		Origin: core.OriginFileSystem,
+	}
+
+	var sa *SeasonsActivities
+	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
+	var pa *PlayerActivities
+	s.env.OnActivity(pa.CountPlayersForAllSeasons, mock.Anything, mock.Anything).Return(map[int]int{2023: 100}, nil)
+	s.env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(ImportPlayerLogsWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+func (s *ImportPlayerLogsWorkflowTestSuite) TestNoSeasons() {
+	input := &model.SeasonsInput{}
+	result := FetchSeasonsManifestResult{
+		Seasons: []nhl.SeasonInfo{},
+		Origin:  core.OriginFileSystem,
+	}
+
+	var sa *SeasonsActivities
+	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
+
+	s.env.ExecuteWorkflow(ImportPlayerLogsWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+}
+
+func (s *ImportPlayerLogsWorkflowTestSuite) TestMultipleSeasons() {
+	input := &model.SeasonsInput{}
+	result := FetchSeasonsManifestResult{
+		Seasons: []nhl.SeasonInfo{
+			testSeasonW(2022, "2022-10-07", "2022-10-09"),
+			testSeasonW(2023, "2023-10-10", "2023-10-12"),
+		},
+		Origin: core.OriginFileSystem,
+	}
+
+	var sa *SeasonsActivities
+	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
+	var pa *PlayerActivities
+	s.env.OnActivity(pa.CountPlayersForAllSeasons, mock.Anything, mock.Anything).Return(map[int]int{2022: 50, 2023: 100}, nil)
+	s.env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(ImportPlayerLogsWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
 }
 
 // --- FetchSeasonWorkflow tests ---

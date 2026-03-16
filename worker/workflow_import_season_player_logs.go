@@ -15,12 +15,11 @@ const playerGameLogBatchSize = 50
 const GroupImportPlayerLogs = 0
 
 // NewImportSeasonPlayerLogsReport creates the progress report for a single season's player log import.
-// numBatches is the total number of batches to process.
-func NewImportSeasonPlayerLogsReport(season nhl.SeasonInfo, numBatches int) *ProgressReport {
+func NewImportSeasonPlayerLogsReport(season nhl.SeasonInfo, playerCount int) *ProgressReport {
 	return &ProgressReport{
-		Total: numBatches,
+		Total: playerCount,
 		Groups: []ProgressGroup{
-			{Header: fmt.Sprintf("Importing player logs for %s...", season.Label()), Bars: []ProgressBar{{Total: numBatches}}},
+			{Header: fmt.Sprintf("Importing player logs for %s...", season.Label()), Bars: []ProgressBar{{Total: playerCount}}},
 		},
 	}
 }
@@ -52,7 +51,7 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 	numBatches := batchCount(len(playerIDs), playerGameLogBatchSize)
 	dayConcurrency := getDayConcurrency()
 
-	tracker := NewReportTracker(NewImportSeasonPlayerLogsReport(season, numBatches))
+	tracker := NewReportTracker(NewImportSeasonPlayerLogsReport(season, len(playerIDs)))
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return err
 	}
@@ -64,7 +63,8 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 		"batches", numBatches,
 		"concurrency", dayConcurrency)
 
-	err := tracker.RunWorkerPool(ctx, GroupImportPlayerLogs, 0, numBatches, dayConcurrency,
+	err := tracker.RunWorkerPoolWithIncrement(ctx, GroupImportPlayerLogs, 0, numBatches, dayConcurrency,
+		func(i int) int { return len(batchSlice(playerIDs, i, playerGameLogBatchSize)) },
 		func(_ workflow.Context, i int) workflow.Future {
 			batch := batchSlice(playerIDs, i, playerGameLogBatchSize)
 			input := ImportPlayerGameLogsBatchInput{

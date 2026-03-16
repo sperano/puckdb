@@ -196,13 +196,22 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Println("- Skipping players processing.")
 	}
 
-	// Step 8: Import seasons (boxscores, game stories, Yahoo data, player game logs)
+	// Step 8: Import seasons (boxscores, game stories, Yahoo data)
 	if !viper.GetBool(config.FlagSkipImportSeasons) {
 		if err := runImportSeasons(ctx, out, client, state); err != nil {
 			return fmt.Errorf("importing seasons failed: %w", err)
 		}
 	} else {
 		fmt.Println("- Skipping seasons import.")
+	}
+
+	// Step 9: Import player game logs
+	if !viper.GetBool(config.FlagSkipImportPlayerLogs) {
+		if err := runImportPlayerLogs(ctx, out, client, state); err != nil {
+			return fmt.Errorf("importing player logs failed: %w", err)
+		}
+	} else {
+		fmt.Println("- Skipping player logs import.")
 	}
 
 	fmt.Printf("✓ Sync completed in %s\n", formatElapsed(time.Since(start)))
@@ -446,6 +455,14 @@ func runImportSeasons(ctx context.Context, out io.Writer, client *GraphQLClient,
 	}.run(ctx, out, state)
 }
 
+func runImportPlayerLogs(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
+	return workflowRunner{
+		workflowType: workflowImportPlayerLogs,
+		trigger:      func() (bool, error) { return client.ImportPlayerLogs(ctx, buildSeasonsInput()) },
+		getStatus:    client.GetImportPlayerLogsStatus,
+	}.run(ctx, out, state)
+}
+
 // syncState tracks the current workflow(s) for signal handling
 type syncState struct {
 	client  *GraphQLClient
@@ -496,6 +513,7 @@ func (s *syncState) cancel() {
 		workflowFetchPlayerLogs:        {"fetchPlayerLogs", s.client.CancelFetchPlayerLogs},
 		workflowProcessPlayers:         {"processPlayers", s.client.CancelProcessPlayers},
 		workflowImportSeasons:          {"importSeasons", s.client.CancelImportSeasons},
+		workflowImportPlayerLogs:       {"importPlayerLogs", s.client.CancelImportPlayerLogs},
 	}
 
 	for _, wt := range active {

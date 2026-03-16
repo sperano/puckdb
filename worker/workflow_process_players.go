@@ -290,7 +290,8 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *ReportTracker, input 
 
 	// Run batches with concurrency control
 	window := input.Players[startIdx:endIdx]
-	if err := tracker.RunWorkerPoolBy(ctx, GroupProcessPlayers, 0, numBatches, input.Concurrency, input.BatchSize,
+	if err := tracker.RunWorkerPoolWithIncrement(ctx, GroupProcessPlayers, 0, numBatches, input.Concurrency,
+		func(i int) int { return len(batchSlice(window, i, input.BatchSize)) },
 		func(_ workflow.Context, batchIndex int) workflow.Future {
 			batch := batchSlice(window, batchIndex, input.BatchSize)
 			return workflow.ExecuteActivity(activityCtx, ProcessPlayerBatchActivity, batch)
@@ -306,12 +307,6 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *ReportTracker, input 
 			totalMatched += result.Matched
 			allErrors = append(allErrors, result.Errors...)
 			origins.Add(result.Origins)
-
-			// Correct the increment: RunWorkerPoolBy adds batchSize, but last batch may be smaller
-			actualBatchSize := len(batchSlice(window, batchIndex, input.BatchSize))
-			if actualBatchSize < input.BatchSize {
-				tracker.IncrementBarBy(ctx, GroupProcessPlayers, 0, actualBatchSize-input.BatchSize)
-			}
 			return nil
 		}); err != nil {
 		return nil, err

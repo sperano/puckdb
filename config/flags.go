@@ -204,6 +204,7 @@ const (
 	FlagSkipFetchPlayerLogs        = "skip-fetch-player-logs"
 	FlagSkipInit                   = "skip-init"
 	FlagSkipImportSeasons          = "skip-import-seasons"
+	FlagSkipImportPlayerLogs       = "skip-import-player-logs"
 	FlagRefreshCurrentPlayerLogs = "refresh-current-player-logs"
 	FlagSeasonConcurrency        = "season-concurrency"
 	FlagMonitor                  = "monitor"
@@ -388,6 +389,7 @@ var SyncSkipFlags = FlagGroup{
 		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the current season (overwrites cached files)", false},
 		{FlagSkipProcessPlayers, "P", false, "Skip processing players (download + import)", false},
 		{FlagSkipImportSeasons, "M", false, "Skip importing seasons into the database", false},
+		{FlagSkipImportPlayerLogs, "J", false, "Skip importing player game logs into the database", false},
 	},
 }
 

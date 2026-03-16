@@ -124,6 +124,9 @@ type Query {
 	importSeasonsResult: WorkflowResult!
 	importSeasonsProgress: ProgressReport
 
+	importPlayerLogsResult: WorkflowResult!
+	importPlayerLogsProgress: ProgressReport
+
 	extractBoxscorePlayersResult: WorkflowResult!
 	extractBoxscorePlayersProgress: ProgressReport
 
@@ -169,6 +172,8 @@ type Mutation {
 	cancelProcessPlayers: Boolean!
 	importSeasons(input: SeasonsInput): Boolean!
 	cancelImportSeasons: Boolean!
+	importPlayerLogs(input: SeasonsInput): Boolean!
+	cancelImportPlayerLogs: Boolean!
 	extractBoxscorePlayers(input: SeasonsInput): Boolean!
 	cancelExtractBoxscorePlayers: Boolean!
 	fetchPlayerLandings(input: FetchPlayerLandingsInput): Boolean!

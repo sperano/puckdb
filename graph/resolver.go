@@ -1,5 +1,7 @@
 package graph
 
+//go:generate go run github.com/99designs/gqlgen generate
+
 import (
 	"bytes"
 	"context"
@@ -183,6 +185,25 @@ func (r *Resolver) importSeasonsResult(ctx context.Context) (*model.WorkflowResu
 
 func (r *Resolver) importSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.queryProgressReport(ctx, worker.WorkflowIDImportSeasons)
+}
+
+func (r *Resolver) importPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return r.executeWorkflow(ctx, worker.WorkflowIDImportPlayerLogs, worker.ImportPlayerLogsWorkflow, input)
+}
+
+func (r *Resolver) cancelImportPlayerLogs(ctx context.Context) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDImportPlayerLogs, ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) importPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, worker.WorkflowIDImportPlayerLogs)
+}
+
+func (r *Resolver) importPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.queryProgressReport(ctx, worker.WorkflowIDImportPlayerLogs)
 }
 
 func (r *Resolver) extractBoxscorePlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {

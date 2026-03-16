@@ -89,6 +89,7 @@ func cmdWorker() *cobra.Command {
 			w.RegisterWorkflow(workers.ProcessPlayersWorkflow)
 			w.RegisterWorkflow(workers.ProcessPlayersWorkflowContinue)
 			w.RegisterWorkflow(workers.ImportSeasonsWorkflow)
+			w.RegisterWorkflow(workers.ImportPlayerLogsWorkflow)
 			w.RegisterWorkflow(workers.ImportSeasonWorkflow)
 			w.RegisterWorkflow(workers.ImportSeasonPlayerLogsWorkflow)
 			w.RegisterWorkflow(workers.InitializeWorkflow)

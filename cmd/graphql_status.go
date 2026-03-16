@@ -87,6 +87,13 @@ func (c *GraphQLClient) GetImportSeasonsStatus(ctx context.Context) (*WorkflowSt
 		"importSeasonsResult", "importSeasonsProgress")
 }
 
+// GetImportPlayerLogsStatus queries both workflow result and progress
+func (c *GraphQLClient) GetImportPlayerLogsStatus(ctx context.Context) (*WorkflowStatus, error) {
+	return c.executeProgressReportQuery(ctx,
+		`query { importPlayerLogsResult `+resultFields+` importPlayerLogsProgress `+progressReportFields+` }`,
+		"importPlayerLogsResult", "importPlayerLogsProgress")
+}
+
 // GetInitializeStatus queries both workflow result and progress (uses ProgressReport format)
 func (c *GraphQLClient) GetInitializeStatus(ctx context.Context) (*WorkflowStatus, error) {
 	return c.executeProgressReportQuery(ctx,

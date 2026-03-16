@@ -81,6 +81,19 @@ func (c *GraphQLClient) CancelImportSeasons(ctx context.Context) (bool, error) {
 	return c.executeBoolMutation(ctx, `mutation { cancelImportSeasons }`, "cancelImportSeasons", nil)
 }
 
+// ImportPlayerLogs triggers the importPlayerLogs mutation
+func (c *GraphQLClient) ImportPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return c.executeBoolMutation(ctx,
+		`mutation($input: SeasonsInput) { importPlayerLogs(input: $input) }`,
+		"importPlayerLogs",
+		map[string]any{"input": input})
+}
+
+// CancelImportPlayerLogs cancels the importPlayerLogs workflow
+func (c *GraphQLClient) CancelImportPlayerLogs(ctx context.Context) (bool, error) {
+	return c.executeBoolMutation(ctx, `mutation { cancelImportPlayerLogs }`, "cancelImportPlayerLogs", nil)
+}
+
 // Initialize triggers the initialize mutation
 func (c *GraphQLClient) Initialize(ctx context.Context) (bool, error) {
 	return c.executeBoolMutation(ctx, `mutation { initialize }`, "initialize", nil)

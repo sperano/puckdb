@@ -78,7 +78,8 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 	startYear := season.ID.StartYear()
 	refreshCurrent := input.RefreshCurrent
 
-	err := tracker.RunWorkerPool(ctx, GroupFetchSeasonPlayerLogs, 0, numBatches, concurrency,
+	err := tracker.RunWorkerPoolWithIncrement(ctx, GroupFetchSeasonPlayerLogs, 0, numBatches, concurrency,
+		func(i int) int { return len(batchSlice(playerIDs, i, batchSize)) },
 		func(_ workflow.Context, batchIdx int) workflow.Future {
 			batch := batchSlice(playerIDs, batchIdx, batchSize)
 			activityInput := DownloadPlayerGameLogsInput{
@@ -89,16 +90,7 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 				TotalPlayers:   playerCount,
 			}
 			return workflow.ExecuteActivity(ctx, playerAct.DownloadPlayerGameLogsBatch, activityInput)
-		},
-		func(ctx workflow.Context, batchIdx int, f workflow.Future) error {
-			var result DownloadPlayerGameLogsResult
-			if err := f.Get(ctx, &result); err != nil {
-				return err
-			}
-			actualBatchSize := len(batchSlice(playerIDs, batchIdx, batchSize))
-			tracker.IncrementBarBy(ctx, GroupFetchSeasonPlayerLogs, 0, actualBatchSize-1) // -1 because RunWorkerPool already adds 1
-			return nil
-		})
+		}, nil)
 	if err != nil {
 		return err
 	}

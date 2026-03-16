@@ -227,15 +227,19 @@ func formatElapsedMilli(ms int64) string {
 	return formatDuration(d)
 }
 
+// IncrementFunc returns the progress increment for a given work item index.
+type IncrementFunc func(index int) int
+
 // RunWorkerPool runs activities concurrently with a fixed concurrency limit.
 // All activities update a SINGLE bar at barIdx, incrementing by 1 on each completion.
 // Use RunWorkerPoolMultiBar if each activity should have its own bar.
 func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, groupIdx, barIdx, total, concurrency int, startActivity ActivityStarter, handler ResultHandler) error {
-	return t.RunWorkerPoolBy(ctx, groupIdx, barIdx, total, concurrency, 1, startActivity, handler)
+	return t.RunWorkerPoolWithIncrement(ctx, groupIdx, barIdx, total, concurrency, func(_ int) int { return 1 }, startActivity, handler)
 }
 
-// RunWorkerPoolBy is like RunWorkerPool but increments the bar by a custom amount per completion.
-func (t *ReportTracker) RunWorkerPoolBy(ctx workflow.Context, groupIdx, barIdx, total, concurrency, incrementBy int, startActivity ActivityStarter, handler ResultHandler) error {
+// RunWorkerPoolWithIncrement is like RunWorkerPool but uses incrementFunc to determine
+// how much to advance the progress bar for each completed work item.
+func (t *ReportTracker) RunWorkerPoolWithIncrement(ctx workflow.Context, groupIdx, barIdx, total, concurrency int, incrementFunc IncrementFunc, startActivity ActivityStarter, handler ResultHandler) error {
 	if total == 0 {
 		return nil
 	}
@@ -266,7 +270,7 @@ func (t *ReportTracker) RunWorkerPoolBy(ctx workflow.Context, groupIdx, barIdx, 
 				} else if err := f.Get(ctx, nil); err != nil && firstErr == nil {
 					firstErr = err
 				}
-				t.IncrementBarBy(ctx, groupIdx, barIdx, incrementBy)
+				t.IncrementBarBy(ctx, groupIdx, barIdx, incrementFunc(capturedIdx))
 				delete(active, capturedIdx)
 			})
 		}

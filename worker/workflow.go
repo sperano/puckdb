@@ -13,9 +13,10 @@ import (
 
 const (
 	TaskQueueName             = "puckdb-tasks"
-	WorkflowIDImportSeasons   = "import-seasons"
-	WorkflowIDFetchSeasons    = "fetch-seasons"
-	WorkflowIDFetchPlayerLogs = "fetch-player-logs"
+	WorkflowIDImportSeasons    = "import-seasons"
+	WorkflowIDImportPlayerLogs = "import-player-logs"
+	WorkflowIDFetchSeasons     = "fetch-seasons"
+	WorkflowIDFetchPlayerLogs  = "fetch-player-logs"
 )
 
 func withChildOptions(ctx workflow.Context, id string) workflow.Context {
