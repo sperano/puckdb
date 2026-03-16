@@ -138,6 +138,27 @@ func (g GameStory) Parse(data []byte) (*nhl.GameStory, error) {
 	return &story, nil
 }
 
+// SeasonSeries represents NHL season series matchup data for a game.
+// Contains officials, head coaches, scratches, and head-to-head series records.
+type SeasonSeries struct {
+	Date   time.Time
+	GameID nhl.GameID
+}
+
+func (s SeasonSeries) Path() string {
+	return fmt.Sprintf("%s/seasonseries-%s.json", gamesDir(s.Date), s.GameID.String())
+}
+
+func (s SeasonSeries) Type() core.FileType { return core.SeasonSeries }
+
+func (s SeasonSeries) Parse(data []byte) (*nhl.SeasonSeriesMatchup, error) {
+	var matchup nhl.SeasonSeriesMatchup
+	if err := json.Unmarshal(data, &matchup); err != nil {
+		return nil, fmt.Errorf("parse season series %s: %w", s.GameID, err)
+	}
+	return &matchup, nil
+}
+
 // PlayerLanding represents an NHL player's landing page data.
 type PlayerLanding struct {
 	PlayerID nhl.PlayerID

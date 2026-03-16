@@ -96,6 +96,9 @@ SELECT COUNT(*) FROM games WHERE season = $1;
 SELECT COUNT(*) FROM games
 WHERE (home_team_id = $1 OR away_team_id = $1) AND season = $2;
 
+-- name: GetGameTeamIDs :one
+SELECT home_team_id, away_team_id FROM games WHERE id = $1;
+
 -- name: UpsertGame :exec
 INSERT INTO games (
     id, season, game_type, game_date,

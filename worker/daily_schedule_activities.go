@@ -22,10 +22,11 @@ import (
 // File type constants for metrics labels.
 
 const (
-	fileTypeBoxscore   = "BoxscoreFile"
-	fileTypePlayByPlay = "PlayByPlayFile"
-	fileTypeShiftChart = "ShiftChartFile"
-	fileTypeGameStory  = "GameStoryFile"
+	fileTypeBoxscore     = "BoxscoreFile"
+	fileTypePlayByPlay   = "PlayByPlayFile"
+	fileTypeShiftChart   = "ShiftChartFile"
+	fileTypeGameStory    = "GameStoryFile"
+	fileTypeSeasonSeries = "SeasonSeriesFile"
 )
 
 // BoxscoreDownloader downloads boxscore data for a game ID.
@@ -33,19 +34,21 @@ type BoxscoreDownloader func(id nhl.GameID) ([]byte, error)
 
 // GameDataDownloaders holds all game data downloaders.
 type GameDataDownloaders struct {
-	Boxscore   BoxscoreDownloader
-	PlayByPlay BoxscoreDownloader
-	ShiftChart BoxscoreDownloader
-	GameStory  BoxscoreDownloader
+	Boxscore     BoxscoreDownloader
+	PlayByPlay   BoxscoreDownloader
+	ShiftChart   BoxscoreDownloader
+	GameStory    BoxscoreDownloader
+	SeasonSeries BoxscoreDownloader
 }
 
 // DefaultGameDataDownloaders returns GameDataDownloaders wired to the real NHL API download functions.
 func DefaultGameDataDownloaders() GameDataDownloaders {
 	return GameDataDownloaders{
-		Boxscore:   DownloadBoxscore,
-		PlayByPlay: DownloadPlayByPlay,
-		ShiftChart: DownloadShiftChart,
-		GameStory:  DownloadGameStory,
+		Boxscore:     DownloadBoxscore,
+		PlayByPlay:   DownloadPlayByPlay,
+		ShiftChart:   DownloadShiftChart,
+		GameStory:    DownloadGameStory,
+		SeasonSeries: DownloadSeasonSeries,
 	}
 }
 
@@ -131,6 +134,14 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 			gameStoryRes := resource.GameStory{Date: day, GameID: id}
 			if err := downloadGameDataToCache(a.Storage, gameStoryRes, a.GameDownloads.GameStory, id, fileTypeGameStory); err != nil {
 				return fmt.Errorf("game-story gameid %s: %w", id.String(), err)
+			}
+			return nil
+		})
+		g.Go(func() error {
+			activity.RecordHeartbeat(ctx, nil)
+			seasonSeriesRes := resource.SeasonSeries{Date: day, GameID: id}
+			if err := downloadGameDataToCache(a.Storage, seasonSeriesRes, a.GameDownloads.SeasonSeries, id, fileTypeSeasonSeries); err != nil {
+				return fmt.Errorf("season-series gameid %s: %w", id.String(), err)
 			}
 			return nil
 		})

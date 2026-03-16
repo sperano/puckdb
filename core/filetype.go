@@ -23,6 +23,7 @@ const (
 	TeamSummary
 	YahooPlayer
 	GameKey
+	SeasonSeries
 )
 
 var names = [...]string{
@@ -43,6 +44,7 @@ var names = [...]string{
 	TeamSummary:     "TeamSummary",
 	YahooPlayer:     "YahooPlayer",
 	GameKey:         "GameKey",
+	SeasonSeries:    "SeasonSeries",
 }
 
 // String returns the string representation of the FileType.

@@ -45,6 +45,12 @@ type Game struct {
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 }
 
+type GameCoach struct {
+	GameID    int64  `json:"game_id"`
+	TeamID    int64  `json:"team_id"`
+	HeadCoach string `json:"head_coach"`
+}
+
 type GameGoalieStat struct {
 	GameID                   int64              `json:"game_id"`
 	PlayerID                 int64              `json:"player_id"`
@@ -64,6 +70,19 @@ type GameGoalieStat struct {
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+}
+
+type GameOfficial struct {
+	GameID   int64  `json:"game_id"`
+	Role     string `json:"role"`
+	Sequence int16  `json:"sequence"`
+	Name     string `json:"name"`
+}
+
+type GameScratch struct {
+	GameID   int64 `json:"game_id"`
+	TeamID   int64 `json:"team_id"`
+	PlayerID int64 `json:"player_id"`
 }
 
 type GameSkaterStat struct {

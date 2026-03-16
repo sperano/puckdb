@@ -47,6 +47,12 @@ func GameStoryPath(date time.Time, gameID nhl.GameID) string {
 	return fmt.Sprintf("%s/gamestory-%s.json", gamesDir(date), gameID.String())
 }
 
+// SeasonSeriesPath returns the path for a season series file.
+// Example: seasons/2024/games/2025/01/15/seasonseries-2024020123.json
+func SeasonSeriesPath(date time.Time, gameID nhl.GameID) string {
+	return fmt.Sprintf("%s/seasonseries-%s.json", gamesDir(date), gameID.String())
+}
+
 // PlayerLandingPath returns the path for a player landing page file.
 // Example: players/player-8478402-landing.json
 func PlayerLandingPath(playerID nhl.PlayerID) string {

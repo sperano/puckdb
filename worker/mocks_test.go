@@ -53,6 +53,14 @@ func (m *MockNHLClient) GameStory(ctx context.Context, gameID nhl.GameID) (*nhl.
 	return args.Get(0).(*nhl.GameStory), args.Error(1)
 }
 
+func (m *MockNHLClient) SeasonSeries(ctx context.Context, gameID nhl.GameID) (*nhl.SeasonSeriesMatchup, error) {
+	args := m.Called(ctx, gameID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.SeasonSeriesMatchup), args.Error(1)
+}
+
 func (m *MockNHLClient) PlayerGameLog(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.PlayerGameLog, error) {
 	args := m.Called(ctx, playerID, season, gameType)
 	if args.Get(0) == nil {

@@ -55,6 +55,13 @@ func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput)
 	if _, err := a.ImportShiftChartForDate(ctx, scInput); err != nil {
 		return fmt.Errorf("import shift chart for %s: %w", input.Date.Format("2006-01-02"), err)
 	}
+	activity.RecordHeartbeat(ctx, "season-series")
+
+	// Import season series (officials, coaches, scratches)
+	ssInput := ImportSeasonSeriesForDateInput{Date: input.Date}
+	if _, err := a.ImportSeasonSeriesForDate(ctx, ssInput); err != nil {
+		return fmt.Errorf("import season series for %s: %w", input.Date.Format("2006-01-02"), err)
+	}
 	activity.RecordHeartbeat(ctx, "yahoo")
 
 	// Import Yahoo data if teams configured

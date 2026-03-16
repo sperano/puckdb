@@ -156,6 +156,22 @@ func (q *Queries) GetGame(ctx context.Context, id int64) (GetGameRow, error) {
 	return i, err
 }
 
+const getGameTeamIDs = `-- name: GetGameTeamIDs :one
+SELECT home_team_id, away_team_id FROM games WHERE id = $1
+`
+
+type GetGameTeamIDsRow struct {
+	HomeTeamID int64 `json:"home_team_id"`
+	AwayTeamID int64 `json:"away_team_id"`
+}
+
+func (q *Queries) GetGameTeamIDs(ctx context.Context, id int64) (GetGameTeamIDsRow, error) {
+	row := q.db.QueryRow(ctx, getGameTeamIDs, id)
+	var i GetGameTeamIDsRow
+	err := row.Scan(&i.HomeTeamID, &i.AwayTeamID)
+	return i, err
+}
+
 const getGamesByDate = `-- name: GetGamesByDate :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,

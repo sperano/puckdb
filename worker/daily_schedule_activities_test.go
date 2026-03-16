@@ -30,19 +30,21 @@ func mockBoxscoreDownloader(content []byte, err error) BoxscoreDownloader {
 func mockGameDownloaders(content []byte, err error) GameDataDownloaders {
 	dl := mockBoxscoreDownloader(content, err)
 	return GameDataDownloaders{
-		Boxscore:   dl,
-		PlayByPlay: dl,
-		ShiftChart: dl,
-		GameStory:  dl,
+		Boxscore:     dl,
+		PlayByPlay:   dl,
+		ShiftChart:   dl,
+		GameStory:    dl,
+		SeasonSeries: dl,
 	}
 }
 
-// setAllGameFilesExist pre-populates all game data files (boxscore, play-by-play, shift chart, game story).
+// setAllGameFilesExist pre-populates all game data files (boxscore, play-by-play, shift chart, game story, season series).
 func setAllGameFilesExist(mem *store.MemStorage, day time.Time, gameID nhl.GameID) {
 	mem.SetFile(store.BoxscorePath(day, gameID), []byte("{}"))
 	mem.SetFile(store.PlayByPlayPath(day, gameID), []byte("{}"))
 	mem.SetFile(store.ShiftChartPath(day, gameID), []byte("{}"))
 	mem.SetFile(store.GameStoryPath(day, gameID), []byte("{}"))
+	mem.SetFile(store.SeasonSeriesPath(day, gameID), []byte("{}"))
 }
 
 type DailyScheduleTestSuite struct {

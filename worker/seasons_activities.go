@@ -53,6 +53,7 @@ type importQueries interface {
 	GameStoryUpdater
 	PlayByPlayUpserter
 	ShiftChartUpserter
+	SeasonSeriesUpserter
 	YahooLeagueUpserter
 	YahooTeamUpserter
 	YahooDataUpserter
