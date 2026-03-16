@@ -230,7 +230,8 @@ const (
 const (
 	FlagVerbose      = "verbose"
 	FlagIncomplete   = "incomplete"
-	FlagColorSpinner = "color-spinner"
+	FlagTheme       = "theme"
+	FlagRandomTheme = "random-theme"
 )
 
 // Provisioner flags
@@ -410,7 +411,8 @@ var DisplayFlags = FlagGroup{
 // SpinnerFlags defines spinner display option flags.
 var SpinnerFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagColorSpinner, "", false, "Render spinner in random 256 colors", false},
+		{FlagTheme, "", "", "Color theme for spinner pulse (orange, red, blue, green, purple, white, cyan, yellow, pink, teal, lime, coral)", false},
+		{FlagRandomTheme, "", false, "Assign a random color theme to each spinner", false},
 	},
 }
 

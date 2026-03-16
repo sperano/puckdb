@@ -170,10 +170,13 @@ func TestSpinner_DoubleCancel(t *testing.T) {
 	sp.Cancel()
 }
 
-func TestSpinner_ColorEnabled(t *testing.T) {
+func TestSpinner_ColorTheme(t *testing.T) {
 	var buf bytes.Buffer
 	sp := newSpinner(&buf, "Test")
-	sp.SetColorEnabled(true)
+	ok := sp.SetColorTheme("coral")
+	if !ok {
+		t.Fatal("expected SetColorTheme to return true for 'coral'")
+	}
 
 	sp.Start()
 	time.Sleep(100 * time.Millisecond)
@@ -181,21 +184,110 @@ func TestSpinner_ColorEnabled(t *testing.T) {
 
 	output := buf.String()
 
-	// Should contain ANSI 256-color escape sequence (38;5;)
 	if !strings.Contains(output, "\033[38;5;") {
-		t.Error("expected 256-color ANSI escape sequence when color enabled")
+		t.Error("expected 256-color ANSI escape sequence with color theme")
 	}
 
-	// Should contain reset sequence
 	if !strings.Contains(output, "\033[0m") {
-		t.Error("expected ANSI reset sequence when color enabled")
+		t.Error("expected ANSI reset sequence with color theme")
 	}
 }
 
-func TestSpinner_ColorDisabled(t *testing.T) {
+func TestSpinner_ColorThemeInvalid(t *testing.T) {
+	sp := newSpinner(&bytes.Buffer{}, "Test")
+	ok := sp.SetColorTheme("nonexistent")
+	if ok {
+		t.Error("expected SetColorTheme to return false for unknown theme")
+	}
+	if sp.colorTheme != nil {
+		t.Error("colorTheme should be nil for unknown theme")
+	}
+}
+
+func TestSpinner_ColorThemePaletteCycles(t *testing.T) {
+	sp := newSpinner(&bytes.Buffer{}, "Test")
+	sp.SetColorTheme("coral")
+
+	// Verify each frame index maps to the expected palette shade
+	expected := [colorThemePaletteSize]string{
+		"\033[38;5;167m⠋\033[0m", // dark
+		"\033[38;5;203m⠙\033[0m",
+		"\033[38;5;209m⠹\033[0m",
+		"\033[38;5;216m⠸\033[0m", // light
+	}
+	palette := sp.colorTheme
+	for i, want := range expected {
+		got := colorize(sp.frames[i], i, palette)
+		if got != want {
+			t.Errorf("frame %d: got %q, want %q", i, got, want)
+		}
+	}
+
+	// Verify it wraps around
+	got := colorize(sp.frames[4], 4, palette)
+	if got != "\033[38;5;167m⠼\033[0m" {
+		t.Errorf("frame 4 (wrap): got %q, want dark shade", got)
+	}
+}
+
+func TestSpinner_RandomLineThemes(t *testing.T) {
+	sp := newSpinner(&bytes.Buffer{}, "Test")
+	sp.SetRandomLineThemes()
+
+	if !sp.randomLineThemes {
+		t.Fatal("expected randomLineThemes to be true")
+	}
+
+	// Different season lines get palettes
+	seasons := []string{
+		SpinnerPlaceholder + " 2001-2002 [████░░░░] 50%",
+		SpinnerPlaceholder + " 2002-2003 [██░░░░░░] 25%",
+		SpinnerPlaceholder + " 2003-2004 [██████░░] 75%",
+	}
+	for _, line := range seasons {
+		p := sp.paletteForLine(line)
+		if p == nil {
+			t.Fatalf("expected non-nil palette for %q", line)
+		}
+		// Verify palette is a known theme
+		found := false
+		for _, palette := range colorThemes {
+			if *p == palette {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("palette for %q does not match any known theme", line)
+		}
+	}
+
+	// Same season with different progress still gets the same palette
+	p1 := sp.paletteForLine(SpinnerPlaceholder + " 2001-2002 [████░░░░] 50%")
+	p2 := sp.paletteForLine(SpinnerPlaceholder + " 2001-2002 [██████░░] 75%")
+	if *p1 != *p2 {
+		t.Error("expected same palette for same season with different progress")
+	}
+}
+
+func TestSpinner_LineKey(t *testing.T) {
+	// Same season, different progress → same key
+	k1 := lineKey(SpinnerPlaceholder + " 2001-2002 [████░░░░] 50%")
+	k2 := lineKey(SpinnerPlaceholder + " 2001-2002 [██████░░] 75%")
+	if k1 != k2 {
+		t.Errorf("expected same key, got %q and %q", k1, k2)
+	}
+
+	// Different seasons → different keys
+	k3 := lineKey(SpinnerPlaceholder + " 2002-2003 [████░░░░] 50%")
+	if k1 == k3 {
+		t.Error("expected different keys for different seasons")
+	}
+}
+
+func TestSpinner_NoTheme(t *testing.T) {
 	var buf bytes.Buffer
 	sp := newSpinner(&buf, "Test")
-	// colorEnabled is false by default
 
 	sp.Start()
 	time.Sleep(100 * time.Millisecond)
@@ -203,8 +295,8 @@ func TestSpinner_ColorDisabled(t *testing.T) {
 
 	output := buf.String()
 
-	// Should not contain 256-color escape sequence (except cursor hide/show)
+	// Should not contain 256-color escape sequence when no theme is set
 	if strings.Contains(output, "\033[38;5;") {
-		t.Error("should not contain 256-color sequence when color disabled")
+		t.Error("should not contain 256-color sequence without a theme")
 	}
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -257,6 +258,12 @@ func TestFilterRegularSeasonGames(t *testing.T) {
 }
 
 func TestRenderProgressBar(t *testing.T) {
+	// Helper to build expected bar with shade sentinels.
+	// Each segment: shade_marker + filled + shade_end + empty
+	seg := func(shade, fill, empty int) string {
+		return progressShades[shade] + strings.Repeat("█", fill) + ProgressShadeEnd + strings.Repeat("░", empty)
+	}
+
 	tests := []struct {
 		name  string
 		pct   float64
@@ -266,38 +273,38 @@ func TestRenderProgressBar(t *testing.T) {
 		{
 			name:  "0 percent",
 			pct:   0,
-			width: 10,
-			want:  "[░░░░░░░░░░]",
+			width: 8, // segment=2
+			want:  "[" + seg(0, 0, 2) + seg(1, 0, 2) + seg(2, 0, 2) + seg(3, 0, 2) + "]",
 		},
 		{
 			name:  "50 percent",
 			pct:   50,
-			width: 10,
-			want:  "[█████░░░░░]",
+			width: 8,
+			want:  "[" + seg(0, 2, 0) + seg(1, 2, 0) + seg(2, 0, 2) + seg(3, 0, 2) + "]",
 		},
 		{
 			name:  "100 percent",
 			pct:   100,
-			width: 10,
-			want:  "[██████████]",
+			width: 8,
+			want:  "[" + seg(0, 2, 0) + seg(1, 2, 0) + seg(2, 2, 0) + seg(3, 2, 0) + "]",
 		},
 		{
 			name:  "25 percent width 20",
 			pct:   25,
-			width: 20,
-			want:  "[█████░░░░░░░░░░░░░░░]",
+			width: 20, // segment=5
+			want:  "[" + seg(0, 5, 0) + seg(1, 0, 5) + seg(2, 0, 5) + seg(3, 0, 5) + "]",
 		},
 		{
 			name:  "negative clamped to 0",
 			pct:   -10,
-			width: 10,
-			want:  "[░░░░░░░░░░]",
+			width: 8,
+			want:  "[" + seg(0, 0, 2) + seg(1, 0, 2) + seg(2, 0, 2) + seg(3, 0, 2) + "]",
 		},
 		{
 			name:  "over 100 clamped",
 			pct:   150,
-			width: 10,
-			want:  "[██████████]",
+			width: 8,
+			want:  "[" + seg(0, 2, 0) + seg(1, 2, 0) + seg(2, 2, 0) + seg(3, 2, 0) + "]",
 		},
 	}
 

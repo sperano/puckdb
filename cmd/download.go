@@ -234,8 +234,23 @@ func renderProgressBar(pct float64, width int) string {
 	if filled < 0 {
 		filled = 0
 	}
-	empty := width - filled
-	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
+
+	// Split into 4 equal gradient segments (dark to light).
+	// Each segment gets shade sentinels so the render loop can colorize the filled portion.
+	segmentWidth := width / colorThemePaletteSize
+	var bar strings.Builder
+	bar.WriteByte('[')
+	remaining := filled
+	for i := range colorThemePaletteSize {
+		segFilled := min(remaining, segmentWidth)
+		remaining -= segFilled
+		bar.WriteString(progressShades[i])
+		bar.WriteString(strings.Repeat("█", segFilled))
+		bar.WriteString(ProgressShadeEnd)
+		bar.WriteString(strings.Repeat("░", segmentWidth-segFilled))
+	}
+	bar.WriteByte(']')
+	return bar.String()
 }
 
 // formatLabelArea formats the label + x/y portion with fixed 22-char width.

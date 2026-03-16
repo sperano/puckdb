@@ -222,7 +222,11 @@ func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState
 
 	// Start spinner immediately so user sees feedback during trigger call
 	sp := newSpinner(out, "Starting...")
-	sp.SetColorEnabled(viper.GetBool(config.FlagColorSpinner))
+	if theme := viper.GetString(config.FlagTheme); theme != "" {
+		sp.SetColorTheme(theme)
+	} else if viper.GetBool(config.FlagRandomTheme) {
+		sp.SetRandomLineThemes()
+	}
 	sp.Start()
 
 	started, err := r.trigger()
@@ -262,7 +266,11 @@ func runParallel(ctx context.Context, out io.Writer, state *syncState, runners .
 
 	// Start spinner
 	sp := newSpinner(out, "Starting...")
-	sp.SetColorEnabled(viper.GetBool(config.FlagColorSpinner))
+	if theme := viper.GetString(config.FlagTheme); theme != "" {
+		sp.SetColorTheme(theme)
+	} else if viper.GetBool(config.FlagRandomTheme) {
+		sp.SetRandomLineThemes()
+	}
 	sp.Start()
 
 	// Trigger all workflows
