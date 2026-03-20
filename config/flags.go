@@ -216,6 +216,7 @@ const (
 // Cache flags
 const (
 	FlagGobCacheTTL               = "gob-cache-ttl"
+	FlagGobCacheConfig            = "gob-cache-config"
 	FlagBoxscorePlayerCacheTTL    = "boxscore-player-cache-ttl"
 )
 
@@ -489,7 +490,8 @@ var DownloadConcurrencyFlags = FlagGroup{
 // GobCacheFlags defines gob cache TTL flags.
 var GobCacheFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagGobCacheTTL, "", DefaultGobCacheTTL, "TTL in minutes for gob-encoded object cache in Redis", false},
+		{FlagGobCacheTTL, "", DefaultGobCacheTTL, "TTL in minutes for gob-encoded object cache in Redis (fallback when no config file)", false},
+		{FlagGobCacheConfig, "", DefaultGobCacheConfig, "Path to gob cache config YAML (per-type TTL and skip_redis settings)", false},
 		{FlagBoxscorePlayerCacheTTL, "", DefaultBoxscorePlayerCacheTTL, "TTL in minutes for boxscore player cache in Redis", false},
 	},
 }

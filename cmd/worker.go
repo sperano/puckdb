@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
@@ -111,8 +110,10 @@ func cmdWorker() *cobra.Command {
 			storage := store.NewDefaultStorage()
 			queries := sqlcdb.New(pool)
 			nhlClient := workers.NewNHLClient()
-			gobCacheTTL := time.Duration(viper.GetInt(config.FlagGobCacheTTL)) * time.Minute
-			gobCache := cache.NewGobCacheWithTTL(redisClient, gobCacheTTL)
+			gobCache, err := newGobCache(redisClient)
+			if err != nil {
+				return err
+			}
 
 			leagueActivities := &workers.YahooActivities{
 				Storage:          storage,

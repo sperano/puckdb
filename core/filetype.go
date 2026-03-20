@@ -54,3 +54,14 @@ func (f FileType) String() string {
 	}
 	return names[f]
 }
+
+// ParseFileType converts a string name to a FileType.
+// Returns Unknown and false if the name is not recognized.
+func ParseFileType(name string) (FileType, bool) {
+	for i, n := range names {
+		if n == name {
+			return FileType(i), true
+		}
+	}
+	return Unknown, false
+}

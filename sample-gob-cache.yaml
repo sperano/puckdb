@@ -1,0 +1,43 @@
+# GobCache configuration
+# Per-type TTL and Redis caching policy for gob-encoded objects.
+#
+# default_ttl: fallback TTL for types not listed below (overrides --gob-cache-ttl flag)
+# Per-type options:
+#   ttl:        cache duration (e.g., 5m, 2h, 24h). Omit to use default_ttl.
+#   skip_redis: true to bypass Redis entirely (read/write only from filesystem)
+
+default_ttl: 60m
+
+types:
+  DailySchedule:
+    ttl: 60m
+  Boxscore:
+    ttl: 60m
+  PlayByPlay:
+    ttl: 60m
+  ShiftChart:
+    ttl: 60m
+  GameStory:
+    ttl: 60m
+  Franchises:
+    ttl: 60m
+  SeasonsManifest:
+    ttl: 60m
+  SeasonStandings:
+    ttl: 60m
+  PlayerLanding:
+    ttl: 60m
+  PlayerGameLog:
+    ttl: 60m
+  League:
+    ttl: 60m
+  Team:
+    ttl: 60m
+  Roster:
+    ttl: 60m
+  TeamSummary:
+    ttl: 60m
+  YahooPlayer:
+    ttl: 60m
+  GameKey:
+    ttl: 60m
