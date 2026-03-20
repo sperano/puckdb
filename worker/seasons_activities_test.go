@@ -206,8 +206,8 @@ func (s *FetchSeasonsManifestTestSuite) TestFetchSeasonsManifest_Success() {
 	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
 
 	activities := &SeasonsActivities{
-		Storage:  mem,
-		GobCache: cache.NewGobCache(redisClient),
+		Storage:     mem,
+		RedisClient: redisClient,
 	}
 	s.env.RegisterActivity(activities.FetchSeasonsManifest)
 

@@ -459,8 +459,13 @@ func TestFormatStatusMessage(t *testing.T) {
 					Header:    ptr("Processing"),
 				},
 			},
-			// 17-char label area (x/y right-aligned) + 80-char bar + percent
-			want: "▶ Processing\n\x00              5/10 [████████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 50%",
+			// 17-char label area (x/y right-aligned) + 80-char bar with shade sentinels + percent
+			want: "▶ Processing\n\x00              5/10 [" +
+				progressShades[0] + strings.Repeat("█", 20) + ProgressShadeEnd +
+				progressShades[1] + strings.Repeat("█", 20) + ProgressShadeEnd +
+				progressShades[2] + ProgressShadeEnd + strings.Repeat("░", 20) +
+				progressShades[3] + ProgressShadeEnd + strings.Repeat("░", 20) +
+				"] 50%",
 		},
 	}
 
