@@ -60,7 +60,7 @@ GraphQL mutation: fetchSeasons(input)  ─or─  CLI: sync command
 
 **File:** `worker/workflow_fetch_seasons.go`
 
-1. **Calls activity `FetchSeasonsManifest`** — resolves which seasons to fetch using a 3-layer cache (Redis → Filesystem → NHL API). Returns `[]nhl.SeasonInfo`.
+1. **Calls activity `FetchSeasonsManifest`** — resolves which seasons to fetch using a 3-layer cache with staleness: Redis (1h TTL) → Filesystem (24h staleness TTL, with stale fallback on API failure) → NHL API. Returns `[]nhl.SeasonInfo`.
 2. **Calls activity `ClearProgressActivity`** — clears stale Redis progress keys for all child workflow IDs (e.g., `"fetch-season-2023"`, `"fetch-season-2024"`).
 3. **Spawns child workflows** — one `FetchSeasonWorkflow` per season, throttled to `SeasonConcurrency` (default **2**) running concurrently.
 
@@ -135,7 +135,7 @@ Tests:
   &FranchiseActivities{Storage: store.NewMemStorage(), NHLClient: &MockNHLClient{}, Upserter: &mockUpserter{}}
 ```
 
-**Examples:** `FranchiseActivities`, `DailyScheduleActivities`, `SeasonsActivities`
+**Examples:** `FranchiseActivities`, `DailyScheduleActivities`, `SeasonsActivities` (which includes `Storage`, `GobCache`, `NHLClient`, `SeasonsUpserter`, `SeasonTeamsUpserter`, `ImportQueries`, and `RedisClient` for the 3-layer cache)
 
 #### When each pattern applies
 
@@ -145,8 +145,6 @@ Tests:
 | Struct with injected interfaces | Struct-based activities where deps are fields | `FranchiseActivities`, `DailyScheduleActivities`, `SeasonsActivities` |
 
 If a standalone activity (Pattern 1) were refactored to be a method on a struct (Pattern 2), the wrapper interface would go away — the struct fields would serve the same testability purpose.
-
-### Interfaces
 
 ### Interfaces
 
@@ -176,12 +174,18 @@ Used by `FetchTeamsActivity` — abstracts downloading a single Yahoo team page.
 
 ```go
 type NHLClient interface {
+    PlayerLanding(ctx context.Context, playerID nhl.PlayerID) (*nhl.PlayerLanding, error)
     Boxscore(ctx context.Context, gameID nhl.GameID) (*nhl.Boxscore, error)
     PlayByPlay(ctx context.Context, gameID nhl.GameID) (*nhl.PlayByPlay, error)
     ShiftChart(ctx context.Context, gameID nhl.GameID) (*nhl.ShiftChart, error)
     GameStory(ctx context.Context, gameID nhl.GameID) (*nhl.GameStory, error)
+    SeasonSeries(ctx context.Context, gameID nhl.GameID) (*nhl.SeasonSeriesMatchup, error)
+    PlayerGameLog(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.PlayerGameLog, error)
     DailySchedule(ctx context.Context, date nhl.GameDate) (*nhl.DailySchedule, error)
-    // ... plus PlayerLanding, SeasonStandingManifest, etc.
+    SeasonStandingManifest(ctx context.Context) ([]nhl.SeasonInfo, error)
+    LeagueStandingsForSeason(ctx context.Context, season nhl.Season) ([]nhl.Standing, error)
+    Franchises(ctx context.Context) ([]nhl.Franchise, error)
+    SearchPlayer(ctx context.Context, query string, limit *int) ([]nhl.PlayerSearchResult, error)
 }
 ```
 
