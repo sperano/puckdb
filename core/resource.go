@@ -1,5 +1,3 @@
-// Package resource provides a unified abstraction for NHL and Yahoo Fantasy
-// data resources, combining URL generation, path generation, and type-safe parsing.
 package core
 
 // Resource is the core abstraction representing a storable data resource.
