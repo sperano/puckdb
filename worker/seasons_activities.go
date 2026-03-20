@@ -14,6 +14,7 @@ import (
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
+	"github.com/sperano/puckdb/matching"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
@@ -314,7 +315,7 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhl.Se
 
 		params := sqlcdb.UpsertSeasonTeamParams{
 			SeasonID:         int32(season.ID()),
-			TeamID:           LookupTeamID(s.TeamAbbrev.String()),
+			TeamID:           matching.LookupTeamID(s.TeamAbbrev.String()),
 			FranchiseID:      pgtype.Int8{Valid: false}, // Will link later
 			FullName:         s.TeamName.String(),
 			Abbrev:           s.TeamAbbrev.String(),

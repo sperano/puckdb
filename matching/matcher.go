@@ -1,4 +1,4 @@
-package worker
+package matching
 
 import (
 	"fmt"
@@ -64,12 +64,12 @@ type YahooIDMatchResult struct {
 	Reason  MatchReason
 }
 
-// normalizeName prepares a name for matching by:
+// NormalizeName prepares a name for matching by:
 // 1. Trimming leading/trailing whitespace
 // 2. Decoding HTML entities (&#x27; -> ')
 // 3. Removing diacritics/accents (é -> e, ü -> u)
 // 4. Converting to lowercase
-func normalizeName(name string) string {
+func NormalizeName(name string) string {
 	name = strings.TrimSpace(name)
 
 	// Decode HTML entities (e.g., &#x27; -> ')
@@ -266,8 +266,8 @@ func MatchYahooID(
 	pool map[store.YahooPlayerID]*store.YahooPlayer,
 ) (YahooIDMatchResult, error) {
 	// Normalize names: decode HTML entities, strip accents, lowercase
-	firstName := normalizeName(landing.FirstName.Default)
-	lastName := normalizeName(landing.LastName.Default)
+	firstName := NormalizeName(landing.FirstName.Default)
+	lastName := NormalizeName(landing.LastName.Default)
 	nhlFullName := firstName + " " + lastName
 
 	// Build list of first names to match (original + aliases)
@@ -285,8 +285,8 @@ func MatchYahooID(
 	var candidates []candidateMatch
 	for _, yahoo := range pool {
 		// Normalize Yahoo names too (they may have HTML entities)
-		yahooFirst := normalizeName(yahoo.FirstName)
-		yahooLast := normalizeName(yahoo.LastName)
+		yahooFirst := NormalizeName(yahoo.FirstName)
+		yahooLast := NormalizeName(yahoo.LastName)
 		yahooFullName := yahooFirst + " " + yahooLast
 
 		// Check full name match first (handles compound first names like "Charles Alexis Legault")

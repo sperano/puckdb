@@ -1,4 +1,4 @@
-package worker
+package matching
 
 // NHLTeamInfo holds static NHL team data for lookup.
 type NHLTeamInfo struct {

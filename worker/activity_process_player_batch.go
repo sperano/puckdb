@@ -12,6 +12,7 @@ import (
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/matching"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -146,7 +147,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 		if landing.BirthDate != "" {
 			nhlBirthDate, _ = time.Parse("2006-01-02", landing.BirthDate)
 		}
-		matchResult, err := MatchYahooID(landing, teamAbbrev, nhlBirthDate, yahooPool)
+		matchResult, err := matching.MatchYahooID(landing, teamAbbrev, nhlBirthDate, yahooPool)
 		if err != nil {
 			log.Debug().
 				Err(err).
@@ -213,7 +214,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 
 // buildProcessUpsertParams creates UpsertPlayerParams from PlayerLanding and match result.
 // This is a copy of buildUpsertParams to avoid circular dependencies.
-func buildProcessUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResult) sqlcdb.UpsertPlayerParams {
+func buildProcessUpsertParams(landing *nhl.PlayerLanding, match matching.YahooIDMatchResult) sqlcdb.UpsertPlayerParams {
 	// Trim whitespace from name fields - NHL API sometimes has trailing spaces
 	firstName := strings.TrimSpace(landing.FirstName.Default)
 	lastName := strings.TrimSpace(landing.LastName.Default)
@@ -222,8 +223,8 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match YahooIDMatchResu
 		ID:                  landing.PlayerID.AsInt64(),
 		FirstName:           firstName,
 		LastName:            lastName,
-		FirstNameNormalized: normalizeName(firstName),
-		LastNameNormalized:  normalizeName(lastName),
+		FirstNameNormalized: matching.NormalizeName(firstName),
+		LastNameNormalized:  matching.NormalizeName(lastName),
 		Position:            string(landing.Position),
 		ShootsCatches:       string(landing.ShootsCatches),
 		HeightInches:        pgtype.Int4{Int32: int32(landing.HeightInInches), Valid: landing.HeightInInches > 0},
@@ -299,8 +300,8 @@ func importMissingPlayer(ctx context.Context, deps processDeps, p store.Boxscore
 		ID:                  p.ID,
 		FirstName:           firstName,
 		LastName:            lastName,
-		FirstNameNormalized: normalizeName(firstName),
-		LastNameNormalized:  normalizeName(lastName),
+		FirstNameNormalized: matching.NormalizeName(firstName),
+		LastNameNormalized:  matching.NormalizeName(lastName),
 		Position:            position,
 		IsActive:            false, // Assume inactive since they returned 404
 	}
