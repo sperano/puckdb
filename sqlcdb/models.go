@@ -131,6 +131,40 @@ type GoalHighlight struct {
 	DiscreteClipID   pgtype.Int8 `json:"discrete_clip_id"`
 }
 
+type GoalieRecentStat struct {
+	PlayerID      int64          `json:"player_id"`
+	FirstName     string         `json:"first_name"`
+	LastName      string         `json:"last_name"`
+	YahooID       pgtype.Int8    `json:"yahoo_id"`
+	CurrentTeamID pgtype.Int8    `json:"current_team_id"`
+	Season        int32          `json:"season"`
+	Gp            int64          `json:"gp"`
+	Wins          int64          `json:"wins"`
+	Losses        int64          `json:"losses"`
+	Ga            int64          `json:"ga"`
+	Saves         int64          `json:"saves"`
+	ShotsAgainst  int64          `json:"shots_against"`
+	GAA           pgtype.Numeric `json:"gaa"`
+	SvPct         pgtype.Numeric `json:"sv_pct"`
+}
+
+type GoalieSeasonStat struct {
+	PlayerID      int64          `json:"player_id"`
+	FirstName     string         `json:"first_name"`
+	LastName      string         `json:"last_name"`
+	YahooID       pgtype.Int8    `json:"yahoo_id"`
+	CurrentTeamID pgtype.Int8    `json:"current_team_id"`
+	Season        int32          `json:"season"`
+	Gp            int64          `json:"gp"`
+	Wins          int64          `json:"wins"`
+	Losses        int64          `json:"losses"`
+	Ga            int64          `json:"ga"`
+	Saves         int64          `json:"saves"`
+	ShotsAgainst  int64          `json:"shots_against"`
+	GAA           pgtype.Numeric `json:"gaa"`
+	SvPct         pgtype.Numeric `json:"sv_pct"`
+}
+
 type PlayEvent struct {
 	GameID                int64       `json:"game_id"`
 	EventID               int64       `json:"event_id"`
@@ -254,6 +288,50 @@ type ShootoutAttempt struct {
 	GameWinner bool   `json:"game_winner"`
 }
 
+type SkaterRecentStat struct {
+	PlayerID      int64          `json:"player_id"`
+	FirstName     string         `json:"first_name"`
+	LastName      string         `json:"last_name"`
+	YahooID       pgtype.Int8    `json:"yahoo_id"`
+	Position      string         `json:"position"`
+	CurrentTeamID pgtype.Int8    `json:"current_team_id"`
+	Season        int32          `json:"season"`
+	Gp            int64          `json:"gp"`
+	Goals         int64          `json:"goals"`
+	Assists       int64          `json:"assists"`
+	Points        int64          `json:"points"`
+	PlusMinus     int64          `json:"plus_minus"`
+	PIM           int64          `json:"pim"`
+	SOG           int64          `json:"sog"`
+	Ppp           int64          `json:"ppp"`
+	Ppg           int64          `json:"ppg"`
+	Hits          int64          `json:"hits"`
+	Blocks        int64          `json:"blocks"`
+	AvgToiMin     pgtype.Numeric `json:"avg_toi_min"`
+}
+
+type SkaterSeasonStat struct {
+	PlayerID      int64          `json:"player_id"`
+	FirstName     string         `json:"first_name"`
+	LastName      string         `json:"last_name"`
+	YahooID       pgtype.Int8    `json:"yahoo_id"`
+	Position      string         `json:"position"`
+	CurrentTeamID pgtype.Int8    `json:"current_team_id"`
+	Season        int32          `json:"season"`
+	Gp            int64          `json:"gp"`
+	Goals         int64          `json:"goals"`
+	Assists       int64          `json:"assists"`
+	Points        int64          `json:"points"`
+	PlusMinus     int64          `json:"plus_minus"`
+	PIM           int64          `json:"pim"`
+	SOG           int64          `json:"sog"`
+	Ppp           int64          `json:"ppp"`
+	Ppg           int64          `json:"ppg"`
+	Hits          int64          `json:"hits"`
+	Blocks        int64          `json:"blocks"`
+	AvgToiMin     pgtype.Numeric `json:"avg_toi_min"`
+}
+
 type YahooLeague struct {
 	ID                    int32              `json:"id"`
 	LeagueKey             string             `json:"league_key"`
@@ -307,6 +385,67 @@ type YahooLeagueStatCategory struct {
 	StatGroup string        `json:"stat_group"`
 	Enabled   bool          `json:"enabled"`
 	Value     pgtype.Float4 `json:"value"`
+}
+
+type YahooRosterPlayer struct {
+	LeagueID         int32       `json:"league_id"`
+	TeamID           int32       `json:"team_id"`
+	Date             pgtype.Date `json:"date"`
+	YahooPlayerID    int32       `json:"yahoo_player_id"`
+	PlayerKey        string      `json:"player_key"`
+	SelectedPosition string      `json:"selected_position"`
+	IsFlex           bool        `json:"is_flex"`
+	CoverageType     string      `json:"coverage_type"`
+	IsEditable       bool        `json:"is_editable"`
+	NhlPlayerID      pgtype.Int8 `json:"nhl_player_id"`
+	FirstName        pgtype.Text `json:"first_name"`
+	LastName         pgtype.Text `json:"last_name"`
+	NhlPosition      pgtype.Text `json:"nhl_position"`
+	NHLTeamID        pgtype.Int8 `json:"nhl_team_id"`
+	IsActive         pgtype.Bool `json:"is_active"`
+	HeadshotURL      pgtype.Text `json:"headshot_url"`
+}
+
+type YahooRotoStanding struct {
+	LeagueID     int32  `json:"league_id"`
+	TeamID       int32  `json:"team_id"`
+	TeamName     string `json:"team_name"`
+	Season       int32  `json:"season"`
+	NumTeams     int32  `json:"num_teams"`
+	Goals        int64  `json:"goals"`
+	GPts         int32  `json:"g_pts"`
+	Assists      int64  `json:"assists"`
+	APts         int32  `json:"a_pts"`
+	PlusMinus    int64  `json:"plus_minus"`
+	PmPts        int32  `json:"pm_pts"`
+	PIM          int64  `json:"pim"`
+	PimPts       int32  `json:"pim_pts"`
+	Ppp          int64  `json:"ppp"`
+	PppPts       int32  `json:"ppp_pts"`
+	SOG          int64  `json:"sog"`
+	SogPts       int32  `json:"sog_pts"`
+	Wins         int64  `json:"wins"`
+	WPts         int32  `json:"w_pts"`
+	Ga           int64  `json:"ga"`
+	GaPts        int32  `json:"ga_pts"`
+	TotalRotoPts int32  `json:"total_roto_pts"`
+}
+
+type YahooSeasonTeamTotal struct {
+	LeagueID    int32  `json:"league_id"`
+	TeamID      int32  `json:"team_id"`
+	TeamName    string `json:"team_name"`
+	Season      int32  `json:"season"`
+	NumTeams    int32  `json:"num_teams"`
+	ScoringType string `json:"scoring_type"`
+	Goals       int64  `json:"goals"`
+	Assists     int64  `json:"assists"`
+	PlusMinus   int64  `json:"plus_minus"`
+	PIM         int64  `json:"pim"`
+	Ppp         int64  `json:"ppp"`
+	SOG         int64  `json:"sog"`
+	Wins        int64  `json:"wins"`
+	Ga          int64  `json:"ga"`
 }
 
 type YahooTeam struct {
