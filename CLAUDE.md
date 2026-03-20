@@ -212,6 +212,8 @@ WHERE r.league_id = 12345 AND r.team_id = 1 AND r.date = '2024-12-01';
 
 ## Testing Guidelines
 
+Always run the full test suite (`go test ./...`) and verify 100% pass rate before committing any changes. Do not commit if any tests fail.
+
 ### Serialization Error Handling
 
 When testing code that serializes/deserializes domain objects:
