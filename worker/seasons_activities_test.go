@@ -224,7 +224,7 @@ func (s *FetchSeasonsManifestTestSuite) TestFetchSeasonsManifest_Success() {
 	assert.Equal(s.T(), 2024, result.Seasons[1].ID.StartYear())
 }
 
-// --- fetchSeasonsManifestImpl tests (standalone impl) ---
+// --- FetchSeasonsManifest tests ---
 
 func TestDownloadSeasonsManifest_RedisHit(t *testing.T) {
 	t.Parallel()
@@ -242,7 +242,7 @@ func TestDownloadSeasonsManifest_RedisHit(t *testing.T) {
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetVal(string(seasonsJSON))
 
-	result, err := fetchSeasonsManifestImpl(ctx, mem, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(result.Seasons))
@@ -273,7 +273,7 @@ func TestDownloadSeasonsManifest_AllMiss_APIFetch(t *testing.T) {
 	// Cache in Redis
 	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
 
-	result, err := fetchSeasonsManifestImpl(ctx, mem, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 3, len(result.Seasons))
@@ -298,7 +298,7 @@ func TestDownloadSeasonsManifest_APIError_NoFallback(t *testing.T) {
 	// API fails
 	nhlClient.On("SeasonStandingManifest", ctx).Return(nil, errors.New("API unavailable"))
 
-	result, err := fetchSeasonsManifestImpl(ctx, mem, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API unavailable")
@@ -327,7 +327,7 @@ func TestDownloadSeasonsManifest_RedisHit_InvalidJSON(t *testing.T) {
 	// Cache in Redis
 	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
 
-	result, err := fetchSeasonsManifestImpl(ctx, mem, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(result.Seasons))
@@ -358,7 +358,7 @@ func TestDownloadSeasonsManifest_FreshFilesystemHit(t *testing.T) {
 	// Backfill Redis from FS
 	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
 
-	result, err := fetchSeasonsManifestImpl(ctx, mem, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(result.Seasons))
@@ -382,7 +382,7 @@ func TestDownloadSeasonsManifest_FreshFilesystemHit_GetManifestError(t *testing.
 	// Redis miss
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 
-	result, err := fetchSeasonsManifestImpl(ctx, mem, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, 0, len(result.Seasons))
@@ -420,7 +420,7 @@ func TestDownloadSeasonsManifest_StaleFilesystem_APISuccess(t *testing.T) {
 	// Cache in Redis
 	mockRedis.ExpectSet(redisSeasonsManifestKey, newSeasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
 
-	result, err := fetchSeasonsManifestImpl(ctx, mem, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(result.Seasons))
@@ -461,7 +461,7 @@ func TestDownloadSeasonsManifest_APIError_StaleFallback(t *testing.T) {
 	// Stale data backfilled to Redis
 	mockRedis.ExpectSet(redisSeasonsManifestKey, staleSeasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
 
-	result, err := fetchSeasonsManifestImpl(ctx, mem, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	// Should succeed using stale fallback
 	require.NoError(t, err)
@@ -488,7 +488,7 @@ func TestDownloadSeasonsManifest_APIError_StaleFallbackUnmarshalFails(t *testing
 	// API fails
 	nhlClient.On("SeasonStandingManifest", ctx).Return(nil, errors.New("API unavailable"))
 
-	result, err := fetchSeasonsManifestImpl(ctx, mem, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	// Should fail - API error and stale data is invalid
 	require.Error(t, err)
@@ -519,7 +519,7 @@ func TestDownloadSeasonsManifest_SaveManifestError(t *testing.T) {
 	// Cache in Redis (this still succeeds)
 	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
 
-	result, err := fetchSeasonsManifestImpl(ctx, failingStorage, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: failingStorage, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	// Should still succeed - SaveManifest failure only logs warning
 	require.NoError(t, err)
@@ -549,7 +549,7 @@ func TestDownloadSeasonsManifest_CacheInRedisError(t *testing.T) {
 	// Cache in Redis fails
 	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetErr(errors.New("redis error"))
 
-	result, err := fetchSeasonsManifestImpl(ctx, mem, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	// Should still succeed - cacheInRedis failure only logs warning
 	require.NoError(t, err)
@@ -588,7 +588,7 @@ func TestDownloadSeasonsManifest_StatError_TreatedAsStale(t *testing.T) {
 	// Cache in Redis
 	mockRedis.ExpectSet(redisSeasonsManifestKey, newSeasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
 
-	result, err := fetchSeasonsManifestImpl(ctx, failingStat, redisClient, nhlClient)
+	result, err := (&SeasonsActivities{Storage: failingStat, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(result.Seasons))
