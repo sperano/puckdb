@@ -334,8 +334,6 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhl.Se
 	return result, nil
 }
 
-// --- Helper functions for backward compatibility and internal use ---
-
 // cacheInRedis stores the seasons manifest in Redis with TTL.
 func cacheInRedis(ctx context.Context, client cache.Client, data []byte) {
 	if err := client.Set(ctx, redisSeasonsManifestKey, data, config.DefaultSeasonsManifestCacheTTL).Err(); err != nil {
@@ -343,38 +341,3 @@ func cacheInRedis(ctx context.Context, client cache.Client, data []byte) {
 	}
 }
 
-// downloadSeasonStandingsImpl is the standalone version for testing.
-func downloadSeasonStandingsImpl(
-	ctx context.Context,
-	storage store.Storage,
-	client NHLClient,
-	season nhl.Season,
-) (DownloadSeasonStandingsResult, error) {
-	// Check cache first
-	standingsRes := resource.SeasonStandings{Season: season}
-	if storage.Exists(standingsRes.Path()) {
-		standings, err := resource.ReadParsed(storage, standingsRes)
-		if err == nil {
-			log.Debug().Int("season", season.ID()).Int("teams", len(standings)).Msg("Season standings loaded from cache")
-			metrics.IncDownload(core.SeasonStandings, metrics.ResultHit)
-			return DownloadSeasonStandingsResult{Season: season, TeamCount: len(standings), FromCache: true}, nil
-		}
-		log.Debug().Err(err).Int("season", season.ID()).Msg("Failed to read cached season standings")
-	}
-
-	// Fetch from API
-	standings, err := client.LeagueStandingsForSeason(ctx, season)
-	if err != nil {
-		metrics.IncDownload(core.SeasonStandings, metrics.ResultError)
-		return DownloadSeasonStandingsResult{Season: season}, err
-	}
-
-	// Save to cache
-	if err := resource.WriteParsed(storage, standingsRes, standings); err != nil {
-		log.Warn().Err(err).Int("season", season.ID()).Msg("Failed to write season standings to cache")
-	}
-
-	log.Info().Int("season", season.ID()).Int("teams", len(standings)).Msg("Season standings downloaded from API")
-	metrics.IncDownload(core.SeasonStandings, metrics.ResultMiss)
-	return DownloadSeasonStandingsResult{Season: season, TeamCount: len(standings), FromCache: false}, nil
-}

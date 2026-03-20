@@ -597,7 +597,7 @@ func TestDownloadSeasonsManifest_StatError_TreatedAsStale(t *testing.T) {
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
-// --- downloadSeasonStandingsImpl tests ---
+// --- downloadSeasonStandings tests ---
 
 func TestDownloadSeasonStandings_CacheHit(t *testing.T) {
 	t.Parallel()
@@ -614,7 +614,8 @@ func TestDownloadSeasonStandings_CacheHit(t *testing.T) {
 	}
 	require.NoError(t, resource.WriteParsed(mem, resource.SeasonStandings{Season: season}, standings))
 
-	result, err := downloadSeasonStandingsImpl(ctx, mem, client, season)
+	a := &SeasonsActivities{Storage: mem, NHLClient: client}
+	result, err := a.downloadSeasonStandings(ctx, season)
 
 	require.NoError(t, err)
 	assert.Equal(t, season, result.Season)
@@ -639,7 +640,8 @@ func TestDownloadSeasonStandings_CacheMiss(t *testing.T) {
 	}
 	client.On("LeagueStandingsForSeason", ctx, season).Return(standings, nil)
 
-	result, err := downloadSeasonStandingsImpl(ctx, mem, client, season)
+	a := &SeasonsActivities{Storage: mem, NHLClient: client}
+	result, err := a.downloadSeasonStandings(ctx, season)
 
 	require.NoError(t, err)
 	assert.Equal(t, season, result.Season)
@@ -662,7 +664,8 @@ func TestDownloadSeasonStandings_APIError(t *testing.T) {
 
 	client.On("LeagueStandingsForSeason", ctx, season).Return(nil, errors.New("API unavailable"))
 
-	result, err := downloadSeasonStandingsImpl(ctx, mem, client, season)
+	a := &SeasonsActivities{Storage: mem, NHLClient: client}
+	result, err := a.downloadSeasonStandings(ctx, season)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API unavailable")
@@ -688,7 +691,8 @@ func TestDownloadSeasonStandings_CacheCorrupted(t *testing.T) {
 	}
 	client.On("LeagueStandingsForSeason", ctx, season).Return(standings, nil)
 
-	result, err := downloadSeasonStandingsImpl(ctx, mem, client, season)
+	a := &SeasonsActivities{Storage: mem, NHLClient: client}
+	result, err := a.downloadSeasonStandings(ctx, season)
 
 	// Should succeed by falling back to API
 	require.NoError(t, err)
@@ -713,7 +717,8 @@ func TestDownloadSeasonStandings_SaveStandingsError(t *testing.T) {
 	}
 	client.On("LeagueStandingsForSeason", ctx, season).Return(standings, nil)
 
-	result, err := downloadSeasonStandingsImpl(ctx, failingStorage, client, season)
+	a := &SeasonsActivities{Storage: failingStorage, NHLClient: client}
+	result, err := a.downloadSeasonStandings(ctx, season)
 
 	// Should still succeed - SaveStandings failure only logs warning
 	require.NoError(t, err)
