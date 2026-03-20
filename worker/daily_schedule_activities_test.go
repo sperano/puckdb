@@ -40,11 +40,11 @@ func mockGameDownloaders(content []byte, err error) GameDataDownloaders {
 
 // setAllGameFilesExist pre-populates all game data files (boxscore, play-by-play, shift chart, game story, season series).
 func setAllGameFilesExist(mem *store.MemStorage, day time.Time, gameID nhl.GameID) {
-	mem.SetFile(store.BoxscorePath(day, gameID), []byte("{}"))
-	mem.SetFile(store.PlayByPlayPath(day, gameID), []byte("{}"))
-	mem.SetFile(store.ShiftChartPath(day, gameID), []byte("{}"))
-	mem.SetFile(store.GameStoryPath(day, gameID), []byte("{}"))
-	mem.SetFile(store.SeasonSeriesPath(day, gameID), []byte("{}"))
+	mem.SetFile(resource.Boxscore{Date: day, GameID: gameID}.Path(), []byte("{}"))
+	mem.SetFile(resource.PlayByPlay{Date: day, GameID: gameID}.Path(), []byte("{}"))
+	mem.SetFile(resource.ShiftChart{Date: day, GameID: gameID}.Path(), []byte("{}"))
+	mem.SetFile(resource.GameStory{Date: day, GameID: gameID}.Path(), []byte("{}"))
+	mem.SetFile(resource.SeasonSeries{Date: day, GameID: gameID}.Path(), []byte("{}"))
 }
 
 type DailyScheduleTestSuite struct {
@@ -206,10 +206,10 @@ func (s *DailyScheduleTestSuite) TestDownloadsGameData() {
 	assert.NoError(s.T(), err)
 
 	gameID := nhl.GameID(2024020001)
-	assert.True(s.T(), mem.Has(store.BoxscorePath(day, gameID)))
-	assert.True(s.T(), mem.Has(store.PlayByPlayPath(day, gameID)))
-	assert.True(s.T(), mem.Has(store.ShiftChartPath(day, gameID)))
-	assert.True(s.T(), mem.Has(store.GameStoryPath(day, gameID)))
+	assert.True(s.T(), mem.Has(resource.Boxscore{Date: day, GameID: gameID}.Path()))
+	assert.True(s.T(), mem.Has(resource.PlayByPlay{Date: day, GameID: gameID}.Path()))
+	assert.True(s.T(), mem.Has(resource.ShiftChart{Date: day, GameID: gameID}.Path()))
+	assert.True(s.T(), mem.Has(resource.GameStory{Date: day, GameID: gameID}.Path()))
 }
 
 func (s *DailyScheduleTestSuite) TestCachedGameDataSkipped() {

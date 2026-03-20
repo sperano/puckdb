@@ -2,9 +2,7 @@ package store
 
 import (
 	"testing"
-	"time"
 
-	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +13,7 @@ func TestInstrumentedStorage_Read(t *testing.T) {
 	storage := NewInstrumentedStorage(inner)
 
 	// Setup
-	path := DailySchedulePath(time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC))
+	path := "seasons/2023/games/2024/01/15/daily-schedule-2024-01-15.json"
 	inner.SetFile(path, []byte(`{"games": []}`))
 
 	// Test
@@ -29,7 +27,7 @@ func TestInstrumentedStorage_Write(t *testing.T) {
 	inner := NewMemStorage()
 	storage := NewInstrumentedStorage(inner)
 
-	path := BoxscorePath(time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC), nhl.GameID(2024020123))
+	path := "seasons/2023/games/2024/01/15/boxscore-2024020123.json"
 	err := storage.Write(path, []byte(`{"id": 2024020123}`))
 	require.NoError(t, err)
 

@@ -2,7 +2,6 @@ package store
 
 import (
 	"strconv"
-	"time"
 )
 
 // File type name constants for metrics and logging
@@ -42,11 +41,3 @@ type MissingPlayerLandingData struct {
 	Position  string `json:"position"`
 }
 
-// DeduceSeason returns the NHL season start year for a given date.
-// NHL seasons start in September, so dates from September onward belong to that year's season.
-func DeduceSeason(day time.Time) int {
-	if day.Month() >= time.September {
-		return day.Year()
-	}
-	return day.Year() - 1
-}
