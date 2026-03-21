@@ -104,8 +104,7 @@ func (a *PlayerActivities) ensurePlayerLandingCached(
 	landing, err := a.NHLClient.PlayerLanding(ctx, playerID)
 	if err != nil {
 		// Check if this is a 404 error
-		var notFoundErr *nhl.ResourceNotFoundError
-		if errors.As(err, &notFoundErr) {
+		if errors.Is(err, nhl.ErrNotFound) {
 			// Cache the 404 with boxscore player data
 			missingInfo := store.MissingPlayerLandingData{
 				FirstName: boxscorePlayer.FirstName,
