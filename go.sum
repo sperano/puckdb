@@ -380,6 +380,8 @@ github.com/sosodev/duration v1.3.1 h1:qtHBDMQ6lvMQsL15g4aopM4HEfOaYuhWBw3NPTtlqq
 github.com/sosodev/duration v1.3.1/go.mod h1:RQIBBX0+fMLc/D9+Jb/fwvVmo0eZvDDEERAikUR6SDg=
 github.com/sperano/nhl-api-go v0.0.0-20260301001712-77b44e4347b2 h1:rlLO374nxkJUuNGA3AJx4vX0Xl6+6y9Hnw4mDnJJYd4=
 github.com/sperano/nhl-api-go v0.0.0-20260301001712-77b44e4347b2/go.mod h1:b9yzggYciaRaRHh9HXlcUtiHwNe6ZVcMck75AffkFn0=
+github.com/sperano/nhl-api-go v0.0.0-20260321060136-1eed77336d05 h1:GLrfLgb6zhRScCb9pKy5IfukRNtwD18k7IVWcLwfSto=
+github.com/sperano/nhl-api-go v0.0.0-20260321060136-1eed77336d05/go.mod h1:s0hPusWoxSopPRdVkYCpYyRe8II9OWyplf02/hn1AI8=
 github.com/spf13/afero v1.6.0 h1:xoax2sJ2DT8S8xA2paPFjDCScCNeWsg75VG0DLRreiY=
 github.com/spf13/afero v1.6.0/go.mod h1:Ai8FlHk4v/PARR026UzYexafAt9roJ7LcLMAmO6Z93I=
 github.com/spf13/cast v1.3.1 h1:nFm6S0SMdyzrzcmThSipiEubIDy8WEXKNZ0UOgiRpng=
