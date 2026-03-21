@@ -604,17 +604,24 @@ func TestDownloadSeasonStandings_CacheHit(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
+	redisClient, mockRedis := redismock.NewClientMock()
 	client := &MockNHLClient{}
 
 	season := nhl.NewSeason(2022)
+	standingsRes := resource.SeasonStandings{Season: season}
+	redisKey := core.RedisKey(standingsRes)
 
 	standings := []nhl.Standing{
 		{TeamAbbrev: nhl.LocalizedString{Default: "MTL"}, TeamName: nhl.LocalizedString{Default: "Montreal Canadiens"}},
 		{TeamAbbrev: nhl.LocalizedString{Default: "TOR"}, TeamName: nhl.LocalizedString{Default: "Toronto Maple Leafs"}},
 	}
-	require.NoError(t, resource.WriteParsed(mem, resource.SeasonStandings{Season: season}, standings))
+	require.NoError(t, resource.WriteParsed(mem, standingsRes, standings))
 
-	a := &SeasonsActivities{Storage: mem, NHLClient: client}
+	// ReadParsedCached: gob cache miss → filesystem hit → gob cache populate
+	mockRedis.ExpectGet(redisKey).SetErr(redis.Nil)
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisKey, "x", cache.GobCacheTTL).SetVal("OK")
+
+	a := &SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: client}
 	result, err := a.downloadSeasonStandings(ctx, season)
 
 	require.NoError(t, err)
@@ -622,6 +629,7 @@ func TestDownloadSeasonStandings_CacheHit(t *testing.T) {
 	assert.Equal(t, 2, result.TeamCount)
 	assert.True(t, result.FromCache)
 	client.AssertNotCalled(t, "LeagueStandingsForSeason")
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
 func TestDownloadSeasonStandings_CacheMiss(t *testing.T) {
@@ -629,9 +637,12 @@ func TestDownloadSeasonStandings_CacheMiss(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
+	redisClient, mockRedis := redismock.NewClientMock()
 	client := &MockNHLClient{}
 
 	season := nhl.NewSeason(2022)
+	standingsRes := resource.SeasonStandings{Season: season}
+	redisKey := core.RedisKey(standingsRes)
 
 	standings := []nhl.Standing{
 		{TeamAbbrev: nhl.LocalizedString{Default: "MTL"}, TeamName: nhl.LocalizedString{Default: "Montreal Canadiens"}},
@@ -640,7 +651,12 @@ func TestDownloadSeasonStandings_CacheMiss(t *testing.T) {
 	}
 	client.On("LeagueStandingsForSeason", ctx, season).Return(standings, nil)
 
-	a := &SeasonsActivities{Storage: mem, NHLClient: client}
+	// ReadParsedCached: gob miss → filesystem miss → error (triggers fetch)
+	mockRedis.ExpectGet(redisKey).SetErr(redis.Nil)
+	// WriteParsedCached: filesystem write + gob cache populate
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisKey, "x", cache.GobCacheTTL).SetVal("OK")
+
+	a := &SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: client}
 	result, err := a.downloadSeasonStandings(ctx, season)
 
 	require.NoError(t, err)
@@ -648,9 +664,10 @@ func TestDownloadSeasonStandings_CacheMiss(t *testing.T) {
 	assert.Equal(t, 3, result.TeamCount)
 	assert.False(t, result.FromCache)
 	client.AssertExpectations(t)
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
 
-	// Verify saved
-	assert.True(t, mem.Exists(resource.SeasonStandings{Season: season}.Path()))
+	// Verify saved to filesystem
+	assert.True(t, mem.Exists(standingsRes.Path()))
 }
 
 func TestDownloadSeasonStandings_APIError(t *testing.T) {
@@ -658,13 +675,18 @@ func TestDownloadSeasonStandings_APIError(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
+	redisClient, mockRedis := redismock.NewClientMock()
 	client := &MockNHLClient{}
 
 	season := nhl.NewSeason(2022)
+	redisKey := core.RedisKey(resource.SeasonStandings{Season: season})
 
 	client.On("LeagueStandingsForSeason", ctx, season).Return(nil, errors.New("API unavailable"))
 
-	a := &SeasonsActivities{Storage: mem, NHLClient: client}
+	// ReadParsedCached: gob miss → filesystem miss
+	mockRedis.ExpectGet(redisKey).SetErr(redis.Nil)
+
+	a := &SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: client}
 	result, err := a.downloadSeasonStandings(ctx, season)
 
 	require.Error(t, err)
@@ -672,6 +694,7 @@ func TestDownloadSeasonStandings_APIError(t *testing.T) {
 	assert.Equal(t, season, result.Season)
 	assert.Equal(t, 0, result.TeamCount)
 	client.AssertExpectations(t)
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
 func TestDownloadSeasonStandings_CacheCorrupted(t *testing.T) {
@@ -679,19 +702,27 @@ func TestDownloadSeasonStandings_CacheCorrupted(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
+	redisClient, mockRedis := redismock.NewClientMock()
 	client := &MockNHLClient{}
 
 	season := nhl.NewSeason(2022)
+	standingsRes := resource.SeasonStandings{Season: season}
+	redisKey := core.RedisKey(standingsRes)
 
-	// Pre-populate cache with invalid JSON
-	mem.SetFile(resource.SeasonStandings{Season: season}.Path(), []byte("invalid json"))
+	// Pre-populate filesystem with invalid JSON
+	mem.SetFile(standingsRes.Path(), []byte("invalid json"))
 
 	standings := []nhl.Standing{
 		{TeamAbbrev: nhl.LocalizedString{Default: "MTL"}, TeamName: nhl.LocalizedString{Default: "Montreal Canadiens"}},
 	}
 	client.On("LeagueStandingsForSeason", ctx, season).Return(standings, nil)
 
-	a := &SeasonsActivities{Storage: mem, NHLClient: client}
+	// ReadParsedCached: gob miss → filesystem parse fails → error (triggers fetch)
+	mockRedis.ExpectGet(redisKey).SetErr(redis.Nil)
+	// WriteParsedCached: filesystem write (overwrites corrupt) + gob cache populate
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisKey, "x", cache.GobCacheTTL).SetVal("OK")
+
+	a := &SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: client}
 	result, err := a.downloadSeasonStandings(ctx, season)
 
 	// Should succeed by falling back to API
@@ -700,6 +731,7 @@ func TestDownloadSeasonStandings_CacheCorrupted(t *testing.T) {
 	assert.Equal(t, 1, result.TeamCount)
 	assert.False(t, result.FromCache)
 	client.AssertExpectations(t)
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
 func TestDownloadSeasonStandings_SaveStandingsError(t *testing.T) {
@@ -707,25 +739,29 @@ func TestDownloadSeasonStandings_SaveStandingsError(t *testing.T) {
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
+	redisClient, mockRedis := redismock.NewClientMock()
 	failingStorage := &failingWriteStorage{Storage: mem}
 	client := &MockNHLClient{}
 
 	season := nhl.NewSeason(2022)
+	redisKey := core.RedisKey(resource.SeasonStandings{Season: season})
 
 	standings := []nhl.Standing{
 		{TeamAbbrev: nhl.LocalizedString{Default: "MTL"}, TeamName: nhl.LocalizedString{Default: "Montreal Canadiens"}},
 	}
 	client.On("LeagueStandingsForSeason", ctx, season).Return(standings, nil)
 
-	a := &SeasonsActivities{Storage: failingStorage, NHLClient: client}
-	result, err := a.downloadSeasonStandings(ctx, season)
+	// ReadParsedCached: gob miss → filesystem miss
+	mockRedis.ExpectGet(redisKey).SetErr(redis.Nil)
 
-	// Should still succeed - SaveStandings failure only logs warning
-	require.NoError(t, err)
-	assert.Equal(t, season, result.Season)
-	assert.Equal(t, 1, result.TeamCount)
-	assert.False(t, result.FromCache)
+	a := &SeasonsActivities{Storage: failingStorage, GobCache: cache.NewGobCache(redisClient), NHLClient: client}
+	_, err := a.downloadSeasonStandings(ctx, season)
+
+	// WriteParsedCached fails because filesystem write fails
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "simulated write failure")
 	client.AssertExpectations(t)
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
 // --- UpsertSeasons tests (struct-based via Temporal suite) ---
@@ -855,12 +891,14 @@ func TestInitializeSeasonTeamsTestSuite(t *testing.T) {
 
 func (s *InitializeSeasonTeamsTestSuite) TestInitializeSeasonTeams_Success() {
 	mem := store.NewMemStorage()
+	redisClient, mockRedis := redismock.NewClientMock()
 	nhlClient := &MockNHLClient{}
 	upserter := &MockSeasonTeamsUpserter{}
 
 	season := nhl.NewSeason(2022)
 	confName := "Eastern"
 	confAbbrev := "E"
+	redisKey := core.RedisKey(resource.SeasonStandings{Season: season})
 
 	standings := []nhl.Standing{
 		{
@@ -884,8 +922,13 @@ func (s *InitializeSeasonTeamsTestSuite) TestInitializeSeasonTeams_Success() {
 	nhlClient.On("LeagueStandingsForSeason", mock.Anything, season).Return(standings, nil)
 	upserter.On("UpsertSeasonTeam", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertSeasonTeamParams")).Return(nil).Times(2)
 
+	// downloadSeasonStandings: gob miss → filesystem miss → API fetch → WriteParsedCached
+	mockRedis.ExpectGet(redisKey).SetErr(redis.Nil)
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisKey, "x", cache.GobCacheTTL).SetVal("OK")
+
 	activities := &SeasonsActivities{
 		Storage:             mem,
+		GobCache:            cache.NewGobCache(redisClient),
 		NHLClient:           nhlClient,
 		SeasonTeamsUpserter: upserter,
 	}
@@ -901,4 +944,5 @@ func (s *InitializeSeasonTeamsTestSuite) TestInitializeSeasonTeams_Success() {
 	assert.Equal(s.T(), 2, result.UpsertResult.TeamsUpserted)
 	nhlClient.AssertExpectations(s.T())
 	upserter.AssertExpectations(s.T())
+	assert.NoError(s.T(), mockRedis.ExpectationsWereMet())
 }

@@ -2,15 +2,11 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/core"
-	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/store"
@@ -38,39 +34,27 @@ type FetchFranchisesResult struct {
 // FetchFranchises fetches all NHL franchises from the API.
 // Uses Redis → FileSystem cache; skips fetch if already cached.
 func (a *FranchiseActivities) FetchFranchises(ctx context.Context) (FetchFranchisesResult, error) {
-	franchisesRes := resource.Franchises{}
 	logger := activity.GetLogger(ctx)
 
-	// Check Redis → FileSystem cache
-	cached, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, franchisesRes)
-	if err == nil {
-		logger.Debug("Franchises loaded from cache", "count", len(cached.Data), "origin", origin.String())
-		metrics.IncDownload(core.Franchises, metrics.ResultHit)
-		return FetchFranchisesResult{Origin: origin}, nil
-	}
-	// Cache miss - fetch from API
-	start := time.Now()
-	franchises, err := a.NHLClient.Franchises(ctx)
-	duration := time.Since(start)
+	response, origin, err := FetchOrCache(ctx, a.Storage, a.GobCache, resource.Franchises{},
+		func(ctx context.Context) (nhl.FranchisesResponse, error) {
+			franchises, err := a.NHLClient.Franchises(ctx)
+			if err != nil {
+				return nhl.FranchisesResponse{}, err
+			}
+			return nhl.FranchisesResponse{Data: franchises}, nil
+		},
+	)
 	if err != nil {
-		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
-		metrics.IncDownload(core.Franchises, metrics.ResultError)
 		return FetchFranchisesResult{}, err
 	}
-	// Save to FileSystem cache in wrapped format (matches API response structure)
-	response := nhl.FranchisesResponse{Data: franchises}
-	data, _ := json.Marshal(response)
-	if err := a.Storage.Write(franchisesRes.Path(), data); err != nil {
-		return FetchFranchisesResult{}, fmt.Errorf("failed to write franchises to cache: %w", err)
-	}
-	// Populate Redis gob cache
-	if err := cache.Set(a.GobCache, ctx, core.RedisKey(franchisesRes), response); err != nil {
-		return FetchFranchisesResult{}, fmt.Errorf("gob cache set franchises: %w", err)
-	}
 
-	logger.Info("Franchises fetched from API", "count", len(franchises))
-	metrics.IncDownload(core.Franchises, metrics.ResultMiss)
-	return FetchFranchisesResult{Origin: core.OriginRemoteNHLAPI}, nil
+	if origin == core.OriginRemoteNHLAPI {
+		logger.Info("Franchises fetched from API", "count", len(response.Data))
+	} else {
+		logger.Debug("Franchises loaded from cache", "count", len(response.Data), "origin", origin.String())
+	}
+	return FetchFranchisesResult{Origin: origin}, nil
 }
 
 // UpsertFranchisesResult contains the results of upserting franchises.

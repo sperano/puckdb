@@ -19,32 +19,15 @@ import (
 	"go.temporal.io/sdk/testsuite"
 )
 
-// mockBoxscoreDownloader returns a BoxscoreDownloader that returns the given content and error.
-func mockBoxscoreDownloader(content []byte, err error) BoxscoreDownloader {
-	return func(id nhl.GameID) ([]byte, error) {
-		return content, err
-	}
-}
-
-// mockGameDownloaders creates a GameDataDownloaders with the same mock for all types.
-func mockGameDownloaders(content []byte, err error) GameDataDownloaders {
-	dl := mockBoxscoreDownloader(content, err)
-	return GameDataDownloaders{
-		Boxscore:     dl,
-		PlayByPlay:   dl,
-		ShiftChart:   dl,
-		GameStory:    dl,
-		SeasonSeries: dl,
-	}
-}
-
-// setAllGameFilesExist pre-populates all game data files (boxscore, play-by-play, shift chart, game story, season series).
-func setAllGameFilesExist(mem *store.MemStorage, day time.Time, gameID nhl.GameID) {
-	mem.SetFile(resource.Boxscore{Date: day, GameID: gameID}.Path(), []byte("{}"))
-	mem.SetFile(resource.PlayByPlay{Date: day, GameID: gameID}.Path(), []byte("{}"))
-	mem.SetFile(resource.ShiftChart{Date: day, GameID: gameID}.Path(), []byte("{}"))
-	mem.SetFile(resource.GameStory{Date: day, GameID: gameID}.Path(), []byte("{}"))
-	mem.SetFile(resource.SeasonSeries{Date: day, GameID: gameID}.Path(), []byte("{}"))
+// seedAllGameData writes parseable cached game data files so FetchOrCache hits filesystem.
+// Uses raw JSON bytes because some NHL types (e.g. GameType) reject zero values during Marshal.
+func seedAllGameData(mem *store.MemStorage, day time.Time, gameID nhl.GameID) {
+	emptyJSON := []byte("{}")
+	mem.SetFile(resource.Boxscore{Date: day, GameID: gameID}.Path(), emptyJSON)
+	mem.SetFile(resource.PlayByPlay{Date: day, GameID: gameID}.Path(), emptyJSON)
+	mem.SetFile(resource.ShiftChart{Date: day, GameID: gameID}.Path(), emptyJSON)
+	mem.SetFile(resource.GameStory{Date: day, GameID: gameID}.Path(), emptyJSON)
+	mem.SetFile(resource.SeasonSeries{Date: day, GameID: gameID}.Path(), emptyJSON)
 }
 
 type DailyScheduleTestSuite struct {
@@ -62,21 +45,25 @@ func TestDailyScheduleTestSuite(t *testing.T) {
 }
 
 // newGobCache creates a permissive GobCache for tests: Get always misses, Set always succeeds.
+// Sets up enough expectations for schedule + all game data types (up to 20 resources).
+const gobCacheTestExpectations = 20
+
 func (s *DailyScheduleTestSuite) newGobCache() *cache.GobCache {
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
-	scheduleKeyPattern := core.RedisResourceKeyPrefix + ".*"
-	mockRedis.Regexp().ExpectGet(scheduleKeyPattern).SetErr(redis.Nil)
-	mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(scheduleKeyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	keyPattern := core.RedisResourceKeyPrefix + ".*"
+	for range gobCacheTestExpectations {
+		mockRedis.Regexp().ExpectGet(keyPattern).SetErr(redis.Nil)
+		mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(keyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	}
 	return cache.NewGobCache(redisClient)
 }
 
-func (s *DailyScheduleTestSuite) newActivities(mem *store.MemStorage, client NHLClient, downloaders GameDataDownloaders) *DailyScheduleActivities {
+func (s *DailyScheduleTestSuite) newActivities(mem *store.MemStorage, client NHLClient) *DailyScheduleActivities {
 	return &DailyScheduleActivities{
-		Storage:       mem,
-		NHLClient:     client,
-		GameDownloads: downloaders,
-		GobCache:      s.newGobCache(),
+		Storage:   mem,
+		NHLClient: client,
+		GobCache:  s.newGobCache(),
 	}
 }
 
@@ -92,9 +79,9 @@ func (s *DailyScheduleTestSuite) TestScheduleFromCache() {
 	}
 	require.NoError(s.T(), resource.WriteParsed(mem, resource.DailySchedule{Date: day}, schedule))
 
-	setAllGameFilesExist(mem, day, nhl.GameID(2024020001))
+	seedAllGameData(mem, day, nhl.GameID(2024020001))
 
-	a := s.newActivities(mem, mockClient, mockGameDownloaders(nil, nil))
+	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)
 	future, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
 
@@ -115,9 +102,9 @@ func (s *DailyScheduleTestSuite) TestDownloadSchedule() {
 	}
 	mockClient.On("DailySchedule", mock.Anything, nhl.FromDate(day)).Return(schedule, nil)
 
-	setAllGameFilesExist(mem, day, nhl.GameID(2024020001))
+	seedAllGameData(mem, day, nhl.GameID(2024020001))
 
-	a := s.newActivities(mem, mockClient, mockGameDownloaders(nil, nil))
+	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)
 	future, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
 
@@ -136,7 +123,7 @@ func (s *DailyScheduleTestSuite) TestDownloadScheduleError() {
 
 	mockClient.On("DailySchedule", mock.Anything, nhl.FromDate(day)).Return(nil, errors.New("API error"))
 
-	a := s.newActivities(mem, mockClient, mockGameDownloaders(nil, nil))
+	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)
 	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
 
@@ -155,7 +142,7 @@ func (s *DailyScheduleTestSuite) TestCorruptCacheFallsBackToAPI() {
 
 	mockClient.On("DailySchedule", mock.Anything, nhl.FromDate(day)).Return(nil, errors.New("API error"))
 
-	a := s.newActivities(mem, mockClient, mockGameDownloaders(nil, nil))
+	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)
 	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
 
@@ -177,9 +164,9 @@ func (s *DailyScheduleTestSuite) TestSkipsIncompleteGames() {
 	}
 	require.NoError(s.T(), resource.WriteParsed(mem, resource.DailySchedule{Date: day}, schedule))
 
-	setAllGameFilesExist(mem, day, nhl.GameID(2024020002))
+	seedAllGameData(mem, day, nhl.GameID(2024020002))
 
-	a := s.newActivities(mem, mockClient, mockGameDownloaders(nil, nil))
+	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)
 	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
 
@@ -190,26 +177,31 @@ func (s *DailyScheduleTestSuite) TestDownloadsGameData() {
 	mem := store.NewMemStorage()
 	mockClient := &MockNHLClient{}
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	gameID := nhl.GameID(2024020001)
 
 	schedule := &nhl.DailySchedule{
 		Games: []nhl.ScheduleGame{
-			{ID: nhl.GameID(2024020001), GameType: nhl.GameTypeRegularSeason, GameState: nhl.GameStateFinal},
+			{ID: gameID, GameType: nhl.GameTypeRegularSeason, GameState: nhl.GameStateFinal},
 		},
 	}
-	// No pre-populated schedule — API fetch path triggers game data downloads
 	mockClient.On("DailySchedule", mock.Anything, nhl.FromDate(day)).Return(schedule, nil)
+	mockClient.On("Boxscore", mock.Anything, gameID).Return(nhl.FixtureBoxscore(), nil)
+	mockClient.On("PlayByPlay", mock.Anything, gameID).Return(nhl.FixturePlayByPlay(), nil)
+	mockClient.On("ShiftChart", mock.Anything, gameID).Return(nhl.FixtureShiftChart(), nil)
+	mockClient.On("GameStory", mock.Anything, gameID).Return(nhl.FixtureGameStory(), nil)
+	mockClient.On("SeasonSeries", mock.Anything, gameID).Return(nhl.FixtureSeasonSeriesMatchup(), nil)
 
-	a := s.newActivities(mem, mockClient, mockGameDownloaders([]byte("game data"), nil))
+	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)
 	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
 
 	assert.NoError(s.T(), err)
 
-	gameID := nhl.GameID(2024020001)
 	assert.True(s.T(), mem.Has(resource.Boxscore{Date: day, GameID: gameID}.Path()))
 	assert.True(s.T(), mem.Has(resource.PlayByPlay{Date: day, GameID: gameID}.Path()))
 	assert.True(s.T(), mem.Has(resource.ShiftChart{Date: day, GameID: gameID}.Path()))
 	assert.True(s.T(), mem.Has(resource.GameStory{Date: day, GameID: gameID}.Path()))
+	assert.True(s.T(), mem.Has(resource.SeasonSeries{Date: day, GameID: gameID}.Path()))
 }
 
 func (s *DailyScheduleTestSuite) TestCachedGameDataSkipped() {
@@ -225,11 +217,11 @@ func (s *DailyScheduleTestSuite) TestCachedGameDataSkipped() {
 	}
 	require.NoError(s.T(), resource.WriteParsed(mem, resource.DailySchedule{Date: day}, schedule))
 
-	setAllGameFilesExist(mem, day, nhl.GameID(2024020001))
-	setAllGameFilesExist(mem, day, nhl.GameID(2024020002))
+	seedAllGameData(mem, day, nhl.GameID(2024020001))
+	seedAllGameData(mem, day, nhl.GameID(2024020002))
 
-	// Even with a failing downloader, cached files should still work
-	a := s.newActivities(mem, mockClient, mockGameDownloaders(nil, errors.New("download error")))
+	// NHLClient not called for game data — all cached on filesystem
+	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)
 	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
 
@@ -248,7 +240,7 @@ func (s *DailyScheduleTestSuite) TestContextCancelled() {
 	}
 	require.NoError(s.T(), resource.WriteParsed(mem, resource.DailySchedule{Date: day}, schedule))
 
-	a := s.newActivities(mem, mockClient, mockGameDownloaders(nil, nil))
+	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)
 	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
 
@@ -257,25 +249,31 @@ func (s *DailyScheduleTestSuite) TestContextCancelled() {
 	_ = err
 }
 
-func (s *DailyScheduleTestSuite) TestBoxscoreDownloadError() {
+func (s *DailyScheduleTestSuite) TestGameDataDownloadError() {
 	mem := store.NewMemStorage()
 	mockClient := &MockNHLClient{}
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	gameID := nhl.GameID(2024020001)
 
 	schedule := &nhl.DailySchedule{
 		Games: []nhl.ScheduleGame{
-			{ID: nhl.GameID(2024020001), GameType: nhl.GameTypeRegularSeason, GameState: nhl.GameStateFinal},
+			{ID: gameID, GameType: nhl.GameTypeRegularSeason, GameState: nhl.GameStateFinal},
 		},
 	}
-	// No pre-populated schedule — API fetch path triggers game data downloads
 	mockClient.On("DailySchedule", mock.Anything, nhl.FromDate(day)).Return(schedule, nil)
+	// All game data API calls fail
+	mockClient.On("Boxscore", mock.Anything, gameID).Return(nil, errors.New("API down"))
+	mockClient.On("PlayByPlay", mock.Anything, gameID).Return(nil, errors.New("API down"))
+	mockClient.On("ShiftChart", mock.Anything, gameID).Return(nil, errors.New("API down"))
+	mockClient.On("GameStory", mock.Anything, gameID).Return(nil, errors.New("API down"))
+	mockClient.On("SeasonSeries", mock.Anything, gameID).Return(nil, errors.New("API down"))
 
-	a := s.newActivities(mem, mockClient, mockGameDownloaders(nil, errors.New("download error")))
+	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)
 	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
 
 	assert.Error(s.T(), err)
-	assert.Contains(s.T(), err.Error(), "download error")
+	assert.Contains(s.T(), err.Error(), "API down")
 }
 
 func TestFilterRegularSeasonGames(t *testing.T) {

@@ -157,12 +157,11 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(seasonsActivities.CollectSeasonPlayerIDs)
 
 			dailyScheduleActivities := &workers.DailyScheduleActivities{
-				Storage:       storage,
-				NHLClient:     nhlClient,
-				GobCache:      gobCache,
-				GameDownloads: workers.DefaultGameDataDownloaders(),
-				RedisClient:   redisClient,
-				Download:      workers.DownloadFromYahoo,
+				Storage:     storage,
+				NHLClient:   nhlClient,
+				GobCache:    gobCache,
+				RedisClient: redisClient,
+				Download:    workers.DownloadFromYahoo,
 			}
 			w.RegisterActivity(dailyScheduleActivities.FetchDailySchedule)
 			w.RegisterActivity(dailyScheduleActivities.FetchDay)

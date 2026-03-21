@@ -47,11 +47,10 @@ func TestFetchDayTestSuite(t *testing.T) {
 // will be pre-populated in MemStorage (cache-hit path).
 func (s *FetchDayTestSuite) newFetchDayActivities(mem *store.MemStorage, dl Downloader, gobCache *cache.GobCache) *DailyScheduleActivities {
 	return &DailyScheduleActivities{
-		Storage:       mem,
-		NHLClient:     &MockNHLClient{},
-		GameDownloads: mockGameDownloaders(nil, nil),
-		GobCache:      gobCache,
-		Download:      dl,
+		Storage:   mem,
+		NHLClient: &MockNHLClient{},
+		GobCache:  gobCache,
+		Download:  dl,
 	}
 }
 
@@ -163,8 +162,7 @@ func (s *FetchDayTestSuite) TestDailyScheduleError() {
 	a := &DailyScheduleActivities{
 		Storage:       mem,
 		NHLClient:     mockClient,
-		GameDownloads: mockGameDownloaders(nil, nil),
-		GobCache:      gobCache,
+		GobCache:  gobCache,
 		Download:      mockDownloader(nil, nil),
 	}
 	s.env.RegisterActivity(a.FetchDay)

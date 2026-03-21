@@ -2,10 +2,8 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"sync"
 	"time"
 
@@ -14,7 +12,6 @@ import (
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	puckhttp "github.com/sperano/puckdb/http"
-	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
@@ -139,119 +136,6 @@ func extractGameKey(fantasy *store.FantasyContent, season int) (int, error) {
 
 	log.Info().Int("season", season).Int("game_key", gameKey).Msg("Loaded Yahoo game key")
 	return gameKey, nil
-}
-
-func DownloadBoxscore(gameid nhl.GameID) ([]byte, error) {
-	log.Info().Str("gameid", gameid.String()).Msg("Downloading boxscore NHL API")
-	client := NewNHLClient()
-
-	start := time.Now()
-	boxscore, err := client.Boxscore(context.Background(), gameid)
-	duration := time.Since(start)
-
-	if err != nil {
-		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
-		return nil, err
-	}
-
-	data, err := json.Marshal(boxscore)
-	if err != nil {
-		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
-	}
-
-	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
-	return data, nil
-}
-
-// GameDataDownloader downloads game-related data (boxscore, play-by-play, shift chart).
-type GameDataDownloader func(id nhl.GameID) ([]byte, error)
-
-func DownloadPlayByPlay(gameid nhl.GameID) ([]byte, error) {
-	log.Debug().Str("gameid", gameid.String()).Msg("Downloading play-by-play NHL API")
-	client := NewNHLClient()
-
-	start := time.Now()
-	pbp, err := client.PlayByPlay(context.Background(), gameid)
-	duration := time.Since(start)
-
-	if err != nil {
-		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
-		return nil, err
-	}
-
-	data, err := json.Marshal(pbp)
-	if err != nil {
-		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
-	}
-
-	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
-	return data, nil
-}
-
-func DownloadShiftChart(gameid nhl.GameID) ([]byte, error) {
-	log.Debug().Str("gameid", gameid.String()).Msg("Downloading shift chart NHL API")
-	client := NewNHLClient()
-
-	start := time.Now()
-	shifts, err := client.ShiftChart(context.Background(), gameid)
-	duration := time.Since(start)
-
-	if err != nil {
-		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
-		return nil, err
-	}
-
-	data, err := json.Marshal(shifts)
-	if err != nil {
-		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
-	}
-
-	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
-	return data, nil
-}
-
-func DownloadGameStory(gameid nhl.GameID) ([]byte, error) {
-	log.Debug().Str("gameid", gameid.String()).Msg("Downloading game story NHL API")
-	client := NewNHLClient()
-
-	start := time.Now()
-	story, err := client.GameStory(context.Background(), gameid)
-	duration := time.Since(start)
-
-	if err != nil {
-		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
-		return nil, err
-	}
-
-	data, err := json.Marshal(story)
-	if err != nil {
-		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
-	}
-
-	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
-	return data, nil
-}
-
-func DownloadSeasonSeries(gameid nhl.GameID) ([]byte, error) {
-	log.Debug().Str("gameid", gameid.String()).Msg("Downloading season series NHL API")
-	client := NewNHLClient()
-
-	start := time.Now()
-	series, err := client.SeasonSeries(context.Background(), gameid)
-	duration := time.Since(start)
-
-	if err != nil {
-		metrics.ObserveHTTP("nhl", http.MethodGet, 0, duration, 0)
-		return nil, err
-	}
-
-	data, err := json.Marshal(series)
-	if err != nil {
-		return nil, fmt.Errorf("gameid %s: %w", gameid, err)
-	}
-
-	metrics.ObserveHTTP("nhl", http.MethodGet, 200, duration, len(data))
-	return data, nil
 }
 
 // Downloader fetches content from a URL.

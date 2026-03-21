@@ -65,6 +65,10 @@ func (b Boxscore) Parse(data []byte) (*nhl.Boxscore, error) {
 	return &boxscore, nil
 }
 
+func (b Boxscore) Format(obj *nhl.Boxscore) ([]byte, error) {
+	return json.Marshal(obj)
+}
+
 // PlayByPlay represents NHL play-by-play data for a game.
 type PlayByPlay struct {
 	Date   time.Time
@@ -87,6 +91,10 @@ func (p PlayByPlay) Parse(data []byte) (*nhl.PlayByPlay, error) {
 		return nil, fmt.Errorf("parse play-by-play %s: %w", p.GameID, err)
 	}
 	return &pbp, nil
+}
+
+func (p PlayByPlay) Format(obj *nhl.PlayByPlay) ([]byte, error) {
+	return json.Marshal(obj)
 }
 
 // ShiftChart represents NHL shift chart data for a game.
@@ -114,6 +122,10 @@ func (s ShiftChart) Parse(data []byte) (*nhl.ShiftChart, error) {
 	return &shifts, nil
 }
 
+func (s ShiftChart) Format(obj *nhl.ShiftChart) ([]byte, error) {
+	return json.Marshal(obj)
+}
+
 // GameStory represents an NHL game story/recap.
 type GameStory struct {
 	Date   time.Time
@@ -138,6 +150,10 @@ func (g GameStory) Parse(data []byte) (*nhl.GameStory, error) {
 	return &story, nil
 }
 
+func (g GameStory) Format(obj *nhl.GameStory) ([]byte, error) {
+	return json.Marshal(obj)
+}
+
 // SeasonSeries represents NHL season series matchup data for a game.
 // Contains officials, head coaches, scratches, and head-to-head series records.
 type SeasonSeries struct {
@@ -157,6 +173,10 @@ func (s SeasonSeries) Parse(data []byte) (*nhl.SeasonSeriesMatchup, error) {
 		return nil, fmt.Errorf("parse season series %s: %w", s.GameID, err)
 	}
 	return &matchup, nil
+}
+
+func (s SeasonSeries) Format(obj *nhl.SeasonSeriesMatchup) ([]byte, error) {
+	return json.Marshal(obj)
 }
 
 // PlayerLanding represents an NHL player's landing page data.
@@ -229,6 +249,10 @@ func (f Franchises) Parse(data []byte) (nhl.FranchisesResponse, error) {
 		return nhl.FranchisesResponse{}, fmt.Errorf("parse franchises: %w", err)
 	}
 	return response, nil
+}
+
+func (f Franchises) Format(obj nhl.FranchisesResponse) ([]byte, error) {
+	return json.Marshal(obj)
 }
 
 // SeasonsManifest represents the list of available NHL seasons (singleton resource).

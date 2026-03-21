@@ -259,38 +259,24 @@ func (a *SeasonsActivities) InitializeSeasonTeamsActivity(ctx context.Context, s
 }
 
 // downloadSeasonStandings downloads league standings for a single season.
-//
-// Caching strategy:
-//   - Layer 1 (Filesystem): Persistent cache, no TTL (standings are immutable for past seasons)
-//   - Layer 2 (API): NHL API fetched only on cache miss or corrupted cache
+// Uses Redis gob → filesystem cache; fetches from NHL API on miss.
 func (a *SeasonsActivities) downloadSeasonStandings(ctx context.Context, season nhl.Season) (DownloadSeasonStandingsResult, error) {
-	// Check cache first
-	standingsRes := resource.SeasonStandings{Season: season}
-	if a.Storage.Exists(standingsRes.Path()) {
-		standings, err := resource.ReadParsed(a.Storage, standingsRes)
-		if err == nil {
-			log.Debug().Int("season", season.ID()).Int("teams", len(standings)).Msg("Season standings loaded from cache")
-			metrics.IncDownload(core.SeasonStandings, metrics.ResultHit)
-			return DownloadSeasonStandingsResult{Season: season, TeamCount: len(standings), FromCache: true}, nil
-		}
-		log.Debug().Err(err).Int("season", season.ID()).Msg("Failed to read cached season standings")
-	}
-
-	// Fetch from API
-	standings, err := a.NHLClient.LeagueStandingsForSeason(ctx, season)
+	standings, origin, err := FetchOrCache(ctx, a.Storage, a.GobCache, resource.SeasonStandings{Season: season},
+		func(ctx context.Context) ([]nhl.Standing, error) {
+			return a.NHLClient.LeagueStandingsForSeason(ctx, season)
+		},
+	)
 	if err != nil {
-		metrics.IncDownload(core.SeasonStandings, metrics.ResultError)
 		return DownloadSeasonStandingsResult{Season: season}, err
 	}
 
-	// Save to cache
-	if err := resource.WriteParsed(a.Storage, standingsRes, standings); err != nil {
-		log.Warn().Err(err).Int("season", season.ID()).Msg("Failed to write season standings to cache")
+	fromCache := origin != core.OriginRemoteNHLAPI
+	if fromCache {
+		log.Debug().Int("season", season.ID()).Int("teams", len(standings)).Str("origin", origin.String()).Msg("Season standings loaded from cache")
+	} else {
+		log.Info().Int("season", season.ID()).Int("teams", len(standings)).Msg("Season standings downloaded from API")
 	}
-
-	log.Info().Int("season", season.ID()).Int("teams", len(standings)).Msg("Season standings downloaded from API")
-	metrics.IncDownload(core.SeasonStandings, metrics.ResultMiss)
-	return DownloadSeasonStandingsResult{Season: season, TeamCount: len(standings), FromCache: false}, nil
+	return DownloadSeasonStandingsResult{Season: season, TeamCount: len(standings), FromCache: fromCache}, nil
 }
 
 // upsertSeasonTeams reads standings from cache and upserts teams to database.
