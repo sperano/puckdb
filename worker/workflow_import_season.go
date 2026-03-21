@@ -51,7 +51,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	tracker.StartGroup(ctx, GroupImportDays)
 
 	endDate := effectiveEndDate(season.StandingsEnd.Time)
-	numDays := countDays(season.StandingsStart.Time, endDate)
+	numDays := core.CountDays(season.StandingsStart.Time, endDate)
 	dayConcurrency := getDayConcurrency()
 	startDate := season.StandingsStart.Time
 	startYear := season.ID.StartYear()

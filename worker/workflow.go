@@ -5,6 +5,7 @@ import (
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/core"
 	"github.com/spf13/viper"
 	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
@@ -67,18 +68,9 @@ func effectiveEndDate(end time.Time) time.Time {
 	return end
 }
 
-// countDays returns the number of days between start and end (inclusive).
-func countDays(start, end time.Time) int {
-	days := int(end.Sub(start).Hours()/config.HoursPerDay) + 1
-	if days < 0 {
-		return 0
-	}
-	return days
-}
-
 // countDaysInSeason returns the number of days from season start to min(season end, today).
 func countDaysInSeason(season nhl.SeasonInfo) (int, error) {
-	return countDays(season.StandingsStart.Time, effectiveEndDate(season.StandingsEnd.Time)), nil
+	return core.CountDays(season.StandingsStart.Time, effectiveEndDate(season.StandingsEnd.Time)), nil
 }
 
 // getDayConcurrency returns the configured day concurrency for parallel processing.

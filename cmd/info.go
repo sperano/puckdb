@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/core"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -127,12 +128,12 @@ func formatDuration(d time.Duration) string {
 	if d < time.Hour {
 		return fmt.Sprintf("%d minutes", int(d.Minutes()))
 	}
-	if d < config.HoursPerDay*time.Hour {
+	if d < core.HoursPerDay*time.Hour {
 		hours := int(d.Hours())
 		minutes := int(d.Minutes()) % 60
 		return fmt.Sprintf("%d hours, %d minutes", hours, minutes)
 	}
-	days := int(d.Hours()) / config.HoursPerDay
-	hours := int(d.Hours()) % config.HoursPerDay
+	days := int(d.Hours()) / core.HoursPerDay
+	hours := int(d.Hours()) % core.HoursPerDay
 	return fmt.Sprintf("%d days, %d hours", days, hours)
 }

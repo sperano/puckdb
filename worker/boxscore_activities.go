@@ -40,7 +40,7 @@ func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, s
 	origins := make(core.OriginCounts)
 
 	end := effectiveEndDate(season.StandingsEnd.Time)
-	totalDays := countDays(season.StandingsStart.Time, end)
+	totalDays := core.CountDays(season.StandingsStart.Time, end)
 
 	dayCount := 0
 	for day := season.StandingsStart.Time; !day.After(end); day = day.AddDate(0, 0, 1) {

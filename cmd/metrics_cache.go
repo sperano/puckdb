@@ -10,6 +10,7 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
@@ -149,7 +150,7 @@ func getAllMetrics(ctx context.Context, redisClient cache.Client) ([]cacheMetric
 func checkNHLSeasonCache(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season simpleSeason) []cacheMetrics {
 	cacheData := make([]cacheMetrics, 0)
 	seasonYear := season.StartYear()
-	daysInSeason := countDays(season.start, season.end)
+	daysInSeason := core.CountDays(season.start, season.end)
 
 	// Count daily schedule files (1 per day)
 	dailyScheduleCount := countDailyScheduleFilesSimple(storage, season)
@@ -194,7 +195,7 @@ func checkNHLSeasonCache(ctx context.Context, storage store.Storage, gobCache *c
 func checkYahooSeasonCache(storage store.Storage, nhlSeason simpleSeason, yahooCfg config.Season) []cacheMetrics {
 	cacheData := make([]cacheMetrics, 0)
 	seasonYear := nhlSeason.startYear
-	daysInSeason := countDays(nhlSeason.start, nhlSeason.end)
+	daysInSeason := core.CountDays(nhlSeason.start, nhlSeason.end)
 
 	// Count leagues
 	leagueCount := countLeagueFiles(storage, seasonYear, yahooCfg)
@@ -239,13 +240,6 @@ func checkYahooSeasonCache(storage store.Storage, nhlSeason simpleSeason, yahooC
 	})
 
 	return cacheData
-}
-
-func countDays(start, end time.Time) int {
-	if end.After(time.Now()) {
-		end = time.Now()
-	}
-	return int(end.Sub(start).Hours()/24) + 1
 }
 
 func countLeagueFiles(storage store.Storage, seasonYear int, cfg config.Season) int {

@@ -185,9 +185,9 @@ const (
 
 // Time constants
 const (
-	HoursPerDay = 24
-	DateFormat  = "2006-01-02"
+	DateFormat = "2006-01-02"
 )
+
 
 // File system constants
 const (

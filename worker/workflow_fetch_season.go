@@ -74,7 +74,7 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 
 	// Calculate days to process (up to today)
 	endDate := effectiveEndDate(season.StandingsEnd.Time)
-	numDays := countDays(season.StandingsStart.Time, endDate)
+	numDays := core.CountDays(season.StandingsStart.Time, endDate)
 	concurrency := getDayConcurrency()
 
 	logger.Info("Processing days in parallel",
