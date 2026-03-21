@@ -26,12 +26,6 @@ type FetchTeamsInput struct {
 	Teams       []TeamInfo
 }
 
-// FetchYahooPlayerBatchResult contains counts from a batch fetch operation.
-type FetchYahooPlayerBatchResult struct {
-	Downloaded int // Network downloads (player pages fetched from Yahoo)
-	Missing    int // 404 responses (player doesn't exist)
-	Cached     int // Cache hits (already in local cache)
-}
 
 // YahooActivities holds dependencies for Yahoo league and team fetching.
 type YahooActivities struct {
@@ -97,8 +91,8 @@ func (a *YahooActivities) FetchLeague(ctx context.Context, season int, leagueID 
 // Processes players from startID to endID (inclusive).
 // Each player uses two targeted stat calls (Exists) to check cache status,
 // which is faster on JuiceFS than listing the full 34k-entry missing directory per batch.
-func (a *YahooActivities) FetchYahooPlayerBatch(ctx context.Context, startID, endID store.YahooPlayerID) (FetchYahooPlayerBatchResult, error) {
-	var result FetchYahooPlayerBatchResult
+func (a *YahooActivities) FetchYahooPlayerBatch(ctx context.Context, startID, endID store.YahooPlayerID) (FetchStats, error) {
+	var result FetchStats
 	logger := activity.GetLogger(ctx)
 	logger.Debug("FetchYahooPlayerBatch started", "startID", startID, "endID", endID)
 
@@ -120,7 +114,7 @@ func (a *YahooActivities) FetchYahooPlayerBatch(ctx context.Context, startID, en
 		case fetchStatusMissing:
 			result.Missing++
 		case fetchStatusCached:
-			result.Cached++
+			result.CacheHits++
 		}
 	}
 	return result, nil

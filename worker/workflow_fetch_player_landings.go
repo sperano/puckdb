@@ -28,10 +28,8 @@ type FetchPlayerLandingsInput struct {
 
 // FetchPlayerLandingsResult contains the final result of the workflow.
 type FetchPlayerLandingsResult struct {
+	FetchStats
 	TotalPlayers int
-	Downloaded   int
-	CacheHits    int
-	Missing      int
 }
 
 // NewFetchPlayerLandingsProgressReport creates the initial progress structure.
@@ -117,13 +115,11 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 			return workflow.ExecuteActivity(fetchCtx, playerAct.FetchPlayerLandingsBatch, batch)
 		},
 		func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
-			var batchResult DownloadPlayerLandingBatchResult
+			var batchResult FetchStats
 			if err := f.Get(ctx, &batchResult); err != nil {
 				return err
 			}
-			result.Downloaded += batchResult.Downloaded
-			result.CacheHits += batchResult.CacheHits
-			result.Missing += batchResult.Missing
+			result.Add(batchResult)
 			return nil
 		})
 	if err != nil {

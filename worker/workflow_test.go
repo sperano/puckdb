@@ -732,7 +732,7 @@ func (s *FetchYahooPlayersWorkflowTestSuite) TestFetchYahooPlayersWorkflow_Succe
 	var yahooAct *YahooActivities
 	s.env.OnActivity(yahooAct.FetchYahooPlayerBatch, mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int")).
 		Maybe().
-		Return(FetchYahooPlayerBatchResult{Downloaded: 5, Cached: 3, Missing: 2}, nil)
+		Return(FetchStats{Downloaded: 5, CacheHits: 3, Missing: 2}, nil)
 
 	s.env.ExecuteWorkflow(FetchYahooPlayersWorkflow, (*FetchYahooPlayersInput)(nil))
 
@@ -746,7 +746,7 @@ func (s *FetchYahooPlayersWorkflowTestSuite) TestFetchYahooPlayersWorkflow_Activ
 	var yahooAct *YahooActivities
 	s.env.OnActivity(yahooAct.FetchYahooPlayerBatch, mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int")).
 		Maybe().
-		Return(FetchYahooPlayerBatchResult{}, errors.New("download failed"))
+		Return(FetchStats{}, errors.New("download failed"))
 
 	s.env.ExecuteWorkflow(FetchYahooPlayersWorkflow, (*FetchYahooPlayersInput)(nil))
 
@@ -851,7 +851,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Succ
 
 	// Mock Phase 3 activities
 	s.env.OnActivity(ProcessPlayerBatchActivity, mock.Anything, mock.Anything).Return(
-		ProcessPlayerBatchResult{Downloaded: 1, CacheHits: 0, Missing: 0, Imported: 1, Matched: 1}, nil)
+		ProcessPlayerBatchResult{FetchStats: FetchStats{Downloaded: 1}, Imported: 1, Matched: 1}, nil)
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
 

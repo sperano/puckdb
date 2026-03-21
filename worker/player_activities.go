@@ -25,19 +25,12 @@ type PlayerActivities struct {
 
 // --- Player landing activities ---
 
-// DownloadPlayerLandingBatchResult contains statistics from a batch download.
-type DownloadPlayerLandingBatchResult struct {
-	Downloaded int // Players downloaded from API
-	CacheHits  int // Players found in cache
-	Missing    int // 404 responses (cached for future runs)
-}
-
 // FetchPlayerLandingsBatch fetches player landing pages for a batch of players.
 func (a *PlayerActivities) FetchPlayerLandingsBatch(
 	ctx context.Context,
 	players []store.BoxscorePlayer,
-) (DownloadPlayerLandingBatchResult, error) {
-	result := DownloadPlayerLandingBatchResult{}
+) (FetchStats, error) {
+	result := FetchStats{}
 
 	for _, p := range players {
 		select {

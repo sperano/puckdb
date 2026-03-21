@@ -29,10 +29,7 @@ type PlayerUpserter interface {
 
 // ProcessPlayerBatchResult contains combined download and import statistics.
 type ProcessPlayerBatchResult struct {
-	// Download stats
-	Downloaded int // Players downloaded from API
-	CacheHits  int // Players found in cache
-	Missing    int // 404 responses (cached for future runs)
+	FetchStats // Download stats (Downloaded, CacheHits, Missing)
 
 	// Import stats
 	Imported int              // Players imported to database

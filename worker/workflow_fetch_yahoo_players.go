@@ -98,11 +98,11 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 
 	executionFound := 0
 	handler := func(ctx workflow.Context, index int, future workflow.Future) error {
-		var result FetchYahooPlayerBatchResult
+		var result FetchStats
 		if err := future.Get(ctx, &result); err != nil {
 			return err
 		}
-		executionFound += result.Downloaded + result.Cached
+		executionFound += result.Downloaded + result.CacheHits
 		return nil
 	}
 
