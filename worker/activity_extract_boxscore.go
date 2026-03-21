@@ -7,7 +7,7 @@ import (
 )
 
 func addSkaterPlayer(players map[int64]PartialPlayer, s nhl.SkaterStats, teamID int64) {
-	id := s.PlayerID.AsInt64()
+	id := s.PlayerID.Int64()
 	firstName, lastName := parseLocalizedName(s.Name)
 
 	players[id] = PartialPlayer{
@@ -22,7 +22,7 @@ func addSkaterPlayer(players map[int64]PartialPlayer, s nhl.SkaterStats, teamID 
 }
 
 func addGoaliePlayer(players map[int64]PartialPlayer, g nhl.GoalieStats, teamID int64) {
-	id := g.PlayerID.AsInt64()
+	id := g.PlayerID.Int64()
 	firstName, lastName := parseLocalizedName(g.Name)
 
 	players[id] = PartialPlayer{

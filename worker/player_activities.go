@@ -209,7 +209,7 @@ func (a *PlayerActivities) DownloadPlayerGameLogsBatch(ctx context.Context, inpu
 	// Default to regular season if no game types specified
 	gameTypes := input.GameTypes
 	if len(gameTypes) == 0 {
-		gameTypes = []int{nhl.GameTypeRegularSeason.ToInt()}
+		gameTypes = []int{nhl.GameTypeRegularSeason.Int()}
 	}
 
 	season := nhl.NewSeason(input.StartSeason)
@@ -288,7 +288,7 @@ type gameLogDownloadOptions struct {
 
 // downloadPlayerGameLogToCache downloads a single player game log to cache.
 func (a *PlayerActivities) downloadPlayerGameLogToCache(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType, opts gameLogDownloadOptions) (gameLogDownloadStatus, error) {
-	gameTypeID := gameType.ToInt()
+	gameTypeID := gameType.Int()
 	gameLogRes := resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: gameTypeID}
 	fileExists := a.Storage.Exists(gameLogRes.Path())
 

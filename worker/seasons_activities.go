@@ -199,12 +199,12 @@ func (a *SeasonsActivities) UpsertSeasons(ctx context.Context) (UpsertSeasonsRes
 
 	for _, s := range seasons {
 		params := sqlcdb.UpsertSeasonParams{
-			ID:             int32(s.ID.ToInt()),
+			ID:             int32(s.ID.ID()),
 			StandingsStart: pgtype.Date{Time: s.StandingsStart.Time, Valid: true},
 			StandingsEnd:   pgtype.Date{Time: s.StandingsEnd.Time, Valid: true},
 		}
 		if err := a.SeasonsUpserter.UpsertSeason(ctx, params); err != nil {
-			return result, fmt.Errorf("upsert season %d: %w", s.ID.ToInt(), err)
+			return result, fmt.Errorf("upsert season %d: %w", s.ID.ID(), err)
 		}
 		result.SeasonsUpserted++
 	}

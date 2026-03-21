@@ -74,7 +74,7 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 		"batchSize", batchSize,
 		"concurrency", concurrency)
 
-	gameTypes := []int{nhl.GameTypeRegularSeason.ToInt(), nhl.GameTypePlayoffs.ToInt()}
+	gameTypes := []int{nhl.GameTypeRegularSeason.Int(), nhl.GameTypePlayoffs.Int()}
 	startYear := season.ID.StartYear()
 	refreshCurrent := input.RefreshCurrent
 

@@ -179,7 +179,7 @@ func verifyPlayer(ctx context.Context, client NHLClient, storage store.Storage, 
 	}
 
 	result.FoundInNHL = true
-	result.NHLPlayerID = matchedResult.PlayerID.AsInt64()
+	result.NHLPlayerID = matchedResult.PlayerID.Int64()
 	result.NHLName = matchedResult.Name
 
 	// Get full player landing data - check cache first

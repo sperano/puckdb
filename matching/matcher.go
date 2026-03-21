@@ -343,7 +343,7 @@ func MatchYahooID(
 
 		if match.fuzzyMatched {
 			log.Warn().
-				Int64("nhl_id", landing.PlayerID.AsInt64()).
+				Int64("nhl_id", landing.PlayerID.Int64()).
 				Str("nhl_name", landing.FirstName.Default+" "+landing.LastName.Default).
 				Int("yahoo_id", int(match.player.YahooID)).
 				Str("yahoo_name", match.player.FirstName+" "+match.player.LastName).

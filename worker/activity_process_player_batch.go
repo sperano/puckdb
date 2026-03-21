@@ -217,7 +217,7 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match matching.YahooID
 	lastName := strings.TrimSpace(landing.LastName.Default)
 
 	params := sqlcdb.UpsertPlayerParams{
-		ID:                  landing.PlayerID.AsInt64(),
+		ID:                  landing.PlayerID.Int64(),
 		FirstName:           firstName,
 		LastName:            lastName,
 		FirstNameNormalized: matching.NormalizeName(firstName),

@@ -157,7 +157,7 @@ func extractTeamPlayers(stats *nhl.TeamPlayerStats) []store.BoxscorePlayer {
 	for _, s := range stats.Forwards {
 		first, last := store.ParseCombinedName(s.Name.String())
 		players = append(players, store.BoxscorePlayer{
-			ID:        s.PlayerID.AsInt64(),
+			ID:        s.PlayerID.Int64(),
 			FirstName: first,
 			LastName:  last,
 			Position:  string(s.Position),
@@ -166,7 +166,7 @@ func extractTeamPlayers(stats *nhl.TeamPlayerStats) []store.BoxscorePlayer {
 	for _, s := range stats.Defense {
 		first, last := store.ParseCombinedName(s.Name.String())
 		players = append(players, store.BoxscorePlayer{
-			ID:        s.PlayerID.AsInt64(),
+			ID:        s.PlayerID.Int64(),
 			FirstName: first,
 			LastName:  last,
 			Position:  string(s.Position),
@@ -175,7 +175,7 @@ func extractTeamPlayers(stats *nhl.TeamPlayerStats) []store.BoxscorePlayer {
 	for _, g := range stats.Goalies {
 		first, last := store.ParseCombinedName(g.Name.String())
 		players = append(players, store.BoxscorePlayer{
-			ID:        g.PlayerID.AsInt64(),
+			ID:        g.PlayerID.Int64(),
 			FirstName: first,
 			LastName:  last,
 			Position:  string(g.Position),

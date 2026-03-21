@@ -264,7 +264,7 @@ type SeasonStandings struct {
 }
 
 func (s SeasonStandings) Path() string {
-	return fmt.Sprintf("nhl/standings/standings-%d.json", s.Season.ToInt())
+	return fmt.Sprintf("nhl/standings/standings-%d.json", s.Season.ID())
 }
 
 func (s SeasonStandings) Type() core.FileType { return core.SeasonStandings }
@@ -272,7 +272,7 @@ func (s SeasonStandings) Type() core.FileType { return core.SeasonStandings }
 func (s SeasonStandings) Parse(data []byte) ([]nhl.Standing, error) {
 	var standings []nhl.Standing
 	if err := json.Unmarshal(data, &standings); err != nil {
-		return nil, fmt.Errorf("parse season standings %d: %w", s.Season.ToInt(), err)
+		return nil, fmt.Errorf("parse season standings %d: %w", s.Season.ID(), err)
 	}
 	return standings, nil
 }

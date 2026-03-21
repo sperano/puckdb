@@ -55,7 +55,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	dayConcurrency := getDayConcurrency()
 	startDate := season.StandingsStart.Time
 	startYear := season.ID.StartYear()
-	seasonID := season.ID.ToInt()
+	seasonID := season.ID.ID()
 
 	var sa *SeasonsActivities
 	err = tracker.RunWorkerPool(ctx, GroupImportDays, 0, numDays, dayConcurrency,
