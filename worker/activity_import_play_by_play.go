@@ -21,8 +21,7 @@ type PlayByPlayUpserter interface {
 
 // ImportPlayByPlayForDateInput contains the parameters for importing play-by-play data for a date.
 type ImportPlayByPlayForDateInput struct {
-	Date   time.Time `json:"date"`
-	Season int       `json:"season"`
+	DateSeasonInput
 }
 
 // ImportPlayByPlayForDateResult contains the results of importing play-by-play data.

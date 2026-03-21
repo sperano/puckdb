@@ -30,7 +30,7 @@ func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput)
 	activity.RecordHeartbeat(ctx, "boxscores")
 
 	// Import boxscores
-	boxscoreInput := ImportBoxscoresForDateInput{Date: input.Date, Season: input.Season}
+	boxscoreInput := ImportBoxscoresForDateInput{DateSeasonInput{Date: input.Date, Season: input.Season}}
 	if _, err := a.ImportBoxscoresForDate(ctx, boxscoreInput); err != nil {
 		return fmt.Errorf("import boxscores for %s: %w", input.Date.Format("2006-01-02"), err)
 	}
@@ -44,14 +44,14 @@ func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput)
 	activity.RecordHeartbeat(ctx, "play-by-play")
 
 	// Import play-by-play
-	pbpInput := ImportPlayByPlayForDateInput{Date: input.Date, Season: input.Season}
+	pbpInput := ImportPlayByPlayForDateInput{DateSeasonInput{Date: input.Date, Season: input.Season}}
 	if _, err := a.ImportPlayByPlayForDate(ctx, pbpInput); err != nil {
 		return fmt.Errorf("import play-by-play for %s: %w", input.Date.Format("2006-01-02"), err)
 	}
 	activity.RecordHeartbeat(ctx, "shift-charts")
 
 	// Import shift charts
-	scInput := ImportShiftChartForDateInput{Date: input.Date, Season: input.Season}
+	scInput := ImportShiftChartForDateInput{DateSeasonInput{Date: input.Date, Season: input.Season}}
 	if _, err := a.ImportShiftChartForDate(ctx, scInput); err != nil {
 		return fmt.Errorf("import shift chart for %s: %w", input.Date.Format("2006-01-02"), err)
 	}

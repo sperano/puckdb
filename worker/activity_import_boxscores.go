@@ -18,8 +18,7 @@ import (
 
 // ImportBoxscoresForDateInput contains the parameters for importing boxscores for a single date.
 type ImportBoxscoresForDateInput struct {
-	Date   time.Time `json:"date"`
-	Season int       `json:"season"`
+	DateSeasonInput
 }
 
 // ImportBoxscoresForDateResult contains the results of importing boxscores for a single date.

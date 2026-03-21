@@ -21,8 +21,7 @@ type ShiftChartUpserter interface {
 
 // ImportShiftChartForDateInput contains the parameters for importing shift chart data for a date.
 type ImportShiftChartForDateInput struct {
-	Date   time.Time `json:"date"`
-	Season int       `json:"season"`
+	DateSeasonInput
 }
 
 // ImportShiftChartForDateResult contains the results of importing shift chart data.

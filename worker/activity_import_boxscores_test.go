@@ -393,7 +393,7 @@ func TestImportBoxscoresForDate(t *testing.T) {
 	t.Parallel()
 
 	testDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
-	testInput := ImportBoxscoresForDateInput{Date: testDate, Season: 2023}
+	testInput := ImportBoxscoresForDateInput{DateSeasonInput{Date: testDate, Season: 2023}}
 
 	newActivity := func(mem store.Storage) *SeasonsActivities {
 		return &SeasonsActivities{Storage: mem}
