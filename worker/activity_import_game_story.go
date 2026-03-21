@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/metrics"
@@ -147,18 +146,10 @@ func (a *SeasonsActivities) processGameStory(
 				TimeInPeriod: goal.TimeInPeriod,
 			}
 
-			if goal.GoalsToDate != nil {
-				params.GoalsToDate = pgtype.Int2{Int16: int16(*goal.GoalsToDate), Valid: true}
-			}
-			if goal.HighlightClip != nil {
-				params.HighlightClipID = pgtype.Int8{Int64: *goal.HighlightClip, Valid: true}
-			}
-			if goal.HighlightClipSharingURL != nil {
-				params.HighlightClipUrl = pgtype.Text{String: *goal.HighlightClipSharingURL, Valid: true}
-			}
-			if goal.DiscreteClip != nil {
-				params.DiscreteClipID = pgtype.Int8{Int64: *goal.DiscreteClip, Valid: true}
-			}
+			params.GoalsToDate = ptrToInt2(goal.GoalsToDate)
+			params.HighlightClipID = ptrToInt8(goal.HighlightClip)
+			params.HighlightClipUrl = ptrToText(goal.HighlightClipSharingURL)
+			params.DiscreteClipID = ptrToInt8(goal.DiscreteClip)
 
 			if err := a.ImportQueries.UpsertGoalHighlight(ctx, params); err != nil {
 				errors = append(errors, fmt.Sprintf("game %d: goal %d: %v", gameID, goal.EventID, err))

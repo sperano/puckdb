@@ -305,14 +305,6 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhl.Se
 	}
 
 	for _, s := range standings {
-		var confName, confAbbrev pgtype.Text
-		if s.ConferenceName != nil {
-			confName = pgtype.Text{String: *s.ConferenceName, Valid: true}
-		}
-		if s.ConferenceAbbrev != nil {
-			confAbbrev = pgtype.Text{String: *s.ConferenceAbbrev, Valid: true}
-		}
-
 		params := sqlcdb.UpsertSeasonTeamParams{
 			SeasonID:         int32(season.ID()),
 			TeamID:           matching.LookupTeamID(s.TeamAbbrev.String()),
@@ -322,8 +314,8 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhl.Se
 			LogoUrl:          pgtype.Text{String: s.TeamLogo, Valid: s.TeamLogo != ""},
 			DivisionName:     s.DivisionName,
 			DivisionAbbrev:   s.DivisionAbbrev,
-			ConferenceName:   confName,
-			ConferenceAbbrev: confAbbrev,
+			ConferenceName:   ptrToText(s.ConferenceName),
+			ConferenceAbbrev: ptrToText(s.ConferenceAbbrev),
 		}
 
 		if err := a.SeasonTeamsUpserter.UpsertSeasonTeam(ctx, params); err != nil {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/metrics"
@@ -118,9 +117,7 @@ func shiftEntryToParams(s nhl.ShiftEntry) sqlcdb.UpsertShiftBatchParams {
 		EventNumber: s.EventNumber,
 	}
 
-	if s.EventDescription != nil {
-		p.EventDescription = pgtype.Text{String: *s.EventDescription, Valid: true}
-	}
+	p.EventDescription = ptrToText(s.EventDescription)
 
 	return p
 }

@@ -123,102 +123,38 @@ func playEventToParams(gameID nhl.GameID, play nhl.PlayEvent) sqlcdb.UpsertPlayE
 	}
 
 	if d := play.Details; d != nil {
-		if d.XCoord != nil {
-			p.XCoord = pgtype.Int4{Int32: int32(*d.XCoord), Valid: true}
-		}
-		if d.YCoord != nil {
-			p.YCoord = pgtype.Int4{Int32: int32(*d.YCoord), Valid: true}
-		}
-		if d.ZoneCode != nil {
-			p.ZoneCode = pgtype.Text{String: string(*d.ZoneCode), Valid: true}
-		}
-		if d.EventOwnerTeamID != nil {
-			p.EventOwnerTeamID = pgtype.Int8{Int64: int64(*d.EventOwnerTeamID), Valid: true}
-		}
-		if d.ShotType != nil {
-			p.ShotType = pgtype.Text{String: *d.ShotType, Valid: true}
-		}
-		if d.ShootingPlayerID != nil {
-			p.ShootingPlayerID = pgtype.Int8{Int64: int64(*d.ShootingPlayerID), Valid: true}
-		}
-		if d.GoalieInNetID != nil {
-			p.GoalieInNetID = pgtype.Int8{Int64: int64(*d.GoalieInNetID), Valid: true}
-		}
-		if d.BlockingPlayerID != nil {
-			p.BlockingPlayerID = pgtype.Int8{Int64: int64(*d.BlockingPlayerID), Valid: true}
-		}
-		if d.ScoringPlayerID != nil {
-			p.ScoringPlayerID = pgtype.Int8{Int64: int64(*d.ScoringPlayerID), Valid: true}
-		}
-		if d.ScoringPlayerTotal != nil {
-			p.ScoringPlayerTotal = pgtype.Int4{Int32: int32(*d.ScoringPlayerTotal), Valid: true}
-		}
-		if d.Assist1PlayerID != nil {
-			p.Assist1PlayerID = pgtype.Int8{Int64: int64(*d.Assist1PlayerID), Valid: true}
-		}
-		if d.Assist1PlayerTotal != nil {
-			p.Assist1PlayerTotal = pgtype.Int4{Int32: int32(*d.Assist1PlayerTotal), Valid: true}
-		}
-		if d.Assist2PlayerID != nil {
-			p.Assist2PlayerID = pgtype.Int8{Int64: int64(*d.Assist2PlayerID), Valid: true}
-		}
-		if d.Assist2PlayerTotal != nil {
-			p.Assist2PlayerTotal = pgtype.Int4{Int32: int32(*d.Assist2PlayerTotal), Valid: true}
-		}
-		if d.AwayScore != nil {
-			p.AwayScore = pgtype.Int4{Int32: int32(*d.AwayScore), Valid: true}
-		}
-		if d.HomeScore != nil {
-			p.HomeScore = pgtype.Int4{Int32: int32(*d.HomeScore), Valid: true}
-		}
-		if d.HighlightClip != nil {
-			p.HighlightClipID = pgtype.Int8{Int64: *d.HighlightClip, Valid: true}
-		}
-		if d.HighlightClipSharingURL != nil {
-			p.HighlightClipUrl = pgtype.Text{String: *d.HighlightClipSharingURL, Valid: true}
-		}
-		if d.DiscreteClip != nil {
-			p.DiscreteClipID = pgtype.Int8{Int64: *d.DiscreteClip, Valid: true}
-		}
-		if d.TypeCode != nil {
-			p.PenaltyTypeCode = pgtype.Text{String: *d.TypeCode, Valid: true}
-		}
-		if d.DescKey != nil {
-			p.PenaltyDescKey = pgtype.Text{String: *d.DescKey, Valid: true}
-		}
-		if d.Duration != nil {
-			p.PenaltyDuration = pgtype.Int4{Int32: int32(*d.Duration), Valid: true}
-		}
-		if d.CommittedByPlayerID != nil {
-			p.CommittedByPlayerID = pgtype.Int8{Int64: int64(*d.CommittedByPlayerID), Valid: true}
-		}
-		if d.DrawnByPlayerID != nil {
-			p.DrawnByPlayerID = pgtype.Int8{Int64: int64(*d.DrawnByPlayerID), Valid: true}
-		}
-		if d.HittingPlayerID != nil {
-			p.HittingPlayerID = pgtype.Int8{Int64: int64(*d.HittingPlayerID), Valid: true}
-		}
-		if d.HitteePlayerID != nil {
-			p.HitteePlayerID = pgtype.Int8{Int64: int64(*d.HitteePlayerID), Valid: true}
-		}
-		if d.WinningPlayerID != nil {
-			p.WinningPlayerID = pgtype.Int8{Int64: int64(*d.WinningPlayerID), Valid: true}
-		}
-		if d.LosingPlayerID != nil {
-			p.LosingPlayerID = pgtype.Int8{Int64: int64(*d.LosingPlayerID), Valid: true}
-		}
-		if d.PlayerID != nil {
-			p.PlayerID = pgtype.Int8{Int64: int64(*d.PlayerID), Valid: true}
-		}
-		if d.Reason != nil {
-			p.Reason = pgtype.Text{String: *d.Reason, Valid: true}
-		}
-		if d.AwaySOG != nil {
-			p.AwaySog = pgtype.Int4{Int32: int32(*d.AwaySOG), Valid: true}
-		}
-		if d.HomeSOG != nil {
-			p.HomeSog = pgtype.Int4{Int32: int32(*d.HomeSOG), Valid: true}
-		}
+		p.XCoord = ptrToInt4(d.XCoord)
+		p.YCoord = ptrToInt4(d.YCoord)
+		p.ZoneCode = ptrToText(d.ZoneCode)
+		p.EventOwnerTeamID = ptrToInt8(d.EventOwnerTeamID)
+		p.ShotType = ptrToText(d.ShotType)
+		p.ShootingPlayerID = ptrToInt8(d.ShootingPlayerID)
+		p.GoalieInNetID = ptrToInt8(d.GoalieInNetID)
+		p.BlockingPlayerID = ptrToInt8(d.BlockingPlayerID)
+		p.ScoringPlayerID = ptrToInt8(d.ScoringPlayerID)
+		p.ScoringPlayerTotal = ptrToInt4(d.ScoringPlayerTotal)
+		p.Assist1PlayerID = ptrToInt8(d.Assist1PlayerID)
+		p.Assist1PlayerTotal = ptrToInt4(d.Assist1PlayerTotal)
+		p.Assist2PlayerID = ptrToInt8(d.Assist2PlayerID)
+		p.Assist2PlayerTotal = ptrToInt4(d.Assist2PlayerTotal)
+		p.AwayScore = ptrToInt4(d.AwayScore)
+		p.HomeScore = ptrToInt4(d.HomeScore)
+		p.HighlightClipID = ptrToInt8(d.HighlightClip)
+		p.HighlightClipUrl = ptrToText(d.HighlightClipSharingURL)
+		p.DiscreteClipID = ptrToInt8(d.DiscreteClip)
+		p.PenaltyTypeCode = ptrToText(d.TypeCode)
+		p.PenaltyDescKey = ptrToText(d.DescKey)
+		p.PenaltyDuration = ptrToInt4(d.Duration)
+		p.CommittedByPlayerID = ptrToInt8(d.CommittedByPlayerID)
+		p.DrawnByPlayerID = ptrToInt8(d.DrawnByPlayerID)
+		p.HittingPlayerID = ptrToInt8(d.HittingPlayerID)
+		p.HitteePlayerID = ptrToInt8(d.HitteePlayerID)
+		p.WinningPlayerID = ptrToInt8(d.WinningPlayerID)
+		p.LosingPlayerID = ptrToInt8(d.LosingPlayerID)
+		p.PlayerID = ptrToInt8(d.PlayerID)
+		p.Reason = ptrToText(d.Reason)
+		p.AwaySog = ptrToInt4(d.AwaySOG)
+		p.HomeSog = ptrToInt4(d.HomeSOG)
 	}
 
 	return p

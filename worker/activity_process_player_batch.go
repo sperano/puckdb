@@ -237,13 +237,11 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match matching.YahooID
 	}
 
 	// Team ID
-	if landing.CurrentTeamID != nil {
-		params.TeamID = pgtype.Int8{Int64: int64(*landing.CurrentTeamID), Valid: true}
-	}
+	params.TeamID = ptrToInt8(landing.CurrentTeamID)
 
-	// Jersey number
+	// Jersey number — only set if positive (0 means unassigned)
 	if landing.SweaterNumber != nil && *landing.SweaterNumber > 0 {
-		params.SweaterNumber = pgtype.Int4{Int32: int32(*landing.SweaterNumber), Valid: true}
+		params.SweaterNumber = ptrToInt4(landing.SweaterNumber)
 	}
 
 	// Birth date
@@ -260,19 +258,9 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match matching.YahooID
 	if landing.BirthStateProvince != nil {
 		params.BirthStateProvince = pgtype.Text{String: strings.TrimSpace(landing.BirthStateProvince.Default), Valid: true}
 	}
-	if landing.BirthCountry != nil {
-		params.BirthCountry = pgtype.Text{String: strings.TrimSpace(*landing.BirthCountry), Valid: true}
-	}
-
-	// Hero image
-	if landing.HeroImage != nil {
-		params.HeroImageURL = pgtype.Text{String: strings.TrimSpace(*landing.HeroImage), Valid: true}
-	}
-
-	// Player slug
-	if landing.PlayerSlug != nil {
-		params.PlayerSlug = pgtype.Text{String: strings.TrimSpace(*landing.PlayerSlug), Valid: true}
-	}
+	params.BirthCountry = ptrToTextTrimmed(landing.BirthCountry)
+	params.HeroImageURL = ptrToTextTrimmed(landing.HeroImage)
+	params.PlayerSlug = ptrToTextTrimmed(landing.PlayerSlug)
 
 	// Draft details
 	if landing.DraftDetails != nil {
