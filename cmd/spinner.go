@@ -36,6 +36,8 @@ var colorThemes = map[string][colorThemePaletteSize]int{
 	"yellow": {136, 178, 220, 228},
 	"pink":   {132, 168, 205, 212},
 	"coral":  {167, 203, 209, 216},
+	"teal":   {30, 36, 43, 80},
+	"lime":   {64, 106, 148, 154},
 }
 
 // SpinnerPlaceholder is replaced with the current spinner frame when rendering.
