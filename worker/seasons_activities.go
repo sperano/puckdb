@@ -285,7 +285,7 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhl.Se
 
 	// Read standings from cache
 	standingsRes := resource.SeasonStandings{Season: season}
-	standings, err := resource.ReadParsed(a.Storage, standingsRes)
+	standings, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, standingsRes)
 	if err != nil {
 		return result, fmt.Errorf("read season standings from cache: %w", err)
 	}

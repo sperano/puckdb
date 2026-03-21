@@ -27,17 +27,17 @@ const colorThemePaletteSize = 4
 
 // colorThemes maps theme names to 4-shade ANSI 256-color palettes (dark to light).
 var colorThemes = map[string][colorThemePaletteSize]int{
-	"red":    {160, 196, 203, 210},
-	"blue":   {25, 33, 39, 75},
-	"green":  {28, 34, 46, 82},
-	"purple": {97, 134, 141, 177},
-	"white":  {245, 250, 254, 255},
-	"cyan":   {37, 44, 51, 87},
-	"yellow": {136, 178, 220, 228},
-	"pink":   {132, 168, 205, 212},
-	"coral":  {167, 203, 209, 216},
-	"teal":   {30, 36, 43, 80},
-	"lime":   {64, 106, 148, 154},
+	"red":    {160, 167, 174, 181},
+	"blue":   {25, 31, 32, 38},
+	"green":  {28, 34, 35, 40},
+	"purple": {97, 103, 104, 134},
+	"white":  {245, 247, 248, 250},
+	"cyan":   {37, 43, 44, 50},
+	"yellow": {136, 142, 172, 178},
+	"pink":   {132, 133, 168, 169},
+	"coral":  {167, 173, 174, 203},
+	"teal":   {30, 31, 36, 37},
+	"lime":   {64, 70, 100, 106},
 }
 
 // SpinnerPlaceholder is replaced with the current spinner frame when rendering.

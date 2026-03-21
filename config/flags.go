@@ -414,7 +414,7 @@ var DisplayFlags = FlagGroup{
 // SpinnerFlags defines spinner display option flags.
 var SpinnerFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagTheme, "", "", "Color theme for spinner pulse (orange, red, blue, green, purple, white, cyan, yellow, pink, teal, lime, coral)", false},
+		{FlagTheme, "", "", "Color theme for spinner pulse (red, blue, green, purple, white, cyan, yellow, pink, coral, teal, lime)", false},
 		{FlagRandomTheme, "", false, "Assign a random color theme to each spinner", false},
 	},
 }
