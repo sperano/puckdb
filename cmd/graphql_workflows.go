@@ -6,19 +6,6 @@ import (
 	"github.com/sperano/puckdb/graph/model"
 )
 
-// DownloadEverything triggers the downloadEverything mutation
-func (c *GraphQLClient) DownloadEverything(ctx context.Context) (bool, error) {
-	return c.executeBoolMutation(ctx, `mutation { downloadEverything }`, "downloadEverything", nil)
-}
-
-// DownloadEverythingForSeason triggers the downloadEverythingForSeason mutation
-func (c *GraphQLClient) DownloadEverythingForSeason(ctx context.Context, season int) (bool, error) {
-	return c.executeBoolMutation(ctx,
-		`mutation($season: Int!) { downloadEverythingForSeason(season: $season) }`,
-		"downloadEverythingForSeason",
-		map[string]any{"season": season})
-}
-
 // FetchSeasons triggers the fetchSeasons mutation with an optional season range.
 func (c *GraphQLClient) FetchSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
 	return c.executeBoolMutation(ctx,

@@ -225,11 +225,8 @@ type workflowRunner struct {
 	getStatus    statusFetcher
 }
 
-func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState) error {
-	state.setActive(r.workflowType)
-	defer state.clearActive(r.workflowType)
-
-	// Start spinner immediately so user sees feedback during trigger call
+// newThemedSpinner creates a spinner with the user's configured color theme and starts it.
+func newThemedSpinner(out io.Writer) *spinner {
 	sp := newSpinner(out, "Starting...")
 	if theme := viper.GetString(config.FlagTheme); theme != "" {
 		sp.SetColorTheme(theme)
@@ -237,6 +234,14 @@ func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState
 		sp.SetRandomLineThemes()
 	}
 	sp.Start()
+	return sp
+}
+
+func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState) error {
+	state.setActive(r.workflowType)
+	defer state.clearActive(r.workflowType)
+
+	sp := newThemedSpinner(out)
 
 	started, err := r.trigger()
 	if err != nil {
@@ -273,14 +278,7 @@ func runParallel(ctx context.Context, out io.Writer, state *syncState, runners .
 		}
 	}()
 
-	// Start spinner
-	sp := newSpinner(out, "Starting...")
-	if theme := viper.GetString(config.FlagTheme); theme != "" {
-		sp.SetColorTheme(theme)
-	} else if viper.GetBool(config.FlagRandomTheme) {
-		sp.SetRandomLineThemes()
-	}
-	sp.Start()
+	sp := newThemedSpinner(out)
 
 	// Trigger all workflows
 	for _, r := range runners {
@@ -389,30 +387,6 @@ func monitorWorkflows(ctx context.Context, sp *spinner, fetchers []statusFetcher
 		case <-time.After(pollDelay(consecutiveFailures)):
 		}
 	}
-}
-
-func runInitialize(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	return workflowRunner{
-		workflowType: workflowInitialize,
-		trigger:      func() (bool, error) { return client.Initialize(ctx) },
-		getStatus:    client.GetInitializeStatus,
-	}.run(ctx, out, state)
-}
-
-func runFetchYahooPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	return workflowRunner{
-		workflowType: workflowYahooPlayers,
-		trigger:      func() (bool, error) { return client.FetchYahooPlayers(ctx) },
-		getStatus:    client.GetFetchYahooPlayersStatus,
-	}.run(ctx, out, state)
-}
-
-func runFetchSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	return workflowRunner{
-		workflowType: workflowFetchSeasons,
-		trigger:      func() (bool, error) { return client.FetchSeasons(ctx, buildSeasonsInput()) },
-		getStatus:    client.GetFetchSeasonsStatus,
-	}.run(ctx, out, state)
 }
 
 func runExtractBoxscorePlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {

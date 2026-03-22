@@ -31,8 +31,6 @@ func buildSeasonsInput() *model.SeasonsInput {
 }
 
 func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher) error {
-	startedAt := time.Now()
-
 	// Wait briefly for workflow to start and register query handlers
 	time.Sleep(config.DefaultWorkflowStartupDelay)
 
@@ -57,18 +55,6 @@ func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher) 
 
 			switch status.Result.Status {
 			case model.TemporalWorkflowStatusCompleted:
-				// For PARALLEL with completedHeader, format with stats
-				if status.Progress != nil &&
-					status.Progress.CompletedHeader != nil && *status.Progress.CompletedHeader != "" &&
-					status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleParallel {
-					elapsed := time.Since(startedAt)
-					itemCount := len(status.Progress.Items)
-					// CompletedHeader is a template like "Fetched %d seasons"
-					header := fmt.Sprintf(*status.Progress.CompletedHeader, itemCount)
-					sp.mu.Lock()
-					sp.message = fmt.Sprintf("✓ %s in %s.", header, formatElapsed(elapsed))
-					sp.mu.Unlock()
-				}
 				sp.Stop()
 				return nil
 			case model.TemporalWorkflowStatusFailed:
@@ -116,114 +102,10 @@ func pollDelay(consecutiveFailures int) time.Duration {
 }
 
 func formatStatusMessage(status *WorkflowStatus) string {
-	// New ProgressReport format (Initialize workflow)
-	if status.ProgressReport != nil {
-		return formatProgressReport(status.ProgressReport)
+	if status.Progress != nil {
+		return formatProgressReport(status.Progress)
 	}
-
-	if status.Progress == nil {
-		return fmt.Sprintf("Workflow status: %s", status.Result.Status)
-	}
-
-	header := ""
-	if status.Progress.Header != nil {
-		header = *status.Progress.Header
-	}
-
-	var lines []string
-
-	// Add workflow message if present
-	if status.Progress.Message != nil && *status.Progress.Message != "" {
-		lines = append(lines, *status.Progress.Message)
-	}
-
-	// If no items, show simple header + progress bar (or fallback message)
-	if len(status.Progress.Items) == 0 {
-		if status.Progress.Total == 0 {
-			if len(lines) > 0 {
-				return strings.Join(lines, "\n")
-			}
-			return fmt.Sprintf("Workflow status: %s", status.Result.Status)
-		}
-		if header != "" {
-			lines = append(lines, fmt.Sprintf("▶ %s", header))
-		}
-		pct := float64(status.Progress.Completed) / float64(status.Progress.Total) * 100
-		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-		lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
-			SpinnerPlaceholder, formatLabelArea("", status.Progress.Completed, status.Progress.Total), bar, int(pct)))
-		return strings.Join(lines, "\n")
-	}
-
-	// Grouped items display: single header with multiple concurrent progress bars
-	if status.Progress.DisplayStyle != nil && *status.Progress.DisplayStyle == model.ProgressDisplayStyleParallel {
-		if header != "" {
-			lines = append(lines, fmt.Sprintf("▶ %s", header))
-		}
-
-		// Format: spinner + 22-char label area (label left, x/y right) + bar + percent
-		for _, item := range status.Progress.Items {
-			if !item.Started || (item.Completed == item.Total && item.Total > 0) {
-				continue
-			}
-
-			description := fmt.Sprintf("Item %d", item.ID)
-			if item.Description != nil && *item.Description != "" {
-				description = *item.Description
-			}
-
-			pct := float64(item.Completed) / float64(item.Total) * 100
-			bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-			lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
-				SpinnerPlaceholder, formatLabelArea(description, item.Completed, item.Total), bar, int(pct)))
-		}
-
-		// Total progress line
-		if status.Progress.Total > 0 {
-			totalPct := float64(status.Progress.Completed) / float64(status.Progress.Total) * 100
-			totalBar := renderProgressBar(totalPct, config.DefaultProgressBarWidth)
-			lines = append(lines, fmt.Sprintf("  %s %s %d%%",
-				formatLabelArea("Total", status.Progress.Completed, status.Progress.Total), totalBar, int(totalPct)))
-		}
-
-		return strings.Join(lines, "\n")
-	}
-
-	// Default: display each item with ✓/▶/indent (for phases, etc.)
-	for _, item := range status.Progress.Items {
-		description := fmt.Sprintf("Item %d", item.ID)
-		if item.Description != nil && *item.Description != "" {
-			description = *item.Description
-		}
-		completedDescription := description
-		if item.CompletedDescription != nil && *item.CompletedDescription != "" {
-			completedDescription = *item.CompletedDescription
-		}
-
-		isCompleted := (item.Completed == item.Total && item.Total > 0) ||
-			(item.CompletedAt != nil && *item.CompletedAt != "")
-		if isCompleted {
-			// Completed: checkmark with completed description
-			lines = append(lines, fmt.Sprintf("✓ %s", completedDescription))
-		} else if item.Started {
-			// In progress: show spinner with description
-			if item.Total <= 1 {
-				// Skip progress bar when total is 1
-				lines = append(lines, fmt.Sprintf("%s %s", SpinnerPlaceholder, description))
-			} else {
-				lines = append(lines, fmt.Sprintf("▶ %s", description))
-				pct := float64(item.Completed) / float64(item.Total) * 100
-				bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
-				lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
-					SpinnerPlaceholder, formatLabelArea("", item.Completed, item.Total), bar, int(pct)))
-			}
-		} else {
-			// Pending: don't display
-			continue
-		}
-	}
-
-	return strings.Join(lines, "\n")
+	return fmt.Sprintf("Workflow status: %s", status.Result.Status)
 }
 
 func renderProgressBar(pct float64, width int) string {

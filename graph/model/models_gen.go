@@ -50,17 +50,6 @@ type ProgressGroup struct {
 	CompletedAt  int64          `json:"completedAt"`
 }
 
-type ProgressItem struct {
-	ID                   int     `json:"id"`
-	Description          *string `json:"description,omitempty"`
-	CompletedDescription *string `json:"completedDescription,omitempty"`
-	Total                int     `json:"total"`
-	Completed            int     `json:"completed"`
-	Started              bool    `json:"started"`
-	StartedAt            *string `json:"startedAt,omitempty"`
-	CompletedAt          *string `json:"completedAt,omitempty"`
-}
-
 type ProgressReport struct {
 	Total     int              `json:"total"`
 	Completed int              `json:"completed"`
@@ -88,60 +77,9 @@ type TrulyUnmatchedPlayer struct {
 	NhlName     string `json:"nhlName"`
 }
 
-type WorkflowProgress struct {
-	Total           int                   `json:"total"`
-	Completed       int                   `json:"completed"`
-	Message         *string               `json:"message,omitempty"`
-	Header          *string               `json:"header,omitempty"`
-	CompletedHeader *string               `json:"completedHeader,omitempty"`
-	Items           []*ProgressItem       `json:"items,omitempty"`
-	DisplayStyle    *ProgressDisplayStyle `json:"displayStyle,omitempty"`
-}
-
 type WorkflowResult struct {
 	Status        TemporalWorkflowStatus `json:"status"`
 	FailureReason *string                `json:"failureReason,omitempty"`
-}
-
-type ProgressDisplayStyle string
-
-const (
-	ProgressDisplayStyleSequential ProgressDisplayStyle = "SEQUENTIAL"
-	ProgressDisplayStyleParallel   ProgressDisplayStyle = "PARALLEL"
-)
-
-var AllProgressDisplayStyle = []ProgressDisplayStyle{
-	ProgressDisplayStyleSequential,
-	ProgressDisplayStyleParallel,
-}
-
-func (e ProgressDisplayStyle) IsValid() bool {
-	switch e {
-	case ProgressDisplayStyleSequential, ProgressDisplayStyleParallel:
-		return true
-	}
-	return false
-}
-
-func (e ProgressDisplayStyle) String() string {
-	return string(e)
-}
-
-func (e *ProgressDisplayStyle) UnmarshalGQL(v interface{}) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = ProgressDisplayStyle(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid ProgressDisplayStyle", str)
-	}
-	return nil
-}
-
-func (e ProgressDisplayStyle) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 type TemporalWorkflowStatus string

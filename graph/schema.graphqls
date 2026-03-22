@@ -23,35 +23,6 @@ type WorkflowResult {
 	failureReason: String
 }
 
-type ProgressItem {
-	id: Int!
-	description: String
-	completedDescription: String
-	total: Int!
-	completed: Int!
-	started: Boolean!
-	startedAt: String
-	completedAt: String
-}
-
-# ProgressDisplayStyle determines how items are rendered in the CLI.
-enum ProgressDisplayStyle {
-	# SEQUENTIAL: Steps shown with ✓/▶ prefixes, completed items remain visible
-	SEQUENTIAL
-	# PARALLEL: Concurrent items with progress bars, completed items hidden
-	PARALLEL
-}
-
-type WorkflowProgress {
-	total: Int!
-	completed: Int!
-	message: String
-	header: String
-	completedHeader: String
-	items: [ProgressItem!]
-	displayStyle: ProgressDisplayStyle
-}
-
 type ProgressBar {
 	label: String
 	current: Int!

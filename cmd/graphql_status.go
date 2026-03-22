@@ -11,26 +11,10 @@ import (
 // Common GraphQL field selections for workflow queries.
 const (
 	resultFields         = "{ status failureReason }"
-	progressFieldsBasic  = "{ total completed message }"
 	progressReportFields = "{ total completed message groups { header completedMsg bars { label current total started } startedAt completedAt } }"
 )
 
-// GetDownloadEverythingStatus queries both workflow result and progress in a single request.
-func (c *GraphQLClient) GetDownloadEverythingStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeWorkflowStatusQuery(ctx,
-		`query { downloadEverythingResult `+resultFields+` downloadEverythingProgress `+progressFieldsBasic+` }`,
-		"downloadEverythingResult", "downloadEverythingProgress", nil)
-}
-
-// GetDownloadEverythingForSeasonStatus queries both workflow result and progress for a specific season.
-func (c *GraphQLClient) GetDownloadEverythingForSeasonStatus(ctx context.Context, season int) (*WorkflowStatus, error) {
-	return c.executeWorkflowStatusQuery(ctx,
-		`query($season: Int!) { downloadEverythingForSeasonResult(season: $season) `+resultFields+` downloadEverythingForSeasonProgress(season: $season) { total completed } }`,
-		"downloadEverythingForSeasonResult", "downloadEverythingForSeasonProgress",
-		map[string]any{"season": season})
-}
-
-// GetFetchSeasonsStatus queries both workflow result and progress (uses ProgressReport format)
+// GetFetchSeasonsStatus queries both workflow result and progress
 func (c *GraphQLClient) GetFetchSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	return c.executeProgressReportQuery(ctx,
 		`query { fetchSeasonsResult `+resultFields+` fetchSeasonsProgress `+progressReportFields+` }`,
