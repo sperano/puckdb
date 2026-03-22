@@ -57,6 +57,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	startYear := season.ID.StartYear()
 	seasonID := season.ID.ID()
 
+	counts := core.OriginCounts{}
 	var sa *SeasonsActivities
 	err = tracker.RunWorkerPool(ctx, GroupImportDays, 0, numDays, dayConcurrency,
 		func(_ workflow.Context, i int) workflow.Future {
@@ -69,7 +70,14 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 				TotalDays: numDays,
 			}
 			return workflow.ExecuteActivity(ctx, sa.ImportDay, input)
-		}, nil)
+		}, func(_ workflow.Context, _ int, f workflow.Future) error {
+			var dayCounts core.OriginCounts
+			if err := f.Get(ctx, &dayCounts); err != nil {
+				return err
+			}
+			counts.Add(dayCounts)
+			return nil
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +88,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	logger.Info("ImportSeasonWorkflow completed",
 		"startYear", season.ID.StartYear())
 
-	return nil, nil
+	return counts, nil
 }
 
 // importYahooLeaguesAndTeams imports Yahoo league and team metadata.

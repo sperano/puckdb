@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"go.temporal.io/sdk/activity"
 )
@@ -20,58 +21,71 @@ type ImportDayInput struct {
 
 // ImportDay chains per-day import operations: boxscores, game stories, and Yahoo data.
 // Player game logs are handled separately as a per-season batched activity.
-func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput) error {
+func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput) (core.OriginCounts, error) {
 	start := time.Now()
 	defer func() {
 		metrics.ObserveActivityDuration("ImportDay", time.Since(start))
 	}()
 
 	logger := activity.GetLogger(ctx)
+	counts := core.OriginCounts{}
 	activity.RecordHeartbeat(ctx, "boxscores")
 
 	// Import boxscores
 	boxscoreInput := ImportBoxscoresForDateInput{DateSeasonInput{Date: input.Date, Season: input.Season}}
-	if _, err := a.ImportBoxscoresForDate(ctx, boxscoreInput); err != nil {
-		return fmt.Errorf("import boxscores for %s: %w", input.Date.Format("2006-01-02"), err)
+	boxResult, err := a.ImportBoxscoresForDate(ctx, boxscoreInput)
+	if err != nil {
+		return counts, fmt.Errorf("import boxscores for %s: %w", input.Date.Format("2006-01-02"), err)
 	}
+	counts.Add(boxResult.Origins)
 	activity.RecordHeartbeat(ctx, "game-stories")
 
 	// Import game stories
 	gameStoryInput := ImportGameStoryForDateInput{Season: input.SeasonID, Date: input.Date}
-	if _, err := a.ImportGameStoryForDate(ctx, gameStoryInput); err != nil {
-		return fmt.Errorf("import game story for %s: %w", input.Date.Format("2006-01-02"), err)
+	gsResult, err := a.ImportGameStoryForDate(ctx, gameStoryInput)
+	if err != nil {
+		return counts, fmt.Errorf("import game story for %s: %w", input.Date.Format("2006-01-02"), err)
 	}
+	counts.Add(gsResult.Origins)
 	activity.RecordHeartbeat(ctx, "play-by-play")
 
 	// Import play-by-play
 	pbpInput := ImportPlayByPlayForDateInput{DateSeasonInput{Date: input.Date, Season: input.Season}}
-	if _, err := a.ImportPlayByPlayForDate(ctx, pbpInput); err != nil {
-		return fmt.Errorf("import play-by-play for %s: %w", input.Date.Format("2006-01-02"), err)
+	pbpResult, err := a.ImportPlayByPlayForDate(ctx, pbpInput)
+	if err != nil {
+		return counts, fmt.Errorf("import play-by-play for %s: %w", input.Date.Format("2006-01-02"), err)
 	}
+	counts.Add(pbpResult.Origins)
 	activity.RecordHeartbeat(ctx, "shift-charts")
 
 	// Import shift charts
 	scInput := ImportShiftChartForDateInput{DateSeasonInput{Date: input.Date, Season: input.Season}}
-	if _, err := a.ImportShiftChartForDate(ctx, scInput); err != nil {
-		return fmt.Errorf("import shift chart for %s: %w", input.Date.Format("2006-01-02"), err)
+	scResult, err := a.ImportShiftChartForDate(ctx, scInput)
+	if err != nil {
+		return counts, fmt.Errorf("import shift chart for %s: %w", input.Date.Format("2006-01-02"), err)
 	}
+	counts.Add(scResult.Origins)
 	activity.RecordHeartbeat(ctx, "season-series")
 
 	// Import season series (officials, coaches, scratches)
 	ssInput := ImportSeasonSeriesForDateInput{Date: input.Date}
-	if _, err := a.ImportSeasonSeriesForDate(ctx, ssInput); err != nil {
-		return fmt.Errorf("import season series for %s: %w", input.Date.Format("2006-01-02"), err)
+	ssResult, err := a.ImportSeasonSeriesForDate(ctx, ssInput)
+	if err != nil {
+		return counts, fmt.Errorf("import season series for %s: %w", input.Date.Format("2006-01-02"), err)
 	}
+	counts.Add(ssResult.Origins)
 	activity.RecordHeartbeat(ctx, "yahoo")
 
 	// Import Yahoo data if teams configured
 	if len(input.TeamIDs) > 0 {
 		yahooInput := ImportYahooDataForDateInput{Season: input.Season, Teams: input.TeamIDs, Date: input.Date}
-		if _, err := a.ImportYahooDataForDate(ctx, yahooInput); err != nil {
-			return fmt.Errorf("import Yahoo data for %s: %w", input.Date.Format("2006-01-02"), err)
+		yahooResult, err := a.ImportYahooDataForDate(ctx, yahooInput)
+		if err != nil {
+			return counts, fmt.Errorf("import Yahoo data for %s: %w", input.Date.Format("2006-01-02"), err)
 		}
+		counts.Add(yahooResult.Origins)
 	}
 
 	logger.Debug("Imported day data", "date", input.Date.Format("2006-01-02"))
-	return nil
+	return counts, nil
 }

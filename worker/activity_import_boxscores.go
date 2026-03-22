@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
 	"go.temporal.io/sdk/activity"
@@ -23,10 +24,11 @@ type ImportBoxscoresForDateInput struct {
 
 // ImportBoxscoresForDateResult contains the results of importing boxscores for a single date.
 type ImportBoxscoresForDateResult struct {
-	GamesImported   int `json:"gamesImported"`
-	SkatersImported int `json:"skatersImported"`
-	GoaliesImported int `json:"goaliesImported"`
-	GamesSkipped    int `json:"gamesSkipped"` // Games not yet final
+	GamesImported   int              `json:"gamesImported"`
+	SkatersImported int              `json:"skatersImported"`
+	GoaliesImported int              `json:"goaliesImported"`
+	GamesSkipped    int              `json:"gamesSkipped"` // Games not yet final
+	Origins         core.OriginCounts `json:"origins"`
 }
 
 // ImportBoxscoresForDate imports all boxscores for a single date from the cache into the database.
@@ -51,7 +53,7 @@ func (a *SeasonsActivities) ImportBoxscoresForDate(ctx context.Context, input Im
 // importBoxscoresForDate contains the core boxscore import logic.
 // Separated from ImportBoxscoresForDate to allow testing with a narrower queries interface.
 func (a *SeasonsActivities) importBoxscoresForDate(ctx context.Context, queries BoxscoreUpserter, input ImportBoxscoresForDateInput) (ImportBoxscoresForDateResult, error) {
-	result := ImportBoxscoresForDateResult{}
+	result := ImportBoxscoresForDateResult{Origins: core.OriginCounts{}}
 
 	// Read the daily schedule to get game IDs
 	scheduleRes := resource.DailySchedule{Date: input.Date}
@@ -60,10 +62,11 @@ func (a *SeasonsActivities) importBoxscoresForDate(ctx context.Context, queries 
 		return result, nil
 	}
 
-	schedule, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+	schedule, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
 	if err != nil {
 		return result, fmt.Errorf("read daily schedule: %w", err)
 	}
+	result.Origins.Record(origin)
 
 	// Process each game
 	for _, game := range schedule.Games {
@@ -79,10 +82,11 @@ func (a *SeasonsActivities) importBoxscoresForDate(ctx context.Context, queries 
 			return result, fmt.Errorf("boxscore file missing for game %s", game.ID.String())
 		}
 
-		boxscore, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, boxscoreRes)
+		boxscore, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, boxscoreRes)
 		if err != nil {
 			return result, fmt.Errorf("read boxscore for game %s: %w", game.ID.String(), err)
 		}
+		result.Origins.Record(origin)
 
 		// Upsert the game
 		gameParams := boxscoreToGameParams(boxscore, input.Season)

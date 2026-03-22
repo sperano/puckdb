@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -24,8 +25,9 @@ type ImportPlayerGameLogsBatchInput struct {
 
 // ImportPlayerGameLogsBatchResult contains results of importing player game logs.
 type ImportPlayerGameLogsBatchResult struct {
-	PlayersProcessed int `json:"playersProcessed"`
-	GamesUpdated     int `json:"gamesUpdated"`
+	PlayersProcessed int              `json:"playersProcessed"`
+	GamesUpdated     int              `json:"gamesUpdated"`
+	Origins          core.OriginCounts `json:"origins"`
 }
 
 // ImportPlayerGameLogsBatch imports game log stats (PPP, GWG, OT goals) for a batch of players.
@@ -37,7 +39,7 @@ func (a *SeasonsActivities) ImportPlayerGameLogsBatch(ctx context.Context, input
 	}()
 
 	logger := activity.GetLogger(ctx)
-	result := &ImportPlayerGameLogsBatchResult{}
+	result := &ImportPlayerGameLogsBatchResult{Origins: core.OriginCounts{}}
 
 	for _, playerID := range input.PlayerIDs {
 		gameLogRes := resource.PlayerGameLog{
@@ -50,11 +52,12 @@ func (a *SeasonsActivities) ImportPlayerGameLogsBatch(ctx context.Context, input
 			continue
 		}
 
-		gameLog, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, gameLogRes)
+		gameLog, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, gameLogRes)
 		if err != nil {
 			log.Debug().Err(err).Int64("playerID", playerID).Msg("Failed to read player game log")
 			continue
 		}
+		result.Origins.Record(origin)
 
 		updated, err := importPlayerGameLog(ctx, a.ImportQueries, playerID, gameLog)
 		if err != nil {

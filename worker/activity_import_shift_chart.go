@@ -7,6 +7,7 @@ import (
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -25,8 +26,9 @@ type ImportShiftChartForDateInput struct {
 
 // ImportShiftChartForDateResult contains the results of importing shift chart data.
 type ImportShiftChartForDateResult struct {
-	GamesProcessed int `json:"gamesProcessed"`
-	ShiftsImported int `json:"shiftsImported"`
+	GamesProcessed int              `json:"gamesProcessed"`
+	ShiftsImported int              `json:"shiftsImported"`
+	Origins        core.OriginCounts `json:"origins"`
 }
 
 // ImportShiftChartForDate imports shift chart data for all games on a given date.
@@ -38,17 +40,18 @@ func (a *SeasonsActivities) ImportShiftChartForDate(ctx context.Context, input I
 
 	logger := activity.GetLogger(ctx)
 
-	result := ImportShiftChartForDateResult{}
+	result := ImportShiftChartForDateResult{Origins: core.OriginCounts{}}
 
 	scheduleRes := resource.DailySchedule{Date: input.Date}
 	if !a.Storage.Exists(scheduleRes.Path()) {
 		return result, nil
 	}
 
-	schedule, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+	schedule, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
 	if err != nil {
 		return result, fmt.Errorf("read daily schedule: %w", err)
 	}
+	result.Origins.Record(origin)
 
 	for _, game := range schedule.Games {
 		if shouldSkipGame(game) {
@@ -60,10 +63,11 @@ func (a *SeasonsActivities) ImportShiftChartForDate(ctx context.Context, input I
 			return result, fmt.Errorf("shift chart file missing for game %s", game.ID.String())
 		}
 
-		sc, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scRes)
+		sc, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scRes)
 		if err != nil {
 			return result, fmt.Errorf("read shift chart for game %s: %w", game.ID.String(), err)
 		}
+		result.Origins.Record(origin)
 
 		if len(sc.Data) == 0 {
 			continue

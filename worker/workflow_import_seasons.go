@@ -48,6 +48,7 @@ func ImportSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) erro
 		Counter:     countDaysInSeason,
 		ChildIDFunc: WorkflowIDImportSeason,
 		GroupLabel:  "Imported",
+		CountLabel:  "cache reads",
 	}, func(ctx workflow.Context, i int) workflow.Future {
 		season := seasons[i]
 		return workflow.ExecuteChildWorkflow(

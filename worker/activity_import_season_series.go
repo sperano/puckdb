@@ -7,6 +7,7 @@ import (
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -33,6 +34,7 @@ type ImportSeasonSeriesForDateResult struct {
 	CoachesImported  int
 	ScratchesImported int
 	Errors           []string
+	Origins          core.OriginCounts
 }
 
 // ImportSeasonSeriesForDate imports season series data (officials, coaches, scratches)
@@ -44,17 +46,18 @@ func (a *SeasonsActivities) ImportSeasonSeriesForDate(ctx context.Context, input
 	}()
 
 	logger := activity.GetLogger(ctx)
-	result := &ImportSeasonSeriesForDateResult{}
+	result := &ImportSeasonSeriesForDateResult{Origins: core.OriginCounts{}}
 
 	scheduleRes := resource.DailySchedule{Date: input.Date}
 	if !a.Storage.Exists(scheduleRes.Path()) {
 		return result, nil
 	}
 
-	schedule, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+	schedule, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
 	if err != nil {
 		return result, fmt.Errorf("read schedule: %w", err)
 	}
+	result.Origins.Record(origin)
 
 	if len(schedule.Games) == 0 {
 		return result, nil
@@ -67,7 +70,7 @@ func (a *SeasonsActivities) ImportSeasonSeriesForDate(ctx context.Context, input
 		default:
 		}
 
-		stats, errs := a.processSeasonSeries(ctx, game.ID, input.Date)
+		stats, errs := a.processSeasonSeries(ctx, game.ID, input.Date, result.Origins)
 		result.GamesProcessed++
 		result.OfficialsImported += stats.officials
 		result.CoachesImported += stats.coaches
@@ -96,6 +99,7 @@ func (a *SeasonsActivities) processSeasonSeries(
 	ctx context.Context,
 	gameID nhl.GameID,
 	date time.Time,
+	origins core.OriginCounts,
 ) (seasonSeriesStats, []string) {
 	var stats seasonSeriesStats
 	var errors []string
@@ -105,11 +109,12 @@ func (a *SeasonsActivities) processSeasonSeries(
 		return stats, errors
 	}
 
-	matchup, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, seriesRes)
+	matchup, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, seriesRes)
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("game %d: read error: %v", gameID, err))
 		return stats, errors
 	}
+	origins.Record(origin)
 
 	gid := int64(gameID)
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/core"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -26,7 +27,7 @@ func NewImportSeasonPlayerLogsReport(season nhl.SeasonInfo, playerCount int) *Pr
 
 // ImportSeasonPlayerLogsWorkflow imports player game logs for all players in a season.
 // Player IDs are loaded from Redis (populated by ExtractBoxscorePlayersWorkflow).
-func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo) error {
+func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 
 	logger.Info("ImportSeasonPlayerLogsWorkflow started",
@@ -40,12 +41,12 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 	var sa *SeasonsActivities
 	var playerIDs []int64
 	if err := workflow.ExecuteActivity(ctx, sa.CollectSeasonPlayerIDs, season).Get(ctx, &playerIDs); err != nil {
-		return fmt.Errorf("collect player IDs: %w", err)
+		return nil, fmt.Errorf("collect player IDs: %w", err)
 	}
 
 	if len(playerIDs) == 0 {
 		logger.Info("No players found for season", "startYear", season.ID.StartYear())
-		return nil
+		return nil, nil
 	}
 
 	numBatches := batchCount(len(playerIDs), playerGameLogBatchSize)
@@ -53,7 +54,7 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 
 	tracker := NewReportTracker(NewImportSeasonPlayerLogsReport(season, len(playerIDs)))
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
-		return err
+		return nil, err
 	}
 	tracker.StartGroup(ctx, GroupImportPlayerLogs)
 
@@ -63,6 +64,7 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 		"batches", numBatches,
 		"concurrency", dayConcurrency)
 
+	counts := core.OriginCounts{}
 	err := tracker.RunWorkerPoolWithIncrement(ctx, GroupImportPlayerLogs, 0, numBatches, dayConcurrency,
 		func(i int) int { return len(batchSlice(playerIDs, i, playerGameLogBatchSize)) },
 		func(_ workflow.Context, i int) workflow.Future {
@@ -72,9 +74,16 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 				PlayerIDs: batch,
 			}
 			return workflow.ExecuteActivity(ctx, sa.ImportPlayerGameLogsBatch, input)
-		}, nil)
+		}, func(_ workflow.Context, _ int, f workflow.Future) error {
+			var batchResult ImportPlayerGameLogsBatchResult
+			if err := f.Get(ctx, &batchResult); err != nil {
+				return err
+			}
+			counts.Add(batchResult.Origins)
+			return nil
+		})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tracker.CompleteGroup(ctx, GroupImportPlayerLogs,
@@ -85,7 +94,7 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 		"startYear", season.ID.StartYear(),
 		"players", len(playerIDs))
 
-	return nil
+	return counts, nil
 }
 
 // WorkflowIDImportSeasonPlayerLogs returns the workflow ID for a single season's player log import.

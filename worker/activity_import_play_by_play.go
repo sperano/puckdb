@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -26,8 +27,9 @@ type ImportPlayByPlayForDateInput struct {
 
 // ImportPlayByPlayForDateResult contains the results of importing play-by-play data.
 type ImportPlayByPlayForDateResult struct {
-	GamesProcessed int `json:"gamesProcessed"`
-	EventsImported int `json:"eventsImported"`
+	GamesProcessed int              `json:"gamesProcessed"`
+	EventsImported int              `json:"eventsImported"`
+	Origins        core.OriginCounts `json:"origins"`
 }
 
 // ImportPlayByPlayForDate imports play-by-play data for all games on a given date.
@@ -39,17 +41,18 @@ func (a *SeasonsActivities) ImportPlayByPlayForDate(ctx context.Context, input I
 
 	logger := activity.GetLogger(ctx)
 
-	result := ImportPlayByPlayForDateResult{}
+	result := ImportPlayByPlayForDateResult{Origins: core.OriginCounts{}}
 
 	scheduleRes := resource.DailySchedule{Date: input.Date}
 	if !a.Storage.Exists(scheduleRes.Path()) {
 		return result, nil
 	}
 
-	schedule, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+	schedule, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
 	if err != nil {
 		return result, fmt.Errorf("read daily schedule: %w", err)
 	}
+	result.Origins.Record(origin)
 
 	for _, game := range schedule.Games {
 		if shouldSkipGame(game) {
@@ -61,10 +64,11 @@ func (a *SeasonsActivities) ImportPlayByPlayForDate(ctx context.Context, input I
 			return result, fmt.Errorf("play-by-play file missing for game %s", game.ID.String())
 		}
 
-		pbp, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, pbpRes)
+		pbp, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, pbpRes)
 		if err != nil {
 			return result, fmt.Errorf("read play-by-play for game %s: %w", game.ID.String(), err)
 		}
+		result.Origins.Record(origin)
 
 		if len(pbp.Plays) == 0 {
 			continue

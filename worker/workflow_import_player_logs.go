@@ -62,6 +62,7 @@ func ImportPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) e
 		Counter:     playerCounter(playerCounts),
 		ChildIDFunc: WorkflowIDImportSeasonPlayerLogs,
 		GroupLabel:  "Imported player logs for",
+		CountLabel:  "cache reads",
 	}, func(ctx workflow.Context, i int) workflow.Future {
 		season := seasons[i]
 		return workflow.ExecuteChildWorkflow(

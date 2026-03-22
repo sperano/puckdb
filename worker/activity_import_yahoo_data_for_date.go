@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -27,6 +28,7 @@ type ImportYahooDataForDateResult struct {
 	SummariesImported int
 	StatsImported     int
 	RostersImported   int
+	Origins           core.OriginCounts
 }
 
 // ImportYahooDataForDate imports Yahoo team summaries and rosters for a single date.
@@ -37,15 +39,15 @@ func (a *SeasonsActivities) ImportYahooDataForDate(ctx context.Context, input Im
 	}()
 
 	logger := activity.GetLogger(ctx)
-	result := ImportYahooDataForDateResult{}
+	result := ImportYahooDataForDateResult{Origins: core.OriginCounts{}}
 
 	if len(input.Teams) == 0 {
 		return result, nil
 	}
 
 	// Collect params for this date across all teams
-	summaryParams, statParams := a.collectSummaryParams(ctx, input.Teams, input.Date)
-	rosterParams := a.collectRosterParams(ctx, input.Teams, input.Date)
+	summaryParams, statParams := a.collectSummaryParams(ctx, input.Teams, input.Date, result.Origins)
+	rosterParams := a.collectRosterParams(ctx, input.Teams, input.Date, result.Origins)
 
 	// Batch upsert summaries
 	if len(summaryParams) > 0 {
@@ -83,7 +85,7 @@ func (a *SeasonsActivities) ImportYahooDataForDate(ctx context.Context, input Im
 }
 
 // collectSummaryParams reads team summary files and returns params for summaries and stats.
-func (a *SeasonsActivities) collectSummaryParams(ctx context.Context, teams []TeamInfo, date time.Time) (
+func (a *SeasonsActivities) collectSummaryParams(ctx context.Context, teams []TeamInfo, date time.Time, origins core.OriginCounts) (
 	[]sqlcdb.UpsertYahooTeamSummaryBatchParams,
 	[]sqlcdb.UpsertYahooTeamSummaryStatBatchParams,
 ) {
@@ -97,7 +99,7 @@ func (a *SeasonsActivities) collectSummaryParams(ctx context.Context, teams []Te
 			continue
 		}
 
-		fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, summaryRes)
+		fantasy, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, summaryRes)
 		if err != nil {
 			log.Debug().Err(err).
 				Int("teamID", teamInfo.TeamID).
@@ -105,6 +107,7 @@ func (a *SeasonsActivities) collectSummaryParams(ctx context.Context, teams []Te
 				Msg("Failed to read summary file")
 			continue
 		}
+		origins.Record(origin)
 
 		team := fantasy.Team
 		teamStats := team.TeamStats
@@ -135,7 +138,7 @@ func (a *SeasonsActivities) collectSummaryParams(ctx context.Context, teams []Te
 }
 
 // collectRosterParams reads team roster files and returns params for rosters.
-func (a *SeasonsActivities) collectRosterParams(ctx context.Context, teams []TeamInfo, date time.Time) []sqlcdb.UpsertYahooTeamRosterBatchParams {
+func (a *SeasonsActivities) collectRosterParams(ctx context.Context, teams []TeamInfo, date time.Time, origins core.OriginCounts) []sqlcdb.UpsertYahooTeamRosterBatchParams {
 	var rosterParams []sqlcdb.UpsertYahooTeamRosterBatchParams
 	pgDate := pgtype.Date{Time: date, Valid: true}
 
@@ -145,7 +148,7 @@ func (a *SeasonsActivities) collectRosterParams(ctx context.Context, teams []Tea
 			continue
 		}
 
-		fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, rosterRes)
+		fantasy, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, rosterRes)
 		if err != nil {
 			log.Debug().Err(err).
 				Int("teamID", teamInfo.TeamID).
@@ -153,6 +156,7 @@ func (a *SeasonsActivities) collectRosterParams(ctx context.Context, teams []Tea
 				Msg("Failed to read roster file")
 			continue
 		}
+		origins.Record(origin)
 
 		team := fantasy.Team
 		roster := team.Roster

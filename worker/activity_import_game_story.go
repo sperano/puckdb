@@ -7,6 +7,7 @@ import (
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -26,6 +27,7 @@ type ImportGameStoryForDateResult struct {
 	HighlightsImported int
 	ShootoutsImported  int
 	Errors             []string
+	Origins            core.OriginCounts
 }
 
 // ImportGameStoryForDate imports game story data (three stars, highlights, shootouts)
@@ -38,7 +40,7 @@ func (a *SeasonsActivities) ImportGameStoryForDate(ctx context.Context, input Im
 
 	logger := activity.GetLogger(ctx)
 
-	result := &ImportGameStoryForDateResult{}
+	result := &ImportGameStoryForDateResult{Origins: core.OriginCounts{}}
 
 	// Read daily schedule to get game IDs
 	scheduleRes := resource.DailySchedule{Date: input.Date}
@@ -46,10 +48,11 @@ func (a *SeasonsActivities) ImportGameStoryForDate(ctx context.Context, input Im
 		return result, nil // No games on this date
 	}
 
-	schedule, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+	schedule, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
 	if err != nil {
 		return result, fmt.Errorf("read schedule: %w", err)
 	}
+	result.Origins.Record(origin)
 
 	if len(schedule.Games) == 0 {
 		return result, nil
@@ -63,7 +66,7 @@ func (a *SeasonsActivities) ImportGameStoryForDate(ctx context.Context, input Im
 		default:
 		}
 
-		stats, errs := a.processGameStory(ctx, game.ID, input.Season, input.Date)
+		stats, errs := a.processGameStory(ctx, game.ID, input.Season, input.Date, result.Origins)
 		result.GamesProcessed++
 		result.ThreeStarsImported += stats.threeStars
 		result.HighlightsImported += stats.highlights
@@ -101,6 +104,7 @@ func (a *SeasonsActivities) processGameStory(
 	gameID nhl.GameID,
 	season int,
 	date time.Time,
+	origins core.OriginCounts,
 ) (gameStoryStats, []string) {
 	var stats gameStoryStats
 	var errors []string
@@ -111,11 +115,12 @@ func (a *SeasonsActivities) processGameStory(
 		return stats, errors // No game story for this game
 	}
 
-	story, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, storyRes)
+	story, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, storyRes)
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("game %d: read error: %v", gameID, err))
 		return stats, errors
 	}
+	origins.Record(origin)
 
 	gid := int64(gameID)
 

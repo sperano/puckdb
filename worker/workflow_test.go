@@ -425,7 +425,7 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_Success() {
 	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
 
 	var sa *SeasonsActivities
-	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
@@ -439,7 +439,7 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ActivityError()
 
 	var sa *SeasonsActivities
 	expectedErr := errors.New("database connection failed")
-	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(expectedErr)
+	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(core.OriginCounts{}, expectedErr)
 
 	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
@@ -462,7 +462,7 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SingleDay() {
 	season := testSeasonW(2023, "2023-10-10", "2023-10-10")
 
 	var sa *SeasonsActivities
-	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
@@ -475,7 +475,7 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SomeDaysNoGames
 	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
 
 	var sa *SeasonsActivities
-	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
@@ -592,7 +592,7 @@ func (s *ImportPlayerLogsWorkflowTestSuite) TestSuccess() {
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
 	var pa *PlayerActivities
 	s.env.OnActivity(pa.CountPlayersForAllSeasons, mock.Anything, mock.Anything).Return(map[int]int{2023: 100}, nil)
-	s.env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportPlayerLogsWorkflow, input)
 
@@ -630,7 +630,7 @@ func (s *ImportPlayerLogsWorkflowTestSuite) TestMultipleSeasons() {
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
 	var pa *PlayerActivities
 	s.env.OnActivity(pa.CountPlayersForAllSeasons, mock.Anything, mock.Anything).Return(map[int]int{2022: 50, 2023: 100}, nil)
-	s.env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportPlayerLogsWorkflow, input)
 
