@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -41,7 +42,7 @@ func (a *SeasonsActivities) ImportBoxscoresForDate(ctx context.Context, input Im
 	}
 
 	logger.Info("Imported boxscores for date",
-		"date", input.Date.Format("2006-01-02"),
+		"date", input.Date.Format(config.DateFormat),
 		"games", result.GamesImported,
 		"skaters", result.SkatersImported,
 		"goalies", result.GoaliesImported,
@@ -58,7 +59,7 @@ func (a *SeasonsActivities) importBoxscoresForDate(ctx context.Context, queries 
 	// Read the daily schedule to get game IDs
 	scheduleRes := resource.DailySchedule{Date: input.Date}
 	if !a.Storage.Exists(scheduleRes.Path()) {
-		log.Debug().Str("date", input.Date.Format("2006-01-02")).Msg("No daily schedule file for date")
+		log.Debug().Str("date", input.Date.Format(config.DateFormat)).Msg("No daily schedule file for date")
 		return result, nil
 	}
 
@@ -124,7 +125,7 @@ type BoxscoreUpserter interface {
 func boxscoreToGameParams(b *nhl.Boxscore, season int) sqlcdb.UpsertGameParams {
 	// Parse game date
 	var gameDate pgtype.Date
-	if t, err := time.Parse("2006-01-02", b.GameDate); err == nil {
+	if t, err := time.Parse(config.DateFormat, b.GameDate); err == nil {
 		gameDate = pgtype.Date{Time: t, Valid: true}
 	}
 

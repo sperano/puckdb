@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -52,13 +53,13 @@ func (a *SeasonsActivities) ImportYahooLeague(ctx context.Context, input ImportY
 
 	// Parse dates
 	var startDate, endDate, tradeEndDate pgtype.Date
-	if t, err := time.Parse("2006-01-02", league.StartDate); err == nil {
+	if t, err := time.Parse(config.DateFormat, league.StartDate); err == nil {
 		startDate = pgtype.Date{Time: t, Valid: true}
 	}
-	if t, err := time.Parse("2006-01-02", league.EndDate); err == nil {
+	if t, err := time.Parse(config.DateFormat, league.EndDate); err == nil {
 		endDate = pgtype.Date{Time: t, Valid: true}
 	}
-	if t, err := time.Parse("2006-01-02", league.Settings.TradeEndDate); err == nil {
+	if t, err := time.Parse(config.DateFormat, league.Settings.TradeEndDate); err == nil {
 		tradeEndDate = pgtype.Date{Time: t, Valid: true}
 	}
 

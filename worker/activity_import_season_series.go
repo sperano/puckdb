@@ -7,11 +7,18 @@ import (
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
 	"go.temporal.io/sdk/activity"
+)
+
+// Official role constants for game officials.
+const (
+	OfficialRoleReferee  = "referee"
+	OfficialRoleLinesman = "linesman"
 )
 
 // SeasonSeriesUpserter is the interface for database operations needed by season series import.
@@ -79,7 +86,7 @@ func (a *SeasonsActivities) ImportSeasonSeriesForDate(ctx context.Context, input
 	}
 
 	logger.Debug("Imported season series data for date",
-		"date", input.Date.Format("2006-01-02"),
+		"date", input.Date.Format(config.DateFormat),
 		"games", result.GamesProcessed,
 		"officials", result.OfficialsImported,
 		"coaches", result.CoachesImported,
@@ -129,7 +136,7 @@ func (a *SeasonsActivities) processSeasonSeries(
 	for i, ref := range matchup.GameInfo.Referees {
 		if err := a.ImportQueries.UpsertGameOfficial(ctx, sqlcdb.UpsertGameOfficialParams{
 			GameID:   gid,
-			Role:     "referee",
+			Role:     OfficialRoleReferee,
 			Sequence: int16(i + 1),
 			Name:     ref.Default,
 		}); err != nil {
@@ -143,7 +150,7 @@ func (a *SeasonsActivities) processSeasonSeries(
 	for i, linesman := range matchup.GameInfo.Linesmen {
 		if err := a.ImportQueries.UpsertGameOfficial(ctx, sqlcdb.UpsertGameOfficialParams{
 			GameID:   gid,
-			Role:     "linesman",
+			Role:     OfficialRoleLinesman,
 			Sequence: int16(i + 1),
 			Name:     linesman.Default,
 		}); err != nil {

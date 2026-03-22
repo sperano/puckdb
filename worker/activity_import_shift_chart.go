@@ -7,6 +7,7 @@ import (
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
@@ -98,7 +99,7 @@ func (a *SeasonsActivities) ImportShiftChartForDate(ctx context.Context, input I
 	}
 
 	logger.Debug("Imported shift chart for date",
-		"date", input.Date.Format("2006-01-02"),
+		"date", input.Date.Format(config.DateFormat),
 		"games", result.GamesProcessed,
 		"shifts", result.ShiftsImported)
 

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
@@ -75,7 +76,7 @@ func (a *SeasonsActivities) ImportYahooDataForDate(ctx context.Context, input Im
 
 	if result.SummariesImported > 0 || result.RostersImported > 0 {
 		logger.Info("Imported Yahoo data for date",
-			"date", input.Date.Format("2006-01-02"),
+			"date", input.Date.Format(config.DateFormat),
 			"summaries", result.SummariesImported,
 			"stats", result.StatsImported,
 			"rosters", result.RostersImported)
@@ -103,7 +104,7 @@ func (a *SeasonsActivities) collectSummaryParams(ctx context.Context, teams []Te
 		if err != nil {
 			log.Debug().Err(err).
 				Int("teamID", teamInfo.TeamID).
-				Str("date", date.Format("2006-01-02")).
+				Str("date", date.Format(config.DateFormat)).
 				Msg("Failed to read summary file")
 			continue
 		}
@@ -152,7 +153,7 @@ func (a *SeasonsActivities) collectRosterParams(ctx context.Context, teams []Tea
 		if err != nil {
 			log.Debug().Err(err).
 				Int("teamID", teamInfo.TeamID).
-				Str("date", date.Format("2006-01-02")).
+				Str("date", date.Format(config.DateFormat)).
 				Msg("Failed to read roster file")
 			continue
 		}
@@ -187,7 +188,7 @@ func upsertSummaries(ctx context.Context, queries YahooDataUpserter, params []sq
 		if err != nil && batchErr == nil {
 			batchErr = fmt.Errorf("summary league_id=%d team_id=%d date=%s: %w",
 				params[i].LeagueID, params[i].TeamID,
-				params[i].Date.Time.Format("2006-01-02"), err)
+				params[i].Date.Time.Format(config.DateFormat), err)
 		}
 	})
 	return batchErr
@@ -201,7 +202,7 @@ func upsertStats(ctx context.Context, queries YahooDataUpserter, params []sqlcdb
 		if err != nil && batchErr == nil {
 			batchErr = fmt.Errorf("stat league_id=%d team_id=%d date=%s stat_id=%d: %w",
 				params[i].LeagueID, params[i].TeamID,
-				params[i].Date.Time.Format("2006-01-02"), params[i].StatID, err)
+				params[i].Date.Time.Format(config.DateFormat), params[i].StatID, err)
 		}
 	})
 	return batchErr
@@ -215,7 +216,7 @@ func upsertRosters(ctx context.Context, queries YahooDataUpserter, params []sqlc
 		if err != nil && batchErr == nil {
 			batchErr = fmt.Errorf("roster league_id=%d team_id=%d date=%s player_id=%d: %w",
 				params[i].LeagueID, params[i].TeamID,
-				params[i].Date.Time.Format("2006-01-02"), params[i].PlayerID, err)
+				params[i].Date.Time.Format(config.DateFormat), params[i].PlayerID, err)
 		}
 	})
 	return batchErr

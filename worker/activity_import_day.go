@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"go.temporal.io/sdk/activity"
@@ -35,7 +36,7 @@ func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput)
 	boxscoreInput := ImportBoxscoresForDateInput{DateSeasonInput{Date: input.Date, Season: input.Season}}
 	boxResult, err := a.ImportBoxscoresForDate(ctx, boxscoreInput)
 	if err != nil {
-		return counts, fmt.Errorf("import boxscores for %s: %w", input.Date.Format("2006-01-02"), err)
+		return counts, fmt.Errorf("import boxscores for %s: %w", input.Date.Format(config.DateFormat), err)
 	}
 	counts.Add(boxResult.Origins)
 	activity.RecordHeartbeat(ctx, "game-stories")
@@ -44,7 +45,7 @@ func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput)
 	gameStoryInput := ImportGameStoryForDateInput{Season: input.SeasonID, Date: input.Date}
 	gsResult, err := a.ImportGameStoryForDate(ctx, gameStoryInput)
 	if err != nil {
-		return counts, fmt.Errorf("import game story for %s: %w", input.Date.Format("2006-01-02"), err)
+		return counts, fmt.Errorf("import game story for %s: %w", input.Date.Format(config.DateFormat), err)
 	}
 	counts.Add(gsResult.Origins)
 	activity.RecordHeartbeat(ctx, "play-by-play")
@@ -53,7 +54,7 @@ func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput)
 	pbpInput := ImportPlayByPlayForDateInput{DateSeasonInput{Date: input.Date, Season: input.Season}}
 	pbpResult, err := a.ImportPlayByPlayForDate(ctx, pbpInput)
 	if err != nil {
-		return counts, fmt.Errorf("import play-by-play for %s: %w", input.Date.Format("2006-01-02"), err)
+		return counts, fmt.Errorf("import play-by-play for %s: %w", input.Date.Format(config.DateFormat), err)
 	}
 	counts.Add(pbpResult.Origins)
 	activity.RecordHeartbeat(ctx, "shift-charts")
@@ -62,7 +63,7 @@ func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput)
 	scInput := ImportShiftChartForDateInput{DateSeasonInput{Date: input.Date, Season: input.Season}}
 	scResult, err := a.ImportShiftChartForDate(ctx, scInput)
 	if err != nil {
-		return counts, fmt.Errorf("import shift chart for %s: %w", input.Date.Format("2006-01-02"), err)
+		return counts, fmt.Errorf("import shift chart for %s: %w", input.Date.Format(config.DateFormat), err)
 	}
 	counts.Add(scResult.Origins)
 	activity.RecordHeartbeat(ctx, "season-series")
@@ -71,7 +72,7 @@ func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput)
 	ssInput := ImportSeasonSeriesForDateInput{Date: input.Date}
 	ssResult, err := a.ImportSeasonSeriesForDate(ctx, ssInput)
 	if err != nil {
-		return counts, fmt.Errorf("import season series for %s: %w", input.Date.Format("2006-01-02"), err)
+		return counts, fmt.Errorf("import season series for %s: %w", input.Date.Format(config.DateFormat), err)
 	}
 	counts.Add(ssResult.Origins)
 	activity.RecordHeartbeat(ctx, "yahoo")
@@ -81,11 +82,11 @@ func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput)
 		yahooInput := ImportYahooDataForDateInput{Season: input.Season, Teams: input.TeamIDs, Date: input.Date}
 		yahooResult, err := a.ImportYahooDataForDate(ctx, yahooInput)
 		if err != nil {
-			return counts, fmt.Errorf("import Yahoo data for %s: %w", input.Date.Format("2006-01-02"), err)
+			return counts, fmt.Errorf("import Yahoo data for %s: %w", input.Date.Format(config.DateFormat), err)
 		}
 		counts.Add(yahooResult.Origins)
 	}
 
-	logger.Debug("Imported day data", "date", input.Date.Format("2006-01-02"))
+	logger.Debug("Imported day data", "date", input.Date.Format(config.DateFormat))
 	return counts, nil
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
@@ -145,7 +146,7 @@ func (a *SeasonsActivities) CollectSeasonPlayerIDs(ctx context.Context, season n
 			collectPlayerIDs(boxscore, seen)
 		}
 
-		activity.RecordHeartbeat(ctx, d.Format("2006-01-02"))
+		activity.RecordHeartbeat(ctx, d.Format(config.DateFormat))
 	}
 
 	ids := make([]int64, 0, len(seen))
