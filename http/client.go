@@ -149,6 +149,6 @@ func DownloadYahoo(ctx context.Context, redisClient cache.Client, url string) ([
 // DownloadPublic downloads from public pages without OAuth2 authentication.
 // Use this for public sports.yahoo.com pages that don't require authentication.
 func DownloadPublic(url string) ([]byte, error) {
-	client := &GenericClient{Client: &http.Client{}, apiLabel: "public"}
+	client := &GenericClient{Client: &http.Client{Timeout: config.DefaultHTTPClientTimeout}, apiLabel: "public"}
 	return client.Download(url)
 }
