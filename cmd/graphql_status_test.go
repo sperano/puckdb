@@ -154,7 +154,7 @@ func TestProgressReportStatusQueries(t *testing.T) {
 func TestExecuteProgressReportQuery_QueryFormat(t *testing.T) {
 	t.Parallel()
 
-	expectedQuery := `query { initializeResult ` + resultFields + ` initializeProgress ` + progressReportFields + ` }`
+	expectedQuery := `query { initializeResult ` + resultFields + ` initializeProgress ` + progressReportFields + ` ` + yahooTokenStatusField + ` }`
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req graphQLRequest

@@ -1,7 +1,9 @@
 package worker
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"os"
@@ -925,6 +927,11 @@ func (s *InitializeSeasonTeamsTestSuite) TestInitializeSeasonTeams_Success() {
 	// downloadSeasonStandings: gob miss → filesystem miss → API fetch → WriteParsedCached
 	mockRedis.ExpectGet(redisKey).SetErr(redis.Nil)
 	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisKey, "x", cache.GobCacheTTL).SetVal("OK")
+
+	// upsertSeasonTeams: re-reads standings from gob cache (second GET on same key)
+	var gobBuf bytes.Buffer
+	require.NoError(s.T(), gob.NewEncoder(&gobBuf).Encode(standings))
+	mockRedis.ExpectGet(redisKey).SetVal(gobBuf.String())
 
 	activities := &SeasonsActivities{
 		Storage:             mem,

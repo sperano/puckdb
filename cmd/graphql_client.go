@@ -81,6 +81,13 @@ func (c *GraphQLClient) executeProgressReportQuery(ctx context.Context, query, r
 			return nil, fmt.Errorf("parse %s: %w", progressField, err)
 		}
 	}
+	if data, ok := raw["yahooTokenStatus"]; ok {
+		var tokenStatus model.YahooTokenStatus
+		if err := json.Unmarshal(data, &tokenStatus); err == nil {
+			status.YahooTokenMissing = !tokenStatus.Valid
+			status.YahooLoginURL = tokenStatus.LoginURL
+		}
+	}
 	return &status, nil
 }
 
@@ -133,8 +140,10 @@ func (c *GraphQLClient) execute(ctx context.Context, query string, variables map
 
 // WorkflowStatus combines result and progress from a workflow query
 type WorkflowStatus struct {
-	Result   *model.WorkflowResult
-	Progress *model.ProgressReport
+	Result            *model.WorkflowResult
+	Progress          *model.ProgressReport
+	YahooTokenMissing bool   // true when the Yahoo OAuth2 token is absent
+	YahooLoginURL     string // URL to obtain a new token
 }
 
 // statusFetcher is a function type for fetching workflow status (result and progress)

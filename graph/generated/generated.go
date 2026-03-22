@@ -128,6 +128,7 @@ type ComplexityRoot struct {
 		ProcessPlayersProgress         func(childComplexity int) int
 		ProcessPlayersResult           func(childComplexity int) int
 		ProcessPlayersResultData       func(childComplexity int) int
+		YahooTokenStatus               func(childComplexity int) int
 	}
 
 	TrulyUnmatchedPlayer struct {
@@ -142,6 +143,11 @@ type ComplexityRoot struct {
 	WorkflowResult struct {
 		FailureReason func(childComplexity int) int
 		Status        func(childComplexity int) int
+	}
+
+	YahooTokenStatus struct {
+		LoginURL func(childComplexity int) int
+		Valid    func(childComplexity int) int
 	}
 }
 
@@ -171,6 +177,7 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	BuildNumber(ctx context.Context) (string, error)
+	YahooTokenStatus(ctx context.Context) (*model.YahooTokenStatus, error)
 	InitializeResult(ctx context.Context) (*model.WorkflowResult, error)
 	InitializeProgress(ctx context.Context) (*model.ProgressReport, error)
 	FetchSeasonsResult(ctx context.Context) (*model.WorkflowResult, error)
@@ -708,6 +715,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.ProcessPlayersResultData(childComplexity), true
 
+	case "Query.yahooTokenStatus":
+		if e.complexity.Query.YahooTokenStatus == nil {
+			break
+		}
+
+		return e.complexity.Query.YahooTokenStatus(childComplexity), true
+
 	case "TrulyUnmatchedPlayer.firstName":
 		if e.complexity.TrulyUnmatchedPlayer.FirstName == nil {
 			break
@@ -763,6 +777,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.WorkflowResult.Status(childComplexity), true
+
+	case "YahooTokenStatus.loginURL":
+		if e.complexity.YahooTokenStatus.LoginURL == nil {
+			break
+		}
+
+		return e.complexity.YahooTokenStatus.LoginURL(childComplexity), true
+
+	case "YahooTokenStatus.valid":
+		if e.complexity.YahooTokenStatus.Valid == nil {
+			break
+		}
+
+		return e.complexity.YahooTokenStatus.Valid(childComplexity), true
 
 	}
 	return 0, false
@@ -947,8 +975,14 @@ type ProcessPlayersResultData {
 	errors: [String!]!
 }
 
+type YahooTokenStatus {
+	valid: Boolean!
+	loginURL: String!
+}
+
 type Query {
 	buildNumber: String!
+	yahooTokenStatus: YahooTokenStatus!
 
 	initializeResult: WorkflowResult!
 	initializeProgress: ProgressReport
@@ -3535,6 +3569,56 @@ func (ec *executionContext) fieldContext_Query_buildNumber(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_yahooTokenStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_yahooTokenStatus(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().YahooTokenStatus(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.YahooTokenStatus)
+	fc.Result = res
+	return ec.marshalNYahooTokenStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐYahooTokenStatus(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_yahooTokenStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "valid":
+				return ec.fieldContext_YahooTokenStatus_valid(ctx, field)
+			case "loginURL":
+				return ec.fieldContext_YahooTokenStatus_loginURL(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type YahooTokenStatus", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_initializeResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_initializeResult(ctx, field)
 	if err != nil {
@@ -4977,6 +5061,94 @@ func (ec *executionContext) _WorkflowResult_failureReason(ctx context.Context, f
 func (ec *executionContext) fieldContext_WorkflowResult_failureReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "WorkflowResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _YahooTokenStatus_valid(ctx context.Context, field graphql.CollectedField, obj *model.YahooTokenStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_YahooTokenStatus_valid(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Valid, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_YahooTokenStatus_valid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "YahooTokenStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _YahooTokenStatus_loginURL(ctx context.Context, field graphql.CollectedField, obj *model.YahooTokenStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_YahooTokenStatus_loginURL(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.LoginURL, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_YahooTokenStatus_loginURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "YahooTokenStatus",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -7364,6 +7536,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "yahooTokenStatus":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_yahooTokenStatus(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "initializeResult":
 			field := field
 
@@ -7865,6 +8059,50 @@ func (ec *executionContext) _WorkflowResult(ctx context.Context, sel ast.Selecti
 			}
 		case "failureReason":
 			out.Values[i] = ec._WorkflowResult_failureReason(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var yahooTokenStatusImplementors = []string{"YahooTokenStatus"}
+
+func (ec *executionContext) _YahooTokenStatus(ctx context.Context, sel ast.SelectionSet, obj *model.YahooTokenStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, yahooTokenStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("YahooTokenStatus")
+		case "valid":
+			out.Values[i] = ec._YahooTokenStatus_valid(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "loginURL":
+			out.Values[i] = ec._YahooTokenStatus_loginURL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -8490,6 +8728,20 @@ func (ec *executionContext) marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋp
 		return graphql.Null
 	}
 	return ec._WorkflowResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNYahooTokenStatus2githubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐYahooTokenStatus(ctx context.Context, sel ast.SelectionSet, v model.YahooTokenStatus) graphql.Marshaler {
+	return ec._YahooTokenStatus(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNYahooTokenStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐYahooTokenStatus(ctx context.Context, sel ast.SelectionSet, v *model.YahooTokenStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._YahooTokenStatus(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {

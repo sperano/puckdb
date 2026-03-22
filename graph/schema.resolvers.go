@@ -128,6 +128,11 @@ func (r *queryResolver) BuildNumber(ctx context.Context) (string, error) {
 	return config.BuildNumber, nil
 }
 
+// YahooTokenStatus is the resolver for the yahooTokenStatus field.
+func (r *queryResolver) YahooTokenStatus(ctx context.Context) (*model.YahooTokenStatus, error) {
+	return r.Resolver.yahooTokenStatus(ctx)
+}
+
 // InitializeResult is the resolver for the initializeResult field.
 func (r *queryResolver) InitializeResult(ctx context.Context) (*model.WorkflowResult, error) {
 	return r.Resolver.initializeResult(ctx)

@@ -102,10 +102,21 @@ func pollDelay(consecutiveFailures int) time.Duration {
 }
 
 func formatStatusMessage(status *WorkflowStatus) string {
+	var msg string
 	if status.Progress != nil {
-		return formatProgressReport(status.Progress)
+		msg = formatProgressReport(status.Progress)
+	} else {
+		msg = fmt.Sprintf("Workflow status: %s", status.Result.Status)
 	}
-	return fmt.Sprintf("Workflow status: %s", status.Result.Status)
+	if status.YahooTokenMissing {
+		msg += "\n" + formatYahooTokenWarning(status.YahooLoginURL)
+	}
+	return msg
+}
+
+// formatYahooTokenWarning returns a red ANSI-colored warning line for missing Yahoo token.
+func formatYahooTokenWarning(loginURL string) string {
+	return fmt.Sprintf("\033[38;5;196m⚠ No Yahoo token — visit %s\033[0m", loginURL)
 }
 
 func renderProgressBar(pct float64, width int) string {

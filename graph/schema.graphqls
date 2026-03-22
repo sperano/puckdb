@@ -73,8 +73,14 @@ type ProcessPlayersResultData {
 	errors: [String!]!
 }
 
+type YahooTokenStatus {
+	valid: Boolean!
+	loginURL: String!
+}
+
 type Query {
 	buildNumber: String!
+	yahooTokenStatus: YahooTokenStatus!
 
 	initializeResult: WorkflowResult!
 	initializeProgress: ProgressReport

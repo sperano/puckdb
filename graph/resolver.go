@@ -12,6 +12,7 @@ import (
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/temporal"
 	"github.com/sperano/puckdb/worker"
+	"github.com/spf13/viper"
 	temporalEnums "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 )
@@ -422,6 +423,21 @@ type childQuery struct {
 	workflowID string
 }
 
+
+func (r *Resolver) yahooTokenStatus(ctx context.Context) (*model.YahooTokenStatus, error) {
+	valid, err := cache.HasValidToken(ctx, r.RedisClient, config.DefaultUser)
+	if err != nil {
+		return nil, err
+	}
+	loginURL := "/yahoo/login"
+	if publicURL := viper.GetString(config.FlagPublicURL); publicURL != "" {
+		loginURL = publicURL + loginURL
+	}
+	return &model.YahooTokenStatus{
+		Valid:    valid,
+		LoginURL: loginURL,
+	}, nil
+}
 
 func ptrString(s string) *string {
 	return &s

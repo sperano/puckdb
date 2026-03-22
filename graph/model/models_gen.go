@@ -82,6 +82,11 @@ type WorkflowResult struct {
 	FailureReason *string                `json:"failureReason,omitempty"`
 }
 
+type YahooTokenStatus struct {
+	Valid    bool   `json:"valid"`
+	LoginURL string `json:"loginURL"`
+}
+
 type TemporalWorkflowStatus string
 
 const (
