@@ -202,6 +202,12 @@ func runDBProvision(cmd *cobra.Command, args []string) error {
 		}
 		log.Info().Str("user", targetUser).Msg("Granted schema privileges")
 
+		if _, err := conn.Exec(ctx, `CREATE EXTENSION IF NOT EXISTS pg_stat_statements`); err != nil {
+			log.Warn().Err(err).Msg("Could not create pg_stat_statements extension (may require superuser)")
+		} else {
+			log.Info().Msg("pg_stat_statements extension enabled")
+		}
+
 		log.Info().Msg("Database provisioning complete")
 		return nil
 	})
