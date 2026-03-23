@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -90,14 +91,26 @@ func runMetrics(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// runCacheCollector periodically collects cache file metrics
+// runCacheCollector periodically collects cache file metrics.
+// Uses an atomic flag to prevent overlapping runs when collection takes longer than the interval.
 func runCacheCollector(ctx context.Context, interval time.Duration) {
 	log.Info().Dur("interval", interval).Msg("Starting cache collector")
 
-	// Collect immediately on startup
-	if err := computeAndUpdateCacheMetrics(ctx); err != nil {
-		log.Error().Err(err).Msg("Initial cache metrics computation failed")
+	var running atomic.Bool
+
+	collect := func() {
+		if !running.CompareAndSwap(false, true) {
+			log.Warn().Msg("Cache collection still running, skipping this tick")
+			return
+		}
+		defer running.Store(false)
+		if err := computeAndUpdateCacheMetrics(ctx); err != nil {
+			log.Error().Err(err).Msg("Cache metrics computation failed")
+		}
 	}
+
+	// Collect immediately on startup
+	collect()
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -106,9 +119,7 @@ func runCacheCollector(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := computeAndUpdateCacheMetrics(ctx); err != nil {
-				log.Error().Err(err).Msg("Cache metrics computation failed")
-			}
+			collect()
 		}
 	}
 }
@@ -138,19 +149,12 @@ func computeAndUpdateCacheMetrics(ctx context.Context) error {
 	}
 	metrics.SetCacheMetrics("total", "all", totalExpected, totalFound)
 
-	// Calculate disk usage and file type stats
+	// Calculate disk usage and file type stats in a single directory walk
 	dataPath := viper.GetString(config.FlagDataPath)
 	if dataPath != "" {
-		diskSize, err := calculateDirSize(dataPath)
-		if err != nil {
-			log.Warn().Err(err).Str("path", dataPath).Msg("Failed to calculate cache disk size")
-		} else {
-			metrics.SetCacheDiskSizeBytes(diskSize)
-		}
-
-		// Collect file stats by type
-		fileStats := collectFileTypeStats(dataPath)
-		for fileType, stats := range fileStats {
+		pathStats := collectDataPathStats(dataPath)
+		metrics.SetCacheDiskSizeBytes(pathStats.totalBytes)
+		for fileType, stats := range pathStats.byType {
 			metrics.SetDataPathFileStats(fileType, stats.count, stats.bytes)
 		}
 	}

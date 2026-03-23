@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,20 +36,37 @@ func runDatabaseCollector(ctx context.Context, interval time.Duration) {
 	}
 }
 
+// rowCountQuery uses pg_stat_user_tables estimates instead of COUNT(*) to avoid
+// full sequential scans on large tables. The statistics are kept fresh by the
+// hourly ANALYZE cron job.
+const rowCountQuery = `SELECT relname::text, n_live_tup
+	FROM pg_stat_user_tables
+	WHERE schemaname = 'public'
+	ORDER BY relname`
+
 func collectDatabaseMetrics(ctx context.Context, pool *pgxpool.Pool) {
 	start := time.Now()
 
-	tables := []string{"players", "franchises", "seasons", "season_teams", "games", "game_skater_stats", "game_goalie_stats"}
+	rows, err := pool.Query(ctx, rowCountQuery)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to query table row estimates")
+	}
+
 	var totalRows int64
-	for _, table := range tables {
-		var count int64
-		query := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
-		if err := pool.QueryRow(ctx, query).Scan(&count); err != nil {
-			log.Warn().Err(err).Str("table", table).Msg("Failed to count rows")
-			continue
+	var tableCount int
+	if rows != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var table string
+			var count int64
+			if err := rows.Scan(&table, &count); err != nil {
+				log.Warn().Err(err).Msg("Failed to scan row estimate")
+				continue
+			}
+			metrics.SetDBTableRowCount(table, count)
+			totalRows += count
+			tableCount++
 		}
-		metrics.SetDBTableRowCount(table, count)
-		totalRows += count
 	}
 
 	// Query database size
@@ -63,7 +79,7 @@ func collectDatabaseMetrics(ctx context.Context, pool *pgxpool.Pool) {
 
 	metrics.SetDBMetricsTimestamp()
 	log.Info().
-		Int("tables", len(tables)).
+		Int("tables", tableCount).
 		Int64("total_rows", totalRows).
 		Int64("db_size_bytes", dbSizeBytes).
 		Dur("duration", time.Since(start)).

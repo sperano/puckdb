@@ -8,45 +8,34 @@ import (
 	"github.com/sperano/puckdb/store"
 )
 
-// calculateDirSize calculates the total size of a directory, excluding .git
-func calculateDirSize(path string) (int64, error) {
-	var size int64
-	err := filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		// Skip .git directory
-		if d.IsDir() && d.Name() == ".git" {
-			return filepath.SkipDir
-		}
-		if !d.IsDir() {
-			info, err := d.Info()
-			if err != nil {
-				return err
-			}
-			size += info.Size()
-		}
-		return nil
-	})
-	return size, err
-}
-
 // fileTypeStats holds count and size for a file type
 type fileTypeStats struct {
 	count int64
 	bytes int64
 }
 
-// collectFileTypeStats walks the data path and categorizes files by type
-func collectFileTypeStats(dataPath string) map[string]*fileTypeStats {
-	stats := make(map[string]*fileTypeStats)
+// dataPathStats holds combined results from a single directory walk.
+type dataPathStats struct {
+	totalBytes int64
+	byType     map[string]*fileTypeStats
+}
+
+// collectDataPathStats walks the data path once, computing both total disk size
+// and per-file-type statistics in a single pass.
+func collectDataPathStats(dataPath string) dataPathStats {
+	result := dataPathStats{byType: make(map[string]*fileTypeStats)}
 
 	_ = filepath.WalkDir(dataPath, func(filePath string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if d.Name() == ".git" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 
-		// Skip .git directory
 		if strings.Contains(filePath, "/.git/") {
 			return nil
 		}
@@ -56,17 +45,20 @@ func collectFileTypeStats(dataPath string) map[string]*fileTypeStats {
 			return nil
 		}
 
+		size := info.Size()
+		result.totalBytes += size
+
 		fileType := classifyFileType(dataPath, filePath, d.Name())
-		if stats[fileType] == nil {
-			stats[fileType] = &fileTypeStats{}
+		if result.byType[fileType] == nil {
+			result.byType[fileType] = &fileTypeStats{}
 		}
-		stats[fileType].count++
-		stats[fileType].bytes += info.Size()
+		result.byType[fileType].count++
+		result.byType[fileType].bytes += size
 
 		return nil
 	})
 
-	return stats
+	return result
 }
 
 // classifyFileType determines the file type based on path and filename

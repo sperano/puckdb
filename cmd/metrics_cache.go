@@ -90,7 +90,12 @@ func fetchSeasonsFromNHL(ctx context.Context) ([]simpleSeason, error) {
 	return result, nil
 }
 
-// getAllMetrics gathers cache statistics for all seasons
+// cacheCollectorWorkers controls the number of concurrent season-checking goroutines.
+// JuiceFS FUSE metadata ops serialize at the kernel layer, so more goroutines
+// just adds context-switch overhead without increasing throughput.
+const cacheCollectorWorkers = 4
+
+// getAllMetrics gathers cache statistics for all seasons using a bounded worker pool.
 func getAllMetrics(ctx context.Context, redisClient cache.Client) ([]cacheMetrics, error) {
 	if viper.GetString(config.FlagDataPath) == "" {
 		return nil, fmt.Errorf("data-path is required")
@@ -109,26 +114,30 @@ func getAllMetrics(ctx context.Context, redisClient cache.Client) ([]cacheMetric
 	// Load Yahoo config (optional - for checking Yahoo files)
 	yahooConfig, _ := config.GetYahooSeasonsConfig()
 
+	work := make(chan simpleSeason, len(seasons))
 	results := make(chan seasonResult, len(seasons))
 	var wg sync.WaitGroup
 
-	for _, season := range seasons {
+	for range cacheCollectorWorkers {
 		wg.Add(1)
-		go func(s simpleSeason) {
+		go func() {
 			defer wg.Done()
 			storage := store.NewDefaultStorage()
 			gobCache := cache.NewGobCache(redisClient)
-			// Always check NHL API files
-			cacheData := checkNHLSeasonCache(context.Background(), storage, gobCache, s)
-
-			// If season is in Yahoo config, also check Yahoo fantasy files
-			if yahooCfg, ok := yahooConfig[s.StartYear()]; ok {
-				cacheData = append(cacheData, checkYahooSeasonCache(storage, s, yahooCfg)...)
+			for s := range work {
+				cacheData := checkNHLSeasonCache(ctx, storage, gobCache, s)
+				if yahooCfg, ok := yahooConfig[s.StartYear()]; ok {
+					cacheData = append(cacheData, checkYahooSeasonCache(storage, s, yahooCfg)...)
+				}
+				results <- seasonResult{stats: cacheData, err: nil, year: s.StartYear()}
 			}
-
-			results <- seasonResult{stats: cacheData, err: nil, year: s.StartYear()}
-		}(season)
+		}()
 	}
+
+	for _, season := range seasons {
+		work <- season
+	}
+	close(work)
 
 	go func() {
 		wg.Wait()
