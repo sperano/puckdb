@@ -27,17 +27,18 @@ const colorThemePaletteSize = 4
 
 // colorThemes maps theme names to 4-shade ANSI 256-color palettes (dark to light).
 var colorThemes = map[string][colorThemePaletteSize]int{
-	"red":    {160, 167, 174, 181},
-	"blue":   {25, 31, 32, 38},
-	"green":  {28, 34, 35, 40},
-	"purple": {97, 103, 104, 134},
-	"white":  {245, 247, 248, 250},
-	"cyan":   {37, 43, 44, 50},
-	"yellow": {136, 142, 172, 178},
-	"pink":   {132, 133, 168, 169},
-	"coral":  {167, 173, 174, 203},
-	"teal":   {30, 31, 36, 37},
-	"lime":   {64, 70, 100, 106},
+	"red":    {88, 124, 160, 210},
+	"green":  {22, 28, 34, 120},
+	"blue":   {18, 26, 68, 117},
+	"purple": {54, 91, 129, 177},
+	"teal":   {23, 30, 37, 80},
+	"orange": {130, 166, 208, 214},
+	"gray":   {237, 241, 247, 253},
+	"cyan":   {31, 38, 45, 51},
+	"yellow": {100, 136, 178, 220},
+	"pink":   {125, 197, 211, 218},
+	"coral":  {167, 203, 209, 216},
+	"lime":   {64, 70, 112, 154},
 }
 
 // SpinnerPlaceholder is replaced with the current spinner frame when rendering.
@@ -47,10 +48,10 @@ const SpinnerPlaceholder = "\x00"
 // ProgressShade sentinels mark the start of each gradient segment in a progress bar.
 // ProgressShadeEnd resets back to default. The render loop replaces these with ANSI colors.
 const (
-	ProgressShade0 = "\x01" // darkest
-	ProgressShade1 = "\x02"
-	ProgressShade2 = "\x03"
-	ProgressShade3 = "\x04" // brightest
+	ProgressShade0   = "\x01" // darkest
+	ProgressShade1   = "\x02"
+	ProgressShade2   = "\x03"
+	ProgressShade3   = "\x04" // brightest
 	ProgressShadeEnd = "\x05"
 )
 
@@ -67,12 +68,12 @@ type spinner struct {
 	done             chan struct{}
 	mu               sync.Mutex
 	once             sync.Once
-	lineCount        int                        // tracks number of lines in current message
-	colorTheme       *[colorThemePaletteSize]int // when set, all lines use this theme
-	randomLineThemes bool                                      // when true, each line gets a shuffled theme
-	keyThemes        map[string][colorThemePaletteSize]int    // palette keyed by stable line content
-	shuffledThemes   []string                                 // shuffled theme names for round-robin assignment
-	shuffledIdx      int                                      // next index into shuffledThemes
+	lineCount        int                                   // tracks number of lines in current message
+	colorTheme       *[colorThemePaletteSize]int           // when set, all lines use this theme
+	randomLineThemes bool                                  // when true, each line gets a shuffled theme
+	keyThemes        map[string][colorThemePaletteSize]int // palette keyed by stable line content
+	shuffledThemes   []string                              // shuffled theme names for round-robin assignment
+	shuffledIdx      int                                   // next index into shuffledThemes
 }
 
 func newSpinner(w io.Writer, header string) *spinner {
