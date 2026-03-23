@@ -76,6 +76,7 @@ func (a *SeasonsActivities) ImportSeasonSeriesForDate(ctx context.Context, input
 			return result, ctx.Err()
 		default:
 		}
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("season-series:game:%d", game.ID))
 
 		stats, errs := a.processSeasonSeries(ctx, game.ID, input.Date, result.Origins)
 		result.GamesProcessed++

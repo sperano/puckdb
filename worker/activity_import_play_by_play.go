@@ -59,6 +59,7 @@ func (a *SeasonsActivities) ImportPlayByPlayForDate(ctx context.Context, input I
 		if shouldSkipGame(game) {
 			continue
 		}
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("play-by-play:game:%s", game.ID))
 
 		pbpRes := resource.PlayByPlay{Date: input.Date, GameID: game.ID}
 		if !a.Storage.Exists(pbpRes.Path()) {

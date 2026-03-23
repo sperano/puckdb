@@ -58,6 +58,7 @@ func (a *SeasonsActivities) ImportShiftChartForDate(ctx context.Context, input I
 		if shouldSkipGame(game) {
 			continue
 		}
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("shift-charts:game:%s", game.ID))
 
 		scRes := resource.ShiftChart{Date: input.Date, GameID: game.ID}
 		if !a.Storage.Exists(scRes.Path()) {

@@ -71,6 +71,8 @@ func (a *SeasonsActivities) importBoxscoresForDate(ctx context.Context, queries 
 
 	// Process each game
 	for _, game := range schedule.Games {
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("boxscores:game:%s", game.ID))
+
 		// Skip preseason games and invalid IDs (matching download phase behavior)
 		if shouldSkipGame(game) {
 			result.GamesSkipped++

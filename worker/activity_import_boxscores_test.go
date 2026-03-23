@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.temporal.io/sdk/testsuite"
 )
 
 // =============================================================================
@@ -389,122 +391,143 @@ func TestGoalieToBatchParams(t *testing.T) {
 // Test ImportBoxscoresForDate
 // =============================================================================
 
-func TestImportBoxscoresForDate(t *testing.T) {
-	t.Parallel()
+// ImportBoxscoresSuite uses TestActivityEnvironment to provide a proper
+// Temporal activity context, which is required by RecordHeartbeat calls.
+type ImportBoxscoresSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+	env *testsuite.TestActivityEnvironment
 
-	testDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
-	testInput := ImportBoxscoresForDateInput{DateSeasonInput{Date: testDate, Season: 2023}}
+	testDate  time.Time
+	testInput ImportBoxscoresForDateInput
+}
 
-	newActivity := func(mem store.Storage) *SeasonsActivities {
-		return &SeasonsActivities{Storage: mem}
+func (s *ImportBoxscoresSuite) SetupTest() {
+	s.env = s.NewTestActivityEnvironment()
+	s.testDate = time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	s.testInput = ImportBoxscoresForDateInput{DateSeasonInput{Date: s.testDate, Season: 2023}}
+}
+
+func TestImportBoxscoresSuite(t *testing.T) {
+	suite.Run(t, new(ImportBoxscoresSuite))
+}
+
+// runImport executes importBoxscoresForDate within a proper Temporal activity context.
+func (s *ImportBoxscoresSuite) runImport(act *SeasonsActivities, queries BoxscoreUpserter) (ImportBoxscoresForDateResult, error) {
+	input := s.testInput
+	wrapper := func(ctx context.Context, in ImportBoxscoresForDateInput) (ImportBoxscoresForDateResult, error) {
+		return act.importBoxscoresForDate(ctx, queries, in)
 	}
+	s.env.RegisterActivity(wrapper)
+	val, err := s.env.ExecuteActivity(wrapper, input)
+	if err != nil {
+		return ImportBoxscoresForDateResult{}, err
+	}
+	var result ImportBoxscoresForDateResult
+	s.Require().NoError(val.Get(&result))
+	return result, nil
+}
 
-	t.Run("no schedule file", func(t *testing.T) {
-		mem := store.NewMemStorage()
-		upserter := NewMockBoxscoreUpserter()
+func (s *ImportBoxscoresSuite) TestNoScheduleFile() {
+	mem := store.NewMemStorage()
+	upserter := NewMockBoxscoreUpserter()
 
-		// No schedule file set up - it doesn't exist
-		result, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
+	result, err := s.runImport(&SeasonsActivities{Storage: mem}, upserter)
 
-		require.NoError(t, err)
-		assert.Equal(t, 0, result.GamesImported)
-		assert.Equal(t, 0, result.GamesSkipped)
-	})
+	s.Require().NoError(err)
+	s.Assert().Equal(0, result.GamesImported)
+	s.Assert().Equal(0, result.GamesSkipped)
+}
 
-	t.Run("schedule file parse error", func(t *testing.T) {
-		mem := store.NewMemStorage()
-		upserter := NewMockBoxscoreUpserter()
+func (s *ImportBoxscoresSuite) TestScheduleFileParseError() {
+	mem := store.NewMemStorage()
+	upserter := NewMockBoxscoreUpserter()
 
-		// Save invalid JSON to schedule
-		mem.Write(resource.DailySchedule{Date: testDate}.Path(), []byte("invalid json"))
+	mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), []byte("invalid json"))
 
-		result, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
+	result, err := s.runImport(&SeasonsActivities{Storage: mem}, upserter)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "read daily schedule")
-		assert.Equal(t, 0, result.GamesImported)
-	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "read daily schedule")
+	s.Assert().Equal(0, result.GamesImported)
+}
 
-	t.Run("skips non-final games", func(t *testing.T) {
-		mem := store.NewMemStorage()
-		upserter := NewMockBoxscoreUpserter()
+func (s *ImportBoxscoresSuite) TestSkipsNonFinalGames() {
+	mem := store.NewMemStorage()
+	upserter := NewMockBoxscoreUpserter()
 
-		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"LIVE"},{"id":2024020002,"gameState":"PRE"}]}`)
-		mem.Write(resource.DailySchedule{Date: testDate}.Path(), scheduleJSON)
+	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"LIVE"},{"id":2024020002,"gameState":"PRE"}]}`)
+	mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 
-		result, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
+	result, err := s.runImport(&SeasonsActivities{Storage: mem}, upserter)
 
-		require.NoError(t, err)
-		assert.Equal(t, 0, result.GamesImported)
-		assert.Equal(t, 2, result.GamesSkipped)
-	})
+	s.Require().NoError(err)
+	s.Assert().Equal(0, result.GamesImported)
+	s.Assert().Equal(2, result.GamesSkipped)
+}
 
-	t.Run("skips preseason games", func(t *testing.T) {
-		mem := store.NewMemStorage()
-		upserter := NewMockBoxscoreUpserter()
+func (s *ImportBoxscoresSuite) TestSkipsPreseasonGames() {
+	mem := store.NewMemStorage()
+	upserter := NewMockBoxscoreUpserter()
 
-		// Preseason game ID: 2024010001 (01 = preseason)
-		scheduleJSON := []byte(`{"games":[{"id":2024010001,"gameState":"OFF"}]}`)
-		mem.Write(resource.DailySchedule{Date: testDate}.Path(), scheduleJSON)
+	scheduleJSON := []byte(`{"games":[{"id":2024010001,"gameState":"OFF"}]}`)
+	mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 
-		result, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
+	result, err := s.runImport(&SeasonsActivities{Storage: mem}, upserter)
 
-		require.NoError(t, err)
-		assert.Equal(t, 0, result.GamesImported)
-		assert.Equal(t, 1, result.GamesSkipped)
-	})
+	s.Require().NoError(err)
+	s.Assert().Equal(0, result.GamesImported)
+	s.Assert().Equal(1, result.GamesSkipped)
+}
 
-	t.Run("boxscore file missing", func(t *testing.T) {
-		mem := store.NewMemStorage()
-		upserter := NewMockBoxscoreUpserter()
+func (s *ImportBoxscoresSuite) TestBoxscoreFileMissing() {
+	mem := store.NewMemStorage()
+	upserter := NewMockBoxscoreUpserter()
 
-		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-		mem.Write(resource.DailySchedule{Date: testDate}.Path(), scheduleJSON)
-		// Boxscore not saved - it's missing
+	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
+	mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 
-		_, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
+	_, err := s.runImport(&SeasonsActivities{Storage: mem}, upserter)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "boxscore file missing")
-	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "boxscore file missing")
+}
 
-	t.Run("boxscore file parse error", func(t *testing.T) {
-		mem := store.NewMemStorage()
-		upserter := NewMockBoxscoreUpserter()
+func (s *ImportBoxscoresSuite) TestBoxscoreFileParseError() {
+	mem := store.NewMemStorage()
+	upserter := NewMockBoxscoreUpserter()
 
-		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-		mem.Write(resource.DailySchedule{Date: testDate}.Path(), scheduleJSON)
-		mem.Write(resource.Boxscore{Date: testDate, GameID: nhl.GameID(2024020001)}.Path(), []byte("invalid json"))
+	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
+	mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
+	mem.Write(resource.Boxscore{Date: s.testDate, GameID: nhl.GameID(2024020001)}.Path(), []byte("invalid json"))
 
-		_, err := newActivity(mem).importBoxscoresForDate(context.Background(), upserter, testInput)
+	_, err := s.runImport(&SeasonsActivities{Storage: mem}, upserter)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "read boxscore")
-	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "read boxscore")
+}
 
-	t.Run("UpsertGame error", func(t *testing.T) {
-		mem := store.NewMemStorage()
-		upserter := NewMockBoxscoreUpserter()
-		ctx := context.Background()
+func (s *ImportBoxscoresSuite) TestUpsertGameError() {
+	mem := store.NewMemStorage()
+	upserter := NewMockBoxscoreUpserter()
 
-		scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-		boxscore := createTestBoxscore(nhl.GameID(2024020001))
-		boxscoreJSON, err := json.Marshal(boxscore)
-		require.NoError(t, err)
+	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
+	boxscore := createTestBoxscore(nhl.GameID(2024020001))
+	boxscoreJSON, err := json.Marshal(boxscore)
+	s.Require().NoError(err)
 
-		require.NoError(t, mem.Write(resource.DailySchedule{Date: testDate}.Path(), scheduleJSON))
-		require.NoError(t, mem.Write(resource.Boxscore{Date: testDate, GameID: nhl.GameID(2024020001)}.Path(), boxscoreJSON))
+	s.Require().NoError(mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON))
+	s.Require().NoError(mem.Write(resource.Boxscore{Date: s.testDate, GameID: nhl.GameID(2024020001)}.Path(), boxscoreJSON))
 
-		upserter.On("UpsertGame", ctx, mock.AnythingOfType("sqlcdb.UpsertGameParams")).
-			Return(errors.New("database error"))
+	upserter.On("UpsertGame", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertGameParams")).
+		Return(errors.New("database error"))
 
-		result, err := newActivity(mem).importBoxscoresForDate(ctx, upserter, testInput)
+	result, err := s.runImport(&SeasonsActivities{Storage: mem}, upserter)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "upsert game")
-		assert.Equal(t, 0, result.GamesImported)
-		upserter.AssertExpectations(t)
-	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "upsert game")
+	s.Assert().Equal(0, result.GamesImported)
+	upserter.AssertExpectations(s.T())
 }
 
 // =============================================================================
