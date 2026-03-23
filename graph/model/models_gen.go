@@ -6,11 +6,39 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"time"
 )
 
 type FetchPlayerLandingsInput struct {
 	BatchSize   *int `json:"batchSize,omitempty"`
 	Concurrency *int `json:"concurrency,omitempty"`
+}
+
+type MauriceChatResponse struct {
+	ConversationID string   `json:"conversationId"`
+	MessageID      string   `json:"messageId"`
+	Content        string   `json:"content"`
+	ToolsUsed      []string `json:"toolsUsed"`
+}
+
+type MauriceConversation struct {
+	ID        string    `json:"id"`
+	Title     *string   `json:"title,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type MauriceConversationDetail struct {
+	Conversation *MauriceConversation `json:"conversation"`
+	Messages     []*MauriceMessage    `json:"messages"`
+}
+
+type MauriceMessage struct {
+	ID        string    `json:"id"`
+	Role      string    `json:"role"`
+	Content   string    `json:"content"`
+	ToolsUsed []string  `json:"toolsUsed"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type Mutation struct {

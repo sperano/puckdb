@@ -194,6 +194,15 @@ const (
 	DirPermOwnerRWX = 0700 // Owner read/write/execute only
 )
 
+// Maurice AI chat defaults
+const (
+	DefaultMauriceBaseURL    = "http://localhost:11434/v1"
+	DefaultMauriceModel      = "llama3.1:8b"
+	DefaultMauriceMCPURL     = "https://mcp-puckdb.***REMOVED***/sse"
+	DefaultMauriceMaxTokens  = 4096
+	DefaultMauriceMaxHistory = 50
+)
+
 // Build version constants
 const (
 	BuildNumberNotAvailable = "n/a"

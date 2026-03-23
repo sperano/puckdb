@@ -236,6 +236,16 @@ const (
 	FlagRandomTheme = "random-theme"
 )
 
+// Maurice AI chat flags
+const (
+	FlagMauriceBaseURL    = "maurice-base-url"
+	FlagMauriceAPIKey     = "maurice-api-key"
+	FlagMauriceModel      = "maurice-model"
+	FlagMauriceMCPURL     = "maurice-mcp-url"
+	FlagMauriceMaxTokens  = "maurice-max-tokens"
+	FlagMauriceMaxHistory = "maurice-max-history"
+)
+
 // Provisioner flags
 const (
 	FlagProvisionerHost     = "provisioner-host"
@@ -357,6 +367,18 @@ var WorkerConcurrencyFlags = FlagGroup{
 		{FlagWorkerMaxActivityPollers, "", DefaultWorkerMaxActivityPollers, "Max concurrent activity task pollers", false},
 		{FlagWorkerMaxWorkflowExecution, "", DefaultWorkerMaxWorkflowExecution, "Max concurrent workflow task executions", false},
 		{FlagWorkerMaxActivityExecution, "", DefaultWorkerMaxActivityExecution, "Max concurrent activity executions", false},
+	},
+}
+
+// MauriceFlags defines Maurice AI chat flags.
+var MauriceFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagMauriceBaseURL, "", DefaultMauriceBaseURL, "Maurice LLM base URL (OpenAI-compatible)", false},
+		{FlagMauriceAPIKey, "", "", "Maurice LLM API key (empty for Ollama)", true},
+		{FlagMauriceModel, "", DefaultMauriceModel, "Maurice LLM model name", false},
+		{FlagMauriceMCPURL, "", DefaultMauriceMCPURL, "Maurice MCP server URL", false},
+		{FlagMauriceMaxTokens, "", DefaultMauriceMaxTokens, "Maurice max tokens per completion", false},
+		{FlagMauriceMaxHistory, "", DefaultMauriceMaxHistory, "Maurice max conversation history messages", false},
 	},
 }
 
@@ -560,6 +582,7 @@ var allFlagGroups = []*FlagGroup{
 	&ProvisionerFlags,
 	&YahooOAuth2Flags,
 	&TLSFlags,
+	&MauriceFlags,
 }
 
 // LogFlagValues logs all viper settings at debug level, redacting sensitive values.

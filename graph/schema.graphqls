@@ -78,6 +78,35 @@ type YahooTokenStatus {
 	loginURL: String!
 }
 
+# Maurice AI chat types
+
+type MauriceConversation {
+	id: String!
+	title: String
+	createdAt: Time!
+	updatedAt: Time!
+}
+
+type MauriceMessage {
+	id: String!
+	role: String!
+	content: String!
+	toolsUsed: [String!]!
+	createdAt: Time!
+}
+
+type MauriceChatResponse {
+	conversationId: String!
+	messageId: String!
+	content: String!
+	toolsUsed: [String!]!
+}
+
+type MauriceConversationDetail {
+	conversation: MauriceConversation!
+	messages: [MauriceMessage!]!
+}
+
 type Query {
 	buildNumber: String!
 	yahooTokenStatus: YahooTokenStatus!
@@ -109,6 +138,10 @@ type Query {
 
 	fetchPlayerLandingsResult: WorkflowResult!
 	fetchPlayerLandingsProgress: ProgressReport
+
+	# Maurice AI chat
+	mauriceConversations(limit: Int): [MauriceConversation!]!
+	mauriceConversation(id: String!): MauriceConversationDetail
 }
 
 
@@ -155,4 +188,8 @@ type Mutation {
 	cancelExtractBoxscorePlayers: Boolean!
 	fetchPlayerLandings(input: FetchPlayerLandingsInput): Boolean!
 	cancelFetchPlayerLandings: Boolean!
+
+	# Maurice AI chat
+	mauriceChat(conversationId: String, message: String!): MauriceChatResponse!
+	mauriceDeleteConversation(id: String!): Boolean!
 }

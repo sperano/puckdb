@@ -6,10 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"fmt"
 
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/maurice"
 	"github.com/sperano/puckdb/temporal"
 	"github.com/sperano/puckdb/worker"
 	"github.com/spf13/viper"
@@ -22,6 +24,7 @@ import (
 type Resolver struct {
 	TemporalClient client.Client
 	RedisClient    cache.Client
+	MauriceService maurice.Service // nil if Maurice is not configured
 }
 
 var temporalStatusToGQL = map[temporalEnums.WorkflowExecutionStatus]model.TemporalWorkflowStatus{
@@ -436,6 +439,97 @@ func (r *Resolver) yahooTokenStatus(ctx context.Context) (*model.YahooTokenStatu
 	return &model.YahooTokenStatus{
 		Valid:    valid,
 		LoginURL: loginURL,
+	}, nil
+}
+
+// Maurice resolver methods
+
+var errMauriceNotConfigured = fmt.Errorf("Maurice AI chat is not configured")
+
+func (r *Resolver) mauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error) {
+	if r.MauriceService == nil {
+		return nil, errMauriceNotConfigured
+	}
+	resp, err := r.MauriceService.Chat(ctx, conversationID, message)
+	if err != nil {
+		return nil, err
+	}
+	toolsUsed := resp.ToolsUsed
+	if toolsUsed == nil {
+		toolsUsed = []string{}
+	}
+	return &model.MauriceChatResponse{
+		ConversationID: resp.ConversationID,
+		MessageID:      resp.MessageID,
+		Content:        resp.Content,
+		ToolsUsed:      toolsUsed,
+	}, nil
+}
+
+func (r *Resolver) mauriceDeleteConversation(ctx context.Context, id string) (bool, error) {
+	if r.MauriceService == nil {
+		return false, errMauriceNotConfigured
+	}
+	if err := r.MauriceService.DeleteConversation(ctx, id); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Resolver) mauriceConversations(ctx context.Context, limit *int) ([]*model.MauriceConversation, error) {
+	if r.MauriceService == nil {
+		return nil, errMauriceNotConfigured
+	}
+	lim := 20
+	if limit != nil && *limit > 0 {
+		lim = *limit
+	}
+	convs, err := r.MauriceService.ListConversations(ctx, lim)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.MauriceConversation, len(convs))
+	for i, c := range convs {
+		result[i] = &model.MauriceConversation{
+			ID:        c.ID,
+			Title:     c.Title,
+			CreatedAt: c.CreatedAt,
+			UpdatedAt: c.UpdatedAt,
+		}
+	}
+	return result, nil
+}
+
+func (r *Resolver) mauriceConversation(ctx context.Context, id string) (*model.MauriceConversationDetail, error) {
+	if r.MauriceService == nil {
+		return nil, errMauriceNotConfigured
+	}
+	conv, msgs, err := r.MauriceService.GetConversation(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	gqlMsgs := make([]*model.MauriceMessage, len(msgs))
+	for i, m := range msgs {
+		toolsUsed := make([]string, len(m.ToolCalls))
+		for j, tc := range m.ToolCalls {
+			toolsUsed[j] = tc.Function.Name
+		}
+		gqlMsgs[i] = &model.MauriceMessage{
+			ID:        m.ID,
+			Role:      m.Role,
+			Content:   m.Content,
+			ToolsUsed: toolsUsed,
+			CreatedAt: m.CreatedAt,
+		}
+	}
+	return &model.MauriceConversationDetail{
+		Conversation: &model.MauriceConversation{
+			ID:        conv.ID,
+			Title:     conv.Title,
+			CreatedAt: conv.CreatedAt,
+			UpdatedAt: conv.UpdatedAt,
+		},
+		Messages: gqlMsgs,
 	}, nil
 }
 

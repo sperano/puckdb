@@ -122,6 +122,16 @@ func (r *mutationResolver) CancelFetchPlayerLandings(ctx context.Context) (bool,
 	return r.Resolver.cancelFetchPlayerLandings(ctx)
 }
 
+// MauriceChat is the resolver for the mauriceChat field.
+func (r *mutationResolver) MauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error) {
+	return r.Resolver.mauriceChat(ctx, conversationID, message)
+}
+
+// MauriceDeleteConversation is the resolver for the mauriceDeleteConversation field.
+func (r *mutationResolver) MauriceDeleteConversation(ctx context.Context, id string) (bool, error) {
+	return r.Resolver.mauriceDeleteConversation(ctx, id)
+}
+
 // BuildNumber is the resolver for the buildNumber field.
 func (r *queryResolver) BuildNumber(ctx context.Context) (string, error) {
 	_ = ctx
@@ -226,6 +236,16 @@ func (r *queryResolver) FetchPlayerLandingsResult(ctx context.Context) (*model.W
 // FetchPlayerLandingsProgress is the resolver for the fetchPlayerLandingsProgress field.
 func (r *queryResolver) FetchPlayerLandingsProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.fetchPlayerLandingsProgress(ctx)
+}
+
+// MauriceConversations is the resolver for the mauriceConversations field.
+func (r *queryResolver) MauriceConversations(ctx context.Context, limit *int) ([]*model.MauriceConversation, error) {
+	return r.Resolver.mauriceConversations(ctx, limit)
+}
+
+// MauriceConversation is the resolver for the mauriceConversation field.
+func (r *queryResolver) MauriceConversation(ctx context.Context, id string) (*model.MauriceConversationDetail, error) {
+	return r.Resolver.mauriceConversation(ctx, id)
 }
 
 // Mutation returns generated.MutationResolver implementation.

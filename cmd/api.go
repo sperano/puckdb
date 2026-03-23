@@ -16,12 +16,17 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/graph"
 	"github.com/sperano/puckdb/graph/generated"
-	"github.com/sperano/puckdb/cache"
 	handlers "github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/llm"
+	"github.com/sperano/puckdb/maurice"
+	mcppkg "github.com/sperano/puckdb/mcp"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/temporal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -46,6 +51,8 @@ func cmdAPI() *cobra.Command {
 				&config.TemporalFlags,
 				&config.APIPortFlags,
 				&config.TLSFlags,
+				&config.MauriceFlags,
+				&config.PostgresFlags,
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -67,6 +74,15 @@ func cmdAPI() *cobra.Command {
 				RedisClient:    redisClient,
 			}
 
+			// Initialize Maurice if configured
+			mauriceService, cleanup, err := initMaurice(cmd.Context())
+			if err != nil {
+				log.Warn().Err(err).Msg("Maurice initialization failed, AI chat will be unavailable")
+			} else if mauriceService != nil {
+				resolver.MauriceService = mauriceService
+				defer cleanup()
+			}
+
 			listen := fmt.Sprintf(":%d", viper.GetInt(config.FlagAPIPort))
 			log.Info().Msgf("Go to %s/ to authenticate with Yahoo or to access the GraphQL console", viper.GetString(config.FlagPublicURL))
 			r := setupAPIRouter(redisClient, resolver)
@@ -83,6 +99,8 @@ func cmdAPI() *cobra.Command {
 		&config.TemporalFlags,
 		&config.APIPortFlags,
 		&config.TLSFlags,
+		&config.MauriceFlags,
+		&config.PostgresFlags,
 	)
 	return cmd
 }
@@ -170,6 +188,58 @@ const homeHTML = `<!DOCTYPE html>
 func homeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(homeHTML))
+}
+
+// initMaurice sets up the Maurice AI chat service if configured.
+// Returns nil service + nil cleanup if Maurice flags are at defaults (opt-in).
+func initMaurice(ctx context.Context) (maurice.Service, func(), error) {
+	baseURL := viper.GetString(config.FlagMauriceBaseURL)
+	if baseURL == "" {
+		return nil, nil, nil
+	}
+
+	// Open PostgreSQL pool
+	pool, err := database.OpenPGXPool(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open pgx pool for Maurice: %w", err)
+	}
+
+	// Connect to MCP server
+	mcpURL := viper.GetString(config.FlagMauriceMCPURL)
+	mcpClient, err := mcppkg.NewClient(ctx, mcpURL)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("connect to MCP server at %s: %w", mcpURL, err)
+	}
+
+	// Create LLM client
+	llmClient := llm.NewClient(
+		baseURL,
+		viper.GetString(config.FlagMauriceAPIKey),
+		viper.GetString(config.FlagMauriceModel),
+	)
+
+	// Create service
+	svc := maurice.NewService(
+		llmClient,
+		mcpClient,
+		sqlcdb.New(pool),
+		viper.GetInt(config.FlagMauriceMaxHistory),
+		viper.GetInt(config.FlagMauriceMaxTokens),
+	)
+
+	cleanup := func() {
+		mcpClient.Close()
+		pool.Close()
+	}
+
+	log.Info().
+		Str("base_url", baseURL).
+		Str("model", viper.GetString(config.FlagMauriceModel)).
+		Str("mcp_url", mcpURL).
+		Msg("Maurice AI chat initialized")
+
+	return svc, cleanup, nil
 }
 
 func aroundResponsesLogger(ctx context.Context, next graphql.ResponseHandler) *graphql.Response {

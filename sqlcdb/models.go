@@ -165,6 +165,23 @@ type GoalieSeasonStat struct {
 	SvPct         pgtype.Numeric `json:"sv_pct"`
 }
 
+type MauriceConversation struct {
+	ID        pgtype.UUID        `json:"id"`
+	Title     pgtype.Text        `json:"title"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MauriceMessage struct {
+	ID             pgtype.UUID        `json:"id"`
+	ConversationID pgtype.UUID        `json:"conversation_id"`
+	Role           string             `json:"role"`
+	Content        string             `json:"content"`
+	ToolCalls      []byte             `json:"tool_calls"`
+	ToolCallID     pgtype.Text        `json:"tool_call_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type PlayEvent struct {
 	GameID                int64       `json:"game_id"`
 	EventID               int64       `json:"event_id"`
