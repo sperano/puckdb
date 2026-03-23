@@ -204,13 +204,9 @@ func initMaurice(ctx context.Context) (maurice.Service, func(), error) {
 		return nil, nil, fmt.Errorf("open pgx pool for Maurice: %w", err)
 	}
 
-	// Connect to MCP server
+	// MCP client connects lazily on first use (sessions expire quickly)
 	mcpURL := viper.GetString(config.FlagMauriceMCPURL)
-	mcpClient, err := mcppkg.NewClient(ctx, mcpURL)
-	if err != nil {
-		pool.Close()
-		return nil, nil, fmt.Errorf("connect to MCP server at %s: %w", mcpURL, err)
-	}
+	mcpClient := mcppkg.NewClient(mcpURL)
 
 	// Create LLM client
 	llmClient := llm.NewClient(

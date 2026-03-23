@@ -71,17 +71,17 @@ func TestToolCache_CachesAfterFirstCall(t *testing.T) {
 	assert.Equal(t, 1, mock.calls, "ListTools should only be called once")
 }
 
-func TestToolCache_CachesError(t *testing.T) {
+func TestToolCache_RetriesAfterError(t *testing.T) {
 	mock := &mockClient{err: errors.New("connection failed")}
 	cache := NewToolCache(mock)
 
 	_, err := cache.GetTools(context.Background())
 	require.Error(t, err)
 
-	// Second call returns same cached error
+	// Second call retries (errors are not cached)
 	_, err = cache.GetTools(context.Background())
 	require.Error(t, err)
-	assert.Equal(t, 1, mock.calls)
+	assert.Equal(t, 2, mock.calls, "ListTools should be retried after error")
 }
 
 func TestToolCache_GetLLMTools(t *testing.T) {

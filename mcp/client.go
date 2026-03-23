@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
@@ -23,22 +24,61 @@ type Client interface {
 	Close() error
 }
 
-// mcpClient wraps the mcp-go SDK client.
+// mcpClient wraps the mcp-go SDK client with lazy connection and automatic reconnection.
+// The MCP server uses in-memory sessions that expire quickly, so we connect on first use
+// and reconnect transparently when a session becomes invalid.
 type mcpClient struct {
+	url   string
+	mu    sync.Mutex
 	inner mcpclient.MCPClient
 }
 
-// NewClient connects to an MCP server at the given URL.
-// It tries streamable HTTP first, then falls back to SSE.
-func NewClient(ctx context.Context, url string) (Client, error) {
-	inner, err := connectMCP(ctx, url)
-	if err != nil {
-		return nil, err
-	}
-	return &mcpClient{inner: inner}, nil
+// NewClient creates an MCP client that connects lazily on first use.
+func NewClient(url string) Client {
+	return &mcpClient{url: url}
 }
 
-func connectMCP(ctx context.Context, url string) (mcpclient.MCPClient, error) {
+// connect establishes a new MCP connection, closing any existing one.
+func (c *mcpClient) connect(ctx context.Context) error {
+	if c.inner != nil {
+		c.inner.Close()
+		c.inner = nil
+	}
+
+	inner, err := dialMCP(ctx, c.url)
+	if err != nil {
+		return err
+	}
+	c.inner = inner
+	return nil
+}
+
+// ensureConnected returns the existing connection or creates a new one.
+func (c *mcpClient) ensureConnected(ctx context.Context) (mcpclient.MCPClient, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.inner != nil {
+		return c.inner, nil
+	}
+	if err := c.connect(ctx); err != nil {
+		return nil, err
+	}
+	return c.inner, nil
+}
+
+// reconnect forces a new connection (called after session errors).
+func (c *mcpClient) reconnect(ctx context.Context) (mcpclient.MCPClient, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if err := c.connect(ctx); err != nil {
+		return nil, err
+	}
+	return c.inner, nil
+}
+
+func dialMCP(ctx context.Context, url string) (mcpclient.MCPClient, error) {
 	// Try streamable HTTP first (newer protocol)
 	if !strings.HasSuffix(url, "/sse") {
 		c, err := mcpclient.NewStreamableHttpClient(url)
@@ -66,8 +106,33 @@ func connectMCP(ctx context.Context, url string) (mcpclient.MCPClient, error) {
 	return c, nil
 }
 
+// isSessionError returns true if the error indicates an expired/invalid MCP session.
+func isSessionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "session") ||
+		strings.Contains(msg, "Session") ||
+		strings.Contains(msg, "404") ||
+		strings.Contains(msg, "terminated")
+}
+
 func (c *mcpClient) ListTools(ctx context.Context) ([]mcpgo.Tool, error) {
-	result, err := c.inner.ListTools(ctx, mcpgo.ListToolsRequest{})
+	inner, err := c.ensureConnected(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("connect: %w", err)
+	}
+
+	result, err := inner.ListTools(ctx, mcpgo.ListToolsRequest{})
+	if err != nil && isSessionError(err) {
+		// Session expired — reconnect and retry once
+		inner, err = c.reconnect(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("reconnect: %w", err)
+		}
+		result, err = inner.ListTools(ctx, mcpgo.ListToolsRequest{})
+	}
 	if err != nil {
 		return nil, fmt.Errorf("list tools: %w", err)
 	}
@@ -75,6 +140,11 @@ func (c *mcpClient) ListTools(ctx context.Context) ([]mcpgo.Tool, error) {
 }
 
 func (c *mcpClient) CallTool(ctx context.Context, name string, arguments json.RawMessage) (*ToolResult, error) {
+	inner, err := c.ensureConnected(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("connect: %w", err)
+	}
+
 	var args map[string]any
 	if len(arguments) > 0 {
 		if err := json.Unmarshal(arguments, &args); err != nil {
@@ -86,13 +156,20 @@ func (c *mcpClient) CallTool(ctx context.Context, name string, arguments json.Ra
 	req.Params.Name = name
 	req.Params.Arguments = args
 
-	result, err := c.inner.CallTool(ctx, req)
+	callResult, err := inner.CallTool(ctx, req)
+	if err != nil && isSessionError(err) {
+		inner, err = c.reconnect(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("reconnect: %w", err)
+		}
+		callResult, err = inner.CallTool(ctx, req)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("call tool %s: %w", name, err)
 	}
 
 	var text strings.Builder
-	for _, content := range result.Content {
+	for _, content := range callResult.Content {
 		if tc, ok := mcpgo.AsTextContent(content); ok {
 			if text.Len() > 0 {
 				text.WriteByte('\n')
@@ -103,10 +180,18 @@ func (c *mcpClient) CallTool(ctx context.Context, name string, arguments json.Ra
 
 	return &ToolResult{
 		Content: text.String(),
-		IsError: result.IsError,
+		IsError: callResult.IsError,
 	}, nil
 }
 
 func (c *mcpClient) Close() error {
-	return c.inner.Close()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.inner != nil {
+		err := c.inner.Close()
+		c.inner = nil
+		return err
+	}
+	return nil
 }

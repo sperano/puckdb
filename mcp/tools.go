@@ -9,13 +9,13 @@ import (
 	"github.com/sperano/puckdb/llm"
 )
 
-// ToolCache wraps an MCP Client and caches the tool list after the first fetch.
+// ToolCache wraps an MCP Client and caches the tool list after a successful fetch.
+// Unlike sync.Once, a failed fetch is not cached — subsequent calls will retry.
 type ToolCache struct {
 	client Client
 
-	once  sync.Once
+	mu    sync.Mutex
 	tools []mcpgo.Tool
-	err   error
 }
 
 // NewToolCache creates a ToolCache that lazily fetches tools from the given Client.
@@ -23,12 +23,22 @@ func NewToolCache(client Client) *ToolCache {
 	return &ToolCache{client: client}
 }
 
-// GetTools returns the cached tool list, fetching from the MCP server on first call.
+// GetTools returns the cached tool list, fetching from the MCP server if not yet cached.
+// Errors are not cached — a subsequent call will retry the fetch.
 func (tc *ToolCache) GetTools(ctx context.Context) ([]mcpgo.Tool, error) {
-	tc.once.Do(func() {
-		tc.tools, tc.err = tc.client.ListTools(ctx)
-	})
-	return tc.tools, tc.err
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	if tc.tools != nil {
+		return tc.tools, nil
+	}
+
+	tools, err := tc.client.ListTools(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tc.tools = tools
+	return tc.tools, nil
 }
 
 // GetLLMTools converts MCP tools to the llm.Tool format suitable for OpenAI-compatible APIs.
