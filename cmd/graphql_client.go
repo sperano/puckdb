@@ -91,6 +91,24 @@ func (c *GraphQLClient) executeProgressReportQuery(ctx context.Context, query, r
 	return &status, nil
 }
 
+// CheckYahooToken queries the Yahoo OAuth2 token status from the API.
+// Returns (valid, loginURL, error).
+func (c *GraphQLClient) CheckYahooToken(ctx context.Context) (bool, string, error) {
+	resp, err := c.execute(ctx, `query { yahooTokenStatus { valid loginURL } }`, nil)
+	if err != nil {
+		return false, "", err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(resp.Data, &raw); err != nil {
+		return false, "", fmt.Errorf("parse response: %w", err)
+	}
+	var status model.YahooTokenStatus
+	if err := json.Unmarshal(raw["yahooTokenStatus"], &status); err != nil {
+		return false, "", fmt.Errorf("parse yahooTokenStatus: %w", err)
+	}
+	return status.Valid, status.LoginURL, nil
+}
+
 // execute sends a GraphQL request and returns the response
 func (c *GraphQLClient) execute(ctx context.Context, query string, variables map[string]any) (*graphQLResponse, error) {
 	reqBody := graphQLRequest{
