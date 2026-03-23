@@ -49,6 +49,25 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     toi_seconds = EXCLUDED.toi_seconds,
     penalty_minutes = EXCLUDED.penalty_minutes,
     updated_at = NOW()
+WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
+       game_goalie_stats.sweater_number,
+       game_goalie_stats.decision, game_goalie_stats.starter,
+       game_goalie_stats.shots_against, game_goalie_stats.saves,
+       game_goalie_stats.save_pctg, game_goalie_stats.goals_against,
+       game_goalie_stats.even_strength_goals_against,
+       game_goalie_stats.power_play_goals_against,
+       game_goalie_stats.shorthanded_goals_against,
+       game_goalie_stats.toi_seconds, game_goalie_stats.penalty_minutes)
+      IS DISTINCT FROM
+      (EXCLUDED.team_id, EXCLUDED.is_home,
+       EXCLUDED.sweater_number,
+       EXCLUDED.decision, EXCLUDED.starter,
+       EXCLUDED.shots_against, EXCLUDED.saves,
+       EXCLUDED.save_pctg, EXCLUDED.goals_against,
+       EXCLUDED.even_strength_goals_against,
+       EXCLUDED.power_play_goals_against,
+       EXCLUDED.shorthanded_goals_against,
+       EXCLUDED.toi_seconds, EXCLUDED.penalty_minutes)
 `
 
 type UpsertGameGoalieStatsBatchBatchResults struct {
@@ -160,6 +179,25 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     takeaways = EXCLUDED.takeaways,
     power_play_goals = EXCLUDED.power_play_goals,
     updated_at = NOW()
+WHERE (game_skater_stats.team_id, game_skater_stats.is_home,
+       game_skater_stats.sweater_number, game_skater_stats.position,
+       game_skater_stats.goals, game_skater_stats.assists,
+       game_skater_stats.points, game_skater_stats.plus_minus,
+       game_skater_stats.shots_on_goal, game_skater_stats.toi_seconds,
+       game_skater_stats.shifts, game_skater_stats.faceoff_winning_pctg,
+       game_skater_stats.hits, game_skater_stats.blocked_shots,
+       game_skater_stats.penalty_minutes, game_skater_stats.giveaways,
+       game_skater_stats.takeaways, game_skater_stats.power_play_goals)
+      IS DISTINCT FROM
+      (EXCLUDED.team_id, EXCLUDED.is_home,
+       EXCLUDED.sweater_number, EXCLUDED.position,
+       EXCLUDED.goals, EXCLUDED.assists,
+       EXCLUDED.points, EXCLUDED.plus_minus,
+       EXCLUDED.shots_on_goal, EXCLUDED.toi_seconds,
+       EXCLUDED.shifts, EXCLUDED.faceoff_winning_pctg,
+       EXCLUDED.hits, EXCLUDED.blocked_shots,
+       EXCLUDED.penalty_minutes, EXCLUDED.giveaways,
+       EXCLUDED.takeaways, EXCLUDED.power_play_goals)
 `
 
 type UpsertGameSkaterStatsBatchBatchResults struct {
@@ -319,6 +357,49 @@ ON CONFLICT (game_id, event_id) DO UPDATE SET
     reason = EXCLUDED.reason,
     away_sog = EXCLUDED.away_sog,
     home_sog = EXCLUDED.home_sog
+WHERE (play_events.period, play_events.period_type,
+       play_events.time_in_period, play_events.time_remaining,
+       play_events.situation_code, play_events.home_team_defending_side,
+       play_events.type_code, play_events.type_desc_key, play_events.sort_order,
+       play_events.x_coord, play_events.y_coord, play_events.zone_code,
+       play_events.event_owner_team_id,
+       play_events.shot_type, play_events.shooting_player_id,
+       play_events.goalie_in_net_id, play_events.blocking_player_id,
+       play_events.scoring_player_id, play_events.scoring_player_total,
+       play_events.assist1_player_id, play_events.assist1_player_total,
+       play_events.assist2_player_id, play_events.assist2_player_total,
+       play_events.away_score, play_events.home_score,
+       play_events.highlight_clip_id, play_events.highlight_clip_url,
+       play_events.discrete_clip_id,
+       play_events.penalty_type_code, play_events.penalty_desc_key,
+       play_events.penalty_duration,
+       play_events.committed_by_player_id, play_events.drawn_by_player_id,
+       play_events.hitting_player_id, play_events.hittee_player_id,
+       play_events.winning_player_id, play_events.losing_player_id,
+       play_events.player_id, play_events.reason,
+       play_events.away_sog, play_events.home_sog)
+      IS DISTINCT FROM
+      (EXCLUDED.period, EXCLUDED.period_type,
+       EXCLUDED.time_in_period, EXCLUDED.time_remaining,
+       EXCLUDED.situation_code, EXCLUDED.home_team_defending_side,
+       EXCLUDED.type_code, EXCLUDED.type_desc_key, EXCLUDED.sort_order,
+       EXCLUDED.x_coord, EXCLUDED.y_coord, EXCLUDED.zone_code,
+       EXCLUDED.event_owner_team_id,
+       EXCLUDED.shot_type, EXCLUDED.shooting_player_id,
+       EXCLUDED.goalie_in_net_id, EXCLUDED.blocking_player_id,
+       EXCLUDED.scoring_player_id, EXCLUDED.scoring_player_total,
+       EXCLUDED.assist1_player_id, EXCLUDED.assist1_player_total,
+       EXCLUDED.assist2_player_id, EXCLUDED.assist2_player_total,
+       EXCLUDED.away_score, EXCLUDED.home_score,
+       EXCLUDED.highlight_clip_id, EXCLUDED.highlight_clip_url,
+       EXCLUDED.discrete_clip_id,
+       EXCLUDED.penalty_type_code, EXCLUDED.penalty_desc_key,
+       EXCLUDED.penalty_duration,
+       EXCLUDED.committed_by_player_id, EXCLUDED.drawn_by_player_id,
+       EXCLUDED.hitting_player_id, EXCLUDED.hittee_player_id,
+       EXCLUDED.winning_player_id, EXCLUDED.losing_player_id,
+       EXCLUDED.player_id, EXCLUDED.reason,
+       EXCLUDED.away_sog, EXCLUDED.home_sog)
 `
 
 type UpsertPlayEventBatchBatchResults struct {
@@ -473,6 +554,15 @@ ON CONFLICT (id) DO UPDATE SET
     detail_code = EXCLUDED.detail_code,
     event_number = EXCLUDED.event_number,
     event_description = EXCLUDED.event_description
+WHERE (shifts.game_id, shifts.player_id, shifts.team_id, shifts.period,
+       shifts.start_time, shifts.end_time, shifts.duration,
+       shifts.shift_number, shifts.type_code, shifts.detail_code,
+       shifts.event_number, shifts.event_description)
+      IS DISTINCT FROM
+      (EXCLUDED.game_id, EXCLUDED.player_id, EXCLUDED.team_id, EXCLUDED.period,
+       EXCLUDED.start_time, EXCLUDED.end_time, EXCLUDED.duration,
+       EXCLUDED.shift_number, EXCLUDED.type_code, EXCLUDED.detail_code,
+       EXCLUDED.event_number, EXCLUDED.event_description)
 `
 
 type UpsertShiftBatchBatchResults struct {
@@ -551,6 +641,11 @@ ON CONFLICT (league_id, position) DO UPDATE SET
     position_type = EXCLUDED.position_type,
     count = EXCLUDED.count,
     is_starting_position = EXCLUDED.is_starting_position
+WHERE (yahoo_league_roster_positions.position_type,
+       yahoo_league_roster_positions.count,
+       yahoo_league_roster_positions.is_starting_position)
+      IS DISTINCT FROM
+      (EXCLUDED.position_type, EXCLUDED.count, EXCLUDED.is_starting_position)
 `
 
 type UpsertYahooLeagueRosterPositionBatchBatchResults struct {
@@ -615,6 +710,13 @@ ON CONFLICT (league_id, stat_id) DO UPDATE SET
     stat_group = EXCLUDED.stat_group,
     enabled = EXCLUDED.enabled,
     value = EXCLUDED.value
+WHERE (yahoo_league_stat_categories.name, yahoo_league_stat_categories.abbr,
+       yahoo_league_stat_categories.stat_group,
+       yahoo_league_stat_categories.enabled,
+       yahoo_league_stat_categories.value)
+      IS DISTINCT FROM
+      (EXCLUDED.name, EXCLUDED.abbr, EXCLUDED.stat_group,
+       EXCLUDED.enabled, EXCLUDED.value)
 `
 
 type UpsertYahooLeagueStatCategoryBatchBatchResults struct {
@@ -690,6 +792,15 @@ ON CONFLICT (league_id, id) DO UPDATE SET
     number_of_trades = EXCLUDED.number_of_trades,
     is_owned_by_current_login = EXCLUDED.is_owned_by_current_login,
     updated_at = NOW()
+WHERE (yahoo_teams.team_key, yahoo_teams.name, yahoo_teams.url,
+       yahoo_teams.logo_url, yahoo_teams.draft_position,
+       yahoo_teams.waiver_priority, yahoo_teams.number_of_moves,
+       yahoo_teams.number_of_trades, yahoo_teams.is_owned_by_current_login)
+      IS DISTINCT FROM
+      (EXCLUDED.team_key, EXCLUDED.name, EXCLUDED.url,
+       EXCLUDED.logo_url, EXCLUDED.draft_position,
+       EXCLUDED.waiver_priority, EXCLUDED.number_of_moves,
+       EXCLUDED.number_of_trades, EXCLUDED.is_owned_by_current_login)
 `
 
 type UpsertYahooTeamBatchBatchResults struct {
@@ -770,6 +881,15 @@ ON CONFLICT (league_id, team_id, id) DO UPDATE SET
     felo_tier = EXCLUDED.felo_tier,
     is_current_login = EXCLUDED.is_current_login,
     is_commissioner = EXCLUDED.is_commissioner
+WHERE (yahoo_team_managers.nickname, yahoo_team_managers.guid,
+       yahoo_team_managers.email, yahoo_team_managers.image_url,
+       yahoo_team_managers.felo_score, yahoo_team_managers.felo_tier,
+       yahoo_team_managers.is_current_login, yahoo_team_managers.is_commissioner)
+      IS DISTINCT FROM
+      (EXCLUDED.nickname, EXCLUDED.guid,
+       EXCLUDED.email, EXCLUDED.image_url,
+       EXCLUDED.felo_score, EXCLUDED.felo_tier,
+       EXCLUDED.is_current_login, EXCLUDED.is_commissioner)
 `
 
 type UpsertYahooTeamManagerBatchBatchResults struct {
@@ -849,6 +969,13 @@ ON CONFLICT (league_id, team_id, date, player_id) DO UPDATE SET
     selected_position = EXCLUDED.selected_position,
     is_flex = EXCLUDED.is_flex,
     updated_at = NOW()
+WHERE (yahoo_team_rosters.coverage_type, yahoo_team_rosters.is_editable,
+       yahoo_team_rosters.player_key, yahoo_team_rosters.selected_position,
+       yahoo_team_rosters.is_flex)
+      IS DISTINCT FROM
+      (EXCLUDED.coverage_type, EXCLUDED.is_editable,
+       EXCLUDED.player_key, EXCLUDED.selected_position,
+       EXCLUDED.is_flex)
 `
 
 type UpsertYahooTeamRosterBatchBatchResults struct {
@@ -918,6 +1045,7 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (league_id, team_id, date) DO UPDATE SET
     coverage_type = EXCLUDED.coverage_type,
     updated_at = NOW()
+WHERE yahoo_team_summaries.coverage_type IS DISTINCT FROM EXCLUDED.coverage_type
 `
 
 type UpsertYahooTeamSummaryBatchBatchResults struct {
@@ -976,6 +1104,7 @@ INSERT INTO yahoo_team_summary_stats (
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (league_id, team_id, date, stat_id) DO UPDATE SET
     value = EXCLUDED.value
+WHERE yahoo_team_summary_stats.value IS DISTINCT FROM EXCLUDED.value
 `
 
 type UpsertYahooTeamSummaryStatBatchBatchResults struct {

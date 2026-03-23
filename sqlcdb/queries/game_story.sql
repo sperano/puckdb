@@ -6,7 +6,8 @@
 INSERT INTO game_three_stars (game_id, star, player_id)
 VALUES ($1, $2, $3)
 ON CONFLICT (game_id, star) DO UPDATE SET
-    player_id = EXCLUDED.player_id;
+    player_id = EXCLUDED.player_id
+WHERE game_three_stars.player_id IS DISTINCT FROM EXCLUDED.player_id;
 
 -- name: UpsertGoalHighlight :exec
 INSERT INTO goal_highlights (
@@ -20,7 +21,16 @@ ON CONFLICT (game_id, event_id) DO UPDATE SET
     goals_to_date = EXCLUDED.goals_to_date,
     highlight_clip_id = EXCLUDED.highlight_clip_id,
     highlight_clip_url = EXCLUDED.highlight_clip_url,
-    discrete_clip_id = EXCLUDED.discrete_clip_id;
+    discrete_clip_id = EXCLUDED.discrete_clip_id
+WHERE (goal_highlights.player_id, goal_highlights.period,
+       goal_highlights.time_in_period, goal_highlights.goals_to_date,
+       goal_highlights.highlight_clip_id, goal_highlights.highlight_clip_url,
+       goal_highlights.discrete_clip_id)
+      IS DISTINCT FROM
+      (EXCLUDED.player_id, EXCLUDED.period,
+       EXCLUDED.time_in_period, EXCLUDED.goals_to_date,
+       EXCLUDED.highlight_clip_id, EXCLUDED.highlight_clip_url,
+       EXCLUDED.discrete_clip_id);
 
 -- name: UpsertShootoutAttempt :exec
 INSERT INTO shootout_attempts (
@@ -31,7 +41,14 @@ ON CONFLICT (game_id, sequence) DO UPDATE SET
     team_id = EXCLUDED.team_id,
     shot_type = EXCLUDED.shot_type,
     result = EXCLUDED.result,
-    game_winner = EXCLUDED.game_winner;
+    game_winner = EXCLUDED.game_winner
+WHERE (shootout_attempts.player_id, shootout_attempts.team_id,
+       shootout_attempts.shot_type, shootout_attempts.result,
+       shootout_attempts.game_winner)
+      IS DISTINCT FROM
+      (EXCLUDED.player_id, EXCLUDED.team_id,
+       EXCLUDED.shot_type, EXCLUDED.result,
+       EXCLUDED.game_winner);
 
 -- name: GetTeamIDByAbbrev :one
 -- Look up team_id from abbreviation for a given season

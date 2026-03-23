@@ -67,7 +67,38 @@ ON CONFLICT (id) DO UPDATE SET
     uses_playoff = EXCLUDED.uses_playoff,
     persistent_url = EXCLUDED.persistent_url,
     league_update_timestamp = EXCLUDED.league_update_timestamp,
-    updated_at = NOW();
+    updated_at = NOW()
+WHERE (yahoo_leagues.league_key, yahoo_leagues.name, yahoo_leagues.url,
+       yahoo_leagues.logo_url, yahoo_leagues.season,
+       yahoo_leagues.game_code, yahoo_leagues.num_teams,
+       yahoo_leagues.scoring_type, yahoo_leagues.league_type,
+       yahoo_leagues.draft_status, yahoo_leagues.is_pro_league,
+       yahoo_leagues.is_cash_league, yahoo_leagues.start_date,
+       yahoo_leagues.end_date, yahoo_leagues.draft_type,
+       yahoo_leagues.is_auction_draft, yahoo_leagues.draft_time,
+       yahoo_leagues.draft_pick_time, yahoo_leagues.waiver_type,
+       yahoo_leagues.waiver_rule, yahoo_leagues.waiver_time,
+       yahoo_leagues.trade_end_date, yahoo_leagues.trade_ratify_type,
+       yahoo_leagues.trade_reject_time, yahoo_leagues.max_teams,
+       yahoo_leagues.player_pool, yahoo_leagues.post_draft_players,
+       yahoo_leagues.cant_cut_list, yahoo_leagues.uses_playoff,
+       yahoo_leagues.persistent_url, yahoo_leagues.league_update_timestamp)
+      IS DISTINCT FROM
+      (EXCLUDED.league_key, EXCLUDED.name, EXCLUDED.url,
+       EXCLUDED.logo_url, EXCLUDED.season,
+       EXCLUDED.game_code, EXCLUDED.num_teams,
+       EXCLUDED.scoring_type, EXCLUDED.league_type,
+       EXCLUDED.draft_status, EXCLUDED.is_pro_league,
+       EXCLUDED.is_cash_league, EXCLUDED.start_date,
+       EXCLUDED.end_date, EXCLUDED.draft_type,
+       EXCLUDED.is_auction_draft, EXCLUDED.draft_time,
+       EXCLUDED.draft_pick_time, EXCLUDED.waiver_type,
+       EXCLUDED.waiver_rule, EXCLUDED.waiver_time,
+       EXCLUDED.trade_end_date, EXCLUDED.trade_ratify_type,
+       EXCLUDED.trade_reject_time, EXCLUDED.max_teams,
+       EXCLUDED.player_pool, EXCLUDED.post_draft_players,
+       EXCLUDED.cant_cut_list, EXCLUDED.uses_playoff,
+       EXCLUDED.persistent_url, EXCLUDED.league_update_timestamp);
 
 -- name: CountYahooLeagues :one
 SELECT COUNT(*) FROM yahoo_leagues;
@@ -103,7 +134,12 @@ VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (league_id, position) DO UPDATE SET
     position_type = EXCLUDED.position_type,
     count = EXCLUDED.count,
-    is_starting_position = EXCLUDED.is_starting_position;
+    is_starting_position = EXCLUDED.is_starting_position
+WHERE (yahoo_league_roster_positions.position_type,
+       yahoo_league_roster_positions.count,
+       yahoo_league_roster_positions.is_starting_position)
+      IS DISTINCT FROM
+      (EXCLUDED.position_type, EXCLUDED.count, EXCLUDED.is_starting_position);
 
 -- =============================================================================
 -- Yahoo League Stat Categories
@@ -132,7 +168,14 @@ ON CONFLICT (league_id, stat_id) DO UPDATE SET
     abbr = EXCLUDED.abbr,
     stat_group = EXCLUDED.stat_group,
     enabled = EXCLUDED.enabled,
-    value = EXCLUDED.value;
+    value = EXCLUDED.value
+WHERE (yahoo_league_stat_categories.name, yahoo_league_stat_categories.abbr,
+       yahoo_league_stat_categories.stat_group,
+       yahoo_league_stat_categories.enabled,
+       yahoo_league_stat_categories.value)
+      IS DISTINCT FROM
+      (EXCLUDED.name, EXCLUDED.abbr, EXCLUDED.stat_group,
+       EXCLUDED.enabled, EXCLUDED.value);
 
 -- =============================================================================
 -- Yahoo Teams
@@ -179,7 +222,16 @@ ON CONFLICT (league_id, id) DO UPDATE SET
     number_of_moves = EXCLUDED.number_of_moves,
     number_of_trades = EXCLUDED.number_of_trades,
     is_owned_by_current_login = EXCLUDED.is_owned_by_current_login,
-    updated_at = NOW();
+    updated_at = NOW()
+WHERE (yahoo_teams.team_key, yahoo_teams.name, yahoo_teams.url,
+       yahoo_teams.logo_url, yahoo_teams.draft_position,
+       yahoo_teams.waiver_priority, yahoo_teams.number_of_moves,
+       yahoo_teams.number_of_trades, yahoo_teams.is_owned_by_current_login)
+      IS DISTINCT FROM
+      (EXCLUDED.team_key, EXCLUDED.name, EXCLUDED.url,
+       EXCLUDED.logo_url, EXCLUDED.draft_position,
+       EXCLUDED.waiver_priority, EXCLUDED.number_of_moves,
+       EXCLUDED.number_of_trades, EXCLUDED.is_owned_by_current_login);
 
 -- =============================================================================
 -- Yahoo Team Managers
@@ -213,4 +265,13 @@ ON CONFLICT (league_id, team_id, id) DO UPDATE SET
     felo_score = EXCLUDED.felo_score,
     felo_tier = EXCLUDED.felo_tier,
     is_current_login = EXCLUDED.is_current_login,
-    is_commissioner = EXCLUDED.is_commissioner;
+    is_commissioner = EXCLUDED.is_commissioner
+WHERE (yahoo_team_managers.nickname, yahoo_team_managers.guid,
+       yahoo_team_managers.email, yahoo_team_managers.image_url,
+       yahoo_team_managers.felo_score, yahoo_team_managers.felo_tier,
+       yahoo_team_managers.is_current_login, yahoo_team_managers.is_commissioner)
+      IS DISTINCT FROM
+      (EXCLUDED.nickname, EXCLUDED.guid,
+       EXCLUDED.email, EXCLUDED.image_url,
+       EXCLUDED.felo_score, EXCLUDED.felo_tier,
+       EXCLUDED.is_current_login, EXCLUDED.is_commissioner);

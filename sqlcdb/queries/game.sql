@@ -144,7 +144,28 @@ ON CONFLICT (id) DO UPDATE SET
     away_team_score = EXCLUDED.away_team_score,
     away_team_sog = EXCLUDED.away_team_sog,
     limited_scoring = EXCLUDED.limited_scoring,
-    updated_at = NOW();
+    updated_at = NOW()
+WHERE (games.season, games.game_type, games.game_date,
+       games.venue, games.venue_location,
+       games.start_time_utc, games.eastern_utc_offset, games.venue_utc_offset,
+       games.game_state, games.game_schedule_state,
+       games.period_number, games.period_type, games.max_regulation_periods,
+       games.clock_time_remaining, games.clock_seconds_remaining,
+       games.clock_running, games.clock_in_intermission,
+       games.home_team_id, games.home_team_score, games.home_team_sog,
+       games.away_team_id, games.away_team_score, games.away_team_sog,
+       games.limited_scoring)
+      IS DISTINCT FROM
+      (EXCLUDED.season, EXCLUDED.game_type, EXCLUDED.game_date,
+       EXCLUDED.venue, EXCLUDED.venue_location,
+       EXCLUDED.start_time_utc, EXCLUDED.eastern_utc_offset, EXCLUDED.venue_utc_offset,
+       EXCLUDED.game_state, EXCLUDED.game_schedule_state,
+       EXCLUDED.period_number, EXCLUDED.period_type, EXCLUDED.max_regulation_periods,
+       EXCLUDED.clock_time_remaining, EXCLUDED.clock_seconds_remaining,
+       EXCLUDED.clock_running, EXCLUDED.clock_in_intermission,
+       EXCLUDED.home_team_id, EXCLUDED.home_team_score, EXCLUDED.home_team_sog,
+       EXCLUDED.away_team_id, EXCLUDED.away_team_score, EXCLUDED.away_team_sog,
+       EXCLUDED.limited_scoring);
 
 -- name: DeleteGame :exec
 DELETE FROM games WHERE id = $1;

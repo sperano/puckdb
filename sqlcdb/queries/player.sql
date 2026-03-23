@@ -122,7 +122,28 @@ ON CONFLICT (id) DO UPDATE SET
     draft_team_abbrev = EXCLUDED.draft_team_abbrev,
     draft_round = EXCLUDED.draft_round,
     draft_pick_in_round = EXCLUDED.draft_pick_in_round,
-    draft_overall_pick = EXCLUDED.draft_overall_pick;
+    draft_overall_pick = EXCLUDED.draft_overall_pick
+WHERE (players.first_name, players.last_name, players.team_id,
+       players.position, players.shoots_catches,
+       players.height_inches, players.weight_pounds,
+       players.birth_date, players.birth_city,
+       players.birth_state_province, players.birth_country,
+       players.sweater_number, players.is_active,
+       players.headshot_url, players.hero_image_url, players.player_slug,
+       players.draft_year, players.draft_team_abbrev,
+       players.draft_round, players.draft_pick_in_round,
+       players.draft_overall_pick)
+      IS DISTINCT FROM
+      (EXCLUDED.first_name, EXCLUDED.last_name, EXCLUDED.team_id,
+       EXCLUDED.position, EXCLUDED.shoots_catches,
+       EXCLUDED.height_inches, EXCLUDED.weight_pounds,
+       EXCLUDED.birth_date, EXCLUDED.birth_city,
+       EXCLUDED.birth_state_province, EXCLUDED.birth_country,
+       EXCLUDED.sweater_number, EXCLUDED.is_active,
+       EXCLUDED.headshot_url, EXCLUDED.hero_image_url, EXCLUDED.player_slug,
+       EXCLUDED.draft_year, EXCLUDED.draft_team_abbrev,
+       EXCLUDED.draft_round, EXCLUDED.draft_pick_in_round,
+       EXCLUDED.draft_overall_pick);
 
 -- name: UpdatePlayerYahooInfo :exec
 -- Use this when importing from Yahoo API (updates Yahoo-specific fields)

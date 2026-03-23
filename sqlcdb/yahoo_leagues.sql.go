@@ -741,6 +741,37 @@ ON CONFLICT (id) DO UPDATE SET
     persistent_url = EXCLUDED.persistent_url,
     league_update_timestamp = EXCLUDED.league_update_timestamp,
     updated_at = NOW()
+WHERE (yahoo_leagues.league_key, yahoo_leagues.name, yahoo_leagues.url,
+       yahoo_leagues.logo_url, yahoo_leagues.season,
+       yahoo_leagues.game_code, yahoo_leagues.num_teams,
+       yahoo_leagues.scoring_type, yahoo_leagues.league_type,
+       yahoo_leagues.draft_status, yahoo_leagues.is_pro_league,
+       yahoo_leagues.is_cash_league, yahoo_leagues.start_date,
+       yahoo_leagues.end_date, yahoo_leagues.draft_type,
+       yahoo_leagues.is_auction_draft, yahoo_leagues.draft_time,
+       yahoo_leagues.draft_pick_time, yahoo_leagues.waiver_type,
+       yahoo_leagues.waiver_rule, yahoo_leagues.waiver_time,
+       yahoo_leagues.trade_end_date, yahoo_leagues.trade_ratify_type,
+       yahoo_leagues.trade_reject_time, yahoo_leagues.max_teams,
+       yahoo_leagues.player_pool, yahoo_leagues.post_draft_players,
+       yahoo_leagues.cant_cut_list, yahoo_leagues.uses_playoff,
+       yahoo_leagues.persistent_url, yahoo_leagues.league_update_timestamp)
+      IS DISTINCT FROM
+      (EXCLUDED.league_key, EXCLUDED.name, EXCLUDED.url,
+       EXCLUDED.logo_url, EXCLUDED.season,
+       EXCLUDED.game_code, EXCLUDED.num_teams,
+       EXCLUDED.scoring_type, EXCLUDED.league_type,
+       EXCLUDED.draft_status, EXCLUDED.is_pro_league,
+       EXCLUDED.is_cash_league, EXCLUDED.start_date,
+       EXCLUDED.end_date, EXCLUDED.draft_type,
+       EXCLUDED.is_auction_draft, EXCLUDED.draft_time,
+       EXCLUDED.draft_pick_time, EXCLUDED.waiver_type,
+       EXCLUDED.waiver_rule, EXCLUDED.waiver_time,
+       EXCLUDED.trade_end_date, EXCLUDED.trade_ratify_type,
+       EXCLUDED.trade_reject_time, EXCLUDED.max_teams,
+       EXCLUDED.player_pool, EXCLUDED.post_draft_players,
+       EXCLUDED.cant_cut_list, EXCLUDED.uses_playoff,
+       EXCLUDED.persistent_url, EXCLUDED.league_update_timestamp)
 `
 
 type UpsertYahooLeagueParams struct {

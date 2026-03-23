@@ -722,6 +722,25 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     toi_seconds = EXCLUDED.toi_seconds,
     penalty_minutes = EXCLUDED.penalty_minutes,
     updated_at = NOW()
+WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
+       game_goalie_stats.sweater_number,
+       game_goalie_stats.decision, game_goalie_stats.starter,
+       game_goalie_stats.shots_against, game_goalie_stats.saves,
+       game_goalie_stats.save_pctg, game_goalie_stats.goals_against,
+       game_goalie_stats.even_strength_goals_against,
+       game_goalie_stats.power_play_goals_against,
+       game_goalie_stats.shorthanded_goals_against,
+       game_goalie_stats.toi_seconds, game_goalie_stats.penalty_minutes)
+      IS DISTINCT FROM
+      (EXCLUDED.team_id, EXCLUDED.is_home,
+       EXCLUDED.sweater_number,
+       EXCLUDED.decision, EXCLUDED.starter,
+       EXCLUDED.shots_against, EXCLUDED.saves,
+       EXCLUDED.save_pctg, EXCLUDED.goals_against,
+       EXCLUDED.even_strength_goals_against,
+       EXCLUDED.power_play_goals_against,
+       EXCLUDED.shorthanded_goals_against,
+       EXCLUDED.toi_seconds, EXCLUDED.penalty_minutes)
 `
 
 type UpsertGameGoalieStatsParams struct {

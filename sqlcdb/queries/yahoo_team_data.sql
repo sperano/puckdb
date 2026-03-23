@@ -44,7 +44,8 @@ INSERT INTO yahoo_team_summaries (
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (league_id, team_id, date) DO UPDATE SET
     coverage_type = EXCLUDED.coverage_type,
-    updated_at = NOW();
+    updated_at = NOW()
+WHERE yahoo_team_summaries.coverage_type IS DISTINCT FROM EXCLUDED.coverage_type;
 
 -- =============================================================================
 -- Yahoo Team Summary Stats
@@ -81,7 +82,8 @@ INSERT INTO yahoo_team_summary_stats (
 )
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (league_id, team_id, date, stat_id) DO UPDATE SET
-    value = EXCLUDED.value;
+    value = EXCLUDED.value
+WHERE yahoo_team_summary_stats.value IS DISTINCT FROM EXCLUDED.value;
 
 -- =============================================================================
 -- Yahoo Team Rosters
@@ -144,4 +146,11 @@ ON CONFLICT (league_id, team_id, date, player_id) DO UPDATE SET
     player_key = EXCLUDED.player_key,
     selected_position = EXCLUDED.selected_position,
     is_flex = EXCLUDED.is_flex,
-    updated_at = NOW();
+    updated_at = NOW()
+WHERE (yahoo_team_rosters.coverage_type, yahoo_team_rosters.is_editable,
+       yahoo_team_rosters.player_key, yahoo_team_rosters.selected_position,
+       yahoo_team_rosters.is_flex)
+      IS DISTINCT FROM
+      (EXCLUDED.coverage_type, EXCLUDED.is_editable,
+       EXCLUDED.player_key, EXCLUDED.selected_position,
+       EXCLUDED.is_flex);

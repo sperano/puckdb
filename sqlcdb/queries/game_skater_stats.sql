@@ -146,7 +146,26 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     giveaways = EXCLUDED.giveaways,
     takeaways = EXCLUDED.takeaways,
     power_play_goals = EXCLUDED.power_play_goals,
-    updated_at = NOW();
+    updated_at = NOW()
+WHERE (game_skater_stats.team_id, game_skater_stats.is_home,
+       game_skater_stats.sweater_number, game_skater_stats.position,
+       game_skater_stats.goals, game_skater_stats.assists,
+       game_skater_stats.points, game_skater_stats.plus_minus,
+       game_skater_stats.shots_on_goal, game_skater_stats.toi_seconds,
+       game_skater_stats.shifts, game_skater_stats.faceoff_winning_pctg,
+       game_skater_stats.hits, game_skater_stats.blocked_shots,
+       game_skater_stats.penalty_minutes, game_skater_stats.giveaways,
+       game_skater_stats.takeaways, game_skater_stats.power_play_goals)
+      IS DISTINCT FROM
+      (EXCLUDED.team_id, EXCLUDED.is_home,
+       EXCLUDED.sweater_number, EXCLUDED.position,
+       EXCLUDED.goals, EXCLUDED.assists,
+       EXCLUDED.points, EXCLUDED.plus_minus,
+       EXCLUDED.shots_on_goal, EXCLUDED.toi_seconds,
+       EXCLUDED.shifts, EXCLUDED.faceoff_winning_pctg,
+       EXCLUDED.hits, EXCLUDED.blocked_shots,
+       EXCLUDED.penalty_minutes, EXCLUDED.giveaways,
+       EXCLUDED.takeaways, EXCLUDED.power_play_goals);
 
 -- name: UpsertGameSkaterStatsBatch :batchexec
 INSERT INTO game_skater_stats (
@@ -183,7 +202,26 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     giveaways = EXCLUDED.giveaways,
     takeaways = EXCLUDED.takeaways,
     power_play_goals = EXCLUDED.power_play_goals,
-    updated_at = NOW();
+    updated_at = NOW()
+WHERE (game_skater_stats.team_id, game_skater_stats.is_home,
+       game_skater_stats.sweater_number, game_skater_stats.position,
+       game_skater_stats.goals, game_skater_stats.assists,
+       game_skater_stats.points, game_skater_stats.plus_minus,
+       game_skater_stats.shots_on_goal, game_skater_stats.toi_seconds,
+       game_skater_stats.shifts, game_skater_stats.faceoff_winning_pctg,
+       game_skater_stats.hits, game_skater_stats.blocked_shots,
+       game_skater_stats.penalty_minutes, game_skater_stats.giveaways,
+       game_skater_stats.takeaways, game_skater_stats.power_play_goals)
+      IS DISTINCT FROM
+      (EXCLUDED.team_id, EXCLUDED.is_home,
+       EXCLUDED.sweater_number, EXCLUDED.position,
+       EXCLUDED.goals, EXCLUDED.assists,
+       EXCLUDED.points, EXCLUDED.plus_minus,
+       EXCLUDED.shots_on_goal, EXCLUDED.toi_seconds,
+       EXCLUDED.shifts, EXCLUDED.faceoff_winning_pctg,
+       EXCLUDED.hits, EXCLUDED.blocked_shots,
+       EXCLUDED.penalty_minutes, EXCLUDED.giveaways,
+       EXCLUDED.takeaways, EXCLUDED.power_play_goals);
 
 -- name: DeleteGameSkaterStats :exec
 DELETE FROM game_skater_stats WHERE game_id = $1 AND player_id = $2;

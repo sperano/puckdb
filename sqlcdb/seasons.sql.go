@@ -284,6 +284,9 @@ VALUES ($1, $2, $3)
 ON CONFLICT (id) DO UPDATE SET
     standings_start = EXCLUDED.standings_start,
     standings_end = EXCLUDED.standings_end
+WHERE (seasons.standings_start, seasons.standings_end)
+      IS DISTINCT FROM
+      (EXCLUDED.standings_start, EXCLUDED.standings_end)
 `
 
 type UpsertSeasonParams struct {
@@ -312,6 +315,15 @@ ON CONFLICT (season_id, team_id) DO UPDATE SET
     division_abbrev = EXCLUDED.division_abbrev,
     conference_name = EXCLUDED.conference_name,
     conference_abbrev = EXCLUDED.conference_abbrev
+WHERE (season_teams.franchise_id, season_teams.full_name,
+       season_teams.abbrev, season_teams.logo_url,
+       season_teams.division_name, season_teams.division_abbrev,
+       season_teams.conference_name, season_teams.conference_abbrev)
+      IS DISTINCT FROM
+      (EXCLUDED.franchise_id, EXCLUDED.full_name,
+       EXCLUDED.abbrev, EXCLUDED.logo_url,
+       EXCLUDED.division_name, EXCLUDED.division_abbrev,
+       EXCLUDED.conference_name, EXCLUDED.conference_abbrev)
 `
 
 type UpsertSeasonTeamParams struct {

@@ -22,4 +22,13 @@ ON CONFLICT (id) DO UPDATE SET
     type_code = EXCLUDED.type_code,
     detail_code = EXCLUDED.detail_code,
     event_number = EXCLUDED.event_number,
-    event_description = EXCLUDED.event_description;
+    event_description = EXCLUDED.event_description
+WHERE (shifts.game_id, shifts.player_id, shifts.team_id, shifts.period,
+       shifts.start_time, shifts.end_time, shifts.duration,
+       shifts.shift_number, shifts.type_code, shifts.detail_code,
+       shifts.event_number, shifts.event_description)
+      IS DISTINCT FROM
+      (EXCLUDED.game_id, EXCLUDED.player_id, EXCLUDED.team_id, EXCLUDED.period,
+       EXCLUDED.start_time, EXCLUDED.end_time, EXCLUDED.duration,
+       EXCLUDED.shift_number, EXCLUDED.type_code, EXCLUDED.detail_code,
+       EXCLUDED.event_number, EXCLUDED.event_description);
