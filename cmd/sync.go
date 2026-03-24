@@ -239,8 +239,10 @@ func newThemedSpinner(out io.Writer) *spinner {
 	sp := newSpinner(out, "Starting...")
 	if theme := viper.GetString(config.FlagTheme); theme != "" {
 		sp.SetColorTheme(theme)
-	} else if viper.GetBool(config.FlagRandomTheme) {
+	} else if viper.GetBool(config.FlagRandomThemes) {
 		sp.SetRandomLineThemes()
+	} else if viper.GetBool(config.FlagRandomTheme) {
+		sp.SetRandomTheme()
 	}
 	sp.Start()
 	return sp

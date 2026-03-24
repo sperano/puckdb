@@ -232,8 +232,9 @@ const (
 const (
 	FlagVerbose      = "verbose"
 	FlagIncomplete   = "incomplete"
-	FlagTheme       = "theme"
-	FlagRandomTheme = "random-theme"
+	FlagTheme        = "theme"
+	FlagRandomTheme  = "random-theme"
+	FlagRandomThemes = "random-themes"
 )
 
 // Maurice AI chat flags
@@ -437,7 +438,8 @@ var DisplayFlags = FlagGroup{
 var SpinnerFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagTheme, "", "", "Color theme for spinner pulse (red, blue, green, purple, white, cyan, yellow, pink, coral, teal, lime)", false},
-		{FlagRandomTheme, "", false, "Assign a random color theme to each spinner", false},
+		{FlagRandomTheme, "", false, "Pick one random color theme for the entire run", false},
+		{FlagRandomThemes, "", false, "Assign a different random color theme to each progress line", false},
 	},
 }
 

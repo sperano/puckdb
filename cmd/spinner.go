@@ -100,6 +100,12 @@ func (s *spinner) SetColorTheme(name string) bool {
 	return true
 }
 
+// SetRandomTheme picks one random theme and applies it to all lines.
+func (s *spinner) SetRandomTheme() {
+	name := colorThemeNames[rand.Intn(len(colorThemeNames))]
+	s.SetColorTheme(name)
+}
+
 // SetRandomLineThemes enables per-line random theme assignment.
 // Themes are shuffled so every theme appears before any repeats.
 func (s *spinner) SetRandomLineThemes() {
