@@ -97,15 +97,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 
-	// Pre-flight: check Yahoo OAuth2 token before starting any workflows.
-	valid, loginURL, err := client.CheckYahooToken(ctx)
-	if err != nil {
-		log.Warn().Err(err).Msg("Could not check Yahoo token status")
-	} else if !valid {
-		fmt.Fprintln(out, formatYahooTokenWarning(loginURL))
-		return fmt.Errorf("Yahoo OAuth2 token is missing — authenticate first")
-	}
-
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 

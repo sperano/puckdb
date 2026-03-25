@@ -111,9 +111,6 @@ func NewYahooClient(ctx context.Context, redisClient cache.Client) (Client, erro
 
 func NewYahooClientWithConfig(ctx context.Context, redisClient cache.Client, conf *oauth2.Config) (Client, error) {
 	token, err := cache.LoadToken(ctx, redisClient)
-	if errors.Is(err, cache.NewOAuth2TokenMissingError()) {
-		// Token missing - continue to return error below
-	}
 	if err != nil {
 		return nil, err
 	}
