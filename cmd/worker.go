@@ -115,9 +115,11 @@ func cmdWorker() *cobra.Command {
 				return err
 			}
 
+			yahooDownloader := workers.NewYahooDownloader(redisClient)
+
 			leagueActivities := &workers.YahooActivities{
 				Storage:          storage,
-				Download:         workers.DownloadFromYahoo,
+				Download:         yahooDownloader,
 				GobCache:         gobCache,
 				PublicDownloader: workers.HTTPDownloaderFunc(puckhttp.DownloadPublic),
 			}
@@ -161,7 +163,7 @@ func cmdWorker() *cobra.Command {
 				NHLClient:   nhlClient,
 				GobCache:    gobCache,
 				RedisClient: redisClient,
-				Download:    workers.DownloadFromYahoo,
+				Download:    yahooDownloader,
 			}
 			w.RegisterActivity(dailyScheduleActivities.FetchDailySchedule)
 			w.RegisterActivity(dailyScheduleActivities.FetchDay)
@@ -176,26 +178,26 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(boxscoreActivities.ExtractAndSaveBoxscorePlayers)
 			w.RegisterActivity(workers.ConsolidateBoxscorePlayersActivity)
 
-			// Player activities (landings, game logs, boxscore player loading)
+			// Player activities (landings, game logs, boxscore player loading, process players)
 			playerActivities := &workers.PlayerActivities{
 				Storage:     storage,
 				NHLClient:   nhlClient,
 				RedisClient: redisClient,
+				GobCache:    gobCache,
+				Queries:     queries,
 			}
 			w.RegisterActivity(playerActivities.FetchPlayerLandingsBatch)
 			w.RegisterActivity(playerActivities.DownloadPlayerGameLogsBatch)
 			w.RegisterActivity(playerActivities.LoadSeasonBoxscorePlayers)
 			w.RegisterActivity(playerActivities.LoadAllBoxscorePlayers)
 			w.RegisterActivity(playerActivities.CountPlayersForAllSeasons)
-
-			// ProcessPlayers activities (unified download + import)
-			w.RegisterActivity(workers.ProcessPlayerBatchActivity)
-			w.RegisterActivity(workers.ListYahooPlayerFilesActivity)
-			w.RegisterActivity(workers.ParseYahooPlayerBatchActivity)
-			w.RegisterActivity(workers.SaveYahooPlayersToRedisActivity)
-			w.RegisterActivity(workers.LoadUnmatchedYahooPlayersActivity)
-			w.RegisterActivity(workers.VerifyUnmatchedBatchActivity)
-			w.RegisterActivity(workers.CleanupYahooIDPoolActivity)
+			w.RegisterActivity(playerActivities.ProcessPlayerBatch)
+			w.RegisterActivity(playerActivities.ListYahooPlayerFiles)
+			w.RegisterActivity(playerActivities.ParseYahooPlayerBatch)
+			w.RegisterActivity(playerActivities.SaveYahooPlayersToRedis)
+			w.RegisterActivity(playerActivities.LoadUnmatchedYahooPlayers)
+			w.RegisterActivity(playerActivities.VerifyUnmatchedBatch)
+			w.RegisterActivity(playerActivities.CleanupYahooIDPoolData)
 
 			err = w.Run(worker.InterruptCh())
 			if err != nil {

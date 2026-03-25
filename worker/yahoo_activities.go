@@ -41,7 +41,7 @@ func (a *YahooActivities) FetchLeague(ctx context.Context, season int, leagueID 
 	defer metrics.TrackActivityDuration("FetchLeague")()
 	logger := activity.GetLogger(ctx)
 
-	gameKey, err := GetGameKeyForSeason(season)
+	gameKey, err := getGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, season)
 	if err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func (a *YahooActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 	defer metrics.TrackActivityDuration("FetchTeams")()
 	logger := activity.GetLogger(ctx)
 
-	gameKey, err := GetGameKeyForSeason(input.StartSeason)
+	gameKey, err := getGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.StartSeason)
 	if err != nil {
 		return err
 	}

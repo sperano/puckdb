@@ -786,11 +786,11 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Succ
 		[]store.BoxscorePlayer{
 			{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"},
 		}, nil)
-	s.env.OnActivity(ListYahooPlayerFilesActivity, mock.Anything).Return(
+	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(
 		[]store.YahooPlayerID{1, 2, 3}, nil)
-	s.env.OnActivity(ParseYahooPlayerBatchActivity, mock.Anything, mock.Anything).Return(
+	s.env.OnActivity(playerAct.ParseYahooPlayerBatch, mock.Anything, mock.Anything).Return(
 		[]store.YahooPlayer{{YahooID: 1, FirstName: "Test", LastName: "Player"}}, nil)
-	s.env.OnActivity(SaveYahooPlayersToRedisActivity, mock.Anything, mock.Anything).Return(
+	s.env.OnActivity(playerAct.SaveYahooPlayersToRedis, mock.Anything, mock.Anything).Return(
 		&SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1}, nil)
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, input)
@@ -822,7 +822,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_List
 	var playerAct *PlayerActivities
 	s.env.OnActivity(playerAct.LoadAllBoxscorePlayers, mock.Anything).Return(
 		[]store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}}, nil)
-	s.env.OnActivity(ListYahooPlayerFilesActivity, mock.Anything).Return(
+	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(
 		([]store.YahooPlayerID)(nil), errors.New("file system error"))
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, input)
@@ -850,7 +850,8 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Succ
 	s.env.OnActivity(LoadProgressReportActivity, mock.Anything, mock.Anything).Return(reportBytes, nil)
 
 	// Mock Phase 3 activities
-	s.env.OnActivity(ProcessPlayerBatchActivity, mock.Anything, mock.Anything).Return(
+	var playerAct *PlayerActivities
+	s.env.OnActivity(playerAct.ProcessPlayerBatch, mock.Anything, mock.Anything).Return(
 		ProcessPlayerBatchResult{FetchStats: FetchStats{Downloaded: 1}, Imported: 1, Matched: 1}, nil)
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
@@ -872,7 +873,8 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Batc
 	reportBytes := gobEncodeProgressReport(NewProcessPlayersProgressReport(len(input.Players)))
 	s.env.OnActivity(LoadProgressReportActivity, mock.Anything, mock.Anything).Return(reportBytes, nil)
 
-	s.env.OnActivity(ProcessPlayerBatchActivity, mock.Anything, mock.Anything).Return(
+	var playerAct *PlayerActivities
+	s.env.OnActivity(playerAct.ProcessPlayerBatch, mock.Anything, mock.Anything).Return(
 		ProcessPlayerBatchResult{}, errors.New("database connection failed"))
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
@@ -900,9 +902,10 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_Succ
 	s.env.OnActivity(LoadProgressReportActivity, mock.Anything, mock.Anything).Return(reportBytes, nil)
 
 	// Mock Phase 4 activities - no unmatched players
-	s.env.OnActivity(LoadUnmatchedYahooPlayersActivity, mock.Anything).Return(
+	var playerAct *PlayerActivities
+	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything).Return(
 		[]UnmatchedYahooPlayer{}, nil)
-	s.env.OnActivity(CleanupYahooIDPoolActivity, mock.Anything).Maybe().Return(nil)
+	s.env.OnActivity(playerAct.CleanupYahooIDPoolData, mock.Anything).Maybe().Return(nil)
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
 
@@ -934,16 +937,17 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_With
 	s.env.OnActivity(LoadProgressReportActivity, mock.Anything, mock.Anything).Return(reportBytes, nil)
 
 	// Mock Phase 4 activities - some unmatched players
-	s.env.OnActivity(LoadUnmatchedYahooPlayersActivity, mock.Anything).Return(
+	var playerAct *PlayerActivities
+	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything).Return(
 		[]UnmatchedYahooPlayer{
 			{YahooID: 123, FirstName: "Unknown", LastName: "Player"},
 		}, nil)
-	s.env.OnActivity(VerifyUnmatchedBatchActivity, mock.Anything, mock.Anything).Return(
+	s.env.OnActivity(playerAct.VerifyUnmatchedBatch, mock.Anything, mock.Anything).Return(
 		&VerifyUnmatchedResult{
 			VerifiedNonNHL: []store.YahooPlayerID{123},
 			TrulyUnmatched: []VerifiedPlayer{},
 		}, nil)
-	s.env.OnActivity(CleanupYahooIDPoolActivity, mock.Anything).Return(nil)
+	s.env.OnActivity(playerAct.CleanupYahooIDPoolData, mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
 

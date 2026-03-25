@@ -56,33 +56,16 @@ type VerifyUnmatchedResult struct {
 	NotFoundInNHL []VerifiedPlayer
 }
 
-// verifyDeps contains the dependencies for verifying unmatched players.
-type verifyDeps struct {
-	client      NHLClient
-	storage     store.Storage
-	gobCache    *cache.GobCache
-	redisClient cache.Client
-}
-
-// VerifyUnmatchedBatchActivity verifies a batch of unmatched Yahoo players against the NHL API.
+// VerifyUnmatchedBatch verifies a batch of unmatched Yahoo players against the NHL API.
 // This is called multiple times by the workflow to enable progress tracking.
 // It categorizes players into:
 // - VerifiedNonNHL: confirmed 0 NHL games (can be ignored in future)
 // - TrulyUnmatched: have NHL games but weren't matched (need investigation)
 // - NotFoundInNHL: no matching name in NHL database
-func VerifyUnmatchedBatchActivity(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
+func (a *PlayerActivities) VerifyUnmatchedBatch(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
 	logger := activity.GetLogger(ctx)
-	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
 
-	deps := verifyDeps{
-		client:      nhl.NewClient(),
-		storage:     store.NewDefaultStorage(),
-		gobCache:    nil,
-		redisClient: redisClient,
-	}
-
-	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
 	if err != nil {
 		return nil, err
 	}
@@ -96,9 +79,10 @@ func VerifyUnmatchedBatchActivity(ctx context.Context, players []UnmatchedYahooP
 	return result, nil
 }
 
-func verifyUnmatchedBatchImpl(ctx context.Context, deps verifyDeps, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
+// verifyUnmatchedBatchImpl contains the testable logic for VerifyUnmatchedBatch.
+func (a *PlayerActivities) verifyUnmatchedBatchImpl(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
 	// Load already verified IDs to skip re-verification
-	alreadyVerified, err := LoadVerifiedNonNHLIDs(ctx, deps.redisClient)
+	alreadyVerified, err := LoadVerifiedNonNHLIDs(ctx, a.RedisClient)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load verified non-NHL IDs, will verify all")
 		alreadyVerified = make(map[store.YahooPlayerID]struct{})
@@ -121,7 +105,7 @@ func verifyUnmatchedBatchImpl(ctx context.Context, deps verifyDeps, players []Un
 		}
 
 		// Verify this player
-		verified := verifyPlayer(ctx, deps.client, deps.storage, deps.gobCache, player)
+		verified := verifyPlayer(ctx, a.NHLClient, a.Storage, a.GobCache, player)
 
 		if !verified.FoundInNHL {
 			result.NotFoundInNHL = append(result.NotFoundInNHL, verified)
@@ -142,7 +126,7 @@ func verifyUnmatchedBatchImpl(ctx context.Context, deps verifyDeps, players []Un
 
 	// Save newly verified non-NHL IDs to Redis
 	if len(newlyVerifiedNonNHL) > 0 {
-		if err := SaveVerifiedNonNHLIDs(ctx, deps.redisClient, newlyVerifiedNonNHL); err != nil {
+		if err := SaveVerifiedNonNHLIDs(ctx, a.RedisClient, newlyVerifiedNonNHL); err != nil {
 			log.Warn().Err(err).Msg("Failed to save verified non-NHL IDs to Redis")
 		}
 	}

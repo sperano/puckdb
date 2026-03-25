@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
@@ -30,14 +29,12 @@ type UnmatchedReport struct {
 	NotFoundCount int
 }
 
-// LoadUnmatchedYahooPlayersActivity loads the list of unmatched Yahoo players from Redis.
+// LoadUnmatchedYahooPlayers loads the list of unmatched Yahoo players from Redis.
 // This is the first step of Phase 3, allowing the workflow to know the total count for progress tracking.
-func LoadUnmatchedYahooPlayersActivity(ctx context.Context) ([]UnmatchedYahooPlayer, error) {
+func (a *PlayerActivities) LoadUnmatchedYahooPlayers(ctx context.Context) ([]UnmatchedYahooPlayer, error) {
 	logger := activity.GetLogger(ctx)
-	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
 
-	unmatched, err := loadUnmatchedYahooPlayersImpl(ctx, redisClient)
+	unmatched, err := a.loadUnmatchedYahooPlayersImpl(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -46,9 +43,10 @@ func LoadUnmatchedYahooPlayersActivity(ctx context.Context) ([]UnmatchedYahooPla
 	return unmatched, nil
 }
 
-func loadUnmatchedYahooPlayersImpl(ctx context.Context, redisClient cache.Client) ([]UnmatchedYahooPlayer, error) {
+// loadUnmatchedYahooPlayersImpl contains the testable logic for LoadUnmatchedYahooPlayers.
+func (a *PlayerActivities) loadUnmatchedYahooPlayersImpl(ctx context.Context) ([]UnmatchedYahooPlayer, error) {
 	// Get unmatched IDs
-	unmatchedIDs, err := GetUnmatchedYahooIDs(ctx, redisClient)
+	unmatchedIDs, err := GetUnmatchedYahooIDs(ctx, a.RedisClient)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +54,7 @@ func loadUnmatchedYahooPlayersImpl(ctx context.Context, redisClient cache.Client
 	// Load full details for each unmatched ID
 	var unmatched []UnmatchedYahooPlayer
 	for _, id := range unmatchedIDs {
-		player, err := GetYahooPlayerByID(ctx, redisClient, id)
+		player, err := GetYahooPlayerByID(ctx, a.RedisClient, id)
 		if err != nil {
 			log.Warn().Err(err).Int("yahooID", int(id)).Msg("Failed to load unmatched Yahoo player details")
 			// Still include basic info
@@ -76,21 +74,15 @@ func loadUnmatchedYahooPlayersImpl(ctx context.Context, redisClient cache.Client
 	return unmatched, nil
 }
 
-// CleanupYahooIDPoolActivity cleans up the Yahoo ID pool from Redis.
+// CleanupYahooIDPoolData cleans up the Yahoo ID pool from Redis.
 // Called at the end of Phase 3 after verification is complete.
-func CleanupYahooIDPoolActivity(ctx context.Context) error {
+func (a *PlayerActivities) CleanupYahooIDPoolData(ctx context.Context) error {
 	logger := activity.GetLogger(ctx)
-	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
 
-	if err := cleanupYahooIDPoolImpl(ctx, redisClient); err != nil {
+	if err := CleanupYahooIDPool(ctx, a.RedisClient); err != nil {
 		return err
 	}
 
 	logger.Info("Cleaned up Yahoo ID pool from Redis")
 	return nil
-}
-
-func cleanupYahooIDPoolImpl(ctx context.Context, redisClient cache.Client) error {
-	return CleanupYahooIDPool(ctx, redisClient)
 }

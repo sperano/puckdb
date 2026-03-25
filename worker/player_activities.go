@@ -21,6 +21,8 @@ type PlayerActivities struct {
 	Storage     store.Storage
 	NHLClient   NHLClient
 	RedisClient cache.Client
+	GobCache    *cache.GobCache
+	Queries     PlayerUpserter
 }
 
 // --- Player landing activities ---

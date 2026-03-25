@@ -20,7 +20,8 @@ func TestLoadUnmatchedYahooPlayers_EmptySet(t *testing.T) {
 
 	mockRedis.ExpectSMembers(YahooIDAvailableKey).SetVal([]string{})
 
-	result, err := loadUnmatchedYahooPlayersImpl(ctx, client)
+	a := &PlayerActivities{RedisClient: client}
+	result, err := a.loadUnmatchedYahooPlayersImpl(ctx)
 
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -60,7 +61,8 @@ func TestLoadUnmatchedYahooPlayers_Success(t *testing.T) {
 	require.NoError(t, err)
 	mockRedis.ExpectHGet(YahooIDPoolKey, "456").SetVal(string(player2JSON))
 
-	result, err := loadUnmatchedYahooPlayersImpl(ctx, client)
+	a := &PlayerActivities{RedisClient: client}
+	result, err := a.loadUnmatchedYahooPlayersImpl(ctx)
 
 	require.NoError(t, err)
 	assert.Len(t, result, 2)
@@ -75,7 +77,8 @@ func TestLoadUnmatchedYahooPlayers_SMembersError(t *testing.T) {
 
 	mockRedis.ExpectSMembers(YahooIDAvailableKey).SetErr(errors.New("redis connection failed"))
 
-	result, err := loadUnmatchedYahooPlayersImpl(ctx, client)
+	a := &PlayerActivities{RedisClient: client}
+	result, err := a.loadUnmatchedYahooPlayersImpl(ctx)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "redis connection failed")
@@ -96,7 +99,8 @@ func TestLoadUnmatchedYahooPlayers_PlayerDetailsMissing(t *testing.T) {
 	// Player details not found
 	mockRedis.ExpectHGet(YahooIDPoolKey, "999").SetErr(errors.New("redis: nil"))
 
-	result, err := loadUnmatchedYahooPlayersImpl(ctx, client)
+	a := &PlayerActivities{RedisClient: client}
+	result, err := a.loadUnmatchedYahooPlayersImpl(ctx)
 
 	// Should still return with basic info (YahooID only)
 	require.NoError(t, err)
@@ -114,7 +118,7 @@ func TestCleanupYahooIDPool_Success(t *testing.T) {
 
 	mockRedis.ExpectDel(YahooIDPoolKey, YahooIDAvailableKey).SetVal(2)
 
-	err := cleanupYahooIDPoolImpl(ctx, client)
+	err := CleanupYahooIDPool(ctx, client)
 
 	require.NoError(t, err)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
@@ -128,7 +132,7 @@ func TestCleanupYahooIDPool_Error(t *testing.T) {
 
 	mockRedis.ExpectDel(YahooIDPoolKey, YahooIDAvailableKey).SetErr(errors.New("redis error"))
 
-	err := cleanupYahooIDPoolImpl(ctx, client)
+	err := CleanupYahooIDPool(ctx, client)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "redis error")

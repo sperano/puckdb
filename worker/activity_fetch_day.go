@@ -72,7 +72,7 @@ func (a *DailyScheduleActivities) FetchDay(ctx context.Context, input FetchDayIn
 	var gameKey int
 	if len(input.TeamIDs) > 0 {
 		var err error
-		gameKey, err = GetGameKeyForSeason(input.StartSeason)
+		gameKey, err = getGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.StartSeason)
 		if err != nil {
 			return nil, err
 		}

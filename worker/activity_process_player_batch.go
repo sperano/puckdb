@@ -11,7 +11,6 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/core"
-	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/matching"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
@@ -38,40 +37,9 @@ type ProcessPlayerBatchResult struct {
 	Errors   []string         // Error messages for failed players
 }
 
-// ProcessPlayerBatchActivity downloads player landing pages (if needed) and imports them to the database.
+// ProcessPlayerBatch downloads player landing pages (if needed) and imports them to the database.
 // This combines DownloadPlayerLandingBatchActivity and ImportPlayerBatchActivity into a single pass.
-func ProcessPlayerBatchActivity(ctx context.Context, players []store.BoxscorePlayer) (ProcessPlayerBatchResult, error) {
-	storage := store.NewDefaultStorage()
-	nhlClient := NewNHLClient()
-
-	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
-
-	pool, err := database.OpenPGXPool(ctx)
-	if err != nil {
-		return ProcessPlayerBatchResult{}, err
-	}
-	defer pool.Close()
-	deps := processDeps{
-		storage:   storage,
-		nhlClient: nhlClient,
-		redis:     redisClient,
-		gobCache:  cache.NewGobCache(redisClient),
-		queries:   database.NewQueries(pool),
-	}
-	return processPlayerBatchImpl(ctx, deps, players)
-}
-
-// processDeps holds dependencies for the combined process activity.
-type processDeps struct {
-	storage   store.Storage
-	nhlClient NHLClient
-	redis     cache.Client
-	gobCache  *cache.GobCache
-	queries   PlayerUpserter
-}
-
-func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []store.BoxscorePlayer) (ProcessPlayerBatchResult, error) {
+func (a *PlayerActivities) ProcessPlayerBatch(ctx context.Context, players []store.BoxscorePlayer) (ProcessPlayerBatchResult, error) {
 	result := ProcessPlayerBatchResult{
 		Origins: core.OriginCounts{},
 	}
@@ -81,13 +49,12 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 	}
 
 	// Load YahooID pool from Redis once for the batch
-	yahooPool, err := LoadYahooIDPool(ctx, deps.redis)
+	yahooPool, err := LoadYahooIDPool(ctx, a.RedisClient)
 	if err != nil {
 		return result, fmt.Errorf("load yahoo pool: %w", err)
 	}
 
 	var matchedYahooIDs []store.YahooPlayerID
-	playerAct := &PlayerActivities{Storage: deps.storage, NHLClient: deps.nhlClient}
 
 	for _, p := range players {
 		select {
@@ -99,7 +66,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 		playerID := nhl.PlayerID(p.ID)
 
 		// Step 1: Ensure player landing is in storage (download from API if needed)
-		downloadStatus, err := playerAct.ensurePlayerLandingCached(ctx, playerID, p)
+		downloadStatus, err := a.ensurePlayerLandingCached(ctx, playerID, p)
 		if err != nil {
 			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
 			return result, err
@@ -113,7 +80,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 		case playerLandingMissing:
 			result.Missing++
 			metrics.LegacyIncDownload("PlayerLanding", metrics.ResultMissing)
-			if err := importMissingPlayer(ctx, deps, p); err != nil {
+			if err := a.importMissingPlayer(ctx, p); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("player %d (missing): import error: %v", p.ID, err))
 			} else {
 				result.Imported++
@@ -125,7 +92,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 
 		// Step 2: Read player landing via GobCache (Redis gob → filesystem JSON)
 		landingRes := resource.PlayerLanding{PlayerID: playerID}
-		landing, origin, err := cache.ReadParsedCached[*nhl.PlayerLanding](ctx, deps.storage, deps.gobCache, landingRes)
+		landing, origin, err := cache.ReadParsedCached[*nhl.PlayerLanding](ctx, a.Storage, a.GobCache, landingRes)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("player %d: read error: %v", p.ID, err))
 			continue
@@ -162,7 +129,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 				YahooID: pgtype.Int8{Int64: int64(matchResult.YahooID), Valid: true},
 				ID:      p.ID,
 			}
-			if err := deps.queries.ClearConflictingYahooID(ctx, clearParams); err != nil {
+			if err := a.Queries.ClearConflictingYahooID(ctx, clearParams); err != nil {
 				log.Warn().Err(err).
 					Int64("nhl_id", p.ID).
 					Int("yahoo_id", int(matchResult.YahooID)).
@@ -171,7 +138,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 		}
 
 		// Upsert to database
-		if err := deps.queries.UpsertPlayer(ctx, params); err != nil {
+		if err := a.Queries.UpsertPlayer(ctx, params); err != nil {
 			errMsg := fmt.Sprintf("player %d (%s %s): upsert error: %v",
 				p.ID, landing.FirstName.Default, landing.LastName.Default, err)
 			if matchResult.Matched {
@@ -191,7 +158,7 @@ func processPlayerBatchImpl(ctx context.Context, deps processDeps, players []sto
 
 	// Remove matched Yahoo IDs from available set
 	if len(matchedYahooIDs) > 0 {
-		if err := RemoveFromYahooIDPool(ctx, deps.redis, matchedYahooIDs); err != nil {
+		if err := RemoveFromYahooIDPool(ctx, a.RedisClient, matchedYahooIDs); err != nil {
 			log.Warn().Err(err).Int("count", len(matchedYahooIDs)).Msg("Failed to remove matched Yahoo IDs")
 		}
 	}
@@ -276,7 +243,7 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match matching.YahooID
 
 // importMissingPlayer imports a player with minimal info from boxscore data.
 // These are players who returned 404 from the NHL API but appear in boxscores.
-func importMissingPlayer(ctx context.Context, deps processDeps, p store.BoxscorePlayer) error {
+func (a *PlayerActivities) importMissingPlayer(ctx context.Context, p store.BoxscorePlayer) error {
 	firstName := strings.TrimSpace(p.FirstName)
 	lastName := strings.TrimSpace(p.LastName)
 	position := strings.TrimSpace(p.Position)
@@ -297,5 +264,5 @@ func importMissingPlayer(ctx context.Context, deps processDeps, p store.Boxscore
 		Str("position", position).
 		Msg("Importing missing player with minimal info")
 
-	return deps.queries.UpsertPlayer(ctx, params)
+	return a.Queries.UpsertPlayer(ctx, params)
 }

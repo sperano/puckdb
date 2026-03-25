@@ -178,8 +178,9 @@ func runPhaseLoadYahoo(ctx workflow.Context, tracker *ReportTracker, input *proc
 	tracker.StartGroup(ctx, GroupLoadYahoo)
 
 	// Step 1a: List all Yahoo player files
+	var playerAct *PlayerActivities
 	var yahooPlayerIDs []int
-	if err := workflow.ExecuteActivity(ctx, ListYahooPlayerFilesActivity).Get(ctx, &yahooPlayerIDs); err != nil {
+	if err := workflow.ExecuteActivity(ctx, playerAct.ListYahooPlayerFiles).Get(ctx, &yahooPlayerIDs); err != nil {
 		return nil, fmt.Errorf("list yahoo player files: %w", err)
 	}
 	logger.Info("Listed Yahoo player files", "count", len(yahooPlayerIDs))
@@ -191,7 +192,7 @@ func runPhaseLoadYahoo(ctx workflow.Context, tracker *ReportTracker, input *proc
 	if err := tracker.RunWorkerPool(ctx, GroupLoadYahoo, 0, numBatches, input.Concurrency,
 		func(_ workflow.Context, batchIndex int) workflow.Future {
 			batch := batchSlice(yahooPlayerIDs, batchIndex, input.BatchSize)
-			return workflow.ExecuteActivity(ctx, ParseYahooPlayerBatchActivity, batch)
+			return workflow.ExecuteActivity(ctx, playerAct.ParseYahooPlayerBatch, batch)
 		},
 		func(ctx workflow.Context, _ int, f workflow.Future) error {
 			var batchResult []store.YahooPlayer
@@ -207,7 +208,7 @@ func runPhaseLoadYahoo(ctx workflow.Context, tracker *ReportTracker, input *proc
 
 	// Step 1c: Save all players to Redis
 	var saveResult *SaveYahooIDPoolResult
-	if err := workflow.ExecuteActivity(ctx, SaveYahooPlayersToRedisActivity, allYahooPlayers).Get(ctx, &saveResult); err != nil {
+	if err := workflow.ExecuteActivity(ctx, playerAct.SaveYahooPlayersToRedis, allYahooPlayers).Get(ctx, &saveResult); err != nil {
 		return nil, fmt.Errorf("save yahoo players to redis: %w", err)
 	}
 	logger.Info("Saved Yahoo pool to Redis",
@@ -238,6 +239,7 @@ func runPhaseLoadYahoo(ctx workflow.Context, tracker *ReportTracker, input *proc
 // runPhaseProcessPlayers downloads and imports players in batches.
 func runPhaseProcessPlayers(ctx workflow.Context, tracker *ReportTracker, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
 	logger := workflow.GetLogger(ctx)
+	var playerAct *PlayerActivities
 
 	playersPerExec := viper.GetInt(config.FlagPlayerLandingPlayersPerExec)
 	if playersPerExec <= 0 {
@@ -294,7 +296,7 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *ReportTracker, input 
 		func(i int) int { return len(batchSlice(window, i, input.BatchSize)) },
 		func(_ workflow.Context, batchIndex int) workflow.Future {
 			batch := batchSlice(window, batchIndex, input.BatchSize)
-			return workflow.ExecuteActivity(activityCtx, ProcessPlayerBatchActivity, batch)
+			return workflow.ExecuteActivity(activityCtx, playerAct.ProcessPlayerBatch, batch)
 		},
 		func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
 			var result ProcessPlayerBatchResult
@@ -388,8 +390,9 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *ReportTracker, input
 	})
 
 	// Load unmatched players
+	var playerAct *PlayerActivities
 	var unmatchedPlayers []UnmatchedYahooPlayer
-	if err := workflow.ExecuteActivity(ctx, LoadUnmatchedYahooPlayersActivity).Get(ctx, &unmatchedPlayers); err != nil {
+	if err := workflow.ExecuteActivity(ctx, playerAct.LoadUnmatchedYahooPlayers).Get(ctx, &unmatchedPlayers); err != nil {
 		logger.Warn("Failed to load unmatched Yahoo players", "error", err)
 		unmatchedPlayers = []UnmatchedYahooPlayer{}
 	}
@@ -411,7 +414,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *ReportTracker, input
 			batch := unmatchedPlayers[i:end]
 
 			var batchResult *VerifyUnmatchedResult
-			if err := workflow.ExecuteActivity(ctx, VerifyUnmatchedBatchActivity, batch).Get(ctx, &batchResult); err != nil {
+			if err := workflow.ExecuteActivity(ctx, playerAct.VerifyUnmatchedBatch, batch).Get(ctx, &batchResult); err != nil {
 				logger.Warn("Failed to verify batch", "error", err, "batch_start", i)
 			} else {
 				unmatchedReport.TrulyUnmatched = append(unmatchedReport.TrulyUnmatched, batchResult.TrulyUnmatched...)
@@ -432,7 +435,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *ReportTracker, input
 		}
 
 		// Cleanup Redis keys
-		if err := workflow.ExecuteActivity(ctx, CleanupYahooIDPoolActivity).Get(ctx, nil); err != nil {
+		if err := workflow.ExecuteActivity(ctx, playerAct.CleanupYahooIDPoolData).Get(ctx, nil); err != nil {
 			logger.Warn("Failed to cleanup Yahoo ID pool", "error", err)
 		}
 	}

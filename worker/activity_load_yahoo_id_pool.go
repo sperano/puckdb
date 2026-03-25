@@ -15,11 +15,11 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
-// ListYahooPlayerFilesActivity lists all Yahoo player file IDs from the cache.
+// ListYahooPlayerFiles lists all Yahoo player file IDs from the cache.
 // This is a fast operation that just reads the directory listing.
-func ListYahooPlayerFilesActivity(ctx context.Context) ([]store.YahooPlayerID, error) {
+func (a *PlayerActivities) ListYahooPlayerFiles(ctx context.Context) ([]store.YahooPlayerID, error) {
 	logger := activity.GetLogger(ctx)
-	ids, err := listYahooPlayers(store.NewDefaultStorage())
+	ids, err := listYahooPlayers(a.Storage)
 	if err != nil {
 		return nil, err
 	}
@@ -55,11 +55,11 @@ type ParseYahooPlayerBatchResult struct {
 	ParseErrors int
 }
 
-// ParseYahooPlayerBatchActivity parses a batch of Yahoo player HTML files.
+// ParseYahooPlayerBatch parses a batch of Yahoo player HTML files.
 // Returns the parsed players for aggregation by the workflow.
-func ParseYahooPlayerBatchActivity(ctx context.Context, playerIDs []store.YahooPlayerID) ([]store.YahooPlayer, error) {
+func (a *PlayerActivities) ParseYahooPlayerBatch(ctx context.Context, playerIDs []store.YahooPlayerID) ([]store.YahooPlayer, error) {
 	logger := activity.GetLogger(ctx)
-	result := parseYahooPlayerBatchImpl(ctx, store.NewDefaultStorage(), nil, playerIDs)
+	result := parseYahooPlayerBatchImpl(ctx, a.Storage, a.GobCache, playerIDs)
 
 	if result.ReadErrors > 0 || result.ParseErrors > 0 {
 		logger.Warn("Some players failed to parse",
@@ -96,15 +96,13 @@ func parseYahooPlayerBatchImpl(ctx context.Context, storage store.Storage, gobCa
 	return result
 }
 
-// SaveYahooPlayersToRedisActivity saves parsed Yahoo players to Redis.
+// SaveYahooPlayersToRedis saves parsed Yahoo players to Redis.
 // This is the final step of Phase 1.
 // Returns the result including how many players were skipped (verified non-NHL).
-func SaveYahooPlayersToRedisActivity(ctx context.Context, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
+func (a *PlayerActivities) SaveYahooPlayersToRedis(ctx context.Context, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
 	logger := activity.GetLogger(ctx)
-	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
 
-	result, err := saveYahooPlayersToRedisImpl(ctx, redisClient, players)
+	result, err := saveYahooPlayersToRedisImpl(ctx, a.RedisClient, players)
 	if err != nil {
 		return nil, err
 	}

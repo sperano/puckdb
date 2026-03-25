@@ -105,14 +105,8 @@ func TestVerifyUnmatchedBatchImpl_EmptyPlayers(t *testing.T) {
 	// Empty set of verified IDs
 	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
 
-	deps := verifyDeps{
-		client:      client,
-		storage:     mem,
-		gobCache:    nil,
-		redisClient: redisClient,
-	}
-
-	result, err := verifyUnmatchedBatchImpl(ctx, deps, []UnmatchedYahooPlayer{})
+	a := &PlayerActivities{Storage: mem, NHLClient: client, RedisClient: redisClient}
+	result, err := a.verifyUnmatchedBatchImpl(ctx, []UnmatchedYahooPlayer{})
 
 	require.NoError(t, err)
 	assert.Empty(t, result.VerifiedNonNHL)
@@ -132,18 +126,12 @@ func TestVerifyUnmatchedBatchImpl_AlreadyVerified(t *testing.T) {
 	// Player 123 is already verified
 	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{"123"})
 
-	deps := verifyDeps{
-		client:      client,
-		storage:     mem,
-		gobCache:    nil,
-		redisClient: redisClient,
-	}
-
+	a := &PlayerActivities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
 		{YahooID: 123, FirstName: "Test", LastName: "Player"},
 	}
 
-	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
 
 	require.NoError(t, err)
 	assert.Len(t, result.VerifiedNonNHL, 1)
@@ -175,18 +163,12 @@ func TestVerifyUnmatchedBatchImpl_PlayerNotFoundInNHL(t *testing.T) {
 	// We can't easily mock the pipeline, but the function logs a warning if it fails
 	// The save failing doesn't affect the return value
 
-	deps := verifyDeps{
-		client:      client,
-		storage:     mem,
-		gobCache:    nil,
-		redisClient: redisClient,
-	}
-
+	a := &PlayerActivities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
 		{YahooID: 456, FirstName: "John", LastName: "Doe"},
 	}
 
-	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
 
 	require.NoError(t, err)
 	assert.Empty(t, result.VerifiedNonNHL)
@@ -226,18 +208,12 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
 	}
 	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
 
-	deps := verifyDeps{
-		client:      client,
-		storage:     mem,
-		gobCache:    nil,
-		redisClient: redisClient,
-	}
-
+	a := &PlayerActivities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
 		{YahooID: 789, FirstName: "Minor", LastName: "Leaguer"},
 	}
 
-	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
 
 	require.NoError(t, err)
 	assert.Len(t, result.VerifiedNonNHL, 1)
@@ -278,18 +254,12 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithNHLGames(t *testing.T) {
 	}
 	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
 
-	deps := verifyDeps{
-		client:      client,
-		storage:     mem,
-		gobCache:    nil,
-		redisClient: redisClient,
-	}
-
+	a := &PlayerActivities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
 		{YahooID: 999, FirstName: "Connor", LastName: "McDavid"},
 	}
 
-	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
 
 	require.NoError(t, err)
 	assert.Empty(t, result.VerifiedNonNHL)
@@ -317,18 +287,12 @@ func TestVerifyUnmatchedBatchImpl_RedisLoadError(t *testing.T) {
 	limit := maxSearchResults
 	client.On("SearchPlayer", ctx, "Test Player", &limit).Return([]nhl.PlayerSearchResult{}, nil)
 
-	deps := verifyDeps{
-		client:      client,
-		storage:     mem,
-		gobCache:    nil,
-		redisClient: redisClient,
-	}
-
+	a := &PlayerActivities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
 		{YahooID: 111, FirstName: "Test", LastName: "Player"},
 	}
 
-	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
 
 	// Should still succeed despite Redis load error
 	require.NoError(t, err)
@@ -353,18 +317,12 @@ func TestVerifyUnmatchedBatchImpl_SearchError(t *testing.T) {
 	limit := maxSearchResults
 	client.On("SearchPlayer", ctx, "Error Player", &limit).Return(nil, errors.New("API error"))
 
-	deps := verifyDeps{
-		client:      client,
-		storage:     mem,
-		gobCache:    nil,
-		redisClient: redisClient,
-	}
-
+	a := &PlayerActivities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
 		{YahooID: 222, FirstName: "Error", LastName: "Player"},
 	}
 
-	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
 
 	// Function should still succeed
 	require.NoError(t, err)
@@ -392,18 +350,12 @@ func TestVerifyUnmatchedBatchImpl_NameMismatchInSearch(t *testing.T) {
 		{PlayerID: playerID, Name: "Bob Jones"}, // Different name - no match
 	}, nil)
 
-	deps := verifyDeps{
-		client:      client,
-		storage:     mem,
-		gobCache:    nil,
-		redisClient: redisClient,
-	}
-
+	a := &PlayerActivities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
 		{YahooID: 333, FirstName: "John", LastName: "Smith"},
 	}
 
-	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
 
 	require.NoError(t, err)
 	// Player goes to NotFoundInNHL because name didn't match
@@ -459,18 +411,12 @@ func TestVerifyUnmatchedBatchImpl_CachedLandingUsed(t *testing.T) {
 	require.NoError(t, err, "landing must marshal successfully")
 	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
-	deps := verifyDeps{
-		client:      client,
-		storage:     mem,
-		gobCache:    nil,
-		redisClient: redisClient,
-	}
-
+	a := &PlayerActivities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
 		{YahooID: 444, FirstName: "Cached", LastName: "Player"},
 	}
 
-	result, err := verifyUnmatchedBatchImpl(ctx, deps, players)
+	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
 
 	require.NoError(t, err)
 	// Player has 0 NHL games (only AHL), should be verified non-NHL

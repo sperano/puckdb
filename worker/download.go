@@ -50,23 +50,17 @@ func NewNHLClient() *nhl.Client {
 	return nhl.NewClientWithConfig(cfg)
 }
 
-func DownloadFromYahoo(url string) ([]byte, error) {
-	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
-
-	return downloadFromYahooImpl(redisClient, url)
+// NewYahooDownloader creates a Downloader that uses the shared Redis client for OAuth2 token management.
+func NewYahooDownloader(redisClient cache.Client) Downloader {
+	return func(url string) ([]byte, error) {
+		ctx := context.WithValue(context.Background(), config.CtxUser, config.DefaultUser)
+		return puckhttp.DownloadYahoo(ctx, redisClient, url)
+	}
 }
 
-// downloadFromYahooImpl is the testable implementation.
-func downloadFromYahooImpl(redisClient cache.Client, url string) ([]byte, error) {
-	ctx := context.WithValue(context.Background(), config.CtxUser, config.DefaultUser)
-	return puckhttp.DownloadYahoo(ctx, redisClient, url)
-}
-
-// GetGameKeyForSeason fetches the Yahoo Fantasy game key for a given NHL season.
+// getGameKeyForSeason fetches the Yahoo Fantasy game key for a given NHL season.
 // Results are cached in memory and on disk since game keys never change.
-// TODO: use 3 layers cache
-func GetGameKeyForSeason(season int) (int, error) {
+func getGameKeyForSeason(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, fetcher Downloader, season int) (int, error) {
 	// Check memory cache first
 	gameKeyCacheMu.RLock()
 	if key, ok := gameKeyCache[season]; ok {
@@ -75,7 +69,7 @@ func GetGameKeyForSeason(season int) (int, error) {
 	}
 	gameKeyCacheMu.RUnlock()
 
-	gameKey, err := getGameKeyImpl(context.Background(), store.NewDefaultStorage(), nil, season, DownloadFromYahoo, sleepAfterYahooDownload)
+	gameKey, err := getGameKeyImpl(ctx, storage, gobCache, season, fetcher, sleepAfterYahooDownload)
 	if err != nil {
 		return 0, err
 	}
