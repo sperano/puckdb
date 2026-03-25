@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/llm"
 	"github.com/sperano/puckdb/mcp"
@@ -98,6 +99,9 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 	if err != nil {
 		return nil, err
 	}
+	convID := uuidToString(convUUID)
+
+	log.Debug().Str("conversation", convID).Bool("new", isNew).Str("message", truncateLog(message, maxLogMessageLen)).Msg("maurice chat started")
 
 	// Store user message
 	if _, err := s.createMessage(ctx, convUUID, "user", message, nil, ""); err != nil {
@@ -109,12 +113,15 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 	if err != nil {
 		return nil, fmt.Errorf("load history: %w", err)
 	}
+	log.Debug().Str("conversation", convID).Int("history_messages", len(history)).Msg("loaded conversation history")
 
 	// Get tool definitions
 	llmTools, err := s.toolCache.GetLLMTools(ctx)
 	if err != nil {
 		log.Warn().Err(err).Msg("failed to load MCP tools, continuing without tools")
 		llmTools = nil
+	} else {
+		log.Debug().Int("tools", len(llmTools)).Msg("loaded MCP tools for LLM")
 	}
 
 	// Conversation loop with tool calls
@@ -129,14 +136,25 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 			MaxTokens: s.maxTokens,
 		}
 
+		log.Debug().Str("conversation", convID).Int("round", round).Int("messages", len(history)).Int("tools", len(llmTools)).Msg("sending LLM request")
+		log.Trace().Str("conversation", convID).Int("round", round).Func(func(e *zerolog.Event) {
+			for i, m := range history {
+				e.Str(fmt.Sprintf("msg[%d].role", i), m.Role)
+				e.Str(fmt.Sprintf("msg[%d].content", i), truncateLog(m.Content, maxLogMessageLen))
+			}
+		}).Msg("LLM request messages")
+
 		resp, err := s.llmClient.ChatCompletion(ctx, req)
 		if err != nil {
 			return nil, fmt.Errorf("LLM completion (round %d): %w", round, err)
 		}
 
+		logLLMResponse(convID, round, resp)
+
 		if !resp.HasToolCalls() {
 			// Final text response
 			finalContent = resp.FirstContent()
+			log.Debug().Str("conversation", convID).Int("round", round).Str("content", truncateLog(finalContent, maxLogMessageLen)).Msg("LLM final response (no tool calls)")
 			msg, err := s.createMessage(ctx, convUUID, "assistant", finalContent, nil, "")
 			if err != nil {
 				return nil, fmt.Errorf("store assistant message: %w", err)
@@ -147,6 +165,12 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 
 		// Store assistant message with tool calls
 		assistantMsg := resp.Choices[0].Message
+		toolNames := make([]string, len(assistantMsg.ToolCalls))
+		for i, tc := range assistantMsg.ToolCalls {
+			toolNames[i] = tc.Function.Name
+		}
+		log.Debug().Str("conversation", convID).Int("round", round).Strs("tool_calls", toolNames).Msg("LLM requested tool calls")
+
 		if _, err := s.createMessage(ctx, convUUID, "assistant", assistantMsg.Content, assistantMsg.ToolCalls, ""); err != nil {
 			return nil, fmt.Errorf("store assistant tool_calls message: %w", err)
 		}
@@ -162,6 +186,9 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 		for _, tc := range assistantMsg.ToolCalls {
 			toolsUsed = append(toolsUsed, tc.Function.Name)
 
+			log.Debug().Str("conversation", convID).Str("tool", tc.Function.Name).Str("call_id", tc.ID).Msg("calling MCP tool")
+			log.Trace().Str("conversation", convID).Str("tool", tc.Function.Name).Str("arguments", tc.Function.Arguments).Msg("MCP tool arguments")
+
 			result, err := s.mcpClient.CallTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments))
 			var resultContent string
 			if err != nil {
@@ -169,6 +196,8 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 				log.Warn().Err(err).Str("tool", tc.Function.Name).Msg("tool call failed")
 			} else {
 				resultContent = result.Content
+				log.Debug().Str("conversation", convID).Str("tool", tc.Function.Name).Bool("is_error", result.IsError).Int("result_len", len(resultContent)).Msg("MCP tool returned")
+				log.Trace().Str("conversation", convID).Str("tool", tc.Function.Name).Str("result", truncateLog(resultContent, maxLogTraceLen)).Msg("MCP tool result content")
 			}
 
 			// Store tool result message
@@ -190,8 +219,10 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 		go s.generateTitle(context.Background(), convUUID, message, finalContent)
 	}
 
+	log.Debug().Str("conversation", convID).Int("tools_used", len(toolsUsed)).Strs("tools", toolsUsed).Msg("maurice chat completed")
+
 	return &ChatResponse{
-		ConversationID: uuidToString(convUUID),
+		ConversationID: convID,
 		MessageID:      finalMessageID,
 		Content:        finalContent,
 		ToolsUsed:      toolsUsed,
@@ -379,6 +410,33 @@ func dbConvToConversation(c sqlcdb.MauriceConversation) *Conversation {
 		conv.Title = &c.Title.String
 	}
 	return conv
+}
+
+// Logging helpers
+
+const (
+	maxLogMessageLen = 200  // truncation limit for Debug-level message content
+	maxLogTraceLen   = 2000 // truncation limit for Trace-level full payloads
+)
+
+func truncateLog(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+func logLLMResponse(convID string, round int, resp *llm.ChatCompletionResponse) {
+	evt := log.Debug().Str("conversation", convID).Int("round", round)
+	if resp.Usage != nil {
+		evt = evt.Int("prompt_tokens", resp.Usage.PromptTokens).
+			Int("completion_tokens", resp.Usage.CompletionTokens).
+			Int("total_tokens", resp.Usage.TotalTokens)
+	}
+	if len(resp.Choices) > 0 {
+		evt = evt.Str("finish_reason", resp.Choices[0].FinishReason)
+	}
+	evt.Str("model", resp.Model).Msg("LLM response received")
 }
 
 func dbMessageToMessage(m sqlcdb.MauriceMessage) *Message {
