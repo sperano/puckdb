@@ -106,10 +106,9 @@ func TestRenderProgressBar_EdgeCases(t *testing.T) {
 
 // stripProgressSentinels removes shade control characters from a progress bar string.
 func stripProgressSentinels(s string) string {
-	s = strings.ReplaceAll(s, ProgressShade0, "")
-	s = strings.ReplaceAll(s, ProgressShade1, "")
-	s = strings.ReplaceAll(s, ProgressShade2, "")
-	s = strings.ReplaceAll(s, ProgressShade3, "")
+	for _, shade := range progressShades {
+		s = strings.ReplaceAll(s, shade, "")
+	}
 	s = strings.ReplaceAll(s, ProgressShadeEnd, "")
 	return s
 }

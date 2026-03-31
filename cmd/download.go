@@ -128,7 +128,7 @@ func renderProgressBar(pct float64, width int) string {
 		filled = 0
 	}
 
-	// Split into 4 equal gradient segments (dark to light).
+	// Split into 8 equal gradient segments (dark to light).
 	// Each segment gets shade sentinels so the render loop can colorize the filled portion.
 	segmentWidth := width / colorThemePaletteSize
 	var bar strings.Builder

@@ -224,38 +224,44 @@ func TestRenderProgressBar(t *testing.T) {
 		{
 			name:  "0 percent",
 			pct:   0,
-			width: 8, // segment=2
-			want:  "[" + seg(0, 0, 2) + seg(1, 0, 2) + seg(2, 0, 2) + seg(3, 0, 2) + "]",
+			width: 16, // segment=2
+			want: "[" + seg(0, 0, 2) + seg(1, 0, 2) + seg(2, 0, 2) + seg(3, 0, 2) +
+				seg(4, 0, 2) + seg(5, 0, 2) + seg(6, 0, 2) + seg(7, 0, 2) + "]",
 		},
 		{
 			name:  "50 percent",
 			pct:   50,
-			width: 8,
-			want:  "[" + seg(0, 2, 0) + seg(1, 2, 0) + seg(2, 0, 2) + seg(3, 0, 2) + "]",
+			width: 16,
+			want: "[" + seg(0, 2, 0) + seg(1, 2, 0) + seg(2, 2, 0) + seg(3, 2, 0) +
+				seg(4, 0, 2) + seg(5, 0, 2) + seg(6, 0, 2) + seg(7, 0, 2) + "]",
 		},
 		{
 			name:  "100 percent",
 			pct:   100,
-			width: 8,
-			want:  "[" + seg(0, 2, 0) + seg(1, 2, 0) + seg(2, 2, 0) + seg(3, 2, 0) + "]",
+			width: 16,
+			want: "[" + seg(0, 2, 0) + seg(1, 2, 0) + seg(2, 2, 0) + seg(3, 2, 0) +
+				seg(4, 2, 0) + seg(5, 2, 0) + seg(6, 2, 0) + seg(7, 2, 0) + "]",
 		},
 		{
-			name:  "25 percent width 20",
+			name:  "25 percent width 24",
 			pct:   25,
-			width: 20, // segment=5
-			want:  "[" + seg(0, 5, 0) + seg(1, 0, 5) + seg(2, 0, 5) + seg(3, 0, 5) + "]",
+			width: 24, // segment=3, filled=6 → fills shades 0-1 fully
+			want: "[" + seg(0, 3, 0) + seg(1, 3, 0) + seg(2, 0, 3) + seg(3, 0, 3) +
+				seg(4, 0, 3) + seg(5, 0, 3) + seg(6, 0, 3) + seg(7, 0, 3) + "]",
 		},
 		{
 			name:  "negative clamped to 0",
 			pct:   -10,
-			width: 8,
-			want:  "[" + seg(0, 0, 2) + seg(1, 0, 2) + seg(2, 0, 2) + seg(3, 0, 2) + "]",
+			width: 16,
+			want: "[" + seg(0, 0, 2) + seg(1, 0, 2) + seg(2, 0, 2) + seg(3, 0, 2) +
+				seg(4, 0, 2) + seg(5, 0, 2) + seg(6, 0, 2) + seg(7, 0, 2) + "]",
 		},
 		{
 			name:  "over 100 clamped",
 			pct:   150,
-			width: 8,
-			want:  "[" + seg(0, 2, 0) + seg(1, 2, 0) + seg(2, 2, 0) + seg(3, 2, 0) + "]",
+			width: 16,
+			want: "[" + seg(0, 2, 0) + seg(1, 2, 0) + seg(2, 2, 0) + seg(3, 2, 0) +
+				seg(4, 2, 0) + seg(5, 2, 0) + seg(6, 2, 0) + seg(7, 2, 0) + "]",
 		},
 	}
 

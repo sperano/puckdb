@@ -210,10 +210,14 @@ func TestSpinner_ColorThemePaletteCycles(t *testing.T) {
 
 	// Verify each frame index maps to the expected palette shade
 	expected := [colorThemePaletteSize]string{
-		"\033[38;5;167m⠋\033[0m", // dark
-		"\033[38;5;203m⠙\033[0m",
-		"\033[38;5;209m⠹\033[0m",
-		"\033[38;5;216m⠸\033[0m", // light
+		"\033[38;5;131m⠋\033[0m", // darkest
+		"\033[38;5;167m⠙\033[0m",
+		"\033[38;5;168m⠹\033[0m",
+		"\033[38;5;203m⠸\033[0m",
+		"\033[38;5;204m⠼\033[0m",
+		"\033[38;5;209m⠴\033[0m",
+		"\033[38;5;210m⠦\033[0m",
+		"\033[38;5;216m⠧\033[0m", // brightest
 	}
 	palette := sp.colorTheme
 	for i, want := range expected {
@@ -223,10 +227,10 @@ func TestSpinner_ColorThemePaletteCycles(t *testing.T) {
 		}
 	}
 
-	// Verify it wraps around
-	got := colorize(sp.frames[4], 4, palette)
-	if got != "\033[38;5;167m⠼\033[0m" { // wraps back to darkest shade
-		t.Errorf("frame 4 (wrap): got %q, want dark shade", got)
+	// Verify it wraps around (frame 8 → shade 0)
+	got := colorize(sp.frames[8], 8, palette)
+	if got != "\033[38;5;131m⠇\033[0m" { // wraps back to darkest shade
+		t.Errorf("frame 8 (wrap): got %q, want dark shade", got)
 	}
 }
 
