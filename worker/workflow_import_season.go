@@ -47,6 +47,35 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 		return nil, err
 	}
 
+	// Import season-level data (rosters, club stats, player career, Yahoo league data)
+	var sa *SeasonsActivities
+	rosterInput := FetchSeasonRostersInput{Season: season.ID.StartYear()}
+	if err := workflow.ExecuteActivity(ctx, sa.ImportSeasonRosters, rosterInput).Get(ctx, nil); err != nil {
+		return nil, err
+	}
+	clubStatsInput := FetchClubStatsInput{Season: season.ID.StartYear()}
+	if err := workflow.ExecuteActivity(ctx, sa.ImportClubStats, clubStatsInput).Get(ctx, nil); err != nil {
+		return nil, err
+	}
+	if err := workflow.ExecuteActivity(ctx, sa.ImportPlayerCareerData).Get(ctx, nil); err != nil {
+		return nil, err
+	}
+
+	// Import Yahoo league-level data (transactions, draft results, matchups)
+	if yahooConfig, err := config.GetYahooSeasonsConfig(); err == nil {
+		if yahooCfg, hasYahoo := yahooConfig[season.ID.StartYear()]; hasYahoo {
+			for _, league := range yahooCfg.Leagues {
+				leagueDataInput := ImportYahooLeagueDataInput{
+					Season:   season.ID.StartYear(),
+					LeagueID: league.LeagueID,
+				}
+				if err := workflow.ExecuteActivity(ctx, sa.ImportYahooLeagueData, leagueDataInput).Get(ctx, nil); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
 	// --- Import days ---
 	tracker.StartGroup(ctx, GroupImportDays)
 
@@ -58,7 +87,6 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	seasonID := season.ID.ID()
 
 	counts := core.OriginCounts{}
-	var sa *SeasonsActivities
 	err = tracker.RunWorkerPool(ctx, GroupImportDays, 0, numDays, dayConcurrency,
 		func(_ workflow.Context, i int) workflow.Future {
 			day := startDate.AddDate(0, 0, i)

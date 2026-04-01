@@ -126,6 +126,7 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(leagueActivities.FetchLeague)
 			w.RegisterActivity(leagueActivities.FetchTeams)
 			w.RegisterActivity(leagueActivities.FetchYahooPlayerBatch)
+			w.RegisterActivity(leagueActivities.FetchYahooLeagueData)
 			franchiseActivities := &workers.FranchiseActivities{
 				Storage:   storage,
 				GobCache:  gobCache,
@@ -142,6 +143,8 @@ func cmdWorker() *cobra.Command {
 				SeasonsUpserter:     queries,
 				SeasonTeamsUpserter: queries,
 				ImportQueries:       queries,
+				RosterQueries:       queries,
+				ClubStatsQueries:    queries,
 				RedisClient:         redisClient,
 			}
 			w.RegisterActivity(seasonsActivities.FetchSeasonsManifest)
@@ -156,6 +159,13 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(seasonsActivities.ImportYahooLeague)
 			w.RegisterActivity(seasonsActivities.ImportYahooTeams)
 			w.RegisterActivity(seasonsActivities.ImportYahooDataForDate)
+			w.RegisterActivity(seasonsActivities.ImportYahooLeagueData)
+			w.RegisterActivity(seasonsActivities.FetchSeasonRosters)
+			w.RegisterActivity(seasonsActivities.FetchClubStats)
+			w.RegisterActivity(seasonsActivities.ImportSeasonRosters)
+			w.RegisterActivity(seasonsActivities.ImportClubStats)
+			w.RegisterActivity(seasonsActivities.ImportPlayerCareerData)
+			w.RegisterActivity(seasonsActivities.ImportStandingsForDate)
 			w.RegisterActivity(seasonsActivities.CollectSeasonPlayerIDs)
 
 			dailyScheduleActivities := &workers.DailyScheduleActivities{

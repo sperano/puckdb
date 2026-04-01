@@ -173,6 +173,17 @@ func (a *SeasonsActivities) collectRosterParams(ctx context.Context, teams []Tea
 				PlayerKey:        player.Key,
 				SelectedPosition: player.SelectedPosition.Position,
 				IsFlex:           player.SelectedPosition.IsFlex != 0,
+
+				PlayerStatus:      pgtype.Text{String: player.Status, Valid: player.Status != ""},
+				PlayerStatusFull:  pgtype.Text{String: player.StatusFull, Valid: player.StatusFull != ""},
+				InjuryNote:        pgtype.Text{String: player.InjuryNote, Valid: player.InjuryNote != ""},
+				OnDisabledList:    pgtype.Bool{Bool: player.OnDisabledList != 0, Valid: true},
+				PositionType:      pgtype.Text{String: player.PositionType, Valid: player.PositionType != ""},
+				DisplayPosition:   pgtype.Text{String: player.DisplayPosition, Valid: player.DisplayPosition != ""},
+				PrimaryPosition:   pgtype.Text{String: player.PrimaryPosition, Valid: player.PrimaryPosition != ""},
+				EligiblePositions: player.EligiblePositions,
+				UniformNumber:     pgtype.Int4{Int32: int32(player.UniformNumber), Valid: player.UniformNumber != 0},
+				EditorialTeamAbbr: pgtype.Text{String: player.EditorialTeamAbbr, Valid: player.EditorialTeamAbbr != ""},
 			})
 		}
 	}

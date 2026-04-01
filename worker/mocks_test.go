@@ -109,6 +109,30 @@ func (m *MockNHLClient) SearchPlayer(ctx context.Context, query string, limit *i
 	return args.Get(0).([]nhl.PlayerSearchResult), args.Error(1)
 }
 
+func (m *MockNHLClient) LeagueStandingsForDate(ctx context.Context, date nhl.GameDate) ([]nhl.Standing, error) {
+	args := m.Called(ctx, date)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]nhl.Standing), args.Error(1)
+}
+
+func (m *MockNHLClient) RosterSeason(ctx context.Context, teamAbbr string, season nhl.Season) (*nhl.Roster, error) {
+	args := m.Called(ctx, teamAbbr, season)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.Roster), args.Error(1)
+}
+
+func (m *MockNHLClient) ClubStats(ctx context.Context, teamAbbr string, season nhl.Season, gameType nhl.GameType) (*nhl.ClubStats, error) {
+	args := m.Called(ctx, teamAbbr, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.ClubStats), args.Error(1)
+}
+
 // MockPlayerUpserter implements PlayerUpserter for testing.
 type MockPlayerUpserter struct {
 	mock.Mock

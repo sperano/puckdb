@@ -8,6 +8,55 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ClubGoalieStat struct {
+	Season              int32              `json:"season"`
+	GameType            int16              `json:"game_type"`
+	TeamID              int64              `json:"team_id"`
+	PlayerID            int64              `json:"player_id"`
+	GamesPlayed         int32              `json:"games_played"`
+	GamesStarted        int32              `json:"games_started"`
+	Wins                int32              `json:"wins"`
+	Losses              int32              `json:"losses"`
+	OvertimeLosses      int32              `json:"overtime_losses"`
+	GoalsAgainstAverage float32            `json:"goals_against_average"`
+	SavePercentage      float32            `json:"save_percentage"`
+	ShotsAgainst        int32              `json:"shots_against"`
+	Saves               int32              `json:"saves"`
+	GoalsAgainst        int32              `json:"goals_against"`
+	Shutouts            int32              `json:"shutouts"`
+	Goals               int32              `json:"goals"`
+	Assists             int32              `json:"assists"`
+	Points              int32              `json:"points"`
+	PenaltyMinutes      int32              `json:"penalty_minutes"`
+	TOISeconds          int64              `json:"toi_seconds"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ClubSkaterStat struct {
+	Season           int32              `json:"season"`
+	GameType         int16              `json:"game_type"`
+	TeamID           int64              `json:"team_id"`
+	PlayerID         int64              `json:"player_id"`
+	GamesPlayed      int32              `json:"games_played"`
+	Goals            int32              `json:"goals"`
+	Assists          int32              `json:"assists"`
+	Points           int32              `json:"points"`
+	PlusMinus        int32              `json:"plus_minus"`
+	PenaltyMinutes   int32              `json:"penalty_minutes"`
+	PowerPlayGoals   int32              `json:"power_play_goals"`
+	ShorthandedGoals int32              `json:"shorthanded_goals"`
+	GameWinningGoals int32              `json:"game_winning_goals"`
+	OvertimeGoals    int32              `json:"overtime_goals"`
+	Shots            int32              `json:"shots"`
+	ShootingPctg     float32            `json:"shooting_pctg"`
+	AvgToiPerGame    float32            `json:"avg_toi_per_game"`
+	AvgShiftsPerGame float32            `json:"avg_shifts_per_game"`
+	FaceoffWinPctg   float32            `json:"faceoff_win_pctg"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Franchise struct {
 	ID             int64  `json:"id"`
 	FullName       string `json:"full_name"`
@@ -45,6 +94,16 @@ type Game struct {
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 }
 
+type GameBroadcast struct {
+	GameID         int64              `json:"game_id"`
+	BroadcastID    int64              `json:"broadcast_id"`
+	Market         string             `json:"market"`
+	CountryCode    string             `json:"country_code"`
+	Network        string             `json:"network"`
+	SequenceNumber int32              `json:"sequence_number"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type GameCoach struct {
 	GameID    int64  `json:"game_id"`
 	TeamID    int64  `json:"team_id"`
@@ -70,6 +129,9 @@ type GameGoalieStat struct {
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 }
 
 type GameOfficial struct {
@@ -260,10 +322,51 @@ type Player struct {
 	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
 }
 
+type PlayerAward struct {
+	PlayerID   int64              `json:"player_id"`
+	TrophyName string             `json:"trophy_name"`
+	Season     int32              `json:"season"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type PlayerSeasonTotal struct {
+	PlayerID     int64              `json:"player_id"`
+	Season       int32              `json:"season"`
+	GameType     int16              `json:"game_type"`
+	LeagueAbbrev string             `json:"league_abbrev"`
+	TeamName     string             `json:"team_name"`
+	Sequence     int32              `json:"sequence"`
+	GamesPlayed  int32              `json:"games_played"`
+	Goals        pgtype.Int4        `json:"goals"`
+	Assists      pgtype.Int4        `json:"assists"`
+	Points       pgtype.Int4        `json:"points"`
+	PlusMinus    pgtype.Int4        `json:"plus_minus"`
+	PIM          pgtype.Int4        `json:"pim"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Season struct {
 	ID             int32       `json:"id"`
 	StandingsStart pgtype.Date `json:"standings_start"`
 	StandingsEnd   pgtype.Date `json:"standings_end"`
+}
+
+type SeasonRoster struct {
+	Season             int32              `json:"season"`
+	TeamID             int64              `json:"team_id"`
+	PlayerID           int64              `json:"player_id"`
+	Position           string             `json:"position"`
+	ShootsCatches      string             `json:"shoots_catches"`
+	SweaterNumber      int16              `json:"sweater_number"`
+	HeightInches       int16              `json:"height_inches"`
+	WeightPounds       int16              `json:"weight_pounds"`
+	BirthDate          string             `json:"birth_date"`
+	BirthCity          pgtype.Text        `json:"birth_city"`
+	BirthStateProvince pgtype.Text        `json:"birth_state_province"`
+	BirthCountry       string             `json:"birth_country"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 type SeasonTeam struct {
@@ -349,6 +452,31 @@ type SkaterSeasonStat struct {
 	AvgToiMin     pgtype.Numeric `json:"avg_toi_min"`
 }
 
+type StandingsSnapshot struct {
+	Season           int32              `json:"season"`
+	Date             pgtype.Date        `json:"date"`
+	TeamAbbrev       string             `json:"team_abbrev"`
+	Wins             int32              `json:"wins"`
+	Losses           int32              `json:"losses"`
+	OtLosses         int32              `json:"ot_losses"`
+	Points           int32              `json:"points"`
+	DivisionAbbrev   string             `json:"division_abbrev"`
+	DivisionName     string             `json:"division_name"`
+	ConferenceAbbrev pgtype.Text        `json:"conference_abbrev"`
+	ConferenceName   pgtype.Text        `json:"conference_name"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type YahooDraftResult struct {
+	LeagueID  int32              `json:"league_id"`
+	Round     int32              `json:"round"`
+	Pick      int32              `json:"pick"`
+	TeamID    int32              `json:"team_id"`
+	PlayerID  int32              `json:"player_id"`
+	Cost      pgtype.Int4        `json:"cost"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type YahooLeague struct {
 	ID                    int32              `json:"id"`
 	LeagueKey             string             `json:"league_key"`
@@ -402,6 +530,20 @@ type YahooLeagueStatCategory struct {
 	StatGroup string        `json:"stat_group"`
 	Enabled   bool          `json:"enabled"`
 	Value     pgtype.Float4 `json:"value"`
+}
+
+type YahooMatchup struct {
+	LeagueID      int32              `json:"league_id"`
+	Week          int32              `json:"week"`
+	Team1ID       int32              `json:"team1_id"`
+	Team2ID       int32              `json:"team2_id"`
+	Team1Points   pgtype.Float4      `json:"team1_points"`
+	Team2Points   pgtype.Float4      `json:"team2_points"`
+	Status        pgtype.Text        `json:"status"`
+	IsPlayoffs    bool               `json:"is_playoffs"`
+	IsConsolation bool               `json:"is_consolation"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
 type YahooRosterPlayer struct {
@@ -496,17 +638,27 @@ type YahooTeamManager struct {
 }
 
 type YahooTeamRoster struct {
-	LeagueID         int32              `json:"league_id"`
-	TeamID           int32              `json:"team_id"`
-	Date             pgtype.Date        `json:"date"`
-	PlayerID         int32              `json:"player_id"`
-	CoverageType     string             `json:"coverage_type"`
-	IsEditable       bool               `json:"is_editable"`
-	PlayerKey        string             `json:"player_key"`
-	SelectedPosition string             `json:"selected_position"`
-	IsFlex           bool               `json:"is_flex"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	LeagueID          int32              `json:"league_id"`
+	TeamID            int32              `json:"team_id"`
+	Date              pgtype.Date        `json:"date"`
+	PlayerID          int32              `json:"player_id"`
+	CoverageType      string             `json:"coverage_type"`
+	IsEditable        bool               `json:"is_editable"`
+	PlayerKey         string             `json:"player_key"`
+	SelectedPosition  string             `json:"selected_position"`
+	IsFlex            bool               `json:"is_flex"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	PlayerStatus      pgtype.Text        `json:"player_status"`
+	PlayerStatusFull  pgtype.Text        `json:"player_status_full"`
+	InjuryNote        pgtype.Text        `json:"injury_note"`
+	OnDisabledList    pgtype.Bool        `json:"on_disabled_list"`
+	PositionType      pgtype.Text        `json:"position_type"`
+	DisplayPosition   pgtype.Text        `json:"display_position"`
+	PrimaryPosition   pgtype.Text        `json:"primary_position"`
+	EligiblePositions []string           `json:"eligible_positions"`
+	UniformNumber     pgtype.Int4        `json:"uniform_number"`
+	EditorialTeamAbbr pgtype.Text        `json:"editorial_team_abbr"`
 }
 
 type YahooTeamSummary struct {
@@ -524,4 +676,14 @@ type YahooTeamSummaryStat struct {
 	Date     pgtype.Date `json:"date"`
 	StatID   int32       `json:"stat_id"`
 	Value    string      `json:"value"`
+}
+
+type YahooTransaction struct {
+	LeagueID       int32              `json:"league_id"`
+	TransactionKey string             `json:"transaction_key"`
+	Type           string             `json:"type"`
+	Timestamp      pgtype.Int8        `json:"timestamp"`
+	Status         pgtype.Text        `json:"status"`
+	Players        []byte             `json:"players"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }

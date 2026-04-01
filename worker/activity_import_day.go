@@ -75,6 +75,13 @@ func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput)
 		return counts, fmt.Errorf("import season series for %s: %w", input.Date.Format(config.DateFormat), err)
 	}
 	counts.Add(ssResult.Origins)
+	activity.RecordHeartbeat(ctx, "standings")
+
+	// Import daily standings snapshot
+	standingsInput := DateSeasonInput{Date: input.Date, Season: input.Season}
+	if err := a.ImportStandingsForDate(ctx, standingsInput); err != nil {
+		return counts, fmt.Errorf("import standings for %s: %w", input.Date.Format(config.DateFormat), err)
+	}
 	activity.RecordHeartbeat(ctx, "yahoo")
 
 	// Import Yahoo data if teams configured

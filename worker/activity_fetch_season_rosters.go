@@ -1,0 +1,44 @@
+package worker
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/resource"
+	"go.temporal.io/sdk/activity"
+)
+
+// FetchSeasonRostersInput contains the parameters for fetching season rosters.
+type FetchSeasonRostersInput struct {
+	Season int // start year (e.g., 2024 for the 2024-2025 season)
+}
+
+// FetchSeasonRosters fetches and caches the roster for every team in the given season.
+// Teams that have no roster data (e.g., historical franchises) are skipped with a log entry.
+func (a *SeasonsActivities) FetchSeasonRosters(ctx context.Context, input FetchSeasonRostersInput) error {
+	logger := activity.GetLogger(ctx)
+
+	season := nhl.NewSeason(input.Season)
+	teams, err := a.RosterQueries.GetSeasonTeamAbbrevs(ctx, int32(season.ID()))
+	if err != nil {
+		return fmt.Errorf("get season teams: %w", err)
+	}
+
+	for _, team := range teams {
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("roster:%s", team.Abbrev))
+		res := resource.SeasonRoster{Season: input.Season, TeamAbbrev: team.Abbrev}
+		_, _, err := FetchOrCache(ctx, a.Storage, a.GobCache, res,
+			func(ctx context.Context) (*nhl.Roster, error) {
+				return a.NHLClient.RosterSeason(ctx, team.Abbrev, season)
+			})
+		if err != nil {
+			// Some teams may not have roster data (e.g., historical teams)
+			logger.Info("Failed to fetch roster", "team", team.Abbrev, "error", err)
+			continue
+		}
+	}
+
+	logger.Info("Fetched season rosters", "season", input.Season, "teams", len(teams))
+	return nil
+}

@@ -187,7 +187,7 @@ func (q *Queries) DeleteYahooTeamSummaryStatsByLeague(ctx context.Context, leagu
 
 const getYahooTeamRoster = `-- name: GetYahooTeamRoster :many
 
-SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, created_at, updated_at FROM yahoo_team_rosters
+SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, created_at, updated_at, player_status, player_status_full, injury_note, on_disabled_list, position_type, display_position, primary_position, eligible_positions, uniform_number, editorial_team_abbr FROM yahoo_team_rosters
 WHERE league_id = $1 AND team_id = $2 AND date = $3
 ORDER BY player_id
 `
@@ -222,6 +222,16 @@ func (q *Queries) GetYahooTeamRoster(ctx context.Context, arg GetYahooTeamRoster
 			&i.IsFlex,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlayerStatus,
+			&i.PlayerStatusFull,
+			&i.InjuryNote,
+			&i.OnDisabledList,
+			&i.PositionType,
+			&i.DisplayPosition,
+			&i.PrimaryPosition,
+			&i.EligiblePositions,
+			&i.UniformNumber,
+			&i.EditorialTeamAbbr,
 		); err != nil {
 			return nil, err
 		}
@@ -234,7 +244,7 @@ func (q *Queries) GetYahooTeamRoster(ctx context.Context, arg GetYahooTeamRoster
 }
 
 const getYahooTeamRostersByDate = `-- name: GetYahooTeamRostersByDate :many
-SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, created_at, updated_at FROM yahoo_team_rosters
+SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, created_at, updated_at, player_status, player_status_full, injury_note, on_disabled_list, position_type, display_position, primary_position, eligible_positions, uniform_number, editorial_team_abbr FROM yahoo_team_rosters
 WHERE league_id = $1 AND date = $2
 ORDER BY team_id, player_id
 `
@@ -265,6 +275,16 @@ func (q *Queries) GetYahooTeamRostersByDate(ctx context.Context, arg GetYahooTea
 			&i.IsFlex,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlayerStatus,
+			&i.PlayerStatusFull,
+			&i.InjuryNote,
+			&i.OnDisabledList,
+			&i.PositionType,
+			&i.DisplayPosition,
+			&i.PrimaryPosition,
+			&i.EligiblePositions,
+			&i.UniformNumber,
+			&i.EditorialTeamAbbr,
 		); err != nil {
 			return nil, err
 		}
@@ -277,7 +297,7 @@ func (q *Queries) GetYahooTeamRostersByDate(ctx context.Context, arg GetYahooTea
 }
 
 const getYahooTeamRostersByLeague = `-- name: GetYahooTeamRostersByLeague :many
-SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, created_at, updated_at FROM yahoo_team_rosters
+SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, created_at, updated_at, player_status, player_status_full, injury_note, on_disabled_list, position_type, display_position, primary_position, eligible_positions, uniform_number, editorial_team_abbr FROM yahoo_team_rosters
 WHERE league_id = $1
 ORDER BY team_id, date, player_id
 `
@@ -303,6 +323,16 @@ func (q *Queries) GetYahooTeamRostersByLeague(ctx context.Context, leagueID int3
 			&i.IsFlex,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlayerStatus,
+			&i.PlayerStatusFull,
+			&i.InjuryNote,
+			&i.OnDisabledList,
+			&i.PositionType,
+			&i.DisplayPosition,
+			&i.PrimaryPosition,
+			&i.EligiblePositions,
+			&i.UniformNumber,
+			&i.EditorialTeamAbbr,
 		); err != nil {
 			return nil, err
 		}
@@ -315,7 +345,7 @@ func (q *Queries) GetYahooTeamRostersByLeague(ctx context.Context, leagueID int3
 }
 
 const getYahooTeamRostersByPlayer = `-- name: GetYahooTeamRostersByPlayer :many
-SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, created_at, updated_at FROM yahoo_team_rosters
+SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, created_at, updated_at, player_status, player_status_full, injury_note, on_disabled_list, position_type, display_position, primary_position, eligible_positions, uniform_number, editorial_team_abbr FROM yahoo_team_rosters
 WHERE league_id = $1 AND player_id = $2
 ORDER BY date
 `
@@ -346,6 +376,16 @@ func (q *Queries) GetYahooTeamRostersByPlayer(ctx context.Context, arg GetYahooT
 			&i.IsFlex,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlayerStatus,
+			&i.PlayerStatusFull,
+			&i.InjuryNote,
+			&i.OnDisabledList,
+			&i.PositionType,
+			&i.DisplayPosition,
+			&i.PrimaryPosition,
+			&i.EligiblePositions,
+			&i.UniformNumber,
+			&i.EditorialTeamAbbr,
 		); err != nil {
 			return nil, err
 		}
@@ -358,7 +398,7 @@ func (q *Queries) GetYahooTeamRostersByPlayer(ctx context.Context, arg GetYahooT
 }
 
 const getYahooTeamRostersByTeam = `-- name: GetYahooTeamRostersByTeam :many
-SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, created_at, updated_at FROM yahoo_team_rosters
+SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, created_at, updated_at, player_status, player_status_full, injury_note, on_disabled_list, position_type, display_position, primary_position, eligible_positions, uniform_number, editorial_team_abbr FROM yahoo_team_rosters
 WHERE league_id = $1 AND team_id = $2
 ORDER BY date, player_id
 `
@@ -389,6 +429,16 @@ func (q *Queries) GetYahooTeamRostersByTeam(ctx context.Context, arg GetYahooTea
 			&i.IsFlex,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlayerStatus,
+			&i.PlayerStatusFull,
+			&i.InjuryNote,
+			&i.OnDisabledList,
+			&i.PositionType,
+			&i.DisplayPosition,
+			&i.PrimaryPosition,
+			&i.EligiblePositions,
+			&i.UniformNumber,
+			&i.EditorialTeamAbbr,
 		); err != nil {
 			return nil, err
 		}

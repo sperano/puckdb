@@ -44,11 +44,11 @@ func (f *FlexTimestamp) UnmarshalXML(d *xml.Decoder, start xml.StartElement) err
 
 // FantasyContent is the root element returned by Yahoo Fantasy API responses.
 type FantasyContent struct {
-	XMLName xml.Name      `xml:"fantasy_content"`
-	Game    FantasyGame   `xml:"game"`
-	Games   []FantasyGame `xml:"games>game"`
-	League  League        `xml:"league"`
-	Team    Team          `xml:"team"`
+	XMLName      xml.Name      `xml:"fantasy_content"`
+	Game         FantasyGame   `xml:"game"`
+	Games        []FantasyGame `xml:"games>game"`
+	League       League        `xml:"league"`
+	Team         Team          `xml:"team"`
 }
 
 // FantasyGame represents a Yahoo Fantasy game (sport + season combination).
@@ -89,8 +89,11 @@ type League struct {
 	StartDate             string   `xml:"start_date"`
 	EndDate               string   `xml:"end_date"`
 	GameCode              string   `xml:"game_code"`
-	Season                int      `xml:"season"`
+	Season                int             `xml:"season"`
 	Settings              Settings
+	Transactions          Transactions    `xml:"transactions"`
+	DraftResults          DraftResultList `xml:"draft_results"`
+	Scoreboard            Scoreboard      `xml:"scoreboard"`
 }
 
 // Settings contains league configuration.
@@ -269,6 +272,10 @@ type Player struct {
 	PositionType             string   `xml:"position_type"`
 	PrimaryPosition          string   `xml:"primary_position"`
 	EligiblePositions        []string `xml:"eligible_positions>position"`
+	Status                   string   `xml:"status"`
+	StatusFull               string   `xml:"status_full"`
+	InjuryNote               string   `xml:"injury_note"`
+	OnDisabledList           int      `xml:"on_disabled_list"`
 	HasPlayerNotes           int      `xml:"has_player_notes"`
 	PlayerNotesLastTimestamp int      `xml:"player_notes_last_timestamp"`
 	SelectedPosition         PlayerSelectedPosition
@@ -384,6 +391,136 @@ func (p positionID) ID() (uint, error) {
 	}
 	return uint(id), err
 }
+
+// ============================================================================
+// TRANSACTION TYPES
+// ============================================================================
+
+// Transactions contains a list of league transactions.
+type Transactions struct {
+	XMLName xml.Name      `xml:"transactions"`
+	Slice   []Transaction `xml:"transaction"`
+	Count   int           `xml:"count,attr"`
+}
+
+// Transaction represents a single Yahoo Fantasy transaction (add, drop, trade, etc).
+type Transaction struct {
+	XMLName        xml.Name          `xml:"transaction"`
+	TransactionKey string            `xml:"transaction_key"`
+	TransactionID  int               `xml:"transaction_id"`
+	Type           string            `xml:"type"`
+	Status         string            `xml:"status"`
+	Timestamp      FlexTimestamp     `xml:"timestamp"`
+	Players        TransactionPlayers `xml:"players"`
+}
+
+// TransactionPlayers contains the players involved in a transaction.
+type TransactionPlayers struct {
+	XMLName xml.Name            `xml:"players"`
+	Slice   []TransactionPlayer `xml:"player"`
+	Count   int                 `xml:"count,attr"`
+}
+
+// TransactionPlayer represents a player in a transaction.
+type TransactionPlayer struct {
+	XMLName         xml.Name               `xml:"player"`
+	Key             string                 `xml:"player_key"`
+	ID              int                    `xml:"player_id"`
+	Name            PlayerName             `xml:"name"`
+	TransactionData TransactionPlayerData  `xml:"transaction_data"`
+}
+
+// TransactionPlayerData contains transaction-specific data for a player.
+type TransactionPlayerData struct {
+	XMLName            xml.Name `xml:"transaction_data"`
+	Type               string   `xml:"type"`
+	SourceType         string   `xml:"source_type"`
+	SourceTeamKey      string   `xml:"source_team_key"`
+	SourceTeamName     string   `xml:"source_team_name"`
+	DestinationType    string   `xml:"destination_type"`
+	DestinationTeamKey string   `xml:"destination_team_key"`
+	DestinationTeamName string  `xml:"destination_team_name"`
+}
+
+// ============================================================================
+// DRAFT RESULT TYPES
+// ============================================================================
+
+// DraftResultList contains a list of draft results.
+type DraftResultList struct {
+	XMLName xml.Name      `xml:"draft_results"`
+	Slice   []DraftResult `xml:"draft_result"`
+	Count   int           `xml:"count,attr"`
+}
+
+// DraftResult represents a single draft pick.
+type DraftResult struct {
+	XMLName   xml.Name `xml:"draft_result"`
+	Pick      int      `xml:"pick"`
+	Round     int      `xml:"round"`
+	TeamKey   string   `xml:"team_key"`
+	PlayerKey string   `xml:"player_key"`
+	Cost      int      `xml:"cost"`
+}
+
+// ============================================================================
+// MATCHUP/SCOREBOARD TYPES
+// ============================================================================
+
+// Scoreboard contains weekly matchup results.
+type Scoreboard struct {
+	XMLName xml.Name  `xml:"scoreboard"`
+	Week    int       `xml:"week"`
+	Matchups MatchupList `xml:"matchups"`
+}
+
+// MatchupList contains a list of matchups.
+type MatchupList struct {
+	XMLName xml.Name  `xml:"matchups"`
+	Slice   []Matchup `xml:"matchup"`
+	Count   int       `xml:"count,attr"`
+}
+
+// Matchup represents a single weekly head-to-head matchup.
+type Matchup struct {
+	XMLName       xml.Name     `xml:"matchup"`
+	Week          int          `xml:"week"`
+	WeekStart     string       `xml:"week_start"`
+	WeekEnd       string       `xml:"week_end"`
+	Status        string       `xml:"status"`
+	IsPlayoffs    int          `xml:"is_playoffs"`
+	IsConsolation int          `xml:"is_consolation"`
+	IsTied        int          `xml:"is_tied"`
+	WinnerTeamKey string       `xml:"winner_team_key"`
+	Teams         MatchupTeams `xml:"teams"`
+}
+
+// MatchupTeams contains the two teams in a matchup.
+type MatchupTeams struct {
+	XMLName xml.Name      `xml:"teams"`
+	Slice   []MatchupTeam `xml:"team"`
+}
+
+// MatchupTeam represents a team's performance in a matchup.
+type MatchupTeam struct {
+	XMLName    xml.Name      `xml:"team"`
+	TeamKey    string        `xml:"team_key"`
+	TeamID     int           `xml:"team_id"`
+	Name       string        `xml:"name"`
+	TeamPoints MatchupPoints `xml:"team_points"`
+}
+
+// MatchupPoints contains the points scored in a matchup.
+type MatchupPoints struct {
+	XMLName      xml.Name `xml:"team_points"`
+	CoverageType string   `xml:"coverage_type"`
+	Week         int      `xml:"week"`
+	Total        float64  `xml:"total"`
+}
+
+// ============================================================================
+// INTERNAL ID TYPES
+// ============================================================================
 
 // nhlTeamID represents a Yahoo Fantasy NHL team ID string (format: "game_key.team.id").
 type nhlTeamID string

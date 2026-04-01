@@ -330,3 +330,79 @@ func (p PlayerGameLog) Parse(data []byte) (*nhl.PlayerGameLog, error) {
 	}
 	return &gameLog, nil
 }
+
+// DailyStandings represents NHL standings for a specific date.
+// Fetched via LeagueStandingsForDate and cached alongside daily schedule data.
+type DailyStandings struct {
+	Date time.Time
+}
+
+func (d DailyStandings) Path() string {
+	return fmt.Sprintf("%s/standings-%d-%02d-%02d.json",
+		gamesDir(d.Date), d.Date.Year(), d.Date.Month(), d.Date.Day())
+}
+
+func (d DailyStandings) Type() core.FileType { return core.DailyStandings }
+
+func (d DailyStandings) Parse(data []byte) ([]nhl.Standing, error) {
+	var standings []nhl.Standing
+	if err := json.Unmarshal(data, &standings); err != nil {
+		return nil, fmt.Errorf("parse daily standings for %s: %w", d.Date.Format("2006-01-02"), err)
+	}
+	return standings, nil
+}
+
+func (d DailyStandings) Format(obj []nhl.Standing) ([]byte, error) {
+	return json.Marshal(obj)
+}
+
+// SeasonRoster represents the full roster for a team in a specific season.
+// Fetched via RosterSeason and includes players who never appeared in a game.
+type SeasonRoster struct {
+	Season     int
+	TeamAbbrev string
+}
+
+func (r SeasonRoster) Path() string {
+	return fmt.Sprintf("seasons/%d/rosters/roster-%s.json", r.Season, r.TeamAbbrev)
+}
+
+func (r SeasonRoster) Type() core.FileType { return core.SeasonRoster }
+
+func (r SeasonRoster) Parse(data []byte) (*nhl.Roster, error) {
+	var roster nhl.Roster
+	if err := json.Unmarshal(data, &roster); err != nil {
+		return nil, fmt.Errorf("parse season roster %s/%d: %w", r.TeamAbbrev, r.Season, err)
+	}
+	return &roster, nil
+}
+
+func (r SeasonRoster) Format(obj *nhl.Roster) ([]byte, error) {
+	return json.Marshal(obj)
+}
+
+// ClubStatsResource represents pre-aggregated team stats per season from the NHL API.
+// Includes fields not available from individual boxscores (e.g., shorthanded goals, shooting %).
+type ClubStatsResource struct {
+	Season     int
+	TeamAbbrev string
+	GameType   int
+}
+
+func (c ClubStatsResource) Path() string {
+	return fmt.Sprintf("seasons/%d/clubstats/clubstats-%s-%d.json", c.Season, c.TeamAbbrev, c.GameType)
+}
+
+func (c ClubStatsResource) Type() core.FileType { return core.ClubStatsResource }
+
+func (c ClubStatsResource) Parse(data []byte) (*nhl.ClubStats, error) {
+	var stats nhl.ClubStats
+	if err := json.Unmarshal(data, &stats); err != nil {
+		return nil, fmt.Errorf("parse club stats %s/%d/%d: %w", c.TeamAbbrev, c.Season, c.GameType, err)
+	}
+	return &stats, nil
+}
+
+func (c ClubStatsResource) Format(obj *nhl.ClubStats) ([]byte, error) {
+	return json.Marshal(obj)
+}

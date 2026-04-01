@@ -135,6 +135,7 @@ INSERT INTO game_goalie_stats (
     decision, starter,
     shots_against, saves, save_pctg,
     goals_against, even_strength_goals_against, power_play_goals_against, shorthanded_goals_against,
+    even_strength_shots_against, power_play_shots_against, shorthanded_shots_against,
     toi_seconds, penalty_minutes,
     updated_at
 ) VALUES (
@@ -142,7 +143,8 @@ INSERT INTO game_goalie_stats (
     $6, $7,
     $8, $9, $10,
     $11, $12, $13, $14,
-    $15, $16,
+    $15, $16, $17,
+    $18, $19,
     NOW()
 )
 ON CONFLICT (game_id, player_id) DO UPDATE SET
@@ -158,6 +160,9 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     even_strength_goals_against = EXCLUDED.even_strength_goals_against,
     power_play_goals_against = EXCLUDED.power_play_goals_against,
     shorthanded_goals_against = EXCLUDED.shorthanded_goals_against,
+    even_strength_shots_against = EXCLUDED.even_strength_shots_against,
+    power_play_shots_against = EXCLUDED.power_play_shots_against,
+    shorthanded_shots_against = EXCLUDED.shorthanded_shots_against,
     toi_seconds = EXCLUDED.toi_seconds,
     penalty_minutes = EXCLUDED.penalty_minutes,
     updated_at = NOW()
@@ -169,6 +174,9 @@ WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
        game_goalie_stats.even_strength_goals_against,
        game_goalie_stats.power_play_goals_against,
        game_goalie_stats.shorthanded_goals_against,
+       game_goalie_stats.even_strength_shots_against,
+       game_goalie_stats.power_play_shots_against,
+       game_goalie_stats.shorthanded_shots_against,
        game_goalie_stats.toi_seconds, game_goalie_stats.penalty_minutes)
       IS DISTINCT FROM
       (EXCLUDED.team_id, EXCLUDED.is_home,
@@ -179,6 +187,9 @@ WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
        EXCLUDED.even_strength_goals_against,
        EXCLUDED.power_play_goals_against,
        EXCLUDED.shorthanded_goals_against,
+       EXCLUDED.even_strength_shots_against,
+       EXCLUDED.power_play_shots_against,
+       EXCLUDED.shorthanded_shots_against,
        EXCLUDED.toi_seconds, EXCLUDED.penalty_minutes);
 
 -- name: UpsertGameGoalieStatsBatch :batchexec
@@ -187,6 +198,7 @@ INSERT INTO game_goalie_stats (
     decision, starter,
     shots_against, saves, save_pctg,
     goals_against, even_strength_goals_against, power_play_goals_against, shorthanded_goals_against,
+    even_strength_shots_against, power_play_shots_against, shorthanded_shots_against,
     toi_seconds, penalty_minutes,
     updated_at
 ) VALUES (
@@ -194,7 +206,8 @@ INSERT INTO game_goalie_stats (
     $6, $7,
     $8, $9, $10,
     $11, $12, $13, $14,
-    $15, $16,
+    $15, $16, $17,
+    $18, $19,
     NOW()
 )
 ON CONFLICT (game_id, player_id) DO UPDATE SET
@@ -210,6 +223,9 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     even_strength_goals_against = EXCLUDED.even_strength_goals_against,
     power_play_goals_against = EXCLUDED.power_play_goals_against,
     shorthanded_goals_against = EXCLUDED.shorthanded_goals_against,
+    even_strength_shots_against = EXCLUDED.even_strength_shots_against,
+    power_play_shots_against = EXCLUDED.power_play_shots_against,
+    shorthanded_shots_against = EXCLUDED.shorthanded_shots_against,
     toi_seconds = EXCLUDED.toi_seconds,
     penalty_minutes = EXCLUDED.penalty_minutes,
     updated_at = NOW()
@@ -221,6 +237,9 @@ WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
        game_goalie_stats.even_strength_goals_against,
        game_goalie_stats.power_play_goals_against,
        game_goalie_stats.shorthanded_goals_against,
+       game_goalie_stats.even_strength_shots_against,
+       game_goalie_stats.power_play_shots_against,
+       game_goalie_stats.shorthanded_shots_against,
        game_goalie_stats.toi_seconds, game_goalie_stats.penalty_minutes)
       IS DISTINCT FROM
       (EXCLUDED.team_id, EXCLUDED.is_home,
@@ -231,6 +250,9 @@ WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
        EXCLUDED.even_strength_goals_against,
        EXCLUDED.power_play_goals_against,
        EXCLUDED.shorthanded_goals_against,
+       EXCLUDED.even_strength_shots_against,
+       EXCLUDED.power_play_shots_against,
+       EXCLUDED.shorthanded_shots_against,
        EXCLUDED.toi_seconds, EXCLUDED.penalty_minutes);
 
 -- name: DeleteGameGoalieStats :exec

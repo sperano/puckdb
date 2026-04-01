@@ -17,12 +17,340 @@ var (
 	ErrBatchAlreadyClosed = errors.New("batch already closed")
 )
 
+const upsertClubGoalieStatsBatch = `-- name: UpsertClubGoalieStatsBatch :batchexec
+INSERT INTO club_goalie_stats (
+    season, game_type, team_id, player_id,
+    games_played, games_started, wins, losses, overtime_losses,
+    goals_against_average, save_percentage, shots_against, saves, goals_against,
+    shutouts, goals, assists, points, penalty_minutes, toi_seconds
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+ON CONFLICT (season, game_type, team_id, player_id) DO UPDATE SET
+    games_played = EXCLUDED.games_played,
+    games_started = EXCLUDED.games_started,
+    wins = EXCLUDED.wins,
+    losses = EXCLUDED.losses,
+    overtime_losses = EXCLUDED.overtime_losses,
+    goals_against_average = EXCLUDED.goals_against_average,
+    save_percentage = EXCLUDED.save_percentage,
+    shots_against = EXCLUDED.shots_against,
+    saves = EXCLUDED.saves,
+    goals_against = EXCLUDED.goals_against,
+    shutouts = EXCLUDED.shutouts,
+    goals = EXCLUDED.goals,
+    assists = EXCLUDED.assists,
+    points = EXCLUDED.points,
+    penalty_minutes = EXCLUDED.penalty_minutes,
+    toi_seconds = EXCLUDED.toi_seconds,
+    updated_at = NOW()
+WHERE (club_goalie_stats.games_played, club_goalie_stats.games_started,
+       club_goalie_stats.wins, club_goalie_stats.losses,
+       club_goalie_stats.overtime_losses, club_goalie_stats.goals_against_average,
+       club_goalie_stats.save_percentage, club_goalie_stats.shots_against,
+       club_goalie_stats.saves, club_goalie_stats.goals_against,
+       club_goalie_stats.shutouts, club_goalie_stats.goals,
+       club_goalie_stats.assists, club_goalie_stats.points,
+       club_goalie_stats.penalty_minutes, club_goalie_stats.toi_seconds)
+      IS DISTINCT FROM
+      (EXCLUDED.games_played, EXCLUDED.games_started,
+       EXCLUDED.wins, EXCLUDED.losses,
+       EXCLUDED.overtime_losses, EXCLUDED.goals_against_average,
+       EXCLUDED.save_percentage, EXCLUDED.shots_against,
+       EXCLUDED.saves, EXCLUDED.goals_against,
+       EXCLUDED.shutouts, EXCLUDED.goals,
+       EXCLUDED.assists, EXCLUDED.points,
+       EXCLUDED.penalty_minutes, EXCLUDED.toi_seconds)
+`
+
+type UpsertClubGoalieStatsBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertClubGoalieStatsBatchParams struct {
+	Season              int32   `json:"season"`
+	GameType            int16   `json:"game_type"`
+	TeamID              int64   `json:"team_id"`
+	PlayerID            int64   `json:"player_id"`
+	GamesPlayed         int32   `json:"games_played"`
+	GamesStarted        int32   `json:"games_started"`
+	Wins                int32   `json:"wins"`
+	Losses              int32   `json:"losses"`
+	OvertimeLosses      int32   `json:"overtime_losses"`
+	GoalsAgainstAverage float32 `json:"goals_against_average"`
+	SavePercentage      float32 `json:"save_percentage"`
+	ShotsAgainst        int32   `json:"shots_against"`
+	Saves               int32   `json:"saves"`
+	GoalsAgainst        int32   `json:"goals_against"`
+	Shutouts            int32   `json:"shutouts"`
+	Goals               int32   `json:"goals"`
+	Assists             int32   `json:"assists"`
+	Points              int32   `json:"points"`
+	PenaltyMinutes      int32   `json:"penalty_minutes"`
+	TOISeconds          int64   `json:"toi_seconds"`
+}
+
+func (q *Queries) UpsertClubGoalieStatsBatch(ctx context.Context, arg []UpsertClubGoalieStatsBatchParams) *UpsertClubGoalieStatsBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.Season,
+			a.GameType,
+			a.TeamID,
+			a.PlayerID,
+			a.GamesPlayed,
+			a.GamesStarted,
+			a.Wins,
+			a.Losses,
+			a.OvertimeLosses,
+			a.GoalsAgainstAverage,
+			a.SavePercentage,
+			a.ShotsAgainst,
+			a.Saves,
+			a.GoalsAgainst,
+			a.Shutouts,
+			a.Goals,
+			a.Assists,
+			a.Points,
+			a.PenaltyMinutes,
+			a.TOISeconds,
+		}
+		batch.Queue(upsertClubGoalieStatsBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertClubGoalieStatsBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertClubGoalieStatsBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertClubGoalieStatsBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertClubSkaterStatsBatch = `-- name: UpsertClubSkaterStatsBatch :batchexec
+
+INSERT INTO club_skater_stats (
+    season, game_type, team_id, player_id,
+    games_played, goals, assists, points, plus_minus, penalty_minutes,
+    power_play_goals, shorthanded_goals, game_winning_goals, overtime_goals,
+    shots, shooting_pctg, avg_toi_per_game, avg_shifts_per_game, faceoff_win_pctg
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+ON CONFLICT (season, game_type, team_id, player_id) DO UPDATE SET
+    games_played = EXCLUDED.games_played,
+    goals = EXCLUDED.goals,
+    assists = EXCLUDED.assists,
+    points = EXCLUDED.points,
+    plus_minus = EXCLUDED.plus_minus,
+    penalty_minutes = EXCLUDED.penalty_minutes,
+    power_play_goals = EXCLUDED.power_play_goals,
+    shorthanded_goals = EXCLUDED.shorthanded_goals,
+    game_winning_goals = EXCLUDED.game_winning_goals,
+    overtime_goals = EXCLUDED.overtime_goals,
+    shots = EXCLUDED.shots,
+    shooting_pctg = EXCLUDED.shooting_pctg,
+    avg_toi_per_game = EXCLUDED.avg_toi_per_game,
+    avg_shifts_per_game = EXCLUDED.avg_shifts_per_game,
+    faceoff_win_pctg = EXCLUDED.faceoff_win_pctg,
+    updated_at = NOW()
+WHERE (club_skater_stats.games_played, club_skater_stats.goals,
+       club_skater_stats.assists, club_skater_stats.points,
+       club_skater_stats.plus_minus, club_skater_stats.penalty_minutes,
+       club_skater_stats.power_play_goals, club_skater_stats.shorthanded_goals,
+       club_skater_stats.game_winning_goals, club_skater_stats.overtime_goals,
+       club_skater_stats.shots, club_skater_stats.shooting_pctg,
+       club_skater_stats.avg_toi_per_game, club_skater_stats.avg_shifts_per_game,
+       club_skater_stats.faceoff_win_pctg)
+      IS DISTINCT FROM
+      (EXCLUDED.games_played, EXCLUDED.goals,
+       EXCLUDED.assists, EXCLUDED.points,
+       EXCLUDED.plus_minus, EXCLUDED.penalty_minutes,
+       EXCLUDED.power_play_goals, EXCLUDED.shorthanded_goals,
+       EXCLUDED.game_winning_goals, EXCLUDED.overtime_goals,
+       EXCLUDED.shots, EXCLUDED.shooting_pctg,
+       EXCLUDED.avg_toi_per_game, EXCLUDED.avg_shifts_per_game,
+       EXCLUDED.faceoff_win_pctg)
+`
+
+type UpsertClubSkaterStatsBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertClubSkaterStatsBatchParams struct {
+	Season           int32   `json:"season"`
+	GameType         int16   `json:"game_type"`
+	TeamID           int64   `json:"team_id"`
+	PlayerID         int64   `json:"player_id"`
+	GamesPlayed      int32   `json:"games_played"`
+	Goals            int32   `json:"goals"`
+	Assists          int32   `json:"assists"`
+	Points           int32   `json:"points"`
+	PlusMinus        int32   `json:"plus_minus"`
+	PenaltyMinutes   int32   `json:"penalty_minutes"`
+	PowerPlayGoals   int32   `json:"power_play_goals"`
+	ShorthandedGoals int32   `json:"shorthanded_goals"`
+	GameWinningGoals int32   `json:"game_winning_goals"`
+	OvertimeGoals    int32   `json:"overtime_goals"`
+	Shots            int32   `json:"shots"`
+	ShootingPctg     float32 `json:"shooting_pctg"`
+	AvgToiPerGame    float32 `json:"avg_toi_per_game"`
+	AvgShiftsPerGame float32 `json:"avg_shifts_per_game"`
+	FaceoffWinPctg   float32 `json:"faceoff_win_pctg"`
+}
+
+// =============================================================================
+// Club Stats Queries (team-level per-player season aggregates)
+// =============================================================================
+func (q *Queries) UpsertClubSkaterStatsBatch(ctx context.Context, arg []UpsertClubSkaterStatsBatchParams) *UpsertClubSkaterStatsBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.Season,
+			a.GameType,
+			a.TeamID,
+			a.PlayerID,
+			a.GamesPlayed,
+			a.Goals,
+			a.Assists,
+			a.Points,
+			a.PlusMinus,
+			a.PenaltyMinutes,
+			a.PowerPlayGoals,
+			a.ShorthandedGoals,
+			a.GameWinningGoals,
+			a.OvertimeGoals,
+			a.Shots,
+			a.ShootingPctg,
+			a.AvgToiPerGame,
+			a.AvgShiftsPerGame,
+			a.FaceoffWinPctg,
+		}
+		batch.Queue(upsertClubSkaterStatsBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertClubSkaterStatsBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertClubSkaterStatsBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertClubSkaterStatsBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertGameBroadcastBatch = `-- name: UpsertGameBroadcastBatch :batchexec
+
+INSERT INTO game_broadcasts (
+    game_id, broadcast_id, market, country_code, network, sequence_number
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (game_id, broadcast_id) DO UPDATE SET
+    market = EXCLUDED.market,
+    country_code = EXCLUDED.country_code,
+    network = EXCLUDED.network,
+    sequence_number = EXCLUDED.sequence_number
+WHERE (game_broadcasts.market, game_broadcasts.country_code,
+       game_broadcasts.network, game_broadcasts.sequence_number)
+      IS DISTINCT FROM
+      (EXCLUDED.market, EXCLUDED.country_code,
+       EXCLUDED.network, EXCLUDED.sequence_number)
+`
+
+type UpsertGameBroadcastBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertGameBroadcastBatchParams struct {
+	GameID         int64  `json:"game_id"`
+	BroadcastID    int64  `json:"broadcast_id"`
+	Market         string `json:"market"`
+	CountryCode    string `json:"country_code"`
+	Network        string `json:"network"`
+	SequenceNumber int32  `json:"sequence_number"`
+}
+
+// =============================================================================
+// Game Broadcasts Queries
+// =============================================================================
+func (q *Queries) UpsertGameBroadcastBatch(ctx context.Context, arg []UpsertGameBroadcastBatchParams) *UpsertGameBroadcastBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.GameID,
+			a.BroadcastID,
+			a.Market,
+			a.CountryCode,
+			a.Network,
+			a.SequenceNumber,
+		}
+		batch.Queue(upsertGameBroadcastBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertGameBroadcastBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertGameBroadcastBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertGameBroadcastBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const upsertGameGoalieStatsBatch = `-- name: UpsertGameGoalieStatsBatch :batchexec
 INSERT INTO game_goalie_stats (
     game_id, player_id, team_id, is_home, sweater_number,
     decision, starter,
     shots_against, saves, save_pctg,
     goals_against, even_strength_goals_against, power_play_goals_against, shorthanded_goals_against,
+    even_strength_shots_against, power_play_shots_against, shorthanded_shots_against,
     toi_seconds, penalty_minutes,
     updated_at
 ) VALUES (
@@ -30,7 +358,8 @@ INSERT INTO game_goalie_stats (
     $6, $7,
     $8, $9, $10,
     $11, $12, $13, $14,
-    $15, $16,
+    $15, $16, $17,
+    $18, $19,
     NOW()
 )
 ON CONFLICT (game_id, player_id) DO UPDATE SET
@@ -46,6 +375,9 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     even_strength_goals_against = EXCLUDED.even_strength_goals_against,
     power_play_goals_against = EXCLUDED.power_play_goals_against,
     shorthanded_goals_against = EXCLUDED.shorthanded_goals_against,
+    even_strength_shots_against = EXCLUDED.even_strength_shots_against,
+    power_play_shots_against = EXCLUDED.power_play_shots_against,
+    shorthanded_shots_against = EXCLUDED.shorthanded_shots_against,
     toi_seconds = EXCLUDED.toi_seconds,
     penalty_minutes = EXCLUDED.penalty_minutes,
     updated_at = NOW()
@@ -57,6 +389,9 @@ WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
        game_goalie_stats.even_strength_goals_against,
        game_goalie_stats.power_play_goals_against,
        game_goalie_stats.shorthanded_goals_against,
+       game_goalie_stats.even_strength_shots_against,
+       game_goalie_stats.power_play_shots_against,
+       game_goalie_stats.shorthanded_shots_against,
        game_goalie_stats.toi_seconds, game_goalie_stats.penalty_minutes)
       IS DISTINCT FROM
       (EXCLUDED.team_id, EXCLUDED.is_home,
@@ -67,6 +402,9 @@ WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
        EXCLUDED.even_strength_goals_against,
        EXCLUDED.power_play_goals_against,
        EXCLUDED.shorthanded_goals_against,
+       EXCLUDED.even_strength_shots_against,
+       EXCLUDED.power_play_shots_against,
+       EXCLUDED.shorthanded_shots_against,
        EXCLUDED.toi_seconds, EXCLUDED.penalty_minutes)
 `
 
@@ -91,6 +429,9 @@ type UpsertGameGoalieStatsBatchParams struct {
 	EvenStrengthGoalsAgainst int16         `json:"even_strength_goals_against"`
 	PowerPlayGoalsAgainst    int16         `json:"power_play_goals_against"`
 	ShorthandedGoalsAgainst  int16         `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text   `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text   `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text   `json:"shorthanded_shots_against"`
 	TOISeconds               int32         `json:"toi_seconds"`
 	PenaltyMinutes           pgtype.Int2   `json:"penalty_minutes"`
 }
@@ -113,6 +454,9 @@ func (q *Queries) UpsertGameGoalieStatsBatch(ctx context.Context, arg []UpsertGa
 			a.EvenStrengthGoalsAgainst,
 			a.PowerPlayGoalsAgainst,
 			a.ShorthandedGoalsAgainst,
+			a.EvenStrengthShotsAgainst,
+			a.PowerPlayShotsAgainst,
+			a.ShorthandedShotsAgainst,
 			a.TOISeconds,
 			a.PenaltyMinutes,
 		}
@@ -529,6 +873,259 @@ func (b *UpsertPlayEventBatchBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const upsertPlayerAwardBatch = `-- name: UpsertPlayerAwardBatch :batchexec
+
+INSERT INTO player_awards (player_id, trophy_name, season)
+VALUES ($1, $2, $3)
+ON CONFLICT (player_id, trophy_name, season) DO NOTHING
+`
+
+type UpsertPlayerAwardBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertPlayerAwardBatchParams struct {
+	PlayerID   int64  `json:"player_id"`
+	TrophyName string `json:"trophy_name"`
+	Season     int32  `json:"season"`
+}
+
+// =============================================================================
+// Player Awards Queries
+// =============================================================================
+func (q *Queries) UpsertPlayerAwardBatch(ctx context.Context, arg []UpsertPlayerAwardBatchParams) *UpsertPlayerAwardBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.PlayerID,
+			a.TrophyName,
+			a.Season,
+		}
+		batch.Queue(upsertPlayerAwardBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertPlayerAwardBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertPlayerAwardBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertPlayerAwardBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertPlayerSeasonTotalBatch = `-- name: UpsertPlayerSeasonTotalBatch :batchexec
+
+INSERT INTO player_season_totals (
+    player_id, season, game_type, league_abbrev, team_name, sequence,
+    games_played, goals, assists, points, plus_minus, pim
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+ON CONFLICT (player_id, season, game_type, league_abbrev, sequence) DO UPDATE SET
+    team_name = EXCLUDED.team_name,
+    games_played = EXCLUDED.games_played,
+    goals = EXCLUDED.goals,
+    assists = EXCLUDED.assists,
+    points = EXCLUDED.points,
+    plus_minus = EXCLUDED.plus_minus,
+    pim = EXCLUDED.pim,
+    updated_at = NOW()
+WHERE (player_season_totals.team_name, player_season_totals.games_played,
+       player_season_totals.goals, player_season_totals.assists,
+       player_season_totals.points, player_season_totals.plus_minus,
+       player_season_totals.pim)
+      IS DISTINCT FROM
+      (EXCLUDED.team_name, EXCLUDED.games_played,
+       EXCLUDED.goals, EXCLUDED.assists,
+       EXCLUDED.points, EXCLUDED.plus_minus,
+       EXCLUDED.pim)
+`
+
+type UpsertPlayerSeasonTotalBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertPlayerSeasonTotalBatchParams struct {
+	PlayerID     int64       `json:"player_id"`
+	Season       int32       `json:"season"`
+	GameType     int16       `json:"game_type"`
+	LeagueAbbrev string      `json:"league_abbrev"`
+	TeamName     string      `json:"team_name"`
+	Sequence     int32       `json:"sequence"`
+	GamesPlayed  int32       `json:"games_played"`
+	Goals        pgtype.Int4 `json:"goals"`
+	Assists      pgtype.Int4 `json:"assists"`
+	Points       pgtype.Int4 `json:"points"`
+	PlusMinus    pgtype.Int4 `json:"plus_minus"`
+	PIM          pgtype.Int4 `json:"pim"`
+}
+
+// =============================================================================
+// Player Season Totals Queries (career stats from all leagues)
+// =============================================================================
+func (q *Queries) UpsertPlayerSeasonTotalBatch(ctx context.Context, arg []UpsertPlayerSeasonTotalBatchParams) *UpsertPlayerSeasonTotalBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.PlayerID,
+			a.Season,
+			a.GameType,
+			a.LeagueAbbrev,
+			a.TeamName,
+			a.Sequence,
+			a.GamesPlayed,
+			a.Goals,
+			a.Assists,
+			a.Points,
+			a.PlusMinus,
+			a.PIM,
+		}
+		batch.Queue(upsertPlayerSeasonTotalBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertPlayerSeasonTotalBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertPlayerSeasonTotalBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertPlayerSeasonTotalBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertSeasonRosterBatch = `-- name: UpsertSeasonRosterBatch :batchexec
+
+INSERT INTO season_rosters (
+    season, team_id, player_id,
+    position, shoots_catches, sweater_number,
+    height_inches, weight_pounds,
+    birth_date, birth_city, birth_state_province, birth_country
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+ON CONFLICT (season, team_id, player_id) DO UPDATE SET
+    position = EXCLUDED.position,
+    shoots_catches = EXCLUDED.shoots_catches,
+    sweater_number = EXCLUDED.sweater_number,
+    height_inches = EXCLUDED.height_inches,
+    weight_pounds = EXCLUDED.weight_pounds,
+    birth_date = EXCLUDED.birth_date,
+    birth_city = EXCLUDED.birth_city,
+    birth_state_province = EXCLUDED.birth_state_province,
+    birth_country = EXCLUDED.birth_country,
+    updated_at = NOW()
+WHERE (season_rosters.position, season_rosters.shoots_catches,
+       season_rosters.sweater_number, season_rosters.height_inches,
+       season_rosters.weight_pounds, season_rosters.birth_date,
+       season_rosters.birth_city, season_rosters.birth_state_province,
+       season_rosters.birth_country)
+      IS DISTINCT FROM
+      (EXCLUDED.position, EXCLUDED.shoots_catches,
+       EXCLUDED.sweater_number, EXCLUDED.height_inches,
+       EXCLUDED.weight_pounds, EXCLUDED.birth_date,
+       EXCLUDED.birth_city, EXCLUDED.birth_state_province,
+       EXCLUDED.birth_country)
+`
+
+type UpsertSeasonRosterBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertSeasonRosterBatchParams struct {
+	Season             int32       `json:"season"`
+	TeamID             int64       `json:"team_id"`
+	PlayerID           int64       `json:"player_id"`
+	Position           string      `json:"position"`
+	ShootsCatches      string      `json:"shoots_catches"`
+	SweaterNumber      int16       `json:"sweater_number"`
+	HeightInches       int16       `json:"height_inches"`
+	WeightPounds       int16       `json:"weight_pounds"`
+	BirthDate          string      `json:"birth_date"`
+	BirthCity          pgtype.Text `json:"birth_city"`
+	BirthStateProvince pgtype.Text `json:"birth_state_province"`
+	BirthCountry       string      `json:"birth_country"`
+}
+
+// =============================================================================
+// Season Rosters Queries
+// =============================================================================
+func (q *Queries) UpsertSeasonRosterBatch(ctx context.Context, arg []UpsertSeasonRosterBatchParams) *UpsertSeasonRosterBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.Season,
+			a.TeamID,
+			a.PlayerID,
+			a.Position,
+			a.ShootsCatches,
+			a.SweaterNumber,
+			a.HeightInches,
+			a.WeightPounds,
+			a.BirthDate,
+			a.BirthCity,
+			a.BirthStateProvince,
+			a.BirthCountry,
+		}
+		batch.Queue(upsertSeasonRosterBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertSeasonRosterBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertSeasonRosterBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertSeasonRosterBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const upsertShiftBatch = `-- name: UpsertShiftBatch :batchexec
 INSERT INTO shifts (
     id, game_id, player_id, team_id, period,
@@ -628,6 +1225,174 @@ func (b *UpsertShiftBatchBatchResults) Exec(f func(int, error)) {
 }
 
 func (b *UpsertShiftBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertStandingsSnapshotBatch = `-- name: UpsertStandingsSnapshotBatch :batchexec
+
+INSERT INTO standings_snapshots (
+    season, date, team_abbrev,
+    wins, losses, ot_losses, points,
+    division_abbrev, division_name,
+    conference_abbrev, conference_name
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+ON CONFLICT (season, date, team_abbrev) DO UPDATE SET
+    wins = EXCLUDED.wins,
+    losses = EXCLUDED.losses,
+    ot_losses = EXCLUDED.ot_losses,
+    points = EXCLUDED.points,
+    division_abbrev = EXCLUDED.division_abbrev,
+    division_name = EXCLUDED.division_name,
+    conference_abbrev = EXCLUDED.conference_abbrev,
+    conference_name = EXCLUDED.conference_name
+WHERE (standings_snapshots.wins, standings_snapshots.losses,
+       standings_snapshots.ot_losses, standings_snapshots.points,
+       standings_snapshots.division_abbrev, standings_snapshots.division_name,
+       standings_snapshots.conference_abbrev, standings_snapshots.conference_name)
+      IS DISTINCT FROM
+      (EXCLUDED.wins, EXCLUDED.losses,
+       EXCLUDED.ot_losses, EXCLUDED.points,
+       EXCLUDED.division_abbrev, EXCLUDED.division_name,
+       EXCLUDED.conference_abbrev, EXCLUDED.conference_name)
+`
+
+type UpsertStandingsSnapshotBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertStandingsSnapshotBatchParams struct {
+	Season           int32       `json:"season"`
+	Date             pgtype.Date `json:"date"`
+	TeamAbbrev       string      `json:"team_abbrev"`
+	Wins             int32       `json:"wins"`
+	Losses           int32       `json:"losses"`
+	OtLosses         int32       `json:"ot_losses"`
+	Points           int32       `json:"points"`
+	DivisionAbbrev   string      `json:"division_abbrev"`
+	DivisionName     string      `json:"division_name"`
+	ConferenceAbbrev pgtype.Text `json:"conference_abbrev"`
+	ConferenceName   pgtype.Text `json:"conference_name"`
+}
+
+// =============================================================================
+// Standings Snapshots Queries
+// =============================================================================
+func (q *Queries) UpsertStandingsSnapshotBatch(ctx context.Context, arg []UpsertStandingsSnapshotBatchParams) *UpsertStandingsSnapshotBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.Season,
+			a.Date,
+			a.TeamAbbrev,
+			a.Wins,
+			a.Losses,
+			a.OtLosses,
+			a.Points,
+			a.DivisionAbbrev,
+			a.DivisionName,
+			a.ConferenceAbbrev,
+			a.ConferenceName,
+		}
+		batch.Queue(upsertStandingsSnapshotBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertStandingsSnapshotBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertStandingsSnapshotBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertStandingsSnapshotBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertYahooDraftResultBatch = `-- name: UpsertYahooDraftResultBatch :batchexec
+
+INSERT INTO yahoo_draft_results (
+    league_id, round, pick, team_id, player_id, cost
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (league_id, round, pick) DO UPDATE SET
+    team_id = EXCLUDED.team_id,
+    player_id = EXCLUDED.player_id,
+    cost = EXCLUDED.cost
+WHERE (yahoo_draft_results.team_id, yahoo_draft_results.player_id,
+       yahoo_draft_results.cost)
+      IS DISTINCT FROM
+      (EXCLUDED.team_id, EXCLUDED.player_id,
+       EXCLUDED.cost)
+`
+
+type UpsertYahooDraftResultBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertYahooDraftResultBatchParams struct {
+	LeagueID int32       `json:"league_id"`
+	Round    int32       `json:"round"`
+	Pick     int32       `json:"pick"`
+	TeamID   int32       `json:"team_id"`
+	PlayerID int32       `json:"player_id"`
+	Cost     pgtype.Int4 `json:"cost"`
+}
+
+// =============================================================================
+// Yahoo Draft Results Queries
+// =============================================================================
+func (q *Queries) UpsertYahooDraftResultBatch(ctx context.Context, arg []UpsertYahooDraftResultBatchParams) *UpsertYahooDraftResultBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueID,
+			a.Round,
+			a.Pick,
+			a.TeamID,
+			a.PlayerID,
+			a.Cost,
+		}
+		batch.Queue(upsertYahooDraftResultBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertYahooDraftResultBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertYahooDraftResultBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertYahooDraftResultBatchBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }
@@ -770,6 +1535,92 @@ func (b *UpsertYahooLeagueStatCategoryBatchBatchResults) Exec(f func(int, error)
 }
 
 func (b *UpsertYahooLeagueStatCategoryBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertYahooMatchupBatch = `-- name: UpsertYahooMatchupBatch :batchexec
+
+INSERT INTO yahoo_matchups (
+    league_id, week, team1_id, team2_id,
+    team1_points, team2_points, status,
+    is_playoffs, is_consolation
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (league_id, week, team1_id, team2_id) DO UPDATE SET
+    team1_points = EXCLUDED.team1_points,
+    team2_points = EXCLUDED.team2_points,
+    status = EXCLUDED.status,
+    is_playoffs = EXCLUDED.is_playoffs,
+    is_consolation = EXCLUDED.is_consolation,
+    updated_at = NOW()
+WHERE (yahoo_matchups.team1_points, yahoo_matchups.team2_points,
+       yahoo_matchups.status, yahoo_matchups.is_playoffs,
+       yahoo_matchups.is_consolation)
+      IS DISTINCT FROM
+      (EXCLUDED.team1_points, EXCLUDED.team2_points,
+       EXCLUDED.status, EXCLUDED.is_playoffs,
+       EXCLUDED.is_consolation)
+`
+
+type UpsertYahooMatchupBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertYahooMatchupBatchParams struct {
+	LeagueID      int32         `json:"league_id"`
+	Week          int32         `json:"week"`
+	Team1ID       int32         `json:"team1_id"`
+	Team2ID       int32         `json:"team2_id"`
+	Team1Points   pgtype.Float4 `json:"team1_points"`
+	Team2Points   pgtype.Float4 `json:"team2_points"`
+	Status        pgtype.Text   `json:"status"`
+	IsPlayoffs    bool          `json:"is_playoffs"`
+	IsConsolation bool          `json:"is_consolation"`
+}
+
+// =============================================================================
+// Yahoo Matchups Queries
+// =============================================================================
+func (q *Queries) UpsertYahooMatchupBatch(ctx context.Context, arg []UpsertYahooMatchupBatchParams) *UpsertYahooMatchupBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueID,
+			a.Week,
+			a.Team1ID,
+			a.Team2ID,
+			a.Team1Points,
+			a.Team2Points,
+			a.Status,
+			a.IsPlayoffs,
+			a.IsConsolation,
+		}
+		batch.Queue(upsertYahooMatchupBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertYahooMatchupBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertYahooMatchupBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertYahooMatchupBatchBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }
@@ -959,23 +1810,46 @@ const upsertYahooTeamRosterBatch = `-- name: UpsertYahooTeamRosterBatch :batchex
 INSERT INTO yahoo_team_rosters (
     league_id, team_id, date, player_id,
     coverage_type, is_editable, player_key,
-    selected_position, is_flex
+    selected_position, is_flex,
+    player_status, player_status_full, injury_note, on_disabled_list,
+    position_type, display_position, primary_position, eligible_positions,
+    uniform_number, editorial_team_abbr
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 ON CONFLICT (league_id, team_id, date, player_id) DO UPDATE SET
     coverage_type = EXCLUDED.coverage_type,
     is_editable = EXCLUDED.is_editable,
     player_key = EXCLUDED.player_key,
     selected_position = EXCLUDED.selected_position,
     is_flex = EXCLUDED.is_flex,
+    player_status = EXCLUDED.player_status,
+    player_status_full = EXCLUDED.player_status_full,
+    injury_note = EXCLUDED.injury_note,
+    on_disabled_list = EXCLUDED.on_disabled_list,
+    position_type = EXCLUDED.position_type,
+    display_position = EXCLUDED.display_position,
+    primary_position = EXCLUDED.primary_position,
+    eligible_positions = EXCLUDED.eligible_positions,
+    uniform_number = EXCLUDED.uniform_number,
+    editorial_team_abbr = EXCLUDED.editorial_team_abbr,
     updated_at = NOW()
 WHERE (yahoo_team_rosters.coverage_type, yahoo_team_rosters.is_editable,
        yahoo_team_rosters.player_key, yahoo_team_rosters.selected_position,
-       yahoo_team_rosters.is_flex)
+       yahoo_team_rosters.is_flex,
+       yahoo_team_rosters.player_status, yahoo_team_rosters.player_status_full,
+       yahoo_team_rosters.injury_note, yahoo_team_rosters.on_disabled_list,
+       yahoo_team_rosters.position_type, yahoo_team_rosters.display_position,
+       yahoo_team_rosters.primary_position, yahoo_team_rosters.eligible_positions,
+       yahoo_team_rosters.uniform_number, yahoo_team_rosters.editorial_team_abbr)
       IS DISTINCT FROM
       (EXCLUDED.coverage_type, EXCLUDED.is_editable,
        EXCLUDED.player_key, EXCLUDED.selected_position,
-       EXCLUDED.is_flex)
+       EXCLUDED.is_flex,
+       EXCLUDED.player_status, EXCLUDED.player_status_full,
+       EXCLUDED.injury_note, EXCLUDED.on_disabled_list,
+       EXCLUDED.position_type, EXCLUDED.display_position,
+       EXCLUDED.primary_position, EXCLUDED.eligible_positions,
+       EXCLUDED.uniform_number, EXCLUDED.editorial_team_abbr)
 `
 
 type UpsertYahooTeamRosterBatchBatchResults struct {
@@ -985,15 +1859,25 @@ type UpsertYahooTeamRosterBatchBatchResults struct {
 }
 
 type UpsertYahooTeamRosterBatchParams struct {
-	LeagueID         int32       `json:"league_id"`
-	TeamID           int32       `json:"team_id"`
-	Date             pgtype.Date `json:"date"`
-	PlayerID         int32       `json:"player_id"`
-	CoverageType     string      `json:"coverage_type"`
-	IsEditable       bool        `json:"is_editable"`
-	PlayerKey        string      `json:"player_key"`
-	SelectedPosition string      `json:"selected_position"`
-	IsFlex           bool        `json:"is_flex"`
+	LeagueID          int32       `json:"league_id"`
+	TeamID            int32       `json:"team_id"`
+	Date              pgtype.Date `json:"date"`
+	PlayerID          int32       `json:"player_id"`
+	CoverageType      string      `json:"coverage_type"`
+	IsEditable        bool        `json:"is_editable"`
+	PlayerKey         string      `json:"player_key"`
+	SelectedPosition  string      `json:"selected_position"`
+	IsFlex            bool        `json:"is_flex"`
+	PlayerStatus      pgtype.Text `json:"player_status"`
+	PlayerStatusFull  pgtype.Text `json:"player_status_full"`
+	InjuryNote        pgtype.Text `json:"injury_note"`
+	OnDisabledList    pgtype.Bool `json:"on_disabled_list"`
+	PositionType      pgtype.Text `json:"position_type"`
+	DisplayPosition   pgtype.Text `json:"display_position"`
+	PrimaryPosition   pgtype.Text `json:"primary_position"`
+	EligiblePositions []string    `json:"eligible_positions"`
+	UniformNumber     pgtype.Int4 `json:"uniform_number"`
+	EditorialTeamAbbr pgtype.Text `json:"editorial_team_abbr"`
 }
 
 func (q *Queries) UpsertYahooTeamRosterBatch(ctx context.Context, arg []UpsertYahooTeamRosterBatchParams) *UpsertYahooTeamRosterBatchBatchResults {
@@ -1009,6 +1893,16 @@ func (q *Queries) UpsertYahooTeamRosterBatch(ctx context.Context, arg []UpsertYa
 			a.PlayerKey,
 			a.SelectedPosition,
 			a.IsFlex,
+			a.PlayerStatus,
+			a.PlayerStatusFull,
+			a.InjuryNote,
+			a.OnDisabledList,
+			a.PositionType,
+			a.DisplayPosition,
+			a.PrimaryPosition,
+			a.EligiblePositions,
+			a.UniformNumber,
+			a.EditorialTeamAbbr,
 		}
 		batch.Queue(upsertYahooTeamRosterBatch, vals...)
 	}
@@ -1154,6 +2048,80 @@ func (b *UpsertYahooTeamSummaryStatBatchBatchResults) Exec(f func(int, error)) {
 }
 
 func (b *UpsertYahooTeamSummaryStatBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertYahooTransactionBatch = `-- name: UpsertYahooTransactionBatch :batchexec
+
+INSERT INTO yahoo_transactions (
+    league_id, transaction_key, type, timestamp, status, players
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (league_id, transaction_key) DO UPDATE SET
+    type = EXCLUDED.type,
+    timestamp = EXCLUDED.timestamp,
+    status = EXCLUDED.status,
+    players = EXCLUDED.players
+WHERE (yahoo_transactions.type, yahoo_transactions.timestamp,
+       yahoo_transactions.status, yahoo_transactions.players)
+      IS DISTINCT FROM
+      (EXCLUDED.type, EXCLUDED.timestamp,
+       EXCLUDED.status, EXCLUDED.players)
+`
+
+type UpsertYahooTransactionBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertYahooTransactionBatchParams struct {
+	LeagueID       int32       `json:"league_id"`
+	TransactionKey string      `json:"transaction_key"`
+	Type           string      `json:"type"`
+	Timestamp      pgtype.Int8 `json:"timestamp"`
+	Status         pgtype.Text `json:"status"`
+	Players        []byte      `json:"players"`
+}
+
+// =============================================================================
+// Yahoo Transactions Queries
+// =============================================================================
+func (q *Queries) UpsertYahooTransactionBatch(ctx context.Context, arg []UpsertYahooTransactionBatchParams) *UpsertYahooTransactionBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueID,
+			a.TransactionKey,
+			a.Type,
+			a.Timestamp,
+			a.Status,
+			a.Players,
+		}
+		batch.Queue(upsertYahooTransactionBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertYahooTransactionBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertYahooTransactionBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertYahooTransactionBatchBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }

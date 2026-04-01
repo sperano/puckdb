@@ -69,7 +69,29 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 					return nil, err
 				}
 			}
+
+			// Fetch league-level data (transactions, draft results, matchups)
+			for _, league := range yahooCfg.Leagues {
+				leagueDataInput := FetchYahooLeagueDataInput{
+					Season:   season.ID.StartYear(),
+					LeagueID: league.LeagueID,
+				}
+				if err := workflow.ExecuteActivity(ctx, leagueAct.FetchYahooLeagueData, leagueDataInput).Get(ctx, nil); err != nil {
+					return nil, err
+				}
+			}
 		}
+	}
+
+	// Fetch season-level NHL data (rosters, club stats)
+	var sa *SeasonsActivities
+	rosterInput := FetchSeasonRostersInput{Season: season.ID.StartYear()}
+	if err := workflow.ExecuteActivity(ctx, sa.FetchSeasonRosters, rosterInput).Get(ctx, nil); err != nil {
+		return nil, err
+	}
+	clubStatsInput := FetchClubStatsInput{Season: season.ID.StartYear()}
+	if err := workflow.ExecuteActivity(ctx, sa.FetchClubStats, clubStatsInput).Get(ctx, nil); err != nil {
+		return nil, err
 	}
 
 	// Calculate days to process (up to today)

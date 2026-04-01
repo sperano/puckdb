@@ -36,7 +36,7 @@ func (q *Queries) DeleteGameGoalieStatsByGame(ctx context.Context, gameID int64)
 
 const getGameGoalieStats = `-- name: GetGameGoalieStats :one
 
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -70,6 +70,9 @@ type GetGameGoalieStatsRow struct {
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	FirstName                string             `json:"first_name"`
 	LastName                 string             `json:"last_name"`
 	TeamName                 string             `json:"team_name"`
@@ -102,6 +105,9 @@ func (q *Queries) GetGameGoalieStats(ctx context.Context, arg GetGameGoalieStats
 		&i.PenaltyMinutes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EvenStrengthShotsAgainst,
+		&i.PowerPlayShotsAgainst,
+		&i.ShorthandedShotsAgainst,
 		&i.FirstName,
 		&i.LastName,
 		&i.TeamName,
@@ -111,7 +117,7 @@ func (q *Queries) GetGameGoalieStats(ctx context.Context, arg GetGameGoalieStats
 }
 
 const getGameGoalieStatsByGame = `-- name: GetGameGoalieStatsByGame :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -141,6 +147,9 @@ type GetGameGoalieStatsByGameRow struct {
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	FirstName                string             `json:"first_name"`
 	LastName                 string             `json:"last_name"`
 	TeamName                 string             `json:"team_name"`
@@ -176,6 +185,9 @@ func (q *Queries) GetGameGoalieStatsByGame(ctx context.Context, gameID int64) ([
 			&i.PenaltyMinutes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EvenStrengthShotsAgainst,
+			&i.PowerPlayShotsAgainst,
+			&i.ShorthandedShotsAgainst,
 			&i.FirstName,
 			&i.LastName,
 			&i.TeamName,
@@ -192,7 +204,7 @@ func (q *Queries) GetGameGoalieStatsByGame(ctx context.Context, gameID int64) ([
 }
 
 const getGameGoalieStatsByGameAndTeam = `-- name: GetGameGoalieStatsByGameAndTeam :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -227,6 +239,9 @@ type GetGameGoalieStatsByGameAndTeamRow struct {
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	FirstName                string             `json:"first_name"`
 	LastName                 string             `json:"last_name"`
 	TeamName                 string             `json:"team_name"`
@@ -262,6 +277,9 @@ func (q *Queries) GetGameGoalieStatsByGameAndTeam(ctx context.Context, arg GetGa
 			&i.PenaltyMinutes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EvenStrengthShotsAgainst,
+			&i.PowerPlayShotsAgainst,
+			&i.ShorthandedShotsAgainst,
 			&i.FirstName,
 			&i.LastName,
 			&i.TeamName,
@@ -347,7 +365,7 @@ func (q *Queries) GetGoalieSeasonTotals(ctx context.Context, arg GetGoalieSeason
 }
 
 const getGoalieStatsByPlayer = `-- name: GetGoalieStatsByPlayer :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -376,6 +394,9 @@ type GetGoalieStatsByPlayerRow struct {
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	GameDate                 pgtype.Date        `json:"game_date"`
 	Season                   int32              `json:"season"`
 	GameType                 int16              `json:"game_type"`
@@ -412,6 +433,9 @@ func (q *Queries) GetGoalieStatsByPlayer(ctx context.Context, playerID int64) ([
 			&i.PenaltyMinutes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EvenStrengthShotsAgainst,
+			&i.PowerPlayShotsAgainst,
+			&i.ShorthandedShotsAgainst,
 			&i.GameDate,
 			&i.Season,
 			&i.GameType,
@@ -429,7 +453,7 @@ func (q *Queries) GetGoalieStatsByPlayer(ctx context.Context, playerID int64) ([
 }
 
 const getGoalieStatsByPlayerAndDateRange = `-- name: GetGoalieStatsByPlayerAndDateRange :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -464,6 +488,9 @@ type GetGoalieStatsByPlayerAndDateRangeRow struct {
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	GameDate                 pgtype.Date        `json:"game_date"`
 	Season                   int32              `json:"season"`
 	GameType                 int16              `json:"game_type"`
@@ -500,6 +527,9 @@ func (q *Queries) GetGoalieStatsByPlayerAndDateRange(ctx context.Context, arg Ge
 			&i.PenaltyMinutes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EvenStrengthShotsAgainst,
+			&i.PowerPlayShotsAgainst,
+			&i.ShorthandedShotsAgainst,
 			&i.GameDate,
 			&i.Season,
 			&i.GameType,
@@ -517,7 +547,7 @@ func (q *Queries) GetGoalieStatsByPlayerAndDateRange(ctx context.Context, arg Ge
 }
 
 const getGoalieStatsByPlayerAndSeason = `-- name: GetGoalieStatsByPlayerAndSeason :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
     g.game_date, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -551,6 +581,9 @@ type GetGoalieStatsByPlayerAndSeasonRow struct {
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	GameDate                 pgtype.Date        `json:"game_date"`
 	GameType                 int16              `json:"game_type"`
 	TeamName                 string             `json:"team_name"`
@@ -586,6 +619,9 @@ func (q *Queries) GetGoalieStatsByPlayerAndSeason(ctx context.Context, arg GetGo
 			&i.PenaltyMinutes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EvenStrengthShotsAgainst,
+			&i.PowerPlayShotsAgainst,
+			&i.ShorthandedShotsAgainst,
 			&i.GameDate,
 			&i.GameType,
 			&i.TeamName,
@@ -696,6 +732,7 @@ INSERT INTO game_goalie_stats (
     decision, starter,
     shots_against, saves, save_pctg,
     goals_against, even_strength_goals_against, power_play_goals_against, shorthanded_goals_against,
+    even_strength_shots_against, power_play_shots_against, shorthanded_shots_against,
     toi_seconds, penalty_minutes,
     updated_at
 ) VALUES (
@@ -703,7 +740,8 @@ INSERT INTO game_goalie_stats (
     $6, $7,
     $8, $9, $10,
     $11, $12, $13, $14,
-    $15, $16,
+    $15, $16, $17,
+    $18, $19,
     NOW()
 )
 ON CONFLICT (game_id, player_id) DO UPDATE SET
@@ -719,6 +757,9 @@ ON CONFLICT (game_id, player_id) DO UPDATE SET
     even_strength_goals_against = EXCLUDED.even_strength_goals_against,
     power_play_goals_against = EXCLUDED.power_play_goals_against,
     shorthanded_goals_against = EXCLUDED.shorthanded_goals_against,
+    even_strength_shots_against = EXCLUDED.even_strength_shots_against,
+    power_play_shots_against = EXCLUDED.power_play_shots_against,
+    shorthanded_shots_against = EXCLUDED.shorthanded_shots_against,
     toi_seconds = EXCLUDED.toi_seconds,
     penalty_minutes = EXCLUDED.penalty_minutes,
     updated_at = NOW()
@@ -730,6 +771,9 @@ WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
        game_goalie_stats.even_strength_goals_against,
        game_goalie_stats.power_play_goals_against,
        game_goalie_stats.shorthanded_goals_against,
+       game_goalie_stats.even_strength_shots_against,
+       game_goalie_stats.power_play_shots_against,
+       game_goalie_stats.shorthanded_shots_against,
        game_goalie_stats.toi_seconds, game_goalie_stats.penalty_minutes)
       IS DISTINCT FROM
       (EXCLUDED.team_id, EXCLUDED.is_home,
@@ -740,6 +784,9 @@ WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
        EXCLUDED.even_strength_goals_against,
        EXCLUDED.power_play_goals_against,
        EXCLUDED.shorthanded_goals_against,
+       EXCLUDED.even_strength_shots_against,
+       EXCLUDED.power_play_shots_against,
+       EXCLUDED.shorthanded_shots_against,
        EXCLUDED.toi_seconds, EXCLUDED.penalty_minutes)
 `
 
@@ -758,6 +805,9 @@ type UpsertGameGoalieStatsParams struct {
 	EvenStrengthGoalsAgainst int16         `json:"even_strength_goals_against"`
 	PowerPlayGoalsAgainst    int16         `json:"power_play_goals_against"`
 	ShorthandedGoalsAgainst  int16         `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text   `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text   `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text   `json:"shorthanded_shots_against"`
 	TOISeconds               int32         `json:"toi_seconds"`
 	PenaltyMinutes           pgtype.Int2   `json:"penalty_minutes"`
 }
@@ -778,6 +828,9 @@ func (q *Queries) UpsertGameGoalieStats(ctx context.Context, arg UpsertGameGoali
 		arg.EvenStrengthGoalsAgainst,
 		arg.PowerPlayGoalsAgainst,
 		arg.ShorthandedGoalsAgainst,
+		arg.EvenStrengthShotsAgainst,
+		arg.PowerPlayShotsAgainst,
+		arg.ShorthandedShotsAgainst,
 		arg.TOISeconds,
 		arg.PenaltyMinutes,
 	)

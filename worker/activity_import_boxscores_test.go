@@ -45,6 +45,11 @@ func (m *MockBoxscoreUpserter) UpsertGameGoalieStatsBatch(ctx context.Context, a
 	return args.Get(0).(*sqlcdb.UpsertGameGoalieStatsBatchBatchResults)
 }
 
+func (m *MockBoxscoreUpserter) UpsertGameBroadcastBatch(ctx context.Context, arg []sqlcdb.UpsertGameBroadcastBatchParams) *sqlcdb.UpsertGameBroadcastBatchBatchResults {
+	args := m.Called(ctx, arg)
+	return args.Get(0).(*sqlcdb.UpsertGameBroadcastBatchBatchResults)
+}
+
 // =============================================================================
 // Mock Batch Results
 // =============================================================================

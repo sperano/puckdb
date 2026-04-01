@@ -205,3 +205,80 @@ func (g GameKey) Parse(data []byte) (*store.FantasyContent, error) {
 	}
 	return &content, nil
 }
+
+// Transactions represents a Yahoo Fantasy league's transaction history.
+type Transactions struct {
+	Season   int
+	LeagueID int
+	GameKey  int
+}
+
+func (t Transactions) Path() string {
+	return fmt.Sprintf("seasons/%d/yahoo/%d/transactions/transactions.xml", t.Season, t.LeagueID)
+}
+
+func (t Transactions) URL() string {
+	return fmt.Sprintf("%s/league/%d.l.%d/transactions", baseYahooAPIURL, t.GameKey, t.LeagueID)
+}
+
+func (t Transactions) Type() core.FileType { return core.YahooTransactions }
+
+func (t Transactions) Parse(data []byte) (*store.FantasyContent, error) {
+	var content store.FantasyContent
+	if err := xml.Unmarshal(data, &content); err != nil {
+		return nil, fmt.Errorf("parse transactions %d/%d: %w", t.Season, t.LeagueID, err)
+	}
+	return &content, nil
+}
+
+// DraftResults represents a Yahoo Fantasy league's draft results.
+type DraftResults struct {
+	Season   int
+	LeagueID int
+	GameKey  int
+}
+
+func (d DraftResults) Path() string {
+	return fmt.Sprintf("seasons/%d/yahoo/%d/draft/draftresults.xml", d.Season, d.LeagueID)
+}
+
+func (d DraftResults) URL() string {
+	return fmt.Sprintf("%s/league/%d.l.%d/draftresults", baseYahooAPIURL, d.GameKey, d.LeagueID)
+}
+
+func (d DraftResults) Type() core.FileType { return core.YahooDraftResults }
+
+func (d DraftResults) Parse(data []byte) (*store.FantasyContent, error) {
+	var content store.FantasyContent
+	if err := xml.Unmarshal(data, &content); err != nil {
+		return nil, fmt.Errorf("parse draft results %d/%d: %w", d.Season, d.LeagueID, err)
+	}
+	return &content, nil
+}
+
+// Matchups represents a Yahoo Fantasy league's weekly scoreboard.
+type Matchups struct {
+	Season   int
+	LeagueID int
+	Week     int
+	GameKey  int
+}
+
+func (m Matchups) Path() string {
+	return fmt.Sprintf("seasons/%d/yahoo/%d/matchups/week-%d.xml", m.Season, m.LeagueID, m.Week)
+}
+
+func (m Matchups) URL() string {
+	return fmt.Sprintf("%s/league/%d.l.%d/scoreboard;week=%d",
+		baseYahooAPIURL, m.GameKey, m.LeagueID, m.Week)
+}
+
+func (m Matchups) Type() core.FileType { return core.YahooMatchups }
+
+func (m Matchups) Parse(data []byte) (*store.FantasyContent, error) {
+	var content store.FantasyContent
+	if err := xml.Unmarshal(data, &content); err != nil {
+		return nil, fmt.Errorf("parse matchups %d/%d week %d: %w", m.Season, m.LeagueID, m.Week, err)
+	}
+	return &content, nil
+}

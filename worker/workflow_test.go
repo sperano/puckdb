@@ -420,10 +420,20 @@ func TestImportSeasonWorkflowTestSuite(t *testing.T) {
 	suite.Run(t, new(ImportSeasonWorkflowTestSuite))
 }
 
+// mockImportSeasonActivities registers mock expectations for all season-level
+// activities that run before the day loop in ImportSeasonWorkflow.
+func (s *ImportSeasonWorkflowTestSuite) mockImportSeasonActivities() {
+	var sa *SeasonsActivities
+	s.env.OnActivity(sa.ImportSeasonRosters, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(sa.ImportClubStats, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(sa.ImportPlayerCareerData, mock.Anything).Return(ImportPlayerCareerDataResult{}, nil)
+}
+
 // Test ImportSeasonWorkflow success with multiple days
 func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_Success() {
 	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
 
+	s.mockImportSeasonActivities()
 	var sa *SeasonsActivities
 	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
@@ -437,6 +447,7 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_Success() {
 func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ActivityError() {
 	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
 
+	s.mockImportSeasonActivities()
 	var sa *SeasonsActivities
 	expectedErr := errors.New("database connection failed")
 	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(core.OriginCounts{}, expectedErr)
@@ -451,6 +462,7 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ActivityError()
 func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ZeroDays() {
 	season := testSeasonW(2023, "2023-10-15", "2023-10-10")
 
+	s.mockImportSeasonActivities()
 	s.env.ExecuteWorkflow(ImportSeasonWorkflow, season)
 
 	s.True(s.env.IsWorkflowCompleted())
@@ -461,6 +473,7 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_ZeroDays() {
 func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SingleDay() {
 	season := testSeasonW(2023, "2023-10-10", "2023-10-10")
 
+	s.mockImportSeasonActivities()
 	var sa *SeasonsActivities
 	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
@@ -474,6 +487,7 @@ func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SingleDay() {
 func (s *ImportSeasonWorkflowTestSuite) TestImportSeasonWorkflow_SomeDaysNoGames() {
 	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
 
+	s.mockImportSeasonActivities()
 	var sa *SeasonsActivities
 	s.env.OnActivity(sa.ImportDay, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
@@ -659,10 +673,19 @@ func TestFetchSeasonWorkflowTestSuite(t *testing.T) {
 	suite.Run(t, new(FetchSeasonWorkflowTestSuite))
 }
 
+// mockFetchSeasonActivities registers mock expectations for all season-level
+// activities that run before the day loop in FetchSeasonWorkflow.
+func (s *FetchSeasonWorkflowTestSuite) mockFetchSeasonActivities() {
+	var sa *SeasonsActivities
+	s.env.OnActivity(sa.FetchSeasonRosters, mock.Anything, mock.Anything).Return(nil)
+	s.env.OnActivity(sa.FetchClubStats, mock.Anything, mock.Anything).Return(nil)
+}
+
 // Test FetchSeasonWorkflow success with multiple days
 func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_Success() {
 	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
 
+	s.mockFetchSeasonActivities()
 	// Mock FetchDay method for each day
 	var dsa *DailyScheduleActivities
 	s.env.OnActivity(dsa.FetchDay, mock.Anything, mock.Anything).Return(core.OriginCounts{core.OriginRedis: 1}, nil)
@@ -681,6 +704,7 @@ func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_Success() {
 func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_ActivityError() {
 	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
 
+	s.mockFetchSeasonActivities()
 	var dsa *DailyScheduleActivities
 	s.env.OnActivity(dsa.FetchDay, mock.Anything, mock.Anything).Return((core.OriginCounts)(nil), errors.New("network error"))
 
@@ -694,6 +718,7 @@ func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_ActivityError() {
 func (s *FetchSeasonWorkflowTestSuite) TestFetchSeasonWorkflow_SingleDay() {
 	season := testSeasonW(2023, "2023-10-10", "2023-10-10")
 
+	s.mockFetchSeasonActivities()
 	var dsa *DailyScheduleActivities
 	s.env.OnActivity(dsa.FetchDay, mock.Anything, mock.Anything).Return(core.OriginCounts{core.OriginFileSystem: 1}, nil)
 

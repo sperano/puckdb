@@ -111,6 +111,31 @@ func (a *SeasonsActivities) importBoxscoresForDate(ctx context.Context, queries 
 			return result, fmt.Errorf("upsert goalie stats for game %d: %w", game.ID, err)
 		}
 		result.GoaliesImported += goalieCount
+
+		// Upsert TV broadcasts
+		if len(boxscore.TVBroadcasts) > 0 {
+			broadcastParams := make([]sqlcdb.UpsertGameBroadcastBatchParams, len(boxscore.TVBroadcasts))
+			for i, b := range boxscore.TVBroadcasts {
+				broadcastParams[i] = sqlcdb.UpsertGameBroadcastBatchParams{
+					GameID:         int64(boxscore.ID),
+					BroadcastID:    b.ID,
+					Market:         b.Market,
+					CountryCode:    b.CountryCode,
+					Network:        b.Network,
+					SequenceNumber: int32(b.SequenceNumber),
+				}
+			}
+			var batchErr error
+			bResults := queries.UpsertGameBroadcastBatch(ctx, broadcastParams)
+			bResults.Exec(func(i int, err error) {
+				if err != nil && batchErr == nil {
+					batchErr = fmt.Errorf("broadcast game %d id %d: %w", boxscore.ID, broadcastParams[i].BroadcastID, err)
+				}
+			})
+			if batchErr != nil {
+				return result, batchErr
+			}
+		}
 	}
 
 	return result, nil
@@ -121,6 +146,7 @@ type BoxscoreUpserter interface {
 	UpsertGame(ctx context.Context, arg sqlcdb.UpsertGameParams) error
 	UpsertGameSkaterStatsBatch(ctx context.Context, arg []sqlcdb.UpsertGameSkaterStatsBatchParams) *sqlcdb.UpsertGameSkaterStatsBatchBatchResults
 	UpsertGameGoalieStatsBatch(ctx context.Context, arg []sqlcdb.UpsertGameGoalieStatsBatchParams) *sqlcdb.UpsertGameGoalieStatsBatchBatchResults
+	UpsertGameBroadcastBatch(ctx context.Context, arg []sqlcdb.UpsertGameBroadcastBatchParams) *sqlcdb.UpsertGameBroadcastBatchBatchResults
 }
 
 // boxscoreToGameParams converts an NHL API Boxscore to sqlcdb.UpsertGameParams.
@@ -354,6 +380,10 @@ func goalieToBatchParams(gameID nhl.GameID, teamID int64, isHome bool, g *nhl.Go
 		EvenStrengthGoalsAgainst: int16(g.EvenStrengthGoalsAgainst),
 		PowerPlayGoalsAgainst:    int16(g.PowerPlayGoalsAgainst),
 		ShorthandedGoalsAgainst:  int16(g.ShorthandedGoalsAgainst),
+
+		EvenStrengthShotsAgainst: pgtype.Text{String: g.EvenStrengthShotsAgainst, Valid: g.EvenStrengthShotsAgainst != ""},
+		PowerPlayShotsAgainst:    pgtype.Text{String: g.PowerPlayShotsAgainst, Valid: g.PowerPlayShotsAgainst != ""},
+		ShorthandedShotsAgainst:  pgtype.Text{String: g.ShorthandedShotsAgainst, Valid: g.ShorthandedShotsAgainst != ""},
 
 		TOISeconds:     int32(parseTOI(g.TOI)),
 		PenaltyMinutes: pim,

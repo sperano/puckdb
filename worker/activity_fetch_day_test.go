@@ -60,8 +60,12 @@ func (s *FetchDayTestSuite) newPermissiveGobCache() (*cache.GobCache, redismock.
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
 	keyPattern := core.RedisResourceKeyPrefix + ".*"
-	mockRedis.Regexp().ExpectGet(keyPattern).SetErr(redis.Nil)
-	mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(keyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	// FetchDay calls ReadParsedCached multiple times (schedule, standings),
+	// each needing a Get miss + Set. Duplicate expectations to cover all calls.
+	for range 3 {
+		mockRedis.Regexp().ExpectGet(keyPattern).SetErr(redis.Nil)
+		mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(keyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	}
 	return cache.NewGobCache(redisClient), mockRedis
 }
 
@@ -75,9 +79,19 @@ func (s *FetchDayTestSuite) seedCachedSchedule(mem *store.MemStorage) {
 	s.Require().NoError(mem.Write(resource.DailySchedule{Date: s.day}.Path(), data))
 }
 
+// seedCachedStandings writes an empty standings slice into MemStorage so FetchOrCache
+// takes the cache-hit path, avoiding calls to NHLClient.LeagueStandingsForDate.
+func (s *FetchDayTestSuite) seedCachedStandings(mem *store.MemStorage) {
+	standings := []nhl.Standing{}
+	data, err := json.Marshal(standings)
+	s.Require().NoError(err)
+	s.Require().NoError(mem.Write(resource.DailyStandings{Date: s.day}.Path(), data))
+}
+
 func (s *FetchDayTestSuite) TestNoTeams() {
 	mem := store.NewMemStorage()
 	s.seedCachedSchedule(mem)
+	s.seedCachedStandings(mem)
 	gobCache, _ := s.newPermissiveGobCache()
 
 	a := s.newFetchDayActivities(mem, mockDownloader(nil, nil), gobCache)
@@ -101,6 +115,7 @@ func (s *FetchDayTestSuite) TestNoTeams() {
 func (s *FetchDayTestSuite) TestWithTeams() {
 	mem := store.NewMemStorage()
 	s.seedCachedSchedule(mem)
+	s.seedCachedStandings(mem)
 
 	teams := []TeamInfo{
 		{LeagueID: testLeagueID, TeamID: 1},
@@ -110,10 +125,12 @@ func (s *FetchDayTestSuite) TestWithTeams() {
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
 
-	// Schedule key: cache hit path from filesystem (Redis miss → file read → populate cache)
+	// Schedule + standings: cache hit path from filesystem (Redis miss → file read → populate cache)
 	scheduleKeyPattern := core.RedisResourceKeyPrefix + ".*"
-	mockRedis.Regexp().ExpectGet(scheduleKeyPattern).SetErr(redis.Nil)
-	mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(scheduleKeyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	for range 2 {
+		mockRedis.Regexp().ExpectGet(scheduleKeyPattern).SetErr(redis.Nil)
+		mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(scheduleKeyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	}
 
 	// Each team: Roster miss + TeamSummary miss (Redis miss for both, then Set after download)
 	for _, team := range teams {
@@ -182,13 +199,17 @@ func (s *FetchDayTestSuite) TestDailyScheduleError() {
 func (s *FetchDayTestSuite) TestRosterDownloadError() {
 	mem := store.NewMemStorage()
 	s.seedCachedSchedule(mem)
+	s.seedCachedStandings(mem)
 
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
 
+	// Schedule + standings: cache hit path from filesystem
 	scheduleKeyPattern := core.RedisResourceKeyPrefix + ".*"
-	mockRedis.Regexp().ExpectGet(scheduleKeyPattern).SetErr(redis.Nil)
-	mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(scheduleKeyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	for range 2 {
+		mockRedis.Regexp().ExpectGet(scheduleKeyPattern).SetErr(redis.Nil)
+		mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(scheduleKeyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	}
 
 	team := TeamInfo{LeagueID: testLeagueID, TeamID: 1}
 	rosterRes := resource.Roster{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: s.day, GameKey: testGameKey}
@@ -212,13 +233,17 @@ func (s *FetchDayTestSuite) TestRosterDownloadError() {
 func (s *FetchDayTestSuite) TestTeamSummaryDownloadError() {
 	mem := store.NewMemStorage()
 	s.seedCachedSchedule(mem)
+	s.seedCachedStandings(mem)
 
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
 
+	// Schedule + standings: cache hit path from filesystem
 	scheduleKeyPattern := core.RedisResourceKeyPrefix + ".*"
-	mockRedis.Regexp().ExpectGet(scheduleKeyPattern).SetErr(redis.Nil)
-	mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(scheduleKeyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	for range 2 {
+		mockRedis.Regexp().ExpectGet(scheduleKeyPattern).SetErr(redis.Nil)
+		mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(scheduleKeyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	}
 
 	team := TeamInfo{LeagueID: testLeagueID, TeamID: 1}
 	rosterRes := resource.Roster{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: s.day, GameKey: testGameKey}
@@ -251,6 +276,7 @@ func (s *FetchDayTestSuite) TestTeamSummaryDownloadError() {
 func (s *FetchDayTestSuite) TestSecondTeamRosterError() {
 	mem := store.NewMemStorage()
 	s.seedCachedSchedule(mem)
+	s.seedCachedStandings(mem)
 
 	teams := []TeamInfo{
 		{LeagueID: testLeagueID, TeamID: 1},
@@ -260,9 +286,12 @@ func (s *FetchDayTestSuite) TestSecondTeamRosterError() {
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
 
+	// Schedule + standings: cache hit path from filesystem
 	scheduleKeyPattern := core.RedisResourceKeyPrefix + ".*"
-	mockRedis.Regexp().ExpectGet(scheduleKeyPattern).SetErr(redis.Nil)
-	mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(scheduleKeyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	for range 2 {
+		mockRedis.Regexp().ExpectGet(scheduleKeyPattern).SetErr(redis.Nil)
+		mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(scheduleKeyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	}
 
 	validXML := []byte(`<fantasy_content><team></team></fantasy_content>`)
 

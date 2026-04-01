@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
@@ -91,6 +93,15 @@ func (a *DailyScheduleActivities) FetchDay(ctx context.Context, input FetchDayIn
 		return nil, err
 	}
 	counts.Record(result.Origin)
+
+	standingsRes := resource.DailyStandings{Date: input.Day}
+	_, _, err = FetchOrCache(ctx, a.Storage, a.GobCache, standingsRes,
+		func(ctx context.Context) ([]nhl.Standing, error) {
+			return a.NHLClient.LeagueStandingsForDate(ctx, nhl.FromDate(input.Day))
+		})
+	if err != nil {
+		return nil, fmt.Errorf("fetch standings for %s: %w", input.Day.Format(config.DateFormat), err)
+	}
 
 	for _, team := range input.TeamIDs {
 		select {

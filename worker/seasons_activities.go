@@ -45,19 +45,37 @@ type YahooDataUpserter interface {
 	UpsertYahooTeamSummaryBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamSummaryBatchParams) *sqlcdb.UpsertYahooTeamSummaryBatchBatchResults
 	UpsertYahooTeamSummaryStatBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamSummaryStatBatchParams) *sqlcdb.UpsertYahooTeamSummaryStatBatchBatchResults
 	UpsertYahooTeamRosterBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamRosterBatchParams) *sqlcdb.UpsertYahooTeamRosterBatchBatchResults
+	UpsertYahooTransactionBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTransactionBatchParams) *sqlcdb.UpsertYahooTransactionBatchBatchResults
+	UpsertYahooDraftResultBatch(ctx context.Context, arg []sqlcdb.UpsertYahooDraftResultBatchParams) *sqlcdb.UpsertYahooDraftResultBatchBatchResults
+	UpsertYahooMatchupBatch(ctx context.Context, arg []sqlcdb.UpsertYahooMatchupBatchParams) *sqlcdb.UpsertYahooMatchupBatchBatchResults
 }
 
 // importQueries is a composite interface for all import activity database operations.
 type importQueries interface {
 	BoxscoreUpserter
 	PlayerGameLogUpdater
+	PlayerCareerUpserter
 	GameStoryUpdater
 	PlayByPlayUpserter
 	ShiftChartUpserter
 	SeasonSeriesUpserter
+	StandingsUpserter
 	YahooLeagueUpserter
 	YahooTeamUpserter
 	YahooDataUpserter
+}
+
+// SeasonRosterUpserter is the interface for season roster database operations.
+type SeasonRosterUpserter interface {
+	GetSeasonTeamAbbrevs(ctx context.Context, seasonID int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error)
+	UpsertSeasonRosterBatch(ctx context.Context, arg []sqlcdb.UpsertSeasonRosterBatchParams) *sqlcdb.UpsertSeasonRosterBatchBatchResults
+}
+
+// ClubStatsUpserter is the interface for club stats database operations.
+type ClubStatsUpserter interface {
+	GetSeasonTeamAbbrevs(ctx context.Context, seasonID int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error)
+	UpsertClubSkaterStatsBatch(ctx context.Context, arg []sqlcdb.UpsertClubSkaterStatsBatchParams) *sqlcdb.UpsertClubSkaterStatsBatchBatchResults
+	UpsertClubGoalieStatsBatch(ctx context.Context, arg []sqlcdb.UpsertClubGoalieStatsBatchParams) *sqlcdb.UpsertClubGoalieStatsBatchBatchResults
 }
 
 // SeasonsActivities holds dependencies for season-related activities.
@@ -68,6 +86,8 @@ type SeasonsActivities struct {
 	SeasonsUpserter     seasonsUpserter
 	SeasonTeamsUpserter seasonTeamsUpserter
 	ImportQueries       importQueries
+	RosterQueries       SeasonRosterUpserter
+	ClubStatsQueries    ClubStatsUpserter
 	RedisClient         cache.Client // for progress tracking (nil-safe)
 }
 
