@@ -417,6 +417,123 @@ func TestMatchYahooID_CompoundFirstName_NoMatch(t *testing.T) {
 	assert.Equal(t, MatchReasonNoMatch, result.Reason)
 }
 
+func TestMatchReason_String(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		reason MatchReason
+		want   string
+	}{
+		{MatchReasonNoMatch, "no-match"},
+		{MatchReasonNameOnly, "name-only"},
+		{MatchReasonNameJersey, "name+jersey"},
+		{MatchReasonNameBirthdate, "name+birthdate"},
+		{MatchReasonFullName, "fullname"},
+		{MatchReasonTeamTiebreaker, "team-tiebreaker"},
+		{MatchReasonAmbiguous, "ambiguous"},
+		{MatchReason(99), "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, tt.reason.String())
+		})
+	}
+}
+
+func TestLookupTeamID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, int64(8), LookupTeamID("MTL"))
+	assert.Equal(t, int64(22), LookupTeamID("EDM"))
+	assert.Equal(t, int64(0), LookupTeamID("INVALID"))
+}
+
+func TestLookupTeamByID(t *testing.T) {
+	t.Parallel()
+
+	info := LookupTeamByID(8)
+	require.NotNil(t, info)
+	assert.Equal(t, "MTL", info.Abbrev)
+	assert.Equal(t, "Montréal Canadiens", info.FullName)
+
+	assert.Nil(t, LookupTeamByID(99999))
+}
+
+func TestLookupTeamAbbrev(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "MTL", LookupTeamAbbrev(8))
+	assert.Equal(t, "EDM", LookupTeamAbbrev(22))
+	assert.Equal(t, "", LookupTeamAbbrev(99999))
+}
+
+func TestMatchYahooID_AmbiguousNoDisambiguator(t *testing.T) {
+	t.Parallel()
+
+	// Two players with same name, no jersey, no birthdate, no team → ambiguous
+	landing := &nhl.PlayerLanding{
+		FirstName: nhl.LocalizedString{Default: "John"},
+		LastName:  nhl.LocalizedString{Default: "Smith"},
+	}
+
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
+		300: {YahooID: 300, FirstName: "John", LastName: "Smith"},
+		301: {YahooID: 301, FirstName: "John", LastName: "Smith"},
+	}
+
+	result, err := MatchYahooID(landing, "", time.Time{}, pool)
+	assert.Error(t, err)
+	assert.False(t, result.Matched)
+	assert.Equal(t, MatchReasonAmbiguous, result.Reason)
+}
+
+func TestMatchYahooID_MultipleJerseyMatchesThenTeamTiebreaker(t *testing.T) {
+	t.Parallel()
+
+	// Two players with same name AND same jersey → needs team tiebreaker
+	sweater := 10
+	landing := &nhl.PlayerLanding{
+		FirstName:     nhl.LocalizedString{Default: "John"},
+		LastName:      nhl.LocalizedString{Default: "Smith"},
+		SweaterNumber: &sweater,
+	}
+
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
+		300: {YahooID: 300, FirstName: "John", LastName: "Smith", JerseyNumber: 10, Team: "Boston"},
+		301: {YahooID: 301, FirstName: "John", LastName: "Smith", JerseyNumber: 10, Team: "Edmonton"},
+	}
+
+	result, err := MatchYahooID(landing, "EDM", time.Time{}, pool)
+	require.NoError(t, err)
+	assert.True(t, result.Matched)
+	assert.Equal(t, store.YahooPlayerID(301), result.YahooID)
+	assert.Equal(t, MatchReasonTeamTiebreaker, result.Reason)
+}
+
+func TestMatchYahooID_MultipleBirthDateMatchesThenTeamTiebreaker(t *testing.T) {
+	t.Parallel()
+
+	// Two players with same name AND same birthdate → needs team tiebreaker
+	birthDate := time.Date(1990, time.January, 1, 0, 0, 0, 0, time.UTC)
+	landing := &nhl.PlayerLanding{
+		FirstName: nhl.LocalizedString{Default: "John"},
+		LastName:  nhl.LocalizedString{Default: "Smith"},
+	}
+
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
+		300: {YahooID: 300, FirstName: "John", LastName: "Smith", BirthDate: birthDate, Team: "Boston"},
+		301: {YahooID: 301, FirstName: "John", LastName: "Smith", BirthDate: birthDate, Team: "Edmonton"},
+	}
+
+	result, err := MatchYahooID(landing, "EDM", birthDate, pool)
+	require.NoError(t, err)
+	assert.True(t, result.Matched)
+	assert.Equal(t, store.YahooPlayerID(301), result.YahooID)
+	assert.Equal(t, MatchReasonTeamTiebreaker, result.Reason)
+}
+
 func TestNhlAbbrevToYahooTeam(t *testing.T) {
 	t.Parallel()
 

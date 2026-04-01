@@ -3,6 +3,7 @@ package matching
 import (
 	"fmt"
 	"html"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -296,36 +297,27 @@ func MatchYahooID(
 		if yahooFullName == nhlFullName {
 			// Full name matches - this is a strong signal even if first/last split differs
 			splitDiffers := yahooFirst != firstName || yahooLast != lastName
+			// Detect if normalization changed either name (accent stripping, whitespace, etc.)
+			normalizedDiffers := yahooFirst != strings.ToLower(yahoo.FirstName) ||
+				firstName != strings.ToLower(landing.FirstName.Default) ||
+				yahooLast != strings.ToLower(yahoo.LastName) ||
+				lastName != strings.ToLower(landing.LastName.Default)
 			candidates = append(candidates, candidateMatch{
 				player:        yahoo,
-				fuzzyMatched:  splitDiffers,
-				fullNameMatch: splitDiffers, // Only mark as fullNameMatch if split differs
+				fuzzyMatched:  splitDiffers || normalizedDiffers,
+				fullNameMatch: splitDiffers,
 			})
 			continue
 		}
 
-		// Standard matching: last name must match exactly
+		// Last name must match exactly for nickname matching below
 		if yahooLast != lastName {
 			continue
 		}
 
-		// Check exact first name match (after normalization)
-		if yahooFirst == firstName {
-			// Mark as fuzzy if normalization changed either name
-			fuzzy := yahooFirst != strings.ToLower(yahoo.FirstName) ||
-				firstName != strings.ToLower(landing.FirstName.Default) ||
-				yahooLast != strings.ToLower(yahoo.LastName) ||
-				lastName != strings.ToLower(landing.LastName.Default)
-			candidates = append(candidates, candidateMatch{player: yahoo, fuzzyMatched: fuzzy})
-			continue
-		}
-
-		// Check nickname aliases
-		for _, fn := range firstNamesToMatch[1:] { // Skip first (exact) name
-			if yahooFirst == fn {
-				candidates = append(candidates, candidateMatch{player: yahoo, fuzzyMatched: true})
-				break
-			}
+		// Check nickname aliases (skip first entry which is the exact name)
+		if slices.Contains(firstNamesToMatch[1:], yahooFirst) {
+			candidates = append(candidates, candidateMatch{player: yahoo, fuzzyMatched: true})
 		}
 	}
 
