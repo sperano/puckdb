@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
@@ -46,9 +47,11 @@ func (a *SeasonsActivities) FetchClubStats(ctx context.Context, input FetchClubS
 					return a.NHLClient.ClubStats(ctx, team.Abbrev, season, gameType)
 				})
 			if err != nil {
-				// Some teams may not have data for a given game type (e.g., missed playoffs)
-				logger.Info("Failed to fetch club stats", "team", team.Abbrev, "gameType", gameType, "error", err)
-				continue
+				if errors.Is(err, nhl.ErrNotFound) {
+					logger.Warn("No club stats available", "team", team.Abbrev, "gameType", gameType)
+					continue
+				}
+				return fmt.Errorf("fetch club stats for %s (gameType %d): %w", team.Abbrev, gameType, err)
 			}
 		}
 	}

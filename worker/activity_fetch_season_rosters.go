@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
@@ -33,9 +34,11 @@ func (a *SeasonsActivities) FetchSeasonRosters(ctx context.Context, input FetchS
 				return a.NHLClient.RosterSeason(ctx, team.Abbrev, season)
 			})
 		if err != nil {
-			// Some teams may not have roster data (e.g., historical teams)
-			logger.Info("Failed to fetch roster", "team", team.Abbrev, "error", err)
-			continue
+			if errors.Is(err, nhl.ErrNotFound) {
+				logger.Warn("No roster data available", "team", team.Abbrev)
+				continue
+			}
+			return fmt.Errorf("fetch roster for %s: %w", team.Abbrev, err)
 		}
 	}
 
