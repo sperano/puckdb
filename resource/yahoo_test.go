@@ -176,6 +176,9 @@ func TestYahooResource_Type(t *testing.T) {
 		{"YahooPlayer", resource.YahooPlayer{PlayerID: 12345}, core.YahooPlayer},
 		{"MissingYahooPlayer", resource.MissingYahooPlayer{PlayerID: 12345}, core.YahooPlayer},
 		{"GameKey", resource.GameKey{Season: 2024}, core.GameKey},
+		{"Transactions", resource.Transactions{Season: 2023, LeagueID: 12345, GameKey: 453}, core.YahooTransactions},
+		{"DraftResults", resource.DraftResults{Season: 2023, LeagueID: 12345, GameKey: 453}, core.YahooDraftResults},
+		{"Matchups", resource.Matchups{Season: 2023, LeagueID: 12345, Week: 3, GameKey: 453}, core.YahooMatchups},
 	}
 
 	for _, tt := range tests {
@@ -184,5 +187,29 @@ func TestYahooResource_Type(t *testing.T) {
 				t.Errorf("%s.Type() = %v, want %v", tt.name, got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestTransactions_Path(t *testing.T) {
+	r := resource.Transactions{Season: 2023, LeagueID: 12345, GameKey: 453}
+	expected := "seasons/2023/yahoo/12345/transactions/transactions.xml"
+	if got := r.Path(); got != expected {
+		t.Errorf("Transactions.Path() = %q, want %q", got, expected)
+	}
+}
+
+func TestDraftResults_Path(t *testing.T) {
+	r := resource.DraftResults{Season: 2023, LeagueID: 12345, GameKey: 453}
+	expected := "seasons/2023/yahoo/12345/draft/draftresults.xml"
+	if got := r.Path(); got != expected {
+		t.Errorf("DraftResults.Path() = %q, want %q", got, expected)
+	}
+}
+
+func TestMatchups_Path(t *testing.T) {
+	r := resource.Matchups{Season: 2023, LeagueID: 12345, Week: 3, GameKey: 453}
+	expected := "seasons/2023/yahoo/12345/matchups/week-3.xml"
+	if got := r.Path(); got != expected {
+		t.Errorf("Matchups.Path() = %q, want %q", got, expected)
 	}
 }

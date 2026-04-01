@@ -154,12 +154,19 @@ func TestFileType_String(t *testing.T) {
 		{core.SeasonStandings, "SeasonStandings"},
 		{core.PlayerLanding, "PlayerLanding"},
 		{core.PlayerGameLog, "PlayerGameLog"},
+		{core.SeasonSeries, "SeasonSeries"},
+		{core.DailyStandings, "DailyStandings"},
+		{core.SeasonRoster, "SeasonRoster"},
+		{core.ClubStatsResource, "ClubStatsResource"},
 		{core.League, "League"},
 		{core.Team, "Team"},
 		{core.Roster, "Roster"},
 		{core.TeamSummary, "TeamSummary"},
 		{core.YahooPlayer, "YahooPlayer"},
 		{core.GameKey, "GameKey"},
+		{core.YahooTransactions, "YahooTransactions"},
+		{core.YahooDraftResults, "YahooDraftResults"},
+		{core.YahooMatchups, "YahooMatchups"},
 	}
 
 	for _, tt := range tests {
@@ -193,12 +200,69 @@ func TestResource_Type(t *testing.T) {
 		{"SeasonsManifest", resource.SeasonsManifest{}, core.SeasonsManifest},
 		{"SeasonStandings", resource.SeasonStandings{Season: nhl.NewSeason(2024)}, core.SeasonStandings},
 		{"PlayerGameLog", resource.PlayerGameLog{PlayerID: playerID, Season: nhl.NewSeason(2024), GameType: 2}, core.PlayerGameLog},
+		{"SeasonSeries", resource.SeasonSeries{Date: date, GameID: gameID}, core.SeasonSeries},
+		{"DailyStandings", resource.DailyStandings{Date: date}, core.DailyStandings},
+		{"SeasonRoster", resource.SeasonRoster{Season: 2024, TeamAbbrev: "MTL"}, core.SeasonRoster},
+		{"ClubStatsResource", resource.ClubStatsResource{Season: 2024, TeamAbbrev: "MTL", GameType: 2}, core.ClubStatsResource},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.resource.Type(); got != tt.expected {
 				t.Errorf("%s.Type() = %v, want %v", tt.name, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSeasonSeries_Path(t *testing.T) {
+	r := resource.SeasonSeries{Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), GameID: nhl.GameID(2024020123)}
+	expected := "seasons/2024/games/2025/01/15/seasonseries-2024020123.json"
+	if got := r.Path(); got != expected {
+		t.Errorf("SeasonSeries.Path() = %q, want %q", got, expected)
+	}
+}
+
+func TestDailyStandings_Path(t *testing.T) {
+	r := resource.DailyStandings{Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)}
+	expected := "seasons/2024/games/2025/01/15/standings-2025-01-15.json"
+	if got := r.Path(); got != expected {
+		t.Errorf("DailyStandings.Path() = %q, want %q", got, expected)
+	}
+}
+
+func TestSeasonRoster_Path(t *testing.T) {
+	r := resource.SeasonRoster{Season: 2024, TeamAbbrev: "MTL"}
+	expected := "seasons/2024/rosters/roster-MTL.json"
+	if got := r.Path(); got != expected {
+		t.Errorf("SeasonRoster.Path() = %q, want %q", got, expected)
+	}
+}
+
+func TestClubStatsResource_Path(t *testing.T) {
+	r := resource.ClubStatsResource{Season: 2024, TeamAbbrev: "MTL", GameType: 2}
+	expected := "seasons/2024/clubstats/clubstats-MTL-2.json"
+	if got := r.Path(); got != expected {
+		t.Errorf("ClubStatsResource.Path() = %q, want %q", got, expected)
+	}
+}
+
+func TestDeduceSeason(t *testing.T) {
+	tests := []struct {
+		name     string
+		date     time.Time
+		expected int
+	}{
+		{"january_2025", time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), 2024},
+		{"september_2024", time.Date(2024, 9, 1, 0, 0, 0, 0, time.UTC), 2024},
+		{"august_2024", time.Date(2024, 8, 31, 0, 0, 0, 0, time.UTC), 2023},
+		{"december_2024", time.Date(2024, 12, 1, 0, 0, 0, 0, time.UTC), 2024},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resource.DeduceSeason(tt.date); got != tt.expected {
+				t.Errorf("DeduceSeason(%s) = %d, want %d", tt.date.Format("2006-01-02"), got, tt.expected)
 			}
 		})
 	}

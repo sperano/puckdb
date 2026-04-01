@@ -49,6 +49,46 @@ func TestOriginCounts_TotalEmpty(t *testing.T) {
 	assert.Equal(t, 0, c.Total())
 }
 
+func TestDataOrigin_String(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		origin DataOrigin
+		want   string
+	}{
+		{"valid origin", OriginRedis, "Redis"},
+		{"unknown", OriginUnknown, "Unknown"},
+		{"negative", DataOrigin(-1), "Unknown"},
+		{"out-of-range", DataOrigin(len(originNames)), "Unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, tt.origin.String())
+		})
+	}
+}
+
+func TestOriginCounts_AppendSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("non-empty counts appends summary", func(t *testing.T) {
+		t.Parallel()
+		c := OriginCounts{OriginRedis: 4}
+		result := c.AppendSummary("fetched 4 schedules", "origins")
+		assert.Equal(t, "fetched 4 schedules (origins: 100% redis)", result)
+	})
+
+	t.Run("empty counts returns original message", func(t *testing.T) {
+		t.Parallel()
+		c := OriginCounts{}
+		result := c.AppendSummary("fetched 0 schedules", "origins")
+		assert.Equal(t, "fetched 0 schedules", result)
+	})
+}
+
 func TestOriginCounts_Summary(t *testing.T) {
 	t.Parallel()
 
@@ -81,6 +121,11 @@ func TestOriginCounts_Summary(t *testing.T) {
 			name:     "rounding across three origins",
 			counts:   OriginCounts{OriginRedis: 5, OriginFileSystem: 3, OriginRemoteNHLAPI: 1},
 			expected: "(test: 56% redis, 33% filesystem, 11% remotenhlapi)",
+		},
+		{
+			name:     "equal counts tie-broken by origin",
+			counts:   OriginCounts{OriginFileSystem: 1, OriginRedis: 1},
+			expected: "(test: 50% filesystem, 50% redis)",
 		},
 		{
 			name:     "empty",
