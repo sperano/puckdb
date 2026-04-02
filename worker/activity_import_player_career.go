@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
+	"go.temporal.io/sdk/activity"
 )
 
 // PlayerCareerUpserter is the interface for player career database operations.
@@ -29,11 +29,15 @@ type ImportPlayerCareerDataResult struct {
 
 // ImportPlayerCareerData imports player awards and season totals from cached PlayerLanding files.
 func (a *SeasonsActivities) ImportPlayerCareerData(ctx context.Context) (ImportPlayerCareerDataResult, error) {
+	logger := activity.GetLogger(ctx)
 	result := ImportPlayerCareerDataResult{}
 
-	names, err := a.Storage.List("players", ".json")
+	names, err := a.Storage.List("players", "json")
 	if err != nil {
 		return result, fmt.Errorf("list player landing files: %w", err)
+	}
+	if len(names) == 0 {
+		logger.Warn("No player landing files found in cache")
 	}
 
 	var awardParams []sqlcdb.UpsertPlayerAwardBatchParams
@@ -48,7 +52,7 @@ func (a *SeasonsActivities) ImportPlayerCareerData(ctx context.Context) (ImportP
 		landingRes := resource.PlayerLanding{PlayerID: nhl.NewPlayerID(playerID)}
 		landing, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, landingRes)
 		if err != nil {
-			log.Debug().Err(err).Int64("playerID", playerID).Msg("Failed to read player landing")
+			logger.Debug("Failed to read player landing", "playerID", playerID, "error", err)
 			continue
 		}
 
@@ -118,11 +122,10 @@ func (a *SeasonsActivities) ImportPlayerCareerData(ctx context.Context) (ImportP
 		result.TotalsImported = len(totalParams)
 	}
 
-	log.Info().
-		Int("players", result.PlayersProcessed).
-		Int("awards", result.AwardsImported).
-		Int("totals", result.TotalsImported).
-		Msg("Imported player career data")
+	logger.Info("Imported player career data",
+		"players", result.PlayersProcessed,
+		"awards", result.AwardsImported,
+		"totals", result.TotalsImported)
 
 	return result, nil
 }

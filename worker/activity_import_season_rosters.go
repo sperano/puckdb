@@ -24,9 +24,14 @@ func (a *SeasonsActivities) ImportSeasonRosters(ctx context.Context, input Fetch
 func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries SeasonRosterUpserter, input FetchSeasonRostersInput) error {
 	logger := activity.GetLogger(ctx)
 
-	teams, err := queries.GetSeasonTeamAbbrevs(ctx, int32(input.Season))
+	season := nhl.NewSeason(input.Season)
+	teams, err := queries.GetSeasonTeamAbbrevs(ctx, int32(season.ID()))
 	if err != nil {
 		return fmt.Errorf("get season teams: %w", err)
+	}
+
+	if len(teams) == 0 {
+		logger.Warn("No teams found for season", "season", input.Season, "seasonID", season.ID())
 	}
 
 	var totalPlayers int
@@ -52,7 +57,7 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 		params := make([]sqlcdb.UpsertSeasonRosterBatchParams, len(players))
 		for i, p := range players {
 			params[i] = sqlcdb.UpsertSeasonRosterBatchParams{
-				Season:        int32(input.Season),
+				Season:        int32(season.ID()),
 				TeamID:        team.TeamID,
 				PlayerID:      int64(p.ID),
 				Position:      string(p.Position),

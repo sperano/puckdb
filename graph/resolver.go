@@ -545,6 +545,8 @@ func ptrStringIfNotEmpty(s string) *string {
 }
 
 // executeWorkflow starts a workflow and returns success status.
+// It deletes any stale progress report from a previous run so the CLI
+// doesn't display old completed data before the new workflow writes its own.
 func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workflow interface{}, arg interface{}) (bool, error) {
 	opts := workflowOptions(workflowID)
 	var err error
@@ -553,7 +555,14 @@ func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workf
 	} else {
 		_, err = r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow, arg)
 	}
-	return err == nil, err
+	if err != nil {
+		return false, err
+	}
+	// Clear stale progress from previous run. The workflow will write fresh
+	// progress once it starts, but there's a gap between trigger and first
+	// save where the CLI would read the old key.
+	_ = cache.DeleteProgressReport(ctx, r.RedisClient, workflowID)
+	return true, nil
 }
 
 // TODO move to temporal/worker

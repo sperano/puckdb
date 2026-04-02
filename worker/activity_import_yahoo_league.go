@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/metrics"
@@ -40,7 +39,7 @@ func (a *SeasonsActivities) ImportYahooLeague(ctx context.Context, input ImportY
 	// Read the league file
 	leagueRes := resource.League{Season: input.Season, LeagueID: input.LeagueID}
 	if !a.Storage.Exists(leagueRes.Path()) {
-		log.Debug().Int("season", input.Season).Int("leagueID", input.LeagueID).Msg("No league file found")
+		logger.Warn("No league file found in cache", "season", input.Season, "leagueID", input.LeagueID)
 		return result, nil
 	}
 

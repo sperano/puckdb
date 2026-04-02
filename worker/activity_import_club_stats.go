@@ -23,9 +23,14 @@ func (a *SeasonsActivities) ImportClubStats(ctx context.Context, input FetchClub
 func (a *SeasonsActivities) importClubStats(ctx context.Context, queries ClubStatsUpserter, input FetchClubStatsInput) error {
 	logger := activity.GetLogger(ctx)
 
-	teams, err := queries.GetSeasonTeamAbbrevs(ctx, int32(input.Season))
+	season := nhl.NewSeason(input.Season)
+	teams, err := queries.GetSeasonTeamAbbrevs(ctx, int32(season.ID()))
 	if err != nil {
 		return fmt.Errorf("get season teams: %w", err)
+	}
+
+	if len(teams) == 0 {
+		logger.Warn("No teams found for season", "season", input.Season, "seasonID", season.ID())
 	}
 
 	var totalSkaters, totalGoalies int
@@ -47,12 +52,12 @@ func (a *SeasonsActivities) importClubStats(ctx context.Context, queries ClubSta
 				return fmt.Errorf("read club stats cache for %s game type %d: %w", team.Abbrev, gameType, err)
 			}
 
-			if err := importClubSkaterStats(ctx, queries, stats, team, input.Season, gameType); err != nil {
+			if err := importClubSkaterStats(ctx, queries, stats, team, season.ID(), gameType); err != nil {
 				return fmt.Errorf("import skater stats for %s game type %d: %w", team.Abbrev, gameType, err)
 			}
 			totalSkaters += len(stats.Skaters)
 
-			if err := importClubGoalieStats(ctx, queries, stats, team, input.Season, gameType); err != nil {
+			if err := importClubGoalieStats(ctx, queries, stats, team, season.ID(), gameType); err != nil {
 				return fmt.Errorf("import goalie stats for %s game type %d: %w", team.Abbrev, gameType, err)
 			}
 			totalGoalies += len(stats.Goalies)

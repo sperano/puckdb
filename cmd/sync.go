@@ -102,12 +102,13 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	go func() {
 		<-sigChan
-		cancel()
-		// Cancel active Temporal workflows after context is done.
-		// Must happen here (not in a defer) because workflowRunner.run()
-		// clears its workflow from state.current on return — by the time
-		// runSync's defers fire, the active list is already empty.
+		// Cancel Temporal workflows first, while the active list is still
+		// populated. state.cancel() uses context.Background() so it doesn't
+		// need the parent context. Calling cancel() first would race:
+		// ctx.Done() unblocks monitorWorkflow → defer clearActive fires →
+		// state.cancel() sees an empty active list.
 		state.cancel()
+		cancel()
 	}()
 	defer signal.Stop(sigChan)
 
@@ -499,7 +500,7 @@ func (s *syncState) cancel() {
 		}
 		fmt.Printf("\nCanceling %s workflow...\n", info.name)
 		if _, err := info.fn(cancelCtx); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to cancel %s workflow\n", info.name)
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to cancel %s workflow: %v\n", info.name, err)
 		}
 	}
 }
