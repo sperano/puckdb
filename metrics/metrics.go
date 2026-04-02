@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strings"
 	"time"
@@ -301,6 +302,11 @@ func StartServer(addr string) {
 func StartWorkerServer(addr, dataPath string) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", HandlerFor(WorkerRegistry))
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), healthCheckTimeout)
 		defer cancel()
