@@ -34,10 +34,7 @@ type ImportYahooDataForDateResult struct {
 
 // ImportYahooDataForDate imports Yahoo team summaries and rosters for a single date.
 func (a *SeasonsActivities) ImportYahooDataForDate(ctx context.Context, input ImportYahooDataForDateInput) (ImportYahooDataForDateResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("ImportYahooDataForDate", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("ImportYahooDataForDate")()
 
 	logger := activity.GetLogger(ctx)
 	result := ImportYahooDataForDateResult{Origins: core.OriginCounts{}}

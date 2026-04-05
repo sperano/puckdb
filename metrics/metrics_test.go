@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,18 +66,18 @@ func TestIncDownload(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		fileType string
+		fileType core.FileType
 		result   string
 	}{
-		{"boxscore", ResultHit},
-		{"schedule", ResultMiss},
-		{"standings", ResultError},
+		{core.Boxscore, ResultHit},
+		{core.DailySchedule, ResultMiss},
+		{core.DailyStandings, ResultError},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.fileType+"_"+tt.result, func(t *testing.T) {
+		t.Run(tt.fileType.String()+"_"+tt.result, func(t *testing.T) {
 			assert.NotPanics(t, func() {
-				LegacyIncDownload(tt.fileType, tt.result)
+				IncDownload(tt.fileType, tt.result)
 			})
 		})
 	}

@@ -34,10 +34,7 @@ type ImportGameStoryForDateResult struct {
 // ImportGameStoryForDate imports game story data (three stars, highlights, shootouts)
 // for games played on a specific date.
 func (a *SeasonsActivities) ImportGameStoryForDate(ctx context.Context, input ImportGameStoryForDateInput) (*ImportGameStoryForDateResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("ImportGameStoryForDate", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("ImportGameStoryForDate")()
 
 	logger := activity.GetLogger(ctx)
 

@@ -23,10 +23,7 @@ type ImportDayInput struct {
 // ImportDay chains per-day import operations: boxscores, game stories, and Yahoo data.
 // Player game logs are handled separately as a per-season batched activity.
 func (a *SeasonsActivities) ImportDay(ctx context.Context, input ImportDayInput) (core.OriginCounts, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("ImportDay", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("ImportDay")()
 
 	logger := activity.GetLogger(ctx)
 	counts := core.OriginCounts{}

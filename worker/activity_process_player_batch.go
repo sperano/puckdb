@@ -78,10 +78,10 @@ func (a *PlayerActivities) ProcessPlayerBatch(ctx context.Context, players []sto
 		case playerLandingDownloaded:
 			result.Downloaded++
 			result.Origins.Record(core.OriginRemoteNHLAPI)
-			metrics.LegacyIncDownload("PlayerLanding", metrics.ResultMiss)
+			metrics.IncDownload(core.PlayerLanding,metrics.ResultMiss)
 		case playerLandingMissing:
 			result.Missing++
-			metrics.LegacyIncDownload("PlayerLanding", metrics.ResultMissing)
+			metrics.IncDownload(core.PlayerLanding,metrics.ResultMissing)
 			if err := a.importMissingPlayer(ctx, p); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("player %d (missing): import error: %v", p.ID, err))
 			} else {

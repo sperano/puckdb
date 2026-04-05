@@ -47,10 +47,7 @@ type ImportSeasonSeriesForDateResult struct {
 // ImportSeasonSeriesForDate imports season series data (officials, coaches, scratches)
 // for games played on a specific date.
 func (a *SeasonsActivities) ImportSeasonSeriesForDate(ctx context.Context, input ImportSeasonSeriesForDateInput) (*ImportSeasonSeriesForDateResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("ImportSeasonSeriesForDate", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("ImportSeasonSeriesForDate")()
 
 	logger := activity.GetLogger(ctx)
 	result := &ImportSeasonSeriesForDateResult{Origins: core.OriginCounts{}}

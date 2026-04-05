@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/cache"
@@ -27,10 +26,7 @@ type ImportYahooTeamsResult struct {
 
 // ImportYahooTeams imports Yahoo teams from cached XML into the database.
 func (a *SeasonsActivities) ImportYahooTeams(ctx context.Context, input ImportYahooTeamsInput) (ImportYahooTeamsResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("ImportYahooTeams", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("ImportYahooTeams")()
 
 	logger := activity.GetLogger(ctx)
 	result := ImportYahooTeamsResult{}

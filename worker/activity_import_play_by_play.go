@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/nhl-api-go/nhl"
@@ -35,10 +34,7 @@ type ImportPlayByPlayForDateResult struct {
 
 // ImportPlayByPlayForDate imports play-by-play data for all games on a given date.
 func (a *SeasonsActivities) ImportPlayByPlayForDate(ctx context.Context, input ImportPlayByPlayForDateInput) (ImportPlayByPlayForDateResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("ImportPlayByPlayForDate", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("ImportPlayByPlayForDate")()
 
 	logger := activity.GetLogger(ctx)
 

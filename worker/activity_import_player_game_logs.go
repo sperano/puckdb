@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
@@ -34,10 +33,7 @@ type ImportPlayerGameLogsBatchResult struct {
 // ImportPlayerGameLogsBatch imports game log stats (PPP, GWG, OT goals) for a batch of players.
 // These stats are available in the player game log API but not in boxscores.
 func (a *SeasonsActivities) ImportPlayerGameLogsBatch(ctx context.Context, input ImportPlayerGameLogsBatchInput) (*ImportPlayerGameLogsBatchResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("ImportPlayerGameLogsBatch", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("ImportPlayerGameLogsBatch")()
 
 	logger := activity.GetLogger(ctx)
 	result := &ImportPlayerGameLogsBatchResult{Origins: core.OriginCounts{}}
@@ -109,10 +105,7 @@ func importPlayerGameLog(ctx context.Context, queries PlayerGameLogUpdater, play
 
 // CollectSeasonPlayerIDs reads all boxscores for a season and returns unique skater player IDs.
 func (a *SeasonsActivities) CollectSeasonPlayerIDs(ctx context.Context, season nhl.SeasonInfo) ([]int64, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("CollectSeasonPlayerIDs", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("CollectSeasonPlayerIDs")()
 
 	seen := make(map[int64]struct{})
 

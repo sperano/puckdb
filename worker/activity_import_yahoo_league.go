@@ -27,10 +27,7 @@ type ImportYahooLeagueResult struct {
 
 // ImportYahooLeague imports a Yahoo league from cached XML into the database.
 func (a *SeasonsActivities) ImportYahooLeague(ctx context.Context, input ImportYahooLeagueInput) (ImportYahooLeagueResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("ImportYahooLeague", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("ImportYahooLeague")()
 
 	logger := activity.GetLogger(ctx)
 	result := ImportYahooLeagueResult{}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/core"
@@ -36,10 +35,7 @@ func (f HTTPDownloaderFunc) Download(url string) ([]byte, error) {
 
 // fetchYahooPlayerImpl is the testable implementation.
 func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader HTTPDownloader, playerID store.YahooPlayerID) (fetchStatus, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("DownloadYahooPlayer", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("DownloadYahooPlayer")()
 
 	select {
 	case <-ctx.Done():

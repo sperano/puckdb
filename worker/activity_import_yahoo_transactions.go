@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/cache"
@@ -29,10 +28,7 @@ type ImportYahooLeagueDataResult struct {
 
 // ImportYahooLeagueData imports cached transactions, draft results, and matchups for a league.
 func (a *SeasonsActivities) ImportYahooLeagueData(ctx context.Context, input ImportYahooLeagueDataInput) (ImportYahooLeagueDataResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("ImportYahooLeagueData", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("ImportYahooLeagueData")()
 
 	logger := activity.GetLogger(ctx)
 	result := ImportYahooLeagueDataResult{}

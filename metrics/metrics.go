@@ -225,12 +225,6 @@ func ObserveHTTP(api, method string, statusCode int, duration time.Duration, byt
 	}
 }
 
-// LegacyIncDownload increments the download counter
-// result should be "hit", "miss", or "error"
-func LegacyIncDownload(fileType, result string) {
-	downloadTotal.WithLabelValues(fileType, result).Inc()
-}
-
 // IncDownload increments the download counter
 // result should be "hit", "miss", or "error"
 func IncDownload(fileType core.FileType, result string) {

@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -60,13 +61,13 @@ func (a *PlayerActivities) FetchPlayerLandingsBatch(
 		switch status {
 		case playerLandingCached:
 			result.CacheHits++
-			metrics.LegacyIncDownload("PlayerLanding", metrics.ResultHit)
+			metrics.IncDownload(core.PlayerLanding,metrics.ResultHit)
 		case playerLandingDownloaded:
 			result.Downloaded++
-			metrics.LegacyIncDownload("PlayerLanding", metrics.ResultMiss)
+			metrics.IncDownload(core.PlayerLanding,metrics.ResultMiss)
 		case playerLandingMissing:
 			result.Missing++
-			metrics.LegacyIncDownload("PlayerLanding", metrics.ResultMissing)
+			metrics.IncDownload(core.PlayerLanding,metrics.ResultMissing)
 		}
 	}
 
@@ -202,10 +203,7 @@ type DownloadPlayerGameLogsResult struct {
 
 // DownloadPlayerGameLogsBatch downloads player game logs for a batch of players.
 func (a *PlayerActivities) DownloadPlayerGameLogsBatch(ctx context.Context, input DownloadPlayerGameLogsInput) (*DownloadPlayerGameLogsResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("DownloadPlayerGameLogsBatch", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("DownloadPlayerGameLogsBatch")()
 
 	result := &DownloadPlayerGameLogsResult{
 		Players: len(input.PlayerIDs),
@@ -309,7 +307,7 @@ func (a *PlayerActivities) downloadPlayerGameLogToCache(ctx context.Context, pla
 				Str("season", season.String()).
 				Str("gameType", gameType.String()).
 				Msg("Current season player log exists, not refreshing")
-			metrics.LegacyIncDownload("PlayerGameLog", metrics.ResultSkip)
+			metrics.IncDownload(core.PlayerGameLog,metrics.ResultSkip)
 			return gameLogSkipped, nil
 		}
 
@@ -320,7 +318,7 @@ func (a *PlayerActivities) downloadPlayerGameLogToCache(ctx context.Context, pla
 				Str("season", season.String()).
 				Str("gameType", gameType.String()).
 				Msg("PlayerGameLog already cached")
-			metrics.LegacyIncDownload("PlayerGameLog", metrics.ResultHit)
+			metrics.IncDownload(core.PlayerGameLog,metrics.ResultHit)
 			return gameLogCached, nil
 		}
 
@@ -335,18 +333,18 @@ func (a *PlayerActivities) downloadPlayerGameLogToCache(ctx context.Context, pla
 	// Fetch from NHL API and marshal to JSON
 	gameLog, err := a.NHLClient.PlayerGameLog(ctx, playerID, season, gameType)
 	if err != nil {
-		metrics.LegacyIncDownload("PlayerGameLog", metrics.ResultError)
+		metrics.IncDownload(core.PlayerGameLog,metrics.ResultError)
 		return gameLogDownloaded, fmt.Errorf("download: %w", err)
 	}
 
 	content, err := json.Marshal(gameLog)
 	if err != nil {
-		metrics.LegacyIncDownload("PlayerGameLog", metrics.ResultError)
+		metrics.IncDownload(core.PlayerGameLog,metrics.ResultError)
 		return gameLogDownloaded, fmt.Errorf("marshal player %s season %s: %w", playerID, season, err)
 	}
 
 	if err := a.Storage.Write(gameLogRes.Path(), content); err != nil {
-		metrics.LegacyIncDownload("PlayerGameLog", metrics.ResultError)
+		metrics.IncDownload(core.PlayerGameLog,metrics.ResultError)
 		return gameLogDownloaded, fmt.Errorf("save: %w", err)
 	}
 
@@ -356,7 +354,7 @@ func (a *PlayerActivities) downloadPlayerGameLogToCache(ctx context.Context, pla
 		Str("gameType", gameType.String()).
 		Str("path", gameLogRes.Path()).
 		Msg("Saved player game log")
-	metrics.LegacyIncDownload("PlayerGameLog", metrics.ResultMiss)
+	metrics.IncDownload(core.PlayerGameLog,metrics.ResultMiss)
 
 	return gameLogDownloaded, nil
 }

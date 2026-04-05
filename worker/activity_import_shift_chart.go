@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
@@ -34,10 +33,7 @@ type ImportShiftChartForDateResult struct {
 
 // ImportShiftChartForDate imports shift chart data for all games on a given date.
 func (a *SeasonsActivities) ImportShiftChartForDate(ctx context.Context, input ImportShiftChartForDateInput) (ImportShiftChartForDateResult, error) {
-	start := time.Now()
-	defer func() {
-		metrics.ObserveActivityDuration("ImportShiftChartForDate", time.Since(start))
-	}()
+	defer metrics.TrackActivityDuration("ImportShiftChartForDate")()
 
 	logger := activity.GetLogger(ctx)
 
