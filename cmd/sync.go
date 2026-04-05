@@ -155,58 +155,41 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Step 4: Extract boxscore players to Redis
-	if !viper.GetBool(config.FlagSkipExtractBoxscorePlayers) {
-		if err := runExtractBoxscorePlayers(ctx, out, client, state); err != nil {
-			return fmt.Errorf("extracting boxscore players failed: %w", err)
-		}
-	} else {
-		fmt.Println("- Skipping boxscore players extraction.")
+	// Steps 4-9: workflow-driven sync phases
+	steps := []syncStep{
+		{config.FlagSkipExtractBoxscorePlayers, workflowExtractBoxscorePlayers, "boxscore players extraction",
+			func() (bool, error) { return client.ExtractBoxscorePlayers(ctx, buildSeasonsInput()) },
+			client.GetExtractBoxscorePlayersStatus},
+		{config.FlagSkipFetchPlayerLandings, workflowFetchPlayerLandings, "player landings fetch",
+			func() (bool, error) { return client.FetchPlayerLandings(ctx, nil) },
+			client.GetFetchPlayerLandingsStatus},
+		{config.FlagSkipFetchPlayerLogs, workflowFetchPlayerLogs, "player logs fetch",
+			func() (bool, error) { return client.FetchPlayerLogs(ctx, buildSeasonsInput()) },
+			client.GetFetchPlayerLogsStatus},
+		{config.FlagSkipProcessPlayers, workflowProcessPlayers, "players processing",
+			func() (bool, error) { return client.ProcessPlayers(ctx, nil) },
+			client.GetProcessPlayersStatus},
+		{config.FlagSkipImportSeasons, workflowImportSeasons, "seasons import",
+			func() (bool, error) { return client.ImportSeasons(ctx, buildSeasonsInput()) },
+			client.GetImportSeasonsStatus},
+		{config.FlagSkipImportPlayerLogs, workflowImportPlayerLogs, "player logs import",
+			func() (bool, error) { return client.ImportPlayerLogs(ctx, buildSeasonsInput()) },
+			client.GetImportPlayerLogsStatus},
 	}
 
-	// Step 5: Fetch player landing pages from NHL API
-	if !viper.GetBool(config.FlagSkipFetchPlayerLandings) {
-		if err := runFetchPlayerLandings(ctx, out, client, state); err != nil {
-			return fmt.Errorf("fetching player landings failed: %w", err)
+	for _, step := range steps {
+		if viper.GetBool(step.skipFlag) {
+			fmt.Printf("- Skipping %s.\n", step.label)
+			continue
 		}
-	} else {
-		fmt.Println("- Skipping player landings fetch.")
-	}
-
-	// Step 6: Fetch player game logs for historical seasons
-	if !viper.GetBool(config.FlagSkipFetchPlayerLogs) {
-		if err := runFetchPlayerLogs(ctx, out, client, state); err != nil {
-			return fmt.Errorf("fetching player logs failed: %w", err)
+		runner := workflowRunner{
+			workflowType: step.wt,
+			trigger:      step.trigger,
+			getStatus:    step.getStatus,
 		}
-	} else {
-		fmt.Println("- Skipping player logs fetch.")
-	}
-
-	// Step 7: Process players (download + import) unless skipped
-	if !viper.GetBool(config.FlagSkipProcessPlayers) {
-		if err := runProcessPlayers(ctx, out, client, state); err != nil {
-			return fmt.Errorf("processing players failed: %w", err)
+		if err := runner.run(ctx, out, state); err != nil {
+			return fmt.Errorf("%s failed: %w", step.label, err)
 		}
-	} else {
-		fmt.Println("- Skipping players processing.")
-	}
-
-	// Step 8: Import seasons (boxscores, game stories, Yahoo data)
-	if !viper.GetBool(config.FlagSkipImportSeasons) {
-		if err := runImportSeasons(ctx, out, client, state); err != nil {
-			return fmt.Errorf("importing seasons failed: %w", err)
-		}
-	} else {
-		fmt.Println("- Skipping seasons import.")
-	}
-
-	// Step 9: Import player game logs
-	if !viper.GetBool(config.FlagSkipImportPlayerLogs) {
-		if err := runImportPlayerLogs(ctx, out, client, state); err != nil {
-			return fmt.Errorf("importing player logs failed: %w", err)
-		}
-	} else {
-		fmt.Println("- Skipping player logs import.")
 	}
 
 	fmt.Printf("✓ Sync completed in %s\n", formatElapsed(time.Since(start)))
@@ -386,52 +369,13 @@ func monitorWorkflows(ctx context.Context, sp *spinner, fetchers []statusFetcher
 	}
 }
 
-func runExtractBoxscorePlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	return workflowRunner{
-		workflowType: workflowExtractBoxscorePlayers,
-		trigger:      func() (bool, error) { return client.ExtractBoxscorePlayers(ctx, buildSeasonsInput()) },
-		getStatus:    client.GetExtractBoxscorePlayersStatus,
-	}.run(ctx, out, state)
-}
-
-func runFetchPlayerLandings(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	return workflowRunner{
-		workflowType: workflowFetchPlayerLandings,
-		trigger:      func() (bool, error) { return client.FetchPlayerLandings(ctx, nil) },
-		getStatus:    client.GetFetchPlayerLandingsStatus,
-	}.run(ctx, out, state)
-}
-
-func runFetchPlayerLogs(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	return workflowRunner{
-		workflowType: workflowFetchPlayerLogs,
-		trigger:      func() (bool, error) { return client.FetchPlayerLogs(ctx, buildSeasonsInput()) },
-		getStatus:    client.GetFetchPlayerLogsStatus,
-	}.run(ctx, out, state)
-}
-
-func runProcessPlayers(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	return workflowRunner{
-		workflowType: workflowProcessPlayers,
-		trigger:      func() (bool, error) { return client.ProcessPlayers(ctx, nil) },
-		getStatus:    client.GetProcessPlayersStatus,
-	}.run(ctx, out, state)
-}
-
-func runImportSeasons(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	return workflowRunner{
-		workflowType: workflowImportSeasons,
-		trigger:      func() (bool, error) { return client.ImportSeasons(ctx, buildSeasonsInput()) },
-		getStatus:    client.GetImportSeasonsStatus,
-	}.run(ctx, out, state)
-}
-
-func runImportPlayerLogs(ctx context.Context, out io.Writer, client *GraphQLClient, state *syncState) error {
-	return workflowRunner{
-		workflowType: workflowImportPlayerLogs,
-		trigger:      func() (bool, error) { return client.ImportPlayerLogs(ctx, buildSeasonsInput()) },
-		getStatus:    client.GetImportPlayerLogsStatus,
-	}.run(ctx, out, state)
+// syncStep defines a workflow-driven sync phase for the data-driven loop.
+type syncStep struct {
+	skipFlag  string
+	wt        workflowType
+	label     string
+	trigger   func() (bool, error)
+	getStatus func(context.Context) (*WorkflowStatus, error)
 }
 
 // syncState tracks the current workflow(s) for signal handling

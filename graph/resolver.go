@@ -59,10 +59,7 @@ func (r *Resolver) fetchSeasons(ctx context.Context, input *model.SeasonsInput) 
 }
 
 func (r *Resolver) cancelFetchSeasons(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDFetchSeasons, ""); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.cancelWorkflow(ctx, worker.WorkflowIDFetchSeasons)
 }
 
 func (r *Resolver) fetchSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
@@ -78,10 +75,7 @@ func (r *Resolver) fetchPlayerLogs(ctx context.Context, input *model.SeasonsInpu
 }
 
 func (r *Resolver) cancelFetchPlayerLogs(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDFetchPlayerLogs, ""); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.cancelWorkflow(ctx, worker.WorkflowIDFetchPlayerLogs)
 }
 
 func (r *Resolver) fetchPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
@@ -97,10 +91,7 @@ func (r *Resolver) fetchYahooPlayers(ctx context.Context) (bool, error) {
 }
 
 func (r *Resolver) cancelFetchYahooPlayers(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDFetchYahooPlayers, ""); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.cancelWorkflow(ctx, worker.WorkflowIDFetchYahooPlayers)
 }
 
 func (r *Resolver) fetchYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
@@ -122,10 +113,7 @@ func (r *Resolver) processPlayers(ctx context.Context, input *model.ProcessPlaye
 }
 
 func (r *Resolver) cancelProcessPlayers(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDProcessPlayers, ""); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.cancelWorkflow(ctx, worker.WorkflowIDProcessPlayers)
 }
 
 func (r *Resolver) processPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
@@ -177,10 +165,7 @@ func (r *Resolver) importSeasons(ctx context.Context, input *model.SeasonsInput)
 }
 
 func (r *Resolver) cancelImportSeasons(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDImportSeasons, ""); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.cancelWorkflow(ctx, worker.WorkflowIDImportSeasons)
 }
 
 func (r *Resolver) importSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
@@ -196,10 +181,7 @@ func (r *Resolver) importPlayerLogs(ctx context.Context, input *model.SeasonsInp
 }
 
 func (r *Resolver) cancelImportPlayerLogs(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDImportPlayerLogs, ""); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.cancelWorkflow(ctx, worker.WorkflowIDImportPlayerLogs)
 }
 
 func (r *Resolver) importPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
@@ -215,10 +197,7 @@ func (r *Resolver) extractBoxscorePlayers(ctx context.Context, input *model.Seas
 }
 
 func (r *Resolver) cancelExtractBoxscorePlayers(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDExtractBoxscorePlayers, ""); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.cancelWorkflow(ctx, worker.WorkflowIDExtractBoxscorePlayers)
 }
 
 func (r *Resolver) extractBoxscorePlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
@@ -240,10 +219,7 @@ func (r *Resolver) fetchPlayerLandings(ctx context.Context, input *model.FetchPl
 }
 
 func (r *Resolver) cancelFetchPlayerLandings(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDFetchPlayerLandings, ""); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.cancelWorkflow(ctx, worker.WorkflowIDFetchPlayerLandings)
 }
 
 func (r *Resolver) fetchPlayerLandingsResult(ctx context.Context) (*model.WorkflowResult, error) {
@@ -255,18 +231,11 @@ func (r *Resolver) fetchPlayerLandingsProgress(ctx context.Context) (*model.Prog
 }
 
 func (r *Resolver) initialize(ctx context.Context) (bool, error) {
-	opts := workflowOptions(worker.WorkflowIDInitialize)
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, worker.InitializeWorkflow); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.executeWorkflow(ctx, worker.WorkflowIDInitialize, worker.InitializeWorkflow, nil)
 }
 
 func (r *Resolver) cancelInitialize(ctx context.Context) (bool, error) {
-	if err := r.TemporalClient.CancelWorkflow(ctx, worker.WorkflowIDInitialize, ""); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.cancelWorkflow(ctx, worker.WorkflowIDInitialize)
 }
 
 func (r *Resolver) initializeResult(ctx context.Context) (*model.WorkflowResult, error) {
@@ -275,6 +244,13 @@ func (r *Resolver) initializeResult(ctx context.Context) (*model.WorkflowResult,
 
 func (r *Resolver) initializeProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.queryProgressReport(ctx, worker.WorkflowIDInitialize)
+}
+
+func (r *Resolver) cancelWorkflow(ctx context.Context, workflowID string) (bool, error) {
+	if err := r.TemporalClient.CancelWorkflow(ctx, workflowID, ""); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *Resolver) getWorkflowResult(ctx context.Context, workflowID string) (*model.WorkflowResult, error) {
@@ -547,7 +523,7 @@ func ptrStringIfNotEmpty(s string) *string {
 // executeWorkflow starts a workflow and returns success status.
 // It deletes any stale progress report from a previous run so the CLI
 // doesn't display old completed data before the new workflow writes its own.
-func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workflow interface{}, arg interface{}) (bool, error) {
+func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workflow any, arg any) (bool, error) {
 	opts := workflowOptions(workflowID)
 	var err error
 	if arg == nil {
