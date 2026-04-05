@@ -61,16 +61,10 @@ func (a *SeasonsActivities) ImportStandingsForDate(ctx context.Context, input Da
 		}
 	}
 
-	var batchErr error
-	results := a.ImportQueries.UpsertStandingsSnapshotBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && batchErr == nil {
-			batchErr = fmt.Errorf("standings %s team %s: %w",
-				input.Date.Format(config.DateFormat), params[i].TeamAbbrev, err)
-		}
-	})
-	if batchErr != nil {
-		return batchErr
+	if err := execBatch(a.ImportQueries.UpsertStandingsSnapshotBatch(ctx, params), func(i int) string {
+		return fmt.Sprintf("standings %s team %s", input.Date.Format(config.DateFormat), params[i].TeamAbbrev)
+	}); err != nil {
+		return err
 	}
 
 	logger := activity.GetLogger(ctx)

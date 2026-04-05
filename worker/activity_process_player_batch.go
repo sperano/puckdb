@@ -206,15 +206,10 @@ func (a *PlayerActivities) upsertPlayerCareerData(ctx context.Context, landing *
 		}
 	}
 	if len(awardParams) > 0 {
-		var batchErr error
-		a.CareerQueries.UpsertPlayerAwardBatch(ctx, awardParams).Exec(func(i int, err error) {
-			if err != nil && batchErr == nil {
-				p := awardParams[i]
-				batchErr = fmt.Errorf("award trophy %q season %d: %w", p.TrophyName, p.Season, err)
-			}
-		})
-		if batchErr != nil {
-			return 0, 0, batchErr
+		if err := execBatch(a.CareerQueries.UpsertPlayerAwardBatch(ctx, awardParams), func(i int) string {
+			return fmt.Sprintf("award trophy %q season %d", awardParams[i].TrophyName, awardParams[i].Season)
+		}); err != nil {
+			return 0, 0, err
 		}
 	}
 
@@ -241,15 +236,10 @@ func (a *PlayerActivities) upsertPlayerCareerData(ctx context.Context, landing *
 		})
 	}
 	if len(totalParams) > 0 {
-		var batchErr error
-		a.CareerQueries.UpsertPlayerSeasonTotalBatch(ctx, totalParams).Exec(func(i int, err error) {
-			if err != nil && batchErr == nil {
-				p := totalParams[i]
-				batchErr = fmt.Errorf("season total season %d league %s: %w", p.Season, p.LeagueAbbrev, err)
-			}
-		})
-		if batchErr != nil {
-			return len(awardParams), 0, batchErr
+		if err := execBatch(a.CareerQueries.UpsertPlayerSeasonTotalBatch(ctx, totalParams), func(i int) string {
+			return fmt.Sprintf("season total season %d league %s", totalParams[i].Season, totalParams[i].LeagueAbbrev)
+		}); err != nil {
+			return len(awardParams), 0, err
 		}
 	}
 

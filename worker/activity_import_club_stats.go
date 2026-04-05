@@ -109,14 +109,9 @@ func importClubSkaterStats(
 		}
 	}
 
-	var batchErr error
-	results := queries.UpsertClubSkaterStatsBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && batchErr == nil {
-			batchErr = fmt.Errorf("player %d (%s): %w", params[i].PlayerID, team.Abbrev, err)
-		}
+	return execBatch(queries.UpsertClubSkaterStatsBatch(ctx, params), func(i int) string {
+		return fmt.Sprintf("player %d (%s)", params[i].PlayerID, team.Abbrev)
 	})
-	return batchErr
 }
 
 func importClubGoalieStats(
@@ -157,12 +152,7 @@ func importClubGoalieStats(
 		}
 	}
 
-	var batchErr error
-	results := queries.UpsertClubGoalieStatsBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && batchErr == nil {
-			batchErr = fmt.Errorf("player %d (%s): %w", params[i].PlayerID, team.Abbrev, err)
-		}
+	return execBatch(queries.UpsertClubGoalieStatsBatch(ctx, params), func(i int) string {
+		return fmt.Sprintf("player %d (%s)", params[i].PlayerID, team.Abbrev)
 	})
-	return batchErr
 }

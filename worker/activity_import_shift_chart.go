@@ -80,19 +80,10 @@ func (a *SeasonsActivities) ImportShiftChartForDate(ctx context.Context, input I
 			params[i] = shiftEntryToParams(shift)
 		}
 
-		var firstErr error
-		var errIdx int
-		results := a.ImportQueries.UpsertShiftBatch(ctx, params)
-		results.Exec(func(i int, err error) {
-			if err != nil && firstErr == nil {
-				firstErr = err
-				errIdx = i
-			}
-		})
-
-		if firstErr != nil {
-			return result, fmt.Errorf("upsert shift %d for game %s: %w",
-				sc.Data[errIdx].ID, game.ID.String(), firstErr)
+		if err := execBatch(a.ImportQueries.UpsertShiftBatch(ctx, params), func(i int) string {
+			return fmt.Sprintf("shift %d for game %s", sc.Data[i].ID, game.ID.String())
+		}); err != nil {
+			return result, err
 		}
 
 		result.GamesProcessed++

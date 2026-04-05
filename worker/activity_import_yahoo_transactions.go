@@ -106,15 +106,10 @@ func (a *SeasonsActivities) importYahooTransactions(ctx context.Context, input I
 		}
 	}
 
-	var batchErr error
-	results := a.ImportQueries.UpsertYahooTransactionBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && batchErr == nil {
-			batchErr = fmt.Errorf("transaction %s: %w", params[i].TransactionKey, err)
-		}
-	})
-	if batchErr != nil {
-		return 0, batchErr
+	if err := execBatch(a.ImportQueries.UpsertYahooTransactionBatch(ctx, params), func(i int) string {
+		return fmt.Sprintf("transaction %s", params[i].TransactionKey)
+	}); err != nil {
+		return 0, err
 	}
 	return len(params), nil
 }

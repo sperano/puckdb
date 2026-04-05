@@ -104,30 +104,20 @@ func (a *SeasonsActivities) ImportYahooTeams(ctx context.Context, input ImportYa
 
 	// Batch upsert teams
 	if len(teamParams) > 0 {
-		var batchErr error
-		results := a.ImportQueries.UpsertYahooTeamBatch(ctx, teamParams)
-		results.Exec(func(i int, err error) {
-			if err != nil && batchErr == nil {
-				batchErr = fmt.Errorf("team %d: %w", teamParams[i].ID, err)
-			}
-		})
-		if batchErr != nil {
-			return result, batchErr
+		if err := execBatch(a.ImportQueries.UpsertYahooTeamBatch(ctx, teamParams), func(i int) string {
+			return fmt.Sprintf("team %d", teamParams[i].ID)
+		}); err != nil {
+			return result, err
 		}
 		result.TeamsImported = len(teamParams)
 	}
 
 	// Batch upsert managers
 	if len(managerParams) > 0 {
-		var batchErr error
-		results := a.ImportQueries.UpsertYahooTeamManagerBatch(ctx, managerParams)
-		results.Exec(func(i int, err error) {
-			if err != nil && batchErr == nil {
-				batchErr = fmt.Errorf("manager %d (team %d): %w", managerParams[i].ID, managerParams[i].TeamID, err)
-			}
-		})
-		if batchErr != nil {
-			return result, batchErr
+		if err := execBatch(a.ImportQueries.UpsertYahooTeamManagerBatch(ctx, managerParams), func(i int) string {
+			return fmt.Sprintf("manager %d (team %d)", managerParams[i].ID, managerParams[i].TeamID)
+		}); err != nil {
+			return result, err
 		}
 		result.ManagersImported = len(managerParams)
 	}

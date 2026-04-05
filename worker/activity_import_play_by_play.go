@@ -81,19 +81,10 @@ func (a *SeasonsActivities) ImportPlayByPlayForDate(ctx context.Context, input I
 			params[i] = playEventToParams(game.ID, play)
 		}
 
-		var firstErr error
-		var errIdx int
-		results := a.ImportQueries.UpsertPlayEventBatch(ctx, params)
-		results.Exec(func(i int, err error) {
-			if err != nil && firstErr == nil {
-				firstErr = err
-				errIdx = i
-			}
-		})
-
-		if firstErr != nil {
-			return result, fmt.Errorf("upsert play event %d for game %s: %w",
-				pbp.Plays[errIdx].EventID, game.ID.String(), firstErr)
+		if err := execBatch(a.ImportQueries.UpsertPlayEventBatch(ctx, params), func(i int) string {
+			return fmt.Sprintf("play event %d for game %s", pbp.Plays[i].EventID, game.ID.String())
+		}); err != nil {
+			return result, err
 		}
 
 		result.GamesProcessed++

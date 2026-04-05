@@ -193,42 +193,24 @@ func (a *SeasonsActivities) collectRosterParams(ctx context.Context, teams []Tea
 
 // upsertSummaries batch upserts team summary records.
 func upsertSummaries(ctx context.Context, queries YahooDataUpserter, params []sqlcdb.UpsertYahooTeamSummaryBatchParams) error {
-	var batchErr error
-	results := queries.UpsertYahooTeamSummaryBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && batchErr == nil {
-			batchErr = fmt.Errorf("summary league_id=%d team_id=%d date=%s: %w",
-				params[i].LeagueID, params[i].TeamID,
-				params[i].Date.Time.Format(config.DateFormat), err)
-		}
+	return execBatch(queries.UpsertYahooTeamSummaryBatch(ctx, params), func(i int) string {
+		return fmt.Sprintf("summary league_id=%d team_id=%d date=%s",
+			params[i].LeagueID, params[i].TeamID, params[i].Date.Time.Format(config.DateFormat))
 	})
-	return batchErr
 }
 
 // upsertStats batch upserts team summary stat records.
 func upsertStats(ctx context.Context, queries YahooDataUpserter, params []sqlcdb.UpsertYahooTeamSummaryStatBatchParams) error {
-	var batchErr error
-	results := queries.UpsertYahooTeamSummaryStatBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && batchErr == nil {
-			batchErr = fmt.Errorf("stat league_id=%d team_id=%d date=%s stat_id=%d: %w",
-				params[i].LeagueID, params[i].TeamID,
-				params[i].Date.Time.Format(config.DateFormat), params[i].StatID, err)
-		}
+	return execBatch(queries.UpsertYahooTeamSummaryStatBatch(ctx, params), func(i int) string {
+		return fmt.Sprintf("stat league_id=%d team_id=%d date=%s stat_id=%d",
+			params[i].LeagueID, params[i].TeamID, params[i].Date.Time.Format(config.DateFormat), params[i].StatID)
 	})
-	return batchErr
 }
 
 // upsertRosters batch upserts team roster records.
 func upsertRosters(ctx context.Context, queries YahooDataUpserter, params []sqlcdb.UpsertYahooTeamRosterBatchParams) error {
-	var batchErr error
-	results := queries.UpsertYahooTeamRosterBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && batchErr == nil {
-			batchErr = fmt.Errorf("roster league_id=%d team_id=%d date=%s player_id=%d: %w",
-				params[i].LeagueID, params[i].TeamID,
-				params[i].Date.Time.Format(config.DateFormat), params[i].PlayerID, err)
-		}
+	return execBatch(queries.UpsertYahooTeamRosterBatch(ctx, params), func(i int) string {
+		return fmt.Sprintf("roster league_id=%d team_id=%d date=%s player_id=%d",
+			params[i].LeagueID, params[i].TeamID, params[i].Date.Time.Format(config.DateFormat), params[i].PlayerID)
 	})
-	return batchErr
 }

@@ -125,15 +125,10 @@ func (a *SeasonsActivities) importBoxscoresForDate(ctx context.Context, queries 
 					SequenceNumber: int32(b.SequenceNumber),
 				}
 			}
-			var batchErr error
-			bResults := queries.UpsertGameBroadcastBatch(ctx, broadcastParams)
-			bResults.Exec(func(i int, err error) {
-				if err != nil && batchErr == nil {
-					batchErr = fmt.Errorf("broadcast game %d id %d: %w", boxscore.ID, broadcastParams[i].BroadcastID, err)
-				}
-			})
-			if batchErr != nil {
-				return result, batchErr
+			if err := execBatch(queries.UpsertGameBroadcastBatch(ctx, broadcastParams), func(i int) string {
+				return fmt.Sprintf("broadcast game %d id %d", boxscore.ID, broadcastParams[i].BroadcastID)
+			}); err != nil {
+				return result, err
 			}
 		}
 	}

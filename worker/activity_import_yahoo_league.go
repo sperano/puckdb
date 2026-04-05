@@ -116,15 +116,10 @@ func (a *SeasonsActivities) ImportYahooLeague(ctx context.Context, input ImportY
 			}
 		}
 
-		var batchErr error
-		results := a.ImportQueries.UpsertYahooLeagueRosterPositionBatch(ctx, posParams)
-		results.Exec(func(i int, err error) {
-			if err != nil && batchErr == nil {
-				batchErr = fmt.Errorf("roster position %s: %w", posParams[i].Position, err)
-			}
-		})
-		if batchErr != nil {
-			return result, batchErr
+		if err := execBatch(a.ImportQueries.UpsertYahooLeagueRosterPositionBatch(ctx, posParams), func(i int) string {
+			return fmt.Sprintf("roster position %s", posParams[i].Position)
+		}); err != nil {
+			return result, err
 		}
 		result.RosterPositions = len(posParams)
 	}
@@ -144,15 +139,10 @@ func (a *SeasonsActivities) ImportYahooLeague(ctx context.Context, input ImportY
 			}
 		}
 
-		var batchErr error
-		results := a.ImportQueries.UpsertYahooLeagueStatCategoryBatch(ctx, statParams)
-		results.Exec(func(i int, err error) {
-			if err != nil && batchErr == nil {
-				batchErr = fmt.Errorf("stat category %d: %w", statParams[i].StatID, err)
-			}
-		})
-		if batchErr != nil {
-			return result, batchErr
+		if err := execBatch(a.ImportQueries.UpsertYahooLeagueStatCategoryBatch(ctx, statParams), func(i int) string {
+			return fmt.Sprintf("stat category %d", statParams[i].StatID)
+		}); err != nil {
+			return result, err
 		}
 		result.StatCategories = len(statParams)
 	}

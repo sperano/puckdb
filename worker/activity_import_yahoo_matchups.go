@@ -56,16 +56,10 @@ func (a *SeasonsActivities) importYahooMatchups(ctx context.Context, input Impor
 			continue
 		}
 
-		var batchErr error
-		results := a.ImportQueries.UpsertYahooMatchupBatch(ctx, params)
-		results.Exec(func(i int, err error) {
-			if err != nil && batchErr == nil {
-				batchErr = fmt.Errorf("matchup week %d team1 %d vs team2 %d: %w",
-					params[i].Week, params[i].Team1ID, params[i].Team2ID, err)
-			}
-		})
-		if batchErr != nil {
-			return totalImported, batchErr
+		if err := execBatch(a.ImportQueries.UpsertYahooMatchupBatch(ctx, params), func(i int) string {
+			return fmt.Sprintf("matchup week %d team1 %d vs team2 %d", params[i].Week, params[i].Team1ID, params[i].Team2ID)
+		}); err != nil {
+			return totalImported, err
 		}
 		totalImported += len(params)
 	}

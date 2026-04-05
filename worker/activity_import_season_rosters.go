@@ -81,15 +81,10 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 			}
 		}
 
-		var batchErr error
-		results := queries.UpsertSeasonRosterBatch(ctx, params)
-		results.Exec(func(i int, err error) {
-			if err != nil && batchErr == nil {
-				batchErr = fmt.Errorf("player %d (%s): %w", params[i].PlayerID, team.Abbrev, err)
-			}
-		})
-		if batchErr != nil {
-			return fmt.Errorf("upsert roster for %s: %w", team.Abbrev, batchErr)
+		if err := execBatch(queries.UpsertSeasonRosterBatch(ctx, params), func(i int) string {
+			return fmt.Sprintf("player %d (%s)", params[i].PlayerID, team.Abbrev)
+		}); err != nil {
+			return fmt.Errorf("upsert roster for %s: %w", team.Abbrev, err)
 		}
 
 		totalPlayers += len(players)
@@ -128,17 +123,9 @@ func ensureRosterPlayersExist(ctx context.Context, queries SeasonRosterUpserter,
 		params[i].BirthDate = parseDateToPgDate(p.BirthDate)
 	}
 
-	var batchErr error
-	results := queries.EnsurePlayerExistsBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && batchErr == nil {
-			batchErr = fmt.Errorf("ensure player %d (%s): %w", params[i].ID, teamAbbrev, err)
-		}
+	return execBatch(queries.EnsurePlayerExistsBatch(ctx, params), func(i int) string {
+		return fmt.Sprintf("ensure player %d (%s)", params[i].ID, teamAbbrev)
 	})
-	if batchErr != nil {
-		return batchErr
-	}
-	return nil
 }
 
 // localizedStringToText converts a *nhl.LocalizedString to a pgtype.Text using the Default field.

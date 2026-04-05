@@ -63,15 +63,10 @@ func (a *SeasonsActivities) importYahooDraftResults(ctx context.Context, input I
 		return 0, nil
 	}
 
-	var batchErr error
-	results := a.ImportQueries.UpsertYahooDraftResultBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && batchErr == nil {
-			batchErr = fmt.Errorf("draft pick round %d pick %d: %w", params[i].Round, params[i].Pick, err)
-		}
-	})
-	if batchErr != nil {
-		return 0, batchErr
+	if err := execBatch(a.ImportQueries.UpsertYahooDraftResultBatch(ctx, params), func(i int) string {
+		return fmt.Sprintf("draft pick round %d pick %d", params[i].Round, params[i].Pick)
+	}); err != nil {
+		return 0, err
 	}
 	return len(params), nil
 }
