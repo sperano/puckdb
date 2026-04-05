@@ -187,12 +187,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 		if err := runProcessPlayers(ctx, out, client, state); err != nil {
 			return fmt.Errorf("processing players failed: %w", err)
 		}
-		//resultData, err := client.GetProcessPlayersResultData(ctx)
-		//if err != nil {
-		//	log.Warn().Err(err).Msg("Failed to fetch process players result data")
-		//} else if resultData != nil {
-		//	printProcessPlayersResult(out, resultData)
-		//}
 	} else {
 		fmt.Println("- Skipping players processing.")
 	}
@@ -505,33 +499,3 @@ func (s *syncState) cancel() {
 	}
 }
 
-func printProcessPlayersResult(out io.Writer, result *model.ProcessPlayersResultData) {
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "=== Process Players Results ===")
-	_, _ = fmt.Fprintf(out, "Total players:       %d\n", result.TotalPlayers)
-	_, _ = fmt.Fprintf(out, "Imported:            %d\n", result.ImportedPlayers)
-	_, _ = fmt.Fprintf(out, "Matched with Yahoo:  %d\n", result.MatchedWithYahoo)
-	_, _ = fmt.Fprintf(out, "\nDownload stats:\n")
-	_, _ = fmt.Fprintf(out, "  Downloaded:        %d\n", result.Downloaded)
-	_, _ = fmt.Fprintf(out, "  Cache hits:        %d\n", result.CacheHits)
-	_, _ = fmt.Fprintf(out, "  Missing (404):     %d\n", result.Missing)
-	_, _ = fmt.Fprintf(out, "\nYahoo player stats:\n")
-	_, _ = fmt.Fprintf(out, "  Total Yahoo:       %d\n", result.TotalYahooPlayers)
-	_, _ = fmt.Fprintf(out, "  Skipped non-NHL:   %d\n", result.SkippedNonNHL)
-	_, _ = fmt.Fprintf(out, "  Verified non-NHL:  %d\n", result.VerifiedNonNHLThisRun)
-
-	if len(result.TrulyUnmatched) > 0 {
-		_, _ = fmt.Fprintf(out, "\nTruly unmatched Yahoo players (%d):\n", len(result.TrulyUnmatched))
-		for _, p := range result.TrulyUnmatched {
-			_, _ = fmt.Fprintf(out, "  - %s %s [Yahoo: %d, NHL: %d %s, Games: %d]\n",
-				p.FirstName, p.LastName, p.YahooID, p.NhlPlayerID, p.NhlName, p.NhlGames)
-		}
-	}
-
-	if len(result.Errors) > 0 {
-		_, _ = fmt.Fprintf(out, "\nErrors (%d):\n", len(result.Errors))
-		for _, e := range result.Errors {
-			_, _ = fmt.Fprintf(out, "  - %s\n", e)
-		}
-	}
-}

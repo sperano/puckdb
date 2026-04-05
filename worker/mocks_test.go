@@ -156,6 +156,21 @@ func (m *MockPlayerUpserter) ClearConflictingYahooID(ctx context.Context, arg sq
 	return args.Error(0)
 }
 
+// MockPlayerCareerUpserter implements PlayerCareerUpserter for testing.
+type MockPlayerCareerUpserter struct {
+	mock.Mock
+}
+
+func (m *MockPlayerCareerUpserter) UpsertPlayerAwardBatch(ctx context.Context, arg []sqlcdb.UpsertPlayerAwardBatchParams) *sqlcdb.UpsertPlayerAwardBatchBatchResults {
+	args := m.Called(ctx, arg)
+	return args.Get(0).(*sqlcdb.UpsertPlayerAwardBatchBatchResults)
+}
+
+func (m *MockPlayerCareerUpserter) UpsertPlayerSeasonTotalBatch(ctx context.Context, arg []sqlcdb.UpsertPlayerSeasonTotalBatchParams) *sqlcdb.UpsertPlayerSeasonTotalBatchBatchResults {
+	args := m.Called(ctx, arg)
+	return args.Get(0).(*sqlcdb.UpsertPlayerSeasonTotalBatchBatchResults)
+}
+
 // MockHTTPDownloader implements HTTPDownloader for testing.
 type MockHTTPDownloader struct {
 	mock.Mock

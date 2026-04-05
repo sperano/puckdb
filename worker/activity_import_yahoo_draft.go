@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -34,10 +35,12 @@ func (a *SeasonsActivities) importYahooDraftResults(ctx context.Context, input I
 	for _, pick := range picks {
 		teamID, err := parseYahooTeamKey(pick.TeamKey)
 		if err != nil {
-			continue // Skip unparseable keys
+			log.Warn().Err(err).Str("team_key", pick.TeamKey).Msg("skipping draft pick with unparseable team key")
+			continue
 		}
 		playerID, err := parseYahooPlayerKey(pick.PlayerKey)
 		if err != nil {
+			log.Warn().Err(err).Str("player_key", pick.PlayerKey).Msg("skipping draft pick with unparseable player key")
 			continue
 		}
 

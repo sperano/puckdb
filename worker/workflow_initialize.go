@@ -167,7 +167,7 @@ func upsertSeasonTeams(ctx workflow.Context, tracker *ReportTracker, logger log.
 		if err := future.Get(ctx, &activityResult); err != nil {
 			return err
 		}
-		upserted += activityResult.UpsertResult.TeamsUpserted // TODO thread safe?
+		upserted += activityResult.UpsertResult.TeamsUpserted // safe: Temporal workflow handlers are single-threaded
 		return nil
 	}
 	if err := tracker.RunWorkerPool(ctx, GroupInitializeSeasonTeams, 0, len(seasonIDs), config.DefaultSeasonConcurrency, startActivity, handler); err != nil {

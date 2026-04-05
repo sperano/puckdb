@@ -164,7 +164,6 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(seasonsActivities.FetchClubStats)
 			w.RegisterActivity(seasonsActivities.ImportSeasonRosters)
 			w.RegisterActivity(seasonsActivities.ImportClubStats)
-			w.RegisterActivity(seasonsActivities.ImportPlayerCareerData)
 			w.RegisterActivity(seasonsActivities.ImportStandingsForDate)
 			w.RegisterActivity(seasonsActivities.CollectSeasonPlayerIDs)
 
@@ -190,11 +189,12 @@ func cmdWorker() *cobra.Command {
 
 			// Player activities (landings, game logs, boxscore player loading, process players)
 			playerActivities := &workers.PlayerActivities{
-				Storage:     storage,
-				NHLClient:   nhlClient,
-				RedisClient: redisClient,
-				GobCache:    gobCache,
-				Queries:     queries,
+				Storage:       storage,
+				NHLClient:     nhlClient,
+				RedisClient:   redisClient,
+				GobCache:      gobCache,
+				Queries:       queries,
+				CareerQueries: queries,
 			}
 			w.RegisterActivity(playerActivities.FetchPlayerLandingsBatch)
 			w.RegisterActivity(playerActivities.DownloadPlayerGameLogsBatch)

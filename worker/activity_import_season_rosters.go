@@ -3,10 +3,12 @@ package worker
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/matching"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
 	"go.temporal.io/sdk/activity"
@@ -54,21 +56,28 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 			continue
 		}
 
+		// Ensure all roster players exist in the players table before inserting
+		// roster entries. Players discovered via boxscores already exist; this
+		// covers roster-only players (e.g., historical players with no game data).
+		if err := ensureRosterPlayersExist(ctx, queries, players, team.Abbrev); err != nil {
+			return err
+		}
+
 		params := make([]sqlcdb.UpsertSeasonRosterBatchParams, len(players))
 		for i, p := range players {
 			params[i] = sqlcdb.UpsertSeasonRosterBatchParams{
-				Season:        int32(season.ID()),
-				TeamID:        team.TeamID,
-				PlayerID:      int64(p.ID),
-				Position:      string(p.Position),
-				ShootsCatches: string(p.ShootsCatches),
-				SweaterNumber: int16(p.SweaterNumber),
-				HeightInches:  int16(p.HeightInInches),
-				WeightPounds:  int16(p.WeightInPounds),
-				BirthDate:     p.BirthDate,
-				BirthCity:     localizedStringToText(p.BirthCity),
+				Season:             int32(season.ID()),
+				TeamID:             team.TeamID,
+				PlayerID:           int64(p.ID),
+				Position:           string(p.Position),
+				ShootsCatches:      string(p.ShootsCatches),
+				SweaterNumber:      int16(p.SweaterNumber),
+				HeightInches:       int16(p.HeightInInches),
+				WeightPounds:       int16(p.WeightInPounds),
+				BirthDate:          p.BirthDate,
+				BirthCity:          localizedStringToText(p.BirthCity),
 				BirthStateProvince: localizedStringToText(p.BirthStateProvince),
-				BirthCountry:  p.BirthCountry,
+				BirthCountry:       p.BirthCountry,
 			}
 		}
 
@@ -87,6 +96,48 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 	}
 
 	logger.Info("Imported season rosters", "season", input.Season, "teams", len(teams), "players", totalPlayers)
+	return nil
+}
+
+// ensureRosterPlayersExist creates stub player records for any roster players
+// not yet in the players table. Uses ON CONFLICT DO NOTHING so existing players
+// are untouched.
+func ensureRosterPlayersExist(ctx context.Context, queries SeasonRosterUpserter, players []nhl.RosterPlayer, teamAbbrev string) error {
+	params := make([]sqlcdb.EnsurePlayerExistsBatchParams, len(players))
+	for i, p := range players {
+		firstName := strings.TrimSpace(p.FirstName.Default)
+		lastName := strings.TrimSpace(p.LastName.Default)
+
+		params[i] = sqlcdb.EnsurePlayerExistsBatchParams{
+			ID:                  int64(p.ID),
+			FirstName:           firstName,
+			LastName:            lastName,
+			FirstNameNormalized: matching.NormalizeName(firstName),
+			LastNameNormalized:  matching.NormalizeName(lastName),
+			Position:            string(p.Position),
+			ShootsCatches:       string(p.ShootsCatches),
+			HeadshotURL:         strings.TrimSpace(p.Headshot),
+			HeightInches:        pgtype.Int4{Int32: int32(p.HeightInInches), Valid: p.HeightInInches > 0},
+			WeightPounds:        pgtype.Int4{Int32: int32(p.WeightInPounds), Valid: p.WeightInPounds > 0},
+			BirthCity:           localizedStringToText(p.BirthCity),
+			BirthStateProvince:  localizedStringToText(p.BirthStateProvince),
+			BirthCountry:        pgtype.Text{String: p.BirthCountry, Valid: p.BirthCountry != ""},
+			SweaterNumber:       pgtype.Int4{Int32: int32(p.SweaterNumber), Valid: p.SweaterNumber > 0},
+		}
+
+		params[i].BirthDate = parseDateToPgDate(p.BirthDate)
+	}
+
+	var batchErr error
+	results := queries.EnsurePlayerExistsBatch(ctx, params)
+	results.Exec(func(i int, err error) {
+		if err != nil && batchErr == nil {
+			batchErr = fmt.Errorf("ensure player %d (%s): %w", params[i].ID, teamAbbrev, err)
+		}
+	})
+	if batchErr != nil {
+		return batchErr
+	}
 	return nil
 }
 

@@ -61,8 +61,7 @@ func collectDataPathStats(dataPath string) dataPathStats {
 	return result
 }
 
-// classifyFileType determines the file type based on path and filename
-// TODO maybe this should be better integrated with store/ package
+// classifyFileType determines the file type based on path and filename.
 func classifyFileType(dataPath, filePath, filename string) string {
 	relPath, _ := filepath.Rel(dataPath, filePath)
 	parts := strings.Split(relPath, string(filepath.Separator))

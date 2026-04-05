@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	MaxUploadSize = 1 << 32 // 8GB - TODO Should be a flag
-	MaxMemory     = 1 << 28 // 256M TODO Should be a flag
+	MaxUploadSize = 1 << 32 // 8GB
+	MaxMemory     = 1 << 28 // 256MB
 	graphQLPath   = "/graphql"
 )
 

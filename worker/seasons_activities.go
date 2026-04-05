@@ -1,7 +1,5 @@
 package worker
 
-// TODO: use activity logger
-
 import (
 	"context"
 	"fmt"
@@ -54,7 +52,6 @@ type YahooDataUpserter interface {
 type importQueries interface {
 	BoxscoreUpserter
 	PlayerGameLogUpdater
-	PlayerCareerUpserter
 	GameStoryUpdater
 	PlayByPlayUpserter
 	ShiftChartUpserter
@@ -68,6 +65,7 @@ type importQueries interface {
 // SeasonRosterUpserter is the interface for season roster database operations.
 type SeasonRosterUpserter interface {
 	GetSeasonTeamAbbrevs(ctx context.Context, seasonID int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error)
+	EnsurePlayerExistsBatch(ctx context.Context, arg []sqlcdb.EnsurePlayerExistsBatchParams) *sqlcdb.EnsurePlayerExistsBatchBatchResults
 	UpsertSeasonRosterBatch(ctx context.Context, arg []sqlcdb.UpsertSeasonRosterBatchParams) *sqlcdb.UpsertSeasonRosterBatchBatchResults
 }
 

@@ -10,8 +10,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// TODO move in config?
-
 func ChiLogger(next http.Handler) http.Handler {
 	return middleware.RequestLogger(logFormatter{})(next)
 }
@@ -47,6 +45,6 @@ func (l logEntry) Write(status, bytes int, _ http.Header, elapsed time.Duration,
 		Msgf("%s %s", l.method, l.path)
 }
 
-func (l logEntry) Panic(v interface{}, stack []byte) {
+func (l logEntry) Panic(v any, stack []byte) {
 	fmt.Printf("panic: %+v\n%s\n", v, string(stack))
 }

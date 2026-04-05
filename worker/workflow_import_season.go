@@ -57,9 +57,6 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	if err := workflow.ExecuteActivity(ctx, sa.ImportClubStats, clubStatsInput).Get(ctx, nil); err != nil {
 		return nil, err
 	}
-	if err := workflow.ExecuteActivity(ctx, sa.ImportPlayerCareerData).Get(ctx, nil); err != nil {
-		return nil, err
-	}
 
 	// Import Yahoo league-level data (transactions, draft results, matchups)
 	if yahooConfig, err := config.GetYahooSeasonsConfig(); err == nil {

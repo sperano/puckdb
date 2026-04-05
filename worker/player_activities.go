@@ -12,17 +12,25 @@ import (
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
+	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/store"
 	"go.temporal.io/sdk/activity"
 )
 
+// PlayerCareerUpserter is the interface for player career database operations.
+type PlayerCareerUpserter interface {
+	UpsertPlayerAwardBatch(ctx context.Context, arg []sqlcdb.UpsertPlayerAwardBatchParams) *sqlcdb.UpsertPlayerAwardBatchBatchResults
+	UpsertPlayerSeasonTotalBatch(ctx context.Context, arg []sqlcdb.UpsertPlayerSeasonTotalBatchParams) *sqlcdb.UpsertPlayerSeasonTotalBatchBatchResults
+}
+
 // PlayerActivities groups player-related activities with their dependencies.
 type PlayerActivities struct {
-	Storage     store.Storage
-	NHLClient   NHLClient
-	RedisClient cache.Client
-	GobCache    *cache.GobCache
-	Queries     PlayerUpserter
+	Storage      store.Storage
+	NHLClient    NHLClient
+	RedisClient  cache.Client
+	GobCache     *cache.GobCache
+	Queries      PlayerUpserter
+	CareerQueries PlayerCareerUpserter
 }
 
 // --- Player landing activities ---

@@ -31,10 +31,12 @@ type ProcessPlayerBatchResult struct {
 	FetchStats // Download stats (Downloaded, CacheHits, Missing)
 
 	// Import stats
-	Imported int              // Players imported to database
-	Matched  int              // Players matched with Yahoo IDs
-	Origins  core.OriginCounts // Tracks where player landings were read from
-	Errors   []string         // Error messages for failed players
+	Imported       int               // Players imported to database
+	Matched        int               // Players matched with Yahoo IDs
+	Origins        core.OriginCounts // Tracks where player landings were read from
+	AwardsImported int               // Player award rows upserted
+	TotalsImported int               // Player season total rows upserted
+	Errors         []string          // Error messages for failed players
 }
 
 // ProcessPlayerBatch downloads player landing pages (if needed) and imports them to the database.
@@ -109,7 +111,7 @@ func (a *PlayerActivities) ProcessPlayerBatch(ctx context.Context, players []sto
 		}
 		var nhlBirthDate time.Time
 		if landing.BirthDate != "" {
-			nhlBirthDate, _ = time.Parse("2006-01-02", landing.BirthDate)
+			nhlBirthDate = parseDate(landing.BirthDate)
 		}
 		matchResult, err := matching.MatchYahooID(landing, teamAbbrev, nhlBirthDate, yahooPool)
 		if err != nil {
@@ -154,6 +156,16 @@ func (a *PlayerActivities) ProcessPlayerBatch(ctx context.Context, players []sto
 			result.Matched++
 			matchedYahooIDs = append(matchedYahooIDs, matchResult.YahooID)
 		}
+
+		// Upsert career data per-player to spread DB work across the activity
+		// timeout window instead of accumulating a huge batch at the end.
+		awards, totals, err := a.upsertPlayerCareerData(ctx, landing)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("player %d career data: %v", p.ID, err))
+			continue
+		}
+		result.AwardsImported += awards
+		result.TotalsImported += totals
 	}
 
 	// Remove matched Yahoo IDs from available set
@@ -174,6 +186,74 @@ func (a *PlayerActivities) ProcessPlayerBatch(ctx context.Context, players []sto
 		Msg("Process player batch complete")
 
 	return result, nil
+}
+
+// upsertPlayerCareerData upserts awards and season totals for a single player.
+// Returns the number of awards and season totals upserted.
+func (a *PlayerActivities) upsertPlayerCareerData(ctx context.Context, landing *nhl.PlayerLanding) (int, int, error) {
+	playerID := landing.PlayerID.Int64()
+
+	// Awards
+	var awardParams []sqlcdb.UpsertPlayerAwardBatchParams
+	for _, award := range landing.Awards {
+		trophyName := award.Trophy.Default
+		for _, awardSeason := range award.Seasons {
+			awardParams = append(awardParams, sqlcdb.UpsertPlayerAwardBatchParams{
+				PlayerID:   playerID,
+				TrophyName: trophyName,
+				Season:     int32(awardSeason.SeasonID.StartYear()),
+			})
+		}
+	}
+	if len(awardParams) > 0 {
+		var batchErr error
+		a.CareerQueries.UpsertPlayerAwardBatch(ctx, awardParams).Exec(func(i int, err error) {
+			if err != nil && batchErr == nil {
+				p := awardParams[i]
+				batchErr = fmt.Errorf("award trophy %q season %d: %w", p.TrophyName, p.Season, err)
+			}
+		})
+		if batchErr != nil {
+			return 0, 0, batchErr
+		}
+	}
+
+	// Season totals
+	var totalParams []sqlcdb.UpsertPlayerSeasonTotalBatchParams
+	for _, st := range landing.SeasonTotals {
+		var sequence int32
+		if st.Sequence != nil {
+			sequence = int32(*st.Sequence)
+		}
+		totalParams = append(totalParams, sqlcdb.UpsertPlayerSeasonTotalBatchParams{
+			PlayerID:     playerID,
+			Season:       int32(st.Season.StartYear()),
+			GameType:     int16(st.GameType.Int()),
+			LeagueAbbrev: st.LeagueAbbrev,
+			TeamName:     st.TeamName.Default,
+			Sequence:     sequence,
+			GamesPlayed:  int32(st.GamesPlayed),
+			Goals:        intPtrToInt4(st.Goals),
+			Assists:      intPtrToInt4(st.Assists),
+			Points:       intPtrToInt4(st.Points),
+			PlusMinus:    intPtrToInt4(st.PlusMinus),
+			PIM:          intPtrToInt4(st.PIM),
+		})
+	}
+	if len(totalParams) > 0 {
+		var batchErr error
+		a.CareerQueries.UpsertPlayerSeasonTotalBatch(ctx, totalParams).Exec(func(i int, err error) {
+			if err != nil && batchErr == nil {
+				p := totalParams[i]
+				batchErr = fmt.Errorf("season total season %d league %s: %w", p.Season, p.LeagueAbbrev, err)
+			}
+		})
+		if batchErr != nil {
+			return len(awardParams), 0, batchErr
+		}
+	}
+
+	return len(awardParams), len(totalParams), nil
 }
 
 // buildProcessUpsertParams creates UpsertPlayerParams from PlayerLanding and match result.
@@ -212,11 +292,7 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match matching.YahooID
 	}
 
 	// Birth date
-	if landing.BirthDate != "" {
-		if t, err := time.Parse("2006-01-02", landing.BirthDate); err == nil {
-			params.BirthDate = pgtype.Date{Time: t, Valid: true}
-		}
-	}
+	params.BirthDate = parseDateToPgDate(landing.BirthDate)
 
 	// Birth location
 	if landing.BirthCity != nil {
@@ -265,4 +341,12 @@ func (a *PlayerActivities) importMissingPlayer(ctx context.Context, p store.Boxs
 		Msg("Importing missing player with minimal info")
 
 	return a.Queries.UpsertPlayer(ctx, params)
+}
+
+// intPtrToInt4 converts a *int to pgtype.Int4.
+func intPtrToInt4(v *int) pgtype.Int4 {
+	if v == nil {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: int32(*v), Valid: true}
 }

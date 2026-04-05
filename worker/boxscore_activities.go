@@ -65,10 +65,10 @@ func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, s
 
 		activity.RecordHeartbeat(ctx, dayCount)
 
-		// Fire-and-forget progress update to Redis (skip if no client)
+		// Fire-and-forget: progress updates are best-effort; failures don't affect correctness
 		if a.RedisClient != nil {
 			workflowID := WorkflowIDExtractSeason(season.ID.StartYear())
-			_ = SaveActivityProgress(ctx, a.RedisClient, workflowID, dayCount, totalDays)
+			_ = SaveActivityProgress(ctx, a.RedisClient, workflowID, dayCount, totalDays) //nolint:errcheck
 		}
 
 		if dayCount%30 == 0 {

@@ -87,10 +87,13 @@ func (a *SeasonsActivities) importYahooTransactions(ctx context.Context, input I
 
 	params := make([]sqlcdb.UpsertYahooTransactionBatchParams, len(txns))
 	for i, tx := range txns {
-		// Serialize player details as JSONB
 		var playersJSON []byte
 		if tx.Players.Count > 0 {
-			playersJSON, _ = json.Marshal(tx.Players.Slice)
+			var err error
+			playersJSON, err = json.Marshal(tx.Players.Slice)
+			if err != nil {
+				return 0, fmt.Errorf("marshal transaction players: %w", err)
+			}
 		}
 
 		params[i] = sqlcdb.UpsertYahooTransactionBatchParams{

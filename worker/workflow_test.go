@@ -426,7 +426,6 @@ func (s *ImportSeasonWorkflowTestSuite) mockImportSeasonActivities() {
 	var sa *SeasonsActivities
 	s.env.OnActivity(sa.ImportSeasonRosters, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(sa.ImportClubStats, mock.Anything, mock.Anything).Return(nil)
-	s.env.OnActivity(sa.ImportPlayerCareerData, mock.Anything).Return(ImportPlayerCareerDataResult{}, nil)
 }
 
 // Test ImportSeasonWorkflow success with multiple days

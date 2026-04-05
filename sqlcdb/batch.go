@@ -17,6 +17,91 @@ var (
 	ErrBatchAlreadyClosed = errors.New("batch already closed")
 )
 
+const ensurePlayerExistsBatch = `-- name: EnsurePlayerExistsBatch :batchexec
+INSERT INTO players (
+    id, first_name, last_name, first_name_normalized, last_name_normalized,
+    position, shoots_catches, headshot_url,
+    height_inches, weight_pounds,
+    birth_date, birth_city, birth_state_province, birth_country,
+    sweater_number
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+ON CONFLICT (id) DO NOTHING
+`
+
+type EnsurePlayerExistsBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type EnsurePlayerExistsBatchParams struct {
+	ID                  int64       `json:"id"`
+	FirstName           string      `json:"first_name"`
+	LastName            string      `json:"last_name"`
+	FirstNameNormalized string      `json:"first_name_normalized"`
+	LastNameNormalized  string      `json:"last_name_normalized"`
+	Position            string      `json:"position"`
+	ShootsCatches       string      `json:"shoots_catches"`
+	HeadshotURL         string      `json:"headshot_url"`
+	HeightInches        pgtype.Int4 `json:"height_inches"`
+	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
+	BirthDate           pgtype.Date `json:"birth_date"`
+	BirthCity           pgtype.Text `json:"birth_city"`
+	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
+	BirthCountry        pgtype.Text `json:"birth_country"`
+	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
+}
+
+// Create stub player records for players not yet in the database.
+// Uses DO NOTHING to avoid overwriting existing player data.
+// Called before season roster import to satisfy the FK constraint.
+func (q *Queries) EnsurePlayerExistsBatch(ctx context.Context, arg []EnsurePlayerExistsBatchParams) *EnsurePlayerExistsBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.ID,
+			a.FirstName,
+			a.LastName,
+			a.FirstNameNormalized,
+			a.LastNameNormalized,
+			a.Position,
+			a.ShootsCatches,
+			a.HeadshotURL,
+			a.HeightInches,
+			a.WeightPounds,
+			a.BirthDate,
+			a.BirthCity,
+			a.BirthStateProvince,
+			a.BirthCountry,
+			a.SweaterNumber,
+		}
+		batch.Queue(ensurePlayerExistsBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &EnsurePlayerExistsBatchBatchResults{br, len(arg), false}
+}
+
+func (b *EnsurePlayerExistsBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *EnsurePlayerExistsBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const upsertClubGoalieStatsBatch = `-- name: UpsertClubGoalieStatsBatch :batchexec
 INSERT INTO club_goalie_stats (
     season, game_type, team_id, player_id,

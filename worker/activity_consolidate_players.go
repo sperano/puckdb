@@ -27,7 +27,11 @@ type ConsolidatePlayersResult struct {
 // deduplicates them, and saves the consolidated set to Redis.
 func ConsolidateBoxscorePlayersActivity(ctx context.Context, input ConsolidatePlayersInput) (ConsolidatePlayersResult, error) {
 	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			log.Warn().Err(err).Msg("failed to close redis client")
+		}
+	}()
 
 	// Map by player ID to deduplicate
 	playerMap := make(map[int64]store.BoxscorePlayer)

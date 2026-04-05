@@ -151,17 +151,8 @@ type BoxscoreUpserter interface {
 
 // boxscoreToGameParams converts an NHL API Boxscore to sqlcdb.UpsertGameParams.
 func boxscoreToGameParams(b *nhl.Boxscore, season int) sqlcdb.UpsertGameParams {
-	// Parse game date
-	var gameDate pgtype.Date
-	if t, err := time.Parse(config.DateFormat, b.GameDate); err == nil {
-		gameDate = pgtype.Date{Time: t, Valid: true}
-	}
-
-	// Parse start time
-	var startTimeUTC pgtype.Timestamptz
-	if t, err := time.Parse(time.RFC3339, b.StartTimeUTC); err == nil {
-		startTimeUTC = pgtype.Timestamptz{Time: t, Valid: true}
-	}
+	gameDate := parseDateToPgDate(b.GameDate)
+	startTimeUTC := parseTimestamptz(time.RFC3339, b.StartTimeUTC)
 
 	return sqlcdb.UpsertGameParams{
 		ID:       int64(b.ID),

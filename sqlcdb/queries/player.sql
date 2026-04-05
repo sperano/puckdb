@@ -164,6 +164,19 @@ UPDATE players SET yahoo_id = $2 WHERE id = $1;
 -- This handles cases where a yahoo_id was previously assigned to the wrong player.
 UPDATE players SET yahoo_id = NULL WHERE yahoo_id = $1 AND id != $2;
 
+-- name: EnsurePlayerExistsBatch :batchexec
+-- Create stub player records for players not yet in the database.
+-- Uses DO NOTHING to avoid overwriting existing player data.
+-- Called before season roster import to satisfy the FK constraint.
+INSERT INTO players (
+    id, first_name, last_name, first_name_normalized, last_name_normalized,
+    position, shoots_catches, headshot_url,
+    height_inches, weight_pounds,
+    birth_date, birth_city, birth_state_province, birth_country,
+    sweater_number
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+ON CONFLICT (id) DO NOTHING;
+
 -- name: CountPlayers :one
 SELECT COUNT(*) FROM players;
 
