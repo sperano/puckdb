@@ -1,12 +1,15 @@
 package resource_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/resource"
+	"github.com/sperano/puckdb/store"
 )
 
 func TestDailySchedule_Path(t *testing.T) {
@@ -266,4 +269,628 @@ func TestDeduceSeason(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ============================================================================
+// Parse / Format / URL tests
+// ============================================================================
+
+// mustMarshal marshals v to JSON and panics on error. For use in test data only.
+func mustMarshal(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func TestDailySchedule_ParseFormat(t *testing.T) {
+	t.Parallel()
+	r := resource.DailySchedule{Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse(mustMarshal(&nhl.DailySchedule{}))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`not-json`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "2025-01-15") {
+			t.Errorf("error %q should contain date context", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		original := &nhl.DailySchedule{}
+		data, err := r.Format(original)
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		parsed, err := r.Parse(data)
+		if err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+		if parsed == nil {
+			t.Fatal("round-trip returned nil")
+		}
+	})
+}
+
+func TestBoxscore_ParseFormatURL(t *testing.T) {
+	t.Parallel()
+	r := resource.Boxscore{Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), GameID: nhl.GameID(2024020123)}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(`{}`))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "2024020123") {
+			t.Errorf("error %q should contain game ID", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		fixture := nhl.FixtureBoxscore()
+		fixture.Season = nhl.NewSeason(2024)
+		data, err := r.Format(fixture)
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "2024020123") {
+			t.Errorf("URL() = %q, want game ID in URL", got)
+		}
+		if !strings.Contains(got, "boxscore") {
+			t.Errorf("URL() = %q, want 'boxscore' in URL", got)
+		}
+	})
+}
+
+func TestPlayByPlay_ParseFormatURL(t *testing.T) {
+	t.Parallel()
+	r := resource.PlayByPlay{Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), GameID: nhl.GameID(2024020123)}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(`{}`))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "2024020123") {
+			t.Errorf("error %q should contain game ID", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		fixture := nhl.FixturePlayByPlay()
+		fixture.Season = nhl.NewSeason(2024)
+		data, err := r.Format(fixture)
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "2024020123") {
+			t.Errorf("URL() = %q, want game ID in URL", got)
+		}
+		if !strings.Contains(got, "play-by-play") {
+			t.Errorf("URL() = %q, want 'play-by-play' in URL", got)
+		}
+	})
+}
+
+func TestShiftChart_ParseFormatURL(t *testing.T) {
+	t.Parallel()
+	r := resource.ShiftChart{Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), GameID: nhl.GameID(2024020123)}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(`{}`))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "2024020123") {
+			t.Errorf("error %q should contain game ID", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		data, err := r.Format(&nhl.ShiftChart{})
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "2024020123") {
+			t.Errorf("URL() = %q, want game ID in URL", got)
+		}
+		if !strings.Contains(got, "shiftcharts") {
+			t.Errorf("URL() = %q, want 'shiftcharts' in URL", got)
+		}
+	})
+}
+
+func TestGameStory_ParseFormatURL(t *testing.T) {
+	t.Parallel()
+	r := resource.GameStory{Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), GameID: nhl.GameID(2024020123)}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(`{}`))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "2024020123") {
+			t.Errorf("error %q should contain game ID", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		fixture := nhl.FixtureGameStory()
+		fixture.Season = nhl.NewSeason(2024)
+		data, err := r.Format(fixture)
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "2024020123") {
+			t.Errorf("URL() = %q, want game ID in URL", got)
+		}
+		if !strings.Contains(got, "game-story") {
+			t.Errorf("URL() = %q, want 'game-story' in URL", got)
+		}
+	})
+}
+
+func TestSeasonSeries_ParseFormat(t *testing.T) {
+	t.Parallel()
+	r := resource.SeasonSeries{Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), GameID: nhl.GameID(2024020123)}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(`{}`))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "2024020123") {
+			t.Errorf("error %q should contain game ID", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		data, err := r.Format(&nhl.SeasonSeriesMatchup{})
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+}
+
+func TestPlayerLanding_ParseFormatURL(t *testing.T) {
+	t.Parallel()
+	r := resource.PlayerLanding{PlayerID: nhl.PlayerID(8478402)}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse(mustMarshal(&nhl.PlayerLanding{}))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "8478402") {
+			t.Errorf("error %q should contain player ID", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		data, err := r.Format(&nhl.PlayerLanding{})
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "8478402") {
+			t.Errorf("URL() = %q, want player ID in URL", got)
+		}
+		if !strings.Contains(got, "landing") {
+			t.Errorf("URL() = %q, want 'landing' in URL", got)
+		}
+	})
+}
+
+func TestMissingPlayerLanding_ParseFormat(t *testing.T) {
+	t.Parallel()
+	r := resource.MissingPlayerLanding{PlayerID: nhl.PlayerID(8478402)}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse(mustMarshal(&store.MissingPlayerLandingData{
+			FirstName: "Sidney",
+			LastName:  "Crosby",
+			Position:  "C",
+		}))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+		if result.FirstName != "Sidney" {
+			t.Errorf("FirstName = %q, want %q", result.FirstName, "Sidney")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "8478402") {
+			t.Errorf("error %q should contain player ID", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		original := &store.MissingPlayerLandingData{FirstName: "Sidney", LastName: "Crosby", Position: "C"}
+		data, err := r.Format(original)
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		parsed, err := r.Parse(data)
+		if err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+		if parsed.FirstName != original.FirstName || parsed.LastName != original.LastName {
+			t.Errorf("round-trip mismatch: got %+v, want %+v", parsed, original)
+		}
+	})
+}
+
+func TestFranchises_ParseFormatURL(t *testing.T) {
+	t.Parallel()
+	r := resource.Franchises{}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		_, err := r.Parse(mustMarshal(nhl.FranchisesResponse{}))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "franchises") {
+			t.Errorf("error %q should contain 'franchises'", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		data, err := r.Format(nhl.FranchisesResponse{})
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "franchise") {
+			t.Errorf("URL() = %q, want 'franchise' in URL", got)
+		}
+	})
+}
+
+func TestSeasonsManifest_ParseFormatURL(t *testing.T) {
+	t.Parallel()
+	r := resource.SeasonsManifest{}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		_, err := r.Parse(mustMarshal(nhl.SeasonsResponse{}))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "seasons") {
+			t.Errorf("error %q should contain 'seasons'", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		data, err := r.Format(nhl.SeasonsResponse{})
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "standings-season") {
+			t.Errorf("URL() = %q, want 'standings-season' in URL", got)
+		}
+	})
+}
+
+func TestSeasonStandings_ParseFormat(t *testing.T) {
+	t.Parallel()
+	r := resource.SeasonStandings{Season: nhl.NewSeason(2024)}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse(mustMarshal([]nhl.Standing{}))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil slice")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "standings") {
+			t.Errorf("error %q should contain 'standings'", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		data, err := r.Format([]nhl.Standing{})
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+}
+
+func TestPlayerGameLog_ParseURL(t *testing.T) {
+	t.Parallel()
+	r := resource.PlayerGameLog{PlayerID: nhl.PlayerID(8478402), Season: nhl.NewSeason(2024), GameType: 2}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		// Use a minimal JSON object rather than marshaling nhl.PlayerGameLog{}
+		// because that struct's GameType field refuses to marshal its zero value.
+		result, err := r.Parse([]byte(`{}`))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "8478402") {
+			t.Errorf("error %q should contain player ID", err.Error())
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "8478402") {
+			t.Errorf("URL() = %q, want player ID in URL", got)
+		}
+		if !strings.Contains(got, "game-log") {
+			t.Errorf("URL() = %q, want 'game-log' in URL", got)
+		}
+	})
+}
+
+func TestDailyStandings_ParseFormat(t *testing.T) {
+	t.Parallel()
+	r := resource.DailyStandings{Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse(mustMarshal([]nhl.Standing{}))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil slice")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "2025-01-15") {
+			t.Errorf("error %q should contain date context", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		data, err := r.Format([]nhl.Standing{})
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+}
+
+func TestSeasonRoster_ParseFormat(t *testing.T) {
+	t.Parallel()
+	r := resource.SeasonRoster{Season: 2024, TeamAbbrev: "MTL"}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse(mustMarshal(&nhl.Roster{}))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "MTL") {
+			t.Errorf("error %q should contain team abbrev", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		data, err := r.Format(&nhl.Roster{})
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
+}
+
+func TestClubStatsResource_ParseFormat(t *testing.T) {
+	t.Parallel()
+	r := resource.ClubStatsResource{Season: 2024, TeamAbbrev: "MTL", GameType: 2}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(`{}`))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_json", func(t *testing.T) {
+		_, err := r.Parse([]byte(`{bad}`))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "MTL") {
+			t.Errorf("error %q should contain team abbrev", err.Error())
+		}
+	})
+
+	t.Run("round_trip", func(t *testing.T) {
+		// nhl.ClubStats has GameType and Season fields with strict marshalers that
+		// reject zero values; provide valid values for the round-trip.
+		stats := &nhl.ClubStats{GameType: nhl.GameTypeRegularSeason, Season: nhl.NewSeason(2024)}
+		data, err := r.Format(stats)
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if _, err := r.Parse(data); err != nil {
+			t.Fatalf("Parse() after Format() unexpected error: %v", err)
+		}
+	})
 }

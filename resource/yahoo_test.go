@@ -1,6 +1,7 @@
 package resource_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -212,4 +213,296 @@ func TestMatchups_Path(t *testing.T) {
 	if got := r.Path(); got != expected {
 		t.Errorf("Matchups.Path() = %q, want %q", got, expected)
 	}
+}
+
+// ============================================================================
+// Parse / Format / URL tests
+// ============================================================================
+
+// minimalFantasyXML is the minimal valid XML that xml.Unmarshal accepts for FantasyContent.
+const minimalFantasyXML = `<fantasy_content></fantasy_content>`
+
+// invalidXML contains malformed XML that will always fail to parse.
+const invalidXML = `<not-closed`
+
+func TestLeague_ParseURL(t *testing.T) {
+	t.Parallel()
+	r := resource.League{Season: 2024, LeagueID: 12345, GameKey: 453}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(minimalFantasyXML))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_xml", func(t *testing.T) {
+		_, err := r.Parse([]byte(invalidXML))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "12345") {
+			t.Errorf("error %q should contain league ID", err.Error())
+		}
+	})
+}
+
+func TestTeam_ParseURL(t *testing.T) {
+	t.Parallel()
+	r := resource.Team{Season: 2024, LeagueID: 12345, TeamID: 5, GameKey: 453}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(minimalFantasyXML))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_xml", func(t *testing.T) {
+		_, err := r.Parse([]byte(invalidXML))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "12345") {
+			t.Errorf("error %q should contain league ID", err.Error())
+		}
+	})
+}
+
+func TestRoster_Parse(t *testing.T) {
+	t.Parallel()
+	r := resource.Roster{LeagueID: 12345, TeamID: 5, Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), GameKey: 453}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(minimalFantasyXML))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_xml", func(t *testing.T) {
+		_, err := r.Parse([]byte(invalidXML))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "12345") {
+			t.Errorf("error %q should contain league ID", err.Error())
+		}
+	})
+}
+
+func TestTeamSummary_Parse(t *testing.T) {
+	t.Parallel()
+	r := resource.TeamSummary{LeagueID: 12345, TeamID: 5, Date: time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC), GameKey: 453}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(minimalFantasyXML))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_xml", func(t *testing.T) {
+		_, err := r.Parse([]byte(invalidXML))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "12345") {
+			t.Errorf("error %q should contain league ID", err.Error())
+		}
+	})
+}
+
+func TestYahooPlayer_ParseFormat(t *testing.T) {
+	t.Parallel()
+	r := resource.YahooPlayer{PlayerID: 12345}
+	input := []byte("<html>player page</html>")
+
+	t.Run("parse_passthrough", func(t *testing.T) {
+		result, err := r.Parse(input)
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if string(result) != string(input) {
+			t.Errorf("Parse() = %q, want %q (passthrough)", result, input)
+		}
+	})
+
+	t.Run("format_passthrough", func(t *testing.T) {
+		result, err := r.Format(input)
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if string(result) != string(input) {
+			t.Errorf("Format() = %q, want %q (passthrough)", result, input)
+		}
+	})
+}
+
+func TestMissingYahooPlayer_ParseFormat(t *testing.T) {
+	t.Parallel()
+	r := resource.MissingYahooPlayer{PlayerID: 12345}
+	input := []byte("missing")
+
+	t.Run("parse_passthrough", func(t *testing.T) {
+		result, err := r.Parse(input)
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if string(result) != string(input) {
+			t.Errorf("Parse() = %q, want %q (passthrough)", result, input)
+		}
+	})
+
+	t.Run("format_passthrough", func(t *testing.T) {
+		result, err := r.Format(input)
+		if err != nil {
+			t.Fatalf("Format() unexpected error: %v", err)
+		}
+		if string(result) != string(input) {
+			t.Errorf("Format() = %q, want %q (passthrough)", result, input)
+		}
+	})
+}
+
+func TestGameKey_Parse(t *testing.T) {
+	t.Parallel()
+	r := resource.GameKey{Season: 2024}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(minimalFantasyXML))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_xml", func(t *testing.T) {
+		_, err := r.Parse([]byte(invalidXML))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "2024") {
+			t.Errorf("error %q should contain season", err.Error())
+		}
+	})
+}
+
+func TestTransactions_ParseURL(t *testing.T) {
+	t.Parallel()
+	r := resource.Transactions{Season: 2023, LeagueID: 12345, GameKey: 453}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(minimalFantasyXML))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_xml", func(t *testing.T) {
+		_, err := r.Parse([]byte(invalidXML))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "12345") {
+			t.Errorf("error %q should contain league ID", err.Error())
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "transactions") {
+			t.Errorf("URL() = %q, want 'transactions' in URL", got)
+		}
+		if !strings.Contains(got, "12345") {
+			t.Errorf("URL() = %q, want league ID in URL", got)
+		}
+	})
+}
+
+func TestDraftResults_ParseURL(t *testing.T) {
+	t.Parallel()
+	r := resource.DraftResults{Season: 2023, LeagueID: 12345, GameKey: 453}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(minimalFantasyXML))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_xml", func(t *testing.T) {
+		_, err := r.Parse([]byte(invalidXML))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "12345") {
+			t.Errorf("error %q should contain league ID", err.Error())
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "draftresults") {
+			t.Errorf("URL() = %q, want 'draftresults' in URL", got)
+		}
+		if !strings.Contains(got, "12345") {
+			t.Errorf("URL() = %q, want league ID in URL", got)
+		}
+	})
+}
+
+func TestMatchups_ParseURL(t *testing.T) {
+	t.Parallel()
+	r := resource.Matchups{Season: 2023, LeagueID: 12345, Week: 3, GameKey: 453}
+
+	t.Run("parse_valid", func(t *testing.T) {
+		result, err := r.Parse([]byte(minimalFantasyXML))
+		if err != nil {
+			t.Fatalf("Parse() unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("Parse() returned nil")
+		}
+	})
+
+	t.Run("parse_invalid_xml", func(t *testing.T) {
+		_, err := r.Parse([]byte(invalidXML))
+		if err == nil {
+			t.Fatal("Parse() expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "12345") {
+			t.Errorf("error %q should contain league ID", err.Error())
+		}
+	})
+
+	t.Run("url", func(t *testing.T) {
+		got := r.URL()
+		if !strings.Contains(got, "scoreboard") {
+			t.Errorf("URL() = %q, want 'scoreboard' in URL", got)
+		}
+		if !strings.Contains(got, "week=3") {
+			t.Errorf("URL() = %q, want week parameter in URL", got)
+		}
+	})
 }
