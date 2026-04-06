@@ -12,7 +12,12 @@ import (
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/temporal"
-	workers "github.com/sperano/puckdb/worker"
+	"github.com/sperano/puckdb/worker/admin"
+	worknhl "github.com/sperano/puckdb/worker/nhl"
+	workplayer "github.com/sperano/puckdb/worker/player"
+	"github.com/sperano/puckdb/worker/shared"
+	"github.com/sperano/puckdb/worker/workflow"
+	"github.com/sperano/puckdb/worker/yahoo"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/worker"
@@ -68,7 +73,7 @@ func cmdWorker() *cobra.Command {
 				return err
 			}
 			defer tclient.Close()
-			w := worker.New(tclient, workers.TaskQueueName, worker.Options{
+			w := worker.New(tclient, shared.TaskQueueName, worker.Options{
 				MaxConcurrentWorkflowTaskPollers:       viper.GetInt(config.FlagWorkerMaxWorkflowPollers),
 				MaxConcurrentActivityTaskPollers:       viper.GetInt(config.FlagWorkerMaxActivityPollers),
 				MaxConcurrentWorkflowTaskExecutionSize: viper.GetInt(config.FlagWorkerMaxWorkflowExecution),
@@ -76,58 +81,58 @@ func cmdWorker() *cobra.Command {
 			})
 
 			// Progress tracking activities
-			w.RegisterActivity(workers.SaveProgressReportActivity)
-			w.RegisterActivity(workers.LoadProgressReportActivity)
-			w.RegisterActivity(workers.DeleteProgressReportBatchActivity)
+			w.RegisterActivity(shared.SaveProgressReportActivity)
+			w.RegisterActivity(shared.LoadProgressReportActivity)
+			w.RegisterActivity(shared.DeleteProgressReportBatchActivity)
 
-			w.RegisterWorkflow(workers.FetchSeasonsWorkflow)
-			w.RegisterWorkflow(workers.FetchSeasonWorkflow)
-			w.RegisterWorkflow(workers.FetchPlayerLogsWorkflow)
-			w.RegisterWorkflow(workers.FetchSeasonPlayerLogsWorkflow)
-			w.RegisterWorkflow(workers.FetchYahooPlayersWorkflow)
-			w.RegisterWorkflow(workers.ProcessPlayersWorkflow)
-			w.RegisterWorkflow(workers.ProcessPlayersWorkflowContinue)
-			w.RegisterWorkflow(workers.ImportSeasonsWorkflow)
-			w.RegisterWorkflow(workers.ImportPlayerLogsWorkflow)
-			w.RegisterWorkflow(workers.ImportSeasonWorkflow)
-			w.RegisterWorkflow(workers.ImportSeasonPlayerLogsWorkflow)
-			w.RegisterWorkflow(workers.InitializeWorkflow)
-			w.RegisterWorkflow(workers.ExtractBoxscorePlayersWorkflow)
-			w.RegisterWorkflow(workers.FetchPlayerLandingsWorkflow)
+			w.RegisterWorkflow(workflow.FetchSeasonsWorkflow)
+			w.RegisterWorkflow(workflow.FetchSeasonWorkflow)
+			w.RegisterWorkflow(workflow.FetchPlayerLogsWorkflow)
+			w.RegisterWorkflow(workflow.FetchSeasonPlayerLogsWorkflow)
+			w.RegisterWorkflow(workflow.FetchYahooPlayersWorkflow)
+			w.RegisterWorkflow(workflow.ProcessPlayersWorkflow)
+			w.RegisterWorkflow(workflow.ProcessPlayersWorkflowContinue)
+			w.RegisterWorkflow(workflow.ImportSeasonsWorkflow)
+			w.RegisterWorkflow(workflow.ImportPlayerLogsWorkflow)
+			w.RegisterWorkflow(workflow.ImportSeasonWorkflow)
+			w.RegisterWorkflow(workflow.ImportSeasonPlayerLogsWorkflow)
+			w.RegisterWorkflow(workflow.InitializeWorkflow)
+			w.RegisterWorkflow(workflow.ExtractBoxscorePlayersWorkflow)
+			w.RegisterWorkflow(workflow.FetchPlayerLandingsWorkflow)
 
 			// Database admin workflows
-			w.RegisterWorkflow(workers.DropDatabaseWorkflow)
-			w.RegisterWorkflow(workers.MigrateDatabaseWorkflow)
-			w.RegisterWorkflow(workers.ResetDatabaseWorkflow)
-			w.RegisterWorkflow(workers.FlushRedisWorkflow)
+			w.RegisterWorkflow(admin.DropDatabaseWorkflow)
+			w.RegisterWorkflow(admin.MigrateDatabaseWorkflow)
+			w.RegisterWorkflow(admin.ResetDatabaseWorkflow)
+			w.RegisterWorkflow(admin.FlushRedisWorkflow)
 
 			// Database admin activities
-			w.RegisterActivity(workers.DropDatabaseActivity)
-			w.RegisterActivity(workers.MigrateDatabaseActivity)
-			w.RegisterActivity(workers.FlushRedisActivity)
+			w.RegisterActivity(admin.DropDatabaseActivity)
+			w.RegisterActivity(admin.MigrateDatabaseActivity)
+			w.RegisterActivity(admin.FlushRedisActivity)
 
 			// Struct-based activities with dependency injection
 			storage := store.NewDefaultStorage()
 			queries := sqlcdb.New(pool)
-			nhlClient := workers.NewNHLClient()
+			nhlClient := shared.NewNHLClient()
 			gobCache, err := newGobCache(redisClient)
 			if err != nil {
 				return err
 			}
 
-			yahooDownloader := workers.NewYahooDownloader(redisClient)
+			yahooDownloader := shared.NewYahooDownloader(redisClient)
 
-			leagueActivities := &workers.YahooActivities{
+			fetchYahooActivities := &yahoo.FetchActivities{
 				Storage:          storage,
 				Download:         yahooDownloader,
 				GobCache:         gobCache,
-				PublicDownloader: workers.HTTPDownloaderFunc(puckhttp.DownloadPublic),
+				PublicDownloader: yahoo.HTTPDownloaderFunc(puckhttp.DownloadPublic),
 			}
-			w.RegisterActivity(leagueActivities.FetchLeague)
-			w.RegisterActivity(leagueActivities.FetchTeams)
-			w.RegisterActivity(leagueActivities.FetchYahooPlayerBatch)
-			w.RegisterActivity(leagueActivities.FetchYahooLeagueData)
-			franchiseActivities := &workers.FranchiseActivities{
+			w.RegisterActivity(fetchYahooActivities.FetchLeague)
+			w.RegisterActivity(fetchYahooActivities.FetchTeams)
+			w.RegisterActivity(fetchYahooActivities.FetchYahooPlayerBatch)
+			w.RegisterActivity(fetchYahooActivities.FetchYahooLeagueData)
+			franchiseActivities := &worknhl.FranchiseActivities{
 				Storage:   storage,
 				GobCache:  gobCache,
 				Upserter:  queries,
@@ -136,13 +141,12 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(franchiseActivities.FetchFranchises)
 			w.RegisterActivity(franchiseActivities.UpsertFranchises)
 
-			seasonsActivities := &workers.SeasonsActivities{
+			seasonsActivities := &worknhl.SeasonsActivities{
 				Storage:             storage,
 				GobCache:            gobCache,
 				NHLClient:           nhlClient,
 				SeasonsUpserter:     queries,
 				SeasonTeamsUpserter: queries,
-				ImportQueries:       queries,
 				RosterQueries:       queries,
 				ClubStatsQueries:    queries,
 				RedisClient:         redisClient,
@@ -150,24 +154,37 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(seasonsActivities.FetchSeasonsManifest)
 			w.RegisterActivity(seasonsActivities.UpsertSeasons)
 			w.RegisterActivity(seasonsActivities.InitializeSeasonTeamsActivity)
-			w.RegisterActivity(seasonsActivities.ImportDay)
-			w.RegisterActivity(seasonsActivities.ImportBoxscoresForDate)
-			w.RegisterActivity(seasonsActivities.ImportGameStoryForDate)
-			w.RegisterActivity(seasonsActivities.ImportPlayByPlayForDate)
-			w.RegisterActivity(seasonsActivities.ImportShiftChartForDate)
-			w.RegisterActivity(seasonsActivities.ImportPlayerGameLogsBatch)
-			w.RegisterActivity(seasonsActivities.ImportYahooLeague)
-			w.RegisterActivity(seasonsActivities.ImportYahooTeams)
-			w.RegisterActivity(seasonsActivities.ImportYahooDataForDate)
-			w.RegisterActivity(seasonsActivities.ImportYahooLeagueData)
 			w.RegisterActivity(seasonsActivities.FetchSeasonRosters)
 			w.RegisterActivity(seasonsActivities.FetchClubStats)
 			w.RegisterActivity(seasonsActivities.ImportSeasonRosters)
 			w.RegisterActivity(seasonsActivities.ImportClubStats)
-			w.RegisterActivity(seasonsActivities.ImportStandingsForDate)
-			w.RegisterActivity(seasonsActivities.CollectSeasonPlayerIDs)
 
-			dailyScheduleActivities := &workers.DailyScheduleActivities{
+			importYahooActivities := &yahoo.ImportActivities{
+				Storage:  storage,
+				GobCache: gobCache,
+				Queries:  queries,
+			}
+			w.RegisterActivity(importYahooActivities.ImportYahooLeague)
+			w.RegisterActivity(importYahooActivities.ImportYahooTeams)
+			w.RegisterActivity(importYahooActivities.ImportYahooDataForDate)
+			w.RegisterActivity(importYahooActivities.ImportYahooLeagueData)
+
+			importActivities := &worknhl.ImportActivities{
+				Storage:  storage,
+				GobCache: gobCache,
+				Queries:  queries,
+				Yahoo:    importYahooActivities,
+			}
+			w.RegisterActivity(importActivities.ImportDay)
+			w.RegisterActivity(importActivities.ImportBoxscoresForDate)
+			w.RegisterActivity(importActivities.ImportGameStoryForDate)
+			w.RegisterActivity(importActivities.ImportPlayByPlayForDate)
+			w.RegisterActivity(importActivities.ImportShiftChartForDate)
+			w.RegisterActivity(importActivities.ImportStandingsForDate)
+			w.RegisterActivity(importActivities.ImportPlayerGameLogsBatch)
+			w.RegisterActivity(importActivities.CollectSeasonPlayerIDs)
+
+			dailyScheduleActivities := &worknhl.DailyScheduleActivities{
 				Storage:     storage,
 				NHLClient:   nhlClient,
 				GobCache:    gobCache,
@@ -178,17 +195,17 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(dailyScheduleActivities.FetchDay)
 
 			// Boxscore extraction activities
-			boxscoreActivities := &workers.BoxscoreActivities{
+			boxscoreActivities := &worknhl.BoxscoreActivities{
 				Storage:     storage,
 				GobCache:    gobCache,
 				RedisClient: redisClient,
 			}
 			w.RegisterActivity(boxscoreActivities.ExtractBoxscoreDataForSeason)
 			w.RegisterActivity(boxscoreActivities.ExtractAndSaveBoxscorePlayers)
-			w.RegisterActivity(workers.ConsolidateBoxscorePlayersActivity)
+			w.RegisterActivity(workplayer.ConsolidateBoxscorePlayersActivity)
 
 			// Player activities (landings, game logs, boxscore player loading, process players)
-			playerActivities := &workers.PlayerActivities{
+			playerActivities := &workplayer.Activities{
 				Storage:       storage,
 				NHLClient:     nhlClient,
 				RedisClient:   redisClient,

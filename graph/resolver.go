@@ -13,7 +13,9 @@ import (
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/maurice"
 	"github.com/sperano/puckdb/temporal"
-	"github.com/sperano/puckdb/worker"
+	"github.com/sperano/puckdb/worker/admin"
+	"github.com/sperano/puckdb/worker/shared"
+	"github.com/sperano/puckdb/worker/workflow"
 	"github.com/spf13/viper"
 	temporalEnums "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
@@ -39,95 +41,95 @@ var temporalStatusToGQL = map[temporalEnums.WorkflowExecutionStatus]model.Tempor
 }
 
 func (r *Resolver) clearDatabase(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDResetDatabase, worker.ResetDatabaseWorkflow, nil)
+	return r.executeWorkflow(ctx, admin.WorkflowIDResetDatabase, admin.ResetDatabaseWorkflow, nil)
 }
 
 func (r *Resolver) dropDatabase(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDDropDatabase, worker.DropDatabaseWorkflow, nil)
+	return r.executeWorkflow(ctx, admin.WorkflowIDDropDatabase, admin.DropDatabaseWorkflow, nil)
 }
 
 func (r *Resolver) createDatabase(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDMigrateDatabase, worker.MigrateDatabaseWorkflow, nil)
+	return r.executeWorkflow(ctx, admin.WorkflowIDMigrateDatabase, admin.MigrateDatabaseWorkflow, nil)
 }
 
 func (r *Resolver) flushRedisDB(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDFlushRedis, worker.FlushRedisWorkflow, nil)
+	return r.executeWorkflow(ctx, admin.WorkflowIDFlushRedis, admin.FlushRedisWorkflow, nil)
 }
 
 func (r *Resolver) fetchSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDFetchSeasons, worker.FetchSeasonsWorkflow, input)
+	return r.executeWorkflow(ctx, shared.WorkflowIDFetchSeasons, workflow.FetchSeasonsWorkflow, input)
 }
 
 func (r *Resolver) cancelFetchSeasons(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, worker.WorkflowIDFetchSeasons)
+	return r.cancelWorkflow(ctx, shared.WorkflowIDFetchSeasons)
 }
 
 func (r *Resolver) fetchSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDFetchSeasons)
+	return r.getWorkflowResult(ctx, shared.WorkflowIDFetchSeasons)
 }
 
 func (r *Resolver) fetchSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, worker.WorkflowIDFetchSeasons)
+	return r.queryProgressReport(ctx, shared.WorkflowIDFetchSeasons)
 }
 
 func (r *Resolver) fetchPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDFetchPlayerLogs, worker.FetchPlayerLogsWorkflow, input)
+	return r.executeWorkflow(ctx, shared.WorkflowIDFetchPlayerLogs, workflow.FetchPlayerLogsWorkflow, input)
 }
 
 func (r *Resolver) cancelFetchPlayerLogs(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, worker.WorkflowIDFetchPlayerLogs)
+	return r.cancelWorkflow(ctx, shared.WorkflowIDFetchPlayerLogs)
 }
 
 func (r *Resolver) fetchPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDFetchPlayerLogs)
+	return r.getWorkflowResult(ctx, shared.WorkflowIDFetchPlayerLogs)
 }
 
 func (r *Resolver) fetchPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, worker.WorkflowIDFetchPlayerLogs)
+	return r.queryProgressReport(ctx, shared.WorkflowIDFetchPlayerLogs)
 }
 
 func (r *Resolver) fetchYahooPlayers(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDFetchYahooPlayers, worker.FetchYahooPlayersWorkflow, (*worker.FetchYahooPlayersInput)(nil))
+	return r.executeWorkflow(ctx, workflow.WorkflowIDFetchYahooPlayers, workflow.FetchYahooPlayersWorkflow, (*workflow.FetchYahooPlayersInput)(nil))
 }
 
 func (r *Resolver) cancelFetchYahooPlayers(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, worker.WorkflowIDFetchYahooPlayers)
+	return r.cancelWorkflow(ctx, workflow.WorkflowIDFetchYahooPlayers)
 }
 
 func (r *Resolver) fetchYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDFetchYahooPlayers)
+	return r.getWorkflowResult(ctx, workflow.WorkflowIDFetchYahooPlayers)
 }
 
 func (r *Resolver) fetchYahooPlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, worker.WorkflowIDFetchYahooPlayers)
+	return r.queryProgressReport(ctx, workflow.WorkflowIDFetchYahooPlayers)
 }
 
 func (r *Resolver) processPlayers(ctx context.Context, input *model.ProcessPlayersInput) (bool, error) {
 	// Convert GraphQL input to workflow input
-	workflowInput := &worker.ProcessPlayersInput{}
+	workflowInput := &workflow.ProcessPlayersInput{}
 	if input != nil {
 		workflowInput.BatchSize = input.BatchSize
 		workflowInput.Concurrency = input.Concurrency
 	}
-	return r.executeWorkflow(ctx, worker.WorkflowIDProcessPlayers, worker.ProcessPlayersWorkflow, workflowInput)
+	return r.executeWorkflow(ctx, workflow.WorkflowIDProcessPlayers, workflow.ProcessPlayersWorkflow, workflowInput)
 }
 
 func (r *Resolver) cancelProcessPlayers(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, worker.WorkflowIDProcessPlayers)
+	return r.cancelWorkflow(ctx, workflow.WorkflowIDProcessPlayers)
 }
 
 func (r *Resolver) processPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDProcessPlayers)
+	return r.getWorkflowResult(ctx, workflow.WorkflowIDProcessPlayers)
 }
 
 func (r *Resolver) processPlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, worker.WorkflowIDProcessPlayers)
+	return r.queryProgressReport(ctx, workflow.WorkflowIDProcessPlayers)
 }
 
 func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.ProcessPlayersResultData, error) {
-	run := r.TemporalClient.GetWorkflow(ctx, worker.WorkflowIDProcessPlayers, "")
+	run := r.TemporalClient.GetWorkflow(ctx, workflow.WorkflowIDProcessPlayers, "")
 
-	var result worker.ProcessPlayersResult
+	var result workflow.ProcessPlayersResult
 	if err := run.Get(ctx, &result); err != nil {
 		return nil, err
 	}
@@ -161,89 +163,89 @@ func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.Process
 }
 
 func (r *Resolver) importSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDImportSeasons, worker.ImportSeasonsWorkflow, input)
+	return r.executeWorkflow(ctx, shared.WorkflowIDImportSeasons, workflow.ImportSeasonsWorkflow, input)
 }
 
 func (r *Resolver) cancelImportSeasons(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, worker.WorkflowIDImportSeasons)
+	return r.cancelWorkflow(ctx, shared.WorkflowIDImportSeasons)
 }
 
 func (r *Resolver) importSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDImportSeasons)
+	return r.getWorkflowResult(ctx, shared.WorkflowIDImportSeasons)
 }
 
 func (r *Resolver) importSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, worker.WorkflowIDImportSeasons)
+	return r.queryProgressReport(ctx, shared.WorkflowIDImportSeasons)
 }
 
 func (r *Resolver) importPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDImportPlayerLogs, worker.ImportPlayerLogsWorkflow, input)
+	return r.executeWorkflow(ctx, shared.WorkflowIDImportPlayerLogs, workflow.ImportPlayerLogsWorkflow, input)
 }
 
 func (r *Resolver) cancelImportPlayerLogs(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, worker.WorkflowIDImportPlayerLogs)
+	return r.cancelWorkflow(ctx, shared.WorkflowIDImportPlayerLogs)
 }
 
 func (r *Resolver) importPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDImportPlayerLogs)
+	return r.getWorkflowResult(ctx, shared.WorkflowIDImportPlayerLogs)
 }
 
 func (r *Resolver) importPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, worker.WorkflowIDImportPlayerLogs)
+	return r.queryProgressReport(ctx, shared.WorkflowIDImportPlayerLogs)
 }
 
 func (r *Resolver) extractBoxscorePlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDExtractBoxscorePlayers, worker.ExtractBoxscorePlayersWorkflow, input)
+	return r.executeWorkflow(ctx, workflow.WorkflowIDExtractBoxscorePlayers, workflow.ExtractBoxscorePlayersWorkflow, input)
 }
 
 func (r *Resolver) cancelExtractBoxscorePlayers(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, worker.WorkflowIDExtractBoxscorePlayers)
+	return r.cancelWorkflow(ctx, workflow.WorkflowIDExtractBoxscorePlayers)
 }
 
 func (r *Resolver) extractBoxscorePlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDExtractBoxscorePlayers)
+	return r.getWorkflowResult(ctx, workflow.WorkflowIDExtractBoxscorePlayers)
 }
 
 func (r *Resolver) extractBoxscorePlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, worker.WorkflowIDExtractBoxscorePlayers)
+	return r.queryProgressReport(ctx, workflow.WorkflowIDExtractBoxscorePlayers)
 }
 
 func (r *Resolver) fetchPlayerLandings(ctx context.Context, input *model.FetchPlayerLandingsInput) (bool, error) {
 	// Convert GraphQL input to workflow input
-	workflowInput := &worker.FetchPlayerLandingsInput{}
+	workflowInput := &workflow.FetchPlayerLandingsInput{}
 	if input != nil {
 		workflowInput.BatchSize = input.BatchSize
 		workflowInput.Concurrency = input.Concurrency
 	}
-	return r.executeWorkflow(ctx, worker.WorkflowIDFetchPlayerLandings, worker.FetchPlayerLandingsWorkflow, workflowInput)
+	return r.executeWorkflow(ctx, workflow.WorkflowIDFetchPlayerLandings, workflow.FetchPlayerLandingsWorkflow, workflowInput)
 }
 
 func (r *Resolver) cancelFetchPlayerLandings(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, worker.WorkflowIDFetchPlayerLandings)
+	return r.cancelWorkflow(ctx, workflow.WorkflowIDFetchPlayerLandings)
 }
 
 func (r *Resolver) fetchPlayerLandingsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDFetchPlayerLandings)
+	return r.getWorkflowResult(ctx, workflow.WorkflowIDFetchPlayerLandings)
 }
 
 func (r *Resolver) fetchPlayerLandingsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, worker.WorkflowIDFetchPlayerLandings)
+	return r.queryProgressReport(ctx, workflow.WorkflowIDFetchPlayerLandings)
 }
 
 func (r *Resolver) initialize(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, worker.WorkflowIDInitialize, worker.InitializeWorkflow, nil)
+	return r.executeWorkflow(ctx, workflow.WorkflowIDInitialize, workflow.InitializeWorkflow, nil)
 }
 
 func (r *Resolver) cancelInitialize(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, worker.WorkflowIDInitialize)
+	return r.cancelWorkflow(ctx, workflow.WorkflowIDInitialize)
 }
 
 func (r *Resolver) initializeResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, worker.WorkflowIDInitialize)
+	return r.getWorkflowResult(ctx, workflow.WorkflowIDInitialize)
 }
 
 func (r *Resolver) initializeProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, worker.WorkflowIDInitialize)
+	return r.queryProgressReport(ctx, workflow.WorkflowIDInitialize)
 }
 
 func (r *Resolver) cancelWorkflow(ctx context.Context, workflowID string) (bool, error) {
@@ -287,7 +289,7 @@ func (r *Resolver) queryProgressReport(ctx context.Context, workflowID string) (
 		return nil, nil
 	}
 
-	var progress worker.ProgressReport
+	var progress shared.ProgressReport
 	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&progress); err != nil {
 		return nil, err
 	}
@@ -368,7 +370,7 @@ func (r *Resolver) mergeChildWorkflowProgress(ctx context.Context, report *model
 	}
 
 	for workflowID, data := range reportMap {
-		var childReport worker.ProgressReport
+		var childReport shared.ProgressReport
 		if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&childReport); err != nil {
 			continue
 		}
