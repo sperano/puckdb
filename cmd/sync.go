@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -345,13 +346,15 @@ func monitorWorkflows(ctx context.Context, sp *spinner, fetchers []statusFetcher
 			}
 		}
 
-		// Combine all messages
-		combined := ""
-		for i, msg := range messages {
-			if i > 0 {
-				combined += "\n"
+		// Combine all messages, appending Yahoo warning once at the end
+		combined := strings.Join(messages, "\n")
+		for _, st := range statuses {
+			if st != nil {
+				if w := yahooWarning(st); w != "" {
+					combined += "\n" + w
+					break
+				}
 			}
-			combined += msg
 		}
 		sp.SetMessage(combined)
 

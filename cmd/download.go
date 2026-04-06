@@ -49,8 +49,12 @@ func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher) 
 			})
 		} else {
 			consecutiveFailures = 0 // Reset on success
+			msg := formatStatusMessage(status)
+			if w := yahooWarning(status); w != "" {
+				msg += "\n" + w
+			}
 			sp.mu.Lock()
-			sp.message = formatStatusMessage(status)
+			sp.message = msg
 			sp.mu.Unlock()
 
 			switch status.Result.Status {
@@ -102,16 +106,19 @@ func pollDelay(consecutiveFailures int) time.Duration {
 }
 
 func formatStatusMessage(status *WorkflowStatus) string {
-	var msg string
 	if status.Progress != nil {
-		msg = formatProgressReport(status.Progress)
-	} else {
-		msg = fmt.Sprintf("Workflow status: %s", status.Result.Status)
+		return formatProgressReport(status.Progress)
 	}
+	return fmt.Sprintf("Workflow status: %s", status.Result.Status)
+}
+
+// yahooWarning returns the Yahoo token warning line if the token is missing,
+// or empty string if the token is present.
+func yahooWarning(status *WorkflowStatus) string {
 	if status.YahooTokenMissing {
-		msg += "\n" + formatYahooTokenWarning(status.YahooLoginURL)
+		return formatYahooTokenWarning(status.YahooLoginURL)
 	}
-	return msg
+	return ""
 }
 
 // formatYahooTokenWarning returns a red ANSI-colored warning line for missing Yahoo token.
