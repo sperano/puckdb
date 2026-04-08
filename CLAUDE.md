@@ -14,7 +14,7 @@ cd /Users/eric/code/workspaces/puckdb/puckdb && go build -o /tmp/puckdb .
 ```bash
 /tmp/puckdb api                      # GraphQL server (port 8787)
 /tmp/puckdb worker                   # Temporal worker (port 8788)
-/tmp/puckdb info                     # Show configuration
+/tmp/puckdb metrics                  # Prometheus exporter for cache/Redis/DB
 ```
 
 ### Test
@@ -42,13 +42,13 @@ go run github.com/99designs/gqlgen generate   # GraphQL (from puckdb root dir)
 |---------|-------------|
 | `api` | HTTP server: GraphQL at `/graphql`, playground at `/graphql/`, OAuth at `/yahoo/*` |
 | `worker` | Temporal worker for download/import workflows, metrics at `/metrics` |
-| `info` | Display current configuration |
-| `cache-check` | Verify cache file completeness |
+| `sync` | Sync data into the database |
+| `metrics` | Expose cache, Redis, and database metrics as Prometheus metrics |
 | `db init` | Create tables, seed NHL data |
 | `db drop` | Drop all tables |
+| `db migrate` | Run database migrations directly |
 | `db provision` | Create database/user on shared PostgreSQL |
-| `workflow download` | Trigger download workflows, monitor progress |
-| `workflow cancel` | Cancel running Temporal workflows |
+| `redis flush` | Flush a Redis database |
 | `yahoo signout` | Clear OAuth2 token from Redis |
 
 ## Package Structure
@@ -56,23 +56,39 @@ go run github.com/99designs/gqlgen generate   # GraphQL (from puckdb root dir)
 | Package | Purpose |
 |---------|---------|
 | `cmd/` | CLI commands (Cobra + Viper) |
-| `worker/` | Temporal workflows and activities |
+| `worker/` | Temporal workflows and activities, split into `workflow/` (top-level workflows), `nhl/`, `yahoo/`, `player/`, `admin/`, `shared/` |
 | `graph/` | GraphQL resolvers and schema (gqlgen) |
 | `database/` | PostgreSQL connection (pgx), migrations |
 | `sqlcdb/` | sqlc-generated type-safe queries |
 | `cache/` | File-based caching, XML/JSON parsing |
-| `redis/` | OAuth2 tokens, player data cache |
+| `store/` | Storage backends (filesystem, in-memory, instrumented) for raw cached files |
+| `resource/` | Typed resource definitions (NHL/Yahoo paths, URLs, parse/format) |
+| `core/` | Shared primitives: file types, data origins, time helpers, resource interfaces |
 | `config/` | Flags, defaults, seasons YAML parsing |
 | `http/` | HTTP client, Yahoo API URL builders |
 | `metrics/` | Prometheus metrics |
 | `temporal/` | Temporal client configuration |
+| `matching/` | NHL ↔ Yahoo player matching |
+| `llm/` | LLM client (used by player enrichment / Maurice) |
+| `maurice/` | Prompt + service layer built on top of `llm/` |
+| `mcp/` | MCP client / tool integration |
+| `tls/` | TLS certificates for internal services |
 
 ### Active Workflows
-- `FetchSeasonsWorkflow` - NHL season data
-- `FetchYahooPlayersWorkflow` - Yahoo player pages
-- `FetchSeasonWorkflow` - Single season data (child workflow)
-- `ProcessPlayersWorkflow` - Player enrichment and matching
-- `InitializeWorkflow` - Database initialization
+
+Defined in `worker/workflow/`:
+- `FetchSeasonsWorkflow` / `FetchSeasonWorkflow` — NHL season data (parent + child)
+- `ImportSeasonsWorkflow` / `ImportSeasonWorkflow` — Parse cached files into Postgres
+- `FetchPlayerLogsWorkflow` / `FetchSeasonPlayerLogsWorkflow` — Per-player game logs
+- `ImportPlayerLogsWorkflow` / `ImportSeasonPlayerLogsWorkflow` — Import those logs
+- `FetchPlayerLandingsWorkflow` — NHL player landing pages
+- `ExtractBoxscorePlayersWorkflow` — Extract player rows from boxscores
+- `FetchYahooPlayersWorkflow` — Yahoo player pages
+- `ProcessPlayersWorkflow` — Player enrichment and matching
+- `InitializeWorkflow` — Database initialization
+
+Defined in `worker/admin/`:
+- `DropDatabaseWorkflow`, `MigrateDatabaseWorkflow`, `ResetDatabaseWorkflow`, `FlushRedisWorkflow`
 
 Task queue: `puckdb-tasks`
 
@@ -107,44 +123,87 @@ Season config: `seasons.yaml` (start/end dates, game keys, league IDs, team IDs)
 
 ## GraphQL API
 
-**Mutations:**
-- `fetchSeasons` / `cancelFetchSeasons` - NHL and Yahoo season data
-- `fetchYahooPlayers` / `cancelFetchYahooPlayers` - Yahoo player pages
-- `processPlayers` / `cancelProcessPlayers` - Player processing
-- `initialize` / `cancelInitialize` - Database initialization
-- `clearDatabase`, `dropDatabase`, `createDatabase`, `flushRedisDB`
+Schema lives in `graph/schema.graphqls`. Each long-running workflow follows the same pattern: a `start` mutation, a matching `cancel*` mutation, a `*Result` query, and a `*Progress` query.
 
-**Queries:**
-- `fetchSeasonsResult`, `fetchSeasonsProgress`
-- `fetchYahooPlayersResult`, `fetchYahooPlayersProgress`
-- `processPlayersResult`, `processPlayersProgress`, `processPlayersResultData`
-- `initializeResult`, `initializeProgress`, `initializeResultData`
+**Workflow mutations** (each has a paired `cancel<Name>`):
+- `initialize` — Database initialization
+- `fetchSeasons(input: SeasonsInput)` — Download NHL season data
+- `importSeasons(input: SeasonsInput)` — Parse cached NHL files into Postgres
+- `fetchPlayerLogs(input: SeasonsInput)` / `importPlayerLogs(input: SeasonsInput)`
+- `fetchPlayerLandings(input: FetchPlayerLandingsInput)`
+- `extractBoxscorePlayers(input: SeasonsInput)`
+- `fetchYahooPlayers`
+- `processPlayers(input: ProcessPlayersInput)` — Player enrichment + matching
+
+**Admin mutations:** `clearDatabase`, `dropDatabase`, `createDatabase`, `flushRedisDB`
+
+**Maurice (LLM chat) mutations:** `mauriceChat(conversationId, message)`, `mauriceDeleteConversation(id)`
+
+**Workflow queries:** for every workflow above, `<name>Result: WorkflowResult!` and `<name>Progress: ProgressReport`. `processPlayers` additionally exposes `processPlayersResultData: ProcessPlayersResultData`.
+
+**Other queries:** `buildNumber`, `yahooTokenStatus`, `mauriceConversations(limit)`, `mauriceConversation(id)`
 
 ## Metrics
 
-Worker exposes Prometheus metrics at `/metrics` (port 8788).
+The Prometheus registry is split in three (see `metrics/metrics.go`):
+- **Worker** registry — exposed by `worker` on `/metrics` (port 8788)
+- **API** registry — exposed by `api` middleware
+- **Collector** registry — exposed by the standalone `metrics` command, which scrapes cache/Redis/DB state
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `puckdb_fs_operation_duration_seconds` | Histogram | Filesystem operation duration |
-| `puckdb_fs_bytes` | Histogram | Read/write sizes |
-| `puckdb_http_request_duration_seconds` | Histogram | External API request duration |
-| `puckdb_http_response_bytes` | Histogram | Response body sizes |
-| `puckdb_download_total` | Counter | Downloads by result (hit/miss/error) |
-| `puckdb_activity_duration_seconds` | Histogram | Temporal activity duration |
+### Worker metrics
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `puckdb_fs_operation_duration_seconds` | Histogram | `operation`, `file_type` | Filesystem operation duration |
+| `puckdb_fs_bytes` | Histogram | `operation`, `file_type` | Read/write sizes |
+| `puckdb_http_request_duration_seconds` | Histogram | `api`, `method`, `status_code` | External API request duration |
+| `puckdb_http_response_bytes` | Histogram | `api` | Response body sizes |
+| `puckdb_download_total` | Counter | `file_type`, `result` | Downloads by result (hit/miss/error) |
+| `puckdb_activity_duration_seconds` | Histogram | `activity` | Temporal activity duration |
+
+### API metrics
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `puckdb_http_request_duration_seconds` | Histogram | `api`, `method`, `status_code` | API server request duration (separate registry from the worker's HTTP client metric of the same name) |
+
+### Collector metrics (cache / Redis / DB)
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `puckdb_cache_files_expected` | Gauge | `season`, `file_type` | Expected file count per season/type |
+| `puckdb_cache_files_found` | Gauge | `season`, `file_type` | Actual file count per season/type |
+| `puckdb_cache_completeness_percent` | Gauge | `season`, `file_type` | found/expected × 100 |
+| `puckdb_cache_stats_last_updated_timestamp` | Gauge | — | Unix ts of last cache scan |
+| `puckdb_cache_stats_compute_duration_seconds` | Gauge | — | Time taken by last cache scan |
+| `puckdb_cache_disk_size_bytes` | Gauge | — | Bytes used by cache directory |
+| `puckdb_data_path_files_total` | Gauge | `file_type` | Total files in data path by type |
+| `puckdb_data_path_bytes_total` | Gauge | `file_type` | Total bytes in data path by type |
+| `puckdb_redis_oauth_token_valid` | Gauge | `user` | 1 = valid token, 0 = missing/expired |
+| `puckdb_redis_last_updated_timestamp` | Gauge | — | Unix ts of last Redis scan |
+| `puckdb_db_table_row_count` | Gauge | `table` | Row count per table |
+| `puckdb_db_size_bytes` | Gauge | — | Total database size |
+| `puckdb_db_last_updated_timestamp` | Gauge | — | Unix ts of last DB scan |
+| `puckdb_build_info` | Gauge | `version` | Build version of the running binary |
 
 ## Database Schema
 
 PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two main data domains that link via player matching.
 
-### Data Volume
+### Data Volume (puckdb_prod, snapshot 2026-04-07)
 | Table | Rows | Growth |
 |-------|------|--------|
-| game_skater_stats | ~2.2M | Per game per player |
-| yahoo_team_rosters | ~250K | Per day per roster slot |
-| game_goalie_stats | ~244K | Per game per goalie |
-| games | ~65K | ~1,300/season |
-| players | ~9.4K | Slow (new players only) |
+| `shifts` | ~14.5M | Per shift per game |
+| `play_events` | ~7.8M | Per play (PBP) per game |
+| `game_skater_stats` | ~2.26M | Per game per player |
+| `yahoo_team_rosters` | ~1.0M | Per day per roster slot |
+| `yahoo_team_summary_stats` | ~624K | Per stat per team-day |
+| `goal_highlights` | ~400K | Per goal |
+| `player_season_totals` | ~319K | Per player per season |
+| `standings_snapshots` | ~305K | Per team per day |
+| `game_goalie_stats` | ~245K | Per game per goalie |
+| `club_skater_stats` | ~76K | Per team per season |
+| `games` | ~65K | ~1,300/season |
+| `season_rosters` | ~59K | Per season roster slot |
+| `yahoo_team_summaries` | ~54K | Per league per team-week |
+| `players` | ~9.6K | Slow (new players only) |
 
 ### NHL Data
 
@@ -154,9 +213,24 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `seasons` | NHL seasons | `id` (e.g., 20242025), `standings_start`, `standings_end` |
 | `franchises` | NHL franchises (historical) | `id`, `full_name`, `team_common_name` |
 | `season_teams` | Teams per season (handles relocations) | `season_id`, `team_id`, `franchise_id`, `abbrev`, `division_name` |
+| `season_rosters` | Per-season roster snapshots (PK `(season, team_id, player_id)`) | `season`, `team_id`, `player_id`, `position`, `shoots_catches`, `sweater_number`, `height_inches`, `weight_pounds`, `birth_date`, `birth_country` |
 | `games` | Individual games | `id`, `season`, `game_type`, `game_date`, `home_team_id`, `away_team_id`, `game_state` |
+| `game_broadcasts` | Broadcast feeds per game (PK `(game_id, broadcast_id)`) | `game_id`, `broadcast_id`, `market`, `country_code`, `network`, `sequence_number` |
+| `game_coaches` | Coaches per game (PK `(game_id, team_id)`) | `game_id`, `team_id`, `head_coach` |
+| `game_officials` | Referees / linesmen (PK `(game_id, role, sequence)`, role ∈ `{referee, linesman}`) | `game_id`, `role`, `sequence`, `name` |
+| `game_scratches` | Scratched players (PK `(game_id, player_id)`) | `game_id`, `team_id`, `player_id` |
+| `game_three_stars` | 3 Stars of the game (PK `(game_id, star)`, star 1–3) | `game_id`, `star`, `player_id` |
 | `game_skater_stats` | Per-game skater stats | `game_id`, `player_id`, `goals`, `assists`, `points`, `toi_seconds`, `shots_on_goal` |
 | `game_goalie_stats` | Per-game goalie stats | `game_id`, `player_id`, `saves`, `goals_against`, `save_pctg`, `decision` |
+| `play_events` | Play-by-play events (~7.8M rows). PK `(game_id, event_id)`. ~43 columns (one per event variant) | `game_id`, `event_id`, `period`, `type_desc_key`, `x_coord`, `y_coord`, `shooting_player_id`, `goalie_in_net_id`, `assist1_player_id`, `assist2_player_id`, `committed_by_player_id`, `hitting_player_id`, ... |
+| `shifts` | Per-shift TOI data (largest table — ~14.5M rows) | `id` (PK), `game_id`, `player_id`, `team_id`, `period`, `start_time`, `end_time`, `duration`, `shift_number`, `event_number`, `event_description` |
+| `shootout_attempts` | Shootout attempts (PK `(game_id, sequence)`) | `game_id`, `sequence`, `player_id`, `team_id`, `shot_type`, `result`, `game_winner` |
+| `goal_highlights` | Highlight clips per goal (PK `(game_id, event_id)`) | `game_id`, `event_id`, `player_id`, `period`, `time_in_period`, `goals_to_date`, `highlight_clip_id`, `highlight_clip_url`, `discrete_clip_id` |
+| `standings_snapshots` | Daily standings per team (PK `(season, date, team_abbrev)` — note `team_abbrev`, not `team_id`) | `season`, `date`, `team_abbrev`, `wins`, `losses`, `ot_losses`, `points`, `division_abbrev`, `division_name`, `conference_abbrev` |
+| `club_skater_stats` | Aggregated club skater stats per season (PK `(season, game_type, team_id, player_id)`) | `season`, `game_type`, `team_id`, `player_id`, `games_played`, `goals`, `assists`, `points`, `shots`, `shooting_pctg`, `avg_toi_per_game`, `faceoff_win_pctg` |
+| `club_goalie_stats` | Aggregated club goalie stats per season (PK `(season, game_type, team_id, player_id)`) | `season`, `game_type`, `team_id`, `player_id`, `games_played`, `wins`, `losses`, `overtime_losses`, `goals_against_average`, `save_percentage`, `shutouts`, `toi_seconds` |
+| `player_season_totals` | Per-season aggregates per player, **including minor leagues** (PK `(player_id, season, game_type, league_abbrev, sequence)`) | `player_id`, `season`, `game_type`, `league_abbrev`, `sequence`, `team_name`, `games_played`, `goals`, `assists`, `points`, `plus_minus`, `pim` |
+| `player_awards` | NHL awards / trophies (PK `(player_id, trophy_name, season)`) | `player_id`, `trophy_name`, `season` |
 
 **Game types:** 1=preseason, 2=regular, 3=playoffs
 **Game states:** FUT=future, LIVE=in progress, OFF/FINAL=completed
@@ -169,9 +243,24 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `yahoo_teams` | Fantasy teams in leagues | `league_id`, `id`, `team_key`, `name`, `is_owned_by_current_login` |
 | `yahoo_team_rosters` | Daily roster snapshots | `league_id`, `team_id`, `date`, `player_id`, `selected_position` |
 | `yahoo_team_managers` | Team managers | `league_id`, `team_id`, `manager_id`, `nickname` |
-| `yahoo_team_summaries` | Team standings/records | `league_id`, `team_id`, `rank`, `wins`, `losses` |
+| `yahoo_team_summaries` | Team standings/records (per snapshot) | `league_id`, `team_id`, `rank`, `wins`, `losses` |
+| `yahoo_team_summary_stats` | Per-stat values for team summaries (PK `(league_id, team_id, date, stat_id)`, FK → `yahoo_team_summaries`) | `league_id`, `team_id`, `date`, `stat_id`, `value` |
+| `yahoo_matchups` | Head-to-head matchups (PK `(league_id, week, team1_id, team2_id)`) | `league_id`, `week`, `team1_id`, `team2_id`, `team1_points`, `team2_points`, `status`, `is_playoffs`, `is_consolation` |
+| `yahoo_draft_results` | Draft picks (PK `(league_id, round, pick)`) | `league_id`, `round`, `pick`, `team_id`, `player_id`, `cost` |
+| `yahoo_transactions` | Adds, drops, trades (PK `(league_id, transaction_key)`). `players` is a JSONB blob | `league_id`, `transaction_key`, `type`, `timestamp`, `status`, `players` (jsonb) |
 | `yahoo_league_stat_categories` | Scoring categories | `league_id`, `stat_id`, `name`, `is_only_display_stat` |
 | `yahoo_league_roster_positions` | Roster position config | `league_id`, `position`, `count` |
+
+### Maurice (LLM chat) tables
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `maurice_conversations` | One row per chat session (UUID PK, default `gen_random_uuid()`) | `id` (uuid), `title`, `created_at`, `updated_at` |
+| `maurice_messages` | Individual messages within a conversation. `role` ∈ `{system, user, assistant, tool}`. `tool_calls` stored as JSONB. ON DELETE CASCADE from conversations | `id` (uuid), `conversation_id`, `role`, `content`, `tool_calls` (jsonb), `tool_call_id`, `created_at` |
+
+### Views
+
+Reporting views (definitions in migrations): `skater_season_stats`, `skater_recent_stats`, `goalie_season_stats`, `goalie_recent_stats`, `yahoo_roster_players`, `yahoo_roto_standings`, `yahoo_season_team_totals`.
 
 ### Key Relationships
 
