@@ -23,11 +23,11 @@ func (q *Queries) CountSeasonTeams(ctx context.Context) (int64, error) {
 }
 
 const countSeasonTeamsForSeason = `-- name: CountSeasonTeamsForSeason :one
-SELECT COUNT(*) FROM season_teams WHERE season_id = $1
+SELECT COUNT(*) FROM season_teams WHERE season = $1
 `
 
-func (q *Queries) CountSeasonTeamsForSeason(ctx context.Context, seasonID int32) (int64, error) {
-	row := q.db.QueryRow(ctx, countSeasonTeamsForSeason, seasonID)
+func (q *Queries) CountSeasonTeamsForSeason(ctx context.Context, season int32) (int64, error) {
+	row := q.db.QueryRow(ctx, countSeasonTeamsForSeason, season)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -73,7 +73,7 @@ func (q *Queries) GetAllSeasons(ctx context.Context) ([]Season, error) {
 const getDistinctDivisions = `-- name: GetDistinctDivisions :many
 SELECT DISTINCT division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
-WHERE season_id = $1
+WHERE season = $1
 ORDER BY conference_name, division_name
 `
 
@@ -84,8 +84,8 @@ type GetDistinctDivisionsRow struct {
 	ConferenceAbbrev pgtype.Text `json:"conference_abbrev"`
 }
 
-func (q *Queries) GetDistinctDivisions(ctx context.Context, seasonID int32) ([]GetDistinctDivisionsRow, error) {
-	rows, err := q.db.Query(ctx, getDistinctDivisions, seasonID)
+func (q *Queries) GetDistinctDivisions(ctx context.Context, season int32) ([]GetDistinctDivisionsRow, error) {
+	rows, err := q.db.Query(ctx, getDistinctDivisions, season)
 	if err != nil {
 		return nil, err
 	}
@@ -124,22 +124,22 @@ func (q *Queries) GetSeason(ctx context.Context, id int32) (Season, error) {
 
 const getSeasonTeam = `-- name: GetSeasonTeam :one
 SELECT
-    season_id, team_id, franchise_id, full_name, abbrev, logo_url,
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
-WHERE season_id = $1 AND team_id = $2
+WHERE season = $1 AND team_id = $2
 `
 
 type GetSeasonTeamParams struct {
-	SeasonID int32 `json:"season_id"`
-	TeamID   int64 `json:"team_id"`
+	Season int32 `json:"season"`
+	TeamID int64 `json:"team_id"`
 }
 
 func (q *Queries) GetSeasonTeam(ctx context.Context, arg GetSeasonTeamParams) (SeasonTeam, error) {
-	row := q.db.QueryRow(ctx, getSeasonTeam, arg.SeasonID, arg.TeamID)
+	row := q.db.QueryRow(ctx, getSeasonTeam, arg.Season, arg.TeamID)
 	var i SeasonTeam
 	err := row.Scan(
-		&i.SeasonID,
+		&i.Season,
 		&i.TeamID,
 		&i.FranchiseID,
 		&i.FullName,
@@ -155,15 +155,15 @@ func (q *Queries) GetSeasonTeam(ctx context.Context, arg GetSeasonTeamParams) (S
 
 const getSeasonTeams = `-- name: GetSeasonTeams :many
 SELECT
-    season_id, team_id, franchise_id, full_name, abbrev, logo_url,
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
-WHERE season_id = $1
+WHERE season = $1
 ORDER BY division_name, full_name
 `
 
-func (q *Queries) GetSeasonTeams(ctx context.Context, seasonID int32) ([]SeasonTeam, error) {
-	rows, err := q.db.Query(ctx, getSeasonTeams, seasonID)
+func (q *Queries) GetSeasonTeams(ctx context.Context, season int32) ([]SeasonTeam, error) {
+	rows, err := q.db.Query(ctx, getSeasonTeams, season)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func (q *Queries) GetSeasonTeams(ctx context.Context, seasonID int32) ([]SeasonT
 	for rows.Next() {
 		var i SeasonTeam
 		if err := rows.Scan(
-			&i.SeasonID,
+			&i.Season,
 			&i.TeamID,
 			&i.FranchiseID,
 			&i.FullName,
@@ -195,20 +195,20 @@ func (q *Queries) GetSeasonTeams(ctx context.Context, seasonID int32) ([]SeasonT
 
 const getSeasonTeamsByDivision = `-- name: GetSeasonTeamsByDivision :many
 SELECT
-    season_id, team_id, franchise_id, full_name, abbrev, logo_url,
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
-WHERE season_id = $1 AND division_name = $2
+WHERE season = $1 AND division_name = $2
 ORDER BY full_name
 `
 
 type GetSeasonTeamsByDivisionParams struct {
-	SeasonID     int32  `json:"season_id"`
+	Season       int32  `json:"season"`
 	DivisionName string `json:"division_name"`
 }
 
 func (q *Queries) GetSeasonTeamsByDivision(ctx context.Context, arg GetSeasonTeamsByDivisionParams) ([]SeasonTeam, error) {
-	rows, err := q.db.Query(ctx, getSeasonTeamsByDivision, arg.SeasonID, arg.DivisionName)
+	rows, err := q.db.Query(ctx, getSeasonTeamsByDivision, arg.Season, arg.DivisionName)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +217,7 @@ func (q *Queries) GetSeasonTeamsByDivision(ctx context.Context, arg GetSeasonTea
 	for rows.Next() {
 		var i SeasonTeam
 		if err := rows.Scan(
-			&i.SeasonID,
+			&i.Season,
 			&i.TeamID,
 			&i.FranchiseID,
 			&i.FullName,
@@ -240,11 +240,11 @@ func (q *Queries) GetSeasonTeamsByDivision(ctx context.Context, arg GetSeasonTea
 
 const getTeamHistory = `-- name: GetTeamHistory :many
 SELECT
-    season_id, team_id, franchise_id, full_name, abbrev, logo_url,
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
 WHERE franchise_id = $1
-ORDER BY season_id DESC
+ORDER BY season DESC
 `
 
 func (q *Queries) GetTeamHistory(ctx context.Context, franchiseID pgtype.Int8) ([]SeasonTeam, error) {
@@ -257,7 +257,7 @@ func (q *Queries) GetTeamHistory(ctx context.Context, franchiseID pgtype.Int8) (
 	for rows.Next() {
 		var i SeasonTeam
 		if err := rows.Scan(
-			&i.SeasonID,
+			&i.Season,
 			&i.TeamID,
 			&i.FranchiseID,
 			&i.FullName,
@@ -302,11 +302,11 @@ func (q *Queries) UpsertSeason(ctx context.Context, arg UpsertSeasonParams) erro
 
 const upsertSeasonTeam = `-- name: UpsertSeasonTeam :exec
 INSERT INTO season_teams (
-    season_id, team_id, franchise_id, full_name, abbrev, logo_url,
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-ON CONFLICT (season_id, team_id) DO UPDATE SET
+ON CONFLICT (season, team_id) DO UPDATE SET
     franchise_id = EXCLUDED.franchise_id,
     full_name = EXCLUDED.full_name,
     abbrev = EXCLUDED.abbrev,
@@ -327,7 +327,7 @@ WHERE (season_teams.franchise_id, season_teams.full_name,
 `
 
 type UpsertSeasonTeamParams struct {
-	SeasonID         int32       `json:"season_id"`
+	Season           int32       `json:"season"`
 	TeamID           int64       `json:"team_id"`
 	FranchiseID      pgtype.Int8 `json:"franchise_id"`
 	FullName         string      `json:"full_name"`
@@ -341,7 +341,7 @@ type UpsertSeasonTeamParams struct {
 
 func (q *Queries) UpsertSeasonTeam(ctx context.Context, arg UpsertSeasonTeamParams) error {
 	_, err := q.db.Exec(ctx, upsertSeasonTeam,
-		arg.SeasonID,
+		arg.Season,
 		arg.TeamID,
 		arg.FranchiseID,
 		arg.FullName,

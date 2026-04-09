@@ -53,7 +53,7 @@ WHERE (shootout_attempts.player_id, shootout_attempts.team_id,
 -- name: GetTeamIDByAbbrev :one
 -- Look up team_id from abbreviation for a given season
 SELECT team_id FROM season_teams
-WHERE abbrev = $1 AND season_id = $2;
+WHERE abbrev = $1 AND season = $2;
 
 -- name: GetGameThreeStars :many
 SELECT ts.*, p.first_name, p.last_name, p.position

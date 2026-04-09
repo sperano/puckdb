@@ -154,8 +154,8 @@ func (a *ImportActivities) processGameStory(
 	if story.Summary.Shootout != nil {
 		for _, attempt := range *story.Summary.Shootout {
 			teamID, err := a.Queries.GetTeamIDByAbbrev(ctx, sqlcdb.GetTeamIDByAbbrevParams{
-				Abbrev:   attempt.TeamAbbrev.Default,
-				SeasonID: int32(season),
+				Abbrev: attempt.TeamAbbrev.Default,
+				Season: int32(season),
 			})
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("game %d: shootout %d: team lookup %s: %v",

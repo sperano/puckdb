@@ -131,6 +131,14 @@ func (m *MockQueries) UpsertStandingsSnapshotBatch(ctx context.Context, arg []sq
 	return sqlcdb.NewUpsertStandingsSnapshotBatchBatchResults(zeroBatchResults{}, len(arg))
 }
 
+func (m *MockQueries) GetSeasonTeamAbbrevs(ctx context.Context, season int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error) {
+	args := m.Called(ctx, season)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]sqlcdb.GetSeasonTeamAbbrevsRow), args.Error(1)
+}
+
 // =============================================================================
 // MockClubStatsUpserter implements ClubStatsUpserter.
 // =============================================================================
@@ -810,8 +818,17 @@ func (s *ImportStandingsSuite) TestWithStandings_CallsBatch() {
 	s.Require().NoError(err)
 	s.Require().NoError(mem.Write(resource.DailyStandings{Date: s.day}.Path(), data))
 
+	q.On("GetSeasonTeamAbbrevs", mock.Anything, int32(20232024)).
+		Return([]sqlcdb.GetSeasonTeamAbbrevsRow{
+			{TeamID: 8, Abbrev: "MTL"},
+			{TeamID: 10, Abbrev: "TOR"},
+		}, nil)
 	q.On("UpsertStandingsSnapshotBatch", mock.Anything, mock.MatchedBy(func(params []sqlcdb.UpsertStandingsSnapshotBatchParams) bool {
-		return len(params) == 2
+		if len(params) != 2 {
+			return false
+		}
+		return params[0].TeamID == 8 && params[1].TeamID == 10 &&
+			params[0].Season == 20232024 && params[1].Season == 20232024
 	})).Return(nil)
 
 	act := s.newActivities(mem, q)

@@ -13,7 +13,7 @@ const getGameCoaches = `-- name: GetGameCoaches :many
 SELECT gc.game_id, gc.team_id, gc.head_coach, st.abbrev as team_abbrev
 FROM game_coaches gc
 JOIN games g ON gc.game_id = g.id
-JOIN season_teams st ON gc.team_id = st.team_id AND g.season = st.season_id
+JOIN season_teams st ON gc.team_id = st.team_id AND g.season = st.season
 WHERE gc.game_id = $1
 `
 

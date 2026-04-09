@@ -36,7 +36,7 @@ func (q *Queries) CountSeasonRostersBySeason(ctx context.Context, season int32) 
 const getSeasonRosterByPlayer = `-- name: GetSeasonRosterByPlayer :many
 SELECT r.season, r.team_id, r.player_id, r.position, r.shoots_catches, r.sweater_number, r.height_inches, r.weight_pounds, r.birth_date, r.birth_city, r.birth_state_province, r.birth_country, r.created_at, r.updated_at, st.full_name as team_name, st.abbrev as team_abbrev
 FROM season_rosters r
-JOIN season_teams st ON st.season_id = r.season AND st.team_id = r.team_id
+JOIN season_teams st ON st.season = r.season AND st.team_id = r.team_id
 WHERE r.player_id = $1
 ORDER BY r.season DESC
 `
@@ -168,7 +168,7 @@ func (q *Queries) GetSeasonRosterByTeam(ctx context.Context, arg GetSeasonRoster
 
 const getSeasonTeamAbbrevs = `-- name: GetSeasonTeamAbbrevs :many
 SELECT team_id, abbrev FROM season_teams
-WHERE season_id = $1
+WHERE season = $1
 ORDER BY abbrev
 `
 
@@ -177,8 +177,8 @@ type GetSeasonTeamAbbrevsRow struct {
 	Abbrev string `json:"abbrev"`
 }
 
-func (q *Queries) GetSeasonTeamAbbrevs(ctx context.Context, seasonID int32) ([]GetSeasonTeamAbbrevsRow, error) {
-	rows, err := q.db.Query(ctx, getSeasonTeamAbbrevs, seasonID)
+func (q *Queries) GetSeasonTeamAbbrevs(ctx context.Context, season int32) ([]GetSeasonTeamAbbrevsRow, error) {
+	rows, err := q.db.Query(ctx, getSeasonTeamAbbrevs, season)
 	if err != nil {
 		return nil, err
 	}

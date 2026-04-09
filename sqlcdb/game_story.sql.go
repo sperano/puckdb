@@ -225,17 +225,17 @@ func (q *Queries) GetShootoutAttempts(ctx context.Context, gameID int64) ([]GetS
 
 const getTeamIDByAbbrev = `-- name: GetTeamIDByAbbrev :one
 SELECT team_id FROM season_teams
-WHERE abbrev = $1 AND season_id = $2
+WHERE abbrev = $1 AND season = $2
 `
 
 type GetTeamIDByAbbrevParams struct {
-	Abbrev   string `json:"abbrev"`
-	SeasonID int32  `json:"season_id"`
+	Abbrev string `json:"abbrev"`
+	Season int32  `json:"season"`
 }
 
 // Look up team_id from abbreviation for a given season
 func (q *Queries) GetTeamIDByAbbrev(ctx context.Context, arg GetTeamIDByAbbrevParams) (int64, error) {
-	row := q.db.QueryRow(ctx, getTeamIDByAbbrev, arg.Abbrev, arg.SeasonID)
+	row := q.db.QueryRow(ctx, getTeamIDByAbbrev, arg.Abbrev, arg.Season)
 	var team_id int64
 	err := row.Scan(&team_id)
 	return team_id, err

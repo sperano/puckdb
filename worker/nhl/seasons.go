@@ -278,7 +278,7 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhlapi
 
 	for _, s := range standings {
 		params := sqlcdb.UpsertSeasonTeamParams{
-			SeasonID:         int32(season.ID()),
+			Season:           int32(season.ID()),
 			TeamID:           matching.LookupTeamID(s.TeamAbbrev.String()),
 			FranchiseID:      pgtype.Int8{Valid: false},
 			FullName:         s.TeamName.String(),

@@ -25,17 +25,19 @@
 
 Discovered while verifying schema for the CLAUDE.md audit.
 
-**Missing foreign keys** (tables with `*_id` columns but no FK constraint):
-- `standings_snapshots` → no FK
-- `yahoo_matchups`, `yahoo_transactions`, `yahoo_draft_results` → no FKs
-- `club_skater_stats`, `club_goalie_stats` → no FKs to `players` / `teams`
-- `player_season_totals` → no FK (intentional? includes minor leagues)
-- `player_awards` → no FK
+**~~Missing foreign keys~~ — RESOLVED:**
+- ~~`standings_snapshots` → no FK~~
+- ~~`yahoo_matchups`, `yahoo_transactions`, `yahoo_draft_results` → no FKs~~
+- ~~`club_skater_stats`, `club_goalie_stats` → no FKs to `players` / `teams`~~
+- ~~`player_season_totals` → no FK (intentional? includes minor leagues)~~
+- ~~`player_awards` → no FK~~
+- Foreign keys added across all tables. `player_season_totals` intentionally uses `ON DELETE SET NULL` for `player_id` and `team_id` since rows include minor-league data that may not have matching NHL entities.
 
-**Inconsistent key naming:**
-- Some tables use `season_id` (FK to `seasons.id`)
-- `season_rosters` uses `season` (integer, no FK)
-- `standings_snapshots.team_abbrev` is text, not `team_id` — franchise relocation / rebrand is a footgun waiting to happen
+**~~Inconsistent key naming~~ — RESOLVED (migration 000016):**
+- ~~Some tables use `season_id` (FK to `seasons.id`)~~
+- ~~`season_rosters` uses `season` (integer, no FK)~~
+- ~~`standings_snapshots.team_abbrev` is text, not `team_id`~~
+- `season_teams.season_id` renamed to `season` (was the only table using `_id` suffix; all 14 others used `season`). `standings_snapshots.season` converted from start-year format (2024) to concatenated format (20242025) matching `seasons.id`. `team_abbrev` replaced by `team_id` in PK with FK to `season_teams(season, team_id)`. `team_abbrev` retained as a non-PK display column.
 
 **Denormalized free text:**
 - `player_season_totals.team_name` is text rather than FK — can't reliably join to `teams`
@@ -159,7 +161,7 @@ During the main audit, only `puckdb/CLAUDE.md` was checked. The following likely
 | Rank | Item | Leverage | Effort |
 |------|------|----------|--------|
 | 1 | GraphQL data query layer (#1) | Very high — unlocks everything else | Medium |
-| 2 | Missing FKs + `play_events` indexes (#2, #3) | High — correctness + future query performance | Low-medium |
+| 2 | ~~Missing FKs~~ (done) + `play_events` indexes (#2, #3) | High — correctness + future query performance | Low-medium |
 | 3 | Workflow SLO + freshness metrics (#5) | High — production reliability | Low |
 | 4 | Data dictionary via `COMMENT ON COLUMN` (#7) | Medium — enables Maurice + new contributors | Low |
 | 5 | Maurice evaluation harness (#8) | Medium — depends on #1 to be meaningful | Medium |

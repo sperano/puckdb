@@ -42,7 +42,7 @@ SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decisio
 FROM game_goalie_stats s
 JOIN players p ON s.player_id = p.id
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.game_id = $1 AND s.player_id = $2
 `
 
@@ -123,7 +123,7 @@ SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decisio
 FROM game_goalie_stats s
 JOIN players p ON s.player_id = p.id
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.game_id = $1
 ORDER BY s.is_home DESC, s.starter DESC NULLS LAST
 `
@@ -210,7 +210,7 @@ SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decisio
 FROM game_goalie_stats s
 JOIN players p ON s.player_id = p.id
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.game_id = $1 AND s.team_id = $2
 ORDER BY s.starter DESC NULLS LAST
 `
@@ -370,7 +370,7 @@ SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decisio
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.player_id = $1
 ORDER BY g.game_date DESC
 `
@@ -458,7 +458,7 @@ SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decisio
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.player_id = $1 AND g.game_date >= $2 AND g.game_date <= $3
 ORDER BY g.game_date
 `
@@ -552,7 +552,7 @@ SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decisio
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.player_id = $1 AND g.season = $2
 ORDER BY g.game_date
 `

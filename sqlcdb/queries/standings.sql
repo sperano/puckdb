@@ -4,13 +4,14 @@
 
 -- name: UpsertStandingsSnapshotBatch :batchexec
 INSERT INTO standings_snapshots (
-    season, date, team_abbrev,
+    season, date, team_id, team_abbrev,
     wins, losses, ot_losses, points,
     division_abbrev, division_name,
     conference_abbrev, conference_name
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-ON CONFLICT (season, date, team_abbrev) DO UPDATE SET
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+ON CONFLICT (season, date, team_id) DO UPDATE SET
+    team_abbrev = EXCLUDED.team_abbrev,
     wins = EXCLUDED.wins,
     losses = EXCLUDED.losses,
     ot_losses = EXCLUDED.ot_losses,
@@ -19,12 +20,13 @@ ON CONFLICT (season, date, team_abbrev) DO UPDATE SET
     division_name = EXCLUDED.division_name,
     conference_abbrev = EXCLUDED.conference_abbrev,
     conference_name = EXCLUDED.conference_name
-WHERE (standings_snapshots.wins, standings_snapshots.losses,
-       standings_snapshots.ot_losses, standings_snapshots.points,
-       standings_snapshots.division_abbrev, standings_snapshots.division_name,
-       standings_snapshots.conference_abbrev, standings_snapshots.conference_name)
+WHERE (standings_snapshots.team_abbrev, standings_snapshots.wins,
+       standings_snapshots.losses, standings_snapshots.ot_losses,
+       standings_snapshots.points, standings_snapshots.division_abbrev,
+       standings_snapshots.division_name, standings_snapshots.conference_abbrev,
+       standings_snapshots.conference_name)
       IS DISTINCT FROM
-      (EXCLUDED.wins, EXCLUDED.losses,
+      (EXCLUDED.team_abbrev, EXCLUDED.wins, EXCLUDED.losses,
        EXCLUDED.ot_losses, EXCLUDED.points,
        EXCLUDED.division_abbrev, EXCLUDED.division_name,
        EXCLUDED.conference_abbrev, EXCLUDED.conference_name);
@@ -46,7 +48,7 @@ ORDER BY date, team_abbrev;
 
 -- name: GetStandingsSnapshotsByTeam :many
 SELECT * FROM standings_snapshots
-WHERE season = $1 AND team_abbrev = $2
+WHERE season = $1 AND team_id = $2
 ORDER BY date;
 
 -- name: CountStandingsSnapshots :one

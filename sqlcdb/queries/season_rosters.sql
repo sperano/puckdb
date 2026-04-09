@@ -43,7 +43,7 @@ ORDER BY r.position, p.last_name;
 -- name: GetSeasonRosterByPlayer :many
 SELECT r.*, st.full_name as team_name, st.abbrev as team_abbrev
 FROM season_rosters r
-JOIN season_teams st ON st.season_id = r.season AND st.team_id = r.team_id
+JOIN season_teams st ON st.season = r.season AND st.team_id = r.team_id
 WHERE r.player_id = $1
 ORDER BY r.season DESC;
 
@@ -55,5 +55,5 @@ SELECT COUNT(*) FROM season_rosters WHERE season = $1;
 
 -- name: GetSeasonTeamAbbrevs :many
 SELECT team_id, abbrev FROM season_teams
-WHERE season_id = $1
+WHERE season = $1
 ORDER BY abbrev;

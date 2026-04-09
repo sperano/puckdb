@@ -23,42 +23,42 @@ SELECT COUNT(*) FROM seasons;
 
 -- name: GetSeasonTeams :many
 SELECT
-    season_id, team_id, franchise_id, full_name, abbrev, logo_url,
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
-WHERE season_id = $1
+WHERE season = $1
 ORDER BY division_name, full_name;
 
 -- name: GetSeasonTeamsByDivision :many
 SELECT
-    season_id, team_id, franchise_id, full_name, abbrev, logo_url,
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
-WHERE season_id = $1 AND division_name = $2
+WHERE season = $1 AND division_name = $2
 ORDER BY full_name;
 
 -- name: GetSeasonTeam :one
 SELECT
-    season_id, team_id, franchise_id, full_name, abbrev, logo_url,
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
-WHERE season_id = $1 AND team_id = $2;
+WHERE season = $1 AND team_id = $2;
 
 -- name: GetTeamHistory :many
 SELECT
-    season_id, team_id, franchise_id, full_name, abbrev, logo_url,
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
 WHERE franchise_id = $1
-ORDER BY season_id DESC;
+ORDER BY season DESC;
 
 -- name: UpsertSeasonTeam :exec
 INSERT INTO season_teams (
-    season_id, team_id, franchise_id, full_name, abbrev, logo_url,
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-ON CONFLICT (season_id, team_id) DO UPDATE SET
+ON CONFLICT (season, team_id) DO UPDATE SET
     franchise_id = EXCLUDED.franchise_id,
     full_name = EXCLUDED.full_name,
     abbrev = EXCLUDED.abbrev,
@@ -78,7 +78,7 @@ WHERE (season_teams.franchise_id, season_teams.full_name,
        EXCLUDED.conference_name, EXCLUDED.conference_abbrev);
 
 -- name: CountSeasonTeamsForSeason :one
-SELECT COUNT(*) FROM season_teams WHERE season_id = $1;
+SELECT COUNT(*) FROM season_teams WHERE season = $1;
 
 -- name: CountSeasonTeams :one
 SELECT COUNT(*) FROM season_teams;
@@ -86,5 +86,5 @@ SELECT COUNT(*) FROM season_teams;
 -- name: GetDistinctDivisions :many
 SELECT DISTINCT division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
-WHERE season_id = $1
+WHERE season = $1
 ORDER BY conference_name, division_name;

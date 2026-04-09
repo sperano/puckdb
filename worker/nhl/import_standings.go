@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	nhl "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/resource"
@@ -31,9 +32,27 @@ func (a *ImportActivities) ImportStandingsForDate(ctx context.Context, input sha
 		return nil
 	}
 
+	seasonID := int32(nhl.NewSeason(input.Season).ID())
+
+	// Build abbreviation → team_id map for this season.
+	teamRows, err := a.Queries.GetSeasonTeamAbbrevs(ctx, seasonID)
+	if err != nil {
+		return fmt.Errorf("get season team abbrevs for %d: %w", seasonID, err)
+	}
+	abbrevToTeamID := make(map[string]int64, len(teamRows))
+	for _, row := range teamRows {
+		abbrevToTeamID[row.Abbrev] = row.TeamID
+	}
+
 	pgDate := pgtype.Date{Time: input.Date, Valid: true}
-	params := make([]sqlcdb.UpsertStandingsSnapshotBatchParams, len(standings))
-	for i, s := range standings {
+	params := make([]sqlcdb.UpsertStandingsSnapshotBatchParams, 0, len(standings))
+	for _, s := range standings {
+		abbrev := s.TeamAbbrev.Default
+		teamID, ok := abbrevToTeamID[abbrev]
+		if !ok {
+			return fmt.Errorf("no team_id for abbreviation %q in season %d", abbrev, seasonID)
+		}
+
 		var confAbbrev, confName pgtype.Text
 		if s.ConferenceAbbrev != nil {
 			confAbbrev = pgtype.Text{String: *s.ConferenceAbbrev, Valid: true}
@@ -42,10 +61,11 @@ func (a *ImportActivities) ImportStandingsForDate(ctx context.Context, input sha
 			confName = pgtype.Text{String: *s.ConferenceName, Valid: true}
 		}
 
-		params[i] = sqlcdb.UpsertStandingsSnapshotBatchParams{
-			Season:           int32(input.Season),
+		params = append(params, sqlcdb.UpsertStandingsSnapshotBatchParams{
+			Season:           seasonID,
 			Date:             pgDate,
-			TeamAbbrev:       s.TeamAbbrev.Default,
+			TeamID:           teamID,
+			TeamAbbrev:       abbrev,
 			Wins:             int32(s.Wins),
 			Losses:           int32(s.Losses),
 			OtLosses:         int32(s.OTLosses),
@@ -54,7 +74,7 @@ func (a *ImportActivities) ImportStandingsForDate(ctx context.Context, input sha
 			DivisionName:     s.DivisionName,
 			ConferenceAbbrev: confAbbrev,
 			ConferenceName:   confName,
-		}
+		})
 	}
 
 	if err := shared.ExecBatch(a.Queries.UpsertStandingsSnapshotBatch(ctx, params), func(i int) string {

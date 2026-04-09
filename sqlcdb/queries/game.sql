@@ -8,8 +8,8 @@ SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM games g
-JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
 WHERE g.id = $1;
 
 -- name: GetGamesByDate :many
@@ -18,8 +18,8 @@ SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM games g
-JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
 WHERE g.game_date = $1
 ORDER BY g.start_time_utc;
 
@@ -29,8 +29,8 @@ SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM games g
-JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
 WHERE g.game_date >= $1 AND g.game_date <= $2
 ORDER BY g.game_date, g.start_time_utc;
 
@@ -40,8 +40,8 @@ SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM games g
-JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
 WHERE g.season = $1
 ORDER BY g.game_date, g.start_time_utc;
 
@@ -51,8 +51,8 @@ SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM games g
-JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
 WHERE g.home_team_id = $1 OR g.away_team_id = $1
 ORDER BY g.game_date, g.start_time_utc;
 
@@ -62,8 +62,8 @@ SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM games g
-JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
 WHERE (g.home_team_id = $1 OR g.away_team_id = $1)
   AND g.season = $2
 ORDER BY g.game_date, g.start_time_utc;
@@ -74,8 +74,8 @@ SELECT g.*,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
     at.full_name as away_team_name, at.abbrev as away_team_abbrev
 FROM games g
-JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season_id = g.season
-JOIN season_teams at ON at.team_id = g.away_team_id AND at.season_id = g.season
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
 WHERE
     (sqlc.narg('season')::int IS NULL OR g.season = sqlc.narg('season'))
     AND (sqlc.narg('game_type')::smallint IS NULL OR g.game_type = sqlc.narg('game_type'))

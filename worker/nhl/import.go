@@ -51,6 +51,7 @@ type SeasonSeriesUpserter interface {
 // StandingsUpserter is the interface for standings database operations.
 type StandingsUpserter interface {
 	UpsertStandingsSnapshotBatch(ctx context.Context, arg []sqlcdb.UpsertStandingsSnapshotBatchParams) *sqlcdb.UpsertStandingsSnapshotBatchBatchResults
+	GetSeasonTeamAbbrevs(ctx context.Context, season int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error)
 }
 
 // Queries is a composite interface for all NHL import activity database operations.

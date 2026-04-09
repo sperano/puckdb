@@ -10,7 +10,7 @@ SELECT s.*,
 FROM game_skater_stats s
 JOIN players p ON s.player_id = p.id
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.game_id = $1 AND s.player_id = $2;
 
 -- name: GetGameSkaterStatsByGame :many
@@ -21,7 +21,7 @@ SELECT s.*,
 FROM game_skater_stats s
 JOIN players p ON s.player_id = p.id
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.game_id = $1
 ORDER BY s.is_home DESC, s.position, p.last_name;
 
@@ -33,7 +33,7 @@ SELECT s.*,
 FROM game_skater_stats s
 JOIN players p ON s.player_id = p.id
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.game_id = $1 AND s.team_id = $2
 ORDER BY s.position, p.last_name;
 
@@ -44,7 +44,7 @@ SELECT s.*,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.player_id = $1
 ORDER BY g.game_date DESC;
 
@@ -55,7 +55,7 @@ SELECT s.*,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.player_id = $1 AND g.season = $2
 ORDER BY g.game_date;
 
@@ -66,7 +66,7 @@ SELECT s.*,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
 JOIN games g ON s.game_id = g.id
-JOIN season_teams t ON t.team_id = s.team_id AND t.season_id = g.season
+JOIN season_teams t ON t.team_id = s.team_id AND t.season = g.season
 WHERE s.player_id = $1 AND g.game_date >= $2 AND g.game_date <= $3
 ORDER BY g.game_date;
 

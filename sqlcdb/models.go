@@ -370,7 +370,7 @@ type SeasonRoster struct {
 }
 
 type SeasonTeam struct {
-	SeasonID         int32       `json:"season_id"`
+	Season           int32       `json:"season"`
 	TeamID           int64       `json:"team_id"`
 	FranchiseID      pgtype.Int8 `json:"franchise_id"`
 	FullName         string      `json:"full_name"`
@@ -465,6 +465,7 @@ type StandingsSnapshot struct {
 	ConferenceAbbrev pgtype.Text        `json:"conference_abbrev"`
 	ConferenceName   pgtype.Text        `json:"conference_name"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	TeamID           int64              `json:"team_id"`
 }
 
 type YahooDraftResult struct {
