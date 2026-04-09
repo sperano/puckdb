@@ -71,17 +71,6 @@ func (q *Queries) CountYahooTeamSummariesByLeague(ctx context.Context, leagueID 
 	return count, err
 }
 
-const countYahooTeamSummaryStats = `-- name: CountYahooTeamSummaryStats :one
-SELECT COUNT(*) FROM yahoo_team_summary_stats
-`
-
-func (q *Queries) CountYahooTeamSummaryStats(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countYahooTeamSummaryStats)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const deleteYahooTeamRoster = `-- name: DeleteYahooTeamRoster :exec
 DELETE FROM yahoo_team_rosters
 WHERE league_id = $1 AND team_id = $2 AND date = $3
@@ -157,31 +146,6 @@ type DeleteYahooTeamSummaryParams struct {
 
 func (q *Queries) DeleteYahooTeamSummary(ctx context.Context, arg DeleteYahooTeamSummaryParams) error {
 	_, err := q.db.Exec(ctx, deleteYahooTeamSummary, arg.LeagueID, arg.TeamID, arg.Date)
-	return err
-}
-
-const deleteYahooTeamSummaryStats = `-- name: DeleteYahooTeamSummaryStats :exec
-DELETE FROM yahoo_team_summary_stats
-WHERE league_id = $1 AND team_id = $2 AND date = $3
-`
-
-type DeleteYahooTeamSummaryStatsParams struct {
-	LeagueID int32       `json:"league_id"`
-	TeamID   int32       `json:"team_id"`
-	Date     pgtype.Date `json:"date"`
-}
-
-func (q *Queries) DeleteYahooTeamSummaryStats(ctx context.Context, arg DeleteYahooTeamSummaryStatsParams) error {
-	_, err := q.db.Exec(ctx, deleteYahooTeamSummaryStats, arg.LeagueID, arg.TeamID, arg.Date)
-	return err
-}
-
-const deleteYahooTeamSummaryStatsByLeague = `-- name: DeleteYahooTeamSummaryStatsByLeague :exec
-DELETE FROM yahoo_team_summary_stats WHERE league_id = $1
-`
-
-func (q *Queries) DeleteYahooTeamSummaryStatsByLeague(ctx context.Context, leagueID int32) error {
-	_, err := q.db.Exec(ctx, deleteYahooTeamSummaryStatsByLeague, leagueID)
 	return err
 }
 
@@ -451,7 +415,7 @@ func (q *Queries) GetYahooTeamRostersByTeam(ctx context.Context, arg GetYahooTea
 }
 
 const getYahooTeamSummariesByDate = `-- name: GetYahooTeamSummariesByDate :many
-SELECT league_id, team_id, date, coverage_type, created_at, updated_at FROM yahoo_team_summaries
+SELECT league_id, team_id, date, coverage_type, created_at, updated_at, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks FROM yahoo_team_summaries
 WHERE league_id = $1 AND date = $2
 ORDER BY team_id
 `
@@ -477,6 +441,26 @@ func (q *Queries) GetYahooTeamSummariesByDate(ctx context.Context, arg GetYahooT
 			&i.CoverageType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Goals,
+			&i.Assists,
+			&i.Points,
+			&i.PlusMinus,
+			&i.PIM,
+			&i.PPP,
+			&i.SOG,
+			&i.FaceoffsWon,
+			&i.FaceoffsLost,
+			&i.Wins,
+			&i.GoalsAgainst,
+			&i.GAA,
+			&i.ShotsAgainst,
+			&i.Saves,
+			&i.SavePct,
+			&i.Shutouts,
+			&i.SHP,
+			&i.GWG,
+			&i.Hits,
+			&i.Blocks,
 		); err != nil {
 			return nil, err
 		}
@@ -489,7 +473,7 @@ func (q *Queries) GetYahooTeamSummariesByDate(ctx context.Context, arg GetYahooT
 }
 
 const getYahooTeamSummariesByLeague = `-- name: GetYahooTeamSummariesByLeague :many
-SELECT league_id, team_id, date, coverage_type, created_at, updated_at FROM yahoo_team_summaries
+SELECT league_id, team_id, date, coverage_type, created_at, updated_at, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks FROM yahoo_team_summaries
 WHERE league_id = $1
 ORDER BY team_id, date
 `
@@ -510,6 +494,26 @@ func (q *Queries) GetYahooTeamSummariesByLeague(ctx context.Context, leagueID in
 			&i.CoverageType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Goals,
+			&i.Assists,
+			&i.Points,
+			&i.PlusMinus,
+			&i.PIM,
+			&i.PPP,
+			&i.SOG,
+			&i.FaceoffsWon,
+			&i.FaceoffsLost,
+			&i.Wins,
+			&i.GoalsAgainst,
+			&i.GAA,
+			&i.ShotsAgainst,
+			&i.Saves,
+			&i.SavePct,
+			&i.Shutouts,
+			&i.SHP,
+			&i.GWG,
+			&i.Hits,
+			&i.Blocks,
 		); err != nil {
 			return nil, err
 		}
@@ -522,7 +526,7 @@ func (q *Queries) GetYahooTeamSummariesByLeague(ctx context.Context, leagueID in
 }
 
 const getYahooTeamSummariesByTeam = `-- name: GetYahooTeamSummariesByTeam :many
-SELECT league_id, team_id, date, coverage_type, created_at, updated_at FROM yahoo_team_summaries
+SELECT league_id, team_id, date, coverage_type, created_at, updated_at, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks FROM yahoo_team_summaries
 WHERE league_id = $1 AND team_id = $2
 ORDER BY date
 `
@@ -548,6 +552,26 @@ func (q *Queries) GetYahooTeamSummariesByTeam(ctx context.Context, arg GetYahooT
 			&i.CoverageType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Goals,
+			&i.Assists,
+			&i.Points,
+			&i.PlusMinus,
+			&i.PIM,
+			&i.PPP,
+			&i.SOG,
+			&i.FaceoffsWon,
+			&i.FaceoffsLost,
+			&i.Wins,
+			&i.GoalsAgainst,
+			&i.GAA,
+			&i.ShotsAgainst,
+			&i.Saves,
+			&i.SavePct,
+			&i.Shutouts,
+			&i.SHP,
+			&i.GWG,
+			&i.Hits,
+			&i.Blocks,
 		); err != nil {
 			return nil, err
 		}
@@ -561,7 +585,7 @@ func (q *Queries) GetYahooTeamSummariesByTeam(ctx context.Context, arg GetYahooT
 
 const getYahooTeamSummary = `-- name: GetYahooTeamSummary :one
 
-SELECT league_id, team_id, date, coverage_type, created_at, updated_at FROM yahoo_team_summaries
+SELECT league_id, team_id, date, coverage_type, created_at, updated_at, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks FROM yahoo_team_summaries
 WHERE league_id = $1 AND team_id = $2 AND date = $3
 `
 
@@ -584,122 +608,26 @@ func (q *Queries) GetYahooTeamSummary(ctx context.Context, arg GetYahooTeamSumma
 		&i.CoverageType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Goals,
+		&i.Assists,
+		&i.Points,
+		&i.PlusMinus,
+		&i.PIM,
+		&i.PPP,
+		&i.SOG,
+		&i.FaceoffsWon,
+		&i.FaceoffsLost,
+		&i.Wins,
+		&i.GoalsAgainst,
+		&i.GAA,
+		&i.ShotsAgainst,
+		&i.Saves,
+		&i.SavePct,
+		&i.Shutouts,
+		&i.SHP,
+		&i.GWG,
+		&i.Hits,
+		&i.Blocks,
 	)
 	return i, err
-}
-
-const getYahooTeamSummaryStats = `-- name: GetYahooTeamSummaryStats :many
-
-SELECT league_id, team_id, date, stat_id, value FROM yahoo_team_summary_stats
-WHERE league_id = $1 AND team_id = $2 AND date = $3
-ORDER BY stat_id
-`
-
-type GetYahooTeamSummaryStatsParams struct {
-	LeagueID int32       `json:"league_id"`
-	TeamID   int32       `json:"team_id"`
-	Date     pgtype.Date `json:"date"`
-}
-
-// =============================================================================
-// Yahoo Team Summary Stats
-// =============================================================================
-func (q *Queries) GetYahooTeamSummaryStats(ctx context.Context, arg GetYahooTeamSummaryStatsParams) ([]YahooTeamSummaryStat, error) {
-	rows, err := q.db.Query(ctx, getYahooTeamSummaryStats, arg.LeagueID, arg.TeamID, arg.Date)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []YahooTeamSummaryStat{}
-	for rows.Next() {
-		var i YahooTeamSummaryStat
-		if err := rows.Scan(
-			&i.LeagueID,
-			&i.TeamID,
-			&i.Date,
-			&i.StatID,
-			&i.Value,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getYahooTeamSummaryStatsByLeagueAndDate = `-- name: GetYahooTeamSummaryStatsByLeagueAndDate :many
-SELECT league_id, team_id, date, stat_id, value FROM yahoo_team_summary_stats
-WHERE league_id = $1 AND date = $2
-ORDER BY team_id, stat_id
-`
-
-type GetYahooTeamSummaryStatsByLeagueAndDateParams struct {
-	LeagueID int32       `json:"league_id"`
-	Date     pgtype.Date `json:"date"`
-}
-
-func (q *Queries) GetYahooTeamSummaryStatsByLeagueAndDate(ctx context.Context, arg GetYahooTeamSummaryStatsByLeagueAndDateParams) ([]YahooTeamSummaryStat, error) {
-	rows, err := q.db.Query(ctx, getYahooTeamSummaryStatsByLeagueAndDate, arg.LeagueID, arg.Date)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []YahooTeamSummaryStat{}
-	for rows.Next() {
-		var i YahooTeamSummaryStat
-		if err := rows.Scan(
-			&i.LeagueID,
-			&i.TeamID,
-			&i.Date,
-			&i.StatID,
-			&i.Value,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getYahooTeamSummaryStatsByStat = `-- name: GetYahooTeamSummaryStatsByStat :many
-SELECT league_id, team_id, date, stat_id, value FROM yahoo_team_summary_stats
-WHERE league_id = $1 AND stat_id = $2
-ORDER BY date, team_id
-`
-
-type GetYahooTeamSummaryStatsByStatParams struct {
-	LeagueID int32 `json:"league_id"`
-	StatID   int32 `json:"stat_id"`
-}
-
-func (q *Queries) GetYahooTeamSummaryStatsByStat(ctx context.Context, arg GetYahooTeamSummaryStatsByStatParams) ([]YahooTeamSummaryStat, error) {
-	rows, err := q.db.Query(ctx, getYahooTeamSummaryStatsByStat, arg.LeagueID, arg.StatID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []YahooTeamSummaryStat{}
-	for rows.Next() {
-		var i YahooTeamSummaryStat
-		if err := rows.Scan(
-			&i.LeagueID,
-			&i.TeamID,
-			&i.Date,
-			&i.StatID,
-			&i.Value,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }

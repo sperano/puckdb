@@ -1,0 +1,172 @@
+# PuckDB Improvements — Post-Feature-Complete Assessment
+
+**Date:** 2026-04-08
+**Context:** Drafted after auditing CLAUDE.md against the actual codebase and `puckdb_prod` schema. The April 2026 cleanup plan (batch helpers, resolver dedup, worker subpackages) is complete, so this document is forward-looking rather than cleanup-oriented.
+
+---
+
+## 1. GraphQL API barely exposes the data
+
+**Finding:** The schema is ~95% workflow control plane (start/cancel/result/progress for 13 workflows). The only *data* query is `processPlayersResultData`. For a project whose point is to *have* NHL + Yahoo data queryable, this is backwards.
+
+**Suggested additions:**
+- `player(id: Int!)`, `players(filter)`, `playerGameLog(playerId, season)`
+- `team(id)`, `teamRoster(teamId, season)`
+- `game(id)`, `gamesByDate(date)`, `boxscore(gameId)`
+- `standings(date)`, `standingsRange(from, to)`
+- `yahooLeague(key)`, `yahooTeamRoster(teamKey, week)`, `yahooMatchups(leagueKey, week)`
+- `playerSeasonTotals(playerId)` — including minor-league rows
+
+**Why it's highest leverage:** This is what unlocks Maurice, unlocks any frontend, and unlocks external consumers. Everything else in this document is marginal until the data has a query surface.
+
+---
+
+## 2. Data integrity gaps
+
+Discovered while verifying schema for the CLAUDE.md audit.
+
+**Missing foreign keys** (tables with `*_id` columns but no FK constraint):
+- `standings_snapshots` → no FK
+- `yahoo_matchups`, `yahoo_transactions`, `yahoo_draft_results` → no FKs
+- `club_skater_stats`, `club_goalie_stats` → no FKs to `players` / `teams`
+- `player_season_totals` → no FK (intentional? includes minor leagues)
+- `player_awards` → no FK
+
+**Inconsistent key naming:**
+- Some tables use `season_id` (FK to `seasons.id`)
+- `season_rosters` uses `season` (integer, no FK)
+- `standings_snapshots.team_abbrev` is text, not `team_id` — franchise relocation / rebrand is a footgun waiting to happen
+
+**Denormalized free text:**
+- `player_season_totals.team_name` is text rather than FK — can't reliably join to `teams`
+
+**Action:** Audit each table, add FKs where safe, document the ones that intentionally break referential integrity (minor leagues, historical snapshots).
+
+---
+
+## 3. `play_events` / `shifts` performance
+
+These are the two largest tables and the most likely source of future slow queries.
+
+**`play_events` (7.8M rows):**
+- Has 14+ player_id columns (`scoring_player_id`, `assist1_player_id`, `hitting_player_id`, `blocking_player_id`, etc.)
+- **No index on any of them.** A query like "every event involving player X" is a full table scan.
+
+**`shifts` (14.5M rows):**
+- Missing index on `team_id`.
+
+**Partitioning:** Both are natural range-partition candidates by `game_id` or by season via `games.season_id`. `pg_partman` is already installed in the cluster.
+
+**Action:**
+1. Add indexes on high-cardinality player FK columns in `play_events` (partial indexes where nullable).
+2. Benchmark "player career events" and "team shifts for season" queries before/after.
+3. Evaluate partitioning once queries are defined (from item 1 above).
+
+---
+
+## 4. Yahoo data model weaknesses
+
+**~~`yahoo_team_summary_stats` is EAV~~ — RESOLVED (migration 000013):**
+- ~~Stores `stat_id` / `value` (text) rows rather than typed columns~~
+- ~~Queries need to pivot or join repeatedly~~
+- ~~Stat IDs are magic numbers with no lookup table~~
+- Migrated to 20 typed `REAL` columns on `yahoo_team_summaries`. The EAV table is dropped. Stat name/ID mapping remains in `yahoo_league_stat_categories`.
+
+**`yahoo_transactions.players` is JSONB with no GIN index:**
+- "Every transaction involving player X" is a JSONB scan
+
+**Action:**
+- Add GIN index on `yahoo_transactions.players`
+
+---
+
+## 5. Operational SLOs
+
+**Observed gaps:**
+- No workflow-level SLO metrics (success rate, p95 duration, last-success-timestamp per workflow)
+- No data freshness metric like `puckdb_db_latest_game_age_seconds` or `puckdb_standings_lag_seconds`
+- Unclear whether a daily automated sync exists — if it does, there's no metric that would page when it stops working
+
+**Action:**
+- Add `puckdb_workflow_last_success_timestamp{workflow}` gauge
+- Add `puckdb_data_freshness_seconds{dataset}` gauge updated by collector
+- Grafana alert on staleness thresholds
+
+---
+
+## 6. Observability gaps
+
+**Current metrics are infrastructure-centric** (HTTP durations, FS ops, download counts) rather than domain-centric.
+
+**Missing:**
+- `puckdb_rows_inserted_total{table}` — track ingest volume per table
+- `puckdb_rows_updated_total{table}`
+- `puckdb_activity_retry_total{activity}` — Temporal retry pressure
+- `puckdb_nhl_api_errors_total{endpoint, status}`
+
+**Naming collision:**
+- `puckdb_http_request_duration_seconds` is registered in BOTH the Worker registry and the API registry with the same name. Prometheus scrapes them separately (different targets), but the label semantics differ (`api=path` in API vs `api=nhl.com` in Worker). This will confuse dashboards.
+- **Rename one.** Suggest `puckdb_api_http_request_duration_seconds` for the API middleware metric.
+
+---
+
+## 7. Data dictionary
+
+Many columns have semantic meaning that isn't discoverable from the schema alone:
+
+- `play_events.type_desc_key` — NHL play type codes (goal, shot-on-goal, hit, faceoff, etc.) — what's the full enum?
+- `play_events.situation_code` — 4-digit NHL strength code; each digit is a player count
+- `play_events.zone_code` — O/D/N
+- `games.game_state` — FUT / LIVE / OFF / FINAL — full enum?
+- `shifts.decision` — ?
+- `players.position_code` — C/L/R/D/G
+
+**Action:**
+- Either add `COMMENT ON COLUMN` for every semantically loaded column (queryable via `pg_description`, surfaces in tools like DataGrip and MCP)
+- OR write `docs/data-dictionary.md`
+- `COMMENT ON COLUMN` is strictly better — lives next to the data, survives restores, surfaces in introspection.
+
+---
+
+## 8. Maurice is nascent
+
+**Current state (from `puckdb_prod`):**
+- 8 conversations, 73 messages
+- Schema: `maurice_conversations`, `maurice_messages` with `tools_used` text[]
+- No feedback column (thumbs-up/down, user corrections)
+- No evaluation harness
+- No regression fixtures
+
+**Action:**
+- Add `maurice_messages.feedback` (enum or smallint)
+- Build a golden-set: 20-50 questions with known-good answers, replay nightly
+- Log token usage per conversation for cost tracking
+- Item 1 (GraphQL data queries) directly enables Maurice to actually answer hockey questions
+
+---
+
+## 9. Other CLAUDE.md files
+
+During the main audit, only `puckdb/CLAUDE.md` was checked. The following likely have similar drift:
+
+- `~/code/workspaces/puckdb/nhl-api-go/CLAUDE.md`
+- `~/code/hollingsworth/CLAUDE.md`
+
+**Action:** Audit both against their respective repos — same methodology (walk the actual code and config, diff against documented claims).
+
+---
+
+## Prioritization
+
+| Rank | Item | Leverage | Effort |
+|------|------|----------|--------|
+| 1 | GraphQL data query layer (#1) | Very high — unlocks everything else | Medium |
+| 2 | Missing FKs + `play_events` indexes (#2, #3) | High — correctness + future query performance | Low-medium |
+| 3 | Workflow SLO + freshness metrics (#5) | High — production reliability | Low |
+| 4 | Data dictionary via `COMMENT ON COLUMN` (#7) | Medium — enables Maurice + new contributors | Low |
+| 5 | Maurice evaluation harness (#8) | Medium — depends on #1 to be meaningful | Medium |
+| 6 | Observability domain metrics (#6) | Medium | Low |
+| 7 | ~~Yahoo EAV~~ (done) / JSONB indexing (#4) | Medium | Low |
+| 8 | CLAUDE.md audits for sibling repos (#9) | Low | Low |
+
+**Single highest-impact next step:** Start item #1 (GraphQL query layer). It's the thing that converts puckdb from "ingestion pipeline" to "data product."

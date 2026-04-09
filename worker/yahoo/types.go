@@ -58,7 +58,6 @@ type ImportYahooDataForDateInput struct {
 // ImportYahooDataForDateResult contains the results of importing Yahoo team data for a date.
 type ImportYahooDataForDateResult struct {
 	SummariesImported int
-	StatsImported     int
 	RostersImported   int
 	Origins           core.OriginCounts
 }

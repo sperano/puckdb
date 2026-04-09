@@ -386,7 +386,6 @@ func (s *ImportYahooDataForDateSuite) TestEmptyTeams_ReturnsEmpty() {
 	var result ImportYahooDataForDateResult
 	require.NoError(s.T(), val.Get(&result))
 	assert.Equal(s.T(), 0, result.SummariesImported)
-	assert.Equal(s.T(), 0, result.StatsImported)
 	assert.Equal(s.T(), 0, result.RostersImported)
 	q.AssertNotCalled(s.T(), "UpsertYahooTeamSummaryBatch")
 }
@@ -426,8 +425,6 @@ func (s *ImportYahooDataForDateSuite) TestWithSummaryAndRoster() {
 
 	q.On("UpsertYahooTeamSummaryBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{}, 1))
-	q.On("UpsertYahooTeamSummaryStatBatch", mock.Anything, mock.Anything).
-		Return(sqlcdb.NewUpsertYahooTeamSummaryStatBatchBatchResults(&mockBatchResults{}, 2))
 	q.On("UpsertYahooTeamRosterBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamRosterBatchBatchResults(&mockBatchResults{}, 1))
 
@@ -447,7 +444,6 @@ func (s *ImportYahooDataForDateSuite) TestWithSummaryAndRoster() {
 	var result ImportYahooDataForDateResult
 	require.NoError(s.T(), val.Get(&result))
 	assert.Equal(s.T(), 1, result.SummariesImported)
-	assert.Equal(s.T(), 2, result.StatsImported)
 	assert.Equal(s.T(), 1, result.RostersImported)
 	q.AssertExpectations(s.T())
 }
@@ -474,7 +470,7 @@ func (s *ImportYahooDataForDateSuite) TestSummaryUpsertError() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// upsertSummaries / upsertStats / upsertRosters (direct calls)
+// upsertSummaries / upsertRosters (direct calls)
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestUpsertSummaries_Success(t *testing.T) {
@@ -507,39 +503,6 @@ func TestUpsertSummaries_Error(t *testing.T) {
 		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
 
 	err := upsertSummaries(context.Background(), q, params)
-	require.Error(t, err)
-}
-
-func TestUpsertStats_Success(t *testing.T) {
-	t.Parallel()
-
-	q := &MockQueries{}
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
-	params := []sqlcdb.UpsertYahooTeamSummaryStatBatchParams{
-		{LeagueID: 12345, TeamID: 1, Date: pgDate(date), StatID: 1, Value: "5"},
-	}
-
-	q.On("UpsertYahooTeamSummaryStatBatch", mock.Anything, params).
-		Return(sqlcdb.NewUpsertYahooTeamSummaryStatBatchBatchResults(&mockBatchResults{}, 1))
-
-	err := upsertStats(context.Background(), q, params)
-	require.NoError(t, err)
-	q.AssertExpectations(t)
-}
-
-func TestUpsertStats_Error(t *testing.T) {
-	t.Parallel()
-
-	q := &MockQueries{}
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
-	params := []sqlcdb.UpsertYahooTeamSummaryStatBatchParams{
-		{LeagueID: 12345, TeamID: 1, Date: pgDate(date), StatID: 1, Value: "5"},
-	}
-
-	q.On("UpsertYahooTeamSummaryStatBatch", mock.Anything, params).
-		Return(sqlcdb.NewUpsertYahooTeamSummaryStatBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
-
-	err := upsertStats(context.Background(), q, params)
 	require.Error(t, err)
 }
 
@@ -717,13 +680,15 @@ func TestCollectSummaryParams_InvalidStatID_Skipped(t *testing.T) {
 	res := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
 	require.NoError(t, mem.Write(res.Path(), xml))
 
-	_, statParams := a.collectSummaryParams(
+	summaryParams := a.collectSummaryParams(
 		context.Background(), teams, date, make(core.OriginCounts),
 	)
 
-	// Only the valid stat ID (2) should be included.
-	require.Len(t, statParams, 1)
-	assert.Equal(t, int32(2), statParams[0].StatID)
+	// The summary should have the valid stat (2=assists) populated, invalid stat ID skipped.
+	require.Len(t, summaryParams, 1)
+	assert.True(t, summaryParams[0].Assists.Valid)
+	assert.Equal(t, float32(10), summaryParams[0].Assists.Float32)
+	assert.False(t, summaryParams[0].Goals.Valid) // stat_id "not-a-number" was skipped
 }
 
 // ────────────────────────────────────────────────────────────────────────────

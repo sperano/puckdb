@@ -423,7 +423,7 @@ type SkaterRecentStat struct {
 	PlusMinus     int64          `json:"plus_minus"`
 	PIM           int64          `json:"pim"`
 	SOG           int64          `json:"sog"`
-	Ppp           int64          `json:"ppp"`
+	PPP           int64          `json:"ppp"`
 	Ppg           int64          `json:"ppg"`
 	Hits          int64          `json:"hits"`
 	Blocks        int64          `json:"blocks"`
@@ -445,7 +445,7 @@ type SkaterSeasonStat struct {
 	PlusMinus     int64          `json:"plus_minus"`
 	PIM           int64          `json:"pim"`
 	SOG           int64          `json:"sog"`
-	Ppp           int64          `json:"ppp"`
+	PPP           int64          `json:"ppp"`
 	Ppg           int64          `json:"ppg"`
 	Hits          int64          `json:"hits"`
 	Blocks        int64          `json:"blocks"`
@@ -579,7 +579,7 @@ type YahooRotoStanding struct {
 	PmPts        int32  `json:"pm_pts"`
 	PIM          int64  `json:"pim"`
 	PimPts       int32  `json:"pim_pts"`
-	Ppp          int64  `json:"ppp"`
+	PPP          int64  `json:"ppp"`
 	PppPts       int32  `json:"ppp_pts"`
 	SOG          int64  `json:"sog"`
 	SogPts       int32  `json:"sog_pts"`
@@ -601,7 +601,7 @@ type YahooSeasonTeamTotal struct {
 	Assists     int64  `json:"assists"`
 	PlusMinus   int64  `json:"plus_minus"`
 	PIM         int64  `json:"pim"`
-	Ppp         int64  `json:"ppp"`
+	PPP         int64  `json:"ppp"`
 	SOG         int64  `json:"sog"`
 	Wins        int64  `json:"wins"`
 	Ga          int64  `json:"ga"`
@@ -668,14 +668,26 @@ type YahooTeamSummary struct {
 	CoverageType string             `json:"coverage_type"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-}
-
-type YahooTeamSummaryStat struct {
-	LeagueID int32       `json:"league_id"`
-	TeamID   int32       `json:"team_id"`
-	Date     pgtype.Date `json:"date"`
-	StatID   int32       `json:"stat_id"`
-	Value    string      `json:"value"`
+	Goals        pgtype.Float4      `json:"goals"`
+	Assists      pgtype.Float4      `json:"assists"`
+	Points       pgtype.Float4      `json:"points"`
+	PlusMinus    pgtype.Float4      `json:"plus_minus"`
+	PIM          pgtype.Float4      `json:"pim"`
+	PPP          pgtype.Float4      `json:"ppp"`
+	SOG          pgtype.Float4      `json:"sog"`
+	FaceoffsWon  pgtype.Float4      `json:"faceoffs_won"`
+	FaceoffsLost pgtype.Float4      `json:"faceoffs_lost"`
+	Wins         pgtype.Float4      `json:"wins"`
+	GoalsAgainst pgtype.Float4      `json:"goals_against"`
+	GAA          pgtype.Float4      `json:"gaa"`
+	ShotsAgainst pgtype.Float4      `json:"shots_against"`
+	Saves        pgtype.Float4      `json:"saves"`
+	SavePct      pgtype.Float4      `json:"save_pct"`
+	Shutouts     pgtype.Float4      `json:"shutouts"`
+	SHP          pgtype.Float4      `json:"shp"`
+	GWG          pgtype.Float4      `json:"gwg"`
+	Hits         pgtype.Float4      `json:"hits"`
+	Blocks       pgtype.Float4      `json:"blocks"`
 }
 
 type YahooTransaction struct {

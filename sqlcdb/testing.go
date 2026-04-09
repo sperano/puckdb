@@ -87,11 +87,6 @@ func NewUpsertYahooTeamSummaryBatchBatchResults(br pgx.BatchResults, count int) 
 	return &UpsertYahooTeamSummaryBatchBatchResults{br: br, tot: count}
 }
 
-// NewUpsertYahooTeamSummaryStatBatchBatchResults creates batch results for testing.
-func NewUpsertYahooTeamSummaryStatBatchBatchResults(br pgx.BatchResults, count int) *UpsertYahooTeamSummaryStatBatchBatchResults {
-	return &UpsertYahooTeamSummaryStatBatchBatchResults{br: br, tot: count}
-}
-
 // NewUpsertYahooTeamRosterBatchBatchResults creates batch results for testing.
 func NewUpsertYahooTeamRosterBatchBatchResults(br pgx.BatchResults, count int) *UpsertYahooTeamRosterBatchBatchResults {
 	return &UpsertYahooTeamRosterBatchBatchResults{br: br, tot: count}

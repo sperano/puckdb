@@ -131,7 +131,7 @@ func TestCollectSummaryParams_NoFiles(t *testing.T) {
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
 	teams := []TeamInfo{{LeagueID: 1, TeamID: 1}}
 
-	summaryParams, statParams := a.collectSummaryParams(
+	summaryParams := a.collectSummaryParams(
 		context.Background(),
 		teams,
 		time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
@@ -139,7 +139,6 @@ func TestCollectSummaryParams_NoFiles(t *testing.T) {
 	)
 
 	assert.Empty(t, summaryParams)
-	assert.Empty(t, statParams)
 }
 
 func TestCollectSummaryParams_ValidFile(t *testing.T) {
@@ -166,7 +165,7 @@ func TestCollectSummaryParams_ValidFile(t *testing.T) {
 	res := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
 	require.NoError(t, mem.Write(res.Path(), xmlContent))
 
-	summaryParams, statParams := a.collectSummaryParams(
+	summaryParams := a.collectSummaryParams(
 		context.Background(),
 		teams,
 		date,
@@ -177,9 +176,8 @@ func TestCollectSummaryParams_ValidFile(t *testing.T) {
 	assert.Equal(t, int32(12345), summaryParams[0].LeagueID)
 	assert.Equal(t, int32(1), summaryParams[0].TeamID)
 	assert.Equal(t, "date", summaryParams[0].CoverageType)
-	assert.Len(t, statParams, 2)
-	assert.Equal(t, int32(1), statParams[0].StatID)
-	assert.Equal(t, int32(2), statParams[1].StatID)
+	assert.Equal(t, float32(5), summaryParams[0].Goals.Float32)
+	assert.Equal(t, float32(10), summaryParams[0].Assists.Float32)
 }
 
 func TestCollectSummaryParams_MultipleTeams(t *testing.T) {
@@ -201,7 +199,7 @@ func TestCollectSummaryParams_MultipleTeams(t *testing.T) {
 		require.NoError(t, mem.Write(res.Path(), xmlContent))
 	}
 
-	summaryParams, _ := a.collectSummaryParams(
+	summaryParams := a.collectSummaryParams(
 		context.Background(),
 		teams,
 		date,

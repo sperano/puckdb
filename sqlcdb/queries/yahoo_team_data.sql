@@ -39,51 +39,63 @@ DELETE FROM yahoo_team_summaries WHERE league_id = $1 AND date = $2;
 
 -- name: UpsertYahooTeamSummaryBatch :batchexec
 INSERT INTO yahoo_team_summaries (
-    league_id, team_id, date, coverage_type
+    league_id, team_id, date, coverage_type,
+    goals, assists, points, plus_minus, pim, ppp, sog,
+    faceoffs_won, faceoffs_lost,
+    wins, goals_against, gaa, shots_against, saves, save_pct, shutouts,
+    shp, gwg, hits, blocks
 )
-VALUES ($1, $2, $3, $4)
+VALUES ($1, $2, $3, $4,
+    $5, $6, $7, $8, $9, $10, $11,
+    $12, $13,
+    $14, $15, $16, $17, $18, $19, $20,
+    $21, $22, $23, $24)
 ON CONFLICT (league_id, team_id, date) DO UPDATE SET
     coverage_type = EXCLUDED.coverage_type,
+    goals = EXCLUDED.goals,
+    assists = EXCLUDED.assists,
+    points = EXCLUDED.points,
+    plus_minus = EXCLUDED.plus_minus,
+    pim = EXCLUDED.pim,
+    ppp = EXCLUDED.ppp,
+    sog = EXCLUDED.sog,
+    faceoffs_won = EXCLUDED.faceoffs_won,
+    faceoffs_lost = EXCLUDED.faceoffs_lost,
+    wins = EXCLUDED.wins,
+    goals_against = EXCLUDED.goals_against,
+    gaa = EXCLUDED.gaa,
+    shots_against = EXCLUDED.shots_against,
+    saves = EXCLUDED.saves,
+    save_pct = EXCLUDED.save_pct,
+    shutouts = EXCLUDED.shutouts,
+    shp = EXCLUDED.shp,
+    gwg = EXCLUDED.gwg,
+    hits = EXCLUDED.hits,
+    blocks = EXCLUDED.blocks,
     updated_at = NOW()
-WHERE yahoo_team_summaries.coverage_type IS DISTINCT FROM EXCLUDED.coverage_type;
-
--- =============================================================================
--- Yahoo Team Summary Stats
--- =============================================================================
-
--- name: GetYahooTeamSummaryStats :many
-SELECT * FROM yahoo_team_summary_stats
-WHERE league_id = $1 AND team_id = $2 AND date = $3
-ORDER BY stat_id;
-
--- name: GetYahooTeamSummaryStatsByLeagueAndDate :many
-SELECT * FROM yahoo_team_summary_stats
-WHERE league_id = $1 AND date = $2
-ORDER BY team_id, stat_id;
-
--- name: GetYahooTeamSummaryStatsByStat :many
-SELECT * FROM yahoo_team_summary_stats
-WHERE league_id = $1 AND stat_id = $2
-ORDER BY date, team_id;
-
--- name: CountYahooTeamSummaryStats :one
-SELECT COUNT(*) FROM yahoo_team_summary_stats;
-
--- name: DeleteYahooTeamSummaryStats :exec
-DELETE FROM yahoo_team_summary_stats
-WHERE league_id = $1 AND team_id = $2 AND date = $3;
-
--- name: DeleteYahooTeamSummaryStatsByLeague :exec
-DELETE FROM yahoo_team_summary_stats WHERE league_id = $1;
-
--- name: UpsertYahooTeamSummaryStatBatch :batchexec
-INSERT INTO yahoo_team_summary_stats (
-    league_id, team_id, date, stat_id, value
-)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (league_id, team_id, date, stat_id) DO UPDATE SET
-    value = EXCLUDED.value
-WHERE yahoo_team_summary_stats.value IS DISTINCT FROM EXCLUDED.value;
+WHERE (yahoo_team_summaries.coverage_type,
+       yahoo_team_summaries.goals, yahoo_team_summaries.assists,
+       yahoo_team_summaries.points, yahoo_team_summaries.plus_minus,
+       yahoo_team_summaries.pim, yahoo_team_summaries.ppp,
+       yahoo_team_summaries.sog, yahoo_team_summaries.faceoffs_won,
+       yahoo_team_summaries.faceoffs_lost, yahoo_team_summaries.wins,
+       yahoo_team_summaries.goals_against, yahoo_team_summaries.gaa,
+       yahoo_team_summaries.shots_against, yahoo_team_summaries.saves,
+       yahoo_team_summaries.save_pct, yahoo_team_summaries.shutouts,
+       yahoo_team_summaries.shp, yahoo_team_summaries.gwg,
+       yahoo_team_summaries.hits, yahoo_team_summaries.blocks)
+      IS DISTINCT FROM
+      (EXCLUDED.coverage_type,
+       EXCLUDED.goals, EXCLUDED.assists,
+       EXCLUDED.points, EXCLUDED.plus_minus,
+       EXCLUDED.pim, EXCLUDED.ppp,
+       EXCLUDED.sog, EXCLUDED.faceoffs_won,
+       EXCLUDED.faceoffs_lost, EXCLUDED.wins,
+       EXCLUDED.goals_against, EXCLUDED.gaa,
+       EXCLUDED.shots_against, EXCLUDED.saves,
+       EXCLUDED.save_pct, EXCLUDED.shutouts,
+       EXCLUDED.shp, EXCLUDED.gwg,
+       EXCLUDED.hits, EXCLUDED.blocks);
 
 -- =============================================================================
 -- Yahoo Team Rosters

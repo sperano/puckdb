@@ -270,23 +270,15 @@ func (a *ImportActivities) ImportYahooDataForDate(ctx context.Context, input Imp
 	}
 
 	// Collect params for this date across all teams
-	summaryParams, statParams := a.collectSummaryParams(ctx, input.Teams, input.Date, result.Origins)
+	summaryParams := a.collectSummaryParams(ctx, input.Teams, input.Date, result.Origins)
 	rosterParams := a.collectRosterParams(ctx, input.Teams, input.Date, result.Origins)
 
-	// Batch upsert summaries
+	// Batch upsert summaries (includes stats as columns)
 	if len(summaryParams) > 0 {
 		if err := upsertSummaries(ctx, a.Queries, summaryParams); err != nil {
 			return result, err
 		}
 		result.SummariesImported = len(summaryParams)
-	}
-
-	// Batch upsert stats
-	if len(statParams) > 0 {
-		if err := upsertStats(ctx, a.Queries, statParams); err != nil {
-			return result, err
-		}
-		result.StatsImported = len(statParams)
 	}
 
 	// Batch upsert rosters
@@ -301,20 +293,15 @@ func (a *ImportActivities) ImportYahooDataForDate(ctx context.Context, input Imp
 		logger.Info("Imported Yahoo data for date",
 			"date", input.Date.Format(config.DateFormat),
 			"summaries", result.SummariesImported,
-			"stats", result.StatsImported,
 			"rosters", result.RostersImported)
 	}
 
 	return result, nil
 }
 
-// collectSummaryParams reads team summary files and returns params for summaries and stats.
-func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []TeamInfo, date time.Time, origins core.OriginCounts) (
-	[]sqlcdb.UpsertYahooTeamSummaryBatchParams,
-	[]sqlcdb.UpsertYahooTeamSummaryStatBatchParams,
-) {
+// collectSummaryParams reads team summary files and returns params for summaries with stats as columns.
+func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []TeamInfo, date time.Time, origins core.OriginCounts) []sqlcdb.UpsertYahooTeamSummaryBatchParams {
 	var summaryParams []sqlcdb.UpsertYahooTeamSummaryBatchParams
-	var statParams []sqlcdb.UpsertYahooTeamSummaryStatBatchParams
 	pgDate := pgtype.Date{Time: date, Valid: true}
 
 	for _, teamInfo := range teams {
@@ -336,29 +323,85 @@ func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []Tea
 		team := fantasy.Team
 		teamStats := team.TeamStats
 
-		summaryParams = append(summaryParams, sqlcdb.UpsertYahooTeamSummaryBatchParams{
+		p := sqlcdb.UpsertYahooTeamSummaryBatchParams{
 			LeagueID:     int32(teamInfo.LeagueID),
 			TeamID:       int32(teamInfo.TeamID),
 			Date:         pgDate,
 			CoverageType: teamStats.CoverageType,
-		})
+		}
 
 		for _, stat := range teamStats.Stats.Slice {
 			statID, err := strconv.Atoi(stat.StatID)
 			if err != nil {
 				continue
 			}
-			statParams = append(statParams, sqlcdb.UpsertYahooTeamSummaryStatBatchParams{
-				LeagueID: int32(teamInfo.LeagueID),
-				TeamID:   int32(teamInfo.TeamID),
-				Date:     pgDate,
-				StatID:   int32(statID),
-				Value:    stat.Value,
-			})
+			val := parseStatValue(stat.Value)
+			assignStatField(&p, statID, val)
 		}
+
+		summaryParams = append(summaryParams, p)
 	}
 
-	return summaryParams, statParams
+	return summaryParams
+}
+
+// parseStatValue converts a Yahoo stat value string to a nullable float.
+// Yahoo uses "-" for stats with no data (e.g., goalie stats for a skater-only day).
+func parseStatValue(s string) pgtype.Float4 {
+	if s == "-" || s == "" {
+		return pgtype.Float4{}
+	}
+	v, err := strconv.ParseFloat(s, 32)
+	if err != nil {
+		return pgtype.Float4{}
+	}
+	return pgtype.Float4{Float32: float32(v), Valid: true}
+}
+
+// assignStatField maps a Yahoo stat ID to the corresponding struct field.
+func assignStatField(p *sqlcdb.UpsertYahooTeamSummaryBatchParams, statID int, val pgtype.Float4) {
+	switch statID {
+	case 1:
+		p.Goals = val
+	case 2:
+		p.Assists = val
+	case 3:
+		p.Points = val
+	case 4:
+		p.PlusMinus = val
+	case 5:
+		p.PIM = val
+	case 8:
+		p.PPP = val
+	case 14:
+		p.SOG = val
+	case 16:
+		p.FaceoffsWon = val
+	case 17:
+		p.FaceoffsLost = val
+	case 19:
+		p.Wins = val
+	case 22:
+		p.GoalsAgainst = val
+	case 23:
+		p.GAA = val
+	case 24:
+		p.ShotsAgainst = val
+	case 25:
+		p.Saves = val
+	case 26:
+		p.SavePct = val
+	case 27:
+		p.Shutouts = val
+	case 29:
+		p.SHP = val
+	case 30:
+		p.GWG = val
+	case 31:
+		p.Hits = val
+	case 32:
+		p.Blocks = val
+	}
 }
 
 // collectRosterParams reads team roster files and returns params for rosters.
@@ -419,14 +462,6 @@ func upsertSummaries(ctx context.Context, queries YahooDataUpserter, params []sq
 	return shared.ExecBatch(queries.UpsertYahooTeamSummaryBatch(ctx, params), func(i int) string {
 		return fmt.Sprintf("summary league_id=%d team_id=%d date=%s",
 			params[i].LeagueID, params[i].TeamID, params[i].Date.Time.Format(config.DateFormat))
-	})
-}
-
-// upsertStats batch upserts team summary stat records.
-func upsertStats(ctx context.Context, queries YahooDataUpserter, params []sqlcdb.UpsertYahooTeamSummaryStatBatchParams) error {
-	return shared.ExecBatch(queries.UpsertYahooTeamSummaryStatBatch(ctx, params), func(i int) string {
-		return fmt.Sprintf("stat league_id=%d team_id=%d date=%s stat_id=%d",
-			params[i].LeagueID, params[i].TeamID, params[i].Date.Time.Format(config.DateFormat), params[i].StatID)
 	})
 }
 
