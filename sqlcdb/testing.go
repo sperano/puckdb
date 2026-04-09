@@ -97,6 +97,11 @@ func NewUpsertYahooTransactionBatchBatchResults(br pgx.BatchResults, count int) 
 	return &UpsertYahooTransactionBatchBatchResults{br: br, tot: count}
 }
 
+// NewUpsertYahooTransactionPlayerBatchBatchResults creates batch results for testing.
+func NewUpsertYahooTransactionPlayerBatchBatchResults(br pgx.BatchResults, count int) *UpsertYahooTransactionPlayerBatchBatchResults {
+	return &UpsertYahooTransactionPlayerBatchBatchResults{br: br, tot: count}
+}
+
 // NewUpsertYahooDraftResultBatchBatchResults creates batch results for testing.
 func NewUpsertYahooDraftResultBatchBatchResults(br pgx.BatchResults, count int) *UpsertYahooDraftResultBatchBatchResults {
 	return &UpsertYahooDraftResultBatchBatchResults{br: br, tot: count}

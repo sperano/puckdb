@@ -9,6 +9,17 @@ import (
 	"context"
 )
 
+const countYahooTransactionPlayers = `-- name: CountYahooTransactionPlayers :one
+SELECT COUNT(*) FROM yahoo_transaction_players
+`
+
+func (q *Queries) CountYahooTransactionPlayers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countYahooTransactionPlayers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countYahooTransactions = `-- name: CountYahooTransactions :one
 SELECT COUNT(*) FROM yahoo_transactions
 `
@@ -31,8 +42,85 @@ func (q *Queries) CountYahooTransactionsByLeague(ctx context.Context, leagueID i
 	return count, err
 }
 
+const getYahooTransactionPlayersByPlayer = `-- name: GetYahooTransactionPlayersByPlayer :many
+SELECT league_id, transaction_key, player_id, player_key, type, source_type, source_team_key, destination_type, destination_team_key FROM yahoo_transaction_players
+WHERE player_id = $1
+ORDER BY league_id, transaction_key
+`
+
+func (q *Queries) GetYahooTransactionPlayersByPlayer(ctx context.Context, playerID int32) ([]YahooTransactionPlayer, error) {
+	rows, err := q.db.Query(ctx, getYahooTransactionPlayersByPlayer, playerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []YahooTransactionPlayer{}
+	for rows.Next() {
+		var i YahooTransactionPlayer
+		if err := rows.Scan(
+			&i.LeagueID,
+			&i.TransactionKey,
+			&i.PlayerID,
+			&i.PlayerKey,
+			&i.Type,
+			&i.SourceType,
+			&i.SourceTeamKey,
+			&i.DestinationType,
+			&i.DestinationTeamKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getYahooTransactionPlayersByTransaction = `-- name: GetYahooTransactionPlayersByTransaction :many
+SELECT league_id, transaction_key, player_id, player_key, type, source_type, source_team_key, destination_type, destination_team_key FROM yahoo_transaction_players
+WHERE league_id = $1 AND transaction_key = $2
+ORDER BY player_id
+`
+
+type GetYahooTransactionPlayersByTransactionParams struct {
+	LeagueID       int32  `json:"league_id"`
+	TransactionKey string `json:"transaction_key"`
+}
+
+func (q *Queries) GetYahooTransactionPlayersByTransaction(ctx context.Context, arg GetYahooTransactionPlayersByTransactionParams) ([]YahooTransactionPlayer, error) {
+	rows, err := q.db.Query(ctx, getYahooTransactionPlayersByTransaction, arg.LeagueID, arg.TransactionKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []YahooTransactionPlayer{}
+	for rows.Next() {
+		var i YahooTransactionPlayer
+		if err := rows.Scan(
+			&i.LeagueID,
+			&i.TransactionKey,
+			&i.PlayerID,
+			&i.PlayerKey,
+			&i.Type,
+			&i.SourceType,
+			&i.SourceTeamKey,
+			&i.DestinationType,
+			&i.DestinationTeamKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getYahooTransactionsByLeague = `-- name: GetYahooTransactionsByLeague :many
-SELECT league_id, transaction_key, type, timestamp, status, players, created_at FROM yahoo_transactions
+SELECT league_id, transaction_key, type, timestamp, status, created_at FROM yahoo_transactions
 WHERE league_id = $1
 ORDER BY timestamp DESC
 `
@@ -52,7 +140,6 @@ func (q *Queries) GetYahooTransactionsByLeague(ctx context.Context, leagueID int
 			&i.Type,
 			&i.Timestamp,
 			&i.Status,
-			&i.Players,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -66,7 +153,7 @@ func (q *Queries) GetYahooTransactionsByLeague(ctx context.Context, leagueID int
 }
 
 const getYahooTransactionsByType = `-- name: GetYahooTransactionsByType :many
-SELECT league_id, transaction_key, type, timestamp, status, players, created_at FROM yahoo_transactions
+SELECT league_id, transaction_key, type, timestamp, status, created_at FROM yahoo_transactions
 WHERE league_id = $1 AND type = $2
 ORDER BY timestamp DESC
 `
@@ -91,7 +178,6 @@ func (q *Queries) GetYahooTransactionsByType(ctx context.Context, arg GetYahooTr
 			&i.Type,
 			&i.Timestamp,
 			&i.Status,
-			&i.Players,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

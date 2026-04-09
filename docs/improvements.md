@@ -72,11 +72,9 @@ These are the two largest tables and the most likely source of future slow queri
 - ~~Stat IDs are magic numbers with no lookup table~~
 - Migrated to 20 typed `REAL` columns on `yahoo_team_summaries`. The EAV table is dropped. Stat name/ID mapping remains in `yahoo_league_stat_categories`.
 
-**`yahoo_transactions.players` is JSONB with no GIN index:**
-- "Every transaction involving player X" is a JSONB scan
-
-**Action:**
-- Add GIN index on `yahoo_transactions.players`
+~~**`yahoo_transactions.players` was JSONB with no GIN index:**~~
+- ~~"Every transaction involving player X" is a JSONB scan~~
+- Normalized into a dedicated `yahoo_transaction_players` relational table with PK `(league_id, transaction_key, player_id)` and FK cascade. JSONB column dropped entirely.
 
 ---
 
@@ -166,7 +164,7 @@ During the main audit, only `puckdb/CLAUDE.md` was checked. The following likely
 | 4 | Data dictionary via `COMMENT ON COLUMN` (#7) | Medium — enables Maurice + new contributors | Low |
 | 5 | Maurice evaluation harness (#8) | Medium — depends on #1 to be meaningful | Medium |
 | 6 | Observability domain metrics (#6) | Medium | Low |
-| 7 | ~~Yahoo EAV~~ (done) / JSONB indexing (#4) | Medium | Low |
+| 7 | ~~Yahoo EAV~~ (done) / ~~JSONB normalization~~ (done) (#4) | Medium | Low |
 | 8 | CLAUDE.md audits for sibling repos (#9) | Low | Low |
 
 **Single highest-impact next step:** Start item #1 (GraphQL query layer). It's the thing that converts puckdb from "ingestion pipeline" to "data product."

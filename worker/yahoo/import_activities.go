@@ -2,7 +2,6 @@ package yahoo
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -528,33 +527,50 @@ func (a *ImportActivities) importYahooTransactions(ctx context.Context, input Im
 		return 0, nil
 	}
 
-	params := make([]sqlcdb.UpsertYahooTransactionBatchParams, len(txns))
-	for i, tx := range txns {
-		var playersJSON []byte
-		if tx.Players.Count > 0 {
-			var err error
-			playersJSON, err = json.Marshal(tx.Players.Slice)
-			if err != nil {
-				return 0, fmt.Errorf("marshal transaction players: %w", err)
-			}
-		}
+	txParams := make([]sqlcdb.UpsertYahooTransactionBatchParams, len(txns))
+	var playerParams []sqlcdb.UpsertYahooTransactionPlayerBatchParams
 
-		params[i] = sqlcdb.UpsertYahooTransactionBatchParams{
-			LeagueID:       int32(input.LeagueID),
+	for i, tx := range txns {
+		leagueID := int32(input.LeagueID)
+
+		txParams[i] = sqlcdb.UpsertYahooTransactionBatchParams{
+			LeagueID:       leagueID,
 			TransactionKey: tx.TransactionKey,
 			Type:           tx.Type,
 			Timestamp:      pgtype.Int8{Int64: int64(tx.Timestamp), Valid: int64(tx.Timestamp) != 0},
 			Status:         pgtype.Text{String: tx.Status, Valid: tx.Status != ""},
-			Players:        playersJSON,
+		}
+
+		for _, p := range tx.Players.Slice {
+			playerParams = append(playerParams, sqlcdb.UpsertYahooTransactionPlayerBatchParams{
+				LeagueID:           leagueID,
+				TransactionKey:     tx.TransactionKey,
+				PlayerID:           int32(p.ID),
+				PlayerKey:          p.Key,
+				Type:               p.TransactionData.Type,
+				SourceType:         p.TransactionData.SourceType,
+				SourceTeamKey:      p.TransactionData.SourceTeamKey,
+				DestinationType:    p.TransactionData.DestinationType,
+				DestinationTeamKey: p.TransactionData.DestinationTeamKey,
+			})
 		}
 	}
 
-	if err := shared.ExecBatch(a.Queries.UpsertYahooTransactionBatch(ctx, params), func(i int) string {
-		return fmt.Sprintf("transaction %s", params[i].TransactionKey)
+	if err := shared.ExecBatch(a.Queries.UpsertYahooTransactionBatch(ctx, txParams), func(i int) string {
+		return fmt.Sprintf("transaction %s", txParams[i].TransactionKey)
 	}); err != nil {
 		return 0, err
 	}
-	return len(params), nil
+
+	if len(playerParams) > 0 {
+		if err := shared.ExecBatch(a.Queries.UpsertYahooTransactionPlayerBatch(ctx, playerParams), func(i int) string {
+			return fmt.Sprintf("transaction player %s player_id=%d", playerParams[i].TransactionKey, playerParams[i].PlayerID)
+		}); err != nil {
+			return 0, err
+		}
+	}
+
+	return len(txParams), nil
 }
 
 // importYahooDraftResults reads cached draft result data and upserts to the database.

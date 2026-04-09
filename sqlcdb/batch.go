@@ -2169,19 +2169,18 @@ func (b *UpsertYahooTeamSummaryBatchBatchResults) Close() error {
 const upsertYahooTransactionBatch = `-- name: UpsertYahooTransactionBatch :batchexec
 
 INSERT INTO yahoo_transactions (
-    league_id, transaction_key, type, timestamp, status, players
+    league_id, transaction_key, type, timestamp, status
 )
-VALUES ($1, $2, $3, $4, $5, $6)
+VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (league_id, transaction_key) DO UPDATE SET
     type = EXCLUDED.type,
     timestamp = EXCLUDED.timestamp,
-    status = EXCLUDED.status,
-    players = EXCLUDED.players
+    status = EXCLUDED.status
 WHERE (yahoo_transactions.type, yahoo_transactions.timestamp,
-       yahoo_transactions.status, yahoo_transactions.players)
+       yahoo_transactions.status)
       IS DISTINCT FROM
       (EXCLUDED.type, EXCLUDED.timestamp,
-       EXCLUDED.status, EXCLUDED.players)
+       EXCLUDED.status)
 `
 
 type UpsertYahooTransactionBatchBatchResults struct {
@@ -2196,7 +2195,6 @@ type UpsertYahooTransactionBatchParams struct {
 	Type           string      `json:"type"`
 	Timestamp      pgtype.Int8 `json:"timestamp"`
 	Status         pgtype.Text `json:"status"`
-	Players        []byte      `json:"players"`
 }
 
 // =============================================================================
@@ -2211,7 +2209,6 @@ func (q *Queries) UpsertYahooTransactionBatch(ctx context.Context, arg []UpsertY
 			a.Type,
 			a.Timestamp,
 			a.Status,
-			a.Players,
 		}
 		batch.Queue(upsertYahooTransactionBatch, vals...)
 	}
@@ -2236,6 +2233,98 @@ func (b *UpsertYahooTransactionBatchBatchResults) Exec(f func(int, error)) {
 }
 
 func (b *UpsertYahooTransactionBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertYahooTransactionPlayerBatch = `-- name: UpsertYahooTransactionPlayerBatch :batchexec
+
+INSERT INTO yahoo_transaction_players (
+    league_id, transaction_key, player_id, player_key,
+    type, source_type, source_team_key,
+    destination_type, destination_team_key
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (league_id, transaction_key, player_id) DO UPDATE SET
+    player_key = EXCLUDED.player_key,
+    type = EXCLUDED.type,
+    source_type = EXCLUDED.source_type,
+    source_team_key = EXCLUDED.source_team_key,
+    destination_type = EXCLUDED.destination_type,
+    destination_team_key = EXCLUDED.destination_team_key
+WHERE (yahoo_transaction_players.player_key,
+       yahoo_transaction_players.type,
+       yahoo_transaction_players.source_type,
+       yahoo_transaction_players.source_team_key,
+       yahoo_transaction_players.destination_type,
+       yahoo_transaction_players.destination_team_key)
+      IS DISTINCT FROM
+      (EXCLUDED.player_key,
+       EXCLUDED.type,
+       EXCLUDED.source_type,
+       EXCLUDED.source_team_key,
+       EXCLUDED.destination_type,
+       EXCLUDED.destination_team_key)
+`
+
+type UpsertYahooTransactionPlayerBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertYahooTransactionPlayerBatchParams struct {
+	LeagueID           int32  `json:"league_id"`
+	TransactionKey     string `json:"transaction_key"`
+	PlayerID           int32  `json:"player_id"`
+	PlayerKey          string `json:"player_key"`
+	Type               string `json:"type"`
+	SourceType         string `json:"source_type"`
+	SourceTeamKey      string `json:"source_team_key"`
+	DestinationType    string `json:"destination_type"`
+	DestinationTeamKey string `json:"destination_team_key"`
+}
+
+// =============================================================================
+// Yahoo Transaction Players Queries
+// =============================================================================
+func (q *Queries) UpsertYahooTransactionPlayerBatch(ctx context.Context, arg []UpsertYahooTransactionPlayerBatchParams) *UpsertYahooTransactionPlayerBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueID,
+			a.TransactionKey,
+			a.PlayerID,
+			a.PlayerKey,
+			a.Type,
+			a.SourceType,
+			a.SourceTeamKey,
+			a.DestinationType,
+			a.DestinationTeamKey,
+		}
+		batch.Queue(upsertYahooTransactionPlayerBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertYahooTransactionPlayerBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertYahooTransactionPlayerBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertYahooTransactionPlayerBatchBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }

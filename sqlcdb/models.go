@@ -696,6 +696,17 @@ type YahooTransaction struct {
 	Type           string             `json:"type"`
 	Timestamp      pgtype.Int8        `json:"timestamp"`
 	Status         pgtype.Text        `json:"status"`
-	Players        []byte             `json:"players"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type YahooTransactionPlayer struct {
+	LeagueID           int32  `json:"league_id"`
+	TransactionKey     string `json:"transaction_key"`
+	PlayerID           int32  `json:"player_id"`
+	PlayerKey          string `json:"player_key"`
+	Type               string `json:"type"`
+	SourceType         string `json:"source_type"`
+	SourceTeamKey      string `json:"source_team_key"`
+	DestinationType    string `json:"destination_type"`
+	DestinationTeamKey string `json:"destination_team_key"`
 }

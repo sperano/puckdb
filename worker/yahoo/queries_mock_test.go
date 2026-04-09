@@ -68,6 +68,11 @@ func (m *MockQueries) UpsertYahooTransactionBatch(ctx context.Context, arg []sql
 	return args.Get(0).(*sqlcdb.UpsertYahooTransactionBatchBatchResults)
 }
 
+func (m *MockQueries) UpsertYahooTransactionPlayerBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTransactionPlayerBatchParams) *sqlcdb.UpsertYahooTransactionPlayerBatchBatchResults {
+	args := m.Called(ctx, arg)
+	return args.Get(0).(*sqlcdb.UpsertYahooTransactionPlayerBatchBatchResults)
+}
+
 func (m *MockQueries) UpsertYahooDraftResultBatch(ctx context.Context, arg []sqlcdb.UpsertYahooDraftResultBatchParams) *sqlcdb.UpsertYahooDraftResultBatchBatchResults {
 	args := m.Called(ctx, arg)
 	return args.Get(0).(*sqlcdb.UpsertYahooDraftResultBatchBatchResults)
