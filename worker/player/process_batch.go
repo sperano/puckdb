@@ -209,7 +209,7 @@ func (a *Activities) upsertPlayerCareerData(ctx context.Context, landing *nhl.Pl
 			sequence = int32(*st.Sequence)
 		}
 		var teamID pgtype.Int8
-		if tid := matching.LookupTeamIDByName(st.TeamName.Default); tid > 0 {
+		if tid, err := matching.LookupTeamIDByName(st.TeamName.Default); err == nil {
 			teamID = pgtype.Int8{Int64: tid, Valid: true}
 		}
 		totalParams = append(totalParams, sqlcdb.UpsertPlayerSeasonTotalBatchParams{

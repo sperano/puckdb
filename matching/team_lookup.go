@@ -1,5 +1,7 @@
 package matching
 
+import "fmt"
+
 // NHLTeamInfo holds static NHL team data for lookup.
 type NHLTeamInfo struct {
 	ID       int64
@@ -133,34 +135,38 @@ func init() {
 	}
 }
 
-// LookupTeamID returns the team ID for an abbreviation, or 0 if not found.
-func LookupTeamID(abbrev string) int64 {
+// LookupTeamID returns the team ID for an abbreviation.
+// Returns an error if the abbreviation is unknown.
+func LookupTeamID(abbrev string) (int64, error) {
 	if info, ok := teamsByAbbrev[abbrev]; ok {
-		return info.ID
+		return info.ID, nil
 	}
-	return 0
+	return 0, fmt.Errorf("unknown team abbreviation: %q", abbrev)
 }
 
-// LookupTeamByID returns team info by ID, or nil if not found.
-func LookupTeamByID(id int64) *NHLTeamInfo {
+// LookupTeamByID returns team info by ID.
+// Returns an error if the ID is unknown.
+func LookupTeamByID(id int64) (NHLTeamInfo, error) {
 	if info, ok := teamsById[id]; ok {
-		return &info
+		return info, nil
 	}
-	return nil
+	return NHLTeamInfo{}, fmt.Errorf("unknown team ID: %d", id)
 }
 
-// LookupTeamIDByName returns the team ID for a full team name, or 0 if not found.
-func LookupTeamIDByName(fullName string) int64 {
+// LookupTeamIDByName returns the team ID for a full team name.
+// Returns an error if the name is unknown.
+func LookupTeamIDByName(fullName string) (int64, error) {
 	if info, ok := teamsByName[fullName]; ok {
-		return info.ID
+		return info.ID, nil
 	}
-	return 0
+	return 0, fmt.Errorf("unknown team name: %q", fullName)
 }
 
-// LookupTeamAbbrev returns the abbreviation for a team ID, or empty string if not found.
-func LookupTeamAbbrev(id int64) string {
+// LookupTeamAbbrev returns the abbreviation for a team ID.
+// Returns an error if the ID is unknown.
+func LookupTeamAbbrev(id int64) (string, error) {
 	if info, ok := teamsById[id]; ok {
-		return info.Abbrev
+		return info.Abbrev, nil
 	}
-	return ""
+	return "", fmt.Errorf("unknown team ID: %d", id)
 }

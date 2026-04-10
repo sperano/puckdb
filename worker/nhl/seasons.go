@@ -277,9 +277,13 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhlapi
 	}
 
 	for _, s := range standings {
+		teamID, err := matching.LookupTeamID(s.TeamAbbrev.String())
+		if err != nil {
+			return result, fmt.Errorf("season %d team %s: %w", season.ID(), s.TeamAbbrev.String(), err)
+		}
 		params := sqlcdb.UpsertSeasonTeamParams{
 			Season:           int32(season.ID()),
-			TeamID:           matching.LookupTeamID(s.TeamAbbrev.String()),
+			TeamID:           teamID,
 			FranchiseID:      pgtype.Int8{Valid: false},
 			FullName:         s.TeamName.String(),
 			Abbrev:           s.TeamAbbrev.String(),

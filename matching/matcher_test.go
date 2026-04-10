@@ -445,28 +445,43 @@ func TestMatchReason_String(t *testing.T) {
 func TestLookupTeamID(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, int64(8), LookupTeamID("MTL"))
-	assert.Equal(t, int64(22), LookupTeamID("EDM"))
-	assert.Equal(t, int64(0), LookupTeamID("INVALID"))
+	id, err := LookupTeamID("MTL")
+	assert.NoError(t, err)
+	assert.Equal(t, int64(8), id)
+
+	id, err = LookupTeamID("EDM")
+	assert.NoError(t, err)
+	assert.Equal(t, int64(22), id)
+
+	_, err = LookupTeamID("INVALID")
+	assert.Error(t, err)
 }
 
 func TestLookupTeamByID(t *testing.T) {
 	t.Parallel()
 
-	info := LookupTeamByID(8)
-	require.NotNil(t, info)
+	info, err := LookupTeamByID(8)
+	require.NoError(t, err)
 	assert.Equal(t, "MTL", info.Abbrev)
 	assert.Equal(t, "Montréal Canadiens", info.FullName)
 
-	assert.Nil(t, LookupTeamByID(99999))
+	_, err = LookupTeamByID(99999)
+	assert.Error(t, err)
 }
 
 func TestLookupTeamAbbrev(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "MTL", LookupTeamAbbrev(8))
-	assert.Equal(t, "EDM", LookupTeamAbbrev(22))
-	assert.Equal(t, "", LookupTeamAbbrev(99999))
+	abbrev, err := LookupTeamAbbrev(8)
+	assert.NoError(t, err)
+	assert.Equal(t, "MTL", abbrev)
+
+	abbrev, err = LookupTeamAbbrev(22)
+	assert.NoError(t, err)
+	assert.Equal(t, "EDM", abbrev)
+
+	_, err = LookupTeamAbbrev(99999)
+	assert.Error(t, err)
 }
 
 func TestMatchYahooID_AmbiguousNoDisambiguator(t *testing.T) {
