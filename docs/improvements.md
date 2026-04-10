@@ -1,4 +1,4 @@
-# PuckDB Improvements — Post-Feature-Complete Assessment
+x# PuckDB Improvements — Post-Feature-Complete Assessment
 
 **Date:** 2026-04-08
 **Context:** Drafted after auditing CLAUDE.md against the actual codebase and `puckdb_prod` schema. The April 2026 cleanup plan (batch helpers, resolver dedup, worker subpackages) is complete, so this document is forward-looking rather than cleanup-oriented.
@@ -39,10 +39,9 @@ Discovered while verifying schema for the CLAUDE.md audit.
 - ~~`standings_snapshots.team_abbrev` is text, not `team_id`~~
 - `season_teams.season_id` renamed to `season` (was the only table using `_id` suffix; all 14 others used `season`). `standings_snapshots.season` converted from start-year format (2024) to concatenated format (20242025) matching `seasons.id`. `team_abbrev` replaced by `team_id` in PK with FK to `season_teams(season, team_id)`. `team_abbrev` retained as a non-PK display column.
 
-**Denormalized free text:**
-- `player_season_totals.team_name` is text rather than FK — can't reliably join to `teams`
-
-**Action:** Audit each table, add FKs where safe, document the ones that intentionally break referential integrity (minor leagues, historical snapshots).
+**~~Denormalized free text~~ — RESOLVED (migration 000017):**
+- ~~`player_season_totals.team_name` is text rather than FK — can't reliably join to `teams`~~
+- Added `team_id BIGINT` column with composite FK `(season, team_id)` → `season_teams(season, team_id)`. Converted `season` from start-year format (2024) to concatenated format (20242025) matching the rest of the schema. 5 pre-NHL western league teams (PCHA/WCHL Stanley Cup challengers, 1917-1925) inserted into `season_teams` with synthetic IDs 70-74. Also cleaned up `team_id=0` duplicates in `season_teams` and fixed Cleveland Barons missing real ID. Non-NHL rows (75% of table) have `team_id = NULL`.
 
 ---
 

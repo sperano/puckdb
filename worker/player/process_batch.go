@@ -208,12 +208,17 @@ func (a *Activities) upsertPlayerCareerData(ctx context.Context, landing *nhl.Pl
 		if st.Sequence != nil {
 			sequence = int32(*st.Sequence)
 		}
+		var teamID pgtype.Int8
+		if tid := matching.LookupTeamIDByName(st.TeamName.Default); tid > 0 {
+			teamID = pgtype.Int8{Int64: tid, Valid: true}
+		}
 		totalParams = append(totalParams, sqlcdb.UpsertPlayerSeasonTotalBatchParams{
 			PlayerID:     playerID,
-			Season:       int32(st.Season.StartYear()),
+			Season:       int32(st.Season.ID()),
 			GameType:     int16(st.GameType.Int()),
 			LeagueAbbrev: st.LeagueAbbrev,
 			TeamName:     st.TeamName.Default,
+			TeamID:       teamID,
 			Sequence:     sequence,
 			GamesPlayed:  int32(st.GamesPlayed),
 			Goals:        intPtrToInt4(st.Goals),

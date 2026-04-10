@@ -344,6 +344,7 @@ type PlayerSeasonTotal struct {
 	PIM          pgtype.Int4        `json:"pim"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	TeamID       pgtype.Int8        `json:"team_id"`
 }
 
 type Season struct {

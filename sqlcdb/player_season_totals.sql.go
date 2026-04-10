@@ -21,7 +21,7 @@ func (q *Queries) CountPlayerSeasonTotals(ctx context.Context) (int64, error) {
 }
 
 const getPlayerNHLSeasonTotals = `-- name: GetPlayerNHLSeasonTotals :many
-SELECT player_id, season, game_type, league_abbrev, team_name, sequence, games_played, goals, assists, points, plus_minus, pim, created_at, updated_at FROM player_season_totals
+SELECT player_id, season, game_type, league_abbrev, team_name, sequence, games_played, goals, assists, points, plus_minus, pim, created_at, updated_at, team_id FROM player_season_totals
 WHERE player_id = $1 AND league_abbrev = 'NHL'
 ORDER BY season DESC, game_type, sequence
 `
@@ -50,6 +50,7 @@ func (q *Queries) GetPlayerNHLSeasonTotals(ctx context.Context, playerID int64) 
 			&i.PIM,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TeamID,
 		); err != nil {
 			return nil, err
 		}
@@ -62,7 +63,7 @@ func (q *Queries) GetPlayerNHLSeasonTotals(ctx context.Context, playerID int64) 
 }
 
 const getPlayerSeasonTotals = `-- name: GetPlayerSeasonTotals :many
-SELECT player_id, season, game_type, league_abbrev, team_name, sequence, games_played, goals, assists, points, plus_minus, pim, created_at, updated_at FROM player_season_totals
+SELECT player_id, season, game_type, league_abbrev, team_name, sequence, games_played, goals, assists, points, plus_minus, pim, created_at, updated_at, team_id FROM player_season_totals
 WHERE player_id = $1
 ORDER BY season DESC, game_type, league_abbrev, sequence
 `
@@ -91,6 +92,7 @@ func (q *Queries) GetPlayerSeasonTotals(ctx context.Context, playerID int64) ([]
 			&i.PIM,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TeamID,
 		); err != nil {
 			return nil, err
 		}
@@ -103,7 +105,7 @@ func (q *Queries) GetPlayerSeasonTotals(ctx context.Context, playerID int64) ([]
 }
 
 const getPlayerSeasonTotalsByLeague = `-- name: GetPlayerSeasonTotalsByLeague :many
-SELECT player_id, season, game_type, league_abbrev, team_name, sequence, games_played, goals, assists, points, plus_minus, pim, created_at, updated_at FROM player_season_totals
+SELECT player_id, season, game_type, league_abbrev, team_name, sequence, games_played, goals, assists, points, plus_minus, pim, created_at, updated_at, team_id FROM player_season_totals
 WHERE player_id = $1 AND league_abbrev = $2
 ORDER BY season DESC, game_type, sequence
 `
@@ -137,6 +139,7 @@ func (q *Queries) GetPlayerSeasonTotalsByLeague(ctx context.Context, arg GetPlay
 			&i.PIM,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TeamID,
 		); err != nil {
 			return nil, err
 		}

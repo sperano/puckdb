@@ -77,6 +77,13 @@ var teamsByAbbrev = map[string]NHLTeamInfo{
 	"TSP": {58, "TSP", "Toronto St. Patricks"},
 	"WIN": {33, "WIN", "Winnipeg Jets (1979)"},
 
+	// Pre-NHL western league teams (PCHA/WCHL Stanley Cup challengers, 1917-1925)
+	"VMI": {70, "VMI", "Vancouver Millionaires"},
+	"SMT": {71, "SMT", "Seattle Metropolitans"},
+	"EDK": {72, "EDK", "Edmonton Eskimos"},
+	"VMR": {73, "VMR", "Vancouver Maroons"},
+	"VIC": {74, "VIC", "Victoria Cougars"},
+
 	// International teams (World Cup, Olympics)
 	"CAN": {60, "CAN", "Canada"},
 	"CZE": {61, "CZE", "Czechia"},
@@ -111,13 +118,18 @@ var teamsByAbbrev = map[string]NHLTeamInfo{
 // teamsById provides reverse lookup by team ID.
 var teamsById map[int64]NHLTeamInfo
 
+// teamsByName provides reverse lookup by full team name.
+var teamsByName map[string]NHLTeamInfo
+
 func init() {
 	teamsById = make(map[int64]NHLTeamInfo, len(teamsByAbbrev))
+	teamsByName = make(map[string]NHLTeamInfo, len(teamsByAbbrev))
 	for _, t := range teamsByAbbrev {
 		// Only store the first occurrence (some abbrevs map to same ID like CGS/CSE)
 		if _, exists := teamsById[t.ID]; !exists {
 			teamsById[t.ID] = t
 		}
+		teamsByName[t.FullName] = t
 	}
 }
 
@@ -135,6 +147,14 @@ func LookupTeamByID(id int64) *NHLTeamInfo {
 		return &info
 	}
 	return nil
+}
+
+// LookupTeamIDByName returns the team ID for a full team name, or 0 if not found.
+func LookupTeamIDByName(fullName string) int64 {
+	if info, ok := teamsByName[fullName]; ok {
+		return info.ID
+	}
+	return 0
 }
 
 // LookupTeamAbbrev returns the abbreviation for a team ID, or empty string if not found.

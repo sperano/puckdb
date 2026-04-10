@@ -1018,12 +1018,13 @@ func (b *UpsertPlayerAwardBatchBatchResults) Close() error {
 const upsertPlayerSeasonTotalBatch = `-- name: UpsertPlayerSeasonTotalBatch :batchexec
 
 INSERT INTO player_season_totals (
-    player_id, season, game_type, league_abbrev, team_name, sequence,
+    player_id, season, game_type, league_abbrev, team_name, team_id, sequence,
     games_played, goals, assists, points, plus_minus, pim
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 ON CONFLICT (player_id, season, game_type, league_abbrev, sequence) DO UPDATE SET
     team_name = EXCLUDED.team_name,
+    team_id = EXCLUDED.team_id,
     games_played = EXCLUDED.games_played,
     goals = EXCLUDED.goals,
     assists = EXCLUDED.assists,
@@ -1031,12 +1032,14 @@ ON CONFLICT (player_id, season, game_type, league_abbrev, sequence) DO UPDATE SE
     plus_minus = EXCLUDED.plus_minus,
     pim = EXCLUDED.pim,
     updated_at = NOW()
-WHERE (player_season_totals.team_name, player_season_totals.games_played,
+WHERE (player_season_totals.team_name, player_season_totals.team_id,
+       player_season_totals.games_played,
        player_season_totals.goals, player_season_totals.assists,
        player_season_totals.points, player_season_totals.plus_minus,
        player_season_totals.pim)
       IS DISTINCT FROM
-      (EXCLUDED.team_name, EXCLUDED.games_played,
+      (EXCLUDED.team_name, EXCLUDED.team_id,
+       EXCLUDED.games_played,
        EXCLUDED.goals, EXCLUDED.assists,
        EXCLUDED.points, EXCLUDED.plus_minus,
        EXCLUDED.pim)
@@ -1054,6 +1057,7 @@ type UpsertPlayerSeasonTotalBatchParams struct {
 	GameType     int16       `json:"game_type"`
 	LeagueAbbrev string      `json:"league_abbrev"`
 	TeamName     string      `json:"team_name"`
+	TeamID       pgtype.Int8 `json:"team_id"`
 	Sequence     int32       `json:"sequence"`
 	GamesPlayed  int32       `json:"games_played"`
 	Goals        pgtype.Int4 `json:"goals"`
@@ -1075,6 +1079,7 @@ func (q *Queries) UpsertPlayerSeasonTotalBatch(ctx context.Context, arg []Upsert
 			a.GameType,
 			a.LeagueAbbrev,
 			a.TeamName,
+			a.TeamID,
 			a.Sequence,
 			a.GamesPlayed,
 			a.Goals,
