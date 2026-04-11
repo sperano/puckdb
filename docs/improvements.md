@@ -33,15 +33,15 @@ Discovered while verifying schema for the CLAUDE.md audit.
 - ~~`player_awards` → no FK~~
 - Foreign keys added across all tables. `player_season_totals` intentionally uses `ON DELETE SET NULL` for `player_id` and `team_id` since rows include minor-league data that may not have matching NHL entities.
 
-**~~Inconsistent key naming~~ — RESOLVED (migration 000016):**
+**~~Inconsistent key naming~~ — RESOLVED:**
 - ~~Some tables use `season_id` (FK to `seasons.id`)~~
 - ~~`season_rosters` uses `season` (integer, no FK)~~
 - ~~`standings_snapshots.team_abbrev` is text, not `team_id`~~
-- `season_teams.season_id` renamed to `season` (was the only table using `_id` suffix; all 14 others used `season`). `standings_snapshots.season` converted from start-year format (2024) to concatenated format (20242025) matching `seasons.id`. `team_abbrev` replaced by `team_id` in PK with FK to `season_teams(season, team_id)`. `team_abbrev` retained as a non-PK display column.
+- All tables now use `season` consistently (never `season_id`). `standings_snapshots` uses `team_id` in PK with FK to `season_teams(season, team_id)`. `team_abbrev` retained as a non-PK display column.
 
-**~~Denormalized free text~~ — RESOLVED (migration 000017):**
+**~~Denormalized free text~~ — RESOLVED:**
 - ~~`player_season_totals.team_name` is text rather than FK — can't reliably join to `teams`~~
-- Added `team_id BIGINT` column with composite FK `(season, team_id)` → `season_teams(season, team_id)`. Converted `season` from start-year format (2024) to concatenated format (20242025) matching the rest of the schema. 5 pre-NHL western league teams (PCHA/WCHL Stanley Cup challengers, 1917-1925) inserted into `season_teams` with synthetic IDs 70-74. Also cleaned up `team_id=0` duplicates in `season_teams` and fixed Cleveland Barons missing real ID. Non-NHL rows (75% of table) have `team_id = NULL`.
+- `player_season_totals` now has `team_id BIGINT` with composite FK `(season, team_id)` → `season_teams(season, team_id)` using `ON DELETE SET NULL (team_id)`. 5 pre-NHL western league teams (PCHA/WCHL Stanley Cup challengers, 1917-1925) seeded into `season_teams` with synthetic IDs 70-74. Non-NHL rows (75% of table) have `team_id = NULL`. All team lookup functions return errors for unknown abbreviations to prevent silent bad data.
 
 ---
 
@@ -67,11 +67,11 @@ These are the two largest tables and the most likely source of future slow queri
 
 ## 4. Yahoo data model weaknesses
 
-**~~`yahoo_team_summary_stats` is EAV~~ — RESOLVED (migration 000013):**
+**~~`yahoo_team_summary_stats` is EAV~~ — RESOLVED:**
 - ~~Stores `stat_id` / `value` (text) rows rather than typed columns~~
 - ~~Queries need to pivot or join repeatedly~~
 - ~~Stat IDs are magic numbers with no lookup table~~
-- Migrated to 20 typed `REAL` columns on `yahoo_team_summaries`. The EAV table is dropped. Stat name/ID mapping remains in `yahoo_league_stat_categories`.
+- `yahoo_team_summaries` now has 20 typed `REAL` columns from the start. EAV table was never created. Stat name/ID mapping remains in `yahoo_league_stat_categories`.
 
 ~~**`yahoo_transactions.players` was JSONB with no GIN index:**~~
 - ~~"Every transaction involving player X" is a JSONB scan~~
@@ -109,21 +109,19 @@ These are the two largest tables and the most likely source of future slow queri
 
 ---
 
-## 7. Data dictionary
+## ~~7. Data dictionary~~ — RESOLVED
 
-Many columns have semantic meaning that isn't discoverable from the schema alone:
+~~Many columns have semantic meaning that isn't discoverable from the schema alone.~~
 
-- `play_events.type_desc_key` — NHL play type codes (goal, shot-on-goal, hit, faceoff, etc.) — what's the full enum?
-- `play_events.situation_code` — 4-digit NHL strength code; each digit is a player count
-- `play_events.zone_code` — O/D/N
-- `games.game_state` — FUT / LIVE / OFF / FINAL — full enum?
-- `shifts.decision` — ?
-- `players.position_code` — C/L/R/D/G
+Replaced free-text and integer-coded columns with 15 PostgreSQL `CREATE TYPE ... AS ENUM` types defined natively in the CREATE TABLE statements (migration 000001). Enum types provide self-documenting schemas queryable via `pg_enum`, enforce valid values at the database level, and generate type-safe Go code through sqlc.
 
-**Action:**
-- Either add `COMMENT ON COLUMN` for every semantically loaded column (queryable via `pg_description`, surfaces in tools like DataGrip and MCP)
-- OR write `docs/data-dictionary.md`
-- `COMMENT ON COLUMN` is strictly better — lives next to the data, survives restores, surfaces in introspection.
+**Enums created:** `game_type`, `game_state`, `game_schedule_state`, `period_type`, `play_event_type`, `zone_code`, `ice_side`, `goalie_decision`, `player_position`, `hand_side`, `official_role`, `chat_role`, `shootout_result`, `shift_type`, `shift_detail`.
+
+**Additional changes:**
+- `play_events.situation_code` converted from TEXT to INT (was always a numeric string)
+- `play_events.type_code` dropped (redundant with `type_desc_key` enum)
+- `players.position` and `shoots_catches` empty-string defaults replaced with NULL
+- `COMMENT ON COLUMN` added for `situation_code` and `penalty_type_code`
 
 ---
 
@@ -162,7 +160,7 @@ During the main audit, only `puckdb/CLAUDE.md` was checked. The following likely
 | 1 | GraphQL data query layer (#1) | Very high — unlocks everything else | Medium |
 | 2 | ~~Missing FKs~~ (done) + `play_events` indexes (#2, #3) | High — correctness + future query performance | Low-medium |
 | 3 | Workflow SLO + freshness metrics (#5) | High — production reliability | Low |
-| 4 | Data dictionary via `COMMENT ON COLUMN` (#7) | Medium — enables Maurice + new contributors | Low |
+| 4 | ~~Data dictionary~~ (done) — PG enums (#7) | Medium — enables Maurice + new contributors | Low |
 | 5 | Maurice evaluation harness (#8) | Medium — depends on #1 to be meaningful | Medium |
 | 6 | Observability domain metrics (#6) | Medium | Low |
 | 7 | ~~Yahoo EAV~~ (done) / ~~JSONB normalization~~ (done) (#4) | Medium | Low |

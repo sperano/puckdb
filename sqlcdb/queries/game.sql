@@ -78,8 +78,8 @@ JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
 JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
 WHERE
     (sqlc.narg('season')::int IS NULL OR g.season = sqlc.narg('season'))
-    AND (sqlc.narg('game_type')::smallint IS NULL OR g.game_type = sqlc.narg('game_type'))
-    AND (sqlc.narg('game_state')::text IS NULL OR g.game_state = sqlc.narg('game_state'))
+    AND (sqlc.narg('game_type')::game_type IS NULL OR g.game_type = sqlc.narg('game_type'))
+    AND (sqlc.narg('game_state')::game_state IS NULL OR g.game_state = sqlc.narg('game_state'))
     AND (sqlc.narg('team_id')::bigint IS NULL OR g.home_team_id = sqlc.narg('team_id') OR g.away_team_id = sqlc.narg('team_id'))
     AND (sqlc.narg('start_date')::date IS NULL OR g.game_date >= sqlc.narg('start_date'))
     AND (sqlc.narg('end_date')::date IS NULL OR g.game_date <= sqlc.narg('end_date'))

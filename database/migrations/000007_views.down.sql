@@ -1,5 +1,3 @@
--- Reverse migration: remove fantasy analysis views
-
 DROP VIEW IF EXISTS goalie_recent_stats;
 DROP VIEW IF EXISTS skater_recent_stats;
 DROP VIEW IF EXISTS goalie_season_stats;

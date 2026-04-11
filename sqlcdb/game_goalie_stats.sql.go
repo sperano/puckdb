@@ -36,7 +36,7 @@ func (q *Queries) DeleteGameGoalieStatsByGame(ctx context.Context, gameID int64)
 
 const getGameGoalieStats = `-- name: GetGameGoalieStats :one
 
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -57,7 +57,7 @@ type GetGameGoalieStatsRow struct {
 	TeamID                   int64              `json:"team_id"`
 	IsHome                   bool               `json:"is_home"`
 	SweaterNumber            int16              `json:"sweater_number"`
-	Decision                 pgtype.Text        `json:"decision"`
+	Decision                 NullGoalieDecision `json:"decision"`
 	Starter                  pgtype.Bool        `json:"starter"`
 	ShotsAgainst             int32              `json:"shots_against"`
 	Saves                    int32              `json:"saves"`
@@ -66,13 +66,13 @@ type GetGameGoalieStatsRow struct {
 	EvenStrengthGoalsAgainst int16              `json:"even_strength_goals_against"`
 	PowerPlayGoalsAgainst    int16              `json:"power_play_goals_against"`
 	ShorthandedGoalsAgainst  int16              `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	TOISeconds               int32              `json:"toi_seconds"`
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
-	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
-	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
-	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	FirstName                string             `json:"first_name"`
 	LastName                 string             `json:"last_name"`
 	TeamName                 string             `json:"team_name"`
@@ -101,13 +101,13 @@ func (q *Queries) GetGameGoalieStats(ctx context.Context, arg GetGameGoalieStats
 		&i.EvenStrengthGoalsAgainst,
 		&i.PowerPlayGoalsAgainst,
 		&i.ShorthandedGoalsAgainst,
+		&i.EvenStrengthShotsAgainst,
+		&i.PowerPlayShotsAgainst,
+		&i.ShorthandedShotsAgainst,
 		&i.TOISeconds,
 		&i.PenaltyMinutes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.EvenStrengthShotsAgainst,
-		&i.PowerPlayShotsAgainst,
-		&i.ShorthandedShotsAgainst,
 		&i.FirstName,
 		&i.LastName,
 		&i.TeamName,
@@ -117,7 +117,7 @@ func (q *Queries) GetGameGoalieStats(ctx context.Context, arg GetGameGoalieStats
 }
 
 const getGameGoalieStatsByGame = `-- name: GetGameGoalieStatsByGame :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -134,7 +134,7 @@ type GetGameGoalieStatsByGameRow struct {
 	TeamID                   int64              `json:"team_id"`
 	IsHome                   bool               `json:"is_home"`
 	SweaterNumber            int16              `json:"sweater_number"`
-	Decision                 pgtype.Text        `json:"decision"`
+	Decision                 NullGoalieDecision `json:"decision"`
 	Starter                  pgtype.Bool        `json:"starter"`
 	ShotsAgainst             int32              `json:"shots_against"`
 	Saves                    int32              `json:"saves"`
@@ -143,13 +143,13 @@ type GetGameGoalieStatsByGameRow struct {
 	EvenStrengthGoalsAgainst int16              `json:"even_strength_goals_against"`
 	PowerPlayGoalsAgainst    int16              `json:"power_play_goals_against"`
 	ShorthandedGoalsAgainst  int16              `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	TOISeconds               int32              `json:"toi_seconds"`
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
-	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
-	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
-	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	FirstName                string             `json:"first_name"`
 	LastName                 string             `json:"last_name"`
 	TeamName                 string             `json:"team_name"`
@@ -181,13 +181,13 @@ func (q *Queries) GetGameGoalieStatsByGame(ctx context.Context, gameID int64) ([
 			&i.EvenStrengthGoalsAgainst,
 			&i.PowerPlayGoalsAgainst,
 			&i.ShorthandedGoalsAgainst,
+			&i.EvenStrengthShotsAgainst,
+			&i.PowerPlayShotsAgainst,
+			&i.ShorthandedShotsAgainst,
 			&i.TOISeconds,
 			&i.PenaltyMinutes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.EvenStrengthShotsAgainst,
-			&i.PowerPlayShotsAgainst,
-			&i.ShorthandedShotsAgainst,
 			&i.FirstName,
 			&i.LastName,
 			&i.TeamName,
@@ -204,7 +204,7 @@ func (q *Queries) GetGameGoalieStatsByGame(ctx context.Context, gameID int64) ([
 }
 
 const getGameGoalieStatsByGameAndTeam = `-- name: GetGameGoalieStatsByGameAndTeam :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     p.first_name, p.last_name,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -226,7 +226,7 @@ type GetGameGoalieStatsByGameAndTeamRow struct {
 	TeamID                   int64              `json:"team_id"`
 	IsHome                   bool               `json:"is_home"`
 	SweaterNumber            int16              `json:"sweater_number"`
-	Decision                 pgtype.Text        `json:"decision"`
+	Decision                 NullGoalieDecision `json:"decision"`
 	Starter                  pgtype.Bool        `json:"starter"`
 	ShotsAgainst             int32              `json:"shots_against"`
 	Saves                    int32              `json:"saves"`
@@ -235,13 +235,13 @@ type GetGameGoalieStatsByGameAndTeamRow struct {
 	EvenStrengthGoalsAgainst int16              `json:"even_strength_goals_against"`
 	PowerPlayGoalsAgainst    int16              `json:"power_play_goals_against"`
 	ShorthandedGoalsAgainst  int16              `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	TOISeconds               int32              `json:"toi_seconds"`
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
-	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
-	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
-	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	FirstName                string             `json:"first_name"`
 	LastName                 string             `json:"last_name"`
 	TeamName                 string             `json:"team_name"`
@@ -273,13 +273,13 @@ func (q *Queries) GetGameGoalieStatsByGameAndTeam(ctx context.Context, arg GetGa
 			&i.EvenStrengthGoalsAgainst,
 			&i.PowerPlayGoalsAgainst,
 			&i.ShorthandedGoalsAgainst,
+			&i.EvenStrengthShotsAgainst,
+			&i.PowerPlayShotsAgainst,
+			&i.ShorthandedShotsAgainst,
 			&i.TOISeconds,
 			&i.PenaltyMinutes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.EvenStrengthShotsAgainst,
-			&i.PowerPlayShotsAgainst,
-			&i.ShorthandedShotsAgainst,
 			&i.FirstName,
 			&i.LastName,
 			&i.TeamName,
@@ -365,7 +365,7 @@ func (q *Queries) GetGoalieSeasonTotals(ctx context.Context, arg GetGoalieSeason
 }
 
 const getGoalieStatsByPlayer = `-- name: GetGoalieStatsByPlayer :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -381,7 +381,7 @@ type GetGoalieStatsByPlayerRow struct {
 	TeamID                   int64              `json:"team_id"`
 	IsHome                   bool               `json:"is_home"`
 	SweaterNumber            int16              `json:"sweater_number"`
-	Decision                 pgtype.Text        `json:"decision"`
+	Decision                 NullGoalieDecision `json:"decision"`
 	Starter                  pgtype.Bool        `json:"starter"`
 	ShotsAgainst             int32              `json:"shots_against"`
 	Saves                    int32              `json:"saves"`
@@ -390,16 +390,16 @@ type GetGoalieStatsByPlayerRow struct {
 	EvenStrengthGoalsAgainst int16              `json:"even_strength_goals_against"`
 	PowerPlayGoalsAgainst    int16              `json:"power_play_goals_against"`
 	ShorthandedGoalsAgainst  int16              `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	TOISeconds               int32              `json:"toi_seconds"`
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
-	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
-	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
-	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	GameDate                 pgtype.Date        `json:"game_date"`
 	Season                   int32              `json:"season"`
-	GameType                 int16              `json:"game_type"`
+	GameType                 GameType           `json:"game_type"`
 	TeamName                 string             `json:"team_name"`
 	TeamAbbrev               string             `json:"team_abbrev"`
 }
@@ -429,13 +429,13 @@ func (q *Queries) GetGoalieStatsByPlayer(ctx context.Context, playerID int64) ([
 			&i.EvenStrengthGoalsAgainst,
 			&i.PowerPlayGoalsAgainst,
 			&i.ShorthandedGoalsAgainst,
+			&i.EvenStrengthShotsAgainst,
+			&i.PowerPlayShotsAgainst,
+			&i.ShorthandedShotsAgainst,
 			&i.TOISeconds,
 			&i.PenaltyMinutes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.EvenStrengthShotsAgainst,
-			&i.PowerPlayShotsAgainst,
-			&i.ShorthandedShotsAgainst,
 			&i.GameDate,
 			&i.Season,
 			&i.GameType,
@@ -453,7 +453,7 @@ func (q *Queries) GetGoalieStatsByPlayer(ctx context.Context, playerID int64) ([
 }
 
 const getGoalieStatsByPlayerAndDateRange = `-- name: GetGoalieStatsByPlayerAndDateRange :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -475,7 +475,7 @@ type GetGoalieStatsByPlayerAndDateRangeRow struct {
 	TeamID                   int64              `json:"team_id"`
 	IsHome                   bool               `json:"is_home"`
 	SweaterNumber            int16              `json:"sweater_number"`
-	Decision                 pgtype.Text        `json:"decision"`
+	Decision                 NullGoalieDecision `json:"decision"`
 	Starter                  pgtype.Bool        `json:"starter"`
 	ShotsAgainst             int32              `json:"shots_against"`
 	Saves                    int32              `json:"saves"`
@@ -484,16 +484,16 @@ type GetGoalieStatsByPlayerAndDateRangeRow struct {
 	EvenStrengthGoalsAgainst int16              `json:"even_strength_goals_against"`
 	PowerPlayGoalsAgainst    int16              `json:"power_play_goals_against"`
 	ShorthandedGoalsAgainst  int16              `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	TOISeconds               int32              `json:"toi_seconds"`
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
-	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
-	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
-	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	GameDate                 pgtype.Date        `json:"game_date"`
 	Season                   int32              `json:"season"`
-	GameType                 int16              `json:"game_type"`
+	GameType                 GameType           `json:"game_type"`
 	TeamName                 string             `json:"team_name"`
 	TeamAbbrev               string             `json:"team_abbrev"`
 }
@@ -523,13 +523,13 @@ func (q *Queries) GetGoalieStatsByPlayerAndDateRange(ctx context.Context, arg Ge
 			&i.EvenStrengthGoalsAgainst,
 			&i.PowerPlayGoalsAgainst,
 			&i.ShorthandedGoalsAgainst,
+			&i.EvenStrengthShotsAgainst,
+			&i.PowerPlayShotsAgainst,
+			&i.ShorthandedShotsAgainst,
 			&i.TOISeconds,
 			&i.PenaltyMinutes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.EvenStrengthShotsAgainst,
-			&i.PowerPlayShotsAgainst,
-			&i.ShorthandedShotsAgainst,
 			&i.GameDate,
 			&i.Season,
 			&i.GameType,
@@ -547,7 +547,7 @@ func (q *Queries) GetGoalieStatsByPlayerAndDateRange(ctx context.Context, arg Ge
 }
 
 const getGoalieStatsByPlayerAndSeason = `-- name: GetGoalieStatsByPlayerAndSeason :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.decision, s.starter, s.shots_against, s.saves, s.save_pctg, s.goals_against, s.even_strength_goals_against, s.power_play_goals_against, s.shorthanded_goals_against, s.even_strength_shots_against, s.power_play_shots_against, s.shorthanded_shots_against, s.toi_seconds, s.penalty_minutes, s.created_at, s.updated_at,
     g.game_date, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_goalie_stats s
@@ -568,7 +568,7 @@ type GetGoalieStatsByPlayerAndSeasonRow struct {
 	TeamID                   int64              `json:"team_id"`
 	IsHome                   bool               `json:"is_home"`
 	SweaterNumber            int16              `json:"sweater_number"`
-	Decision                 pgtype.Text        `json:"decision"`
+	Decision                 NullGoalieDecision `json:"decision"`
 	Starter                  pgtype.Bool        `json:"starter"`
 	ShotsAgainst             int32              `json:"shots_against"`
 	Saves                    int32              `json:"saves"`
@@ -577,15 +577,15 @@ type GetGoalieStatsByPlayerAndSeasonRow struct {
 	EvenStrengthGoalsAgainst int16              `json:"even_strength_goals_against"`
 	PowerPlayGoalsAgainst    int16              `json:"power_play_goals_against"`
 	ShorthandedGoalsAgainst  int16              `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	TOISeconds               int32              `json:"toi_seconds"`
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
-	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
-	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
-	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	GameDate                 pgtype.Date        `json:"game_date"`
-	GameType                 int16              `json:"game_type"`
+	GameType                 GameType           `json:"game_type"`
 	TeamName                 string             `json:"team_name"`
 	TeamAbbrev               string             `json:"team_abbrev"`
 }
@@ -615,13 +615,13 @@ func (q *Queries) GetGoalieStatsByPlayerAndSeason(ctx context.Context, arg GetGo
 			&i.EvenStrengthGoalsAgainst,
 			&i.PowerPlayGoalsAgainst,
 			&i.ShorthandedGoalsAgainst,
+			&i.EvenStrengthShotsAgainst,
+			&i.PowerPlayShotsAgainst,
+			&i.ShorthandedShotsAgainst,
 			&i.TOISeconds,
 			&i.PenaltyMinutes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.EvenStrengthShotsAgainst,
-			&i.PowerPlayShotsAgainst,
-			&i.ShorthandedShotsAgainst,
 			&i.GameDate,
 			&i.GameType,
 			&i.TeamName,
@@ -791,25 +791,25 @@ WHERE (game_goalie_stats.team_id, game_goalie_stats.is_home,
 `
 
 type UpsertGameGoalieStatsParams struct {
-	GameID                   int64         `json:"game_id"`
-	PlayerID                 int64         `json:"player_id"`
-	TeamID                   int64         `json:"team_id"`
-	IsHome                   bool          `json:"is_home"`
-	SweaterNumber            int16         `json:"sweater_number"`
-	Decision                 pgtype.Text   `json:"decision"`
-	Starter                  pgtype.Bool   `json:"starter"`
-	ShotsAgainst             int32         `json:"shots_against"`
-	Saves                    int32         `json:"saves"`
-	SavePctg                 pgtype.Float4 `json:"save_pctg"`
-	GoalsAgainst             int16         `json:"goals_against"`
-	EvenStrengthGoalsAgainst int16         `json:"even_strength_goals_against"`
-	PowerPlayGoalsAgainst    int16         `json:"power_play_goals_against"`
-	ShorthandedGoalsAgainst  int16         `json:"shorthanded_goals_against"`
-	EvenStrengthShotsAgainst pgtype.Text   `json:"even_strength_shots_against"`
-	PowerPlayShotsAgainst    pgtype.Text   `json:"power_play_shots_against"`
-	ShorthandedShotsAgainst  pgtype.Text   `json:"shorthanded_shots_against"`
-	TOISeconds               int32         `json:"toi_seconds"`
-	PenaltyMinutes           pgtype.Int2   `json:"penalty_minutes"`
+	GameID                   int64              `json:"game_id"`
+	PlayerID                 int64              `json:"player_id"`
+	TeamID                   int64              `json:"team_id"`
+	IsHome                   bool               `json:"is_home"`
+	SweaterNumber            int16              `json:"sweater_number"`
+	Decision                 NullGoalieDecision `json:"decision"`
+	Starter                  pgtype.Bool        `json:"starter"`
+	ShotsAgainst             int32              `json:"shots_against"`
+	Saves                    int32              `json:"saves"`
+	SavePctg                 pgtype.Float4      `json:"save_pctg"`
+	GoalsAgainst             int16              `json:"goals_against"`
+	EvenStrengthGoalsAgainst int16              `json:"even_strength_goals_against"`
+	PowerPlayGoalsAgainst    int16              `json:"power_play_goals_against"`
+	ShorthandedGoalsAgainst  int16              `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
+	TOISeconds               int32              `json:"toi_seconds"`
+	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 }
 
 func (q *Queries) UpsertGameGoalieStats(ctx context.Context, arg UpsertGameGoalieStatsParams) error {

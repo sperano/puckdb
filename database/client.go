@@ -88,11 +88,22 @@ func RunSQLMigrations() error {
 	}
 	defer m.Close()
 
+	// If previous run left a dirty state, force back to prior clean version and retry.
+	version, dirty, _ := m.Version()
+	if dirty {
+		prev := int(version) - 1
+		log.Warn().Uint("version", version).Int("force_to", prev).
+			Msg("Dirty migration detected — forcing version back to retry")
+		if err := m.Force(prev); err != nil {
+			return fmt.Errorf("force migration version to %d: %w", prev, err)
+		}
+	}
+
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 
-	version, dirty, _ := m.Version()
+	version, dirty, _ = m.Version()
 	log.Info().Uint("version", version).Bool("dirty", dirty).Msg("SQL migrations completed")
 	return nil
 }

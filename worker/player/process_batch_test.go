@@ -600,8 +600,8 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 	assert.Equal(t, "McDavid", capturedParams.LastName) // Trimmed
 	assert.Equal(t, "connor", capturedParams.FirstNameNormalized)
 	assert.Equal(t, "mcdavid", capturedParams.LastNameNormalized)
-	assert.Equal(t, "C", capturedParams.Position)
-	assert.Equal(t, "L", capturedParams.ShootsCatches)
+	assert.Equal(t, sqlcdb.NullPlayerPosition{PlayerPosition: "C", Valid: true}, capturedParams.Position)
+	assert.Equal(t, sqlcdb.NullHandSide{HandSide: "L", Valid: true}, capturedParams.ShootsCatches)
 	assert.Equal(t, int32(73), capturedParams.HeightInches.Int32)
 	assert.Equal(t, int32(193), capturedParams.WeightPounds.Int32)
 	assert.True(t, capturedParams.IsActive)

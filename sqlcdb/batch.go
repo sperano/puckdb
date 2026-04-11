@@ -35,21 +35,21 @@ type EnsurePlayerExistsBatchBatchResults struct {
 }
 
 type EnsurePlayerExistsBatchParams struct {
-	ID                  int64       `json:"id"`
-	FirstName           string      `json:"first_name"`
-	LastName            string      `json:"last_name"`
-	FirstNameNormalized string      `json:"first_name_normalized"`
-	LastNameNormalized  string      `json:"last_name_normalized"`
-	Position            string      `json:"position"`
-	ShootsCatches       string      `json:"shoots_catches"`
-	HeadshotURL         string      `json:"headshot_url"`
-	HeightInches        pgtype.Int4 `json:"height_inches"`
-	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
-	BirthDate           pgtype.Date `json:"birth_date"`
-	BirthCity           pgtype.Text `json:"birth_city"`
-	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
-	BirthCountry        pgtype.Text `json:"birth_country"`
-	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
+	ID                  int64              `json:"id"`
+	FirstName           string             `json:"first_name"`
+	LastName            string             `json:"last_name"`
+	FirstNameNormalized string             `json:"first_name_normalized"`
+	LastNameNormalized  string             `json:"last_name_normalized"`
+	Position            NullPlayerPosition `json:"position"`
+	ShootsCatches       NullHandSide       `json:"shoots_catches"`
+	HeadshotURL         string             `json:"headshot_url"`
+	HeightInches        pgtype.Int4        `json:"height_inches"`
+	WeightPounds        pgtype.Int4        `json:"weight_pounds"`
+	BirthDate           pgtype.Date        `json:"birth_date"`
+	BirthCity           pgtype.Text        `json:"birth_city"`
+	BirthStateProvince  pgtype.Text        `json:"birth_state_province"`
+	BirthCountry        pgtype.Text        `json:"birth_country"`
+	SweaterNumber       pgtype.Int4        `json:"sweater_number"`
 }
 
 // Create stub player records for players not yet in the database.
@@ -154,26 +154,26 @@ type UpsertClubGoalieStatsBatchBatchResults struct {
 }
 
 type UpsertClubGoalieStatsBatchParams struct {
-	Season              int32   `json:"season"`
-	GameType            int16   `json:"game_type"`
-	TeamID              int64   `json:"team_id"`
-	PlayerID            int64   `json:"player_id"`
-	GamesPlayed         int32   `json:"games_played"`
-	GamesStarted        int32   `json:"games_started"`
-	Wins                int32   `json:"wins"`
-	Losses              int32   `json:"losses"`
-	OvertimeLosses      int32   `json:"overtime_losses"`
-	GoalsAgainstAverage float32 `json:"goals_against_average"`
-	SavePercentage      float32 `json:"save_percentage"`
-	ShotsAgainst        int32   `json:"shots_against"`
-	Saves               int32   `json:"saves"`
-	GoalsAgainst        int32   `json:"goals_against"`
-	Shutouts            int32   `json:"shutouts"`
-	Goals               int32   `json:"goals"`
-	Assists             int32   `json:"assists"`
-	Points              int32   `json:"points"`
-	PenaltyMinutes      int32   `json:"penalty_minutes"`
-	TOISeconds          int64   `json:"toi_seconds"`
+	Season              int32    `json:"season"`
+	GameType            GameType `json:"game_type"`
+	TeamID              int64    `json:"team_id"`
+	PlayerID            int64    `json:"player_id"`
+	GamesPlayed         int32    `json:"games_played"`
+	GamesStarted        int32    `json:"games_started"`
+	Wins                int32    `json:"wins"`
+	Losses              int32    `json:"losses"`
+	OvertimeLosses      int32    `json:"overtime_losses"`
+	GoalsAgainstAverage float32  `json:"goals_against_average"`
+	SavePercentage      float32  `json:"save_percentage"`
+	ShotsAgainst        int32    `json:"shots_against"`
+	Saves               int32    `json:"saves"`
+	GoalsAgainst        int32    `json:"goals_against"`
+	Shutouts            int32    `json:"shutouts"`
+	Goals               int32    `json:"goals"`
+	Assists             int32    `json:"assists"`
+	Points              int32    `json:"points"`
+	PenaltyMinutes      int32    `json:"penalty_minutes"`
+	TOISeconds          int64    `json:"toi_seconds"`
 }
 
 func (q *Queries) UpsertClubGoalieStatsBatch(ctx context.Context, arg []UpsertClubGoalieStatsBatchParams) *UpsertClubGoalieStatsBatchBatchResults {
@@ -280,25 +280,25 @@ type UpsertClubSkaterStatsBatchBatchResults struct {
 }
 
 type UpsertClubSkaterStatsBatchParams struct {
-	Season           int32   `json:"season"`
-	GameType         int16   `json:"game_type"`
-	TeamID           int64   `json:"team_id"`
-	PlayerID         int64   `json:"player_id"`
-	GamesPlayed      int32   `json:"games_played"`
-	Goals            int32   `json:"goals"`
-	Assists          int32   `json:"assists"`
-	Points           int32   `json:"points"`
-	PlusMinus        int32   `json:"plus_minus"`
-	PenaltyMinutes   int32   `json:"penalty_minutes"`
-	PowerPlayGoals   int32   `json:"power_play_goals"`
-	ShorthandedGoals int32   `json:"shorthanded_goals"`
-	GameWinningGoals int32   `json:"game_winning_goals"`
-	OvertimeGoals    int32   `json:"overtime_goals"`
-	Shots            int32   `json:"shots"`
-	ShootingPctg     float32 `json:"shooting_pctg"`
-	AvgToiPerGame    float32 `json:"avg_toi_per_game"`
-	AvgShiftsPerGame float32 `json:"avg_shifts_per_game"`
-	FaceoffWinPctg   float32 `json:"faceoff_win_pctg"`
+	Season           int32    `json:"season"`
+	GameType         GameType `json:"game_type"`
+	TeamID           int64    `json:"team_id"`
+	PlayerID         int64    `json:"player_id"`
+	GamesPlayed      int32    `json:"games_played"`
+	Goals            int32    `json:"goals"`
+	Assists          int32    `json:"assists"`
+	Points           int32    `json:"points"`
+	PlusMinus        int32    `json:"plus_minus"`
+	PenaltyMinutes   int32    `json:"penalty_minutes"`
+	PowerPlayGoals   int32    `json:"power_play_goals"`
+	ShorthandedGoals int32    `json:"shorthanded_goals"`
+	GameWinningGoals int32    `json:"game_winning_goals"`
+	OvertimeGoals    int32    `json:"overtime_goals"`
+	Shots            int32    `json:"shots"`
+	ShootingPctg     float32  `json:"shooting_pctg"`
+	AvgToiPerGame    float32  `json:"avg_toi_per_game"`
+	AvgShiftsPerGame float32  `json:"avg_shifts_per_game"`
+	FaceoffWinPctg   float32  `json:"faceoff_win_pctg"`
 }
 
 // =============================================================================
@@ -500,25 +500,25 @@ type UpsertGameGoalieStatsBatchBatchResults struct {
 }
 
 type UpsertGameGoalieStatsBatchParams struct {
-	GameID                   int64         `json:"game_id"`
-	PlayerID                 int64         `json:"player_id"`
-	TeamID                   int64         `json:"team_id"`
-	IsHome                   bool          `json:"is_home"`
-	SweaterNumber            int16         `json:"sweater_number"`
-	Decision                 pgtype.Text   `json:"decision"`
-	Starter                  pgtype.Bool   `json:"starter"`
-	ShotsAgainst             int32         `json:"shots_against"`
-	Saves                    int32         `json:"saves"`
-	SavePctg                 pgtype.Float4 `json:"save_pctg"`
-	GoalsAgainst             int16         `json:"goals_against"`
-	EvenStrengthGoalsAgainst int16         `json:"even_strength_goals_against"`
-	PowerPlayGoalsAgainst    int16         `json:"power_play_goals_against"`
-	ShorthandedGoalsAgainst  int16         `json:"shorthanded_goals_against"`
-	EvenStrengthShotsAgainst pgtype.Text   `json:"even_strength_shots_against"`
-	PowerPlayShotsAgainst    pgtype.Text   `json:"power_play_shots_against"`
-	ShorthandedShotsAgainst  pgtype.Text   `json:"shorthanded_shots_against"`
-	TOISeconds               int32         `json:"toi_seconds"`
-	PenaltyMinutes           pgtype.Int2   `json:"penalty_minutes"`
+	GameID                   int64              `json:"game_id"`
+	PlayerID                 int64              `json:"player_id"`
+	TeamID                   int64              `json:"team_id"`
+	IsHome                   bool               `json:"is_home"`
+	SweaterNumber            int16              `json:"sweater_number"`
+	Decision                 NullGoalieDecision `json:"decision"`
+	Starter                  pgtype.Bool        `json:"starter"`
+	ShotsAgainst             int32              `json:"shots_against"`
+	Saves                    int32              `json:"saves"`
+	SavePctg                 pgtype.Float4      `json:"save_pctg"`
+	GoalsAgainst             int16              `json:"goals_against"`
+	EvenStrengthGoalsAgainst int16              `json:"even_strength_goals_against"`
+	PowerPlayGoalsAgainst    int16              `json:"power_play_goals_against"`
+	ShorthandedGoalsAgainst  int16              `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
+	TOISeconds               int32              `json:"toi_seconds"`
+	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 }
 
 func (q *Queries) UpsertGameGoalieStatsBatch(ctx context.Context, arg []UpsertGameGoalieStatsBatchParams) *UpsertGameGoalieStatsBatchBatchResults {
@@ -636,26 +636,26 @@ type UpsertGameSkaterStatsBatchBatchResults struct {
 }
 
 type UpsertGameSkaterStatsBatchParams struct {
-	GameID             int64         `json:"game_id"`
-	PlayerID           int64         `json:"player_id"`
-	TeamID             int64         `json:"team_id"`
-	IsHome             bool          `json:"is_home"`
-	SweaterNumber      int16         `json:"sweater_number"`
-	Position           string        `json:"position"`
-	Goals              int16         `json:"goals"`
-	Assists            int16         `json:"assists"`
-	Points             int16         `json:"points"`
-	PlusMinus          int16         `json:"plus_minus"`
-	ShotsOnGoal        int16         `json:"shots_on_goal"`
-	TOISeconds         int32         `json:"toi_seconds"`
-	Shifts             int16         `json:"shifts"`
-	FaceoffWinningPctg pgtype.Float4 `json:"faceoff_winning_pctg"`
-	Hits               int16         `json:"hits"`
-	BlockedShots       int16         `json:"blocked_shots"`
-	PenaltyMinutes     int16         `json:"penalty_minutes"`
-	Giveaways          int16         `json:"giveaways"`
-	Takeaways          int16         `json:"takeaways"`
-	PowerPlayGoals     int16         `json:"power_play_goals"`
+	GameID             int64          `json:"game_id"`
+	PlayerID           int64          `json:"player_id"`
+	TeamID             int64          `json:"team_id"`
+	IsHome             bool           `json:"is_home"`
+	SweaterNumber      int16          `json:"sweater_number"`
+	Position           PlayerPosition `json:"position"`
+	Goals              int16          `json:"goals"`
+	Assists            int16          `json:"assists"`
+	Points             int16          `json:"points"`
+	PlusMinus          int16          `json:"plus_minus"`
+	ShotsOnGoal        int16          `json:"shots_on_goal"`
+	TOISeconds         int32          `json:"toi_seconds"`
+	Shifts             int16          `json:"shifts"`
+	FaceoffWinningPctg pgtype.Float4  `json:"faceoff_winning_pctg"`
+	Hits               int16          `json:"hits"`
+	BlockedShots       int16          `json:"blocked_shots"`
+	PenaltyMinutes     int16          `json:"penalty_minutes"`
+	Giveaways          int16          `json:"giveaways"`
+	Takeaways          int16          `json:"takeaways"`
+	PowerPlayGoals     int16          `json:"power_play_goals"`
 }
 
 func (q *Queries) UpsertGameSkaterStatsBatch(ctx context.Context, arg []UpsertGameSkaterStatsBatchParams) *UpsertGameSkaterStatsBatchBatchResults {
@@ -713,7 +713,7 @@ func (b *UpsertGameSkaterStatsBatchBatchResults) Close() error {
 const upsertPlayEventBatch = `-- name: UpsertPlayEventBatch :batchexec
 INSERT INTO play_events (
     game_id, event_id, period, period_type, time_in_period, time_remaining,
-    situation_code, home_team_defending_side, type_code, type_desc_key, sort_order,
+    situation_code, home_team_defending_side, type_desc_key, sort_order,
     x_coord, y_coord, zone_code, event_owner_team_id,
     shot_type, shooting_player_id, goalie_in_net_id,
     blocking_player_id,
@@ -729,20 +729,20 @@ INSERT INTO play_events (
     player_id, reason, away_sog, home_sog
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
-    $7, $8, $9, $10, $11,
-    $12, $13, $14, $15,
-    $16, $17, $18,
-    $19,
-    $20, $21,
-    $22, $23,
-    $24, $25,
-    $26, $27,
-    $28, $29, $30,
-    $31, $32, $33,
-    $34, $35,
-    $36, $37,
-    $38, $39,
-    $40, $41, $42, $43
+    $7, $8, $9, $10,
+    $11, $12, $13, $14,
+    $15, $16, $17,
+    $18,
+    $19, $20,
+    $21, $22,
+    $23, $24,
+    $25, $26,
+    $27, $28, $29,
+    $30, $31, $32,
+    $33, $34,
+    $35, $36,
+    $37, $38,
+    $39, $40, $41, $42
 )
 ON CONFLICT (game_id, event_id) DO UPDATE SET
     period = EXCLUDED.period,
@@ -751,7 +751,6 @@ ON CONFLICT (game_id, event_id) DO UPDATE SET
     time_remaining = EXCLUDED.time_remaining,
     situation_code = EXCLUDED.situation_code,
     home_team_defending_side = EXCLUDED.home_team_defending_side,
-    type_code = EXCLUDED.type_code,
     type_desc_key = EXCLUDED.type_desc_key,
     sort_order = EXCLUDED.sort_order,
     x_coord = EXCLUDED.x_coord,
@@ -789,7 +788,7 @@ ON CONFLICT (game_id, event_id) DO UPDATE SET
 WHERE (play_events.period, play_events.period_type,
        play_events.time_in_period, play_events.time_remaining,
        play_events.situation_code, play_events.home_team_defending_side,
-       play_events.type_code, play_events.type_desc_key, play_events.sort_order,
+       play_events.type_desc_key, play_events.sort_order,
        play_events.x_coord, play_events.y_coord, play_events.zone_code,
        play_events.event_owner_team_id,
        play_events.shot_type, play_events.shooting_player_id,
@@ -811,7 +810,7 @@ WHERE (play_events.period, play_events.period_type,
       (EXCLUDED.period, EXCLUDED.period_type,
        EXCLUDED.time_in_period, EXCLUDED.time_remaining,
        EXCLUDED.situation_code, EXCLUDED.home_team_defending_side,
-       EXCLUDED.type_code, EXCLUDED.type_desc_key, EXCLUDED.sort_order,
+       EXCLUDED.type_desc_key, EXCLUDED.sort_order,
        EXCLUDED.x_coord, EXCLUDED.y_coord, EXCLUDED.zone_code,
        EXCLUDED.event_owner_team_id,
        EXCLUDED.shot_type, EXCLUDED.shooting_player_id,
@@ -838,49 +837,48 @@ type UpsertPlayEventBatchBatchResults struct {
 }
 
 type UpsertPlayEventBatchParams struct {
-	GameID                int64       `json:"game_id"`
-	EventID               int64       `json:"event_id"`
-	Period                int32       `json:"period"`
-	PeriodType            string      `json:"period_type"`
-	TimeInPeriod          string      `json:"time_in_period"`
-	TimeRemaining         string      `json:"time_remaining"`
-	SituationCode         pgtype.Text `json:"situation_code"`
-	HomeTeamDefendingSide pgtype.Text `json:"home_team_defending_side"`
-	TypeCode              int32       `json:"type_code"`
-	TypeDescKey           string      `json:"type_desc_key"`
-	SortOrder             int32       `json:"sort_order"`
-	XCoord                pgtype.Int4 `json:"x_coord"`
-	YCoord                pgtype.Int4 `json:"y_coord"`
-	ZoneCode              pgtype.Text `json:"zone_code"`
-	EventOwnerTeamID      pgtype.Int8 `json:"event_owner_team_id"`
-	ShotType              pgtype.Text `json:"shot_type"`
-	ShootingPlayerID      pgtype.Int8 `json:"shooting_player_id"`
-	GoalieInNetID         pgtype.Int8 `json:"goalie_in_net_id"`
-	BlockingPlayerID      pgtype.Int8 `json:"blocking_player_id"`
-	ScoringPlayerID       pgtype.Int8 `json:"scoring_player_id"`
-	ScoringPlayerTotal    pgtype.Int4 `json:"scoring_player_total"`
-	Assist1PlayerID       pgtype.Int8 `json:"assist1_player_id"`
-	Assist1PlayerTotal    pgtype.Int4 `json:"assist1_player_total"`
-	Assist2PlayerID       pgtype.Int8 `json:"assist2_player_id"`
-	Assist2PlayerTotal    pgtype.Int4 `json:"assist2_player_total"`
-	AwayScore             pgtype.Int4 `json:"away_score"`
-	HomeScore             pgtype.Int4 `json:"home_score"`
-	HighlightClipID       pgtype.Int8 `json:"highlight_clip_id"`
-	HighlightClipUrl      pgtype.Text `json:"highlight_clip_url"`
-	DiscreteClipID        pgtype.Int8 `json:"discrete_clip_id"`
-	PenaltyTypeCode       pgtype.Text `json:"penalty_type_code"`
-	PenaltyDescKey        pgtype.Text `json:"penalty_desc_key"`
-	PenaltyDuration       pgtype.Int4 `json:"penalty_duration"`
-	CommittedByPlayerID   pgtype.Int8 `json:"committed_by_player_id"`
-	DrawnByPlayerID       pgtype.Int8 `json:"drawn_by_player_id"`
-	HittingPlayerID       pgtype.Int8 `json:"hitting_player_id"`
-	HitteePlayerID        pgtype.Int8 `json:"hittee_player_id"`
-	WinningPlayerID       pgtype.Int8 `json:"winning_player_id"`
-	LosingPlayerID        pgtype.Int8 `json:"losing_player_id"`
-	PlayerID              pgtype.Int8 `json:"player_id"`
-	Reason                pgtype.Text `json:"reason"`
-	AwaySog               pgtype.Int4 `json:"away_sog"`
-	HomeSog               pgtype.Int4 `json:"home_sog"`
+	GameID                int64         `json:"game_id"`
+	EventID               int64         `json:"event_id"`
+	Period                int32         `json:"period"`
+	PeriodType            PeriodType    `json:"period_type"`
+	TimeInPeriod          string        `json:"time_in_period"`
+	TimeRemaining         string        `json:"time_remaining"`
+	SituationCode         pgtype.Int4   `json:"situation_code"`
+	HomeTeamDefendingSide NullIceSide   `json:"home_team_defending_side"`
+	TypeDescKey           PlayEventType `json:"type_desc_key"`
+	SortOrder             int32         `json:"sort_order"`
+	XCoord                pgtype.Int4   `json:"x_coord"`
+	YCoord                pgtype.Int4   `json:"y_coord"`
+	ZoneCode              NullZoneCode  `json:"zone_code"`
+	EventOwnerTeamID      pgtype.Int8   `json:"event_owner_team_id"`
+	ShotType              pgtype.Text   `json:"shot_type"`
+	ShootingPlayerID      pgtype.Int8   `json:"shooting_player_id"`
+	GoalieInNetID         pgtype.Int8   `json:"goalie_in_net_id"`
+	BlockingPlayerID      pgtype.Int8   `json:"blocking_player_id"`
+	ScoringPlayerID       pgtype.Int8   `json:"scoring_player_id"`
+	ScoringPlayerTotal    pgtype.Int4   `json:"scoring_player_total"`
+	Assist1PlayerID       pgtype.Int8   `json:"assist1_player_id"`
+	Assist1PlayerTotal    pgtype.Int4   `json:"assist1_player_total"`
+	Assist2PlayerID       pgtype.Int8   `json:"assist2_player_id"`
+	Assist2PlayerTotal    pgtype.Int4   `json:"assist2_player_total"`
+	AwayScore             pgtype.Int4   `json:"away_score"`
+	HomeScore             pgtype.Int4   `json:"home_score"`
+	HighlightClipID       pgtype.Int8   `json:"highlight_clip_id"`
+	HighlightClipUrl      pgtype.Text   `json:"highlight_clip_url"`
+	DiscreteClipID        pgtype.Int8   `json:"discrete_clip_id"`
+	PenaltyTypeCode       pgtype.Text   `json:"penalty_type_code"`
+	PenaltyDescKey        pgtype.Text   `json:"penalty_desc_key"`
+	PenaltyDuration       pgtype.Int4   `json:"penalty_duration"`
+	CommittedByPlayerID   pgtype.Int8   `json:"committed_by_player_id"`
+	DrawnByPlayerID       pgtype.Int8   `json:"drawn_by_player_id"`
+	HittingPlayerID       pgtype.Int8   `json:"hitting_player_id"`
+	HitteePlayerID        pgtype.Int8   `json:"hittee_player_id"`
+	WinningPlayerID       pgtype.Int8   `json:"winning_player_id"`
+	LosingPlayerID        pgtype.Int8   `json:"losing_player_id"`
+	PlayerID              pgtype.Int8   `json:"player_id"`
+	Reason                pgtype.Text   `json:"reason"`
+	AwaySog               pgtype.Int4   `json:"away_sog"`
+	HomeSog               pgtype.Int4   `json:"home_sog"`
 }
 
 func (q *Queries) UpsertPlayEventBatch(ctx context.Context, arg []UpsertPlayEventBatchParams) *UpsertPlayEventBatchBatchResults {
@@ -895,7 +893,6 @@ func (q *Queries) UpsertPlayEventBatch(ctx context.Context, arg []UpsertPlayEven
 			a.TimeRemaining,
 			a.SituationCode,
 			a.HomeTeamDefendingSide,
-			a.TypeCode,
 			a.TypeDescKey,
 			a.SortOrder,
 			a.XCoord,
@@ -1054,7 +1051,7 @@ type UpsertPlayerSeasonTotalBatchBatchResults struct {
 type UpsertPlayerSeasonTotalBatchParams struct {
 	PlayerID     int64       `json:"player_id"`
 	Season       int32       `json:"season"`
-	GameType     int16       `json:"game_type"`
+	GameType     GameType    `json:"game_type"`
 	LeagueAbbrev string      `json:"league_abbrev"`
 	TeamName     string      `json:"team_name"`
 	TeamID       pgtype.Int8 `json:"team_id"`
@@ -1155,18 +1152,18 @@ type UpsertSeasonRosterBatchBatchResults struct {
 }
 
 type UpsertSeasonRosterBatchParams struct {
-	Season             int32       `json:"season"`
-	TeamID             int64       `json:"team_id"`
-	PlayerID           int64       `json:"player_id"`
-	Position           string      `json:"position"`
-	ShootsCatches      string      `json:"shoots_catches"`
-	SweaterNumber      int16       `json:"sweater_number"`
-	HeightInches       int16       `json:"height_inches"`
-	WeightPounds       int16       `json:"weight_pounds"`
-	BirthDate          string      `json:"birth_date"`
-	BirthCity          pgtype.Text `json:"birth_city"`
-	BirthStateProvince pgtype.Text `json:"birth_state_province"`
-	BirthCountry       string      `json:"birth_country"`
+	Season             int32          `json:"season"`
+	TeamID             int64          `json:"team_id"`
+	PlayerID           int64          `json:"player_id"`
+	Position           PlayerPosition `json:"position"`
+	ShootsCatches      string         `json:"shoots_catches"`
+	SweaterNumber      int16          `json:"sweater_number"`
+	HeightInches       int16          `json:"height_inches"`
+	WeightPounds       int16          `json:"weight_pounds"`
+	BirthDate          string         `json:"birth_date"`
+	BirthCity          pgtype.Text    `json:"birth_city"`
+	BirthStateProvince pgtype.Text    `json:"birth_state_province"`
+	BirthCountry       string         `json:"birth_country"`
 }
 
 // =============================================================================
@@ -1268,8 +1265,8 @@ type UpsertShiftBatchParams struct {
 	EndTime          string      `json:"end_time"`
 	Duration         string      `json:"duration"`
 	ShiftNumber      int32       `json:"shift_number"`
-	TypeCode         int32       `json:"type_code"`
-	DetailCode       int32       `json:"detail_code"`
+	TypeCode         ShiftType   `json:"type_code"`
+	DetailCode       ShiftDetail `json:"detail_code"`
 	EventNumber      int64       `json:"event_number"`
 	EventDescription pgtype.Text `json:"event_description"`
 }

@@ -15,11 +15,6 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
-// Official role constants for game officials.
-const (
-	OfficialRoleReferee  = "referee"
-	OfficialRoleLinesman = "linesman"
-)
 
 // ImportSeasonSeriesForDateInput specifies which date's season series data to import.
 type ImportSeasonSeriesForDateInput struct {
@@ -124,7 +119,7 @@ func (a *ImportActivities) processSeasonSeries(
 	for i, ref := range matchup.GameInfo.Referees {
 		if err := a.Queries.UpsertGameOfficial(ctx, sqlcdb.UpsertGameOfficialParams{
 			GameID:   gid,
-			Role:     OfficialRoleReferee,
+			Role:     sqlcdb.OfficialRoleReferee,
 			Sequence: int16(i + 1),
 			Name:     ref.Default,
 		}); err != nil {
@@ -137,7 +132,7 @@ func (a *ImportActivities) processSeasonSeries(
 	for i, linesman := range matchup.GameInfo.Linesmen {
 		if err := a.Queries.UpsertGameOfficial(ctx, sqlcdb.UpsertGameOfficialParams{
 			GameID:   gid,
-			Role:     OfficialRoleLinesman,
+			Role:     sqlcdb.OfficialRoleLinesman,
 			Sequence: int16(i + 1),
 			Name:     linesman.Default,
 		}); err != nil {

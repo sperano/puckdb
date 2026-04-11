@@ -169,7 +169,7 @@ func (a *ImportActivities) processGameStory(
 				PlayerID:   int64(attempt.PlayerID),
 				TeamID:     teamID,
 				ShotType:   attempt.ShotType,
-				Result:     attempt.Result,
+				Result:     sqlcdb.ShootoutResult(attempt.Result),
 				GameWinner: attempt.GameWinner,
 			}); err != nil {
 				errors = append(errors, fmt.Sprintf("game %d: shootout %d: %v", gameID, attempt.Sequence, err))

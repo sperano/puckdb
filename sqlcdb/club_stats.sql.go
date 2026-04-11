@@ -42,13 +42,13 @@ ORDER BY s.wins DESC, s.games_played DESC
 `
 
 type GetClubGoalieStatsBySeasonParams struct {
-	Season   int32 `json:"season"`
-	GameType int16 `json:"game_type"`
+	Season   int32    `json:"season"`
+	GameType GameType `json:"game_type"`
 }
 
 type GetClubGoalieStatsBySeasonRow struct {
 	Season              int32              `json:"season"`
-	GameType            int16              `json:"game_type"`
+	GameType            GameType           `json:"game_type"`
 	TeamID              int64              `json:"team_id"`
 	PlayerID            int64              `json:"player_id"`
 	GamesPlayed         int32              `json:"games_played"`
@@ -127,14 +127,14 @@ ORDER BY s.wins DESC, s.games_played DESC
 `
 
 type GetClubGoalieStatsByTeamParams struct {
-	Season   int32 `json:"season"`
-	GameType int16 `json:"game_type"`
-	TeamID   int64 `json:"team_id"`
+	Season   int32    `json:"season"`
+	GameType GameType `json:"game_type"`
+	TeamID   int64    `json:"team_id"`
 }
 
 type GetClubGoalieStatsByTeamRow struct {
 	Season              int32              `json:"season"`
-	GameType            int16              `json:"game_type"`
+	GameType            GameType           `json:"game_type"`
 	TeamID              int64              `json:"team_id"`
 	PlayerID            int64              `json:"player_id"`
 	GamesPlayed         int32              `json:"games_played"`
@@ -213,13 +213,13 @@ ORDER BY s.points DESC, s.goals DESC
 `
 
 type GetClubSkaterStatsBySeasonParams struct {
-	Season   int32 `json:"season"`
-	GameType int16 `json:"game_type"`
+	Season   int32    `json:"season"`
+	GameType GameType `json:"game_type"`
 }
 
 type GetClubSkaterStatsBySeasonRow struct {
 	Season           int32              `json:"season"`
-	GameType         int16              `json:"game_type"`
+	GameType         GameType           `json:"game_type"`
 	TeamID           int64              `json:"team_id"`
 	PlayerID         int64              `json:"player_id"`
 	GamesPlayed      int32              `json:"games_played"`
@@ -296,14 +296,14 @@ ORDER BY s.points DESC, s.goals DESC
 `
 
 type GetClubSkaterStatsByTeamParams struct {
-	Season   int32 `json:"season"`
-	GameType int16 `json:"game_type"`
-	TeamID   int64 `json:"team_id"`
+	Season   int32    `json:"season"`
+	GameType GameType `json:"game_type"`
+	TeamID   int64    `json:"team_id"`
 }
 
 type GetClubSkaterStatsByTeamRow struct {
 	Season           int32              `json:"season"`
-	GameType         int16              `json:"game_type"`
+	GameType         GameType           `json:"game_type"`
 	TeamID           int64              `json:"team_id"`
 	PlayerID         int64              `json:"player_id"`
 	GamesPlayed      int32              `json:"games_played"`

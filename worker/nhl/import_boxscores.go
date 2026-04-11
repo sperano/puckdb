@@ -137,7 +137,7 @@ func boxscoreToGameParams(b *nhlapi.Boxscore, season int) sqlcdb.UpsertGameParam
 	return sqlcdb.UpsertGameParams{
 		ID:       int64(b.ID),
 		Season:   int32(season),
-		GameType: int16(b.GameType),
+		GameType: sqlcdb.GameType(b.GameType.Label()),
 		GameDate: gameDate,
 
 		Venue:         b.Venue.Default,
@@ -147,11 +147,11 @@ func boxscoreToGameParams(b *nhlapi.Boxscore, season int) sqlcdb.UpsertGameParam
 		EasternUTCOffset: b.EasternUTCOffset,
 		VenueUTCOffset:   b.VenueUTCOffset,
 
-		GameState:         string(b.GameState),
-		GameScheduleState: string(b.GameScheduleState),
+		GameState:         sqlcdb.GameState(b.GameState),
+		GameScheduleState: sqlcdb.GameScheduleState(b.GameScheduleState),
 
 		PeriodNumber:         int16(b.PeriodDescriptor.Number),
-		PeriodType:           string(b.PeriodDescriptor.PeriodType),
+		PeriodType:           sqlcdb.PeriodType(b.PeriodDescriptor.PeriodType),
 		MaxRegulationPeriods: int16(b.PeriodDescriptor.MaxRegulationPeriods),
 
 		ClockTimeRemaining:    b.Clock.TimeRemaining,
@@ -233,7 +233,7 @@ func skaterToBatchParams(gameID nhlapi.GameID, teamID int64, isHome bool, s *nhl
 		TeamID:        teamID,
 		IsHome:        isHome,
 		SweaterNumber: int16(s.SweaterNumber),
-		Position:      string(s.Position),
+		Position:      sqlcdb.PlayerPosition(s.Position),
 
 		Goals:       int16(s.Goals),
 		Assists:     int16(s.Assists),
@@ -305,9 +305,9 @@ func upsertGoalieStats(ctx context.Context, queries BoxscoreUpserter, b *nhlapi.
 }
 
 func goalieToBatchParams(gameID nhlapi.GameID, teamID int64, isHome bool, g *nhlapi.GoalieStats) sqlcdb.UpsertGameGoalieStatsBatchParams {
-	var decision pgtype.Text
+	var decision sqlcdb.NullGoalieDecision
 	if g.Decision != nil {
-		decision = pgtype.Text{String: string(*g.Decision), Valid: true}
+		decision = sqlcdb.NullGoalieDecision{GoalieDecision: sqlcdb.GoalieDecision(*g.Decision), Valid: true}
 	}
 
 	var starter pgtype.Bool

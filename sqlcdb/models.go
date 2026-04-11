@@ -5,12 +5,699 @@
 package sqlcdb
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ChatRole string
+
+const (
+	ChatRoleSystem    ChatRole = "system"
+	ChatRoleUser      ChatRole = "user"
+	ChatRoleAssistant ChatRole = "assistant"
+	ChatRoleTool      ChatRole = "tool"
+)
+
+func (e *ChatRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatRole(s)
+	case string:
+		*e = ChatRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatRole: %T", src)
+	}
+	return nil
+}
+
+type NullChatRole struct {
+	ChatRole ChatRole `json:"chat_role"`
+	Valid    bool     `json:"valid"` // Valid is true if ChatRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatRole), nil
+}
+
+type GameScheduleState string
+
+const (
+	GameScheduleStateOK        GameScheduleState = "OK"
+	GameScheduleStateDONTPLAY  GameScheduleState = "DONT_PLAY"
+	GameScheduleStatePPD       GameScheduleState = "PPD"
+	GameScheduleStateSUSP      GameScheduleState = "SUSP"
+	GameScheduleStateTBD       GameScheduleState = "TBD"
+	GameScheduleStateCOMPLETED GameScheduleState = "COMPLETED"
+	GameScheduleStateCNCL      GameScheduleState = "CNCL"
+)
+
+func (e *GameScheduleState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GameScheduleState(s)
+	case string:
+		*e = GameScheduleState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GameScheduleState: %T", src)
+	}
+	return nil
+}
+
+type NullGameScheduleState struct {
+	GameScheduleState GameScheduleState `json:"game_schedule_state"`
+	Valid             bool              `json:"valid"` // Valid is true if GameScheduleState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGameScheduleState) Scan(value interface{}) error {
+	if value == nil {
+		ns.GameScheduleState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GameScheduleState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGameScheduleState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GameScheduleState), nil
+}
+
+type GameState string
+
+const (
+	GameStateFUT   GameState = "FUT"
+	GameStatePRE   GameState = "PRE"
+	GameStateLIVE  GameState = "LIVE"
+	GameStateFINAL GameState = "FINAL"
+	GameStateOFF   GameState = "OFF"
+	GameStatePPD   GameState = "PPD"
+	GameStateSUSP  GameState = "SUSP"
+	GameStateCRIT  GameState = "CRIT"
+)
+
+func (e *GameState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GameState(s)
+	case string:
+		*e = GameState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GameState: %T", src)
+	}
+	return nil
+}
+
+type NullGameState struct {
+	GameState GameState `json:"game_state"`
+	Valid     bool      `json:"valid"` // Valid is true if GameState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGameState) Scan(value interface{}) error {
+	if value == nil {
+		ns.GameState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GameState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGameState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GameState), nil
+}
+
+type GameType string
+
+const (
+	GameTypePreseason     GameType = "preseason"
+	GameTypeRegularSeason GameType = "regular_season"
+	GameTypePlayoffs      GameType = "playoffs"
+	GameTypeAllStar       GameType = "all_star"
+	GameTypeWorldCup      GameType = "world_cup"
+	GameTypeWorldCup2004  GameType = "world_cup_2004"
+	GameTypeOlympics      GameType = "olympics"
+	GameTypeYoungStars    GameType = "young_stars"
+	GameTypePwhlShowcase  GameType = "pwhl_showcase"
+	GameTypeWomensAllStar GameType = "womens_all_star"
+	GameTypeFourNations   GameType = "four_nations"
+)
+
+func (e *GameType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GameType(s)
+	case string:
+		*e = GameType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GameType: %T", src)
+	}
+	return nil
+}
+
+type NullGameType struct {
+	GameType GameType `json:"game_type"`
+	Valid    bool     `json:"valid"` // Valid is true if GameType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGameType) Scan(value interface{}) error {
+	if value == nil {
+		ns.GameType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GameType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGameType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GameType), nil
+}
+
+type GoalieDecision string
+
+const (
+	GoalieDecisionW   GoalieDecision = "W"
+	GoalieDecisionL   GoalieDecision = "L"
+	GoalieDecisionT   GoalieDecision = "T"
+	GoalieDecisionOTL GoalieDecision = "OTL"
+)
+
+func (e *GoalieDecision) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GoalieDecision(s)
+	case string:
+		*e = GoalieDecision(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GoalieDecision: %T", src)
+	}
+	return nil
+}
+
+type NullGoalieDecision struct {
+	GoalieDecision GoalieDecision `json:"goalie_decision"`
+	Valid          bool           `json:"valid"` // Valid is true if GoalieDecision is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGoalieDecision) Scan(value interface{}) error {
+	if value == nil {
+		ns.GoalieDecision, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GoalieDecision.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGoalieDecision) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GoalieDecision), nil
+}
+
+type HandSide string
+
+const (
+	HandSideL HandSide = "L"
+	HandSideR HandSide = "R"
+)
+
+func (e *HandSide) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = HandSide(s)
+	case string:
+		*e = HandSide(s)
+	default:
+		return fmt.Errorf("unsupported scan type for HandSide: %T", src)
+	}
+	return nil
+}
+
+type NullHandSide struct {
+	HandSide HandSide `json:"hand_side"`
+	Valid    bool     `json:"valid"` // Valid is true if HandSide is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullHandSide) Scan(value interface{}) error {
+	if value == nil {
+		ns.HandSide, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.HandSide.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullHandSide) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.HandSide), nil
+}
+
+type IceSide string
+
+const (
+	IceSideLeft  IceSide = "left"
+	IceSideRight IceSide = "right"
+)
+
+func (e *IceSide) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = IceSide(s)
+	case string:
+		*e = IceSide(s)
+	default:
+		return fmt.Errorf("unsupported scan type for IceSide: %T", src)
+	}
+	return nil
+}
+
+type NullIceSide struct {
+	IceSide IceSide `json:"ice_side"`
+	Valid   bool    `json:"valid"` // Valid is true if IceSide is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullIceSide) Scan(value interface{}) error {
+	if value == nil {
+		ns.IceSide, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.IceSide.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullIceSide) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.IceSide), nil
+}
+
+type OfficialRole string
+
+const (
+	OfficialRoleReferee  OfficialRole = "referee"
+	OfficialRoleLinesman OfficialRole = "linesman"
+)
+
+func (e *OfficialRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialRole(s)
+	case string:
+		*e = OfficialRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialRole: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialRole struct {
+	OfficialRole OfficialRole `json:"official_role"`
+	Valid        bool         `json:"valid"` // Valid is true if OfficialRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialRole), nil
+}
+
+type PeriodType string
+
+const (
+	PeriodTypeREG PeriodType = "REG"
+	PeriodTypeOT  PeriodType = "OT"
+	PeriodTypeSO  PeriodType = "SO"
+)
+
+func (e *PeriodType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PeriodType(s)
+	case string:
+		*e = PeriodType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PeriodType: %T", src)
+	}
+	return nil
+}
+
+type NullPeriodType struct {
+	PeriodType PeriodType `json:"period_type"`
+	Valid      bool       `json:"valid"` // Valid is true if PeriodType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPeriodType) Scan(value interface{}) error {
+	if value == nil {
+		ns.PeriodType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PeriodType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPeriodType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PeriodType), nil
+}
+
+type PlayEventType string
+
+const (
+	PlayEventTypeFaceoff           PlayEventType = "faceoff"
+	PlayEventTypeHit               PlayEventType = "hit"
+	PlayEventTypeGiveaway          PlayEventType = "giveaway"
+	PlayEventTypeGoal              PlayEventType = "goal"
+	PlayEventTypeShotOnGoal        PlayEventType = "shot-on-goal"
+	PlayEventTypeMissedShot        PlayEventType = "missed-shot"
+	PlayEventTypeBlockedShot       PlayEventType = "blocked-shot"
+	PlayEventTypePenalty           PlayEventType = "penalty"
+	PlayEventTypeStoppage          PlayEventType = "stoppage"
+	PlayEventTypePeriodStart       PlayEventType = "period-start"
+	PlayEventTypePeriodEnd         PlayEventType = "period-end"
+	PlayEventTypeShootoutComplete  PlayEventType = "shootout-complete"
+	PlayEventTypeGameEnd           PlayEventType = "game-end"
+	PlayEventTypeTakeaway          PlayEventType = "takeaway"
+	PlayEventTypeDelayedPenalty    PlayEventType = "delayed-penalty"
+	PlayEventTypeFailedShotAttempt PlayEventType = "failed-shot-attempt"
+)
+
+func (e *PlayEventType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PlayEventType(s)
+	case string:
+		*e = PlayEventType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PlayEventType: %T", src)
+	}
+	return nil
+}
+
+type NullPlayEventType struct {
+	PlayEventType PlayEventType `json:"play_event_type"`
+	Valid         bool          `json:"valid"` // Valid is true if PlayEventType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPlayEventType) Scan(value interface{}) error {
+	if value == nil {
+		ns.PlayEventType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PlayEventType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPlayEventType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PlayEventType), nil
+}
+
+type PlayerPosition string
+
+const (
+	PlayerPositionC  PlayerPosition = "C"
+	PlayerPositionLW PlayerPosition = "LW"
+	PlayerPositionRW PlayerPosition = "RW"
+	PlayerPositionF  PlayerPosition = "F"
+	PlayerPositionD  PlayerPosition = "D"
+	PlayerPositionG  PlayerPosition = "G"
+)
+
+func (e *PlayerPosition) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PlayerPosition(s)
+	case string:
+		*e = PlayerPosition(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PlayerPosition: %T", src)
+	}
+	return nil
+}
+
+type NullPlayerPosition struct {
+	PlayerPosition PlayerPosition `json:"player_position"`
+	Valid          bool           `json:"valid"` // Valid is true if PlayerPosition is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPlayerPosition) Scan(value interface{}) error {
+	if value == nil {
+		ns.PlayerPosition, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PlayerPosition.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPlayerPosition) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PlayerPosition), nil
+}
+
+type ShiftDetail string
+
+const (
+	ShiftDetail0   ShiftDetail = "0"
+	ShiftDetail801 ShiftDetail = "801"
+	ShiftDetail802 ShiftDetail = "802"
+	ShiftDetail803 ShiftDetail = "803"
+	ShiftDetail804 ShiftDetail = "804"
+	ShiftDetail805 ShiftDetail = "805"
+	ShiftDetail806 ShiftDetail = "806"
+	ShiftDetail807 ShiftDetail = "807"
+	ShiftDetail808 ShiftDetail = "808"
+	ShiftDetail809 ShiftDetail = "809"
+	ShiftDetail810 ShiftDetail = "810"
+	ShiftDetail811 ShiftDetail = "811"
+)
+
+func (e *ShiftDetail) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ShiftDetail(s)
+	case string:
+		*e = ShiftDetail(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ShiftDetail: %T", src)
+	}
+	return nil
+}
+
+type NullShiftDetail struct {
+	ShiftDetail ShiftDetail `json:"shift_detail"`
+	Valid       bool        `json:"valid"` // Valid is true if ShiftDetail is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullShiftDetail) Scan(value interface{}) error {
+	if value == nil {
+		ns.ShiftDetail, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ShiftDetail.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullShiftDetail) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ShiftDetail), nil
+}
+
+type ShiftType string
+
+const (
+	ShiftType505 ShiftType = "505"
+	ShiftType517 ShiftType = "517"
+)
+
+func (e *ShiftType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ShiftType(s)
+	case string:
+		*e = ShiftType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ShiftType: %T", src)
+	}
+	return nil
+}
+
+type NullShiftType struct {
+	ShiftType ShiftType `json:"shift_type"`
+	Valid     bool      `json:"valid"` // Valid is true if ShiftType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullShiftType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ShiftType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ShiftType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullShiftType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ShiftType), nil
+}
+
+type ShootoutResult string
+
+const (
+	ShootoutResultGoal ShootoutResult = "goal"
+	ShootoutResultSave ShootoutResult = "save"
+)
+
+func (e *ShootoutResult) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ShootoutResult(s)
+	case string:
+		*e = ShootoutResult(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ShootoutResult: %T", src)
+	}
+	return nil
+}
+
+type NullShootoutResult struct {
+	ShootoutResult ShootoutResult `json:"shootout_result"`
+	Valid          bool           `json:"valid"` // Valid is true if ShootoutResult is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullShootoutResult) Scan(value interface{}) error {
+	if value == nil {
+		ns.ShootoutResult, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ShootoutResult.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullShootoutResult) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ShootoutResult), nil
+}
+
+type ZoneCode string
+
+const (
+	ZoneCodeO ZoneCode = "O"
+	ZoneCodeD ZoneCode = "D"
+	ZoneCodeN ZoneCode = "N"
+)
+
+func (e *ZoneCode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ZoneCode(s)
+	case string:
+		*e = ZoneCode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ZoneCode: %T", src)
+	}
+	return nil
+}
+
+type NullZoneCode struct {
+	ZoneCode ZoneCode `json:"zone_code"`
+	Valid    bool     `json:"valid"` // Valid is true if ZoneCode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullZoneCode) Scan(value interface{}) error {
+	if value == nil {
+		ns.ZoneCode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ZoneCode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullZoneCode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ZoneCode), nil
+}
+
 type ClubGoalieStat struct {
 	Season              int32              `json:"season"`
-	GameType            int16              `json:"game_type"`
+	GameType            GameType           `json:"game_type"`
 	TeamID              int64              `json:"team_id"`
 	PlayerID            int64              `json:"player_id"`
 	GamesPlayed         int32              `json:"games_played"`
@@ -35,7 +722,7 @@ type ClubGoalieStat struct {
 
 type ClubSkaterStat struct {
 	Season           int32              `json:"season"`
-	GameType         int16              `json:"game_type"`
+	GameType         GameType           `json:"game_type"`
 	TeamID           int64              `json:"team_id"`
 	PlayerID         int64              `json:"player_id"`
 	GamesPlayed      int32              `json:"games_played"`
@@ -67,17 +754,17 @@ type Franchise struct {
 type Game struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
-	GameType              int16              `json:"game_type"`
+	GameType              GameType           `json:"game_type"`
 	GameDate              pgtype.Date        `json:"game_date"`
 	Venue                 string             `json:"venue"`
 	VenueLocation         string             `json:"venue_location"`
 	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
 	EasternUTCOffset      string             `json:"eastern_utc_offset"`
 	VenueUTCOffset        string             `json:"venue_utc_offset"`
-	GameState             string             `json:"game_state"`
-	GameScheduleState     string             `json:"game_schedule_state"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
 	PeriodNumber          int16              `json:"period_number"`
-	PeriodType            string             `json:"period_type"`
+	PeriodType            PeriodType         `json:"period_type"`
 	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
 	ClockTimeRemaining    string             `json:"clock_time_remaining"`
 	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
@@ -116,7 +803,7 @@ type GameGoalieStat struct {
 	TeamID                   int64              `json:"team_id"`
 	IsHome                   bool               `json:"is_home"`
 	SweaterNumber            int16              `json:"sweater_number"`
-	Decision                 pgtype.Text        `json:"decision"`
+	Decision                 NullGoalieDecision `json:"decision"`
 	Starter                  pgtype.Bool        `json:"starter"`
 	ShotsAgainst             int32              `json:"shots_against"`
 	Saves                    int32              `json:"saves"`
@@ -125,20 +812,20 @@ type GameGoalieStat struct {
 	EvenStrengthGoalsAgainst int16              `json:"even_strength_goals_against"`
 	PowerPlayGoalsAgainst    int16              `json:"power_play_goals_against"`
 	ShorthandedGoalsAgainst  int16              `json:"shorthanded_goals_against"`
+	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
+	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
+	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 	TOISeconds               int32              `json:"toi_seconds"`
 	PenaltyMinutes           pgtype.Int2        `json:"penalty_minutes"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
-	EvenStrengthShotsAgainst pgtype.Text        `json:"even_strength_shots_against"`
-	PowerPlayShotsAgainst    pgtype.Text        `json:"power_play_shots_against"`
-	ShorthandedShotsAgainst  pgtype.Text        `json:"shorthanded_shots_against"`
 }
 
 type GameOfficial struct {
-	GameID   int64  `json:"game_id"`
-	Role     string `json:"role"`
-	Sequence int16  `json:"sequence"`
-	Name     string `json:"name"`
+	GameID   int64        `json:"game_id"`
+	Role     OfficialRole `json:"role"`
+	Sequence int16        `json:"sequence"`
+	Name     string       `json:"name"`
 }
 
 type GameScratch struct {
@@ -153,7 +840,7 @@ type GameSkaterStat struct {
 	TeamID             int64              `json:"team_id"`
 	IsHome             bool               `json:"is_home"`
 	SweaterNumber      int16              `json:"sweater_number"`
-	Position           string             `json:"position"`
+	Position           PlayerPosition     `json:"position"`
 	Goals              int16              `json:"goals"`
 	Assists            int16              `json:"assists"`
 	Points             int16              `json:"points"`
@@ -168,11 +855,11 @@ type GameSkaterStat struct {
 	Giveaways          int16              `json:"giveaways"`
 	Takeaways          int16              `json:"takeaways"`
 	PowerPlayGoals     int16              `json:"power_play_goals"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	PowerPlayPoints    int16              `json:"power_play_points"`
 	GameWinningGoals   int16              `json:"game_winning_goals"`
 	OtGoals            int16              `json:"ot_goals"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 type GameThreeStar struct {
@@ -237,7 +924,7 @@ type MauriceConversation struct {
 type MauriceMessage struct {
 	ID             pgtype.UUID        `json:"id"`
 	ConversationID pgtype.UUID        `json:"conversation_id"`
-	Role           string             `json:"role"`
+	Role           ChatRole           `json:"role"`
 	Content        string             `json:"content"`
 	ToolCalls      []byte             `json:"tool_calls"`
 	ToolCallID     pgtype.Text        `json:"tool_call_id"`
@@ -245,81 +932,82 @@ type MauriceMessage struct {
 }
 
 type PlayEvent struct {
-	GameID                int64       `json:"game_id"`
-	EventID               int64       `json:"event_id"`
-	Period                int32       `json:"period"`
-	PeriodType            string      `json:"period_type"`
-	TimeInPeriod          string      `json:"time_in_period"`
-	TimeRemaining         string      `json:"time_remaining"`
-	SituationCode         pgtype.Text `json:"situation_code"`
-	HomeTeamDefendingSide pgtype.Text `json:"home_team_defending_side"`
-	TypeCode              int32       `json:"type_code"`
-	TypeDescKey           string      `json:"type_desc_key"`
-	SortOrder             int32       `json:"sort_order"`
-	XCoord                pgtype.Int4 `json:"x_coord"`
-	YCoord                pgtype.Int4 `json:"y_coord"`
-	ZoneCode              pgtype.Text `json:"zone_code"`
-	EventOwnerTeamID      pgtype.Int8 `json:"event_owner_team_id"`
-	ShotType              pgtype.Text `json:"shot_type"`
-	ShootingPlayerID      pgtype.Int8 `json:"shooting_player_id"`
-	GoalieInNetID         pgtype.Int8 `json:"goalie_in_net_id"`
-	BlockingPlayerID      pgtype.Int8 `json:"blocking_player_id"`
-	ScoringPlayerID       pgtype.Int8 `json:"scoring_player_id"`
-	ScoringPlayerTotal    pgtype.Int4 `json:"scoring_player_total"`
-	Assist1PlayerID       pgtype.Int8 `json:"assist1_player_id"`
-	Assist1PlayerTotal    pgtype.Int4 `json:"assist1_player_total"`
-	Assist2PlayerID       pgtype.Int8 `json:"assist2_player_id"`
-	Assist2PlayerTotal    pgtype.Int4 `json:"assist2_player_total"`
-	AwayScore             pgtype.Int4 `json:"away_score"`
-	HomeScore             pgtype.Int4 `json:"home_score"`
-	HighlightClipID       pgtype.Int8 `json:"highlight_clip_id"`
-	HighlightClipUrl      pgtype.Text `json:"highlight_clip_url"`
-	DiscreteClipID        pgtype.Int8 `json:"discrete_clip_id"`
-	PenaltyTypeCode       pgtype.Text `json:"penalty_type_code"`
-	PenaltyDescKey        pgtype.Text `json:"penalty_desc_key"`
-	PenaltyDuration       pgtype.Int4 `json:"penalty_duration"`
-	CommittedByPlayerID   pgtype.Int8 `json:"committed_by_player_id"`
-	DrawnByPlayerID       pgtype.Int8 `json:"drawn_by_player_id"`
-	HittingPlayerID       pgtype.Int8 `json:"hitting_player_id"`
-	HitteePlayerID        pgtype.Int8 `json:"hittee_player_id"`
-	WinningPlayerID       pgtype.Int8 `json:"winning_player_id"`
-	LosingPlayerID        pgtype.Int8 `json:"losing_player_id"`
-	PlayerID              pgtype.Int8 `json:"player_id"`
-	Reason                pgtype.Text `json:"reason"`
-	AwaySog               pgtype.Int4 `json:"away_sog"`
-	HomeSog               pgtype.Int4 `json:"home_sog"`
+	GameID        int64      `json:"game_id"`
+	EventID       int64      `json:"event_id"`
+	Period        int32      `json:"period"`
+	PeriodType    PeriodType `json:"period_type"`
+	TimeInPeriod  string     `json:"time_in_period"`
+	TimeRemaining string     `json:"time_remaining"`
+	// 4-digit integer encoding on-ice strength: [away_goalie][away_skaters][home_skaters][home_goalie]. Example: 1551 = both goalies in, 5v5. 0541 = away empty net, 5v4 home power play.
+	SituationCode         pgtype.Int4   `json:"situation_code"`
+	HomeTeamDefendingSide NullIceSide   `json:"home_team_defending_side"`
+	TypeDescKey           PlayEventType `json:"type_desc_key"`
+	SortOrder             int32         `json:"sort_order"`
+	XCoord                pgtype.Int4   `json:"x_coord"`
+	YCoord                pgtype.Int4   `json:"y_coord"`
+	ZoneCode              NullZoneCode  `json:"zone_code"`
+	EventOwnerTeamID      pgtype.Int8   `json:"event_owner_team_id"`
+	ShotType              pgtype.Text   `json:"shot_type"`
+	ShootingPlayerID      pgtype.Int8   `json:"shooting_player_id"`
+	GoalieInNetID         pgtype.Int8   `json:"goalie_in_net_id"`
+	BlockingPlayerID      pgtype.Int8   `json:"blocking_player_id"`
+	ScoringPlayerID       pgtype.Int8   `json:"scoring_player_id"`
+	ScoringPlayerTotal    pgtype.Int4   `json:"scoring_player_total"`
+	Assist1PlayerID       pgtype.Int8   `json:"assist1_player_id"`
+	Assist1PlayerTotal    pgtype.Int4   `json:"assist1_player_total"`
+	Assist2PlayerID       pgtype.Int8   `json:"assist2_player_id"`
+	Assist2PlayerTotal    pgtype.Int4   `json:"assist2_player_total"`
+	AwayScore             pgtype.Int4   `json:"away_score"`
+	HomeScore             pgtype.Int4   `json:"home_score"`
+	HighlightClipID       pgtype.Int8   `json:"highlight_clip_id"`
+	HighlightClipUrl      pgtype.Text   `json:"highlight_clip_url"`
+	DiscreteClipID        pgtype.Int8   `json:"discrete_clip_id"`
+	// NHL penalty type code string (e.g. "PS-HOOKING"). See penalty_desc_key for human-readable description.
+	PenaltyTypeCode     pgtype.Text `json:"penalty_type_code"`
+	PenaltyDescKey      pgtype.Text `json:"penalty_desc_key"`
+	PenaltyDuration     pgtype.Int4 `json:"penalty_duration"`
+	CommittedByPlayerID pgtype.Int8 `json:"committed_by_player_id"`
+	DrawnByPlayerID     pgtype.Int8 `json:"drawn_by_player_id"`
+	HittingPlayerID     pgtype.Int8 `json:"hitting_player_id"`
+	HitteePlayerID      pgtype.Int8 `json:"hittee_player_id"`
+	WinningPlayerID     pgtype.Int8 `json:"winning_player_id"`
+	LosingPlayerID      pgtype.Int8 `json:"losing_player_id"`
+	PlayerID            pgtype.Int8 `json:"player_id"`
+	Reason              pgtype.Text `json:"reason"`
+	AwaySog             pgtype.Int4 `json:"away_sog"`
+	HomeSog             pgtype.Int4 `json:"home_sog"`
 }
 
 type Player struct {
-	ID                  int64       `json:"id"`
-	YahooID             pgtype.Int8 `json:"yahoo_id"`
-	FirstName           string      `json:"first_name"`
-	LastName            string      `json:"last_name"`
-	FirstNameNormalized string      `json:"first_name_normalized"`
-	LastNameNormalized  string      `json:"last_name_normalized"`
-	TeamID              pgtype.Int8 `json:"team_id"`
-	Position            string      `json:"position"`
-	ShootsCatches       string      `json:"shoots_catches"`
-	HeightInches        pgtype.Int4 `json:"height_inches"`
-	WeightPounds        pgtype.Int4 `json:"weight_pounds"`
-	BirthDate           pgtype.Date `json:"birth_date"`
-	BirthCity           pgtype.Text `json:"birth_city"`
-	BirthStateProvince  pgtype.Text `json:"birth_state_province"`
-	BirthCountry        pgtype.Text `json:"birth_country"`
-	SweaterNumber       pgtype.Int4 `json:"sweater_number"`
-	IsActive            bool        `json:"is_active"`
-	HeadshotURL         string      `json:"headshot_url"`
-	HeroImageURL        pgtype.Text `json:"hero_image_url"`
-	YahooImageSmall     string      `json:"yahoo_image_small"`
-	YahooImageMedium    string      `json:"yahoo_image_medium"`
-	YahooImageLarge     string      `json:"yahoo_image_large"`
-	YahooHomeURL        string      `json:"yahoo_home_url"`
-	PlayerSlug          pgtype.Text `json:"player_slug"`
-	DraftYear           pgtype.Int4 `json:"draft_year"`
-	DraftTeamAbbrev     pgtype.Text `json:"draft_team_abbrev"`
-	DraftRound          pgtype.Int4 `json:"draft_round"`
-	DraftPickInRound    pgtype.Int4 `json:"draft_pick_in_round"`
-	DraftOverallPick    pgtype.Int4 `json:"draft_overall_pick"`
+	ID                  int64              `json:"id"`
+	YahooID             pgtype.Int8        `json:"yahoo_id"`
+	FirstName           string             `json:"first_name"`
+	LastName            string             `json:"last_name"`
+	FirstNameNormalized string             `json:"first_name_normalized"`
+	LastNameNormalized  string             `json:"last_name_normalized"`
+	TeamID              pgtype.Int8        `json:"team_id"`
+	Position            NullPlayerPosition `json:"position"`
+	ShootsCatches       NullHandSide       `json:"shoots_catches"`
+	HeightInches        pgtype.Int4        `json:"height_inches"`
+	WeightPounds        pgtype.Int4        `json:"weight_pounds"`
+	BirthDate           pgtype.Date        `json:"birth_date"`
+	BirthCity           pgtype.Text        `json:"birth_city"`
+	BirthStateProvince  pgtype.Text        `json:"birth_state_province"`
+	BirthCountry        pgtype.Text        `json:"birth_country"`
+	SweaterNumber       pgtype.Int4        `json:"sweater_number"`
+	IsActive            bool               `json:"is_active"`
+	HeadshotURL         string             `json:"headshot_url"`
+	HeroImageURL        pgtype.Text        `json:"hero_image_url"`
+	YahooImageSmall     string             `json:"yahoo_image_small"`
+	YahooImageMedium    string             `json:"yahoo_image_medium"`
+	YahooImageLarge     string             `json:"yahoo_image_large"`
+	YahooHomeURL        string             `json:"yahoo_home_url"`
+	PlayerSlug          pgtype.Text        `json:"player_slug"`
+	DraftYear           pgtype.Int4        `json:"draft_year"`
+	DraftTeamAbbrev     pgtype.Text        `json:"draft_team_abbrev"`
+	DraftRound          pgtype.Int4        `json:"draft_round"`
+	DraftPickInRound    pgtype.Int4        `json:"draft_pick_in_round"`
+	DraftOverallPick    pgtype.Int4        `json:"draft_overall_pick"`
 }
 
 type PlayerAward struct {
@@ -332,9 +1020,10 @@ type PlayerAward struct {
 type PlayerSeasonTotal struct {
 	PlayerID     int64              `json:"player_id"`
 	Season       int32              `json:"season"`
-	GameType     int16              `json:"game_type"`
+	GameType     GameType           `json:"game_type"`
 	LeagueAbbrev string             `json:"league_abbrev"`
 	TeamName     string             `json:"team_name"`
+	TeamID       pgtype.Int8        `json:"team_id"`
 	Sequence     int32              `json:"sequence"`
 	GamesPlayed  int32              `json:"games_played"`
 	Goals        pgtype.Int4        `json:"goals"`
@@ -344,7 +1033,6 @@ type PlayerSeasonTotal struct {
 	PIM          pgtype.Int4        `json:"pim"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	TeamID       pgtype.Int8        `json:"team_id"`
 }
 
 type Season struct {
@@ -357,7 +1045,7 @@ type SeasonRoster struct {
 	Season             int32              `json:"season"`
 	TeamID             int64              `json:"team_id"`
 	PlayerID           int64              `json:"player_id"`
-	Position           string             `json:"position"`
+	Position           PlayerPosition     `json:"position"`
 	ShootsCatches      string             `json:"shoots_catches"`
 	SweaterNumber      int16              `json:"sweater_number"`
 	HeightInches       int16              `json:"height_inches"`
@@ -393,69 +1081,70 @@ type Shift struct {
 	EndTime          string      `json:"end_time"`
 	Duration         string      `json:"duration"`
 	ShiftNumber      int32       `json:"shift_number"`
-	TypeCode         int32       `json:"type_code"`
-	DetailCode       int32       `json:"detail_code"`
+	TypeCode         ShiftType   `json:"type_code"`
+	DetailCode       ShiftDetail `json:"detail_code"`
 	EventNumber      int64       `json:"event_number"`
 	EventDescription pgtype.Text `json:"event_description"`
 }
 
 type ShootoutAttempt struct {
-	GameID     int64  `json:"game_id"`
-	Sequence   int16  `json:"sequence"`
-	PlayerID   int64  `json:"player_id"`
-	TeamID     int64  `json:"team_id"`
-	ShotType   string `json:"shot_type"`
-	Result     string `json:"result"`
-	GameWinner bool   `json:"game_winner"`
+	GameID     int64          `json:"game_id"`
+	Sequence   int16          `json:"sequence"`
+	PlayerID   int64          `json:"player_id"`
+	TeamID     int64          `json:"team_id"`
+	ShotType   string         `json:"shot_type"`
+	Result     ShootoutResult `json:"result"`
+	GameWinner bool           `json:"game_winner"`
 }
 
 type SkaterRecentStat struct {
-	PlayerID      int64          `json:"player_id"`
-	FirstName     string         `json:"first_name"`
-	LastName      string         `json:"last_name"`
-	YahooID       pgtype.Int8    `json:"yahoo_id"`
-	Position      string         `json:"position"`
-	CurrentTeamID pgtype.Int8    `json:"current_team_id"`
-	Season        int32          `json:"season"`
-	Gp            int64          `json:"gp"`
-	Goals         int64          `json:"goals"`
-	Assists       int64          `json:"assists"`
-	Points        int64          `json:"points"`
-	PlusMinus     int64          `json:"plus_minus"`
-	PIM           int64          `json:"pim"`
-	SOG           int64          `json:"sog"`
-	PPP           int64          `json:"ppp"`
-	Ppg           int64          `json:"ppg"`
-	Hits          int64          `json:"hits"`
-	Blocks        int64          `json:"blocks"`
-	AvgToiMin     pgtype.Numeric `json:"avg_toi_min"`
+	PlayerID      int64              `json:"player_id"`
+	FirstName     string             `json:"first_name"`
+	LastName      string             `json:"last_name"`
+	YahooID       pgtype.Int8        `json:"yahoo_id"`
+	Position      NullPlayerPosition `json:"position"`
+	CurrentTeamID pgtype.Int8        `json:"current_team_id"`
+	Season        int32              `json:"season"`
+	Gp            int64              `json:"gp"`
+	Goals         int64              `json:"goals"`
+	Assists       int64              `json:"assists"`
+	Points        int64              `json:"points"`
+	PlusMinus     int64              `json:"plus_minus"`
+	PIM           int64              `json:"pim"`
+	SOG           int64              `json:"sog"`
+	PPP           int64              `json:"ppp"`
+	Ppg           int64              `json:"ppg"`
+	Hits          int64              `json:"hits"`
+	Blocks        int64              `json:"blocks"`
+	AvgToiMin     pgtype.Numeric     `json:"avg_toi_min"`
 }
 
 type SkaterSeasonStat struct {
-	PlayerID      int64          `json:"player_id"`
-	FirstName     string         `json:"first_name"`
-	LastName      string         `json:"last_name"`
-	YahooID       pgtype.Int8    `json:"yahoo_id"`
-	Position      string         `json:"position"`
-	CurrentTeamID pgtype.Int8    `json:"current_team_id"`
-	Season        int32          `json:"season"`
-	Gp            int64          `json:"gp"`
-	Goals         int64          `json:"goals"`
-	Assists       int64          `json:"assists"`
-	Points        int64          `json:"points"`
-	PlusMinus     int64          `json:"plus_minus"`
-	PIM           int64          `json:"pim"`
-	SOG           int64          `json:"sog"`
-	PPP           int64          `json:"ppp"`
-	Ppg           int64          `json:"ppg"`
-	Hits          int64          `json:"hits"`
-	Blocks        int64          `json:"blocks"`
-	AvgToiMin     pgtype.Numeric `json:"avg_toi_min"`
+	PlayerID      int64              `json:"player_id"`
+	FirstName     string             `json:"first_name"`
+	LastName      string             `json:"last_name"`
+	YahooID       pgtype.Int8        `json:"yahoo_id"`
+	Position      NullPlayerPosition `json:"position"`
+	CurrentTeamID pgtype.Int8        `json:"current_team_id"`
+	Season        int32              `json:"season"`
+	Gp            int64              `json:"gp"`
+	Goals         int64              `json:"goals"`
+	Assists       int64              `json:"assists"`
+	Points        int64              `json:"points"`
+	PlusMinus     int64              `json:"plus_minus"`
+	PIM           int64              `json:"pim"`
+	SOG           int64              `json:"sog"`
+	PPP           int64              `json:"ppp"`
+	Ppg           int64              `json:"ppg"`
+	Hits          int64              `json:"hits"`
+	Blocks        int64              `json:"blocks"`
+	AvgToiMin     pgtype.Numeric     `json:"avg_toi_min"`
 }
 
 type StandingsSnapshot struct {
 	Season           int32              `json:"season"`
 	Date             pgtype.Date        `json:"date"`
+	TeamID           int64              `json:"team_id"`
 	TeamAbbrev       string             `json:"team_abbrev"`
 	Wins             int32              `json:"wins"`
 	Losses           int32              `json:"losses"`
@@ -466,7 +1155,6 @@ type StandingsSnapshot struct {
 	ConferenceAbbrev pgtype.Text        `json:"conference_abbrev"`
 	ConferenceName   pgtype.Text        `json:"conference_name"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	TeamID           int64              `json:"team_id"`
 }
 
 type YahooDraftResult struct {
@@ -549,22 +1237,22 @@ type YahooMatchup struct {
 }
 
 type YahooRosterPlayer struct {
-	LeagueID         int32       `json:"league_id"`
-	TeamID           int32       `json:"team_id"`
-	Date             pgtype.Date `json:"date"`
-	YahooPlayerID    int32       `json:"yahoo_player_id"`
-	PlayerKey        string      `json:"player_key"`
-	SelectedPosition string      `json:"selected_position"`
-	IsFlex           bool        `json:"is_flex"`
-	CoverageType     string      `json:"coverage_type"`
-	IsEditable       bool        `json:"is_editable"`
-	NhlPlayerID      pgtype.Int8 `json:"nhl_player_id"`
-	FirstName        pgtype.Text `json:"first_name"`
-	LastName         pgtype.Text `json:"last_name"`
-	NhlPosition      pgtype.Text `json:"nhl_position"`
-	NHLTeamID        pgtype.Int8 `json:"nhl_team_id"`
-	IsActive         pgtype.Bool `json:"is_active"`
-	HeadshotURL      pgtype.Text `json:"headshot_url"`
+	LeagueID         int32              `json:"league_id"`
+	TeamID           int32              `json:"team_id"`
+	Date             pgtype.Date        `json:"date"`
+	YahooPlayerID    int32              `json:"yahoo_player_id"`
+	PlayerKey        string             `json:"player_key"`
+	SelectedPosition string             `json:"selected_position"`
+	IsFlex           bool               `json:"is_flex"`
+	CoverageType     string             `json:"coverage_type"`
+	IsEditable       bool               `json:"is_editable"`
+	NhlPlayerID      pgtype.Int8        `json:"nhl_player_id"`
+	FirstName        pgtype.Text        `json:"first_name"`
+	LastName         pgtype.Text        `json:"last_name"`
+	NhlPosition      NullPlayerPosition `json:"nhl_position"`
+	NHLTeamID        pgtype.Int8        `json:"nhl_team_id"`
+	IsActive         pgtype.Bool        `json:"is_active"`
+	HeadshotURL      pgtype.Text        `json:"headshot_url"`
 }
 
 type YahooRotoStanding struct {
@@ -649,8 +1337,6 @@ type YahooTeamRoster struct {
 	PlayerKey         string             `json:"player_key"`
 	SelectedPosition  string             `json:"selected_position"`
 	IsFlex            bool               `json:"is_flex"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	PlayerStatus      pgtype.Text        `json:"player_status"`
 	PlayerStatusFull  pgtype.Text        `json:"player_status_full"`
 	InjuryNote        pgtype.Text        `json:"injury_note"`
@@ -661,6 +1347,8 @@ type YahooTeamRoster struct {
 	EligiblePositions []string           `json:"eligible_positions"`
 	UniformNumber     pgtype.Int4        `json:"uniform_number"`
 	EditorialTeamAbbr pgtype.Text        `json:"editorial_team_abbr"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 type YahooTeamSummary struct {
@@ -668,8 +1356,6 @@ type YahooTeamSummary struct {
 	TeamID       int32              `json:"team_id"`
 	Date         pgtype.Date        `json:"date"`
 	CoverageType string             `json:"coverage_type"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 	Goals        pgtype.Float4      `json:"goals"`
 	Assists      pgtype.Float4      `json:"assists"`
 	Points       pgtype.Float4      `json:"points"`
@@ -690,6 +1376,8 @@ type YahooTeamSummary struct {
 	GWG          pgtype.Float4      `json:"gwg"`
 	Hits         pgtype.Float4      `json:"hits"`
 	Blocks       pgtype.Float4      `json:"blocks"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
 type YahooTransaction struct {

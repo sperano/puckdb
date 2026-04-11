@@ -1,0 +1,23 @@
+DROP TABLE IF EXISTS game_goalie_stats;
+DROP TABLE IF EXISTS game_skater_stats;
+DROP TABLE IF EXISTS games;
+DROP TABLE IF EXISTS players;
+DROP TABLE IF EXISTS season_teams;
+DROP TABLE IF EXISTS seasons;
+DROP TABLE IF EXISTS franchises;
+
+DROP TYPE IF EXISTS shift_detail;
+DROP TYPE IF EXISTS shift_type;
+DROP TYPE IF EXISTS shootout_result;
+DROP TYPE IF EXISTS chat_role;
+DROP TYPE IF EXISTS official_role;
+DROP TYPE IF EXISTS hand_side;
+DROP TYPE IF EXISTS player_position;
+DROP TYPE IF EXISTS goalie_decision;
+DROP TYPE IF EXISTS ice_side;
+DROP TYPE IF EXISTS zone_code;
+DROP TYPE IF EXISTS play_event_type;
+DROP TYPE IF EXISTS period_type;
+DROP TYPE IF EXISTS game_schedule_state;
+DROP TYPE IF EXISTS game_state;
+DROP TYPE IF EXISTS game_type;

@@ -82,17 +82,17 @@ WHERE g.id = $1
 type GetGameRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
-	GameType              int16              `json:"game_type"`
+	GameType              GameType           `json:"game_type"`
 	GameDate              pgtype.Date        `json:"game_date"`
 	Venue                 string             `json:"venue"`
 	VenueLocation         string             `json:"venue_location"`
 	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
 	EasternUTCOffset      string             `json:"eastern_utc_offset"`
 	VenueUTCOffset        string             `json:"venue_utc_offset"`
-	GameState             string             `json:"game_state"`
-	GameScheduleState     string             `json:"game_schedule_state"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
 	PeriodNumber          int16              `json:"period_number"`
-	PeriodType            string             `json:"period_type"`
+	PeriodType            PeriodType         `json:"period_type"`
 	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
 	ClockTimeRemaining    string             `json:"clock_time_remaining"`
 	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
@@ -186,17 +186,17 @@ ORDER BY g.start_time_utc
 type GetGamesByDateRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
-	GameType              int16              `json:"game_type"`
+	GameType              GameType           `json:"game_type"`
 	GameDate              pgtype.Date        `json:"game_date"`
 	Venue                 string             `json:"venue"`
 	VenueLocation         string             `json:"venue_location"`
 	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
 	EasternUTCOffset      string             `json:"eastern_utc_offset"`
 	VenueUTCOffset        string             `json:"venue_utc_offset"`
-	GameState             string             `json:"game_state"`
-	GameScheduleState     string             `json:"game_schedule_state"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
 	PeriodNumber          int16              `json:"period_number"`
-	PeriodType            string             `json:"period_type"`
+	PeriodType            PeriodType         `json:"period_type"`
 	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
 	ClockTimeRemaining    string             `json:"clock_time_remaining"`
 	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
@@ -289,17 +289,17 @@ type GetGamesByDateRangeParams struct {
 type GetGamesByDateRangeRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
-	GameType              int16              `json:"game_type"`
+	GameType              GameType           `json:"game_type"`
 	GameDate              pgtype.Date        `json:"game_date"`
 	Venue                 string             `json:"venue"`
 	VenueLocation         string             `json:"venue_location"`
 	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
 	EasternUTCOffset      string             `json:"eastern_utc_offset"`
 	VenueUTCOffset        string             `json:"venue_utc_offset"`
-	GameState             string             `json:"game_state"`
-	GameScheduleState     string             `json:"game_schedule_state"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
 	PeriodNumber          int16              `json:"period_number"`
-	PeriodType            string             `json:"period_type"`
+	PeriodType            PeriodType         `json:"period_type"`
 	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
 	ClockTimeRemaining    string             `json:"clock_time_remaining"`
 	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
@@ -387,17 +387,17 @@ ORDER BY g.game_date, g.start_time_utc
 type GetGamesBySeasonRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
-	GameType              int16              `json:"game_type"`
+	GameType              GameType           `json:"game_type"`
 	GameDate              pgtype.Date        `json:"game_date"`
 	Venue                 string             `json:"venue"`
 	VenueLocation         string             `json:"venue_location"`
 	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
 	EasternUTCOffset      string             `json:"eastern_utc_offset"`
 	VenueUTCOffset        string             `json:"venue_utc_offset"`
-	GameState             string             `json:"game_state"`
-	GameScheduleState     string             `json:"game_schedule_state"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
 	PeriodNumber          int16              `json:"period_number"`
-	PeriodType            string             `json:"period_type"`
+	PeriodType            PeriodType         `json:"period_type"`
 	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
 	ClockTimeRemaining    string             `json:"clock_time_remaining"`
 	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
@@ -485,17 +485,17 @@ ORDER BY g.game_date, g.start_time_utc
 type GetGamesByTeamRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
-	GameType              int16              `json:"game_type"`
+	GameType              GameType           `json:"game_type"`
 	GameDate              pgtype.Date        `json:"game_date"`
 	Venue                 string             `json:"venue"`
 	VenueLocation         string             `json:"venue_location"`
 	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
 	EasternUTCOffset      string             `json:"eastern_utc_offset"`
 	VenueUTCOffset        string             `json:"venue_utc_offset"`
-	GameState             string             `json:"game_state"`
-	GameScheduleState     string             `json:"game_schedule_state"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
 	PeriodNumber          int16              `json:"period_number"`
-	PeriodType            string             `json:"period_type"`
+	PeriodType            PeriodType         `json:"period_type"`
 	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
 	ClockTimeRemaining    string             `json:"clock_time_remaining"`
 	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
@@ -589,17 +589,17 @@ type GetGamesByTeamAndSeasonParams struct {
 type GetGamesByTeamAndSeasonRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
-	GameType              int16              `json:"game_type"`
+	GameType              GameType           `json:"game_type"`
 	GameDate              pgtype.Date        `json:"game_date"`
 	Venue                 string             `json:"venue"`
 	VenueLocation         string             `json:"venue_location"`
 	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
 	EasternUTCOffset      string             `json:"eastern_utc_offset"`
 	VenueUTCOffset        string             `json:"venue_utc_offset"`
-	GameState             string             `json:"game_state"`
-	GameScheduleState     string             `json:"game_schedule_state"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
 	PeriodNumber          int16              `json:"period_number"`
-	PeriodType            string             `json:"period_type"`
+	PeriodType            PeriodType         `json:"period_type"`
 	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
 	ClockTimeRemaining    string             `json:"clock_time_remaining"`
 	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
@@ -682,8 +682,8 @@ JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
 JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
 WHERE
     ($1::int IS NULL OR g.season = $1)
-    AND ($2::smallint IS NULL OR g.game_type = $2)
-    AND ($3::text IS NULL OR g.game_state = $3)
+    AND ($2::game_type IS NULL OR g.game_type = $2)
+    AND ($3::game_state IS NULL OR g.game_state = $3)
     AND ($4::bigint IS NULL OR g.home_team_id = $4 OR g.away_team_id = $4)
     AND ($5::date IS NULL OR g.game_date >= $5)
     AND ($6::date IS NULL OR g.game_date <= $6)
@@ -692,29 +692,29 @@ LIMIT COALESCE($7::int, 100)
 `
 
 type ListGamesParams struct {
-	Season    pgtype.Int4 `json:"season"`
-	GameType  pgtype.Int2 `json:"game_type"`
-	GameState pgtype.Text `json:"game_state"`
-	TeamID    pgtype.Int8 `json:"team_id"`
-	StartDate pgtype.Date `json:"start_date"`
-	EndDate   pgtype.Date `json:"end_date"`
-	Limit     pgtype.Int4 `json:"limit"`
+	Season    pgtype.Int4   `json:"season"`
+	GameType  NullGameType  `json:"game_type"`
+	GameState NullGameState `json:"game_state"`
+	TeamID    pgtype.Int8   `json:"team_id"`
+	StartDate pgtype.Date   `json:"start_date"`
+	EndDate   pgtype.Date   `json:"end_date"`
+	Limit     pgtype.Int4   `json:"limit"`
 }
 
 type ListGamesRow struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
-	GameType              int16              `json:"game_type"`
+	GameType              GameType           `json:"game_type"`
 	GameDate              pgtype.Date        `json:"game_date"`
 	Venue                 string             `json:"venue"`
 	VenueLocation         string             `json:"venue_location"`
 	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
 	EasternUTCOffset      string             `json:"eastern_utc_offset"`
 	VenueUTCOffset        string             `json:"venue_utc_offset"`
-	GameState             string             `json:"game_state"`
-	GameScheduleState     string             `json:"game_schedule_state"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
 	PeriodNumber          int16              `json:"period_number"`
-	PeriodType            string             `json:"period_type"`
+	PeriodType            PeriodType         `json:"period_type"`
 	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
 	ClockTimeRemaining    string             `json:"clock_time_remaining"`
 	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
@@ -868,17 +868,17 @@ WHERE (games.season, games.game_type, games.game_date,
 type UpsertGameParams struct {
 	ID                    int64              `json:"id"`
 	Season                int32              `json:"season"`
-	GameType              int16              `json:"game_type"`
+	GameType              GameType           `json:"game_type"`
 	GameDate              pgtype.Date        `json:"game_date"`
 	Venue                 string             `json:"venue"`
 	VenueLocation         string             `json:"venue_location"`
 	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
 	EasternUTCOffset      string             `json:"eastern_utc_offset"`
 	VenueUTCOffset        string             `json:"venue_utc_offset"`
-	GameState             string             `json:"game_state"`
-	GameScheduleState     string             `json:"game_schedule_state"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
 	PeriodNumber          int16              `json:"period_number"`
-	PeriodType            string             `json:"period_type"`
+	PeriodType            PeriodType         `json:"period_type"`
 	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
 	ClockTimeRemaining    string             `json:"clock_time_remaining"`
 	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`

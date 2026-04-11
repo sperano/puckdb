@@ -49,12 +49,12 @@ ORDER BY ts.star
 `
 
 type GetGameThreeStarsRow struct {
-	GameID    int64  `json:"game_id"`
-	Star      int16  `json:"star"`
-	PlayerID  int64  `json:"player_id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Position  string `json:"position"`
+	GameID    int64              `json:"game_id"`
+	Star      int16              `json:"star"`
+	PlayerID  int64              `json:"player_id"`
+	FirstName string             `json:"first_name"`
+	LastName  string             `json:"last_name"`
+	Position  NullPlayerPosition `json:"position"`
 }
 
 func (q *Queries) GetGameThreeStars(ctx context.Context, gameID int64) ([]GetGameThreeStarsRow, error) {
@@ -182,15 +182,15 @@ ORDER BY sa.sequence
 `
 
 type GetShootoutAttemptsRow struct {
-	GameID     int64  `json:"game_id"`
-	Sequence   int16  `json:"sequence"`
-	PlayerID   int64  `json:"player_id"`
-	TeamID     int64  `json:"team_id"`
-	ShotType   string `json:"shot_type"`
-	Result     string `json:"result"`
-	GameWinner bool   `json:"game_winner"`
-	FirstName  string `json:"first_name"`
-	LastName   string `json:"last_name"`
+	GameID     int64          `json:"game_id"`
+	Sequence   int16          `json:"sequence"`
+	PlayerID   int64          `json:"player_id"`
+	TeamID     int64          `json:"team_id"`
+	ShotType   string         `json:"shot_type"`
+	Result     ShootoutResult `json:"result"`
+	GameWinner bool           `json:"game_winner"`
+	FirstName  string         `json:"first_name"`
+	LastName   string         `json:"last_name"`
 }
 
 func (q *Queries) GetShootoutAttempts(ctx context.Context, gameID int64) ([]GetShootoutAttemptsRow, error) {
@@ -335,13 +335,13 @@ WHERE (shootout_attempts.player_id, shootout_attempts.team_id,
 `
 
 type UpsertShootoutAttemptParams struct {
-	GameID     int64  `json:"game_id"`
-	Sequence   int16  `json:"sequence"`
-	PlayerID   int64  `json:"player_id"`
-	TeamID     int64  `json:"team_id"`
-	ShotType   string `json:"shot_type"`
-	Result     string `json:"result"`
-	GameWinner bool   `json:"game_winner"`
+	GameID     int64          `json:"game_id"`
+	Sequence   int16          `json:"sequence"`
+	PlayerID   int64          `json:"player_id"`
+	TeamID     int64          `json:"team_id"`
+	ShotType   string         `json:"shot_type"`
+	Result     ShootoutResult `json:"result"`
+	GameWinner bool           `json:"game_winner"`
 }
 
 func (q *Queries) UpsertShootoutAttempt(ctx context.Context, arg UpsertShootoutAttemptParams) error {

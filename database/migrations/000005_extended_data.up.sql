@@ -1,11 +1,10 @@
--- =============================================================================
--- New Data Sources: NHL API + Yahoo Fantasy enrichment
--- =============================================================================
+-- Extended data sources: NHL API enrichment + Yahoo Fantasy normalization
 
--- Daily standings snapshots from NHL API LeagueStandingsForDate
-CREATE TABLE IF NOT EXISTS standings_snapshots (
-    season INT NOT NULL,
+-- Daily standings snapshots (team_id as PK, not team_abbrev)
+CREATE TABLE standings_snapshots (
+    season INT NOT NULL REFERENCES seasons(id),
     date DATE NOT NULL,
+    team_id BIGINT NOT NULL,
     team_abbrev TEXT NOT NULL,
     wins INT NOT NULL,
     losses INT NOT NULL,
@@ -16,17 +15,19 @@ CREATE TABLE IF NOT EXISTS standings_snapshots (
     conference_abbrev TEXT,
     conference_name TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (season, date, team_abbrev)
+    PRIMARY KEY (season, date, team_id),
+    FOREIGN KEY (season, team_id) REFERENCES season_teams(season, team_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_standings_snapshots_date ON standings_snapshots(date);
+CREATE INDEX idx_standings_snapshots_date ON standings_snapshots(date);
+CREATE INDEX idx_standings_snapshots_team_id ON standings_snapshots(team_id);
 
--- Full roster per team per season from NHL API RosterSeason
-CREATE TABLE IF NOT EXISTS season_rosters (
+-- Full roster per team per season
+CREATE TABLE season_rosters (
     season INT NOT NULL REFERENCES seasons(id),
     team_id BIGINT NOT NULL,
     player_id BIGINT NOT NULL REFERENCES players(id),
-    position TEXT NOT NULL,
+    position player_position NOT NULL,
     shoots_catches TEXT NOT NULL,
     sweater_number SMALLINT NOT NULL,
     height_inches SMALLINT NOT NULL,
@@ -37,15 +38,16 @@ CREATE TABLE IF NOT EXISTS season_rosters (
     birth_country TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (season, team_id, player_id)
+    PRIMARY KEY (season, team_id, player_id),
+    FOREIGN KEY (season, team_id) REFERENCES season_teams(season, team_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_season_rosters_player ON season_rosters(player_id);
+CREATE INDEX idx_season_rosters_player ON season_rosters(player_id);
 
--- Team-level per-player skater season aggregates from NHL API ClubStats
-CREATE TABLE IF NOT EXISTS club_skater_stats (
+-- Team-level per-player skater season aggregates
+CREATE TABLE club_skater_stats (
     season INT NOT NULL,
-    game_type SMALLINT NOT NULL,
+    game_type game_type NOT NULL,
     team_id BIGINT NOT NULL,
     player_id BIGINT NOT NULL REFERENCES players(id),
     games_played INT NOT NULL,
@@ -65,13 +67,14 @@ CREATE TABLE IF NOT EXISTS club_skater_stats (
     faceoff_win_pctg REAL NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (season, game_type, team_id, player_id)
+    PRIMARY KEY (season, game_type, team_id, player_id),
+    FOREIGN KEY (season, team_id) REFERENCES season_teams(season, team_id)
 );
 
--- Team-level per-goalie season aggregates from NHL API ClubStats
-CREATE TABLE IF NOT EXISTS club_goalie_stats (
+-- Team-level per-goalie season aggregates
+CREATE TABLE club_goalie_stats (
     season INT NOT NULL,
-    game_type SMALLINT NOT NULL,
+    game_type game_type NOT NULL,
     team_id BIGINT NOT NULL,
     player_id BIGINT NOT NULL REFERENCES players(id),
     games_played INT NOT NULL,
@@ -92,11 +95,12 @@ CREATE TABLE IF NOT EXISTS club_goalie_stats (
     toi_seconds BIGINT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (season, game_type, team_id, player_id)
+    PRIMARY KEY (season, game_type, team_id, player_id),
+    FOREIGN KEY (season, team_id) REFERENCES season_teams(season, team_id)
 );
 
--- Player awards from cached PlayerLanding files
-CREATE TABLE IF NOT EXISTS player_awards (
+-- Player awards from cached PlayerLanding
+CREATE TABLE player_awards (
     player_id BIGINT NOT NULL REFERENCES players(id),
     trophy_name TEXT NOT NULL,
     season INT NOT NULL,
@@ -104,16 +108,17 @@ CREATE TABLE IF NOT EXISTS player_awards (
     PRIMARY KEY (player_id, trophy_name, season)
 );
 
-CREATE INDEX IF NOT EXISTS idx_player_awards_trophy ON player_awards(trophy_name);
-CREATE INDEX IF NOT EXISTS idx_player_awards_season ON player_awards(season);
+CREATE INDEX idx_player_awards_trophy ON player_awards(trophy_name);
+CREATE INDEX idx_player_awards_season ON player_awards(season);
 
--- Career season-by-season stats from cached PlayerLanding (all leagues)
-CREATE TABLE IF NOT EXISTS player_season_totals (
+-- Career season-by-season stats (all leagues, concatenated season format)
+CREATE TABLE player_season_totals (
     player_id BIGINT NOT NULL REFERENCES players(id),
     season INT NOT NULL,
-    game_type SMALLINT NOT NULL,
+    game_type game_type NOT NULL,
     league_abbrev TEXT NOT NULL,
     team_name TEXT NOT NULL,
+    team_id BIGINT,
     sequence INT NOT NULL DEFAULT 0,
     games_played INT NOT NULL,
     goals INT,
@@ -123,13 +128,16 @@ CREATE TABLE IF NOT EXISTS player_season_totals (
     pim INT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (player_id, season, game_type, league_abbrev, sequence)
+    PRIMARY KEY (player_id, season, game_type, league_abbrev, sequence),
+    FOREIGN KEY (season, team_id) REFERENCES season_teams(season, team_id)
+        ON DELETE SET NULL (team_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_player_season_totals_league ON player_season_totals(league_abbrev);
+CREATE INDEX idx_player_season_totals_league ON player_season_totals(league_abbrev);
+CREATE INDEX idx_player_season_totals_team_id ON player_season_totals(team_id) WHERE team_id IS NOT NULL;
 
--- TV broadcast info per game from cached Boxscore.TVBroadcasts
-CREATE TABLE IF NOT EXISTS game_broadcasts (
+-- TV broadcast info per game
+CREATE TABLE game_broadcasts (
     game_id BIGINT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
     broadcast_id BIGINT NOT NULL,
     market TEXT NOT NULL,
@@ -140,35 +148,53 @@ CREATE TABLE IF NOT EXISTS game_broadcasts (
     PRIMARY KEY (game_id, broadcast_id)
 );
 
--- Yahoo Fantasy transactions
-CREATE TABLE IF NOT EXISTS yahoo_transactions (
-    league_id INT NOT NULL,
+-- Yahoo Fantasy transactions (no JSONB players column — normalized into yahoo_transaction_players)
+CREATE TABLE yahoo_transactions (
+    league_id INT NOT NULL REFERENCES yahoo_leagues(id),
     transaction_key TEXT NOT NULL,
     type TEXT NOT NULL,
     timestamp BIGINT,
     status TEXT,
-    players JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (league_id, transaction_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_yahoo_transactions_type ON yahoo_transactions(league_id, type);
+CREATE INDEX idx_yahoo_transactions_type ON yahoo_transactions(league_id, type);
+
+-- Normalized transaction players
+CREATE TABLE yahoo_transaction_players (
+    league_id INT NOT NULL,
+    transaction_key TEXT NOT NULL,
+    player_id INT NOT NULL,
+    player_key TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL,
+    source_type TEXT NOT NULL DEFAULT '',
+    source_team_key TEXT NOT NULL DEFAULT '',
+    destination_type TEXT NOT NULL DEFAULT '',
+    destination_team_key TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (league_id, transaction_key, player_id),
+    FOREIGN KEY (league_id, transaction_key)
+        REFERENCES yahoo_transactions(league_id, transaction_key) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_yahoo_transaction_players_player ON yahoo_transaction_players(player_id);
 
 -- Yahoo Fantasy draft results
-CREATE TABLE IF NOT EXISTS yahoo_draft_results (
-    league_id INT NOT NULL,
+CREATE TABLE yahoo_draft_results (
+    league_id INT NOT NULL REFERENCES yahoo_leagues(id),
     round INT NOT NULL,
     pick INT NOT NULL,
     team_id INT NOT NULL,
     player_id INT NOT NULL,
     cost INT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (league_id, round, pick)
+    PRIMARY KEY (league_id, round, pick),
+    FOREIGN KEY (league_id, team_id) REFERENCES yahoo_teams(league_id, id)
 );
 
--- Yahoo Fantasy matchups (weekly head-to-head)
-CREATE TABLE IF NOT EXISTS yahoo_matchups (
-    league_id INT NOT NULL,
+-- Yahoo Fantasy matchups
+CREATE TABLE yahoo_matchups (
+    league_id INT NOT NULL REFERENCES yahoo_leagues(id),
     week INT NOT NULL,
     team1_id INT NOT NULL,
     team2_id INT NOT NULL,
@@ -179,28 +205,7 @@ CREATE TABLE IF NOT EXISTS yahoo_matchups (
     is_consolation BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (league_id, week, team1_id, team2_id)
+    PRIMARY KEY (league_id, week, team1_id, team2_id),
+    FOREIGN KEY (league_id, team1_id) REFERENCES yahoo_teams(league_id, id),
+    FOREIGN KEY (league_id, team2_id) REFERENCES yahoo_teams(league_id, id)
 );
-
--- =============================================================================
--- Column additions to existing tables
--- =============================================================================
-
--- Goalie shots-against breakdown (compound strings like "12 of 14")
-ALTER TABLE game_goalie_stats
-    ADD COLUMN IF NOT EXISTS even_strength_shots_against TEXT,
-    ADD COLUMN IF NOT EXISTS power_play_shots_against TEXT,
-    ADD COLUMN IF NOT EXISTS shorthanded_shots_against TEXT;
-
--- Yahoo roster enrichment: player details currently parsed but dropped
-ALTER TABLE yahoo_team_rosters
-    ADD COLUMN IF NOT EXISTS player_status TEXT,
-    ADD COLUMN IF NOT EXISTS player_status_full TEXT,
-    ADD COLUMN IF NOT EXISTS injury_note TEXT,
-    ADD COLUMN IF NOT EXISTS on_disabled_list BOOLEAN,
-    ADD COLUMN IF NOT EXISTS position_type TEXT,
-    ADD COLUMN IF NOT EXISTS display_position TEXT,
-    ADD COLUMN IF NOT EXISTS primary_position TEXT,
-    ADD COLUMN IF NOT EXISTS eligible_positions TEXT[],
-    ADD COLUMN IF NOT EXISTS uniform_number INT,
-    ADD COLUMN IF NOT EXISTS editorial_team_abbr TEXT;

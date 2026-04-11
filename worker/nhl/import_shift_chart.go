@@ -3,6 +3,7 @@ package nhl
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
@@ -101,8 +102,8 @@ func shiftEntryToParams(s nhlapi.ShiftEntry) sqlcdb.UpsertShiftBatchParams {
 		EndTime:     s.EndTime,
 		Duration:    s.Duration,
 		ShiftNumber: int32(s.ShiftNumber),
-		TypeCode:    int32(s.TypeCode),
-		DetailCode:  int32(s.DetailCode),
+		TypeCode:    sqlcdb.ShiftType(strconv.Itoa(s.TypeCode)),
+		DetailCode:  sqlcdb.ShiftDetail(strconv.Itoa(s.DetailCode)),
 		EventNumber: s.EventNumber,
 	}
 

@@ -90,12 +90,12 @@ ORDER BY gs.team_id, p.last_name
 `
 
 type GetGameScratchesRow struct {
-	GameID    int64  `json:"game_id"`
-	TeamID    int64  `json:"team_id"`
-	PlayerID  int64  `json:"player_id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Position  string `json:"position"`
+	GameID    int64              `json:"game_id"`
+	TeamID    int64              `json:"team_id"`
+	PlayerID  int64              `json:"player_id"`
+	FirstName string             `json:"first_name"`
+	LastName  string             `json:"last_name"`
+	Position  NullPlayerPosition `json:"position"`
 }
 
 func (q *Queries) GetGameScratches(ctx context.Context, gameID int64) ([]GetGameScratchesRow, error) {
@@ -152,10 +152,10 @@ ON CONFLICT (game_id, role, sequence) DO UPDATE SET
 `
 
 type UpsertGameOfficialParams struct {
-	GameID   int64  `json:"game_id"`
-	Role     string `json:"role"`
-	Sequence int16  `json:"sequence"`
-	Name     string `json:"name"`
+	GameID   int64        `json:"game_id"`
+	Role     OfficialRole `json:"role"`
+	Sequence int16        `json:"sequence"`
+	Name     string       `json:"name"`
 }
 
 // =============================================================================

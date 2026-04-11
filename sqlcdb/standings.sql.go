@@ -34,7 +34,7 @@ func (q *Queries) CountStandingsSnapshotsBySeason(ctx context.Context, season in
 }
 
 const getStandingsSnapshotsByDate = `-- name: GetStandingsSnapshotsByDate :many
-SELECT season, date, team_abbrev, wins, losses, ot_losses, points, division_abbrev, division_name, conference_abbrev, conference_name, created_at, team_id FROM standings_snapshots
+SELECT season, date, team_id, team_abbrev, wins, losses, ot_losses, points, division_abbrev, division_name, conference_abbrev, conference_name, created_at FROM standings_snapshots
 WHERE date = $1
 ORDER BY points DESC, wins DESC
 `
@@ -51,6 +51,7 @@ func (q *Queries) GetStandingsSnapshotsByDate(ctx context.Context, date pgtype.D
 		if err := rows.Scan(
 			&i.Season,
 			&i.Date,
+			&i.TeamID,
 			&i.TeamAbbrev,
 			&i.Wins,
 			&i.Losses,
@@ -61,7 +62,6 @@ func (q *Queries) GetStandingsSnapshotsByDate(ctx context.Context, date pgtype.D
 			&i.ConferenceAbbrev,
 			&i.ConferenceName,
 			&i.CreatedAt,
-			&i.TeamID,
 		); err != nil {
 			return nil, err
 		}
@@ -74,7 +74,7 @@ func (q *Queries) GetStandingsSnapshotsByDate(ctx context.Context, date pgtype.D
 }
 
 const getStandingsSnapshotsBySeason = `-- name: GetStandingsSnapshotsBySeason :many
-SELECT season, date, team_abbrev, wins, losses, ot_losses, points, division_abbrev, division_name, conference_abbrev, conference_name, created_at, team_id FROM standings_snapshots
+SELECT season, date, team_id, team_abbrev, wins, losses, ot_losses, points, division_abbrev, division_name, conference_abbrev, conference_name, created_at FROM standings_snapshots
 WHERE season = $1
 ORDER BY date, team_abbrev
 `
@@ -91,6 +91,7 @@ func (q *Queries) GetStandingsSnapshotsBySeason(ctx context.Context, season int3
 		if err := rows.Scan(
 			&i.Season,
 			&i.Date,
+			&i.TeamID,
 			&i.TeamAbbrev,
 			&i.Wins,
 			&i.Losses,
@@ -101,7 +102,6 @@ func (q *Queries) GetStandingsSnapshotsBySeason(ctx context.Context, season int3
 			&i.ConferenceAbbrev,
 			&i.ConferenceName,
 			&i.CreatedAt,
-			&i.TeamID,
 		); err != nil {
 			return nil, err
 		}
@@ -114,7 +114,7 @@ func (q *Queries) GetStandingsSnapshotsBySeason(ctx context.Context, season int3
 }
 
 const getStandingsSnapshotsBySeasonAndDate = `-- name: GetStandingsSnapshotsBySeasonAndDate :many
-SELECT season, date, team_abbrev, wins, losses, ot_losses, points, division_abbrev, division_name, conference_abbrev, conference_name, created_at, team_id FROM standings_snapshots
+SELECT season, date, team_id, team_abbrev, wins, losses, ot_losses, points, division_abbrev, division_name, conference_abbrev, conference_name, created_at FROM standings_snapshots
 WHERE season = $1 AND date = $2
 ORDER BY points DESC, wins DESC
 `
@@ -136,6 +136,7 @@ func (q *Queries) GetStandingsSnapshotsBySeasonAndDate(ctx context.Context, arg 
 		if err := rows.Scan(
 			&i.Season,
 			&i.Date,
+			&i.TeamID,
 			&i.TeamAbbrev,
 			&i.Wins,
 			&i.Losses,
@@ -146,7 +147,6 @@ func (q *Queries) GetStandingsSnapshotsBySeasonAndDate(ctx context.Context, arg 
 			&i.ConferenceAbbrev,
 			&i.ConferenceName,
 			&i.CreatedAt,
-			&i.TeamID,
 		); err != nil {
 			return nil, err
 		}
@@ -159,7 +159,7 @@ func (q *Queries) GetStandingsSnapshotsBySeasonAndDate(ctx context.Context, arg 
 }
 
 const getStandingsSnapshotsByTeam = `-- name: GetStandingsSnapshotsByTeam :many
-SELECT season, date, team_abbrev, wins, losses, ot_losses, points, division_abbrev, division_name, conference_abbrev, conference_name, created_at, team_id FROM standings_snapshots
+SELECT season, date, team_id, team_abbrev, wins, losses, ot_losses, points, division_abbrev, division_name, conference_abbrev, conference_name, created_at FROM standings_snapshots
 WHERE season = $1 AND team_id = $2
 ORDER BY date
 `
@@ -181,6 +181,7 @@ func (q *Queries) GetStandingsSnapshotsByTeam(ctx context.Context, arg GetStandi
 		if err := rows.Scan(
 			&i.Season,
 			&i.Date,
+			&i.TeamID,
 			&i.TeamAbbrev,
 			&i.Wins,
 			&i.Losses,
@@ -191,7 +192,6 @@ func (q *Queries) GetStandingsSnapshotsByTeam(ctx context.Context, arg GetStandi
 			&i.ConferenceAbbrev,
 			&i.ConferenceName,
 			&i.CreatedAt,
-			&i.TeamID,
 		); err != nil {
 			return nil, err
 		}

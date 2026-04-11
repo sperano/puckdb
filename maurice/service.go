@@ -104,7 +104,7 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 	log.Debug().Str("conversation", convID).Bool("new", isNew).Str("message", truncateLog(message, maxLogMessageLen)).Msg("maurice chat started")
 
 	// Store user message
-	if _, err := s.createMessage(ctx, convUUID, "user", message, nil, ""); err != nil {
+	if _, err := s.createMessage(ctx, convUUID, sqlcdb.ChatRoleUser, message, nil, ""); err != nil {
 		return nil, fmt.Errorf("store user message: %w", err)
 	}
 
@@ -155,7 +155,7 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 			// Final text response
 			finalContent = resp.FirstContent()
 			log.Debug().Str("conversation", convID).Int("round", round).Str("content", truncateLog(finalContent, maxLogMessageLen)).Msg("LLM final response (no tool calls)")
-			msg, err := s.createMessage(ctx, convUUID, "assistant", finalContent, nil, "")
+			msg, err := s.createMessage(ctx, convUUID, sqlcdb.ChatRoleAssistant, finalContent, nil, "")
 			if err != nil {
 				return nil, fmt.Errorf("store assistant message: %w", err)
 			}
@@ -171,7 +171,7 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 		}
 		log.Debug().Str("conversation", convID).Int("round", round).Strs("tool_calls", toolNames).Msg("LLM requested tool calls")
 
-		if _, err := s.createMessage(ctx, convUUID, "assistant", assistantMsg.Content, assistantMsg.ToolCalls, ""); err != nil {
+		if _, err := s.createMessage(ctx, convUUID, sqlcdb.ChatRoleAssistant, assistantMsg.Content, assistantMsg.ToolCalls, ""); err != nil {
 			return nil, fmt.Errorf("store assistant tool_calls message: %w", err)
 		}
 
@@ -201,7 +201,7 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 			}
 
 			// Store tool result message
-			if _, err := s.createMessage(ctx, convUUID, "tool", resultContent, nil, tc.ID); err != nil {
+			if _, err := s.createMessage(ctx, convUUID, sqlcdb.ChatRoleTool, resultContent, nil, tc.ID); err != nil {
 				return nil, fmt.Errorf("store tool result: %w", err)
 			}
 
@@ -308,7 +308,7 @@ func (s *service) loadHistory(ctx context.Context, convID pgtype.UUID) ([]llm.Me
 
 	for _, m := range dbMsgs {
 		msg := llm.Message{
-			Role:       m.Role,
+			Role:       string(m.Role),
 			Content:    m.Content,
 			ToolCallID: textToString(m.ToolCallID),
 		}
@@ -321,7 +321,7 @@ func (s *service) loadHistory(ctx context.Context, convID pgtype.UUID) ([]llm.Me
 	return messages, nil
 }
 
-func (s *service) createMessage(ctx context.Context, convID pgtype.UUID, role, content string, toolCalls []llm.ToolCall, toolCallID string) (sqlcdb.MauriceMessage, error) {
+func (s *service) createMessage(ctx context.Context, convID pgtype.UUID, role sqlcdb.ChatRole, content string, toolCalls []llm.ToolCall, toolCallID string) (sqlcdb.MauriceMessage, error) {
 	params := sqlcdb.CreateMessageParams{
 		ConversationID: convID,
 		Role:           role,
@@ -442,7 +442,7 @@ func logLLMResponse(convID string, round int, resp *llm.ChatCompletionResponse) 
 func dbMessageToMessage(m sqlcdb.MauriceMessage) *Message {
 	msg := &Message{
 		ID:         uuidToString(m.ID),
-		Role:       m.Role,
+		Role:       string(m.Role),
 		Content:    m.Content,
 		ToolCallID: textToString(m.ToolCallID),
 		CreatedAt:  m.CreatedAt.Time,

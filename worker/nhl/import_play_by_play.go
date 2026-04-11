@@ -3,6 +3,7 @@ package nhl
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
@@ -96,25 +97,28 @@ func playEventToParams(gameID nhlapi.GameID, play nhlapi.PlayEvent) sqlcdb.Upser
 		GameID:        int64(gameID),
 		EventID:       play.EventID,
 		Period:        int32(play.PeriodDescriptor.Number),
-		PeriodType:    string(play.PeriodDescriptor.PeriodType),
+		PeriodType:    sqlcdb.PeriodType(play.PeriodDescriptor.PeriodType),
 		TimeInPeriod:  play.TimeInPeriod,
 		TimeRemaining: play.TimeRemaining,
-		TypeCode:      int32(play.TypeCode),
-		TypeDescKey:   string(play.TypeDescKey),
+		TypeDescKey:   sqlcdb.PlayEventType(play.TypeDescKey),
 		SortOrder:     int32(play.SortOrder),
 	}
 
 	if play.SituationCode != "" {
-		p.SituationCode = pgtype.Text{String: play.SituationCode, Valid: true}
+		if code, err := strconv.Atoi(play.SituationCode); err == nil {
+			p.SituationCode = pgtype.Int4{Int32: int32(code), Valid: true}
+		}
 	}
 	if play.HomeTeamDefendingSide != "" {
-		p.HomeTeamDefendingSide = pgtype.Text{String: string(play.HomeTeamDefendingSide), Valid: true}
+		p.HomeTeamDefendingSide = sqlcdb.NullIceSide{IceSide: sqlcdb.IceSide(play.HomeTeamDefendingSide), Valid: true}
 	}
 
 	if d := play.Details; d != nil {
 		p.XCoord = shared.PtrToInt4(d.XCoord)
 		p.YCoord = shared.PtrToInt4(d.YCoord)
-		p.ZoneCode = shared.PtrToText(d.ZoneCode)
+		if d.ZoneCode != nil {
+			p.ZoneCode = sqlcdb.NullZoneCode{ZoneCode: sqlcdb.ZoneCode(*d.ZoneCode), Valid: true}
+		}
 		p.EventOwnerTeamID = shared.PtrToInt8(d.EventOwnerTeamID)
 		p.ShotType = shared.PtrToText(d.ShotType)
 		p.ShootingPlayerID = shared.PtrToInt8(d.ShootingPlayerID)

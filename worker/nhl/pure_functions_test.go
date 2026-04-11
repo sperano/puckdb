@@ -160,11 +160,10 @@ func TestPlayEventToParams_BasicFields(t *testing.T) {
 	assert.Equal(t, int64(gameID), p.GameID)
 	assert.Equal(t, int64(42), p.EventID)
 	assert.Equal(t, int32(2), p.Period)
-	assert.Equal(t, "REG", p.PeriodType)
+	assert.Equal(t, sqlcdb.PeriodType("REG"), p.PeriodType)
 	assert.Equal(t, "12:34", p.TimeInPeriod)
 	assert.Equal(t, "07:26", p.TimeRemaining)
-	assert.Equal(t, int32(505), p.TypeCode)
-	assert.Equal(t, "shot-on-goal", p.TypeDescKey)
+	assert.Equal(t, sqlcdb.PlayEventType("shot-on-goal"), p.TypeDescKey)
 	assert.Equal(t, int32(10), p.SortOrder)
 	assert.False(t, p.SituationCode.Valid)
 	assert.False(t, p.HomeTeamDefendingSide.Valid)
@@ -182,9 +181,9 @@ func TestPlayEventToParams_OptionalTextFields(t *testing.T) {
 	p := playEventToParams(0, play)
 
 	assert.True(t, p.SituationCode.Valid)
-	assert.Equal(t, "1551", p.SituationCode.String)
+	assert.Equal(t, int32(1551), p.SituationCode.Int32)
 	assert.True(t, p.HomeTeamDefendingSide.Valid)
-	assert.Equal(t, "left", p.HomeTeamDefendingSide.String)
+	assert.Equal(t, sqlcdb.IceSide("left"), p.HomeTeamDefendingSide.IceSide)
 }
 
 func TestPlayEventToParams_WithDetails(t *testing.T) {
@@ -267,7 +266,7 @@ func TestShiftEntryToParams_RequiredFields(t *testing.T) {
 	assert.Equal(t, "07:30", p.EndTime)
 	assert.Equal(t, "02:30", p.Duration)
 	assert.Equal(t, int32(14), p.ShiftNumber)
-	assert.Equal(t, int32(517), p.TypeCode)
+	assert.Equal(t, sqlcdb.ShiftType("517"), p.TypeCode)
 	assert.Equal(t, int64(33), p.EventNumber)
 	assert.False(t, p.EventDescription.Valid)
 }

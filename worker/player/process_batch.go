@@ -215,7 +215,7 @@ func (a *Activities) upsertPlayerCareerData(ctx context.Context, landing *nhl.Pl
 		totalParams = append(totalParams, sqlcdb.UpsertPlayerSeasonTotalBatchParams{
 			PlayerID:     playerID,
 			Season:       int32(st.Season.ID()),
-			GameType:     int16(st.GameType.Int()),
+			GameType:     sqlcdb.GameType(st.GameType.Label()),
 			LeagueAbbrev: st.LeagueAbbrev,
 			TeamName:     st.TeamName.Default,
 			TeamID:       teamID,
@@ -250,8 +250,8 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match matching.YahooID
 		LastName:            lastName,
 		FirstNameNormalized: matching.NormalizeName(firstName),
 		LastNameNormalized:  matching.NormalizeName(lastName),
-		Position:            string(landing.Position),
-		ShootsCatches:       string(landing.ShootsCatches),
+		Position:            stringToNullPlayerPosition(string(landing.Position)),
+		ShootsCatches:       stringToNullHandSide(string(landing.ShootsCatches)),
 		HeightInches:        pgtype.Int4{Int32: int32(landing.HeightInInches), Valid: landing.HeightInInches > 0},
 		WeightPounds:        pgtype.Int4{Int32: int32(landing.WeightInPounds), Valid: landing.WeightInPounds > 0},
 		IsActive:            landing.IsActive,
@@ -305,7 +305,7 @@ func (a *Activities) importMissingPlayer(ctx context.Context, p store.BoxscorePl
 		LastName:            lastName,
 		FirstNameNormalized: matching.NormalizeName(firstName),
 		LastNameNormalized:  matching.NormalizeName(lastName),
-		Position:            position,
+		Position:            stringToNullPlayerPosition(position),
 		IsActive:            false,
 	}
 
@@ -316,6 +316,24 @@ func (a *Activities) importMissingPlayer(ctx context.Context, p store.BoxscorePl
 		Msg("Importing missing player with minimal info")
 
 	return a.Queries.UpsertPlayer(ctx, params)
+}
+
+// stringToNullPlayerPosition converts a string to NullPlayerPosition, returning invalid for empty strings.
+func stringToNullPlayerPosition(s string) sqlcdb.NullPlayerPosition {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return sqlcdb.NullPlayerPosition{}
+	}
+	return sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPosition(s), Valid: true}
+}
+
+// stringToNullHandSide converts a string to NullHandSide, returning invalid for empty strings.
+func stringToNullHandSide(s string) sqlcdb.NullHandSide {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return sqlcdb.NullHandSide{}
+	}
+	return sqlcdb.NullHandSide{HandSide: sqlcdb.HandSide(s), Valid: true}
 }
 
 // intPtrToInt4 converts a *int to pgtype.Int4.

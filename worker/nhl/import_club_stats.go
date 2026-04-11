@@ -87,7 +87,7 @@ func importClubSkaterStats(
 	for i, s := range stats.Skaters {
 		params[i] = sqlcdb.UpsertClubSkaterStatsBatchParams{
 			Season:           int32(season),
-			GameType:         int16(gameType),
+			GameType:         sqlcdb.GameType(gameType.Label()),
 			TeamID:           team.TeamID,
 			PlayerID:         int64(s.PlayerID),
 			GamesPlayed:      int32(s.GamesPlayed),
@@ -129,7 +129,7 @@ func importClubGoalieStats(
 	for i, g := range stats.Goalies {
 		params[i] = sqlcdb.UpsertClubGoalieStatsBatchParams{
 			Season:              int32(season),
-			GameType:            int16(gameType),
+			GameType:            sqlcdb.GameType(gameType.Label()),
 			TeamID:              team.TeamID,
 			PlayerID:            int64(g.PlayerID),
 			GamesPlayed:         int32(g.GamesPlayed),

@@ -37,7 +37,7 @@ RETURNING id, conversation_id, role, content, tool_calls, tool_call_id, created_
 
 type CreateMessageParams struct {
 	ConversationID pgtype.UUID `json:"conversation_id"`
-	Role           string      `json:"role"`
+	Role           ChatRole    `json:"role"`
 	Content        string      `json:"content"`
 	ToolCalls      []byte      `json:"tool_calls"`
 	ToolCallID     pgtype.Text `json:"tool_call_id"`

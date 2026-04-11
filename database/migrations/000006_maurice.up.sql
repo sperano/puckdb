@@ -1,3 +1,5 @@
+-- Maurice AI assistant
+
 CREATE TABLE maurice_conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT,
@@ -8,7 +10,7 @@ CREATE TABLE maurice_conversations (
 CREATE TABLE maurice_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id UUID NOT NULL REFERENCES maurice_conversations(id) ON DELETE CASCADE,
-    role TEXT NOT NULL CHECK (role IN ('system', 'user', 'assistant', 'tool')),
+    role chat_role NOT NULL,
     content TEXT NOT NULL DEFAULT '',
     tool_calls JSONB,
     tool_call_id TEXT,

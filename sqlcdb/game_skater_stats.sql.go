@@ -36,7 +36,7 @@ func (q *Queries) DeleteGameSkaterStatsByGame(ctx context.Context, gameID int64)
 
 const getGameSkaterStats = `-- name: GetGameSkaterStats :one
 
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.power_play_points, s.game_winning_goals, s.ot_goals, s.created_at, s.updated_at,
     p.first_name, p.last_name, p.position as player_position,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -57,7 +57,7 @@ type GetGameSkaterStatsRow struct {
 	TeamID             int64              `json:"team_id"`
 	IsHome             bool               `json:"is_home"`
 	SweaterNumber      int16              `json:"sweater_number"`
-	Position           string             `json:"position"`
+	Position           PlayerPosition     `json:"position"`
 	Goals              int16              `json:"goals"`
 	Assists            int16              `json:"assists"`
 	Points             int16              `json:"points"`
@@ -72,14 +72,14 @@ type GetGameSkaterStatsRow struct {
 	Giveaways          int16              `json:"giveaways"`
 	Takeaways          int16              `json:"takeaways"`
 	PowerPlayGoals     int16              `json:"power_play_goals"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	PowerPlayPoints    int16              `json:"power_play_points"`
 	GameWinningGoals   int16              `json:"game_winning_goals"`
 	OtGoals            int16              `json:"ot_goals"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	FirstName          string             `json:"first_name"`
 	LastName           string             `json:"last_name"`
-	PlayerPosition     string             `json:"player_position"`
+	PlayerPosition     NullPlayerPosition `json:"player_position"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -112,11 +112,11 @@ func (q *Queries) GetGameSkaterStats(ctx context.Context, arg GetGameSkaterStats
 		&i.Giveaways,
 		&i.Takeaways,
 		&i.PowerPlayGoals,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.PowerPlayPoints,
 		&i.GameWinningGoals,
 		&i.OtGoals,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.FirstName,
 		&i.LastName,
 		&i.PlayerPosition,
@@ -127,7 +127,7 @@ func (q *Queries) GetGameSkaterStats(ctx context.Context, arg GetGameSkaterStats
 }
 
 const getGameSkaterStatsByGame = `-- name: GetGameSkaterStatsByGame :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.power_play_points, s.game_winning_goals, s.ot_goals, s.created_at, s.updated_at,
     p.first_name, p.last_name, p.position as player_position,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -144,7 +144,7 @@ type GetGameSkaterStatsByGameRow struct {
 	TeamID             int64              `json:"team_id"`
 	IsHome             bool               `json:"is_home"`
 	SweaterNumber      int16              `json:"sweater_number"`
-	Position           string             `json:"position"`
+	Position           PlayerPosition     `json:"position"`
 	Goals              int16              `json:"goals"`
 	Assists            int16              `json:"assists"`
 	Points             int16              `json:"points"`
@@ -159,14 +159,14 @@ type GetGameSkaterStatsByGameRow struct {
 	Giveaways          int16              `json:"giveaways"`
 	Takeaways          int16              `json:"takeaways"`
 	PowerPlayGoals     int16              `json:"power_play_goals"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	PowerPlayPoints    int16              `json:"power_play_points"`
 	GameWinningGoals   int16              `json:"game_winning_goals"`
 	OtGoals            int16              `json:"ot_goals"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	FirstName          string             `json:"first_name"`
 	LastName           string             `json:"last_name"`
-	PlayerPosition     string             `json:"player_position"`
+	PlayerPosition     NullPlayerPosition `json:"player_position"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -202,11 +202,11 @@ func (q *Queries) GetGameSkaterStatsByGame(ctx context.Context, gameID int64) ([
 			&i.Giveaways,
 			&i.Takeaways,
 			&i.PowerPlayGoals,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.PowerPlayPoints,
 			&i.GameWinningGoals,
 			&i.OtGoals,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 			&i.FirstName,
 			&i.LastName,
 			&i.PlayerPosition,
@@ -224,7 +224,7 @@ func (q *Queries) GetGameSkaterStatsByGame(ctx context.Context, gameID int64) ([
 }
 
 const getGameSkaterStatsByGameAndTeam = `-- name: GetGameSkaterStatsByGameAndTeam :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.power_play_points, s.game_winning_goals, s.ot_goals, s.created_at, s.updated_at,
     p.first_name, p.last_name, p.position as player_position,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -246,7 +246,7 @@ type GetGameSkaterStatsByGameAndTeamRow struct {
 	TeamID             int64              `json:"team_id"`
 	IsHome             bool               `json:"is_home"`
 	SweaterNumber      int16              `json:"sweater_number"`
-	Position           string             `json:"position"`
+	Position           PlayerPosition     `json:"position"`
 	Goals              int16              `json:"goals"`
 	Assists            int16              `json:"assists"`
 	Points             int16              `json:"points"`
@@ -261,14 +261,14 @@ type GetGameSkaterStatsByGameAndTeamRow struct {
 	Giveaways          int16              `json:"giveaways"`
 	Takeaways          int16              `json:"takeaways"`
 	PowerPlayGoals     int16              `json:"power_play_goals"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	PowerPlayPoints    int16              `json:"power_play_points"`
 	GameWinningGoals   int16              `json:"game_winning_goals"`
 	OtGoals            int16              `json:"ot_goals"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	FirstName          string             `json:"first_name"`
 	LastName           string             `json:"last_name"`
-	PlayerPosition     string             `json:"player_position"`
+	PlayerPosition     NullPlayerPosition `json:"player_position"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -304,11 +304,11 @@ func (q *Queries) GetGameSkaterStatsByGameAndTeam(ctx context.Context, arg GetGa
 			&i.Giveaways,
 			&i.Takeaways,
 			&i.PowerPlayGoals,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.PowerPlayPoints,
 			&i.GameWinningGoals,
 			&i.OtGoals,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 			&i.FirstName,
 			&i.LastName,
 			&i.PlayerPosition,
@@ -393,7 +393,7 @@ func (q *Queries) GetSkaterSeasonTotals(ctx context.Context, arg GetSkaterSeason
 }
 
 const getSkaterStatsByPlayer = `-- name: GetSkaterStatsByPlayer :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.power_play_points, s.game_winning_goals, s.ot_goals, s.created_at, s.updated_at,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -409,7 +409,7 @@ type GetSkaterStatsByPlayerRow struct {
 	TeamID             int64              `json:"team_id"`
 	IsHome             bool               `json:"is_home"`
 	SweaterNumber      int16              `json:"sweater_number"`
-	Position           string             `json:"position"`
+	Position           PlayerPosition     `json:"position"`
 	Goals              int16              `json:"goals"`
 	Assists            int16              `json:"assists"`
 	Points             int16              `json:"points"`
@@ -424,14 +424,14 @@ type GetSkaterStatsByPlayerRow struct {
 	Giveaways          int16              `json:"giveaways"`
 	Takeaways          int16              `json:"takeaways"`
 	PowerPlayGoals     int16              `json:"power_play_goals"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	PowerPlayPoints    int16              `json:"power_play_points"`
 	GameWinningGoals   int16              `json:"game_winning_goals"`
 	OtGoals            int16              `json:"ot_goals"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	GameDate           pgtype.Date        `json:"game_date"`
 	Season             int32              `json:"season"`
-	GameType           int16              `json:"game_type"`
+	GameType           GameType           `json:"game_type"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -467,11 +467,11 @@ func (q *Queries) GetSkaterStatsByPlayer(ctx context.Context, playerID int64) ([
 			&i.Giveaways,
 			&i.Takeaways,
 			&i.PowerPlayGoals,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.PowerPlayPoints,
 			&i.GameWinningGoals,
 			&i.OtGoals,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 			&i.GameDate,
 			&i.Season,
 			&i.GameType,
@@ -489,7 +489,7 @@ func (q *Queries) GetSkaterStatsByPlayer(ctx context.Context, playerID int64) ([
 }
 
 const getSkaterStatsByPlayerAndDateRange = `-- name: GetSkaterStatsByPlayerAndDateRange :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.power_play_points, s.game_winning_goals, s.ot_goals, s.created_at, s.updated_at,
     g.game_date, g.season, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -511,7 +511,7 @@ type GetSkaterStatsByPlayerAndDateRangeRow struct {
 	TeamID             int64              `json:"team_id"`
 	IsHome             bool               `json:"is_home"`
 	SweaterNumber      int16              `json:"sweater_number"`
-	Position           string             `json:"position"`
+	Position           PlayerPosition     `json:"position"`
 	Goals              int16              `json:"goals"`
 	Assists            int16              `json:"assists"`
 	Points             int16              `json:"points"`
@@ -526,14 +526,14 @@ type GetSkaterStatsByPlayerAndDateRangeRow struct {
 	Giveaways          int16              `json:"giveaways"`
 	Takeaways          int16              `json:"takeaways"`
 	PowerPlayGoals     int16              `json:"power_play_goals"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	PowerPlayPoints    int16              `json:"power_play_points"`
 	GameWinningGoals   int16              `json:"game_winning_goals"`
 	OtGoals            int16              `json:"ot_goals"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	GameDate           pgtype.Date        `json:"game_date"`
 	Season             int32              `json:"season"`
-	GameType           int16              `json:"game_type"`
+	GameType           GameType           `json:"game_type"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -569,11 +569,11 @@ func (q *Queries) GetSkaterStatsByPlayerAndDateRange(ctx context.Context, arg Ge
 			&i.Giveaways,
 			&i.Takeaways,
 			&i.PowerPlayGoals,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.PowerPlayPoints,
 			&i.GameWinningGoals,
 			&i.OtGoals,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 			&i.GameDate,
 			&i.Season,
 			&i.GameType,
@@ -591,7 +591,7 @@ func (q *Queries) GetSkaterStatsByPlayerAndDateRange(ctx context.Context, arg Ge
 }
 
 const getSkaterStatsByPlayerAndSeason = `-- name: GetSkaterStatsByPlayerAndSeason :many
-SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.created_at, s.updated_at, s.power_play_points, s.game_winning_goals, s.ot_goals,
+SELECT s.game_id, s.player_id, s.team_id, s.is_home, s.sweater_number, s.position, s.goals, s.assists, s.points, s.plus_minus, s.shots_on_goal, s.toi_seconds, s.shifts, s.faceoff_winning_pctg, s.hits, s.blocked_shots, s.penalty_minutes, s.giveaways, s.takeaways, s.power_play_goals, s.power_play_points, s.game_winning_goals, s.ot_goals, s.created_at, s.updated_at,
     g.game_date, g.game_type,
     t.full_name as team_name, t.abbrev as team_abbrev
 FROM game_skater_stats s
@@ -612,7 +612,7 @@ type GetSkaterStatsByPlayerAndSeasonRow struct {
 	TeamID             int64              `json:"team_id"`
 	IsHome             bool               `json:"is_home"`
 	SweaterNumber      int16              `json:"sweater_number"`
-	Position           string             `json:"position"`
+	Position           PlayerPosition     `json:"position"`
 	Goals              int16              `json:"goals"`
 	Assists            int16              `json:"assists"`
 	Points             int16              `json:"points"`
@@ -627,13 +627,13 @@ type GetSkaterStatsByPlayerAndSeasonRow struct {
 	Giveaways          int16              `json:"giveaways"`
 	Takeaways          int16              `json:"takeaways"`
 	PowerPlayGoals     int16              `json:"power_play_goals"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	PowerPlayPoints    int16              `json:"power_play_points"`
 	GameWinningGoals   int16              `json:"game_winning_goals"`
 	OtGoals            int16              `json:"ot_goals"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	GameDate           pgtype.Date        `json:"game_date"`
-	GameType           int16              `json:"game_type"`
+	GameType           GameType           `json:"game_type"`
 	TeamName           string             `json:"team_name"`
 	TeamAbbrev         string             `json:"team_abbrev"`
 }
@@ -669,11 +669,11 @@ func (q *Queries) GetSkaterStatsByPlayerAndSeason(ctx context.Context, arg GetSk
 			&i.Giveaways,
 			&i.Takeaways,
 			&i.PowerPlayGoals,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.PowerPlayPoints,
 			&i.GameWinningGoals,
 			&i.OtGoals,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 			&i.GameDate,
 			&i.GameType,
 			&i.TeamName,
@@ -714,17 +714,17 @@ type GetTeamSkaterSeasonTotalsParams struct {
 }
 
 type GetTeamSkaterSeasonTotalsRow struct {
-	PlayerID       int64  `json:"player_id"`
-	FirstName      string `json:"first_name"`
-	LastName       string `json:"last_name"`
-	Position       string `json:"position"`
-	GamesPlayed    int32  `json:"games_played"`
-	TotalGoals     int32  `json:"total_goals"`
-	TotalAssists   int32  `json:"total_assists"`
-	TotalPoints    int32  `json:"total_points"`
-	TotalPlusMinus int32  `json:"total_plus_minus"`
-	TotalShots     int32  `json:"total_shots"`
-	TotalPim       int32  `json:"total_pim"`
+	PlayerID       int64              `json:"player_id"`
+	FirstName      string             `json:"first_name"`
+	LastName       string             `json:"last_name"`
+	Position       NullPlayerPosition `json:"position"`
+	GamesPlayed    int32              `json:"games_played"`
+	TotalGoals     int32              `json:"total_goals"`
+	TotalAssists   int32              `json:"total_assists"`
+	TotalPoints    int32              `json:"total_points"`
+	TotalPlusMinus int32              `json:"total_plus_minus"`
+	TotalShots     int32              `json:"total_shots"`
+	TotalPim       int32              `json:"total_pim"`
 }
 
 // Aggregate season stats for all skaters on a team
@@ -847,26 +847,26 @@ WHERE (game_skater_stats.team_id, game_skater_stats.is_home,
 `
 
 type UpsertGameSkaterStatsParams struct {
-	GameID             int64         `json:"game_id"`
-	PlayerID           int64         `json:"player_id"`
-	TeamID             int64         `json:"team_id"`
-	IsHome             bool          `json:"is_home"`
-	SweaterNumber      int16         `json:"sweater_number"`
-	Position           string        `json:"position"`
-	Goals              int16         `json:"goals"`
-	Assists            int16         `json:"assists"`
-	Points             int16         `json:"points"`
-	PlusMinus          int16         `json:"plus_minus"`
-	ShotsOnGoal        int16         `json:"shots_on_goal"`
-	TOISeconds         int32         `json:"toi_seconds"`
-	Shifts             int16         `json:"shifts"`
-	FaceoffWinningPctg pgtype.Float4 `json:"faceoff_winning_pctg"`
-	Hits               int16         `json:"hits"`
-	BlockedShots       int16         `json:"blocked_shots"`
-	PenaltyMinutes     int16         `json:"penalty_minutes"`
-	Giveaways          int16         `json:"giveaways"`
-	Takeaways          int16         `json:"takeaways"`
-	PowerPlayGoals     int16         `json:"power_play_goals"`
+	GameID             int64          `json:"game_id"`
+	PlayerID           int64          `json:"player_id"`
+	TeamID             int64          `json:"team_id"`
+	IsHome             bool           `json:"is_home"`
+	SweaterNumber      int16          `json:"sweater_number"`
+	Position           PlayerPosition `json:"position"`
+	Goals              int16          `json:"goals"`
+	Assists            int16          `json:"assists"`
+	Points             int16          `json:"points"`
+	PlusMinus          int16          `json:"plus_minus"`
+	ShotsOnGoal        int16          `json:"shots_on_goal"`
+	TOISeconds         int32          `json:"toi_seconds"`
+	Shifts             int16          `json:"shifts"`
+	FaceoffWinningPctg pgtype.Float4  `json:"faceoff_winning_pctg"`
+	Hits               int16          `json:"hits"`
+	BlockedShots       int16          `json:"blocked_shots"`
+	PenaltyMinutes     int16          `json:"penalty_minutes"`
+	Giveaways          int16          `json:"giveaways"`
+	Takeaways          int16          `json:"takeaways"`
+	PowerPlayGoals     int16          `json:"power_play_goals"`
 }
 
 func (q *Queries) UpsertGameSkaterStats(ctx context.Context, arg UpsertGameSkaterStatsParams) error {

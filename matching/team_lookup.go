@@ -56,9 +56,10 @@ var teamsByAbbrev = map[string]NHLTeamInfo{
 	"AFM": {47, "AFM", "Atlanta Flames"},
 	"BRK": {51, "BRK", "Brooklyn Americans"},
 	"CGS": {56, "CGS", "California Golden Seals"},
+	"CBN": {49, "CLE", "Cleveland Barons"}, // Alias used in standings API
 	"CLE": {49, "CLE", "Cleveland Barons"},
 	"CLR": {35, "CLR", "Colorado Rockies"},
-	"CSE": {56, "CSE", "California Golden Seals"}, // Alias
+	"CSE": {56, "CGS", "California Golden Seals"}, // Alias
 	"DCG": {40, "DCG", "Detroit Cougars"},
 	"DFL": {50, "DFL", "Detroit Falcons"},
 	"HAM": {37, "HAM", "Hamilton Tigers"},
