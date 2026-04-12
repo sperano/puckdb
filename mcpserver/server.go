@@ -22,5 +22,7 @@ func NewServer(queries *sqlcdb.Queries) *server.MCPServer {
 func registerAll(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	registerResolveTools(srv, queries)
 	registerPlayerTools(srv, queries)
-	// Phase 3+: registerGameTools, registerStatsTools, etc.
+	registerGameTools(srv, queries)
+	registerStatsTools(srv, queries)
+	// Phase 4: registerStandingsTools, registerFantasyTools
 }

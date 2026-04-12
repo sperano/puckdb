@@ -161,12 +161,12 @@ mcp_servers:
 - [x] `mcpserver/format.go` — added nullable enum handling (Null* structs)
 - [ ] Tests
 
-### Phase 3: Game + Stats Tools ← CURRENT
-- [ ] `mcpserver/tools_games.go` — 7 game tools
-- [ ] `mcpserver/tools_stats.go` — 10 stats tools
-- [ ] Tests
+### Phase 3: Game + Stats Tools ✅
+- [x] `mcpserver/tools_games.go` — 7 game tools
+- [x] `mcpserver/tools_stats.go` — 10 stats tools
+- [x] Tests (server registration test updated)
 
-### Phase 4: Standings + Fantasy Tools
+### Phase 4: Standings + Fantasy Tools ← CURRENT
 - [ ] `mcpserver/tools_standings.go` — 4 standings tools
 - [ ] `mcpserver/tools_fantasy.go` — 10 fantasy tools
 - [ ] Tests

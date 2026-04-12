@@ -25,6 +25,25 @@ var expectedTools = []string{
 	"get_player_awards",
 	"get_player_roster_history",
 	"get_player_three_stars",
+	// Games (7)
+	"get_game",
+	"get_games_by_date",
+	"get_games_by_season",
+	"get_games_by_team",
+	"get_games_by_team_and_season",
+	"get_game_three_stars",
+	"get_game_broadcasts",
+	// Stats (10)
+	"get_game_skater_stats",
+	"get_game_goalie_stats",
+	"get_game_skater_stats_by_team",
+	"get_game_goalie_stats_by_team",
+	"get_skater_season_totals",
+	"get_goalie_season_totals",
+	"get_skater_game_log",
+	"get_goalie_game_log",
+	"get_club_skater_stats",
+	"get_club_goalie_stats",
 }
 
 func TestNewServer_RegistersAllTools(t *testing.T) {
