@@ -24,5 +24,6 @@ func registerAll(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	registerPlayerTools(srv, queries)
 	registerGameTools(srv, queries)
 	registerStatsTools(srv, queries)
-	// Phase 4: registerStandingsTools, registerFantasyTools
+	registerStandingsTools(srv, queries)
+	registerFantasyTools(srv, queries)
 }

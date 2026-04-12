@@ -44,6 +44,22 @@ var expectedTools = []string{
 	"get_goalie_game_log",
 	"get_club_skater_stats",
 	"get_club_goalie_stats",
+	// Standings (4)
+	"get_standings_by_date",
+	"get_standings_by_season",
+	"get_standings_by_season_and_date",
+	"get_standings_by_team",
+	// Fantasy (10)
+	"get_yahoo_leagues",
+	"get_yahoo_teams_by_league",
+	"get_yahoo_roster",
+	"get_yahoo_roto_standings",
+	"get_skater_season_stats",
+	"get_goalie_season_stats",
+	"get_unrostered_skaters",
+	"get_unrostered_goalies",
+	"get_yahoo_matchups",
+	"get_yahoo_draft_results",
 }
 
 func TestNewServer_RegistersAllTools(t *testing.T) {

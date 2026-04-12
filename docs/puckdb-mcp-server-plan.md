@@ -166,10 +166,10 @@ mcp_servers:
 - [x] `mcpserver/tools_stats.go` — 10 stats tools
 - [x] Tests (server registration test updated)
 
-### Phase 4: Standings + Fantasy Tools ← CURRENT
-- [ ] `mcpserver/tools_standings.go` — 4 standings tools
-- [ ] `mcpserver/tools_fantasy.go` — 10 fantasy tools
-- [ ] Tests
+### Phase 4: Standings + Fantasy Tools ✅
+- [x] `mcpserver/tools_standings.go` — 4 standings tools
+- [x] `mcpserver/tools_fantasy.go` — 10 fantasy tools
+- [x] Tests (server registration test updated, 44 tools total)
 
 ### Phase 5: Deploy
 - [ ] Helm service entry for puckdb-mcp
