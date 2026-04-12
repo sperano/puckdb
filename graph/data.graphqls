@@ -1,0 +1,249 @@
+# NHL Data Query Layer
+#
+# Exposes puckdb's NHL and player data through GraphQL.
+# All queries are read-only — mutations remain in schema.graphqls.
+
+# --- Core Entity Types ---
+
+type Season {
+  id: Int!
+  standingsStart: String
+  standingsEnd: String
+}
+
+type Team {
+  teamId: Int64!
+  season: Int!
+  franchiseId: Int64
+  fullName: String!
+  abbrev: String!
+  logoUrl: String
+  divisionName: String!
+  divisionAbbrev: String!
+  conferenceName: String
+  conferenceAbbrev: String
+}
+
+type Player {
+  id: Int64!
+  firstName: String!
+  lastName: String!
+  teamId: Int64
+  position: String
+  shootsCatches: String
+  heightInches: Int
+  weightPounds: Int
+  birthDate: String
+  birthCity: String
+  birthStateProvince: String
+  birthCountry: String
+  sweaterNumber: Int
+  isActive: Boolean!
+  headshotUrl: String!
+  heroImageUrl: String
+  playerSlug: String
+  draftYear: Int
+  draftTeamAbbrev: String
+  draftRound: Int
+  draftPickInRound: Int
+  draftOverallPick: Int
+}
+
+type Game {
+  id: Int64!
+  season: Int!
+  gameType: String!
+  gameDate: String!
+  venue: String!
+  venueLocation: String!
+  startTimeUtc: Time
+  gameState: String!
+  gameScheduleState: String!
+  periodNumber: Int!
+  periodType: String!
+  homeTeamId: Int64!
+  homeTeamScore: Int!
+  homeTeamSog: Int!
+  homeTeamName: String!
+  homeTeamAbbrev: String!
+  awayTeamId: Int64!
+  awayTeamScore: Int!
+  awayTeamSog: Int!
+  awayTeamName: String!
+  awayTeamAbbrev: String!
+}
+
+type StandingsEntry {
+  season: Int!
+  date: String!
+  teamId: Int64!
+  teamAbbrev: String!
+  wins: Int!
+  losses: Int!
+  otLosses: Int!
+  points: Int!
+  divisionAbbrev: String!
+  divisionName: String!
+  conferenceAbbrev: String
+  conferenceName: String
+}
+
+# --- Boxscore Types ---
+
+type GameSkaterStats {
+  gameId: Int64!
+  playerId: Int64!
+  teamId: Int64!
+  isHome: Boolean!
+  sweaterNumber: Int!
+  position: String!
+  firstName: String!
+  lastName: String!
+  teamName: String!
+  teamAbbrev: String!
+  goals: Int!
+  assists: Int!
+  points: Int!
+  plusMinus: Int!
+  shotsOnGoal: Int!
+  toiSeconds: Int!
+  shifts: Int!
+  faceoffWinningPctg: Float
+  hits: Int!
+  blockedShots: Int!
+  penaltyMinutes: Int!
+  giveaways: Int!
+  takeaways: Int!
+  powerPlayGoals: Int!
+}
+
+type GameGoalieStats {
+  gameId: Int64!
+  playerId: Int64!
+  teamId: Int64!
+  isHome: Boolean!
+  sweaterNumber: Int!
+  firstName: String!
+  lastName: String!
+  teamName: String!
+  teamAbbrev: String!
+  decision: String
+  starter: Boolean
+  shotsAgainst: Int!
+  saves: Int!
+  savePctg: Float
+  goalsAgainst: Int!
+  toiSeconds: Int!
+}
+
+type Boxscore {
+  game: Game!
+  skaters: [GameSkaterStats!]!
+  goalies: [GameGoalieStats!]!
+}
+
+# --- Game Log Types ---
+
+type SkaterGameLogEntry {
+  gameId: Int64!
+  gameDate: String!
+  gameType: String!
+  teamAbbrev: String!
+  goals: Int!
+  assists: Int!
+  points: Int!
+  plusMinus: Int!
+  shotsOnGoal: Int!
+  toiSeconds: Int!
+  shifts: Int!
+  faceoffWinningPctg: Float
+  hits: Int!
+  blockedShots: Int!
+  penaltyMinutes: Int!
+  powerPlayGoals: Int!
+}
+
+type GoalieGameLogEntry {
+  gameId: Int64!
+  gameDate: String!
+  gameType: String!
+  teamAbbrev: String!
+  decision: String
+  starter: Boolean
+  shotsAgainst: Int!
+  saves: Int!
+  savePctg: Float
+  goalsAgainst: Int!
+  toiSeconds: Int!
+}
+
+# --- Career Stats ---
+
+type PlayerSeasonTotal {
+  playerId: Int64!
+  season: Int!
+  gameType: String!
+  leagueAbbrev: String!
+  teamName: String!
+  teamId: Int64
+  gamesPlayed: Int!
+  goals: Int
+  assists: Int
+  points: Int
+  plusMinus: Int
+  pim: Int
+}
+
+# --- Input Types ---
+
+input PlayerFilter {
+  name: String
+  teamId: Int64
+  position: String
+  isActive: Boolean
+}
+
+input GameFilter {
+  season: Int
+  gameType: String
+  gameState: String
+  teamId: Int64
+  startDate: String
+  endDate: String
+  limit: Int
+}
+
+# --- Data Queries ---
+
+extend type Query {
+  # Seasons
+  seasons: [Season!]!
+  season(id: Int!): Season
+
+  # Teams (per-season identity)
+  teams(season: Int!): [Team!]!
+  team(season: Int!, teamId: Int64!): Team
+
+  # Players
+  player(id: Int64!): Player
+  players(filter: PlayerFilter): [Player!]!
+  searchPlayers(query: String!): [Player!]!
+
+  # Games
+  game(id: Int64!): Game
+  gamesByDate(date: String!): [Game!]!
+  games(filter: GameFilter): [Game!]!
+
+  # Standings
+  standings(season: Int!, date: String!): [StandingsEntry!]!
+
+  # Boxscore (skater + goalie stats for a game)
+  boxscore(gameId: Int64!): Boxscore
+
+  # Player game logs
+  skaterGameLog(playerId: Int64!, season: Int!): [SkaterGameLogEntry!]!
+  goalieGameLog(playerId: Int64!, season: Int!): [GoalieGameLogEntry!]!
+
+  # Career season-by-season stats (all leagues)
+  playerSeasonTotals(playerId: Int64!): [PlayerSeasonTotal!]!
+}

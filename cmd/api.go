@@ -15,6 +15,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
@@ -58,6 +59,13 @@ func cmdAPI() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.LogFlagValues()
 
+			// Open PostgreSQL pool for data queries
+			pool, err := database.OpenPGXPool(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("open database pool: %w", err)
+			}
+			defer pool.Close()
+
 			// the oauth2 token for yahoo authentication is cached in redis
 			redisClient := cache.NewClient()
 			defer func() { _ = redisClient.Close() }()
@@ -69,13 +77,16 @@ func cmdAPI() *cobra.Command {
 			}
 			defer temporalClient.Close()
 
+			queries := sqlcdb.New(pool)
+
 			resolver := &graph.Resolver{
 				TemporalClient: temporalClient,
 				RedisClient:    redisClient,
+				Queries:        queries,
 			}
 
 			// Initialize Maurice if configured
-			mauriceService, cleanup, err := initMaurice(cmd.Context())
+			mauriceService, cleanup, err := initMaurice(cmd.Context(), pool)
 			if err != nil {
 				log.Warn().Err(err).Msg("Maurice initialization failed, AI chat will be unavailable")
 			} else if mauriceService != nil {
@@ -192,16 +203,11 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 
 // initMaurice sets up the Maurice AI chat service if configured.
 // Returns nil service + nil cleanup if Maurice flags are at defaults (opt-in).
-func initMaurice(ctx context.Context) (maurice.Service, func(), error) {
+// The pool is shared with the main API — Maurice no longer opens its own.
+func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func(), error) {
 	baseURL := viper.GetString(config.FlagMauriceBaseURL)
 	if baseURL == "" {
 		return nil, nil, nil
-	}
-
-	// Open PostgreSQL pool
-	pool, err := database.OpenPGXPool(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("open pgx pool for Maurice: %w", err)
 	}
 
 	// MCP client connects lazily on first use (sessions expire quickly)
@@ -226,7 +232,6 @@ func initMaurice(ctx context.Context) (maurice.Service, func(), error) {
 
 	cleanup := func() {
 		mcpClient.Close()
-		pool.Close()
 	}
 
 	log.Info().

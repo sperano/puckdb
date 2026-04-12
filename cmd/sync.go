@@ -346,14 +346,17 @@ func monitorWorkflows(ctx context.Context, sp *spinner, fetchers []statusFetcher
 			}
 		}
 
-		// Combine all messages, appending Yahoo warning once at the end
+		// Combine all messages, appending Yahoo warning once at the end.
+		// Only check statuses that were freshly polled this iteration —
+		// completed workflows use cached statuses that may have stale token info.
 		combined := strings.Join(messages, "\n")
-		for _, st := range statuses {
-			if st != nil {
-				if w := yahooWarning(st); w != "" {
-					combined += "\n" + w
-					break
-				}
+		for i, st := range statuses {
+			if done[i] || st == nil {
+				continue
+			}
+			if w := yahooWarning(st); w != "" {
+				combined += "\n" + w
+				break
 			}
 		}
 		sp.SetMessage(combined)

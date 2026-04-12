@@ -12,6 +12,7 @@ import (
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/maurice"
+	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/temporal"
 	"github.com/sperano/puckdb/worker/admin"
 	"github.com/sperano/puckdb/worker/shared"
@@ -26,7 +27,8 @@ import (
 type Resolver struct {
 	TemporalClient client.Client
 	RedisClient    cache.Client
-	MauriceService maurice.Service // nil if Maurice is not configured
+	MauriceService maurice.Service    // nil if Maurice is not configured
+	Queries        *sqlcdb.Queries    // nil-safe: data queries return errors if not wired
 }
 
 var temporalStatusToGQL = map[temporalEnums.WorkflowExecutionStatus]model.TemporalWorkflowStatus{

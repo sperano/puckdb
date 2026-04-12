@@ -65,7 +65,3 @@ models:
     model:
       - github.com/99designs/gqlgen/graphql.Int64
 
-  Season:
-    fields:
-      leagues:
-        resolver: true

@@ -5,19 +5,24 @@ x# PuckDB Improvements — Post-Feature-Complete Assessment
 
 ---
 
-## 1. GraphQL API barely exposes the data
+## ~~1. GraphQL API barely exposes the data~~ — RESOLVED
 
-**Finding:** The schema is ~95% workflow control plane (start/cancel/result/progress for 13 workflows). The only *data* query is `processPlayersResultData`. For a project whose point is to *have* NHL + Yahoo data queryable, this is backwards.
+**Finding:** The schema was ~95% workflow control plane (start/cancel/result/progress for 13 workflows). The only *data* query was `processPlayersResultData`.
 
-**Suggested additions:**
-- `player(id: Int!)`, `players(filter)`, `playerGameLog(playerId, season)`
-- `team(id)`, `teamRoster(teamId, season)`
-- `game(id)`, `gamesByDate(date)`, `boxscore(gameId)`
-- `standings(date)`, `standingsRange(from, to)`
-- `yahooLeague(key)`, `yahooTeamRoster(teamKey, week)`, `yahooMatchups(leagueKey, week)`
+**Implemented (batch 1 — NHL data):**
+- `player(id)`, `players(filter)`, `searchPlayers(query)` — player lookup with filtering and fuzzy search
+- `team(season, teamId)`, `teams(season)` — team data by season
+- `game(id)`, `gamesByDate(date)`, `games(filter)` — game lookup with flexible filters
+- `boxscore(gameId)` — composite resolver (game + skater stats + goalie stats)
+- `standings(season, date)` — standings snapshots
+- `skaterGameLog(playerId, season)`, `goalieGameLog(playerId, season)` — per-game stat lines
 - `playerSeasonTotals(playerId)` — including minor-league rows
+- `seasons`, `season(id)` — season metadata
 
-**Why it's highest leverage:** This is what unlocks Maurice, unlocks any frontend, and unlocks external consumers. Everything else in this document is marginal until the data has a query surface.
+15 queries total, 12 GraphQL types, 2 input types. All backed by sqlc queries with a shared pgxpool wired through the Resolver. Conversion layer (`convert.go`) fully unit tested.
+
+**Remaining (batch 2 — Yahoo data, not yet requested):**
+- `yahooLeague(key)`, `yahooTeamRoster(teamKey, week)`, `yahooMatchups(leagueKey, week)`
 
 ---
 
@@ -157,7 +162,7 @@ During the main audit, only `puckdb/CLAUDE.md` was checked. The following likely
 
 | Rank | Item | Leverage | Effort |
 |------|------|----------|--------|
-| 1 | GraphQL data query layer (#1) | Very high — unlocks everything else | Medium |
+| 1 | ~~GraphQL data query layer~~ (done — batch 1) (#1) | Very high — unlocks everything else | Medium |
 | 2 | ~~Missing FKs~~ (done) + `play_events` indexes (#2, #3) | High — correctness + future query performance | Low-medium |
 | 3 | Workflow SLO + freshness metrics (#5) | High — production reliability | Low |
 | 4 | ~~Data dictionary~~ (done) — PG enums (#7) | Medium — enables Maurice + new contributors | Low |
@@ -166,4 +171,4 @@ During the main audit, only `puckdb/CLAUDE.md` was checked. The following likely
 | 7 | ~~Yahoo EAV~~ (done) / ~~JSONB normalization~~ (done) (#4) | Medium | Low |
 | 8 | CLAUDE.md audits for sibling repos (#9) | Low | Low |
 
-**Single highest-impact next step:** Start item #1 (GraphQL query layer). It's the thing that converts puckdb from "ingestion pipeline" to "data product."
+**Next highest-impact step:** Item #3 (`play_events` indexes) or item #5 (workflow SLO + freshness metrics). The query surface from #1 now makes performance and observability work actionable.

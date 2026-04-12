@@ -1152,18 +1152,18 @@ type UpsertSeasonRosterBatchBatchResults struct {
 }
 
 type UpsertSeasonRosterBatchParams struct {
-	Season             int32          `json:"season"`
-	TeamID             int64          `json:"team_id"`
-	PlayerID           int64          `json:"player_id"`
-	Position           PlayerPosition `json:"position"`
-	ShootsCatches      string         `json:"shoots_catches"`
-	SweaterNumber      int16          `json:"sweater_number"`
-	HeightInches       int16          `json:"height_inches"`
-	WeightPounds       int16          `json:"weight_pounds"`
-	BirthDate          string         `json:"birth_date"`
-	BirthCity          pgtype.Text    `json:"birth_city"`
-	BirthStateProvince pgtype.Text    `json:"birth_state_province"`
-	BirthCountry       string         `json:"birth_country"`
+	Season             int32              `json:"season"`
+	TeamID             int64              `json:"team_id"`
+	PlayerID           int64              `json:"player_id"`
+	Position           NullPlayerPosition `json:"position"`
+	ShootsCatches      string             `json:"shoots_catches"`
+	SweaterNumber      int16              `json:"sweater_number"`
+	HeightInches       int16              `json:"height_inches"`
+	WeightPounds       int16              `json:"weight_pounds"`
+	BirthDate          string             `json:"birth_date"`
+	BirthCity          pgtype.Text        `json:"birth_city"`
+	BirthStateProvince pgtype.Text        `json:"birth_state_province"`
+	BirthCountry       string             `json:"birth_country"`
 }
 
 // =============================================================================

@@ -65,7 +65,7 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 				Season:             int32(season.ID()),
 				TeamID:             team.TeamID,
 				PlayerID:           int64(p.ID),
-				Position:           sqlcdb.PlayerPosition(p.Position),
+				Position:           sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPosition(p.Position), Valid: p.Position != ""},
 				ShootsCatches:      string(p.ShootsCatches),
 				SweaterNumber:      int16(p.SweaterNumber),
 				HeightInches:       int16(p.HeightInInches),

@@ -9,9 +9,109 @@ import (
 	"time"
 )
 
+type Boxscore struct {
+	Game    *Game              `json:"game"`
+	Skaters []*GameSkaterStats `json:"skaters"`
+	Goalies []*GameGoalieStats `json:"goalies"`
+}
+
 type FetchPlayerLandingsInput struct {
 	BatchSize   *int `json:"batchSize,omitempty"`
 	Concurrency *int `json:"concurrency,omitempty"`
+}
+
+type Game struct {
+	ID                int64      `json:"id"`
+	Season            int        `json:"season"`
+	GameType          string     `json:"gameType"`
+	GameDate          string     `json:"gameDate"`
+	Venue             string     `json:"venue"`
+	VenueLocation     string     `json:"venueLocation"`
+	StartTimeUtc      *time.Time `json:"startTimeUtc,omitempty"`
+	GameState         string     `json:"gameState"`
+	GameScheduleState string     `json:"gameScheduleState"`
+	PeriodNumber      int        `json:"periodNumber"`
+	PeriodType        string     `json:"periodType"`
+	HomeTeamID        int64      `json:"homeTeamId"`
+	HomeTeamScore     int        `json:"homeTeamScore"`
+	HomeTeamSog       int        `json:"homeTeamSog"`
+	HomeTeamName      string     `json:"homeTeamName"`
+	HomeTeamAbbrev    string     `json:"homeTeamAbbrev"`
+	AwayTeamID        int64      `json:"awayTeamId"`
+	AwayTeamScore     int        `json:"awayTeamScore"`
+	AwayTeamSog       int        `json:"awayTeamSog"`
+	AwayTeamName      string     `json:"awayTeamName"`
+	AwayTeamAbbrev    string     `json:"awayTeamAbbrev"`
+}
+
+type GameFilter struct {
+	Season    *int    `json:"season,omitempty"`
+	GameType  *string `json:"gameType,omitempty"`
+	GameState *string `json:"gameState,omitempty"`
+	TeamID    *int64  `json:"teamId,omitempty"`
+	StartDate *string `json:"startDate,omitempty"`
+	EndDate   *string `json:"endDate,omitempty"`
+	Limit     *int    `json:"limit,omitempty"`
+}
+
+type GameGoalieStats struct {
+	GameID        int64    `json:"gameId"`
+	PlayerID      int64    `json:"playerId"`
+	TeamID        int64    `json:"teamId"`
+	IsHome        bool     `json:"isHome"`
+	SweaterNumber int      `json:"sweaterNumber"`
+	FirstName     string   `json:"firstName"`
+	LastName      string   `json:"lastName"`
+	TeamName      string   `json:"teamName"`
+	TeamAbbrev    string   `json:"teamAbbrev"`
+	Decision      *string  `json:"decision,omitempty"`
+	Starter       *bool    `json:"starter,omitempty"`
+	ShotsAgainst  int      `json:"shotsAgainst"`
+	Saves         int      `json:"saves"`
+	SavePctg      *float64 `json:"savePctg,omitempty"`
+	GoalsAgainst  int      `json:"goalsAgainst"`
+	ToiSeconds    int      `json:"toiSeconds"`
+}
+
+type GameSkaterStats struct {
+	GameID             int64    `json:"gameId"`
+	PlayerID           int64    `json:"playerId"`
+	TeamID             int64    `json:"teamId"`
+	IsHome             bool     `json:"isHome"`
+	SweaterNumber      int      `json:"sweaterNumber"`
+	Position           string   `json:"position"`
+	FirstName          string   `json:"firstName"`
+	LastName           string   `json:"lastName"`
+	TeamName           string   `json:"teamName"`
+	TeamAbbrev         string   `json:"teamAbbrev"`
+	Goals              int      `json:"goals"`
+	Assists            int      `json:"assists"`
+	Points             int      `json:"points"`
+	PlusMinus          int      `json:"plusMinus"`
+	ShotsOnGoal        int      `json:"shotsOnGoal"`
+	ToiSeconds         int      `json:"toiSeconds"`
+	Shifts             int      `json:"shifts"`
+	FaceoffWinningPctg *float64 `json:"faceoffWinningPctg,omitempty"`
+	Hits               int      `json:"hits"`
+	BlockedShots       int      `json:"blockedShots"`
+	PenaltyMinutes     int      `json:"penaltyMinutes"`
+	Giveaways          int      `json:"giveaways"`
+	Takeaways          int      `json:"takeaways"`
+	PowerPlayGoals     int      `json:"powerPlayGoals"`
+}
+
+type GoalieGameLogEntry struct {
+	GameID       int64    `json:"gameId"`
+	GameDate     string   `json:"gameDate"`
+	GameType     string   `json:"gameType"`
+	TeamAbbrev   string   `json:"teamAbbrev"`
+	Decision     *string  `json:"decision,omitempty"`
+	Starter      *bool    `json:"starter,omitempty"`
+	ShotsAgainst int      `json:"shotsAgainst"`
+	Saves        int      `json:"saves"`
+	SavePctg     *float64 `json:"savePctg,omitempty"`
+	GoalsAgainst int      `json:"goalsAgainst"`
+	ToiSeconds   int      `json:"toiSeconds"`
 }
 
 type MauriceChatResponse struct {
@@ -42,6 +142,53 @@ type MauriceMessage struct {
 }
 
 type Mutation struct {
+}
+
+type Player struct {
+	ID                 int64   `json:"id"`
+	FirstName          string  `json:"firstName"`
+	LastName           string  `json:"lastName"`
+	TeamID             *int64  `json:"teamId,omitempty"`
+	Position           *string `json:"position,omitempty"`
+	ShootsCatches      *string `json:"shootsCatches,omitempty"`
+	HeightInches       *int    `json:"heightInches,omitempty"`
+	WeightPounds       *int    `json:"weightPounds,omitempty"`
+	BirthDate          *string `json:"birthDate,omitempty"`
+	BirthCity          *string `json:"birthCity,omitempty"`
+	BirthStateProvince *string `json:"birthStateProvince,omitempty"`
+	BirthCountry       *string `json:"birthCountry,omitempty"`
+	SweaterNumber      *int    `json:"sweaterNumber,omitempty"`
+	IsActive           bool    `json:"isActive"`
+	HeadshotURL        string  `json:"headshotUrl"`
+	HeroImageURL       *string `json:"heroImageUrl,omitempty"`
+	PlayerSlug         *string `json:"playerSlug,omitempty"`
+	DraftYear          *int    `json:"draftYear,omitempty"`
+	DraftTeamAbbrev    *string `json:"draftTeamAbbrev,omitempty"`
+	DraftRound         *int    `json:"draftRound,omitempty"`
+	DraftPickInRound   *int    `json:"draftPickInRound,omitempty"`
+	DraftOverallPick   *int    `json:"draftOverallPick,omitempty"`
+}
+
+type PlayerFilter struct {
+	Name     *string `json:"name,omitempty"`
+	TeamID   *int64  `json:"teamId,omitempty"`
+	Position *string `json:"position,omitempty"`
+	IsActive *bool   `json:"isActive,omitempty"`
+}
+
+type PlayerSeasonTotal struct {
+	PlayerID     int64  `json:"playerId"`
+	Season       int    `json:"season"`
+	GameType     string `json:"gameType"`
+	LeagueAbbrev string `json:"leagueAbbrev"`
+	TeamName     string `json:"teamName"`
+	TeamID       *int64 `json:"teamId,omitempty"`
+	GamesPlayed  int    `json:"gamesPlayed"`
+	Goals        *int   `json:"goals,omitempty"`
+	Assists      *int   `json:"assists,omitempty"`
+	Points       *int   `json:"points,omitempty"`
+	PlusMinus    *int   `json:"plusMinus,omitempty"`
+	Pim          *int   `json:"pim,omitempty"`
 }
 
 type ProcessPlayersInput struct {
@@ -88,12 +235,65 @@ type ProgressReport struct {
 type Query struct {
 }
 
+type Season struct {
+	ID             int     `json:"id"`
+	StandingsStart *string `json:"standingsStart,omitempty"`
+	StandingsEnd   *string `json:"standingsEnd,omitempty"`
+}
+
 type SeasonsInput struct {
 	// Season start year (e.g., 2023 for the 2023-2024 season)
 	StartSeason *int `json:"startSeason,omitempty"`
 	// Season start year to filter up to (inclusive)
 	EndSeason         *int `json:"endSeason,omitempty"`
 	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`
+}
+
+type SkaterGameLogEntry struct {
+	GameID             int64    `json:"gameId"`
+	GameDate           string   `json:"gameDate"`
+	GameType           string   `json:"gameType"`
+	TeamAbbrev         string   `json:"teamAbbrev"`
+	Goals              int      `json:"goals"`
+	Assists            int      `json:"assists"`
+	Points             int      `json:"points"`
+	PlusMinus          int      `json:"plusMinus"`
+	ShotsOnGoal        int      `json:"shotsOnGoal"`
+	ToiSeconds         int      `json:"toiSeconds"`
+	Shifts             int      `json:"shifts"`
+	FaceoffWinningPctg *float64 `json:"faceoffWinningPctg,omitempty"`
+	Hits               int      `json:"hits"`
+	BlockedShots       int      `json:"blockedShots"`
+	PenaltyMinutes     int      `json:"penaltyMinutes"`
+	PowerPlayGoals     int      `json:"powerPlayGoals"`
+}
+
+type StandingsEntry struct {
+	Season           int     `json:"season"`
+	Date             string  `json:"date"`
+	TeamID           int64   `json:"teamId"`
+	TeamAbbrev       string  `json:"teamAbbrev"`
+	Wins             int     `json:"wins"`
+	Losses           int     `json:"losses"`
+	OtLosses         int     `json:"otLosses"`
+	Points           int     `json:"points"`
+	DivisionAbbrev   string  `json:"divisionAbbrev"`
+	DivisionName     string  `json:"divisionName"`
+	ConferenceAbbrev *string `json:"conferenceAbbrev,omitempty"`
+	ConferenceName   *string `json:"conferenceName,omitempty"`
+}
+
+type Team struct {
+	TeamID           int64   `json:"teamId"`
+	Season           int     `json:"season"`
+	FranchiseID      *int64  `json:"franchiseId,omitempty"`
+	FullName         string  `json:"fullName"`
+	Abbrev           string  `json:"abbrev"`
+	LogoURL          *string `json:"logoUrl,omitempty"`
+	DivisionName     string  `json:"divisionName"`
+	DivisionAbbrev   string  `json:"divisionAbbrev"`
+	ConferenceName   *string `json:"conferenceName,omitempty"`
+	ConferenceAbbrev *string `json:"conferenceAbbrev,omitempty"`
 }
 
 type TrulyUnmatchedPlayer struct {

@@ -1045,7 +1045,7 @@ type SeasonRoster struct {
 	Season             int32              `json:"season"`
 	TeamID             int64              `json:"team_id"`
 	PlayerID           int64              `json:"player_id"`
-	Position           PlayerPosition     `json:"position"`
+	Position           NullPlayerPosition `json:"position"`
 	ShootsCatches      string             `json:"shoots_catches"`
 	SweaterNumber      int16              `json:"sweater_number"`
 	HeightInches       int16              `json:"height_inches"`

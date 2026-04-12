@@ -27,7 +27,7 @@ CREATE TABLE season_rosters (
     season INT NOT NULL REFERENCES seasons(id),
     team_id BIGINT NOT NULL,
     player_id BIGINT NOT NULL REFERENCES players(id),
-    position player_position NOT NULL,
+    position player_position,
     shoots_catches TEXT NOT NULL,
     sweater_number SMALLINT NOT NULL,
     height_inches SMALLINT NOT NULL,
