@@ -8,30 +8,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestChatCompletionRequestJSON(t *testing.T) {
-	req := ChatCompletionRequest{
-		Model: "test-model",
+func TestRequestJSON(t *testing.T) {
+	req := Request{
 		Messages: []Message{
 			{Role: "user", Content: "Hello"},
 		},
 		MaxTokens: 100,
-		Stream:    false,
 	}
 
 	data, err := json.Marshal(req)
 	require.NoError(t, err)
 
-	var decoded ChatCompletionRequest
+	var decoded Request
 	require.NoError(t, json.Unmarshal(data, &decoded))
-	assert.Equal(t, req.Model, decoded.Model)
 	assert.Equal(t, req.Messages[0].Content, decoded.Messages[0].Content)
 	assert.Equal(t, req.MaxTokens, decoded.MaxTokens)
-	assert.False(t, decoded.Stream)
 }
 
-func TestChatCompletionRequestOmitsEmptyTools(t *testing.T) {
-	req := ChatCompletionRequest{
-		Model:    "test-model",
+func TestRequestOmitsEmptyTools(t *testing.T) {
+	req := Request{
 		Messages: []Message{{Role: "user", Content: "Hi"}},
 	}
 
@@ -101,40 +96,30 @@ func TestToolJSON(t *testing.T) {
 	assert.Contains(t, string(decoded.Function.Parameters), "query")
 }
 
-func TestChatCompletionResponseHelpers(t *testing.T) {
+func TestResponseHelpers(t *testing.T) {
 	t.Run("empty response", func(t *testing.T) {
-		resp := &ChatCompletionResponse{}
+		resp := &Response{}
 		assert.False(t, resp.HasToolCalls())
-		assert.Empty(t, resp.FirstContent())
-		assert.Nil(t, resp.FirstToolCalls())
+		assert.Empty(t, resp.Content)
 	})
 
 	t.Run("text response", func(t *testing.T) {
-		resp := &ChatCompletionResponse{
-			Choices: []Choice{
-				{Message: Message{Content: "Wayne Gretzky scored 894 goals."}},
-			},
+		resp := &Response{
+			Content: "Wayne Gretzky scored 894 goals.",
 		}
 		assert.False(t, resp.HasToolCalls())
-		assert.Equal(t, "Wayne Gretzky scored 894 goals.", resp.FirstContent())
+		assert.Equal(t, "Wayne Gretzky scored 894 goals.", resp.Content)
 	})
 
 	t.Run("tool call response", func(t *testing.T) {
-		resp := &ChatCompletionResponse{
-			Choices: []Choice{
-				{
-					Message: Message{
-						ToolCalls: []ToolCall{
-							{ID: "tc_1", Type: "function", Function: ToolCallFunction{Name: "get_stats"}},
-						},
-					},
-				},
+		resp := &Response{
+			ToolCalls: []ToolCall{
+				{ID: "tc_1", Type: "function", Function: ToolCallFunction{Name: "get_stats"}},
 			},
 		}
 		assert.True(t, resp.HasToolCalls())
-		calls := resp.FirstToolCalls()
-		assert.Len(t, calls, 1)
-		assert.Equal(t, "get_stats", calls[0].Function.Name)
+		assert.Len(t, resp.ToolCalls, 1)
+		assert.Equal(t, "get_stats", resp.ToolCalls[0].Function.Name)
 	})
 }
 

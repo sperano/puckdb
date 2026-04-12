@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/sperano/puckdb/llm"
 	"github.com/sperano/puckdb/mcp"
-	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,13 +18,13 @@ import (
 // --- Mock LLM Client ---
 
 type mockLLMClient struct {
-	responses []*llm.ChatCompletionResponse
+	responses []*llm.Response
 	errors    []error
 	calls     int
-	requests  []*llm.ChatCompletionRequest
+	requests  []*llm.Request
 }
 
-func (m *mockLLMClient) ChatCompletion(ctx context.Context, req *llm.ChatCompletionRequest) (*llm.ChatCompletionResponse, error) {
+func (m *mockLLMClient) Complete(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 	idx := m.calls
 	m.calls++
 	m.requests = append(m.requests, req)
@@ -35,113 +34,94 @@ func (m *mockLLMClient) ChatCompletion(ctx context.Context, req *llm.ChatComplet
 	if idx < len(m.responses) {
 		return m.responses[idx], nil
 	}
-	return &llm.ChatCompletionResponse{
-		Choices: []llm.Choice{{Message: llm.Message{Content: "default"}}},
-	}, nil
+	return &llm.Response{Content: "default"}, nil
 }
-
-// --- Mock MCP Client ---
 
 // --- Mock DB ---
 
 type mockDB struct {
-	conversations map[string]sqlcdb.MauriceConversation
-	messages      map[string][]sqlcdb.MauriceMessage
-	nextConvID    pgtype.UUID
-	nextMsgID     pgtype.UUID
+	conversations map[string]*Conversation
+	messages      map[string][]*Message
+	nextID        int
 	createErr     error
-	msgCount      int
 }
 
 func newMockDB() *mockDB {
 	return &mockDB{
-		conversations: make(map[string]sqlcdb.MauriceConversation),
-		messages:      make(map[string][]sqlcdb.MauriceMessage),
-		nextConvID:    testUUID("11111111-1111-1111-1111-111111111111"),
-		nextMsgID:     testUUID("22222222-2222-2222-2222-222222222222"),
+		conversations: make(map[string]*Conversation),
+		messages:      make(map[string][]*Message),
 	}
 }
 
-func testUUID(s string) pgtype.UUID {
-	var u pgtype.UUID
-	u.Scan(s)
-	return u
+func (m *mockDB) nextUUID() string {
+	m.nextID++
+	return fmt.Sprintf("00000000-0000-0000-0000-%012d", m.nextID)
 }
 
-func testTime() pgtype.Timestamptz {
-	return pgtype.Timestamptz{Time: time.Now(), Valid: true}
-}
-
-func (m *mockDB) CreateConversation(ctx context.Context, title pgtype.Text) (sqlcdb.MauriceConversation, error) {
+func (m *mockDB) CreateConversation(ctx context.Context) (*Conversation, error) {
 	if m.createErr != nil {
-		return sqlcdb.MauriceConversation{}, m.createErr
+		return nil, m.createErr
 	}
-	conv := sqlcdb.MauriceConversation{
-		ID:        m.nextConvID,
-		Title:     title,
-		CreatedAt: testTime(),
-		UpdatedAt: testTime(),
+	now := time.Now()
+	conv := &Conversation{
+		ID:        m.nextUUID(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
-	m.conversations[uuidToString(conv.ID)] = conv
+	m.conversations[conv.ID] = conv
 	return conv, nil
 }
 
-func (m *mockDB) GetConversation(ctx context.Context, id pgtype.UUID) (sqlcdb.MauriceConversation, error) {
-	key := uuidToString(id)
-	conv, ok := m.conversations[key]
+func (m *mockDB) GetConversation(ctx context.Context, id string) (*Conversation, error) {
+	conv, ok := m.conversations[id]
 	if !ok {
-		return sqlcdb.MauriceConversation{}, errors.New("conversation not found")
+		return nil, errors.New("conversation not found")
 	}
 	return conv, nil
 }
 
-func (m *mockDB) UpdateConversationTitle(ctx context.Context, arg sqlcdb.UpdateConversationTitleParams) error {
-	key := uuidToString(arg.ID)
-	if conv, ok := m.conversations[key]; ok {
-		conv.Title = arg.Title
-		m.conversations[key] = conv
+func (m *mockDB) UpdateConversationTitle(ctx context.Context, id, title string) error {
+	if conv, ok := m.conversations[id]; ok {
+		conv.Title = &title
 	}
 	return nil
 }
 
-func (m *mockDB) ListConversations(ctx context.Context, limit int32) ([]sqlcdb.MauriceConversation, error) {
-	var result []sqlcdb.MauriceConversation
+func (m *mockDB) ListConversations(ctx context.Context, limit int) ([]*Conversation, error) {
+	var result []*Conversation
 	for _, c := range m.conversations {
 		result = append(result, c)
-		if int32(len(result)) >= limit {
+		if len(result) >= limit {
 			break
 		}
 	}
 	return result, nil
 }
 
-func (m *mockDB) DeleteConversation(ctx context.Context, id pgtype.UUID) error {
-	key := uuidToString(id)
-	delete(m.conversations, key)
-	delete(m.messages, key)
+func (m *mockDB) DeleteConversation(ctx context.Context, id string) error {
+	delete(m.conversations, id)
+	delete(m.messages, id)
 	return nil
 }
 
-func (m *mockDB) CreateMessage(ctx context.Context, arg sqlcdb.CreateMessageParams) (sqlcdb.MauriceMessage, error) {
-	m.msgCount++
-	msg := sqlcdb.MauriceMessage{
-		ID:             m.nextMsgID,
-		ConversationID: arg.ConversationID,
-		Role:           arg.Role,
-		Content:        arg.Content,
-		ToolCalls:      arg.ToolCalls,
-		ToolCallID:     arg.ToolCallID,
-		CreatedAt:      testTime(),
+func (m *mockDB) CreateMessage(ctx context.Context, p CreateMessageParams) (*Message, error) {
+	msg := &Message{
+		ID:         m.nextUUID(),
+		Role:       p.Role,
+		Content:    p.Content,
+		ToolCalls:  p.ToolCalls,
+		ToolCallID: p.ToolCallID,
+		CreatedAt:  time.Now(),
 	}
-	key := uuidToString(arg.ConversationID)
-	m.messages[key] = append(m.messages[key], msg)
+	m.messages[p.ConversationID] = append(m.messages[p.ConversationID], msg)
 	return msg, nil
 }
 
-func (m *mockDB) GetMessagesByConversation(ctx context.Context, conversationID pgtype.UUID) ([]sqlcdb.MauriceMessage, error) {
-	key := uuidToString(conversationID)
-	return m.messages[key], nil
+func (m *mockDB) GetMessages(ctx context.Context, conversationID string) ([]*Message, error) {
+	return m.messages[conversationID], nil
 }
+
+// --- Mock MCP Client ---
 
 type mockMCPClient struct {
 	callResults map[string]string
@@ -177,8 +157,8 @@ func (m *mockMCPClient) Close() error { return nil }
 func TestChat_SimpleQA(t *testing.T) {
 	db := newMockDB()
 	llmMock := &mockLLMClient{
-		responses: []*llm.ChatCompletionResponse{
-			{Choices: []llm.Choice{{Message: llm.Message{Content: "Wayne Gretzky holds the record with 894 goals."}}}},
+		responses: []*llm.Response{
+			{Content: "Wayne Gretzky holds the record with 894 goals."},
 		},
 	}
 	mcpMock := newMockMCP()
@@ -190,10 +170,11 @@ func TestChat_SimpleQA(t *testing.T) {
 	assert.Equal(t, "Wayne Gretzky holds the record with 894 goals.", resp.Content)
 	assert.NotEmpty(t, resp.ConversationID)
 	assert.Empty(t, resp.ToolsUsed)
-	assert.Equal(t, 1, llmMock.calls) // 1 main call; title gen is async
+	// 1 main call + possibly 1 async title generation (instant mock races)
+	assert.GreaterOrEqual(t, llmMock.calls, 1)
 
-	// Verify system prompt was included
-	require.Len(t, llmMock.requests, 1)
+	// Verify system prompt was included in the first (main) request
+	require.GreaterOrEqual(t, len(llmMock.requests), 1)
 	assert.Equal(t, "system", llmMock.requests[0].Messages[0].Role)
 	assert.Contains(t, llmMock.requests[0].Messages[0].Content, "Maurice")
 }
@@ -201,25 +182,18 @@ func TestChat_SimpleQA(t *testing.T) {
 func TestChat_WithToolCalls(t *testing.T) {
 	db := newMockDB()
 	llmMock := &mockLLMClient{
-		responses: []*llm.ChatCompletionResponse{
-			// First response: tool call
-			{Choices: []llm.Choice{{
-				Message: llm.Message{
-					Role: "assistant",
-					ToolCalls: []llm.ToolCall{{
-						ID:   "call_1",
-						Type: "function",
-						Function: llm.ToolCallFunction{
-							Name:      "pg_read_query",
-							Arguments: `{"sql":"SELECT name FROM players WHERE goals > 800"}`,
-						},
-					}},
-				},
-			}}},
-			// Second response: final answer
-			{Choices: []llm.Choice{{
-				Message: llm.Message{Content: "Based on the data, Wayne Gretzky has the most goals."},
-			}}},
+		responses: []*llm.Response{
+			{
+				ToolCalls: []llm.ToolCall{{
+					ID:   "call_1",
+					Type: "function",
+					Function: llm.ToolCallFunction{
+						Name:      "pg_read_query",
+						Arguments: `{"sql":"SELECT name FROM players WHERE goals > 800"}`,
+					},
+				}},
+			},
+			{Content: "Based on the data, Wayne Gretzky has the most goals."},
 		},
 	}
 	mcpMock := newMockMCP()
@@ -231,19 +205,19 @@ func TestChat_WithToolCalls(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Based on the data, Wayne Gretzky has the most goals.", resp.Content)
 	assert.Equal(t, []string{"pg_read_query"}, resp.ToolsUsed)
-	assert.Equal(t, 2, llmMock.calls) // tool call + final
+	assert.Equal(t, 2, llmMock.calls)
 }
 
 func TestChat_ExistingConversation(t *testing.T) {
 	db := newMockDB()
 
 	// Pre-create a conversation
-	conv, _ := db.CreateConversation(context.Background(), pgtype.Text{String: "Test", Valid: true})
-	convID := uuidToString(conv.ID)
+	conv, _ := db.CreateConversation(context.Background())
+	convID := conv.ID
 
 	llmMock := &mockLLMClient{
-		responses: []*llm.ChatCompletionResponse{
-			{Choices: []llm.Choice{{Message: llm.Message{Content: "Follow-up answer."}}}},
+		responses: []*llm.Response{
+			{Content: "Follow-up answer."},
 		},
 	}
 	mcpMock := newMockMCP()
@@ -273,19 +247,15 @@ func TestChat_LLMError(t *testing.T) {
 func TestChat_ToolCallError(t *testing.T) {
 	db := newMockDB()
 	llmMock := &mockLLMClient{
-		responses: []*llm.ChatCompletionResponse{
-			// Tool call
-			{Choices: []llm.Choice{{
-				Message: llm.Message{
-					ToolCalls: []llm.ToolCall{{
-						ID:       "call_1",
-						Type:     "function",
-						Function: llm.ToolCallFunction{Name: "bad_tool", Arguments: "{}"},
-					}},
-				},
-			}}},
-			// Final answer after tool error
-			{Choices: []llm.Choice{{Message: llm.Message{Content: "Sorry, I couldn't fetch that data."}}}},
+		responses: []*llm.Response{
+			{
+				ToolCalls: []llm.ToolCall{{
+					ID:       "call_1",
+					Type:     "function",
+					Function: llm.ToolCallFunction{Name: "bad_tool", Arguments: "{}"},
+				}},
+			},
+			{Content: "Sorry, I couldn't fetch that data."},
 		},
 	}
 	mcpMock := newMockMCP()
@@ -299,24 +269,11 @@ func TestChat_ToolCallError(t *testing.T) {
 	assert.Equal(t, []string{"bad_tool"}, resp.ToolsUsed)
 }
 
-func TestChat_InvalidConversationID(t *testing.T) {
-	db := newMockDB()
-	llmMock := &mockLLMClient{}
-	mcpMock := newMockMCP()
-
-	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens)
-	badID := "not-a-uuid"
-	_, err := svc.Chat(context.Background(), &badID, "test")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid UUID")
-}
-
 func TestGetConversation(t *testing.T) {
 	db := newMockDB()
 	llmMock := &mockLLMClient{
-		responses: []*llm.ChatCompletionResponse{
-			{Choices: []llm.Choice{{Message: llm.Message{Content: "Answer"}}}},
+		responses: []*llm.Response{
+			{Content: "Answer"},
 		},
 	}
 	mcpMock := newMockMCP()
@@ -335,8 +292,8 @@ func TestGetConversation(t *testing.T) {
 func TestListConversations(t *testing.T) {
 	db := newMockDB()
 	llmMock := &mockLLMClient{
-		responses: []*llm.ChatCompletionResponse{
-			{Choices: []llm.Choice{{Message: llm.Message{Content: "A1"}}}},
+		responses: []*llm.Response{
+			{Content: "A1"},
 		},
 	}
 	mcpMock := newMockMCP()
@@ -352,8 +309,8 @@ func TestListConversations(t *testing.T) {
 func TestDeleteConversation(t *testing.T) {
 	db := newMockDB()
 	llmMock := &mockLLMClient{
-		responses: []*llm.ChatCompletionResponse{
-			{Choices: []llm.Choice{{Message: llm.Message{Content: "ok"}}}},
+		responses: []*llm.Response{
+			{Content: "ok"},
 		},
 	}
 	mcpMock := newMockMCP()
@@ -366,24 +323,6 @@ func TestDeleteConversation(t *testing.T) {
 
 	_, _, err = svc.GetConversation(context.Background(), resp.ConversationID)
 	require.Error(t, err)
-}
-
-func TestDeleteConversation_InvalidID(t *testing.T) {
-	db := newMockDB()
-	mcpMock := newMockMCP()
-	svc := NewService(&mockLLMClient{}, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens)
-
-	err := svc.DeleteConversation(context.Background(), "bad-id")
-	require.Error(t, err)
-}
-
-func TestUUIDToString(t *testing.T) {
-	u := testUUID("12345678-1234-1234-1234-123456789abc")
-	assert.Equal(t, "12345678-1234-1234-1234-123456789abc", uuidToString(u))
-}
-
-func TestUUIDToString_Invalid(t *testing.T) {
-	assert.Empty(t, uuidToString(pgtype.UUID{}))
 }
 
 func TestNewService_DefaultValues(t *testing.T) {

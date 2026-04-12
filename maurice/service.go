@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/llm"
 	"github.com/sperano/puckdb/mcp"
-	"github.com/sperano/puckdb/sqlcdb"
 )
 
 const (
@@ -55,18 +53,6 @@ type Message struct {
 	CreatedAt  time.Time
 }
 
-// DB defines the database operations Maurice needs.
-// This allows mocking in tests without a real database.
-type DB interface {
-	CreateConversation(ctx context.Context, title pgtype.Text) (sqlcdb.MauriceConversation, error)
-	GetConversation(ctx context.Context, id pgtype.UUID) (sqlcdb.MauriceConversation, error)
-	UpdateConversationTitle(ctx context.Context, arg sqlcdb.UpdateConversationTitleParams) error
-	ListConversations(ctx context.Context, limit int32) ([]sqlcdb.MauriceConversation, error)
-	DeleteConversation(ctx context.Context, id pgtype.UUID) error
-	CreateMessage(ctx context.Context, arg sqlcdb.CreateMessageParams) (sqlcdb.MauriceMessage, error)
-	GetMessagesByConversation(ctx context.Context, conversationID pgtype.UUID) ([]sqlcdb.MauriceMessage, error)
-}
-
 type service struct {
 	llmClient  llm.Client
 	mcpClient  mcp.Client
@@ -95,21 +81,22 @@ func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, maxHistory, m
 }
 
 func (s *service) Chat(ctx context.Context, conversationID *string, message string) (*ChatResponse, error) {
-	convUUID, isNew, err := s.resolveConversation(ctx, conversationID)
+	convID, isNew, err := s.resolveConversation(ctx, conversationID)
 	if err != nil {
 		return nil, err
 	}
-	convID := uuidToString(convUUID)
 
 	log.Debug().Str("conversation", convID).Bool("new", isNew).Str("message", truncateLog(message, maxLogMessageLen)).Msg("maurice chat started")
 
 	// Store user message
-	if _, err := s.createMessage(ctx, convUUID, sqlcdb.ChatRoleUser, message, nil, ""); err != nil {
+	if _, err := s.db.CreateMessage(ctx, CreateMessageParams{
+		ConversationID: convID, Role: "user", Content: message,
+	}); err != nil {
 		return nil, fmt.Errorf("store user message: %w", err)
 	}
 
 	// Load history
-	history, err := s.loadHistory(ctx, convUUID)
+	history, err := s.loadHistory(ctx, convID)
 	if err != nil {
 		return nil, fmt.Errorf("load history: %w", err)
 	}
@@ -130,7 +117,7 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 	var finalMessageID string
 
 	for round := range MaxToolRounds {
-		req := &llm.ChatCompletionRequest{
+		req := &llm.Request{
 			Messages:  history,
 			Tools:     llmTools,
 			MaxTokens: s.maxTokens,
@@ -144,7 +131,7 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 			}
 		}).Msg("LLM request messages")
 
-		resp, err := s.llmClient.ChatCompletion(ctx, req)
+		resp, err := s.llmClient.Complete(ctx, req)
 		if err != nil {
 			return nil, fmt.Errorf("LLM completion (round %d): %w", round, err)
 		}
@@ -153,37 +140,40 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 
 		if !resp.HasToolCalls() {
 			// Final text response
-			finalContent = resp.FirstContent()
+			finalContent = resp.Content
 			log.Debug().Str("conversation", convID).Int("round", round).Str("content", truncateLog(finalContent, maxLogMessageLen)).Msg("LLM final response (no tool calls)")
-			msg, err := s.createMessage(ctx, convUUID, sqlcdb.ChatRoleAssistant, finalContent, nil, "")
+			msg, err := s.db.CreateMessage(ctx, CreateMessageParams{
+				ConversationID: convID, Role: "assistant", Content: finalContent,
+			})
 			if err != nil {
 				return nil, fmt.Errorf("store assistant message: %w", err)
 			}
-			finalMessageID = uuidToString(msg.ID)
+			finalMessageID = msg.ID
 			break
 		}
 
 		// Store assistant message with tool calls
-		assistantMsg := resp.Choices[0].Message
-		toolNames := make([]string, len(assistantMsg.ToolCalls))
-		for i, tc := range assistantMsg.ToolCalls {
+		toolNames := make([]string, len(resp.ToolCalls))
+		for i, tc := range resp.ToolCalls {
 			toolNames[i] = tc.Function.Name
 		}
 		log.Debug().Str("conversation", convID).Int("round", round).Strs("tool_calls", toolNames).Msg("LLM requested tool calls")
 
-		if _, err := s.createMessage(ctx, convUUID, sqlcdb.ChatRoleAssistant, assistantMsg.Content, assistantMsg.ToolCalls, ""); err != nil {
+		if _, err := s.db.CreateMessage(ctx, CreateMessageParams{
+			ConversationID: convID, Role: "assistant", Content: resp.Content, ToolCalls: resp.ToolCalls,
+		}); err != nil {
 			return nil, fmt.Errorf("store assistant tool_calls message: %w", err)
 		}
 
 		// Add assistant message to history
 		history = append(history, llm.Message{
 			Role:      "assistant",
-			Content:   assistantMsg.Content,
-			ToolCalls: assistantMsg.ToolCalls,
+			Content:   resp.Content,
+			ToolCalls: resp.ToolCalls,
 		})
 
 		// Execute each tool call
-		for _, tc := range assistantMsg.ToolCalls {
+		for _, tc := range resp.ToolCalls {
 			toolsUsed = append(toolsUsed, tc.Function.Name)
 
 			log.Debug().Str("conversation", convID).Str("tool", tc.Function.Name).Str("call_id", tc.ID).Msg("calling MCP tool")
@@ -201,7 +191,9 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 			}
 
 			// Store tool result message
-			if _, err := s.createMessage(ctx, convUUID, sqlcdb.ChatRoleTool, resultContent, nil, tc.ID); err != nil {
+			if _, err := s.db.CreateMessage(ctx, CreateMessageParams{
+				ConversationID: convID, Role: "tool", Content: resultContent, ToolCallID: tc.ID,
+			}); err != nil {
 				return nil, fmt.Errorf("store tool result: %w", err)
 			}
 
@@ -216,7 +208,7 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 
 	// Auto-generate title for new conversations
 	if isNew && finalContent != "" {
-		go s.generateTitle(context.Background(), convUUID, message, finalContent)
+		go s.generateTitle(context.Background(), convID, message, finalContent)
 	}
 
 	log.Debug().Str("conversation", convID).Int("tools_used", len(toolsUsed)).Strs("tools", toolsUsed).Msg("maurice chat completed")
@@ -230,122 +222,72 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 }
 
 func (s *service) GetConversation(ctx context.Context, id string) (*Conversation, []*Message, error) {
-	uuid, err := parseUUID(id)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	conv, err := s.db.GetConversation(ctx, uuid)
+	conv, err := s.db.GetConversation(ctx, id)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get conversation: %w", err)
 	}
 
-	dbMsgs, err := s.db.GetMessagesByConversation(ctx, uuid)
+	msgs, err := s.db.GetMessages(ctx, id)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get messages: %w", err)
 	}
 
-	messages := make([]*Message, len(dbMsgs))
-	for i, m := range dbMsgs {
-		messages[i] = dbMessageToMessage(m)
-	}
-
-	return dbConvToConversation(conv), messages, nil
+	return conv, msgs, nil
 }
 
 func (s *service) ListConversations(ctx context.Context, limit int) ([]*Conversation, error) {
 	if limit <= 0 {
 		limit = s.maxHistory
 	}
-	convs, err := s.db.ListConversations(ctx, int32(limit))
-	if err != nil {
-		return nil, fmt.Errorf("list conversations: %w", err)
-	}
-
-	result := make([]*Conversation, len(convs))
-	for i, c := range convs {
-		result[i] = dbConvToConversation(c)
-	}
-	return result, nil
+	return s.db.ListConversations(ctx, limit)
 }
 
 func (s *service) DeleteConversation(ctx context.Context, id string) error {
-	uuid, err := parseUUID(id)
-	if err != nil {
-		return err
-	}
-	return s.db.DeleteConversation(ctx, uuid)
+	return s.db.DeleteConversation(ctx, id)
 }
 
-// resolveConversation returns the UUID for the conversation, creating a new one if needed.
-func (s *service) resolveConversation(ctx context.Context, conversationID *string) (pgtype.UUID, bool, error) {
+// resolveConversation returns the ID for the conversation, creating a new one if needed.
+func (s *service) resolveConversation(ctx context.Context, conversationID *string) (string, bool, error) {
 	if conversationID != nil {
-		uuid, err := parseUUID(*conversationID)
-		return uuid, false, err
+		return *conversationID, false, nil
 	}
-
-	conv, err := s.db.CreateConversation(ctx, pgtype.Text{})
+	conv, err := s.db.CreateConversation(ctx)
 	if err != nil {
-		return pgtype.UUID{}, false, fmt.Errorf("create conversation: %w", err)
+		return "", false, fmt.Errorf("create conversation: %w", err)
 	}
 	return conv.ID, true, nil
 }
 
-func (s *service) loadHistory(ctx context.Context, convID pgtype.UUID) ([]llm.Message, error) {
-	dbMsgs, err := s.db.GetMessagesByConversation(ctx, convID)
+func (s *service) loadHistory(ctx context.Context, convID string) ([]llm.Message, error) {
+	msgs, err := s.db.GetMessages(ctx, convID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Cap history
-	if len(dbMsgs) > s.maxHistory {
-		dbMsgs = dbMsgs[len(dbMsgs)-s.maxHistory:]
+	if len(msgs) > s.maxHistory {
+		msgs = msgs[len(msgs)-s.maxHistory:]
 	}
 
 	// System prompt + history messages
-	messages := make([]llm.Message, 0, len(dbMsgs)+1)
+	messages := make([]llm.Message, 0, len(msgs)+1)
 	messages = append(messages, llm.Message{Role: "system", Content: SystemPrompt})
 
-	for _, m := range dbMsgs {
-		msg := llm.Message{
-			Role:       string(m.Role),
+	for _, m := range msgs {
+		messages = append(messages, llm.Message{
+			Role:       m.Role,
 			Content:    m.Content,
-			ToolCallID: textToString(m.ToolCallID),
-		}
-		if len(m.ToolCalls) > 0 {
-			_ = json.Unmarshal(m.ToolCalls, &msg.ToolCalls)
-		}
-		messages = append(messages, msg)
+			ToolCallID: m.ToolCallID,
+			ToolCalls:  m.ToolCalls,
+		})
 	}
 
 	return messages, nil
 }
 
-func (s *service) createMessage(ctx context.Context, convID pgtype.UUID, role sqlcdb.ChatRole, content string, toolCalls []llm.ToolCall, toolCallID string) (sqlcdb.MauriceMessage, error) {
-	params := sqlcdb.CreateMessageParams{
-		ConversationID: convID,
-		Role:           role,
-		Content:        content,
-	}
-
-	if len(toolCalls) > 0 {
-		tc, err := json.Marshal(toolCalls)
-		if err != nil {
-			return sqlcdb.MauriceMessage{}, fmt.Errorf("marshal tool calls: %w", err)
-		}
-		params.ToolCalls = tc
-	}
-
-	if toolCallID != "" {
-		params.ToolCallID = pgtype.Text{String: toolCallID, Valid: true}
-	}
-
-	return s.db.CreateMessage(ctx, params)
-}
-
 // generateTitle asks the LLM to create a short title for the conversation.
-func (s *service) generateTitle(ctx context.Context, convID pgtype.UUID, userMsg, assistantMsg string) {
-	req := &llm.ChatCompletionRequest{
+func (s *service) generateTitle(ctx context.Context, convID, userMsg, assistantMsg string) {
+	req := &llm.Request{
 		Messages: []llm.Message{
 			{Role: "user", Content: userMsg},
 			{Role: "assistant", Content: assistantMsg},
@@ -354,62 +296,20 @@ func (s *service) generateTitle(ctx context.Context, convID pgtype.UUID, userMsg
 		MaxTokens: 20,
 	}
 
-	resp, err := s.llmClient.ChatCompletion(ctx, req)
+	resp, err := s.llmClient.Complete(ctx, req)
 	if err != nil {
 		log.Warn().Err(err).Msg("failed to generate conversation title")
 		return
 	}
 
-	title := resp.FirstContent()
+	title := resp.Content
 	if title == "" {
 		return
 	}
 
-	err = s.db.UpdateConversationTitle(ctx, sqlcdb.UpdateConversationTitleParams{
-		ID:    convID,
-		Title: pgtype.Text{String: title, Valid: true},
-	})
-	if err != nil {
+	if err := s.db.UpdateConversationTitle(ctx, convID, title); err != nil {
 		log.Warn().Err(err).Msg("failed to update conversation title")
 	}
-}
-
-// Helper conversions
-
-func parseUUID(s string) (pgtype.UUID, error) {
-	var uuid pgtype.UUID
-	if err := uuid.Scan(s); err != nil {
-		return pgtype.UUID{}, fmt.Errorf("invalid UUID %q: %w", s, err)
-	}
-	return uuid, nil
-}
-
-func uuidToString(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-}
-
-func textToString(t pgtype.Text) string {
-	if !t.Valid {
-		return ""
-	}
-	return t.String
-}
-
-func dbConvToConversation(c sqlcdb.MauriceConversation) *Conversation {
-	conv := &Conversation{
-		ID:        uuidToString(c.ID),
-		CreatedAt: c.CreatedAt.Time,
-		UpdatedAt: c.UpdatedAt.Time,
-	}
-	if c.Title.Valid {
-		conv.Title = &c.Title.String
-	}
-	return conv
 }
 
 // Logging helpers
@@ -426,29 +326,15 @@ func truncateLog(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
-func logLLMResponse(convID string, round int, resp *llm.ChatCompletionResponse) {
+func logLLMResponse(convID string, round int, resp *llm.Response) {
 	evt := log.Debug().Str("conversation", convID).Int("round", round)
 	if resp.Usage != nil {
 		evt = evt.Int("prompt_tokens", resp.Usage.PromptTokens).
 			Int("completion_tokens", resp.Usage.CompletionTokens).
 			Int("total_tokens", resp.Usage.TotalTokens)
 	}
-	if len(resp.Choices) > 0 {
-		evt = evt.Str("finish_reason", resp.Choices[0].FinishReason)
+	if resp.FinishReason != "" {
+		evt = evt.Str("finish_reason", resp.FinishReason)
 	}
 	evt.Str("model", resp.Model).Msg("LLM response received")
-}
-
-func dbMessageToMessage(m sqlcdb.MauriceMessage) *Message {
-	msg := &Message{
-		ID:         uuidToString(m.ID),
-		Role:       string(m.Role),
-		Content:    m.Content,
-		ToolCallID: textToString(m.ToolCallID),
-		CreatedAt:  m.CreatedAt.Time,
-	}
-	if len(m.ToolCalls) > 0 {
-		_ = json.Unmarshal(m.ToolCalls, &msg.ToolCalls)
-	}
-	return msg
 }

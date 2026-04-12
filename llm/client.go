@@ -14,24 +14,24 @@ import (
 
 const httpTimeout = 120 * time.Second
 
-// Client sends chat completion requests to an OpenAI-compatible API.
+// Client sends completion requests to an LLM provider.
 type Client interface {
-	ChatCompletion(ctx context.Context, req *ChatCompletionRequest) (*ChatCompletionResponse, error)
+	Complete(ctx context.Context, req *Request) (*Response, error)
 }
 
-// httpClient implements Client using net/http.
-type httpClient struct {
+// openaiClient implements Client for OpenAI-compatible APIs (OpenAI, Ollama, etc).
+type openaiClient struct {
 	baseURL    string
 	apiKey     string
 	model      string
 	httpClient *http.Client
 }
 
-// NewClient creates an LLM client targeting an OpenAI-compatible endpoint.
+// NewOpenAIClient creates an LLM client targeting an OpenAI-compatible endpoint.
 // baseURL should include the scheme and host (e.g. "http://localhost:11434/v1").
 // apiKey may be empty for local providers like Ollama.
-func NewClient(baseURL, apiKey, model string) Client {
-	return &httpClient{
+func NewOpenAIClient(baseURL, apiKey, model string) Client {
+	return &openaiClient{
 		baseURL: baseURL,
 		apiKey:  apiKey,
 		model:   model,
@@ -41,11 +41,41 @@ func NewClient(baseURL, apiKey, model string) Client {
 	}
 }
 
-func (c *httpClient) ChatCompletion(ctx context.Context, req *ChatCompletionRequest) (*ChatCompletionResponse, error) {
-	req.Model = c.model
-	req.Stream = false
+// openaiRequest is the wire format for OpenAI /v1/chat/completions.
+type openaiRequest struct {
+	Model       string    `json:"model"`
+	Messages    []Message `json:"messages"`
+	Tools       []Tool    `json:"tools,omitempty"`
+	MaxTokens   int       `json:"max_tokens,omitempty"`
+	Temperature *float64  `json:"temperature,omitempty"`
+	Stream      bool      `json:"stream"`
+}
 
-	body, err := json.Marshal(req)
+// openaiResponse is the wire format for OpenAI /v1/chat/completions response.
+type openaiResponse struct {
+	ID      string         `json:"id"`
+	Model   string         `json:"model"`
+	Choices []openaiChoice `json:"choices"`
+	Usage   *Usage         `json:"usage,omitempty"`
+}
+
+type openaiChoice struct {
+	Index        int     `json:"index"`
+	Message      Message `json:"message"`
+	FinishReason string  `json:"finish_reason"`
+}
+
+func (c *openaiClient) Complete(ctx context.Context, req *Request) (*Response, error) {
+	wireReq := openaiRequest{
+		Model:       c.model,
+		Messages:    req.Messages,
+		Tools:       req.Tools,
+		MaxTokens:   req.MaxTokens,
+		Temperature: req.Temperature,
+		Stream:      false,
+	}
+
+	body, err := json.Marshal(wireReq)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
@@ -84,12 +114,26 @@ func (c *httpClient) ChatCompletion(ctx context.Context, req *ChatCompletionRequ
 		return nil, fmt.Errorf("LLM API error (status %d): %s", resp.StatusCode, truncate(respBody, 500))
 	}
 
-	var result ChatCompletionResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
+	var wireResp openaiResponse
+	if err := json.Unmarshal(respBody, &wireResp); err != nil {
 		return nil, fmt.Errorf("unmarshal response: %w", err)
 	}
 
-	return &result, nil
+	return wireResp.toResponse(), nil
+}
+
+func (r *openaiResponse) toResponse() *Response {
+	resp := &Response{
+		ID:    r.ID,
+		Model: r.Model,
+		Usage: r.Usage,
+	}
+	if len(r.Choices) > 0 {
+		resp.Content = r.Choices[0].Message.Content
+		resp.ToolCalls = r.Choices[0].Message.ToolCalls
+		resp.FinishReason = r.Choices[0].FinishReason
+	}
+	return resp
 }
 
 func truncate(b []byte, maxLen int) string {

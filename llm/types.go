@@ -2,23 +2,22 @@ package llm
 
 import "encoding/json"
 
-// ChatCompletionRequest is the OpenAI-compatible request body for /v1/chat/completions.
-type ChatCompletionRequest struct {
-	Model       string    `json:"model"`
+// Request is a provider-neutral LLM completion request.
+// Provider-specific fields (model, stream) are set by the client implementation.
+type Request struct {
 	Messages    []Message `json:"messages"`
 	Tools       []Tool    `json:"tools,omitempty"`
 	MaxTokens   int       `json:"max_tokens,omitempty"`
 	Temperature *float64  `json:"temperature,omitempty"`
-	Stream      bool      `json:"stream"`
 }
 
-// Message represents a single chat message in the OpenAI format.
+// Message represents a single chat message.
 type Message struct {
-	Role       string          `json:"role"`
-	Content    string          `json:"content"`
-	ToolCalls  []ToolCall      `json:"tool_calls,omitempty"`
-	ToolCallID string          `json:"tool_call_id,omitempty"`
-	Name       string          `json:"name,omitempty"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+	Name       string     `json:"name,omitempty"`
 }
 
 // Tool describes a function tool the model can call.
@@ -47,21 +46,15 @@ type ToolCallFunction struct {
 	Arguments string `json:"arguments"`
 }
 
-// ChatCompletionResponse is the OpenAI-compatible response from /v1/chat/completions.
-type ChatCompletionResponse struct {
-	ID      string   `json:"id"`
-	Object  string   `json:"object"`
-	Created int64    `json:"created"`
-	Model   string   `json:"model"`
-	Choices []Choice `json:"choices"`
-	Usage   *Usage   `json:"usage,omitempty"`
-}
-
-// Choice represents one completion choice.
-type Choice struct {
-	Index        int     `json:"index"`
-	Message      Message `json:"message"`
-	FinishReason string  `json:"finish_reason"`
+// Response is a provider-neutral LLM completion response.
+// Flattened — no Choice wrapper since we always use index 0.
+type Response struct {
+	ID           string     `json:"id"`
+	Model        string     `json:"model"`
+	Content      string     `json:"content"`
+	ToolCalls    []ToolCall `json:"tool_calls,omitempty"`
+	FinishReason string     `json:"finish_reason"`
+	Usage        *Usage     `json:"usage,omitempty"`
 }
 
 // Usage reports token consumption.
@@ -71,23 +64,7 @@ type Usage struct {
 	TotalTokens      int `json:"total_tokens"`
 }
 
-// HasToolCalls returns true if the first choice contains tool calls.
-func (r *ChatCompletionResponse) HasToolCalls() bool {
-	return len(r.Choices) > 0 && len(r.Choices[0].Message.ToolCalls) > 0
-}
-
-// FirstContent returns the content of the first choice, or empty string.
-func (r *ChatCompletionResponse) FirstContent() string {
-	if len(r.Choices) == 0 {
-		return ""
-	}
-	return r.Choices[0].Message.Content
-}
-
-// FirstToolCalls returns the tool calls from the first choice, or nil.
-func (r *ChatCompletionResponse) FirstToolCalls() []ToolCall {
-	if len(r.Choices) == 0 {
-		return nil
-	}
-	return r.Choices[0].Message.ToolCalls
+// HasToolCalls returns true if the response contains tool calls.
+func (r *Response) HasToolCalls() bool {
+	return len(r.ToolCalls) > 0
 }

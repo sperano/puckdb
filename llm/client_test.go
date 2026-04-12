@@ -11,23 +11,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestChatCompletion_Success(t *testing.T) {
+func TestComplete_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/chat/completions", r.URL.Path)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
-		var req ChatCompletionRequest
+		var req openaiRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 		assert.Equal(t, "test-model", req.Model)
 		assert.False(t, req.Stream)
 		assert.Len(t, req.Messages, 1)
 		assert.Equal(t, "user", req.Messages[0].Role)
 
-		resp := ChatCompletionResponse{
+		resp := openaiResponse{
 			ID:    "chatcmpl-123",
 			Model: "test-model",
-			Choices: []Choice{
+			Choices: []openaiChoice{
 				{
 					Index:        0,
 					Message:      Message{Role: "assistant", Content: "Hello!"},
@@ -40,20 +40,20 @@ func TestChatCompletion_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "", "test-model")
-	resp, err := client.ChatCompletion(context.Background(), &ChatCompletionRequest{
+	client := NewOpenAIClient(server.URL, "", "test-model")
+	resp, err := client.Complete(context.Background(), &Request{
 		Messages: []Message{{Role: "user", Content: "Hi"}},
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "Hello!", resp.FirstContent())
+	assert.Equal(t, "Hello!", resp.Content)
 	assert.False(t, resp.HasToolCalls())
 }
 
-func TestChatCompletion_WithToolCalls(t *testing.T) {
+func TestComplete_WithToolCalls(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := ChatCompletionResponse{
-			Choices: []Choice{
+		resp := openaiResponse{
+			Choices: []openaiChoice{
 				{
 					Message: Message{
 						Role: "assistant",
@@ -76,59 +76,58 @@ func TestChatCompletion_WithToolCalls(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "", "test-model")
-	resp, err := client.ChatCompletion(context.Background(), &ChatCompletionRequest{
+	client := NewOpenAIClient(server.URL, "", "test-model")
+	resp, err := client.Complete(context.Background(), &Request{
 		Messages: []Message{{Role: "user", Content: "Show me players"}},
 	})
 
 	require.NoError(t, err)
 	assert.True(t, resp.HasToolCalls())
-	calls := resp.FirstToolCalls()
-	require.Len(t, calls, 1)
-	assert.Equal(t, "pg_read_query", calls[0].Function.Name)
+	require.Len(t, resp.ToolCalls, 1)
+	assert.Equal(t, "pg_read_query", resp.ToolCalls[0].Function.Name)
 }
 
-func TestChatCompletion_APIKeyHeader(t *testing.T) {
+func TestComplete_APIKeyHeader(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer sk-test-key", r.Header.Get("Authorization"))
-		json.NewEncoder(w).Encode(ChatCompletionResponse{
-			Choices: []Choice{{Message: Message{Content: "ok"}}},
+		json.NewEncoder(w).Encode(openaiResponse{
+			Choices: []openaiChoice{{Message: Message{Content: "ok"}}},
 		})
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "sk-test-key", "model")
-	_, err := client.ChatCompletion(context.Background(), &ChatCompletionRequest{
+	client := NewOpenAIClient(server.URL, "sk-test-key", "model")
+	_, err := client.Complete(context.Background(), &Request{
 		Messages: []Message{{Role: "user", Content: "test"}},
 	})
 	require.NoError(t, err)
 }
 
-func TestChatCompletion_NoAPIKeyHeader(t *testing.T) {
+func TestComplete_NoAPIKeyHeader(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Empty(t, r.Header.Get("Authorization"))
-		json.NewEncoder(w).Encode(ChatCompletionResponse{
-			Choices: []Choice{{Message: Message{Content: "ok"}}},
+		json.NewEncoder(w).Encode(openaiResponse{
+			Choices: []openaiChoice{{Message: Message{Content: "ok"}}},
 		})
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "", "model")
-	_, err := client.ChatCompletion(context.Background(), &ChatCompletionRequest{
+	client := NewOpenAIClient(server.URL, "", "model")
+	_, err := client.Complete(context.Background(), &Request{
 		Messages: []Message{{Role: "user", Content: "test"}},
 	})
 	require.NoError(t, err)
 }
 
-func TestChatCompletion_ErrorStatus(t *testing.T) {
+func TestComplete_ErrorStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		w.Write([]byte(`{"error":"rate limited"}`))
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "", "model")
-	_, err := client.ChatCompletion(context.Background(), &ChatCompletionRequest{
+	client := NewOpenAIClient(server.URL, "", "model")
+	_, err := client.Complete(context.Background(), &Request{
 		Messages: []Message{{Role: "user", Content: "test"}},
 	})
 
@@ -136,14 +135,14 @@ func TestChatCompletion_ErrorStatus(t *testing.T) {
 	assert.Contains(t, err.Error(), "status 429")
 }
 
-func TestChatCompletion_MalformedJSON(t *testing.T) {
+func TestComplete_MalformedJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{invalid json`))
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "", "model")
-	_, err := client.ChatCompletion(context.Background(), &ChatCompletionRequest{
+	client := NewOpenAIClient(server.URL, "", "model")
+	_, err := client.Complete(context.Background(), &Request{
 		Messages: []Message{{Role: "user", Content: "test"}},
 	})
 
@@ -151,40 +150,36 @@ func TestChatCompletion_MalformedJSON(t *testing.T) {
 	assert.Contains(t, err.Error(), "unmarshal")
 }
 
-func TestChatCompletion_Timeout(t *testing.T) {
+func TestComplete_Timeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Don't respond — let context cancel
 		<-r.Context().Done()
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "", "model")
+	client := NewOpenAIClient(server.URL, "", "model")
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately
+	cancel()
 
-	_, err := client.ChatCompletion(ctx, &ChatCompletionRequest{
+	_, err := client.Complete(ctx, &Request{
 		Messages: []Message{{Role: "user", Content: "test"}},
 	})
 	require.Error(t, err)
 }
 
-func TestChatCompletion_SetsModelAndStream(t *testing.T) {
+func TestComplete_SetsModelAndStream(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req ChatCompletionRequest
+		var req openaiRequest
 		json.NewDecoder(r.Body).Decode(&req)
-		// Verify the client overrides model and stream
 		assert.Equal(t, "override-model", req.Model)
 		assert.False(t, req.Stream)
-		json.NewEncoder(w).Encode(ChatCompletionResponse{
-			Choices: []Choice{{Message: Message{Content: "ok"}}},
+		json.NewEncoder(w).Encode(openaiResponse{
+			Choices: []openaiChoice{{Message: Message{Content: "ok"}}},
 		})
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "", "override-model")
-	_, err := client.ChatCompletion(context.Background(), &ChatCompletionRequest{
-		Model:    "should-be-overridden",
-		Stream:   true, // should be forced to false
+	client := NewOpenAIClient(server.URL, "", "override-model")
+	_, err := client.Complete(context.Background(), &Request{
 		Messages: []Message{{Role: "user", Content: "test"}},
 	})
 	require.NoError(t, err)

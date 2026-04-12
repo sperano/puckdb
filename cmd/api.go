@@ -214,8 +214,8 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 	mcpURL := viper.GetString(config.FlagMauriceMCPURL)
 	mcpClient := mcppkg.NewClient(mcpURL)
 
-	// Create LLM client
-	llmClient := llm.NewClient(
+	// Create LLM client (auto-detects provider from key/URL)
+	llmClient := llm.NewClientForProvider(
 		baseURL,
 		viper.GetString(config.FlagMauriceAPIKey),
 		viper.GetString(config.FlagMauriceModel),
@@ -225,7 +225,7 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 	svc := maurice.NewService(
 		llmClient,
 		mcpClient,
-		sqlcdb.New(pool),
+		maurice.NewPgDB(sqlcdb.New(pool)),
 		viper.GetInt(config.FlagMauriceMaxHistory),
 		viper.GetInt(config.FlagMauriceMaxTokens),
 	)
