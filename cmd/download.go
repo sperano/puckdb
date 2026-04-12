@@ -205,17 +205,21 @@ func renderProgressGroup(g *model.ProgressGroup) string {
 		return "✓ " + g.CompletedMsg
 	}
 
-	// Single bar: no label
+	// Single bar: show label if present
 	if len(g.Bars) == 1 {
 		b := g.Bars[0]
 		// Skip progress bar when total is 1 - just show header with spinner
 		if b.Total <= 1 {
 			return fmt.Sprintf("%s %s", SpinnerPlaceholder, g.Header)
 		}
+		label := ""
+		if b.Label != nil {
+			label = *b.Label
+		}
 		pct := float64(b.Current) / float64(b.Total) * 100
 		bar := renderProgressBar(pct, progressBarWidth())
 		return fmt.Sprintf("▶ %s\n%s %s %s %d%%",
-			g.Header, SpinnerPlaceholder, formatLabelArea("", b.Current, b.Total), bar, int(pct))
+			g.Header, SpinnerPlaceholder, formatLabelArea(label, b.Current, b.Total), bar, int(pct))
 	}
 
 	// Multi-bar: with labels and total line
