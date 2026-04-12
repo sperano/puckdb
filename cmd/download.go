@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/spf13/viper"
+	"golang.org/x/term"
 )
 
 func buildSeasonsInput() *model.SeasonsInput {
@@ -126,6 +128,22 @@ func formatYahooTokenWarning(loginURL string) string {
 	return fmt.Sprintf("\033[38;5;196m⚠ No Yahoo token — visit %s\033[0m", loginURL)
 }
 
+// progressBarWidth returns the inner bar width sized to fill the terminal.
+// Falls back to DefaultProgressBarWidth if the terminal size is unavailable.
+// The result is snapped to a multiple of 8 for clean gradient segments.
+func progressBarWidth() int {
+	w, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || w <= 0 {
+		return config.DefaultProgressBarWidth
+	}
+	barW := w - config.ProgressLineOverhead
+	barW = (barW / colorThemePaletteSize) * colorThemePaletteSize // snap to multiple of 8
+	if barW < config.MinProgressBarWidth {
+		barW = config.MinProgressBarWidth
+	}
+	return barW
+}
+
 func renderProgressBar(pct float64, width int) string {
 	filled := int(pct / 100.0 * float64(width))
 	if filled > width {
@@ -195,7 +213,7 @@ func renderProgressGroup(g *model.ProgressGroup) string {
 			return fmt.Sprintf("%s %s", SpinnerPlaceholder, g.Header)
 		}
 		pct := float64(b.Current) / float64(b.Total) * 100
-		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
+		bar := renderProgressBar(pct, progressBarWidth())
 		return fmt.Sprintf("▶ %s\n%s %s %s %d%%",
 			g.Header, SpinnerPlaceholder, formatLabelArea("", b.Current, b.Total), bar, int(pct))
 	}
@@ -228,7 +246,7 @@ func renderMultiBarGroup(g *model.ProgressGroup) string {
 		if b.Total > 0 {
 			pct = float64(b.Current) / float64(b.Total) * 100
 		}
-		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
+		bar := renderProgressBar(pct, progressBarWidth())
 		lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
 			SpinnerPlaceholder, formatLabelArea(label, b.Current, b.Total), bar, int(pct)))
 	}
@@ -236,7 +254,7 @@ func renderMultiBarGroup(g *model.ProgressGroup) string {
 	// Total line
 	if totalTotal > 0 {
 		pct := float64(totalCurrent) / float64(totalTotal) * 100
-		bar := renderProgressBar(pct, config.DefaultProgressBarWidth)
+		bar := renderProgressBar(pct, progressBarWidth())
 		lines = append(lines, fmt.Sprintf("  %s %s %d%%",
 			formatLabelArea("Total", totalCurrent, totalTotal), bar, int(pct)))
 	}

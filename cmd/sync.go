@@ -207,12 +207,15 @@ type workflowRunner struct {
 // newThemedSpinner creates a spinner with the user's configured color theme and starts it.
 func newThemedSpinner(out io.Writer) *spinner {
 	sp := newSpinner(out, "Starting...")
-	if theme := viper.GetString(config.FlagTheme); theme != "" {
-		sp.SetColorTheme(theme)
-	} else if viper.GetBool(config.FlagRandomThemes) {
-		sp.SetRandomLineThemes()
-	} else if viper.GetBool(config.FlagRandomTheme) {
+	switch theme := viper.GetString(config.FlagTheme); theme {
+	case "":
+		// no theme
+	case ThemeRandom:
 		sp.SetRandomTheme()
+	case ThemeRandomEach:
+		sp.SetRandomLineThemes()
+	default:
+		sp.SetColorTheme(theme)
 	}
 	sp.Start()
 	return sp

@@ -134,8 +134,10 @@ const (
 // UI defaults
 const (
 	DefaultSpinnerInterval  = 125 * time.Millisecond
-	DefaultProgressBarWidth = 80 // Inner width of progress bar (adds 2 for brackets)
+	DefaultProgressBarWidth = 80 // Fallback inner width when terminal size is unavailable
+	MinProgressBarWidth     = 24 // Minimum inner width (3 gradient segments)
 	ProgressLabelAreaWidth  = 17 // Fixed width for label + x/y area (x/y right-aligned within)
+	ProgressLineOverhead    = 27 // Non-bar chars per line: spinner/indent(2) + labelArea(17) + brackets(2) + spaces(2) + pct(4)
 )
 
 // Database operations defaults

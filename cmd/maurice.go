@@ -26,6 +26,25 @@ const (
 	mauriceDBFile    = "maurice.db"
 )
 
+type modelSuggestion struct {
+	id          string
+	description string
+}
+
+var mauriceModelSuggestions = []modelSuggestion{
+	// Anthropic
+	{"claude-sonnet-4-20250514", "Anthropic — fast, strong reasoning"},
+	{"claude-opus-4-20250514", "Anthropic — highest capability"},
+	// OpenAI
+	{"gpt-4o", "OpenAI — fast multimodal"},
+	{"o3-mini", "OpenAI — efficient reasoning"},
+	// Ollama (local)
+	{"qwen3:32b", "Ollama — strong local model"},
+	{"qwen3:8b", "Ollama — fast local model"},
+	{"llama4:scout", "Ollama — Meta Scout"},
+	{"deepseek-r1:32b", "Ollama — reasoning"},
+}
+
 func cmdMaurice() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "maurice",
@@ -72,29 +91,29 @@ func runMaurice(cmd *cobra.Command) error {
 	mcpClient := mcppkg.NewClient(mcpURL)
 	defer mcpClient.Close()
 
-	llmClient := llm.NewClientForProvider(
-		baseURL,
-		viper.GetString(config.FlagMauriceAPIKey),
-		viper.GetString(config.FlagMauriceModel),
-	)
+	apiKey := viper.GetString(config.FlagMauriceAPIKey)
+	maxHistory := viper.GetInt(config.FlagMauriceMaxHistory)
+	maxTokens := viper.GetInt(config.FlagMauriceMaxTokens)
+	model := viper.GetString(config.FlagMauriceModel)
 
-	svc := maurice.NewService(
-		llmClient,
-		mcpClient,
-		db,
-		viper.GetInt(config.FlagMauriceMaxHistory),
-		viper.GetInt(config.FlagMauriceMaxTokens),
-	)
+	buildService := func(m string) maurice.Service {
+		return maurice.NewService(
+			llm.NewClientForProvider(baseURL, apiKey, m),
+			mcpClient, db, maxHistory, maxTokens,
+		)
+	}
+
+	svc := buildService(model)
 
 	log.Info().
 		Str("base_url", baseURL).
-		Str("model", viper.GetString(config.FlagMauriceModel)).
+		Str("model", model).
 		Str("mcp_url", mcpURL).
 		Str("db", dbPath).
 		Msg("Maurice initialized")
 
 	fmt.Println("Maurice — Hockey AI Chat")
-	fmt.Println("Type /quit to exit, /new for new conversation, /history to list, /load <id> to resume")
+	fmt.Println("Type /quit to exit, /new for new conversation, /history to list, /load <id> to resume, /model [name] to switch")
 	fmt.Println()
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -137,6 +156,26 @@ func runMaurice(cmd *cobra.Command) error {
 				}
 				fmt.Printf("  %s  %s  %s\n", c.ID, c.UpdatedAt.Format("2006-01-02 15:04"), title)
 			}
+			continue
+
+		case input == "/model" || strings.HasPrefix(input, "/model "):
+			newModel := strings.TrimSpace(strings.TrimPrefix(input, "/model"))
+			if newModel == "" {
+				fmt.Printf("Current model: %s\n\n", model)
+				fmt.Println("Suggestions:")
+				for _, s := range mauriceModelSuggestions {
+					marker := "  "
+					if s.id == model {
+						marker = "* "
+					}
+					fmt.Printf("  %s%-36s  %s\n", marker, s.id, s.description)
+				}
+				fmt.Println("\nUsage: /model <model-id>")
+				continue
+			}
+			model = newModel
+			svc = buildService(model)
+			fmt.Printf("Switched to model: %s\n", model)
 			continue
 
 		case strings.HasPrefix(input, "/load "):

@@ -173,9 +173,9 @@ func TestSpinner_DoubleCancel(t *testing.T) {
 func TestSpinner_ColorTheme(t *testing.T) {
 	var buf bytes.Buffer
 	sp := newSpinner(&buf, "Test")
-	ok := sp.SetColorTheme("coral")
+	ok := sp.SetColorTheme(ThemeTeal)
 	if !ok {
-		t.Fatal("expected SetColorTheme to return true for 'coral'")
+		t.Fatal("expected SetColorTheme to return true for 'teal'")
 	}
 
 	sp.Start()
@@ -195,7 +195,7 @@ func TestSpinner_ColorTheme(t *testing.T) {
 
 func TestSpinner_ColorThemeInvalid(t *testing.T) {
 	sp := newSpinner(&bytes.Buffer{}, "Test")
-	ok := sp.SetColorTheme("nonexistent")
+	ok := sp.SetColorTheme("nonexistent") //nolint:goconst
 	if ok {
 		t.Error("expected SetColorTheme to return false for unknown theme")
 	}
@@ -206,18 +206,18 @@ func TestSpinner_ColorThemeInvalid(t *testing.T) {
 
 func TestSpinner_ColorThemePaletteCycles(t *testing.T) {
 	sp := newSpinner(&bytes.Buffer{}, "Test")
-	sp.SetColorTheme("coral")
+	sp.SetColorTheme(ThemeTeal)
 
-	// Verify each frame index maps to the expected palette shade
+	// Verify each frame index maps to the expected palette shade (teal: 23,30,37,44,51,87,123,159)
 	expected := [colorThemePaletteSize]string{
-		"\033[38;5;131m⠋\033[0m", // darkest
-		"\033[38;5;167m⠙\033[0m",
-		"\033[38;5;168m⠹\033[0m",
-		"\033[38;5;203m⠸\033[0m",
-		"\033[38;5;204m⠼\033[0m",
-		"\033[38;5;209m⠴\033[0m",
-		"\033[38;5;210m⠦\033[0m",
-		"\033[38;5;216m⠧\033[0m", // brightest
+		"\033[38;5;23m⠋\033[0m",  // darkest
+		"\033[38;5;30m⠙\033[0m",
+		"\033[38;5;37m⠹\033[0m",
+		"\033[38;5;44m⠸\033[0m",
+		"\033[38;5;51m⠼\033[0m",
+		"\033[38;5;87m⠴\033[0m",
+		"\033[38;5;123m⠦\033[0m",
+		"\033[38;5;159m⠧\033[0m", // brightest
 	}
 	palette := sp.colorTheme
 	for i, want := range expected {
@@ -229,7 +229,7 @@ func TestSpinner_ColorThemePaletteCycles(t *testing.T) {
 
 	// Verify it wraps around (frame 8 → shade 0)
 	got := colorize(sp.frames[8], 8, palette)
-	if got != "\033[38;5;131m⠇\033[0m" { // wraps back to darkest shade
+	if got != "\033[38;5;23m⠇\033[0m" { // wraps back to darkest shade
 		t.Errorf("frame 8 (wrap): got %q, want dark shade", got)
 	}
 }

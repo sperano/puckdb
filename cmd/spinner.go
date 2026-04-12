@@ -25,20 +25,24 @@ func init() {
 // colorThemePaletteSize is the number of shades in each color theme (dark to light).
 const colorThemePaletteSize = 8
 
+// Theme name constants.
+const (
+	ThemeBlue       = "blue"
+	ThemeRed        = "red"
+	ThemeGreen      = "green"
+	ThemeTeal       = "teal"
+	ThemePurple     = "purple"
+	ThemeRandom     = "random"
+	ThemeRandomEach = "random-each"
+)
+
 // colorThemes maps theme names to 8-shade ANSI 256-color palettes (dark to light).
 var colorThemes = map[string][colorThemePaletteSize]int{
-	"red":    {52, 88, 124, 131, 160, 196, 203, 210},
-	"green":  {22, 28, 34, 40, 41, 77, 84, 120},
-	"blue":   {17, 18, 19, 25, 26, 32, 68, 117},
-	"purple": {53, 54, 55, 91, 129, 134, 170, 177},
-	"teal":   {23, 29, 30, 36, 37, 43, 44, 80},
-	"orange": {130, 136, 166, 172, 202, 208, 214, 215},
-	"silver": {240, 243, 245, 248, 250, 252, 254, 231},
-	"cyan":   {24, 25, 31, 32, 38, 39, 45, 51},
-	"yellow": {58, 94, 100, 136, 142, 178, 214, 220},
-	"pink":   {89, 125, 126, 162, 197, 198, 211, 218},
-	"coral":  {131, 167, 168, 203, 204, 209, 210, 216},
-	"lime":   {22, 28, 64, 70, 76, 112, 118, 154},
+	ThemeBlue:   {17, 19, 21, 27, 33, 39, 45, 51},       // navy → cyan
+	ThemeRed:    {88, 124, 160, 196, 202, 208, 214, 220}, // crimson → gold
+	ThemeGreen:  {22, 28, 34, 40, 46, 82, 118, 154},      // dark green → chartreuse
+	ThemeTeal:   {23, 30, 37, 44, 51, 87, 123, 159},      // dark teal → pale aqua
+	ThemePurple: {53, 90, 127, 164, 201, 207, 213, 219},  // purple → pink
 }
 
 // SpinnerPlaceholder is replaced with the current spinner frame when rendering.
