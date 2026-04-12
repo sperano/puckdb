@@ -20,20 +20,41 @@ import (
 
 func cmdSync() *cobra.Command {
 	var cmd = &cobra.Command{
-		Use:   "sync",
+		Use:   "sync [steps...]",
 		Short: "Sync data into the database",
-		Long:  `Trigger sync workflows via GraphQL API and monitor until completion.`,
+		Long: `Trigger sync workflows via GraphQL API and monitor until completion.
+
+With no arguments, all steps run. Specify step names to run only those steps.
+
+Steps (in execution order):
+  init                       Initialize franchises, seasons, league structure
+  yahoo-players              Fetch Yahoo! players
+  fetch-seasons              Download NHL schedules, boxscores, Yahoo! fantasy
+  extract-boxscore-players   Extract boxscore players to Redis
+  fetch-player-landings      Fetch player landing pages from NHL API
+  fetch-player-logs          Download player game logs
+  process-players            Process players (download + import)
+  import-seasons             Import seasons into the database
+  import-player-logs         Import player game logs into the database
+
+Groups (expand to multiple steps):
+  seasons                    fetch-seasons + import-seasons
+  players                    yahoo-players + all player steps + import-player-logs`,
+		ValidArgsFunction: func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+			completions := make([]string, 0, len(config.AllSyncSteps)+len(config.SyncStepGroups))
+			completions = append(completions, config.AllSyncSteps...)
+			for group := range config.SyncStepGroups {
+				completions = append(completions, group)
+			}
+			return completions, cobra.ShellCompDirectiveNoFileComp
+		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// Check which logging flags were explicitly set before binding
 			logLevelChanged := cmd.Flags().Changed(config.FlagLogLevel)
 			logFileChanged := cmd.Flags().Changed(config.FlagLogFile)
-			if err := syncInit(cmd, logLevelChanged, logFileChanged); err != nil {
-				return err
-			}
-			return nil
+			return syncInit(cmd, logLevelChanged, logFileChanged)
 		},
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := runSync(cmd, nil); err != nil {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := runSync(cmd, args); err != nil {
 				_, _ = fmt.Fprintln(os.Stderr, err.Error())
 				return err
 			}
@@ -44,7 +65,7 @@ func cmdSync() *cobra.Command {
 	config.InitFlags(flags,
 		&config.SeasonRangeFlags,
 		&config.SeasonConcurrencyFlags,
-		&config.SyncSkipFlags,
+		&config.SyncBehaviorFlags,
 		&config.SpinnerFlags,
 	)
 	return cmd
@@ -61,7 +82,7 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 	if err := config.BindFlags(flags,
 		&config.SeasonRangeFlags,
 		&config.SeasonConcurrencyFlags,
-		&config.SyncSkipFlags,
+		&config.SyncBehaviorFlags,
 		&config.SpinnerFlags,
 	); err != nil {
 		return err
@@ -91,6 +112,11 @@ func runSync(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("api-server-addr is required")
 	}
 
+	steps, err := config.ParseSyncSteps(args)
+	if err != nil {
+		return err
+	}
+
 	client := NewGraphQLClient(apiAddr)
 	state := &syncState{client: client}
 	out := cmd.OutOrStdout()
@@ -103,22 +129,15 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	go func() {
 		<-sigChan
-		// Cancel Temporal workflows first, while the active list is still
-		// populated. state.cancel() uses context.Background() so it doesn't
-		// need the parent context. Calling cancel() first would race:
-		// ctx.Done() unblocks monitorWorkflow → defer clearActive fires →
-		// state.cancel() sees an empty active list.
 		state.cancel()
 		cancel()
 	}()
 	defer signal.Stop(sigChan)
 
-	// Steps 1-3: Initialize + Yahoo players + Fetch seasons (in parallel)
+	// Parallel phase: init + yahoo-players + fetch-seasons
 	var parallelRunners []workflowRunner
 
-	if viper.GetBool(config.FlagSkipInit) {
-		fmt.Println("- Skipping initialization.")
-	} else {
+	if steps[config.StepInit] {
 		parallelRunners = append(parallelRunners, workflowRunner{
 			workflowType: workflowInitialize,
 			trigger:      func() (bool, error) { return client.Initialize(ctx) },
@@ -126,9 +145,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	if viper.GetBool(config.FlagSkipYahooPlayers) {
-		fmt.Println("- Skipping Yahoo players fetch.")
-	} else {
+	if steps[config.StepYahooPlayers] {
 		parallelRunners = append(parallelRunners, workflowRunner{
 			workflowType: workflowYahooPlayers,
 			trigger:      func() (bool, error) { return client.FetchYahooPlayers(ctx) },
@@ -136,9 +153,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	if viper.GetBool(config.FlagSkipFetchSeasons) {
-		fmt.Println("- Skipping seasons fetch.")
-	} else {
+	if steps[config.StepFetchSeasons] {
 		parallelRunners = append(parallelRunners, workflowRunner{
 			workflowType: workflowFetchSeasons,
 			trigger:      func() (bool, error) { return client.FetchSeasons(ctx, buildSeasonsInput()) },
@@ -156,31 +171,30 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Steps 4-9: workflow-driven sync phases
-	steps := []syncStep{
-		{config.FlagSkipExtractBoxscorePlayers, workflowExtractBoxscorePlayers, "boxscore players extraction",
+	// Sequential phase
+	seqSteps := []syncStep{
+		{config.StepExtractBoxscorePlayers, workflowExtractBoxscorePlayers, "boxscore players extraction",
 			func() (bool, error) { return client.ExtractBoxscorePlayers(ctx, buildSeasonsInput()) },
 			client.GetExtractBoxscorePlayersStatus},
-		{config.FlagSkipFetchPlayerLandings, workflowFetchPlayerLandings, "player landings fetch",
+		{config.StepFetchPlayerLandings, workflowFetchPlayerLandings, "player landings fetch",
 			func() (bool, error) { return client.FetchPlayerLandings(ctx, nil) },
 			client.GetFetchPlayerLandingsStatus},
-		{config.FlagSkipFetchPlayerLogs, workflowFetchPlayerLogs, "player logs fetch",
+		{config.StepFetchPlayerLogs, workflowFetchPlayerLogs, "player logs fetch",
 			func() (bool, error) { return client.FetchPlayerLogs(ctx, buildSeasonsInput()) },
 			client.GetFetchPlayerLogsStatus},
-		{config.FlagSkipProcessPlayers, workflowProcessPlayers, "players processing",
+		{config.StepProcessPlayers, workflowProcessPlayers, "players processing",
 			func() (bool, error) { return client.ProcessPlayers(ctx, nil) },
 			client.GetProcessPlayersStatus},
-		{config.FlagSkipImportSeasons, workflowImportSeasons, "seasons import",
+		{config.StepImportSeasons, workflowImportSeasons, "seasons import",
 			func() (bool, error) { return client.ImportSeasons(ctx, buildSeasonsInput()) },
 			client.GetImportSeasonsStatus},
-		{config.FlagSkipImportPlayerLogs, workflowImportPlayerLogs, "player logs import",
+		{config.StepImportPlayerLogs, workflowImportPlayerLogs, "player logs import",
 			func() (bool, error) { return client.ImportPlayerLogs(ctx, buildSeasonsInput()) },
 			client.GetImportPlayerLogsStatus},
 	}
 
-	for _, step := range steps {
-		if viper.GetBool(step.skipFlag) {
-			fmt.Printf("- Skipping %s.\n", step.label)
+	for _, step := range seqSteps {
+		if !steps[step.name] {
 			continue
 		}
 		runner := workflowRunner{
@@ -380,7 +394,7 @@ func monitorWorkflows(ctx context.Context, sp *spinner, fetchers []statusFetcher
 
 // syncStep defines a workflow-driven sync phase for the data-driven loop.
 type syncStep struct {
-	skipFlag  string
+	name      string
 	wt        workflowType
 	label     string
 	trigger   func() (bool, error)

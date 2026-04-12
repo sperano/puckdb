@@ -196,15 +196,6 @@ const (
 	FlagMaxSeasonConcurrency     = "max-season-concurrency"
 	FlagDayConcurrency           = "day-concurrency"
 	FlagSkipPreseason            = "skip-preseason"
-	FlagSkipProcessPlayers       = "skip-players"
-	FlagSkipYahooPlayers         = "skip-yahoo-players"
-	FlagSkipFetchSeasons           = "skip-fetch-seasons"
-	FlagSkipExtractBoxscorePlayers = "skip-extract-boxscore-players"
-	FlagSkipFetchPlayerLandings    = "skip-fetch-player-landings"
-	FlagSkipFetchPlayerLogs        = "skip-fetch-player-logs"
-	FlagSkipInit                   = "skip-init"
-	FlagSkipImportSeasons          = "skip-import-seasons"
-	FlagSkipImportPlayerLogs       = "skip-import-player-logs"
 	FlagRefreshCurrentPlayerLogs = "refresh-current-player-logs"
 	FlagSeasonConcurrency        = "season-concurrency"
 	FlagMonitor                  = "monitor"
@@ -399,19 +390,10 @@ var SeasonRangeFlags = FlagGroup{
 	},
 }
 
-// SyncSkipFlags defines sync workflow skip flags.
-var SyncSkipFlags = FlagGroup{
+// SyncBehaviorFlags defines non-step behavioral flags for sync.
+var SyncBehaviorFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagSkipInit, "I", false, "Skip the initialization workflow (franchises, seasons, league structure)", false},
-		{FlagSkipYahooPlayers, "Y", false, "Skip downloading Yahoo! players", false},
-		{FlagSkipFetchSeasons, "S", false, "Skip downloading season data (NHL schedules, boxscores, Yahoo! fantasy)", false},
-		{FlagSkipExtractBoxscorePlayers, "B", false, "Skip extracting boxscore players to Redis", false},
-		{FlagSkipFetchPlayerLandings, "N", false, "Skip fetching player landing pages from NHL API", false},
-		{FlagSkipFetchPlayerLogs, "G", false, "Skip downloading player game logs for historical seasons", false},
 		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the current season (overwrites cached files)", false},
-		{FlagSkipProcessPlayers, "P", false, "Skip processing players (download + import)", false},
-		{FlagSkipImportSeasons, "M", false, "Skip importing seasons into the database", false},
-		{FlagSkipImportPlayerLogs, "J", false, "Skip importing player game logs into the database", false},
 	},
 }
 
