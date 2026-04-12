@@ -25,7 +25,6 @@ import (
 	handlers "github.com/sperano/puckdb/http"
 	"github.com/sperano/puckdb/llm"
 	"github.com/sperano/puckdb/maurice"
-	mcppkg "github.com/sperano/puckdb/mcp"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/temporal"
@@ -210,9 +209,11 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 		return nil, nil, nil
 	}
 
-	// MCP client connects lazily on first use (sessions expire quickly)
-	mcpURL := viper.GetString(config.FlagMauriceMCPURL)
-	mcpClient := mcppkg.NewClient(mcpURL)
+	// Build MCP client from config file
+	mcpClient, err := buildMCPClient()
+	if err != nil {
+		return nil, nil, fmt.Errorf("setup MCP: %w", err)
+	}
 
 	// Create LLM client (auto-detects provider from key/URL)
 	llmClient := llm.NewClientForProvider(
@@ -237,7 +238,6 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 	log.Info().
 		Str("base_url", baseURL).
 		Str("model", viper.GetString(config.FlagMauriceModel)).
-		Str("mcp_url", mcpURL).
 		Msg("Maurice AI chat initialized")
 
 	return svc, cleanup, nil

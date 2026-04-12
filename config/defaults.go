@@ -200,7 +200,7 @@ const (
 const (
 	DefaultMauriceBaseURL    = "http://localhost:11434/v1"
 	DefaultMauriceModel      = "llama3.1:8b"
-	DefaultMauriceMCPURL     = "https://mcp-puckdb.***REMOVED***/sse"
+	DefaultMauriceConfig     = "" // empty = ~/.puckdb/maurice.yaml
 	DefaultMauriceMaxTokens  = 4096
 	DefaultMauriceMaxHistory = 50
 )

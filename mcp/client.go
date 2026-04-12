@@ -24,6 +24,18 @@ type Client interface {
 	Close() error
 }
 
+// noopClient is a Client that has no tools and does nothing.
+type noopClient struct{}
+
+// NewNoopClient creates a Client with no tools.
+func NewNoopClient() Client { return &noopClient{} }
+
+func (c *noopClient) ListTools(_ context.Context) ([]mcpgo.Tool, error) { return nil, nil }
+func (c *noopClient) CallTool(_ context.Context, name string, _ json.RawMessage) (*ToolResult, error) {
+	return nil, fmt.Errorf("no MCP server configured for tool: %s", name)
+}
+func (c *noopClient) Close() error { return nil }
+
 // mcpClient wraps the mcp-go SDK client with lazy connection and automatic reconnection.
 // The MCP server uses in-memory sessions that expire quickly, so we connect on first use
 // and reconnect transparently when a session becomes invalid.

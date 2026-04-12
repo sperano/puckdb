@@ -50,6 +50,7 @@ go run github.com/99designs/gqlgen generate   # GraphQL (from puckdb root dir)
 | `db provision` | Create database/user on shared PostgreSQL |
 | `redis flush` | Flush a Redis database |
 | `yahoo signout` | Clear OAuth2 token from Redis |
+| `maurice` | Interactive AI hockey chat REPL |
 
 ## Package Structure
 
@@ -297,6 +298,50 @@ SELECT p.first_name, p.last_name, r.selected_position
 FROM yahoo_team_rosters r
 JOIN players p ON p.yahoo_id = r.player_id
 WHERE r.league_id = 12345 AND r.team_id = 1 AND r.date = '2024-12-01';
+```
+
+## Maurice (AI Chat)
+
+Interactive REPL for querying hockey data via natural language. Connects to an LLM and uses MCP tools to query PostgreSQL.
+
+### Architecture
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| CLI entry | `cmd/maurice.go` | REPL loop, `/model` `/history` `/load` `/new` commands |
+| Service | `maurice/service.go` | Chat orchestration, tool call loop (max 10 rounds), conversation persistence |
+| Prompt | `maurice/prompt.go` | System prompt (instructs LLM to query DB, not guess) |
+| LLM clients | `llm/client.go`, `llm/anthropic.go` | OpenAI-compatible (Ollama/OpenAI) and Anthropic clients |
+| Provider detection | `llm/provider.go` | Auto-detects Anthropic vs OpenAI-compatible from API key/URL |
+| MCP integration | `mcp/` | Connects to puckdb MCP server for database tool calls |
+| Persistence | `~/.puckdb/maurice.db` | SQLite for conversation history |
+
+### Configuration
+
+| Flag | Env Var | Default | Description |
+|------|---------|---------|-------------|
+| `maurice-model` | `PUCKDB_MAURICE_MODEL` | `llama3.1:8b` | LLM model name |
+| `maurice-base-url` | `PUCKDB_MAURICE_BASE_URL` | `http://localhost:11434/v1` | LLM endpoint (Ollama default) |
+| `maurice-api-key` | `PUCKDB_MAURICE_API_KEY` | (empty) | API key (required for Anthropic/OpenAI) |
+| `maurice-config` | `PUCKDB_MAURICE_CONFIG` | `~/.puckdb/maurice.yaml` | Path to Maurice config file |
+| `maurice-max-tokens` | `PUCKDB_MAURICE_MAX_TOKENS` | `4096` | Max response tokens |
+| `maurice-max-history` | `PUCKDB_MAURICE_MAX_HISTORY` | `50` | Conversation history depth |
+
+### REPL Commands
+
+| Command | Action |
+|---------|--------|
+| `/model` | Show current model + suggestions |
+| `/model <name>` | Switch model (rebuilds LLM client) |
+| `/new` | Start new conversation |
+| `/history` | List recent conversations |
+| `/load <id>` | Resume a conversation |
+| `/quit` | Exit |
+
+### Prompt format
+
+```
+maurice (<model-name>) >
 ```
 
 ## Testing Guidelines

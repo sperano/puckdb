@@ -231,7 +231,7 @@ const (
 	FlagMauriceBaseURL    = "maurice-base-url"
 	FlagMauriceAPIKey     = "maurice-api-key"
 	FlagMauriceModel      = "maurice-model"
-	FlagMauriceMCPURL     = "maurice-mcp-url"
+	FlagMauriceConfig     = "maurice-config"
 	FlagMauriceMaxTokens  = "maurice-max-tokens"
 	FlagMauriceMaxHistory = "maurice-max-history"
 )
@@ -366,7 +366,7 @@ var MauriceFlags = FlagGroup{
 		{FlagMauriceBaseURL, "", DefaultMauriceBaseURL, "Maurice LLM base URL (OpenAI-compatible)", false},
 		{FlagMauriceAPIKey, "", "", "Maurice LLM API key (empty for Ollama)", true},
 		{FlagMauriceModel, "", DefaultMauriceModel, "Maurice LLM model name", false},
-		{FlagMauriceMCPURL, "", DefaultMauriceMCPURL, "Maurice MCP server URL", false},
+		{FlagMauriceConfig, "", DefaultMauriceConfig, "Path to Maurice config file (MCP servers, etc.)", false},
 		{FlagMauriceMaxTokens, "", DefaultMauriceMaxTokens, "Maurice max tokens per completion", false},
 		{FlagMauriceMaxHistory, "", DefaultMauriceMaxHistory, "Maurice max conversation history messages", false},
 	},

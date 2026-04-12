@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	mauricePrompt    = "maurice> "
+	mauricePromptFmt = "maurice (%s) > "
 	mauriceListLimit = 20
 	mauriceDBDir     = ".puckdb"
 	mauriceDBFile    = "maurice.db"
@@ -86,15 +86,16 @@ func runMaurice(cmd *cobra.Command) error {
 	}
 
 	baseURL := viper.GetString(config.FlagMauriceBaseURL)
-	mcpURL := viper.GetString(config.FlagMauriceMCPURL)
-
-	mcpClient := mcppkg.NewClient(mcpURL)
-	defer mcpClient.Close()
-
 	apiKey := viper.GetString(config.FlagMauriceAPIKey)
 	maxHistory := viper.GetInt(config.FlagMauriceMaxHistory)
 	maxTokens := viper.GetInt(config.FlagMauriceMaxTokens)
 	model := viper.GetString(config.FlagMauriceModel)
+
+	mcpClient, err := buildMCPClient()
+	if err != nil {
+		return fmt.Errorf("setup MCP: %w", err)
+	}
+	defer mcpClient.Close()
 
 	buildService := func(m string) maurice.Service {
 		return maurice.NewService(
@@ -108,7 +109,6 @@ func runMaurice(cmd *cobra.Command) error {
 	log.Info().
 		Str("base_url", baseURL).
 		Str("model", model).
-		Str("mcp_url", mcpURL).
 		Str("db", dbPath).
 		Msg("Maurice initialized")
 
@@ -120,7 +120,7 @@ func runMaurice(cmd *cobra.Command) error {
 	var conversationID *string
 
 	for {
-		fmt.Print(mauricePrompt)
+		fmt.Printf(mauricePromptFmt, model)
 		if !scanner.Scan() {
 			break
 		}
@@ -213,6 +213,36 @@ func runMaurice(cmd *cobra.Command) error {
 	}
 
 	return scanner.Err()
+}
+
+// buildMCPClient creates a MultiClient from the maurice config file,
+// or falls back to an empty client if no config exists.
+func buildMCPClient() (mcppkg.Client, error) {
+	cfgPath := viper.GetString(config.FlagMauriceConfig)
+	if cfgPath == "" {
+		cfgPath = maurice.DefaultConfigPath()
+	}
+
+	cfg, err := maurice.LoadConfig(cfgPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cfg.MCPServers) == 0 {
+		log.Warn().Str("config", cfgPath).Msg("no MCP servers configured, Maurice will have no tools")
+		return mcppkg.NewNoopClient(), nil
+	}
+
+	opts := make([]mcppkg.MultiClientOption, len(cfg.MCPServers))
+	for i, s := range cfg.MCPServers {
+		log.Info().Str("name", s.Name).Str("url", s.URL).Strs("tools", s.Tools).Msg("connecting MCP server")
+		opts[i] = mcppkg.MultiClientOption{
+			Client: mcppkg.NewClient(s.URL),
+			Tools:  s.Tools,
+		}
+	}
+
+	return mcppkg.NewMultiClient(opts...), nil
 }
 
 func mauriceDBPath() (string, error) {
