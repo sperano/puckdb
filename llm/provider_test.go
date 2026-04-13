@@ -6,34 +6,51 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewClientForProvider_Anthropic(t *testing.T) {
+func TestNewClientForProvider(t *testing.T) {
 	tests := []struct {
-		name    string
-		baseURL string
-		apiKey  string
-		want    string
+		name     string
+		provider Provider
+		wantType string
 	}{
-		{"sk-ant prefix", "https://api.anthropic.com", "sk-ant-api03-xxx", "*llm.anthropicClient"},
-		{"anthropic in URL", "https://api.anthropic.com", "some-key", "*llm.anthropicClient"},
-		{"ollama default", "http://localhost:11434/v1", "", "*llm.openaiClient"},
-		{"openai key", "https://api.openai.com/v1", "sk-proj-xxx", "*llm.openaiClient"},
+		{"Anthropic", ProviderAnthropic, "*llm.anthropicClient"},
+		{"OpenAI", ProviderOpenAI, "*llm.openaiClient"},
+		{"Ollama", ProviderOllama, "*llm.openaiClient"},
 	}
+
+	cfg := ProviderConfig{BaseURL: "http://localhost", APIKey: "test-key"}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := NewClientForProvider(tt.baseURL, tt.apiKey, "test-model")
-			got := assert.ObjectsAreEqual(tt.want, client)
-			// Type assertion check
-			switch tt.want {
+			client := NewClientForProvider(tt.provider, cfg, "test-model")
+			switch tt.wantType {
 			case "*llm.anthropicClient":
 				_, ok := client.(*anthropicClient)
 				assert.True(t, ok, "expected anthropicClient, got %T", client)
 			case "*llm.openaiClient":
 				_, ok := client.(*openaiClient)
 				assert.True(t, ok, "expected openaiClient, got %T", client)
-			default:
-				t.Fatalf("unexpected type: %v (equal: %v)", tt.want, got)
 			}
 		})
 	}
+}
+
+func TestProviderString(t *testing.T) {
+	assert.Equal(t, "Anthropic", ProviderAnthropic.String())
+	assert.Equal(t, "OpenAI", ProviderOpenAI.String())
+	assert.Equal(t, "Ollama", ProviderOllama.String())
+}
+
+func TestNewProviderConfigs(t *testing.T) {
+	configs := NewProviderConfigs(ProviderConfigsInput{
+		OllamaBaseURL:   "http://ollama:11434/v1",
+		AnthropicAPIKey: "sk-ant-test",
+		OpenAIAPIKey:    "sk-openai-test",
+	})
+
+	assert.Equal(t, AnthropicBaseURL, configs[ProviderAnthropic].BaseURL)
+	assert.Equal(t, "sk-ant-test", configs[ProviderAnthropic].APIKey)
+	assert.Equal(t, OpenAIBaseURL, configs[ProviderOpenAI].BaseURL)
+	assert.Equal(t, "sk-openai-test", configs[ProviderOpenAI].APIKey)
+	assert.Equal(t, "http://ollama:11434/v1", configs[ProviderOllama].BaseURL)
+	assert.Empty(t, configs[ProviderOllama].APIKey)
 }

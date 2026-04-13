@@ -156,7 +156,7 @@ func TestBoxscoreToGameParams(t *testing.T) {
 		params := boxscoreToGameParams(boxscore, 2023)
 
 		assert.Equal(t, int64(2024020001), params.ID)
-		assert.Equal(t, int32(2023), params.Season)
+		assert.Equal(t, int32(20232024), params.Season)
 		assert.Equal(t, sqlcdb.GameType("regular_season"), params.GameType)
 		assert.True(t, params.GameDate.Valid)
 		assert.Equal(t, "2024-01-15", params.GameDate.Time.Format("2006-01-02"))

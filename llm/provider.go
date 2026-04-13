@@ -1,21 +1,70 @@
 package llm
 
-import "strings"
+// Provider identifies an LLM provider for routing.
+type Provider int
 
-const anthropicAPIKeyPrefix = "sk-ant-"
+const (
+	ProviderAnthropic Provider = iota
+	ProviderOpenAI
+	ProviderOllama
+)
 
-// NewClientForProvider creates an LLM client, auto-detecting the provider from
-// the API key and base URL:
-//   - API key starts with "sk-ant-" or base URL contains "anthropic" → Anthropic
-//   - Otherwise → OpenAI-compatible (Ollama, OpenAI, etc.)
-func NewClientForProvider(baseURL, apiKey, model string) Client {
-	if isAnthropic(baseURL, apiKey) {
-		return NewAnthropicClient(baseURL, apiKey, model)
+const (
+	AnthropicBaseURL = "https://api.anthropic.com"
+	OpenAIBaseURL    = "https://api.openai.com/v1"
+)
+
+// String returns a human-readable provider name.
+func (p Provider) String() string {
+	switch p {
+	case ProviderAnthropic:
+		return "Anthropic"
+	case ProviderOpenAI:
+		return "OpenAI"
+	case ProviderOllama:
+		return "Ollama"
+	default:
+		return "Unknown"
 	}
-	return NewOpenAIClient(baseURL, apiKey, model)
 }
 
-func isAnthropic(baseURL, apiKey string) bool {
-	return strings.HasPrefix(apiKey, anthropicAPIKeyPrefix) ||
-		strings.Contains(baseURL, "anthropic")
+// ProviderConfig holds connection details for a single provider.
+type ProviderConfig struct {
+	BaseURL string
+	APIKey  string
+}
+
+// ProviderConfigsInput holds the parameters needed to build provider configs.
+type ProviderConfigsInput struct {
+	OllamaBaseURL   string
+	AnthropicAPIKey string
+	OpenAIAPIKey    string
+}
+
+// NewProviderConfigs builds a map of provider configs from the given input.
+func NewProviderConfigs(in ProviderConfigsInput) map[Provider]ProviderConfig {
+	return map[Provider]ProviderConfig{
+		ProviderAnthropic: {
+			BaseURL: AnthropicBaseURL,
+			APIKey:  in.AnthropicAPIKey,
+		},
+		ProviderOpenAI: {
+			BaseURL: OpenAIBaseURL,
+			APIKey:  in.OpenAIAPIKey,
+		},
+		ProviderOllama: {
+			BaseURL: in.OllamaBaseURL,
+			APIKey:  "",
+		},
+	}
+}
+
+// NewClientForProvider creates an LLM client for the given provider.
+// Anthropic uses the native Anthropic SDK; OpenAI and Ollama use the
+// OpenAI-compatible client.
+func NewClientForProvider(provider Provider, cfg ProviderConfig, model string) Client {
+	if provider == ProviderAnthropic {
+		return NewAnthropicClient(cfg.BaseURL, cfg.APIKey, model)
+	}
+	return NewOpenAIClient(cfg.BaseURL, cfg.APIKey, model)
 }

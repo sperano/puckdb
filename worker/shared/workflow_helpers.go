@@ -53,11 +53,13 @@ func FetchDayActivityOptions() workflow.ActivityOptions {
 	return opts
 }
 
-// EffectiveEndDate returns the end date or today, whichever is earlier.
-// Used to avoid processing future dates.
+// EffectiveEndDate returns the end date or yesterday, whichever is earlier.
+// We stop at yesterday to ensure all games on the date are final before processing.
+// Games in progress at fetch time would be skipped and permanently missed from the database.
 func EffectiveEndDate(end time.Time) time.Time {
-	if end.After(time.Now()) {
-		return time.Now()
+	yesterday := time.Now().AddDate(0, 0, -1)
+	if end.After(yesterday) {
+		return yesterday
 	}
 	return end
 }

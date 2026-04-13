@@ -17,12 +17,38 @@ SELECT * FROM players WHERE team_id = $1 ORDER BY last_name, first_name;
 SELECT * FROM players WHERE position = $1 ORDER BY last_name, first_name;
 
 -- name: SearchPlayersByName :many
--- Search by name using normalized columns for accent-insensitive matching
+-- Single-term player search with relevance ranking (exact > prefix > substring)
 SELECT * FROM players
-WHERE last_name_normalized LIKE $1 OR first_name_normalized LIKE $1
-   OR last_name ILIKE $1 OR first_name ILIKE $1
-ORDER BY last_name, first_name
-LIMIT 50;
+WHERE first_name_normalized LIKE '%' || lower($1) || '%'
+   OR last_name_normalized LIKE '%' || lower($1) || '%'
+   OR first_name ILIKE '%' || $1 || '%'
+   OR last_name ILIKE '%' || $1 || '%'
+ORDER BY
+  CASE
+    WHEN first_name_normalized = lower($1) OR last_name_normalized = lower($1) THEN 0
+    WHEN first_name_normalized LIKE lower($1) || '%' OR last_name_normalized LIKE lower($1) || '%' THEN 1
+    ELSE 2
+  END,
+  last_name, first_name
+LIMIT 500;
+
+-- name: SearchPlayersByFullName :many
+-- Two-term player search matching first+last name in either order
+SELECT * FROM players
+WHERE (first_name_normalized LIKE '%' || lower($1) || '%' AND last_name_normalized LIKE '%' || lower($2) || '%')
+   OR (first_name_normalized LIKE '%' || lower($2) || '%' AND last_name_normalized LIKE '%' || lower($1) || '%')
+   OR (first_name ILIKE '%' || $1 || '%' AND last_name ILIKE '%' || $2 || '%')
+   OR (first_name ILIKE '%' || $2 || '%' AND last_name ILIKE '%' || $1 || '%')
+ORDER BY
+  CASE
+    WHEN (first_name_normalized = lower($1) AND last_name_normalized = lower($2))
+      OR (first_name_normalized = lower($2) AND last_name_normalized = lower($1)) THEN 0
+    WHEN (first_name_normalized LIKE lower($1) || '%' AND last_name_normalized LIKE lower($2) || '%')
+      OR (first_name_normalized LIKE lower($2) || '%' AND last_name_normalized LIKE lower($1) || '%') THEN 1
+    ELSE 2
+  END,
+  last_name, first_name
+LIMIT 500;
 
 -- name: ListPlayers :many
 SELECT * FROM players

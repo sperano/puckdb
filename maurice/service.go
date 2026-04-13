@@ -271,7 +271,7 @@ func (s *service) loadHistory(ctx context.Context, convID string) ([]llm.Message
 
 	// System prompt + history messages
 	messages := make([]llm.Message, 0, len(msgs)+1)
-	messages = append(messages, llm.Message{Role: "system", Content: SystemPrompt})
+	messages = append(messages, llm.Message{Role: "system", Content: SystemPrompt()})
 
 	for _, m := range msgs {
 		messages = append(messages, llm.Message{

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/llm"
@@ -26,23 +28,20 @@ const (
 	mauriceDBFile    = "maurice.db"
 )
 
-type modelSuggestion struct {
+type modelEntry struct {
 	id          string
 	description string
+	provider    llm.Provider
 }
 
-var mauriceModelSuggestions = []modelSuggestion{
-	// Anthropic
-	{"claude-sonnet-4-20250514", "Anthropic — fast, strong reasoning"},
-	{"claude-opus-4-20250514", "Anthropic — highest capability"},
-	// OpenAI
-	{"gpt-4o", "OpenAI — fast multimodal"},
-	{"o3-mini", "OpenAI — efficient reasoning"},
-	// Ollama (local)
-	{"qwen3:32b", "Ollama — strong local model"},
-	{"qwen3:8b", "Ollama — fast local model"},
-	{"llama4:scout", "Ollama — Meta Scout"},
-	{"deepseek-r1:32b", "Ollama — reasoning"},
+var mauriceModels = []modelEntry{
+	{"claude-sonnet-4-6", "fast, strong reasoning", llm.ProviderAnthropic},
+	{"claude-opus-4-6", "highest capability", llm.ProviderAnthropic},
+	//{"gpt-4o", "fast multimodal", llm.ProviderOpenAI},
+	//{"o3-mini", "efficient reasoning", llm.ProviderOpenAI},
+	{"qwen3:32b", "strong local model", llm.ProviderOllama},
+	{"qwen3:8b", "fast local model", llm.ProviderOllama},
+	//{"llama4:scout", "Meta Scout", llm.ProviderOllama},
 }
 
 func cmdMaurice() *cobra.Command {
@@ -85,11 +84,15 @@ func runMaurice(cmd *cobra.Command) error {
 		return fmt.Errorf("init conversation store: %w", err)
 	}
 
-	baseURL := viper.GetString(config.FlagMauriceBaseURL)
-	apiKey := viper.GetString(config.FlagMauriceAPIKey)
 	maxHistory := viper.GetInt(config.FlagMauriceMaxHistory)
 	maxTokens := viper.GetInt(config.FlagMauriceMaxTokens)
-	model := viper.GetString(config.FlagMauriceModel)
+	startupModel := viper.GetString(config.FlagMauriceModel)
+
+	providerConfigs := llm.NewProviderConfigs(llm.ProviderConfigsInput{
+		OllamaBaseURL:   viper.GetString(config.FlagOllamaBaseURL),
+		AnthropicAPIKey: viper.GetString(config.FlagAnthropicAPIKey),
+		OpenAIAPIKey:    viper.GetString(config.FlagOpenAIAPIKey),
+	})
 
 	mcpClient, err := buildMCPClient()
 	if err != nil {
@@ -97,23 +100,39 @@ func runMaurice(cmd *cobra.Command) error {
 	}
 	defer mcpClient.Close()
 
-	buildService := func(m string) maurice.Service {
+	// Resolve startup model to a registry entry, falling back to first entry.
+	currentEntry := mauriceModels[0]
+	for _, e := range mauriceModels {
+		if e.id == startupModel {
+			currentEntry = e
+			break
+		}
+	}
+
+	buildService := func(entry modelEntry) maurice.Service {
+		cfg := providerConfigs[entry.provider]
 		return maurice.NewService(
-			llm.NewClientForProvider(baseURL, apiKey, m),
+			llm.NewClientForProvider(entry.provider, cfg, entry.id),
 			mcpClient, db, maxHistory, maxTokens,
 		)
 	}
 
-	svc := buildService(model)
+	mdRenderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(100))
+	if err != nil {
+		return fmt.Errorf("init markdown renderer: %w", err)
+	}
+
+	svc := buildService(currentEntry)
+	model := currentEntry.id
 
 	log.Info().
-		Str("base_url", baseURL).
+		Str("provider", currentEntry.provider.String()).
 		Str("model", model).
 		Str("db", dbPath).
 		Msg("Maurice initialized")
 
 	fmt.Println("Maurice — Hockey AI Chat")
-	fmt.Println("Type /quit to exit, /new for new conversation, /history to list, /load <id> to resume, /model [name] to switch")
+	fmt.Println("Type /quit to exit, /new for new conversation, /history to list, /load <id> to resume, /model to switch")
 	fmt.Println()
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -159,23 +178,24 @@ func runMaurice(cmd *cobra.Command) error {
 			continue
 
 		case input == "/model" || strings.HasPrefix(input, "/model "):
-			newModel := strings.TrimSpace(strings.TrimPrefix(input, "/model"))
-			if newModel == "" {
-				fmt.Printf("Current model: %s\n\n", model)
-				fmt.Println("Suggestions:")
-				for _, s := range mauriceModelSuggestions {
-					marker := "  "
-					if s.id == model {
-						marker = "* "
-					}
-					fmt.Printf("  %s%-36s  %s\n", marker, s.id, s.description)
-				}
-				fmt.Println("\nUsage: /model <model-id>")
+			arg := strings.TrimSpace(strings.TrimPrefix(input, "/model"))
+			if arg == "" {
+				printModelMenu(model)
 				continue
 			}
-			model = newModel
-			svc = buildService(model)
-			fmt.Printf("Switched to model: %s\n", model)
+			num, err := strconv.Atoi(arg)
+			if err != nil || num < 1 || num > len(mauriceModels) {
+				fmt.Printf("Invalid selection: %s\n", arg)
+				printModelMenu(model)
+				continue
+			}
+			currentEntry = mauriceModels[num-1]
+			model = currentEntry.id
+			svc = buildService(currentEntry)
+			fmt.Printf("Switched to model: %s (%s)\n", model, currentEntry.provider)
+			if cfg := providerConfigs[currentEntry.provider]; currentEntry.provider != llm.ProviderOllama && cfg.APIKey == "" {
+				fmt.Printf("  Warning: no API key configured for %s — API calls will fail\n", currentEntry.provider)
+			}
 			continue
 
 		case strings.HasPrefix(input, "/load "):
@@ -208,8 +228,12 @@ func runMaurice(cmd *cobra.Command) error {
 		if len(resp.ToolsUsed) > 0 {
 			fmt.Printf("[used: %s]\n", strings.Join(resp.ToolsUsed, ", "))
 		}
-		fmt.Println(resp.Content)
-		fmt.Println()
+		rendered, renderErr := mdRenderer.Render(resp.Content)
+		if renderErr != nil {
+			fmt.Println(resp.Content)
+		} else {
+			fmt.Print(rendered)
+		}
 	}
 
 	return scanner.Err()
@@ -243,6 +267,18 @@ func buildMCPClient() (mcppkg.Client, error) {
 	}
 
 	return mcppkg.NewMultiClient(opts...), nil
+}
+
+func printModelMenu(currentModel string) {
+	fmt.Printf("Current model: %s\n\n", currentModel)
+	for i, m := range mauriceModels {
+		marker := "  "
+		if m.id == currentModel {
+			marker = "* "
+		}
+		fmt.Printf("  %s%d) %-36s %s — %s\n", marker, i+1, m.id, m.provider, m.description)
+	}
+	fmt.Println("\nUsage: /model <number>")
 }
 
 func mauriceDBPath() (string, error) {

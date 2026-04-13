@@ -43,16 +43,15 @@ func TestViperIntOrDefault(t *testing.T) {
 func TestEffectiveEndDate(t *testing.T) {
 	t.Parallel()
 
-	t.Run("future end date returns a time at or before now", func(t *testing.T) {
+	t.Run("future end date returns yesterday", func(t *testing.T) {
 		t.Parallel()
 		futureDate := time.Now().Add(30 * 24 * time.Hour)
-		before := time.Now()
 		result := EffectiveEndDate(futureDate)
-		after := time.Now()
+		yesterday := time.Now().AddDate(0, 0, -1)
 
-		// Result must not be in the future and must be within the test window.
-		assert.False(t, result.After(after), "result should not be after 'now' captured after the call")
-		assert.False(t, result.Before(before), "result should not be before 'now' captured before the call")
+		// Result should be approximately yesterday (within a few seconds of test execution).
+		diff := result.Sub(yesterday).Abs()
+		assert.Less(t, diff, time.Second, "result should be yesterday")
 	})
 
 	t.Run("past end date is returned unchanged", func(t *testing.T) {
@@ -62,13 +61,14 @@ func TestEffectiveEndDate(t *testing.T) {
 		assert.Equal(t, pastDate, result)
 	})
 
-	t.Run("end date exactly at now is returned unchanged", func(t *testing.T) {
+	t.Run("today is capped to yesterday", func(t *testing.T) {
 		t.Parallel()
-		// A time slightly in the past is reliably not after time.Now() at
-		// the moment EffectiveEndDate reads it.
-		justPast := time.Now().Add(-time.Millisecond)
-		result := EffectiveEndDate(justPast)
-		assert.Equal(t, justPast, result)
+		today := time.Now()
+		result := EffectiveEndDate(today)
+		yesterday := time.Now().AddDate(0, 0, -1)
+
+		diff := result.Sub(yesterday).Abs()
+		assert.Less(t, diff, time.Second, "today should be capped to yesterday")
 	})
 }
 
@@ -92,10 +92,10 @@ func TestCountDaysInSeason(t *testing.T) {
 		assert.Equal(t, 10, count)
 	})
 
-	t.Run("season with future end date is capped at today", func(t *testing.T) {
+	t.Run("season with future end date is capped at yesterday", func(t *testing.T) {
 		t.Parallel()
-		// Start two days ago, end two days from now.
-		startTime := time.Now().AddDate(0, 0, -2)
+		// Start three days ago, end two days from now.
+		startTime := time.Now().AddDate(0, 0, -3)
 		endTime := time.Now().AddDate(0, 0, 2)
 
 		start := nhl.DateFromTime(startTime)
@@ -109,8 +109,8 @@ func TestCountDaysInSeason(t *testing.T) {
 
 		count, err := CountDaysInSeason(season)
 		require.NoError(t, err)
-		// The end is capped to ~today, so count should be roughly 3 (start day +
-		// day after + today). Allow ±1 for clock boundaries within the test.
+		// The end is capped to ~yesterday, so count should be roughly 3
+		// (3 days ago + 2 days ago + yesterday). Allow ±1 for clock boundaries.
 		assert.GreaterOrEqual(t, count, 2)
 		assert.LessOrEqual(t, count, 4)
 	})

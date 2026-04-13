@@ -133,10 +133,11 @@ func (a *ImportActivities) importBoxscoresForDate(ctx context.Context, queries B
 func boxscoreToGameParams(b *nhlapi.Boxscore, season int) sqlcdb.UpsertGameParams {
 	gameDate := shared.ParseDateToPgDate(b.GameDate)
 	startTimeUTC := shared.ParseTimestamptz(time.RFC3339, b.StartTimeUTC)
+	seasonID := int32(nhlapi.NewSeason(season).ID())
 
 	return sqlcdb.UpsertGameParams{
 		ID:       int64(b.ID),
-		Season:   int32(season),
+		Season:   seasonID,
 		GameType: sqlcdb.GameType(b.GameType.Label()),
 		GameDate: gameDate,
 

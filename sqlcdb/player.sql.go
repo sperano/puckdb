@@ -452,17 +452,99 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Pla
 	return items, nil
 }
 
-const searchPlayersByName = `-- name: SearchPlayersByName :many
+const searchPlayersByFullName = `-- name: SearchPlayersByFullName :many
 SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players
-WHERE last_name_normalized LIKE $1 OR first_name_normalized LIKE $1
-   OR last_name ILIKE $1 OR first_name ILIKE $1
-ORDER BY last_name, first_name
-LIMIT 50
+WHERE (first_name_normalized LIKE '%' || lower($1) || '%' AND last_name_normalized LIKE '%' || lower($2) || '%')
+   OR (first_name_normalized LIKE '%' || lower($2) || '%' AND last_name_normalized LIKE '%' || lower($1) || '%')
+   OR (first_name ILIKE '%' || $1 || '%' AND last_name ILIKE '%' || $2 || '%')
+   OR (first_name ILIKE '%' || $2 || '%' AND last_name ILIKE '%' || $1 || '%')
+ORDER BY
+  CASE
+    WHEN (first_name_normalized = lower($1) AND last_name_normalized = lower($2))
+      OR (first_name_normalized = lower($2) AND last_name_normalized = lower($1)) THEN 0
+    WHEN (first_name_normalized LIKE lower($1) || '%' AND last_name_normalized LIKE lower($2) || '%')
+      OR (first_name_normalized LIKE lower($2) || '%' AND last_name_normalized LIKE lower($1) || '%') THEN 1
+    ELSE 2
+  END,
+  last_name, first_name
+LIMIT 500
 `
 
-// Search by name using normalized columns for accent-insensitive matching
-func (q *Queries) SearchPlayersByName(ctx context.Context, lastNameNormalized string) ([]Player, error) {
-	rows, err := q.db.Query(ctx, searchPlayersByName, lastNameNormalized)
+type SearchPlayersByFullNameParams struct {
+	Lower   string `json:"lower"`
+	Lower_2 string `json:"lower_2"`
+}
+
+// Two-term player search matching first+last name in either order
+func (q *Queries) SearchPlayersByFullName(ctx context.Context, arg SearchPlayersByFullNameParams) ([]Player, error) {
+	rows, err := q.db.Query(ctx, searchPlayersByFullName, arg.Lower, arg.Lower_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Player{}
+	for rows.Next() {
+		var i Player
+		if err := rows.Scan(
+			&i.ID,
+			&i.YahooID,
+			&i.FirstName,
+			&i.LastName,
+			&i.FirstNameNormalized,
+			&i.LastNameNormalized,
+			&i.TeamID,
+			&i.Position,
+			&i.ShootsCatches,
+			&i.HeightInches,
+			&i.WeightPounds,
+			&i.BirthDate,
+			&i.BirthCity,
+			&i.BirthStateProvince,
+			&i.BirthCountry,
+			&i.SweaterNumber,
+			&i.IsActive,
+			&i.HeadshotURL,
+			&i.HeroImageURL,
+			&i.YahooImageSmall,
+			&i.YahooImageMedium,
+			&i.YahooImageLarge,
+			&i.YahooHomeURL,
+			&i.PlayerSlug,
+			&i.DraftYear,
+			&i.DraftTeamAbbrev,
+			&i.DraftRound,
+			&i.DraftPickInRound,
+			&i.DraftOverallPick,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchPlayersByName = `-- name: SearchPlayersByName :many
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players
+WHERE first_name_normalized LIKE '%' || lower($1) || '%'
+   OR last_name_normalized LIKE '%' || lower($1) || '%'
+   OR first_name ILIKE '%' || $1 || '%'
+   OR last_name ILIKE '%' || $1 || '%'
+ORDER BY
+  CASE
+    WHEN first_name_normalized = lower($1) OR last_name_normalized = lower($1) THEN 0
+    WHEN first_name_normalized LIKE lower($1) || '%' OR last_name_normalized LIKE lower($1) || '%' THEN 1
+    ELSE 2
+  END,
+  last_name, first_name
+LIMIT 500
+`
+
+// Single-term player search with relevance ranking (exact > prefix > substring)
+func (q *Queries) SearchPlayersByName(ctx context.Context, lower string) ([]Player, error) {
+	rows, err := q.db.Query(ctx, searchPlayersByName, lower)
 	if err != nil {
 		return nil, err
 	}

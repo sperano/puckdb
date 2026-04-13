@@ -228,12 +228,13 @@ const (
 
 // Maurice AI chat flags
 const (
-	FlagMauriceBaseURL    = "maurice-base-url"
-	FlagMauriceAPIKey     = "maurice-api-key"
 	FlagMauriceModel      = "maurice-model"
 	FlagMauriceConfig     = "maurice-config"
 	FlagMauriceMaxTokens  = "maurice-max-tokens"
 	FlagMauriceMaxHistory = "maurice-max-history"
+	FlagOllamaBaseURL     = "ollama-base-url"
+	FlagAnthropicAPIKey   = "anthropic-api-key"
+	FlagOpenAIAPIKey      = "openai-api-key"
 )
 
 // Provisioner flags
@@ -363,12 +364,13 @@ var WorkerConcurrencyFlags = FlagGroup{
 // MauriceFlags defines Maurice AI chat flags.
 var MauriceFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagMauriceBaseURL, "", DefaultMauriceBaseURL, "Maurice LLM base URL (OpenAI-compatible)", false},
-		{FlagMauriceAPIKey, "", "", "Maurice LLM API key (empty for Ollama)", true},
-		{FlagMauriceModel, "", DefaultMauriceModel, "Maurice LLM model name", false},
+		{FlagMauriceModel, "", DefaultMauriceModel, "Startup model (use /model to switch)", false},
 		{FlagMauriceConfig, "", DefaultMauriceConfig, "Path to Maurice config file (MCP servers, etc.)", false},
 		{FlagMauriceMaxTokens, "", DefaultMauriceMaxTokens, "Maurice max tokens per completion", false},
 		{FlagMauriceMaxHistory, "", DefaultMauriceMaxHistory, "Maurice max conversation history messages", false},
+		{FlagOllamaBaseURL, "", DefaultOllamaBaseURL, "Ollama base URL", false},
+		{FlagAnthropicAPIKey, "", "", "Anthropic API key", true},
+		{FlagOpenAIAPIKey, "", "", "OpenAI API key", true},
 	},
 }
 

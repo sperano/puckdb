@@ -84,11 +84,11 @@ func cmdAPI() *cobra.Command {
 				Queries:        queries,
 			}
 
-			// Initialize Maurice if configured
+			// Initialize Maurice AI chat
 			mauriceService, cleanup, err := initMaurice(cmd.Context(), pool)
 			if err != nil {
 				log.Warn().Err(err).Msg("Maurice initialization failed, AI chat will be unavailable")
-			} else if mauriceService != nil {
+			} else {
 				resolver.MauriceService = mauriceService
 				defer cleanup()
 			}
@@ -200,29 +200,33 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(homeHTML))
 }
 
-// initMaurice sets up the Maurice AI chat service if configured.
-// Returns nil service + nil cleanup if Maurice flags are at defaults (opt-in).
-// The pool is shared with the main API — Maurice no longer opens its own.
+// initMaurice sets up the Maurice AI chat service.
+// The pool is shared with the main API.
 func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func(), error) {
-	baseURL := viper.GetString(config.FlagMauriceBaseURL)
-	if baseURL == "" {
-		return nil, nil, nil
-	}
-
-	// Build MCP client from config file
 	mcpClient, err := buildMCPClient()
 	if err != nil {
 		return nil, nil, fmt.Errorf("setup MCP: %w", err)
 	}
 
-	// Create LLM client (auto-detects provider from key/URL)
-	llmClient := llm.NewClientForProvider(
-		baseURL,
-		viper.GetString(config.FlagMauriceAPIKey),
-		viper.GetString(config.FlagMauriceModel),
-	)
+	providerConfigs := llm.NewProviderConfigs(llm.ProviderConfigsInput{
+		OllamaBaseURL:   viper.GetString(config.FlagOllamaBaseURL),
+		AnthropicAPIKey: viper.GetString(config.FlagAnthropicAPIKey),
+		OpenAIAPIKey:    viper.GetString(config.FlagOpenAIAPIKey),
+	})
 
-	// Create service
+	// Resolve model to a known registry entry, defaulting to Ollama.
+	model := viper.GetString(config.FlagMauriceModel)
+	provider := llm.ProviderOllama
+	for _, e := range mauriceModels {
+		if e.id == model {
+			provider = e.provider
+			break
+		}
+	}
+
+	cfg := providerConfigs[provider]
+	llmClient := llm.NewClientForProvider(provider, cfg, model)
+
 	svc := maurice.NewService(
 		llmClient,
 		mcpClient,
@@ -236,8 +240,8 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 	}
 
 	log.Info().
-		Str("base_url", baseURL).
-		Str("model", viper.GetString(config.FlagMauriceModel)).
+		Str("provider", provider.String()).
+		Str("model", model).
 		Msg("Maurice AI chat initialized")
 
 	return svc, cleanup, nil
