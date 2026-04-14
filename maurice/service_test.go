@@ -163,7 +163,7 @@ func TestChat_SimpleQA(t *testing.T) {
 	}
 	mcpMock := newMockMCP()
 
-	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens)
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
 	resp, err := svc.Chat(context.Background(), nil, "Who has the most NHL goals?")
 
 	require.NoError(t, err)
@@ -199,7 +199,7 @@ func TestChat_WithToolCalls(t *testing.T) {
 	mcpMock := newMockMCP()
 	mcpMock.callResults["pg_read_query"] = `[{"name":"Wayne Gretzky","goals":894}]`
 
-	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens)
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
 	resp, err := svc.Chat(context.Background(), nil, "Who has the most goals?")
 
 	require.NoError(t, err)
@@ -222,7 +222,7 @@ func TestChat_ExistingConversation(t *testing.T) {
 	}
 	mcpMock := newMockMCP()
 
-	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens)
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
 	resp, err := svc.Chat(context.Background(), &convID, "Follow-up question")
 
 	require.NoError(t, err)
@@ -237,7 +237,7 @@ func TestChat_LLMError(t *testing.T) {
 	}
 	mcpMock := newMockMCP()
 
-	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens)
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
 	_, err := svc.Chat(context.Background(), nil, "test")
 
 	require.Error(t, err)
@@ -261,7 +261,7 @@ func TestChat_ToolCallError(t *testing.T) {
 	mcpMock := newMockMCP()
 	mcpMock.callErrors["bad_tool"] = errors.New("tool not found")
 
-	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens)
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
 	resp, err := svc.Chat(context.Background(), nil, "test")
 
 	require.NoError(t, err)
@@ -278,7 +278,7 @@ func TestGetConversation(t *testing.T) {
 	}
 	mcpMock := newMockMCP()
 
-	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens)
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
 
 	resp, err := svc.Chat(context.Background(), nil, "Hello")
 	require.NoError(t, err)
@@ -298,7 +298,7 @@ func TestListConversations(t *testing.T) {
 	}
 	mcpMock := newMockMCP()
 
-	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens)
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
 	svc.Chat(context.Background(), nil, "Q1")
 
 	convs, err := svc.ListConversations(context.Background(), 10)
@@ -315,7 +315,7 @@ func TestDeleteConversation(t *testing.T) {
 	}
 	mcpMock := newMockMCP()
 
-	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens)
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
 	resp, _ := svc.Chat(context.Background(), nil, "test")
 
 	err := svc.DeleteConversation(context.Background(), resp.ConversationID)
@@ -326,7 +326,7 @@ func TestDeleteConversation(t *testing.T) {
 }
 
 func TestNewService_DefaultValues(t *testing.T) {
-	svc := NewService(&mockLLMClient{}, newMockMCP(), newMockDB(), 0, 0).(*service)
+	svc := NewService(&mockLLMClient{}, newMockMCP(), newMockDB(), 0, 0, 0).(*service)
 	assert.Equal(t, DefaultMaxHistory, svc.maxHistory)
 	assert.Equal(t, DefaultMaxTokens, svc.maxTokens)
 }

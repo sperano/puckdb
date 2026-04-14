@@ -202,7 +202,8 @@ const (
 	DefaultMauriceModel      = "llama3.1:8b"
 	DefaultMauriceConfig     = "" // empty = ~/.puckdb/maurice.yaml
 	DefaultMauriceMaxTokens  = 4096
-	DefaultMauriceMaxHistory = 50
+	DefaultMauriceMaxHistory   = 50
+	DefaultMauriceMaxToolRounds = 10
 )
 
 // Build version constants

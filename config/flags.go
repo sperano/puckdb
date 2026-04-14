@@ -186,7 +186,7 @@ const (
 
 // Player logs workflow flags
 const (
-	FlagPlayerLogsBatchSize       = "player-logs-batch-size"
+	FlagPlayerLogsBatchSize        = "player-logs-batch-size"
 	FlagPlayerLogsBatchConcurrency = "player-logs-batch-concurrency"
 )
 
@@ -206,9 +206,9 @@ const (
 
 // Cache flags
 const (
-	FlagGobCacheTTL               = "gob-cache-ttl"
-	FlagGobCacheConfig            = "gob-cache-config"
-	FlagBoxscorePlayerCacheTTL    = "boxscore-player-cache-ttl"
+	FlagGobCacheTTL            = "gob-cache-ttl"
+	FlagGobCacheConfig         = "gob-cache-config"
+	FlagBoxscorePlayerCacheTTL = "boxscore-player-cache-ttl"
 )
 
 // Metrics collection flags
@@ -221,17 +221,17 @@ const (
 
 // CLI display flags
 const (
-	FlagVerbose      = "verbose"
-	FlagIncomplete   = "incomplete"
-	FlagTheme = "theme"
+	FlagVerbose    = "verbose"
+	FlagIncomplete = "incomplete"
+	FlagTheme      = "theme"
 )
 
 // Maurice AI chat flags
 const (
-	FlagMauriceModel      = "maurice-model"
 	FlagMauriceConfig     = "maurice-config"
 	FlagMauriceMaxTokens  = "maurice-max-tokens"
-	FlagMauriceMaxHistory = "maurice-max-history"
+	FlagMauriceMaxHistory    = "maurice-max-history"
+	FlagMauriceMaxToolRounds = "maurice-max-tool-rounds"
 	FlagOllamaBaseURL     = "ollama-base-url"
 	FlagAnthropicAPIKey   = "anthropic-api-key"
 	FlagOpenAIAPIKey      = "openai-api-key"
@@ -364,10 +364,10 @@ var WorkerConcurrencyFlags = FlagGroup{
 // MauriceFlags defines Maurice AI chat flags.
 var MauriceFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagMauriceModel, "", DefaultMauriceModel, "Startup model (use /model to switch)", false},
 		{FlagMauriceConfig, "", DefaultMauriceConfig, "Path to Maurice config file (MCP servers, etc.)", false},
 		{FlagMauriceMaxTokens, "", DefaultMauriceMaxTokens, "Maurice max tokens per completion", false},
 		{FlagMauriceMaxHistory, "", DefaultMauriceMaxHistory, "Maurice max conversation history messages", false},
+		{FlagMauriceMaxToolRounds, "", DefaultMauriceMaxToolRounds, "Maurice max tool call rounds per message", false},
 		{FlagOllamaBaseURL, "", DefaultOllamaBaseURL, "Ollama base URL", false},
 		{FlagAnthropicAPIKey, "", "", "Anthropic API key", true},
 		{FlagOpenAIAPIKey, "", "", "OpenAI API key", true},

@@ -203,7 +203,11 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 // initMaurice sets up the Maurice AI chat service.
 // The pool is shared with the main API.
 func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func(), error) {
-	mcpClient, err := buildMCPClient()
+	cfgPath := viper.GetString(config.FlagMauriceConfig)
+	if cfgPath == "" {
+		cfgPath = maurice.DefaultConfigPath()
+	}
+	mcpClient, err := maurice.BuildMCPClient(cfgPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("setup MCP: %w", err)
 	}
@@ -215,11 +219,11 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 	})
 
 	// Resolve model to a known registry entry, defaulting to Ollama.
-	model := viper.GetString(config.FlagMauriceModel)
 	provider := llm.ProviderOllama
+	model := "claude-sonnet-4-6"
 	for _, e := range mauriceModels {
-		if e.id == model {
-			provider = e.provider
+		if e.ID == model {
+			provider = e.Provider
 			break
 		}
 	}
@@ -233,6 +237,7 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 		maurice.NewPgDB(sqlcdb.New(pool)),
 		viper.GetInt(config.FlagMauriceMaxHistory),
 		viper.GetInt(config.FlagMauriceMaxTokens),
+		viper.GetInt(config.FlagMauriceMaxToolRounds),
 	)
 
 	cleanup := func() {

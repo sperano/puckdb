@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	MaxToolRounds       = 10
-	DefaultMaxHistory   = 50
-	DefaultMaxTokens    = 4096
+	DefaultMaxToolRounds = 10
+	DefaultMaxHistory    = 50
+	DefaultMaxTokens     = 4096
 	titleGenerationHint = "Summarize this conversation in 5 words or fewer. Reply with only the title, no quotes."
 )
 
@@ -54,29 +54,34 @@ type Message struct {
 }
 
 type service struct {
-	llmClient  llm.Client
-	mcpClient  mcp.Client
-	toolCache  *mcp.ToolCache
-	db         DB
-	maxHistory int
-	maxTokens  int
+	llmClient     llm.Client
+	mcpClient     mcp.Client
+	toolCache     *mcp.ToolCache
+	db            DB
+	maxHistory    int
+	maxTokens     int
+	maxToolRounds int
 }
 
 // NewService creates a new Maurice service.
-func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, maxHistory, maxTokens int) Service {
+func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, maxHistory, maxTokens, maxToolRounds int) Service {
 	if maxHistory <= 0 {
 		maxHistory = DefaultMaxHistory
 	}
 	if maxTokens <= 0 {
 		maxTokens = DefaultMaxTokens
 	}
+	if maxToolRounds <= 0 {
+		maxToolRounds = DefaultMaxToolRounds
+	}
 	return &service{
-		llmClient:  llmClient,
-		mcpClient:  mcpClient,
-		toolCache:  mcp.NewToolCache(mcpClient),
-		db:         db,
-		maxHistory: maxHistory,
-		maxTokens:  maxTokens,
+		llmClient:     llmClient,
+		mcpClient:     mcpClient,
+		toolCache:     mcp.NewToolCache(mcpClient),
+		db:            db,
+		maxHistory:    maxHistory,
+		maxTokens:     maxTokens,
+		maxToolRounds: maxToolRounds,
 	}
 }
 
@@ -116,7 +121,7 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 	var finalContent string
 	var finalMessageID string
 
-	for round := range MaxToolRounds {
+	for round := range s.maxToolRounds {
 		req := &llm.Request{
 			Messages:  history,
 			Tools:     llmTools,
@@ -206,6 +211,28 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 		}
 	}
 
+	// If we exhausted all tool rounds without a final text response,
+	// make one last LLM call with no tools to force a text answer.
+	if finalContent == "" {
+		log.Warn().Str("conversation", convID).Int("max_rounds", s.maxToolRounds).Msg("tool rounds exhausted, forcing final response without tools")
+		req := &llm.Request{
+			Messages:  history,
+			MaxTokens: s.maxTokens,
+		}
+		resp, err := s.llmClient.Complete(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("LLM forced final completion: %w", err)
+		}
+		finalContent = resp.Content
+		msg, err := s.db.CreateMessage(ctx, CreateMessageParams{
+			ConversationID: convID, Role: "assistant", Content: finalContent,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("store forced assistant message: %w", err)
+		}
+		finalMessageID = msg.ID
+	}
+
 	// Auto-generate title for new conversations
 	if isNew && finalContent != "" {
 		go s.generateTitle(context.Background(), convID, message, finalContent)
@@ -264,9 +291,14 @@ func (s *service) loadHistory(ctx context.Context, convID string) ([]llm.Message
 		return nil, err
 	}
 
-	// Cap history
+	// Cap history, ensuring we don't split a tool_use/tool_result pair.
+	// After slicing, skip any leading "tool" messages whose corresponding
+	// assistant tool_use block was cut off.
 	if len(msgs) > s.maxHistory {
 		msgs = msgs[len(msgs)-s.maxHistory:]
+	}
+	for len(msgs) > 0 && msgs[0].Role == "tool" {
+		msgs = msgs[1:]
 	}
 
 	// System prompt + history messages
