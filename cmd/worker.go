@@ -99,6 +99,10 @@ func cmdWorker() *cobra.Command {
 			w.RegisterWorkflow(workflow.InitializeWorkflow)
 			w.RegisterWorkflow(workflow.ExtractBoxscorePlayersWorkflow)
 			w.RegisterWorkflow(workflow.FetchPlayerLandingsWorkflow)
+			w.RegisterWorkflow(workflow.FetchEdgeSeasonsWorkflow)
+			w.RegisterWorkflow(workflow.FetchEdgeWorkflow)
+			w.RegisterWorkflow(workflow.ImportEdgeSeasonsWorkflow)
+			w.RegisterWorkflow(workflow.ImportEdgeWorkflow)
 
 			// Database admin workflows
 			w.RegisterWorkflow(admin.DropDatabaseWorkflow)
@@ -149,6 +153,7 @@ func cmdWorker() *cobra.Command {
 				SeasonTeamsUpserter: queries,
 				RosterQueries:       queries,
 				ClubStatsQueries:    queries,
+				EdgeQueries:         queries,
 				RedisClient:         redisClient,
 			}
 			w.RegisterActivity(seasonsActivities.FetchSeasonsManifest)
@@ -158,6 +163,14 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(seasonsActivities.FetchClubStats)
 			w.RegisterActivity(seasonsActivities.ImportSeasonRosters)
 			w.RegisterActivity(seasonsActivities.ImportClubStats)
+			w.RegisterActivity(seasonsActivities.FetchEdgeLandings)
+			w.RegisterActivity(seasonsActivities.FetchEdgeSkaters)
+			w.RegisterActivity(seasonsActivities.FetchEdgeGoalies)
+			w.RegisterActivity(seasonsActivities.FetchEdgeTeams)
+			w.RegisterActivity(seasonsActivities.ImportEdgeSkaters)
+			w.RegisterActivity(seasonsActivities.ImportEdgeGoalies)
+			w.RegisterActivity(seasonsActivities.ImportEdgeTeams)
+			w.RegisterActivity(seasonsActivities.ImportEdgeTeamZoneTimeDetails)
 
 			importYahooActivities := &yahoo.ImportActivities{
 				Storage:  storage,

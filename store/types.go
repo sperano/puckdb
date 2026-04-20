@@ -23,6 +23,7 @@ const (
 	FileTypeYahooPlayer     = "YahooPlayer"
 	FileTypeGameKey         = "GameKey"
 	FileTypeUnknown         = "Unknown"
+	FileTypeEdge            = "Edge"
 )
 
 // YahooPlayerID is the unique identifier Yahoo assigns to a player.

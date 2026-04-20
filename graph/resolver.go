@@ -234,6 +234,38 @@ func (r *Resolver) fetchPlayerLandingsProgress(ctx context.Context) (*model.Prog
 	return r.queryProgressReport(ctx, workflow.WorkflowIDFetchPlayerLandings)
 }
 
+func (r *Resolver) fetchEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return r.executeWorkflow(ctx, shared.WorkflowIDFetchEdgeStats, workflow.FetchEdgeSeasonsWorkflow, input)
+}
+
+func (r *Resolver) cancelFetchEdgeStats(ctx context.Context) (bool, error) {
+	return r.cancelWorkflow(ctx, shared.WorkflowIDFetchEdgeStats)
+}
+
+func (r *Resolver) fetchEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, shared.WorkflowIDFetchEdgeStats)
+}
+
+func (r *Resolver) fetchEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.queryProgressReport(ctx, shared.WorkflowIDFetchEdgeStats)
+}
+
+func (r *Resolver) importEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return r.executeWorkflow(ctx, shared.WorkflowIDImportEdgeStats, workflow.ImportEdgeSeasonsWorkflow, input)
+}
+
+func (r *Resolver) cancelImportEdgeStats(ctx context.Context) (bool, error) {
+	return r.cancelWorkflow(ctx, shared.WorkflowIDImportEdgeStats)
+}
+
+func (r *Resolver) importEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, shared.WorkflowIDImportEdgeStats)
+}
+
+func (r *Resolver) importEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.queryProgressReport(ctx, shared.WorkflowIDImportEdgeStats)
+}
+
 func (r *Resolver) initialize(ctx context.Context) (bool, error) {
 	return r.executeWorkflow(ctx, workflow.WorkflowIDInitialize, workflow.InitializeWorkflow, nil)
 }

@@ -60,6 +60,10 @@ var expectedTools = []string{
 	"get_unrostered_goalies",
 	"get_yahoo_matchups",
 	"get_yahoo_draft_results",
+	// Edge (3)
+	"get_edge_skater_stats",
+	"get_edge_goalie_stats",
+	"get_edge_team_stats",
 }
 
 func TestNewServer_RegistersAllTools(t *testing.T) {

@@ -139,6 +139,12 @@ type Query {
 	fetchPlayerLandingsResult: WorkflowResult!
 	fetchPlayerLandingsProgress: ProgressReport
 
+	fetchEdgeStatsResult: WorkflowResult!
+	fetchEdgeStatsProgress: ProgressReport
+
+	importEdgeStatsResult: WorkflowResult!
+	importEdgeStatsProgress: ProgressReport
+
 	# Maurice AI chat
 	mauriceConversations(limit: Int): [MauriceConversation!]!
 	mauriceConversation(id: String!): MauriceConversationDetail
@@ -188,6 +194,10 @@ type Mutation {
 	cancelExtractBoxscorePlayers: Boolean!
 	fetchPlayerLandings(input: FetchPlayerLandingsInput): Boolean!
 	cancelFetchPlayerLandings: Boolean!
+	fetchEdgeStats(input: SeasonsInput): Boolean!
+	cancelFetchEdgeStats: Boolean!
+	importEdgeStats(input: SeasonsInput): Boolean!
+	cancelImportEdgeStats: Boolean!
 
 	# Maurice AI chat
 	mauriceChat(conversationId: String, message: String!): MauriceChatResponse!

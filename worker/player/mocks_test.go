@@ -136,6 +136,182 @@ func (m *MockNHLClient) ClubStats(ctx context.Context, teamAbbr string, season n
 	return args.Get(0).(*nhl.ClubStats), args.Error(1)
 }
 
+func (m *MockNHLClient) EdgeSkaterDetail(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterDetail, error) {
+	args := m.Called(ctx, playerID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeSkaterDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeSkaterSpeedDetail(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterSpeedDetail, error) {
+	args := m.Called(ctx, playerID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeSkaterSpeedDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeSkaterDistanceDetail(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterDistanceDetail, error) {
+	args := m.Called(ctx, playerID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeSkaterDistanceDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeSkaterShotSpeedDetail(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterShotSpeedDetail, error) {
+	args := m.Called(ctx, playerID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeSkaterShotSpeedDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeSkaterShotLocationDetail(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterShotLocationDetail, error) {
+	args := m.Called(ctx, playerID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeSkaterShotLocationDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeSkaterZoneTime(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterZoneTimeDetail, error) {
+	args := m.Called(ctx, playerID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeSkaterZoneTimeDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeSkaterComparison(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterComparison, error) {
+	args := m.Called(ctx, playerID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeSkaterComparison), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeGoalieDetail(ctx context.Context, goalieID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalieDetail, error) {
+	args := m.Called(ctx, goalieID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeGoalieDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeGoalie5v5Detail(ctx context.Context, goalieID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalie5v5Detail, error) {
+	args := m.Called(ctx, goalieID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeGoalie5v5Detail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeGoalieShotLocationDetail(ctx context.Context, goalieID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalieShotLocationDetail, error) {
+	args := m.Called(ctx, goalieID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeGoalieShotLocationDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeGoalieSavePctgDetail(ctx context.Context, goalieID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalieSavePctgDetail, error) {
+	args := m.Called(ctx, goalieID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeGoalieSavePctgDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeGoalieComparison(ctx context.Context, goalieID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalieComparison, error) {
+	args := m.Called(ctx, goalieID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeGoalieComparison), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeTeamDetail(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamDetail, error) {
+	args := m.Called(ctx, teamID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeTeamDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeTeamSpeedDetail(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamSpeedDetail, error) {
+	args := m.Called(ctx, teamID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeTeamSpeedDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeTeamDistanceDetail(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamDistanceDetail, error) {
+	args := m.Called(ctx, teamID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeTeamDistanceDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeTeamShotSpeedDetail(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamShotSpeedDetail, error) {
+	args := m.Called(ctx, teamID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeTeamShotSpeedDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeTeamShotLocationDetail(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamShotLocationDetail, error) {
+	args := m.Called(ctx, teamID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeTeamShotLocationDetail), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeTeamZoneTimeDetails(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamZoneTimeDetails, error) {
+	args := m.Called(ctx, teamID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeTeamZoneTimeDetails), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeTeamComparison(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamComparison, error) {
+	args := m.Called(ctx, teamID, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeTeamComparison), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeSkaterLanding(ctx context.Context, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterLanding, error) {
+	args := m.Called(ctx, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeSkaterLanding), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeGoalieLanding(ctx context.Context, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalieLanding, error) {
+	args := m.Called(ctx, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeGoalieLanding), args.Error(1)
+}
+
+func (m *MockNHLClient) EdgeTeamLanding(ctx context.Context, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamLanding, error) {
+	args := m.Called(ctx, season, gameType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhl.EdgeTeamLanding), args.Error(1)
+}
+
 // MockPlayerUpserter implements PlayerUpserter for testing.
 type MockPlayerUpserter struct {
 	mock.Mock

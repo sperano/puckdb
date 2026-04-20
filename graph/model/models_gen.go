@@ -15,6 +15,185 @@ type Boxscore struct {
 	Goalies []*GameGoalieStats `json:"goalies"`
 }
 
+type EdgeGoalieShotLocation struct {
+	Area               string   `json:"area"`
+	Saves              *int     `json:"saves,omitempty"`
+	SavesPercentile    *float64 `json:"savesPercentile,omitempty"`
+	SavePctg           *float64 `json:"savePctg,omitempty"`
+	SavePctgPercentile *float64 `json:"savePctgPercentile,omitempty"`
+}
+
+type EdgeGoalieShotLocationSummary struct {
+	LocationCode           string   `json:"locationCode"`
+	GoalsAgainst           *int     `json:"goalsAgainst,omitempty"`
+	GoalsAgainstPercentile *float64 `json:"goalsAgainstPercentile,omitempty"`
+	GoalsAgainstLeagueAvg  *float64 `json:"goalsAgainstLeagueAvg,omitempty"`
+	Saves                  *int     `json:"saves,omitempty"`
+	SavesPercentile        *float64 `json:"savesPercentile,omitempty"`
+	SavesLeagueAvg         *float64 `json:"savesLeagueAvg,omitempty"`
+	SavePctg               *float64 `json:"savePctg,omitempty"`
+	SavePctgPercentile     *float64 `json:"savePctgPercentile,omitempty"`
+	SavePctgLeagueAvg      *float64 `json:"savePctgLeagueAvg,omitempty"`
+}
+
+type EdgeGoalieStats struct {
+	PlayerID                 int                              `json:"playerId"`
+	Season                   int                              `json:"season"`
+	GameType                 string                           `json:"gameType"`
+	GaaValue                 *float64                         `json:"gaaValue,omitempty"`
+	GaaPercentile            *float64                         `json:"gaaPercentile,omitempty"`
+	GaaLeagueAvg             *float64                         `json:"gaaLeagueAvg,omitempty"`
+	GamesAbove900            *float64                         `json:"gamesAbove900,omitempty"`
+	GamesAbove900Percentile  *float64                         `json:"gamesAbove900Percentile,omitempty"`
+	GamesAbove900LeagueAvg   *float64                         `json:"gamesAbove900LeagueAvg,omitempty"`
+	GoalDiffPer60            *float64                         `json:"goalDiffPer60,omitempty"`
+	GoalDiffPer60Percentile  *float64                         `json:"goalDiffPer60Percentile,omitempty"`
+	GoalDiffPer60LeagueAvg   *float64                         `json:"goalDiffPer60LeagueAvg,omitempty"`
+	GoalSupportAvg           *float64                         `json:"goalSupportAvg,omitempty"`
+	GoalSupportAvgPercentile *float64                         `json:"goalSupportAvgPercentile,omitempty"`
+	GoalSupportAvgLeagueAvg  *float64                         `json:"goalSupportAvgLeagueAvg,omitempty"`
+	PointPctg                *float64                         `json:"pointPctg,omitempty"`
+	PointPctgPercentile      *float64                         `json:"pointPctgPercentile,omitempty"`
+	PointPctgLeagueAvg       *float64                         `json:"pointPctgLeagueAvg,omitempty"`
+	ShotLocationSummary      []*EdgeGoalieShotLocationSummary `json:"shotLocationSummary"`
+	ShotLocations            []*EdgeGoalieShotLocation        `json:"shotLocations"`
+}
+
+type EdgeShotLocation struct {
+	Area                   string   `json:"area"`
+	Sog                    *int     `json:"sog,omitempty"`
+	Goals                  *int     `json:"goals,omitempty"`
+	ShootingPctg           *float64 `json:"shootingPctg,omitempty"`
+	SogPercentile          *float64 `json:"sogPercentile,omitempty"`
+	GoalsPercentile        *float64 `json:"goalsPercentile,omitempty"`
+	ShootingPctgPercentile *float64 `json:"shootingPctgPercentile,omitempty"`
+}
+
+type EdgeSkaterStats struct {
+	PlayerID                      int                 `json:"playerId"`
+	Season                        int                 `json:"season"`
+	GameType                      string              `json:"gameType"`
+	TopSpeedImperial              *float64            `json:"topSpeedImperial,omitempty"`
+	TopSpeedMetric                *float64            `json:"topSpeedMetric,omitempty"`
+	TopSpeedPercentile            *float64            `json:"topSpeedPercentile,omitempty"`
+	TopSpeedLeagueAvgImperial     *float64            `json:"topSpeedLeagueAvgImperial,omitempty"`
+	TopSpeedLeagueAvgMetric       *float64            `json:"topSpeedLeagueAvgMetric,omitempty"`
+	BurstsOver20                  *int                `json:"burstsOver20,omitempty"`
+	BurstsOver20Percentile        *float64            `json:"burstsOver20Percentile,omitempty"`
+	BurstsOver20LeagueAvg         *float64            `json:"burstsOver20LeagueAvg,omitempty"`
+	TotalDistanceImperial         *float64            `json:"totalDistanceImperial,omitempty"`
+	TotalDistanceMetric           *float64            `json:"totalDistanceMetric,omitempty"`
+	TotalDistancePercentile       *float64            `json:"totalDistancePercentile,omitempty"`
+	MaxGameDistanceImperial       *float64            `json:"maxGameDistanceImperial,omitempty"`
+	MaxGameDistanceMetric         *float64            `json:"maxGameDistanceMetric,omitempty"`
+	MaxGameDistancePercentile     *float64            `json:"maxGameDistancePercentile,omitempty"`
+	TopShotSpeedImperial          *float64            `json:"topShotSpeedImperial,omitempty"`
+	TopShotSpeedMetric            *float64            `json:"topShotSpeedMetric,omitempty"`
+	TopShotSpeedPercentile        *float64            `json:"topShotSpeedPercentile,omitempty"`
+	TopShotSpeedLeagueAvgImperial *float64            `json:"topShotSpeedLeagueAvgImperial,omitempty"`
+	TopShotSpeedLeagueAvgMetric   *float64            `json:"topShotSpeedLeagueAvgMetric,omitempty"`
+	OzPctg                        *float64            `json:"ozPctg,omitempty"`
+	OzPercentile                  *float64            `json:"ozPercentile,omitempty"`
+	OzLeagueAvg                   *float64            `json:"ozLeagueAvg,omitempty"`
+	NzPctg                        *float64            `json:"nzPctg,omitempty"`
+	NzPercentile                  *float64            `json:"nzPercentile,omitempty"`
+	NzLeagueAvg                   *float64            `json:"nzLeagueAvg,omitempty"`
+	DzPctg                        *float64            `json:"dzPctg,omitempty"`
+	DzPercentile                  *float64            `json:"dzPercentile,omitempty"`
+	DzLeagueAvg                   *float64            `json:"dzLeagueAvg,omitempty"`
+	OzEvPctg                      *float64            `json:"ozEvPctg,omitempty"`
+	OzEvPercentile                *float64            `json:"ozEvPercentile,omitempty"`
+	ShotLocations                 []*EdgeShotLocation `json:"shotLocations"`
+	SogSummary                    []*EdgeSogSummary   `json:"sogSummary"`
+}
+
+type EdgeSogSummary struct {
+	LocationCode           string   `json:"locationCode"`
+	Shots                  *int     `json:"shots,omitempty"`
+	ShotsPercentile        *float64 `json:"shotsPercentile,omitempty"`
+	ShotsLeagueAvg         *float64 `json:"shotsLeagueAvg,omitempty"`
+	Goals                  *int     `json:"goals,omitempty"`
+	GoalsPercentile        *float64 `json:"goalsPercentile,omitempty"`
+	GoalsLeagueAvg         *float64 `json:"goalsLeagueAvg,omitempty"`
+	ShootingPctg           *float64 `json:"shootingPctg,omitempty"`
+	ShootingPctgPercentile *float64 `json:"shootingPctgPercentile,omitempty"`
+	ShootingPctgLeagueAvg  *float64 `json:"shootingPctgLeagueAvg,omitempty"`
+}
+
+type EdgeTeamShotDifferential struct {
+	StrengthCode            string   `json:"strengthCode"`
+	ForPerGame              *float64 `json:"forPerGame,omitempty"`
+	ForPerGameRank          *int     `json:"forPerGameRank,omitempty"`
+	AgainstPerGame          *float64 `json:"againstPerGame,omitempty"`
+	AgainstPerGameRank      *int     `json:"againstPerGameRank,omitempty"`
+	DifferentialPerGame     *float64 `json:"differentialPerGame,omitempty"`
+	DifferentialPerGameRank *int     `json:"differentialPerGameRank,omitempty"`
+}
+
+type EdgeTeamShotLocation struct {
+	Area      string `json:"area"`
+	Shots     *int   `json:"shots,omitempty"`
+	ShotsRank *int   `json:"shotsRank,omitempty"`
+}
+
+type EdgeTeamSogSummary struct {
+	LocationCode          string   `json:"locationCode"`
+	Shots                 *int     `json:"shots,omitempty"`
+	ShotsRank             *int     `json:"shotsRank,omitempty"`
+	ShotsLeagueAvg        *float64 `json:"shotsLeagueAvg,omitempty"`
+	Goals                 *int     `json:"goals,omitempty"`
+	GoalsRank             *int     `json:"goalsRank,omitempty"`
+	GoalsLeagueAvg        *float64 `json:"goalsLeagueAvg,omitempty"`
+	ShootingPctg          *float64 `json:"shootingPctg,omitempty"`
+	ShootingPctgRank      *int     `json:"shootingPctgRank,omitempty"`
+	ShootingPctgLeagueAvg *float64 `json:"shootingPctgLeagueAvg,omitempty"`
+}
+
+type EdgeTeamStats struct {
+	TeamID                 int                           `json:"teamId"`
+	Season                 int                           `json:"season"`
+	GameType               string                        `json:"gameType"`
+	ShotAttemptsOver90     *int                          `json:"shotAttemptsOver90,omitempty"`
+	ShotAttemptsOver90Rank *int                          `json:"shotAttemptsOver90Rank,omitempty"`
+	TopShotSpeedImperial   *float64                      `json:"topShotSpeedImperial,omitempty"`
+	TopShotSpeedMetric     *float64                      `json:"topShotSpeedMetric,omitempty"`
+	TopShotSpeedRank       *int                          `json:"topShotSpeedRank,omitempty"`
+	SpeedMaxImperial       *float64                      `json:"speedMaxImperial,omitempty"`
+	SpeedMaxMetric         *float64                      `json:"speedMaxMetric,omitempty"`
+	SpeedMaxRank           *int                          `json:"speedMaxRank,omitempty"`
+	BurstsOver22           *int                          `json:"burstsOver22,omitempty"`
+	BurstsOver22Rank       *int                          `json:"burstsOver22Rank,omitempty"`
+	BurstsOver20           *int                          `json:"burstsOver20,omitempty"`
+	BurstsOver20Rank       *int                          `json:"burstsOver20Rank,omitempty"`
+	TotalDistance          *int                          `json:"totalDistance,omitempty"`
+	TotalDistanceRank      *int                          `json:"totalDistanceRank,omitempty"`
+	OzPctg                 *float64                      `json:"ozPctg,omitempty"`
+	OzRank                 *int                          `json:"ozRank,omitempty"`
+	OzLeagueAvg            *float64                      `json:"ozLeagueAvg,omitempty"`
+	OzEvPctg               *float64                      `json:"ozEvPctg,omitempty"`
+	OzEvRank               *int                          `json:"ozEvRank,omitempty"`
+	NzPctg                 *float64                      `json:"nzPctg,omitempty"`
+	NzRank                 *int                          `json:"nzRank,omitempty"`
+	NzLeagueAvg            *float64                      `json:"nzLeagueAvg,omitempty"`
+	DzPctg                 *float64                      `json:"dzPctg,omitempty"`
+	DzRank                 *int                          `json:"dzRank,omitempty"`
+	DzLeagueAvg            *float64                      `json:"dzLeagueAvg,omitempty"`
+	SogSummary             []*EdgeTeamSogSummary         `json:"sogSummary"`
+	ShotLocations          []*EdgeTeamShotLocation       `json:"shotLocations"`
+	ZoneTimeByStrength     []*EdgeTeamZoneTimeByStrength `json:"zoneTimeByStrength"`
+	ShotDifferential       []*EdgeTeamShotDifferential   `json:"shotDifferential"`
+}
+
+type EdgeTeamZoneTimeByStrength struct {
+	StrengthCode string   `json:"strengthCode"`
+	OzPctg       *float64 `json:"ozPctg,omitempty"`
+	OzRank       *int     `json:"ozRank,omitempty"`
+	NzPctg       *float64 `json:"nzPctg,omitempty"`
+	NzRank       *int     `json:"nzRank,omitempty"`
+	DzPctg       *float64 `json:"dzPctg,omitempty"`
+	DzRank       *int     `json:"dzRank,omitempty"`
+}
+
 type FetchPlayerLandingsInput struct {
 	BatchSize   *int `json:"batchSize,omitempty"`
 	Concurrency *int `json:"concurrency,omitempty"`

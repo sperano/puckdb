@@ -58,6 +58,7 @@ type SeasonsActivities struct {
 	SeasonTeamsUpserter seasonTeamsUpserter
 	RosterQueries       SeasonRosterUpserter
 	ClubStatsQueries    ClubStatsUpserter
+	EdgeQueries         EdgeStatsUpserter
 	RedisClient         cache.Client // for progress tracking (nil-safe)
 }
 

@@ -30,6 +30,30 @@ type NHLClient interface {
 	LeagueStandingsForDate(ctx context.Context, date nhl.GameDate) ([]nhl.Standing, error)
 	RosterSeason(ctx context.Context, teamAbbr string, season nhl.Season) (*nhl.Roster, error)
 	ClubStats(ctx context.Context, teamAbbr string, season nhl.Season, gameType nhl.GameType) (*nhl.ClubStats, error)
+
+	// Edge methods
+	EdgeSkaterDetail(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterDetail, error)
+	EdgeSkaterSpeedDetail(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterSpeedDetail, error)
+	EdgeSkaterDistanceDetail(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterDistanceDetail, error)
+	EdgeSkaterShotSpeedDetail(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterShotSpeedDetail, error)
+	EdgeSkaterShotLocationDetail(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterShotLocationDetail, error)
+	EdgeSkaterZoneTime(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterZoneTimeDetail, error)
+	EdgeSkaterComparison(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterComparison, error)
+	EdgeGoalieDetail(ctx context.Context, goalieID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalieDetail, error)
+	EdgeGoalie5v5Detail(ctx context.Context, goalieID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalie5v5Detail, error)
+	EdgeGoalieShotLocationDetail(ctx context.Context, goalieID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalieShotLocationDetail, error)
+	EdgeGoalieSavePctgDetail(ctx context.Context, goalieID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalieSavePctgDetail, error)
+	EdgeGoalieComparison(ctx context.Context, goalieID nhl.PlayerID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalieComparison, error)
+	EdgeTeamDetail(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamDetail, error)
+	EdgeTeamSpeedDetail(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamSpeedDetail, error)
+	EdgeTeamDistanceDetail(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamDistanceDetail, error)
+	EdgeTeamShotSpeedDetail(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamShotSpeedDetail, error)
+	EdgeTeamShotLocationDetail(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamShotLocationDetail, error)
+	EdgeTeamZoneTimeDetails(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamZoneTimeDetails, error)
+	EdgeTeamComparison(ctx context.Context, teamID nhl.TeamID, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamComparison, error)
+	EdgeSkaterLanding(ctx context.Context, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeSkaterLanding, error)
+	EdgeGoalieLanding(ctx context.Context, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeGoalieLanding, error)
+	EdgeTeamLanding(ctx context.Context, season nhl.Season, gameType nhl.GameType) (*nhl.EdgeTeamLanding, error)
 }
 
 // Compile-time check that nhl.Client implements NHLClient

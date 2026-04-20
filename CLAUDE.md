@@ -86,6 +86,8 @@ Defined in `worker/workflow/`:
 - `ExtractBoxscorePlayersWorkflow` — Extract player rows from boxscores
 - `FetchYahooPlayersWorkflow` — Yahoo player pages
 - `ProcessPlayersWorkflow` — Player enrichment and matching
+- `FetchEdgeSeasonsWorkflow` / `FetchEdgeWorkflow` — NHL Edge tracking data (2021-2022+)
+- `ImportEdgeSeasonsWorkflow` / `ImportEdgeWorkflow` — Import cached Edge data into Postgres
 - `InitializeWorkflow` — Database initialization
 
 Defined in `worker/admin/`:
@@ -135,12 +137,15 @@ Schema lives in `graph/schema.graphqls`. Each long-running workflow follows the 
 - `extractBoxscorePlayers(input: SeasonsInput)`
 - `fetchYahooPlayers`
 - `processPlayers(input: ProcessPlayersInput)` — Player enrichment + matching
+- `fetchEdgeStats(input: SeasonsInput)` / `importEdgeStats(input: SeasonsInput)` — Edge tracking data
 
 **Admin mutations:** `clearDatabase`, `dropDatabase`, `createDatabase`, `flushRedisDB`
 
 **Maurice (LLM chat) mutations:** `mauriceChat(conversationId, message)`, `mauriceDeleteConversation(id)`
 
 **Workflow queries:** for every workflow above, `<name>Result: WorkflowResult!` and `<name>Progress: ProgressReport`. `processPlayers` additionally exposes `processPlayersResultData: ProcessPlayersResultData`.
+
+**Data queries** (in `graph/data.graphqls`): `seasons`, `teams`, `players`, `games`, `standings`, `boxscore`, `skaterGameLog`, `goalieGameLog`, `playerSeasonTotals`, `edgeSkaterStats`, `edgeGoalieStats`, `edgeTeamStats`
 
 **Other queries:** `buildNumber`, `yahooTokenStatus`, `mauriceConversations(limit)`, `mauriceConversation(id)`
 
@@ -232,6 +237,22 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `club_goalie_stats` | Aggregated club goalie stats per season (PK `(season, game_type, team_id, player_id)`) | `season`, `game_type`, `team_id`, `player_id`, `games_played`, `wins`, `losses`, `overtime_losses`, `goals_against_average`, `save_percentage`, `shutouts`, `toi_seconds` |
 | `player_season_totals` | Per-season aggregates per player, **including minor leagues** (PK `(player_id, season, game_type, league_abbrev, sequence)`) | `player_id`, `season`, `game_type`, `league_abbrev`, `sequence`, `team_name`, `games_played`, `goals`, `assists`, `points`, `plus_minus`, `pim` |
 | `player_awards` | NHL awards / trophies (PK `(player_id, trophy_name, season)`) | `player_id`, `trophy_name`, `season` |
+
+### NHL Edge Tracking Data (2021-2022 onward)
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `edge_skater_stats` | Per-skater Edge summary (PK `(player_id, season, game_type)`) | `top_speed_imperial/metric`, `bursts_over_20`, `total_distance_imperial/metric`, `top_shot_speed_imperial/metric`, `oz/nz/dz_pctg` + percentiles and league avgs |
+| `edge_skater_shot_locations` | Shot locations by rink area (PK `(player_id, season, game_type, area)`) | `sog`, `goals`, `shooting_pctg` + percentiles |
+| `edge_skater_sog_summary` | SOG summary by location code (PK `(player_id, season, game_type, location_code)`) | `shots`, `goals`, `shooting_pctg` + percentiles and league avgs |
+| `edge_goalie_stats` | Per-goalie Edge summary (PK `(player_id, season, game_type)`) | `gaa_value`, `games_above_900_value`, `goal_diff_per_60_value`, `point_pctg_value` + percentiles and league avgs |
+| `edge_goalie_shot_location_summary` | Goalie saves by location code (PK `(player_id, season, game_type, location_code)`) | `goals_against`, `saves`, `save_pctg` + percentiles and league avgs |
+| `edge_goalie_shot_locations` | Goalie saves by rink area (PK `(player_id, season, game_type, area)`) | `saves`, `save_pctg` + percentiles |
+| `edge_team_stats` | Per-team Edge summary (PK `(team_id, season, game_type)`) | `shot_attempts_over_90`, `top_shot_speed_imperial/metric`, `speed_max_imperial/metric`, `bursts_over_22/20`, `total_distance`, `oz/nz/dz_pctg` + ranks and league avgs |
+| `edge_team_sog_summary` | Team SOG by location code (PK `(team_id, season, game_type, location_code)`) | `shots`, `goals`, `shooting_pctg` + ranks and league avgs |
+| `edge_team_shot_locations` | Team shot locations by area (PK `(team_id, season, game_type, area)`) | `shots`, `shots_rank` |
+| `edge_team_zone_time_by_strength` | Zone time by strength code (PK `(team_id, season, game_type, strength_code)`) | `oz/nz/dz_pctg` + ranks |
+| `edge_team_shot_differential` | Shot differential by strength (PK `(team_id, season, game_type, strength_code)`) | `for_per_game`, `against_per_game`, `differential_per_game` + ranks |
 
 **Game types:** 1=preseason, 2=regular, 3=playoffs
 **Game states:** FUT=future, LIVE=in progress, OFF/FINAL=completed

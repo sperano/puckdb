@@ -289,6 +289,98 @@ func (r *queryResolver) PlayerSeasonTotals(ctx context.Context, playerID int64) 
 	return out, nil
 }
 
+// EdgeSkaterStats is the resolver for the edgeSkaterStats field.
+func (r *queryResolver) EdgeSkaterStats(ctx context.Context, playerID int, season int, gameType *int) (*model.EdgeSkaterStats, error) {
+	if r.Resolver.Queries == nil {
+		return nil, errDatabaseNotConfigured
+	}
+	gt := resolveGameType(gameType)
+	params := sqlcdb.GetEdgeSkaterStatsParams{
+		PlayerID: int64(playerID),
+		Season:   int32(season),
+		GameType: gt,
+	}
+	stats, err := r.Resolver.Queries.GetEdgeSkaterStats(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	shotLocs, err := r.Resolver.Queries.GetEdgeSkaterShotLocations(ctx, sqlcdb.GetEdgeSkaterShotLocationsParams(params))
+	if err != nil {
+		return nil, err
+	}
+	sogSummary, err := r.Resolver.Queries.GetEdgeSkaterSogSummary(ctx, sqlcdb.GetEdgeSkaterSogSummaryParams(params))
+	if err != nil {
+		return nil, err
+	}
+
+	return convertEdgeSkaterStats(stats, shotLocs, sogSummary), nil
+}
+
+// EdgeGoalieStats is the resolver for the edgeGoalieStats field.
+func (r *queryResolver) EdgeGoalieStats(ctx context.Context, playerID int, season int, gameType *int) (*model.EdgeGoalieStats, error) {
+	if r.Resolver.Queries == nil {
+		return nil, errDatabaseNotConfigured
+	}
+	gt := resolveGameType(gameType)
+	params := sqlcdb.GetEdgeGoalieStatsParams{
+		PlayerID: int64(playerID),
+		Season:   int32(season),
+		GameType: gt,
+	}
+	stats, err := r.Resolver.Queries.GetEdgeGoalieStats(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	locSummary, err := r.Resolver.Queries.GetEdgeGoalieShotLocationSummary(ctx, sqlcdb.GetEdgeGoalieShotLocationSummaryParams(params))
+	if err != nil {
+		return nil, err
+	}
+	shotLocs, err := r.Resolver.Queries.GetEdgeGoalieShotLocations(ctx, sqlcdb.GetEdgeGoalieShotLocationsParams(params))
+	if err != nil {
+		return nil, err
+	}
+
+	return convertEdgeGoalieStats(stats, locSummary, shotLocs), nil
+}
+
+// EdgeTeamStats is the resolver for the edgeTeamStats field.
+func (r *queryResolver) EdgeTeamStats(ctx context.Context, teamID int, season int, gameType *int) (*model.EdgeTeamStats, error) {
+	if r.Resolver.Queries == nil {
+		return nil, errDatabaseNotConfigured
+	}
+	gt := resolveGameType(gameType)
+	teamParams := sqlcdb.GetEdgeTeamStatsParams{
+		TeamID:   int64(teamID),
+		Season:   int32(season),
+		GameType: gt,
+	}
+	stats, err := r.Resolver.Queries.GetEdgeTeamStats(ctx, teamParams)
+	if err != nil {
+		return nil, err
+	}
+
+	sogSummary, err := r.Resolver.Queries.GetEdgeTeamSogSummary(ctx, sqlcdb.GetEdgeTeamSogSummaryParams(teamParams))
+	if err != nil {
+		return nil, err
+	}
+	shotLocs, err := r.Resolver.Queries.GetEdgeTeamShotLocations(ctx, sqlcdb.GetEdgeTeamShotLocationsParams(teamParams))
+	if err != nil {
+		return nil, err
+	}
+	zoneTime, err := r.Resolver.Queries.GetEdgeTeamZoneTimeByStrength(ctx, sqlcdb.GetEdgeTeamZoneTimeByStrengthParams(teamParams))
+	if err != nil {
+		return nil, err
+	}
+	shotDiff, err := r.Resolver.Queries.GetEdgeTeamShotDifferential(ctx, sqlcdb.GetEdgeTeamShotDifferentialParams(teamParams))
+	if err != nil {
+		return nil, err
+	}
+
+	return convertEdgeTeamStats(stats, sogSummary, shotLocs, zoneTime, shotDiff), nil
+}
+
 // --- Conversion functions ---
 
 func convertSeason(s sqlcdb.Season) *model.Season {
@@ -537,6 +629,230 @@ func convertPlayerSeasonTotal(t sqlcdb.PlayerSeasonTotal) *model.PlayerSeasonTot
 		Points:       int4Ptr(t.Points),
 		PlusMinus:    int4Ptr(t.PlusMinus),
 		Pim:          int4Ptr(t.PIM),
+	}
+}
+
+// --- Edge conversion functions ---
+
+const defaultGameTypeInt = 2 // regular season
+
+func resolveGameType(gameType *int) sqlcdb.GameType {
+	gt := defaultGameTypeInt
+	if gameType != nil {
+		gt = *gameType
+	}
+	switch gt {
+	case 1:
+		return sqlcdb.GameTypePreseason
+	case 2:
+		return sqlcdb.GameTypeRegularSeason
+	case 3:
+		return sqlcdb.GameTypePlayoffs
+	case 4:
+		return sqlcdb.GameTypeAllStar
+	default:
+		return sqlcdb.GameTypeRegularSeason
+	}
+}
+
+func convertEdgeSkaterStats(s sqlcdb.EdgeSkaterStat, locs []sqlcdb.EdgeSkaterShotLocation, sog []sqlcdb.EdgeSkaterSogSummary) *model.EdgeSkaterStats {
+	shotLocs := make([]*model.EdgeShotLocation, len(locs))
+	for i, l := range locs {
+		shotLocs[i] = &model.EdgeShotLocation{
+			Area:                   l.Area,
+			Sog:                    int4Ptr(l.SOG),
+			Goals:                  int4Ptr(l.Goals),
+			ShootingPctg:           float4Ptr(l.ShootingPctg),
+			SogPercentile:          float4Ptr(l.SogPercentile),
+			GoalsPercentile:        float4Ptr(l.GoalsPercentile),
+			ShootingPctgPercentile: float4Ptr(l.ShootingPctgPercentile),
+		}
+	}
+	sogSummary := make([]*model.EdgeSogSummary, len(sog))
+	for i, ss := range sog {
+		sogSummary[i] = &model.EdgeSogSummary{
+			LocationCode:           ss.LocationCode,
+			Shots:                  int4Ptr(ss.Shots),
+			ShotsPercentile:        float4Ptr(ss.ShotsPercentile),
+			ShotsLeagueAvg:         float4Ptr(ss.ShotsLeagueAvg),
+			Goals:                  int4Ptr(ss.Goals),
+			GoalsPercentile:        float4Ptr(ss.GoalsPercentile),
+			GoalsLeagueAvg:         float4Ptr(ss.GoalsLeagueAvg),
+			ShootingPctg:           float4Ptr(ss.ShootingPctg),
+			ShootingPctgPercentile: float4Ptr(ss.ShootingPctgPercentile),
+			ShootingPctgLeagueAvg:  float4Ptr(ss.ShootingPctgLeagueAvg),
+		}
+	}
+	return &model.EdgeSkaterStats{
+		PlayerID:                      int(s.PlayerID),
+		Season:                        int(s.Season),
+		GameType:                      string(s.GameType),
+		TopSpeedImperial:              float4Ptr(s.TopSpeedImperial),
+		TopSpeedMetric:                float4Ptr(s.TopSpeedMetric),
+		TopSpeedPercentile:            float4Ptr(s.TopSpeedPercentile),
+		TopSpeedLeagueAvgImperial:     float4Ptr(s.TopSpeedLeagueAvgImperial),
+		TopSpeedLeagueAvgMetric:       float4Ptr(s.TopSpeedLeagueAvgMetric),
+		BurstsOver20:                  int4Ptr(s.BurstsOver20),
+		BurstsOver20Percentile:        float4Ptr(s.BurstsOver20Percentile),
+		BurstsOver20LeagueAvg:         float4Ptr(s.BurstsOver20LeagueAvg),
+		TotalDistanceImperial:         float4Ptr(s.TotalDistanceImperial),
+		TotalDistanceMetric:           float4Ptr(s.TotalDistanceMetric),
+		TotalDistancePercentile:       float4Ptr(s.TotalDistancePercentile),
+		MaxGameDistanceImperial:       float4Ptr(s.MaxGameDistanceImperial),
+		MaxGameDistanceMetric:         float4Ptr(s.MaxGameDistanceMetric),
+		MaxGameDistancePercentile:     float4Ptr(s.MaxGameDistancePercentile),
+		TopShotSpeedImperial:          float4Ptr(s.TopShotSpeedImperial),
+		TopShotSpeedMetric:            float4Ptr(s.TopShotSpeedMetric),
+		TopShotSpeedPercentile:        float4Ptr(s.TopShotSpeedPercentile),
+		TopShotSpeedLeagueAvgImperial: float4Ptr(s.TopShotSpeedLeagueAvgImperial),
+		TopShotSpeedLeagueAvgMetric:   float4Ptr(s.TopShotSpeedLeagueAvgMetric),
+		OzPctg:                        float4Ptr(s.OzPctg),
+		OzPercentile:                  float4Ptr(s.OzPercentile),
+		OzLeagueAvg:                   float4Ptr(s.OzLeagueAvg),
+		NzPctg:                        float4Ptr(s.NzPctg),
+		NzPercentile:                  float4Ptr(s.NzPercentile),
+		NzLeagueAvg:                   float4Ptr(s.NzLeagueAvg),
+		DzPctg:                        float4Ptr(s.DzPctg),
+		DzPercentile:                  float4Ptr(s.DzPercentile),
+		DzLeagueAvg:                   float4Ptr(s.DzLeagueAvg),
+		OzEvPctg:                      float4Ptr(s.OzEvPctg),
+		OzEvPercentile:                float4Ptr(s.OzEvPercentile),
+		ShotLocations:                 shotLocs,
+		SogSummary:                    sogSummary,
+	}
+}
+
+func convertEdgeGoalieStats(s sqlcdb.EdgeGoalieStat, locSummary []sqlcdb.EdgeGoalieShotLocationSummary, locs []sqlcdb.EdgeGoalieShotLocation) *model.EdgeGoalieStats {
+	shotLocSummary := make([]*model.EdgeGoalieShotLocationSummary, len(locSummary))
+	for i, ls := range locSummary {
+		shotLocSummary[i] = &model.EdgeGoalieShotLocationSummary{
+			LocationCode:           ls.LocationCode,
+			GoalsAgainst:           int4Ptr(ls.GoalsAgainst),
+			GoalsAgainstPercentile: float4Ptr(ls.GoalsAgainstPercentile),
+			GoalsAgainstLeagueAvg:  float4Ptr(ls.GoalsAgainstLeagueAvg),
+			Saves:                  int4Ptr(ls.Saves),
+			SavesPercentile:        float4Ptr(ls.SavesPercentile),
+			SavesLeagueAvg:         float4Ptr(ls.SavesLeagueAvg),
+			SavePctg:               float4Ptr(ls.SavePctg),
+			SavePctgPercentile:     float4Ptr(ls.SavePctgPercentile),
+			SavePctgLeagueAvg:      float4Ptr(ls.SavePctgLeagueAvg),
+		}
+	}
+	shotLocs := make([]*model.EdgeGoalieShotLocation, len(locs))
+	for i, l := range locs {
+		shotLocs[i] = &model.EdgeGoalieShotLocation{
+			Area:               l.Area,
+			Saves:              int4Ptr(l.Saves),
+			SavesPercentile:    float4Ptr(l.SavesPercentile),
+			SavePctg:           float4Ptr(l.SavePctg),
+			SavePctgPercentile: float4Ptr(l.SavePctgPercentile),
+		}
+	}
+	return &model.EdgeGoalieStats{
+		PlayerID:                 int(s.PlayerID),
+		Season:                   int(s.Season),
+		GameType:                 string(s.GameType),
+		GaaValue:                 float4Ptr(s.GaaValue),
+		GaaPercentile:            float4Ptr(s.GaaPercentile),
+		GaaLeagueAvg:             float4Ptr(s.GaaLeagueAvg),
+		GamesAbove900:            float4Ptr(s.GamesAbove900Value),
+		GamesAbove900Percentile:  float4Ptr(s.GamesAbove900Percentile),
+		GamesAbove900LeagueAvg:   float4Ptr(s.GamesAbove900LeagueAvg),
+		GoalDiffPer60:            float4Ptr(s.GoalDiffPer60Value),
+		GoalDiffPer60Percentile:  float4Ptr(s.GoalDiffPer60Percentile),
+		GoalDiffPer60LeagueAvg:   float4Ptr(s.GoalDiffPer60LeagueAvg),
+		GoalSupportAvg:           float4Ptr(s.GoalSupportAvgValue),
+		GoalSupportAvgPercentile: float4Ptr(s.GoalSupportAvgPercentile),
+		GoalSupportAvgLeagueAvg:  float4Ptr(s.GoalSupportAvgLeagueAvg),
+		PointPctg:                float4Ptr(s.PointPctgValue),
+		PointPctgPercentile:      float4Ptr(s.PointPctgPercentile),
+		PointPctgLeagueAvg:       float4Ptr(s.PointPctgLeagueAvg),
+		ShotLocationSummary:      shotLocSummary,
+		ShotLocations:            shotLocs,
+	}
+}
+
+func convertEdgeTeamStats(s sqlcdb.EdgeTeamStat, sog []sqlcdb.EdgeTeamSogSummary, locs []sqlcdb.EdgeTeamShotLocation, zt []sqlcdb.EdgeTeamZoneTimeByStrength, sd []sqlcdb.EdgeTeamShotDifferential) *model.EdgeTeamStats {
+	sogSummary := make([]*model.EdgeTeamSogSummary, len(sog))
+	for i, ss := range sog {
+		sogSummary[i] = &model.EdgeTeamSogSummary{
+			LocationCode:          ss.LocationCode,
+			Shots:                 int4Ptr(ss.Shots),
+			ShotsRank:             int4Ptr(ss.ShotsRank),
+			ShotsLeagueAvg:        float4Ptr(ss.ShotsLeagueAvg),
+			Goals:                 int4Ptr(ss.Goals),
+			GoalsRank:             int4Ptr(ss.GoalsRank),
+			GoalsLeagueAvg:        float4Ptr(ss.GoalsLeagueAvg),
+			ShootingPctg:          float4Ptr(ss.ShootingPctg),
+			ShootingPctgRank:      int4Ptr(ss.ShootingPctgRank),
+			ShootingPctgLeagueAvg: float4Ptr(ss.ShootingPctgLeagueAvg),
+		}
+	}
+	shotLocs := make([]*model.EdgeTeamShotLocation, len(locs))
+	for i, l := range locs {
+		shotLocs[i] = &model.EdgeTeamShotLocation{
+			Area:      l.Area,
+			Shots:     int4Ptr(l.Shots),
+			ShotsRank: int4Ptr(l.ShotsRank),
+		}
+	}
+	zoneTime := make([]*model.EdgeTeamZoneTimeByStrength, len(zt))
+	for i, z := range zt {
+		zoneTime[i] = &model.EdgeTeamZoneTimeByStrength{
+			StrengthCode: z.StrengthCode,
+			OzPctg:       float4Ptr(z.OzPctg),
+			OzRank:       int4Ptr(z.OzRank),
+			NzPctg:       float4Ptr(z.NzPctg),
+			NzRank:       int4Ptr(z.NzRank),
+			DzPctg:       float4Ptr(z.DzPctg),
+			DzRank:       int4Ptr(z.DzRank),
+		}
+	}
+	shotDiff := make([]*model.EdgeTeamShotDifferential, len(sd))
+	for i, d := range sd {
+		shotDiff[i] = &model.EdgeTeamShotDifferential{
+			StrengthCode:           d.StrengthCode,
+			ForPerGame:             float4Ptr(d.ForPerGame),
+			ForPerGameRank:         int4Ptr(d.ForPerGameRank),
+			AgainstPerGame:         float4Ptr(d.AgainstPerGame),
+			AgainstPerGameRank:     int4Ptr(d.AgainstPerGameRank),
+			DifferentialPerGame:     float4Ptr(d.DifferentialPerGame),
+			DifferentialPerGameRank: int4Ptr(d.DifferentialPerGameRank),
+		}
+	}
+	return &model.EdgeTeamStats{
+		TeamID:                 int(s.TeamID),
+		Season:                 int(s.Season),
+		GameType:               string(s.GameType),
+		ShotAttemptsOver90:     int4Ptr(s.ShotAttemptsOver90),
+		ShotAttemptsOver90Rank: int4Ptr(s.ShotAttemptsOver90Rank),
+		TopShotSpeedImperial:   float4Ptr(s.TopShotSpeedImperial),
+		TopShotSpeedMetric:     float4Ptr(s.TopShotSpeedMetric),
+		TopShotSpeedRank:       int4Ptr(s.TopShotSpeedRank),
+		SpeedMaxImperial:       float4Ptr(s.SpeedMaxImperial),
+		SpeedMaxMetric:         float4Ptr(s.SpeedMaxMetric),
+		SpeedMaxRank:           int4Ptr(s.SpeedMaxRank),
+		BurstsOver22:           int4Ptr(s.BurstsOver22),
+		BurstsOver22Rank:       int4Ptr(s.BurstsOver22Rank),
+		BurstsOver20:           int4Ptr(s.BurstsOver20),
+		BurstsOver20Rank:       int4Ptr(s.BurstsOver20Rank),
+		TotalDistance:          int4Ptr(s.TotalDistance),
+		TotalDistanceRank:      int4Ptr(s.TotalDistanceRank),
+		OzPctg:                float4Ptr(s.OzPctg),
+		OzRank:                int4Ptr(s.OzRank),
+		OzLeagueAvg:           float4Ptr(s.OzLeagueAvg),
+		OzEvPctg:              float4Ptr(s.OzEvPctg),
+		OzEvRank:              int4Ptr(s.OzEvRank),
+		NzPctg:                float4Ptr(s.NzPctg),
+		NzRank:                int4Ptr(s.NzRank),
+		NzLeagueAvg:           float4Ptr(s.NzLeagueAvg),
+		DzPctg:                float4Ptr(s.DzPctg),
+		DzRank:                int4Ptr(s.DzRank),
+		DzLeagueAvg:           float4Ptr(s.DzLeagueAvg),
+		SogSummary:            sogSummary,
+		ShotLocations:         shotLocs,
+		ZoneTimeByStrength:    zoneTime,
+		ShotDifferential:      shotDiff,
 	}
 }
 

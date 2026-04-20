@@ -246,4 +246,201 @@ extend type Query {
 
   # Career season-by-season stats (all leagues)
   playerSeasonTotals(playerId: Int64!): [PlayerSeasonTotal!]!
+
+  # Edge tracking stats (available 2021-2022 onward)
+  edgeSkaterStats(playerId: Int!, season: Int!, gameType: Int): EdgeSkaterStats
+  edgeGoalieStats(playerId: Int!, season: Int!, gameType: Int): EdgeGoalieStats
+  edgeTeamStats(teamId: Int!, season: Int!, gameType: Int): EdgeTeamStats
+}
+
+# --- Edge Tracking Types ---
+
+type EdgeSkaterStats {
+  playerId: Int!
+  season: Int!
+  gameType: String!
+  # Skating speed
+  topSpeedImperial: Float
+  topSpeedMetric: Float
+  topSpeedPercentile: Float
+  topSpeedLeagueAvgImperial: Float
+  topSpeedLeagueAvgMetric: Float
+  burstsOver20: Int
+  burstsOver20Percentile: Float
+  burstsOver20LeagueAvg: Float
+  # Distance
+  totalDistanceImperial: Float
+  totalDistanceMetric: Float
+  totalDistancePercentile: Float
+  maxGameDistanceImperial: Float
+  maxGameDistanceMetric: Float
+  maxGameDistancePercentile: Float
+  # Shot speed
+  topShotSpeedImperial: Float
+  topShotSpeedMetric: Float
+  topShotSpeedPercentile: Float
+  topShotSpeedLeagueAvgImperial: Float
+  topShotSpeedLeagueAvgMetric: Float
+  # Zone time
+  ozPctg: Float
+  ozPercentile: Float
+  ozLeagueAvg: Float
+  nzPctg: Float
+  nzPercentile: Float
+  nzLeagueAvg: Float
+  dzPctg: Float
+  dzPercentile: Float
+  dzLeagueAvg: Float
+  ozEvPctg: Float
+  ozEvPercentile: Float
+  # Sub-tables
+  shotLocations: [EdgeShotLocation!]!
+  sogSummary: [EdgeSogSummary!]!
+}
+
+type EdgeShotLocation {
+  area: String!
+  sog: Int
+  goals: Int
+  shootingPctg: Float
+  sogPercentile: Float
+  goalsPercentile: Float
+  shootingPctgPercentile: Float
+}
+
+type EdgeSogSummary {
+  locationCode: String!
+  shots: Int
+  shotsPercentile: Float
+  shotsLeagueAvg: Float
+  goals: Int
+  goalsPercentile: Float
+  goalsLeagueAvg: Float
+  shootingPctg: Float
+  shootingPctgPercentile: Float
+  shootingPctgLeagueAvg: Float
+}
+
+type EdgeGoalieStats {
+  playerId: Int!
+  season: Int!
+  gameType: String!
+  gaaValue: Float
+  gaaPercentile: Float
+  gaaLeagueAvg: Float
+  gamesAbove900: Float
+  gamesAbove900Percentile: Float
+  gamesAbove900LeagueAvg: Float
+  goalDiffPer60: Float
+  goalDiffPer60Percentile: Float
+  goalDiffPer60LeagueAvg: Float
+  goalSupportAvg: Float
+  goalSupportAvgPercentile: Float
+  goalSupportAvgLeagueAvg: Float
+  pointPctg: Float
+  pointPctgPercentile: Float
+  pointPctgLeagueAvg: Float
+  # Sub-tables
+  shotLocationSummary: [EdgeGoalieShotLocationSummary!]!
+  shotLocations: [EdgeGoalieShotLocation!]!
+}
+
+type EdgeGoalieShotLocationSummary {
+  locationCode: String!
+  goalsAgainst: Int
+  goalsAgainstPercentile: Float
+  goalsAgainstLeagueAvg: Float
+  saves: Int
+  savesPercentile: Float
+  savesLeagueAvg: Float
+  savePctg: Float
+  savePctgPercentile: Float
+  savePctgLeagueAvg: Float
+}
+
+type EdgeGoalieShotLocation {
+  area: String!
+  saves: Int
+  savesPercentile: Float
+  savePctg: Float
+  savePctgPercentile: Float
+}
+
+type EdgeTeamStats {
+  teamId: Int!
+  season: Int!
+  gameType: String!
+  # Shot stats
+  shotAttemptsOver90: Int
+  shotAttemptsOver90Rank: Int
+  topShotSpeedImperial: Float
+  topShotSpeedMetric: Float
+  topShotSpeedRank: Int
+  # Skating speed
+  speedMaxImperial: Float
+  speedMaxMetric: Float
+  speedMaxRank: Int
+  burstsOver22: Int
+  burstsOver22Rank: Int
+  burstsOver20: Int
+  burstsOver20Rank: Int
+  # Distance
+  totalDistance: Int
+  totalDistanceRank: Int
+  # Zone time
+  ozPctg: Float
+  ozRank: Int
+  ozLeagueAvg: Float
+  ozEvPctg: Float
+  ozEvRank: Int
+  nzPctg: Float
+  nzRank: Int
+  nzLeagueAvg: Float
+  dzPctg: Float
+  dzRank: Int
+  dzLeagueAvg: Float
+  # Sub-tables
+  sogSummary: [EdgeTeamSogSummary!]!
+  shotLocations: [EdgeTeamShotLocation!]!
+  zoneTimeByStrength: [EdgeTeamZoneTimeByStrength!]!
+  shotDifferential: [EdgeTeamShotDifferential!]!
+}
+
+type EdgeTeamSogSummary {
+  locationCode: String!
+  shots: Int
+  shotsRank: Int
+  shotsLeagueAvg: Float
+  goals: Int
+  goalsRank: Int
+  goalsLeagueAvg: Float
+  shootingPctg: Float
+  shootingPctgRank: Int
+  shootingPctgLeagueAvg: Float
+}
+
+type EdgeTeamShotLocation {
+  area: String!
+  shots: Int
+  shotsRank: Int
+}
+
+type EdgeTeamZoneTimeByStrength {
+  strengthCode: String!
+  ozPctg: Float
+  ozRank: Int
+  nzPctg: Float
+  nzRank: Int
+  dzPctg: Float
+  dzRank: Int
+}
+
+type EdgeTeamShotDifferential {
+  strengthCode: String!
+  forPerGame: Float
+  forPerGameRank: Int
+  againstPerGame: Float
+  againstPerGameRank: Int
+  differentialPerGame: Float
+  differentialPerGameRank: Int
 }

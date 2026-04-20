@@ -53,6 +53,185 @@ type ComplexityRoot struct {
 		Skaters func(childComplexity int) int
 	}
 
+	EdgeGoalieShotLocation struct {
+		Area               func(childComplexity int) int
+		SavePctg           func(childComplexity int) int
+		SavePctgPercentile func(childComplexity int) int
+		Saves              func(childComplexity int) int
+		SavesPercentile    func(childComplexity int) int
+	}
+
+	EdgeGoalieShotLocationSummary struct {
+		GoalsAgainst           func(childComplexity int) int
+		GoalsAgainstLeagueAvg  func(childComplexity int) int
+		GoalsAgainstPercentile func(childComplexity int) int
+		LocationCode           func(childComplexity int) int
+		SavePctg               func(childComplexity int) int
+		SavePctgLeagueAvg      func(childComplexity int) int
+		SavePctgPercentile     func(childComplexity int) int
+		Saves                  func(childComplexity int) int
+		SavesLeagueAvg         func(childComplexity int) int
+		SavesPercentile        func(childComplexity int) int
+	}
+
+	EdgeGoalieStats struct {
+		GaaLeagueAvg             func(childComplexity int) int
+		GaaPercentile            func(childComplexity int) int
+		GaaValue                 func(childComplexity int) int
+		GameType                 func(childComplexity int) int
+		GamesAbove900            func(childComplexity int) int
+		GamesAbove900LeagueAvg   func(childComplexity int) int
+		GamesAbove900Percentile  func(childComplexity int) int
+		GoalDiffPer60            func(childComplexity int) int
+		GoalDiffPer60LeagueAvg   func(childComplexity int) int
+		GoalDiffPer60Percentile  func(childComplexity int) int
+		GoalSupportAvg           func(childComplexity int) int
+		GoalSupportAvgLeagueAvg  func(childComplexity int) int
+		GoalSupportAvgPercentile func(childComplexity int) int
+		PlayerID                 func(childComplexity int) int
+		PointPctg                func(childComplexity int) int
+		PointPctgLeagueAvg       func(childComplexity int) int
+		PointPctgPercentile      func(childComplexity int) int
+		Season                   func(childComplexity int) int
+		ShotLocationSummary      func(childComplexity int) int
+		ShotLocations            func(childComplexity int) int
+	}
+
+	EdgeShotLocation struct {
+		Area                   func(childComplexity int) int
+		Goals                  func(childComplexity int) int
+		GoalsPercentile        func(childComplexity int) int
+		ShootingPctg           func(childComplexity int) int
+		ShootingPctgPercentile func(childComplexity int) int
+		Sog                    func(childComplexity int) int
+		SogPercentile          func(childComplexity int) int
+	}
+
+	EdgeSkaterStats struct {
+		BurstsOver20                  func(childComplexity int) int
+		BurstsOver20LeagueAvg         func(childComplexity int) int
+		BurstsOver20Percentile        func(childComplexity int) int
+		DzLeagueAvg                   func(childComplexity int) int
+		DzPctg                        func(childComplexity int) int
+		DzPercentile                  func(childComplexity int) int
+		GameType                      func(childComplexity int) int
+		MaxGameDistanceImperial       func(childComplexity int) int
+		MaxGameDistanceMetric         func(childComplexity int) int
+		MaxGameDistancePercentile     func(childComplexity int) int
+		NzLeagueAvg                   func(childComplexity int) int
+		NzPctg                        func(childComplexity int) int
+		NzPercentile                  func(childComplexity int) int
+		OzEvPctg                      func(childComplexity int) int
+		OzEvPercentile                func(childComplexity int) int
+		OzLeagueAvg                   func(childComplexity int) int
+		OzPctg                        func(childComplexity int) int
+		OzPercentile                  func(childComplexity int) int
+		PlayerID                      func(childComplexity int) int
+		Season                        func(childComplexity int) int
+		ShotLocations                 func(childComplexity int) int
+		SogSummary                    func(childComplexity int) int
+		TopShotSpeedImperial          func(childComplexity int) int
+		TopShotSpeedLeagueAvgImperial func(childComplexity int) int
+		TopShotSpeedLeagueAvgMetric   func(childComplexity int) int
+		TopShotSpeedMetric            func(childComplexity int) int
+		TopShotSpeedPercentile        func(childComplexity int) int
+		TopSpeedImperial              func(childComplexity int) int
+		TopSpeedLeagueAvgImperial     func(childComplexity int) int
+		TopSpeedLeagueAvgMetric       func(childComplexity int) int
+		TopSpeedMetric                func(childComplexity int) int
+		TopSpeedPercentile            func(childComplexity int) int
+		TotalDistanceImperial         func(childComplexity int) int
+		TotalDistanceMetric           func(childComplexity int) int
+		TotalDistancePercentile       func(childComplexity int) int
+	}
+
+	EdgeSogSummary struct {
+		Goals                  func(childComplexity int) int
+		GoalsLeagueAvg         func(childComplexity int) int
+		GoalsPercentile        func(childComplexity int) int
+		LocationCode           func(childComplexity int) int
+		ShootingPctg           func(childComplexity int) int
+		ShootingPctgLeagueAvg  func(childComplexity int) int
+		ShootingPctgPercentile func(childComplexity int) int
+		Shots                  func(childComplexity int) int
+		ShotsLeagueAvg         func(childComplexity int) int
+		ShotsPercentile        func(childComplexity int) int
+	}
+
+	EdgeTeamShotDifferential struct {
+		AgainstPerGame          func(childComplexity int) int
+		AgainstPerGameRank      func(childComplexity int) int
+		DifferentialPerGame     func(childComplexity int) int
+		DifferentialPerGameRank func(childComplexity int) int
+		ForPerGame              func(childComplexity int) int
+		ForPerGameRank          func(childComplexity int) int
+		StrengthCode            func(childComplexity int) int
+	}
+
+	EdgeTeamShotLocation struct {
+		Area      func(childComplexity int) int
+		Shots     func(childComplexity int) int
+		ShotsRank func(childComplexity int) int
+	}
+
+	EdgeTeamSogSummary struct {
+		Goals                 func(childComplexity int) int
+		GoalsLeagueAvg        func(childComplexity int) int
+		GoalsRank             func(childComplexity int) int
+		LocationCode          func(childComplexity int) int
+		ShootingPctg          func(childComplexity int) int
+		ShootingPctgLeagueAvg func(childComplexity int) int
+		ShootingPctgRank      func(childComplexity int) int
+		Shots                 func(childComplexity int) int
+		ShotsLeagueAvg        func(childComplexity int) int
+		ShotsRank             func(childComplexity int) int
+	}
+
+	EdgeTeamStats struct {
+		BurstsOver20           func(childComplexity int) int
+		BurstsOver20Rank       func(childComplexity int) int
+		BurstsOver22           func(childComplexity int) int
+		BurstsOver22Rank       func(childComplexity int) int
+		DzLeagueAvg            func(childComplexity int) int
+		DzPctg                 func(childComplexity int) int
+		DzRank                 func(childComplexity int) int
+		GameType               func(childComplexity int) int
+		NzLeagueAvg            func(childComplexity int) int
+		NzPctg                 func(childComplexity int) int
+		NzRank                 func(childComplexity int) int
+		OzEvPctg               func(childComplexity int) int
+		OzEvRank               func(childComplexity int) int
+		OzLeagueAvg            func(childComplexity int) int
+		OzPctg                 func(childComplexity int) int
+		OzRank                 func(childComplexity int) int
+		Season                 func(childComplexity int) int
+		ShotAttemptsOver90     func(childComplexity int) int
+		ShotAttemptsOver90Rank func(childComplexity int) int
+		ShotDifferential       func(childComplexity int) int
+		ShotLocations          func(childComplexity int) int
+		SogSummary             func(childComplexity int) int
+		SpeedMaxImperial       func(childComplexity int) int
+		SpeedMaxMetric         func(childComplexity int) int
+		SpeedMaxRank           func(childComplexity int) int
+		TeamID                 func(childComplexity int) int
+		TopShotSpeedImperial   func(childComplexity int) int
+		TopShotSpeedMetric     func(childComplexity int) int
+		TopShotSpeedRank       func(childComplexity int) int
+		TotalDistance          func(childComplexity int) int
+		TotalDistanceRank      func(childComplexity int) int
+		ZoneTimeByStrength     func(childComplexity int) int
+	}
+
+	EdgeTeamZoneTimeByStrength struct {
+		DzPctg       func(childComplexity int) int
+		DzRank       func(childComplexity int) int
+		NzPctg       func(childComplexity int) int
+		NzRank       func(childComplexity int) int
+		OzPctg       func(childComplexity int) int
+		OzRank       func(childComplexity int) int
+		StrengthCode func(childComplexity int) int
+	}
+
 	Game struct {
 		AwayTeamAbbrev    func(childComplexity int) int
 		AwayTeamID        func(childComplexity int) int
@@ -166,10 +345,12 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		CancelExtractBoxscorePlayers func(childComplexity int) int
+		CancelFetchEdgeStats         func(childComplexity int) int
 		CancelFetchPlayerLandings    func(childComplexity int) int
 		CancelFetchPlayerLogs        func(childComplexity int) int
 		CancelFetchSeasons           func(childComplexity int) int
 		CancelFetchYahooPlayers      func(childComplexity int) int
+		CancelImportEdgeStats        func(childComplexity int) int
 		CancelImportPlayerLogs       func(childComplexity int) int
 		CancelImportSeasons          func(childComplexity int) int
 		CancelInitialize             func(childComplexity int) int
@@ -178,11 +359,13 @@ type ComplexityRoot struct {
 		CreateDatabase               func(childComplexity int) int
 		DropDatabase                 func(childComplexity int) int
 		ExtractBoxscorePlayers       func(childComplexity int, input *model.SeasonsInput) int
+		FetchEdgeStats               func(childComplexity int, input *model.SeasonsInput) int
 		FetchPlayerLandings          func(childComplexity int, input *model.FetchPlayerLandingsInput) int
 		FetchPlayerLogs              func(childComplexity int, input *model.SeasonsInput) int
 		FetchSeasons                 func(childComplexity int, input *model.SeasonsInput) int
 		FetchYahooPlayers            func(childComplexity int) int
 		FlushRedisDb                 func(childComplexity int) int
+		ImportEdgeStats              func(childComplexity int, input *model.SeasonsInput) int
 		ImportPlayerLogs             func(childComplexity int, input *model.SeasonsInput) int
 		ImportSeasons                func(childComplexity int, input *model.SeasonsInput) int
 		Initialize                   func(childComplexity int) int
@@ -270,8 +453,13 @@ type ComplexityRoot struct {
 	Query struct {
 		Boxscore                       func(childComplexity int, gameID int64) int
 		BuildNumber                    func(childComplexity int) int
+		EdgeGoalieStats                func(childComplexity int, playerID int, season int, gameType *int) int
+		EdgeSkaterStats                func(childComplexity int, playerID int, season int, gameType *int) int
+		EdgeTeamStats                  func(childComplexity int, teamID int, season int, gameType *int) int
 		ExtractBoxscorePlayersProgress func(childComplexity int) int
 		ExtractBoxscorePlayersResult   func(childComplexity int) int
+		FetchEdgeStatsProgress         func(childComplexity int) int
+		FetchEdgeStatsResult           func(childComplexity int) int
 		FetchPlayerLandingsProgress    func(childComplexity int) int
 		FetchPlayerLandingsResult      func(childComplexity int) int
 		FetchPlayerLogsProgress        func(childComplexity int) int
@@ -284,6 +472,8 @@ type ComplexityRoot struct {
 		Games                          func(childComplexity int, filter *model.GameFilter) int
 		GamesByDate                    func(childComplexity int, date string) int
 		GoalieGameLog                  func(childComplexity int, playerID int64, season int) int
+		ImportEdgeStatsProgress        func(childComplexity int) int
+		ImportEdgeStatsResult          func(childComplexity int) int
 		ImportPlayerLogsProgress       func(childComplexity int) int
 		ImportPlayerLogsResult         func(childComplexity int) int
 		ImportSeasonsProgress          func(childComplexity int) int
@@ -404,6 +594,10 @@ type MutationResolver interface {
 	CancelExtractBoxscorePlayers(ctx context.Context) (bool, error)
 	FetchPlayerLandings(ctx context.Context, input *model.FetchPlayerLandingsInput) (bool, error)
 	CancelFetchPlayerLandings(ctx context.Context) (bool, error)
+	FetchEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error)
+	CancelFetchEdgeStats(ctx context.Context) (bool, error)
+	ImportEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error)
+	CancelImportEdgeStats(ctx context.Context) (bool, error)
 	MauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error)
 	MauriceDeleteConversation(ctx context.Context, id string) (bool, error)
 }
@@ -429,6 +623,10 @@ type QueryResolver interface {
 	ExtractBoxscorePlayersProgress(ctx context.Context) (*model.ProgressReport, error)
 	FetchPlayerLandingsResult(ctx context.Context) (*model.WorkflowResult, error)
 	FetchPlayerLandingsProgress(ctx context.Context) (*model.ProgressReport, error)
+	FetchEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error)
+	FetchEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error)
+	ImportEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error)
+	ImportEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error)
 	MauriceConversations(ctx context.Context, limit *int) ([]*model.MauriceConversation, error)
 	MauriceConversation(ctx context.Context, id string) (*model.MauriceConversationDetail, error)
 	Seasons(ctx context.Context) ([]*model.Season, error)
@@ -446,6 +644,9 @@ type QueryResolver interface {
 	SkaterGameLog(ctx context.Context, playerID int64, season int) ([]*model.SkaterGameLogEntry, error)
 	GoalieGameLog(ctx context.Context, playerID int64, season int) ([]*model.GoalieGameLogEntry, error)
 	PlayerSeasonTotals(ctx context.Context, playerID int64) ([]*model.PlayerSeasonTotal, error)
+	EdgeSkaterStats(ctx context.Context, playerID int, season int, gameType *int) (*model.EdgeSkaterStats, error)
+	EdgeGoalieStats(ctx context.Context, playerID int, season int, gameType *int) (*model.EdgeGoalieStats, error)
+	EdgeTeamStats(ctx context.Context, teamID int, season int, gameType *int) (*model.EdgeTeamStats, error)
 }
 
 type executableSchema struct {
@@ -487,6 +688,1028 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Boxscore.Skaters(childComplexity), true
+
+	case "EdgeGoalieShotLocation.area":
+		if e.complexity.EdgeGoalieShotLocation.Area == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocation.Area(childComplexity), true
+
+	case "EdgeGoalieShotLocation.savePctg":
+		if e.complexity.EdgeGoalieShotLocation.SavePctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocation.SavePctg(childComplexity), true
+
+	case "EdgeGoalieShotLocation.savePctgPercentile":
+		if e.complexity.EdgeGoalieShotLocation.SavePctgPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocation.SavePctgPercentile(childComplexity), true
+
+	case "EdgeGoalieShotLocation.saves":
+		if e.complexity.EdgeGoalieShotLocation.Saves == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocation.Saves(childComplexity), true
+
+	case "EdgeGoalieShotLocation.savesPercentile":
+		if e.complexity.EdgeGoalieShotLocation.SavesPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocation.SavesPercentile(childComplexity), true
+
+	case "EdgeGoalieShotLocationSummary.goalsAgainst":
+		if e.complexity.EdgeGoalieShotLocationSummary.GoalsAgainst == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocationSummary.GoalsAgainst(childComplexity), true
+
+	case "EdgeGoalieShotLocationSummary.goalsAgainstLeagueAvg":
+		if e.complexity.EdgeGoalieShotLocationSummary.GoalsAgainstLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocationSummary.GoalsAgainstLeagueAvg(childComplexity), true
+
+	case "EdgeGoalieShotLocationSummary.goalsAgainstPercentile":
+		if e.complexity.EdgeGoalieShotLocationSummary.GoalsAgainstPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocationSummary.GoalsAgainstPercentile(childComplexity), true
+
+	case "EdgeGoalieShotLocationSummary.locationCode":
+		if e.complexity.EdgeGoalieShotLocationSummary.LocationCode == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocationSummary.LocationCode(childComplexity), true
+
+	case "EdgeGoalieShotLocationSummary.savePctg":
+		if e.complexity.EdgeGoalieShotLocationSummary.SavePctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocationSummary.SavePctg(childComplexity), true
+
+	case "EdgeGoalieShotLocationSummary.savePctgLeagueAvg":
+		if e.complexity.EdgeGoalieShotLocationSummary.SavePctgLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocationSummary.SavePctgLeagueAvg(childComplexity), true
+
+	case "EdgeGoalieShotLocationSummary.savePctgPercentile":
+		if e.complexity.EdgeGoalieShotLocationSummary.SavePctgPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocationSummary.SavePctgPercentile(childComplexity), true
+
+	case "EdgeGoalieShotLocationSummary.saves":
+		if e.complexity.EdgeGoalieShotLocationSummary.Saves == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocationSummary.Saves(childComplexity), true
+
+	case "EdgeGoalieShotLocationSummary.savesLeagueAvg":
+		if e.complexity.EdgeGoalieShotLocationSummary.SavesLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocationSummary.SavesLeagueAvg(childComplexity), true
+
+	case "EdgeGoalieShotLocationSummary.savesPercentile":
+		if e.complexity.EdgeGoalieShotLocationSummary.SavesPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieShotLocationSummary.SavesPercentile(childComplexity), true
+
+	case "EdgeGoalieStats.gaaLeagueAvg":
+		if e.complexity.EdgeGoalieStats.GaaLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GaaLeagueAvg(childComplexity), true
+
+	case "EdgeGoalieStats.gaaPercentile":
+		if e.complexity.EdgeGoalieStats.GaaPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GaaPercentile(childComplexity), true
+
+	case "EdgeGoalieStats.gaaValue":
+		if e.complexity.EdgeGoalieStats.GaaValue == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GaaValue(childComplexity), true
+
+	case "EdgeGoalieStats.gameType":
+		if e.complexity.EdgeGoalieStats.GameType == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GameType(childComplexity), true
+
+	case "EdgeGoalieStats.gamesAbove900":
+		if e.complexity.EdgeGoalieStats.GamesAbove900 == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GamesAbove900(childComplexity), true
+
+	case "EdgeGoalieStats.gamesAbove900LeagueAvg":
+		if e.complexity.EdgeGoalieStats.GamesAbove900LeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GamesAbove900LeagueAvg(childComplexity), true
+
+	case "EdgeGoalieStats.gamesAbove900Percentile":
+		if e.complexity.EdgeGoalieStats.GamesAbove900Percentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GamesAbove900Percentile(childComplexity), true
+
+	case "EdgeGoalieStats.goalDiffPer60":
+		if e.complexity.EdgeGoalieStats.GoalDiffPer60 == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GoalDiffPer60(childComplexity), true
+
+	case "EdgeGoalieStats.goalDiffPer60LeagueAvg":
+		if e.complexity.EdgeGoalieStats.GoalDiffPer60LeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GoalDiffPer60LeagueAvg(childComplexity), true
+
+	case "EdgeGoalieStats.goalDiffPer60Percentile":
+		if e.complexity.EdgeGoalieStats.GoalDiffPer60Percentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GoalDiffPer60Percentile(childComplexity), true
+
+	case "EdgeGoalieStats.goalSupportAvg":
+		if e.complexity.EdgeGoalieStats.GoalSupportAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GoalSupportAvg(childComplexity), true
+
+	case "EdgeGoalieStats.goalSupportAvgLeagueAvg":
+		if e.complexity.EdgeGoalieStats.GoalSupportAvgLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GoalSupportAvgLeagueAvg(childComplexity), true
+
+	case "EdgeGoalieStats.goalSupportAvgPercentile":
+		if e.complexity.EdgeGoalieStats.GoalSupportAvgPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.GoalSupportAvgPercentile(childComplexity), true
+
+	case "EdgeGoalieStats.playerId":
+		if e.complexity.EdgeGoalieStats.PlayerID == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.PlayerID(childComplexity), true
+
+	case "EdgeGoalieStats.pointPctg":
+		if e.complexity.EdgeGoalieStats.PointPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.PointPctg(childComplexity), true
+
+	case "EdgeGoalieStats.pointPctgLeagueAvg":
+		if e.complexity.EdgeGoalieStats.PointPctgLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.PointPctgLeagueAvg(childComplexity), true
+
+	case "EdgeGoalieStats.pointPctgPercentile":
+		if e.complexity.EdgeGoalieStats.PointPctgPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.PointPctgPercentile(childComplexity), true
+
+	case "EdgeGoalieStats.season":
+		if e.complexity.EdgeGoalieStats.Season == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.Season(childComplexity), true
+
+	case "EdgeGoalieStats.shotLocationSummary":
+		if e.complexity.EdgeGoalieStats.ShotLocationSummary == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.ShotLocationSummary(childComplexity), true
+
+	case "EdgeGoalieStats.shotLocations":
+		if e.complexity.EdgeGoalieStats.ShotLocations == nil {
+			break
+		}
+
+		return e.complexity.EdgeGoalieStats.ShotLocations(childComplexity), true
+
+	case "EdgeShotLocation.area":
+		if e.complexity.EdgeShotLocation.Area == nil {
+			break
+		}
+
+		return e.complexity.EdgeShotLocation.Area(childComplexity), true
+
+	case "EdgeShotLocation.goals":
+		if e.complexity.EdgeShotLocation.Goals == nil {
+			break
+		}
+
+		return e.complexity.EdgeShotLocation.Goals(childComplexity), true
+
+	case "EdgeShotLocation.goalsPercentile":
+		if e.complexity.EdgeShotLocation.GoalsPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeShotLocation.GoalsPercentile(childComplexity), true
+
+	case "EdgeShotLocation.shootingPctg":
+		if e.complexity.EdgeShotLocation.ShootingPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeShotLocation.ShootingPctg(childComplexity), true
+
+	case "EdgeShotLocation.shootingPctgPercentile":
+		if e.complexity.EdgeShotLocation.ShootingPctgPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeShotLocation.ShootingPctgPercentile(childComplexity), true
+
+	case "EdgeShotLocation.sog":
+		if e.complexity.EdgeShotLocation.Sog == nil {
+			break
+		}
+
+		return e.complexity.EdgeShotLocation.Sog(childComplexity), true
+
+	case "EdgeShotLocation.sogPercentile":
+		if e.complexity.EdgeShotLocation.SogPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeShotLocation.SogPercentile(childComplexity), true
+
+	case "EdgeSkaterStats.burstsOver20":
+		if e.complexity.EdgeSkaterStats.BurstsOver20 == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.BurstsOver20(childComplexity), true
+
+	case "EdgeSkaterStats.burstsOver20LeagueAvg":
+		if e.complexity.EdgeSkaterStats.BurstsOver20LeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.BurstsOver20LeagueAvg(childComplexity), true
+
+	case "EdgeSkaterStats.burstsOver20Percentile":
+		if e.complexity.EdgeSkaterStats.BurstsOver20Percentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.BurstsOver20Percentile(childComplexity), true
+
+	case "EdgeSkaterStats.dzLeagueAvg":
+		if e.complexity.EdgeSkaterStats.DzLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.DzLeagueAvg(childComplexity), true
+
+	case "EdgeSkaterStats.dzPctg":
+		if e.complexity.EdgeSkaterStats.DzPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.DzPctg(childComplexity), true
+
+	case "EdgeSkaterStats.dzPercentile":
+		if e.complexity.EdgeSkaterStats.DzPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.DzPercentile(childComplexity), true
+
+	case "EdgeSkaterStats.gameType":
+		if e.complexity.EdgeSkaterStats.GameType == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.GameType(childComplexity), true
+
+	case "EdgeSkaterStats.maxGameDistanceImperial":
+		if e.complexity.EdgeSkaterStats.MaxGameDistanceImperial == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.MaxGameDistanceImperial(childComplexity), true
+
+	case "EdgeSkaterStats.maxGameDistanceMetric":
+		if e.complexity.EdgeSkaterStats.MaxGameDistanceMetric == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.MaxGameDistanceMetric(childComplexity), true
+
+	case "EdgeSkaterStats.maxGameDistancePercentile":
+		if e.complexity.EdgeSkaterStats.MaxGameDistancePercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.MaxGameDistancePercentile(childComplexity), true
+
+	case "EdgeSkaterStats.nzLeagueAvg":
+		if e.complexity.EdgeSkaterStats.NzLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.NzLeagueAvg(childComplexity), true
+
+	case "EdgeSkaterStats.nzPctg":
+		if e.complexity.EdgeSkaterStats.NzPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.NzPctg(childComplexity), true
+
+	case "EdgeSkaterStats.nzPercentile":
+		if e.complexity.EdgeSkaterStats.NzPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.NzPercentile(childComplexity), true
+
+	case "EdgeSkaterStats.ozEvPctg":
+		if e.complexity.EdgeSkaterStats.OzEvPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.OzEvPctg(childComplexity), true
+
+	case "EdgeSkaterStats.ozEvPercentile":
+		if e.complexity.EdgeSkaterStats.OzEvPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.OzEvPercentile(childComplexity), true
+
+	case "EdgeSkaterStats.ozLeagueAvg":
+		if e.complexity.EdgeSkaterStats.OzLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.OzLeagueAvg(childComplexity), true
+
+	case "EdgeSkaterStats.ozPctg":
+		if e.complexity.EdgeSkaterStats.OzPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.OzPctg(childComplexity), true
+
+	case "EdgeSkaterStats.ozPercentile":
+		if e.complexity.EdgeSkaterStats.OzPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.OzPercentile(childComplexity), true
+
+	case "EdgeSkaterStats.playerId":
+		if e.complexity.EdgeSkaterStats.PlayerID == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.PlayerID(childComplexity), true
+
+	case "EdgeSkaterStats.season":
+		if e.complexity.EdgeSkaterStats.Season == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.Season(childComplexity), true
+
+	case "EdgeSkaterStats.shotLocations":
+		if e.complexity.EdgeSkaterStats.ShotLocations == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.ShotLocations(childComplexity), true
+
+	case "EdgeSkaterStats.sogSummary":
+		if e.complexity.EdgeSkaterStats.SogSummary == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.SogSummary(childComplexity), true
+
+	case "EdgeSkaterStats.topShotSpeedImperial":
+		if e.complexity.EdgeSkaterStats.TopShotSpeedImperial == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TopShotSpeedImperial(childComplexity), true
+
+	case "EdgeSkaterStats.topShotSpeedLeagueAvgImperial":
+		if e.complexity.EdgeSkaterStats.TopShotSpeedLeagueAvgImperial == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TopShotSpeedLeagueAvgImperial(childComplexity), true
+
+	case "EdgeSkaterStats.topShotSpeedLeagueAvgMetric":
+		if e.complexity.EdgeSkaterStats.TopShotSpeedLeagueAvgMetric == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TopShotSpeedLeagueAvgMetric(childComplexity), true
+
+	case "EdgeSkaterStats.topShotSpeedMetric":
+		if e.complexity.EdgeSkaterStats.TopShotSpeedMetric == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TopShotSpeedMetric(childComplexity), true
+
+	case "EdgeSkaterStats.topShotSpeedPercentile":
+		if e.complexity.EdgeSkaterStats.TopShotSpeedPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TopShotSpeedPercentile(childComplexity), true
+
+	case "EdgeSkaterStats.topSpeedImperial":
+		if e.complexity.EdgeSkaterStats.TopSpeedImperial == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TopSpeedImperial(childComplexity), true
+
+	case "EdgeSkaterStats.topSpeedLeagueAvgImperial":
+		if e.complexity.EdgeSkaterStats.TopSpeedLeagueAvgImperial == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TopSpeedLeagueAvgImperial(childComplexity), true
+
+	case "EdgeSkaterStats.topSpeedLeagueAvgMetric":
+		if e.complexity.EdgeSkaterStats.TopSpeedLeagueAvgMetric == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TopSpeedLeagueAvgMetric(childComplexity), true
+
+	case "EdgeSkaterStats.topSpeedMetric":
+		if e.complexity.EdgeSkaterStats.TopSpeedMetric == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TopSpeedMetric(childComplexity), true
+
+	case "EdgeSkaterStats.topSpeedPercentile":
+		if e.complexity.EdgeSkaterStats.TopSpeedPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TopSpeedPercentile(childComplexity), true
+
+	case "EdgeSkaterStats.totalDistanceImperial":
+		if e.complexity.EdgeSkaterStats.TotalDistanceImperial == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TotalDistanceImperial(childComplexity), true
+
+	case "EdgeSkaterStats.totalDistanceMetric":
+		if e.complexity.EdgeSkaterStats.TotalDistanceMetric == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TotalDistanceMetric(childComplexity), true
+
+	case "EdgeSkaterStats.totalDistancePercentile":
+		if e.complexity.EdgeSkaterStats.TotalDistancePercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSkaterStats.TotalDistancePercentile(childComplexity), true
+
+	case "EdgeSogSummary.goals":
+		if e.complexity.EdgeSogSummary.Goals == nil {
+			break
+		}
+
+		return e.complexity.EdgeSogSummary.Goals(childComplexity), true
+
+	case "EdgeSogSummary.goalsLeagueAvg":
+		if e.complexity.EdgeSogSummary.GoalsLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSogSummary.GoalsLeagueAvg(childComplexity), true
+
+	case "EdgeSogSummary.goalsPercentile":
+		if e.complexity.EdgeSogSummary.GoalsPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSogSummary.GoalsPercentile(childComplexity), true
+
+	case "EdgeSogSummary.locationCode":
+		if e.complexity.EdgeSogSummary.LocationCode == nil {
+			break
+		}
+
+		return e.complexity.EdgeSogSummary.LocationCode(childComplexity), true
+
+	case "EdgeSogSummary.shootingPctg":
+		if e.complexity.EdgeSogSummary.ShootingPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSogSummary.ShootingPctg(childComplexity), true
+
+	case "EdgeSogSummary.shootingPctgLeagueAvg":
+		if e.complexity.EdgeSogSummary.ShootingPctgLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSogSummary.ShootingPctgLeagueAvg(childComplexity), true
+
+	case "EdgeSogSummary.shootingPctgPercentile":
+		if e.complexity.EdgeSogSummary.ShootingPctgPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSogSummary.ShootingPctgPercentile(childComplexity), true
+
+	case "EdgeSogSummary.shots":
+		if e.complexity.EdgeSogSummary.Shots == nil {
+			break
+		}
+
+		return e.complexity.EdgeSogSummary.Shots(childComplexity), true
+
+	case "EdgeSogSummary.shotsLeagueAvg":
+		if e.complexity.EdgeSogSummary.ShotsLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeSogSummary.ShotsLeagueAvg(childComplexity), true
+
+	case "EdgeSogSummary.shotsPercentile":
+		if e.complexity.EdgeSogSummary.ShotsPercentile == nil {
+			break
+		}
+
+		return e.complexity.EdgeSogSummary.ShotsPercentile(childComplexity), true
+
+	case "EdgeTeamShotDifferential.againstPerGame":
+		if e.complexity.EdgeTeamShotDifferential.AgainstPerGame == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamShotDifferential.AgainstPerGame(childComplexity), true
+
+	case "EdgeTeamShotDifferential.againstPerGameRank":
+		if e.complexity.EdgeTeamShotDifferential.AgainstPerGameRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamShotDifferential.AgainstPerGameRank(childComplexity), true
+
+	case "EdgeTeamShotDifferential.differentialPerGame":
+		if e.complexity.EdgeTeamShotDifferential.DifferentialPerGame == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamShotDifferential.DifferentialPerGame(childComplexity), true
+
+	case "EdgeTeamShotDifferential.differentialPerGameRank":
+		if e.complexity.EdgeTeamShotDifferential.DifferentialPerGameRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamShotDifferential.DifferentialPerGameRank(childComplexity), true
+
+	case "EdgeTeamShotDifferential.forPerGame":
+		if e.complexity.EdgeTeamShotDifferential.ForPerGame == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamShotDifferential.ForPerGame(childComplexity), true
+
+	case "EdgeTeamShotDifferential.forPerGameRank":
+		if e.complexity.EdgeTeamShotDifferential.ForPerGameRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamShotDifferential.ForPerGameRank(childComplexity), true
+
+	case "EdgeTeamShotDifferential.strengthCode":
+		if e.complexity.EdgeTeamShotDifferential.StrengthCode == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamShotDifferential.StrengthCode(childComplexity), true
+
+	case "EdgeTeamShotLocation.area":
+		if e.complexity.EdgeTeamShotLocation.Area == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamShotLocation.Area(childComplexity), true
+
+	case "EdgeTeamShotLocation.shots":
+		if e.complexity.EdgeTeamShotLocation.Shots == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamShotLocation.Shots(childComplexity), true
+
+	case "EdgeTeamShotLocation.shotsRank":
+		if e.complexity.EdgeTeamShotLocation.ShotsRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamShotLocation.ShotsRank(childComplexity), true
+
+	case "EdgeTeamSogSummary.goals":
+		if e.complexity.EdgeTeamSogSummary.Goals == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamSogSummary.Goals(childComplexity), true
+
+	case "EdgeTeamSogSummary.goalsLeagueAvg":
+		if e.complexity.EdgeTeamSogSummary.GoalsLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamSogSummary.GoalsLeagueAvg(childComplexity), true
+
+	case "EdgeTeamSogSummary.goalsRank":
+		if e.complexity.EdgeTeamSogSummary.GoalsRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamSogSummary.GoalsRank(childComplexity), true
+
+	case "EdgeTeamSogSummary.locationCode":
+		if e.complexity.EdgeTeamSogSummary.LocationCode == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamSogSummary.LocationCode(childComplexity), true
+
+	case "EdgeTeamSogSummary.shootingPctg":
+		if e.complexity.EdgeTeamSogSummary.ShootingPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamSogSummary.ShootingPctg(childComplexity), true
+
+	case "EdgeTeamSogSummary.shootingPctgLeagueAvg":
+		if e.complexity.EdgeTeamSogSummary.ShootingPctgLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamSogSummary.ShootingPctgLeagueAvg(childComplexity), true
+
+	case "EdgeTeamSogSummary.shootingPctgRank":
+		if e.complexity.EdgeTeamSogSummary.ShootingPctgRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamSogSummary.ShootingPctgRank(childComplexity), true
+
+	case "EdgeTeamSogSummary.shots":
+		if e.complexity.EdgeTeamSogSummary.Shots == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamSogSummary.Shots(childComplexity), true
+
+	case "EdgeTeamSogSummary.shotsLeagueAvg":
+		if e.complexity.EdgeTeamSogSummary.ShotsLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamSogSummary.ShotsLeagueAvg(childComplexity), true
+
+	case "EdgeTeamSogSummary.shotsRank":
+		if e.complexity.EdgeTeamSogSummary.ShotsRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamSogSummary.ShotsRank(childComplexity), true
+
+	case "EdgeTeamStats.burstsOver20":
+		if e.complexity.EdgeTeamStats.BurstsOver20 == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.BurstsOver20(childComplexity), true
+
+	case "EdgeTeamStats.burstsOver20Rank":
+		if e.complexity.EdgeTeamStats.BurstsOver20Rank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.BurstsOver20Rank(childComplexity), true
+
+	case "EdgeTeamStats.burstsOver22":
+		if e.complexity.EdgeTeamStats.BurstsOver22 == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.BurstsOver22(childComplexity), true
+
+	case "EdgeTeamStats.burstsOver22Rank":
+		if e.complexity.EdgeTeamStats.BurstsOver22Rank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.BurstsOver22Rank(childComplexity), true
+
+	case "EdgeTeamStats.dzLeagueAvg":
+		if e.complexity.EdgeTeamStats.DzLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.DzLeagueAvg(childComplexity), true
+
+	case "EdgeTeamStats.dzPctg":
+		if e.complexity.EdgeTeamStats.DzPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.DzPctg(childComplexity), true
+
+	case "EdgeTeamStats.dzRank":
+		if e.complexity.EdgeTeamStats.DzRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.DzRank(childComplexity), true
+
+	case "EdgeTeamStats.gameType":
+		if e.complexity.EdgeTeamStats.GameType == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.GameType(childComplexity), true
+
+	case "EdgeTeamStats.nzLeagueAvg":
+		if e.complexity.EdgeTeamStats.NzLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.NzLeagueAvg(childComplexity), true
+
+	case "EdgeTeamStats.nzPctg":
+		if e.complexity.EdgeTeamStats.NzPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.NzPctg(childComplexity), true
+
+	case "EdgeTeamStats.nzRank":
+		if e.complexity.EdgeTeamStats.NzRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.NzRank(childComplexity), true
+
+	case "EdgeTeamStats.ozEvPctg":
+		if e.complexity.EdgeTeamStats.OzEvPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.OzEvPctg(childComplexity), true
+
+	case "EdgeTeamStats.ozEvRank":
+		if e.complexity.EdgeTeamStats.OzEvRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.OzEvRank(childComplexity), true
+
+	case "EdgeTeamStats.ozLeagueAvg":
+		if e.complexity.EdgeTeamStats.OzLeagueAvg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.OzLeagueAvg(childComplexity), true
+
+	case "EdgeTeamStats.ozPctg":
+		if e.complexity.EdgeTeamStats.OzPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.OzPctg(childComplexity), true
+
+	case "EdgeTeamStats.ozRank":
+		if e.complexity.EdgeTeamStats.OzRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.OzRank(childComplexity), true
+
+	case "EdgeTeamStats.season":
+		if e.complexity.EdgeTeamStats.Season == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.Season(childComplexity), true
+
+	case "EdgeTeamStats.shotAttemptsOver90":
+		if e.complexity.EdgeTeamStats.ShotAttemptsOver90 == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.ShotAttemptsOver90(childComplexity), true
+
+	case "EdgeTeamStats.shotAttemptsOver90Rank":
+		if e.complexity.EdgeTeamStats.ShotAttemptsOver90Rank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.ShotAttemptsOver90Rank(childComplexity), true
+
+	case "EdgeTeamStats.shotDifferential":
+		if e.complexity.EdgeTeamStats.ShotDifferential == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.ShotDifferential(childComplexity), true
+
+	case "EdgeTeamStats.shotLocations":
+		if e.complexity.EdgeTeamStats.ShotLocations == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.ShotLocations(childComplexity), true
+
+	case "EdgeTeamStats.sogSummary":
+		if e.complexity.EdgeTeamStats.SogSummary == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.SogSummary(childComplexity), true
+
+	case "EdgeTeamStats.speedMaxImperial":
+		if e.complexity.EdgeTeamStats.SpeedMaxImperial == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.SpeedMaxImperial(childComplexity), true
+
+	case "EdgeTeamStats.speedMaxMetric":
+		if e.complexity.EdgeTeamStats.SpeedMaxMetric == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.SpeedMaxMetric(childComplexity), true
+
+	case "EdgeTeamStats.speedMaxRank":
+		if e.complexity.EdgeTeamStats.SpeedMaxRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.SpeedMaxRank(childComplexity), true
+
+	case "EdgeTeamStats.teamId":
+		if e.complexity.EdgeTeamStats.TeamID == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.TeamID(childComplexity), true
+
+	case "EdgeTeamStats.topShotSpeedImperial":
+		if e.complexity.EdgeTeamStats.TopShotSpeedImperial == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.TopShotSpeedImperial(childComplexity), true
+
+	case "EdgeTeamStats.topShotSpeedMetric":
+		if e.complexity.EdgeTeamStats.TopShotSpeedMetric == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.TopShotSpeedMetric(childComplexity), true
+
+	case "EdgeTeamStats.topShotSpeedRank":
+		if e.complexity.EdgeTeamStats.TopShotSpeedRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.TopShotSpeedRank(childComplexity), true
+
+	case "EdgeTeamStats.totalDistance":
+		if e.complexity.EdgeTeamStats.TotalDistance == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.TotalDistance(childComplexity), true
+
+	case "EdgeTeamStats.totalDistanceRank":
+		if e.complexity.EdgeTeamStats.TotalDistanceRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.TotalDistanceRank(childComplexity), true
+
+	case "EdgeTeamStats.zoneTimeByStrength":
+		if e.complexity.EdgeTeamStats.ZoneTimeByStrength == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamStats.ZoneTimeByStrength(childComplexity), true
+
+	case "EdgeTeamZoneTimeByStrength.dzPctg":
+		if e.complexity.EdgeTeamZoneTimeByStrength.DzPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamZoneTimeByStrength.DzPctg(childComplexity), true
+
+	case "EdgeTeamZoneTimeByStrength.dzRank":
+		if e.complexity.EdgeTeamZoneTimeByStrength.DzRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamZoneTimeByStrength.DzRank(childComplexity), true
+
+	case "EdgeTeamZoneTimeByStrength.nzPctg":
+		if e.complexity.EdgeTeamZoneTimeByStrength.NzPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamZoneTimeByStrength.NzPctg(childComplexity), true
+
+	case "EdgeTeamZoneTimeByStrength.nzRank":
+		if e.complexity.EdgeTeamZoneTimeByStrength.NzRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamZoneTimeByStrength.NzRank(childComplexity), true
+
+	case "EdgeTeamZoneTimeByStrength.ozPctg":
+		if e.complexity.EdgeTeamZoneTimeByStrength.OzPctg == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamZoneTimeByStrength.OzPctg(childComplexity), true
+
+	case "EdgeTeamZoneTimeByStrength.ozRank":
+		if e.complexity.EdgeTeamZoneTimeByStrength.OzRank == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamZoneTimeByStrength.OzRank(childComplexity), true
+
+	case "EdgeTeamZoneTimeByStrength.strengthCode":
+		if e.complexity.EdgeTeamZoneTimeByStrength.StrengthCode == nil {
+			break
+		}
+
+		return e.complexity.EdgeTeamZoneTimeByStrength.StrengthCode(childComplexity), true
 
 	case "Game.awayTeamAbbrev":
 		if e.complexity.Game.AwayTeamAbbrev == nil {
@@ -1104,6 +2327,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CancelExtractBoxscorePlayers(childComplexity), true
 
+	case "Mutation.cancelFetchEdgeStats":
+		if e.complexity.Mutation.CancelFetchEdgeStats == nil {
+			break
+		}
+
+		return e.complexity.Mutation.CancelFetchEdgeStats(childComplexity), true
+
 	case "Mutation.cancelFetchPlayerLandings":
 		if e.complexity.Mutation.CancelFetchPlayerLandings == nil {
 			break
@@ -1131,6 +2361,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.CancelFetchYahooPlayers(childComplexity), true
+
+	case "Mutation.cancelImportEdgeStats":
+		if e.complexity.Mutation.CancelImportEdgeStats == nil {
+			break
+		}
+
+		return e.complexity.Mutation.CancelImportEdgeStats(childComplexity), true
 
 	case "Mutation.cancelImportPlayerLogs":
 		if e.complexity.Mutation.CancelImportPlayerLogs == nil {
@@ -1193,6 +2430,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.ExtractBoxscorePlayers(childComplexity, args["input"].(*model.SeasonsInput)), true
 
+	case "Mutation.fetchEdgeStats":
+		if e.complexity.Mutation.FetchEdgeStats == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_fetchEdgeStats_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.FetchEdgeStats(childComplexity, args["input"].(*model.SeasonsInput)), true
+
 	case "Mutation.fetchPlayerLandings":
 		if e.complexity.Mutation.FetchPlayerLandings == nil {
 			break
@@ -1242,6 +2491,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.FlushRedisDb(childComplexity), true
+
+	case "Mutation.importEdgeStats":
+		if e.complexity.Mutation.ImportEdgeStats == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_importEdgeStats_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ImportEdgeStats(childComplexity, args["input"].(*model.SeasonsInput)), true
 
 	case "Mutation.importPlayerLogs":
 		if e.complexity.Mutation.ImportPlayerLogs == nil {
@@ -1735,6 +2996,42 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.BuildNumber(childComplexity), true
 
+	case "Query.edgeGoalieStats":
+		if e.complexity.Query.EdgeGoalieStats == nil {
+			break
+		}
+
+		args, err := ec.field_Query_edgeGoalieStats_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.EdgeGoalieStats(childComplexity, args["playerId"].(int), args["season"].(int), args["gameType"].(*int)), true
+
+	case "Query.edgeSkaterStats":
+		if e.complexity.Query.EdgeSkaterStats == nil {
+			break
+		}
+
+		args, err := ec.field_Query_edgeSkaterStats_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.EdgeSkaterStats(childComplexity, args["playerId"].(int), args["season"].(int), args["gameType"].(*int)), true
+
+	case "Query.edgeTeamStats":
+		if e.complexity.Query.EdgeTeamStats == nil {
+			break
+		}
+
+		args, err := ec.field_Query_edgeTeamStats_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.EdgeTeamStats(childComplexity, args["teamId"].(int), args["season"].(int), args["gameType"].(*int)), true
+
 	case "Query.extractBoxscorePlayersProgress":
 		if e.complexity.Query.ExtractBoxscorePlayersProgress == nil {
 			break
@@ -1748,6 +3045,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.ExtractBoxscorePlayersResult(childComplexity), true
+
+	case "Query.fetchEdgeStatsProgress":
+		if e.complexity.Query.FetchEdgeStatsProgress == nil {
+			break
+		}
+
+		return e.complexity.Query.FetchEdgeStatsProgress(childComplexity), true
+
+	case "Query.fetchEdgeStatsResult":
+		if e.complexity.Query.FetchEdgeStatsResult == nil {
+			break
+		}
+
+		return e.complexity.Query.FetchEdgeStatsResult(childComplexity), true
 
 	case "Query.fetchPlayerLandingsProgress":
 		if e.complexity.Query.FetchPlayerLandingsProgress == nil {
@@ -1852,6 +3163,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.GoalieGameLog(childComplexity, args["playerId"].(int64), args["season"].(int)), true
+
+	case "Query.importEdgeStatsProgress":
+		if e.complexity.Query.ImportEdgeStatsProgress == nil {
+			break
+		}
+
+		return e.complexity.Query.ImportEdgeStatsProgress(childComplexity), true
+
+	case "Query.importEdgeStatsResult":
+		if e.complexity.Query.ImportEdgeStatsResult == nil {
+			break
+		}
+
+		return e.complexity.Query.ImportEdgeStatsResult(childComplexity), true
 
 	case "Query.importPlayerLogsProgress":
 		if e.complexity.Query.ImportPlayerLogsProgress == nil {
@@ -2777,6 +4102,203 @@ extend type Query {
 
   # Career season-by-season stats (all leagues)
   playerSeasonTotals(playerId: Int64!): [PlayerSeasonTotal!]!
+
+  # Edge tracking stats (available 2021-2022 onward)
+  edgeSkaterStats(playerId: Int!, season: Int!, gameType: Int): EdgeSkaterStats
+  edgeGoalieStats(playerId: Int!, season: Int!, gameType: Int): EdgeGoalieStats
+  edgeTeamStats(teamId: Int!, season: Int!, gameType: Int): EdgeTeamStats
+}
+
+# --- Edge Tracking Types ---
+
+type EdgeSkaterStats {
+  playerId: Int!
+  season: Int!
+  gameType: String!
+  # Skating speed
+  topSpeedImperial: Float
+  topSpeedMetric: Float
+  topSpeedPercentile: Float
+  topSpeedLeagueAvgImperial: Float
+  topSpeedLeagueAvgMetric: Float
+  burstsOver20: Int
+  burstsOver20Percentile: Float
+  burstsOver20LeagueAvg: Float
+  # Distance
+  totalDistanceImperial: Float
+  totalDistanceMetric: Float
+  totalDistancePercentile: Float
+  maxGameDistanceImperial: Float
+  maxGameDistanceMetric: Float
+  maxGameDistancePercentile: Float
+  # Shot speed
+  topShotSpeedImperial: Float
+  topShotSpeedMetric: Float
+  topShotSpeedPercentile: Float
+  topShotSpeedLeagueAvgImperial: Float
+  topShotSpeedLeagueAvgMetric: Float
+  # Zone time
+  ozPctg: Float
+  ozPercentile: Float
+  ozLeagueAvg: Float
+  nzPctg: Float
+  nzPercentile: Float
+  nzLeagueAvg: Float
+  dzPctg: Float
+  dzPercentile: Float
+  dzLeagueAvg: Float
+  ozEvPctg: Float
+  ozEvPercentile: Float
+  # Sub-tables
+  shotLocations: [EdgeShotLocation!]!
+  sogSummary: [EdgeSogSummary!]!
+}
+
+type EdgeShotLocation {
+  area: String!
+  sog: Int
+  goals: Int
+  shootingPctg: Float
+  sogPercentile: Float
+  goalsPercentile: Float
+  shootingPctgPercentile: Float
+}
+
+type EdgeSogSummary {
+  locationCode: String!
+  shots: Int
+  shotsPercentile: Float
+  shotsLeagueAvg: Float
+  goals: Int
+  goalsPercentile: Float
+  goalsLeagueAvg: Float
+  shootingPctg: Float
+  shootingPctgPercentile: Float
+  shootingPctgLeagueAvg: Float
+}
+
+type EdgeGoalieStats {
+  playerId: Int!
+  season: Int!
+  gameType: String!
+  gaaValue: Float
+  gaaPercentile: Float
+  gaaLeagueAvg: Float
+  gamesAbove900: Float
+  gamesAbove900Percentile: Float
+  gamesAbove900LeagueAvg: Float
+  goalDiffPer60: Float
+  goalDiffPer60Percentile: Float
+  goalDiffPer60LeagueAvg: Float
+  goalSupportAvg: Float
+  goalSupportAvgPercentile: Float
+  goalSupportAvgLeagueAvg: Float
+  pointPctg: Float
+  pointPctgPercentile: Float
+  pointPctgLeagueAvg: Float
+  # Sub-tables
+  shotLocationSummary: [EdgeGoalieShotLocationSummary!]!
+  shotLocations: [EdgeGoalieShotLocation!]!
+}
+
+type EdgeGoalieShotLocationSummary {
+  locationCode: String!
+  goalsAgainst: Int
+  goalsAgainstPercentile: Float
+  goalsAgainstLeagueAvg: Float
+  saves: Int
+  savesPercentile: Float
+  savesLeagueAvg: Float
+  savePctg: Float
+  savePctgPercentile: Float
+  savePctgLeagueAvg: Float
+}
+
+type EdgeGoalieShotLocation {
+  area: String!
+  saves: Int
+  savesPercentile: Float
+  savePctg: Float
+  savePctgPercentile: Float
+}
+
+type EdgeTeamStats {
+  teamId: Int!
+  season: Int!
+  gameType: String!
+  # Shot stats
+  shotAttemptsOver90: Int
+  shotAttemptsOver90Rank: Int
+  topShotSpeedImperial: Float
+  topShotSpeedMetric: Float
+  topShotSpeedRank: Int
+  # Skating speed
+  speedMaxImperial: Float
+  speedMaxMetric: Float
+  speedMaxRank: Int
+  burstsOver22: Int
+  burstsOver22Rank: Int
+  burstsOver20: Int
+  burstsOver20Rank: Int
+  # Distance
+  totalDistance: Int
+  totalDistanceRank: Int
+  # Zone time
+  ozPctg: Float
+  ozRank: Int
+  ozLeagueAvg: Float
+  ozEvPctg: Float
+  ozEvRank: Int
+  nzPctg: Float
+  nzRank: Int
+  nzLeagueAvg: Float
+  dzPctg: Float
+  dzRank: Int
+  dzLeagueAvg: Float
+  # Sub-tables
+  sogSummary: [EdgeTeamSogSummary!]!
+  shotLocations: [EdgeTeamShotLocation!]!
+  zoneTimeByStrength: [EdgeTeamZoneTimeByStrength!]!
+  shotDifferential: [EdgeTeamShotDifferential!]!
+}
+
+type EdgeTeamSogSummary {
+  locationCode: String!
+  shots: Int
+  shotsRank: Int
+  shotsLeagueAvg: Float
+  goals: Int
+  goalsRank: Int
+  goalsLeagueAvg: Float
+  shootingPctg: Float
+  shootingPctgRank: Int
+  shootingPctgLeagueAvg: Float
+}
+
+type EdgeTeamShotLocation {
+  area: String!
+  shots: Int
+  shotsRank: Int
+}
+
+type EdgeTeamZoneTimeByStrength {
+  strengthCode: String!
+  ozPctg: Float
+  ozRank: Int
+  nzPctg: Float
+  nzRank: Int
+  dzPctg: Float
+  dzRank: Int
+}
+
+type EdgeTeamShotDifferential {
+  strengthCode: String!
+  forPerGame: Float
+  forPerGameRank: Int
+  againstPerGame: Float
+  againstPerGameRank: Int
+  differentialPerGame: Float
+  differentialPerGameRank: Int
 }
 `, BuiltIn: false},
 	{Name: "../schema.graphqls", Input: `# GraphQL schema example
@@ -2920,6 +4442,12 @@ type Query {
 	fetchPlayerLandingsResult: WorkflowResult!
 	fetchPlayerLandingsProgress: ProgressReport
 
+	fetchEdgeStatsResult: WorkflowResult!
+	fetchEdgeStatsProgress: ProgressReport
+
+	importEdgeStatsResult: WorkflowResult!
+	importEdgeStatsProgress: ProgressReport
+
 	# Maurice AI chat
 	mauriceConversations(limit: Int): [MauriceConversation!]!
 	mauriceConversation(id: String!): MauriceConversationDetail
@@ -2969,6 +4497,10 @@ type Mutation {
 	cancelExtractBoxscorePlayers: Boolean!
 	fetchPlayerLandings(input: FetchPlayerLandingsInput): Boolean!
 	cancelFetchPlayerLandings: Boolean!
+	fetchEdgeStats(input: SeasonsInput): Boolean!
+	cancelFetchEdgeStats: Boolean!
+	importEdgeStats(input: SeasonsInput): Boolean!
+	cancelImportEdgeStats: Boolean!
 
 	# Maurice AI chat
 	mauriceChat(conversationId: String, message: String!): MauriceChatResponse!
@@ -2993,6 +4525,38 @@ func (ec *executionContext) field_Mutation_extractBoxscorePlayers_args(ctx conte
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_extractBoxscorePlayers_argsInput(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.SeasonsInput, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["input"]
+	if !ok {
+		var zeroVal *model.SeasonsInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalOSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonsInput(ctx, tmp)
+	}
+
+	var zeroVal *model.SeasonsInput
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_fetchEdgeStats_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_fetchEdgeStats_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_fetchEdgeStats_argsInput(
 	ctx context.Context,
 	rawArgs map[string]interface{},
 ) (*model.SeasonsInput, error) {
@@ -3089,6 +4653,38 @@ func (ec *executionContext) field_Mutation_fetchSeasons_args(ctx context.Context
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_fetchSeasons_argsInput(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.SeasonsInput, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["input"]
+	if !ok {
+		var zeroVal *model.SeasonsInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalOSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐSeasonsInput(ctx, tmp)
+	}
+
+	var zeroVal *model.SeasonsInput
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_importEdgeStats_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_importEdgeStats_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_importEdgeStats_argsInput(
 	ctx context.Context,
 	rawArgs map[string]interface{},
 ) (*model.SeasonsInput, error) {
@@ -3358,6 +4954,264 @@ func (ec *executionContext) field_Query_boxscore_argsGameID(
 	}
 
 	var zeroVal int64
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_edgeGoalieStats_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Query_edgeGoalieStats_argsPlayerID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["playerId"] = arg0
+	arg1, err := ec.field_Query_edgeGoalieStats_argsSeason(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["season"] = arg1
+	arg2, err := ec.field_Query_edgeGoalieStats_argsGameType(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["gameType"] = arg2
+	return args, nil
+}
+func (ec *executionContext) field_Query_edgeGoalieStats_argsPlayerID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["playerId"]
+	if !ok {
+		var zeroVal int
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("playerId"))
+	if tmp, ok := rawArgs["playerId"]; ok {
+		return ec.unmarshalNInt2int(ctx, tmp)
+	}
+
+	var zeroVal int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_edgeGoalieStats_argsSeason(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["season"]
+	if !ok {
+		var zeroVal int
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+	if tmp, ok := rawArgs["season"]; ok {
+		return ec.unmarshalNInt2int(ctx, tmp)
+	}
+
+	var zeroVal int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_edgeGoalieStats_argsGameType(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*int, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["gameType"]
+	if !ok {
+		var zeroVal *int
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("gameType"))
+	if tmp, ok := rawArgs["gameType"]; ok {
+		return ec.unmarshalOInt2ᚖint(ctx, tmp)
+	}
+
+	var zeroVal *int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_edgeSkaterStats_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Query_edgeSkaterStats_argsPlayerID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["playerId"] = arg0
+	arg1, err := ec.field_Query_edgeSkaterStats_argsSeason(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["season"] = arg1
+	arg2, err := ec.field_Query_edgeSkaterStats_argsGameType(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["gameType"] = arg2
+	return args, nil
+}
+func (ec *executionContext) field_Query_edgeSkaterStats_argsPlayerID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["playerId"]
+	if !ok {
+		var zeroVal int
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("playerId"))
+	if tmp, ok := rawArgs["playerId"]; ok {
+		return ec.unmarshalNInt2int(ctx, tmp)
+	}
+
+	var zeroVal int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_edgeSkaterStats_argsSeason(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["season"]
+	if !ok {
+		var zeroVal int
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+	if tmp, ok := rawArgs["season"]; ok {
+		return ec.unmarshalNInt2int(ctx, tmp)
+	}
+
+	var zeroVal int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_edgeSkaterStats_argsGameType(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*int, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["gameType"]
+	if !ok {
+		var zeroVal *int
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("gameType"))
+	if tmp, ok := rawArgs["gameType"]; ok {
+		return ec.unmarshalOInt2ᚖint(ctx, tmp)
+	}
+
+	var zeroVal *int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_edgeTeamStats_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Query_edgeTeamStats_argsTeamID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
+	arg1, err := ec.field_Query_edgeTeamStats_argsSeason(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["season"] = arg1
+	arg2, err := ec.field_Query_edgeTeamStats_argsGameType(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["gameType"] = arg2
+	return args, nil
+}
+func (ec *executionContext) field_Query_edgeTeamStats_argsTeamID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["teamId"]
+	if !ok {
+		var zeroVal int
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+	if tmp, ok := rawArgs["teamId"]; ok {
+		return ec.unmarshalNInt2int(ctx, tmp)
+	}
+
+	var zeroVal int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_edgeTeamStats_argsSeason(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["season"]
+	if !ok {
+		var zeroVal int
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+	if tmp, ok := rawArgs["season"]; ok {
+		return ec.unmarshalNInt2int(ctx, tmp)
+	}
+
+	var zeroVal int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_edgeTeamStats_argsGameType(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*int, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["gameType"]
+	if !ok {
+		var zeroVal *int
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("gameType"))
+	if tmp, ok := rawArgs["gameType"]; ok {
+		return ec.unmarshalOInt2ᚖint(ctx, tmp)
+	}
+
+	var zeroVal *int
 	return zeroVal, nil
 }
 
@@ -4276,6 +6130,6201 @@ func (ec *executionContext) fieldContext_Boxscore_goalies(_ context.Context, fie
 				return ec.fieldContext_GameGoalieStats_toiSeconds(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameGoalieStats", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocation_area(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocation_area(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Area, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocation_area(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocation_saves(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocation_saves(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Saves, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocation_saves(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocation_savesPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocation_savesPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SavesPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocation_savesPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocation_savePctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocation_savePctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SavePctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocation_savePctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocation_savePctgPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocation_savePctgPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SavePctgPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocation_savePctgPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary_locationCode(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocationSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocationSummary_locationCode(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.LocationCode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocationSummary_locationCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocationSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary_goalsAgainst(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocationSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocationSummary_goalsAgainst(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalsAgainst, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocationSummary_goalsAgainst(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocationSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary_goalsAgainstPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocationSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocationSummary_goalsAgainstPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalsAgainstPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocationSummary_goalsAgainstPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocationSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary_goalsAgainstLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocationSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocationSummary_goalsAgainstLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalsAgainstLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocationSummary_goalsAgainstLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocationSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary_saves(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocationSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocationSummary_saves(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Saves, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocationSummary_saves(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocationSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary_savesPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocationSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocationSummary_savesPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SavesPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocationSummary_savesPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocationSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary_savesLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocationSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocationSummary_savesLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SavesLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocationSummary_savesLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocationSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary_savePctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocationSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocationSummary_savePctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SavePctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocationSummary_savePctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocationSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary_savePctgPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocationSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocationSummary_savePctgPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SavePctgPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocationSummary_savePctgPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocationSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary_savePctgLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieShotLocationSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieShotLocationSummary_savePctgLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SavePctgLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieShotLocationSummary_savePctgLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieShotLocationSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_playerId(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_playerId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PlayerID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_playerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_season(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_season(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Season, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_season(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_gameType(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_gameType(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GameType, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_gameType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_gaaValue(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_gaaValue(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GaaValue, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_gaaValue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_gaaPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_gaaPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GaaPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_gaaPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_gaaLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_gaaLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GaaLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_gaaLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_gamesAbove900(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_gamesAbove900(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GamesAbove900, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_gamesAbove900(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_gamesAbove900Percentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_gamesAbove900Percentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GamesAbove900Percentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_gamesAbove900Percentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_gamesAbove900LeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_gamesAbove900LeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GamesAbove900LeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_gamesAbove900LeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_goalDiffPer60(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_goalDiffPer60(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalDiffPer60, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_goalDiffPer60(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_goalDiffPer60Percentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_goalDiffPer60Percentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalDiffPer60Percentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_goalDiffPer60Percentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_goalDiffPer60LeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_goalDiffPer60LeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalDiffPer60LeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_goalDiffPer60LeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_goalSupportAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_goalSupportAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalSupportAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_goalSupportAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_goalSupportAvgPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_goalSupportAvgPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalSupportAvgPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_goalSupportAvgPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_goalSupportAvgLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_goalSupportAvgLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalSupportAvgLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_goalSupportAvgLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_pointPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_pointPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PointPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_pointPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_pointPctgPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_pointPctgPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PointPctgPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_pointPctgPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_pointPctgLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_pointPctgLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PointPctgLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_pointPctgLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_shotLocationSummary(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_shotLocationSummary(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotLocationSummary, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.EdgeGoalieShotLocationSummary)
+	fc.Result = res
+	return ec.marshalNEdgeGoalieShotLocationSummary2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeGoalieShotLocationSummaryᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_shotLocationSummary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "locationCode":
+				return ec.fieldContext_EdgeGoalieShotLocationSummary_locationCode(ctx, field)
+			case "goalsAgainst":
+				return ec.fieldContext_EdgeGoalieShotLocationSummary_goalsAgainst(ctx, field)
+			case "goalsAgainstPercentile":
+				return ec.fieldContext_EdgeGoalieShotLocationSummary_goalsAgainstPercentile(ctx, field)
+			case "goalsAgainstLeagueAvg":
+				return ec.fieldContext_EdgeGoalieShotLocationSummary_goalsAgainstLeagueAvg(ctx, field)
+			case "saves":
+				return ec.fieldContext_EdgeGoalieShotLocationSummary_saves(ctx, field)
+			case "savesPercentile":
+				return ec.fieldContext_EdgeGoalieShotLocationSummary_savesPercentile(ctx, field)
+			case "savesLeagueAvg":
+				return ec.fieldContext_EdgeGoalieShotLocationSummary_savesLeagueAvg(ctx, field)
+			case "savePctg":
+				return ec.fieldContext_EdgeGoalieShotLocationSummary_savePctg(ctx, field)
+			case "savePctgPercentile":
+				return ec.fieldContext_EdgeGoalieShotLocationSummary_savePctgPercentile(ctx, field)
+			case "savePctgLeagueAvg":
+				return ec.fieldContext_EdgeGoalieShotLocationSummary_savePctgLeagueAvg(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeGoalieShotLocationSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeGoalieStats_shotLocations(ctx context.Context, field graphql.CollectedField, obj *model.EdgeGoalieStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeGoalieStats_shotLocations(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotLocations, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.EdgeGoalieShotLocation)
+	fc.Result = res
+	return ec.marshalNEdgeGoalieShotLocation2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeGoalieShotLocationᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeGoalieStats_shotLocations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeGoalieStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "area":
+				return ec.fieldContext_EdgeGoalieShotLocation_area(ctx, field)
+			case "saves":
+				return ec.fieldContext_EdgeGoalieShotLocation_saves(ctx, field)
+			case "savesPercentile":
+				return ec.fieldContext_EdgeGoalieShotLocation_savesPercentile(ctx, field)
+			case "savePctg":
+				return ec.fieldContext_EdgeGoalieShotLocation_savePctg(ctx, field)
+			case "savePctgPercentile":
+				return ec.fieldContext_EdgeGoalieShotLocation_savePctgPercentile(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeGoalieShotLocation", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeShotLocation_area(ctx context.Context, field graphql.CollectedField, obj *model.EdgeShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeShotLocation_area(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Area, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeShotLocation_area(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeShotLocation_sog(ctx context.Context, field graphql.CollectedField, obj *model.EdgeShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeShotLocation_sog(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Sog, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeShotLocation_sog(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeShotLocation_goals(ctx context.Context, field graphql.CollectedField, obj *model.EdgeShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeShotLocation_goals(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Goals, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeShotLocation_goals(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeShotLocation_shootingPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeShotLocation_shootingPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShootingPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeShotLocation_shootingPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeShotLocation_sogPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeShotLocation_sogPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SogPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeShotLocation_sogPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeShotLocation_goalsPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeShotLocation_goalsPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalsPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeShotLocation_goalsPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeShotLocation_shootingPctgPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeShotLocation_shootingPctgPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShootingPctgPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeShotLocation_shootingPctgPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_playerId(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_playerId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PlayerID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_playerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_season(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_season(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Season, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_season(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_gameType(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_gameType(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GameType, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_gameType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_topSpeedImperial(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_topSpeedImperial(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopSpeedImperial, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_topSpeedImperial(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_topSpeedMetric(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_topSpeedMetric(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopSpeedMetric, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_topSpeedMetric(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_topSpeedPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_topSpeedPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopSpeedPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_topSpeedPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_topSpeedLeagueAvgImperial(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_topSpeedLeagueAvgImperial(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopSpeedLeagueAvgImperial, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_topSpeedLeagueAvgImperial(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_topSpeedLeagueAvgMetric(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_topSpeedLeagueAvgMetric(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopSpeedLeagueAvgMetric, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_topSpeedLeagueAvgMetric(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_burstsOver20(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_burstsOver20(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.BurstsOver20, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_burstsOver20(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_burstsOver20Percentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_burstsOver20Percentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.BurstsOver20Percentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_burstsOver20Percentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_burstsOver20LeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_burstsOver20LeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.BurstsOver20LeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_burstsOver20LeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_totalDistanceImperial(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_totalDistanceImperial(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalDistanceImperial, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_totalDistanceImperial(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_totalDistanceMetric(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_totalDistanceMetric(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalDistanceMetric, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_totalDistanceMetric(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_totalDistancePercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_totalDistancePercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalDistancePercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_totalDistancePercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_maxGameDistanceImperial(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_maxGameDistanceImperial(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.MaxGameDistanceImperial, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_maxGameDistanceImperial(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_maxGameDistanceMetric(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_maxGameDistanceMetric(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.MaxGameDistanceMetric, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_maxGameDistanceMetric(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_maxGameDistancePercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_maxGameDistancePercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.MaxGameDistancePercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_maxGameDistancePercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_topShotSpeedImperial(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_topShotSpeedImperial(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopShotSpeedImperial, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_topShotSpeedImperial(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_topShotSpeedMetric(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_topShotSpeedMetric(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopShotSpeedMetric, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_topShotSpeedMetric(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_topShotSpeedPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_topShotSpeedPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopShotSpeedPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_topShotSpeedPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_topShotSpeedLeagueAvgImperial(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_topShotSpeedLeagueAvgImperial(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopShotSpeedLeagueAvgImperial, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_topShotSpeedLeagueAvgImperial(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_topShotSpeedLeagueAvgMetric(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_topShotSpeedLeagueAvgMetric(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopShotSpeedLeagueAvgMetric, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_topShotSpeedLeagueAvgMetric(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_ozPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_ozPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_ozPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_ozPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_ozPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_ozPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_ozLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_ozLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_ozLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_nzPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_nzPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.NzPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_nzPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_nzPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_nzPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.NzPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_nzPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_nzLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_nzLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.NzLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_nzLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_dzPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_dzPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DzPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_dzPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_dzPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_dzPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DzPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_dzPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_dzLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_dzLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DzLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_dzLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_ozEvPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_ozEvPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzEvPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_ozEvPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_ozEvPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_ozEvPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzEvPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_ozEvPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_shotLocations(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_shotLocations(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotLocations, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.EdgeShotLocation)
+	fc.Result = res
+	return ec.marshalNEdgeShotLocation2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeShotLocationᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_shotLocations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "area":
+				return ec.fieldContext_EdgeShotLocation_area(ctx, field)
+			case "sog":
+				return ec.fieldContext_EdgeShotLocation_sog(ctx, field)
+			case "goals":
+				return ec.fieldContext_EdgeShotLocation_goals(ctx, field)
+			case "shootingPctg":
+				return ec.fieldContext_EdgeShotLocation_shootingPctg(ctx, field)
+			case "sogPercentile":
+				return ec.fieldContext_EdgeShotLocation_sogPercentile(ctx, field)
+			case "goalsPercentile":
+				return ec.fieldContext_EdgeShotLocation_goalsPercentile(ctx, field)
+			case "shootingPctgPercentile":
+				return ec.fieldContext_EdgeShotLocation_shootingPctgPercentile(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeShotLocation", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSkaterStats_sogSummary(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSkaterStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSkaterStats_sogSummary(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SogSummary, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.EdgeSogSummary)
+	fc.Result = res
+	return ec.marshalNEdgeSogSummary2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeSogSummaryᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSkaterStats_sogSummary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSkaterStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "locationCode":
+				return ec.fieldContext_EdgeSogSummary_locationCode(ctx, field)
+			case "shots":
+				return ec.fieldContext_EdgeSogSummary_shots(ctx, field)
+			case "shotsPercentile":
+				return ec.fieldContext_EdgeSogSummary_shotsPercentile(ctx, field)
+			case "shotsLeagueAvg":
+				return ec.fieldContext_EdgeSogSummary_shotsLeagueAvg(ctx, field)
+			case "goals":
+				return ec.fieldContext_EdgeSogSummary_goals(ctx, field)
+			case "goalsPercentile":
+				return ec.fieldContext_EdgeSogSummary_goalsPercentile(ctx, field)
+			case "goalsLeagueAvg":
+				return ec.fieldContext_EdgeSogSummary_goalsLeagueAvg(ctx, field)
+			case "shootingPctg":
+				return ec.fieldContext_EdgeSogSummary_shootingPctg(ctx, field)
+			case "shootingPctgPercentile":
+				return ec.fieldContext_EdgeSogSummary_shootingPctgPercentile(ctx, field)
+			case "shootingPctgLeagueAvg":
+				return ec.fieldContext_EdgeSogSummary_shootingPctgLeagueAvg(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeSogSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSogSummary_locationCode(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSogSummary_locationCode(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.LocationCode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSogSummary_locationCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSogSummary_shots(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSogSummary_shots(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Shots, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSogSummary_shots(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSogSummary_shotsPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSogSummary_shotsPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotsPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSogSummary_shotsPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSogSummary_shotsLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSogSummary_shotsLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotsLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSogSummary_shotsLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSogSummary_goals(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSogSummary_goals(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Goals, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSogSummary_goals(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSogSummary_goalsPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSogSummary_goalsPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalsPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSogSummary_goalsPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSogSummary_goalsLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSogSummary_goalsLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalsLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSogSummary_goalsLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSogSummary_shootingPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSogSummary_shootingPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShootingPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSogSummary_shootingPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSogSummary_shootingPctgPercentile(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSogSummary_shootingPctgPercentile(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShootingPctgPercentile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSogSummary_shootingPctgPercentile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeSogSummary_shootingPctgLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeSogSummary_shootingPctgLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShootingPctgLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeSogSummary_shootingPctgLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamShotDifferential_strengthCode(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_strengthCode(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.StrengthCode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_strengthCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamShotDifferential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamShotDifferential_forPerGame(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_forPerGame(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ForPerGame, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_forPerGame(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamShotDifferential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamShotDifferential_forPerGameRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_forPerGameRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ForPerGameRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_forPerGameRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamShotDifferential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamShotDifferential_againstPerGame(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_againstPerGame(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AgainstPerGame, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_againstPerGame(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamShotDifferential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamShotDifferential_againstPerGameRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_againstPerGameRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AgainstPerGameRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_againstPerGameRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamShotDifferential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamShotDifferential_differentialPerGame(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_differentialPerGame(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DifferentialPerGame, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_differentialPerGame(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamShotDifferential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamShotDifferential_differentialPerGameRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_differentialPerGameRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DifferentialPerGameRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_differentialPerGameRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamShotDifferential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamShotLocation_area(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotLocation_area(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Area, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamShotLocation_area(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamShotLocation_shots(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotLocation_shots(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Shots, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamShotLocation_shots(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamShotLocation_shotsRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotLocation) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotLocation_shotsRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotsRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamShotLocation_shotsRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamShotLocation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamSogSummary_locationCode(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamSogSummary_locationCode(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.LocationCode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamSogSummary_locationCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamSogSummary_shots(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamSogSummary_shots(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Shots, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamSogSummary_shots(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamSogSummary_shotsRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamSogSummary_shotsRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotsRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamSogSummary_shotsRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamSogSummary_shotsLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamSogSummary_shotsLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotsLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamSogSummary_shotsLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamSogSummary_goals(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamSogSummary_goals(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Goals, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamSogSummary_goals(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamSogSummary_goalsRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamSogSummary_goalsRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalsRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamSogSummary_goalsRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamSogSummary_goalsLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamSogSummary_goalsLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GoalsLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamSogSummary_goalsLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamSogSummary_shootingPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamSogSummary_shootingPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShootingPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamSogSummary_shootingPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamSogSummary_shootingPctgRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamSogSummary_shootingPctgRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShootingPctgRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamSogSummary_shootingPctgRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamSogSummary_shootingPctgLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamSogSummary) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamSogSummary_shootingPctgLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShootingPctgLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamSogSummary_shootingPctgLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamSogSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_teamId(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_teamId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TeamID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_season(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_season(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Season, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_season(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_gameType(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_gameType(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GameType, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_gameType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_shotAttemptsOver90(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_shotAttemptsOver90(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotAttemptsOver90, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_shotAttemptsOver90(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_shotAttemptsOver90Rank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_shotAttemptsOver90Rank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotAttemptsOver90Rank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_shotAttemptsOver90Rank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_topShotSpeedImperial(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_topShotSpeedImperial(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopShotSpeedImperial, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_topShotSpeedImperial(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_topShotSpeedMetric(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_topShotSpeedMetric(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopShotSpeedMetric, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_topShotSpeedMetric(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_topShotSpeedRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_topShotSpeedRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TopShotSpeedRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_topShotSpeedRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_speedMaxImperial(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_speedMaxImperial(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SpeedMaxImperial, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_speedMaxImperial(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_speedMaxMetric(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_speedMaxMetric(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SpeedMaxMetric, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_speedMaxMetric(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_speedMaxRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_speedMaxRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SpeedMaxRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_speedMaxRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_burstsOver22(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_burstsOver22(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.BurstsOver22, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_burstsOver22(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_burstsOver22Rank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_burstsOver22Rank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.BurstsOver22Rank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_burstsOver22Rank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_burstsOver20(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_burstsOver20(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.BurstsOver20, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_burstsOver20(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_burstsOver20Rank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_burstsOver20Rank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.BurstsOver20Rank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_burstsOver20Rank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_totalDistance(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_totalDistance(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalDistance, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_totalDistance(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_totalDistanceRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_totalDistanceRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalDistanceRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_totalDistanceRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_ozPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_ozPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_ozPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_ozRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_ozRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_ozRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_ozLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_ozLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_ozLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_ozEvPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_ozEvPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzEvPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_ozEvPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_ozEvRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_ozEvRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzEvRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_ozEvRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_nzPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_nzPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.NzPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_nzPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_nzRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_nzRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.NzRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_nzRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_nzLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_nzLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.NzLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_nzLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_dzPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_dzPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DzPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_dzPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_dzRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_dzRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DzRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_dzRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_dzLeagueAvg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_dzLeagueAvg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DzLeagueAvg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_dzLeagueAvg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_sogSummary(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_sogSummary(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SogSummary, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.EdgeTeamSogSummary)
+	fc.Result = res
+	return ec.marshalNEdgeTeamSogSummary2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamSogSummaryᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_sogSummary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "locationCode":
+				return ec.fieldContext_EdgeTeamSogSummary_locationCode(ctx, field)
+			case "shots":
+				return ec.fieldContext_EdgeTeamSogSummary_shots(ctx, field)
+			case "shotsRank":
+				return ec.fieldContext_EdgeTeamSogSummary_shotsRank(ctx, field)
+			case "shotsLeagueAvg":
+				return ec.fieldContext_EdgeTeamSogSummary_shotsLeagueAvg(ctx, field)
+			case "goals":
+				return ec.fieldContext_EdgeTeamSogSummary_goals(ctx, field)
+			case "goalsRank":
+				return ec.fieldContext_EdgeTeamSogSummary_goalsRank(ctx, field)
+			case "goalsLeagueAvg":
+				return ec.fieldContext_EdgeTeamSogSummary_goalsLeagueAvg(ctx, field)
+			case "shootingPctg":
+				return ec.fieldContext_EdgeTeamSogSummary_shootingPctg(ctx, field)
+			case "shootingPctgRank":
+				return ec.fieldContext_EdgeTeamSogSummary_shootingPctgRank(ctx, field)
+			case "shootingPctgLeagueAvg":
+				return ec.fieldContext_EdgeTeamSogSummary_shootingPctgLeagueAvg(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeTeamSogSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_shotLocations(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_shotLocations(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotLocations, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.EdgeTeamShotLocation)
+	fc.Result = res
+	return ec.marshalNEdgeTeamShotLocation2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotLocationᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_shotLocations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "area":
+				return ec.fieldContext_EdgeTeamShotLocation_area(ctx, field)
+			case "shots":
+				return ec.fieldContext_EdgeTeamShotLocation_shots(ctx, field)
+			case "shotsRank":
+				return ec.fieldContext_EdgeTeamShotLocation_shotsRank(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeTeamShotLocation", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_zoneTimeByStrength(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_zoneTimeByStrength(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ZoneTimeByStrength, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.EdgeTeamZoneTimeByStrength)
+	fc.Result = res
+	return ec.marshalNEdgeTeamZoneTimeByStrength2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamZoneTimeByStrengthᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_zoneTimeByStrength(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "strengthCode":
+				return ec.fieldContext_EdgeTeamZoneTimeByStrength_strengthCode(ctx, field)
+			case "ozPctg":
+				return ec.fieldContext_EdgeTeamZoneTimeByStrength_ozPctg(ctx, field)
+			case "ozRank":
+				return ec.fieldContext_EdgeTeamZoneTimeByStrength_ozRank(ctx, field)
+			case "nzPctg":
+				return ec.fieldContext_EdgeTeamZoneTimeByStrength_nzPctg(ctx, field)
+			case "nzRank":
+				return ec.fieldContext_EdgeTeamZoneTimeByStrength_nzRank(ctx, field)
+			case "dzPctg":
+				return ec.fieldContext_EdgeTeamZoneTimeByStrength_dzPctg(ctx, field)
+			case "dzRank":
+				return ec.fieldContext_EdgeTeamZoneTimeByStrength_dzRank(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeTeamZoneTimeByStrength", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamStats_shotDifferential(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamStats) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamStats_shotDifferential(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ShotDifferential, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.EdgeTeamShotDifferential)
+	fc.Result = res
+	return ec.marshalNEdgeTeamShotDifferential2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotDifferentialᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamStats_shotDifferential(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "strengthCode":
+				return ec.fieldContext_EdgeTeamShotDifferential_strengthCode(ctx, field)
+			case "forPerGame":
+				return ec.fieldContext_EdgeTeamShotDifferential_forPerGame(ctx, field)
+			case "forPerGameRank":
+				return ec.fieldContext_EdgeTeamShotDifferential_forPerGameRank(ctx, field)
+			case "againstPerGame":
+				return ec.fieldContext_EdgeTeamShotDifferential_againstPerGame(ctx, field)
+			case "againstPerGameRank":
+				return ec.fieldContext_EdgeTeamShotDifferential_againstPerGameRank(ctx, field)
+			case "differentialPerGame":
+				return ec.fieldContext_EdgeTeamShotDifferential_differentialPerGame(ctx, field)
+			case "differentialPerGameRank":
+				return ec.fieldContext_EdgeTeamShotDifferential_differentialPerGameRank(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeTeamShotDifferential", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamZoneTimeByStrength_strengthCode(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamZoneTimeByStrength) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamZoneTimeByStrength_strengthCode(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.StrengthCode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamZoneTimeByStrength_strengthCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamZoneTimeByStrength",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamZoneTimeByStrength_ozPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamZoneTimeByStrength) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamZoneTimeByStrength_ozPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamZoneTimeByStrength_ozPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamZoneTimeByStrength",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamZoneTimeByStrength_ozRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamZoneTimeByStrength) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamZoneTimeByStrength_ozRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OzRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamZoneTimeByStrength_ozRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamZoneTimeByStrength",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamZoneTimeByStrength_nzPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamZoneTimeByStrength) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamZoneTimeByStrength_nzPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.NzPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamZoneTimeByStrength_nzPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamZoneTimeByStrength",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamZoneTimeByStrength_nzRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamZoneTimeByStrength) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamZoneTimeByStrength_nzRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.NzRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamZoneTimeByStrength_nzRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamZoneTimeByStrength",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamZoneTimeByStrength_dzPctg(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamZoneTimeByStrength) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamZoneTimeByStrength_dzPctg(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DzPctg, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*float64)
+	fc.Result = res
+	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamZoneTimeByStrength_dzPctg(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamZoneTimeByStrength",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeTeamZoneTimeByStrength_dzRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamZoneTimeByStrength) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamZoneTimeByStrength_dzRank(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DzRank, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeTeamZoneTimeByStrength_dzRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeTeamZoneTimeByStrength",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -9149,6 +17198,204 @@ func (ec *executionContext) fieldContext_Mutation_cancelFetchPlayerLandings(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_fetchEdgeStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_fetchEdgeStats(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().FetchEdgeStats(rctx, fc.Args["input"].(*model.SeasonsInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_fetchEdgeStats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_fetchEdgeStats_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelFetchEdgeStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelFetchEdgeStats(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CancelFetchEdgeStats(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_cancelFetchEdgeStats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_importEdgeStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_importEdgeStats(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().ImportEdgeStats(rctx, fc.Args["input"].(*model.SeasonsInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_importEdgeStats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_importEdgeStats_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelImportEdgeStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelImportEdgeStats(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CancelImportEdgeStats(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_cancelImportEdgeStats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_mauriceChat(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_mauriceChat(ctx, field)
 	if err != nil {
@@ -12850,6 +21097,208 @@ func (ec *executionContext) fieldContext_Query_fetchPlayerLandingsProgress(_ con
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_fetchEdgeStatsResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_fetchEdgeStatsResult(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().FetchEdgeStatsResult(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.WorkflowResult)
+	fc.Result = res
+	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_fetchEdgeStatsResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "status":
+				return ec.fieldContext_WorkflowResult_status(ctx, field)
+			case "failureReason":
+				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_fetchEdgeStatsProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_fetchEdgeStatsProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().FetchEdgeStatsProgress(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.ProgressReport)
+	fc.Result = res
+	return ec.marshalOProgressReport2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressReport(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_fetchEdgeStatsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "total":
+				return ec.fieldContext_ProgressReport_total(ctx, field)
+			case "completed":
+				return ec.fieldContext_ProgressReport_completed(ctx, field)
+			case "message":
+				return ec.fieldContext_ProgressReport_message(ctx, field)
+			case "groups":
+				return ec.fieldContext_ProgressReport_groups(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProgressReport", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_importEdgeStatsResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_importEdgeStatsResult(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().ImportEdgeStatsResult(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.WorkflowResult)
+	fc.Result = res
+	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_importEdgeStatsResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "status":
+				return ec.fieldContext_WorkflowResult_status(ctx, field)
+			case "failureReason":
+				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_importEdgeStatsProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_importEdgeStatsProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().ImportEdgeStatsProgress(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.ProgressReport)
+	fc.Result = res
+	return ec.marshalOProgressReport2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressReport(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_importEdgeStatsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "total":
+				return ec.fieldContext_ProgressReport_total(ctx, field)
+			case "completed":
+				return ec.fieldContext_ProgressReport_completed(ctx, field)
+			case "message":
+				return ec.fieldContext_ProgressReport_message(ctx, field)
+			case "groups":
+				return ec.fieldContext_ProgressReport_groups(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProgressReport", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_mauriceConversations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_mauriceConversations(ctx, field)
 	if err != nil {
@@ -14214,6 +22663,342 @@ func (ec *executionContext) fieldContext_Query_playerSeasonTotals(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_playerSeasonTotals_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_edgeSkaterStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_edgeSkaterStats(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().EdgeSkaterStats(rctx, fc.Args["playerId"].(int), fc.Args["season"].(int), fc.Args["gameType"].(*int))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.EdgeSkaterStats)
+	fc.Result = res
+	return ec.marshalOEdgeSkaterStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeSkaterStats(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_edgeSkaterStats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "playerId":
+				return ec.fieldContext_EdgeSkaterStats_playerId(ctx, field)
+			case "season":
+				return ec.fieldContext_EdgeSkaterStats_season(ctx, field)
+			case "gameType":
+				return ec.fieldContext_EdgeSkaterStats_gameType(ctx, field)
+			case "topSpeedImperial":
+				return ec.fieldContext_EdgeSkaterStats_topSpeedImperial(ctx, field)
+			case "topSpeedMetric":
+				return ec.fieldContext_EdgeSkaterStats_topSpeedMetric(ctx, field)
+			case "topSpeedPercentile":
+				return ec.fieldContext_EdgeSkaterStats_topSpeedPercentile(ctx, field)
+			case "topSpeedLeagueAvgImperial":
+				return ec.fieldContext_EdgeSkaterStats_topSpeedLeagueAvgImperial(ctx, field)
+			case "topSpeedLeagueAvgMetric":
+				return ec.fieldContext_EdgeSkaterStats_topSpeedLeagueAvgMetric(ctx, field)
+			case "burstsOver20":
+				return ec.fieldContext_EdgeSkaterStats_burstsOver20(ctx, field)
+			case "burstsOver20Percentile":
+				return ec.fieldContext_EdgeSkaterStats_burstsOver20Percentile(ctx, field)
+			case "burstsOver20LeagueAvg":
+				return ec.fieldContext_EdgeSkaterStats_burstsOver20LeagueAvg(ctx, field)
+			case "totalDistanceImperial":
+				return ec.fieldContext_EdgeSkaterStats_totalDistanceImperial(ctx, field)
+			case "totalDistanceMetric":
+				return ec.fieldContext_EdgeSkaterStats_totalDistanceMetric(ctx, field)
+			case "totalDistancePercentile":
+				return ec.fieldContext_EdgeSkaterStats_totalDistancePercentile(ctx, field)
+			case "maxGameDistanceImperial":
+				return ec.fieldContext_EdgeSkaterStats_maxGameDistanceImperial(ctx, field)
+			case "maxGameDistanceMetric":
+				return ec.fieldContext_EdgeSkaterStats_maxGameDistanceMetric(ctx, field)
+			case "maxGameDistancePercentile":
+				return ec.fieldContext_EdgeSkaterStats_maxGameDistancePercentile(ctx, field)
+			case "topShotSpeedImperial":
+				return ec.fieldContext_EdgeSkaterStats_topShotSpeedImperial(ctx, field)
+			case "topShotSpeedMetric":
+				return ec.fieldContext_EdgeSkaterStats_topShotSpeedMetric(ctx, field)
+			case "topShotSpeedPercentile":
+				return ec.fieldContext_EdgeSkaterStats_topShotSpeedPercentile(ctx, field)
+			case "topShotSpeedLeagueAvgImperial":
+				return ec.fieldContext_EdgeSkaterStats_topShotSpeedLeagueAvgImperial(ctx, field)
+			case "topShotSpeedLeagueAvgMetric":
+				return ec.fieldContext_EdgeSkaterStats_topShotSpeedLeagueAvgMetric(ctx, field)
+			case "ozPctg":
+				return ec.fieldContext_EdgeSkaterStats_ozPctg(ctx, field)
+			case "ozPercentile":
+				return ec.fieldContext_EdgeSkaterStats_ozPercentile(ctx, field)
+			case "ozLeagueAvg":
+				return ec.fieldContext_EdgeSkaterStats_ozLeagueAvg(ctx, field)
+			case "nzPctg":
+				return ec.fieldContext_EdgeSkaterStats_nzPctg(ctx, field)
+			case "nzPercentile":
+				return ec.fieldContext_EdgeSkaterStats_nzPercentile(ctx, field)
+			case "nzLeagueAvg":
+				return ec.fieldContext_EdgeSkaterStats_nzLeagueAvg(ctx, field)
+			case "dzPctg":
+				return ec.fieldContext_EdgeSkaterStats_dzPctg(ctx, field)
+			case "dzPercentile":
+				return ec.fieldContext_EdgeSkaterStats_dzPercentile(ctx, field)
+			case "dzLeagueAvg":
+				return ec.fieldContext_EdgeSkaterStats_dzLeagueAvg(ctx, field)
+			case "ozEvPctg":
+				return ec.fieldContext_EdgeSkaterStats_ozEvPctg(ctx, field)
+			case "ozEvPercentile":
+				return ec.fieldContext_EdgeSkaterStats_ozEvPercentile(ctx, field)
+			case "shotLocations":
+				return ec.fieldContext_EdgeSkaterStats_shotLocations(ctx, field)
+			case "sogSummary":
+				return ec.fieldContext_EdgeSkaterStats_sogSummary(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeSkaterStats", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_edgeSkaterStats_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_edgeGoalieStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_edgeGoalieStats(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().EdgeGoalieStats(rctx, fc.Args["playerId"].(int), fc.Args["season"].(int), fc.Args["gameType"].(*int))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.EdgeGoalieStats)
+	fc.Result = res
+	return ec.marshalOEdgeGoalieStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeGoalieStats(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_edgeGoalieStats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "playerId":
+				return ec.fieldContext_EdgeGoalieStats_playerId(ctx, field)
+			case "season":
+				return ec.fieldContext_EdgeGoalieStats_season(ctx, field)
+			case "gameType":
+				return ec.fieldContext_EdgeGoalieStats_gameType(ctx, field)
+			case "gaaValue":
+				return ec.fieldContext_EdgeGoalieStats_gaaValue(ctx, field)
+			case "gaaPercentile":
+				return ec.fieldContext_EdgeGoalieStats_gaaPercentile(ctx, field)
+			case "gaaLeagueAvg":
+				return ec.fieldContext_EdgeGoalieStats_gaaLeagueAvg(ctx, field)
+			case "gamesAbove900":
+				return ec.fieldContext_EdgeGoalieStats_gamesAbove900(ctx, field)
+			case "gamesAbove900Percentile":
+				return ec.fieldContext_EdgeGoalieStats_gamesAbove900Percentile(ctx, field)
+			case "gamesAbove900LeagueAvg":
+				return ec.fieldContext_EdgeGoalieStats_gamesAbove900LeagueAvg(ctx, field)
+			case "goalDiffPer60":
+				return ec.fieldContext_EdgeGoalieStats_goalDiffPer60(ctx, field)
+			case "goalDiffPer60Percentile":
+				return ec.fieldContext_EdgeGoalieStats_goalDiffPer60Percentile(ctx, field)
+			case "goalDiffPer60LeagueAvg":
+				return ec.fieldContext_EdgeGoalieStats_goalDiffPer60LeagueAvg(ctx, field)
+			case "goalSupportAvg":
+				return ec.fieldContext_EdgeGoalieStats_goalSupportAvg(ctx, field)
+			case "goalSupportAvgPercentile":
+				return ec.fieldContext_EdgeGoalieStats_goalSupportAvgPercentile(ctx, field)
+			case "goalSupportAvgLeagueAvg":
+				return ec.fieldContext_EdgeGoalieStats_goalSupportAvgLeagueAvg(ctx, field)
+			case "pointPctg":
+				return ec.fieldContext_EdgeGoalieStats_pointPctg(ctx, field)
+			case "pointPctgPercentile":
+				return ec.fieldContext_EdgeGoalieStats_pointPctgPercentile(ctx, field)
+			case "pointPctgLeagueAvg":
+				return ec.fieldContext_EdgeGoalieStats_pointPctgLeagueAvg(ctx, field)
+			case "shotLocationSummary":
+				return ec.fieldContext_EdgeGoalieStats_shotLocationSummary(ctx, field)
+			case "shotLocations":
+				return ec.fieldContext_EdgeGoalieStats_shotLocations(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeGoalieStats", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_edgeGoalieStats_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_edgeTeamStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_edgeTeamStats(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().EdgeTeamStats(rctx, fc.Args["teamId"].(int), fc.Args["season"].(int), fc.Args["gameType"].(*int))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.EdgeTeamStats)
+	fc.Result = res
+	return ec.marshalOEdgeTeamStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamStats(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_edgeTeamStats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "teamId":
+				return ec.fieldContext_EdgeTeamStats_teamId(ctx, field)
+			case "season":
+				return ec.fieldContext_EdgeTeamStats_season(ctx, field)
+			case "gameType":
+				return ec.fieldContext_EdgeTeamStats_gameType(ctx, field)
+			case "shotAttemptsOver90":
+				return ec.fieldContext_EdgeTeamStats_shotAttemptsOver90(ctx, field)
+			case "shotAttemptsOver90Rank":
+				return ec.fieldContext_EdgeTeamStats_shotAttemptsOver90Rank(ctx, field)
+			case "topShotSpeedImperial":
+				return ec.fieldContext_EdgeTeamStats_topShotSpeedImperial(ctx, field)
+			case "topShotSpeedMetric":
+				return ec.fieldContext_EdgeTeamStats_topShotSpeedMetric(ctx, field)
+			case "topShotSpeedRank":
+				return ec.fieldContext_EdgeTeamStats_topShotSpeedRank(ctx, field)
+			case "speedMaxImperial":
+				return ec.fieldContext_EdgeTeamStats_speedMaxImperial(ctx, field)
+			case "speedMaxMetric":
+				return ec.fieldContext_EdgeTeamStats_speedMaxMetric(ctx, field)
+			case "speedMaxRank":
+				return ec.fieldContext_EdgeTeamStats_speedMaxRank(ctx, field)
+			case "burstsOver22":
+				return ec.fieldContext_EdgeTeamStats_burstsOver22(ctx, field)
+			case "burstsOver22Rank":
+				return ec.fieldContext_EdgeTeamStats_burstsOver22Rank(ctx, field)
+			case "burstsOver20":
+				return ec.fieldContext_EdgeTeamStats_burstsOver20(ctx, field)
+			case "burstsOver20Rank":
+				return ec.fieldContext_EdgeTeamStats_burstsOver20Rank(ctx, field)
+			case "totalDistance":
+				return ec.fieldContext_EdgeTeamStats_totalDistance(ctx, field)
+			case "totalDistanceRank":
+				return ec.fieldContext_EdgeTeamStats_totalDistanceRank(ctx, field)
+			case "ozPctg":
+				return ec.fieldContext_EdgeTeamStats_ozPctg(ctx, field)
+			case "ozRank":
+				return ec.fieldContext_EdgeTeamStats_ozRank(ctx, field)
+			case "ozLeagueAvg":
+				return ec.fieldContext_EdgeTeamStats_ozLeagueAvg(ctx, field)
+			case "ozEvPctg":
+				return ec.fieldContext_EdgeTeamStats_ozEvPctg(ctx, field)
+			case "ozEvRank":
+				return ec.fieldContext_EdgeTeamStats_ozEvRank(ctx, field)
+			case "nzPctg":
+				return ec.fieldContext_EdgeTeamStats_nzPctg(ctx, field)
+			case "nzRank":
+				return ec.fieldContext_EdgeTeamStats_nzRank(ctx, field)
+			case "nzLeagueAvg":
+				return ec.fieldContext_EdgeTeamStats_nzLeagueAvg(ctx, field)
+			case "dzPctg":
+				return ec.fieldContext_EdgeTeamStats_dzPctg(ctx, field)
+			case "dzRank":
+				return ec.fieldContext_EdgeTeamStats_dzRank(ctx, field)
+			case "dzLeagueAvg":
+				return ec.fieldContext_EdgeTeamStats_dzLeagueAvg(ctx, field)
+			case "sogSummary":
+				return ec.fieldContext_EdgeTeamStats_sogSummary(ctx, field)
+			case "shotLocations":
+				return ec.fieldContext_EdgeTeamStats_shotLocations(ctx, field)
+			case "zoneTimeByStrength":
+				return ec.fieldContext_EdgeTeamStats_zoneTimeByStrength(ctx, field)
+			case "shotDifferential":
+				return ec.fieldContext_EdgeTeamStats_shotDifferential(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeTeamStats", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_edgeTeamStats_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -18619,6 +27404,747 @@ func (ec *executionContext) _Boxscore(ctx context.Context, sel ast.SelectionSet,
 	return out
 }
 
+var edgeGoalieShotLocationImplementors = []string{"EdgeGoalieShotLocation"}
+
+func (ec *executionContext) _EdgeGoalieShotLocation(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeGoalieShotLocation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeGoalieShotLocationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeGoalieShotLocation")
+		case "area":
+			out.Values[i] = ec._EdgeGoalieShotLocation_area(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "saves":
+			out.Values[i] = ec._EdgeGoalieShotLocation_saves(ctx, field, obj)
+		case "savesPercentile":
+			out.Values[i] = ec._EdgeGoalieShotLocation_savesPercentile(ctx, field, obj)
+		case "savePctg":
+			out.Values[i] = ec._EdgeGoalieShotLocation_savePctg(ctx, field, obj)
+		case "savePctgPercentile":
+			out.Values[i] = ec._EdgeGoalieShotLocation_savePctgPercentile(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var edgeGoalieShotLocationSummaryImplementors = []string{"EdgeGoalieShotLocationSummary"}
+
+func (ec *executionContext) _EdgeGoalieShotLocationSummary(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeGoalieShotLocationSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeGoalieShotLocationSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeGoalieShotLocationSummary")
+		case "locationCode":
+			out.Values[i] = ec._EdgeGoalieShotLocationSummary_locationCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "goalsAgainst":
+			out.Values[i] = ec._EdgeGoalieShotLocationSummary_goalsAgainst(ctx, field, obj)
+		case "goalsAgainstPercentile":
+			out.Values[i] = ec._EdgeGoalieShotLocationSummary_goalsAgainstPercentile(ctx, field, obj)
+		case "goalsAgainstLeagueAvg":
+			out.Values[i] = ec._EdgeGoalieShotLocationSummary_goalsAgainstLeagueAvg(ctx, field, obj)
+		case "saves":
+			out.Values[i] = ec._EdgeGoalieShotLocationSummary_saves(ctx, field, obj)
+		case "savesPercentile":
+			out.Values[i] = ec._EdgeGoalieShotLocationSummary_savesPercentile(ctx, field, obj)
+		case "savesLeagueAvg":
+			out.Values[i] = ec._EdgeGoalieShotLocationSummary_savesLeagueAvg(ctx, field, obj)
+		case "savePctg":
+			out.Values[i] = ec._EdgeGoalieShotLocationSummary_savePctg(ctx, field, obj)
+		case "savePctgPercentile":
+			out.Values[i] = ec._EdgeGoalieShotLocationSummary_savePctgPercentile(ctx, field, obj)
+		case "savePctgLeagueAvg":
+			out.Values[i] = ec._EdgeGoalieShotLocationSummary_savePctgLeagueAvg(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var edgeGoalieStatsImplementors = []string{"EdgeGoalieStats"}
+
+func (ec *executionContext) _EdgeGoalieStats(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeGoalieStats) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeGoalieStatsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeGoalieStats")
+		case "playerId":
+			out.Values[i] = ec._EdgeGoalieStats_playerId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "season":
+			out.Values[i] = ec._EdgeGoalieStats_season(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "gameType":
+			out.Values[i] = ec._EdgeGoalieStats_gameType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "gaaValue":
+			out.Values[i] = ec._EdgeGoalieStats_gaaValue(ctx, field, obj)
+		case "gaaPercentile":
+			out.Values[i] = ec._EdgeGoalieStats_gaaPercentile(ctx, field, obj)
+		case "gaaLeagueAvg":
+			out.Values[i] = ec._EdgeGoalieStats_gaaLeagueAvg(ctx, field, obj)
+		case "gamesAbove900":
+			out.Values[i] = ec._EdgeGoalieStats_gamesAbove900(ctx, field, obj)
+		case "gamesAbove900Percentile":
+			out.Values[i] = ec._EdgeGoalieStats_gamesAbove900Percentile(ctx, field, obj)
+		case "gamesAbove900LeagueAvg":
+			out.Values[i] = ec._EdgeGoalieStats_gamesAbove900LeagueAvg(ctx, field, obj)
+		case "goalDiffPer60":
+			out.Values[i] = ec._EdgeGoalieStats_goalDiffPer60(ctx, field, obj)
+		case "goalDiffPer60Percentile":
+			out.Values[i] = ec._EdgeGoalieStats_goalDiffPer60Percentile(ctx, field, obj)
+		case "goalDiffPer60LeagueAvg":
+			out.Values[i] = ec._EdgeGoalieStats_goalDiffPer60LeagueAvg(ctx, field, obj)
+		case "goalSupportAvg":
+			out.Values[i] = ec._EdgeGoalieStats_goalSupportAvg(ctx, field, obj)
+		case "goalSupportAvgPercentile":
+			out.Values[i] = ec._EdgeGoalieStats_goalSupportAvgPercentile(ctx, field, obj)
+		case "goalSupportAvgLeagueAvg":
+			out.Values[i] = ec._EdgeGoalieStats_goalSupportAvgLeagueAvg(ctx, field, obj)
+		case "pointPctg":
+			out.Values[i] = ec._EdgeGoalieStats_pointPctg(ctx, field, obj)
+		case "pointPctgPercentile":
+			out.Values[i] = ec._EdgeGoalieStats_pointPctgPercentile(ctx, field, obj)
+		case "pointPctgLeagueAvg":
+			out.Values[i] = ec._EdgeGoalieStats_pointPctgLeagueAvg(ctx, field, obj)
+		case "shotLocationSummary":
+			out.Values[i] = ec._EdgeGoalieStats_shotLocationSummary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shotLocations":
+			out.Values[i] = ec._EdgeGoalieStats_shotLocations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var edgeShotLocationImplementors = []string{"EdgeShotLocation"}
+
+func (ec *executionContext) _EdgeShotLocation(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeShotLocation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeShotLocationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeShotLocation")
+		case "area":
+			out.Values[i] = ec._EdgeShotLocation_area(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sog":
+			out.Values[i] = ec._EdgeShotLocation_sog(ctx, field, obj)
+		case "goals":
+			out.Values[i] = ec._EdgeShotLocation_goals(ctx, field, obj)
+		case "shootingPctg":
+			out.Values[i] = ec._EdgeShotLocation_shootingPctg(ctx, field, obj)
+		case "sogPercentile":
+			out.Values[i] = ec._EdgeShotLocation_sogPercentile(ctx, field, obj)
+		case "goalsPercentile":
+			out.Values[i] = ec._EdgeShotLocation_goalsPercentile(ctx, field, obj)
+		case "shootingPctgPercentile":
+			out.Values[i] = ec._EdgeShotLocation_shootingPctgPercentile(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var edgeSkaterStatsImplementors = []string{"EdgeSkaterStats"}
+
+func (ec *executionContext) _EdgeSkaterStats(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeSkaterStats) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeSkaterStatsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeSkaterStats")
+		case "playerId":
+			out.Values[i] = ec._EdgeSkaterStats_playerId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "season":
+			out.Values[i] = ec._EdgeSkaterStats_season(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "gameType":
+			out.Values[i] = ec._EdgeSkaterStats_gameType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "topSpeedImperial":
+			out.Values[i] = ec._EdgeSkaterStats_topSpeedImperial(ctx, field, obj)
+		case "topSpeedMetric":
+			out.Values[i] = ec._EdgeSkaterStats_topSpeedMetric(ctx, field, obj)
+		case "topSpeedPercentile":
+			out.Values[i] = ec._EdgeSkaterStats_topSpeedPercentile(ctx, field, obj)
+		case "topSpeedLeagueAvgImperial":
+			out.Values[i] = ec._EdgeSkaterStats_topSpeedLeagueAvgImperial(ctx, field, obj)
+		case "topSpeedLeagueAvgMetric":
+			out.Values[i] = ec._EdgeSkaterStats_topSpeedLeagueAvgMetric(ctx, field, obj)
+		case "burstsOver20":
+			out.Values[i] = ec._EdgeSkaterStats_burstsOver20(ctx, field, obj)
+		case "burstsOver20Percentile":
+			out.Values[i] = ec._EdgeSkaterStats_burstsOver20Percentile(ctx, field, obj)
+		case "burstsOver20LeagueAvg":
+			out.Values[i] = ec._EdgeSkaterStats_burstsOver20LeagueAvg(ctx, field, obj)
+		case "totalDistanceImperial":
+			out.Values[i] = ec._EdgeSkaterStats_totalDistanceImperial(ctx, field, obj)
+		case "totalDistanceMetric":
+			out.Values[i] = ec._EdgeSkaterStats_totalDistanceMetric(ctx, field, obj)
+		case "totalDistancePercentile":
+			out.Values[i] = ec._EdgeSkaterStats_totalDistancePercentile(ctx, field, obj)
+		case "maxGameDistanceImperial":
+			out.Values[i] = ec._EdgeSkaterStats_maxGameDistanceImperial(ctx, field, obj)
+		case "maxGameDistanceMetric":
+			out.Values[i] = ec._EdgeSkaterStats_maxGameDistanceMetric(ctx, field, obj)
+		case "maxGameDistancePercentile":
+			out.Values[i] = ec._EdgeSkaterStats_maxGameDistancePercentile(ctx, field, obj)
+		case "topShotSpeedImperial":
+			out.Values[i] = ec._EdgeSkaterStats_topShotSpeedImperial(ctx, field, obj)
+		case "topShotSpeedMetric":
+			out.Values[i] = ec._EdgeSkaterStats_topShotSpeedMetric(ctx, field, obj)
+		case "topShotSpeedPercentile":
+			out.Values[i] = ec._EdgeSkaterStats_topShotSpeedPercentile(ctx, field, obj)
+		case "topShotSpeedLeagueAvgImperial":
+			out.Values[i] = ec._EdgeSkaterStats_topShotSpeedLeagueAvgImperial(ctx, field, obj)
+		case "topShotSpeedLeagueAvgMetric":
+			out.Values[i] = ec._EdgeSkaterStats_topShotSpeedLeagueAvgMetric(ctx, field, obj)
+		case "ozPctg":
+			out.Values[i] = ec._EdgeSkaterStats_ozPctg(ctx, field, obj)
+		case "ozPercentile":
+			out.Values[i] = ec._EdgeSkaterStats_ozPercentile(ctx, field, obj)
+		case "ozLeagueAvg":
+			out.Values[i] = ec._EdgeSkaterStats_ozLeagueAvg(ctx, field, obj)
+		case "nzPctg":
+			out.Values[i] = ec._EdgeSkaterStats_nzPctg(ctx, field, obj)
+		case "nzPercentile":
+			out.Values[i] = ec._EdgeSkaterStats_nzPercentile(ctx, field, obj)
+		case "nzLeagueAvg":
+			out.Values[i] = ec._EdgeSkaterStats_nzLeagueAvg(ctx, field, obj)
+		case "dzPctg":
+			out.Values[i] = ec._EdgeSkaterStats_dzPctg(ctx, field, obj)
+		case "dzPercentile":
+			out.Values[i] = ec._EdgeSkaterStats_dzPercentile(ctx, field, obj)
+		case "dzLeagueAvg":
+			out.Values[i] = ec._EdgeSkaterStats_dzLeagueAvg(ctx, field, obj)
+		case "ozEvPctg":
+			out.Values[i] = ec._EdgeSkaterStats_ozEvPctg(ctx, field, obj)
+		case "ozEvPercentile":
+			out.Values[i] = ec._EdgeSkaterStats_ozEvPercentile(ctx, field, obj)
+		case "shotLocations":
+			out.Values[i] = ec._EdgeSkaterStats_shotLocations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sogSummary":
+			out.Values[i] = ec._EdgeSkaterStats_sogSummary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var edgeSogSummaryImplementors = []string{"EdgeSogSummary"}
+
+func (ec *executionContext) _EdgeSogSummary(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeSogSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeSogSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeSogSummary")
+		case "locationCode":
+			out.Values[i] = ec._EdgeSogSummary_locationCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shots":
+			out.Values[i] = ec._EdgeSogSummary_shots(ctx, field, obj)
+		case "shotsPercentile":
+			out.Values[i] = ec._EdgeSogSummary_shotsPercentile(ctx, field, obj)
+		case "shotsLeagueAvg":
+			out.Values[i] = ec._EdgeSogSummary_shotsLeagueAvg(ctx, field, obj)
+		case "goals":
+			out.Values[i] = ec._EdgeSogSummary_goals(ctx, field, obj)
+		case "goalsPercentile":
+			out.Values[i] = ec._EdgeSogSummary_goalsPercentile(ctx, field, obj)
+		case "goalsLeagueAvg":
+			out.Values[i] = ec._EdgeSogSummary_goalsLeagueAvg(ctx, field, obj)
+		case "shootingPctg":
+			out.Values[i] = ec._EdgeSogSummary_shootingPctg(ctx, field, obj)
+		case "shootingPctgPercentile":
+			out.Values[i] = ec._EdgeSogSummary_shootingPctgPercentile(ctx, field, obj)
+		case "shootingPctgLeagueAvg":
+			out.Values[i] = ec._EdgeSogSummary_shootingPctgLeagueAvg(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var edgeTeamShotDifferentialImplementors = []string{"EdgeTeamShotDifferential"}
+
+func (ec *executionContext) _EdgeTeamShotDifferential(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeTeamShotDifferential) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeTeamShotDifferentialImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeTeamShotDifferential")
+		case "strengthCode":
+			out.Values[i] = ec._EdgeTeamShotDifferential_strengthCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "forPerGame":
+			out.Values[i] = ec._EdgeTeamShotDifferential_forPerGame(ctx, field, obj)
+		case "forPerGameRank":
+			out.Values[i] = ec._EdgeTeamShotDifferential_forPerGameRank(ctx, field, obj)
+		case "againstPerGame":
+			out.Values[i] = ec._EdgeTeamShotDifferential_againstPerGame(ctx, field, obj)
+		case "againstPerGameRank":
+			out.Values[i] = ec._EdgeTeamShotDifferential_againstPerGameRank(ctx, field, obj)
+		case "differentialPerGame":
+			out.Values[i] = ec._EdgeTeamShotDifferential_differentialPerGame(ctx, field, obj)
+		case "differentialPerGameRank":
+			out.Values[i] = ec._EdgeTeamShotDifferential_differentialPerGameRank(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var edgeTeamShotLocationImplementors = []string{"EdgeTeamShotLocation"}
+
+func (ec *executionContext) _EdgeTeamShotLocation(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeTeamShotLocation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeTeamShotLocationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeTeamShotLocation")
+		case "area":
+			out.Values[i] = ec._EdgeTeamShotLocation_area(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shots":
+			out.Values[i] = ec._EdgeTeamShotLocation_shots(ctx, field, obj)
+		case "shotsRank":
+			out.Values[i] = ec._EdgeTeamShotLocation_shotsRank(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var edgeTeamSogSummaryImplementors = []string{"EdgeTeamSogSummary"}
+
+func (ec *executionContext) _EdgeTeamSogSummary(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeTeamSogSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeTeamSogSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeTeamSogSummary")
+		case "locationCode":
+			out.Values[i] = ec._EdgeTeamSogSummary_locationCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shots":
+			out.Values[i] = ec._EdgeTeamSogSummary_shots(ctx, field, obj)
+		case "shotsRank":
+			out.Values[i] = ec._EdgeTeamSogSummary_shotsRank(ctx, field, obj)
+		case "shotsLeagueAvg":
+			out.Values[i] = ec._EdgeTeamSogSummary_shotsLeagueAvg(ctx, field, obj)
+		case "goals":
+			out.Values[i] = ec._EdgeTeamSogSummary_goals(ctx, field, obj)
+		case "goalsRank":
+			out.Values[i] = ec._EdgeTeamSogSummary_goalsRank(ctx, field, obj)
+		case "goalsLeagueAvg":
+			out.Values[i] = ec._EdgeTeamSogSummary_goalsLeagueAvg(ctx, field, obj)
+		case "shootingPctg":
+			out.Values[i] = ec._EdgeTeamSogSummary_shootingPctg(ctx, field, obj)
+		case "shootingPctgRank":
+			out.Values[i] = ec._EdgeTeamSogSummary_shootingPctgRank(ctx, field, obj)
+		case "shootingPctgLeagueAvg":
+			out.Values[i] = ec._EdgeTeamSogSummary_shootingPctgLeagueAvg(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var edgeTeamStatsImplementors = []string{"EdgeTeamStats"}
+
+func (ec *executionContext) _EdgeTeamStats(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeTeamStats) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeTeamStatsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeTeamStats")
+		case "teamId":
+			out.Values[i] = ec._EdgeTeamStats_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "season":
+			out.Values[i] = ec._EdgeTeamStats_season(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "gameType":
+			out.Values[i] = ec._EdgeTeamStats_gameType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shotAttemptsOver90":
+			out.Values[i] = ec._EdgeTeamStats_shotAttemptsOver90(ctx, field, obj)
+		case "shotAttemptsOver90Rank":
+			out.Values[i] = ec._EdgeTeamStats_shotAttemptsOver90Rank(ctx, field, obj)
+		case "topShotSpeedImperial":
+			out.Values[i] = ec._EdgeTeamStats_topShotSpeedImperial(ctx, field, obj)
+		case "topShotSpeedMetric":
+			out.Values[i] = ec._EdgeTeamStats_topShotSpeedMetric(ctx, field, obj)
+		case "topShotSpeedRank":
+			out.Values[i] = ec._EdgeTeamStats_topShotSpeedRank(ctx, field, obj)
+		case "speedMaxImperial":
+			out.Values[i] = ec._EdgeTeamStats_speedMaxImperial(ctx, field, obj)
+		case "speedMaxMetric":
+			out.Values[i] = ec._EdgeTeamStats_speedMaxMetric(ctx, field, obj)
+		case "speedMaxRank":
+			out.Values[i] = ec._EdgeTeamStats_speedMaxRank(ctx, field, obj)
+		case "burstsOver22":
+			out.Values[i] = ec._EdgeTeamStats_burstsOver22(ctx, field, obj)
+		case "burstsOver22Rank":
+			out.Values[i] = ec._EdgeTeamStats_burstsOver22Rank(ctx, field, obj)
+		case "burstsOver20":
+			out.Values[i] = ec._EdgeTeamStats_burstsOver20(ctx, field, obj)
+		case "burstsOver20Rank":
+			out.Values[i] = ec._EdgeTeamStats_burstsOver20Rank(ctx, field, obj)
+		case "totalDistance":
+			out.Values[i] = ec._EdgeTeamStats_totalDistance(ctx, field, obj)
+		case "totalDistanceRank":
+			out.Values[i] = ec._EdgeTeamStats_totalDistanceRank(ctx, field, obj)
+		case "ozPctg":
+			out.Values[i] = ec._EdgeTeamStats_ozPctg(ctx, field, obj)
+		case "ozRank":
+			out.Values[i] = ec._EdgeTeamStats_ozRank(ctx, field, obj)
+		case "ozLeagueAvg":
+			out.Values[i] = ec._EdgeTeamStats_ozLeagueAvg(ctx, field, obj)
+		case "ozEvPctg":
+			out.Values[i] = ec._EdgeTeamStats_ozEvPctg(ctx, field, obj)
+		case "ozEvRank":
+			out.Values[i] = ec._EdgeTeamStats_ozEvRank(ctx, field, obj)
+		case "nzPctg":
+			out.Values[i] = ec._EdgeTeamStats_nzPctg(ctx, field, obj)
+		case "nzRank":
+			out.Values[i] = ec._EdgeTeamStats_nzRank(ctx, field, obj)
+		case "nzLeagueAvg":
+			out.Values[i] = ec._EdgeTeamStats_nzLeagueAvg(ctx, field, obj)
+		case "dzPctg":
+			out.Values[i] = ec._EdgeTeamStats_dzPctg(ctx, field, obj)
+		case "dzRank":
+			out.Values[i] = ec._EdgeTeamStats_dzRank(ctx, field, obj)
+		case "dzLeagueAvg":
+			out.Values[i] = ec._EdgeTeamStats_dzLeagueAvg(ctx, field, obj)
+		case "sogSummary":
+			out.Values[i] = ec._EdgeTeamStats_sogSummary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shotLocations":
+			out.Values[i] = ec._EdgeTeamStats_shotLocations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "zoneTimeByStrength":
+			out.Values[i] = ec._EdgeTeamStats_zoneTimeByStrength(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shotDifferential":
+			out.Values[i] = ec._EdgeTeamStats_shotDifferential(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var edgeTeamZoneTimeByStrengthImplementors = []string{"EdgeTeamZoneTimeByStrength"}
+
+func (ec *executionContext) _EdgeTeamZoneTimeByStrength(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeTeamZoneTimeByStrength) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeTeamZoneTimeByStrengthImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeTeamZoneTimeByStrength")
+		case "strengthCode":
+			out.Values[i] = ec._EdgeTeamZoneTimeByStrength_strengthCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ozPctg":
+			out.Values[i] = ec._EdgeTeamZoneTimeByStrength_ozPctg(ctx, field, obj)
+		case "ozRank":
+			out.Values[i] = ec._EdgeTeamZoneTimeByStrength_ozRank(ctx, field, obj)
+		case "nzPctg":
+			out.Values[i] = ec._EdgeTeamZoneTimeByStrength_nzPctg(ctx, field, obj)
+		case "nzRank":
+			out.Values[i] = ec._EdgeTeamZoneTimeByStrength_nzRank(ctx, field, obj)
+		case "dzPctg":
+			out.Values[i] = ec._EdgeTeamZoneTimeByStrength_dzPctg(ctx, field, obj)
+		case "dzRank":
+			out.Values[i] = ec._EdgeTeamZoneTimeByStrength_dzRank(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var gameImplementors = []string{"Game"}
 
 func (ec *executionContext) _Game(ctx context.Context, sel ast.SelectionSet, obj *model.Game) graphql.Marshaler {
@@ -19468,6 +28994,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "cancelFetchPlayerLandings":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_cancelFetchPlayerLandings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fetchEdgeStats":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_fetchEdgeStats(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelFetchEdgeStats":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelFetchEdgeStats(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "importEdgeStats":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_importEdgeStats(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelImportEdgeStats":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelImportEdgeStats(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -20379,6 +29933,88 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "fetchEdgeStatsResult":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_fetchEdgeStatsResult(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "fetchEdgeStatsProgress":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_fetchEdgeStatsProgress(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "importEdgeStatsResult":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_importEdgeStatsResult(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "importEdgeStatsProgress":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_importEdgeStatsProgress(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "mauriceConversations":
 			field := field
 
@@ -20726,6 +30362,63 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "edgeSkaterStats":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_edgeSkaterStats(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "edgeGoalieStats":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_edgeGoalieStats(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "edgeTeamStats":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_edgeTeamStats(ctx, field)
 				return res
 			}
 
@@ -21568,6 +31261,438 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNEdgeGoalieShotLocation2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeGoalieShotLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeGoalieShotLocation) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEdgeGoalieShotLocation2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeGoalieShotLocation(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEdgeGoalieShotLocation2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeGoalieShotLocation(ctx context.Context, sel ast.SelectionSet, v *model.EdgeGoalieShotLocation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EdgeGoalieShotLocation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEdgeGoalieShotLocationSummary2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeGoalieShotLocationSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeGoalieShotLocationSummary) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEdgeGoalieShotLocationSummary2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeGoalieShotLocationSummary(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEdgeGoalieShotLocationSummary2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeGoalieShotLocationSummary(ctx context.Context, sel ast.SelectionSet, v *model.EdgeGoalieShotLocationSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EdgeGoalieShotLocationSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEdgeShotLocation2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeShotLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeShotLocation) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEdgeShotLocation2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeShotLocation(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEdgeShotLocation2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeShotLocation(ctx context.Context, sel ast.SelectionSet, v *model.EdgeShotLocation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EdgeShotLocation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEdgeSogSummary2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeSogSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeSogSummary) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEdgeSogSummary2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeSogSummary(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEdgeSogSummary2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeSogSummary(ctx context.Context, sel ast.SelectionSet, v *model.EdgeSogSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EdgeSogSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEdgeTeamShotDifferential2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotDifferentialᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeTeamShotDifferential) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEdgeTeamShotDifferential2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotDifferential(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEdgeTeamShotDifferential2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotDifferential(ctx context.Context, sel ast.SelectionSet, v *model.EdgeTeamShotDifferential) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EdgeTeamShotDifferential(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEdgeTeamShotLocation2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeTeamShotLocation) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEdgeTeamShotLocation2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotLocation(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEdgeTeamShotLocation2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotLocation(ctx context.Context, sel ast.SelectionSet, v *model.EdgeTeamShotLocation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EdgeTeamShotLocation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEdgeTeamSogSummary2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamSogSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeTeamSogSummary) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEdgeTeamSogSummary2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamSogSummary(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEdgeTeamSogSummary2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamSogSummary(ctx context.Context, sel ast.SelectionSet, v *model.EdgeTeamSogSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EdgeTeamSogSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEdgeTeamZoneTimeByStrength2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamZoneTimeByStrengthᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeTeamZoneTimeByStrength) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEdgeTeamZoneTimeByStrength2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamZoneTimeByStrength(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEdgeTeamZoneTimeByStrength2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamZoneTimeByStrength(ctx context.Context, sel ast.SelectionSet, v *model.EdgeTeamZoneTimeByStrength) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EdgeTeamZoneTimeByStrength(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNGame2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐGameᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Game) graphql.Marshaler {
@@ -22808,6 +32933,27 @@ func (ec *executionContext) marshalOBoxscore2ᚖgithubᚗcomᚋsperanoᚋpuckdb�
 		return graphql.Null
 	}
 	return ec._Boxscore(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOEdgeGoalieStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeGoalieStats(ctx context.Context, sel ast.SelectionSet, v *model.EdgeGoalieStats) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._EdgeGoalieStats(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOEdgeSkaterStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeSkaterStats(ctx context.Context, sel ast.SelectionSet, v *model.EdgeSkaterStats) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._EdgeSkaterStats(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOEdgeTeamStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamStats(ctx context.Context, sel ast.SelectionSet, v *model.EdgeTeamStats) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._EdgeTeamStats(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOFetchPlayerLandingsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐFetchPlayerLandingsInput(ctx context.Context, v interface{}) (*model.FetchPlayerLandingsInput, error) {

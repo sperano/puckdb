@@ -72,6 +72,8 @@ func classifyFileType(dataPath, filePath, filename string) string {
 
 	// Check top-level directories first
 	switch parts[0] {
+	case "edge":
+		return store.FileTypeEdge
 	case "players":
 		return store.FileTypePlayerLanding
 	case "player-gamelogs":

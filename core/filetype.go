@@ -30,6 +30,28 @@ const (
 	YahooTransactions
 	YahooDraftResults
 	YahooMatchups
+	EdgeSkaterDetail
+	EdgeSkaterSpeedDetail
+	EdgeSkaterDistanceDetail
+	EdgeSkaterShotSpeedDetail
+	EdgeSkaterShotLocationDetail
+	EdgeSkaterZoneTime
+	EdgeSkaterComparison
+	EdgeGoalieDetail
+	EdgeGoalie5v5Detail
+	EdgeGoalieShotLocationDetail
+	EdgeGoalieSavePctgDetail
+	EdgeGoalieComparison
+	EdgeTeamDetail
+	EdgeTeamSpeedDetail
+	EdgeTeamDistanceDetail
+	EdgeTeamShotSpeedDetail
+	EdgeTeamShotLocationDetail
+	EdgeTeamZoneTimeDetails
+	EdgeTeamComparison
+	EdgeSkaterLanding
+	EdgeGoalieLanding
+	EdgeTeamLanding
 )
 
 var names = [...]string{
@@ -56,7 +78,29 @@ var names = [...]string{
 	ClubStatsResource: "ClubStatsResource",
 	YahooTransactions: "YahooTransactions",
 	YahooDraftResults: "YahooDraftResults",
-	YahooMatchups:    "YahooMatchups",
+	YahooMatchups:            "YahooMatchups",
+	EdgeSkaterDetail:         "EdgeSkaterDetail",
+	EdgeSkaterSpeedDetail:    "EdgeSkaterSpeedDetail",
+	EdgeSkaterDistanceDetail: "EdgeSkaterDistanceDetail",
+	EdgeSkaterShotSpeedDetail:    "EdgeSkaterShotSpeedDetail",
+	EdgeSkaterShotLocationDetail: "EdgeSkaterShotLocationDetail",
+	EdgeSkaterZoneTime:       "EdgeSkaterZoneTime",
+	EdgeSkaterComparison:     "EdgeSkaterComparison",
+	EdgeGoalieDetail:         "EdgeGoalieDetail",
+	EdgeGoalie5v5Detail:      "EdgeGoalie5v5Detail",
+	EdgeGoalieShotLocationDetail: "EdgeGoalieShotLocationDetail",
+	EdgeGoalieSavePctgDetail: "EdgeGoalieSavePctgDetail",
+	EdgeGoalieComparison:     "EdgeGoalieComparison",
+	EdgeTeamDetail:           "EdgeTeamDetail",
+	EdgeTeamSpeedDetail:      "EdgeTeamSpeedDetail",
+	EdgeTeamDistanceDetail:   "EdgeTeamDistanceDetail",
+	EdgeTeamShotSpeedDetail:  "EdgeTeamShotSpeedDetail",
+	EdgeTeamShotLocationDetail: "EdgeTeamShotLocationDetail",
+	EdgeTeamZoneTimeDetails:  "EdgeTeamZoneTimeDetails",
+	EdgeTeamComparison:       "EdgeTeamComparison",
+	EdgeSkaterLanding:        "EdgeSkaterLanding",
+	EdgeGoalieLanding:        "EdgeGoalieLanding",
+	EdgeTeamLanding:          "EdgeTeamLanding",
 }
 
 // String returns the string representation of the FileType.

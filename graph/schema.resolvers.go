@@ -122,6 +122,26 @@ func (r *mutationResolver) CancelFetchPlayerLandings(ctx context.Context) (bool,
 	return r.Resolver.cancelFetchPlayerLandings(ctx)
 }
 
+// FetchEdgeStats is the resolver for the fetchEdgeStats field.
+func (r *mutationResolver) FetchEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return r.Resolver.fetchEdgeStats(ctx, input)
+}
+
+// CancelFetchEdgeStats is the resolver for the cancelFetchEdgeStats field.
+func (r *mutationResolver) CancelFetchEdgeStats(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelFetchEdgeStats(ctx)
+}
+
+// ImportEdgeStats is the resolver for the importEdgeStats field.
+func (r *mutationResolver) ImportEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return r.Resolver.importEdgeStats(ctx, input)
+}
+
+// CancelImportEdgeStats is the resolver for the cancelImportEdgeStats field.
+func (r *mutationResolver) CancelImportEdgeStats(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelImportEdgeStats(ctx)
+}
+
 // MauriceChat is the resolver for the mauriceChat field.
 func (r *mutationResolver) MauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error) {
 	return r.Resolver.mauriceChat(ctx, conversationID, message)
@@ -236,6 +256,26 @@ func (r *queryResolver) FetchPlayerLandingsResult(ctx context.Context) (*model.W
 // FetchPlayerLandingsProgress is the resolver for the fetchPlayerLandingsProgress field.
 func (r *queryResolver) FetchPlayerLandingsProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.fetchPlayerLandingsProgress(ctx)
+}
+
+// FetchEdgeStatsResult is the resolver for the fetchEdgeStatsResult field.
+func (r *queryResolver) FetchEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.fetchEdgeStatsResult(ctx)
+}
+
+// FetchEdgeStatsProgress is the resolver for the fetchEdgeStatsProgress field.
+func (r *queryResolver) FetchEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.Resolver.fetchEdgeStatsProgress(ctx)
+}
+
+// ImportEdgeStatsResult is the resolver for the importEdgeStatsResult field.
+func (r *queryResolver) ImportEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.importEdgeStatsResult(ctx)
+}
+
+// ImportEdgeStatsProgress is the resolver for the importEdgeStatsProgress field.
+func (r *queryResolver) ImportEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.Resolver.importEdgeStatsProgress(ctx)
 }
 
 // MauriceConversations is the resolver for the mauriceConversations field.

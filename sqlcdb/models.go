@@ -744,6 +744,223 @@ type ClubSkaterStat struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type EdgeGoalieShotLocation struct {
+	PlayerID           int64              `json:"player_id"`
+	Season             int32              `json:"season"`
+	GameType           GameType           `json:"game_type"`
+	Area               string             `json:"area"`
+	Saves              pgtype.Int4        `json:"saves"`
+	SavesPercentile    pgtype.Float4      `json:"saves_percentile"`
+	SavePctg           pgtype.Float4      `json:"save_pctg"`
+	SavePctgPercentile pgtype.Float4      `json:"save_pctg_percentile"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EdgeGoalieShotLocationSummary struct {
+	PlayerID               int64              `json:"player_id"`
+	Season                 int32              `json:"season"`
+	GameType               GameType           `json:"game_type"`
+	LocationCode           string             `json:"location_code"`
+	GoalsAgainst           pgtype.Int4        `json:"goals_against"`
+	GoalsAgainstPercentile pgtype.Float4      `json:"goals_against_percentile"`
+	GoalsAgainstLeagueAvg  pgtype.Float4      `json:"goals_against_league_avg"`
+	Saves                  pgtype.Int4        `json:"saves"`
+	SavesPercentile        pgtype.Float4      `json:"saves_percentile"`
+	SavesLeagueAvg         pgtype.Float4      `json:"saves_league_avg"`
+	SavePctg               pgtype.Float4      `json:"save_pctg"`
+	SavePctgPercentile     pgtype.Float4      `json:"save_pctg_percentile"`
+	SavePctgLeagueAvg      pgtype.Float4      `json:"save_pctg_league_avg"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EdgeGoalieStat struct {
+	PlayerID                 int64              `json:"player_id"`
+	Season                   int32              `json:"season"`
+	GameType                 GameType           `json:"game_type"`
+	GaaValue                 pgtype.Float4      `json:"gaa_value"`
+	GaaPercentile            pgtype.Float4      `json:"gaa_percentile"`
+	GaaLeagueAvg             pgtype.Float4      `json:"gaa_league_avg"`
+	GamesAbove900Value       pgtype.Float4      `json:"games_above_900_value"`
+	GamesAbove900Percentile  pgtype.Float4      `json:"games_above_900_percentile"`
+	GamesAbove900LeagueAvg   pgtype.Float4      `json:"games_above_900_league_avg"`
+	GoalDiffPer60Value       pgtype.Float4      `json:"goal_diff_per_60_value"`
+	GoalDiffPer60Percentile  pgtype.Float4      `json:"goal_diff_per_60_percentile"`
+	GoalDiffPer60LeagueAvg   pgtype.Float4      `json:"goal_diff_per_60_league_avg"`
+	GoalSupportAvgValue      pgtype.Float4      `json:"goal_support_avg_value"`
+	GoalSupportAvgPercentile pgtype.Float4      `json:"goal_support_avg_percentile"`
+	GoalSupportAvgLeagueAvg  pgtype.Float4      `json:"goal_support_avg_league_avg"`
+	PointPctgValue           pgtype.Float4      `json:"point_pctg_value"`
+	PointPctgPercentile      pgtype.Float4      `json:"point_pctg_percentile"`
+	PointPctgLeagueAvg       pgtype.Float4      `json:"point_pctg_league_avg"`
+	CreatedAt                pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EdgeSkaterShotLocation struct {
+	PlayerID               int64              `json:"player_id"`
+	Season                 int32              `json:"season"`
+	GameType               GameType           `json:"game_type"`
+	Area                   string             `json:"area"`
+	SOG                    pgtype.Int4        `json:"sog"`
+	Goals                  pgtype.Int4        `json:"goals"`
+	ShootingPctg           pgtype.Float4      `json:"shooting_pctg"`
+	SogPercentile          pgtype.Float4      `json:"sog_percentile"`
+	GoalsPercentile        pgtype.Float4      `json:"goals_percentile"`
+	ShootingPctgPercentile pgtype.Float4      `json:"shooting_pctg_percentile"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EdgeSkaterSogSummary struct {
+	PlayerID               int64              `json:"player_id"`
+	Season                 int32              `json:"season"`
+	GameType               GameType           `json:"game_type"`
+	LocationCode           string             `json:"location_code"`
+	Shots                  pgtype.Int4        `json:"shots"`
+	ShotsPercentile        pgtype.Float4      `json:"shots_percentile"`
+	ShotsLeagueAvg         pgtype.Float4      `json:"shots_league_avg"`
+	Goals                  pgtype.Int4        `json:"goals"`
+	GoalsPercentile        pgtype.Float4      `json:"goals_percentile"`
+	GoalsLeagueAvg         pgtype.Float4      `json:"goals_league_avg"`
+	ShootingPctg           pgtype.Float4      `json:"shooting_pctg"`
+	ShootingPctgPercentile pgtype.Float4      `json:"shooting_pctg_percentile"`
+	ShootingPctgLeagueAvg  pgtype.Float4      `json:"shooting_pctg_league_avg"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EdgeSkaterStat struct {
+	PlayerID                      int64              `json:"player_id"`
+	Season                        int32              `json:"season"`
+	GameType                      GameType           `json:"game_type"`
+	TopSpeedImperial              pgtype.Float4      `json:"top_speed_imperial"`
+	TopSpeedMetric                pgtype.Float4      `json:"top_speed_metric"`
+	TopSpeedPercentile            pgtype.Float4      `json:"top_speed_percentile"`
+	TopSpeedLeagueAvgImperial     pgtype.Float4      `json:"top_speed_league_avg_imperial"`
+	TopSpeedLeagueAvgMetric       pgtype.Float4      `json:"top_speed_league_avg_metric"`
+	BurstsOver20                  pgtype.Int4        `json:"bursts_over_20"`
+	BurstsOver20Percentile        pgtype.Float4      `json:"bursts_over_20_percentile"`
+	BurstsOver20LeagueAvg         pgtype.Float4      `json:"bursts_over_20_league_avg"`
+	TotalDistanceImperial         pgtype.Float4      `json:"total_distance_imperial"`
+	TotalDistanceMetric           pgtype.Float4      `json:"total_distance_metric"`
+	TotalDistancePercentile       pgtype.Float4      `json:"total_distance_percentile"`
+	MaxGameDistanceImperial       pgtype.Float4      `json:"max_game_distance_imperial"`
+	MaxGameDistanceMetric         pgtype.Float4      `json:"max_game_distance_metric"`
+	MaxGameDistancePercentile     pgtype.Float4      `json:"max_game_distance_percentile"`
+	TopShotSpeedImperial          pgtype.Float4      `json:"top_shot_speed_imperial"`
+	TopShotSpeedMetric            pgtype.Float4      `json:"top_shot_speed_metric"`
+	TopShotSpeedPercentile        pgtype.Float4      `json:"top_shot_speed_percentile"`
+	TopShotSpeedLeagueAvgImperial pgtype.Float4      `json:"top_shot_speed_league_avg_imperial"`
+	TopShotSpeedLeagueAvgMetric   pgtype.Float4      `json:"top_shot_speed_league_avg_metric"`
+	OzPctg                        pgtype.Float4      `json:"oz_pctg"`
+	OzPercentile                  pgtype.Float4      `json:"oz_percentile"`
+	OzLeagueAvg                   pgtype.Float4      `json:"oz_league_avg"`
+	NzPctg                        pgtype.Float4      `json:"nz_pctg"`
+	NzPercentile                  pgtype.Float4      `json:"nz_percentile"`
+	NzLeagueAvg                   pgtype.Float4      `json:"nz_league_avg"`
+	DzPctg                        pgtype.Float4      `json:"dz_pctg"`
+	DzPercentile                  pgtype.Float4      `json:"dz_percentile"`
+	DzLeagueAvg                   pgtype.Float4      `json:"dz_league_avg"`
+	OzEvPctg                      pgtype.Float4      `json:"oz_ev_pctg"`
+	OzEvPercentile                pgtype.Float4      `json:"oz_ev_percentile"`
+	CreatedAt                     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EdgeTeamShotDifferential struct {
+	TeamID                  int64              `json:"team_id"`
+	Season                  int32              `json:"season"`
+	GameType                GameType           `json:"game_type"`
+	StrengthCode            string             `json:"strength_code"`
+	ForPerGame              pgtype.Float4      `json:"for_per_game"`
+	ForPerGameRank          pgtype.Int4        `json:"for_per_game_rank"`
+	AgainstPerGame          pgtype.Float4      `json:"against_per_game"`
+	AgainstPerGameRank      pgtype.Int4        `json:"against_per_game_rank"`
+	DifferentialPerGame     pgtype.Float4      `json:"differential_per_game"`
+	DifferentialPerGameRank pgtype.Int4        `json:"differential_per_game_rank"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EdgeTeamShotLocation struct {
+	TeamID    int64              `json:"team_id"`
+	Season    int32              `json:"season"`
+	GameType  GameType           `json:"game_type"`
+	Area      string             `json:"area"`
+	Shots     pgtype.Int4        `json:"shots"`
+	ShotsRank pgtype.Int4        `json:"shots_rank"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EdgeTeamSogSummary struct {
+	TeamID                int64              `json:"team_id"`
+	Season                int32              `json:"season"`
+	GameType              GameType           `json:"game_type"`
+	LocationCode          string             `json:"location_code"`
+	Shots                 pgtype.Int4        `json:"shots"`
+	ShotsRank             pgtype.Int4        `json:"shots_rank"`
+	ShotsLeagueAvg        pgtype.Float4      `json:"shots_league_avg"`
+	Goals                 pgtype.Int4        `json:"goals"`
+	GoalsRank             pgtype.Int4        `json:"goals_rank"`
+	GoalsLeagueAvg        pgtype.Float4      `json:"goals_league_avg"`
+	ShootingPctg          pgtype.Float4      `json:"shooting_pctg"`
+	ShootingPctgRank      pgtype.Int4        `json:"shooting_pctg_rank"`
+	ShootingPctgLeagueAvg pgtype.Float4      `json:"shooting_pctg_league_avg"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EdgeTeamStat struct {
+	TeamID                 int64              `json:"team_id"`
+	Season                 int32              `json:"season"`
+	GameType               GameType           `json:"game_type"`
+	ShotAttemptsOver90     pgtype.Int4        `json:"shot_attempts_over_90"`
+	ShotAttemptsOver90Rank pgtype.Int4        `json:"shot_attempts_over_90_rank"`
+	TopShotSpeedImperial   pgtype.Float4      `json:"top_shot_speed_imperial"`
+	TopShotSpeedMetric     pgtype.Float4      `json:"top_shot_speed_metric"`
+	TopShotSpeedRank       pgtype.Int4        `json:"top_shot_speed_rank"`
+	BurstsOver22           pgtype.Int4        `json:"bursts_over_22"`
+	BurstsOver22Rank       pgtype.Int4        `json:"bursts_over_22_rank"`
+	BurstsOver20           pgtype.Int4        `json:"bursts_over_20"`
+	BurstsOver20Rank       pgtype.Int4        `json:"bursts_over_20_rank"`
+	SpeedMaxImperial       pgtype.Float4      `json:"speed_max_imperial"`
+	SpeedMaxMetric         pgtype.Float4      `json:"speed_max_metric"`
+	SpeedMaxRank           pgtype.Int4        `json:"speed_max_rank"`
+	TotalDistance          pgtype.Int4        `json:"total_distance"`
+	TotalDistanceRank      pgtype.Int4        `json:"total_distance_rank"`
+	OzPctg                 pgtype.Float4      `json:"oz_pctg"`
+	OzRank                 pgtype.Int4        `json:"oz_rank"`
+	OzLeagueAvg            pgtype.Float4      `json:"oz_league_avg"`
+	OzEvPctg               pgtype.Float4      `json:"oz_ev_pctg"`
+	OzEvRank               pgtype.Int4        `json:"oz_ev_rank"`
+	NzPctg                 pgtype.Float4      `json:"nz_pctg"`
+	NzRank                 pgtype.Int4        `json:"nz_rank"`
+	NzLeagueAvg            pgtype.Float4      `json:"nz_league_avg"`
+	DzPctg                 pgtype.Float4      `json:"dz_pctg"`
+	DzRank                 pgtype.Int4        `json:"dz_rank"`
+	DzLeagueAvg            pgtype.Float4      `json:"dz_league_avg"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EdgeTeamZoneTimeByStrength struct {
+	TeamID       int64              `json:"team_id"`
+	Season       int32              `json:"season"`
+	GameType     GameType           `json:"game_type"`
+	StrengthCode string             `json:"strength_code"`
+	OzPctg       pgtype.Float4      `json:"oz_pctg"`
+	OzRank       pgtype.Int4        `json:"oz_rank"`
+	NzPctg       pgtype.Float4      `json:"nz_pctg"`
+	NzRank       pgtype.Int4        `json:"nz_rank"`
+	DzPctg       pgtype.Float4      `json:"dz_pctg"`
+	DzRank       pgtype.Int4        `json:"dz_rank"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Franchise struct {
 	ID             int64  `json:"id"`
 	FullName       string `json:"full_name"`
