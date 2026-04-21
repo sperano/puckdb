@@ -200,9 +200,9 @@ func TestFilterRegularSeasonGames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := filterRegularSeasonGames(tt.gameIDs)
+			got := filterFinalNonPreseasonGames(tt.gameIDs)
 			if len(got) != tt.want {
-				t.Errorf("filterRegularSeasonGames() returned %d games, want %d", len(got), tt.want)
+				t.Errorf("filterFinalNonPreseasonGames() returned %d games, want %d", len(got), tt.want)
 			}
 		})
 	}

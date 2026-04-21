@@ -69,6 +69,24 @@ func CountDaysInSeason(season nhl.SeasonInfo) (int, error) {
 	return core.CountDays(season.StandingsStart.Time, EffectiveEndDate(season.StandingsEnd.Time)), nil
 }
 
+// PlayoffProgressSteps is the number of extra progress steps for playoff processing.
+const PlayoffProgressSteps = 1
+
+// CountDaysWithPlayoffs returns CountDaysInSeason + 1 for the playoff processing step.
+// Used by parent workflows (FetchSeasons, ImportSeasons) so the parent bar total
+// accounts for both regular-season days and the playoff activity.
+func CountDaysWithPlayoffs(season nhl.SeasonInfo) (int, error) {
+	days, err := CountDaysInSeason(season)
+	return days + PlayoffProgressSteps, err
+}
+
+// IsCurrentSeason returns true if the given start year represents the current NHL season.
+// TODO: add IsCurrentSeasonInProgress = IsCurrentSeason && no Stanley Cup winner yet.
+// That would let us skip cache invalidation once the season is truly over.
+func IsCurrentSeason(startYear int) bool {
+	return nhl.Current().StartYear() == startYear
+}
+
 // GetDayConcurrency returns the configured day concurrency for parallel processing.
 func GetDayConcurrency() int {
 	concurrency := viper.GetInt(config.FlagDayConcurrency)

@@ -52,6 +52,7 @@ const (
 	EdgeSkaterLanding
 	EdgeGoalieLanding
 	EdgeTeamLanding
+	ClubScheduleSeasonResource
 )
 
 var names = [...]string{
@@ -78,29 +79,30 @@ var names = [...]string{
 	ClubStatsResource: "ClubStatsResource",
 	YahooTransactions: "YahooTransactions",
 	YahooDraftResults: "YahooDraftResults",
-	YahooMatchups:            "YahooMatchups",
-	EdgeSkaterDetail:         "EdgeSkaterDetail",
-	EdgeSkaterSpeedDetail:    "EdgeSkaterSpeedDetail",
-	EdgeSkaterDistanceDetail: "EdgeSkaterDistanceDetail",
-	EdgeSkaterShotSpeedDetail:    "EdgeSkaterShotSpeedDetail",
+	YahooMatchups:               "YahooMatchups",
+	EdgeSkaterDetail:            "EdgeSkaterDetail",
+	EdgeSkaterSpeedDetail:       "EdgeSkaterSpeedDetail",
+	EdgeSkaterDistanceDetail:    "EdgeSkaterDistanceDetail",
+	EdgeSkaterShotSpeedDetail:   "EdgeSkaterShotSpeedDetail",
 	EdgeSkaterShotLocationDetail: "EdgeSkaterShotLocationDetail",
-	EdgeSkaterZoneTime:       "EdgeSkaterZoneTime",
-	EdgeSkaterComparison:     "EdgeSkaterComparison",
-	EdgeGoalieDetail:         "EdgeGoalieDetail",
-	EdgeGoalie5v5Detail:      "EdgeGoalie5v5Detail",
+	EdgeSkaterZoneTime:          "EdgeSkaterZoneTime",
+	EdgeSkaterComparison:        "EdgeSkaterComparison",
+	EdgeGoalieDetail:            "EdgeGoalieDetail",
+	EdgeGoalie5v5Detail:         "EdgeGoalie5v5Detail",
 	EdgeGoalieShotLocationDetail: "EdgeGoalieShotLocationDetail",
-	EdgeGoalieSavePctgDetail: "EdgeGoalieSavePctgDetail",
-	EdgeGoalieComparison:     "EdgeGoalieComparison",
-	EdgeTeamDetail:           "EdgeTeamDetail",
-	EdgeTeamSpeedDetail:      "EdgeTeamSpeedDetail",
-	EdgeTeamDistanceDetail:   "EdgeTeamDistanceDetail",
-	EdgeTeamShotSpeedDetail:  "EdgeTeamShotSpeedDetail",
-	EdgeTeamShotLocationDetail: "EdgeTeamShotLocationDetail",
-	EdgeTeamZoneTimeDetails:  "EdgeTeamZoneTimeDetails",
-	EdgeTeamComparison:       "EdgeTeamComparison",
-	EdgeSkaterLanding:        "EdgeSkaterLanding",
-	EdgeGoalieLanding:        "EdgeGoalieLanding",
-	EdgeTeamLanding:          "EdgeTeamLanding",
+	EdgeGoalieSavePctgDetail:    "EdgeGoalieSavePctgDetail",
+	EdgeGoalieComparison:        "EdgeGoalieComparison",
+	EdgeTeamDetail:              "EdgeTeamDetail",
+	EdgeTeamSpeedDetail:         "EdgeTeamSpeedDetail",
+	EdgeTeamDistanceDetail:      "EdgeTeamDistanceDetail",
+	EdgeTeamShotSpeedDetail:     "EdgeTeamShotSpeedDetail",
+	EdgeTeamShotLocationDetail:  "EdgeTeamShotLocationDetail",
+	EdgeTeamZoneTimeDetails:     "EdgeTeamZoneTimeDetails",
+	EdgeTeamComparison:          "EdgeTeamComparison",
+	EdgeSkaterLanding:           "EdgeSkaterLanding",
+	EdgeGoalieLanding:           "EdgeGoalieLanding",
+	EdgeTeamLanding:             "EdgeTeamLanding",
+	ClubScheduleSeasonResource:  "ClubScheduleSeason",
 }
 
 // String returns the string representation of the FileType.

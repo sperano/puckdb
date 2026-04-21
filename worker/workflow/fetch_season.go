@@ -12,17 +12,21 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// Group index for FetchSeasonWorkflow progress
-const GroupFetchSeasonData = 0
+// Group indices for FetchSeasonWorkflow progress.
+const (
+	GroupFetchSeasonData    = 0
+	GroupFetchSeasonPlayoff = 1
+)
 
 // NewFetchSeasonProgressReport creates the progress structure for a single season.
-// Uses shared.CountDaysInSeason for consistency with ExtractBoxscorePlayers progress.
 func NewFetchSeasonProgressReport(season nhl.SeasonInfo) *shared.ProgressReport {
-	total, _ := shared.CountDaysInSeason(season)
+	days, _ := shared.CountDaysInSeason(season)
+	total := days + shared.PlayoffProgressSteps
 	return &shared.ProgressReport{
 		Total: total,
 		Groups: []shared.ProgressGroup{
-			{Header: fmt.Sprintf("Fetching %s...", season.Label()), Bars: []shared.ProgressBar{{Total: total}}},
+			{Header: fmt.Sprintf("Fetching %s...", season.Label()), Bars: []shared.ProgressBar{{Total: days}}},
+			{Header: "Fetching playoff games...", Bars: []shared.ProgressBar{{Total: shared.PlayoffProgressSteps}}},
 		},
 	}
 }
@@ -134,10 +138,25 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 		return nil, err
 	}
 
-	tracker.CompleteGroup(ctx, GroupFetchSeasonData, fmt.Sprintf("Fetched %s", season.Label()))
+	tracker.CompleteGroup(ctx, GroupFetchSeasonData,
+		fmt.Sprintf("Fetched %d days for %s in %s.", numDays, season.Label(), tracker.GetElapsed(ctx, GroupFetchSeasonData)))
+
+	// Fetch playoff games after regular-season day loop
+	tracker.StartGroup(ctx, GroupFetchSeasonPlayoff)
+
+	var pa *worknhl.PlayoffActivities
+	playoffInput := worknhl.FetchPlayoffGamesInput{Season: season.ID.StartYear()}
+	var playoffResult worknhl.FetchPlayoffGamesResult
+	if err := workflow.ExecuteActivity(ctx, pa.FetchPlayoffGames, playoffInput).Get(ctx, &playoffResult); err != nil {
+		return nil, fmt.Errorf("fetch playoff games: %w", err)
+	}
+
+	tracker.CompleteGroup(ctx, GroupFetchSeasonPlayoff,
+		fmt.Sprintf("Fetched %d playoff games for %s in %s.", playoffResult.GamesFound, season.Label(), tracker.GetElapsed(ctx, GroupFetchSeasonPlayoff)))
 
 	logger.Info("FetchSeasonWorkflow completed",
-		"startYear", season.ID.StartYear())
+		"startYear", season.ID.StartYear(),
+		"playoffGames", playoffResult.GamesFound)
 	return counts, nil
 }
 

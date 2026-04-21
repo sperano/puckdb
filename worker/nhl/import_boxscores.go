@@ -15,6 +15,7 @@ import (
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
+	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/worker/shared"
 	"go.temporal.io/sdk/activity"
 )
@@ -77,52 +78,75 @@ func (a *ImportActivities) importBoxscoresForDate(ctx context.Context, queries B
 			continue
 		}
 
-		boxscoreRes := resource.Boxscore{Date: input.Date, GameID: game.ID}
-		if !a.Storage.Exists(boxscoreRes.Path()) {
-			return result, fmt.Errorf("boxscore file missing for game %s", game.ID.String())
-		}
-
-		boxscore, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, boxscoreRes)
+		gameResult, err := importSingleGame(ctx, a.Storage, a.GobCache, queries, game.ID, input.Date, input.Season)
 		if err != nil {
-			return result, fmt.Errorf("read boxscore for game %s: %w", game.ID.String(), err)
+			return result, err
 		}
-		result.Origins.Record(origin)
-
-		gameParams := boxscoreToGameParams(boxscore, input.Season)
-		if err := queries.UpsertGame(ctx, gameParams); err != nil {
-			return result, fmt.Errorf("upsert game %d: %w", game.ID, err)
-		}
+		result.Origins.Add(gameResult.Origins)
 		result.GamesImported++
+		result.SkatersImported += gameResult.SkatersImported
+		result.GoaliesImported += gameResult.GoaliesImported
+	}
 
-		skaterCount, err := upsertSkaterStats(ctx, queries, boxscore)
-		if err != nil {
-			return result, fmt.Errorf("upsert skater stats for game %d: %w", game.ID, err)
-		}
-		result.SkatersImported += skaterCount
+	return result, nil
+}
 
-		goalieCount, err := upsertGoalieStats(ctx, queries, boxscore)
-		if err != nil {
-			return result, fmt.Errorf("upsert goalie stats for game %d: %w", game.ID, err)
-		}
-		result.GoaliesImported += goalieCount
+// importSingleGameResult contains the results of importing a single game.
+type importSingleGameResult struct {
+	Origins         core.OriginCounts
+	SkatersImported int
+	GoaliesImported int
+}
 
-		if len(boxscore.TVBroadcasts) > 0 {
-			broadcastParams := make([]sqlcdb.UpsertGameBroadcastBatchParams, len(boxscore.TVBroadcasts))
-			for i, b := range boxscore.TVBroadcasts {
-				broadcastParams[i] = sqlcdb.UpsertGameBroadcastBatchParams{
-					GameID:         int64(boxscore.ID),
-					BroadcastID:    b.ID,
-					Market:         b.Market,
-					CountryCode:    b.CountryCode,
-					Network:        b.Network,
-					SequenceNumber: int32(b.SequenceNumber),
-				}
+// importSingleGame reads a cached boxscore for a single game and upserts game,
+// skater stats, goalie stats, and broadcast data into the database.
+func importSingleGame(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, queries BoxscoreUpserter, gameID nhlapi.GameID, date time.Time, season int) (importSingleGameResult, error) {
+	result := importSingleGameResult{Origins: core.OriginCounts{}}
+
+	boxscoreRes := resource.Boxscore{Date: date, GameID: gameID}
+	if !storage.Exists(boxscoreRes.Path()) {
+		return result, fmt.Errorf("boxscore file missing for game %s", gameID.String())
+	}
+
+	boxscore, origin, err := cache.ReadParsedCached(ctx, storage, gobCache, boxscoreRes)
+	if err != nil {
+		return result, fmt.Errorf("read boxscore for game %s: %w", gameID.String(), err)
+	}
+	result.Origins.Record(origin)
+
+	gameParams := boxscoreToGameParams(boxscore, season)
+	if err := queries.UpsertGame(ctx, gameParams); err != nil {
+		return result, fmt.Errorf("upsert game %d: %w", gameID, err)
+	}
+
+	skaterCount, err := upsertSkaterStats(ctx, queries, boxscore)
+	if err != nil {
+		return result, fmt.Errorf("upsert skater stats for game %d: %w", gameID, err)
+	}
+	result.SkatersImported = skaterCount
+
+	goalieCount, err := upsertGoalieStats(ctx, queries, boxscore)
+	if err != nil {
+		return result, fmt.Errorf("upsert goalie stats for game %d: %w", gameID, err)
+	}
+	result.GoaliesImported = goalieCount
+
+	if len(boxscore.TVBroadcasts) > 0 {
+		broadcastParams := make([]sqlcdb.UpsertGameBroadcastBatchParams, len(boxscore.TVBroadcasts))
+		for i, b := range boxscore.TVBroadcasts {
+			broadcastParams[i] = sqlcdb.UpsertGameBroadcastBatchParams{
+				GameID:         int64(boxscore.ID),
+				BroadcastID:    b.ID,
+				Market:         b.Market,
+				CountryCode:    b.CountryCode,
+				Network:        b.Network,
+				SequenceNumber: int32(b.SequenceNumber),
 			}
-			if err := shared.ExecBatch(queries.UpsertGameBroadcastBatch(ctx, broadcastParams), func(i int) string {
-				return fmt.Sprintf("broadcast game %d id %d", boxscore.ID, broadcastParams[i].BroadcastID)
-			}); err != nil {
-				return result, err
-			}
+		}
+		if err := shared.ExecBatch(queries.UpsertGameBroadcastBatch(ctx, broadcastParams), func(i int) string {
+			return fmt.Sprintf("broadcast game %d id %d", boxscore.ID, broadcastParams[i].BroadcastID)
+		}); err != nil {
+			return result, err
 		}
 	}
 

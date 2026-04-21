@@ -30,7 +30,7 @@ func NewFetchSeasonsProgressReport() *shared.ProgressReport {
 // spawning a FetchSeasonWorkflow child for each one.
 func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	return iterateSeasons(ctx, input, NewFetchSeasonsProgressReport(), GroupFetchSeasonsData,
-		shared.CountDaysInSeason, WorkflowIDFetchSeason,
+		shared.CountDaysWithPlayoffs, WorkflowIDFetchSeason,
 		func(n int, elapsed string, counts core.OriginCounts) string {
 			return counts.AppendSummary(fmt.Sprintf("Fetched %d seasons in %s.", n, elapsed), "schedules")
 		},

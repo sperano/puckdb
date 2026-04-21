@@ -52,7 +52,7 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 
 	log.Info().Str("day", day.Format("2006-01-02")).Msg("Daily schedule fetched from API")
 
-	filtered := filterRegularSeasonGames(schedule.Games)
+	filtered := filterFinalNonPreseasonGames(schedule.Games)
 	g, _ := errgroup.WithContext(ctx)
 	g.SetLimit(getGameDownloadConcurrency())
 
@@ -140,8 +140,8 @@ func shouldSkipGame(game nhlapi.ScheduleGame) bool {
 	return nhlapi.GameType(gameType) == nhlapi.GameTypePreseason
 }
 
-// filterRegularSeasonGames filters out preseason games and invalid game IDs.
-func filterRegularSeasonGames(games []nhlapi.ScheduleGame) []nhlapi.GameID {
+// filterFinalNonPreseasonGames filters out preseason games and invalid game IDs.
+func filterFinalNonPreseasonGames(games []nhlapi.ScheduleGame) []nhlapi.GameID {
 	result := make([]nhlapi.GameID, 0, len(games))
 	for _, g := range games {
 		if shouldSkipGame(g) {

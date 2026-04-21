@@ -17,7 +17,7 @@ require (
 	github.com/mark3labs/mcp-go v0.45.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/zerolog v1.34.0
-	github.com/sperano/nhl-api-go v0.0.0-20260413050653-f4e2f17c8d58
+	github.com/sperano/nhl-api-go v0.0.0-20260420043236-7bbbd96c9bf7
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1

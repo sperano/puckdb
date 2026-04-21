@@ -408,17 +408,23 @@ func (r *Resolver) mergeChildWorkflowProgress(ctx context.Context, report *model
 		if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&childReport); err != nil {
 			continue
 		}
-		// Extract the first group's first bar as the child's primary progress.
-		if len(childReport.Groups) == 0 || len(childReport.Groups[0].Bars) == 0 {
+		// Sum progress across all child groups and bars.
+		// Child workflows may have multiple groups (e.g., days + playoffs).
+		if len(childReport.Groups) == 0 {
 			continue
 		}
-		childBar := childReport.Groups[0].Bars[0]
+		childCurrent := 0
+		for _, g := range childReport.Groups {
+			for _, b := range g.Bars {
+				childCurrent += b.Current
+			}
+		}
 
 		for _, q := range queryMap[workflowID] {
 			bar := report.Groups[q.groupIdx].Bars[q.barIdx]
 			bar.Started = true
 
-			current := childBar.Current
+			current := childCurrent
 			if current > bar.Total {
 				current = bar.Total // Safety cap
 			}

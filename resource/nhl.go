@@ -406,3 +406,28 @@ func (c ClubStatsResource) Parse(data []byte) (*nhl.ClubStats, error) {
 func (c ClubStatsResource) Format(obj *nhl.ClubStats) ([]byte, error) {
 	return json.Marshal(obj)
 }
+
+// ClubScheduleSeason represents a team's full season schedule from the NHL API.
+// Includes preseason, regular season, and playoff games.
+type ClubScheduleSeason struct {
+	Season     int
+	TeamAbbrev string
+}
+
+func (c ClubScheduleSeason) Path() string {
+	return fmt.Sprintf("seasons/%d/club-schedule/club-schedule-%s.json", c.Season, c.TeamAbbrev)
+}
+
+func (c ClubScheduleSeason) Type() core.FileType { return core.ClubScheduleSeasonResource }
+
+func (c ClubScheduleSeason) Parse(data []byte) (*nhl.TeamScheduleResponse, error) {
+	var schedule nhl.TeamScheduleResponse
+	if err := json.Unmarshal(data, &schedule); err != nil {
+		return nil, fmt.Errorf("parse club schedule season %s/%d: %w", c.TeamAbbrev, c.Season, err)
+	}
+	return &schedule, nil
+}
+
+func (c ClubScheduleSeason) Format(obj *nhl.TeamScheduleResponse) ([]byte, error) {
+	return json.Marshal(obj)
+}

@@ -133,6 +133,14 @@ func (m *MockNHLClient) ClubStats(ctx context.Context, teamAbbr string, season n
 	return args.Get(0).(*nhlapi.ClubStats), args.Error(1)
 }
 
+func (m *MockNHLClient) ClubScheduleSeason(ctx context.Context, teamAbbr string, season nhlapi.Season) (*nhlapi.TeamScheduleResponse, error) {
+	args := m.Called(ctx, teamAbbr, season)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nhlapi.TeamScheduleResponse), args.Error(1)
+}
+
 func (m *MockNHLClient) EdgeSkaterDetail(ctx context.Context, playerID nhlapi.PlayerID, season nhlapi.Season, gameType nhlapi.GameType) (*nhlapi.EdgeSkaterDetail, error) {
 	args := m.Called(ctx, playerID, season, gameType)
 	if args.Get(0) == nil {
@@ -308,6 +316,7 @@ func (m *MockNHLClient) EdgeTeamLanding(ctx context.Context, season nhlapi.Seaso
 	}
 	return args.Get(0).(*nhlapi.EdgeTeamLanding), args.Error(1)
 }
+
 
 // MockSeasonsUpserter implements seasonsUpserter for testing.
 type MockSeasonsUpserter struct {

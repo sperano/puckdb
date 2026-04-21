@@ -1270,16 +1270,14 @@ func (s *DownloadGameLogStorageErrorSuite) TestStorageWriteError() {
 }
 
 // ////////////////////////////////////////////////////////////////////////////
-// isCurrentSeason — October branch
+// IsCurrentSeason — moved to shared package
 // ////////////////////////////////////////////////////////////////////////////
 
 func TestIsCurrentSeason_OctoberStartYear(t *testing.T) {
 	t.Parallel()
 
-	// The current date is 2026-04-05 (from MEMORY.md: currentDate=2026-04-05).
-	// In April, the current season start year is 2025 (2025-2026 season).
-	// Season starting in 2025 should be current, 2024 should not.
-	assert.True(t, isCurrentSeason(2025))
-	assert.False(t, isCurrentSeason(2024))
-	assert.False(t, isCurrentSeason(2026))
+	// In April 2026, the current season start year is 2025 (2025-2026 season).
+	assert.True(t, shared.IsCurrentSeason(2025))
+	assert.False(t, shared.IsCurrentSeason(2024))
+	assert.False(t, shared.IsCurrentSeason(2026))
 }

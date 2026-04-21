@@ -12,16 +12,21 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// GroupImportDays is the single progress group for ImportSeasonWorkflow.
-const GroupImportDays = 0
+// Group indices for ImportSeasonWorkflow progress.
+const (
+	GroupImportDays    = 0
+	GroupImportPlayoff = 1
+)
 
 // NewImportSeasonProgressReport creates the progress structure for a single season import.
 func NewImportSeasonProgressReport(season nhl.SeasonInfo) *shared.ProgressReport {
-	total, _ := shared.CountDaysInSeason(season)
+	days, _ := shared.CountDaysInSeason(season)
+	total := days + shared.PlayoffProgressSteps
 	return &shared.ProgressReport{
 		Total: total,
 		Groups: []shared.ProgressGroup{
-			{Header: fmt.Sprintf("Importing games for %s...", season.Label()), Bars: []shared.ProgressBar{{Total: total}}},
+			{Header: fmt.Sprintf("Importing games for %s...", season.Label()), Bars: []shared.ProgressBar{{Total: days}}},
+			{Header: "Importing playoff games...", Bars: []shared.ProgressBar{{Total: shared.PlayoffProgressSteps}}},
 		},
 	}
 }
@@ -115,8 +120,25 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	tracker.CompleteGroup(ctx, GroupImportDays,
 		fmt.Sprintf("Imported %d days for %s in %s.", numDays, season.Label(), tracker.GetElapsed(ctx, GroupImportDays)))
 
+	// Import playoff games after regular-season day loop
+	tracker.StartGroup(ctx, GroupImportPlayoff)
+
+	var pa *worknhl.PlayoffActivities
+	playoffInput := worknhl.ImportPlayoffGamesInput{Season: season.ID.StartYear()}
+	var playoffResult worknhl.ImportPlayoffGamesResult
+	if err := workflow.ExecuteActivity(ctx, pa.ImportPlayoffGames, playoffInput).Get(ctx, &playoffResult); err != nil {
+		return nil, fmt.Errorf("import playoff games: %w", err)
+	}
+	counts.Add(playoffResult.Origins)
+
+	tracker.CompleteGroup(ctx, GroupImportPlayoff,
+		fmt.Sprintf("Imported %d playoff games (%d skaters, %d goalies) for %s in %s.",
+			playoffResult.GamesImported, playoffResult.SkatersImported, playoffResult.GoaliesImported,
+			season.Label(), tracker.GetElapsed(ctx, GroupImportPlayoff)))
+
 	logger.Info("ImportSeasonWorkflow completed",
-		"startYear", season.ID.StartYear())
+		"startYear", season.ID.StartYear(),
+		"playoffGames", playoffResult.GamesImported)
 
 	return counts, nil
 }

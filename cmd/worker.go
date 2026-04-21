@@ -207,6 +207,16 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(dailyScheduleActivities.FetchDailySchedule)
 			w.RegisterActivity(dailyScheduleActivities.FetchDay)
 
+			playoffActivities := &worknhl.PlayoffActivities{
+				Storage:   storage,
+				GobCache:  gobCache,
+				NHLClient: nhlClient,
+				Teams:     queries,
+				Queries:   queries,
+			}
+			w.RegisterActivity(playoffActivities.FetchPlayoffGames)
+			w.RegisterActivity(playoffActivities.ImportPlayoffGames)
+
 			// Boxscore extraction activities
 			boxscoreActivities := &worknhl.BoxscoreActivities{
 				Storage:     storage,

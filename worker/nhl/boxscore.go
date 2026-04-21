@@ -87,6 +87,17 @@ func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, s
 		}
 	}
 
+	// Extract players from playoff boxscores (catches playoff-only players)
+	playoffPlayers, playoffOrigins, err := a.extractPlayoffPlayers(ctx, season.ID.StartYear())
+	if err != nil {
+		log.Warn().Err(err).Int("season", season.ID.StartYear()).Msg("Failed to extract playoff players")
+	} else {
+		for _, p := range playoffPlayers {
+			players[p.ID] = p
+		}
+		origins.Add(playoffOrigins)
+	}
+
 	playerSlice := make([]store.BoxscorePlayer, 0, len(players))
 	for _, p := range players {
 		playerSlice = append(playerSlice, p)
@@ -95,6 +106,7 @@ func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, s
 	log.Info().
 		Int("season", season.ID.StartYear()).
 		Int("days_processed", dayCount).
+		Int("playoff_players_extracted", len(playoffPlayers)).
 		Int("unique_players", len(playerSlice)).
 		Str("origins", origins.Summary("reads")).
 		Msg("Season extraction complete")
@@ -118,6 +130,38 @@ func (a *BoxscoreActivities) ExtractAndSaveBoxscorePlayers(ctx context.Context, 
 	}
 
 	return result.Origins, nil
+}
+
+// extractPlayoffPlayers extracts players from all playoff boxscores for a season.
+// This catches players who only appeared in playoff games and would otherwise be
+// missing from the players table when ImportPlayoffGames runs.
+func (a *BoxscoreActivities) extractPlayoffPlayers(ctx context.Context, season int) ([]store.BoxscorePlayer, core.OriginCounts, error) {
+	counts := make(core.OriginCounts)
+
+	playoffGames, err := collectPlayoffGames(ctx, a.Storage, a.GobCache, season)
+	if err != nil {
+		return nil, counts, fmt.Errorf("collect playoff games: %w", err)
+	}
+
+	var players []store.BoxscorePlayer
+	for _, pg := range playoffGames {
+		select {
+		case <-ctx.Done():
+			return nil, counts, ctx.Err()
+		default:
+		}
+
+		boxscoreRes := resource.Boxscore{Date: pg.Date, GameID: pg.ID}
+		boxscore, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, boxscoreRes)
+		if err != nil {
+			continue
+		}
+		counts.Record(origin)
+		players = append(players, extractTeamPlayers(&boxscore.PlayerByGameStats.HomeTeam)...)
+		players = append(players, extractTeamPlayers(&boxscore.PlayerByGameStats.AwayTeam)...)
+	}
+
+	return players, counts, nil
 }
 
 // extractPlayersForDay extracts player info from all boxscores for a single day.
