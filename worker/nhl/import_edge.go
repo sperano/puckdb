@@ -503,28 +503,9 @@ func importEdgeTeamZoneTime(ctx context.Context, queries EdgeStatsUpserter, deta
 		}
 	}
 
-	// Delete+insert shot differential
-	if err := queries.DeleteEdgeTeamShotDifferential(ctx, sqlcdb.DeleteEdgeTeamShotDifferentialParams{
-		TeamID: teamID, Season: season, GameType: gameType,
-	}); err != nil {
-		return fmt.Errorf("delete shot differential: %w", err)
-	}
-	for _, sd := range detail.ShotDifferential {
-		if err := queries.InsertEdgeTeamShotDifferential(ctx, sqlcdb.InsertEdgeTeamShotDifferentialParams{
-			TeamID:                  teamID,
-			Season:                  season,
-			GameType:                gameType,
-			StrengthCode:            sd.StrengthCode,
-			ForPerGame:              pf32(sd.ForPerGame),
-			ForPerGameRank:          pi32(sd.ForPerGameRank),
-			AgainstPerGame:          pf32(sd.AgainstPerGame),
-			AgainstPerGameRank:      pi32(sd.AgainstPerGameRank),
-			DifferentialPerGame:     pf32(sd.DifferentialPerGame),
-			DifferentialPerGameRank: pi32(sd.DifferentialPerGameRank),
-		}); err != nil {
-			return fmt.Errorf("insert shot differential %s: %w", sd.StrengthCode, err)
-		}
-	}
+	// NOTE: ShotDifferential import skipped - API returns aggregate stats
+	// (shotAttemptDifferential, sogDifferential) not per-strength breakdown.
+	// DB schema expects per-strength data that doesn't exist in the API.
 
 	return nil
 }
