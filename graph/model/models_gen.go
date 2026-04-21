@@ -121,13 +121,10 @@ type EdgeSogSummary struct {
 }
 
 type EdgeTeamShotDifferential struct {
-	StrengthCode            string   `json:"strengthCode"`
-	ForPerGame              *float64 `json:"forPerGame,omitempty"`
-	ForPerGameRank          *int     `json:"forPerGameRank,omitempty"`
-	AgainstPerGame          *float64 `json:"againstPerGame,omitempty"`
-	AgainstPerGameRank      *int     `json:"againstPerGameRank,omitempty"`
-	DifferentialPerGame     *float64 `json:"differentialPerGame,omitempty"`
-	DifferentialPerGameRank *int     `json:"differentialPerGameRank,omitempty"`
+	ShotAttemptDifferential     *float64 `json:"shotAttemptDifferential,omitempty"`
+	ShotAttemptDifferentialRank *int     `json:"shotAttemptDifferentialRank,omitempty"`
+	SogDifferential             *float64 `json:"sogDifferential,omitempty"`
+	SogDifferentialRank         *int     `json:"sogDifferentialRank,omitempty"`
 }
 
 type EdgeTeamShotLocation struct {
@@ -181,7 +178,7 @@ type EdgeTeamStats struct {
 	SogSummary             []*EdgeTeamSogSummary         `json:"sogSummary"`
 	ShotLocations          []*EdgeTeamShotLocation       `json:"shotLocations"`
 	ZoneTimeByStrength     []*EdgeTeamZoneTimeByStrength `json:"zoneTimeByStrength"`
-	ShotDifferential       []*EdgeTeamShotDifferential   `json:"shotDifferential"`
+	ShotDifferential       *EdgeTeamShotDifferential     `json:"shotDifferential,omitempty"`
 }
 
 type EdgeTeamZoneTimeByStrength struct {

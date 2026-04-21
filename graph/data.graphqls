@@ -403,7 +403,7 @@ type EdgeTeamStats {
   sogSummary: [EdgeTeamSogSummary!]!
   shotLocations: [EdgeTeamShotLocation!]!
   zoneTimeByStrength: [EdgeTeamZoneTimeByStrength!]!
-  shotDifferential: [EdgeTeamShotDifferential!]!
+  shotDifferential: EdgeTeamShotDifferential
 }
 
 type EdgeTeamSogSummary {
@@ -436,11 +436,8 @@ type EdgeTeamZoneTimeByStrength {
 }
 
 type EdgeTeamShotDifferential {
-  strengthCode: String!
-  forPerGame: Float
-  forPerGameRank: Int
-  againstPerGame: Float
-  againstPerGameRank: Int
-  differentialPerGame: Float
-  differentialPerGameRank: Int
+  shotAttemptDifferential: Float
+  shotAttemptDifferentialRank: Int
+  sogDifferential: Float
+  sogDifferentialRank: Int
 }

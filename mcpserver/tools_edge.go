@@ -2,6 +2,8 @@ package mcpserver
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -132,15 +134,19 @@ func registerEdgeTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			shotDiff, err := queries.GetEdgeTeamShotDifferential(ctx, sqlcdb.GetEdgeTeamShotDifferentialParams(params))
-			if err != nil {
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return mcp.NewToolResultError(err.Error()), nil
+			}
+			var shotDiffPtr *sqlcdb.EdgeTeamShotDifferential
+			if err == nil {
+				shotDiffPtr = &shotDiff
 			}
 			return ResultJSON(edgeTeamResponse{
 				Stats:              stats,
 				SogSummary:         sogSummary,
 				ShotLocations:      shotLocs,
 				ZoneTimeByStrength: zoneTime,
-				ShotDifferential:   shotDiff,
+				ShotDifferential:   shotDiffPtr,
 			})
 		},
 	)
@@ -177,7 +183,7 @@ type edgeTeamResponse struct {
 	Stats              sqlcdb.EdgeTeamStat                 `json:"stats"`
 	SogSummary         []sqlcdb.EdgeTeamSogSummary          `json:"sogSummary"`
 	ShotLocations      []sqlcdb.EdgeTeamShotLocation        `json:"shotLocations"`
-	ZoneTimeByStrength []sqlcdb.EdgeTeamZoneTimeByStrength   `json:"zoneTimeByStrength"`
-	ShotDifferential   []sqlcdb.EdgeTeamShotDifferential     `json:"shotDifferential"`
+	ZoneTimeByStrength []sqlcdb.EdgeTeamZoneTimeByStrength  `json:"zoneTimeByStrength"`
+	ShotDifferential   *sqlcdb.EdgeTeamShotDifferential     `json:"shotDifferential,omitempty"`
 }
 

@@ -551,7 +551,7 @@ func convertEdgeGoalieStats(s sqlcdb.EdgeGoalieStat, locSummary []sqlcdb.EdgeGoa
 	}
 }
 
-func convertEdgeTeamStats(s sqlcdb.EdgeTeamStat, sog []sqlcdb.EdgeTeamSogSummary, locs []sqlcdb.EdgeTeamShotLocation, zt []sqlcdb.EdgeTeamZoneTimeByStrength, sd []sqlcdb.EdgeTeamShotDifferential) *model.EdgeTeamStats {
+func convertEdgeTeamStats(s sqlcdb.EdgeTeamStat, sog []sqlcdb.EdgeTeamSogSummary, locs []sqlcdb.EdgeTeamShotLocation, zt []sqlcdb.EdgeTeamZoneTimeByStrength, sd *sqlcdb.EdgeTeamShotDifferential) *model.EdgeTeamStats {
 	sogSummary := make([]*model.EdgeTeamSogSummary, len(sog))
 	for i, ss := range sog {
 		sogSummary[i] = &model.EdgeTeamSogSummary{
@@ -587,16 +587,13 @@ func convertEdgeTeamStats(s sqlcdb.EdgeTeamStat, sog []sqlcdb.EdgeTeamSogSummary
 			DzRank:       int4Ptr(z.DzRank),
 		}
 	}
-	shotDiff := make([]*model.EdgeTeamShotDifferential, len(sd))
-	for i, d := range sd {
-		shotDiff[i] = &model.EdgeTeamShotDifferential{
-			StrengthCode:            d.StrengthCode,
-			ForPerGame:              float4Ptr(d.ForPerGame),
-			ForPerGameRank:          int4Ptr(d.ForPerGameRank),
-			AgainstPerGame:          float4Ptr(d.AgainstPerGame),
-			AgainstPerGameRank:      int4Ptr(d.AgainstPerGameRank),
-			DifferentialPerGame:     float4Ptr(d.DifferentialPerGame),
-			DifferentialPerGameRank: int4Ptr(d.DifferentialPerGameRank),
+	var shotDiff *model.EdgeTeamShotDifferential
+	if sd != nil {
+		shotDiff = &model.EdgeTeamShotDifferential{
+			ShotAttemptDifferential:     float4Ptr(sd.ShotAttemptDifferential),
+			ShotAttemptDifferentialRank: int4Ptr(sd.ShotAttemptDifferentialRank),
+			SogDifferential:             float4Ptr(sd.SogDifferential),
+			SogDifferentialRank:         int4Ptr(sd.SogDifferentialRank),
 		}
 	}
 	return &model.EdgeTeamStats{

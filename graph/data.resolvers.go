@@ -6,6 +6,8 @@ package graph
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/sperano/puckdb/graph/model"
@@ -371,9 +373,13 @@ func (r *queryResolver) EdgeTeamStats(ctx context.Context, teamID int, season in
 		return nil, err
 	}
 	shotDiff, err := r.Resolver.Queries.GetEdgeTeamShotDifferential(ctx, sqlcdb.GetEdgeTeamShotDifferentialParams(teamParams))
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
+	var shotDiffPtr *sqlcdb.EdgeTeamShotDifferential
+	if err == nil {
+		shotDiffPtr = &shotDiff
+	}
 
-	return convertEdgeTeamStats(stats, sogSummary, shotLocs, zoneTime, shotDiff), nil
+	return convertEdgeTeamStats(stats, sogSummary, shotLocs, zoneTime, shotDiffPtr), nil
 }

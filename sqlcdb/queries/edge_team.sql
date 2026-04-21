@@ -104,14 +104,19 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 DELETE FROM edge_team_shot_differential
 WHERE team_id = $1 AND season = $2 AND game_type = $3;
 
--- name: InsertEdgeTeamShotDifferential :exec
+-- name: UpsertEdgeTeamShotDifferential :exec
 INSERT INTO edge_team_shot_differential (
-    team_id, season, game_type, strength_code,
-    for_per_game, for_per_game_rank,
-    against_per_game, against_per_game_rank,
-    differential_per_game, differential_per_game_rank
+    team_id, season, game_type,
+    shot_attempt_differential, shot_attempt_differential_rank,
+    sog_differential, sog_differential_rank
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (team_id, season, game_type) DO UPDATE SET
+    shot_attempt_differential = EXCLUDED.shot_attempt_differential,
+    shot_attempt_differential_rank = EXCLUDED.shot_attempt_differential_rank,
+    sog_differential = EXCLUDED.sog_differential,
+    sog_differential_rank = EXCLUDED.sog_differential_rank,
+    updated_at = NOW();
 
 -- name: GetEdgeTeamStats :one
 SELECT * FROM edge_team_stats
@@ -139,10 +144,9 @@ SELECT * FROM edge_team_zone_time_by_strength
 WHERE team_id = $1 AND season = $2 AND game_type = $3
 ORDER BY strength_code;
 
--- name: GetEdgeTeamShotDifferential :many
+-- name: GetEdgeTeamShotDifferential :one
 SELECT * FROM edge_team_shot_differential
-WHERE team_id = $1 AND season = $2 AND game_type = $3
-ORDER BY strength_code;
+WHERE team_id = $1 AND season = $2 AND game_type = $3;
 
 -- name: CountEdgeTeamStats :one
 SELECT COUNT(*) FROM edge_team_stats;

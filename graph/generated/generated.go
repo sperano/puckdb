@@ -159,13 +159,10 @@ type ComplexityRoot struct {
 	}
 
 	EdgeTeamShotDifferential struct {
-		AgainstPerGame          func(childComplexity int) int
-		AgainstPerGameRank      func(childComplexity int) int
-		DifferentialPerGame     func(childComplexity int) int
-		DifferentialPerGameRank func(childComplexity int) int
-		ForPerGame              func(childComplexity int) int
-		ForPerGameRank          func(childComplexity int) int
-		StrengthCode            func(childComplexity int) int
+		ShotAttemptDifferential     func(childComplexity int) int
+		ShotAttemptDifferentialRank func(childComplexity int) int
+		SogDifferential             func(childComplexity int) int
+		SogDifferentialRank         func(childComplexity int) int
 	}
 
 	EdgeTeamShotLocation struct {
@@ -1298,54 +1295,33 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.EdgeSogSummary.ShotsPercentile(childComplexity), true
 
-	case "EdgeTeamShotDifferential.againstPerGame":
-		if e.complexity.EdgeTeamShotDifferential.AgainstPerGame == nil {
+	case "EdgeTeamShotDifferential.shotAttemptDifferential":
+		if e.complexity.EdgeTeamShotDifferential.ShotAttemptDifferential == nil {
 			break
 		}
 
-		return e.complexity.EdgeTeamShotDifferential.AgainstPerGame(childComplexity), true
+		return e.complexity.EdgeTeamShotDifferential.ShotAttemptDifferential(childComplexity), true
 
-	case "EdgeTeamShotDifferential.againstPerGameRank":
-		if e.complexity.EdgeTeamShotDifferential.AgainstPerGameRank == nil {
+	case "EdgeTeamShotDifferential.shotAttemptDifferentialRank":
+		if e.complexity.EdgeTeamShotDifferential.ShotAttemptDifferentialRank == nil {
 			break
 		}
 
-		return e.complexity.EdgeTeamShotDifferential.AgainstPerGameRank(childComplexity), true
+		return e.complexity.EdgeTeamShotDifferential.ShotAttemptDifferentialRank(childComplexity), true
 
-	case "EdgeTeamShotDifferential.differentialPerGame":
-		if e.complexity.EdgeTeamShotDifferential.DifferentialPerGame == nil {
+	case "EdgeTeamShotDifferential.sogDifferential":
+		if e.complexity.EdgeTeamShotDifferential.SogDifferential == nil {
 			break
 		}
 
-		return e.complexity.EdgeTeamShotDifferential.DifferentialPerGame(childComplexity), true
+		return e.complexity.EdgeTeamShotDifferential.SogDifferential(childComplexity), true
 
-	case "EdgeTeamShotDifferential.differentialPerGameRank":
-		if e.complexity.EdgeTeamShotDifferential.DifferentialPerGameRank == nil {
+	case "EdgeTeamShotDifferential.sogDifferentialRank":
+		if e.complexity.EdgeTeamShotDifferential.SogDifferentialRank == nil {
 			break
 		}
 
-		return e.complexity.EdgeTeamShotDifferential.DifferentialPerGameRank(childComplexity), true
-
-	case "EdgeTeamShotDifferential.forPerGame":
-		if e.complexity.EdgeTeamShotDifferential.ForPerGame == nil {
-			break
-		}
-
-		return e.complexity.EdgeTeamShotDifferential.ForPerGame(childComplexity), true
-
-	case "EdgeTeamShotDifferential.forPerGameRank":
-		if e.complexity.EdgeTeamShotDifferential.ForPerGameRank == nil {
-			break
-		}
-
-		return e.complexity.EdgeTeamShotDifferential.ForPerGameRank(childComplexity), true
-
-	case "EdgeTeamShotDifferential.strengthCode":
-		if e.complexity.EdgeTeamShotDifferential.StrengthCode == nil {
-			break
-		}
-
-		return e.complexity.EdgeTeamShotDifferential.StrengthCode(childComplexity), true
+		return e.complexity.EdgeTeamShotDifferential.SogDifferentialRank(childComplexity), true
 
 	case "EdgeTeamShotLocation.area":
 		if e.complexity.EdgeTeamShotLocation.Area == nil {
@@ -4259,7 +4235,7 @@ type EdgeTeamStats {
   sogSummary: [EdgeTeamSogSummary!]!
   shotLocations: [EdgeTeamShotLocation!]!
   zoneTimeByStrength: [EdgeTeamZoneTimeByStrength!]!
-  shotDifferential: [EdgeTeamShotDifferential!]!
+  shotDifferential: EdgeTeamShotDifferential
 }
 
 type EdgeTeamSogSummary {
@@ -4292,13 +4268,10 @@ type EdgeTeamZoneTimeByStrength {
 }
 
 type EdgeTeamShotDifferential {
-  strengthCode: String!
-  forPerGame: Float
-  forPerGameRank: Int
-  againstPerGame: Float
-  againstPerGameRank: Int
-  differentialPerGame: Float
-  differentialPerGameRank: Int
+  shotAttemptDifferential: Float
+  shotAttemptDifferentialRank: Int
+  sogDifferential: Float
+  sogDifferentialRank: Int
 }
 `, BuiltIn: false},
 	{Name: "../schema.graphqls", Input: `# GraphQL schema example
@@ -9820,8 +9793,8 @@ func (ec *executionContext) fieldContext_EdgeSogSummary_shootingPctgLeagueAvg(_ 
 	return fc, nil
 }
 
-func (ec *executionContext) _EdgeTeamShotDifferential_strengthCode(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_EdgeTeamShotDifferential_strengthCode(ctx, field)
+func (ec *executionContext) _EdgeTeamShotDifferential_shotAttemptDifferential(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_shotAttemptDifferential(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -9834,51 +9807,7 @@ func (ec *executionContext) _EdgeTeamShotDifferential_strengthCode(ctx context.C
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.StrengthCode, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_strengthCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EdgeTeamShotDifferential",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EdgeTeamShotDifferential_forPerGame(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_EdgeTeamShotDifferential_forPerGame(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.ForPerGame, nil
+		return obj.ShotAttemptDifferential, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -9892,7 +9821,7 @@ func (ec *executionContext) _EdgeTeamShotDifferential_forPerGame(ctx context.Con
 	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_forPerGame(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_shotAttemptDifferential(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "EdgeTeamShotDifferential",
 		Field:      field,
@@ -9905,8 +9834,8 @@ func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_forPerGame(_ c
 	return fc, nil
 }
 
-func (ec *executionContext) _EdgeTeamShotDifferential_forPerGameRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_EdgeTeamShotDifferential_forPerGameRank(ctx, field)
+func (ec *executionContext) _EdgeTeamShotDifferential_shotAttemptDifferentialRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_shotAttemptDifferentialRank(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -9919,7 +9848,7 @@ func (ec *executionContext) _EdgeTeamShotDifferential_forPerGameRank(ctx context
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.ForPerGameRank, nil
+		return obj.ShotAttemptDifferentialRank, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -9933,7 +9862,7 @@ func (ec *executionContext) _EdgeTeamShotDifferential_forPerGameRank(ctx context
 	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_forPerGameRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_shotAttemptDifferentialRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "EdgeTeamShotDifferential",
 		Field:      field,
@@ -9946,8 +9875,8 @@ func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_forPerGameRank
 	return fc, nil
 }
 
-func (ec *executionContext) _EdgeTeamShotDifferential_againstPerGame(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_EdgeTeamShotDifferential_againstPerGame(ctx, field)
+func (ec *executionContext) _EdgeTeamShotDifferential_sogDifferential(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_sogDifferential(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -9960,7 +9889,7 @@ func (ec *executionContext) _EdgeTeamShotDifferential_againstPerGame(ctx context
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.AgainstPerGame, nil
+		return obj.SogDifferential, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -9974,7 +9903,7 @@ func (ec *executionContext) _EdgeTeamShotDifferential_againstPerGame(ctx context
 	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_againstPerGame(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_sogDifferential(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "EdgeTeamShotDifferential",
 		Field:      field,
@@ -9987,8 +9916,8 @@ func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_againstPerGame
 	return fc, nil
 }
 
-func (ec *executionContext) _EdgeTeamShotDifferential_againstPerGameRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_EdgeTeamShotDifferential_againstPerGameRank(ctx, field)
+func (ec *executionContext) _EdgeTeamShotDifferential_sogDifferentialRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeTeamShotDifferential_sogDifferentialRank(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -10001,7 +9930,7 @@ func (ec *executionContext) _EdgeTeamShotDifferential_againstPerGameRank(ctx con
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.AgainstPerGameRank, nil
+		return obj.SogDifferentialRank, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -10015,89 +9944,7 @@ func (ec *executionContext) _EdgeTeamShotDifferential_againstPerGameRank(ctx con
 	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_againstPerGameRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EdgeTeamShotDifferential",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EdgeTeamShotDifferential_differentialPerGame(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_EdgeTeamShotDifferential_differentialPerGame(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.DifferentialPerGame, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*float64)
-	fc.Result = res
-	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_differentialPerGame(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EdgeTeamShotDifferential",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Float does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EdgeTeamShotDifferential_differentialPerGameRank(ctx context.Context, field graphql.CollectedField, obj *model.EdgeTeamShotDifferential) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_EdgeTeamShotDifferential_differentialPerGameRank(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.DifferentialPerGameRank, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*int)
-	fc.Result = res
-	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_differentialPerGameRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_EdgeTeamShotDifferential_sogDifferentialRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "EdgeTeamShotDifferential",
 		Field:      field,
@@ -12005,14 +11852,11 @@ func (ec *executionContext) _EdgeTeamStats_shotDifferential(ctx context.Context,
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.([]*model.EdgeTeamShotDifferential)
+	res := resTmp.(*model.EdgeTeamShotDifferential)
 	fc.Result = res
-	return ec.marshalNEdgeTeamShotDifferential2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotDifferentialᚄ(ctx, field.Selections, res)
+	return ec.marshalOEdgeTeamShotDifferential2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotDifferential(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_EdgeTeamStats_shotDifferential(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12023,20 +11867,14 @@ func (ec *executionContext) fieldContext_EdgeTeamStats_shotDifferential(_ contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "strengthCode":
-				return ec.fieldContext_EdgeTeamShotDifferential_strengthCode(ctx, field)
-			case "forPerGame":
-				return ec.fieldContext_EdgeTeamShotDifferential_forPerGame(ctx, field)
-			case "forPerGameRank":
-				return ec.fieldContext_EdgeTeamShotDifferential_forPerGameRank(ctx, field)
-			case "againstPerGame":
-				return ec.fieldContext_EdgeTeamShotDifferential_againstPerGame(ctx, field)
-			case "againstPerGameRank":
-				return ec.fieldContext_EdgeTeamShotDifferential_againstPerGameRank(ctx, field)
-			case "differentialPerGame":
-				return ec.fieldContext_EdgeTeamShotDifferential_differentialPerGame(ctx, field)
-			case "differentialPerGameRank":
-				return ec.fieldContext_EdgeTeamShotDifferential_differentialPerGameRank(ctx, field)
+			case "shotAttemptDifferential":
+				return ec.fieldContext_EdgeTeamShotDifferential_shotAttemptDifferential(ctx, field)
+			case "shotAttemptDifferentialRank":
+				return ec.fieldContext_EdgeTeamShotDifferential_shotAttemptDifferentialRank(ctx, field)
+			case "sogDifferential":
+				return ec.fieldContext_EdgeTeamShotDifferential_sogDifferential(ctx, field)
+			case "sogDifferentialRank":
+				return ec.fieldContext_EdgeTeamShotDifferential_sogDifferentialRank(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type EdgeTeamShotDifferential", field.Name)
 		},
@@ -27853,23 +27691,14 @@ func (ec *executionContext) _EdgeTeamShotDifferential(ctx context.Context, sel a
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("EdgeTeamShotDifferential")
-		case "strengthCode":
-			out.Values[i] = ec._EdgeTeamShotDifferential_strengthCode(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "forPerGame":
-			out.Values[i] = ec._EdgeTeamShotDifferential_forPerGame(ctx, field, obj)
-		case "forPerGameRank":
-			out.Values[i] = ec._EdgeTeamShotDifferential_forPerGameRank(ctx, field, obj)
-		case "againstPerGame":
-			out.Values[i] = ec._EdgeTeamShotDifferential_againstPerGame(ctx, field, obj)
-		case "againstPerGameRank":
-			out.Values[i] = ec._EdgeTeamShotDifferential_againstPerGameRank(ctx, field, obj)
-		case "differentialPerGame":
-			out.Values[i] = ec._EdgeTeamShotDifferential_differentialPerGame(ctx, field, obj)
-		case "differentialPerGameRank":
-			out.Values[i] = ec._EdgeTeamShotDifferential_differentialPerGameRank(ctx, field, obj)
+		case "shotAttemptDifferential":
+			out.Values[i] = ec._EdgeTeamShotDifferential_shotAttemptDifferential(ctx, field, obj)
+		case "shotAttemptDifferentialRank":
+			out.Values[i] = ec._EdgeTeamShotDifferential_shotAttemptDifferentialRank(ctx, field, obj)
+		case "sogDifferential":
+			out.Values[i] = ec._EdgeTeamShotDifferential_sogDifferential(ctx, field, obj)
+		case "sogDifferentialRank":
+			out.Values[i] = ec._EdgeTeamShotDifferential_sogDifferentialRank(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -28086,9 +27915,6 @@ func (ec *executionContext) _EdgeTeamStats(ctx context.Context, sel ast.Selectio
 			}
 		case "shotDifferential":
 			out.Values[i] = ec._EdgeTeamStats_shotDifferential(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -31497,60 +31323,6 @@ func (ec *executionContext) marshalNEdgeSogSummary2ᚖgithubᚗcomᚋsperanoᚋp
 	return ec._EdgeSogSummary(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNEdgeTeamShotDifferential2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotDifferentialᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeTeamShotDifferential) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNEdgeTeamShotDifferential2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotDifferential(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNEdgeTeamShotDifferential2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotDifferential(ctx context.Context, sel ast.SelectionSet, v *model.EdgeTeamShotDifferential) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._EdgeTeamShotDifferential(ctx, sel, v)
-}
-
 func (ec *executionContext) marshalNEdgeTeamShotLocation2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeTeamShotLocation) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -32965,6 +32737,13 @@ func (ec *executionContext) marshalOEdgeSkaterStats2ᚖgithubᚗcomᚋsperanoᚋ
 		return graphql.Null
 	}
 	return ec._EdgeSkaterStats(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOEdgeTeamShotDifferential2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamShotDifferential(ctx context.Context, sel ast.SelectionSet, v *model.EdgeTeamShotDifferential) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._EdgeTeamShotDifferential(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOEdgeTeamStats2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐEdgeTeamStats(ctx context.Context, sel ast.SelectionSet, v *model.EdgeTeamStats) graphql.Marshaler {
