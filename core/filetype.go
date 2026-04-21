@@ -30,6 +30,7 @@ const (
 	YahooTransactions
 	YahooDraftResults
 	YahooMatchups
+	ClubScheduleSeasonResource
 )
 
 var names = [...]string{
@@ -56,7 +57,8 @@ var names = [...]string{
 	ClubStatsResource: "ClubStatsResource",
 	YahooTransactions: "YahooTransactions",
 	YahooDraftResults: "YahooDraftResults",
-	YahooMatchups:    "YahooMatchups",
+	YahooMatchups:              "YahooMatchups",
+	ClubScheduleSeasonResource: "ClubScheduleSeason",
 }
 
 // String returns the string representation of the FileType.

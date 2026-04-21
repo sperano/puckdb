@@ -23,7 +23,8 @@ Guidelines:
 - If a query returns no results, say so clearly rather than making up data.
 - Keep answers concise but informative. Cite the data you retrieved.
 - You can make multiple tool calls in sequence to build a complete answer.
-- For complex questions, break them into smaller queries.`,
+- For complex questions, break them into smaller queries.
+- Use unicode characters, but only use emojis when absolutely necessary.`,
 		time.Now().Format("January 2, 2006"),
 		season.ID(), season.StartYear(), season.EndYear())
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
@@ -214,7 +213,7 @@ func (a *Activities) DownloadPlayerGameLogsBatch(ctx context.Context, input Down
 	}
 
 	season := nhl.NewSeason(input.StartSeason)
-	isCurrent := isCurrentSeason(input.StartSeason)
+	isCurrent := shared.IsCurrentSeason(input.StartSeason)
 
 	for _, playerID := range input.PlayerIDs {
 		select {
@@ -349,21 +348,3 @@ func (a *Activities) downloadPlayerGameLogToCache(ctx context.Context, playerID 
 	return gameLogDownloaded, nil
 }
 
-// isCurrentSeason returns true if the given start year represents the current NHL season.
-// NHL seasons run from October to June, so the current season's start year is:
-// - The current year if we're in Oct-Dec
-// - The previous year if we're in Jan-June
-func isCurrentSeason(startYear int) bool {
-	now := time.Now()
-	currentYear := now.Year()
-	month := now.Month()
-
-	var currentSeasonStartYear int
-	if month >= time.October {
-		currentSeasonStartYear = currentYear
-	} else {
-		currentSeasonStartYear = currentYear - 1
-	}
-
-	return startYear == currentSeasonStartYear
-}

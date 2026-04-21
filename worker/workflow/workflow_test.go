@@ -430,6 +430,8 @@ func (s *ImportSeasonWorkflowTestSuite) mockImportSeasonActivities() {
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.ImportSeasonRosters, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(sa.ImportClubStats, mock.Anything, mock.Anything).Return(nil)
+	var pa *worknhl.PlayoffActivities
+	s.env.OnActivity(pa.ImportPlayoffGames, mock.Anything, mock.Anything).Return(worknhl.ImportPlayoffGamesResult{}, nil).Maybe()
 }
 
 // Test ImportSeasonWorkflow success with multiple days
@@ -682,6 +684,8 @@ func (s *FetchSeasonWorkflowTestSuite) mockFetchSeasonActivities() {
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonRosters, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(sa.FetchClubStats, mock.Anything, mock.Anything).Return(nil)
+	var pa *worknhl.PlayoffActivities
+	s.env.OnActivity(pa.FetchPlayoffGames, mock.Anything, mock.Anything).Return(worknhl.FetchPlayoffGamesResult{}, nil).Maybe()
 }
 
 // Test FetchSeasonWorkflow success with multiple days

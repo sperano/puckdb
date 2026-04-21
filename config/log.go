@@ -108,6 +108,6 @@ func SetupLogger() {
 		Compress:   DefaultLogCompress,
 	}
 
-	// File only
-	log.Logger = log.Output(fileWriter)
+	// File only — use ConsoleWriter for human-readable output (same format as terminal)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: fileWriter, NoColor: true})
 }

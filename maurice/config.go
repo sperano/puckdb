@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/mcp"
 	"gopkg.in/yaml.v3"
 )
 
@@ -50,4 +52,29 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse maurice config %s: %w", path, err)
 	}
 	return &cfg, nil
+}
+
+// BuildMCPClient creates a mcp.Client from the config file at cfgPath.
+// Falls back to a no-op client if no config exists or no servers are configured.
+func BuildMCPClient(cfgPath string) (mcp.Client, error) {
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cfg.MCPServers) == 0 {
+		log.Warn().Str("config", cfgPath).Msg("no MCP servers configured, Maurice will have no tools")
+		return mcp.NewNoopClient(), nil
+	}
+
+	opts := make([]mcp.MultiClientOption, len(cfg.MCPServers))
+	for i, s := range cfg.MCPServers {
+		log.Info().Str("name", s.Name).Str("url", s.URL).Strs("tools", s.Tools).Msg("connecting MCP server")
+		opts[i] = mcp.MultiClientOption{
+			Client: mcp.NewClient(s.URL),
+			Tools:  s.Tools,
+		}
+	}
+
+	return mcp.NewMultiClient(opts...), nil
 }

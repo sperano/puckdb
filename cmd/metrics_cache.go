@@ -369,7 +369,7 @@ func countGameFilesSimple(ctx context.Context, storage store.Storage, gobCache *
 		}
 
 		// Filter out preseason games
-		gameIDs = filterRegularSeasonGames(gameIDs)
+		gameIDs = filterFinalNonPreseasonGames(gameIDs)
 
 		counts.expectedGames += len(gameIDs)
 
@@ -394,8 +394,8 @@ func countGameFilesSimple(ctx context.Context, storage store.Storage, gobCache *
 	return counts
 }
 
-// filterRegularSeasonGames filters out preseason games from a list of game IDs.
-func filterRegularSeasonGames(gameIDs []nhl.GameID) []nhl.GameID {
+// filterFinalNonPreseasonGames filters out preseason games from a list of game IDs.
+func filterFinalNonPreseasonGames(gameIDs []nhl.GameID) []nhl.GameID {
 	result := make([]nhl.GameID, 0, len(gameIDs))
 	for _, id := range gameIDs {
 		gameType, err := id.GameType()

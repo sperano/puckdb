@@ -8,7 +8,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN GOOS=linux GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -v -x \
+RUN GOOS=linux GOARCH=${TARGETARCH} CGO_ENABLED=0 go build \
     -ldflags "-s -w -X github.com/sperano/puckdb/config.BuildNumber=${VERSION}"
 
 FROM scratch

@@ -30,6 +30,7 @@ type NHLClient interface {
 	LeagueStandingsForDate(ctx context.Context, date nhl.GameDate) ([]nhl.Standing, error)
 	RosterSeason(ctx context.Context, teamAbbr string, season nhl.Season) (*nhl.Roster, error)
 	ClubStats(ctx context.Context, teamAbbr string, season nhl.Season, gameType nhl.GameType) (*nhl.ClubStats, error)
+	ClubScheduleSeason(ctx context.Context, teamAbbr string, season nhl.Season) (*nhl.TeamScheduleResponse, error)
 }
 
 // Compile-time check that nhl.Client implements NHLClient
