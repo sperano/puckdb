@@ -301,8 +301,8 @@ github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsI
 github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761/go.mod h1:5TJZWKEWniPve33vlWYSoGYefn3gLQRzjfDlhSJ9ZKM=
-github.com/jackc/pgx/v5 v5.8.0 h1:TYPDoleBBme0xGSAX3/+NujXXtpZn9HBONkQC7IEZSo=
-github.com/jackc/pgx/v5 v5.8.0/go.mod h1:QVeDInX2m9VyzvNeiCJVjCkNFqzsNb43204HshNSZKw=
+github.com/jackc/pgx/v5 v5.9.0 h1:T/dI+2TvmI2H8s/KH1/lXIbz1CUFk3gn5oTjr0/mBsE=
+github.com/jackc/pgx/v5 v5.9.0/go.mod h1:mal1tBGAFfLHvZzaYh77YS/eC6IX9OWbRV1QIIM0Jn4=
 github.com/jackc/puddle/v2 v2.2.2 h1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo=
 github.com/jackc/puddle/v2 v2.2.2/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
 github.com/josharian/intern v1.0.0/go.mod h1:5DoeVV0s6jJacbCEi61lwdGj/aVlrQvzHFFd8Hwg//Y=
@@ -448,12 +448,6 @@ github.com/smartystreets/goconvey v1.6.4 h1:fv0U8FUIMPNf1L9lnHLvLhgicrIVChEkdzIK
 github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9QV7WQ/tjFTllLA=
 github.com/sosodev/duration v1.3.1 h1:qtHBDMQ6lvMQsL15g4aopM4HEfOaYuhWBw3NPTtlqq4=
 github.com/sosodev/duration v1.3.1/go.mod h1:RQIBBX0+fMLc/D9+Jb/fwvVmo0eZvDDEERAikUR6SDg=
-github.com/sperano/nhl-api-go v0.0.0-20260413050653-f4e2f17c8d58 h1:n6yI8oxzISU0A6qVg1EFmDbTzEBtwBSfzmzDMGfxDz4=
-github.com/sperano/nhl-api-go v0.0.0-20260413050653-f4e2f17c8d58/go.mod h1:s0hPusWoxSopPRdVkYCpYyRe8II9OWyplf02/hn1AI8=
-github.com/sperano/nhl-api-go v0.0.0-20260419183110-b94305e81c03 h1:HsMSbam0E8Whtwql+A4dIu57+jHw5DXLhxiWIs3HdHE=
-github.com/sperano/nhl-api-go v0.0.0-20260419183110-b94305e81c03/go.mod h1:s0hPusWoxSopPRdVkYCpYyRe8II9OWyplf02/hn1AI8=
-github.com/sperano/nhl-api-go v0.0.0-20260420041349-6ba54a479e3d h1:G3AW5GFjN5hhqEfA1qAiOg4B98LHLldek3vda33f3ik=
-github.com/sperano/nhl-api-go v0.0.0-20260420041349-6ba54a479e3d/go.mod h1:s0hPusWoxSopPRdVkYCpYyRe8II9OWyplf02/hn1AI8=
 github.com/sperano/nhl-api-go v0.0.0-20260420043236-7bbbd96c9bf7 h1:LEgmvobPChFwlu8Y4l0MOxRsyewl37UbmqGOtdfF0Ac=
 github.com/sperano/nhl-api-go v0.0.0-20260420043236-7bbbd96c9bf7/go.mod h1:s0hPusWoxSopPRdVkYCpYyRe8II9OWyplf02/hn1AI8=
 github.com/spf13/afero v1.6.0 h1:xoax2sJ2DT8S8xA2paPFjDCScCNeWsg75VG0DLRreiY=
