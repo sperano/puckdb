@@ -157,6 +157,10 @@ input SeasonsInput {
 	"""Season start year to filter up to (inclusive)"""
 	endSeason: Int
 	seasonConcurrency: Int
+	"""Re-download player game logs for the current season (overwrites cached files)"""
+	refreshCurrentPlayerLogs: Boolean
+	"""Re-download Edge stats for the current season (overwrites cached files)"""
+	refreshCurrentEdge: Boolean
 }
 
 input ProcessPlayersInput {

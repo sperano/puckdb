@@ -99,3 +99,17 @@ func (c *GraphQLClient) GetFetchPlayerLandingsStatus(ctx context.Context) (*Work
 		`query { fetchPlayerLandingsResult `+resultFields+` fetchPlayerLandingsProgress `+progressReportFields+` `+yahooTokenStatusField+` }`,
 		"fetchPlayerLandingsResult", "fetchPlayerLandingsProgress")
 }
+
+// GetFetchEdgeStatsStatus queries both workflow result and progress.
+func (c *GraphQLClient) GetFetchEdgeStatsStatus(ctx context.Context) (*WorkflowStatus, error) {
+	return c.executeProgressReportQuery(ctx,
+		`query { fetchEdgeStatsResult `+resultFields+` fetchEdgeStatsProgress `+progressReportFields+` }`,
+		"fetchEdgeStatsResult", "fetchEdgeStatsProgress")
+}
+
+// GetImportEdgeStatsStatus queries both workflow result and progress.
+func (c *GraphQLClient) GetImportEdgeStatsStatus(ctx context.Context) (*WorkflowStatus, error) {
+	return c.executeProgressReportQuery(ctx,
+		`query { importEdgeStatsResult `+resultFields+` importEdgeStatsProgress `+progressReportFields+` }`,
+		"importEdgeStatsResult", "importEdgeStatsProgress")
+}

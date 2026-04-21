@@ -69,6 +69,16 @@ func TestParseSyncSteps_MultipleUnknown(t *testing.T) {
 	assert.Contains(t, err.Error(), "bar")
 }
 
+func TestParseSyncSteps_EdgeGroup(t *testing.T) {
+	steps, err := ParseSyncSteps([]string{"edge"})
+	require.NoError(t, err)
+	assert.True(t, steps[StepFetchEdgeStats])
+	assert.True(t, steps[StepImportEdgeStats])
+	assert.Len(t, steps, 2)
+	assert.False(t, steps[StepInit])
+	assert.False(t, steps[StepFetchSeasons])
+}
+
 func TestParseSyncSteps_Deduplication(t *testing.T) {
 	// "seasons" includes fetch-seasons; adding it explicitly shouldn't break
 	steps, err := ParseSyncSteps([]string{"seasons", StepFetchSeasons})

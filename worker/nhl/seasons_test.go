@@ -45,6 +45,14 @@ func marshalSeasonsManifest(t *testing.T, seasons []nhlapi.SeasonInfo) []byte {
 	return data
 }
 
+// gobEncodeSeasonsManifest encodes seasons as gob for Redis cache assertions.
+func gobEncodeSeasonsManifest(t *testing.T, seasons []nhlapi.SeasonInfo) string {
+	t.Helper()
+	var buf bytes.Buffer
+	require.NoError(t, gob.NewEncoder(&buf).Encode(nhlapi.SeasonsResponse{Seasons: seasons}))
+	return buf.String()
+}
+
 // anySeasonsArgs is a redismock matcher that accepts any arguments.
 func anySeasonsArgs(expected, actual []interface{}) error { return nil }
 
@@ -201,11 +209,11 @@ func (s *FetchSeasonsManifestTestSuite) TestFetchSeasonsManifest_Success() {
 	require.NoError(s.T(), resource.WriteParsed(mem, resource.SeasonsManifest{}, nhlapi.SeasonsResponse{Seasons: seasons}))
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
-	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetVal("OK")
 
 	activities := &SeasonsActivities{
-		Storage:     mem,
-		RedisClient: redisClient,
+		Storage:  mem,
+		GobCache: cache.NewGobCache(redisClient),
 	}
 	s.env.RegisterActivity(activities.FetchSeasonsManifest)
 
@@ -235,11 +243,10 @@ func TestDownloadSeasonsManifest_RedisHit(t *testing.T) {
 		{ID: nhlapi.NewSeason(2022), StandingsStart: nhlapi.MustParseDate("2022-10-07"), StandingsEnd: nhlapi.MustParseDate("2023-04-14")},
 		{ID: nhlapi.NewSeason(2023), StandingsStart: nhlapi.MustParseDate("2023-10-10"), StandingsEnd: nhlapi.MustParseDate("2024-04-18")},
 	}
-	seasonsJSON := marshalSeasonsManifest(t, seasons)
 
-	mockRedis.ExpectGet(redisSeasonsManifestKey).SetVal(string(seasonsJSON))
+	mockRedis.ExpectGet(redisSeasonsManifestKey).SetVal(gobEncodeSeasonsManifest(t, seasons))
 
-	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(result.Seasons))
@@ -261,13 +268,12 @@ func TestDownloadSeasonsManifest_AllMiss_APIFetch(t *testing.T) {
 		{ID: nhlapi.NewSeason(2023), StandingsStart: nhlapi.MustParseDate("2023-10-10"), StandingsEnd: nhlapi.MustParseDate("2024-04-18")},
 		{ID: nhlapi.NewSeason(2024), StandingsStart: nhlapi.MustParseDate("2024-10-04"), StandingsEnd: nhlapi.MustParseDate("2025-04-17")},
 	}
-	seasonsJSON := marshalSeasonsManifest(t, seasons)
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 	nhlClient.On("SeasonStandingManifest", ctx).Return(seasons, nil)
-	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetVal("OK")
 
-	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 3, len(result.Seasons))
@@ -289,7 +295,7 @@ func TestDownloadSeasonsManifest_APIError_NoFallback(t *testing.T) {
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 	nhlClient.On("SeasonStandingManifest", ctx).Return(nil, errors.New("API unavailable"))
 
-	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API unavailable")
@@ -298,7 +304,7 @@ func TestDownloadSeasonsManifest_APIError_NoFallback(t *testing.T) {
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
-func TestDownloadSeasonsManifest_RedisHit_InvalidJSON(t *testing.T) {
+func TestDownloadSeasonsManifest_RedisHit_InvalidGob(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -309,13 +315,14 @@ func TestDownloadSeasonsManifest_RedisHit_InvalidJSON(t *testing.T) {
 	seasons := []nhlapi.SeasonInfo{
 		{ID: nhlapi.NewSeason(2022), StandingsStart: nhlapi.MustParseDate("2022-10-07"), StandingsEnd: nhlapi.MustParseDate("2023-04-14")},
 	}
-	seasonsJSON := marshalSeasonsManifest(t, seasons)
 
-	mockRedis.ExpectGet(redisSeasonsManifestKey).SetVal("invalid json {{{")
+	// GobCache auto-evicts corrupted entries (DEL) then returns cache miss
+	mockRedis.ExpectGet(redisSeasonsManifestKey).SetVal("invalid gob data")
+	mockRedis.ExpectDel(redisSeasonsManifestKey).SetVal(1)
 	nhlClient.On("SeasonStandingManifest", ctx).Return(seasons, nil)
-	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetVal("OK")
 
-	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(result.Seasons))
@@ -341,9 +348,9 @@ func TestDownloadSeasonsManifest_FreshFilesystemHit(t *testing.T) {
 	mem.SetFileWithTime(resource.SeasonsManifest{}.Path(), seasonsJSON, time.Now())
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
-	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetVal("OK")
 
-	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(result.Seasons))
@@ -364,7 +371,7 @@ func TestDownloadSeasonsManifest_FreshFilesystemHit_GetManifestError(t *testing.
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 
-	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, 0, len(result.Seasons))
@@ -389,16 +396,15 @@ func TestDownloadSeasonsManifest_StaleFilesystem_APISuccess(t *testing.T) {
 		{ID: nhlapi.NewSeason(2022), StandingsStart: nhlapi.MustParseDate("2022-10-07"), StandingsEnd: nhlapi.MustParseDate("2023-04-14")},
 		{ID: nhlapi.NewSeason(2023), StandingsStart: nhlapi.MustParseDate("2023-10-10"), StandingsEnd: nhlapi.MustParseDate("2024-04-18")},
 	}
-	newSeasonsJSON := marshalSeasonsManifest(t, newSeasons)
 
 	staleTime := time.Now().Add(-config.DefaultSeasonsManifestStaleTTL - time.Hour)
 	mem.SetFileWithTime(resource.SeasonsManifest{}.Path(), oldSeasonsJSON, staleTime)
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 	nhlClient.On("SeasonStandingManifest", ctx).Return(newSeasons, nil)
-	mockRedis.ExpectSet(redisSeasonsManifestKey, newSeasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetVal("OK")
 
-	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(result.Seasons))
@@ -432,9 +438,9 @@ func TestDownloadSeasonsManifest_APIError_StaleFallback(t *testing.T) {
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 	nhlClient.On("SeasonStandingManifest", ctx).Return(nil, errors.New("API unavailable"))
-	mockRedis.ExpectSet(redisSeasonsManifestKey, staleSeasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetVal("OK")
 
-	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(result.Seasons))
@@ -457,7 +463,7 @@ func TestDownloadSeasonsManifest_APIError_StaleFallbackUnmarshalFails(t *testing
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 	nhlClient.On("SeasonStandingManifest", ctx).Return(nil, errors.New("API unavailable"))
 
-	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API unavailable")
@@ -478,13 +484,12 @@ func TestDownloadSeasonsManifest_SaveManifestError(t *testing.T) {
 	seasons := []nhlapi.SeasonInfo{
 		{ID: nhlapi.NewSeason(2022), StandingsStart: nhlapi.MustParseDate("2022-10-07"), StandingsEnd: nhlapi.MustParseDate("2023-04-14")},
 	}
-	seasonsJSON := marshalSeasonsManifest(t, seasons)
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 	nhlClient.On("SeasonStandingManifest", ctx).Return(seasons, nil)
-	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetVal("OK")
 
-	result, err := (&SeasonsActivities{Storage: failingStorage, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: failingStorage, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(result.Seasons))
@@ -493,7 +498,7 @@ func TestDownloadSeasonsManifest_SaveManifestError(t *testing.T) {
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
-func TestDownloadSeasonsManifest_CacheInRedisError(t *testing.T) {
+func TestDownloadSeasonsManifest_GobCacheError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -504,13 +509,12 @@ func TestDownloadSeasonsManifest_CacheInRedisError(t *testing.T) {
 	seasons := []nhlapi.SeasonInfo{
 		{ID: nhlapi.NewSeason(2022), StandingsStart: nhlapi.MustParseDate("2022-10-07"), StandingsEnd: nhlapi.MustParseDate("2023-04-14")},
 	}
-	seasonsJSON := marshalSeasonsManifest(t, seasons)
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 	nhlClient.On("SeasonStandingManifest", ctx).Return(seasons, nil)
-	mockRedis.ExpectSet(redisSeasonsManifestKey, seasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetErr(errors.New("redis error"))
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetErr(errors.New("redis error"))
 
-	result, err := (&SeasonsActivities{Storage: mem, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(result.Seasons))
@@ -536,15 +540,14 @@ func TestDownloadSeasonsManifest_StatError_TreatedAsStale(t *testing.T) {
 		{ID: nhlapi.NewSeason(2022), StandingsStart: nhlapi.MustParseDate("2022-10-07"), StandingsEnd: nhlapi.MustParseDate("2023-04-14")},
 		{ID: nhlapi.NewSeason(2023), StandingsStart: nhlapi.MustParseDate("2023-10-10"), StandingsEnd: nhlapi.MustParseDate("2024-04-18")},
 	}
-	newSeasonsJSON := marshalSeasonsManifest(t, newSeasons)
 
 	mem.SetFile(resource.SeasonsManifest{}.Path(), oldSeasonsJSON)
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 	nhlClient.On("SeasonStandingManifest", ctx).Return(newSeasons, nil)
-	mockRedis.ExpectSet(redisSeasonsManifestKey, newSeasonsJSON, config.DefaultSeasonsManifestCacheTTL).SetVal("OK")
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetVal("OK")
 
-	result, err := (&SeasonsActivities{Storage: failingStat, RedisClient: redisClient, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+	result, err := (&SeasonsActivities{Storage: failingStat, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(result.Seasons))

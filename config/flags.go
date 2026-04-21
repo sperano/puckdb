@@ -197,6 +197,7 @@ const (
 	FlagDayConcurrency           = "day-concurrency"
 	FlagSkipPreseason            = "skip-preseason"
 	FlagRefreshCurrentPlayerLogs = "refresh-current-player-logs"
+	FlagRefreshCurrentEdge       = "refresh-current-edge"
 	FlagSeasonConcurrency        = "season-concurrency"
 	FlagMonitor                  = "monitor"
 	FlagSeasonYear               = "season"
@@ -396,6 +397,7 @@ var SeasonRangeFlags = FlagGroup{
 var SyncBehaviorFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the current season (overwrites cached files)", false},
+		{FlagRefreshCurrentEdge, "", false, "Re-download Edge stats for the current season (overwrites cached files)", false},
 	},
 }
 

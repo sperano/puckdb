@@ -2,6 +2,7 @@ package nhl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -74,18 +75,14 @@ type FetchSeasonsManifestResult struct {
 // Uses a 3-layer cache: Redis → filesystem (with staleness check) → NHL API.
 // If the API fails but stale filesystem data exists, falls back to stale data.
 func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *model.SeasonsInput) (FetchSeasonsManifestResult, error) {
-	// Layer 1: Redis cache (fastest, short-lived)
-	if data, err := a.RedisClient.Get(ctx, redisSeasonsManifestKey).Bytes(); err == nil {
-		response, err := resource.SeasonsManifest{}.Parse(data)
-		if err == nil {
-			log.Debug().Int("count", len(response.Seasons)).Msg("Seasons manifest loaded from Redis")
-			metrics.IncDownload(core.SeasonsManifest, metrics.ResultRedisHit)
-			return FetchSeasonsManifestResult{
-				Origin:  core.OriginRedis,
-				Seasons: filterSeasons(response.Seasons, input),
-			}, nil
-		}
-		log.Warn().Err(err).Msg("Failed to unmarshal Redis seasons manifest")
+	// Layer 1: Redis gob cache (fastest, short-lived)
+	if response, ok, _ := cache.Get[nhlapi.SeasonsResponse](a.GobCache, ctx, redisSeasonsManifestKey); ok {
+		log.Debug().Int("count", len(response.Seasons)).Msg("Seasons manifest loaded from Redis")
+		metrics.IncDownload(core.SeasonsManifest, metrics.ResultRedisHit)
+		return FetchSeasonsManifestResult{
+			Origin:  core.OriginRedis,
+			Seasons: filterSeasons(response.Seasons, input),
+		}, nil
 	}
 
 	// Layer 2: Filesystem cache with staleness check
@@ -104,7 +101,7 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 					return FetchSeasonsManifestResult{}, err
 				}
 				metrics.IncDownload(core.SeasonsManifest, metrics.ResultFSHit)
-				cacheInRedis(ctx, a.RedisClient, data)
+				gobCacheSeasons(ctx, a.GobCache, response)
 				return FetchSeasonsManifestResult{
 					Origin:  core.OriginFileSystem,
 					Seasons: filterSeasons(response.Seasons, input),
@@ -127,7 +124,7 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 			if unmarshalErr == nil {
 				log.Warn().Err(err).Int("count", len(staleResponse.Seasons)).Msg("API fetch failed, using stale seasons manifest")
 				metrics.IncDownload(core.SeasonsManifest, metrics.ResultStaleFallback)
-				cacheInRedis(ctx, a.RedisClient, staleData)
+				gobCacheSeasons(ctx, a.GobCache, staleResponse)
 				return FetchSeasonsManifestResult{
 					Origin:  core.OriginFileSystem,
 					Seasons: filterSeasons(staleResponse.Seasons, input),
@@ -139,11 +136,12 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 	}
 
 	// API success - persist to both caches
-	data, _ := manifestRes.Format(nhlapi.SeasonsResponse{Seasons: seasons})
+	response := nhlapi.SeasonsResponse{Seasons: seasons}
+	data, _ := manifestRes.Format(response)
 	if err := a.Storage.Write(manifestRes.Path(), data); err != nil {
 		log.Warn().Err(err).Msg("Failed to write seasons manifest to filesystem")
 	}
-	cacheInRedis(ctx, a.RedisClient, data)
+	gobCacheSeasons(ctx, a.GobCache, response)
 	log.Info().Int("count", len(seasons)).Msg("Seasons manifest downloaded from API")
 	metrics.IncDownload(core.SeasonsManifest, metrics.ResultAPIFetch)
 	return FetchSeasonsManifestResult{
@@ -304,9 +302,9 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhlapi
 	return result, nil
 }
 
-// cacheInRedis stores the seasons manifest in Redis with TTL.
-func cacheInRedis(ctx context.Context, client cache.Client, data []byte) {
-	if err := client.Set(ctx, redisSeasonsManifestKey, data, config.DefaultSeasonsManifestCacheTTL).Err(); err != nil {
+// gobCacheSeasons stores the seasons manifest in Redis using gob encoding.
+func gobCacheSeasons(ctx context.Context, gobCache *cache.GobCache, response nhlapi.SeasonsResponse) {
+	if err := cache.Set(gobCache, ctx, redisSeasonsManifestKey, response); err != nil && !errors.Is(err, cache.ErrNilCache) {
 		log.Warn().Err(err).Msg("Failed to cache seasons manifest in Redis")
 	}
 }

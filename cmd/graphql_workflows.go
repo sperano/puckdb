@@ -136,3 +136,29 @@ func (c *GraphQLClient) FetchPlayerLandings(ctx context.Context, input *model.Fe
 func (c *GraphQLClient) CancelFetchPlayerLandings(ctx context.Context) (bool, error) {
 	return c.executeBoolMutation(ctx, `mutation { cancelFetchPlayerLandings }`, "cancelFetchPlayerLandings", nil)
 }
+
+// FetchEdgeStats triggers the fetchEdgeStats mutation.
+func (c *GraphQLClient) FetchEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return c.executeBoolMutation(ctx,
+		`mutation($input: SeasonsInput) { fetchEdgeStats(input: $input) }`,
+		"fetchEdgeStats",
+		map[string]any{"input": input})
+}
+
+// CancelFetchEdgeStats cancels the fetchEdgeStats workflow.
+func (c *GraphQLClient) CancelFetchEdgeStats(ctx context.Context) (bool, error) {
+	return c.executeBoolMutation(ctx, `mutation { cancelFetchEdgeStats }`, "cancelFetchEdgeStats", nil)
+}
+
+// ImportEdgeStats triggers the importEdgeStats mutation.
+func (c *GraphQLClient) ImportEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	return c.executeBoolMutation(ctx,
+		`mutation($input: SeasonsInput) { importEdgeStats(input: $input) }`,
+		"importEdgeStats",
+		map[string]any{"input": input})
+}
+
+// CancelImportEdgeStats cancels the importEdgeStats workflow.
+func (c *GraphQLClient) CancelImportEdgeStats(ctx context.Context) (bool, error) {
+	return c.executeBoolMutation(ctx, `mutation { cancelImportEdgeStats }`, "cancelImportEdgeStats", nil)
+}

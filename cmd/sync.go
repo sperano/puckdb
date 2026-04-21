@@ -36,10 +36,13 @@ Steps (in execution order):
   process-players            Process players (download + import)
   import-seasons             Import seasons into the database
   import-player-logs         Import player game logs into the database
+  fetch-edge-stats           Download Edge tracking data from NHL API
+  import-edge-stats          Import Edge tracking data into the database
 
 Groups (expand to multiple steps):
   seasons                    fetch-seasons + import-seasons
-  players                    yahoo-players + all player steps + import-player-logs`,
+  players                    yahoo-players + all player steps + import-player-logs
+  edge                       fetch-edge-stats + import-edge-stats`,
 		ValidArgsFunction: func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 			completions := make([]string, 0, len(config.AllSyncSteps)+len(config.SyncStepGroups))
 			completions = append(completions, config.AllSyncSteps...)
@@ -191,6 +194,12 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{config.StepImportPlayerLogs, workflowImportPlayerLogs, "player logs import",
 			func() (bool, error) { return client.ImportPlayerLogs(ctx, buildSeasonsInput()) },
 			client.GetImportPlayerLogsStatus},
+		{config.StepFetchEdgeStats, workflowFetchEdgeStats, "edge stats fetch",
+			func() (bool, error) { return client.FetchEdgeStats(ctx, buildSeasonsInput()) },
+			client.GetFetchEdgeStatsStatus},
+		{config.StepImportEdgeStats, workflowImportEdgeStats, "edge stats import",
+			func() (bool, error) { return client.ImportEdgeStats(ctx, buildSeasonsInput()) },
+			client.GetImportEdgeStatsStatus},
 	}
 
 	for _, step := range seqSteps {
@@ -452,6 +461,8 @@ func (s *syncState) cancel() {
 		workflowProcessPlayers:         {"processPlayers", s.client.CancelProcessPlayers},
 		workflowImportSeasons:          {"importSeasons", s.client.CancelImportSeasons},
 		workflowImportPlayerLogs:       {"importPlayerLogs", s.client.CancelImportPlayerLogs},
+		workflowFetchEdgeStats:         {"fetchEdgeStats", s.client.CancelFetchEdgeStats},
+		workflowImportEdgeStats:        {"importEdgeStats", s.client.CancelImportEdgeStats},
 	}
 
 	for _, wt := range active {

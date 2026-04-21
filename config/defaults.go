@@ -88,8 +88,7 @@ const (
 	DefaultGobCacheTTL                = 60
 	DefaultGobCacheConfig             = "" // empty = no per-type config, use flat TTL
 	DefaultBoxscorePlayerCacheTTL     = 60
-	DefaultSeasonsManifestCacheTTL    = 1 * time.Hour  // Redis TTL
-	DefaultSeasonsManifestStaleTTL    = 24 * time.Hour // Filesystem staleness
+	DefaultSeasonsManifestStaleTTL = 24 * time.Hour // Filesystem staleness
 )
 
 // Redis defaults

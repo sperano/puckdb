@@ -164,4 +164,6 @@ const (
 	workflowProcessPlayers
 	workflowImportSeasons
 	workflowImportPlayerLogs
+	workflowFetchEdgeStats
+	workflowImportEdgeStats
 )

@@ -17,6 +17,8 @@ const (
 	StepProcessPlayers         = "process-players"
 	StepImportSeasons          = "import-seasons"
 	StepImportPlayerLogs       = "import-player-logs"
+	StepFetchEdgeStats         = "fetch-edge-stats"
+	StepImportEdgeStats        = "import-edge-stats"
 )
 
 // AllSyncSteps lists every atomic step in execution order.
@@ -24,6 +26,7 @@ var AllSyncSteps = []string{
 	StepInit, StepYahooPlayers, StepFetchSeasons,
 	StepExtractBoxscorePlayers, StepFetchPlayerLandings, StepFetchPlayerLogs,
 	StepProcessPlayers, StepImportSeasons, StepImportPlayerLogs,
+	StepFetchEdgeStats, StepImportEdgeStats,
 }
 
 // SyncStepGroups maps shortcut names to the steps they expand to.
@@ -33,6 +36,7 @@ var SyncStepGroups = map[string][]string{
 		StepYahooPlayers, StepExtractBoxscorePlayers, StepFetchPlayerLandings,
 		StepFetchPlayerLogs, StepProcessPlayers, StepImportPlayerLogs,
 	},
+	"edge": {StepFetchEdgeStats, StepImportEdgeStats},
 }
 
 // ParseSyncSteps resolves CLI arguments into a set of enabled step names.

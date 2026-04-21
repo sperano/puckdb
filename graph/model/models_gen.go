@@ -426,6 +426,10 @@ type SeasonsInput struct {
 	// Season start year to filter up to (inclusive)
 	EndSeason         *int `json:"endSeason,omitempty"`
 	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`
+	// Re-download player game logs for the current season (overwrites cached files)
+	RefreshCurrentPlayerLogs *bool `json:"refreshCurrentPlayerLogs,omitempty"`
+	// Re-download Edge stats for the current season (overwrites cached files)
+	RefreshCurrentEdge *bool `json:"refreshCurrentEdge,omitempty"`
 }
 
 type SkaterGameLogEntry struct {

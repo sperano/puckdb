@@ -4460,6 +4460,10 @@ input SeasonsInput {
 	"""Season start year to filter up to (inclusive)"""
 	endSeason: Int
 	seasonConcurrency: Int
+	"""Re-download player game logs for the current season (overwrites cached files)"""
+	refreshCurrentPlayerLogs: Boolean
+	"""Re-download Edge stats for the current season (overwrites cached files)"""
+	refreshCurrentEdge: Boolean
 }
 
 input ProcessPlayersInput {
@@ -27313,7 +27317,7 @@ func (ec *executionContext) unmarshalInputSeasonsInput(ctx context.Context, obj 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"startSeason", "endSeason", "seasonConcurrency"}
+	fieldsInOrder := [...]string{"startSeason", "endSeason", "seasonConcurrency", "refreshCurrentPlayerLogs", "refreshCurrentEdge"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -27341,6 +27345,20 @@ func (ec *executionContext) unmarshalInputSeasonsInput(ctx context.Context, obj 
 				return it, err
 			}
 			it.SeasonConcurrency = data
+		case "refreshCurrentPlayerLogs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("refreshCurrentPlayerLogs"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RefreshCurrentPlayerLogs = data
+		case "refreshCurrentEdge":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("refreshCurrentEdge"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RefreshCurrentEdge = data
 		}
 	}
 

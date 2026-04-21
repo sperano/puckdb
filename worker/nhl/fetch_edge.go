@@ -14,8 +14,22 @@ import (
 
 // FetchEdgeInput contains the parameters for fetching Edge stats.
 type FetchEdgeInput struct {
-	Season   int // start year (e.g., 2024 for the 2024-2025 season)
-	GameType int // 2 = regular season, 3 = playoffs
+	Season         int  // start year (e.g., 2024 for the 2024-2025 season)
+	GameType       int  // 2 = regular season, 3 = playoffs
+	RefreshCurrent bool // if true AND current season, invalidate cache before fetching
+}
+
+// shouldInvalidate returns true if cached Edge data should be deleted before fetching.
+func (i FetchEdgeInput) shouldInvalidate() bool {
+	return i.RefreshCurrent && shared.IsCurrentSeason(i.Season)
+}
+
+// invalidateIfNeeded deletes the cached resource from storage and gob cache when invalidate is true.
+func invalidateIfNeeded[T any](ctx context.Context, a *SeasonsActivities, r core.ReadWritable[T], invalidate bool) {
+	if invalidate {
+		_ = a.Storage.Delete(r.Path())
+		_ = a.GobCache.Delete(ctx, core.RedisKey(r))
+	}
 }
 
 // FetchEdgeLandings fetches league-wide Edge landing pages (3 calls total).
@@ -23,10 +37,12 @@ func (a *SeasonsActivities) FetchEdgeLandings(ctx context.Context, input FetchEd
 	logger := activity.GetLogger(ctx)
 	season := nhlapi.NewSeason(input.Season)
 	gameType := nhlapi.GameType(input.GameType)
+	invalidate := input.shouldInvalidate()
 
 	// Skater landing
 	activity.RecordHeartbeat(ctx, "edge-landing:skater")
 	skaterRes := resource.EdgeSkaterLanding{Season: season, GameType: gameType}
+	invalidateIfNeeded(ctx, a, skaterRes, invalidate)
 	if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, skaterRes,
 		func(ctx context.Context) (*nhlapi.EdgeSkaterLanding, error) {
 			return a.NHLClient.EdgeSkaterLanding(ctx, season, gameType)
@@ -40,6 +56,7 @@ func (a *SeasonsActivities) FetchEdgeLandings(ctx context.Context, input FetchEd
 	// Goalie landing
 	activity.RecordHeartbeat(ctx, "edge-landing:goalie")
 	goalieRes := resource.EdgeGoalieLanding{Season: season, GameType: gameType}
+	invalidateIfNeeded(ctx, a, goalieRes, invalidate)
 	if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, goalieRes,
 		func(ctx context.Context) (*nhlapi.EdgeGoalieLanding, error) {
 			return a.NHLClient.EdgeGoalieLanding(ctx, season, gameType)
@@ -53,6 +70,7 @@ func (a *SeasonsActivities) FetchEdgeLandings(ctx context.Context, input FetchEd
 	// Team landing
 	activity.RecordHeartbeat(ctx, "edge-landing:team")
 	teamRes := resource.EdgeTeamLanding{Season: season, GameType: gameType}
+	invalidateIfNeeded(ctx, a, teamRes, invalidate)
 	if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, teamRes,
 		func(ctx context.Context) (*nhlapi.EdgeTeamLanding, error) {
 			return a.NHLClient.EdgeTeamLanding(ctx, season, gameType)
@@ -72,6 +90,7 @@ func (a *SeasonsActivities) FetchEdgeSkaters(ctx context.Context, input FetchEdg
 	logger := activity.GetLogger(ctx)
 	season := nhlapi.NewSeason(input.Season)
 	gameType := nhlapi.GameType(input.GameType)
+	invalidate := input.shouldInvalidate()
 
 	teams, err := a.ClubStatsQueries.GetSeasonTeamAbbrevs(ctx, int32(season.ID()))
 	if err != nil {
@@ -91,7 +110,7 @@ func (a *SeasonsActivities) FetchEdgeSkaters(ctx context.Context, input FetchEdg
 			activity.RecordHeartbeat(ctx, fmt.Sprintf("edge-skater:%s:%d", team.Abbrev, player.ID))
 			playerID := player.ID
 
-			if err := fetchEdgeSkaterEndpoints(ctx, a, playerID, season, gameType); err != nil {
+			if err := fetchEdgeSkaterEndpoints(ctx, a, playerID, season, gameType, invalidate); err != nil {
 				if errors.Is(err, nhlapi.ErrNotFound) {
 					continue
 				}
@@ -105,9 +124,10 @@ func (a *SeasonsActivities) FetchEdgeSkaters(ctx context.Context, input FetchEdg
 	return nil
 }
 
-func fetchEdgeSkaterEndpoints(ctx context.Context, a *SeasonsActivities, playerID nhlapi.PlayerID, season nhlapi.Season, gameType nhlapi.GameType) error {
+func fetchEdgeSkaterEndpoints(ctx context.Context, a *SeasonsActivities, playerID nhlapi.PlayerID, season nhlapi.Season, gameType nhlapi.GameType, invalidate bool) error {
 	// Detail (composite — always fetched first; 404 here means no Edge data)
 	detailRes := resource.EdgeSkaterDetail{PlayerID: playerID, Season: season, GameType: gameType}
+	invalidateIfNeeded(ctx, a, detailRes, invalidate)
 	if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, detailRes,
 		func(ctx context.Context) (*nhlapi.EdgeSkaterDetail, error) {
 			return a.NHLClient.EdgeSkaterDetail(ctx, playerID, season, gameType)
@@ -119,27 +139,27 @@ func fetchEdgeSkaterEndpoints(ctx context.Context, a *SeasonsActivities, playerI
 	fetchOptional(ctx, a, resource.EdgeSkaterSpeedDetail{PlayerID: playerID, Season: season, GameType: gameType},
 		func(ctx context.Context) (*nhlapi.EdgeSkaterSpeedDetail, error) {
 			return a.NHLClient.EdgeSkaterSpeedDetail(ctx, playerID, season, gameType)
-		})
+		}, invalidate)
 	fetchOptional(ctx, a, resource.EdgeSkaterDistanceDetail{PlayerID: playerID, Season: season, GameType: gameType},
 		func(ctx context.Context) (*nhlapi.EdgeSkaterDistanceDetail, error) {
 			return a.NHLClient.EdgeSkaterDistanceDetail(ctx, playerID, season, gameType)
-		})
+		}, invalidate)
 	fetchOptional(ctx, a, resource.EdgeSkaterShotSpeedDetail{PlayerID: playerID, Season: season, GameType: gameType},
 		func(ctx context.Context) (*nhlapi.EdgeSkaterShotSpeedDetail, error) {
 			return a.NHLClient.EdgeSkaterShotSpeedDetail(ctx, playerID, season, gameType)
-		})
+		}, invalidate)
 	fetchOptional(ctx, a, resource.EdgeSkaterShotLocationDetail{PlayerID: playerID, Season: season, GameType: gameType},
 		func(ctx context.Context) (*nhlapi.EdgeSkaterShotLocationDetail, error) {
 			return a.NHLClient.EdgeSkaterShotLocationDetail(ctx, playerID, season, gameType)
-		})
+		}, invalidate)
 	fetchOptional(ctx, a, resource.EdgeSkaterZoneTime{PlayerID: playerID, Season: season, GameType: gameType},
 		func(ctx context.Context) (*nhlapi.EdgeSkaterZoneTimeDetail, error) {
 			return a.NHLClient.EdgeSkaterZoneTime(ctx, playerID, season, gameType)
-		})
+		}, invalidate)
 	fetchOptional(ctx, a, resource.EdgeSkaterComparison{PlayerID: playerID, Season: season, GameType: gameType},
 		func(ctx context.Context) (*nhlapi.EdgeSkaterComparison, error) {
 			return a.NHLClient.EdgeSkaterComparison(ctx, playerID, season, gameType)
-		})
+		}, invalidate)
 
 	return nil
 }
@@ -149,6 +169,7 @@ func (a *SeasonsActivities) FetchEdgeGoalies(ctx context.Context, input FetchEdg
 	logger := activity.GetLogger(ctx)
 	season := nhlapi.NewSeason(input.Season)
 	gameType := nhlapi.GameType(input.GameType)
+	invalidate := input.shouldInvalidate()
 
 	teams, err := a.ClubStatsQueries.GetSeasonTeamAbbrevs(ctx, int32(season.ID()))
 	if err != nil {
@@ -167,7 +188,7 @@ func (a *SeasonsActivities) FetchEdgeGoalies(ctx context.Context, input FetchEdg
 			activity.RecordHeartbeat(ctx, fmt.Sprintf("edge-goalie:%s:%d", team.Abbrev, goalie.ID))
 			goalieID := goalie.ID
 
-			if err := fetchEdgeGoalieEndpoints(ctx, a, goalieID, season, gameType); err != nil {
+			if err := fetchEdgeGoalieEndpoints(ctx, a, goalieID, season, gameType, invalidate); err != nil {
 				if errors.Is(err, nhlapi.ErrNotFound) {
 					continue
 				}
@@ -181,8 +202,9 @@ func (a *SeasonsActivities) FetchEdgeGoalies(ctx context.Context, input FetchEdg
 	return nil
 }
 
-func fetchEdgeGoalieEndpoints(ctx context.Context, a *SeasonsActivities, goalieID nhlapi.PlayerID, season nhlapi.Season, gameType nhlapi.GameType) error {
+func fetchEdgeGoalieEndpoints(ctx context.Context, a *SeasonsActivities, goalieID nhlapi.PlayerID, season nhlapi.Season, gameType nhlapi.GameType, invalidate bool) error {
 	detailRes := resource.EdgeGoalieDetail{GoalieID: goalieID, Season: season, GameType: gameType}
+	invalidateIfNeeded(ctx, a, detailRes, invalidate)
 	if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, detailRes,
 		func(ctx context.Context) (*nhlapi.EdgeGoalieDetail, error) {
 			return a.NHLClient.EdgeGoalieDetail(ctx, goalieID, season, gameType)
@@ -193,19 +215,19 @@ func fetchEdgeGoalieEndpoints(ctx context.Context, a *SeasonsActivities, goalieI
 	fetchOptional(ctx, a, resource.EdgeGoalie5v5Detail{GoalieID: goalieID, Season: season, GameType: gameType},
 		func(ctx context.Context) (*nhlapi.EdgeGoalie5v5Detail, error) {
 			return a.NHLClient.EdgeGoalie5v5Detail(ctx, goalieID, season, gameType)
-		})
+		}, invalidate)
 	fetchOptional(ctx, a, resource.EdgeGoalieShotLocationDetail{GoalieID: goalieID, Season: season, GameType: gameType},
 		func(ctx context.Context) (*nhlapi.EdgeGoalieShotLocationDetail, error) {
 			return a.NHLClient.EdgeGoalieShotLocationDetail(ctx, goalieID, season, gameType)
-		})
+		}, invalidate)
 	fetchOptional(ctx, a, resource.EdgeGoalieSavePctgDetail{GoalieID: goalieID, Season: season, GameType: gameType},
 		func(ctx context.Context) (*nhlapi.EdgeGoalieSavePctgDetail, error) {
 			return a.NHLClient.EdgeGoalieSavePctgDetail(ctx, goalieID, season, gameType)
-		})
+		}, invalidate)
 	fetchOptional(ctx, a, resource.EdgeGoalieComparison{GoalieID: goalieID, Season: season, GameType: gameType},
 		func(ctx context.Context) (*nhlapi.EdgeGoalieComparison, error) {
 			return a.NHLClient.EdgeGoalieComparison(ctx, goalieID, season, gameType)
-		})
+		}, invalidate)
 
 	return nil
 }
@@ -215,6 +237,7 @@ func (a *SeasonsActivities) FetchEdgeTeams(ctx context.Context, input FetchEdgeI
 	logger := activity.GetLogger(ctx)
 	season := nhlapi.NewSeason(input.Season)
 	gameType := nhlapi.GameType(input.GameType)
+	invalidate := input.shouldInvalidate()
 
 	teams, err := a.ClubStatsQueries.GetSeasonTeamAbbrevs(ctx, int32(season.ID()))
 	if err != nil {
@@ -227,6 +250,7 @@ func (a *SeasonsActivities) FetchEdgeTeams(ctx context.Context, input FetchEdgeI
 
 		// Team detail
 		detailRes := resource.EdgeTeamDetail{TeamID: teamID, Season: season, GameType: gameType}
+		invalidateIfNeeded(ctx, a, detailRes, invalidate)
 		if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, detailRes,
 			func(ctx context.Context) (*nhlapi.EdgeTeamDetail, error) {
 				return a.NHLClient.EdgeTeamDetail(ctx, teamID, season, gameType)
@@ -242,29 +266,29 @@ func (a *SeasonsActivities) FetchEdgeTeams(ctx context.Context, input FetchEdgeI
 		fetchOptional(ctx, a, resource.EdgeTeamZoneTimeDetails{TeamID: teamID, Season: season, GameType: gameType},
 			func(ctx context.Context) (*nhlapi.EdgeTeamZoneTimeDetails, error) {
 				return a.NHLClient.EdgeTeamZoneTimeDetails(ctx, teamID, season, gameType)
-			})
+			}, invalidate)
 
 		// Sub-detail + comparison (cache-only)
 		fetchOptional(ctx, a, resource.EdgeTeamSpeedDetail{TeamID: teamID, Season: season, GameType: gameType},
 			func(ctx context.Context) (*nhlapi.EdgeTeamSpeedDetail, error) {
 				return a.NHLClient.EdgeTeamSpeedDetail(ctx, teamID, season, gameType)
-			})
+			}, invalidate)
 		fetchOptional(ctx, a, resource.EdgeTeamDistanceDetail{TeamID: teamID, Season: season, GameType: gameType},
 			func(ctx context.Context) (*nhlapi.EdgeTeamDistanceDetail, error) {
 				return a.NHLClient.EdgeTeamDistanceDetail(ctx, teamID, season, gameType)
-			})
+			}, invalidate)
 		fetchOptional(ctx, a, resource.EdgeTeamShotSpeedDetail{TeamID: teamID, Season: season, GameType: gameType},
 			func(ctx context.Context) (*nhlapi.EdgeTeamShotSpeedDetail, error) {
 				return a.NHLClient.EdgeTeamShotSpeedDetail(ctx, teamID, season, gameType)
-			})
+			}, invalidate)
 		fetchOptional(ctx, a, resource.EdgeTeamShotLocationDetail{TeamID: teamID, Season: season, GameType: gameType},
 			func(ctx context.Context) (*nhlapi.EdgeTeamShotLocationDetail, error) {
 				return a.NHLClient.EdgeTeamShotLocationDetail(ctx, teamID, season, gameType)
-			})
+			}, invalidate)
 		fetchOptional(ctx, a, resource.EdgeTeamComparison{TeamID: teamID, Season: season, GameType: gameType},
 			func(ctx context.Context) (*nhlapi.EdgeTeamComparison, error) {
 				return a.NHLClient.EdgeTeamComparison(ctx, teamID, season, gameType)
-			})
+			}, invalidate)
 	}
 
 	logger.Info("Fetched edge team stats", "season", input.Season, "teams", len(teams))
@@ -272,7 +296,9 @@ func (a *SeasonsActivities) FetchEdgeTeams(ctx context.Context, input FetchEdgeI
 }
 
 // fetchOptional fetches a resource, silently skipping 404 errors.
-func fetchOptional[T any](ctx context.Context, a *SeasonsActivities, r core.ReadWritable[T], fetch func(ctx context.Context) (T, error)) {
+// When invalidate is true the cached copy is deleted before fetching.
+func fetchOptional[T any](ctx context.Context, a *SeasonsActivities, r core.ReadWritable[T], fetch func(ctx context.Context) (T, error), invalidate bool) {
+	invalidateIfNeeded(ctx, a, r, invalidate)
 	_, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, r, fetch)
 	if err != nil && !errors.Is(err, nhlapi.ErrNotFound) {
 		activity.GetLogger(ctx).Warn("Failed to fetch optional edge resource", "path", r.Path(), "err", err)

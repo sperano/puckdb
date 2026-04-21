@@ -32,6 +32,7 @@ func NewFetchPlayerLogsProgressReport() *shared.ProgressReport {
 func FetchPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 	var playerAct *workplayer.Activities
+	refreshCurrent := input != nil && input.RefreshCurrentPlayerLogs != nil && *input.RefreshCurrentPlayerLogs
 	return iterateSeasons(ctx, input, NewFetchPlayerLogsProgressReport(), GroupFetchPlayerLogs,
 		func(season nhl.SeasonInfo) (int, error) {
 			var players []store.BoxscorePlayer
@@ -48,6 +49,6 @@ func FetchPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) er
 			return workflow.ExecuteChildWorkflow(
 				shared.WithChildOptions(ctx, WorkflowIDFetchSeasonPlayerLogs(season.ID.StartYear())),
 				FetchSeasonPlayerLogsWorkflow,
-				FetchSeasonPlayerLogsInput{Season: season})
+				FetchSeasonPlayerLogsInput{Season: season, RefreshCurrent: refreshCurrent})
 		})
 }

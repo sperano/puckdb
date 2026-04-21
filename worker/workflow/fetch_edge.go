@@ -45,6 +45,8 @@ func FetchEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) e
 		return nil
 	}
 
+	refreshCurrent := input.RefreshCurrentEdge != nil && *input.RefreshCurrentEdge
+
 	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
 		GroupIdx:    0,
 		Counter:     countEdgeTeams,
@@ -55,15 +57,22 @@ func FetchEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) e
 		season := seasons[i]
 		return workflow.ExecuteChildWorkflow(
 			shared.WithChildOptions(ctx, WorkflowIDFetchEdge(season.ID.StartYear())),
-			FetchEdgeWorkflow, season)
+			FetchEdgeWorkflow, FetchEdgeWorkflowInput{Season: season, RefreshCurrent: refreshCurrent})
 	})
 	return err
 }
 
+// FetchEdgeWorkflowInput contains parameters for a single-season Edge fetch.
+type FetchEdgeWorkflowInput struct {
+	Season         nhl.SeasonInfo
+	RefreshCurrent bool
+}
+
 // FetchEdgeWorkflow fetches Edge stats for a single season (both game types).
-func FetchEdgeWorkflow(ctx workflow.Context, season nhl.SeasonInfo) error {
+func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) error {
+	season := input.Season
 	logger := workflow.GetLogger(ctx)
-	logger.Info("FetchEdgeWorkflow started", "season", season.ID.StartYear())
+	logger.Info("FetchEdgeWorkflow started", "season", season.ID.StartYear(), "refreshCurrent", input.RefreshCurrent)
 
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
@@ -71,18 +80,18 @@ func FetchEdgeWorkflow(ctx workflow.Context, season nhl.SeasonInfo) error {
 	startYear := season.ID.StartYear()
 
 	for _, gameType := range edgeGameTypes {
-		input := worknhl.FetchEdgeInput{Season: startYear, GameType: int(gameType)}
+		edgeInput := worknhl.FetchEdgeInput{Season: startYear, GameType: int(gameType), RefreshCurrent: input.RefreshCurrent}
 
-		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeLandings, input).Get(ctx, nil); err != nil {
+		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeLandings, edgeInput).Get(ctx, nil); err != nil {
 			return fmt.Errorf("fetch edge landings (gt=%d): %w", gameType, err)
 		}
-		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeTeams, input).Get(ctx, nil); err != nil {
+		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeTeams, edgeInput).Get(ctx, nil); err != nil {
 			return fmt.Errorf("fetch edge teams (gt=%d): %w", gameType, err)
 		}
-		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeSkaters, input).Get(ctx, nil); err != nil {
+		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeSkaters, edgeInput).Get(ctx, nil); err != nil {
 			return fmt.Errorf("fetch edge skaters (gt=%d): %w", gameType, err)
 		}
-		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeGoalies, input).Get(ctx, nil); err != nil {
+		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeGoalies, edgeInput).Get(ctx, nil); err != nil {
 			return fmt.Errorf("fetch edge goalies (gt=%d): %w", gameType, err)
 		}
 	}

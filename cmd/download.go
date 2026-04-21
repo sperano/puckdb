@@ -29,6 +29,15 @@ func buildSeasonsInput() *model.SeasonsInput {
 		input.SeasonConcurrency = &concurrency
 	}
 
+	if viper.GetBool(config.FlagRefreshCurrentPlayerLogs) {
+		refreshPlayerLogs := true
+		input.RefreshCurrentPlayerLogs = &refreshPlayerLogs
+	}
+	if viper.GetBool(config.FlagRefreshCurrentEdge) {
+		refreshEdge := true
+		input.RefreshCurrentEdge = &refreshEdge
+	}
+
 	return input
 }
 
