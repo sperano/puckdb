@@ -41,6 +41,7 @@ const (
 
 // Worker concurrency defaults
 const (
+	DefaultWorkerQueue                = "tasks"
 	DefaultWorkerMaxWorkflowPollers   = 2
 	DefaultWorkerMaxActivityPollers   = 2
 	DefaultWorkerMaxWorkflowExecution = 50

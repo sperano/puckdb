@@ -43,19 +43,19 @@ var temporalStatusToGQL = map[temporalEnums.WorkflowExecutionStatus]model.Tempor
 }
 
 func (r *Resolver) clearDatabase(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, admin.WorkflowIDResetDatabase, admin.ResetDatabaseWorkflow, nil)
+	return r.executeAdminWorkflow(ctx, admin.WorkflowIDResetDatabase, admin.ResetDatabaseWorkflow)
 }
 
 func (r *Resolver) dropDatabase(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, admin.WorkflowIDDropDatabase, admin.DropDatabaseWorkflow, nil)
+	return r.executeAdminWorkflow(ctx, admin.WorkflowIDDropDatabase, admin.DropDatabaseWorkflow)
 }
 
 func (r *Resolver) createDatabase(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, admin.WorkflowIDMigrateDatabase, admin.MigrateDatabaseWorkflow, nil)
+	return r.executeAdminWorkflow(ctx, admin.WorkflowIDMigrateDatabase, admin.MigrateDatabaseWorkflow)
 }
 
 func (r *Resolver) flushRedisDB(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, admin.WorkflowIDFlushRedis, admin.FlushRedisWorkflow, nil)
+	return r.executeAdminWorkflow(ctx, admin.WorkflowIDFlushRedis, admin.FlushRedisWorkflow)
 }
 
 func (r *Resolver) fetchSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
@@ -583,11 +583,29 @@ func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workf
 	return true, nil
 }
 
+// executeAdminWorkflow starts an admin workflow on the dedicated admin queue.
+func (r *Resolver) executeAdminWorkflow(ctx context.Context, workflowID string, workflow any) (bool, error) {
+	opts := adminWorkflowOptions(workflowID)
+	_, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // TODO move to temporal/worker
 func workflowOptions(id string) client.StartWorkflowOptions {
 	return client.StartWorkflowOptions{
 		ID:                  id,
 		TaskQueue:           temporal.QueueTasks,
+		WorkflowTaskTimeout: config.DefaultWorkflowTaskTimeout,
+	}
+}
+
+func adminWorkflowOptions(id string) client.StartWorkflowOptions {
+	return client.StartWorkflowOptions{
+		ID:                  id,
+		TaskQueue:           temporal.QueueAdmin,
 		WorkflowTaskTimeout: config.DefaultWorkflowTaskTimeout,
 	}
 }

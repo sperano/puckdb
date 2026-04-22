@@ -146,6 +146,7 @@ const (
 
 // Worker concurrency flags
 const (
+	FlagWorkerQueue                = "worker-queue"
 	FlagWorkerMaxWorkflowPollers   = "worker-max-workflow-pollers"
 	FlagWorkerMaxActivityPollers   = "worker-max-activity-pollers"
 	FlagWorkerMaxWorkflowExecution = "worker-max-workflow-execution"
@@ -355,6 +356,7 @@ var PlayerLogsFlags = FlagGroup{
 // WorkerConcurrencyFlags defines Temporal worker concurrency flags.
 var WorkerConcurrencyFlags = FlagGroup{
 	Flags: []FlagDef{
+		{FlagWorkerQueue, "", DefaultWorkerQueue, "Task queue to poll: tasks, admin", false},
 		{FlagWorkerMaxWorkflowPollers, "", DefaultWorkerMaxWorkflowPollers, "Max concurrent workflow task pollers", false},
 		{FlagWorkerMaxActivityPollers, "", DefaultWorkerMaxActivityPollers, "Max concurrent activity task pollers", false},
 		{FlagWorkerMaxWorkflowExecution, "", DefaultWorkerMaxWorkflowExecution, "Max concurrent workflow task executions", false},
