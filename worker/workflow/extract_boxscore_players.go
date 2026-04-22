@@ -46,8 +46,8 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsIn
 	logger := workflow.GetLogger(ctx)
 
 	// Register query handler immediately so progress queries work from workflow start
-	tracker := shared.NewReportTracker(NewExtractBoxscorePlayersProgressReport())
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewExtractBoxscorePlayersProgressReport())
+	if err != nil {
 		return err
 	}
 

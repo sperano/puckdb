@@ -29,12 +29,12 @@ func countEdgeActivities(_ workflow.Context, _ nhl.SeasonInfo) (int, error) {
 func FetchEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
-	tracker := shared.NewReportTracker(&shared.ProgressReport{
+	tracker, err := shared.InitTracker(ctx, &shared.ProgressReport{
 		Groups: []shared.ProgressGroup{
 			{Header: "Fetching Edge stats...", Bars: []shared.ProgressBar{}},
 		},
 	})
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	if err != nil {
 		return err
 	}
 
@@ -94,8 +94,8 @@ func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core
 	logger.Info("FetchEdgeWorkflow started", "season", season.ID.StartYear(), "refreshCurrent", input.RefreshCurrent)
 
 	// Set up progress tracking so parent can query our progress
-	tracker := shared.NewReportTracker(NewFetchEdgeProgressReport(season))
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewFetchEdgeProgressReport(season))
+	if err != nil {
 		return nil, err
 	}
 	tracker.StartGroup(ctx, 0)

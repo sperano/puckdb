@@ -23,8 +23,8 @@ func NewImportSeasonsProgressReport() *shared.ProgressReport {
 func ImportSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
-	tracker := shared.NewReportTracker(NewImportSeasonsProgressReport())
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewImportSeasonsProgressReport())
+	if err != nil {
 		return err
 	}
 

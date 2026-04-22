@@ -42,8 +42,8 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 		"startDate", season.StandingsStart.Format(config.DateFormat),
 		"endDate", season.StandingsEnd.Format(config.DateFormat))
 
-	tracker := shared.NewReportTracker(NewImportSeasonProgressReport(ctx, season))
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewImportSeasonProgressReport(ctx, season))
+	if err != nil {
 		return nil, err
 	}
 

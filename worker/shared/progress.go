@@ -58,6 +58,15 @@ func (t *ReportTracker) RegisterQueryHandler(ctx workflow.Context) error {
 	})
 }
 
+// InitTracker creates a ReportTracker and registers the query handler.
+func InitTracker(ctx workflow.Context, report *ProgressReport) (*ReportTracker, error) {
+	tracker := NewReportTracker(report)
+	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+		return nil, err
+	}
+	return tracker, nil
+}
+
 // Save persists the current ProgressReport to Redis via a local activity.
 // Call at key structural changes (group start, group complete) so the resolver
 // can read progress without querying Temporal.

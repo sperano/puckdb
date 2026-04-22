@@ -43,8 +43,8 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 		"endDate", season.StandingsEnd.Format(config.DateFormat))
 
 	// Set up progress tracking
-	tracker := shared.NewReportTracker(NewFetchSeasonProgressReport(ctx, season))
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewFetchSeasonProgressReport(ctx, season))
+	if err != nil {
 		return nil, err
 	}
 	tracker.StartGroup(ctx, GroupFetchSeasonData)

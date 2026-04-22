@@ -128,8 +128,8 @@ func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*
 		"concurrency", concurrency)
 
 	// Create and save progress tracker
-	tracker := shared.NewReportTracker(NewProcessPlayersProgressReport(len(players)))
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewProcessPlayersProgressReport(len(players)))
+	if err != nil {
 		return nil, err
 	}
 

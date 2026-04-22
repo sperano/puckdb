@@ -52,8 +52,8 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 	logger := workflow.GetLogger(ctx)
 	result := InitializeResult{}
 	// Set up progress tracking
-	tracker := shared.NewReportTracker(NewInitializeProgressReport())
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewInitializeProgressReport())
+	if err != nil {
 		return result, err
 	}
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())

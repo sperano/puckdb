@@ -58,8 +58,8 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 	numBatches := shared.BatchCount(len(playerIDs), playerGameLogBatchSize)
 	dayConcurrency := shared.GetDayConcurrency()
 
-	tracker := shared.NewReportTracker(NewImportSeasonPlayerLogsReport(season, len(playerIDs)))
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewImportSeasonPlayerLogsReport(season, len(playerIDs)))
+	if err != nil {
 		return nil, err
 	}
 	tracker.StartGroup(ctx, GroupImportPlayerLogs)
@@ -71,7 +71,7 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 		"concurrency", dayConcurrency)
 
 	counts := core.OriginCounts{}
-	err := tracker.RunWorkerPoolWithIncrement(ctx, GroupImportPlayerLogs, 0, numBatches, dayConcurrency,
+	err = tracker.RunWorkerPoolWithIncrement(ctx, GroupImportPlayerLogs, 0, numBatches, dayConcurrency,
 		func(i int) int { return len(shared.BatchSlice(playerIDs, i, playerGameLogBatchSize)) },
 		func(_ workflow.Context, i int) workflow.Future {
 			batch := shared.BatchSlice(playerIDs, i, playerGameLogBatchSize)

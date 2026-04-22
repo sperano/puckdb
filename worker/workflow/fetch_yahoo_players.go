@@ -81,8 +81,8 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 		"totalCompleted", totalCompleted)
 
 	// Set up progress tracking with the new ReportTracker
-	tracker := shared.NewReportTracker(NewFetchYahooPlayersProgressReport(maxPlayerID, totalCompleted))
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewFetchYahooPlayersProgressReport(maxPlayerID, totalCompleted))
+	if err != nil {
 		return err
 	}
 	tracker.StartGroup(ctx, GroupFetchYahooPlayers)

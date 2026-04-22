@@ -105,8 +105,8 @@ func iterateSeasons(ctx workflow.Context, input *model.SeasonsInput, progReport 
 	completionMsg CompletionMsgFunc, starter shared.ChildWorkflowStarter) error {
 	logger := workflow.GetLogger(ctx)
 
-	tracker := shared.NewReportTracker(progReport)
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, progReport)
+	if err != nil {
 		return err
 	}
 

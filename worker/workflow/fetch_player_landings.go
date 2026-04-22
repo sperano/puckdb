@@ -77,8 +77,8 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 	}
 
 	// Set up progress tracker
-	tracker := shared.NewReportTracker(NewFetchPlayerLandingsProgressReport(len(players)))
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewFetchPlayerLandingsProgressReport(len(players)))
+	if err != nil {
 		return nil, err
 	}
 	tracker.StartGroup(ctx, GroupFetchPlayerLandings)
@@ -101,7 +101,7 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 	result := &FetchPlayerLandingsResult{TotalPlayers: len(players)}
 
 	// Run batches with concurrency control
-	err := tracker.RunWorkerPoolWithIncrement(ctx, GroupFetchPlayerLandings, 0, numBatches, concurrency,
+	err = tracker.RunWorkerPoolWithIncrement(ctx, GroupFetchPlayerLandings, 0, numBatches, concurrency,
 		func(i int) int { return len(shared.BatchSlice(players, i, batchSize)) },
 		func(_ workflow.Context, batchIndex int) workflow.Future {
 			batch := shared.BatchSlice(players, batchIndex, batchSize)

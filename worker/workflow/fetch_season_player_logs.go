@@ -63,8 +63,8 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 	concurrency := shared.ResolveConfigInt(nil, shared.PlayerLogsConcurrencyParam, nil)
 
 	// Set up ReportTracker
-	tracker := shared.NewReportTracker(NewFetchSeasonPlayerLogsReport(playerCount))
-	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+	tracker, err := shared.InitTracker(ctx, NewFetchSeasonPlayerLogsReport(playerCount))
+	if err != nil {
 		return err
 	}
 	tracker.StartGroup(ctx, GroupFetchSeasonPlayerLogs)
@@ -80,7 +80,7 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 	startYear := season.ID.StartYear()
 	refreshCurrent := input.RefreshCurrent
 
-	err := tracker.RunWorkerPoolWithIncrement(ctx, GroupFetchSeasonPlayerLogs, 0, numBatches, concurrency,
+	err = tracker.RunWorkerPoolWithIncrement(ctx, GroupFetchSeasonPlayerLogs, 0, numBatches, concurrency,
 		func(i int) int { return len(shared.BatchSlice(playerIDs, i, batchSize)) },
 		func(_ workflow.Context, batchIdx int) workflow.Future {
 			batch := shared.BatchSlice(playerIDs, batchIdx, batchSize)
