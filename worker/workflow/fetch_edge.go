@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/graph/model"
 	worknhl "github.com/sperano/puckdb/worker/nhl"
 	"github.com/sperano/puckdb/worker/shared"
@@ -13,9 +14,15 @@ import (
 // MinEdgeStatsSeasonID is the first season with Edge tracking data.
 const MinEdgeStatsSeasonID = 20212022
 
-// countEdgeTeams returns 32 (fixed team count) for progress bar sizing.
-func countEdgeTeams(_ nhl.SeasonInfo) (int, error) {
-	return 32, nil
+// edgeActivitiesPerTeam is the number of per-team activities (team detail + skaters + goalies).
+const edgeActivitiesPerTeam = 3
+
+// edgeTeamCount is the fixed NHL team count.
+const edgeTeamCount = 32
+
+// countEdgeActivities returns 192 (32 teams × 3 activities × 2 game types) for progress bar sizing.
+func countEdgeActivities(_ nhl.SeasonInfo) (int, error) {
+	return edgeTeamCount * edgeActivitiesPerTeam * len(edgeGameTypes), nil
 }
 
 // FetchEdgeSeasonsWorkflow fetches Edge stats for all eligible seasons (>= 2021-2022).
@@ -49,7 +56,7 @@ func FetchEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) e
 
 	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
 		GroupIdx:    0,
-		Counter:     countEdgeTeams,
+		Counter:     countEdgeActivities,
 		ChildIDFunc: WorkflowIDFetchEdge,
 		GroupLabel:  "Fetched Edge stats for",
 		CountLabel:  "endpoints",
@@ -68,36 +75,82 @@ type FetchEdgeWorkflowInput struct {
 	RefreshCurrent bool
 }
 
+// NewFetchEdgeProgressReport creates the progress structure for a single season Edge fetch.
+func NewFetchEdgeProgressReport(season nhl.SeasonInfo) *shared.ProgressReport {
+	total := edgeTeamCount * edgeActivitiesPerTeam * len(edgeGameTypes)
+	return &shared.ProgressReport{
+		Total: total,
+		Groups: []shared.ProgressGroup{
+			{Header: fmt.Sprintf("Fetching Edge %s...", season.Label()), Bars: []shared.ProgressBar{{Total: total}}},
+		},
+	}
+}
+
 // FetchEdgeWorkflow fetches Edge stats for a single season (both game types).
-func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) error {
+// Returns the count of completed activities for progress tracking.
+func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core.OriginCounts, error) {
 	season := input.Season
 	logger := workflow.GetLogger(ctx)
 	logger.Info("FetchEdgeWorkflow started", "season", season.ID.StartYear(), "refreshCurrent", input.RefreshCurrent)
+
+	// Set up progress tracking so parent can query our progress
+	tracker := shared.NewReportTracker(NewFetchEdgeProgressReport(season))
+	if err := tracker.RegisterQueryHandler(ctx); err != nil {
+		return nil, err
+	}
+	tracker.StartGroup(ctx, 0)
 
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	var sa *worknhl.SeasonsActivities
 	startYear := season.ID.StartYear()
+	seasonID := season.ID.ID()
 
+	// Get team list for this season
+	var teams []worknhl.EdgeTeamInfo
+	if err := workflow.ExecuteActivity(ctx, sa.GetEdgeSeasonTeams, seasonID).Get(ctx, &teams); err != nil {
+		return nil, fmt.Errorf("get season teams: %w", err)
+	}
+
+	var activityCount int
 	for _, gameType := range edgeGameTypes {
 		edgeInput := worknhl.FetchEdgeInput{Season: startYear, GameType: int(gameType), RefreshCurrent: input.RefreshCurrent}
 
+		// Fetch league-wide landing pages first
 		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeLandings, edgeInput).Get(ctx, nil); err != nil {
-			return fmt.Errorf("fetch edge landings (gt=%d): %w", gameType, err)
+			return core.OriginCounts{core.OriginRemoteNHLAPI: activityCount}, fmt.Errorf("fetch edge landings (gt=%d): %w", gameType, err)
 		}
-		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeTeams, edgeInput).Get(ctx, nil); err != nil {
-			return fmt.Errorf("fetch edge teams (gt=%d): %w", gameType, err)
+
+		// Fan out per-team activities
+		var futures []workflow.Future
+		for _, team := range teams {
+			teamInput := worknhl.FetchEdgeTeamInput{
+				Season:         startYear,
+				GameType:       int(gameType),
+				TeamID:         team.TeamID,
+				TeamAbbrev:     team.Abbrev,
+				RefreshCurrent: input.RefreshCurrent,
+			}
+			futures = append(futures, workflow.ExecuteActivity(ctx, sa.FetchEdgeTeam, teamInput))
+			futures = append(futures, workflow.ExecuteActivity(ctx, sa.FetchEdgeTeamSkaters, teamInput))
+			futures = append(futures, workflow.ExecuteActivity(ctx, sa.FetchEdgeTeamGoalies, teamInput))
 		}
-		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeSkaters, edgeInput).Get(ctx, nil); err != nil {
-			return fmt.Errorf("fetch edge skaters (gt=%d): %w", gameType, err)
-		}
-		if err := workflow.ExecuteActivity(ctx, sa.FetchEdgeGoalies, edgeInput).Get(ctx, nil); err != nil {
-			return fmt.Errorf("fetch edge goalies (gt=%d): %w", gameType, err)
+
+		// Wait for all team activities to complete
+		for i, f := range futures {
+			if err := f.Get(ctx, nil); err != nil {
+				teamIdx := i / 3
+				activityType := []string{"team", "skaters", "goalies"}[i%3]
+				return core.OriginCounts{core.OriginRemoteNHLAPI: activityCount}, fmt.Errorf("fetch edge %s for %s (gt=%d): %w", activityType, teams[teamIdx].Abbrev, gameType, err)
+			}
+			activityCount++
+			tracker.IncrementBar(ctx, 0, 0)
 		}
 	}
 
-	logger.Info("FetchEdgeWorkflow completed", "season", startYear)
-	return nil
+	tracker.CompleteGroup(ctx, 0, fmt.Sprintf("Fetched Edge %s in %s.", season.Label(), tracker.GetElapsed(ctx, 0)))
+	logger.Info("FetchEdgeWorkflow completed", "season", startYear, "activities", activityCount)
+	return core.OriginCounts{core.OriginRemoteNHLAPI: activityCount}, nil
 }
 
 // WorkflowIDFetchEdge returns the workflow ID for a single season Edge fetch.

@@ -12,29 +12,30 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
+// ImportEdgeTeamInput contains parameters for a single-team Edge import activity.
+type ImportEdgeTeamInput struct {
+	Season     int
+	GameType   int
+	TeamID     int64
+	TeamAbbrev string
+}
+
 // EdgeStatsUpserter defines the interface for importing Edge stats to the database.
 type EdgeStatsUpserter interface {
-	// Skater
+	// Skater (upsert via ON CONFLICT to handle parallel activities for traded players)
 	UpsertEdgeSkaterStats(ctx context.Context, arg sqlcdb.UpsertEdgeSkaterStatsParams) error
-	DeleteEdgeSkaterShotLocations(ctx context.Context, arg sqlcdb.DeleteEdgeSkaterShotLocationsParams) error
 	InsertEdgeSkaterShotLocation(ctx context.Context, arg sqlcdb.InsertEdgeSkaterShotLocationParams) error
-	DeleteEdgeSkaterSogSummary(ctx context.Context, arg sqlcdb.DeleteEdgeSkaterSogSummaryParams) error
 	InsertEdgeSkaterSogSummary(ctx context.Context, arg sqlcdb.InsertEdgeSkaterSogSummaryParams) error
 
-	// Goalie
+	// Goalie (upsert via ON CONFLICT to handle parallel activities for traded goalies)
 	UpsertEdgeGoalieStats(ctx context.Context, arg sqlcdb.UpsertEdgeGoalieStatsParams) error
-	DeleteEdgeGoalieShotLocationSummary(ctx context.Context, arg sqlcdb.DeleteEdgeGoalieShotLocationSummaryParams) error
 	InsertEdgeGoalieShotLocationSummary(ctx context.Context, arg sqlcdb.InsertEdgeGoalieShotLocationSummaryParams) error
-	DeleteEdgeGoalieShotLocations(ctx context.Context, arg sqlcdb.DeleteEdgeGoalieShotLocationsParams) error
 	InsertEdgeGoalieShotLocation(ctx context.Context, arg sqlcdb.InsertEdgeGoalieShotLocationParams) error
 
-	// Team
+	// Team (all upserts for consistency)
 	UpsertEdgeTeamStats(ctx context.Context, arg sqlcdb.UpsertEdgeTeamStatsParams) error
-	DeleteEdgeTeamSogSummary(ctx context.Context, arg sqlcdb.DeleteEdgeTeamSogSummaryParams) error
 	InsertEdgeTeamSogSummary(ctx context.Context, arg sqlcdb.InsertEdgeTeamSogSummaryParams) error
-	DeleteEdgeTeamShotLocations(ctx context.Context, arg sqlcdb.DeleteEdgeTeamShotLocationsParams) error
 	InsertEdgeTeamShotLocation(ctx context.Context, arg sqlcdb.InsertEdgeTeamShotLocationParams) error
-	DeleteEdgeTeamZoneTimeByStrength(ctx context.Context, arg sqlcdb.DeleteEdgeTeamZoneTimeByStrengthParams) error
 	InsertEdgeTeamZoneTimeByStrength(ctx context.Context, arg sqlcdb.InsertEdgeTeamZoneTimeByStrengthParams) error
 	UpsertEdgeTeamShotDifferential(ctx context.Context, arg sqlcdb.UpsertEdgeTeamShotDifferentialParams) error
 
@@ -132,12 +133,7 @@ func importEdgeSkaterDetail(ctx context.Context, queries EdgeStatsUpserter, deta
 		return fmt.Errorf("upsert stats: %w", err)
 	}
 
-	// Delete+insert shot locations
-	if err := queries.DeleteEdgeSkaterShotLocations(ctx, sqlcdb.DeleteEdgeSkaterShotLocationsParams{
-		PlayerID: playerID, Season: season, GameType: gameType,
-	}); err != nil {
-		return fmt.Errorf("delete shot locations: %w", err)
-	}
+	// Upsert shot locations (ON CONFLICT handles race conditions from parallel activities)
 	for _, loc := range detail.SogDetails {
 		if err := queries.InsertEdgeSkaterShotLocation(ctx, sqlcdb.InsertEdgeSkaterShotLocationParams{
 			PlayerID:               playerID,
@@ -151,16 +147,11 @@ func importEdgeSkaterDetail(ctx context.Context, queries EdgeStatsUpserter, deta
 			GoalsPercentile:        pgtype.Float4{},
 			ShootingPctgPercentile: pgtype.Float4{},
 		}); err != nil {
-			return fmt.Errorf("insert shot location %s: %w", loc.Area, err)
+			return fmt.Errorf("upsert shot location %s: %w", loc.Area, err)
 		}
 	}
 
-	// Delete+insert SOG summary
-	if err := queries.DeleteEdgeSkaterSogSummary(ctx, sqlcdb.DeleteEdgeSkaterSogSummaryParams{
-		PlayerID: playerID, Season: season, GameType: gameType,
-	}); err != nil {
-		return fmt.Errorf("delete sog summary: %w", err)
-	}
+	// Upsert SOG summary (ON CONFLICT handles race conditions from parallel activities)
 	for _, sog := range detail.SogSummary {
 		if err := queries.InsertEdgeSkaterSogSummary(ctx, sqlcdb.InsertEdgeSkaterSogSummaryParams{
 			PlayerID:               playerID,
@@ -177,7 +168,7 @@ func importEdgeSkaterDetail(ctx context.Context, queries EdgeStatsUpserter, deta
 			ShootingPctgPercentile: pf32(sog.ShootingPctgPercentile),
 			ShootingPctgLeagueAvg:  pf32(sog.ShootingPctgLeagueAvg),
 		}); err != nil {
-			return fmt.Errorf("insert sog summary %s: %w", sog.LocationCode, err)
+			return fmt.Errorf("upsert sog summary %s: %w", sog.LocationCode, err)
 		}
 	}
 
@@ -260,12 +251,7 @@ func importEdgeGoalieDetail(ctx context.Context, queries EdgeStatsUpserter, deta
 		return fmt.Errorf("upsert stats: %w", err)
 	}
 
-	// Delete+insert shot location summary
-	if err := queries.DeleteEdgeGoalieShotLocationSummary(ctx, sqlcdb.DeleteEdgeGoalieShotLocationSummaryParams{
-		PlayerID: playerID, Season: season, GameType: gameType,
-	}); err != nil {
-		return fmt.Errorf("delete shot location summary: %w", err)
-	}
+	// Upsert shot location summary (ON CONFLICT handles race conditions from parallel activities)
 	for _, loc := range detail.ShotLocationSummary {
 		if err := queries.InsertEdgeGoalieShotLocationSummary(ctx, sqlcdb.InsertEdgeGoalieShotLocationSummaryParams{
 			PlayerID:               playerID,
@@ -282,16 +268,11 @@ func importEdgeGoalieDetail(ctx context.Context, queries EdgeStatsUpserter, deta
 			SavePctgPercentile:     pf32(loc.SavePctgPercentile),
 			SavePctgLeagueAvg:      pf32(loc.SavePctgLeagueAvg),
 		}); err != nil {
-			return fmt.Errorf("insert shot location summary %s: %w", loc.LocationCode, err)
+			return fmt.Errorf("upsert shot location summary %s: %w", loc.LocationCode, err)
 		}
 	}
 
-	// Delete+insert shot locations
-	if err := queries.DeleteEdgeGoalieShotLocations(ctx, sqlcdb.DeleteEdgeGoalieShotLocationsParams{
-		PlayerID: playerID, Season: season, GameType: gameType,
-	}); err != nil {
-		return fmt.Errorf("delete shot locations: %w", err)
-	}
+	// Upsert shot locations (ON CONFLICT handles race conditions from parallel activities)
 	for _, loc := range detail.ShotLocationDetails {
 		if err := queries.InsertEdgeGoalieShotLocation(ctx, sqlcdb.InsertEdgeGoalieShotLocationParams{
 			PlayerID:           playerID,
@@ -303,7 +284,7 @@ func importEdgeGoalieDetail(ctx context.Context, queries EdgeStatsUpserter, deta
 			SavePctg:           pf32(loc.SavePctg),
 			SavePctgPercentile: pf32(loc.SavePctgPercentile),
 		}); err != nil {
-			return fmt.Errorf("insert shot location %s: %w", loc.Area, err)
+			return fmt.Errorf("upsert shot location %s: %w", loc.Area, err)
 		}
 	}
 
@@ -387,12 +368,7 @@ func importEdgeTeamDetail(ctx context.Context, queries EdgeStatsUpserter, detail
 		return fmt.Errorf("upsert stats: %w", err)
 	}
 
-	// Delete+insert SOG summary
-	if err := queries.DeleteEdgeTeamSogSummary(ctx, sqlcdb.DeleteEdgeTeamSogSummaryParams{
-		TeamID: teamID, Season: season, GameType: gameType,
-	}); err != nil {
-		return fmt.Errorf("delete sog summary: %w", err)
-	}
+	// Upsert SOG summary
 	for _, sog := range detail.SogSummary {
 		if err := queries.InsertEdgeTeamSogSummary(ctx, sqlcdb.InsertEdgeTeamSogSummaryParams{
 			TeamID:                teamID,
@@ -409,16 +385,11 @@ func importEdgeTeamDetail(ctx context.Context, queries EdgeStatsUpserter, detail
 			ShootingPctgRank:      pi32(sog.ShootingPctgRank),
 			ShootingPctgLeagueAvg: pf32(sog.ShootingPctgLeagueAvg),
 		}); err != nil {
-			return fmt.Errorf("insert sog summary %s: %w", sog.LocationCode, err)
+			return fmt.Errorf("upsert sog summary %s: %w", sog.LocationCode, err)
 		}
 	}
 
-	// Delete+insert shot locations
-	if err := queries.DeleteEdgeTeamShotLocations(ctx, sqlcdb.DeleteEdgeTeamShotLocationsParams{
-		TeamID: teamID, Season: season, GameType: gameType,
-	}); err != nil {
-		return fmt.Errorf("delete shot locations: %w", err)
-	}
+	// Upsert shot locations
 	for _, loc := range detail.SogDetails {
 		if err := queries.InsertEdgeTeamShotLocation(ctx, sqlcdb.InsertEdgeTeamShotLocationParams{
 			TeamID:    teamID,
@@ -428,7 +399,7 @@ func importEdgeTeamDetail(ctx context.Context, queries EdgeStatsUpserter, detail
 			Shots:     pi32(loc.Shots),
 			ShotsRank: pi32(loc.ShotsRank),
 		}); err != nil {
-			return fmt.Errorf("insert shot location %s: %w", loc.Area, err)
+			return fmt.Errorf("upsert shot location %s: %w", loc.Area, err)
 		}
 	}
 
@@ -479,12 +450,7 @@ func (a *SeasonsActivities) importEdgeTeamZoneTimeDetails(ctx context.Context, q
 }
 
 func importEdgeTeamZoneTime(ctx context.Context, queries EdgeStatsUpserter, detail *nhlapi.EdgeTeamZoneTimeDetails, teamID int64, season int32, gameType sqlcdb.GameType) error {
-	// Delete+insert zone time by strength
-	if err := queries.DeleteEdgeTeamZoneTimeByStrength(ctx, sqlcdb.DeleteEdgeTeamZoneTimeByStrengthParams{
-		TeamID: teamID, Season: season, GameType: gameType,
-	}); err != nil {
-		return fmt.Errorf("delete zone time by strength: %w", err)
-	}
+	// Upsert zone time by strength
 	for _, zt := range detail.ZoneTimeDetails {
 		if err := queries.InsertEdgeTeamZoneTimeByStrength(ctx, sqlcdb.InsertEdgeTeamZoneTimeByStrengthParams{
 			TeamID:       teamID,
@@ -498,7 +464,7 @@ func importEdgeTeamZoneTime(ctx context.Context, queries EdgeStatsUpserter, deta
 			DzPctg:       pf32(zt.DefensiveZonePctg),
 			DzRank:       pi32(zt.DefensiveZoneRank),
 		}); err != nil {
-			return fmt.Errorf("insert zone time by strength %s: %w", zt.StrengthCode, err)
+			return fmt.Errorf("upsert zone time by strength %s: %w", zt.StrengthCode, err)
 		}
 	}
 
@@ -529,4 +495,114 @@ func pf32(v float64) pgtype.Float4 {
 // pi32 creates a valid pgtype.Int4 from an int.
 func pi32(v int) pgtype.Int4 {
 	return pgtype.Int4{Int32: int32(v), Valid: true}
+}
+
+// ===== Per-team import activities (for fine-grained progress tracking) =====
+
+// ImportEdgeTeam imports Edge team stats for a single team (detail + zone time).
+func (a *SeasonsActivities) ImportEdgeTeam(ctx context.Context, input ImportEdgeTeamInput) error {
+	logger := activity.GetLogger(ctx)
+	season := nhlapi.NewSeason(input.Season)
+	gameType := nhlapi.GameType(input.GameType)
+	gtLabel := sqlcdb.GameType(gameType.Label())
+	teamID := nhlapi.TeamID(input.TeamID)
+
+	// Import team detail
+	detailRes := resource.EdgeTeamDetail{TeamID: teamID, Season: season, GameType: gameType}
+	if a.Storage.Exists(detailRes.Path()) {
+		detail, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, detailRes)
+		if err != nil {
+			logger.Warn("Failed to read edge team detail from cache", "team", input.TeamAbbrev, "err", err)
+		} else if err := importEdgeTeamDetail(ctx, a.EdgeQueries, detail, int64(teamID), int32(season.ID()), gtLabel); err != nil {
+			return fmt.Errorf("import edge team %s: %w", input.TeamAbbrev, err)
+		}
+	}
+
+	// Import team zone time details
+	ztRes := resource.EdgeTeamZoneTimeDetails{TeamID: teamID, Season: season, GameType: gameType}
+	if a.Storage.Exists(ztRes.Path()) {
+		detail, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, ztRes)
+		if err != nil {
+			logger.Warn("Failed to read edge team zone time from cache", "team", input.TeamAbbrev, "err", err)
+		} else if err := importEdgeTeamZoneTime(ctx, a.EdgeQueries, detail, int64(teamID), int32(season.ID()), gtLabel); err != nil {
+			return fmt.Errorf("import edge team zone time %s: %w", input.TeamAbbrev, err)
+		}
+	}
+
+	return nil
+}
+
+// ImportEdgeTeamSkaters imports Edge skater stats for a single team's roster.
+func (a *SeasonsActivities) ImportEdgeTeamSkaters(ctx context.Context, input ImportEdgeTeamInput) error {
+	logger := activity.GetLogger(ctx)
+	season := nhlapi.NewSeason(input.Season)
+	gameType := nhlapi.GameType(input.GameType)
+	gtLabel := sqlcdb.GameType(gameType.Label())
+
+	roster, err := a.loadSeasonRoster(ctx, input.TeamAbbrev, season)
+	if err != nil {
+		logger.Debug("No roster found for team", "team", input.TeamAbbrev, "season", input.Season)
+		return nil // No roster = nothing to import
+	}
+
+	var imported int
+	skaters := append(roster.Forwards, roster.Defensemen...)
+	for _, player := range skaters {
+		playerID := player.ID
+		detailRes := resource.EdgeSkaterDetail{PlayerID: playerID, Season: season, GameType: gameType}
+		if !a.Storage.Exists(detailRes.Path()) {
+			continue
+		}
+
+		detail, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, detailRes)
+		if err != nil {
+			logger.Warn("Failed to read edge skater detail from cache", "player", playerID, "err", err)
+			continue
+		}
+
+		if err := importEdgeSkaterDetail(ctx, a.EdgeQueries, detail, int64(playerID), int32(season.ID()), gtLabel); err != nil {
+			return fmt.Errorf("import edge skater %d: %w", playerID, err)
+		}
+		imported++
+	}
+
+	logger.Debug("Imported edge skaters for team", "team", input.TeamAbbrev, "count", imported)
+	return nil
+}
+
+// ImportEdgeTeamGoalies imports Edge goalie stats for a single team's roster.
+func (a *SeasonsActivities) ImportEdgeTeamGoalies(ctx context.Context, input ImportEdgeTeamInput) error {
+	logger := activity.GetLogger(ctx)
+	season := nhlapi.NewSeason(input.Season)
+	gameType := nhlapi.GameType(input.GameType)
+	gtLabel := sqlcdb.GameType(gameType.Label())
+
+	roster, err := a.loadSeasonRoster(ctx, input.TeamAbbrev, season)
+	if err != nil {
+		logger.Debug("No roster found for team", "team", input.TeamAbbrev, "season", input.Season)
+		return nil // No roster = nothing to import
+	}
+
+	var imported int
+	for _, goalie := range roster.Goalies {
+		goalieID := goalie.ID
+		detailRes := resource.EdgeGoalieDetail{GoalieID: goalieID, Season: season, GameType: gameType}
+		if !a.Storage.Exists(detailRes.Path()) {
+			continue
+		}
+
+		detail, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, detailRes)
+		if err != nil {
+			logger.Warn("Failed to read edge goalie detail from cache", "goalie", goalieID, "err", err)
+			continue
+		}
+
+		if err := importEdgeGoalieDetail(ctx, a.EdgeQueries, detail, int64(goalieID), int32(season.ID()), gtLabel); err != nil {
+			return fmt.Errorf("import edge goalie %d: %w", goalieID, err)
+		}
+		imported++
+	}
+
+	logger.Debug("Imported edge goalies for team", "team", input.TeamAbbrev, "count", imported)
+	return nil
 }

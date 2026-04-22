@@ -318,6 +318,13 @@ INSERT INTO edge_skater_shot_locations (
     sog, goals, shooting_pctg, sog_percentile, goals_percentile, shooting_pctg_percentile
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+ON CONFLICT (player_id, season, game_type, area) DO UPDATE SET
+    sog = EXCLUDED.sog,
+    goals = EXCLUDED.goals,
+    shooting_pctg = EXCLUDED.shooting_pctg,
+    sog_percentile = EXCLUDED.sog_percentile,
+    goals_percentile = EXCLUDED.goals_percentile,
+    shooting_pctg_percentile = EXCLUDED.shooting_pctg_percentile
 `
 
 type InsertEdgeSkaterShotLocationParams struct {
@@ -357,6 +364,16 @@ INSERT INTO edge_skater_sog_summary (
     shooting_pctg, shooting_pctg_percentile, shooting_pctg_league_avg
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+ON CONFLICT (player_id, season, game_type, location_code) DO UPDATE SET
+    shots = EXCLUDED.shots,
+    shots_percentile = EXCLUDED.shots_percentile,
+    shots_league_avg = EXCLUDED.shots_league_avg,
+    goals = EXCLUDED.goals,
+    goals_percentile = EXCLUDED.goals_percentile,
+    goals_league_avg = EXCLUDED.goals_league_avg,
+    shooting_pctg = EXCLUDED.shooting_pctg,
+    shooting_pctg_percentile = EXCLUDED.shooting_pctg_percentile,
+    shooting_pctg_league_avg = EXCLUDED.shooting_pctg_league_avg
 `
 
 type InsertEdgeSkaterSogSummaryParams struct {

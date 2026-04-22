@@ -65,10 +65,6 @@ WHERE (edge_team_stats.shot_attempts_over_90, edge_team_stats.shot_attempts_over
        EXCLUDED.nz_pctg, EXCLUDED.nz_rank,
        EXCLUDED.dz_pctg, EXCLUDED.dz_rank);
 
--- name: DeleteEdgeTeamSogSummary :exec
-DELETE FROM edge_team_sog_summary
-WHERE team_id = $1 AND season = $2 AND game_type = $3;
-
 -- name: InsertEdgeTeamSogSummary :exec
 INSERT INTO edge_team_sog_summary (
     team_id, season, game_type, location_code,
@@ -76,33 +72,41 @@ INSERT INTO edge_team_sog_summary (
     goals, goals_rank, goals_league_avg,
     shooting_pctg, shooting_pctg_rank, shooting_pctg_league_avg
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
-
--- name: DeleteEdgeTeamShotLocations :exec
-DELETE FROM edge_team_shot_locations
-WHERE team_id = $1 AND season = $2 AND game_type = $3;
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+ON CONFLICT (team_id, season, game_type, location_code) DO UPDATE SET
+    shots = EXCLUDED.shots,
+    shots_rank = EXCLUDED.shots_rank,
+    shots_league_avg = EXCLUDED.shots_league_avg,
+    goals = EXCLUDED.goals,
+    goals_rank = EXCLUDED.goals_rank,
+    goals_league_avg = EXCLUDED.goals_league_avg,
+    shooting_pctg = EXCLUDED.shooting_pctg,
+    shooting_pctg_rank = EXCLUDED.shooting_pctg_rank,
+    shooting_pctg_league_avg = EXCLUDED.shooting_pctg_league_avg;
 
 -- name: InsertEdgeTeamShotLocation :exec
 INSERT INTO edge_team_shot_locations (
     team_id, season, game_type, area,
     shots, shots_rank
 )
-VALUES ($1, $2, $3, $4, $5, $6);
-
--- name: DeleteEdgeTeamZoneTimeByStrength :exec
-DELETE FROM edge_team_zone_time_by_strength
-WHERE team_id = $1 AND season = $2 AND game_type = $3;
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (team_id, season, game_type, area) DO UPDATE SET
+    shots = EXCLUDED.shots,
+    shots_rank = EXCLUDED.shots_rank;
 
 -- name: InsertEdgeTeamZoneTimeByStrength :exec
 INSERT INTO edge_team_zone_time_by_strength (
     team_id, season, game_type, strength_code,
     oz_pctg, oz_rank, nz_pctg, nz_rank, dz_pctg, dz_rank
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
-
--- name: DeleteEdgeTeamShotDifferential :exec
-DELETE FROM edge_team_shot_differential
-WHERE team_id = $1 AND season = $2 AND game_type = $3;
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+ON CONFLICT (team_id, season, game_type, strength_code) DO UPDATE SET
+    oz_pctg = EXCLUDED.oz_pctg,
+    oz_rank = EXCLUDED.oz_rank,
+    nz_pctg = EXCLUDED.nz_pctg,
+    nz_rank = EXCLUDED.nz_rank,
+    dz_pctg = EXCLUDED.dz_pctg,
+    dz_rank = EXCLUDED.dz_rank;
 
 -- name: UpsertEdgeTeamShotDifferential :exec
 INSERT INTO edge_team_shot_differential (

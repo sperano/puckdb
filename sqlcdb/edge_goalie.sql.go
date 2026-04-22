@@ -271,6 +271,11 @@ INSERT INTO edge_goalie_shot_locations (
     saves, saves_percentile, save_pctg, save_pctg_percentile
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (player_id, season, game_type, area) DO UPDATE SET
+    saves = EXCLUDED.saves,
+    saves_percentile = EXCLUDED.saves_percentile,
+    save_pctg = EXCLUDED.save_pctg,
+    save_pctg_percentile = EXCLUDED.save_pctg_percentile
 `
 
 type InsertEdgeGoalieShotLocationParams struct {
@@ -306,6 +311,16 @@ INSERT INTO edge_goalie_shot_location_summary (
     save_pctg, save_pctg_percentile, save_pctg_league_avg
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+ON CONFLICT (player_id, season, game_type, location_code) DO UPDATE SET
+    goals_against = EXCLUDED.goals_against,
+    goals_against_percentile = EXCLUDED.goals_against_percentile,
+    goals_against_league_avg = EXCLUDED.goals_against_league_avg,
+    saves = EXCLUDED.saves,
+    saves_percentile = EXCLUDED.saves_percentile,
+    saves_league_avg = EXCLUDED.saves_league_avg,
+    save_pctg = EXCLUDED.save_pctg,
+    save_pctg_percentile = EXCLUDED.save_pctg_percentile,
+    save_pctg_league_avg = EXCLUDED.save_pctg_league_avg
 `
 
 type InsertEdgeGoalieShotLocationSummaryParams struct {

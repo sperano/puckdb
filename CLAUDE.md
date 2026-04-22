@@ -95,6 +95,58 @@ Defined in `worker/admin/`:
 
 Task queue: `puckdb-tasks`
 
+### Progress Tracking Pattern for Child Workflows
+
+When a parent workflow spawns child workflows and displays per-child progress bars, each **child workflow must have its own tracker** so the parent can query it for progress. Without this, progress bars stay at 0.
+
+**Pattern:**
+
+```go
+// 1. Create a progress report with Total matching the bar size
+func NewFetchEdgeProgressReport(season nhl.SeasonInfo) *shared.ProgressReport {
+    total := 192 // must match what parent's Counter function returns
+    return &shared.ProgressReport{
+        Total: total,
+        Groups: []shared.ProgressGroup{
+            {Header: fmt.Sprintf("Fetching Edge %s...", season.Label()),
+             Bars: []shared.ProgressBar{{Total: total}}},
+        },
+    }
+}
+
+func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core.OriginCounts, error) {
+    // 2. Create tracker and register query handler (makes progress queryable)
+    tracker := shared.NewReportTracker(NewFetchEdgeProgressReport(input.Season))
+    if err := tracker.RegisterQueryHandler(ctx); err != nil {
+        return nil, err
+    }
+    tracker.StartGroup(ctx, 0)
+
+    // 3. Run activities, incrementing progress as each completes
+    for _, f := range futures {
+        if err := f.Get(ctx, nil); err != nil {
+            return counts, err
+        }
+        tracker.IncrementBar(ctx, 0, 0) // groupIdx=0, barIdx=0
+    }
+
+    // 4. Mark complete when done
+    tracker.CompleteGroup(ctx, 0, fmt.Sprintf("Done in %s.", tracker.GetElapsed(ctx, 0)))
+    return counts, nil
+}
+```
+
+**Key points:**
+- Parent uses `ChildIDFunc` to set `bar.ChildWorkflowID = "fetch-edge-2024"`
+- Parent's progress display queries child workflows by their workflow IDs
+- If child has no tracker/query handler registered, query returns empty → bar stays at 0
+- Child's progress report Total must match parent's `Counter` function return value
+- Return `core.OriginCounts` for aggregation in parent (separate from progress tracking)
+
+**Reference implementations:**
+- `FetchSeasonWorkflow` — uses `RunWorkerPool` for automatic tracking
+- `FetchEdgeWorkflow` — uses manual `IncrementBar` calls
+
 ## External Services
 
 | Service | Port | Details |

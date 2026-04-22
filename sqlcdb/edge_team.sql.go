@@ -22,70 +22,6 @@ func (q *Queries) CountEdgeTeamStats(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-const deleteEdgeTeamShotDifferential = `-- name: DeleteEdgeTeamShotDifferential :exec
-DELETE FROM edge_team_shot_differential
-WHERE team_id = $1 AND season = $2 AND game_type = $3
-`
-
-type DeleteEdgeTeamShotDifferentialParams struct {
-	TeamID   int64    `json:"team_id"`
-	Season   int32    `json:"season"`
-	GameType GameType `json:"game_type"`
-}
-
-func (q *Queries) DeleteEdgeTeamShotDifferential(ctx context.Context, arg DeleteEdgeTeamShotDifferentialParams) error {
-	_, err := q.db.Exec(ctx, deleteEdgeTeamShotDifferential, arg.TeamID, arg.Season, arg.GameType)
-	return err
-}
-
-const deleteEdgeTeamShotLocations = `-- name: DeleteEdgeTeamShotLocations :exec
-DELETE FROM edge_team_shot_locations
-WHERE team_id = $1 AND season = $2 AND game_type = $3
-`
-
-type DeleteEdgeTeamShotLocationsParams struct {
-	TeamID   int64    `json:"team_id"`
-	Season   int32    `json:"season"`
-	GameType GameType `json:"game_type"`
-}
-
-func (q *Queries) DeleteEdgeTeamShotLocations(ctx context.Context, arg DeleteEdgeTeamShotLocationsParams) error {
-	_, err := q.db.Exec(ctx, deleteEdgeTeamShotLocations, arg.TeamID, arg.Season, arg.GameType)
-	return err
-}
-
-const deleteEdgeTeamSogSummary = `-- name: DeleteEdgeTeamSogSummary :exec
-DELETE FROM edge_team_sog_summary
-WHERE team_id = $1 AND season = $2 AND game_type = $3
-`
-
-type DeleteEdgeTeamSogSummaryParams struct {
-	TeamID   int64    `json:"team_id"`
-	Season   int32    `json:"season"`
-	GameType GameType `json:"game_type"`
-}
-
-func (q *Queries) DeleteEdgeTeamSogSummary(ctx context.Context, arg DeleteEdgeTeamSogSummaryParams) error {
-	_, err := q.db.Exec(ctx, deleteEdgeTeamSogSummary, arg.TeamID, arg.Season, arg.GameType)
-	return err
-}
-
-const deleteEdgeTeamZoneTimeByStrength = `-- name: DeleteEdgeTeamZoneTimeByStrength :exec
-DELETE FROM edge_team_zone_time_by_strength
-WHERE team_id = $1 AND season = $2 AND game_type = $3
-`
-
-type DeleteEdgeTeamZoneTimeByStrengthParams struct {
-	TeamID   int64    `json:"team_id"`
-	Season   int32    `json:"season"`
-	GameType GameType `json:"game_type"`
-}
-
-func (q *Queries) DeleteEdgeTeamZoneTimeByStrength(ctx context.Context, arg DeleteEdgeTeamZoneTimeByStrengthParams) error {
-	_, err := q.db.Exec(ctx, deleteEdgeTeamZoneTimeByStrength, arg.TeamID, arg.Season, arg.GameType)
-	return err
-}
-
 const getEdgeTeamShotDifferential = `-- name: GetEdgeTeamShotDifferential :one
 SELECT team_id, season, game_type, shot_attempt_differential, shot_attempt_differential_rank, sog_differential, sog_differential_rank, created_at, updated_at FROM edge_team_shot_differential
 WHERE team_id = $1 AND season = $2 AND game_type = $3
@@ -404,6 +340,9 @@ INSERT INTO edge_team_shot_locations (
     shots, shots_rank
 )
 VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (team_id, season, game_type, area) DO UPDATE SET
+    shots = EXCLUDED.shots,
+    shots_rank = EXCLUDED.shots_rank
 `
 
 type InsertEdgeTeamShotLocationParams struct {
@@ -435,6 +374,16 @@ INSERT INTO edge_team_sog_summary (
     shooting_pctg, shooting_pctg_rank, shooting_pctg_league_avg
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+ON CONFLICT (team_id, season, game_type, location_code) DO UPDATE SET
+    shots = EXCLUDED.shots,
+    shots_rank = EXCLUDED.shots_rank,
+    shots_league_avg = EXCLUDED.shots_league_avg,
+    goals = EXCLUDED.goals,
+    goals_rank = EXCLUDED.goals_rank,
+    goals_league_avg = EXCLUDED.goals_league_avg,
+    shooting_pctg = EXCLUDED.shooting_pctg,
+    shooting_pctg_rank = EXCLUDED.shooting_pctg_rank,
+    shooting_pctg_league_avg = EXCLUDED.shooting_pctg_league_avg
 `
 
 type InsertEdgeTeamSogSummaryParams struct {
@@ -478,6 +427,13 @@ INSERT INTO edge_team_zone_time_by_strength (
     oz_pctg, oz_rank, nz_pctg, nz_rank, dz_pctg, dz_rank
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+ON CONFLICT (team_id, season, game_type, strength_code) DO UPDATE SET
+    oz_pctg = EXCLUDED.oz_pctg,
+    oz_rank = EXCLUDED.oz_rank,
+    nz_pctg = EXCLUDED.nz_pctg,
+    nz_rank = EXCLUDED.nz_rank,
+    dz_pctg = EXCLUDED.dz_pctg,
+    dz_rank = EXCLUDED.dz_rank
 `
 
 type InsertEdgeTeamZoneTimeByStrengthParams struct {

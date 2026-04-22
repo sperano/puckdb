@@ -164,13 +164,17 @@ func cmdWorker() *cobra.Command {
 			w.RegisterActivity(seasonsActivities.ImportSeasonRosters)
 			w.RegisterActivity(seasonsActivities.ImportClubStats)
 			w.RegisterActivity(seasonsActivities.FetchEdgeLandings)
-			w.RegisterActivity(seasonsActivities.FetchEdgeSkaters)
-			w.RegisterActivity(seasonsActivities.FetchEdgeGoalies)
-			w.RegisterActivity(seasonsActivities.FetchEdgeTeams)
+			w.RegisterActivity(seasonsActivities.GetEdgeSeasonTeams)
+			w.RegisterActivity(seasonsActivities.FetchEdgeTeam)
+			w.RegisterActivity(seasonsActivities.FetchEdgeTeamSkaters)
+			w.RegisterActivity(seasonsActivities.FetchEdgeTeamGoalies)
 			w.RegisterActivity(seasonsActivities.ImportEdgeSkaters)
 			w.RegisterActivity(seasonsActivities.ImportEdgeGoalies)
 			w.RegisterActivity(seasonsActivities.ImportEdgeTeams)
 			w.RegisterActivity(seasonsActivities.ImportEdgeTeamZoneTimeDetails)
+			w.RegisterActivity(seasonsActivities.ImportEdgeTeam)
+			w.RegisterActivity(seasonsActivities.ImportEdgeTeamSkaters)
+			w.RegisterActivity(seasonsActivities.ImportEdgeTeamGoalies)
 
 			importYahooActivities := &yahoo.ImportActivities{
 				Storage:  storage,
