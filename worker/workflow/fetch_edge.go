@@ -21,7 +21,7 @@ const edgeActivitiesPerTeam = 3
 const edgeTeamCount = 32
 
 // countEdgeActivities returns 192 (32 teams × 3 activities × 2 game types) for progress bar sizing.
-func countEdgeActivities(_ nhl.SeasonInfo) (int, error) {
+func countEdgeActivities(_ workflow.Context, _ nhl.SeasonInfo) (int, error) {
 	return edgeTeamCount * edgeActivitiesPerTeam * len(edgeGameTypes), nil
 }
 

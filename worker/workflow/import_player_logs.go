@@ -77,7 +77,7 @@ func ImportPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) e
 // playerCounter returns a shared.SeasonCounterFunc that returns the player count
 // for each season from pre-fetched counts.
 func playerCounter(playerCounts map[int]int) shared.SeasonCounterFunc {
-	return func(season nhl.SeasonInfo) (int, error) {
+	return func(_ workflow.Context, season nhl.SeasonInfo) (int, error) {
 		return playerCounts[season.ID.StartYear()], nil
 	}
 }

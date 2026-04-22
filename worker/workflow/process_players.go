@@ -108,15 +108,7 @@ func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*
 	batchSize := shared.ResolveConfigInt(nil, shared.ProcessPlayersBatchSizeParam, batchOverride)
 	concurrency := shared.ResolveConfigInt(logger, shared.ProcessPlayersConcurrencyParam, concurrencyOverride)
 
-	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 5 * time.Minute,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    time.Second,
-			MaximumInterval:    time.Minute,
-			BackoffCoefficient: 2.0,
-			MaximumAttempts:    3,
-		},
-	})
+	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// Load players from Redis (previously extracted by ExtractBoxscorePlayersWorkflow)
 	var playerAct *workplayer.Activities
@@ -381,15 +373,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 
 	logger.Info("ProcessPlayersWorkflow Phase 3: verifying unmatched players")
 
-	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 10 * time.Minute,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    time.Second,
-			MaximumInterval:    time.Minute,
-			BackoffCoefficient: 2.0,
-			MaximumAttempts:    3,
-		},
-	})
+	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// Load unmatched players
 	var playerAct *workplayer.Activities

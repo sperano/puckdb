@@ -33,7 +33,8 @@ type BoxscoreExtractionResult struct {
 
 // ExtractAndSaveInput contains parameters for the ExtractAndSaveBoxscorePlayers activity.
 type ExtractAndSaveInput struct {
-	Season nhlapi.SeasonInfo
+	Season  nhlapi.SeasonInfo
+	EndDate time.Time // Pre-computed by workflow using workflow.Now() for determinism
 }
 
 // workflowIDExtractSeason returns the workflow ID for a single season extraction.
@@ -42,12 +43,19 @@ func workflowIDExtractSeason(startYear int) string {
 	return fmt.Sprintf("extract-season-%d", startYear)
 }
 
+// ExtractBoxscoreInput contains parameters for the ExtractBoxscoreDataForSeason activity.
+type ExtractBoxscoreInput struct {
+	Season  nhlapi.SeasonInfo
+	EndDate time.Time // Pre-computed by workflow using workflow.Now() for determinism
+}
+
 // ExtractBoxscoreDataForSeason extracts player info from all boxscores for a season.
-func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, season nhlapi.SeasonInfo) (BoxscoreExtractionResult, error) {
+func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, input ExtractBoxscoreInput) (BoxscoreExtractionResult, error) {
 	players := make(map[int64]store.BoxscorePlayer)
 	origins := make(core.OriginCounts)
 
-	end := shared.EffectiveEndDate(season.StandingsEnd.Time)
+	season := input.Season
+	end := input.EndDate
 	totalDays := core.CountDays(season.StandingsStart.Time, end)
 
 	dayCount := 0
@@ -119,7 +127,10 @@ func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, s
 
 // ExtractAndSaveBoxscorePlayers extracts players from boxscores for a season and saves them to Redis.
 func (a *BoxscoreActivities) ExtractAndSaveBoxscorePlayers(ctx context.Context, input ExtractAndSaveInput) (core.OriginCounts, error) {
-	result, err := a.ExtractBoxscoreDataForSeason(ctx, input.Season)
+	result, err := a.ExtractBoxscoreDataForSeason(ctx, ExtractBoxscoreInput{
+		Season:  input.Season,
+		EndDate: input.EndDate,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("extract boxscore data: %w", err)
 	}

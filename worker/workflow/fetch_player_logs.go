@@ -34,7 +34,7 @@ func FetchPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) er
 	var playerAct *workplayer.Activities
 	refreshCurrent := input != nil && input.RefreshCurrentPlayerLogs != nil && *input.RefreshCurrentPlayerLogs
 	return iterateSeasons(ctx, input, NewFetchPlayerLogsProgressReport(), GroupFetchPlayerLogs,
-		func(season nhl.SeasonInfo) (int, error) {
+		func(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
 			var players []store.BoxscorePlayer
 			if err := workflow.ExecuteActivity(ctx, playerAct.LoadSeasonBoxscorePlayers, season.ID.StartYear()).Get(ctx, &players); err != nil {
 				return 0, err

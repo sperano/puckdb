@@ -56,8 +56,9 @@ func FetchDayActivityOptions() workflow.ActivityOptions {
 // EffectiveEndDate returns the end date or yesterday, whichever is earlier.
 // We stop at yesterday to ensure all games on the date are final before processing.
 // Games in progress at fetch time would be skipped and permanently missed from the database.
-func EffectiveEndDate(end time.Time) time.Time {
-	yesterday := time.Now().AddDate(0, 0, -1)
+// Uses workflow.Now(ctx) to ensure determinism on workflow replay.
+func EffectiveEndDate(ctx workflow.Context, end time.Time) time.Time {
+	yesterday := workflow.Now(ctx).AddDate(0, 0, -1)
 	if end.After(yesterday) {
 		return yesterday
 	}
@@ -65,8 +66,9 @@ func EffectiveEndDate(end time.Time) time.Time {
 }
 
 // CountDaysInSeason returns the number of days from season start to min(season end, today).
-func CountDaysInSeason(season nhl.SeasonInfo) (int, error) {
-	return core.CountDays(season.StandingsStart.Time, EffectiveEndDate(season.StandingsEnd.Time)), nil
+// Uses workflow.Now(ctx) to ensure determinism on workflow replay.
+func CountDaysInSeason(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
+	return core.CountDays(season.StandingsStart.Time, EffectiveEndDate(ctx, season.StandingsEnd.Time)), nil
 }
 
 // PlayoffProgressSteps is the number of extra progress steps for playoff processing.
@@ -75,8 +77,9 @@ const PlayoffProgressSteps = 1
 // CountDaysWithPlayoffs returns CountDaysInSeason + 1 for the playoff processing step.
 // Used by parent workflows (FetchSeasons, ImportSeasons) so the parent bar total
 // accounts for both regular-season days and the playoff activity.
-func CountDaysWithPlayoffs(season nhl.SeasonInfo) (int, error) {
-	days, err := CountDaysInSeason(season)
+// Uses workflow.Now(ctx) to ensure determinism on workflow replay.
+func CountDaysWithPlayoffs(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
+	days, err := CountDaysInSeason(ctx, season)
 	return days + PlayoffProgressSteps, err
 }
 

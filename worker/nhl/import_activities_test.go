@@ -1015,12 +1015,16 @@ func (s *CollectSeasonPlayerIDsSuite) TestEmptyDateRange_ReturnsEmpty() {
 	s.env.RegisterActivity(act.CollectSeasonPlayerIDs)
 
 	// End before start — no iteration.
-	season := nhlapi.SeasonInfo{
-		ID:             nhlapi.NewSeason(2023),
-		StandingsStart: nhlapi.DateFromTime(time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)),
-		StandingsEnd:   nhlapi.DateFromTime(time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC)),
+	endDate := time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC)
+	input := CollectSeasonPlayerIDsInput{
+		Season: nhlapi.SeasonInfo{
+			ID:             nhlapi.NewSeason(2023),
+			StandingsStart: nhlapi.DateFromTime(time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)),
+			StandingsEnd:   nhlapi.DateFromTime(endDate),
+		},
+		EndDate: endDate,
 	}
-	future, err := s.env.ExecuteActivity(act.CollectSeasonPlayerIDs, season)
+	future, err := s.env.ExecuteActivity(act.CollectSeasonPlayerIDs, input)
 	s.Require().NoError(err)
 
 	var ids []int64
@@ -1041,12 +1045,15 @@ func (s *CollectSeasonPlayerIDsSuite) TestSingleDayWithPlayers_CollectsIDs() {
 	act := &ImportActivities{Storage: mem, GobCache: newImportTestGobCache()}
 	s.env.RegisterActivity(act.CollectSeasonPlayerIDs)
 
-	season := nhlapi.SeasonInfo{
-		ID:             nhlapi.NewSeason(2023),
-		StandingsStart: nhlapi.DateFromTime(day),
-		StandingsEnd:   nhlapi.DateFromTime(day),
+	input := CollectSeasonPlayerIDsInput{
+		Season: nhlapi.SeasonInfo{
+			ID:             nhlapi.NewSeason(2023),
+			StandingsStart: nhlapi.DateFromTime(day),
+			StandingsEnd:   nhlapi.DateFromTime(day),
+		},
+		EndDate: day,
 	}
-	future, err := s.env.ExecuteActivity(act.CollectSeasonPlayerIDs, season)
+	future, err := s.env.ExecuteActivity(act.CollectSeasonPlayerIDs, input)
 	s.Require().NoError(err)
 
 	var ids []int64

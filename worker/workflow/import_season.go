@@ -19,8 +19,8 @@ const (
 )
 
 // NewImportSeasonProgressReport creates the progress structure for a single season import.
-func NewImportSeasonProgressReport(season nhl.SeasonInfo) *shared.ProgressReport {
-	days, _ := shared.CountDaysInSeason(season)
+func NewImportSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) *shared.ProgressReport {
+	days, _ := shared.CountDaysInSeason(ctx, season)
 	total := days + shared.PlayoffProgressSteps
 	return &shared.ProgressReport{
 		Total: total,
@@ -42,7 +42,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 		"startDate", season.StandingsStart.Format(config.DateFormat),
 		"endDate", season.StandingsEnd.Format(config.DateFormat))
 
-	tracker := shared.NewReportTracker(NewImportSeasonProgressReport(season))
+	tracker := shared.NewReportTracker(NewImportSeasonProgressReport(ctx, season))
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	// --- Import days ---
 	tracker.StartGroup(ctx, GroupImportDays)
 
-	endDate := shared.EffectiveEndDate(season.StandingsEnd.Time)
+	endDate := shared.EffectiveEndDate(ctx, season.StandingsEnd.Time)
 	numDays := core.CountDays(season.StandingsStart.Time, endDate)
 	dayConcurrency := shared.GetDayConcurrency()
 	startDate := season.StandingsStart.Time

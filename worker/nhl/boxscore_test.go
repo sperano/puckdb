@@ -193,6 +193,15 @@ func seedBoxscoreDay(t *testing.T, mem *store.MemStorage, day time.Time, gameID 
 	require.NoError(t, mem.Write(resource.Boxscore{Date: day, GameID: gameID}.Path(), boxscoreData))
 }
 
+// testExtractInput creates an ExtractBoxscoreInput from a season for testing.
+// In production, EndDate is computed by the workflow using workflow.Now().
+func testExtractInput(season nhlapi.SeasonInfo) ExtractBoxscoreInput {
+	return ExtractBoxscoreInput{
+		Season:  season,
+		EndDate: season.StandingsEnd.Time,
+	}
+}
+
 func (s *ExtractBoxscoreTestSuite) TestEmptySeason() {
 	mem := store.NewMemStorage()
 	gobCache, _ := newPermissiveGobCache()
@@ -204,7 +213,7 @@ func (s *ExtractBoxscoreTestSuite) TestEmptySeason() {
 		time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC),
 	)
 
-	future, err := s.env.ExecuteActivity(act.ExtractBoxscoreDataForSeason, season)
+	future, err := s.env.ExecuteActivity(act.ExtractBoxscoreDataForSeason, testExtractInput(season))
 	s.Require().NoError(err)
 
 	var result BoxscoreExtractionResult
@@ -226,7 +235,7 @@ func (s *ExtractBoxscoreTestSuite) TestSingleDay() {
 		{PlayerID: nhlapi.PlayerID(2), Name: nhlapi.LocalizedString{Default: "Leon Draisaitl"}, Position: "C"},
 	})
 
-	future, err := s.env.ExecuteActivity(act.ExtractBoxscoreDataForSeason, season)
+	future, err := s.env.ExecuteActivity(act.ExtractBoxscoreDataForSeason, testExtractInput(season))
 	s.Require().NoError(err)
 
 	var result BoxscoreExtractionResult
@@ -253,7 +262,7 @@ func (s *ExtractBoxscoreTestSuite) TestDeduplication() {
 		seedBoxscoreDay(s.T(), mem, t, nhlapi.GameID(2024020000+day), mcDavid)
 	}
 
-	future, err := s.env.ExecuteActivity(act.ExtractBoxscoreDataForSeason, season)
+	future, err := s.env.ExecuteActivity(act.ExtractBoxscoreDataForSeason, testExtractInput(season))
 	s.Require().NoError(err)
 
 	var result BoxscoreExtractionResult
@@ -262,7 +271,7 @@ func (s *ExtractBoxscoreTestSuite) TestDeduplication() {
 	s.Equal(int64(1), result.Players[0].ID)
 }
 
-func (s *ExtractBoxscoreTestSuite) TestFutureEndDate() {
+func (s *ExtractBoxscoreTestSuite) TestFutureEndDate_WorkflowCapsToYesterday() {
 	mem := store.NewMemStorage()
 	gobCache, _ := newPermissiveGobCache()
 	act := &BoxscoreActivities{Storage: mem, GobCache: gobCache}
@@ -274,7 +283,14 @@ func (s *ExtractBoxscoreTestSuite) TestFutureEndDate() {
 
 	season := testSeason(yesterday, futureDate)
 
-	future, err := s.env.ExecuteActivity(act.ExtractBoxscoreDataForSeason, season)
+	// Workflow pre-computes EndDate using shared.EffectiveEndDate(ctx, season.StandingsEnd),
+	// which caps future dates to yesterday. Test that the activity works with this capped date.
+	input := ExtractBoxscoreInput{
+		Season:  season,
+		EndDate: yesterday, // Simulates workflow.Now().AddDate(0, 0, -1)
+	}
+
+	future, err := s.env.ExecuteActivity(act.ExtractBoxscoreDataForSeason, input)
 	s.Require().NoError(err)
 
 	var result BoxscoreExtractionResult

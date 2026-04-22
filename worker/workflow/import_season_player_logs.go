@@ -39,10 +39,14 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
-	// Load player IDs from Redis
+	// Load player IDs from boxscores
 	var ia *worknhl.ImportActivities
 	var playerIDs []int64
-	if err := workflow.ExecuteActivity(ctx, ia.CollectSeasonPlayerIDs, season).Get(ctx, &playerIDs); err != nil {
+	collectInput := worknhl.CollectSeasonPlayerIDsInput{
+		Season:  season,
+		EndDate: shared.EffectiveEndDate(ctx, season.StandingsEnd.Time),
+	}
+	if err := workflow.ExecuteActivity(ctx, ia.CollectSeasonPlayerIDs, collectInput).Get(ctx, &playerIDs); err != nil {
 		return nil, fmt.Errorf("collect player IDs: %w", err)
 	}
 

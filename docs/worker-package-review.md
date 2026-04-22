@@ -1,0 +1,312 @@
+# Worker Package Code Review
+
+**Date:** 2026-04-22
+**Scope:** `worker/` package - workflows, activities, shared helpers
+**Reviewers:** Multi-agent analysis (code duplication, consistency, Go idioms, Temporal patterns)
+
+---
+
+## Executive Summary
+
+The worker package is generally well-structured with consistent patterns, but has accumulated technical debt from organic growth. Key findings:
+
+| Category | Status | Priority Items |
+|----------|--------|----------------|
+| Code Duplication | **300-400 lines reducible** | Progress tracking, batch processing, manifest loading |
+| Workflow Consistency | **95% consistent** | Error wrapping inconsistent in core workflows |
+| Go Idioms | **Excellent** | Minor issues with deferred error handling |
+| Temporal Patterns | **Critical issue found** | `time.Now()` in workflows breaks determinism |
+
+---
+
+## Critical Issues
+
+### 1. DETERMINISM VIOLATION - `time.Now()` in Workflows
+
+**Severity:** CRITICAL
+**File:** `worker/shared/workflow_helpers.go:59-65`
+
+```go
+func EffectiveEndDate(end time.Time) time.Time {
+    yesterday := time.Now().AddDate(0, 0, -1)  // VIOLATION
+    if end.After(yesterday) {
+        return yesterday
+    }
+    return end
+}
+```
+
+**Problem:** Called from workflows (`fetch_season.go:104`, `import_season.go:89`). On replay, "yesterday" will be different, causing:
+- Duplicate or missing work
+- Inconsistent history across executions
+
+**Fix:** Change to `workflow.Now(ctx)` and pass context to the function.
+
+---
+
+### 2. Missing MaximumAttempts in Retry Policy
+
+**Severity:** HIGH
+**File:** `worker/workflow/process_players.go:111-119`
+
+```go
+RetryPolicy: &temporal.RetryPolicy{
+    InitialInterval:    time.Second,
+    MaximumInterval:    time.Minute,
+    BackoffCoefficient: 2.0,
+    // MaximumAttempts missing! Defaults to infinite
+}
+```
+
+**Fix:** Add `MaximumAttempts: int32(3)` or similar.
+
+---
+
+## Code Duplication Findings
+
+### High Impact (Eliminate 200+ lines)
+
+| Pattern | Occurrences | Lines Saved | Recommendation |
+|---------|-------------|-------------|----------------|
+| Progress tracker initialization | 14 files | ~70 | Extract `InitializeTracker()` helper |
+| `loadSeasonsManifest()` calls | 7 files | ~56 | Move to `shared/workflow_helpers.go` |
+| Batch result aggregation callbacks | 8 files | ~80 | Create typed `Aggregate*()` helpers |
+
+### Progress Tracker Duplication
+
+Every season workflow repeats:
+```go
+tracker := shared.NewReportTracker(NewProgress...)
+if err := tracker.RegisterQueryHandler(ctx); err != nil {
+    return nil, err
+}
+tracker.StartGroup(ctx, GroupIndex)
+```
+
+**Files affected:**
+- `fetch_season.go:46-50`
+- `import_season.go:45-48`
+- `fetch_season_player_logs.go:66-70`
+- `import_season_player_logs.go:68-70`
+- `extract_boxscore_players.go:49-52`
+- `fetch_edge.go:97-101`
+- `import_edge.go:81-85`
+- `fetch_player_landings.go:88-92`
+- `process_players.go:139-142`
+- Plus 4 more workflows
+
+### Batch Processing Duplication
+
+Identical pattern repeated with minor variations:
+```go
+err := tracker.RunWorkerPoolWithIncrement(ctx, Group, 0, numBatches, concurrency,
+    func(i int) int { return len(shared.BatchSlice(items, i, batchSize)) },
+    func(_ workflow.Context, batchIdx int) workflow.Future {
+        batch := shared.BatchSlice(items, batchIdx, batchSize)
+        return workflow.ExecuteActivity(ctx, activity, input)
+    }, nil)
+```
+
+**Files:** `fetch_season_player_logs.go`, `fetch_player_landings.go`, `import_season_player_logs.go`, `process_players.go` (2x), `fetch_yahoo_players.go`
+
+### Activity Options Duplication
+
+Custom retry policy setup repeated in 7 files:
+```go
+ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+    StartToCloseTimeout: 10 * time.Minute,
+    RetryPolicy: &temporal.RetryPolicy{
+        InitialInterval:    time.Duration(viper.GetInt(...)) * time.Second,
+        MaximumInterval:    time.Duration(viper.GetInt(...)) * time.Second,
+        BackoffCoefficient: config.DefaultBackoffCoefficient,
+        MaximumAttempts:    int32(viper.GetInt(...)),
+    },
+})
+```
+
+**Recommendation:** Create `shared.CustomRetryActivityOptions(timeout time.Duration)`.
+
+---
+
+## Workflow Consistency Analysis
+
+### Progress Tracking Coverage
+
+| Workflow | Has Tracking | Query Handler |
+|----------|--------------|---------------|
+| FetchSeasonsWorkflow | Yes | Yes |
+| FetchSeasonWorkflow | Yes | Yes |
+| ImportSeasonsWorkflow | Yes | Yes |
+| ImportSeasonWorkflow | Yes | Yes |
+| FetchEdgeWorkflow | Yes | Yes |
+| ImportEdgeWorkflow | Yes | Yes |
+| ProcessPlayersWorkflow | Yes | Yes |
+| FetchYahooPlayersWorkflow | Yes | Yes |
+| **Admin workflows** | **No** | **No** |
+
+Admin workflows missing progress tracking is acceptable (simple, fast operations).
+
+### Error Handling Inconsistency
+
+**Proper wrapping (good examples):**
+- `fetch_edge.go:112`: `fmt.Errorf("get season teams: %w", err)`
+- `process_players.go:125-214`: All errors wrapped with context
+
+**Missing wrapping (needs fix):**
+- `fetch_season.go:63,74,85,95,99` - Activity errors returned bare
+- `import_season.go:62,66` - Same pattern
+
+```go
+// Current (bad)
+if err := workflow.ExecuteActivity(...).Get(ctx, nil); err != nil {
+    return nil, err
+}
+
+// Should be
+if err := workflow.ExecuteActivity(...).Get(ctx, nil); err != nil {
+    return nil, fmt.Errorf("fetch league %s: %w", league.ID, err)
+}
+```
+
+### Activity Options - Consistent
+
+All workflows use `shared.DefaultActivityOptions()` or `shared.FetchDayActivityOptions()`. Configuration is uniform.
+
+### Child Workflow Options - Consistent
+
+All use `shared.WithChildOptions(ctx, workflowID)` with:
+- WorkflowExecutionTimeout: configurable
+- WorkflowIDReusePolicy: TERMINATE_IF_RUNNING
+
+---
+
+## Idiomatic Go Analysis
+
+### Excellent Practices
+
+- **Error wrapping**: Consistent use of `fmt.Errorf("context: %w", err)`
+- **Interfaces**: Small, focused (e.g., `franchiseUpserter` - 1 method)
+- **Naming**: Clear conventions (`*Activities`, `*Input`, `*Result`)
+- **Dependency injection**: Clean struct-based injection pattern
+- **Function signatures**: Concise, using input structs
+
+### Issues Found
+
+| Issue | File | Line | Severity |
+|-------|------|------|----------|
+| Deferred close errors ignored | `admin/activities.go` | 32 | Medium |
+| Deferred close errors ignored | `shared/progress_activity.go` | 14,23,31 | Medium |
+| Batch error captures only first | `shared/batch.go` | 20-27 | Medium |
+| Mixed logging (zerolog vs Temporal) | `admin/activities.go` vs `nhl/*.go` | Multiple | Low |
+
+**Example fix for deferred close:**
+```go
+// Current
+defer func() { _ = redisClient.Close() }()
+
+// Should be
+defer func() {
+    if err := redisClient.Close(); err != nil {
+        log.Warn().Err(err).Msg("failed to close redis client")
+    }
+}()
+```
+
+---
+
+## Temporal Patterns Analysis
+
+### Best Practices (Well Implemented)
+
+| Pattern | Status | Notes |
+|---------|--------|-------|
+| ContinueAsNew | Excellent | Proper state preservation across executions |
+| Local Activities | Excellent | Used only for fast Redis progress I/O |
+| Query Handlers | Good | All parent workflows expose progress queries |
+| Activity Options | Good | Consistent defaults with appropriate overrides |
+
+### Issues Found
+
+| Issue | Severity | File | Fix |
+|-------|----------|------|-----|
+| `time.Now()` in workflows | **CRITICAL** | `workflow_helpers.go:59-65` | Use `workflow.Now(ctx)` |
+| Missing MaximumAttempts | HIGH | `process_players.go:113` | Add `MaximumAttempts: 3` |
+| FetchDay timeout undersized | HIGH | `workflow_helpers.go:48` | Increase to 20-30 min |
+| Heartbeat gaps in team loop | MEDIUM | `fetch_day.go:123` | Add heartbeat before each fetch |
+
+### Heartbeat Recommendation
+
+```go
+// Current (fetch_day.go)
+for _, team := range teams {
+    // ... long loop with Yahoo fetches
+}
+activity.RecordHeartbeat(ctx, nil)  // Only at end
+
+// Should be
+for _, team := range teams {
+    activity.RecordHeartbeat(ctx, team.Tricode)  // Before each slow operation
+    // ... Yahoo fetches
+}
+```
+
+---
+
+## Recommended Refactoring Priority
+
+### Phase 1: Critical Fixes (Immediate)
+
+1. **Fix determinism violation** in `EffectiveEndDate()` - use `workflow.Now(ctx)`
+2. **Add MaximumAttempts** to `process_players.go` retry policy
+3. **Increase FetchDay timeout** to 20-30 minutes
+
+### Phase 2: High Impact Deduplication (1-2 days)
+
+1. **Extract `InitializeTracker()` helper** - saves 70 lines across 14 files
+2. **Export `loadSeasonsManifest()` to shared** - saves 56 lines across 7 files
+3. **Create activity options factories** - `PlayerActivityOptions()`, `CustomRetryActivityOptions()`
+
+### Phase 3: Consistency Improvements (1 day)
+
+1. **Add error wrapping** to `fetch_season.go` and `import_season.go`
+2. **Fix deferred close error handling** in admin and progress activities
+3. **Add heartbeats** inside FetchDay team loop
+
+### Phase 4: Polish (Optional)
+
+1. Create typed batch aggregation helpers
+2. Unify logging patterns across packages
+3. Document workflow timeout assumptions
+
+---
+
+## Metrics Summary
+
+| Metric | Value |
+|--------|-------|
+| Duplicate progress tracker setups | 14 |
+| Batch processing callbacks (identical) | 8 |
+| Activity options configs (custom retry) | 7 |
+| Seasons manifest load calls | 7 |
+| Child workflow spawn patterns | 6 |
+| **Total reducible boilerplate** | **300-400 lines** |
+| Error handling consistency | 60% (core workflows need work) |
+| Temporal patterns compliance | 90% (1 critical, 3 medium issues) |
+| Go idioms compliance | 95% (minor issues only) |
+
+---
+
+## Files Requiring Changes
+
+### Critical
+- `worker/shared/workflow_helpers.go` - Fix `EffectiveEndDate()`, increase timeouts
+
+### High Priority
+- `worker/workflow/process_players.go` - Add MaximumAttempts
+- `worker/workflow/fetch_season.go` - Add error wrapping
+- `worker/workflow/import_season.go` - Add error wrapping
+- `worker/nhl/fetch_day.go` - Add heartbeats in team loop
+
+### Medium Priority (Deduplication)
+- `worker/shared/workflow_helpers.go` - Add new helpers
+- All workflow files - Use new helpers

@@ -15,7 +15,7 @@ import (
 const edgeImportActivitiesPerTeam = 3
 
 // countEdgeImportActivities returns 192 (32 teams × 3 activities × 2 game types) for progress bar sizing.
-func countEdgeImportActivities(_ nhl.SeasonInfo) (int, error) {
+func countEdgeImportActivities(_ workflow.Context, _ nhl.SeasonInfo) (int, error) {
 	return edgeTeamCount * edgeImportActivitiesPerTeam * len(edgeGameTypes), nil
 }
 

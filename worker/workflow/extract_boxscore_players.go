@@ -82,7 +82,10 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsIn
 		CountLabel:  "boxscore reads",
 	}, func(_ workflow.Context, i int) workflow.Future {
 		return workflow.ExecuteActivity(ctx, ba.ExtractAndSaveBoxscorePlayers,
-			worknhl.ExtractAndSaveInput{Season: seasons[i]})
+			worknhl.ExtractAndSaveInput{
+				Season:  seasons[i],
+				EndDate: shared.EffectiveEndDate(ctx, seasons[i].StandingsEnd.Time),
+			})
 	}); err != nil {
 		return err
 	}

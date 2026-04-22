@@ -3,6 +3,7 @@ package nhl
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
@@ -12,7 +13,6 @@ import (
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/sqlcdb"
-	"github.com/sperano/puckdb/worker/shared"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -103,13 +103,20 @@ func importPlayerGameLog(ctx context.Context, queries PlayerGameLogUpdater, play
 	return updated, nil
 }
 
+// CollectSeasonPlayerIDsInput contains parameters for the CollectSeasonPlayerIDs activity.
+type CollectSeasonPlayerIDsInput struct {
+	Season  nhlapi.SeasonInfo
+	EndDate time.Time // Pre-computed by workflow using workflow.Now() for determinism
+}
+
 // CollectSeasonPlayerIDs reads all boxscores for a season and returns unique skater player IDs.
-func (a *ImportActivities) CollectSeasonPlayerIDs(ctx context.Context, season nhlapi.SeasonInfo) ([]int64, error) {
+func (a *ImportActivities) CollectSeasonPlayerIDs(ctx context.Context, input CollectSeasonPlayerIDsInput) ([]int64, error) {
 	defer metrics.TrackActivityDuration("CollectSeasonPlayerIDs")()
 
 	seen := make(map[int64]struct{})
 
-	endDate := shared.EffectiveEndDate(season.StandingsEnd.Time)
+	season := input.Season
+	endDate := input.EndDate
 	for d := season.StandingsStart.Time; !d.After(endDate); d = d.AddDate(0, 0, 1) {
 		scheduleRes := resource.DailySchedule{Date: d}
 		if !a.Storage.Exists(scheduleRes.Path()) {

@@ -180,7 +180,7 @@ func (t *ReportTracker) AddBarsForSeasons(ctx workflow.Context, groupIdx int, se
 	total := 0
 
 	for i, season := range seasons {
-		count, err := counter(season)
+		count, err := counter(ctx, season)
 		if err != nil {
 			return nil, err
 		}
@@ -385,7 +385,8 @@ func SaveActivityProgress(ctx context.Context, client cache.Client, workflowID s
 }
 
 // SeasonCounterFunc returns the total count for a season's progress tracking.
-type SeasonCounterFunc func(season nhl.SeasonInfo) (int, error)
+// Accepts workflow.Context to enable deterministic time calculation using workflow.Now().
+type SeasonCounterFunc func(ctx workflow.Context, season nhl.SeasonInfo) (int, error)
 
 // ActivityStarter is a function that starts an activity for a given index and returns a future.
 type ActivityStarter func(ctx workflow.Context, index int) workflow.Future

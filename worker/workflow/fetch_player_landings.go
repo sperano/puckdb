@@ -62,15 +62,7 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 		"concurrency", concurrency)
 
 	// Activity options for loading players from Redis
-	loadCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 5 * time.Minute,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    time.Second,
-			MaximumInterval:    time.Minute,
-			BackoffCoefficient: 2.0,
-			MaximumAttempts:    3,
-		},
-	})
+	loadCtx := workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// Load consolidated players from Redis
 	var playerAct *workplayer.Activities
