@@ -64,6 +64,12 @@ var expectedTools = []string{
 	"get_edge_skater_stats",
 	"get_edge_goalie_stats",
 	"get_edge_team_stats",
+	// Playoffs (5)
+	"list_games",
+	"get_playoff_games",
+	"get_playoff_series",
+	"get_stanley_cup_finals",
+	"get_stanley_cup_winners",
 }
 
 func TestNewServer_RegistersAllTools(t *testing.T) {

@@ -51,4 +51,5 @@ func registerAll(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	registerStandingsTools(srv, queries)
 	registerFantasyTools(srv, queries)
 	registerEdgeTools(srv, queries)
+	registerPlayoffTools(srv, queries)
 }

@@ -673,6 +673,454 @@ func (q *Queries) GetGamesByTeamAndSeason(ctx context.Context, arg GetGamesByTea
 	return items, nil
 }
 
+const getPlayoffGames = `-- name: GetPlayoffGames :many
+
+SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev,
+    CAST(SUBSTRING(g.id::text, 8, 1) AS int) as playoff_round
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
+WHERE g.game_type = 'playoffs'
+  AND g.season = $1
+  AND ($2::int IS NULL OR CAST(SUBSTRING(g.id::text, 8, 1) AS int) = $2)
+  AND ($3::bigint IS NULL OR g.home_team_id = $3 OR g.away_team_id = $3)
+ORDER BY g.game_date, g.start_time_utc
+`
+
+type GetPlayoffGamesParams struct {
+	Season int32       `json:"season"`
+	Round  pgtype.Int4 `json:"round"`
+	TeamID pgtype.Int8 `json:"team_id"`
+}
+
+type GetPlayoffGamesRow struct {
+	ID                    int64              `json:"id"`
+	Season                int32              `json:"season"`
+	GameType              GameType           `json:"game_type"`
+	GameDate              pgtype.Date        `json:"game_date"`
+	Venue                 string             `json:"venue"`
+	VenueLocation         string             `json:"venue_location"`
+	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
+	EasternUTCOffset      string             `json:"eastern_utc_offset"`
+	VenueUTCOffset        string             `json:"venue_utc_offset"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
+	PeriodNumber          int16              `json:"period_number"`
+	PeriodType            PeriodType         `json:"period_type"`
+	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
+	ClockTimeRemaining    string             `json:"clock_time_remaining"`
+	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
+	ClockRunning          bool               `json:"clock_running"`
+	ClockInIntermission   bool               `json:"clock_in_intermission"`
+	HomeTeamID            int64              `json:"home_team_id"`
+	HomeTeamScore         int32              `json:"home_team_score"`
+	HomeTeamSog           int32              `json:"home_team_sog"`
+	AwayTeamID            int64              `json:"away_team_id"`
+	AwayTeamScore         int32              `json:"away_team_score"`
+	AwayTeamSog           int32              `json:"away_team_sog"`
+	LimitedScoring        bool               `json:"limited_scoring"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	HomeTeamName          string             `json:"home_team_name"`
+	HomeTeamAbbrev        string             `json:"home_team_abbrev"`
+	AwayTeamName          string             `json:"away_team_name"`
+	AwayTeamAbbrev        string             `json:"away_team_abbrev"`
+	PlayoffRound          int32              `json:"playoff_round"`
+}
+
+// =============================================================================
+// Playoff Queries
+// =============================================================================
+// Get playoff games for a season, optionally filtered by round (1-4)
+// Round is extracted from game ID: position 8 indicates round
+// Game ID format: YYYYTTRRSS where TT=03 for playoffs, RR=round (01-04), SS=series+game
+// 1=First Round, 2=Second Round, 3=Conference Finals, 4=Stanley Cup Finals
+func (q *Queries) GetPlayoffGames(ctx context.Context, arg GetPlayoffGamesParams) ([]GetPlayoffGamesRow, error) {
+	rows, err := q.db.Query(ctx, getPlayoffGames, arg.Season, arg.Round, arg.TeamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetPlayoffGamesRow{}
+	for rows.Next() {
+		var i GetPlayoffGamesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Season,
+			&i.GameType,
+			&i.GameDate,
+			&i.Venue,
+			&i.VenueLocation,
+			&i.StartTimeUTC,
+			&i.EasternUTCOffset,
+			&i.VenueUTCOffset,
+			&i.GameState,
+			&i.GameScheduleState,
+			&i.PeriodNumber,
+			&i.PeriodType,
+			&i.MaxRegulationPeriods,
+			&i.ClockTimeRemaining,
+			&i.ClockSecondsRemaining,
+			&i.ClockRunning,
+			&i.ClockInIntermission,
+			&i.HomeTeamID,
+			&i.HomeTeamScore,
+			&i.HomeTeamSog,
+			&i.AwayTeamID,
+			&i.AwayTeamScore,
+			&i.AwayTeamSog,
+			&i.LimitedScoring,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.HomeTeamName,
+			&i.HomeTeamAbbrev,
+			&i.AwayTeamName,
+			&i.AwayTeamAbbrev,
+			&i.PlayoffRound,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPlayoffSeries = `-- name: GetPlayoffSeries :many
+WITH series_games AS (
+    SELECT
+        g.season,
+        CAST(SUBSTRING(g.id::text, 8, 1) AS int) as round,
+        CAST(SUBSTRING(g.id::text, 8, 2) AS text) as series_id,
+        g.home_team_id,
+        g.away_team_id,
+        g.home_team_score,
+        g.away_team_score,
+        g.game_date,
+        g.game_state,
+        ht.full_name as home_team_name,
+        ht.abbrev as home_team_abbrev,
+        at.full_name as away_team_name,
+        at.abbrev as away_team_abbrev,
+        CASE WHEN g.home_team_score > g.away_team_score THEN g.home_team_id ELSE g.away_team_id END as winner_id
+    FROM games g
+    JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+    JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
+    WHERE g.game_type = 'playoffs'
+      AND g.season = $1
+      AND g.game_state IN ('OFF', 'FINAL')
+),
+series_summary AS (
+    SELECT
+        season,
+        round,
+        series_id,
+        MIN(home_team_id)::bigint as team1_id,
+        MAX(away_team_id)::bigint as team2_id,
+        MIN(home_team_name)::text as team1_name,
+        MAX(away_team_name)::text as team2_name,
+        MIN(home_team_abbrev)::text as team1_abbrev,
+        MAX(away_team_abbrev)::text as team2_abbrev,
+        COUNT(*)::int as games_played,
+        MAX(game_date)::date as last_game_date
+    FROM series_games
+    GROUP BY season, round, series_id
+),
+series_with_wins AS (
+    SELECT
+        ss.season, ss.round, ss.series_id, ss.team1_id, ss.team2_id, ss.team1_name, ss.team2_name, ss.team1_abbrev, ss.team2_abbrev, ss.games_played, ss.last_game_date,
+        (SELECT COUNT(*)::int FROM series_games sg
+         WHERE sg.season = ss.season AND sg.series_id = ss.series_id
+         AND sg.winner_id = ss.team1_id) as team1_wins,
+        (SELECT COUNT(*)::int FROM series_games sg
+         WHERE sg.season = ss.season AND sg.series_id = ss.series_id
+         AND sg.winner_id = ss.team2_id) as team2_wins
+    FROM series_summary ss
+)
+SELECT
+    season,
+    round,
+    series_id,
+    team1_id,
+    team1_name,
+    team1_abbrev,
+    team1_wins,
+    team2_id,
+    team2_name,
+    team2_abbrev,
+    team2_wins,
+    games_played,
+    last_game_date,
+    CASE
+        WHEN team1_wins = 4 THEN team1_name
+        WHEN team2_wins = 4 THEN team2_name
+        ELSE ''
+    END::text as series_winner
+FROM series_with_wins
+WHERE ($2::int IS NULL OR round = $2)
+ORDER BY round, series_id
+`
+
+type GetPlayoffSeriesParams struct {
+	Season int32       `json:"season"`
+	Round  pgtype.Int4 `json:"round"`
+}
+
+type GetPlayoffSeriesRow struct {
+	Season       int32       `json:"season"`
+	Round        int32       `json:"round"`
+	SeriesID     string      `json:"series_id"`
+	Team1ID      int64       `json:"team1_id"`
+	Team1Name    string      `json:"team1_name"`
+	Team1Abbrev  string      `json:"team1_abbrev"`
+	Team1Wins    int32       `json:"team1_wins"`
+	Team2ID      int64       `json:"team2_id"`
+	Team2Name    string      `json:"team2_name"`
+	Team2Abbrev  string      `json:"team2_abbrev"`
+	Team2Wins    int32       `json:"team2_wins"`
+	GamesPlayed  int32       `json:"games_played"`
+	LastGameDate pgtype.Date `json:"last_game_date"`
+	SeriesWinner string      `json:"series_winner"`
+}
+
+// Get playoff series summaries for a season with win counts
+// Groups games by round and matchup, calculates series standings
+func (q *Queries) GetPlayoffSeries(ctx context.Context, arg GetPlayoffSeriesParams) ([]GetPlayoffSeriesRow, error) {
+	rows, err := q.db.Query(ctx, getPlayoffSeries, arg.Season, arg.Round)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetPlayoffSeriesRow{}
+	for rows.Next() {
+		var i GetPlayoffSeriesRow
+		if err := rows.Scan(
+			&i.Season,
+			&i.Round,
+			&i.SeriesID,
+			&i.Team1ID,
+			&i.Team1Name,
+			&i.Team1Abbrev,
+			&i.Team1Wins,
+			&i.Team2ID,
+			&i.Team2Name,
+			&i.Team2Abbrev,
+			&i.Team2Wins,
+			&i.GamesPlayed,
+			&i.LastGameDate,
+			&i.SeriesWinner,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStanleyCupFinals = `-- name: GetStanleyCupFinals :many
+SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
+    ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
+    at.full_name as away_team_name, at.abbrev as away_team_abbrev
+FROM games g
+JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
+WHERE g.game_type = 'playoffs'
+  AND g.season = $1
+  AND CAST(SUBSTRING(g.id::text, 8, 1) AS int) = (
+      SELECT MAX(CAST(SUBSTRING(id::text, 8, 1) AS int))
+      FROM games
+      WHERE game_type = 'playoffs' AND season = $1
+  )
+ORDER BY g.game_date, g.start_time_utc
+`
+
+type GetStanleyCupFinalsRow struct {
+	ID                    int64              `json:"id"`
+	Season                int32              `json:"season"`
+	GameType              GameType           `json:"game_type"`
+	GameDate              pgtype.Date        `json:"game_date"`
+	Venue                 string             `json:"venue"`
+	VenueLocation         string             `json:"venue_location"`
+	StartTimeUTC          pgtype.Timestamptz `json:"start_time_utc"`
+	EasternUTCOffset      string             `json:"eastern_utc_offset"`
+	VenueUTCOffset        string             `json:"venue_utc_offset"`
+	GameState             GameState          `json:"game_state"`
+	GameScheduleState     GameScheduleState  `json:"game_schedule_state"`
+	PeriodNumber          int16              `json:"period_number"`
+	PeriodType            PeriodType         `json:"period_type"`
+	MaxRegulationPeriods  int16              `json:"max_regulation_periods"`
+	ClockTimeRemaining    string             `json:"clock_time_remaining"`
+	ClockSecondsRemaining int32              `json:"clock_seconds_remaining"`
+	ClockRunning          bool               `json:"clock_running"`
+	ClockInIntermission   bool               `json:"clock_in_intermission"`
+	HomeTeamID            int64              `json:"home_team_id"`
+	HomeTeamScore         int32              `json:"home_team_score"`
+	HomeTeamSog           int32              `json:"home_team_sog"`
+	AwayTeamID            int64              `json:"away_team_id"`
+	AwayTeamScore         int32              `json:"away_team_score"`
+	AwayTeamSog           int32              `json:"away_team_sog"`
+	LimitedScoring        bool               `json:"limited_scoring"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	HomeTeamName          string             `json:"home_team_name"`
+	HomeTeamAbbrev        string             `json:"home_team_abbrev"`
+	AwayTeamName          string             `json:"away_team_name"`
+	AwayTeamAbbrev        string             `json:"away_team_abbrev"`
+}
+
+// Get Stanley Cup Finals games for a season (the final round, which varies by era)
+// Uses subquery to find the max round for the season dynamically
+func (q *Queries) GetStanleyCupFinals(ctx context.Context, season int32) ([]GetStanleyCupFinalsRow, error) {
+	rows, err := q.db.Query(ctx, getStanleyCupFinals, season)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStanleyCupFinalsRow{}
+	for rows.Next() {
+		var i GetStanleyCupFinalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Season,
+			&i.GameType,
+			&i.GameDate,
+			&i.Venue,
+			&i.VenueLocation,
+			&i.StartTimeUTC,
+			&i.EasternUTCOffset,
+			&i.VenueUTCOffset,
+			&i.GameState,
+			&i.GameScheduleState,
+			&i.PeriodNumber,
+			&i.PeriodType,
+			&i.MaxRegulationPeriods,
+			&i.ClockTimeRemaining,
+			&i.ClockSecondsRemaining,
+			&i.ClockRunning,
+			&i.ClockInIntermission,
+			&i.HomeTeamID,
+			&i.HomeTeamScore,
+			&i.HomeTeamSog,
+			&i.AwayTeamID,
+			&i.AwayTeamScore,
+			&i.AwayTeamSog,
+			&i.LimitedScoring,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.HomeTeamName,
+			&i.HomeTeamAbbrev,
+			&i.AwayTeamName,
+			&i.AwayTeamAbbrev,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStanleyCupWinners = `-- name: GetStanleyCupWinners :many
+WITH max_rounds AS (
+    SELECT season, MAX(CAST(SUBSTRING(id::text, 8, 1) AS int)) as final_round
+    FROM games
+    WHERE game_type = 'playoffs'
+    GROUP BY season
+),
+finals_games AS (
+    SELECT
+        g.season,
+        g.game_date,
+        g.home_team_id,
+        g.away_team_id,
+        g.home_team_score,
+        g.away_team_score,
+        ht.full_name as home_team_name,
+        ht.abbrev as home_team_abbrev,
+        at.full_name as away_team_name,
+        at.abbrev as away_team_abbrev,
+        ROW_NUMBER() OVER (PARTITION BY g.season ORDER BY g.game_date DESC, g.id DESC) as rn
+    FROM games g
+    JOIN season_teams ht ON ht.team_id = g.home_team_id AND ht.season = g.season
+    JOIN season_teams at ON at.team_id = g.away_team_id AND at.season = g.season
+    JOIN max_rounds mr ON mr.season = g.season
+    WHERE g.game_type = 'playoffs'
+      AND CAST(SUBSTRING(g.id::text, 8, 1) AS int) = mr.final_round
+      AND g.game_state IN ('OFF', 'FINAL')
+)
+SELECT
+    season,
+    game_date as clinching_date,
+    (CASE WHEN home_team_score > away_team_score THEN home_team_id ELSE away_team_id END)::bigint as champion_id,
+    (CASE WHEN home_team_score > away_team_score THEN home_team_name ELSE away_team_name END)::text as champion_name,
+    (CASE WHEN home_team_score > away_team_score THEN home_team_abbrev ELSE away_team_abbrev END)::text as champion_abbrev,
+    (CASE WHEN home_team_score > away_team_score THEN away_team_id ELSE home_team_id END)::bigint as runner_up_id,
+    (CASE WHEN home_team_score > away_team_score THEN away_team_name ELSE home_team_name END)::text as runner_up_name,
+    (CASE WHEN home_team_score > away_team_score THEN away_team_abbrev ELSE home_team_abbrev END)::text as runner_up_abbrev,
+    home_team_score,
+    away_team_score
+FROM finals_games
+WHERE rn = 1
+ORDER BY season DESC
+LIMIT COALESCE($1::int, 10)
+`
+
+type GetStanleyCupWinnersRow struct {
+	Season         int32       `json:"season"`
+	ClinchingDate  pgtype.Date `json:"clinching_date"`
+	ChampionID     int64       `json:"champion_id"`
+	ChampionName   string      `json:"champion_name"`
+	ChampionAbbrev string      `json:"champion_abbrev"`
+	RunnerUpID     int64       `json:"runner_up_id"`
+	RunnerUpName   string      `json:"runner_up_name"`
+	RunnerUpAbbrev string      `json:"runner_up_abbrev"`
+	HomeTeamScore  int32       `json:"home_team_score"`
+	AwayTeamScore  int32       `json:"away_team_score"`
+}
+
+// Get Stanley Cup champions for recent seasons
+// Finds the winner of the last Finals game for each season
+// Works for all eras (finals round varies: 1-4 depending on playoff format)
+func (q *Queries) GetStanleyCupWinners(ctx context.Context, limit pgtype.Int4) ([]GetStanleyCupWinnersRow, error) {
+	rows, err := q.db.Query(ctx, getStanleyCupWinners, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStanleyCupWinnersRow{}
+	for rows.Next() {
+		var i GetStanleyCupWinnersRow
+		if err := rows.Scan(
+			&i.Season,
+			&i.ClinchingDate,
+			&i.ChampionID,
+			&i.ChampionName,
+			&i.ChampionAbbrev,
+			&i.RunnerUpID,
+			&i.RunnerUpName,
+			&i.RunnerUpAbbrev,
+			&i.HomeTeamScore,
+			&i.AwayTeamScore,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGames = `-- name: ListGames :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,
