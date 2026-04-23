@@ -60,8 +60,8 @@ var SeasonConcurrencyParam = ConfigIntParam{
 var PlayerLandingConcurrencyParam = ConfigIntParam{
 	Flag:       config.FlagPlayerLandingConcurrency,
 	Default:    config.DefaultPlayerLandingConcurrency,
-	MaxFlag:    config.FlagMaxSeasonConcurrency,
-	MaxDefault: 0, // only cap when viper max > 0
+	MaxFlag:    config.FlagMaxPlayerLandingConcurrency,
+	MaxDefault: config.DefaultMaxPlayerLandingConcurrency,
 }
 
 var PlayerLandingBatchSizeParam = ConfigIntParam{

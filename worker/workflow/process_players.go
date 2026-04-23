@@ -30,6 +30,10 @@ const (
 	phaseVerifyUnmatched = 3
 )
 
+// verifyConcurrency is the number of concurrent batches when verifying unmatched players.
+// Each batch internally rate-limits NHL API calls, so parallel batches are safe.
+const verifyConcurrency = 10
+
 // ProcessPlayersInput contains parameters for the process players workflow.
 type ProcessPlayersInput struct {
 	BatchSize   *int // Players per batch activity
@@ -379,29 +383,35 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 	tracker.SetBarTotal(GroupVerifyUnmatched, 0, len(unmatchedPlayers))
 	logger.Info("Loaded unmatched Yahoo players", "count", len(unmatchedPlayers))
 
-	// Verify unmatched players in batches
+	// Verify unmatched players in batches (concurrent)
 	unmatchedReport := &workplayer.UnmatchedReport{
 		TrulyUnmatched: make([]workplayer.VerifiedPlayer, 0),
 	}
 
 	if len(unmatchedPlayers) > 0 {
-		for i := 0; i < len(unmatchedPlayers); i += workplayer.DefaultVerifyBatchSize {
-			end := i + workplayer.DefaultVerifyBatchSize
-			if end > len(unmatchedPlayers) {
-				end = len(unmatchedPlayers)
-			}
-			batch := unmatchedPlayers[i:end]
+		batchSize := workplayer.DefaultVerifyBatchSize
+		numBatches := shared.BatchCount(len(unmatchedPlayers), batchSize)
+		concurrency := verifyConcurrency
 
-			var batchResult *workplayer.VerifyUnmatchedResult
-			if err := workflow.ExecuteActivity(ctx, playerAct.VerifyUnmatchedBatch, batch).Get(ctx, &batchResult); err != nil {
-				logger.Warn("Failed to verify batch", "error", err, "batch_start", i)
-			} else {
+		err := tracker.RunWorkerPoolWithIncrement(ctx, GroupVerifyUnmatched, 0, numBatches, concurrency,
+			func(i int) int { return len(shared.BatchSlice(unmatchedPlayers, i, batchSize)) },
+			func(_ workflow.Context, batchIndex int) workflow.Future {
+				batch := shared.BatchSlice(unmatchedPlayers, batchIndex, batchSize)
+				return workflow.ExecuteActivity(ctx, playerAct.VerifyUnmatchedBatch, batch)
+			},
+			func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
+				var batchResult *workplayer.VerifyUnmatchedResult
+				if err := f.Get(ctx, &batchResult); err != nil {
+					logger.Warn("Failed to verify batch", "error", err, "batch_index", batchIndex)
+					return nil // Continue processing other batches
+				}
 				unmatchedReport.TrulyUnmatched = append(unmatchedReport.TrulyUnmatched, batchResult.TrulyUnmatched...)
 				unmatchedReport.VerifiedNonNHLCount += len(batchResult.VerifiedNonNHL)
 				unmatchedReport.NotFoundCount += len(batchResult.NotFoundInNHL)
-			}
-
-			tracker.IncrementBarBy(ctx, GroupVerifyUnmatched, 0, len(batch))
+				return nil
+			})
+		if err != nil {
+			logger.Warn("Error during verify pool execution", "error", err)
 		}
 
 		// Log truly unmatched players

@@ -68,6 +68,7 @@ const (
 // NHL player landing download defaults
 const (
 	DefaultPlayerLandingConcurrency    = 20   // Concurrent activities
+	DefaultMaxPlayerLandingConcurrency = 20   // Cap on concurrent activities
 	DefaultPlayerLandingBatchSize      = 50   // Players per activity
 	DefaultPlayerLandingPlayersPerExec = 2000 // Players before ContinueAsNew
 )

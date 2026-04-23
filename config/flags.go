@@ -175,6 +175,7 @@ const (
 // NHL player landing download flags
 const (
 	FlagPlayerLandingConcurrency    = "player-landing-concurrency"
+	FlagMaxPlayerLandingConcurrency = "max-player-landing-concurrency"
 	FlagPlayerLandingBatchSize      = "player-landing-batch-size"
 	FlagPlayerLandingPlayersPerExec = "player-landing-players-per-exec"
 )
@@ -332,6 +333,7 @@ var YahooDownloadSleepFlags = FlagGroup{
 var PlayerLandingFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagPlayerLandingConcurrency, "", DefaultPlayerLandingConcurrency, "Number of concurrent activities for downloading NHL player landings", false},
+		{FlagMaxPlayerLandingConcurrency, "", DefaultMaxPlayerLandingConcurrency, "Maximum concurrent activities for player landing downloads", false},
 		{FlagPlayerLandingBatchSize, "", DefaultPlayerLandingBatchSize, "Number of players to download per activity", false},
 		{FlagPlayerLandingPlayersPerExec, "", DefaultPlayerLandingPlayersPerExec, "Players to process per workflow execution before ContinueAsNew", false},
 	},
