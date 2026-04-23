@@ -74,10 +74,10 @@ RetryPolicy: &temporal.RetryPolicy{
 
 ### Progress Tracker Duplication
 
-Every season workflow repeats:
+**RESOLVED**: Extracted `shared.InitTracker()` helper. Every workflow now uses:
 ```go
-tracker := shared.NewReportTracker(NewProgress...)
-if err := tracker.RegisterQueryHandler(ctx); err != nil {
+tracker, err := shared.InitTracker(ctx, NewProgress...)
+if err != nil {
     return nil, err
 }
 tracker.StartGroup(ctx, GroupIndex)

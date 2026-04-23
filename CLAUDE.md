@@ -116,8 +116,8 @@ func NewFetchEdgeProgressReport(season nhl.SeasonInfo) *shared.ProgressReport {
 
 func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core.OriginCounts, error) {
     // 2. Create tracker and register query handler (makes progress queryable)
-    tracker := shared.NewReportTracker(NewFetchEdgeProgressReport(input.Season))
-    if err := tracker.RegisterQueryHandler(ctx); err != nil {
+    tracker, err := shared.InitTracker(ctx, NewFetchEdgeProgressReport(input.Season))
+    if err != nil {
         return nil, err
     }
     tracker.StartGroup(ctx, 0)
