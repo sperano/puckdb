@@ -184,7 +184,7 @@ defer func() {
 |-------|----------|------|-----|
 | ~~`time.Now()` in workflows~~ | ~~**CRITICAL**~~ | ~~`workflow_helpers.go:59-65`~~ | ~~Use `workflow.Now(ctx)`~~ **DONE** |
 | ~~Missing MaximumAttempts~~ | ~~HIGH~~ | ~~`process_players.go:113`~~ | ~~Add `MaximumAttempts: 3`~~ **DONE** |
-| FetchDay timeout undersized | HIGH | `workflow_helpers.go:48` | Increase to 20-30 min |
+| ~~FetchDay timeout undersized~~ | ~~HIGH~~ | ~~`workflow_helpers.go:48`~~ | ~~Increase to 20-30 min~~ **DONE** (Helm: 25 min) |
 | ~~Heartbeat gaps in team loop~~ | ~~MEDIUM~~ | ~~`fetch_day.go:123`~~ | Already exists (line 122) |
 
 ### Heartbeat Recommendation
@@ -207,11 +207,11 @@ for _, team := range teams {
 
 ## Recommended Refactoring Priority
 
-### Phase 1: Critical Fixes (Immediate) - **COMPLETE**
+### Phase 1: Critical Fixes (Immediate) - **ALL DONE**
 
 1. ~~**Fix determinism violation** in `EffectiveEndDate()` - use `workflow.Now(ctx)`~~ **DONE**
 2. ~~**Add MaximumAttempts** to `process_players.go` retry policy~~ **DONE** (already existed)
-3. **Increase FetchDay timeout** to 20-30 minutes
+3. ~~**Increase FetchDay timeout** to 20-30 minutes~~ **DONE** (Helm config: 25 min)
 
 ### Phase 2: High Impact Deduplication (1-2 days) - **MOSTLY COMPLETE**
 
@@ -253,7 +253,7 @@ for _, team := range teams {
 
 ### Critical
 - ~~`worker/shared/workflow_helpers.go` - Fix `EffectiveEndDate()`~~ **DONE**
-- `worker/shared/workflow_helpers.go` - Increase FetchDay timeout
+- ~~`worker/shared/workflow_helpers.go` - Increase FetchDay timeout~~ **DONE** (Helm config)
 
 ### High Priority
 - ~~`worker/workflow/process_players.go` - Add MaximumAttempts~~ **DONE** (already existed)
