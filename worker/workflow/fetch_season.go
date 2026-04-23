@@ -61,7 +61,7 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 			var leagueAct *yahoo.FetchActivities
 			for _, league := range yahooCfg.Leagues {
 				if err := workflow.ExecuteActivity(ctx, leagueAct.FetchLeague, season.ID.StartYear(), league.LeagueID).Get(ctx, nil); err != nil {
-					return nil, err
+					return nil, fmt.Errorf("fetch yahoo league %d: %w", league.LeagueID, err)
 				}
 				for _, teamid := range league.TeamIDs {
 					teamIDs = append(teamIDs, yahoo.TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
@@ -72,7 +72,7 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 			if len(teamIDs) > 0 {
 				input := yahoo.FetchTeamsInput{StartSeason: season.ID.StartYear(), Teams: teamIDs}
 				if err := workflow.ExecuteActivity(ctx, leagueAct.FetchTeams, input).Get(ctx, nil); err != nil {
-					return nil, err
+					return nil, fmt.Errorf("fetch yahoo teams: %w", err)
 				}
 			}
 
@@ -83,7 +83,7 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 					LeagueID: league.LeagueID,
 				}
 				if err := workflow.ExecuteActivity(ctx, leagueAct.FetchYahooLeagueData, leagueDataInput).Get(ctx, nil); err != nil {
-					return nil, err
+					return nil, fmt.Errorf("fetch yahoo league data %d: %w", league.LeagueID, err)
 				}
 			}
 		}
@@ -93,11 +93,11 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 	var sa *worknhl.SeasonsActivities
 	rosterInput := worknhl.FetchSeasonRostersInput{Season: season.ID.StartYear()}
 	if err := workflow.ExecuteActivity(ctx, sa.FetchSeasonRosters, rosterInput).Get(ctx, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch season rosters: %w", err)
 	}
 	clubStatsInput := worknhl.FetchClubStatsInput{Season: season.ID.StartYear()}
 	if err := workflow.ExecuteActivity(ctx, sa.FetchClubStats, clubStatsInput).Get(ctx, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch club stats: %w", err)
 	}
 
 	// Calculate days to process (up to today)

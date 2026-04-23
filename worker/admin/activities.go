@@ -29,6 +29,10 @@ func MigrateDatabaseActivity(ctx context.Context) error {
 func FlushRedisActivity(ctx context.Context) error {
 	log.Info().Msg("FlushRedisActivity: flushing Redis DB")
 	redisClient := cache.NewClient()
-	defer func() { _ = redisClient.Close() }()
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			log.Warn().Err(err).Msg("failed to close redis client")
+		}
+	}()
 	return cache.FlushDB(ctx, redisClient)
 }

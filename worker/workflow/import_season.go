@@ -60,11 +60,11 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	var ia *worknhl.ImportActivities
 	rosterInput := worknhl.FetchSeasonRostersInput{Season: season.ID.StartYear()}
 	if err := workflow.ExecuteActivity(ctx, sa.ImportSeasonRosters, rosterInput).Get(ctx, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("import season rosters: %w", err)
 	}
 	clubStatsInput := worknhl.FetchClubStatsInput{Season: season.ID.StartYear()}
 	if err := workflow.ExecuteActivity(ctx, sa.ImportClubStats, clubStatsInput).Get(ctx, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("import club stats: %w", err)
 	}
 
 	// Import Yahoo league-level data (transactions, draft results, matchups)
@@ -77,7 +77,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 					LeagueID: league.LeagueID,
 				}
 				if err := workflow.ExecuteActivity(ctx, yia.ImportYahooLeagueData, leagueDataInput).Get(ctx, nil); err != nil {
-					return nil, err
+					return nil, fmt.Errorf("import yahoo league data %d: %w", league.LeagueID, err)
 				}
 			}
 		}
