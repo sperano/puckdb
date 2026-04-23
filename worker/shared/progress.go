@@ -46,12 +46,8 @@ type ReportTracker struct {
 	report *ProgressReport
 }
 
-// NewReportTracker creates a tracker wrapping the given report.
-func NewReportTracker(report *ProgressReport) *ReportTracker {
-	return &ReportTracker{report: report}
-}
-
 // RegisterQueryHandler registers the progressReport query handler.
+// Called by InitTracker and after LoadReportTracker (for ContinueAsNew).
 func (t *ReportTracker) RegisterQueryHandler(ctx workflow.Context) error {
 	return workflow.SetQueryHandler(ctx, ProgressReportQueryName, func() (*ProgressReport, error) {
 		return t.report, nil
@@ -60,7 +56,7 @@ func (t *ReportTracker) RegisterQueryHandler(ctx workflow.Context) error {
 
 // InitTracker creates a ReportTracker and registers the query handler.
 func InitTracker(ctx workflow.Context, report *ProgressReport) (*ReportTracker, error) {
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return nil, err
 	}

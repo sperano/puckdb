@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFormatDuration(t *testing.T) {
@@ -142,7 +141,7 @@ func TestSetBarTotal(t *testing.T) {
 			},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	tracker.SetBarTotal(0, 0, 42)
 	tracker.SetBarTotal(0, 1, 7)
@@ -163,31 +162,10 @@ func TestSetBarLabel(t *testing.T) {
 			},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	tracker.SetBarLabel(0, 0, "updated label")
 
 	assert.Equal(t, "updated label", report.Groups[0].Bars[0].Label)
 }
 
-func TestNewReportTracker(t *testing.T) {
-	t.Parallel()
-
-	report := &ProgressReport{
-		Total:     100,
-		Completed: 0,
-		Message:   "processing",
-		Groups: []ProgressGroup{
-			{Bars: []ProgressBar{{Label: "a", Total: 10}}},
-		},
-	}
-
-	tracker := NewReportTracker(report)
-
-	require.NotNil(t, tracker)
-	// Mutations through the tracker are reflected in the original report,
-	// confirming the tracker holds a live reference rather than a copy.
-	tracker.SetBarTotal(0, 0, 50)
-	assert.Equal(t, 50, report.Groups[0].Bars[0].Total)
-	assert.Equal(t, 100, report.Total) // unrelated field is unchanged
-}

@@ -40,7 +40,7 @@ func runWorkerPoolWorkflow(ctx workflow.Context, total, concurrency int) (worker
 			{Bars: []ProgressBar{{Total: total}}},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	mu := sync.Mutex{}
 	processed := make([]int, 0, total)
@@ -80,7 +80,7 @@ func runWorkerPoolWithIncrementWorkflow(ctx workflow.Context, total, concurrency
 			{Bars: []ProgressBar{{Total: total * (total + 1) / 2}}},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	mu := sync.Mutex{}
 	processed := make([]int, 0, total)
@@ -126,7 +126,7 @@ func runWorkerPoolMultiBarWorkflow(ctx workflow.Context, total, concurrency int)
 			{Bars: bars},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	mu := sync.Mutex{}
 	processed := make([]int, 0, total)
@@ -165,7 +165,7 @@ func runWorkerPoolErrorWorkflow(ctx workflow.Context) (workerPoolResult, error) 
 			{Bars: []ProgressBar{{Total: 3}}},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	actCtx := workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
 		ScheduleToCloseTimeout: activityTestTimeout,
@@ -190,7 +190,7 @@ func runWorkerPoolZeroWorkflow(ctx workflow.Context) (workerPoolResult, error) {
 			{Bars: []ProgressBar{{Total: 0}}},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	startActivity := func(c workflow.Context, index int) workflow.Future {
 		return workflow.ExecuteLocalActivity(c, workerPoolActivity, index)
@@ -207,7 +207,7 @@ func runWorkerPoolMultiBarZeroWorkflow(ctx workflow.Context) (workerPoolResult, 
 			{Bars: []ProgressBar{}},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	neverCalled := func(_ workflow.Context, _ int) workflow.Future {
 		// startActivity must never be invoked when total is zero.

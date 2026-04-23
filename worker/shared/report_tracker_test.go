@@ -27,7 +27,7 @@ func TestCompletedFromBars_AllZero(t *testing.T) {
 	t.Parallel()
 
 	report := makeReport(3, 2) // two groups, bars all at Current=0
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	assert.Equal(t, 0, tracker.completedFromBars())
 }
@@ -41,7 +41,7 @@ func TestCompletedFromBars_SumsAcrossGroups(t *testing.T) {
 			{Bars: []ProgressBar{{Current: 5, Total: 10}}},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	assert.Equal(t, 15, tracker.completedFromBars())
 }
@@ -49,7 +49,7 @@ func TestCompletedFromBars_SumsAcrossGroups(t *testing.T) {
 func TestCompletedFromBars_EmptyGroups(t *testing.T) {
 	t.Parallel()
 
-	tracker := NewReportTracker(&ProgressReport{})
+	tracker := &ReportTracker{report: &ProgressReport{}}
 
 	assert.Equal(t, 0, tracker.completedFromBars())
 }
@@ -65,7 +65,7 @@ func TestTotalFromBars_SumsAllTotals(t *testing.T) {
 			{Bars: []ProgressBar{{Total: 30}}},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	assert.Equal(t, 60, tracker.totalFromBars())
 }
@@ -73,7 +73,7 @@ func TestTotalFromBars_SumsAllTotals(t *testing.T) {
 func TestTotalFromBars_Empty(t *testing.T) {
 	t.Parallel()
 
-	tracker := NewReportTracker(&ProgressReport{})
+	tracker := &ReportTracker{report: &ProgressReport{}}
 
 	assert.Equal(t, 0, tracker.totalFromBars())
 }
@@ -84,7 +84,7 @@ func TestSetBarTotal_MultiGroup(t *testing.T) {
 	t.Parallel()
 
 	report := makeReport(2, 3)
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	tracker.SetBarTotal(0, 1, 99)
 	tracker.SetBarTotal(1, 2, 77)
@@ -106,7 +106,7 @@ func TestCompletedFromBars_AfterManualCompletion(t *testing.T) {
 			{Bars: []ProgressBar{{Current: 0, Total: 5}, {Current: 0, Total: 3}}},
 		},
 	}
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 
 	// Manually simulate what CompleteGroup does to the bars.
 	for i := range report.Groups[0].Bars {
@@ -116,9 +116,9 @@ func TestCompletedFromBars_AfterManualCompletion(t *testing.T) {
 	assert.Equal(t, 8, tracker.completedFromBars())
 }
 
-// --- NewReportTracker holds a live reference ---
+// --- ReportTracker holds a live reference ---
 
-func TestNewReportTracker_LiveReference(t *testing.T) {
+func TestReportTracker_LiveReference(t *testing.T) {
 	t.Parallel()
 
 	report := &ProgressReport{
@@ -127,7 +127,7 @@ func TestNewReportTracker_LiveReference(t *testing.T) {
 		},
 	}
 
-	tracker := NewReportTracker(report)
+	tracker := &ReportTracker{report: report}
 	require.NotNil(t, tracker)
 
 	// Mutations through SetBarTotal are reflected in the original pointer.
