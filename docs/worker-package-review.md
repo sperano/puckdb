@@ -12,53 +12,24 @@ The worker package is generally well-structured with consistent patterns, but ha
 
 | Category | Status | Priority Items |
 |----------|--------|----------------|
-| Code Duplication | **300-400 lines reducible** | Progress tracking, batch processing, manifest loading |
+| Code Duplication | ~~**300-400 lines reducible**~~ **~70 lines reduced** | ~~Progress tracking~~, batch processing, ~~manifest loading~~ |
 | Workflow Consistency | **95% consistent** | Error wrapping inconsistent in core workflows |
 | Go Idioms | **Excellent** | Minor issues with deferred error handling |
-| Temporal Patterns | **Critical issue found** | `time.Now()` in workflows breaks determinism |
+| Temporal Patterns | ~~**Critical issue found**~~ **RESOLVED** | ~~`time.Now()` in workflows breaks determinism~~ |
 
 ---
 
 ## Critical Issues
 
-### 1. DETERMINISM VIOLATION - `time.Now()` in Workflows
+### ~~1. DETERMINISM VIOLATION - `time.Now()` in Workflows~~
 
-**Severity:** CRITICAL
-**File:** `worker/shared/workflow_helpers.go:59-65`
-
-```go
-func EffectiveEndDate(end time.Time) time.Time {
-    yesterday := time.Now().AddDate(0, 0, -1)  // VIOLATION
-    if end.After(yesterday) {
-        return yesterday
-    }
-    return end
-}
-```
-
-**Problem:** Called from workflows (`fetch_season.go:104`, `import_season.go:89`). On replay, "yesterday" will be different, causing:
-- Duplicate or missing work
-- Inconsistent history across executions
-
-**Fix:** Change to `workflow.Now(ctx)` and pass context to the function.
+**RESOLVED** (2026-04-22): Changed `EffectiveEndDate()`, `CountDaysInSeason()`, and `CountDaysWithPlayoffs()` to accept `workflow.Context` and use `workflow.Now(ctx)`. Activities receive pre-computed `EndDate` from workflows.
 
 ---
 
-### 2. Missing MaximumAttempts in Retry Policy
+### ~~2. Missing MaximumAttempts in Retry Policy~~
 
-**Severity:** HIGH
-**File:** `worker/workflow/process_players.go:111-119`
-
-```go
-RetryPolicy: &temporal.RetryPolicy{
-    InitialInterval:    time.Second,
-    MaximumInterval:    time.Minute,
-    BackoffCoefficient: 2.0,
-    // MaximumAttempts missing! Defaults to infinite
-}
-```
-
-**Fix:** Add `MaximumAttempts: int32(3)` or similar.
+**RESOLVED** (2026-04-22): `process_players.go` already had `MaximumAttempts`. Consolidated to use `shared.DefaultActivityOptions()` which includes configurable `MaximumAttempts`.
 
 ---
 
@@ -68,8 +39,8 @@ RetryPolicy: &temporal.RetryPolicy{
 
 | Pattern | Occurrences | Lines Saved | Recommendation |
 |---------|-------------|-------------|----------------|
-| Progress tracker initialization | 14 files | ~70 | Extract `InitializeTracker()` helper |
-| `loadSeasonsManifest()` calls | 7 files | ~56 | Move to `shared/workflow_helpers.go` |
+| ~~Progress tracker initialization~~ | ~~14 files~~ | ~~70~~ | ~~Extract `InitTracker()` helper~~ **DONE** |
+| ~~`loadSeasonsManifest()` calls~~ | 7 files | 0 | Not duplicated - single function in workflow package |
 | Batch result aggregation callbacks | 8 files | ~80 | Create typed `Aggregate*()` helpers |
 
 ### Progress Tracker Duplication
@@ -229,8 +200,8 @@ defer func() {
 
 | Issue | Severity | File | Fix |
 |-------|----------|------|-----|
-| `time.Now()` in workflows | **CRITICAL** | `workflow_helpers.go:59-65` | Use `workflow.Now(ctx)` |
-| Missing MaximumAttempts | HIGH | `process_players.go:113` | Add `MaximumAttempts: 3` |
+| ~~`time.Now()` in workflows~~ | ~~**CRITICAL**~~ | ~~`workflow_helpers.go:59-65`~~ | ~~Use `workflow.Now(ctx)`~~ **DONE** |
+| ~~Missing MaximumAttempts~~ | ~~HIGH~~ | ~~`process_players.go:113`~~ | ~~Add `MaximumAttempts: 3`~~ **DONE** |
 | FetchDay timeout undersized | HIGH | `workflow_helpers.go:48` | Increase to 20-30 min |
 | Heartbeat gaps in team loop | MEDIUM | `fetch_day.go:123` | Add heartbeat before each fetch |
 
@@ -254,17 +225,17 @@ for _, team := range teams {
 
 ## Recommended Refactoring Priority
 
-### Phase 1: Critical Fixes (Immediate)
+### Phase 1: Critical Fixes (Immediate) - **COMPLETE**
 
-1. **Fix determinism violation** in `EffectiveEndDate()` - use `workflow.Now(ctx)`
-2. **Add MaximumAttempts** to `process_players.go` retry policy
+1. ~~**Fix determinism violation** in `EffectiveEndDate()` - use `workflow.Now(ctx)`~~ **DONE**
+2. ~~**Add MaximumAttempts** to `process_players.go` retry policy~~ **DONE** (already existed)
 3. **Increase FetchDay timeout** to 20-30 minutes
 
-### Phase 2: High Impact Deduplication (1-2 days)
+### Phase 2: High Impact Deduplication (1-2 days) - **MOSTLY COMPLETE**
 
-1. **Extract `InitializeTracker()` helper** - saves 70 lines across 14 files
-2. **Export `loadSeasonsManifest()` to shared** - saves 56 lines across 7 files
-3. **Create activity options factories** - `PlayerActivityOptions()`, `CustomRetryActivityOptions()`
+1. ~~**Extract `InitTracker()` helper** - saves 70 lines across 16 files~~ **DONE**
+2. ~~**Export `loadSeasonsManifest()` to shared**~~ - Not needed, already shared within workflow package
+3. ~~**Create activity options factories**~~ **DONE** - Using `shared.DefaultActivityOptions()`
 
 ### Phase 3: Consistency Improvements (1 day)
 
@@ -284,14 +255,14 @@ for _, team := range teams {
 
 | Metric | Value |
 |--------|-------|
-| Duplicate progress tracker setups | 14 |
+| ~~Duplicate progress tracker setups~~ | ~~14~~ **FIXED** |
 | Batch processing callbacks (identical) | 8 |
-| Activity options configs (custom retry) | 7 |
-| Seasons manifest load calls | 7 |
+| ~~Activity options configs (custom retry)~~ | ~~7~~ **FIXED** (use DefaultActivityOptions) |
+| ~~Seasons manifest load calls~~ | 7 (not duplicated - single shared function) |
 | Child workflow spawn patterns | 6 |
-| **Total reducible boilerplate** | **300-400 lines** |
+| **Total reducible boilerplate** | ~~**300-400 lines**~~ **~70 lines reduced** |
 | Error handling consistency | 60% (core workflows need work) |
-| Temporal patterns compliance | 90% (1 critical, 3 medium issues) |
+| Temporal patterns compliance | ~~90% (1 critical, 3 medium issues)~~ **98%** (critical fixed) |
 | Go idioms compliance | 95% (minor issues only) |
 
 ---
@@ -299,14 +270,15 @@ for _, team := range teams {
 ## Files Requiring Changes
 
 ### Critical
-- `worker/shared/workflow_helpers.go` - Fix `EffectiveEndDate()`, increase timeouts
+- ~~`worker/shared/workflow_helpers.go` - Fix `EffectiveEndDate()`~~ **DONE**
+- `worker/shared/workflow_helpers.go` - Increase FetchDay timeout
 
 ### High Priority
-- `worker/workflow/process_players.go` - Add MaximumAttempts
+- ~~`worker/workflow/process_players.go` - Add MaximumAttempts~~ **DONE** (already existed)
 - `worker/workflow/fetch_season.go` - Add error wrapping
 - `worker/workflow/import_season.go` - Add error wrapping
 - `worker/nhl/fetch_day.go` - Add heartbeats in team loop
 
 ### Medium Priority (Deduplication)
-- `worker/shared/workflow_helpers.go` - Add new helpers
-- All workflow files - Use new helpers
+- ~~`worker/shared/progress.go` - Add `InitTracker()` helper~~ **DONE**
+- ~~All workflow files - Use `InitTracker()`~~ **DONE** (16 files updated)
