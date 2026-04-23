@@ -188,14 +188,7 @@ func runPhaseLoadYahoo(ctx workflow.Context, tracker *shared.ReportTracker, inpu
 			batch := shared.BatchSlice(yahooPlayerIDs, batchIndex, input.BatchSize)
 			return workflow.ExecuteActivity(ctx, playerAct.ParseYahooPlayerBatch, batch)
 		},
-		func(ctx workflow.Context, _ int, f workflow.Future) error {
-			var batchResult []store.YahooPlayer
-			if err := f.Get(ctx, &batchResult); err != nil {
-				return err
-			}
-			allYahooPlayers = append(allYahooPlayers, batchResult...)
-			return nil
-		}); err != nil {
+		shared.CollectSlicesInto(&allYahooPlayers)); err != nil {
 		return nil, fmt.Errorf("parse yahoo players: %w", err)
 	}
 	logger.Info("Parsed Yahoo players", "count", len(allYahooPlayers))

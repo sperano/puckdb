@@ -126,14 +126,7 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 		}
 		var dsa *worknhl.DailyScheduleActivities
 		return workflow.ExecuteActivity(dayCtx, dsa.FetchDay, dayInput)
-	}, func(_ workflow.Context, _ int, f workflow.Future) error {
-		var dayCounts core.OriginCounts
-		if err := f.Get(ctx, &dayCounts); err != nil {
-			return err
-		}
-		counts.Add(dayCounts)
-		return nil
-	})
+	}, shared.AggregateInto[core.OriginCounts](counts))
 	if err != nil {
 		return nil, err
 	}

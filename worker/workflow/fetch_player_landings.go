@@ -107,14 +107,7 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 			batch := shared.BatchSlice(players, batchIndex, batchSize)
 			return workflow.ExecuteActivity(fetchCtx, playerAct.FetchPlayerLandingsBatch, batch)
 		},
-		func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
-			var batchResult shared.FetchStats
-			if err := f.Get(ctx, &batchResult); err != nil {
-				return err
-			}
-			result.Add(batchResult)
-			return nil
-		})
+		shared.AggregateInto[shared.FetchStats](&result.FetchStats))
 	if err != nil {
 		return nil, err
 	}

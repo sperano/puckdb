@@ -41,7 +41,7 @@ The worker package is generally well-structured with consistent patterns, but ha
 |---------|-------------|-------------|----------------|
 | ~~Progress tracker initialization~~ | ~~14 files~~ | ~~70~~ | ~~Extract `InitTracker()` helper~~ **DONE** |
 | ~~`loadSeasonsManifest()` calls~~ | 7 files | 0 | Not duplicated - single function in workflow package |
-| Batch result aggregation callbacks | 8 files | ~80 | Create typed `Aggregate*()` helpers |
+| ~~Batch result aggregation callbacks~~ | ~~8 files~~ | ~~80~~ | ~~Create typed `Aggregate*()` helpers~~ **DONE** |
 
 ### Progress Tracker Duplication
 
@@ -227,7 +227,7 @@ for _, team := range teams {
 
 ### Phase 4: Polish (Optional)
 
-1. Create typed batch aggregation helpers
+1. ~~Create typed batch aggregation helpers~~ **DONE** (`shared/aggregators.go`)
 2. Unify logging patterns across packages
 3. Document workflow timeout assumptions
 
@@ -238,11 +238,11 @@ for _, team := range teams {
 | Metric | Value |
 |--------|-------|
 | ~~Duplicate progress tracker setups~~ | ~~14~~ **FIXED** |
-| Batch processing callbacks (identical) | 8 |
+| ~~Batch processing callbacks (identical)~~ | ~~8~~ **FIXED** (use `Aggregate*()` helpers) |
 | ~~Activity options configs (custom retry)~~ | ~~7~~ **FIXED** (use DefaultActivityOptions) |
 | ~~Seasons manifest load calls~~ | 7 (not duplicated - single shared function) |
 | Child workflow spawn patterns | 6 |
-| **Total reducible boilerplate** | ~~**300-400 lines**~~ **~70 lines reduced** |
+| **Total reducible boilerplate** | ~~**300-400 lines**~~ **~150 lines reduced** |
 | Error handling consistency | ~~60%~~ **95%** (core workflows fixed) |
 | Temporal patterns compliance | ~~90% (1 critical, 3 medium issues)~~ **98%** (critical fixed) |
 | Go idioms compliance | 95% (minor issues only) |

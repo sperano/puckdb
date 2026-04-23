@@ -105,14 +105,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 				TotalDays: numDays,
 			}
 			return workflow.ExecuteActivity(ctx, ia.ImportDay, input)
-		}, func(_ workflow.Context, _ int, f workflow.Future) error {
-			var dayCounts core.OriginCounts
-			if err := f.Get(ctx, &dayCounts); err != nil {
-				return err
-			}
-			counts.Add(dayCounts)
-			return nil
-		})
+		}, shared.AggregateInto[core.OriginCounts](counts))
 	if err != nil {
 		return nil, err
 	}
