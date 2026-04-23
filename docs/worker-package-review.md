@@ -149,7 +149,7 @@ All use `shared.WithChildOptions(ctx, workflowID)` with:
 |-------|------|------|----------|
 | ~~Deferred close errors ignored~~ | ~~`admin/activities.go`~~ | ~~32~~ | ~~Medium~~ **DONE** |
 | ~~Deferred close errors ignored~~ | ~~`shared/progress_activity.go`~~ | ~~14,23,31~~ | ~~Medium~~ **DONE** |
-| Batch error captures only first | `shared/batch.go` | 20-27 | Medium |
+| ~~Batch error captures only first~~ | ~~`shared/batch.go`~~ | ~~20-27~~ | ~~Medium~~ **DONE** |
 | Mixed logging (zerolog vs Temporal) | `admin/activities.go` vs `nhl/*.go` | Multiple | Low |
 
 **Example fix for deferred close:**

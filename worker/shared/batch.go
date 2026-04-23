@@ -17,15 +17,47 @@ func BatchSlice[T any](items []T, batchIndex, batchSize int) []T {
 	return items[start:end]
 }
 
-// ExecBatch runs a sqlc batch operation and returns the first error encountered.
+// BatchError aggregates multiple errors from a batch operation.
+// It implements error and provides Unwrap() []error for Go 1.20+ error inspection.
+type BatchError struct {
+	Errors  []error // All errors encountered
+	Indices []int   // Row indices that failed
+}
+
+// Error returns a summary message. For a single failure, shows the full error.
+// For multiple failures, shows the first error plus a count.
+func (be *BatchError) Error() string {
+	if len(be.Errors) == 0 {
+		return "batch error: no errors"
+	}
+	if len(be.Errors) == 1 {
+		return be.Errors[0].Error()
+	}
+	return fmt.Sprintf("%s (and %d more errors)", be.Errors[0].Error(), len(be.Errors)-1)
+}
+
+// Unwrap returns all errors for use with errors.Is/As on any constituent error.
+func (be *BatchError) Unwrap() []error {
+	return be.Errors
+}
+
+// ExecBatch runs a sqlc batch operation and returns all errors encountered.
 // errContext is called with the failing row index to produce a descriptive prefix
 // for the error message. The caller's closure captures params for rich context.
+// Returns nil if no errors, or a *BatchError containing all failures.
 func ExecBatch(br interface{ Exec(func(int, error)) }, errContext func(i int) string) error {
-	var firstErr error
+	var batchErr *BatchError
 	br.Exec(func(i int, err error) {
-		if err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("%s: %w", errContext(i), err)
+		if err != nil {
+			if batchErr == nil {
+				batchErr = &BatchError{}
+			}
+			batchErr.Errors = append(batchErr.Errors, fmt.Errorf("%s: %w", errContext(i), err))
+			batchErr.Indices = append(batchErr.Indices, i)
 		}
 	})
-	return firstErr
+	if batchErr != nil {
+		return batchErr
+	}
+	return nil
 }
