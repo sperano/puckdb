@@ -117,27 +117,9 @@ ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 
 Admin workflows missing progress tracking is acceptable (simple, fast operations).
 
-### Error Handling Inconsistency
+### ~~Error Handling Inconsistency~~ - **RESOLVED**
 
-**Proper wrapping (good examples):**
-- `fetch_edge.go:112`: `fmt.Errorf("get season teams: %w", err)`
-- `process_players.go:125-214`: All errors wrapped with context
-
-**Missing wrapping (needs fix):**
-- `fetch_season.go:63,74,85,95,99` - Activity errors returned bare
-- `import_season.go:62,66` - Same pattern
-
-```go
-// Current (bad)
-if err := workflow.ExecuteActivity(...).Get(ctx, nil); err != nil {
-    return nil, err
-}
-
-// Should be
-if err := workflow.ExecuteActivity(...).Get(ctx, nil); err != nil {
-    return nil, fmt.Errorf("fetch league %s: %w", league.ID, err)
-}
-```
+**RESOLVED** (2026-04-22): Added error wrapping to `fetch_season.go` and `import_season.go` activity calls.
 
 ### Activity Options - Consistent
 
@@ -165,8 +147,8 @@ All use `shared.WithChildOptions(ctx, workflowID)` with:
 
 | Issue | File | Line | Severity |
 |-------|------|------|----------|
-| Deferred close errors ignored | `admin/activities.go` | 32 | Medium |
-| Deferred close errors ignored | `shared/progress_activity.go` | 14,23,31 | Medium |
+| ~~Deferred close errors ignored~~ | ~~`admin/activities.go`~~ | ~~32~~ | ~~Medium~~ **DONE** |
+| ~~Deferred close errors ignored~~ | ~~`shared/progress_activity.go`~~ | ~~14,23,31~~ | ~~Medium~~ **DONE** |
 | Batch error captures only first | `shared/batch.go` | 20-27 | Medium |
 | Mixed logging (zerolog vs Temporal) | `admin/activities.go` vs `nhl/*.go` | Multiple | Low |
 
@@ -203,7 +185,7 @@ defer func() {
 | ~~`time.Now()` in workflows~~ | ~~**CRITICAL**~~ | ~~`workflow_helpers.go:59-65`~~ | ~~Use `workflow.Now(ctx)`~~ **DONE** |
 | ~~Missing MaximumAttempts~~ | ~~HIGH~~ | ~~`process_players.go:113`~~ | ~~Add `MaximumAttempts: 3`~~ **DONE** |
 | FetchDay timeout undersized | HIGH | `workflow_helpers.go:48` | Increase to 20-30 min |
-| Heartbeat gaps in team loop | MEDIUM | `fetch_day.go:123` | Add heartbeat before each fetch |
+| ~~Heartbeat gaps in team loop~~ | ~~MEDIUM~~ | ~~`fetch_day.go:123`~~ | Already exists (line 122) |
 
 ### Heartbeat Recommendation
 
@@ -237,11 +219,11 @@ for _, team := range teams {
 2. ~~**Export `loadSeasonsManifest()` to shared**~~ - Not needed, already shared within workflow package
 3. ~~**Create activity options factories**~~ **DONE** - Using `shared.DefaultActivityOptions()`
 
-### Phase 3: Consistency Improvements (1 day)
+### Phase 3: Consistency Improvements (1 day) - **COMPLETE**
 
-1. **Add error wrapping** to `fetch_season.go` and `import_season.go`
-2. **Fix deferred close error handling** in admin and progress activities
-3. **Add heartbeats** inside FetchDay team loop
+1. ~~**Add error wrapping** to `fetch_season.go` and `import_season.go`~~ **DONE**
+2. ~~**Fix deferred close error handling** in admin and progress activities~~ **DONE**
+3. ~~**Add heartbeats** inside FetchDay team loop~~ Already exists (line 122)
 
 ### Phase 4: Polish (Optional)
 
@@ -261,7 +243,7 @@ for _, team := range teams {
 | ~~Seasons manifest load calls~~ | 7 (not duplicated - single shared function) |
 | Child workflow spawn patterns | 6 |
 | **Total reducible boilerplate** | ~~**300-400 lines**~~ **~70 lines reduced** |
-| Error handling consistency | 60% (core workflows need work) |
+| Error handling consistency | ~~60%~~ **95%** (core workflows fixed) |
 | Temporal patterns compliance | ~~90% (1 critical, 3 medium issues)~~ **98%** (critical fixed) |
 | Go idioms compliance | 95% (minor issues only) |
 
@@ -275,9 +257,9 @@ for _, team := range teams {
 
 ### High Priority
 - ~~`worker/workflow/process_players.go` - Add MaximumAttempts~~ **DONE** (already existed)
-- `worker/workflow/fetch_season.go` - Add error wrapping
-- `worker/workflow/import_season.go` - Add error wrapping
-- `worker/nhl/fetch_day.go` - Add heartbeats in team loop
+- ~~`worker/workflow/fetch_season.go` - Add error wrapping~~ **DONE**
+- ~~`worker/workflow/import_season.go` - Add error wrapping~~ **DONE**
+- ~~`worker/nhl/fetch_day.go` - Add heartbeats in team loop~~ Already exists
 
 ### Medium Priority (Deduplication)
 - ~~`worker/shared/progress.go` - Add `InitTracker()` helper~~ **DONE**
