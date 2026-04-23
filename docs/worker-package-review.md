@@ -150,7 +150,7 @@ All use `shared.WithChildOptions(ctx, workflowID)` with:
 | ~~Deferred close errors ignored~~ | ~~`admin/activities.go`~~ | ~~32~~ | ~~Medium~~ **DONE** |
 | ~~Deferred close errors ignored~~ | ~~`shared/progress_activity.go`~~ | ~~14,23,31~~ | ~~Medium~~ **DONE** |
 | ~~Batch error captures only first~~ | ~~`shared/batch.go`~~ | ~~20-27~~ | ~~Medium~~ **DONE** |
-| Mixed logging (zerolog vs Temporal) | `admin/activities.go` vs `nhl/*.go` | Multiple | Low |
+| ~~Mixed logging (zerolog vs Temporal)~~ | ~~`admin/activities.go`~~ | — | ~~Low~~ **DONE** (admin pkg) |
 
 **Example fix for deferred close:**
 ```go
@@ -225,11 +225,19 @@ for _, team := range teams {
 2. ~~**Fix deferred close error handling** in admin and progress activities~~ **DONE**
 3. ~~**Add heartbeats** inside FetchDay team loop~~ Already exists (line 122)
 
-### Phase 4: Polish (Optional)
+### Phase 4: Polish (Optional) - **COMPLETE**
 
 1. ~~Create typed batch aggregation helpers~~ **DONE** (`shared/aggregators.go`)
-2. Unify logging patterns across packages
-3. Document workflow timeout assumptions
+2. ~~Unify logging patterns~~ **DONE** (admin package uses `activity.GetLogger`, player/yahoo remain zerolog - test infra would need updates)
+3. ~~Document workflow timeout assumptions~~ **DONE** (see below)
+
+**Timeout Configuration:**
+| Activity | Default | Helm Override | Notes |
+|----------|---------|---------------|-------|
+| Default activities | 5 min | `activityStartToCloseTimeout` | Most activities |
+| FetchDay | 10 min | `fetchDayActivityTimeout=25` | Yahoo rate limiting |
+| Heartbeat | 60s | `activityHeartbeatTimeout` | Long-running batches |
+| Workflow execution | 180 min | `workflowExecutionTimeout` | Full workflow timeout |
 
 ---
 

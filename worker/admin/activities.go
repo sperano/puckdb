@@ -3,14 +3,15 @@ package admin
 import (
 	"context"
 
-	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/database"
+	"go.temporal.io/sdk/activity"
 )
 
 // DropDatabaseActivity drops all database tables by running down migrations.
 func DropDatabaseActivity(ctx context.Context) error {
-	log.Info().Msg("DropDatabaseActivity: dropping all tables")
+	logger := activity.GetLogger(ctx)
+	logger.Info("DropDatabaseActivity: dropping all tables")
 	pool, err := database.OpenPGXPool(ctx)
 	if err != nil {
 		return err
@@ -21,17 +22,19 @@ func DropDatabaseActivity(ctx context.Context) error {
 
 // MigrateDatabaseActivity runs database migrations.
 func MigrateDatabaseActivity(ctx context.Context) error {
-	log.Info().Msg("MigrateDatabaseActivity: running migrations")
+	logger := activity.GetLogger(ctx)
+	logger.Info("MigrateDatabaseActivity: running migrations")
 	return database.DoMigration()
 }
 
 // FlushRedisActivity flushes all keys from the configured Redis database.
 func FlushRedisActivity(ctx context.Context) error {
-	log.Info().Msg("FlushRedisActivity: flushing Redis DB")
+	logger := activity.GetLogger(ctx)
+	logger.Info("FlushRedisActivity: flushing Redis DB")
 	redisClient := cache.NewClient()
 	defer func() {
 		if err := redisClient.Close(); err != nil {
-			log.Warn().Err(err).Msg("failed to close redis client")
+			logger.Warn("failed to close redis client", "error", err)
 		}
 	}()
 	return cache.FlushDB(ctx, redisClient)

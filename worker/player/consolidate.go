@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/store"
 	"github.com/spf13/viper"
+	"go.temporal.io/sdk/activity"
 )
 
 // ConsolidatePlayersInput contains parameters for the consolidation activity.
@@ -26,10 +26,11 @@ type ConsolidatePlayersResult struct {
 // ConsolidateBoxscorePlayersActivity loads players from all seasons,
 // deduplicates them, and saves the consolidated set to Redis.
 func ConsolidateBoxscorePlayersActivity(ctx context.Context, input ConsolidatePlayersInput) (ConsolidatePlayersResult, error) {
+	logger := activity.GetLogger(ctx)
 	redisClient := cache.NewClient()
 	defer func() {
 		if err := redisClient.Close(); err != nil {
-			log.Warn().Err(err).Msg("failed to close redis client")
+			logger.Warn("failed to close redis client", "error", err)
 		}
 	}()
 
@@ -39,7 +40,7 @@ func ConsolidateBoxscorePlayersActivity(ctx context.Context, input ConsolidatePl
 	for _, season := range input.Seasons {
 		players, err := cache.LoadBoxscorePlayers(ctx, redisClient, season)
 		if err != nil {
-			log.Warn().Err(err).Int("season", season.ID()).Msg("Failed to load players for season, skipping")
+			logger.Warn("Failed to load players for season, skipping", "season", season.ID(), "error", err)
 			continue
 		}
 
@@ -59,11 +60,10 @@ func ConsolidateBoxscorePlayersActivity(ctx context.Context, input ConsolidatePl
 		return ConsolidatePlayersResult{}, err
 	}
 
-	log.Info().
-		Int("seasons", len(input.Seasons)).
-		Int("totalPlayers", totalPlayers).
-		Int("uniquePlayers", len(uniquePlayers)).
-		Msg("Consolidated boxscore players")
+	logger.Info("Consolidated boxscore players",
+		"seasons", len(input.Seasons),
+		"totalPlayers", totalPlayers,
+		"uniquePlayers", len(uniquePlayers))
 
 	return ConsolidatePlayersResult{
 		TotalPlayers:  totalPlayers,
