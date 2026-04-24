@@ -20,7 +20,7 @@ import (
 )
 
 // gobEncodeProgressReport encodes a shared.ProgressReport as gob bytes for use in test mocks.
-// This simulates the bytes that shared.LoadProgressReportActivity returns from Redis.
+// This simulates the bytes that ProgressActivities.Load returns from Redis.
 func gobEncodeProgressReport(report *shared.ProgressReport) []byte {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(report); err != nil {
@@ -879,7 +879,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Succ
 
 	// Mock the Redis load — returns the pre-built progress report from Phase 1.
 	reportBytes := gobEncodeProgressReport(NewProcessPlayersProgressReport(len(input.Players)))
-	s.env.OnActivity(shared.LoadProgressReportActivity, mock.Anything, mock.Anything).Return(reportBytes, nil)
+	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Load, mock.Anything, mock.Anything).Return(reportBytes, nil)
 
 	// Mock Phase 3 activities
 	var playerAct *workplayer.Activities
@@ -903,7 +903,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Batc
 	}
 
 	reportBytes := gobEncodeProgressReport(NewProcessPlayersProgressReport(len(input.Players)))
-	s.env.OnActivity(shared.LoadProgressReportActivity, mock.Anything, mock.Anything).Return(reportBytes, nil)
+	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Load, mock.Anything, mock.Anything).Return(reportBytes, nil)
 
 	var playerAct *workplayer.Activities
 	s.env.OnActivity(playerAct.ProcessPlayerBatch, mock.Anything, mock.Anything).Return(
@@ -931,7 +931,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_Succ
 
 	// Mock the Redis load — returns the pre-built progress report from Phases 1-2.
 	reportBytes := gobEncodeProgressReport(NewProcessPlayersProgressReport(len(input.Players)))
-	s.env.OnActivity(shared.LoadProgressReportActivity, mock.Anything, mock.Anything).Return(reportBytes, nil)
+	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Load, mock.Anything, mock.Anything).Return(reportBytes, nil)
 
 	// Mock Phase 4 activities - no unmatched players
 	var playerAct *workplayer.Activities
@@ -966,7 +966,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_With
 
 	// Mock the Redis load — returns the pre-built progress report from Phases 1-2.
 	reportBytes := gobEncodeProgressReport(NewProcessPlayersProgressReport(len(input.Players)))
-	s.env.OnActivity(shared.LoadProgressReportActivity, mock.Anything, mock.Anything).Return(reportBytes, nil)
+	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Load, mock.Anything, mock.Anything).Return(reportBytes, nil)
 
 	// Mock Phase 4 activities - some unmatched players
 	var playerAct *workplayer.Activities
@@ -999,7 +999,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_InvalidPhas
 
 	// ContinueAsNew path loads tracker from Redis first
 	reportBytes := gobEncodeProgressReport(NewProcessPlayersProgressReport(1))
-	s.env.OnActivity(shared.LoadProgressReportActivity, mock.Anything, mock.Anything).Return(reportBytes, nil)
+	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Load, mock.Anything, mock.Anything).Return(reportBytes, nil)
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
 

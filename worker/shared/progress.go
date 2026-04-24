@@ -81,7 +81,7 @@ func (t *ReportTracker) Save(ctx workflow.Context) {
 	localCtx := workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
 		ScheduleToCloseTimeout: 5 * time.Second,
 	})
-	if err := workflow.ExecuteLocalActivity(localCtx, SaveProgressReportActivity, workflowID, data).Get(ctx, nil); err != nil {
+	if err := workflow.ExecuteLocalActivity(localCtx, ((*ProgressActivities)(nil)).Save, workflowID, data).Get(ctx, nil); err != nil {
 		workflow.GetLogger(ctx).Warn("Failed to save progress report to Redis", "error", err)
 	}
 }
@@ -126,7 +126,7 @@ func LoadReportTracker(ctx workflow.Context) (*ReportTracker, error) {
 		ScheduleToCloseTimeout: 5 * time.Second,
 	})
 	var data []byte
-	if err := workflow.ExecuteLocalActivity(localCtx, LoadProgressReportActivity, workflowID).Get(ctx, &data); err != nil {
+	if err := workflow.ExecuteLocalActivity(localCtx, ((*ProgressActivities)(nil)).Load, workflowID).Get(ctx, &data); err != nil {
 		return nil, fmt.Errorf("load progress report from redis: %w", err)
 	}
 	if data == nil {

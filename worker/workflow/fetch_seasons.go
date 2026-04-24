@@ -173,5 +173,5 @@ func cleanupStaleChildReports(ctx workflow.Context, seasons []nhl.SeasonInfo, so
 	localCtx := workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
 		ScheduleToCloseTimeout: 5 * time.Second,
 	})
-	_ = workflow.ExecuteLocalActivity(localCtx, shared.DeleteProgressReportBatchActivity, staleIDs).Get(ctx, nil)
+	_ = workflow.ExecuteLocalActivity(localCtx, ((*shared.ProgressActivities)(nil)).DeleteBatch, staleIDs).Get(ctx, nil)
 }

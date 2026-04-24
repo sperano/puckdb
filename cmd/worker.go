@@ -159,11 +159,6 @@ func cmdWorker() *cobra.Command {
 
 // registerTasksWorkflows registers all workflows for the tasks queue.
 func registerTasksWorkflows(w worker.Worker) {
-	// Progress tracking activities
-	w.RegisterActivity(shared.SaveProgressReportActivity)
-	w.RegisterActivity(shared.LoadProgressReportActivity)
-	w.RegisterActivity(shared.DeleteProgressReportBatchActivity)
-
 	// Fetch workflows
 	w.RegisterWorkflow(workflow.FetchSeasonsWorkflow)
 	w.RegisterWorkflow(workflow.FetchSeasonWorkflow)
@@ -200,6 +195,13 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient ca
 	}
 
 	yahooDownloader := shared.NewYahooDownloader(redisClient)
+
+	// Progress report activities share a single Redis client so the high-frequency
+	// Save/Load calls from workflows don't churn through connection pools.
+	progressActivities := &shared.ProgressActivities{RedisClient: redisClient}
+	w.RegisterActivity(progressActivities.Save)
+	w.RegisterActivity(progressActivities.Load)
+	w.RegisterActivity(progressActivities.DeleteBatch)
 
 	// Yahoo fetch activities
 	fetchYahooActivities := &yahoo.FetchActivities{
