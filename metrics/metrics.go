@@ -293,7 +293,9 @@ func StartServer(addr string) {
 
 // StartWorkerServer starts the Prometheus metrics HTTP server for the worker.
 // dataPath is the filesystem path to check in the health endpoint (e.g. JuiceFS mount).
-func StartWorkerServer(addr, dataPath string) {
+// Blocks until the server exits; returns the listen/serve error so the caller
+// (which runs Temporal in a peer goroutine) can terminate the whole process on failure.
+func StartWorkerServer(addr, dataPath string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", HandlerFor(WorkerRegistry))
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -324,9 +326,7 @@ func StartWorkerServer(addr, dataPath string) {
 		}
 	})
 
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Error().Err(err).Msg("Metrics server error")
-	}
+	return http.ListenAndServe(addr, mux)
 }
 
 // SetCacheMetrics updates cache statistics gauges for a season and file type

@@ -66,10 +66,20 @@ func cmdWorker() *cobra.Command {
 				return fmt.Errorf("invalid queue type %q: must be 'tasks' or 'admin'", queueType)
 			}
 
+			// errCh receives the first fatal error from either the metrics server
+			// or the Temporal worker. Whichever dies first terminates the command,
+			// so a port-bind failure in the metrics server doesn't leave a worker
+			// running behind a dead /metrics and /health.
+			errCh := make(chan error, 2)
+
 			// Start metrics HTTP server (health check verifies JuiceFS mount)
 			metricsAddr := fmt.Sprintf(":%d", viper.GetInt(config.FlagWorkerPort))
 			dataPath := viper.GetString(config.FlagDataPath)
-			go metrics.StartWorkerServer(metricsAddr, dataPath)
+			go func() {
+				if err := metrics.StartWorkerServer(metricsAddr, dataPath); err != nil {
+					errCh <- fmt.Errorf("metrics server: %w", err)
+				}
+			}()
 
 			// Open shared database pool for activities
 			ctx := context.Background()
@@ -119,7 +129,10 @@ func cmdWorker() *cobra.Command {
 			}
 
 			fmt.Printf("Starting worker on queue %q\n", queueName)
-			return w.Run(worker.InterruptCh())
+			go func() {
+				errCh <- w.Run(worker.InterruptCh())
+			}()
+			return <-errCh
 		},
 	}
 	flags := cmd.Flags()
