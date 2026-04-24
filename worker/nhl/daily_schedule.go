@@ -53,13 +53,13 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 	log.Info().Str("day", day.Format("2006-01-02")).Msg("Daily schedule fetched from API")
 
 	filtered := filterFinalNonPreseasonGames(schedule.Games)
-	g, _ := errgroup.WithContext(ctx)
+	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(getGameDownloadConcurrency())
 
 	for _, id := range filtered {
 		g.Go(func() error {
-			activity.RecordHeartbeat(ctx, nil)
-			if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, resource.Boxscore{Date: day, GameID: id},
+			activity.RecordHeartbeat(gctx, nil)
+			if _, _, err := shared.FetchOrCache(gctx, a.Storage, a.GobCache, resource.Boxscore{Date: day, GameID: id},
 				func(ctx context.Context) (*nhlapi.Boxscore, error) {
 					return a.NHLClient.Boxscore(ctx, id)
 				},
@@ -69,8 +69,8 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 			return nil
 		})
 		g.Go(func() error {
-			activity.RecordHeartbeat(ctx, nil)
-			if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, resource.PlayByPlay{Date: day, GameID: id},
+			activity.RecordHeartbeat(gctx, nil)
+			if _, _, err := shared.FetchOrCache(gctx, a.Storage, a.GobCache, resource.PlayByPlay{Date: day, GameID: id},
 				func(ctx context.Context) (*nhlapi.PlayByPlay, error) {
 					return a.NHLClient.PlayByPlay(ctx, id)
 				},
@@ -80,8 +80,8 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 			return nil
 		})
 		g.Go(func() error {
-			activity.RecordHeartbeat(ctx, nil)
-			if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, resource.ShiftChart{Date: day, GameID: id},
+			activity.RecordHeartbeat(gctx, nil)
+			if _, _, err := shared.FetchOrCache(gctx, a.Storage, a.GobCache, resource.ShiftChart{Date: day, GameID: id},
 				func(ctx context.Context) (*nhlapi.ShiftChart, error) {
 					return a.NHLClient.ShiftChart(ctx, id)
 				},
@@ -91,8 +91,8 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 			return nil
 		})
 		g.Go(func() error {
-			activity.RecordHeartbeat(ctx, nil)
-			if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, resource.GameStory{Date: day, GameID: id},
+			activity.RecordHeartbeat(gctx, nil)
+			if _, _, err := shared.FetchOrCache(gctx, a.Storage, a.GobCache, resource.GameStory{Date: day, GameID: id},
 				func(ctx context.Context) (*nhlapi.GameStory, error) {
 					return a.NHLClient.GameStory(ctx, id)
 				},
@@ -102,8 +102,8 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 			return nil
 		})
 		g.Go(func() error {
-			activity.RecordHeartbeat(ctx, nil)
-			if _, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, resource.SeasonSeries{Date: day, GameID: id},
+			activity.RecordHeartbeat(gctx, nil)
+			if _, _, err := shared.FetchOrCache(gctx, a.Storage, a.GobCache, resource.SeasonSeries{Date: day, GameID: id},
 				func(ctx context.Context) (*nhlapi.SeasonSeriesMatchup, error) {
 					return a.NHLClient.SeasonSeries(ctx, id)
 				},

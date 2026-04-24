@@ -122,13 +122,13 @@ func (a *PlayoffActivities) FetchPlayoffGames(ctx context.Context, input FetchPl
 	}
 
 	// Download game data for each playoff game
-	g, _ := errgroup.WithContext(ctx)
+	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(getGameDownloadConcurrency())
 
 	for _, pg := range playoffGames {
 		g.Go(func() error {
-			activity.RecordHeartbeat(ctx, fmt.Sprintf("playoff:%s", pg.ID.String()))
-			return fetchGameData(ctx, a.Storage, a.GobCache, a.NHLClient, pg.ID, pg.Date)
+			activity.RecordHeartbeat(gctx, fmt.Sprintf("playoff:%s", pg.ID.String()))
+			return fetchGameData(gctx, a.Storage, a.GobCache, a.NHLClient, pg.ID, pg.Date)
 		})
 	}
 	if err := g.Wait(); err != nil {
