@@ -381,12 +381,17 @@ func FormatDuration(d time.Duration) string {
 // SaveActivityProgress saves a simple current/total ProgressReport to Redis from an activity.
 // This allows activities (not just workflows) to publish progress in the ProgressReport format
 // that the resolver can read via mergeChildWorkflowProgress.
-func SaveActivityProgress(ctx context.Context, client cache.Client, workflowID string, current, total int) error {
+//
+// startedAt is a UnixMilli timestamp captured once per activity invocation and passed
+// in unchanged on every call, so the field stays stable across loop iterations. On
+// activity retry the caller captures a fresh value, which matches the reset of
+// per-iteration counters (Temporal re-runs the function from the top on retry).
+func SaveActivityProgress(ctx context.Context, client cache.Client, workflowID string, startedAt int64, current, total int) error {
 	report := &ProgressReport{
 		Total:     total,
 		Completed: current,
 		Groups: []ProgressGroup{
-			{Bars: []ProgressBar{{Current: current, Total: total}}, StartedAt: 1},
+			{Bars: []ProgressBar{{Current: current, Total: total}}, StartedAt: startedAt},
 		},
 	}
 	var buf bytes.Buffer

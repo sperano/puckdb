@@ -51,6 +51,7 @@ type ExtractBoxscoreInput struct {
 
 // ExtractBoxscoreDataForSeason extracts player info from all boxscores for a season.
 func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, input ExtractBoxscoreInput) (BoxscoreExtractionResult, error) {
+	startedAt := time.Now().UnixMilli()
 	players := make(map[int64]store.BoxscorePlayer)
 	origins := make(core.OriginCounts)
 
@@ -83,7 +84,7 @@ func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, i
 
 		if a.RedisClient != nil {
 			workflowID := workflowIDExtractSeason(season.ID.StartYear())
-			_ = shared.SaveActivityProgress(ctx, a.RedisClient, workflowID, dayCount, totalDays) //nolint:errcheck
+			_ = shared.SaveActivityProgress(ctx, a.RedisClient, workflowID, startedAt, dayCount, totalDays) //nolint:errcheck
 		}
 
 		if dayCount%30 == 0 {
