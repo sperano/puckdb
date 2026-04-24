@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -99,7 +100,7 @@ func RunSQLMigrations() error {
 		}
 	}
 
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 
@@ -124,7 +125,7 @@ func RunSQLMigrationsDown() error {
 	}
 	defer m.Close()
 
-	if err := m.Down(); err != nil && err != migrate.ErrNoChange {
+	if err := m.Down(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("run down migrations: %w", err)
 	}
 
