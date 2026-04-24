@@ -57,7 +57,7 @@ func FetchEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) e
 	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
 		GroupIdx:    0,
 		Counter:     countEdgeActivities,
-		ChildIDFunc: WorkflowIDFetchEdge,
+		SourceKeyFunc: WorkflowIDFetchEdge,
 		GroupLabel:  "Fetched Edge stats for",
 		CountLabel:  "endpoints",
 	}, func(ctx workflow.Context, i int) workflow.Future {

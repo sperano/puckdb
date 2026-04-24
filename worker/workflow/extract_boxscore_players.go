@@ -77,7 +77,7 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsIn
 	if _, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
 		GroupIdx:    GroupExtractBoxscorePlayers,
 		Counter:     shared.CountDaysInSeason,
-		ChildIDFunc: WorkflowIDExtractSeason,
+		SourceKeyFunc: WorkflowIDExtractSeason,
 		GroupLabel:  "Extracted players for",
 		CountLabel:  "boxscore reads",
 	}, func(_ workflow.Context, i int) workflow.Future {

@@ -45,7 +45,7 @@ func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error
 type SeasonGroupConfig struct {
 	GroupIdx    int
 	Counter     shared.SeasonCounterFunc
-	ChildIDFunc shared.ChildWorkflowIDFunc
+	SourceKeyFunc shared.ProgressSourceKeyFunc
 	GroupLabel  string // verb phrase for completion message (e.g., "Iterated", "Extracted players for")
 	CountLabel  string // label for OriginCounts summary (e.g., "children count", "boxscore reads")
 }
@@ -57,11 +57,11 @@ func processSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, sea
 	cfg SeasonGroupConfig, startWork shared.ActivityStarter) (core.OriginCounts, error) {
 
 	// Clean up stale child progress reports from previous runs
-	if cfg.ChildIDFunc != nil {
-		cleanupStaleChildReports(ctx, seasons, cfg.ChildIDFunc)
+	if cfg.SourceKeyFunc != nil {
+		cleanupStaleChildReports(ctx, seasons, cfg.SourceKeyFunc)
 	}
 
-	if _, err := tracker.AddBarsForSeasons(ctx, cfg.GroupIdx, seasons, cfg.Counter, cfg.ChildIDFunc); err != nil {
+	if _, err := tracker.AddBarsForSeasons(ctx, cfg.GroupIdx, seasons, cfg.Counter, cfg.SourceKeyFunc); err != nil {
 		return core.OriginCounts{}, err
 	}
 	tracker.StartGroup(ctx, cfg.GroupIdx)
@@ -101,7 +101,7 @@ type CompletionMsgFunc func(n int, elapsed string, counts core.OriginCounts) str
 // to processSeasonGroup for concurrent child workflow execution.
 // If completionMsg is nil, a default message is used.
 func iterateSeasons(ctx workflow.Context, input *model.SeasonsInput, progReport *shared.ProgressReport, groupIdx int,
-	counter shared.SeasonCounterFunc, childIDFunc shared.ChildWorkflowIDFunc,
+	counter shared.SeasonCounterFunc, sourceKeyFunc shared.ProgressSourceKeyFunc,
 	completionMsg CompletionMsgFunc, starter shared.ChildWorkflowStarter) error {
 	logger := workflow.GetLogger(ctx)
 
@@ -129,7 +129,7 @@ func iterateSeasons(ctx workflow.Context, input *model.SeasonsInput, progReport 
 	counts, err := processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
 		GroupIdx:    groupIdx,
 		Counter:     counter,
-		ChildIDFunc: childIDFunc,
+		SourceKeyFunc: sourceKeyFunc,
 	}, func(ctx workflow.Context, i int) workflow.Future {
 		return starter(ctx, seasons[i])
 	})
@@ -165,10 +165,10 @@ func loadSeasonsManifest(ctx workflow.Context, logger log.Logger, input *model.S
 
 // cleanupStaleChildReports deletes progress report keys from previous runs
 // so stale data doesn't pollute the current display.
-func cleanupStaleChildReports(ctx workflow.Context, seasons []nhl.SeasonInfo, childIDFunc shared.ChildWorkflowIDFunc) {
+func cleanupStaleChildReports(ctx workflow.Context, seasons []nhl.SeasonInfo, sourceKeyFunc shared.ProgressSourceKeyFunc) {
 	staleIDs := make([]string, len(seasons))
 	for i, s := range seasons {
-		staleIDs[i] = childIDFunc(s.ID.StartYear())
+		staleIDs[i] = sourceKeyFunc(s.ID.StartYear())
 	}
 	localCtx := workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
 		ScheduleToCloseTimeout: 5 * time.Second,

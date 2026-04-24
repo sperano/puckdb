@@ -355,11 +355,11 @@ func (r *Resolver) queryProgressReport(ctx context.Context, workflowID string) (
 			}
 			// Queue all bars with child workflows — started state will be
 			// inferred from Redis child progress in mergeChildWorkflowProgress.
-			if b.ChildWorkflowID != "" {
+			if b.ProgressSourceKey != "" {
 				childQueries = append(childQueries, childQuery{
 					groupIdx:   groupIdx,
 					barIdx:     j,
-					workflowID: b.ChildWorkflowID,
+					workflowID: b.ProgressSourceKey,
 				})
 			}
 		}

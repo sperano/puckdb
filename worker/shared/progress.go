@@ -18,7 +18,11 @@ type ProgressBar struct {
 	Current         int    `json:"current"`
 	Total           int    `json:"total"`
 	Started         bool   `json:"started,omitempty"`
-	ChildWorkflowID string `json:"childWorkflowID,omitempty"` // If set, resolver queries this child for progress
+	// ProgressSourceKey is the Redis key from which the resolver merges this bar's
+	// live progress. It may hold a real child workflow ID (when the bar corresponds
+	// to a spawned child workflow) or a synthetic key published by an activity that
+	// writes its own ProgressReport (see SaveActivityProgress). Empty means no merge.
+	ProgressSourceKey string `json:"progressSourceKey,omitempty"`
 }
 
 // ProgressGroup is a unit of display: header + bars + completion message.
@@ -170,17 +174,20 @@ func (t *ReportTracker) CompleteBar(ctx workflow.Context, groupIdx, barIdx int) 
 	t.Save(ctx)
 }
 
-// ChildWorkflowIDFunc maps a season to its child workflow ID.
-type ChildWorkflowIDFunc func(startYear int) string
+// ProgressSourceKeyFunc maps a season to the Redis key under which its live
+// progress report is stored (either a real child workflow ID or a synthetic
+// key written by an activity via SaveActivityProgress).
+type ProgressSourceKeyFunc func(startYear int) string
 
 // ChildWorkflowStarter starts a child workflow for a season and returns its future.
 // Each caller constructs its own input, child options, and workflow ID.
 type ChildWorkflowStarter func(ctx workflow.Context, season nhl.SeasonInfo) workflow.ChildWorkflowFuture
 
 // AddBarsForSeasons adds one bar per season to a group.
-// If childIDFunc is provided, sets ChildWorkflowID so resolver can query children for progress.
+// If sourceKeyFunc is provided, sets each bar's ProgressSourceKey so the resolver
+// can merge per-season progress from Redis at query time.
 // Returns a map of startYear -> barIdx for looking up bars later.
-func (t *ReportTracker) AddBarsForSeasons(ctx workflow.Context, groupIdx int, seasons []nhl.SeasonInfo, counter SeasonCounterFunc, childIDFunc ChildWorkflowIDFunc) (map[int]int, error) {
+func (t *ReportTracker) AddBarsForSeasons(ctx workflow.Context, groupIdx int, seasons []nhl.SeasonInfo, counter SeasonCounterFunc, sourceKeyFunc ProgressSourceKeyFunc) (map[int]int, error) {
 	barIndex := make(map[int]int)
 	total := 0
 
@@ -193,8 +200,8 @@ func (t *ReportTracker) AddBarsForSeasons(ctx workflow.Context, groupIdx int, se
 			Label: season.Label(),
 			Total: count,
 		}
-		if childIDFunc != nil {
-			bar.ChildWorkflowID = childIDFunc(season.ID.StartYear())
+		if sourceKeyFunc != nil {
+			bar.ProgressSourceKey = sourceKeyFunc(season.ID.StartYear())
 		}
 		t.report.Groups[groupIdx].Bars = append(t.report.Groups[groupIdx].Bars, bar)
 		barIndex[season.ID.StartYear()] = i
