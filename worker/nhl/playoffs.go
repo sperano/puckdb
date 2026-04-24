@@ -250,8 +250,11 @@ func collectPlayoffGames(ctx context.Context, storage store.Storage, gobCache *c
 	scheduleDir := fmt.Sprintf("seasons/%d/club-schedule", season)
 	files, err := storage.List(ctx, scheduleDir, "json")
 	if err != nil {
-		// No club-schedule directory means no playoff data was fetched
-		return nil, nil
+		// FetchPlayoffGames is expected to have populated this directory before
+		// import runs. A missing directory means the fetch step never ran for
+		// this season or wrote to a different mount — both pathologies the
+		// operator should see, not silent zero-game imports.
+		return nil, fmt.Errorf("list club schedules for season %d: %w", season, err)
 	}
 
 	for _, filename := range files {
