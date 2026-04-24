@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
@@ -80,7 +81,11 @@ func cmdWorker() *cobra.Command {
 
 			// Create shared Redis client for activities
 			redisClient := cache.NewClient()
-			defer redisClient.Close()
+			defer func() {
+				if err := redisClient.Close(); err != nil {
+					log.Warn().Err(err).Msg("failed to close redis client")
+				}
+			}()
 
 			tclient, err := temporal.NewClient()
 			if err != nil {

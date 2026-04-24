@@ -17,7 +17,7 @@ type Adder[T any] interface {
 //	counts := core.OriginCounts{}
 //	err := tracker.RunWorkerPool(ctx, group, 0, total, concurrency, starter,
 //	    AggregateInto[core.OriginCounts](&counts))
-func AggregateInto[T any, A Adder[T]](acc A) ResultHandler {
+func AggregateInto[T any](acc Adder[T]) ResultHandler {
 	return func(ctx workflow.Context, _ int, f workflow.Future) error {
 		var result T
 		if err := f.Get(ctx, &result); err != nil {

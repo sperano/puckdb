@@ -97,7 +97,7 @@ func RemoveFromYahooIDPool(ctx context.Context, client cache.Client, ids []store
 		return nil
 	}
 
-	args := make([]interface{}, len(ids))
+	args := make([]any, len(ids))
 	for i, id := range ids {
 		args[i] = int(id)
 	}
@@ -165,7 +165,7 @@ func SaveVerifiedNonNHLIDs(ctx context.Context, client cache.Client, ids []store
 		return nil
 	}
 
-	args := make([]interface{}, len(ids))
+	args := make([]any, len(ids))
 	for i, id := range ids {
 		args[i] = int(id)
 	}
