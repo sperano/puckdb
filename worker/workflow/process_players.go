@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
@@ -10,7 +9,6 @@ import (
 	workplayer "github.com/sperano/puckdb/worker/player"
 	"github.com/sperano/puckdb/worker/shared"
 	"github.com/spf13/viper"
-	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -256,16 +254,7 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 		"concurrency", input.Concurrency,
 		"batch_size", input.BatchSize)
 
-	// Activity options for player processing
-	activityCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 5 * time.Minute,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    time.Duration(viper.GetInt(config.FlagTemporalRetryInitialInterval)) * time.Second,
-			MaximumInterval:    time.Duration(viper.GetInt(config.FlagTemporalRetryMaxInterval)) * time.Second,
-			BackoffCoefficient: config.DefaultBackoffCoefficient,
-			MaximumAttempts:    int32(viper.GetInt(config.FlagTemporalRetryMaxAttempts)),
-		},
-	})
+	activityCtx := workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// Aggregate results from previous ContinueAsNew executions
 	totalDownloaded := input.TotalDownloaded

@@ -2,14 +2,10 @@ package workflow
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/store"
 	workplayer "github.com/sperano/puckdb/worker/player"
 	"github.com/sperano/puckdb/worker/shared"
-	"github.com/spf13/viper"
-	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -83,16 +79,7 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 	}
 	tracker.StartGroup(ctx, GroupFetchPlayerLandings)
 
-	// Activity options for batch fetches
-	fetchCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 10 * time.Minute,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    time.Duration(viper.GetInt(config.FlagTemporalRetryInitialInterval)) * time.Second,
-			MaximumInterval:    time.Duration(viper.GetInt(config.FlagTemporalRetryMaxInterval)) * time.Second,
-			BackoffCoefficient: config.DefaultBackoffCoefficient,
-			MaximumAttempts:    int32(viper.GetInt(config.FlagTemporalRetryMaxAttempts)),
-		},
-	})
+	fetchCtx := workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// Calculate number of batches
 	numBatches := shared.BatchCount(len(players), batchSize)
