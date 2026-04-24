@@ -84,7 +84,9 @@ func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, i
 
 		if a.RedisClient != nil {
 			workflowID := workflowIDExtractSeason(season.ID.StartYear())
-			_ = shared.SaveActivityProgress(ctx, a.RedisClient, workflowID, startedAt, dayCount, totalDays) //nolint:errcheck
+			if err := shared.SaveActivityProgress(ctx, a.RedisClient, workflowID, startedAt, dayCount, totalDays); err != nil {
+				log.Warn().Err(err).Str("workflow", workflowID).Msg("Failed to save activity progress")
+			}
 		}
 
 		if dayCount%30 == 0 {
