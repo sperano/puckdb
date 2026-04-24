@@ -589,6 +589,9 @@ func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workf
 }
 
 // executeAdminWorkflow starts an admin workflow on the dedicated admin queue.
+// Unlike executeWorkflow it does not clear stale progress state, because admin
+// workflows (drop DB, migrate DB, flush Redis) are single-step operations that
+// don't publish ProgressReports — there is no cached key to invalidate.
 func (r *Resolver) executeAdminWorkflow(ctx context.Context, workflowID string, workflow any) (bool, error) {
 	opts := adminWorkflowOptions(workflowID)
 	_, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow)

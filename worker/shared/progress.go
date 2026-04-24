@@ -189,7 +189,6 @@ type ChildWorkflowStarter func(ctx workflow.Context, season nhl.SeasonInfo) work
 // Returns a map of startYear -> barIdx for looking up bars later.
 func (t *ReportTracker) AddBarsForSeasons(ctx workflow.Context, groupIdx int, seasons []nhl.SeasonInfo, counter SeasonCounterFunc, sourceKeyFunc ProgressSourceKeyFunc) (map[int]int, error) {
 	barIndex := make(map[int]int)
-	total := 0
 
 	for i, season := range seasons {
 		count, err := counter(ctx, season)
@@ -205,7 +204,6 @@ func (t *ReportTracker) AddBarsForSeasons(ctx workflow.Context, groupIdx int, se
 		}
 		t.report.Groups[groupIdx].Bars = append(t.report.Groups[groupIdx].Bars, bar)
 		barIndex[season.ID.StartYear()] = i
-		total += count
 	}
 
 	t.report.Total = t.totalFromBars()
