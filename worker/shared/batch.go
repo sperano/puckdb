@@ -41,11 +41,18 @@ func (be *BatchError) Unwrap() []error {
 	return be.Errors
 }
 
+// Execer abstracts sqlc's generated *FooBatchResults types so ExecBatch is
+// decoupled from any specific batch type. Every sqlc batch result satisfies it
+// implicitly via its Exec(func(int, error)) method.
+type Execer interface {
+	Exec(func(int, error))
+}
+
 // ExecBatch runs a sqlc batch operation and returns all errors encountered.
 // errContext is called with the failing row index to produce a descriptive prefix
 // for the error message. The caller's closure captures params for rich context.
 // Returns nil if no errors, or a *BatchError containing all failures.
-func ExecBatch(br interface{ Exec(func(int, error)) }, errContext func(i int) string) error {
+func ExecBatch(br Execer, errContext func(i int) string) error {
 	var batchErr *BatchError
 	br.Exec(func(i int, err error) {
 		if err != nil {
