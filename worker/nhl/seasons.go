@@ -135,11 +135,17 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 		return FetchSeasonsManifestResult{}, err
 	}
 
-	// API success - persist to both caches
+	// API success - persist to both caches. Filesystem persistence is
+	// best-effort: if Format or Write fails we keep going since the caller
+	// already has the data in memory. Skip the Write on a Format error
+	// instead of persisting empty bytes that would corrupt the cache and
+	// break the next Parse.
 	response := nhlapi.SeasonsResponse{Seasons: seasons}
-	data, _ := manifestRes.Format(response)
-	if err := a.Storage.Write(ctx, manifestRes.Path(), data); err != nil {
-		log.Warn().Err(err).Msg("Failed to write seasons manifest to filesystem")
+	data, err := manifestRes.Format(response)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to format seasons manifest, skipping filesystem write")
+	} else if writeErr := a.Storage.Write(ctx, manifestRes.Path(), data); writeErr != nil {
+		log.Warn().Err(writeErr).Msg("Failed to write seasons manifest to filesystem")
 	}
 	gobCacheSeasons(ctx, a.GobCache, response)
 	log.Info().Int("count", len(seasons)).Msg("Seasons manifest downloaded from API")
