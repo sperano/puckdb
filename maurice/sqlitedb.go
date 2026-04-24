@@ -151,7 +151,7 @@ func (s *sqliteDB) CreateMessage(ctx context.Context, p CreateMessageParams) (*M
 func (s *sqliteDB) GetMessages(ctx context.Context, conversationID string) ([]*Message, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, role, content, tool_calls, tool_call_id, created_at
-		 FROM messages WHERE conversation_id = ? ORDER BY created_at ASC`,
+		 FROM messages WHERE conversation_id = ? ORDER BY created_at ASC, rowid ASC`,
 		conversationID,
 	)
 	if err != nil {
