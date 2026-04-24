@@ -141,7 +141,7 @@ func TestCollectInto(t *testing.T) {
 	assert.Equal(t, []int{1, 2, 3}, result)
 }
 
-func failingActivity(ctx context.Context) (int, error) {
+func failingActivity(_ context.Context) (int, error) {
 	return 0, assert.AnError
 }
 

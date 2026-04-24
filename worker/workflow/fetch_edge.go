@@ -17,6 +17,12 @@ const MinEdgeStatsSeasonID = 20212022
 // edgeActivitiesPerTeam is the number of per-team activities (team detail + skaters + goalies).
 const edgeActivitiesPerTeam = 3
 
+// edgeActivityNames labels each per-team activity for error messages.
+// Order must match the dispatch order below (FetchEdgeTeam, FetchEdgeTeamSkaters,
+// FetchEdgeTeamGoalies) so the index used for completion matches the index used
+// to look up the name.
+var edgeActivityNames = [edgeActivitiesPerTeam]string{"team", "skaters", "goalies"}
+
 // edgeTeamCount is the fixed NHL team count.
 const edgeTeamCount = 32
 
@@ -139,8 +145,8 @@ func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core
 		// Wait for all team activities to complete
 		for i, f := range futures {
 			if err := f.Get(ctx, nil); err != nil {
-				teamIdx := i / 3
-				activityType := []string{"team", "skaters", "goalies"}[i%3]
+				teamIdx := i / edgeActivitiesPerTeam
+				activityType := edgeActivityNames[i%edgeActivitiesPerTeam]
 				return core.OriginCounts{core.OriginRemoteNHLAPI: activityCount}, fmt.Errorf("fetch edge %s for %s (gt=%d): %w", activityType, teams[teamIdx].Abbrev, gameType, err)
 			}
 			activityCount++

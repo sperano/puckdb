@@ -24,11 +24,16 @@ import (
 
 // Imports are managed by goimports
 
+// Resolver holds the dependencies used by GraphQL resolvers. MauriceService
+// may be nil when Maurice AI chat is not configured — resolvers that need it
+// return errMauriceNotConfigured. Queries may be nil when the resolver is
+// constructed without a live database connection — data queries then return
+// errors rather than panicking. TemporalClient and RedisClient are required.
 type Resolver struct {
 	TemporalClient client.Client
 	RedisClient    cache.Client
-	MauriceService maurice.Service    // nil if Maurice is not configured
-	Queries        *sqlcdb.Queries    // nil-safe: data queries return errors if not wired
+	MauriceService maurice.Service
+	Queries        *sqlcdb.Queries
 }
 
 var temporalStatusToGQL = map[temporalEnums.WorkflowExecutionStatus]model.TemporalWorkflowStatus{
