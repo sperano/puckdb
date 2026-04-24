@@ -96,10 +96,12 @@ func cmdAPI() *cobra.Command {
 			listen := fmt.Sprintf(":%d", viper.GetInt(config.FlagAPIPort))
 			log.Info().Msgf("Go to %s/ to authenticate with Yahoo or to access the GraphQL console", viper.GetString(config.FlagPublicURL))
 			r := setupAPIRouter(redisClient, resolver)
-			if viper.GetBool(config.FlagAPITLSEnabled) {
-				return http.ListenAndServeTLS(listen, viper.GetString(config.FlagTLSCertificate), viper.GetString(config.FlagTLSKey), r)
-			}
-			return http.ListenAndServe(listen, r)
+			srv := &http.Server{Addr: listen, Handler: r}
+			return runHTTPServer(cmd.Context(), srv,
+				viper.GetBool(config.FlagAPITLSEnabled),
+				viper.GetString(config.FlagTLSCertificate),
+				viper.GetString(config.FlagTLSKey),
+			)
 		},
 	}
 	flags := cmd.Flags()
@@ -113,6 +115,39 @@ func cmdAPI() *cobra.Command {
 		&config.PostgresFlags,
 	)
 	return cmd
+}
+
+// apiShutdownTimeout bounds graceful shutdown of the API server. Long enough
+// for in-flight GraphQL queries and Maurice streaming responses to drain.
+const apiShutdownTimeout = 30 * time.Second
+
+// runHTTPServer starts srv (TLS or plain) in a goroutine and triggers a
+// graceful shutdown when ctx is canceled. Returns nil on clean shutdown,
+// otherwise the underlying ListenAndServe error.
+func runHTTPServer(ctx context.Context, srv *http.Server, tlsEnabled bool, cert, key string) error {
+	errCh := make(chan error, 1)
+	go func() {
+		var err error
+		if tlsEnabled {
+			err = srv.ListenAndServeTLS(cert, key)
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err == http.ErrServerClosed {
+			err = nil
+		}
+		errCh <- err
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), apiShutdownTimeout)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
+		return <-errCh
+	}
 }
 
 func setupAPIRouter(redisClient cache.Client, resolver *graph.Resolver) *chi.Mux {

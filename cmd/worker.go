@@ -72,11 +72,14 @@ func cmdWorker() *cobra.Command {
 			// running behind a dead /metrics and /health.
 			errCh := make(chan error, 2)
 
-			// Start metrics HTTP server (health check verifies JuiceFS mount)
+			// Start metrics HTTP server (health check verifies JuiceFS mount).
+			// cmd.Context() carries the cobra-wired SIGINT/SIGTERM signal so the
+			// server drains in-flight requests on shutdown instead of being
+			// hard-killed.
 			metricsAddr := fmt.Sprintf(":%d", viper.GetInt(config.FlagWorkerPort))
 			dataPath := viper.GetString(config.FlagDataPath)
 			go func() {
-				if err := metrics.StartWorkerServer(metricsAddr, dataPath); err != nil {
+				if err := metrics.StartWorkerServer(cmd.Context(), metricsAddr, dataPath); err != nil {
 					errCh <- fmt.Errorf("metrics server: %w", err)
 				}
 			}()

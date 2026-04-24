@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -277,8 +278,14 @@ func HandlerFor(registry *prometheus.Registry) http.Handler {
 	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 }
 
-// StartServer starts the Prometheus metrics HTTP server for the collector
-func StartServer(addr string) {
+// shutdownTimeout bounds how long Shutdown waits for in-flight requests to drain
+// before the server closes the listener and returns.
+const shutdownTimeout = 10 * time.Second
+
+// StartServer starts the Prometheus metrics HTTP server for the collector.
+// It blocks until ctx is canceled or the server fails to listen, then performs
+// a graceful shutdown bounded by shutdownTimeout.
+func StartServer(ctx context.Context, addr string) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", HandlerFor(CollectorRegistry))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -286,16 +293,19 @@ func StartServer(addr string) {
 		w.Write([]byte("ok"))
 	})
 
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	srv := &http.Server{Addr: addr, Handler: mux}
+	if err := serveWithShutdown(ctx, srv); err != nil {
 		log.Error().Err(err).Msg("Metrics server error")
 	}
 }
 
 // StartWorkerServer starts the Prometheus metrics HTTP server for the worker.
 // dataPath is the filesystem path to check in the health endpoint (e.g. JuiceFS mount).
-// Blocks until the server exits; returns the listen/serve error so the caller
-// (which runs Temporal in a peer goroutine) can terminate the whole process on failure.
-func StartWorkerServer(addr, dataPath string) error {
+// Blocks until ctx is canceled or the server fails to listen, then performs a
+// graceful shutdown bounded by shutdownTimeout. Returns the listen/serve error
+// so the caller (which runs Temporal in a peer goroutine) can terminate the
+// whole process on failure.
+func StartWorkerServer(ctx context.Context, addr, dataPath string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", HandlerFor(WorkerRegistry))
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -326,7 +336,33 @@ func StartWorkerServer(addr, dataPath string) error {
 		}
 	})
 
-	return http.ListenAndServe(addr, mux)
+	srv := &http.Server{Addr: addr, Handler: mux}
+	return serveWithShutdown(ctx, srv)
+}
+
+// serveWithShutdown runs srv.ListenAndServe in a goroutine and triggers a
+// graceful shutdown when ctx is canceled. Returns nil on clean shutdown,
+// otherwise the underlying ListenAndServe error.
+func serveWithShutdown(ctx context.Context, srv *http.Server) error {
+	errCh := make(chan error, 1)
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+			return
+		}
+		errCh <- nil
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
+		return <-errCh
+	}
 }
 
 // SetCacheMetrics updates cache statistics gauges for a season and file type

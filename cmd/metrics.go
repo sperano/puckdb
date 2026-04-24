@@ -85,9 +85,9 @@ func runMetrics(cmd *cobra.Command, _ []string) error {
 	go runRedisCollector(ctx, redisInterval)
 	go runDatabaseCollector(ctx, dbInterval)
 
-	// Start metrics server (blocks)
+	// Start metrics server (blocks until ctx canceled).
 	addr := fmt.Sprintf(":%d", port)
-	metrics.StartServer(addr)
+	metrics.StartServer(ctx, addr)
 	return nil
 }
 
