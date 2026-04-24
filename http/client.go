@@ -47,7 +47,7 @@ func (e *HTTPError) IsNonRetryableClientError() bool {
 }
 
 type Client interface {
-	Download(url string) ([]byte, error)
+	Download(ctx context.Context, url string) ([]byte, error)
 }
 
 type GenericClient struct {
@@ -58,9 +58,9 @@ type GenericClient struct {
 // UserAgent is used for public requests to avoid being blocked as a bot
 const UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-func (c *GenericClient) Download(url string) ([]byte, error) {
+func (c *GenericClient) Download(ctx context.Context, url string) ([]byte, error) {
 	log.Trace().Str("url", url).Msg("Downloading")
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -139,13 +139,13 @@ func DownloadYahoo(ctx context.Context, redisClient cache.Client, url string) ([
 		}
 		return nil, fmt.Errorf("%s: %w", url, err)
 	}
-	data, err := client.Download(url)
+	data, err := client.Download(ctx, url)
 	return data, err
 }
 
 // DownloadPublic downloads from public pages without OAuth2 authentication.
 // Use this for public sports.yahoo.com pages that don't require authentication.
-func DownloadPublic(url string) ([]byte, error) {
+func DownloadPublic(ctx context.Context, url string) ([]byte, error) {
 	client := &GenericClient{Client: &http.Client{Timeout: config.DefaultHTTPClientTimeout}, apiLabel: "public"}
-	return client.Download(url)
+	return client.Download(ctx, url)
 }

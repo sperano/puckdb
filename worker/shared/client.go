@@ -66,13 +66,16 @@ func NewNHLClient() *nhl.Client {
 	return nhl.NewClientWithConfig(cfg)
 }
 
-// Downloader fetches content from a URL.
-type Downloader func(url string) ([]byte, error)
+// Downloader fetches content from a URL. The ctx is used for cancellation
+// and propagates into the underlying HTTP request.
+type Downloader func(ctx context.Context, url string) ([]byte, error)
 
-// NewYahooDownloader creates a Downloader that uses the shared Redis client for OAuth2 token management.
+// NewYahooDownloader creates a Downloader that uses the shared Redis client
+// for OAuth2 token management. The returned Downloader honors the caller's
+// context for cancellation and deadlines.
 func NewYahooDownloader(redisClient cache.Client) Downloader {
-	return func(url string) ([]byte, error) {
-		ctx := context.WithValue(context.Background(), config.CtxUser, config.DefaultUser)
+	return func(ctx context.Context, url string) ([]byte, error) {
+		ctx = context.WithValue(ctx, config.CtxUser, config.DefaultUser)
 		return puckhttp.DownloadYahoo(ctx, redisClient, url)
 	}
 }

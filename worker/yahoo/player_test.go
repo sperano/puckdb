@@ -9,6 +9,7 @@ import (
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,7 +64,7 @@ func TestFetchYahooPlayer_DownloadSuccess(t *testing.T) {
 
 	// Download succeeds
 	content := []byte("<html>Player Page</html>")
-	downloader.On("Download", resource.YahooPlayer{PlayerID: playerID}.URL()).Return(content, nil)
+	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(content, nil)
 
 	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
 
@@ -87,7 +88,7 @@ func TestFetchYahooPlayer_Download404(t *testing.T) {
 
 	// Download returns 404
 	httpErr := &puckhttp.HTTPError{StatusCode: 404, Status: "404 Not Found"}
-	downloader.On("Download", resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, httpErr)
+	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, httpErr)
 
 	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
 
@@ -111,7 +112,7 @@ func TestFetchYahooPlayer_DownloadOtherError(t *testing.T) {
 
 	// Download returns 500 error
 	httpErr := &puckhttp.HTTPError{StatusCode: 500, Status: "500 Internal Server Error"}
-	downloader.On("Download", resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, httpErr)
+	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, httpErr)
 
 	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
 
@@ -129,7 +130,7 @@ func TestFetchYahooPlayer_DownloadNetworkError(t *testing.T) {
 
 	playerID := store.YahooPlayerID(12345)
 	// Download returns network error
-	downloader.On("Download", resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, errors.New("network timeout"))
+	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, errors.New("network timeout"))
 
 	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
 

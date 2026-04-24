@@ -12,6 +12,7 @@ import (
 	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/worker/shared"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
@@ -145,12 +146,12 @@ func TestHTTPDownloaderFunc_DelegatesToFunc(t *testing.T) {
 	want := []byte("response body")
 	var capturedURL string
 
-	fn := HTTPDownloaderFunc(func(url string) ([]byte, error) {
+	fn := HTTPDownloaderFunc(func(_ context.Context, url string) ([]byte, error) {
 		capturedURL = url
 		return want, nil
 	})
 
-	got, err := fn.Download("https://example.com/path")
+	got, err := fn.Download(context.Background(), "https://example.com/path")
 
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
@@ -161,11 +162,11 @@ func TestHTTPDownloaderFunc_PropagatesError(t *testing.T) {
 	t.Parallel()
 
 	wantErr := errors.New("connection refused")
-	fn := HTTPDownloaderFunc(func(url string) ([]byte, error) {
+	fn := HTTPDownloaderFunc(func(_ context.Context, _ string) ([]byte, error) {
 		return nil, wantErr
 	})
 
-	got, err := fn.Download("https://example.com/path")
+	got, err := fn.Download(context.Background(), "https://example.com/path")
 
 	require.ErrorIs(t, err, wantErr)
 	assert.Nil(t, got)
@@ -244,7 +245,7 @@ func (s *FetchYahooPlayerBatchSuite) TestDownloadedAndCounted() {
 	playerID := store.YahooPlayerID(300)
 	res := resource.YahooPlayer{PlayerID: playerID}
 	content := []byte("<html>player page</html>")
-	downloader.On("Download", res.URL()).Return(content, nil)
+	downloader.On("Download", mock.Anything, res.URL()).Return(content, nil)
 
 	act := &FetchActivities{Storage: mem, PublicDownloader: downloader}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
@@ -266,7 +267,7 @@ func (s *FetchYahooPlayerBatchSuite) TestDownloadError_ReturnsError() {
 
 	playerID := store.YahooPlayerID(400)
 	res := resource.YahooPlayer{PlayerID: playerID}
-	downloader.On("Download", res.URL()).Return(nil, errors.New("connection refused"))
+	downloader.On("Download", mock.Anything, res.URL()).Return(nil, errors.New("connection refused"))
 
 	act := &FetchActivities{Storage: mem, PublicDownloader: downloader}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
@@ -315,7 +316,7 @@ func TestFetchYahooLeagueDataSuite(t *testing.T) {
 // buildFetchYahooLeagueDataAct creates a FetchActivities with in-memory storage.
 // It seeds the storage with a transactions file and draft results file so that
 // fetchYahooResource finds them on the first call.
-func (s *FetchYahooLeagueDataSuite) buildAct(mem *store.MemStorage, dl func(string) ([]byte, error), gobCache *cache.GobCache) *FetchActivities {
+func (s *FetchYahooLeagueDataSuite) buildAct(mem *store.MemStorage, dl shared.Downloader, gobCache *cache.GobCache) *FetchActivities {
 	return &FetchActivities{
 		Storage:  mem,
 		Download: dl,
@@ -341,7 +342,7 @@ func (s *FetchYahooLeagueDataSuite) TestSuccess_AllFromDownload() {
 	emptyDrXML := []byte(`<fantasy_content><league><draft_results count="0"></draft_results></league></fantasy_content>`)
 
 	callCount := 0
-	dl := func(url string) ([]byte, error) {
+	dl := shared.Downloader(func(_ context.Context, _ string) ([]byte, error) {
 		callCount++
 		switch callCount {
 		case 1:
@@ -353,7 +354,7 @@ func (s *FetchYahooLeagueDataSuite) TestSuccess_AllFromDownload() {
 		default:
 			return nil, errors.New("no more weeks")
 		}
-	}
+	})
 
 	act := s.buildAct(mem, dl, cache.NewGobCache(redisClient))
 	s.env.RegisterActivity(act.FetchYahooLeagueData)

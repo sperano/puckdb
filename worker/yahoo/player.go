@@ -23,14 +23,14 @@ const (
 
 // HTTPDownloader is the interface for downloading content via HTTP.
 type HTTPDownloader interface {
-	Download(url string) ([]byte, error)
+	Download(ctx context.Context, url string) ([]byte, error)
 }
 
 // HTTPDownloaderFunc adapts a function to the HTTPDownloader interface.
-type HTTPDownloaderFunc func(url string) ([]byte, error)
+type HTTPDownloaderFunc func(ctx context.Context, url string) ([]byte, error)
 
-func (f HTTPDownloaderFunc) Download(url string) ([]byte, error) {
-	return f(url)
+func (f HTTPDownloaderFunc) Download(ctx context.Context, url string) ([]byte, error) {
+	return f(ctx, url)
 }
 
 // fetchYahooPlayerImpl is the testable implementation.
@@ -59,7 +59,7 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 	}
 	log.Info().Int("playerID", int(playerID)).Msg("Downloading Yahoo player")
 	// Download the player page
-	content, err := downloader.Download(playerRes.URL())
+	content, err := downloader.Download(ctx, playerRes.URL())
 	if err != nil {
 		var httpErr *puckhttp.HTTPError
 		if errors.As(err, &httpErr) {

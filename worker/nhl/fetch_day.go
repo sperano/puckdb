@@ -38,7 +38,7 @@ func (a *DailyScheduleActivities) fetchYahooResource(ctx context.Context, res fe
 	}
 
 	start := time.Now()
-	content, err := a.Download(res.URL())
+	content, err := a.Download(ctx, res.URL())
 	duration := time.Since(start)
 	if err != nil {
 		metrics.ObserveHTTP("yahoo", http.MethodGet, 0, duration, 0)

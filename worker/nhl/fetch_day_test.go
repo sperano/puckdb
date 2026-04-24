@@ -1,6 +1,7 @@
 package nhl
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -34,7 +35,7 @@ func seedGameKey() {
 }
 
 func mockDownloader(content []byte, err error) shared.Downloader {
-	return func(url string) ([]byte, error) {
+	return func(_ context.Context, _ string) ([]byte, error) {
 		return content, err
 	}
 }

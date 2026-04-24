@@ -46,7 +46,7 @@ func GetGameKeyForSeason(ctx context.Context, storage store.Storage, gobCache *c
 }
 
 // getGameKeyImpl fetches the game key, using cache or downloading if needed.
-func getGameKeyImpl(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season int, fetcher func(string) ([]byte, error), postDownload func()) (int, error) {
+func getGameKeyImpl(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season int, fetcher shared.Downloader, postDownload func()) (int, error) {
 	gameKeyRes := resource.GameKey{Season: season}
 
 	if storage.Exists(gameKeyRes.Path()) {
@@ -59,7 +59,7 @@ func getGameKeyImpl(ctx context.Context, storage store.Storage, gobCache *cache.
 	}
 
 	log.Info().Int("season", season).Msg("Downloading game key from Yahoo")
-	content, err := fetcher(gameKeyRes.URL())
+	content, err := fetcher(ctx, gameKeyRes.URL())
 	if err != nil {
 		return 0, fmt.Errorf("fetch game key for season %d: %w", season, err)
 	}

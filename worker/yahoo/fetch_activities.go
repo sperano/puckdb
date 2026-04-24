@@ -50,7 +50,7 @@ func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID 
 
 	// Cache miss — download from Yahoo
 	start := time.Now()
-	content, err := a.Download(res.URL())
+	content, err := a.Download(ctx, res.URL())
 	duration := time.Since(start)
 	if err != nil {
 		metrics.ObserveHTTP("yahoo", http.MethodGet, 0, duration, 0)
@@ -153,7 +153,7 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 
 		// Cache miss — download from Yahoo
 		start := time.Now()
-		content, err := a.Download(res.URL())
+		content, err := a.Download(ctx, res.URL())
 		duration := time.Since(start)
 		if err != nil {
 			metrics.ObserveHTTP("yahoo", http.MethodGet, 0, duration, 0)
@@ -221,7 +221,7 @@ func (a *FetchActivities) FetchYahooLeagueData(ctx context.Context, input FetchY
 		}
 
 		start := time.Now()
-		content, err := a.Download(res.URL())
+		content, err := a.Download(ctx, res.URL())
 		duration := time.Since(start)
 		if err != nil {
 			// An error fetching a future week likely means we've exhausted available weeks
@@ -263,7 +263,7 @@ func (a *FetchActivities) fetchYahooResource(ctx context.Context, res interface 
 	}
 
 	start := time.Now()
-	content, err := a.Download(res.URL())
+	content, err := a.Download(ctx, res.URL())
 	duration := time.Since(start)
 	if err != nil {
 		metrics.ObserveHTTP("yahoo", http.MethodGet, 0, duration, 0)

@@ -104,7 +104,7 @@ func TestGenericClient_Download_Success(t *testing.T) {
 		apiLabel: "test",
 	}
 
-	data, err := client.Download(server.URL)
+	data, err := client.Download(context.Background(), server.URL)
 	require.NoError(t, err)
 	assert.Equal(t, `{"data": "test"}`, string(data))
 }
@@ -136,7 +136,7 @@ func TestGenericClient_Download_HTTPError(t *testing.T) {
 				apiLabel: "test",
 			}
 
-			_, err := client.Download(server.URL)
+			_, err := client.Download(context.Background(), server.URL)
 			require.Error(t, err)
 
 			httpErr, ok := err.(*HTTPError)
@@ -156,7 +156,7 @@ func TestGenericClient_Download_ConnectionError(t *testing.T) {
 	}
 
 	// Use an invalid URL that will fail to connect
-	_, err := client.Download("http://localhost:1")
+	_, err := client.Download(context.Background(), "http://localhost:1")
 	require.Error(t, err)
 	// Should not be an HTTPError since we couldn't connect
 	_, ok := err.(*HTTPError)
@@ -182,7 +182,7 @@ func TestGenericClient_Download_Redirects(t *testing.T) {
 		apiLabel: "test",
 	}
 
-	data, err := client.Download(redirectServer.URL)
+	data, err := client.Download(context.Background(), redirectServer.URL)
 	require.NoError(t, err)
 	assert.Equal(t, "final destination", string(data))
 }
@@ -212,7 +212,7 @@ func TestGenericClient_Download_LargeResponse(t *testing.T) {
 		apiLabel: "test",
 	}
 
-	data, err := client.Download(server.URL)
+	data, err := client.Download(context.Background(), server.URL)
 	require.NoError(t, err)
 	assert.Equal(t, len(largeBody), len(data))
 }
@@ -230,7 +230,7 @@ func TestGenericClient_Download_EmptyResponse(t *testing.T) {
 		apiLabel: "test",
 	}
 
-	data, err := client.Download(server.URL)
+	data, err := client.Download(context.Background(), server.URL)
 	require.NoError(t, err)
 	assert.Empty(t, data)
 }
@@ -259,7 +259,7 @@ func TestGenericClient_Download_ReadBodyError(t *testing.T) {
 		apiLabel: "test",
 	}
 
-	_, err := client.Download(server.URL)
+	_, err := client.Download(context.Background(), server.URL)
 	// This may or may not error depending on timing
 	// The important thing is it doesn't panic
 	_ = err
@@ -278,7 +278,7 @@ func TestDownloadPublic(t *testing.T) {
 
 	// Temporarily override the function to use our test server
 	// Since DownloadPublic creates its own client, we test through a server
-	data, err := DownloadPublic(server.URL)
+	data, err := DownloadPublic(context.Background(), server.URL)
 	require.NoError(t, err)
 	assert.Equal(t, "public data", string(data))
 }
@@ -292,7 +292,7 @@ func TestDownloadPublic_Error(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := DownloadPublic(server.URL)
+	_, err := DownloadPublic(context.Background(), server.URL)
 	require.Error(t, err)
 
 	httpErr, ok := err.(*HTTPError)
@@ -323,7 +323,7 @@ func BenchmarkGenericClient_Download(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client.Download(server.URL)
+		client.Download(context.Background(), server.URL)
 	}
 }
 
