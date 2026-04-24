@@ -21,12 +21,31 @@ const (
 	GroupVerifyUnmatched = 2
 )
 
-// Phase IDs for ContinueAsNew dispatch.
+// processPlayersPhase identifies which phase of ProcessPlayersWorkflow is running.
+type processPlayersPhase int
+
+// Phase IDs for ContinueAsNew dispatch. Numeric values are persisted in the
+// ContinueAsNew input — DO NOT reorder existing entries or change their values.
+// New phases may be appended with a fresh explicit value.
 const (
-	phaseLoadYahoo       = 1
-	phaseProcessPlayers  = 2
-	phaseVerifyUnmatched = 3
+	phaseLoadYahoo processPlayersPhase = iota + 1
+	phaseProcessPlayers
+	phaseVerifyUnmatched
 )
+
+// String returns the phase name for error messages and logging.
+func (p processPlayersPhase) String() string {
+	switch p {
+	case phaseLoadYahoo:
+		return "loadYahoo"
+	case phaseProcessPlayers:
+		return "processPlayers"
+	case phaseVerifyUnmatched:
+		return "verifyUnmatched"
+	default:
+		return fmt.Sprintf("unknown(%d)", int(p))
+	}
+}
 
 // verifyConcurrency is the number of concurrent batches when verifying unmatched players.
 // Each batch internally rate-limits NHL API calls, so parallel batches are safe.
@@ -52,7 +71,7 @@ type processPlayersInternalInput struct {
 	// Phase 2 ContinueAsNew state
 	StartIndex     int
 	TotalCompleted int
-	Phase          int
+	Phase          processPlayersPhase
 
 	// Aggregated results across ContinueAsNew
 	TotalDownloaded int
@@ -162,7 +181,7 @@ func ProcessPlayersWorkflowContinue(ctx workflow.Context, input *processPlayersI
 	case phaseVerifyUnmatched:
 		return runPhaseVerifyUnmatched(ctx, tracker, input)
 	default:
-		return nil, fmt.Errorf("unknown phase: %d", input.Phase)
+		return nil, fmt.Errorf("unknown phase: %s", input.Phase)
 	}
 }
 

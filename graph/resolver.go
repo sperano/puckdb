@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"fmt"
+	"errors"
 
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
@@ -467,7 +467,7 @@ func (r *Resolver) yahooTokenStatus(ctx context.Context) (*model.YahooTokenStatu
 
 // Maurice resolver methods
 
-var errMauriceNotConfigured = fmt.Errorf("Maurice AI chat is not configured")
+var errMauriceNotConfigured = errors.New("maurice AI chat is not configured")
 
 func (r *Resolver) mauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error) {
 	if r.MauriceService == nil {
