@@ -258,6 +258,9 @@ func (t *ReportTracker) RunWorkerPoolWithIncrement(ctx workflow.Context, groupId
 
 	nextIndex := 0
 	active := make(map[int]workflow.Future)
+	// firstErr captures the first error across all completions. Safe without
+	// synchronization: workflow.Selector invokes its callbacks cooperatively
+	// (one at a time on the workflow goroutine), so reads/writes never race.
 	var firstErr error
 
 	// Start initial batch
@@ -313,6 +316,9 @@ func (t *ReportTracker) RunWorkerPoolMultiBar(ctx workflow.Context, groupIdx, ba
 
 	nextIndex := 0
 	active := make(map[int]workflow.Future)
+	// firstErr captures the first error across all completions. Safe without
+	// synchronization: workflow.Selector invokes its callbacks cooperatively
+	// (one at a time on the workflow goroutine), so reads/writes never race.
 	var firstErr error
 
 	// Start initial batch
