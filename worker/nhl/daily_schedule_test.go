@@ -1,6 +1,7 @@
 package nhl
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -75,7 +76,7 @@ func (s *DailyScheduleTestSuite) TestScheduleFromCache() {
 			{ID: nhlapi.GameID(2024020001), GameType: nhlapi.GameTypeRegularSeason, GameState: nhlapi.GameStateFinal},
 		},
 	}
-	require.NoError(s.T(), resource.WriteParsed(mem, resource.DailySchedule{Date: day}, schedule))
+	require.NoError(s.T(), resource.WriteParsed(context.Background(), mem, resource.DailySchedule{Date: day}, schedule))
 
 	seedAllGameData(mem, day, nhlapi.GameID(2024020001))
 
@@ -111,7 +112,7 @@ func (s *DailyScheduleTestSuite) TestDownloadSchedule() {
 	require.NoError(s.T(), future.Get(&result))
 	mockClient.AssertExpectations(s.T())
 
-	assert.True(s.T(), mem.Exists(resource.DailySchedule{Date: day}.Path()))
+	assert.True(s.T(), mem.Exists(context.Background(),resource.DailySchedule{Date: day}.Path()))
 }
 
 func (s *DailyScheduleTestSuite) TestDownloadScheduleError() {
@@ -159,7 +160,7 @@ func (s *DailyScheduleTestSuite) TestSkipsIncompleteGames() {
 			{ID: nhlapi.GameID(2024020002), GameType: nhlapi.GameTypeRegularSeason, GameState: nhlapi.GameStateFinal},
 		},
 	}
-	require.NoError(s.T(), resource.WriteParsed(mem, resource.DailySchedule{Date: day}, schedule))
+	require.NoError(s.T(), resource.WriteParsed(context.Background(), mem, resource.DailySchedule{Date: day}, schedule))
 
 	seedAllGameData(mem, day, nhlapi.GameID(2024020002))
 
@@ -212,7 +213,7 @@ func (s *DailyScheduleTestSuite) TestCachedGameDataSkipped() {
 			{ID: nhlapi.GameID(2024020002), GameType: nhlapi.GameTypeRegularSeason, GameState: nhlapi.GameStateFinal},
 		},
 	}
-	require.NoError(s.T(), resource.WriteParsed(mem, resource.DailySchedule{Date: day}, schedule))
+	require.NoError(s.T(), resource.WriteParsed(context.Background(), mem, resource.DailySchedule{Date: day}, schedule))
 
 	seedAllGameData(mem, day, nhlapi.GameID(2024020001))
 	seedAllGameData(mem, day, nhlapi.GameID(2024020002))
@@ -234,7 +235,7 @@ func (s *DailyScheduleTestSuite) TestContextCancelled() {
 			{ID: nhlapi.GameID(2024020001), GameType: nhlapi.GameTypeRegularSeason, GameState: nhlapi.GameStateFinal},
 		},
 	}
-	require.NoError(s.T(), resource.WriteParsed(mem, resource.DailySchedule{Date: day}, schedule))
+	require.NoError(s.T(), resource.WriteParsed(context.Background(), mem, resource.DailySchedule{Date: day}, schedule))
 
 	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)

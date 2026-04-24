@@ -1,6 +1,7 @@
 package nhl
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -52,7 +53,7 @@ func (s *UpsertFranchisesTestSuite) TestUpsertFranchises_Success() {
 	}
 	franchisesJSON := marshalFranchises(s.T(), franchises)
 
-	require.NoError(s.T(), mem.Write(resource.Franchises{}.Path(), franchisesJSON))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.Franchises{}.Path(), franchisesJSON))
 
 	mockRedis.ExpectGet(core.RedisKey(resource.Franchises{})).SetErr(redis.Nil)
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(resource.Franchises{}), "x", cache.GobCacheTTL).SetVal("OK")
@@ -81,7 +82,7 @@ func (s *UpsertFranchisesTestSuite) TestUpsertFranchises_EmptyInput() {
 	upserter := &MockFranchiseUpserter{}
 
 	franchisesJSON := marshalFranchises(s.T(), []nhlapi.Franchise{})
-	require.NoError(s.T(), mem.Write(resource.Franchises{}.Path(), franchisesJSON))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.Franchises{}.Path(), franchisesJSON))
 
 	mockRedis.ExpectGet(core.RedisKey(resource.Franchises{})).SetErr(redis.Nil)
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(resource.Franchises{}), "x", cache.GobCacheTTL).SetVal("OK")
@@ -111,7 +112,7 @@ func (s *UpsertFranchisesTestSuite) TestUpsertFranchises_UpsertError() {
 		{ID: 1, FullName: "Montreal Canadiens", TeamCommonName: "Canadiens", TeamPlaceName: "Montreal"},
 	}
 	franchisesJSON := marshalFranchises(s.T(), franchises)
-	require.NoError(s.T(), mem.Write(resource.Franchises{}.Path(), franchisesJSON))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.Franchises{}.Path(), franchisesJSON))
 
 	mockRedis.ExpectGet(core.RedisKey(resource.Franchises{})).SetErr(redis.Nil)
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(resource.Franchises{}), "x", cache.GobCacheTTL).SetVal("OK")
@@ -142,7 +143,7 @@ func (s *UpsertFranchisesTestSuite) TestUpsertFranchises_PartialFailure() {
 		{ID: 2, FullName: "Toronto Maple Leafs", TeamCommonName: "Maple Leafs", TeamPlaceName: "Toronto"},
 	}
 	franchisesJSON := marshalFranchises(s.T(), franchises)
-	require.NoError(s.T(), mem.Write(resource.Franchises{}.Path(), franchisesJSON))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.Franchises{}.Path(), franchisesJSON))
 
 	mockRedis.ExpectGet(core.RedisKey(resource.Franchises{})).SetErr(redis.Nil)
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(resource.Franchises{}), "x", cache.GobCacheTTL).SetVal("OK")
@@ -188,7 +189,7 @@ func (s *FetchFranchisesTestSuite) TestFetchFranchises_CacheHit() {
 		{ID: 1, FullName: "Montreal Canadiens"},
 		{ID: 2, FullName: "Toronto Maple Leafs"},
 	}
-	require.NoError(s.T(), mem.Write(resource.Franchises{}.Path(), marshalFranchises(s.T(), franchises)))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.Franchises{}.Path(), marshalFranchises(s.T(), franchises)))
 
 	mockRedis.ExpectGet(core.RedisKey(resource.Franchises{})).SetErr(redis.Nil)
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(resource.Franchises{}), "x", cache.GobCacheTTL).SetVal("OK")
@@ -239,7 +240,7 @@ func (s *FetchFranchisesTestSuite) TestFetchFranchises_CacheMiss() {
 	assert.Equal(s.T(), core.OriginRemoteNHLAPI, result.Origin)
 	client.AssertExpectations(s.T())
 
-	assert.True(s.T(), mem.Exists(resource.Franchises{}.Path()))
+	assert.True(s.T(), mem.Exists(context.Background(),resource.Franchises{}.Path()))
 }
 
 func (s *FetchFranchisesTestSuite) TestFetchFranchises_APIError() {

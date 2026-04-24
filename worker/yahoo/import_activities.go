@@ -36,7 +36,7 @@ func (a *ImportActivities) ImportYahooLeague(ctx context.Context, input ImportYa
 
 	// Read the league file
 	leagueRes := resource.League{Season: input.Season, LeagueID: input.LeagueID}
-	if !a.Storage.Exists(leagueRes.Path()) {
+	if !a.Storage.Exists(ctx,leagueRes.Path()) {
 		logger.Warn("No league file found in cache", "season", input.Season, "leagueID", input.LeagueID)
 		return result, nil
 	}
@@ -174,7 +174,7 @@ func (a *ImportActivities) ImportYahooTeams(ctx context.Context, input ImportYah
 	for _, teamInfo := range input.Teams {
 		// Read the team file
 		teamRes := resource.Team{Season: input.Season, LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID}
-		if !a.Storage.Exists(teamRes.Path()) {
+		if !a.Storage.Exists(ctx,teamRes.Path()) {
 			logger.Warn("No team file found in cache",
 				"season", input.Season,
 				"leagueID", teamInfo.LeagueID,
@@ -305,7 +305,7 @@ func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []Tea
 
 	for _, teamInfo := range teams {
 		summaryRes := resource.TeamSummary{LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID, Date: date}
-		if !a.Storage.Exists(summaryRes.Path()) {
+		if !a.Storage.Exists(ctx,summaryRes.Path()) {
 			continue
 		}
 
@@ -410,7 +410,7 @@ func (a *ImportActivities) collectRosterParams(ctx context.Context, teams []Team
 
 	for _, teamInfo := range teams {
 		rosterRes := resource.Roster{LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID, Date: date}
-		if !a.Storage.Exists(rosterRes.Path()) {
+		if !a.Storage.Exists(ctx,rosterRes.Path()) {
 			continue
 		}
 
@@ -513,7 +513,7 @@ func (a *ImportActivities) ImportYahooLeagueData(ctx context.Context, input Impo
 // importYahooTransactions reads cached transaction data and upserts to the database.
 func (a *ImportActivities) importYahooTransactions(ctx context.Context, input ImportYahooLeagueDataInput) (int, error) {
 	res := resource.Transactions{Season: input.Season, LeagueID: input.LeagueID}
-	if !a.Storage.Exists(res.Path()) {
+	if !a.Storage.Exists(ctx,res.Path()) {
 		return 0, nil
 	}
 
@@ -576,7 +576,7 @@ func (a *ImportActivities) importYahooTransactions(ctx context.Context, input Im
 // importYahooDraftResults reads cached draft result data and upserts to the database.
 func (a *ImportActivities) importYahooDraftResults(ctx context.Context, input ImportYahooLeagueDataInput) (int, error) {
 	res := resource.DraftResults{Season: input.Season, LeagueID: input.LeagueID}
-	if !a.Storage.Exists(res.Path()) {
+	if !a.Storage.Exists(ctx,res.Path()) {
 		return 0, nil
 	}
 
@@ -656,7 +656,7 @@ func (a *ImportActivities) importYahooMatchups(ctx context.Context, input Import
 
 	for week := 1; week <= maxMatchupWeeks; week++ {
 		res := resource.Matchups{Season: input.Season, LeagueID: input.LeagueID, Week: week}
-		if !a.Storage.Exists(res.Path()) {
+		if !a.Storage.Exists(ctx,res.Path()) {
 			break // No more weeks cached
 		}
 

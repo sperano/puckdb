@@ -81,7 +81,7 @@ func TestGetGameKeyImpl_FromCache(t *testing.T) {
 	xmlContent := []byte(`<?xml version="1.0" encoding="UTF-8"?>
 <fantasy_content><games><game><game_key>423</game_key><game_id>423</game_id></game></games></fantasy_content>`)
 	res := resource.GameKey{Season: season}
-	require.NoError(t, mem.Write(res.Path(), xmlContent))
+	require.NoError(t, mem.Write(context.Background(),res.Path(), xmlContent))
 
 	key, err := getGameKeyImpl(context.Background(), mem, gobCache, season, nil, nil)
 
@@ -163,7 +163,7 @@ func TestCollectSummaryParams_ValidFile(t *testing.T) {
   </team>
 </fantasy_content>`)
 	res := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
-	require.NoError(t, mem.Write(res.Path(), xmlContent))
+	require.NoError(t, mem.Write(context.Background(),res.Path(), xmlContent))
 
 	summaryParams := a.collectSummaryParams(
 		context.Background(),
@@ -196,7 +196,7 @@ func TestCollectSummaryParams_MultipleTeams(t *testing.T) {
 <fantasy_content><team><team_stats><coverage_type>date</coverage_type><stats></stats></team_stats></team></fantasy_content>`)
 	for _, id := range []int{1, 2} {
 		res := resource.TeamSummary{LeagueID: 12345, TeamID: id, Date: date}
-		require.NoError(t, mem.Write(res.Path(), xmlContent))
+		require.NoError(t, mem.Write(context.Background(),res.Path(), xmlContent))
 	}
 
 	summaryParams := a.collectSummaryParams(
@@ -267,7 +267,7 @@ func TestCollectRosterParams_ValidFile(t *testing.T) {
   </team>
 </fantasy_content>`)
 	res := resource.Roster{LeagueID: 12345, TeamID: 1, Date: date}
-	require.NoError(t, mem.Write(res.Path(), xmlContent))
+	require.NoError(t, mem.Write(context.Background(),res.Path(), xmlContent))
 
 	params := a.collectRosterParams(
 		context.Background(),

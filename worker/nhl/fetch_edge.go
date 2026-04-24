@@ -59,7 +59,7 @@ func (a *SeasonsActivities) GetEdgeSeasonTeams(ctx context.Context, seasonID int
 // invalidateIfNeeded deletes the cached resource from storage and gob cache when invalidate is true.
 func invalidateIfNeeded[T any](ctx context.Context, a *SeasonsActivities, r core.ReadWritable[T], invalidate bool) {
 	if invalidate {
-		_ = a.Storage.Delete(r.Path())
+		_ = a.Storage.Delete(ctx, r.Path())
 		_ = a.GobCache.Delete(ctx, core.RedisKey(r))
 	}
 }
@@ -319,10 +319,10 @@ func fetchOptional[T any](ctx context.Context, a *SeasonsActivities, r core.Read
 // loadSeasonRoster loads a cached roster for the season.
 func (a *SeasonsActivities) loadSeasonRoster(ctx context.Context, teamAbbrev string, season nhlapi.Season) (*nhlapi.Roster, error) {
 	res := resource.SeasonRoster{Season: season.StartYear(), TeamAbbrev: teamAbbrev}
-	if !a.Storage.Exists(res.Path()) {
+	if !a.Storage.Exists(ctx, res.Path()) {
 		return nil, fmt.Errorf("roster not cached for %s/%d", teamAbbrev, season.StartYear())
 	}
-	data, err := a.Storage.Read(res.Path())
+	data, err := a.Storage.Read(ctx, res.Path())
 	if err != nil {
 		return nil, err
 	}

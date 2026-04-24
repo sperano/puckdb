@@ -88,10 +88,10 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 	// Layer 2: Filesystem cache with staleness check
 	var staleData []byte
 	manifestRes := resource.SeasonsManifest{}
-	if a.Storage.Exists(manifestRes.Path()) {
-		data, err := a.Storage.Read(manifestRes.Path())
+	if a.Storage.Exists(ctx, manifestRes.Path()) {
+		data, err := a.Storage.Read(ctx, manifestRes.Path())
 		if err == nil {
-			info, statErr := a.Storage.Stat(manifestRes.Path())
+			info, statErr := a.Storage.Stat(ctx, manifestRes.Path())
 			isStale := (statErr != nil && !os.IsNotExist(statErr)) ||
 				(statErr == nil && time.Since(info.ModTime()) > config.DefaultSeasonsManifestStaleTTL)
 
@@ -138,7 +138,7 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 	// API success - persist to both caches
 	response := nhlapi.SeasonsResponse{Seasons: seasons}
 	data, _ := manifestRes.Format(response)
-	if err := a.Storage.Write(manifestRes.Path(), data); err != nil {
+	if err := a.Storage.Write(ctx, manifestRes.Path(), data); err != nil {
 		log.Warn().Err(err).Msg("Failed to write seasons manifest to filesystem")
 	}
 	gobCacheSeasons(ctx, a.GobCache, response)

@@ -1,6 +1,7 @@
 package resource_test
 
 import (
+	"context"
 	"errors"
 	"os"
 	"testing"
@@ -21,7 +22,7 @@ func newMockStorage() *mockStorage {
 	return &mockStorage{data: make(map[string][]byte)}
 }
 
-func (m *mockStorage) Read(path string) ([]byte, error) {
+func (m *mockStorage) Read(_ context.Context, path string) ([]byte, error) {
 	if m.readErr != nil {
 		return nil, m.readErr
 	}
@@ -32,7 +33,7 @@ func (m *mockStorage) Read(path string) ([]byte, error) {
 	return data, nil
 }
 
-func (m *mockStorage) Write(path string, data []byte) error {
+func (m *mockStorage) Write(_ context.Context, path string, data []byte) error {
 	if m.writeErr != nil {
 		return m.writeErr
 	}
@@ -40,21 +41,21 @@ func (m *mockStorage) Write(path string, data []byte) error {
 	return nil
 }
 
-func (m *mockStorage) Exists(path string) bool {
+func (m *mockStorage) Exists(_ context.Context, path string) bool {
 	_, ok := m.data[path]
 	return ok
 }
 
-func (m *mockStorage) Delete(path string) error {
+func (m *mockStorage) Delete(_ context.Context, path string) error {
 	delete(m.data, path)
 	return nil
 }
 
-func (m *mockStorage) List(_ string, _ string) ([]string, error) {
+func (m *mockStorage) List(_ context.Context, _ string, _ string) ([]string, error) {
 	return nil, nil
 }
 
-func (m *mockStorage) Stat(path string) (os.FileInfo, error) {
+func (m *mockStorage) Stat(_ context.Context, path string) (os.FileInfo, error) {
 	if _, ok := m.data[path]; !ok {
 		return nil, os.ErrNotExist
 	}
@@ -72,7 +73,7 @@ func TestReadParsed(t *testing.T) {
 		data := mustMarshal(&nhl.DailySchedule{})
 		s.data[r.Path()] = data
 
-		result, err := resource.ReadParsed(s, r)
+		result, err := resource.ReadParsed(context.Background(), s, r)
 		if err != nil {
 			t.Fatalf("ReadParsed() unexpected error: %v", err)
 		}
@@ -86,7 +87,7 @@ func TestReadParsed(t *testing.T) {
 		s := newMockStorage()
 		s.readErr = sentinel
 
-		_, err := resource.ReadParsed(s, r)
+		_, err := resource.ReadParsed(context.Background(), s, r)
 		if !errors.Is(err, sentinel) {
 			t.Errorf("ReadParsed() error = %v, want sentinel error", err)
 		}
@@ -96,7 +97,7 @@ func TestReadParsed(t *testing.T) {
 		s := newMockStorage()
 		// Nothing written — Read will return os.ErrNotExist.
 
-		_, err := resource.ReadParsed(s, r)
+		_, err := resource.ReadParsed(context.Background(), s, r)
 		if !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("ReadParsed() error = %v, want os.ErrNotExist", err)
 		}
@@ -106,7 +107,7 @@ func TestReadParsed(t *testing.T) {
 		s := newMockStorage()
 		s.data[r.Path()] = []byte(`not-json`)
 
-		_, err := resource.ReadParsed(s, r)
+		_, err := resource.ReadParsed(context.Background(), s, r)
 		if err == nil {
 			t.Fatal("ReadParsed() expected parse error, got nil")
 		}
@@ -122,7 +123,7 @@ func TestWriteParsed(t *testing.T) {
 	t.Run("success_writes_correct_path", func(t *testing.T) {
 		s := newMockStorage()
 
-		if err := resource.WriteParsed(s, r, &nhl.DailySchedule{}); err != nil {
+		if err := resource.WriteParsed(context.Background(), s, r, &nhl.DailySchedule{}); err != nil {
 			t.Fatalf("WriteParsed() unexpected error: %v", err)
 		}
 		if _, ok := s.data[r.Path()]; !ok {
@@ -135,7 +136,7 @@ func TestWriteParsed(t *testing.T) {
 		// zero value, so passing a zero-value ClubStats exercises the Format error path.
 		s := newMockStorage()
 		cr := resource.ClubStatsResource{Season: 2024, TeamAbbrev: "MTL", GameType: 2}
-		err := resource.WriteParsed(s, cr, &nhl.ClubStats{}) // zero GameType → marshal error
+		err := resource.WriteParsed(context.Background(), s, cr, &nhl.ClubStats{}) // zero GameType → marshal error
 		if err == nil {
 			t.Fatal("WriteParsed() expected format error, got nil")
 		}
@@ -146,7 +147,7 @@ func TestWriteParsed(t *testing.T) {
 		s := newMockStorage()
 		s.writeErr = sentinel
 
-		err := resource.WriteParsed(s, r, &nhl.DailySchedule{})
+		err := resource.WriteParsed(context.Background(), s, r, &nhl.DailySchedule{})
 		if !errors.Is(err, sentinel) {
 			t.Errorf("WriteParsed() error = %v, want sentinel error", err)
 		}
@@ -156,11 +157,11 @@ func TestWriteParsed(t *testing.T) {
 		s := newMockStorage()
 		original := &nhl.DailySchedule{}
 
-		if err := resource.WriteParsed(s, r, original); err != nil {
+		if err := resource.WriteParsed(context.Background(), s, r, original); err != nil {
 			t.Fatalf("WriteParsed() unexpected error: %v", err)
 		}
 
-		parsed, err := resource.ReadParsed(s, r)
+		parsed, err := resource.ReadParsed(context.Background(), s, r)
 		if err != nil {
 			t.Fatalf("ReadParsed() after WriteParsed() unexpected error: %v", err)
 		}

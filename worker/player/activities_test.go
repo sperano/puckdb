@@ -59,7 +59,7 @@ func (s *PlayerGameLogTestSuite) TestCacheHit() {
 	playerID := nhl.PlayerID(8478402)
 	season := nhl.NewSeason(2024)
 	gameTypeID := nhl.GameTypeRegularSeason.Int()
-	mem.Write(resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: gameTypeID}.Path(), []byte(`{"gameLog":[]}`))
+	mem.Write(context.Background(),resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: gameTypeID}.Path(), []byte(`{"gameLog":[]}`))
 
 	input := DownloadPlayerGameLogsInput{
 		PlayerIDs:   []int64{8478402},
@@ -85,8 +85,8 @@ func (s *PlayerGameLogTestSuite) TestMultipleGameTypes() {
 	playerID := nhl.PlayerID(8478402)
 	season := nhl.NewSeason(2024)
 
-	mem.Write(resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: nhl.GameTypeRegularSeason.Int()}.Path(), []byte(`{"gameLog":[]}`))
-	mem.Write(resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: nhl.GameTypePlayoffs.Int()}.Path(), []byte(`{"gameLog":[]}`))
+	mem.Write(context.Background(),resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: nhl.GameTypeRegularSeason.Int()}.Path(), []byte(`{"gameLog":[]}`))
+	mem.Write(context.Background(),resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: nhl.GameTypePlayoffs.Int()}.Path(), []byte(`{"gameLog":[]}`))
 
 	input := DownloadPlayerGameLogsInput{
 		PlayerIDs:   []int64{8478402},
@@ -132,7 +132,7 @@ func (s *PlayerGameLogTestSuite) TestDefaultsToRegularSeason() {
 
 	playerID := nhl.PlayerID(8478402)
 	season := nhl.NewSeason(2024)
-	mem.Write(resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: nhl.GameTypeRegularSeason.Int()}.Path(), []byte(`{"gameLog":[]}`))
+	mem.Write(context.Background(),resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: nhl.GameTypeRegularSeason.Int()}.Path(), []byte(`{"gameLog":[]}`))
 
 	input := DownloadPlayerGameLogsInput{
 		PlayerIDs:   []int64{8478402},

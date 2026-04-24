@@ -70,7 +70,7 @@ func (a *SeasonsActivities) importEdgeSkaters(ctx context.Context, queries EdgeS
 		for _, player := range skaters {
 			playerID := player.ID
 			detailRes := resource.EdgeSkaterDetail{PlayerID: playerID, Season: season, GameType: gameType}
-			if !a.Storage.Exists(detailRes.Path()) {
+			if !a.Storage.Exists(ctx, detailRes.Path()) {
 				continue
 			}
 
@@ -201,7 +201,7 @@ func (a *SeasonsActivities) importEdgeGoalies(ctx context.Context, queries EdgeS
 		for _, goalie := range roster.Goalies {
 			goalieID := goalie.ID
 			detailRes := resource.EdgeGoalieDetail{GoalieID: goalieID, Season: season, GameType: gameType}
-			if !a.Storage.Exists(detailRes.Path()) {
+			if !a.Storage.Exists(ctx, detailRes.Path()) {
 				continue
 			}
 
@@ -311,7 +311,7 @@ func (a *SeasonsActivities) importEdgeTeams(ctx context.Context, queries EdgeSta
 	for _, team := range teams {
 		teamID := nhlapi.TeamID(team.TeamID)
 		detailRes := resource.EdgeTeamDetail{TeamID: teamID, Season: season, GameType: gameType}
-		if !a.Storage.Exists(detailRes.Path()) {
+		if !a.Storage.Exists(ctx, detailRes.Path()) {
 			continue
 		}
 
@@ -427,7 +427,7 @@ func (a *SeasonsActivities) importEdgeTeamZoneTimeDetails(ctx context.Context, q
 	for _, team := range teams {
 		teamID := nhlapi.TeamID(team.TeamID)
 		detailRes := resource.EdgeTeamZoneTimeDetails{TeamID: teamID, Season: season, GameType: gameType}
-		if !a.Storage.Exists(detailRes.Path()) {
+		if !a.Storage.Exists(ctx, detailRes.Path()) {
 			continue
 		}
 
@@ -509,7 +509,7 @@ func (a *SeasonsActivities) ImportEdgeTeam(ctx context.Context, input ImportEdge
 
 	// Import team detail
 	detailRes := resource.EdgeTeamDetail{TeamID: teamID, Season: season, GameType: gameType}
-	if a.Storage.Exists(detailRes.Path()) {
+	if a.Storage.Exists(ctx, detailRes.Path()) {
 		detail, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, detailRes)
 		if err != nil {
 			logger.Warn("Failed to read edge team detail from cache", "team", input.TeamAbbrev, "err", err)
@@ -520,7 +520,7 @@ func (a *SeasonsActivities) ImportEdgeTeam(ctx context.Context, input ImportEdge
 
 	// Import team zone time details
 	ztRes := resource.EdgeTeamZoneTimeDetails{TeamID: teamID, Season: season, GameType: gameType}
-	if a.Storage.Exists(ztRes.Path()) {
+	if a.Storage.Exists(ctx, ztRes.Path()) {
 		detail, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, ztRes)
 		if err != nil {
 			logger.Warn("Failed to read edge team zone time from cache", "team", input.TeamAbbrev, "err", err)
@@ -550,7 +550,7 @@ func (a *SeasonsActivities) ImportEdgeTeamSkaters(ctx context.Context, input Imp
 	for _, player := range skaters {
 		playerID := player.ID
 		detailRes := resource.EdgeSkaterDetail{PlayerID: playerID, Season: season, GameType: gameType}
-		if !a.Storage.Exists(detailRes.Path()) {
+		if !a.Storage.Exists(ctx, detailRes.Path()) {
 			continue
 		}
 
@@ -587,7 +587,7 @@ func (a *SeasonsActivities) ImportEdgeTeamGoalies(ctx context.Context, input Imp
 	for _, goalie := range roster.Goalies {
 		goalieID := goalie.ID
 		detailRes := resource.EdgeGoalieDetail{GoalieID: goalieID, Season: season, GameType: gameType}
-		if !a.Storage.Exists(detailRes.Path()) {
+		if !a.Storage.Exists(ctx, detailRes.Path()) {
 			continue
 		}
 

@@ -197,7 +197,7 @@ func (s *FetchYahooPlayerBatchSuite) TestAllCached() {
 	// Pre-cache two player files.
 	for _, id := range []store.YahooPlayerID{100, 101} {
 		res := resource.YahooPlayer{PlayerID: id}
-		require.NoError(s.T(), mem.Write(res.Path(), []byte("<html>player</html>")))
+		require.NoError(s.T(), mem.Write(context.Background(),res.Path(), []byte("<html>player</html>")))
 	}
 
 	act := &FetchActivities{Storage: mem, PublicDownloader: downloader}
@@ -221,7 +221,7 @@ func (s *FetchYahooPlayerBatchSuite) TestAllMissing() {
 	// Pre-mark two players as missing.
 	for _, id := range []store.YahooPlayerID{200, 201} {
 		res := resource.MissingYahooPlayer{PlayerID: id}
-		require.NoError(s.T(), mem.Write(res.Path(), []byte("missing")))
+		require.NoError(s.T(), mem.Write(context.Background(),res.Path(), []byte("missing")))
 	}
 
 	act := &FetchActivities{Storage: mem, PublicDownloader: downloader}
@@ -362,9 +362,9 @@ func (s *FetchYahooLeagueDataSuite) TestSuccess_AllFromDownload() {
 	_, err := s.env.ExecuteActivity(act.FetchYahooLeagueData, input)
 
 	require.NoError(s.T(), err)
-	assert.True(s.T(), mem.Exists(txRes.Path()), "transactions file must be written")
-	assert.True(s.T(), mem.Exists(drRes.Path()), "draft results file must be written")
-	assert.True(s.T(), mem.Exists(mu1Res.Path()), "matchup week-1 file must be written")
+	assert.True(s.T(), mem.Exists(context.Background(),txRes.Path()), "transactions file must be written")
+	assert.True(s.T(), mem.Exists(context.Background(),drRes.Path()), "draft results file must be written")
+	assert.True(s.T(), mem.Exists(context.Background(),mu1Res.Path()), "matchup week-1 file must be written")
 }
 
 func (s *FetchYahooLeagueDataSuite) TestSuccess_AlreadyCached() {
@@ -379,9 +379,9 @@ func (s *FetchYahooLeagueDataSuite) TestSuccess_AlreadyCached() {
 	emptyTxXML := []byte(`<fantasy_content><league><transactions count="0"></transactions></league></fantasy_content>`)
 	emptyDrXML := []byte(`<fantasy_content><league><draft_results count="0"></draft_results></league></fantasy_content>`)
 
-	require.NoError(s.T(), mem.Write(txRes.Path(), emptyTxXML))
-	require.NoError(s.T(), mem.Write(drRes.Path(), emptyDrXML))
-	require.NoError(s.T(), mem.Write(mu1Res.Path(), []byte(minimalMatchupXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),txRes.Path(), emptyTxXML))
+	require.NoError(s.T(), mem.Write(context.Background(),drRes.Path(), emptyDrXML))
+	require.NoError(s.T(), mem.Write(context.Background(),mu1Res.Path(), []byte(minimalMatchupXML)))
 
 	dl := mockDownloader(nil, errors.New("should not be called"))
 
@@ -420,7 +420,7 @@ func TestFetchYahooResource_CacheHit(t *testing.T) {
 	redisClient, _ := redismock.NewClientMock()
 
 	res := resource.Transactions{Season: 2023, LeagueID: 99, GameKey: 423}
-	require.NoError(t, mem.Write(res.Path(), []byte(`<fantasy_content><league></league></fantasy_content>`)))
+	require.NoError(t, mem.Write(context.Background(),res.Path(), []byte(`<fantasy_content><league></league></fantasy_content>`)))
 
 	dl := mockDownloader(nil, errors.New("should not be called"))
 	act := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(redisClient)}
@@ -445,7 +445,7 @@ func TestFetchYahooResource_DownloadAndWrite(t *testing.T) {
 
 	err := act.fetchYahooResource(context.Background(), res)
 	require.NoError(t, err)
-	assert.True(t, mem.Exists(res.Path()))
+	assert.True(t, mem.Exists(context.Background(),res.Path()))
 }
 
 func TestFetchYahooResource_DownloadError(t *testing.T) {

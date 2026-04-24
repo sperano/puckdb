@@ -400,7 +400,7 @@ func (s *ImportBoxscoresSuite) TestScheduleFileParseError() {
 	mem := store.NewMemStorage()
 	upserter := NewMockBoxscoreUpserter()
 
-	mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), []byte("invalid json"))
+	mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), []byte("invalid json"))
 
 	result, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
@@ -414,7 +414,7 @@ func (s *ImportBoxscoresSuite) TestSkipsNonFinalGames() {
 	upserter := NewMockBoxscoreUpserter()
 
 	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"LIVE"},{"id":2024020002,"gameState":"PRE"}]}`)
-	mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
+	mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 
 	result, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
@@ -428,7 +428,7 @@ func (s *ImportBoxscoresSuite) TestSkipsPreseasonGames() {
 	upserter := NewMockBoxscoreUpserter()
 
 	scheduleJSON := []byte(`{"games":[{"id":2024010001,"gameState":"OFF"}]}`)
-	mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
+	mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 
 	result, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
@@ -442,7 +442,7 @@ func (s *ImportBoxscoresSuite) TestBoxscoreFileMissing() {
 	upserter := NewMockBoxscoreUpserter()
 
 	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-	mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
+	mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 
 	_, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
@@ -455,8 +455,8 @@ func (s *ImportBoxscoresSuite) TestBoxscoreFileParseError() {
 	upserter := NewMockBoxscoreUpserter()
 
 	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-	mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
-	mem.Write(resource.Boxscore{Date: s.testDate, GameID: nhlapi.GameID(2024020001)}.Path(), []byte("invalid json"))
+	mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
+	mem.Write(context.Background(),resource.Boxscore{Date: s.testDate, GameID: nhlapi.GameID(2024020001)}.Path(), []byte("invalid json"))
 
 	_, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
@@ -473,8 +473,8 @@ func (s *ImportBoxscoresSuite) TestUpsertGameError() {
 	boxscoreJSON, err := json.Marshal(boxscore)
 	s.Require().NoError(err)
 
-	s.Require().NoError(mem.Write(resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON))
-	s.Require().NoError(mem.Write(resource.Boxscore{Date: s.testDate, GameID: nhlapi.GameID(2024020001)}.Path(), boxscoreJSON))
+	s.Require().NoError(mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON))
+	s.Require().NoError(mem.Write(context.Background(),resource.Boxscore{Date: s.testDate, GameID: nhlapi.GameID(2024020001)}.Path(), boxscoreJSON))
 
 	upserter.On("UpsertGame", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertGameParams")).
 		Return(errors.New("database error"))

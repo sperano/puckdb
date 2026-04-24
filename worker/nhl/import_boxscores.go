@@ -59,7 +59,7 @@ func (a *ImportActivities) importBoxscoresForDate(ctx context.Context, queries B
 	result := ImportBoxscoresForDateResult{Origins: core.OriginCounts{}}
 
 	scheduleRes := resource.DailySchedule{Date: input.Date}
-	if !a.Storage.Exists(scheduleRes.Path()) {
+	if !a.Storage.Exists(ctx, scheduleRes.Path()) {
 		log.Debug().Str("date", input.Date.Format(config.DateFormat)).Msg("No daily schedule file for date")
 		return result, nil
 	}
@@ -104,7 +104,7 @@ func importSingleGame(ctx context.Context, storage store.Storage, gobCache *cach
 	result := importSingleGameResult{Origins: core.OriginCounts{}}
 
 	boxscoreRes := resource.Boxscore{Date: date, GameID: gameID}
-	if !storage.Exists(boxscoreRes.Path()) {
+	if !storage.Exists(ctx, boxscoreRes.Path()) {
 		return result, fmt.Errorf("boxscore file missing for game %s", gameID.String())
 	}
 

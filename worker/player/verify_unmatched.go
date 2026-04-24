@@ -182,7 +182,7 @@ func verifyPlayer(ctx context.Context, client shared.NHLClient, storage store.St
 // fetchPlayerLanding retrieves player landing data, using cache if available.
 func fetchPlayerLanding(ctx context.Context, client shared.NHLClient, storage store.Storage, gobCache *cache.GobCache, playerID nhl.PlayerID) (*nhl.PlayerLanding, error) {
 	landingRes := resource.PlayerLanding{PlayerID: playerID}
-	if storage.Exists(landingRes.Path()) {
+	if storage.Exists(ctx, landingRes.Path()) {
 		landing, _, err := cache.ReadParsedCached(ctx, storage, gobCache, landingRes)
 		if err == nil {
 			return landing, nil

@@ -60,7 +60,7 @@ func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID 
 	metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
 
 	// Save raw XML to filesystem
-	if err := a.Storage.Write(res.Path(), content); err != nil {
+	if err := a.Storage.Write(ctx, res.Path(), content); err != nil {
 		return fmt.Errorf("save league %d/%d: %w", season, leagueID, err)
 	}
 
@@ -163,7 +163,7 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 		metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
 
 		// Save raw XML to filesystem
-		if err := a.Storage.Write(res.Path(), content); err != nil {
+		if err := a.Storage.Write(ctx, res.Path(), content); err != nil {
 			return fmt.Errorf("save team %d/%d/%d: %w", input.StartSeason, team.LeagueID, team.TeamID, err)
 		}
 
@@ -216,7 +216,7 @@ func (a *FetchActivities) FetchYahooLeagueData(ctx context.Context, input FetchY
 		}
 
 		// Skip if already cached
-		if a.Storage.Exists(res.Path()) {
+		if a.Storage.Exists(ctx, res.Path()) {
 			continue
 		}
 
@@ -231,7 +231,7 @@ func (a *FetchActivities) FetchYahooLeagueData(ctx context.Context, input FetchY
 		}
 		metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
 
-		if err := a.Storage.Write(res.Path(), content); err != nil {
+		if err := a.Storage.Write(ctx, res.Path(), content); err != nil {
 			return fmt.Errorf("save matchups week %d: %w", week, err)
 		}
 
@@ -258,7 +258,7 @@ func (a *FetchActivities) fetchYahooResource(ctx context.Context, res interface 
 	Parse([]byte) (*store.FantasyContent, error)
 }) error {
 	// Check cache
-	if a.Storage.Exists(res.Path()) {
+	if a.Storage.Exists(ctx, res.Path()) {
 		return nil
 	}
 
@@ -271,7 +271,7 @@ func (a *FetchActivities) fetchYahooResource(ctx context.Context, res interface 
 	}
 	metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
 
-	if err := a.Storage.Write(res.Path(), content); err != nil {
+	if err := a.Storage.Write(ctx, res.Path(), content); err != nil {
 		return err
 	}
 

@@ -409,7 +409,7 @@ func TestVerifyUnmatchedBatchImpl_CachedLandingUsed(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err, "landing must marshal successfully")
-	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+	require.NoError(t, mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{

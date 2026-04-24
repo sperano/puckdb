@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"path"
@@ -28,7 +29,7 @@ func NewMemStorage() *MemStorage {
 }
 
 // Read returns the contents of the file at path.
-func (s *MemStorage) Read(p string) ([]byte, error) {
+func (s *MemStorage) Read(_ context.Context, p string) ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -44,7 +45,7 @@ func (s *MemStorage) Read(p string) ([]byte, error) {
 }
 
 // Write stores data at path.
-func (s *MemStorage) Write(p string, data []byte) error {
+func (s *MemStorage) Write(_ context.Context, p string, data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -57,7 +58,7 @@ func (s *MemStorage) Write(p string, data []byte) error {
 }
 
 // Exists returns true if a file exists at path.
-func (s *MemStorage) Exists(p string) bool {
+func (s *MemStorage) Exists(_ context.Context, p string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -66,7 +67,7 @@ func (s *MemStorage) Exists(p string) bool {
 }
 
 // Delete removes the file at path.
-func (s *MemStorage) Delete(p string) error {
+func (s *MemStorage) Delete(_ context.Context, p string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -77,7 +78,7 @@ func (s *MemStorage) Delete(p string) error {
 
 // List returns all filenames in dir with the given extension.
 // Returns filenames without the extension.
-func (s *MemStorage) List(dir string, ext string) ([]string, error) {
+func (s *MemStorage) List(_ context.Context, dir string, ext string) ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -156,13 +157,13 @@ func (s *MemStorage) Count() int {
 // Has returns true if a file exists at the exact path.
 // Alias for Exists, provided for test readability.
 func (s *MemStorage) Has(p string) bool {
-	return s.Exists(p)
+	return s.Exists(context.Background(), p)
 }
 
 // Get returns the contents of a file, or nil if not found.
 // Alias for Read without error, provided for test assertions.
 func (s *MemStorage) Get(p string) []byte {
-	data, _ := s.Read(p)
+	data, _ := s.Read(context.Background(), p)
 	return data
 }
 
@@ -203,7 +204,7 @@ func (s *MemStorage) ListDir(dir string) []string {
 }
 
 // Stat returns file information for the file at path.
-func (s *MemStorage) Stat(p string) (os.FileInfo, error) {
+func (s *MemStorage) Stat(_ context.Context, p string) (os.FileInfo, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

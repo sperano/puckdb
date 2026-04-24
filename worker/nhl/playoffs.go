@@ -79,7 +79,7 @@ func (a *PlayoffActivities) FetchPlayoffGames(ctx context.Context, input FetchPl
 
 		res := resource.ClubScheduleSeason{Season: input.Season, TeamAbbrev: team.Abbrev}
 		if invalidateSchedules {
-			_ = a.Storage.Delete(res.Path())
+			_ = a.Storage.Delete(ctx, res.Path())
 			_ = a.GobCache.Delete(ctx, core.RedisKey(res))
 		}
 		schedule, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, res,
@@ -248,7 +248,7 @@ func collectPlayoffGames(ctx context.Context, storage store.Storage, gobCache *c
 	var games []playoffGame
 
 	scheduleDir := fmt.Sprintf("seasons/%d/club-schedule", season)
-	files, err := storage.List(scheduleDir, "json")
+	files, err := storage.List(ctx, scheduleDir, "json")
 	if err != nil {
 		// No club-schedule directory means no playoff data was fetched
 		return nil, nil

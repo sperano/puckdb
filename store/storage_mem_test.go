@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -16,21 +17,21 @@ func TestMemStorage_ReadWriteExists(t *testing.T) {
 	data := []byte(`{"key": "value"}`)
 
 	// Initially does not exist
-	assert.False(t, s.Exists(path))
+	assert.False(t, s.Exists(context.Background(),path))
 
 	// Read returns os.ErrNotExist for non-existent file
-	_, err := s.Read(path)
+	_, err := s.Read(context.Background(),path)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 
 	// Write stores data
-	err = s.Write(path, data)
+	err = s.Write(context.Background(),path, data)
 	require.NoError(t, err)
 
 	// Now exists
-	assert.True(t, s.Exists(path))
+	assert.True(t, s.Exists(context.Background(),path))
 
 	// Read returns the data
-	got, err := s.Read(path)
+	got, err := s.Read(context.Background(),path)
 	require.NoError(t, err)
 	assert.Equal(t, data, got)
 }
@@ -41,13 +42,13 @@ func TestMemStorage_WriteOverwrites(t *testing.T) {
 
 	path := "file.txt"
 
-	err := s.Write(path, []byte("original"))
+	err := s.Write(context.Background(),path, []byte("original"))
 	require.NoError(t, err)
 
-	err = s.Write(path, []byte("updated"))
+	err = s.Write(context.Background(),path, []byte("updated"))
 	require.NoError(t, err)
 
-	got, err := s.Read(path)
+	got, err := s.Read(context.Background(),path)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("updated"), got)
 }
@@ -59,18 +60,18 @@ func TestMemStorage_Delete(t *testing.T) {
 	path := "to-delete.txt"
 
 	// Delete non-existent file returns nil (not an error)
-	err := s.Delete(path)
+	err := s.Delete(context.Background(),path)
 	assert.NoError(t, err)
 
 	// Create file
-	err = s.Write(path, []byte("data"))
+	err = s.Write(context.Background(),path, []byte("data"))
 	require.NoError(t, err)
-	assert.True(t, s.Exists(path))
+	assert.True(t, s.Exists(context.Background(),path))
 
 	// Delete removes it
-	err = s.Delete(path)
+	err = s.Delete(context.Background(),path)
 	assert.NoError(t, err)
-	assert.False(t, s.Exists(path))
+	assert.False(t, s.Exists(context.Background(),path))
 }
 
 func TestMemStorage_List(t *testing.T) {
@@ -87,7 +88,7 @@ func TestMemStorage_List(t *testing.T) {
 	s.SetFile(dir+"/subdir/nested.json", []byte("{}")) // in subdirectory
 
 	// List JSON files
-	names, err := s.List(dir, "json")
+	names, err := s.List(context.Background(),dir, "json")
 	require.NoError(t, err)
 
 	// Should be sorted
@@ -103,7 +104,7 @@ func TestMemStorage_ListEmptyDir(t *testing.T) {
 	s := NewMemStorage()
 
 	// No files in "empty" directory
-	names, err := s.List("empty", "json")
+	names, err := s.List(context.Background(),"empty", "json")
 	require.NoError(t, err)
 	assert.Empty(t, names)
 }
@@ -118,7 +119,7 @@ func TestMemStorage_SetFile(t *testing.T) {
 	s.SetFile(path, data)
 
 	// Can be read via normal Read
-	got, err := s.Read(path)
+	got, err := s.Read(context.Background(),path)
 	require.NoError(t, err)
 	assert.Equal(t, data, got)
 }
@@ -148,7 +149,7 @@ func TestMemStorage_Clear(t *testing.T) {
 	s.Clear()
 
 	assert.Equal(t, 0, s.Count())
-	assert.False(t, s.Exists("a.txt"))
+	assert.False(t, s.Exists(context.Background(),"a.txt"))
 }
 
 func TestMemStorage_Count(t *testing.T) {
@@ -163,7 +164,7 @@ func TestMemStorage_Count(t *testing.T) {
 	s.SetFile("b.txt", []byte("b"))
 	assert.Equal(t, 2, s.Count())
 
-	s.Delete("a.txt")
+	s.Delete(context.Background(),"a.txt")
 	assert.Equal(t, 1, s.Count())
 }
 
@@ -219,19 +220,19 @@ func TestMemStorage_IsolatesData(t *testing.T) {
 	s := NewMemStorage()
 
 	original := []byte("original")
-	s.Write("file.txt", original)
+	s.Write(context.Background(),"file.txt", original)
 
 	// Modify original slice
 	original[0] = 'X'
 
 	// Stored data should be unchanged
-	got, _ := s.Read("file.txt")
+	got, _ := s.Read(context.Background(),"file.txt")
 	assert.Equal(t, []byte("original"), got)
 
 	// Modify read result
 	got[0] = 'Y'
 
 	// Stored data should still be unchanged
-	got2, _ := s.Read("file.txt")
+	got2, _ := s.Read(context.Background(),"file.txt")
 	assert.Equal(t, []byte("original"), got2)
 }

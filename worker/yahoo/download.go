@@ -49,7 +49,7 @@ func GetGameKeyForSeason(ctx context.Context, storage store.Storage, gobCache *c
 func getGameKeyImpl(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season int, fetcher shared.Downloader, postDownload func()) (int, error) {
 	gameKeyRes := resource.GameKey{Season: season}
 
-	if storage.Exists(gameKeyRes.Path()) {
+	if storage.Exists(ctx, gameKeyRes.Path()) {
 		log.Debug().Int("season", season).Msg("Game key file found")
 		fantasy, _, err := cache.ReadParsedCached(ctx, storage, gobCache, gameKeyRes)
 		if err != nil {
@@ -64,7 +64,7 @@ func getGameKeyImpl(ctx context.Context, storage store.Storage, gobCache *cache.
 		return 0, fmt.Errorf("fetch game key for season %d: %w", season, err)
 	}
 
-	if err := storage.Write(gameKeyRes.Path(), content); err != nil {
+	if err := storage.Write(ctx, gameKeyRes.Path(), content); err != nil {
 		return 0, fmt.Errorf("save game key for season %d: %w", season, err)
 	}
 	log.Info().Int("season", season).Str("path", gameKeyRes.Path()).Msg("Saved game key")

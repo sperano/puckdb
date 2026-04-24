@@ -38,7 +38,7 @@ func (a *ImportActivities) ImportPlayByPlayForDate(ctx context.Context, input Im
 	result := ImportPlayByPlayForDateResult{Origins: core.OriginCounts{}}
 
 	scheduleRes := resource.DailySchedule{Date: input.Date}
-	if !a.Storage.Exists(scheduleRes.Path()) {
+	if !a.Storage.Exists(ctx, scheduleRes.Path()) {
 		return result, nil
 	}
 
@@ -55,7 +55,7 @@ func (a *ImportActivities) ImportPlayByPlayForDate(ctx context.Context, input Im
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("play-by-play:game:%s", game.ID))
 
 		pbpRes := resource.PlayByPlay{Date: input.Date, GameID: game.ID}
-		if !a.Storage.Exists(pbpRes.Path()) {
+		if !a.Storage.Exists(ctx, pbpRes.Path()) {
 			return result, fmt.Errorf("play-by-play file missing for game %s", game.ID.String())
 		}
 

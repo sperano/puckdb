@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,12 +28,18 @@ func (s *FSStorage) fullPath(path string) string {
 }
 
 // Read returns the contents of the file at path.
-func (s *FSStorage) Read(path string) ([]byte, error) {
+func (s *FSStorage) Read(ctx context.Context, path string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return os.ReadFile(s.fullPath(path))
 }
 
 // Write writes data to the file at path, creating directories as needed.
-func (s *FSStorage) Write(path string, data []byte) error {
+func (s *FSStorage) Write(ctx context.Context, path string, data []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	full := s.fullPath(path)
 	dir := filepath.Dir(full)
 
@@ -44,13 +51,18 @@ func (s *FSStorage) Write(path string, data []byte) error {
 }
 
 // Exists returns true if a file exists at path.
-func (s *FSStorage) Exists(path string) bool {
+// Ignores ctx.Err() — Exists returns a plain bool, so callers that need
+// cancellation should check ctx before calling.
+func (s *FSStorage) Exists(_ context.Context, path string) bool {
 	_, err := os.Stat(s.fullPath(path))
 	return err == nil
 }
 
 // Delete removes the file at path.
-func (s *FSStorage) Delete(path string) error {
+func (s *FSStorage) Delete(ctx context.Context, path string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	err := os.Remove(s.fullPath(path))
 	if os.IsNotExist(err) {
 		return nil
@@ -60,7 +72,10 @@ func (s *FSStorage) Delete(path string) error {
 
 // List returns all filenames in dir with the given extension.
 // Returns filenames without the extension.
-func (s *FSStorage) List(dir string, ext string) ([]string, error) {
+func (s *FSStorage) List(ctx context.Context, dir string, ext string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	entries, err := os.ReadDir(s.fullPath(dir))
 	if err != nil {
 		return nil, err
@@ -85,6 +100,9 @@ func (s *FSStorage) List(dir string, ext string) ([]string, error) {
 }
 
 // Stat returns file information for the file at path.
-func (s *FSStorage) Stat(path string) (os.FileInfo, error) {
+func (s *FSStorage) Stat(ctx context.Context, path string) (os.FileInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return os.Stat(s.fullPath(path))
 }

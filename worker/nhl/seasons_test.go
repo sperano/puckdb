@@ -61,7 +61,7 @@ type failingWriteStorage struct {
 	store.Storage
 }
 
-func (f *failingWriteStorage) Write(path string, data []byte) error {
+func (f *failingWriteStorage) Write(_ context.Context, _ string, _ []byte) error {
 	return errors.New("simulated write failure")
 }
 
@@ -70,7 +70,7 @@ type failingStatStorage struct {
 	*store.MemStorage
 }
 
-func (f *failingStatStorage) Stat(path string) (os.FileInfo, error) {
+func (f *failingStatStorage) Stat(_ context.Context, _ string) (os.FileInfo, error) {
 	return nil, os.ErrPermission
 }
 
@@ -206,7 +206,7 @@ func (s *FetchSeasonsManifestTestSuite) TestFetchSeasonsManifest_Success() {
 		{ID: nhlapi.NewSeason(2023), StandingsStart: d("2023-10-10"), StandingsEnd: d("2024-04-18")},
 		{ID: nhlapi.NewSeason(2024), StandingsStart: d("2024-10-04"), StandingsEnd: d("2025-04-17")},
 	}
-	require.NoError(s.T(), resource.WriteParsed(mem, resource.SeasonsManifest{}, nhlapi.SeasonsResponse{Seasons: seasons}))
+	require.NoError(s.T(), resource.WriteParsed(context.Background(), mem, resource.SeasonsManifest{}, nhlapi.SeasonsResponse{Seasons: seasons}))
 
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
 	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetVal("OK")
@@ -281,7 +281,7 @@ func TestDownloadSeasonsManifest_AllMiss_APIFetch(t *testing.T) {
 	nhlClient.AssertExpectations(t)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 
-	assert.True(t, mem.Exists(resource.SeasonsManifest{}.Path()))
+	assert.True(t, mem.Exists(context.Background(),resource.SeasonsManifest{}.Path()))
 }
 
 func TestDownloadSeasonsManifest_APIError_NoFallback(t *testing.T) {
@@ -412,7 +412,7 @@ func TestDownloadSeasonsManifest_StaleFilesystem_APISuccess(t *testing.T) {
 	nhlClient.AssertExpectations(t)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 
-	savedData, err := mem.Read(resource.SeasonsManifest{}.Path())
+	savedData, err := mem.Read(context.Background(),resource.SeasonsManifest{}.Path())
 	require.NoError(t, err)
 	savedResponse, err := resource.SeasonsManifest{}.Parse(savedData)
 	require.NoError(t, err)
@@ -574,7 +574,7 @@ func TestDownloadSeasonStandings_CacheHit(t *testing.T) {
 		{TeamAbbrev: nhlapi.LocalizedString{Default: "MTL"}, TeamName: nhlapi.LocalizedString{Default: "Montreal Canadiens"}},
 		{TeamAbbrev: nhlapi.LocalizedString{Default: "TOR"}, TeamName: nhlapi.LocalizedString{Default: "Toronto Maple Leafs"}},
 	}
-	require.NoError(t, resource.WriteParsed(mem, standingsRes, standings))
+	require.NoError(t, resource.WriteParsed(context.Background(), mem, standingsRes, standings))
 
 	mockRedis.ExpectGet(redisKey).SetErr(redis.Nil)
 	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisKey, "x", cache.GobCacheTTL).SetVal("OK")
@@ -622,7 +622,7 @@ func TestDownloadSeasonStandings_CacheMiss(t *testing.T) {
 	client.AssertExpectations(t)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 
-	assert.True(t, mem.Exists(standingsRes.Path()))
+	assert.True(t, mem.Exists(context.Background(),standingsRes.Path()))
 }
 
 func TestDownloadSeasonStandings_APIError(t *testing.T) {
@@ -737,7 +737,7 @@ func (s *UpsertSeasonsTestSuite) TestUpsertSeasons_Success() {
 		{ID: nhlapi.NewSeason(2022), StandingsStart: nhlapi.MustParseDate("2022-10-07"), StandingsEnd: nhlapi.MustParseDate("2023-04-14")},
 		{ID: nhlapi.NewSeason(2023), StandingsStart: nhlapi.MustParseDate("2023-10-10"), StandingsEnd: nhlapi.MustParseDate("2024-04-18")},
 	}
-	require.NoError(s.T(), resource.WriteParsed(mem, resource.SeasonsManifest{}, nhlapi.SeasonsResponse{Seasons: seasons}))
+	require.NoError(s.T(), resource.WriteParsed(context.Background(), mem, resource.SeasonsManifest{}, nhlapi.SeasonsResponse{Seasons: seasons}))
 
 	seasonsManifestKey := core.RedisKey(resource.SeasonsManifest{})
 	mockRedis.ExpectGet(seasonsManifestKey).SetErr(redis.Nil)
@@ -766,7 +766,7 @@ func (s *UpsertSeasonsTestSuite) TestUpsertSeasons_EmptyInput() {
 	redisClient, mockRedis := redismock.NewClientMock()
 	upserter := &MockSeasonsUpserter{}
 
-	require.NoError(s.T(), resource.WriteParsed(mem, resource.SeasonsManifest{}, nhlapi.SeasonsResponse{Seasons: []nhlapi.SeasonInfo{}}))
+	require.NoError(s.T(), resource.WriteParsed(context.Background(), mem, resource.SeasonsManifest{}, nhlapi.SeasonsResponse{Seasons: []nhlapi.SeasonInfo{}}))
 
 	seasonsManifestKey := core.RedisKey(resource.SeasonsManifest{})
 	mockRedis.ExpectGet(seasonsManifestKey).SetErr(redis.Nil)
@@ -796,7 +796,7 @@ func (s *UpsertSeasonsTestSuite) TestUpsertSeasons_UpsertError() {
 	seasons := []nhlapi.SeasonInfo{
 		{ID: nhlapi.NewSeason(2022), StandingsStart: nhlapi.MustParseDate("2022-10-07"), StandingsEnd: nhlapi.MustParseDate("2023-04-14")},
 	}
-	require.NoError(s.T(), resource.WriteParsed(mem, resource.SeasonsManifest{}, nhlapi.SeasonsResponse{Seasons: seasons}))
+	require.NoError(s.T(), resource.WriteParsed(context.Background(), mem, resource.SeasonsManifest{}, nhlapi.SeasonsResponse{Seasons: seasons}))
 
 	seasonsManifestKey := core.RedisKey(resource.SeasonsManifest{})
 	mockRedis.ExpectGet(seasonsManifestKey).SetErr(redis.Nil)

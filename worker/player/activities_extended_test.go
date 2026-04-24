@@ -42,12 +42,24 @@ type failWriteStorage struct {
 	inner *store.MemStorage
 }
 
-func (f *failWriteStorage) Read(path string) ([]byte, error)       { return f.inner.Read(path) }
-func (f *failWriteStorage) Write(_ string, _ []byte) error         { return errors.New("disk full") }
-func (f *failWriteStorage) Exists(path string) bool                { return f.inner.Exists(path) }
-func (f *failWriteStorage) Delete(path string) error               { return f.inner.Delete(path) }
-func (f *failWriteStorage) List(dir, ext string) ([]string, error) { return f.inner.List(dir, ext) }
-func (f *failWriteStorage) Stat(path string) (os.FileInfo, error)  { return f.inner.Stat(path) }
+func (f *failWriteStorage) Read(ctx context.Context, path string) ([]byte, error) {
+	return f.inner.Read(ctx, path)
+}
+func (f *failWriteStorage) Write(_ context.Context, _ string, _ []byte) error {
+	return errors.New("disk full")
+}
+func (f *failWriteStorage) Exists(ctx context.Context, path string) bool {
+	return f.inner.Exists(ctx, path)
+}
+func (f *failWriteStorage) Delete(ctx context.Context, path string) error {
+	return f.inner.Delete(ctx, path)
+}
+func (f *failWriteStorage) List(ctx context.Context, dir, ext string) ([]string, error) {
+	return f.inner.List(ctx, dir, ext)
+}
+func (f *failWriteStorage) Stat(ctx context.Context, path string) (os.FileInfo, error) {
+	return f.inner.Stat(ctx, path)
+}
 
 // newFailingAwardBatch returns a batch result whose Exec call reports an error.
 func newFailingAwardBatch() *sqlcdb.UpsertPlayerAwardBatchBatchResults {
@@ -110,7 +122,7 @@ func (s *FetchPlayerLandingsBatchSuite) TestCacheHit() {
 	}
 	data, err := json.Marshal(landing)
 	require.NoError(s.T(), err)
-	require.NoError(s.T(), mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), data))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), data))
 
 	act := newTestActivities(mem)
 	s.env.RegisterActivity(act.FetchPlayerLandingsBatch)
@@ -173,7 +185,7 @@ func (s *FetchPlayerLandingsBatchSuite) TestMissingPlayer() {
 	assert.Equal(s.T(), 0, stats.Downloaded)
 	assert.Equal(s.T(), 0, stats.CacheHits)
 	assert.Equal(s.T(), 1, stats.Missing)
-	assert.True(s.T(), mem.Exists(resource.MissingPlayerLanding{PlayerID: playerID}.Path()))
+	assert.True(s.T(), mem.Exists(context.Background(),resource.MissingPlayerLanding{PlayerID: playerID}.Path()))
 	client.AssertExpectations(s.T())
 }
 
@@ -182,7 +194,7 @@ func (s *FetchPlayerLandingsBatchSuite) TestAlreadyMarkedMissing() {
 	playerID := nhl.PlayerID(9999999)
 
 	missingData, _ := json.Marshal(store.MissingPlayerLandingData{FirstName: "Ghost", LastName: "Player"})
-	require.NoError(s.T(), mem.Write(resource.MissingPlayerLanding{PlayerID: playerID}.Path(), missingData))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.MissingPlayerLanding{PlayerID: playerID}.Path(), missingData))
 
 	act := newTestActivities(mem)
 	s.env.RegisterActivity(act.FetchPlayerLandingsBatch)
@@ -224,7 +236,7 @@ func (s *FetchPlayerLandingsBatchSuite) TestMultiplePlayers_AllStatuses() {
 	// Pre-populate the cached player's landing file.
 	cachedLanding := &nhl.PlayerLanding{PlayerID: cachedID, FirstName: nhl.LocalizedString{Default: "Connor"}, LastName: nhl.LocalizedString{Default: "McDavid"}}
 	data, _ := json.Marshal(cachedLanding)
-	require.NoError(s.T(), mem.Write(resource.PlayerLanding{PlayerID: cachedID}.Path(), data))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.PlayerLanding{PlayerID: cachedID}.Path(), data))
 
 	// The downloadable player needs a network fetch.
 	// Use mock.Anything for context: the Temporal test env provides its own activity context.
@@ -455,7 +467,7 @@ func (s *DownloadGameLogSuite) TestCurrentSeasonRefresh() {
 
 	// Pre-write an existing file to trigger the "file exists" branch.
 	existingPath := resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: nhl.GameTypeRegularSeason.Int()}.Path()
-	require.NoError(s.T(), mem.Write(existingPath, []byte(`{"gameLog":[]}`)))
+	require.NoError(s.T(), mem.Write(context.Background(),existingPath, []byte(`{"gameLog":[]}`)))
 
 	// The client must be called because RefreshCurrent=true overrides cache.
 	// Use mock.Anything for context: Temporal test env provides its own activity context.
@@ -533,8 +545,8 @@ func TestYahooActivitySuite(t *testing.T) {
 
 func (s *YahooActivitySuite) TestListYahooPlayerFiles_Success() {
 	mem := store.NewMemStorage()
-	require.NoError(s.T(), mem.Write(resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
-	require.NoError(s.T(), mem.Write(resource.YahooPlayer{PlayerID: 29}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 29}.Path(), []byte(sampleYahooPlayerHTML)))
 
 	act := &Activities{Storage: mem}
 	s.env.RegisterActivity(act.ListYahooPlayerFiles)
@@ -561,7 +573,7 @@ func (s *YahooActivitySuite) TestListYahooPlayerFiles_Empty() {
 
 func (s *YahooActivitySuite) TestParseYahooPlayerBatch_Success() {
 	mem := store.NewMemStorage()
-	require.NoError(s.T(), mem.Write(resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
 
 	act := &Activities{Storage: mem}
 	s.env.RegisterActivity(act.ParseYahooPlayerBatch)
@@ -579,7 +591,7 @@ func (s *YahooActivitySuite) TestParseYahooPlayerBatch_Success() {
 func (s *YahooActivitySuite) TestParseYahooPlayerBatch_PartialErrors() {
 	mem := store.NewMemStorage()
 	// Player 97 parses; player 1 doesn't exist (read error is logged, not returned).
-	require.NoError(s.T(), mem.Write(resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(s.T(), mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
 
 	act := &Activities{Storage: mem}
 	s.env.RegisterActivity(act.ParseYahooPlayerBatch)

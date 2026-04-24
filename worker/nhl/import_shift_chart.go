@@ -37,7 +37,7 @@ func (a *ImportActivities) ImportShiftChartForDate(ctx context.Context, input Im
 	result := ImportShiftChartForDateResult{Origins: core.OriginCounts{}}
 
 	scheduleRes := resource.DailySchedule{Date: input.Date}
-	if !a.Storage.Exists(scheduleRes.Path()) {
+	if !a.Storage.Exists(ctx, scheduleRes.Path()) {
 		return result, nil
 	}
 
@@ -54,7 +54,7 @@ func (a *ImportActivities) ImportShiftChartForDate(ctx context.Context, input Im
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("shift-charts:game:%s", game.ID))
 
 		scRes := resource.ShiftChart{Date: input.Date, GameID: game.ID}
-		if !a.Storage.Exists(scRes.Path()) {
+		if !a.Storage.Exists(ctx, scRes.Path()) {
 			return result, fmt.Errorf("shift chart file missing for game %s", game.ID.String())
 		}
 

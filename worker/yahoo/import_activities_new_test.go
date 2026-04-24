@@ -211,7 +211,7 @@ func (s *ImportYahooLeagueSuite) TestWithPositionsAndStats() {
 	q := &MockQueries{}
 
 	leagueRes := resource.League{Season: 2023, LeagueID: 12345}
-	require.NoError(s.T(), mem.Write(leagueRes.Path(), []byte(leagueWithPositionsXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),leagueRes.Path(), []byte(leagueWithPositionsXML)))
 
 	q.On("UpsertYahooLeague", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertYahooLeagueParams")).Return(nil)
 	q.On("UpsertYahooLeagueRosterPositionBatch", mock.Anything, mock.Anything).
@@ -237,7 +237,7 @@ func (s *ImportYahooLeagueSuite) TestUpsertLeagueError() {
 	q := &MockQueries{}
 
 	leagueRes := resource.League{Season: 2023, LeagueID: 12345}
-	require.NoError(s.T(), mem.Write(leagueRes.Path(), []byte(leagueWithPositionsXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),leagueRes.Path(), []byte(leagueWithPositionsXML)))
 
 	q.On("UpsertYahooLeague", mock.Anything, mock.Anything).Return(assert.AnError)
 
@@ -307,7 +307,7 @@ func (s *ImportYahooTeamsSuite) TestWithTeamAndManager() {
 	q := &MockQueries{}
 
 	teamRes := resource.Team{Season: 2023, LeagueID: 12345, TeamID: 1}
-	require.NoError(s.T(), mem.Write(teamRes.Path(), []byte(teamWithManagerXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),teamRes.Path(), []byte(teamWithManagerXML)))
 
 	q.On("UpsertYahooTeamBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamBatchBatchResults(&mockBatchResults{}, 1))
@@ -334,7 +334,7 @@ func (s *ImportYahooTeamsSuite) TestTeamUpsertError() {
 	q := &MockQueries{}
 
 	teamRes := resource.Team{Season: 2023, LeagueID: 12345, TeamID: 1}
-	require.NoError(s.T(), mem.Write(teamRes.Path(), []byte(teamWithManagerXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),teamRes.Path(), []byte(teamWithManagerXML)))
 
 	q.On("UpsertYahooTeamBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
@@ -420,8 +420,8 @@ func (s *ImportYahooDataForDateSuite) TestWithSummaryAndRoster() {
 
 	summaryRes := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
 	rosterRes := resource.Roster{LeagueID: 12345, TeamID: 1, Date: date}
-	require.NoError(s.T(), mem.Write(summaryRes.Path(), []byte(summaryWithStatsXML)))
-	require.NoError(s.T(), mem.Write(rosterRes.Path(), []byte(rosterWithPlayersXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),summaryRes.Path(), []byte(summaryWithStatsXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),rosterRes.Path(), []byte(rosterWithPlayersXML)))
 
 	q.On("UpsertYahooTeamSummaryBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{}, 1))
@@ -455,7 +455,7 @@ func (s *ImportYahooDataForDateSuite) TestSummaryUpsertError() {
 	teams := []TeamInfo{{LeagueID: 12345, TeamID: 1}}
 
 	summaryRes := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
-	require.NoError(s.T(), mem.Write(summaryRes.Path(), []byte(summaryWithStatsXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),summaryRes.Path(), []byte(summaryWithStatsXML)))
 
 	q.On("UpsertYahooTeamSummaryBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
@@ -583,9 +583,9 @@ func (s *ImportYahooLeagueDataSuite) TestWithTransactionsDraftMatchups() {
 	txRes := resource.Transactions{Season: 2023, LeagueID: 12345}
 	drRes := resource.DraftResults{Season: 2023, LeagueID: 12345}
 	mu1Res := resource.Matchups{Season: 2023, LeagueID: 12345, Week: 1}
-	require.NoError(s.T(), mem.Write(txRes.Path(), []byte(transactionsWithOneXML)))
-	require.NoError(s.T(), mem.Write(drRes.Path(), []byte(draftResultsWithPicksXML)))
-	require.NoError(s.T(), mem.Write(mu1Res.Path(), []byte(matchupsWeek1XML)))
+	require.NoError(s.T(), mem.Write(context.Background(),txRes.Path(), []byte(transactionsWithOneXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),drRes.Path(), []byte(draftResultsWithPicksXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),mu1Res.Path(), []byte(matchupsWeek1XML)))
 
 	q.On("UpsertYahooTransactionBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTransactionBatchBatchResults(&mockBatchResults{}, 1))
@@ -614,7 +614,7 @@ func (s *ImportYahooLeagueDataSuite) TestTransactionUpsertError() {
 	q := &MockQueries{}
 
 	txRes := resource.Transactions{Season: 2023, LeagueID: 12345}
-	require.NoError(s.T(), mem.Write(txRes.Path(), []byte(transactionsWithOneXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),txRes.Path(), []byte(transactionsWithOneXML)))
 
 	q.On("UpsertYahooTransactionBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTransactionBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
@@ -635,11 +635,11 @@ func (s *ImportYahooLeagueDataSuite) TestMatchupUpsertError() {
 	txRes := resource.Transactions{Season: 2023, LeagueID: 12345}
 	drRes := resource.DraftResults{Season: 2023, LeagueID: 12345}
 	mu1Res := resource.Matchups{Season: 2023, LeagueID: 12345, Week: 1}
-	require.NoError(s.T(), mem.Write(txRes.Path(),
+	require.NoError(s.T(), mem.Write(context.Background(),txRes.Path(),
 		[]byte(`<fantasy_content><league><transactions count="0"></transactions></league></fantasy_content>`)))
-	require.NoError(s.T(), mem.Write(drRes.Path(),
+	require.NoError(s.T(), mem.Write(context.Background(),drRes.Path(),
 		[]byte(`<fantasy_content><league><draft_results count="0"></draft_results></league></fantasy_content>`)))
-	require.NoError(s.T(), mem.Write(mu1Res.Path(), []byte(matchupsWeek1XML)))
+	require.NoError(s.T(), mem.Write(context.Background(),mu1Res.Path(), []byte(matchupsWeek1XML)))
 
 	q.On("UpsertYahooMatchupBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooMatchupBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
@@ -678,7 +678,7 @@ func TestCollectSummaryParams_InvalidStatID_Skipped(t *testing.T) {
   </team>
 </fantasy_content>`)
 	res := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
-	require.NoError(t, mem.Write(res.Path(), xml))
+	require.NoError(t, mem.Write(context.Background(),res.Path(), xml))
 
 	summaryParams := a.collectSummaryParams(
 		context.Background(), teams, date, make(core.OriginCounts),

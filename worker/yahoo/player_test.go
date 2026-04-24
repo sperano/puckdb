@@ -24,7 +24,7 @@ func TestFetchYahooPlayer_AlreadyMissing(t *testing.T) {
 
 	// Pre-mark as missing
 	missingRes := resource.MissingYahooPlayer{PlayerID: playerID}
-	require.NoError(t, mem.Write(missingRes.Path(), []byte("missing")))
+	require.NoError(t, mem.Write(context.Background(),missingRes.Path(), []byte("missing")))
 
 	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
 
@@ -44,7 +44,7 @@ func TestFetchYahooPlayer_AlreadyCached(t *testing.T) {
 
 	// Pre-populate player file
 	playerRes := resource.YahooPlayer{PlayerID: playerID}
-	require.NoError(t, mem.Write(playerRes.Path(), []byte("<html>Player Page</html>")))
+	require.NoError(t, mem.Write(context.Background(),playerRes.Path(), []byte("<html>Player Page</html>")))
 
 	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
 
@@ -74,7 +74,7 @@ func TestFetchYahooPlayer_DownloadSuccess(t *testing.T) {
 
 	// Verify player was saved
 	playerRes := resource.YahooPlayer{PlayerID: playerID}
-	assert.True(t, mem.Exists(playerRes.Path()))
+	assert.True(t, mem.Exists(context.Background(),playerRes.Path()))
 }
 
 func TestFetchYahooPlayer_Download404(t *testing.T) {
@@ -98,7 +98,7 @@ func TestFetchYahooPlayer_Download404(t *testing.T) {
 
 	// Verify player was marked as missing
 	missingRes := resource.MissingYahooPlayer{PlayerID: playerID}
-	assert.True(t, mem.Exists(missingRes.Path()))
+	assert.True(t, mem.Exists(context.Background(),missingRes.Path()))
 }
 
 func TestFetchYahooPlayer_DownloadOtherError(t *testing.T) {

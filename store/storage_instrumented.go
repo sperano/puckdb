@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"os"
 	"regexp"
 	"time"
@@ -19,9 +20,9 @@ func NewInstrumentedStorage(inner Storage) *InstrumentedStorage {
 }
 
 // Read reads from storage and records timing/size metrics.
-func (s *InstrumentedStorage) Read(path string) ([]byte, error) {
+func (s *InstrumentedStorage) Read(ctx context.Context, path string) ([]byte, error) {
 	start := time.Now()
-	data, err := s.inner.Read(path)
+	data, err := s.inner.Read(ctx, path)
 	duration := time.Since(start)
 
 	ft := inferFileType(path)
@@ -34,9 +35,9 @@ func (s *InstrumentedStorage) Read(path string) ([]byte, error) {
 }
 
 // Write writes to storage and records timing/size metrics.
-func (s *InstrumentedStorage) Write(path string, data []byte) error {
+func (s *InstrumentedStorage) Write(ctx context.Context, path string, data []byte) error {
 	start := time.Now()
-	err := s.inner.Write(path, data)
+	err := s.inner.Write(ctx, path, data)
 	duration := time.Since(start)
 
 	ft := inferFileType(path)
@@ -49,9 +50,9 @@ func (s *InstrumentedStorage) Write(path string, data []byte) error {
 }
 
 // Exists checks if a path exists and records timing metrics.
-func (s *InstrumentedStorage) Exists(path string) bool {
+func (s *InstrumentedStorage) Exists(ctx context.Context, path string) bool {
 	start := time.Now()
-	exists := s.inner.Exists(path)
+	exists := s.inner.Exists(ctx, path)
 	duration := time.Since(start)
 
 	metrics.ObserveFSOp("exists", inferFileType(path), duration, 0)
@@ -59,9 +60,9 @@ func (s *InstrumentedStorage) Exists(path string) bool {
 }
 
 // Delete removes a path and records timing metrics.
-func (s *InstrumentedStorage) Delete(path string) error {
+func (s *InstrumentedStorage) Delete(ctx context.Context, path string) error {
 	start := time.Now()
-	err := s.inner.Delete(path)
+	err := s.inner.Delete(ctx, path)
 	duration := time.Since(start)
 
 	metrics.ObserveFSOp("delete", inferFileType(path), duration, 0)
@@ -69,9 +70,9 @@ func (s *InstrumentedStorage) Delete(path string) error {
 }
 
 // List lists files and records timing metrics.
-func (s *InstrumentedStorage) List(dir string, ext string) ([]string, error) {
+func (s *InstrumentedStorage) List(ctx context.Context, dir string, ext string) ([]string, error) {
 	start := time.Now()
-	files, err := s.inner.List(dir, ext)
+	files, err := s.inner.List(ctx, dir, ext)
 	duration := time.Since(start)
 
 	metrics.ObserveFSOp("list", inferFileType(dir), duration, len(files))
@@ -79,9 +80,9 @@ func (s *InstrumentedStorage) List(dir string, ext string) ([]string, error) {
 }
 
 // Stat returns file information and records timing metrics.
-func (s *InstrumentedStorage) Stat(path string) (os.FileInfo, error) {
+func (s *InstrumentedStorage) Stat(ctx context.Context, path string) (os.FileInfo, error) {
 	start := time.Now()
-	info, err := s.inner.Stat(path)
+	info, err := s.inner.Stat(ctx, path)
 	duration := time.Since(start)
 
 	metrics.ObserveFSOp("stat", inferFileType(path), duration, 0)

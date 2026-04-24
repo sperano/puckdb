@@ -145,7 +145,7 @@ func TestProcessPlayerBatch_CacheHitAndImport(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+	require.NoError(t, mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// Expect UpsertPlayer call
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
@@ -185,7 +185,7 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 		LastName:  "Doe",
 		Position:  "C",
 	})
-	require.NoError(t, mem.Write(resource.MissingPlayerLanding{PlayerID: playerID}.Path(), missingData))
+	require.NoError(t, mem.Write(context.Background(),resource.MissingPlayerLanding{PlayerID: playerID}.Path(), missingData))
 
 	// Expect UpsertPlayer call with minimal info from boxscore data
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
@@ -234,7 +234,7 @@ func TestProcessPlayerBatch_UpsertError(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+	require.NoError(t, mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// UpsertPlayer fails
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
@@ -328,7 +328,7 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 	upserter.AssertExpectations(t)
 
 	// Verify landing was saved
-	assert.True(t, mem.Exists(resource.PlayerLanding{PlayerID: playerID}.Path()))
+	assert.True(t, mem.Exists(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path()))
 }
 
 func TestProcessPlayerBatch_DownloadAPIError(t *testing.T) {
@@ -399,7 +399,7 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+	require.NoError(t, mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// Expect ClearConflictingYahooID call
 	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
@@ -452,7 +452,7 @@ func TestProcessPlayerBatch_ClearConflictingYahooIDError(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+	require.NoError(t, mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// ClearConflictingYahooID fails - should log warning but continue
 	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).
@@ -504,7 +504,7 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+	require.NoError(t, mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
 
@@ -577,7 +577,7 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+	require.NoError(t, mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// Capture the upsert params to verify all fields
 	var capturedParams sqlcdb.UpsertPlayerParams
@@ -671,7 +671,7 @@ func TestProcessPlayerBatch_CareerDataUpserted(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+	require.NoError(t, mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 

@@ -19,7 +19,7 @@ import (
 // that date (e.g. off-season days).
 func (a *ImportActivities) ImportStandingsForDate(ctx context.Context, input shared.DateSeasonInput) error {
 	standingsRes := resource.DailyStandings{Date: input.Date}
-	if !a.Storage.Exists(standingsRes.Path()) {
+	if !a.Storage.Exists(ctx, standingsRes.Path()) {
 		return nil
 	}
 

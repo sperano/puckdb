@@ -19,7 +19,7 @@ import (
 // This is a fast operation that just reads the directory listing.
 func (a *Activities) ListYahooPlayerFiles(ctx context.Context) ([]store.YahooPlayerID, error) {
 	logger := activity.GetLogger(ctx)
-	ids, err := listYahooPlayers(a.Storage)
+	ids, err := listYahooPlayers(ctx, a.Storage)
 	if err != nil {
 		return nil, err
 	}
@@ -29,8 +29,8 @@ func (a *Activities) ListYahooPlayerFiles(ctx context.Context) ([]store.YahooPla
 }
 
 // listYahooPlayers returns all Yahoo player IDs that have data stored.
-func listYahooPlayers(storage store.Storage) ([]store.YahooPlayerID, error) {
-	names, err := storage.List(resource.YahooPlayersDir, "html")
+func listYahooPlayers(ctx context.Context, storage store.Storage) ([]store.YahooPlayerID, error) {
+	names, err := storage.List(ctx, resource.YahooPlayersDir, "html")
 	if err != nil {
 		return nil, err
 	}

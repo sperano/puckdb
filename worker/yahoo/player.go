@@ -46,13 +46,13 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 	playerRes := resource.YahooPlayer{PlayerID: playerID}
 	missingRes := resource.MissingYahooPlayer{PlayerID: playerID}
 	// Check if missing player file already exists (most common case)
-	if storage.Exists(missingRes.Path()) {
+	if storage.Exists(ctx,missingRes.Path()) {
 		log.Debug().Int("playerID", int(playerID)).Msg("Yahoo player already marked as missing")
 		metrics.IncDownload(core.YahooPlayer, metrics.ResultHit)
 		return fetchStatusMissing, nil
 	}
 	// Check if player file already exists
-	if storage.Exists(playerRes.Path()) {
+	if storage.Exists(ctx,playerRes.Path()) {
 		log.Debug().Int("playerID", int(playerID)).Msg("Yahoo player already cached")
 		metrics.IncDownload(core.YahooPlayer, metrics.ResultHit)
 		return fetchStatusCached, nil
@@ -65,7 +65,7 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 		if errors.As(err, &httpErr) {
 			if httpErr.StatusCode == 404 {
 				// Save as missing player
-				if writeErr := resource.WriteParsed(storage, missingRes, []byte("missing")); writeErr != nil {
+				if writeErr := resource.WriteParsed(ctx, storage, missingRes, []byte("missing")); writeErr != nil {
 					metrics.IncDownload(core.YahooPlayer, metrics.ResultError)
 					return 0, fmt.Errorf("save missing player: %w", writeErr)
 				}
@@ -79,7 +79,7 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 		return 0, fmt.Errorf("download player %d: %w", playerID, err)
 	}
 	// Save successful download
-	if err := resource.WriteParsed(storage, playerRes, content); err != nil {
+	if err := resource.WriteParsed(ctx, storage, playerRes, content); err != nil {
 		metrics.IncDownload(core.YahooPlayer, metrics.ResultError)
 		return 0, fmt.Errorf("save player: %w", err)
 	}

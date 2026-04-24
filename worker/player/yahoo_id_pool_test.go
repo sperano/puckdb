@@ -31,11 +31,11 @@ func TestListYahooPlayers_Success(t *testing.T) {
 	mem := store.NewMemStorage()
 
 	// Pre-populate player files
-	require.NoError(t, mem.Write(resource.YahooPlayer{PlayerID: 1}.Path(), []byte(sampleYahooPlayerHTML)))
-	require.NoError(t, mem.Write(resource.YahooPlayer{PlayerID: 100}.Path(), []byte(sampleYahooPlayerHTML)))
-	require.NoError(t, mem.Write(resource.YahooPlayer{PlayerID: 1000}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(t, mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 1}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(t, mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 100}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(t, mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 1000}.Path(), []byte(sampleYahooPlayerHTML)))
 
-	ids, err := listYahooPlayers(mem)
+	ids, err := listYahooPlayers(context.Background(), mem)
 
 	require.NoError(t, err)
 	assert.Len(t, ids, 3)
@@ -52,7 +52,7 @@ func TestListYahooPlayers_Success(t *testing.T) {
 func TestListYahooPlayers_Empty(t *testing.T) {
 	mem := store.NewMemStorage()
 
-	ids, err := listYahooPlayers(mem)
+	ids, err := listYahooPlayers(context.Background(), mem)
 
 	require.NoError(t, err)
 	assert.Empty(t, ids)
@@ -68,8 +68,8 @@ func TestParseYahooPlayerBatchImpl_Success(t *testing.T) {
 	playerIDs := []store.YahooPlayerID{97, 99}
 
 	// Pre-populate player files
-	require.NoError(t, mem.Write(resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
-	require.NoError(t, mem.Write(resource.YahooPlayer{PlayerID: 99}.Path(), []byte(sampleYahooPlayerHTMLNoJersey)))
+	require.NoError(t, mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(t, mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 99}.Path(), []byte(sampleYahooPlayerHTMLNoJersey)))
 
 	result := parseYahooPlayerBatchImpl(context.Background(), mem, nil, playerIDs)
 
@@ -95,7 +95,7 @@ func TestParseYahooPlayerBatchImpl_ReadError(t *testing.T) {
 	playerIDs := []store.YahooPlayerID{1, 2}
 
 	// Only player 2 exists
-	require.NoError(t, mem.Write(resource.YahooPlayer{PlayerID: 2}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(t, mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 2}.Path(), []byte(sampleYahooPlayerHTML)))
 
 	result := parseYahooPlayerBatchImpl(context.Background(), mem, nil, playerIDs)
 
@@ -110,7 +110,7 @@ func TestParseYahooPlayerBatchImpl_ParseError(t *testing.T) {
 	playerIDs := []store.YahooPlayerID{1}
 
 	// Invalid HTML that won't parse
-	require.NoError(t, mem.Write(resource.YahooPlayer{PlayerID: 1}.Path(), []byte("<html><title>Invalid Page</title></html>")))
+	require.NoError(t, mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 1}.Path(), []byte("<html><title>Invalid Page</title></html>")))
 
 	result := parseYahooPlayerBatchImpl(context.Background(), mem, nil, playerIDs)
 
@@ -136,11 +136,11 @@ func TestParseYahooPlayerBatchImpl_MixedErrors(t *testing.T) {
 
 	// Player 1: doesn't exist (read error)
 	// Player 2: success
-	require.NoError(t, mem.Write(resource.YahooPlayer{PlayerID: 2}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(t, mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 2}.Path(), []byte(sampleYahooPlayerHTML)))
 	// Player 3: parse error
-	require.NoError(t, mem.Write(resource.YahooPlayer{PlayerID: 3}.Path(), []byte("<html>bad</html>")))
+	require.NoError(t, mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 3}.Path(), []byte("<html>bad</html>")))
 	// Player 4: success
-	require.NoError(t, mem.Write(resource.YahooPlayer{PlayerID: 4}.Path(), []byte(sampleYahooPlayerHTMLNoJersey)))
+	require.NoError(t, mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 4}.Path(), []byte(sampleYahooPlayerHTMLNoJersey)))
 
 	result := parseYahooPlayerBatchImpl(context.Background(), mem, nil, playerIDs)
 

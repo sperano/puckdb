@@ -217,7 +217,7 @@ func seedRegularSeasonSchedule(t *testing.T, mem *store.MemStorage, day time.Tim
 	}
 	data, err := json.Marshal(schedule)
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.DailySchedule{Date: day}.Path(), data))
+	require.NoError(t, mem.Write(context.Background(),resource.DailySchedule{Date: day}.Path(), data))
 }
 
 // seedEmptySchedule writes a valid daily schedule with no games.
@@ -225,7 +225,7 @@ func seedEmptySchedule(t *testing.T, mem *store.MemStorage, day time.Time) {
 	t.Helper()
 	data, err := json.Marshal(&nhlapi.DailySchedule{Games: []nhlapi.ScheduleGame{}})
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.DailySchedule{Date: day}.Path(), data))
+	require.NoError(t, mem.Write(context.Background(),resource.DailySchedule{Date: day}.Path(), data))
 }
 
 // seedEmptyBoxscore writes a JSON-parseable boxscore with no players.
@@ -234,7 +234,7 @@ func seedEmptyBoxscore(t *testing.T, mem *store.MemStorage, day time.Time, gameI
 	b := createTestBoxscore(gameID)
 	data, err := json.Marshal(b)
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.Boxscore{Date: day, GameID: gameID}.Path(), data))
+	require.NoError(t, mem.Write(context.Background(),resource.Boxscore{Date: day, GameID: gameID}.Path(), data))
 }
 
 func seedEmptyPlayByPlay(t *testing.T, mem *store.MemStorage, day time.Time, gameID nhlapi.GameID) {
@@ -247,14 +247,14 @@ func seedEmptyPlayByPlay(t *testing.T, mem *store.MemStorage, day time.Time, gam
 		PeriodDescriptor:  nhlapi.PeriodDescriptor{PeriodType: nhlapi.PeriodTypeRegulation},
 	})
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.PlayByPlay{Date: day, GameID: gameID}.Path(), data))
+	require.NoError(t, mem.Write(context.Background(),resource.PlayByPlay{Date: day, GameID: gameID}.Path(), data))
 }
 
 func seedEmptyShiftChart(t *testing.T, mem *store.MemStorage, day time.Time, gameID nhlapi.GameID) {
 	t.Helper()
 	data, err := json.Marshal(&nhlapi.ShiftChart{})
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.ShiftChart{Date: day, GameID: gameID}.Path(), data))
+	require.NoError(t, mem.Write(context.Background(),resource.ShiftChart{Date: day, GameID: gameID}.Path(), data))
 }
 
 func seedEmptyGameStory(t *testing.T, mem *store.MemStorage, day time.Time, gameID nhlapi.GameID) {
@@ -270,21 +270,21 @@ func seedEmptyGameStory(t *testing.T, mem *store.MemStorage, day time.Time, game
 		Summary:           &nhlapi.GameSummary{},
 	})
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.GameStory{Date: day, GameID: gameID}.Path(), data))
+	require.NoError(t, mem.Write(context.Background(),resource.GameStory{Date: day, GameID: gameID}.Path(), data))
 }
 
 func seedEmptySeasonSeries(t *testing.T, mem *store.MemStorage, day time.Time, gameID nhlapi.GameID) {
 	t.Helper()
 	data, err := json.Marshal(&nhlapi.SeasonSeriesMatchup{})
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.SeasonSeries{Date: day, GameID: gameID}.Path(), data))
+	require.NoError(t, mem.Write(context.Background(),resource.SeasonSeries{Date: day, GameID: gameID}.Path(), data))
 }
 
 func seedEmptyStandings(t *testing.T, mem *store.MemStorage, day time.Time) {
 	t.Helper()
 	data, err := json.Marshal([]nhlapi.Standing{})
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.DailyStandings{Date: day}.Path(), data))
+	require.NoError(t, mem.Write(context.Background(),resource.DailyStandings{Date: day}.Path(), data))
 }
 
 // =============================================================================
@@ -388,7 +388,7 @@ func (s *ImportGameStorySuite) TestGameWithThreeStars_UpsertsCalled() {
 	}
 	data, err := json.Marshal(story)
 	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(resource.GameStory{Date: s.day, GameID: gameID}.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),resource.GameStory{Date: s.day, GameID: gameID}.Path(), data))
 
 	q.On("UpsertGameThreeStar", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertGameThreeStarParams")).Return(nil).Times(2)
 
@@ -432,7 +432,7 @@ func (s *ImportGameStorySuite) TestGameStoryWithGoalHighlights_UpsertsCalled() {
 	}
 	data, err := json.Marshal(story)
 	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(resource.GameStory{Date: s.day, GameID: gameID}.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),resource.GameStory{Date: s.day, GameID: gameID}.Path(), data))
 
 	q.On("UpsertGoalHighlight", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertGoalHighlightParams")).Return(nil).Times(2)
 
@@ -465,7 +465,7 @@ func (s *ImportGameStorySuite) TestThreeStarUpsertError_RecordedInErrors() {
 	}
 	data, err := json.Marshal(story)
 	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(resource.GameStory{Date: s.day, GameID: gameID}.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),resource.GameStory{Date: s.day, GameID: gameID}.Path(), data))
 
 	q.On("UpsertGameThreeStar", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertGameThreeStarParams")).Return(errors.New("db error"))
 
@@ -537,7 +537,7 @@ func (s *ImportPlayByPlaySuite) TestNonFinalGame_IsSkipped() {
 	}
 	data, err := json.Marshal(schedule)
 	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(resource.DailySchedule{Date: s.day}.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),resource.DailySchedule{Date: s.day}.Path(), data))
 
 	act := s.newActivities(mem, q)
 	s.env.RegisterActivity(act.ImportPlayByPlayForDate)
@@ -607,7 +607,7 @@ func (s *ImportPlayByPlaySuite) TestWithPlays_CallsBatch() {
 	}
 	data, err := json.Marshal(pbp)
 	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(resource.PlayByPlay{Date: s.day, GameID: gameID}.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),resource.PlayByPlay{Date: s.day, GameID: gameID}.Path(), data))
 
 	q.On("UpsertPlayEventBatch", mock.Anything, mock.MatchedBy(func(params []sqlcdb.UpsertPlayEventBatchParams) bool {
 		return len(params) == 2
@@ -718,7 +718,7 @@ func (s *ImportShiftChartSuite) TestWithShifts_CallsBatch() {
 	}
 	data, err := json.Marshal(sc)
 	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(resource.ShiftChart{Date: s.day, GameID: gameID}.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),resource.ShiftChart{Date: s.day, GameID: gameID}.Path(), data))
 
 	q.On("UpsertShiftBatch", mock.Anything, mock.MatchedBy(func(params []sqlcdb.UpsertShiftBatchParams) bool {
 		return len(params) == 2
@@ -816,7 +816,7 @@ func (s *ImportStandingsSuite) TestWithStandings_CallsBatch() {
 	}
 	data, err := json.Marshal(standings)
 	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(resource.DailyStandings{Date: s.day}.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),resource.DailyStandings{Date: s.day}.Path(), data))
 
 	q.On("GetSeasonTeamAbbrevs", mock.Anything, int32(20232024)).
 		Return([]sqlcdb.GetSeasonTeamAbbrevsRow{
@@ -923,7 +923,7 @@ func (s *ImportPlayerGameLogsBatchSuite) TestPlayerWithZeroStatEntries_Processed
 		Season:   season,
 		GameType: regularSeasonGameType,
 	}
-	s.Require().NoError(mem.Write(res.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),res.Path(), data))
 
 	act := &ImportActivities{
 		Storage:  mem,
@@ -966,7 +966,7 @@ func (s *ImportPlayerGameLogsBatchSuite) TestPlayerWithPPP_UpdatesCalled() {
 		Season:   season,
 		GameType: regularSeasonGameType,
 	}
-	s.Require().NoError(mem.Write(res.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),res.Path(), data))
 
 	q.On("UpdateSkaterGameLogStats", mock.Anything, mock.AnythingOfType("sqlcdb.UpdateSkaterGameLogStatsParams")).Return(nil)
 
@@ -1144,7 +1144,7 @@ func (s *ImportClubStatsSuite) TestWithSkaterStats_CallsBatch() {
 		res := resource.ClubStatsResource{Season: 2023, TeamAbbrev: "EDM", GameType: gameType.Int()}
 		data, err := json.Marshal(clubStats)
 		s.Require().NoError(err)
-		s.Require().NoError(mem.Write(res.Path(), data))
+		s.Require().NoError(mem.Write(context.Background(),res.Path(), data))
 	}
 
 	q.On("UpsertClubSkaterStatsBatch", mock.Anything, mock.MatchedBy(func(params []sqlcdb.UpsertClubSkaterStatsBatchParams) bool {
@@ -1234,7 +1234,7 @@ func (s *ImportSeasonRostersSuite) TestWithRosterData_CallsBatch() {
 	data, err := json.Marshal(roster)
 	s.Require().NoError(err)
 	res := resource.SeasonRoster{Season: 2023, TeamAbbrev: "EDM"}
-	s.Require().NoError(mem.Write(res.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),res.Path(), data))
 
 	q.On("EnsurePlayerExistsBatch", mock.Anything, mock.Anything).Return(nil)
 	q.On("UpsertSeasonRosterBatch", mock.Anything, mock.Anything).Return(nil)
@@ -1318,7 +1318,7 @@ func (s *FetchSeasonRostersSuite) TestCacheHit_DoesNotCallAPI() {
 	roster := &nhlapi.Roster{}
 	data, err := json.Marshal(roster)
 	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(res.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(),res.Path(), data))
 
 	act := &SeasonsActivities{
 		Storage:       mem,
@@ -1358,7 +1358,7 @@ func (s *FetchSeasonRostersSuite) TestCacheMiss_CallsAPI() {
 	_, err := s.env.ExecuteActivity(act.FetchSeasonRosters, input)
 	s.Require().NoError(err)
 	client.AssertExpectations(s.T())
-	assert.True(s.T(), mem.Exists(resource.SeasonRoster{Season: 2023, TeamAbbrev: "EDM"}.Path()))
+	assert.True(s.T(), mem.Exists(context.Background(),resource.SeasonRoster{Season: 2023, TeamAbbrev: "EDM"}.Path()))
 }
 
 func (s *FetchSeasonRostersSuite) TestAPINotFound_IsSkipped() {
@@ -1456,7 +1456,7 @@ func (s *FetchClubStatsSuite) TestCacheHit_DoesNotCallAPI() {
 		stats := &nhlapi.ClubStats{Season: nhlapi.NewSeason(2023), GameType: gameType}
 		data, err := json.Marshal(stats)
 		s.Require().NoError(err)
-		s.Require().NoError(mem.Write(res.Path(), data))
+		s.Require().NoError(mem.Write(context.Background(),res.Path(), data))
 	}
 
 	act := &SeasonsActivities{

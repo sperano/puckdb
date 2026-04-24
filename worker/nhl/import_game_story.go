@@ -42,7 +42,7 @@ func (a *ImportActivities) ImportGameStoryForDate(ctx context.Context, input Imp
 	result := &ImportGameStoryForDateResult{Origins: core.OriginCounts{}}
 
 	scheduleRes := resource.DailySchedule{Date: input.Date}
-	if !a.Storage.Exists(scheduleRes.Path()) {
+	if !a.Storage.Exists(ctx, scheduleRes.Path()) {
 		return result, nil
 	}
 
@@ -100,7 +100,7 @@ func (a *ImportActivities) processGameStory(
 	var errors []string
 
 	storyRes := resource.GameStory{Date: date, GameID: gameID}
-	if !a.Storage.Exists(storyRes.Path()) {
+	if !a.Storage.Exists(ctx, storyRes.Path()) {
 		return stats, errors
 	}
 

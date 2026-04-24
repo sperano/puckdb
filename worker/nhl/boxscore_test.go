@@ -1,6 +1,7 @@
 package nhl
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -179,7 +180,7 @@ func seedBoxscoreDay(t *testing.T, mem *store.MemStorage, day time.Time, gameID 
 	schedule := &nhlapi.DailySchedule{
 		Games: []nhlapi.ScheduleGame{{ID: gameID, GameType: nhlapi.GameTypeRegularSeason, GameState: nhlapi.GameStateOff}},
 	}
-	require.NoError(t, resource.WriteParsed(mem, resource.DailySchedule{Date: day}, schedule))
+	require.NoError(t, resource.WriteParsed(context.Background(), mem, resource.DailySchedule{Date: day}, schedule))
 
 	type minimalBoxscore struct {
 		PlayerByGameStats nhlapi.PlayerByGameStats `json:"playerByGameStats"`
@@ -190,7 +191,7 @@ func seedBoxscoreDay(t *testing.T, mem *store.MemStorage, day time.Time, gameID 
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(resource.Boxscore{Date: day, GameID: gameID}.Path(), boxscoreData))
+	require.NoError(t, mem.Write(context.Background(),resource.Boxscore{Date: day, GameID: gameID}.Path(), boxscoreData))
 }
 
 // testExtractInput creates an ExtractBoxscoreInput from a season for testing.

@@ -47,7 +47,7 @@ func (a *DailyScheduleActivities) fetchYahooResource(ctx context.Context, res fe
 	}
 	metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
 
-	if err := a.Storage.Write(res.Path(), content); err != nil {
+	if err := a.Storage.Write(ctx, res.Path(), content); err != nil {
 		return fmt.Errorf("save %s: %w", typeName, err)
 	}
 

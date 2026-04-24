@@ -1,6 +1,7 @@
 package yahoo
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -64,7 +65,7 @@ func (s *FetchLeagueTestSuite) TestCacheHit() {
 
 	// Pre-populate the file so ReadParsedCached finds it
 	res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
-	require.NoError(s.T(), mem.Write(res.Path(), []byte(testLeagueXML)))
+	require.NoError(s.T(), mem.Write(context.Background(),res.Path(), []byte(testLeagueXML)))
 
 	// Redis miss → falls through to filesystem → populates cache
 	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
@@ -96,8 +97,8 @@ func (s *FetchLeagueTestSuite) TestDownloadAndSave() {
 	require.NoError(s.T(), err)
 
 	// Verify file was saved
-	assert.True(s.T(), mem.Exists(res.Path()))
-	saved, readErr := mem.Read(res.Path())
+	assert.True(s.T(), mem.Exists(context.Background(),res.Path()))
+	saved, readErr := mem.Read(context.Background(),res.Path())
 	require.NoError(s.T(), readErr)
 	assert.Equal(s.T(), content, saved)
 }
@@ -167,7 +168,7 @@ func (s *FetchTeamsTestSuite) TestSuccess() {
 	// Verify all team files were saved
 	for _, team := range teams {
 		res := resource.Team{Season: testYahooSeason, LeagueID: team.LeagueID, TeamID: team.TeamID, GameKey: testGameKey}
-		assert.True(s.T(), mem.Exists(res.Path()), "expected file for team %d", team.TeamID)
+		assert.True(s.T(), mem.Exists(context.Background(),res.Path()), "expected file for team %d", team.TeamID)
 	}
 }
 
@@ -208,5 +209,5 @@ func (s *FetchTeamsTestSuite) TestDownloadError() {
 	assert.Contains(s.T(), err.Error(), "yahoo unavailable")
 
 	// First team should not be saved (download failed)
-	assert.False(s.T(), mem.Exists(res.Path()))
+	assert.False(s.T(), mem.Exists(context.Background(),res.Path()))
 }

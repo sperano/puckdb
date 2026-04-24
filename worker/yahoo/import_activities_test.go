@@ -29,7 +29,7 @@ func TestImportYahooTransactions_EmptyTransactions(t *testing.T) {
 	xml := []byte(`<?xml version="1.0" encoding="UTF-8"?>
 <fantasy_content><league><transactions count="0"></transactions></league></fantasy_content>`)
 	res := resource.Transactions{Season: 2023, LeagueID: 12345}
-	require.NoError(t, mem.Write(res.Path(), xml))
+	require.NoError(t, mem.Write(context.Background(),res.Path(), xml))
 
 	count, err := a.importYahooTransactions(context.Background(), ImportYahooLeagueDataInput{Season: 2023, LeagueID: 12345})
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestImportYahooDraftResults_EmptyResults(t *testing.T) {
 	xml := []byte(`<?xml version="1.0" encoding="UTF-8"?>
 <fantasy_content><league><draft_results count="0"></draft_results></league></fantasy_content>`)
 	res := resource.DraftResults{Season: 2023, LeagueID: 12345}
-	require.NoError(t, mem.Write(res.Path(), xml))
+	require.NoError(t, mem.Write(context.Background(),res.Path(), xml))
 
 	count, err := a.importYahooDraftResults(context.Background(), ImportYahooLeagueDataInput{Season: 2023, LeagueID: 12345})
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestImportYahooDraftResults_SkipsInvalidKeys(t *testing.T) {
   <draft_result><round>1</round><pick>2</pick><team_key>423.l.12345.t.1</team_key><player_key>invalid</player_key></draft_result>
 </draft_results></league></fantasy_content>`)
 	res := resource.DraftResults{Season: 2023, LeagueID: 12345}
-	require.NoError(t, mem.Write(res.Path(), xml))
+	require.NoError(t, mem.Write(context.Background(),res.Path(), xml))
 
 	count, err := a.importYahooDraftResults(context.Background(), ImportYahooLeagueDataInput{Season: 2023, LeagueID: 12345})
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestImportYahooMatchups_EmptyMatchups(t *testing.T) {
 	xml := []byte(`<?xml version="1.0" encoding="UTF-8"?>
 <fantasy_content><league><scoreboard><week>1</week><matchups count="0"></matchups></scoreboard></league></fantasy_content>`)
 	res := resource.Matchups{Season: 2023, LeagueID: 12345, Week: 1}
-	require.NoError(t, mem.Write(res.Path(), xml))
+	require.NoError(t, mem.Write(context.Background(),res.Path(), xml))
 
 	count, err := a.importYahooMatchups(context.Background(), ImportYahooLeagueDataInput{Season: 2023, LeagueID: 12345})
 	require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestImportYahooMatchups_SkipsMalformedMatchups(t *testing.T) {
   <matchup><week>1</week><teams><team><team_id>1</team_id><team_points><total>50.5</total></team_points></team></teams></matchup>
 </matchups></scoreboard></league></fantasy_content>`)
 	res := resource.Matchups{Season: 2023, LeagueID: 12345, Week: 1}
-	require.NoError(t, mem.Write(res.Path(), xml))
+	require.NoError(t, mem.Write(context.Background(),res.Path(), xml))
 
 	count, err := a.importYahooMatchups(context.Background(), ImportYahooLeagueDataInput{Season: 2023, LeagueID: 12345})
 	require.NoError(t, err)
