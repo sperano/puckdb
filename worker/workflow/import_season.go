@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
@@ -68,17 +69,19 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	}
 
 	// Import Yahoo league-level data (transactions, draft results, matchups)
-	if yahooConfig, err := config.GetYahooSeasonsConfig(); err == nil {
-		if yahooCfg, hasYahoo := yahooConfig[season.ID.StartYear()]; hasYahoo {
-			var yia *yahoo.ImportActivities
-			for _, league := range yahooCfg.Leagues {
-				leagueDataInput := yahoo.ImportYahooLeagueDataInput{
-					Season:   season.ID.StartYear(),
-					LeagueID: league.LeagueID,
-				}
-				if err := workflow.ExecuteActivity(ctx, yia.ImportYahooLeagueData, leagueDataInput).Get(ctx, nil); err != nil {
-					return nil, fmt.Errorf("import yahoo league data %d: %w", league.LeagueID, err)
-				}
+	yahooConfig, err := config.GetYahooSeasonsConfig()
+	if err != nil && !errors.Is(err, config.ErrYahooNotConfigured) {
+		return nil, fmt.Errorf("load yahoo seasons config: %w", err)
+	}
+	if yahooCfg, hasYahoo := yahooConfig[season.ID.StartYear()]; hasYahoo {
+		var yia *yahoo.ImportActivities
+		for _, league := range yahooCfg.Leagues {
+			leagueDataInput := yahoo.ImportYahooLeagueDataInput{
+				Season:   season.ID.StartYear(),
+				LeagueID: league.LeagueID,
+			}
+			if err := workflow.ExecuteActivity(ctx, yia.ImportYahooLeagueData, leagueDataInput).Get(ctx, nil); err != nil {
+				return nil, fmt.Errorf("import yahoo league data %d: %w", league.LeagueID, err)
 			}
 		}
 	}
@@ -144,7 +147,10 @@ func importYahooLeaguesAndTeams(ctx workflow.Context, startYear int) ([]yahoo.Te
 
 	yahooConfig, err := config.GetYahooSeasonsConfig()
 	if err != nil {
-		return nil, nil // No Yahoo config, continue without Yahoo data
+		if errors.Is(err, config.ErrYahooNotConfigured) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("load yahoo seasons config: %w", err)
 	}
 
 	yahooCfg, hasYahoo := yahooConfig[startYear]

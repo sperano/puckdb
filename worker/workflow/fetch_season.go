@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
@@ -55,6 +56,9 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 	// Note: Yahoo downloads are not tracked in progress - only days are tracked for consistency
 	var teamIDs []yahoo.TeamInfo
 	yahooConfig, err := config.GetYahooSeasonsConfig()
+	if err != nil && !errors.Is(err, config.ErrYahooNotConfigured) {
+		return nil, fmt.Errorf("load yahoo seasons config: %w", err)
+	}
 	if err == nil {
 		if yahooCfg, inYahoo := yahooConfig[season.ID.StartYear()]; inYahoo {
 			// Build team list and fetch leagues

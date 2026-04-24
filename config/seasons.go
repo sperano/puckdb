@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -9,6 +10,11 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 )
+
+// ErrYahooNotConfigured signals that no Yahoo seasons config file is set.
+// Callers use errors.Is to distinguish "Yahoo integration is off" from real
+// failures (missing file, malformed YAML), which must not be silently swallowed.
+var ErrYahooNotConfigured = errors.New("yahoo seasons config not set")
 
 var (
 	cachedSeasons YahooSeasonsMap
@@ -51,9 +57,16 @@ func getYahooSeasons(path string) (YahooSeasonsMap, error) {
 	return seasons, nil
 }
 
+// GetYahooSeasonsConfig returns the Yahoo seasons map from the configured YAML
+// file. Returns ErrYahooNotConfigured if no path is configured; a wrapped I/O
+// or YAML error if the file is unreadable or malformed.
 func GetYahooSeasonsConfig() (YahooSeasonsMap, error) {
 	seasonsOnce.Do(func() {
 		paramSeasons := viper.GetString(FlagYahooSeasons)
+		if paramSeasons == "" {
+			seasonsErr = ErrYahooNotConfigured
+			return
+		}
 		log.Debug().Str("path", paramSeasons).Msg("Loading yahoo seasons config")
 		cachedSeasons, seasonsErr = getYahooSeasons(paramSeasons)
 	})

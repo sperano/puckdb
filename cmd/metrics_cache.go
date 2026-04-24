@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -111,8 +112,13 @@ func getAllMetrics(ctx context.Context, redisClient cache.Client) ([]cacheMetric
 		return nil, fmt.Errorf("no seasons found matching the specified range")
 	}
 
-	// Load Yahoo config (optional - for checking Yahoo files)
-	yahooConfig, _ := config.GetYahooSeasonsConfig()
+	// Load Yahoo config (optional - for checking Yahoo files).
+	// A missing-or-broken config file is surfaced so the operator knows the
+	// cache report will not include Yahoo files; it does not abort the check.
+	yahooConfig, err := config.GetYahooSeasonsConfig()
+	if err != nil && !errors.Is(err, config.ErrYahooNotConfigured) {
+		log.Warn().Err(err).Msg("Yahoo seasons config unreadable; Yahoo files will be skipped")
+	}
 
 	work := make(chan simpleSeason, len(seasons))
 	results := make(chan seasonResult, len(seasons))
