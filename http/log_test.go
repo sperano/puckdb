@@ -134,9 +134,10 @@ func TestLogEntry_Write_VariousStatuses(t *testing.T) {
 	}
 }
 
+// TestLogEntry_Panic and TestLogEntry_Panic_WithError both swap os.Stdout to
+// capture Panic's output. They must NOT run in parallel — concurrent stdout
+// swaps race for the global, causing one test's pipe to capture nothing.
 func TestLogEntry_Panic(t *testing.T) {
-	t.Parallel()
-
 	entry := logEntry{
 		userAgent: "TestClient/1.0",
 		method:    "GET",
@@ -167,8 +168,6 @@ func TestLogEntry_Panic(t *testing.T) {
 }
 
 func TestLogEntry_Panic_WithError(t *testing.T) {
-	t.Parallel()
-
 	entry := logEntry{
 		userAgent: "TestClient/1.0",
 		method:    "POST",
