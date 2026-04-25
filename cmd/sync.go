@@ -256,7 +256,7 @@ func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
-		return fmt.Errorf("failed to trigger workflow: %w", err)
+		return fmt.Errorf("trigger workflow: %w", err)
 	}
 
 	if !started {
@@ -295,7 +295,7 @@ func runParallel(ctx context.Context, out io.Writer, state *syncState, runners .
 			if ctx.Err() != nil {
 				return fmt.Errorf("workflow canceled by user")
 			}
-			return fmt.Errorf("failed to trigger workflow: %w", err)
+			return fmt.Errorf("trigger workflow: %w", err)
 		}
 		if !started {
 			log.Warn().Msg("Workflow was not started (may already be running)")

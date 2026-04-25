@@ -55,7 +55,7 @@ func fetchSeasonsFromNHL(ctx context.Context) ([]simpleSeason, error) {
 	client := nhl.NewClient()
 	seasons, err := client.SeasonStandingManifest(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch seasons from NHL API: %w", err)
+		return nil, fmt.Errorf("fetch seasons from NHL API: %w", err)
 	}
 
 	startFilter, endFilter := config.GetSeasonRange()

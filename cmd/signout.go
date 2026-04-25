@@ -24,7 +24,7 @@ func cmdSignout() *cobra.Command {
 
 			err := cache.DeleteTokenForUser(ctx, redisClient, config.DefaultUser)
 			if err != nil {
-				return fmt.Errorf("failed to remove token: %w", err)
+				return fmt.Errorf("remove token: %w", err)
 			}
 
 			fmt.Fprintln(cmd.OutOrStdout(), "Signed out successfully.")

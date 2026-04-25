@@ -41,7 +41,7 @@ func cmdRedisFlush() *cobra.Command {
 
 			success, err := client.FlushRedisDB(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to flush Redis DB: %w", err)
+				return fmt.Errorf("flush Redis DB: %w", err)
 			}
 
 			if success {

@@ -79,7 +79,7 @@ func cmdDBInit() *cobra.Command {
 			return withRedisLock(ctx, dbInitLockName, config.DefaultDBInitLockTTL, func() error {
 				success, err := client.CreateDatabase(ctx)
 				if err != nil {
-					return fmt.Errorf("failed to initialize database: %w", err)
+					return fmt.Errorf("initialize database: %w", err)
 				}
 				if success {
 					log.Info().Msg("Database initialized successfully")
@@ -104,7 +104,7 @@ func cmdDBDrop() *cobra.Command {
 			}
 			success, err := client.DropDatabase(cmd.Context())
 			if err != nil {
-				return fmt.Errorf("failed to drop database: %w", err)
+				return fmt.Errorf("drop database: %w", err)
 			}
 			if success {
 				log.Info().Msg("Database tables dropped successfully")
@@ -168,7 +168,7 @@ func runDBProvision(cmd *cobra.Command, args []string) error {
 
 		conn, err := pgx.Connect(ctx, connStr)
 		if err != nil {
-			return fmt.Errorf("failed to connect as provisioner: %w", err)
+			return fmt.Errorf("connect as provisioner: %w", err)
 		}
 		defer conn.Close(ctx)
 
@@ -183,7 +183,7 @@ func runDBProvision(cmd *cobra.Command, args []string) error {
 		grantSQL := fmt.Sprintf(`GRANT ALL PRIVILEGES ON DATABASE %s TO %s`,
 			pgx.Identifier{targetDB}.Sanitize(), pgx.Identifier{targetUser}.Sanitize())
 		if _, err := conn.Exec(ctx, grantSQL); err != nil {
-			return fmt.Errorf("failed to grant database privileges: %w", err)
+			return fmt.Errorf("grant database privileges: %w", err)
 		}
 		log.Info().Str("database", targetDB).Str("user", targetUser).Msg("Granted database privileges")
 
@@ -192,13 +192,13 @@ func runDBProvision(cmd *cobra.Command, args []string) error {
 			provisionerUser, provisionerPassword, provisionerHost, config.DefaultPostgresPort, targetDB)
 		conn, err = pgx.Connect(ctx, connStr)
 		if err != nil {
-			return fmt.Errorf("failed to connect to %s: %w", targetDB, err)
+			return fmt.Errorf("connect to %s: %w", targetDB, err)
 		}
 
 		grantSchemaSQL := fmt.Sprintf(`GRANT ALL ON SCHEMA public TO %s`,
 			pgx.Identifier{targetUser}.Sanitize())
 		if _, err := conn.Exec(ctx, grantSchemaSQL); err != nil {
-			return fmt.Errorf("failed to grant schema privileges: %w", err)
+			return fmt.Errorf("grant schema privileges: %w", err)
 		}
 		log.Info().Str("user", targetUser).Msg("Granted schema privileges")
 
@@ -218,7 +218,7 @@ func ensureRole(ctx context.Context, conn *pgx.Conn, username, password string) 
 	err := conn.QueryRow(ctx,
 		"SELECT EXISTS(SELECT FROM pg_roles WHERE rolname = $1)", username).Scan(&roleExists)
 	if err != nil {
-		return fmt.Errorf("failed to check if role exists: %w", err)
+		return fmt.Errorf("check if role exists: %w", err)
 	}
 
 	escapedPassword := strings.ReplaceAll(password, "'", "''")
@@ -228,7 +228,7 @@ func ensureRole(ctx context.Context, conn *pgx.Conn, username, password string) 
 		log.Info().Str("role", username).Msg("Creating role")
 		createSQL := fmt.Sprintf(`CREATE ROLE %s LOGIN PASSWORD '%s'`, sanitizedUser, escapedPassword)
 		if _, err := conn.Exec(ctx, createSQL); err != nil {
-			return fmt.Errorf("failed to create role: %w", err)
+			return fmt.Errorf("create role: %w", err)
 		}
 	} else {
 		// Role exists - try to update password but don't fail if we lack permission
@@ -247,7 +247,7 @@ func ensureDatabase(ctx context.Context, conn *pgx.Conn, dbName, owner string) e
 	err := conn.QueryRow(ctx,
 		"SELECT EXISTS(SELECT FROM pg_database WHERE datname = $1)", dbName).Scan(&dbExists)
 	if err != nil {
-		return fmt.Errorf("failed to check if database exists: %w", err)
+		return fmt.Errorf("check if database exists: %w", err)
 	}
 
 	if !dbExists {
@@ -255,7 +255,7 @@ func ensureDatabase(ctx context.Context, conn *pgx.Conn, dbName, owner string) e
 		createSQL := fmt.Sprintf(`CREATE DATABASE %s OWNER %s`,
 			pgx.Identifier{dbName}.Sanitize(), pgx.Identifier{owner}.Sanitize())
 		if _, err := conn.Exec(ctx, createSQL); err != nil {
-			return fmt.Errorf("failed to create database: %w", err)
+			return fmt.Errorf("create database: %w", err)
 		}
 	} else {
 		log.Info().Str("database", dbName).Msg("Database exists")
