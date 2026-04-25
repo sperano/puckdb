@@ -22,7 +22,7 @@ import (
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/graph"
 	"github.com/sperano/puckdb/graph/generated"
-	handlers "github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/httpx"
 	"github.com/sperano/puckdb/llm"
 	"github.com/sperano/puckdb/maurice"
 	"github.com/sperano/puckdb/metrics"
@@ -153,7 +153,7 @@ func runHTTPServer(ctx context.Context, srv *http.Server, tlsEnabled bool, cert,
 func setupAPIRouter(redisClient cache.Client, resolver *graph.Resolver) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(metrics.HTTPMetricsMiddleware)
-	r.Use(handlers.ChiLogger)
+	r.Use(httpx.ChiLogger)
 
 	// Basic CORS
 	// for more ideas, see: https://developer.github.com/v3/#cross-origin-resource-sharing
@@ -180,9 +180,9 @@ func setupAPIRouter(redisClient cache.Client, resolver *graph.Resolver) *chi.Mux
 	})
 	// Yahoo Oauth2
 	r.Route("/yahoo", func(r chi.Router) {
-		r.Get("/login", handlers.YahooLoginHandler)
-		r.Get("/authenticated", handlers.YahooAuthenticatedHandler(redisClient))
-		r.Get("/landed", handlers.YahooLandedHandler)
+		r.Get("/login", httpx.YahooLoginHandler)
+		r.Get("/authenticated", httpx.YahooAuthenticatedHandler(redisClient))
+		r.Get("/landed", httpx.YahooLandedHandler)
 	})
 	return r
 }

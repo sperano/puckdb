@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	puckhttp "github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/httpx"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
@@ -87,7 +87,7 @@ func TestFetchYahooPlayer_Download404(t *testing.T) {
 	playerID := store.YahooPlayerID(99999)
 
 	// Download returns 404
-	httpErr := &puckhttp.HTTPError{StatusCode: 404, Status: "404 Not Found"}
+	httpErr := &httpx.HTTPError{StatusCode: 404, Status: "404 Not Found"}
 	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, httpErr)
 
 	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
@@ -111,7 +111,7 @@ func TestFetchYahooPlayer_DownloadOtherError(t *testing.T) {
 	playerID := store.YahooPlayerID(12345)
 
 	// Download returns 500 error
-	httpErr := &puckhttp.HTTPError{StatusCode: 500, Status: "500 Internal Server Error"}
+	httpErr := &httpx.HTTPError{StatusCode: 500, Status: "500 Internal Server Error"}
 	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, httpErr)
 
 	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)

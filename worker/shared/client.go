@@ -7,7 +7,7 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
-	puckhttp "github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/httpx"
 )
 
 const nhlAPITimeout = 30 * time.Second
@@ -76,6 +76,6 @@ type Downloader func(ctx context.Context, url string) ([]byte, error)
 func NewYahooDownloader(redisClient cache.Client) Downloader {
 	return func(ctx context.Context, url string) ([]byte, error) {
 		ctx = context.WithValue(ctx, config.CtxUser, config.DefaultUser)
-		return puckhttp.DownloadYahoo(ctx, redisClient, url)
+		return httpx.DownloadYahoo(ctx, redisClient, url)
 	}
 }

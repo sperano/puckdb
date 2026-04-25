@@ -9,7 +9,7 @@ import (
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
-	puckhttp "github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/httpx"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/store"
@@ -211,7 +211,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient ca
 		Storage:          storage,
 		Download:         yahooDownloader,
 		GobCache:         gobCache,
-		PublicDownloader: yahoo.HTTPDownloaderFunc(puckhttp.DownloadPublic),
+		PublicDownloader: yahoo.HTTPDownloaderFunc(httpx.DownloadPublic),
 	}
 	w.RegisterActivity(fetchYahooActivities.FetchLeague)
 	w.RegisterActivity(fetchYahooActivities.FetchTeams)

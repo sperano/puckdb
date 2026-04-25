@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/core"
-	puckhttp "github.com/sperano/puckdb/http"
+	"github.com/sperano/puckdb/httpx"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
@@ -61,7 +61,7 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 	// Download the player page
 	content, err := downloader.Download(ctx, playerRes.URL())
 	if err != nil {
-		var httpErr *puckhttp.HTTPError
+		var httpErr *httpx.HTTPError
 		if errors.As(err, &httpErr) {
 			if httpErr.StatusCode == 404 {
 				// Save as missing player
