@@ -39,7 +39,7 @@ func Root() *cobra.Command {
 
 func BindFlags(flags *pflag.FlagSet) {
 	flags.VisitAll(func(f *pflag.Flag) {
-		name := strings.Replace(f.Name, "-", "_", -1)
+		name := strings.ReplaceAll(f.Name, "-", "_")
 		// Apply the viper config value to the flag when the flag is not set and viper has a value
 		if !f.Changed && viper.IsSet(name) {
 			val := viper.Get(name)
