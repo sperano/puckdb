@@ -11,10 +11,10 @@ import (
 
 // pgtype → Go conversion helpers for GraphQL resolvers.
 
-func ptrInt(v int) *int       { return &v }
-func ptrInt64(v int64) *int64 { return &v }
-func ptrFloat64(v float64) *float64 { return &v }
-func ptrBool(v bool) *bool    { return &v }
+// ptr returns a pointer to v. Use for "addressable literal" cases where
+// taking the address of a value is awkward in expression position. Distinct
+// from the XPtr family below, which converts pgtype values to Go pointers.
+func ptr[T any](v T) *T { return &v }
 
 func textPtr(t pgtype.Text) *string {
 	if !t.Valid {

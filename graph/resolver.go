@@ -313,7 +313,7 @@ func (r *Resolver) getWorkflowResult(ctx context.Context, workflowID string) (*m
 		var dummy any
 		err := run.Get(ctx, &dummy)
 		if err != nil {
-			result.FailureReason = ptrString(err.Error())
+			result.FailureReason = ptr(err.Error())
 		}
 	}
 
@@ -555,10 +555,6 @@ func (r *Resolver) mauriceConversation(ctx context.Context, id string) (*model.M
 		},
 		Messages: gqlMsgs,
 	}, nil
-}
-
-func ptrString(s string) *string {
-	return &s
 }
 
 func ptrStringIfNotEmpty(s string) *string {
