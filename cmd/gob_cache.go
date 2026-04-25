@@ -21,9 +21,9 @@ func newGobCache(client *redis.Client) (*cache.GobCache, error) {
 			return nil, err
 		}
 		log.Info().Str("path", configPath).Msg("loaded gob cache config")
-		return cache.NewGobCacheWithConfig(client, cfg), nil
+		return cache.NewGobCache(client, cache.WithConfig(cfg)), nil
 	}
 
 	ttl := time.Duration(viper.GetInt(config.FlagGobCacheTTL)) * time.Minute
-	return cache.NewGobCacheWithTTL(client, ttl), nil
+	return cache.NewGobCache(client, cache.WithTTL(ttl)), nil
 }
