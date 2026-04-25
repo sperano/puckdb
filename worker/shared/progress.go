@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
 	"go.temporal.io/sdk/workflow"
@@ -390,7 +391,7 @@ func FormatDuration(d time.Duration) string {
 // in unchanged on every call, so the field stays stable across loop iterations. On
 // activity retry the caller captures a fresh value, which matches the reset of
 // per-iteration counters (Temporal re-runs the function from the top on retry).
-func SaveActivityProgress(ctx context.Context, client cache.Client, workflowID string, startedAt int64, current, total int) error {
+func SaveActivityProgress(ctx context.Context, client *redis.Client, workflowID string, startedAt int64, current, total int) error {
 	report := &ProgressReport{
 		Total:     total,
 		Completed: current,

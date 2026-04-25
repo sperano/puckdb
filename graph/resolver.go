@@ -8,6 +8,7 @@ import (
 	"encoding/gob"
 	"errors"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
@@ -31,7 +32,7 @@ import (
 // errors rather than panicking. TemporalClient and RedisClient are required.
 type Resolver struct {
 	TemporalClient client.Client
-	RedisClient    cache.Client
+	RedisClient    *redis.Client
 	MauriceService maurice.Service
 	Queries        *sqlcdb.Queries
 }

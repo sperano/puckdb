@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/rs/zerolog/log"
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
@@ -114,7 +115,7 @@ func (a *Activities) SaveYahooPlayersToRedis(ctx context.Context, players []stor
 	return result, nil
 }
 
-func saveYahooPlayersToRedisImpl(ctx context.Context, client cache.Client, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
+func saveYahooPlayersToRedisImpl(ctx context.Context, client *redis.Client, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
 	if len(players) == 0 {
 		return &SaveYahooIDPoolResult{}, nil
 	}

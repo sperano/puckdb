@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/store"
 )
 
@@ -40,7 +40,7 @@ type SaveYahooIDPoolResult struct {
 }
 
 // LoadYahooIDPool loads all Yahoo players from Redis.
-func LoadYahooIDPool(ctx context.Context, client cache.Client) (map[store.YahooPlayerID]*store.YahooPlayer, error) {
+func LoadYahooIDPool(ctx context.Context, client *redis.Client) (map[store.YahooPlayerID]*store.YahooPlayer, error) {
 	data, err := client.HGetAll(ctx, YahooIDPoolKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("load yahoo id pool from redis: %w", err)
@@ -69,7 +69,7 @@ func LoadYahooIDPool(ctx context.Context, client cache.Client) (map[store.YahooP
 }
 
 // LoadAvailableYahooIDs loads only the available (unmatched) Yahoo IDs from Redis.
-func LoadAvailableYahooIDs(ctx context.Context, client cache.Client) (map[store.YahooPlayerID]struct{}, error) {
+func LoadAvailableYahooIDs(ctx context.Context, client *redis.Client) (map[store.YahooPlayerID]struct{}, error) {
 	ids, err := client.SMembers(ctx, YahooIDAvailableKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("load available yahoo ids from redis: %w", err)
@@ -92,7 +92,7 @@ func LoadAvailableYahooIDs(ctx context.Context, client cache.Client) (map[store.
 }
 
 // RemoveFromYahooIDPool removes matched Yahoo IDs from the available set.
-func RemoveFromYahooIDPool(ctx context.Context, client cache.Client, ids []store.YahooPlayerID) error {
+func RemoveFromYahooIDPool(ctx context.Context, client *redis.Client, ids []store.YahooPlayerID) error {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -114,7 +114,7 @@ func RemoveFromYahooIDPool(ctx context.Context, client cache.Client, ids []store
 }
 
 // GetUnmatchedYahooIDs returns all YahooIDs that were never matched.
-func GetUnmatchedYahooIDs(ctx context.Context, client cache.Client) ([]store.YahooPlayerID, error) {
+func GetUnmatchedYahooIDs(ctx context.Context, client *redis.Client) ([]store.YahooPlayerID, error) {
 	ids, err := client.SMembers(ctx, YahooIDAvailableKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("get unmatched yahoo ids: %w", err)
@@ -133,7 +133,7 @@ func GetUnmatchedYahooIDs(ctx context.Context, client cache.Client) ([]store.Yah
 }
 
 // GetYahooPlayerByID fetches a single Yahoo player from the pool by ID.
-func GetYahooPlayerByID(ctx context.Context, client cache.Client, yahooID store.YahooPlayerID) (*store.YahooPlayer, error) {
+func GetYahooPlayerByID(ctx context.Context, client *redis.Client, yahooID store.YahooPlayerID) (*store.YahooPlayer, error) {
 	encoded, err := client.HGet(ctx, YahooIDPoolKey, yahooID.String()).Bytes()
 	if err != nil {
 		return nil, fmt.Errorf("get yahoo player %d: %w", yahooID, err)
@@ -148,7 +148,7 @@ func GetYahooPlayerByID(ctx context.Context, client cache.Client, yahooID store.
 }
 
 // CleanupYahooIDPool deletes the YahooID pool keys from Redis.
-func CleanupYahooIDPool(ctx context.Context, client cache.Client) error {
+func CleanupYahooIDPool(ctx context.Context, client *redis.Client) error {
 	if err := client.Del(ctx, YahooIDPoolKey, YahooIDAvailableKey).Err(); err != nil {
 		return fmt.Errorf("cleanup yahoo id pool: %w", err)
 	}
@@ -160,7 +160,7 @@ func CleanupYahooIDPool(ctx context.Context, client cache.Client) error {
 
 // SaveVerifiedNonNHLIDs stores Yahoo IDs that have been verified to have 0 NHL games.
 // These IDs will be excluded from future unmatched reports.
-func SaveVerifiedNonNHLIDs(ctx context.Context, client cache.Client, ids []store.YahooPlayerID) error {
+func SaveVerifiedNonNHLIDs(ctx context.Context, client *redis.Client, ids []store.YahooPlayerID) error {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -186,7 +186,7 @@ func SaveVerifiedNonNHLIDs(ctx context.Context, client cache.Client, ids []store
 }
 
 // LoadVerifiedNonNHLIDs loads the set of Yahoo IDs verified to have 0 NHL games.
-func LoadVerifiedNonNHLIDs(ctx context.Context, client cache.Client) (map[store.YahooPlayerID]struct{}, error) {
+func LoadVerifiedNonNHLIDs(ctx context.Context, client *redis.Client) (map[store.YahooPlayerID]struct{}, error) {
 	ids, err := client.SMembers(ctx, VerifiedNonNHLKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("load verified non-nhl ids: %w", err)

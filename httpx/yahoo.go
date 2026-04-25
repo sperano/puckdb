@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
@@ -60,7 +61,7 @@ func YahooLandedHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(html))
 }
 
-func YahooAuthenticatedHandler(redisClient cache.Client) http.HandlerFunc {
+func YahooAuthenticatedHandler(redisClient *redis.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setNoCacheHeaders(w)
 
@@ -87,7 +88,7 @@ func YahooAuthenticatedHandler(redisClient cache.Client) http.HandlerFunc {
 	}
 }
 
-func YahooAuthenticatedHandlerWithConfig(redisClient cache.Client, conf *oauth2.Config, successURL string, code string) http.HandlerFunc {
+func YahooAuthenticatedHandlerWithConfig(redisClient *redis.Client, conf *oauth2.Config, successURL string, code string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setNoCacheHeaders(w)
 
@@ -104,7 +105,7 @@ func YahooAuthenticatedHandlerWithConfig(redisClient cache.Client, conf *oauth2.
 	}
 }
 
-func exchangeCodeWithConfig(ctx context.Context, redisClient cache.Client, conf *oauth2.Config, user string, code string) error {
+func exchangeCodeWithConfig(ctx context.Context, redisClient *redis.Client, conf *oauth2.Config, user string, code string) error {
 	// Step 1: Check if we already have a valid token
 	// This prevents unnecessary code exchanges and protects against callback replays
 	hasToken, err := cache.HasValidToken(ctx, redisClient, user)

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/metrics"
@@ -32,7 +33,7 @@ func runRedisCollector(ctx context.Context, interval time.Duration) {
 	}
 }
 
-func collectRedisMetrics(ctx context.Context, redisClient cache.Client) {
+func collectRedisMetrics(ctx context.Context, redisClient *redis.Client) {
 	start := time.Now()
 	hasToken, err := cache.HasValidToken(ctx, redisClient, config.DefaultUser)
 	if err != nil {

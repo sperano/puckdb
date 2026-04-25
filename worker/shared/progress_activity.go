@@ -3,16 +3,17 @@ package shared
 import (
 	"context"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 )
 
 // ProgressActivities groups local activities that persist ProgressReport state to
-// Redis. It holds a shared cache.Client so each invocation reuses the same
+// Redis. It holds a shared *redis.Client so each invocation reuses the same
 // connection pool — these activities are called frequently (every group
 // start/complete, every bar increment), so opening a fresh client per call
 // would churn through Redis connections.
 type ProgressActivities struct {
-	RedisClient cache.Client
+	RedisClient *redis.Client
 }
 
 // Save persists a gob-encoded ProgressReport to Redis. Called by workflows at

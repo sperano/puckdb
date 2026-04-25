@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
@@ -150,7 +151,7 @@ func runHTTPServer(ctx context.Context, srv *http.Server, tlsEnabled bool, cert,
 	}
 }
 
-func setupAPIRouter(redisClient cache.Client, resolver *graph.Resolver) *chi.Mux {
+func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(httpx.ChiLogger)

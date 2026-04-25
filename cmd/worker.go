@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
@@ -188,7 +189,7 @@ func registerTasksWorkflows(w worker.Worker) {
 }
 
 // registerTasksActivities registers all activities for the tasks queue.
-func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient cache.Client) error {
+func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *redis.Client) error {
 	storage := store.NewDefaultStorage()
 	queries := sqlcdb.New(pool)
 	nhlClient := shared.NewNHLClient()

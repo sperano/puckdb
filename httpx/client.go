@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
@@ -101,7 +102,7 @@ func (c *GenericClient) Download(ctx context.Context, url string) ([]byte, error
 	return body, nil
 }
 
-func NewYahooClient(ctx context.Context, redisClient cache.Client) (Client, error) {
+func NewYahooClient(ctx context.Context, redisClient *redis.Client) (Client, error) {
 	conf, err := config.OauthConfig()
 	if err != nil {
 		return nil, err
@@ -109,7 +110,7 @@ func NewYahooClient(ctx context.Context, redisClient cache.Client) (Client, erro
 	return NewYahooClientWithConfig(ctx, redisClient, conf)
 }
 
-func NewYahooClientWithConfig(ctx context.Context, redisClient cache.Client, conf *oauth2.Config) (Client, error) {
+func NewYahooClientWithConfig(ctx context.Context, redisClient *redis.Client, conf *oauth2.Config) (Client, error) {
 	token, err := cache.LoadToken(ctx, redisClient)
 	if err != nil {
 		return nil, err
@@ -127,7 +128,7 @@ func NewYahooClientWithConfig(ctx context.Context, redisClient cache.Client, con
 	return &GenericClient{Client: oauth2.NewClient(ctx, tokenSource), apiLabel: "yahoo"}, nil
 }
 
-func DownloadYahoo(ctx context.Context, redisClient cache.Client, url string) ([]byte, error) {
+func DownloadYahoo(ctx context.Context, redisClient *redis.Client, url string) ([]byte, error) {
 	// this can fail if no oauth2 token is found in redis
 	client, err := NewYahooClient(ctx, redisClient)
 	if err != nil {

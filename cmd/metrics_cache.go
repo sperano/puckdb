@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
@@ -97,7 +98,7 @@ func fetchSeasonsFromNHL(ctx context.Context) ([]simpleSeason, error) {
 const cacheCollectorWorkers = 4
 
 // getAllMetrics gathers cache statistics for all seasons using a bounded worker pool.
-func getAllMetrics(ctx context.Context, redisClient cache.Client) ([]cacheMetrics, error) {
+func getAllMetrics(ctx context.Context, redisClient *redis.Client) ([]cacheMetrics, error) {
 	if viper.GetString(config.FlagDataPath) == "" {
 		return nil, fmt.Errorf("data-path is required")
 	}

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/spf13/viper"
@@ -12,7 +13,7 @@ import (
 // newGobCache creates a GobCache from viper flags.
 // If --gob-cache-config is set, loads per-type config from the YAML file.
 // Otherwise falls back to the flat --gob-cache-ttl value.
-func newGobCache(client cache.Client) (*cache.GobCache, error) {
+func newGobCache(client *redis.Client) (*cache.GobCache, error) {
 	configPath := viper.GetString(config.FlagGobCacheConfig)
 	if configPath != "" {
 		cfg, err := cache.LoadGobCacheConfig(configPath)

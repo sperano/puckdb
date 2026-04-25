@@ -36,7 +36,7 @@ func newTestGobCache() *cache.GobCache {
 func newTestProcessActivities(
 	mem store.Storage,
 	client shared.NHLClient,
-	redisClient cache.Client,
+	redisClient *redis.Client,
 	gobCache *cache.GobCache,
 	upserter PlayerUpserter,
 	careerUpserter PlayerCareerUpserter,

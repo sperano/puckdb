@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/httpx"
 )
@@ -73,7 +73,7 @@ type Downloader func(ctx context.Context, url string) ([]byte, error)
 // NewYahooDownloader creates a Downloader that uses the shared Redis client
 // for OAuth2 token management. The returned Downloader honors the caller's
 // context for cancellation and deadlines.
-func NewYahooDownloader(redisClient cache.Client) Downloader {
+func NewYahooDownloader(redisClient *redis.Client) Downloader {
 	return func(ctx context.Context, url string) ([]byte, error) {
 		ctx = context.WithValue(ctx, config.CtxUser, config.DefaultUser)
 		return httpx.DownloadYahoo(ctx, redisClient, url)

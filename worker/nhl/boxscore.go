@@ -8,6 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
@@ -22,7 +23,7 @@ import (
 type BoxscoreActivities struct {
 	Storage     store.Storage
 	GobCache    *cache.GobCache
-	RedisClient cache.Client
+	RedisClient *redis.Client
 }
 
 // BoxscoreExtractionResult contains players extracted from boxscores for a season.

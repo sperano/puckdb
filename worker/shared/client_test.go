@@ -17,7 +17,7 @@ func TestNewNHLClient(t *testing.T) {
 func TestNewYahooDownloader_ReturnsNonNilFunc(t *testing.T) {
 	t.Parallel()
 
-	// Pass nil for the cache.Client: NewYahooDownloader only captures it in a
+	// Pass nil for the *redis.Client: NewYahooDownloader only captures it in a
 	// closure; the network call is not made here so nil is safe for this test.
 	downloader := NewYahooDownloader(nil)
 	assert.NotNil(t, downloader)

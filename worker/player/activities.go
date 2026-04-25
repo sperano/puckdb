@@ -8,6 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
@@ -28,7 +29,7 @@ type PlayerCareerUpserter interface {
 type Activities struct {
 	Storage      store.Storage
 	NHLClient    shared.NHLClient
-	RedisClient  cache.Client
+	RedisClient  *redis.Client
 	GobCache     *cache.GobCache
 	Queries      PlayerUpserter
 	CareerQueries PlayerCareerUpserter
@@ -167,7 +168,7 @@ func (a *Activities) CountPlayersForAllSeasons(ctx context.Context, seasonStartY
 
 // CountPlayersForSeason reads the cached boxscore player list from Redis
 // and returns the count.
-func CountPlayersForSeason(ctx context.Context, client cache.Client, season nhl.Season) (int, error) {
+func CountPlayersForSeason(ctx context.Context, client *redis.Client, season nhl.Season) (int, error) {
 	players, err := cache.LoadBoxscorePlayers(ctx, client, season)
 	if err != nil {
 		return 0, fmt.Errorf("load boxscore players for %d: %w", season.ID(), err)
