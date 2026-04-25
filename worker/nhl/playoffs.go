@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -295,14 +296,11 @@ func collectPlayoffGames(ctx context.Context, storage store.Storage, gobCache *c
 // extractTeamAbbrev extracts the team abbreviation from a club-schedule filename.
 // storage.List strips the extension, so input is "club-schedule-TOR" (no .json).
 func extractTeamAbbrev(filename string) string {
-	const prefix = "club-schedule-"
-	if len(filename) <= len(prefix) {
+	abbrev, ok := strings.CutPrefix(filename, "club-schedule-")
+	if !ok || abbrev == "" {
 		return ""
 	}
-	if filename[:len(prefix)] != prefix {
-		return ""
-	}
-	return filename[len(prefix):]
+	return abbrev
 }
 
 // parseGameDate extracts a time.Time from a ScheduleGame's GameDate or StartTimeUTC.
