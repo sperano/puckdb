@@ -118,19 +118,19 @@ var teamsByAbbrev = map[string]NHLTeamInfo{
 	"YSW": {101, "YSW", "Young Stars West"},
 }
 
-// teamsById provides reverse lookup by team ID.
-var teamsById map[int64]NHLTeamInfo
+// teamsByID provides reverse lookup by team ID.
+var teamsByID map[int64]NHLTeamInfo
 
 // teamsByName provides reverse lookup by full team name.
 var teamsByName map[string]NHLTeamInfo
 
 func init() {
-	teamsById = make(map[int64]NHLTeamInfo, len(teamsByAbbrev))
+	teamsByID = make(map[int64]NHLTeamInfo, len(teamsByAbbrev))
 	teamsByName = make(map[string]NHLTeamInfo, len(teamsByAbbrev))
 	for _, t := range teamsByAbbrev {
 		// Only store the first occurrence (some abbrevs map to same ID like CGS/CSE)
-		if _, exists := teamsById[t.ID]; !exists {
-			teamsById[t.ID] = t
+		if _, exists := teamsByID[t.ID]; !exists {
+			teamsByID[t.ID] = t
 		}
 		teamsByName[t.FullName] = t
 	}
@@ -148,7 +148,7 @@ func LookupTeamID(abbrev string) (int64, error) {
 // LookupTeamByID returns team info by ID.
 // Returns an error if the ID is unknown.
 func LookupTeamByID(id int64) (NHLTeamInfo, error) {
-	if info, ok := teamsById[id]; ok {
+	if info, ok := teamsByID[id]; ok {
 		return info, nil
 	}
 	return NHLTeamInfo{}, fmt.Errorf("unknown team ID: %d", id)
@@ -166,7 +166,7 @@ func LookupTeamIDByName(fullName string) (int64, error) {
 // LookupTeamAbbrev returns the abbreviation for a team ID.
 // Returns an error if the ID is unknown.
 func LookupTeamAbbrev(id int64) (string, error) {
-	if info, ok := teamsById[id]; ok {
+	if info, ok := teamsByID[id]; ok {
 		return info.Abbrev, nil
 	}
 	return "", fmt.Errorf("unknown team ID: %d", id)
