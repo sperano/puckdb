@@ -14,7 +14,6 @@ import (
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/worker/shared"
-	"github.com/spf13/viper"
 	"go.temporal.io/sdk/activity"
 	"golang.org/x/sync/errgroup"
 )
@@ -121,11 +120,7 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 }
 
 func getGameDownloadConcurrency() int {
-	concurrency := viper.GetInt(config.FlagGameDownloadConcurrency)
-	if concurrency <= 0 {
-		return config.DefaultGameDownloadConcurrency
-	}
-	return concurrency
+	return shared.ViperIntOrDefault(config.FlagGameDownloadConcurrency, config.DefaultGameDownloadConcurrency)
 }
 
 // shouldSkipGame returns true if the game should be skipped during processing.

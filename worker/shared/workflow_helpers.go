@@ -92,9 +92,5 @@ func IsCurrentSeason(startYear int) bool {
 
 // GetDayConcurrency returns the configured day concurrency for parallel processing.
 func GetDayConcurrency() int {
-	concurrency := viper.GetInt(config.FlagDayConcurrency)
-	if concurrency <= 0 {
-		return config.DefaultDayConcurrency
-	}
-	return concurrency
+	return ViperIntOrDefault(config.FlagDayConcurrency, config.DefaultDayConcurrency)
 }
