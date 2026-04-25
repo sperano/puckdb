@@ -135,7 +135,7 @@ func DownloadYahoo(ctx context.Context, redisClient cache.Client, url string) ([
 		var tokenErr *cache.OAuth2TokenMissingError
 		if errors.As(err, &tokenErr) {
 			publicURL := viper.GetString(config.FlagPublicURL)
-			return nil, fmt.Errorf("%s: %w", url, cache.NewOAuth2TokenMissingErrorWithURL(publicURL))
+			return nil, fmt.Errorf("%s: %w", url, &cache.OAuth2TokenMissingError{PublicURL: publicURL})
 		}
 		return nil, fmt.Errorf("%s: %w", url, err)
 	}
