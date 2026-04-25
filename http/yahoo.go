@@ -94,7 +94,7 @@ func YahooAuthenticatedHandlerWithConfig(redisClient cache.Client, conf *oauth2.
 		if viper.GetBool(config.FlagYahooLogToken) {
 			log.Debug().Str("code", code).Msg("Authentication code received from Yahoo")
 		}
-		ctxV := context.WithValue(context.Background(), config.CtxUser, config.DefaultUser)
+		ctxV := context.WithValue(r.Context(), config.CtxUser, config.DefaultUser)
 		err := exchangeCodeWithConfig(ctxV, redisClient, conf, config.DefaultUser, code)
 		if err == nil {
 			http.Redirect(w, r, successURL, http.StatusFound)

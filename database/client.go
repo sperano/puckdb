@@ -5,7 +5,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"net/http"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -162,28 +161,3 @@ func DropEverything(ctx context.Context, pool *pgxpool.Pool) error {
 	return nil
 }
 
-const sqlcContextKey = "sqlc"
-
-// SQLCMiddleware adds SQLC queries to the request context
-func SQLCMiddleware(next http.Handler) http.Handler {
-	pool, err := OpenPGXPool(context.Background())
-	if err != nil {
-		log.Error().Err(err).Msg("can't open pgx pool")
-	}
-	queries := sqlcdb.New(pool)
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err != nil {
-			log.Error().Err(err).Msg("can't open pgx pool")
-			http.Error(w, "database error", http.StatusInternalServerError)
-			return
-		}
-		ctx := context.WithValue(r.Context(), sqlcContextKey, queries)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-// QueriesFromContext retrieves SQLC queries from context
-func QueriesFromContext(ctx context.Context) *sqlcdb.Queries {
-	return ctx.Value(sqlcContextKey).(*sqlcdb.Queries)
-}

@@ -1,11 +1,9 @@
 package database
 
 import (
-	"context"
 	"testing"
 
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
@@ -47,24 +45,3 @@ func TestGetDatabaseURL(t *testing.T) {
 	assert.Equal(t, expected, url)
 }
 
-func TestQueriesFromContext(t *testing.T) {
-	// Create a mock queries object (we can use nil since we're just testing context storage)
-	var mockQueries *sqlcdb.Queries
-
-	// Store in context
-	ctx := context.WithValue(context.Background(), sqlcContextKey, mockQueries)
-
-	// Retrieve and verify
-	retrieved := QueriesFromContext(ctx)
-	assert.Equal(t, mockQueries, retrieved)
-}
-
-func TestQueriesFromContext_WithQueries(t *testing.T) {
-	// This tests that we can store and retrieve a non-nil queries object
-	// Since we can't easily create a real Queries without a pool, we test the mechanism
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, sqlcContextKey, (*sqlcdb.Queries)(nil))
-
-	result := QueriesFromContext(ctx)
-	assert.Nil(t, result)
-}
