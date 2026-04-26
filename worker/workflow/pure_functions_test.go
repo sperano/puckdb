@@ -141,3 +141,28 @@ func TestNewNHLClient_NotNil(t *testing.T) {
 
 	assert.NotNil(t, client)
 }
+
+// --- processPlayersPhase.String ---
+
+func TestProcessPlayersPhase_String(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		phase processPlayersPhase
+		want  string
+	}{
+		{"loadYahoo", phaseLoadYahoo, "loadYahoo"},
+		{"processPlayers", phaseProcessPlayers, "processPlayers"},
+		{"verifyUnmatched", phaseVerifyUnmatched, "verifyUnmatched"},
+		{"zero value falls through to unknown", processPlayersPhase(0), "unknown(0)"},
+		{"out-of-range falls through to unknown", processPlayersPhase(99), "unknown(99)"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.phase.String())
+		})
+	}
+}

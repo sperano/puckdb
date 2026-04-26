@@ -5,9 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/resource"
+	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -283,4 +285,100 @@ func TestCollectRosterParams_ValidFile(t *testing.T) {
 	assert.Equal(t, "C", params[0].SelectedPosition)
 	assert.Equal(t, int32(5441), params[1].PlayerID)
 	assert.Equal(t, "LW", params[1].SelectedPosition)
+}
+
+// --- parseStatValue ---
+
+func TestParseStatValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		input     string
+		wantValid bool
+		wantValue float32
+	}{
+		{"yahoo dash sentinel", "-", false, 0},
+		{"empty string", "", false, 0},
+		{"unparseable", "not-a-number", false, 0},
+		{"integer string", "42", true, 42},
+		{"float string", "3.14", true, 3.14},
+		{"negative", "-7", true, -7},
+		{"zero", "0", true, 0},
+		// 0.001 is exactly representable as float32 only after rounding;
+		// asserting Valid=true and value within float32 epsilon is enough.
+		{"small float", "0.001", true, 0.001},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := parseStatValue(tc.input)
+			assert.Equal(t, tc.wantValid, got.Valid, "Valid mismatch")
+			if tc.wantValid {
+				// InDelta (absolute) instead of InEpsilon (relative) so the
+				// zero case works without a divide-by-expected.
+				assert.InDelta(t, tc.wantValue, got.Float32, 0.0001, "Float32 mismatch")
+			} else {
+				assert.Equal(t, float32(0), got.Float32, "expected zero Float32 when invalid")
+			}
+		})
+	}
+}
+
+// --- assignStatField ---
+
+// statFieldGetter extracts the relevant field from the params struct after
+// assignStatField has run. Each test case names which field should have been
+// set so a regression in the switch (e.g. swapped case bodies) is caught.
+type statFieldGetter func(*sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4
+
+func TestAssignStatField(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		statID int
+		field  string
+		get    statFieldGetter
+	}{
+		{1, "Goals", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.Goals }},
+		{2, "Assists", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.Assists }},
+		{3, "Points", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.Points }},
+		{4, "PlusMinus", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.PlusMinus }},
+		{5, "PIM", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.PIM }},
+		{8, "PPP", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.PPP }},
+		{14, "SOG", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.SOG }},
+		{16, "FaceoffsWon", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.FaceoffsWon }},
+		{17, "FaceoffsLost", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.FaceoffsLost }},
+		{19, "Wins", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.Wins }},
+		{22, "GoalsAgainst", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.GoalsAgainst }},
+		{23, "GAA", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.GAA }},
+		{24, "ShotsAgainst", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.ShotsAgainst }},
+		{25, "Saves", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.Saves }},
+		{26, "SavePct", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.SavePct }},
+		{27, "Shutouts", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.Shutouts }},
+		{29, "SHP", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.SHP }},
+		{30, "GWG", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.GWG }},
+		{31, "Hits", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.Hits }},
+		{32, "Blocks", func(p *sqlcdb.UpsertYahooTeamSummaryBatchParams) pgtype.Float4 { return p.Blocks }},
+	}
+
+	val := pgtype.Float4{Float32: 7.5, Valid: true}
+
+	for _, tc := range tests {
+		t.Run(tc.field, func(t *testing.T) {
+			t.Parallel()
+			var p sqlcdb.UpsertYahooTeamSummaryBatchParams
+			assignStatField(&p, tc.statID, val)
+			assert.Equal(t, val, tc.get(&p), "stat ID %d should set %s", tc.statID, tc.field)
+		})
+	}
+
+	t.Run("unknown stat ID is a no-op", func(t *testing.T) {
+		t.Parallel()
+		var p sqlcdb.UpsertYahooTeamSummaryBatchParams
+		assignStatField(&p, 9999, val)
+		assert.Equal(t, sqlcdb.UpsertYahooTeamSummaryBatchParams{}, p,
+			"unknown stat ID must not mutate any field")
+	})
 }

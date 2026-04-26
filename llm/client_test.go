@@ -184,3 +184,32 @@ func TestComplete_SetsModelAndStream(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestTruncate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  []byte
+		maxLen int
+		want   string
+	}{
+		{"empty input", []byte(""), 10, ""},
+		{"shorter than max", []byte("abc"), 10, "abc"},
+		{"exactly max length", []byte("abcdefghij"), 10, "abcdefghij"},
+		{"longer than max", []byte("abcdefghijk"), 10, "abcdefghij..."},
+		// truncate slices by byte index, so a multibyte rune split mid-encoding
+		// will produce invalid UTF-8 in the prefix. This pins the current
+		// byte-level behavior — if the function ever moves to rune-aware
+		// truncation, this test will need to update.
+		{"multibyte split mid-rune", []byte("héllo"), 2, "h\xc3..."},
+		{"zero max with non-empty input", []byte("abc"), 0, "..."},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, truncate(tc.input, tc.maxLen))
+		})
+	}
+}
