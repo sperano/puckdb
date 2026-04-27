@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/worker/shared"
@@ -499,3 +500,108 @@ func TestImportClubGoalieStats_Empty(t *testing.T) {
 
 	require.NoError(t, err)
 }
+
+// --- pgtype helpers (pf32, pi32) ---
+
+// Both helpers always emit Valid=true. Production code uses them when the
+// caller has already determined the value is meaningful, so a NULL/zero
+// distinction would only be added if the contract changed — pin Valid=true
+// here so that change has to be deliberate.
+
+func TestPF32(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   float64
+		want pgtype.Float4
+	}{
+		{"positive", 1.5, pgtype.Float4{Float32: 1.5, Valid: true}},
+		{"zero", 0, pgtype.Float4{Float32: 0, Valid: true}},
+		{"negative", -42.25, pgtype.Float4{Float32: -42.25, Valid: true}},
+		{"narrowing truncates", 0.1, pgtype.Float4{Float32: float32(0.1), Valid: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, pf32(tc.in))
+		})
+	}
+}
+
+func TestPI32(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   int
+		want pgtype.Int4
+	}{
+		{"positive", 100, pgtype.Int4{Int32: 100, Valid: true}},
+		{"zero", 0, pgtype.Int4{Int32: 0, Valid: true}},
+		{"negative", -7, pgtype.Int4{Int32: -7, Valid: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, pi32(tc.in))
+		})
+	}
+}
+
+// --- shouldInvalidate (FetchEdgeInput, FetchEdgeTeamInput) ---
+
+// shouldInvalidate is RefreshCurrent && IsCurrentSeason(Season). The
+// IsCurrentSeason call depends on the wall clock, but the AND short-circuits
+// when RefreshCurrent is false and when Season is unambiguously historical
+// (a year guaranteed to never be "current" — using year 0 here). The
+// "current season" branch is exercised by deriving Season from
+// nhl.Current() at test time so the test stays correct as the calendar
+// advances.
+
+const pastSeasonStartYear = 0
+
+func TestFetchEdgeInput_ShouldInvalidate(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		refreshCurrent bool
+		seasonStart    int
+		want           bool
+	}{
+		{"refresh false short-circuits", false, nhlapi.Current().StartYear(), false},
+		{"refresh true but past season", true, pastSeasonStartYear, false},
+		{"refresh true and current season", true, nhlapi.Current().StartYear(), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			input := FetchEdgeInput{Season: tc.seasonStart, RefreshCurrent: tc.refreshCurrent}
+			assert.Equal(t, tc.want, input.shouldInvalidate())
+		})
+	}
+}
+
+func TestFetchEdgeTeamInput_ShouldInvalidate(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		refreshCurrent bool
+		seasonStart    int
+		want           bool
+	}{
+		{"refresh false short-circuits", false, nhlapi.Current().StartYear(), false},
+		{"refresh true but past season", true, pastSeasonStartYear, false},
+		{"refresh true and current season", true, nhlapi.Current().StartYear(), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			input := FetchEdgeTeamInput{Season: tc.seasonStart, RefreshCurrent: tc.refreshCurrent}
+			assert.Equal(t, tc.want, input.shouldInvalidate())
+		})
+	}
+}
+

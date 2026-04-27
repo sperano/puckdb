@@ -157,3 +157,130 @@ func TestSQLite_MessageUpdatesConversationTimestamp(t *testing.T) {
 	updated, _ := db.GetConversation(context.Background(), conv.ID)
 	assert.True(t, !updated.UpdatedAt.Before(originalUpdated))
 }
+
+// --- Error-path tests using a closed *sql.DB ---
+
+// closedDB returns a *sql.DB whose underlying connection is already
+// closed, so any subsequent Exec/Query call returns
+// "sql: database is closed". This is the simplest deterministic way to
+// exercise the SQL error branches without injecting a fake driver.
+func closedDB(t *testing.T) *sql.DB {
+	t.Helper()
+	d, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	require.NoError(t, d.Close())
+	return d
+}
+
+// alreadyMigratedDB returns a sqliteDB wrapping a real :memory: DB whose
+// schema has already been created. Used by tests that want to bypass
+// the constructor and then close the underlying DB to force errors on
+// subsequent operations.
+func alreadyMigratedDB(t *testing.T) (*sqliteDB, *sql.DB) {
+	t.Helper()
+	d, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { d.Close() })
+	_, err = NewSQLiteDB(d)
+	require.NoError(t, err)
+	return &sqliteDB{db: d}, d
+}
+
+func TestNewSQLiteDB_PragmaErrorOnClosedDB(t *testing.T) {
+	db, err := NewSQLiteDB(closedDB(t))
+	require.Error(t, err)
+	assert.Nil(t, db)
+	assert.Contains(t, err.Error(), "enable foreign keys")
+}
+
+func TestSQLite_CreateConversation_ErrorOnClosedDB(t *testing.T) {
+	s, raw := alreadyMigratedDB(t)
+	require.NoError(t, raw.Close())
+
+	conv, err := s.CreateConversation(context.Background())
+	require.Error(t, err)
+	assert.Nil(t, conv)
+}
+
+func TestSQLite_ListConversations_ErrorOnClosedDB(t *testing.T) {
+	s, raw := alreadyMigratedDB(t)
+	require.NoError(t, raw.Close())
+
+	convs, err := s.ListConversations(context.Background(), 10)
+	require.Error(t, err)
+	assert.Nil(t, convs)
+}
+
+func TestSQLite_CreateMessage_ErrorOnClosedDB(t *testing.T) {
+	s, raw := alreadyMigratedDB(t)
+	require.NoError(t, raw.Close())
+
+	msg, err := s.CreateMessage(context.Background(), CreateMessageParams{
+		ConversationID: "missing-conv-id", Role: "user", Content: "hi",
+	})
+	require.Error(t, err)
+	assert.Nil(t, msg)
+}
+
+func TestSQLite_GetMessages_ErrorOnClosedDB(t *testing.T) {
+	s, raw := alreadyMigratedDB(t)
+	require.NoError(t, raw.Close())
+
+	msgs, err := s.GetMessages(context.Background(), "any-conv-id")
+	require.Error(t, err)
+	assert.Nil(t, msgs)
+}
+
+// --- ToolCalls JSON round-trip tests ---
+
+// CreateMessage and GetMessages (via scanMessage) exercise a JSON
+// round-trip when ToolCalls is non-empty. Pin both branches: empty
+// (NULL in DB) and non-empty (JSON-encoded TEXT).
+
+func TestSQLite_CreateMessage_WithToolCalls(t *testing.T) {
+	db := openTestDB(t)
+	conv, err := db.CreateConversation(context.Background())
+	require.NoError(t, err)
+
+	toolCalls := []llm.ToolCall{
+		{
+			ID:       "call-1",
+			Type:     "function",
+			Function: llm.ToolCallFunction{Name: "get_player", Arguments: `{"id":42}`},
+		},
+	}
+	created, err := db.CreateMessage(context.Background(), CreateMessageParams{
+		ConversationID: conv.ID,
+		Role:           "assistant",
+		Content:        "looking up player",
+		ToolCalls:      toolCalls,
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, created.ID)
+
+	msgs, err := db.GetMessages(context.Background(), conv.ID)
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	require.Len(t, msgs[0].ToolCalls, 1)
+	assert.Equal(t, "call-1", msgs[0].ToolCalls[0].ID)
+	assert.Equal(t, "get_player", msgs[0].ToolCalls[0].Function.Name)
+}
+
+// CASCADE delete: deleting a conversation must remove its messages.
+// The schema declares ON DELETE CASCADE; the constructor enables
+// PRAGMA foreign_keys=ON. This test pins both halves of that contract.
+func TestSQLite_DeleteConversation_CascadesMessages(t *testing.T) {
+	db := openTestDB(t)
+	conv, err := db.CreateConversation(context.Background())
+	require.NoError(t, err)
+	_, err = db.CreateMessage(context.Background(), CreateMessageParams{
+		ConversationID: conv.ID, Role: "user", Content: "hello",
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, db.DeleteConversation(context.Background(), conv.ID))
+
+	msgs, err := db.GetMessages(context.Background(), conv.ID)
+	require.NoError(t, err)
+	assert.Empty(t, msgs, "messages must cascade-delete with their conversation")
+}

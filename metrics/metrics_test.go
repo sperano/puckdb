@@ -1,11 +1,15 @@
 package metrics
 
 import (
+	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/sperano/puckdb/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -352,4 +356,197 @@ func TestSetDBMetricsTimestamp(t *testing.T) {
 	assert.NotPanics(t, func() {
 		SetDBMetricsTimestamp()
 	})
+}
+
+// The tests below verify gauge values via prometheus/testutil rather than
+// just NotPanics. Different convention from the older tests above —
+// stronger guarantee, same in-process cost. Cannot run with t.Parallel()
+// since they share global gauge state with each other and with any test
+// that writes to the same metric.
+
+func TestTrackActivityDuration(t *testing.T) {
+	stop := TrackActivityDuration("UnitTestActivity")
+	time.Sleep(1 * time.Millisecond)
+	require.NotNil(t, stop)
+	assert.NotPanics(t, stop)
+	// Calling the returned closure twice must not panic — this is the
+	// shape that production code accidentally produces if a deferred
+	// stop is also called explicitly.
+	assert.NotPanics(t, stop)
+}
+
+func TestSetDBSizeBytes(t *testing.T) {
+	const want = 1234567890
+	SetDBSizeBytes(want)
+	assert.Equal(t, float64(want), testutil.ToFloat64(dbSizeBytes))
+}
+
+func TestSetBuildInfo(t *testing.T) {
+	// Use a unique version string so this test can't collide with any
+	// other test or process-level call to SetBuildInfo.
+	const version = "v0.0.0-test-abc123"
+	SetBuildInfo(version)
+	assert.Equal(t, float64(1), testutil.ToFloat64(buildInfo.WithLabelValues(version)))
+}
+
+func TestSetDataPathFileStats(t *testing.T) {
+	const fileType = "test-file-type-stats"
+	const wantCount = 42
+	const wantBytes = 1024 * 1024
+	SetDataPathFileStats(fileType, wantCount, wantBytes)
+	assert.Equal(t, float64(wantCount), testutil.ToFloat64(dataPathFilesTotal.WithLabelValues(fileType)))
+	assert.Equal(t, float64(wantBytes), testutil.ToFloat64(dataPathBytesTotal.WithLabelValues(fileType)))
+}
+
+// --- Server lifecycle (StartServer, StartWorkerServer, serveWithShutdown) ---
+
+// reservePort grabs an OS-assigned port on 127.0.0.1, closes the listener,
+// and returns the bound address. The test caller then races the metrics
+// server to claim that port. There's a tiny TOCTOU window where another
+// process could grab the port first, but the loopback-only constraint
+// and the immediate handoff make this acceptable for test purposes.
+func reservePort(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := l.Addr().String()
+	require.NoError(t, l.Close())
+	return addr
+}
+
+// waitForServer polls until the server responds with 200 on /health or
+// the deadline expires. Servers spin up asynchronously, so callers can't
+// just hit the endpoint immediately.
+func waitForServer(t *testing.T, addr string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get("http://" + addr + "/health")
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("server at %s did not become ready", addr)
+}
+
+func TestStartServer_GracefulShutdown(t *testing.T) {
+	addr := reservePort(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
+	go func() {
+		StartServer(ctx, addr)
+		close(done)
+	}()
+
+	waitForServer(t, addr)
+
+	// /metrics should respond with 200 — the only purpose of this server
+	// is to expose the CollectorRegistry.
+	resp, err := http.Get("http://" + addr + "/metrics")
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("StartServer did not return after context cancellation")
+	}
+}
+
+func TestStartWorkerServer_HealthOK(t *testing.T) {
+	addr := reservePort(t)
+	dataPath := t.TempDir() // exists, so /health should report ok
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+
+	go func() { done <- StartWorkerServer(ctx, addr, dataPath) }()
+
+	waitForServer(t, addr)
+
+	t.Run("metrics endpoint", func(t *testing.T) {
+		resp, err := http.Get("http://" + addr + "/metrics")
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("pprof endpoint", func(t *testing.T) {
+		resp, err := http.Get("http://" + addr + "/debug/pprof/cmdline")
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	cancel()
+	select {
+	case err := <-done:
+		assert.NoError(t, err, "graceful shutdown should return nil")
+	case <-time.After(15 * time.Second):
+		t.Fatal("StartWorkerServer did not return after context cancellation")
+	}
+}
+
+func TestStartWorkerServer_HealthFailsForMissingDataPath(t *testing.T) {
+	addr := reservePort(t)
+	// Path doesn't exist — /health should report 503.
+	missingPath := filepath.Join(t.TempDir(), "does-not-exist")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+
+	go func() { done <- StartWorkerServer(ctx, addr, missingPath) }()
+
+	// Can't use waitForServer because /health would fail — poll /metrics
+	// to detect readiness instead.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get("http://" + addr + "/metrics")
+		if err == nil {
+			resp.Body.Close()
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	resp, err := http.Get("http://" + addr + "/health")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("StartWorkerServer did not return after context cancellation")
+	}
+}
+
+func TestServeWithShutdown_ListenError(t *testing.T) {
+	// Pre-bind a port so the metrics server's Listen call fails with
+	// "address already in use" (or platform equivalent). The function
+	// must return that error immediately rather than blocking.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer l.Close()
+
+	srv := &http.Server{Addr: l.Addr().String(), Handler: http.NewServeMux()}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- serveWithShutdown(ctx, srv) }()
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err, "Listen on already-bound port should fail")
+	case <-time.After(2 * time.Second):
+		t.Fatal("serveWithShutdown should have returned listen error promptly")
+	}
 }
