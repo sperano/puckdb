@@ -272,6 +272,28 @@ func (r *Resolver) importEdgeStatsProgress(ctx context.Context) (*model.Progress
 	return r.queryProgressReport(ctx, shared.WorkflowIDImportEdgeStats)
 }
 
+func (r *Resolver) fetchAssets(ctx context.Context, input *model.FetchAssetsInput) (bool, error) {
+	workflowInput := &workflow.FetchAssetsInput{}
+	if input != nil {
+		workflowInput.ClassConcurrency = input.ClassConcurrency
+		workflowInput.MaxClassConcurrency = input.MaxClassConcurrency
+		workflowInput.RefreshCurrent = input.RefreshCurrent
+	}
+	return r.executeAssetWorkflow(ctx, shared.WorkflowIDFetchAssets, workflow.FetchAssetsWorkflow, workflowInput)
+}
+
+func (r *Resolver) cancelFetchAssets(ctx context.Context) (bool, error) {
+	return r.cancelWorkflow(ctx, shared.WorkflowIDFetchAssets)
+}
+
+func (r *Resolver) fetchAssetsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.getWorkflowResult(ctx, shared.WorkflowIDFetchAssets)
+}
+
+func (r *Resolver) fetchAssetsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.queryProgressReport(ctx, shared.WorkflowIDFetchAssets)
+}
+
 func (r *Resolver) initialize(ctx context.Context) (bool, error) {
 	return r.executeWorkflow(ctx, workflow.WorkflowIDInitialize, workflow.InitializeWorkflow, nil)
 }
@@ -564,11 +586,11 @@ func ptrStringIfNotEmpty(s string) *string {
 	return &s
 }
 
-// executeWorkflow starts a workflow and returns success status.
-// It deletes any stale progress report from a previous run so the CLI
-// doesn't display old completed data before the new workflow writes its own.
-func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workflow any, arg any) (bool, error) {
-	opts := workflowOptions(workflowID)
+// startWorkflow is the shared core that triggers a workflow with the given
+// options, optional input argument, and post-success Redis cleanup. The three
+// public helpers below pin down the queue selection and progress-cleanup
+// policy for each workflow class.
+func (r *Resolver) startWorkflow(ctx context.Context, opts client.StartWorkflowOptions, workflow any, arg any, clearProgress bool) (bool, error) {
 	var err error
 	if arg == nil {
 		_, err = r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow)
@@ -578,24 +600,33 @@ func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workf
 	if err != nil {
 		return false, err
 	}
-	// Clear stale progress from previous run. The workflow will write fresh
-	// progress once it starts, but there's a gap between trigger and first
-	// save where the CLI would read the old key.
-	_ = cache.DeleteProgressReport(ctx, r.RedisClient, workflowID)
+	if clearProgress {
+		// The workflow will write fresh progress once it starts, but there's
+		// a gap between trigger and first save where the CLI would read the
+		// old key.
+		_ = cache.DeleteProgressReport(ctx, r.RedisClient, opts.ID)
+	}
 	return true, nil
 }
 
+// executeWorkflow starts a long-running workflow on the main puckdb-tasks queue
+// and clears any stale ProgressReport from a previous run.
+func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workflow any, arg any) (bool, error) {
+	return r.startWorkflow(ctx, workflowOptions(workflowID), workflow, arg, true)
+}
+
 // executeAdminWorkflow starts an admin workflow on the dedicated admin queue.
-// Unlike executeWorkflow it does not clear stale progress state, because admin
-// workflows (drop DB, migrate DB, flush Redis) are single-step operations that
-// don't publish ProgressReports — there is no cached key to invalidate.
+// Admin workflows (drop DB, migrate DB, flush Redis) are single-step operations
+// that don't publish ProgressReports, so cleanup is skipped.
 func (r *Resolver) executeAdminWorkflow(ctx context.Context, workflowID string, workflow any) (bool, error) {
-	opts := adminWorkflowOptions(workflowID)
-	_, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow)
-	if err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.startWorkflow(ctx, adminWorkflowOptions(workflowID), workflow, nil, false)
+}
+
+// executeAssetWorkflow starts a workflow on shared.TaskQueueAssets so the asset
+// worker — not the main tasks worker — picks up the run, and clears stale
+// progress like executeWorkflow.
+func (r *Resolver) executeAssetWorkflow(ctx context.Context, workflowID string, workflow any, arg any) (bool, error) {
+	return r.startWorkflow(ctx, assetWorkflowOptions(workflowID), workflow, arg, true)
 }
 
 // TODO move to temporal/worker
@@ -611,6 +642,14 @@ func adminWorkflowOptions(id string) client.StartWorkflowOptions {
 	return client.StartWorkflowOptions{
 		ID:                  id,
 		TaskQueue:           temporal.QueueAdmin,
+		WorkflowTaskTimeout: config.DefaultWorkflowTaskTimeout,
+	}
+}
+
+func assetWorkflowOptions(id string) client.StartWorkflowOptions {
+	return client.StartWorkflowOptions{
+		ID:                  id,
+		TaskQueue:           shared.TaskQueueAssets,
 		WorkflowTaskTimeout: config.DefaultWorkflowTaskTimeout,
 	}
 }

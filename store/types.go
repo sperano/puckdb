@@ -6,24 +6,33 @@ import (
 
 // File type name constants for metrics and logging
 const (
-	FileTypeDailySchedule   = "DailySchedule"
-	FileTypeBoxscore        = "Boxscore"
-	FileTypePlayByPlay      = "PlayByPlay"
-	FileTypeShiftChart      = "ShiftChart"
-	FileTypeGameStory       = "GameStory"
-	FileTypeFranchises      = "Franchises"
-	FileTypeSeasonsManifest = "SeasonsManifest"
-	FileTypeSeasonStandings = "SeasonStandings"
-	FileTypeLeague          = "League"
-	FileTypeTeam            = "Team"
-	FileTypeRoster          = "Roster"
-	FileTypeTeamSummary     = "TeamSummary"
-	FileTypePlayerLanding   = "PlayerLanding"
-	FileTypePlayerGameLog   = "PlayerGameLog"
-	FileTypeYahooPlayer     = "YahooPlayer"
-	FileTypeGameKey         = "GameKey"
-	FileTypeUnknown         = "Unknown"
-	FileTypeEdge            = "Edge"
+	FileTypeDailySchedule          = "DailySchedule"
+	FileTypeBoxscore               = "Boxscore"
+	FileTypePlayByPlay             = "PlayByPlay"
+	FileTypeShiftChart             = "ShiftChart"
+	FileTypeGameStory              = "GameStory"
+	FileTypeFranchises             = "Franchises"
+	FileTypeSeasonsManifest        = "SeasonsManifest"
+	FileTypeSeasonStandings        = "SeasonStandings"
+	FileTypeLeague                 = "League"
+	FileTypeTeam                   = "Team"
+	FileTypeRoster                 = "Roster"
+	FileTypeTeamSummary            = "TeamSummary"
+	FileTypePlayerLanding          = "PlayerLanding"
+	FileTypePlayerGameLog          = "PlayerGameLog"
+	FileTypeYahooPlayer            = "YahooPlayer"
+	FileTypeGameKey                = "GameKey"
+	FileTypeUnknown                = "Unknown"
+	FileTypeEdge                   = "Edge"
+	FileTypePlayerHeadshot         = "PlayerHeadshot"
+	FileTypePlayerHeroImage        = "PlayerHeroImage"
+	FileTypePlayerYahooImageSmall  = "PlayerYahooImageSmall"
+	FileTypePlayerYahooImageMedium = "PlayerYahooImageMedium"
+	FileTypePlayerYahooImageLarge  = "PlayerYahooImageLarge"
+	FileTypeTeamLogo               = "TeamLogo"
+	FileTypeYahooTeamLogo          = "YahooTeamLogo"
+	FileTypeYahooLeagueLogo        = "YahooLeagueLogo"
+	FileTypeYahooManagerImage      = "YahooManagerImage"
 )
 
 // YahooPlayerID is the unique identifier Yahoo assigns to a player.
@@ -41,4 +50,3 @@ type MissingPlayerLandingData struct {
 	LastName  string `json:"last_name"`
 	Position  string `json:"position"`
 }
-

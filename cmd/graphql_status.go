@@ -113,3 +113,12 @@ func (c *GraphQLClient) GetImportEdgeStatsStatus(ctx context.Context) (*Workflow
 		`query { importEdgeStatsResult `+resultFields+` importEdgeStatsProgress `+progressReportFields+` }`,
 		"importEdgeStatsResult", "importEdgeStatsProgress")
 }
+
+// GetFetchAssetsStatus queries both workflow result and progress for the
+// parent FetchAssetsWorkflow. Per-class child workflow progress is merged
+// server-side via each bar's ProgressSourceKey.
+func (c *GraphQLClient) GetFetchAssetsStatus(ctx context.Context) (*WorkflowStatus, error) {
+	return c.executeProgressReportQuery(ctx,
+		`query { fetchAssetsResult `+resultFields+` fetchAssetsProgress `+progressReportFields+` }`,
+		"fetchAssetsResult", "fetchAssetsProgress")
+}

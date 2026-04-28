@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
@@ -16,6 +16,7 @@ import (
 	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/temporal"
 	"github.com/sperano/puckdb/worker/admin"
+	"github.com/sperano/puckdb/worker/asset"
 	worknhl "github.com/sperano/puckdb/worker/nhl"
 	workplayer "github.com/sperano/puckdb/worker/player"
 	"github.com/sperano/puckdb/worker/shared"
@@ -49,6 +50,7 @@ func cmdWorker() *cobra.Command {
 				&config.PlayerLandingFlags,
 				&config.ProcessPlayersFlags,
 				&config.PlayerLogsFlags,
+				&config.AssetFlags,
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -67,11 +69,22 @@ func cmdWorker() *cobra.Command {
 				return fmt.Errorf("invalid queue type %q: must be 'tasks' or 'admin'", queueType)
 			}
 
-			// errCh receives the first fatal error from either the metrics server
-			// or the Temporal worker. Whichever dies first terminates the command,
-			// so a port-bind failure in the metrics server doesn't leave a worker
-			// running behind a dead /metrics and /health.
-			errCh := make(chan error, 2)
+			// errCh receives the first fatal error from any goroutine (metrics
+			// server, main Temporal worker, asset worker if in tasks mode).
+			// Whichever dies first terminates the command, so a port-bind failure
+			// in the metrics server doesn't leave a worker running behind a dead
+			// /metrics and /health. Capacity must match goroutine count up front;
+			// reassignment after spawning the metrics goroutine would orphan its
+			// error channel.
+			const (
+				errChCapAdmin = 2 // metrics + main worker
+				errChCapTasks = 3 // metrics + main worker + asset worker
+			)
+			errChCap := errChCapAdmin
+			if queueType == "tasks" {
+				errChCap = errChCapTasks
+			}
+			errCh := make(chan error, errChCap)
 
 			// Start metrics HTTP server (health check verifies JuiceFS mount).
 			// cmd.Context() carries the cobra-wired SIGINT/SIGTERM signal so the
@@ -130,6 +143,24 @@ func cmdWorker() *cobra.Command {
 				if err := registerTasksActivities(w, pool, redisClient); err != nil {
 					return err
 				}
+
+				// Asset worker: separate task queue so asset downloads cannot
+				// starve the main puckdb-tasks queue (architectural delta 4).
+				aw := worker.New(tclient, shared.TaskQueueAssets, worker.Options{
+					MaxConcurrentWorkflowTaskPollers:       viper.GetInt(config.FlagWorkerMaxWorkflowPollers),
+					MaxConcurrentActivityTaskPollers:       viper.GetInt(config.FlagWorkerMaxActivityPollers),
+					MaxConcurrentWorkflowTaskExecutionSize: viper.GetInt(config.FlagWorkerMaxWorkflowExecution),
+					MaxConcurrentActivityExecutionSize:     viper.GetInt(config.FlagWorkerMaxActivityExecution),
+				})
+				queries := sqlcdb.New(pool)
+				registerAssetWorkflows(aw)
+				registerAssetActivities(aw, queries)
+				registerProgressActivities(aw, redisClient)
+
+				fmt.Printf("Starting asset worker on queue %q\n", shared.TaskQueueAssets)
+				go func() {
+					errCh <- aw.Run(worker.InterruptCh())
+				}()
 			}
 
 			fmt.Printf("Starting worker on queue %q\n", queueName)
@@ -157,6 +188,7 @@ func cmdWorker() *cobra.Command {
 		&config.PlayerLandingFlags,
 		&config.ProcessPlayersFlags,
 		&config.PlayerLogsFlags,
+		&config.AssetFlags,
 	)
 	return cmd
 }
@@ -200,12 +232,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 
 	yahooDownloader := shared.NewYahooDownloader(redisClient)
 
-	// Progress report activities share a single Redis client so the high-frequency
-	// Save/Load calls from workflows don't churn through connection pools.
-	progressActivities := &shared.ProgressActivities{RedisClient: redisClient}
-	w.RegisterActivity(progressActivities.Save)
-	w.RegisterActivity(progressActivities.Load)
-	w.RegisterActivity(progressActivities.DeleteBatch)
+	registerProgressActivities(w, redisClient)
 
 	// Yahoo fetch activities
 	fetchYahooActivities := &yahoo.FetchActivities{
@@ -343,4 +370,74 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	w.RegisterActivity(playerActivities.CleanupYahooIDPoolData)
 
 	return nil
+}
+
+// registerAssetWorkflows registers all asset download workflows on the given
+// worker (expected to be polling shared.TaskQueueAssets). The generic
+// FetchAssetsClassWorkflow is intentionally not registered: it is invoked as a
+// regular Go function from the nine entry-point wrappers, never via
+// ExecuteChildWorkflow, so Temporal does not need to resolve it by name.
+func registerAssetWorkflows(w worker.Worker) {
+	// Parent: orchestrates the nine class children
+	w.RegisterWorkflow(workflow.FetchAssetsWorkflow)
+
+	// Nine entry-point wrappers — each is a distinct workflow type in the Temporal UI
+	w.RegisterWorkflow(workflow.FetchPlayerHeadshotsWorkflow)
+	w.RegisterWorkflow(workflow.FetchPlayerHeroImagesWorkflow)
+	w.RegisterWorkflow(workflow.FetchPlayerYahooImagesSmallWorkflow)
+	w.RegisterWorkflow(workflow.FetchPlayerYahooImagesMediumWorkflow)
+	w.RegisterWorkflow(workflow.FetchPlayerYahooImagesLargeWorkflow)
+	w.RegisterWorkflow(workflow.FetchTeamLogosWorkflow)
+	w.RegisterWorkflow(workflow.FetchYahooTeamLogosWorkflow)
+	w.RegisterWorkflow(workflow.FetchYahooLeagueLogosWorkflow)
+	w.RegisterWorkflow(workflow.FetchYahooManagerImagesWorkflow)
+}
+
+// registerProgressActivities registers the ProgressReport Save/Load/DeleteBatch
+// local activities on the given worker. Every worker that runs a workflow
+// invoking shared.InitTracker (or any other progress-tracker call) needs these
+// registered, otherwise local-activity dispatch falls through to the typed-nil
+// receiver baked into the call site and panics on a.RedisClient.
+func registerProgressActivities(w worker.Worker, redisClient *redis.Client) {
+	progressActivities := &shared.ProgressActivities{RedisClient: redisClient}
+	w.RegisterActivity(progressActivities.Save)
+	w.RegisterActivity(progressActivities.Load)
+	w.RegisterActivity(progressActivities.DeleteBatch)
+}
+
+// registerAssetActivities registers all asset download and query activities on
+// the given worker.
+func registerAssetActivities(w worker.Worker, queries *sqlcdb.Queries) {
+	storage := store.NewDefaultStorage()
+	assetActivities := &asset.Activities{
+		Storage:  storage,
+		Download: asset.NewDownloader(),
+		Queries:  queries,
+	}
+
+	// Download activity
+	w.RegisterActivity(assetActivities.FetchAssetBatch)
+
+	// Query (loader) activities — one per asset class
+	w.RegisterActivity(assetActivities.LoadPlayerHeadshotAssets)
+	w.RegisterActivity(assetActivities.LoadPlayerHeroImageAssets)
+	w.RegisterActivity(assetActivities.LoadPlayerYahooImageSmallAssets)
+	w.RegisterActivity(assetActivities.LoadPlayerYahooImageMediumAssets)
+	w.RegisterActivity(assetActivities.LoadPlayerYahooImageLargeAssets)
+	w.RegisterActivity(assetActivities.LoadTeamLogoAssets)
+	w.RegisterActivity(assetActivities.LoadYahooTeamLogoAssets)
+	w.RegisterActivity(assetActivities.LoadYahooLeagueLogoAssets)
+	w.RegisterActivity(assetActivities.LoadYahooManagerImageAssets)
+
+	// Count activities — one per asset class. Used by the parent
+	// FetchAssetsWorkflow to size its progress bars before dispatch.
+	w.RegisterActivity(assetActivities.CountPlayerHeadshotAssets)
+	w.RegisterActivity(assetActivities.CountPlayerHeroImageAssets)
+	w.RegisterActivity(assetActivities.CountPlayerYahooImageSmallAssets)
+	w.RegisterActivity(assetActivities.CountPlayerYahooImageMediumAssets)
+	w.RegisterActivity(assetActivities.CountPlayerYahooImageLargeAssets)
+	w.RegisterActivity(assetActivities.CountTeamLogoAssets)
+	w.RegisterActivity(assetActivities.CountYahooTeamLogoAssets)
+	w.RegisterActivity(assetActivities.CountYahooLeagueLogoAssets)
+	w.RegisterActivity(assetActivities.CountYahooManagerImageAssets)
 }

@@ -166,4 +166,5 @@ const (
 	workflowImportPlayerLogs
 	workflowFetchEdgeStats
 	workflowImportEdgeStats
+	workflowFetchAssets
 )

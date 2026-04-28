@@ -151,7 +151,7 @@ Replaced free-text and integer-coded columns with 15 PostgreSQL `CREATE TYPE ...
 
 During the main audit, only `puckdb/CLAUDE.md` was checked. The following likely have similar drift:
 
-- `~/code/workspaces/puckdb/nhl-api-go/CLAUDE.md`
+- `~/code/puckdb-project/ws/nhl-api-go/CLAUDE.md`
 - `~/code/hollingsworth/CLAUDE.md`
 
 **Action:** Audit both against their respective repos — same methodology (walk the actual code and config, diff against documented claims).

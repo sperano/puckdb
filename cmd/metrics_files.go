@@ -84,6 +84,8 @@ func classifyFileType(dataPath, filePath, filename string) string {
 		return store.FileTypeYahooPlayer
 	case "game-keys":
 		return store.FileTypeGameKey
+	case "assets":
+		return classifyAssetFile(parts, filename)
 	case "nhl":
 		// nhl/franchises.json
 		if filename == "franchises" {
@@ -130,5 +132,51 @@ func classifyFileType(dataPath, filePath, filename string) string {
 		return store.FileTypeRoster
 	}
 
+	return store.FileTypeUnknown
+}
+
+// classifyAssetFile classifies files under the top-level assets/ directory.
+//
+// The path layouts here are duplicated from worker/asset/path_builders.go and
+// must be kept in sync — the workflow writes files using the builder, this
+// function reads them back via path inspection. A drift will silently
+// reclassify newly-stored asset files as Unknown.
+//
+// Filename prefixes within each subtree are pairwise-disjoint, so the case
+// ordering does not affect correctness.
+func classifyAssetFile(parts []string, filename string) string {
+	if len(parts) < 2 {
+		return store.FileTypeUnknown
+	}
+	switch parts[1] {
+	case "players":
+		switch {
+		case strings.HasPrefix(filename, "headshot."):
+			return store.FileTypePlayerHeadshot
+		case strings.HasPrefix(filename, "hero."):
+			return store.FileTypePlayerHeroImage
+		case strings.HasPrefix(filename, "yahoo-small."):
+			return store.FileTypePlayerYahooImageSmall
+		case strings.HasPrefix(filename, "yahoo-medium."):
+			return store.FileTypePlayerYahooImageMedium
+		case strings.HasPrefix(filename, "yahoo-large."):
+			return store.FileTypePlayerYahooImageLarge
+		}
+	case "teams":
+		if len(parts) >= 3 && parts[2] == "logos" {
+			return store.FileTypeTeamLogo
+		}
+	case "yahoo":
+		if len(parts) >= 3 && parts[2] == "leagues" {
+			switch {
+			case strings.HasPrefix(filename, "league-logo."):
+				return store.FileTypeYahooLeagueLogo
+			case strings.HasPrefix(filename, "manager-"):
+				return store.FileTypeYahooManagerImage
+			case strings.HasPrefix(filename, "logo."):
+				return store.FileTypeYahooTeamLogo
+			}
+		}
+	}
 	return store.FileTypeUnknown
 }

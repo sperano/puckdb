@@ -88,3 +88,19 @@ SELECT DISTINCT division_name, division_abbrev, conference_name, conference_abbr
 FROM season_teams
 WHERE season = $1
 ORDER BY conference_name, division_name;
+
+-- name: ListTeamLogos :many
+-- DISTINCT ON (team_id) with ORDER BY team_id, season DESC picks the latest-season
+-- URL per team. Path layout is assets/teams/logos/<team_id>.<ext> (no per-season
+-- nesting), so we want the newest URL to write.
+SELECT DISTINCT ON (team_id) team_id, logo_url
+FROM season_teams
+WHERE logo_url IS NOT NULL AND logo_url <> ''
+ORDER BY team_id, season DESC;
+
+-- name: CountTeamLogos :one
+-- Distinct teams that have at least one season with a non-empty logo URL.
+-- Matches the cardinality of ListTeamLogos so the parent's progress bar Total
+-- aligns with the rows the loader produces.
+SELECT COUNT(DISTINCT team_id) FROM season_teams
+WHERE logo_url IS NOT NULL AND logo_url <> '';

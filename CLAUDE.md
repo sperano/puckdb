@@ -6,7 +6,7 @@ Go application that imports NHL hockey data and Yahoo Fantasy Sports data. Downl
 
 ### Build
 ```bash
-cd /Users/eric/code/workspaces/puckdb/puckdb && go build -o /tmp/puckdb .
+cd /Users/eric/code/puckdb-project/ws/puckdb && go build -o /tmp/puckdb .
 ```
 > **Note:** Always `cd` into the module directory before `go build`. The `-C` flag doesn't work reliably outside a module context.
 

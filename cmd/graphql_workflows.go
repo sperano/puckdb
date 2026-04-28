@@ -162,3 +162,16 @@ func (c *GraphQLClient) ImportEdgeStats(ctx context.Context, input *model.Season
 func (c *GraphQLClient) CancelImportEdgeStats(ctx context.Context) (bool, error) {
 	return c.executeBoolMutation(ctx, `mutation { cancelImportEdgeStats }`, "cancelImportEdgeStats", nil)
 }
+
+// FetchAssets triggers the fetchAssets mutation.
+func (c *GraphQLClient) FetchAssets(ctx context.Context, input *model.FetchAssetsInput) (bool, error) {
+	return c.executeBoolMutation(ctx,
+		`mutation($input: FetchAssetsInput) { fetchAssets(input: $input) }`,
+		"fetchAssets",
+		map[string]any{"input": input})
+}
+
+// CancelFetchAssets cancels the fetchAssets workflow.
+func (c *GraphQLClient) CancelFetchAssets(ctx context.Context) (bool, error) {
+	return c.executeBoolMutation(ctx, `mutation { cancelFetchAssets }`, "cancelFetchAssets", nil)
+}

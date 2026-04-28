@@ -109,6 +109,12 @@ SELECT COUNT(*) FROM yahoo_leagues WHERE season = $1;
 -- name: DeleteYahooLeague :exec
 DELETE FROM yahoo_leagues WHERE id = $1;
 
+-- name: ListYahooLeagueLogos :many
+SELECT id, logo_url FROM yahoo_leagues WHERE logo_url <> '' ORDER BY id;
+
+-- name: CountYahooLeagueLogos :one
+SELECT COUNT(*) FROM yahoo_leagues WHERE logo_url <> '';
+
 -- =============================================================================
 -- Yahoo League Roster Positions
 -- =============================================================================
@@ -233,6 +239,12 @@ WHERE (yahoo_teams.team_key, yahoo_teams.name, yahoo_teams.url,
        EXCLUDED.waiver_priority, EXCLUDED.number_of_moves,
        EXCLUDED.number_of_trades, EXCLUDED.is_owned_by_current_login);
 
+-- name: ListYahooTeamLogos :many
+SELECT league_id, id, logo_url FROM yahoo_teams WHERE logo_url <> '' ORDER BY league_id, id;
+
+-- name: CountYahooTeamLogos :one
+SELECT COUNT(*) FROM yahoo_teams WHERE logo_url <> '';
+
 -- =============================================================================
 -- Yahoo Team Managers
 -- =============================================================================
@@ -275,3 +287,9 @@ WHERE (yahoo_team_managers.nickname, yahoo_team_managers.guid,
        EXCLUDED.email, EXCLUDED.image_url,
        EXCLUDED.felo_score, EXCLUDED.felo_tier,
        EXCLUDED.is_current_login, EXCLUDED.is_commissioner);
+
+-- name: ListYahooManagerImages :many
+SELECT league_id, team_id, id, image_url FROM yahoo_team_managers WHERE image_url <> '' ORDER BY league_id, team_id, id;
+
+-- name: CountYahooManagerImages :one
+SELECT COUNT(*) FROM yahoo_team_managers WHERE image_url <> '';

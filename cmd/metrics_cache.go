@@ -4,19 +4,27 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/resource"
+	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/store"
+	"github.com/sperano/puckdb/worker/asset"
 	"github.com/spf13/viper"
 )
+
+// cacheMetricsSeasonAll is the seasonYear sentinel for season-independent
+// metrics (e.g., asset caches). Real NHL season years are >= 1917, so 0 is
+// unambiguous. seasonLabel renders this as "all".
+const cacheMetricsSeasonAll = 0
 
 // cacheMetrics holds statistics for a single file type within a season
 type cacheMetrics struct {
@@ -31,6 +39,17 @@ func (s cacheMetrics) percentage() float64 {
 		return 0
 	}
 	return float64(s.found) / float64(s.expected) * 100
+}
+
+// seasonLabel returns the Prometheus season label for this metric. The
+// cacheMetricsSeasonAll sentinel renders as cacheSeasonLabelAll so
+// season-independent gauges (asset caches) remain distinguishable from real
+// season years.
+func (s cacheMetrics) seasonLabel() string {
+	if s.seasonYear == cacheMetricsSeasonAll {
+		return cacheSeasonLabelAll
+	}
+	return strconv.Itoa(s.seasonYear)
 }
 
 type seasonResult struct {
@@ -97,8 +116,13 @@ func fetchSeasonsFromNHL(ctx context.Context) ([]simpleSeason, error) {
 // just adds context-switch overhead without increasing throughput.
 const cacheCollectorWorkers = 4
 
-// getAllMetrics gathers cache statistics for all seasons using a bounded worker pool.
-func getAllMetrics(ctx context.Context, redisClient *redis.Client) ([]cacheMetrics, error) {
+// getAllMetrics gathers cache statistics for all seasons using a bounded worker
+// pool, plus the season-independent asset cache aggregates. queries may be nil:
+// when nil, asset cache metrics are skipped (the rest of the per-season scan
+// still runs). A non-nil queries means a Postgres outage during this tick will
+// surface as an error from checkAssetCache and abort the whole computation —
+// accepted regression per plan v2 option (a).
+func getAllMetrics(ctx context.Context, redisClient *redis.Client, queries *sqlcdb.Queries) ([]cacheMetrics, error) {
 	if viper.GetString(config.FlagDataPath) == "" {
 		return nil, fmt.Errorf("data-path is required")
 	}
@@ -159,7 +183,87 @@ func getAllMetrics(ctx context.Context, redisClient *redis.Client) ([]cacheMetri
 		}
 		allMetrics = append(allMetrics, result.stats...)
 	}
+
+	// Asset caches are season-independent and live outside the per-season worker
+	// loop. Skipped entirely when queries is nil so the metrics command can run
+	// without a database connection during local development.
+	if queries != nil {
+		assetMetrics, err := checkAssetCache(ctx, store.NewDefaultStorage(), newAssetCacheClasses(queries))
+		if err != nil {
+			return nil, err
+		}
+		allMetrics = append(allMetrics, assetMetrics...)
+	}
+
 	return allMetrics, nil
+}
+
+// assetCacheClass binds an asset class to its FileType label and the loader
+// that produces the row set used to compute (expected, found). The loader is a
+// plain function so tests can stub it without needing a *sqlcdb.Queries mock.
+type assetCacheClass struct {
+	fileType string
+	load     func(context.Context) ([]asset.Asset, error)
+}
+
+// newAssetCacheClasses builds the production class list from a sqlc Queries
+// instance. Each entry's load delegates to the corresponding asset.Activities
+// loader, which already handles SQL filtering and Asset construction.
+func newAssetCacheClasses(queries *sqlcdb.Queries) []assetCacheClass {
+	acts := &asset.Activities{Queries: queries}
+	return []assetCacheClass{
+		{store.FileTypePlayerHeadshot, acts.LoadPlayerHeadshotAssets},
+		{store.FileTypePlayerHeroImage, acts.LoadPlayerHeroImageAssets},
+		{store.FileTypePlayerYahooImageSmall, acts.LoadPlayerYahooImageSmallAssets},
+		{store.FileTypePlayerYahooImageMedium, acts.LoadPlayerYahooImageMediumAssets},
+		{store.FileTypePlayerYahooImageLarge, acts.LoadPlayerYahooImageLargeAssets},
+		{store.FileTypeTeamLogo, acts.LoadTeamLogoAssets},
+		{store.FileTypeYahooTeamLogo, acts.LoadYahooTeamLogoAssets},
+		{store.FileTypeYahooLeagueLogo, acts.LoadYahooLeagueLogoAssets},
+		{store.FileTypeYahooManagerImage, acts.LoadYahooManagerImageAssets},
+	}
+}
+
+// checkAssetCache produces one cacheMetrics entry per asset class. expected is
+// the number of rows the loader returns (== rows the workflow would download);
+// found is how many of those local cache files already exist on disk. A loader
+// error aborts the whole report rather than leaking partial counts that would
+// be indistinguishable from a real cache shortfall.
+func checkAssetCache(ctx context.Context, storage store.Storage, classes []assetCacheClass) ([]cacheMetrics, error) {
+	out := make([]cacheMetrics, 0, len(classes))
+	for _, c := range classes {
+		assets, err := c.load(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("load %s: %w", c.fileType, err)
+		}
+		found := 0
+		for _, a := range assets {
+			// Honor cancellation between rows. With ~10K rows per class and
+			// FUSE-serialized metadata ops, a full scan can take minutes; a
+			// SIGTERM during shutdown should not be ignored that long.
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			p, err := a.Path()
+			if err != nil {
+				// Per-row data issue (bad URL extension, arity mismatch). Log
+				// and skip; the row counts as not-found via the unchanged
+				// expected total.
+				log.Warn().Err(err).Str("file_type", c.fileType).Str("url", a.URL).Msg("Asset path computation failed")
+				continue
+			}
+			if storage.Exists(ctx, p) {
+				found++
+			}
+		}
+		out = append(out, cacheMetrics{
+			seasonYear: cacheMetricsSeasonAll,
+			fileType:   c.fileType,
+			expected:   len(assets),
+			found:      found,
+		})
+	}
+	return out, nil
 }
 
 // checkNHLSeasonCache checks NHL API files (daily schedule, boxscores, play-by-play, shift charts)

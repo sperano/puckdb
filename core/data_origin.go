@@ -19,6 +19,8 @@ const (
 	OriginFileSystem
 	OriginMemFileSystem
 	OriginRedis
+	OriginRemoteNHLCDN
+	OriginRemoteYahooCDN
 )
 
 var originNames = [...]string{
@@ -28,6 +30,8 @@ var originNames = [...]string{
 	OriginFileSystem:     "FileSystem",
 	OriginMemFileSystem:  "MemFileSystem",
 	OriginRedis:          "Redis",
+	OriginRemoteNHLCDN:   "RemoteNHLCDN",
+	OriginRemoteYahooCDN: "RemoteYahooCDN",
 }
 
 // String returns the string representation of the DataOrigin.

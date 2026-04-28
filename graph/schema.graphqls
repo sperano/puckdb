@@ -145,6 +145,9 @@ type Query {
 	importEdgeStatsResult: WorkflowResult!
 	importEdgeStatsProgress: ProgressReport
 
+	fetchAssetsResult: WorkflowResult!
+	fetchAssetsProgress: ProgressReport
+
 	# Maurice AI chat
 	mauriceConversations(limit: Int): [MauriceConversation!]!
 	mauriceConversation(id: String!): MauriceConversationDetail
@@ -171,6 +174,15 @@ input ProcessPlayersInput {
 input FetchPlayerLandingsInput {
 	batchSize: Int
 	concurrency: Int
+}
+
+input FetchAssetsInput {
+	"""How many asset batches run in parallel inside each class workflow. Falls back to the worker's configured default when unset."""
+	classConcurrency: Int
+	"""How many of the nine class workflows run in parallel. Falls back to the worker's configured default when unset."""
+	maxClassConcurrency: Int
+	"""Re-download every asset, ignoring already-cached files."""
+	refreshCurrent: Boolean
 }
 
 type Mutation {
@@ -202,6 +214,8 @@ type Mutation {
 	cancelFetchEdgeStats: Boolean!
 	importEdgeStats(input: SeasonsInput): Boolean!
 	cancelImportEdgeStats: Boolean!
+	fetchAssets(input: FetchAssetsInput): Boolean!
+	cancelFetchAssets: Boolean!
 
 	# Maurice AI chat
 	mauriceChat(conversationId: String, message: String!): MauriceChatResponse!

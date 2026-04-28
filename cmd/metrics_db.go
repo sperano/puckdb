@@ -6,20 +6,13 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
 )
 
-// runDatabaseCollector periodically collects database table row counts
-func runDatabaseCollector(ctx context.Context, interval time.Duration) {
+// runDatabaseCollector periodically collects database table row counts. The
+// pool is owned by runMetrics and shared with runCacheCollector.
+func runDatabaseCollector(ctx context.Context, interval time.Duration, pool *pgxpool.Pool) {
 	log.Info().Dur("interval", interval).Msg("Starting database collector")
-
-	pool, err := database.OpenPGXPool(ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to open database for metrics collector")
-		return
-	}
-	defer pool.Close()
 
 	// Collect immediately on startup
 	collectDatabaseMetrics(ctx, pool)

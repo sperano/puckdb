@@ -142,6 +142,16 @@ func (r *mutationResolver) CancelImportEdgeStats(ctx context.Context) (bool, err
 	return r.Resolver.cancelImportEdgeStats(ctx)
 }
 
+// FetchAssets is the resolver for the fetchAssets field.
+func (r *mutationResolver) FetchAssets(ctx context.Context, input *model.FetchAssetsInput) (bool, error) {
+	return r.Resolver.fetchAssets(ctx, input)
+}
+
+// CancelFetchAssets is the resolver for the cancelFetchAssets field.
+func (r *mutationResolver) CancelFetchAssets(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelFetchAssets(ctx)
+}
+
 // MauriceChat is the resolver for the mauriceChat field.
 func (r *mutationResolver) MauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error) {
 	return r.Resolver.mauriceChat(ctx, conversationID, message)
@@ -276,6 +286,16 @@ func (r *queryResolver) ImportEdgeStatsResult(ctx context.Context) (*model.Workf
 // ImportEdgeStatsProgress is the resolver for the importEdgeStatsProgress field.
 func (r *queryResolver) ImportEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.importEdgeStatsProgress(ctx)
+}
+
+// FetchAssetsResult is the resolver for the fetchAssetsResult field.
+func (r *queryResolver) FetchAssetsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.fetchAssetsResult(ctx)
+}
+
+// FetchAssetsProgress is the resolver for the fetchAssetsProgress field.
+func (r *queryResolver) FetchAssetsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.Resolver.fetchAssetsProgress(ctx)
 }
 
 // MauriceConversations is the resolver for the mauriceConversations field.

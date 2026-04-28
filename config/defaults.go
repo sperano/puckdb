@@ -50,9 +50,9 @@ const (
 
 // Download concurrency defaults
 const (
-	DefaultMaxSeasonConcurrency     = 10
-	DefaultDayConcurrency           = 20
-	DefaultGameDownloadConcurrency  = 8
+	DefaultMaxSeasonConcurrency    = 10
+	DefaultDayConcurrency          = 20
+	DefaultGameDownloadConcurrency = 8
 )
 
 // Yahoo player download defaults
@@ -73,6 +73,22 @@ const (
 	DefaultPlayerLandingPlayersPerExec = 2000 // Players before ContinueAsNew
 )
 
+// Asset download defaults
+const (
+	// DefaultAssetClassConcurrency is the number of FetchAssetBatch activities
+	// that run concurrently within one asset class child workflow.
+	DefaultAssetClassConcurrency = 16
+
+	// DefaultMaxAssetClassConcurrency is the number of asset class child
+	// workflows the parent FetchAssetsWorkflow runs concurrently (Phase 4).
+	DefaultMaxAssetClassConcurrency = 3
+
+	// DefaultAssetBatchSize is the number of assets processed per FetchAssetBatch
+	// activity. Kept in sync with worker/asset.DefaultAssetBatchSize; defined here
+	// to avoid importing worker/asset from the config package.
+	DefaultAssetBatchSize = 100
+)
+
 // Process players workflow defaults
 const (
 	DefaultProcessPlayersConcurrency = 10 // Concurrent batch activities
@@ -87,9 +103,9 @@ const (
 
 // Cache defaults
 const (
-	DefaultGobCacheTTL                = 60
-	DefaultGobCacheConfig             = "" // empty = no per-type config, use flat TTL
-	DefaultBoxscorePlayerCacheTTL     = 60
+	DefaultGobCacheTTL             = 60
+	DefaultGobCacheConfig          = "" // empty = no per-type config, use flat TTL
+	DefaultBoxscorePlayerCacheTTL  = 60
 	DefaultSeasonsManifestStaleTTL = 24 * time.Hour // Filesystem staleness
 )
 
@@ -129,7 +145,7 @@ const (
 	DefaultWorkflowStartupDelay = 500 * time.Millisecond
 	DefaultWorkflowPollInterval = 2 * time.Second
 	MaxWorkflowPollBackoff      = 30 * time.Second
-	MaxConsecutiveQueryFailures  = 10
+	MaxConsecutiveQueryFailures = 10
 )
 
 // UI defaults
@@ -191,7 +207,6 @@ const (
 	DateFormat = "2006-01-02"
 )
 
-
 // File system constants
 const (
 	DirPermOwnerRWX = 0700 // Owner read/write/execute only
@@ -199,11 +214,11 @@ const (
 
 // Maurice AI chat defaults
 const (
-	DefaultOllamaBaseURL    = "http://localhost:11434/v1"
-	DefaultMauriceModel      = "llama3.1:8b"
-	DefaultMauriceConfig     = "" // empty = ~/.puckdb/maurice.yaml
-	DefaultMauriceMaxTokens  = 4096
-	DefaultMauriceMaxHistory   = 50
+	DefaultOllamaBaseURL        = "http://localhost:11434/v1"
+	DefaultMauriceModel         = "llama3.1:8b"
+	DefaultMauriceConfig        = "" // empty = ~/.puckdb/maurice.yaml
+	DefaultMauriceMaxTokens     = 4096
+	DefaultMauriceMaxHistory    = 50
 	DefaultMauriceMaxToolRounds = 10
 )
 

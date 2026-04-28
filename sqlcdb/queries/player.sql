@@ -211,3 +211,33 @@ SELECT COUNT(*) FROM players WHERE is_active = TRUE;
 
 -- name: DeletePlayer :exec
 DELETE FROM players WHERE id = $1;
+
+-- name: ListPlayerHeadshots :many
+SELECT id, headshot_url FROM players WHERE headshot_url <> '' ORDER BY id;
+
+-- name: CountPlayerHeadshots :one
+SELECT COUNT(*) FROM players WHERE headshot_url <> '';
+
+-- name: ListPlayerHeroImages :many
+SELECT id, hero_image_url FROM players WHERE hero_image_url IS NOT NULL AND hero_image_url <> '' ORDER BY id;
+
+-- name: CountPlayerHeroImages :one
+SELECT COUNT(*) FROM players WHERE hero_image_url IS NOT NULL AND hero_image_url <> '';
+
+-- name: ListPlayerYahooImagesSmall :many
+SELECT id, yahoo_image_small FROM players WHERE yahoo_image_small <> '' ORDER BY id;
+
+-- name: CountPlayerYahooImagesSmall :one
+SELECT COUNT(*) FROM players WHERE yahoo_image_small <> '';
+
+-- name: ListPlayerYahooImagesMedium :many
+SELECT id, yahoo_image_medium FROM players WHERE yahoo_image_medium <> '' ORDER BY id;
+
+-- name: CountPlayerYahooImagesMedium :one
+SELECT COUNT(*) FROM players WHERE yahoo_image_medium <> '';
+
+-- name: ListPlayerYahooImagesLarge :many
+SELECT id, yahoo_image_large FROM players WHERE yahoo_image_large <> '' ORDER BY id;
+
+-- name: CountPlayerYahooImagesLarge :one
+SELECT COUNT(*) FROM players WHERE yahoo_image_large <> '';

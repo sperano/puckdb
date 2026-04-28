@@ -180,6 +180,22 @@ const (
 	FlagPlayerLandingPlayersPerExec = "player-landing-players-per-exec"
 )
 
+// Asset download flags
+const (
+	// FlagAssetClassConcurrency controls how many asset batches run concurrently
+	// within a single asset class child workflow (analogous to FlagPlayerLandingConcurrency).
+	FlagAssetClassConcurrency = "asset-class-concurrency"
+
+	// FlagMaxAssetClassConcurrency controls how many asset class child workflows
+	// the parent FetchAssetsWorkflow runs concurrently (Phase 4, analogous to
+	// FlagMaxPlayerLandingConcurrency).
+	FlagMaxAssetClassConcurrency = "max-asset-class-concurrency"
+
+	// FlagAssetBatchSize controls how many assets are processed per
+	// FetchAssetBatch activity invocation.
+	FlagAssetBatchSize = "asset-batch-size"
+)
+
 // Process players workflow flags
 const (
 	FlagProcessPlayersConcurrency = "process-players-concurrency"
@@ -231,13 +247,13 @@ const (
 
 // Maurice AI chat flags
 const (
-	FlagMauriceConfig     = "maurice-config"
-	FlagMauriceMaxTokens  = "maurice-max-tokens"
+	FlagMauriceConfig        = "maurice-config"
+	FlagMauriceMaxTokens     = "maurice-max-tokens"
 	FlagMauriceMaxHistory    = "maurice-max-history"
 	FlagMauriceMaxToolRounds = "maurice-max-tool-rounds"
-	FlagOllamaBaseURL     = "ollama-base-url"
-	FlagAnthropicAPIKey   = "anthropic-api-key"
-	FlagOpenAIAPIKey      = "openai-api-key"
+	FlagOllamaBaseURL        = "ollama-base-url"
+	FlagAnthropicAPIKey      = "anthropic-api-key"
+	FlagOpenAIAPIKey         = "openai-api-key"
 )
 
 // Provisioner flags
@@ -336,6 +352,15 @@ var PlayerLandingFlags = FlagGroup{
 		{FlagMaxPlayerLandingConcurrency, "", DefaultMaxPlayerLandingConcurrency, "Maximum concurrent activities for player landing downloads", false},
 		{FlagPlayerLandingBatchSize, "", DefaultPlayerLandingBatchSize, "Number of players to download per activity", false},
 		{FlagPlayerLandingPlayersPerExec, "", DefaultPlayerLandingPlayersPerExec, "Players to process per workflow execution before ContinueAsNew", false},
+	},
+}
+
+// AssetFlags defines asset download workflow flags.
+var AssetFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagAssetClassConcurrency, "", DefaultAssetClassConcurrency, "Number of concurrent asset batch activities within each class child workflow", false},
+		{FlagMaxAssetClassConcurrency, "", DefaultMaxAssetClassConcurrency, "Maximum concurrent asset class child workflows in the parent fetch-assets workflow", false},
+		{FlagAssetBatchSize, "", DefaultAssetBatchSize, "Number of assets processed per FetchAssetBatch activity", false},
 	},
 }
 

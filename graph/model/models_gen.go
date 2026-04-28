@@ -191,6 +191,15 @@ type EdgeTeamZoneTimeByStrength struct {
 	DzRank       *int     `json:"dzRank,omitempty"`
 }
 
+type FetchAssetsInput struct {
+	// Within-class FetchAssetBatch concurrency override (defaults to FlagAssetClassConcurrency)
+	ClassConcurrency *int `json:"classConcurrency,omitempty"`
+	// Cross-class child workflow concurrency override (defaults to FlagMaxAssetClassConcurrency)
+	MaxClassConcurrency *int `json:"maxClassConcurrency,omitempty"`
+	// Re-download already-cached assets, skipping the Storage.Exists short-circuit
+	RefreshCurrent *bool `json:"refreshCurrent,omitempty"`
+}
+
 type FetchPlayerLandingsInput struct {
 	BatchSize   *int `json:"batchSize,omitempty"`
 	Concurrency *int `json:"concurrency,omitempty"`

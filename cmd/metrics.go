@@ -3,16 +3,29 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+// cacheSeasonLabelAll is the Prometheus season label for season-independent
+// cache metrics (asset caches that don't belong to any single year).
+const cacheSeasonLabelAll = "all"
+
+// cacheSeasonLabelTotal is the Prometheus season label used by the rolled-up
+// "everything across every season" metric pair emitted alongside the per-
+// season gauges.
+const cacheSeasonLabelTotal = "total"
 
 // Local flag name for port (aliased from config.FlagMetricsPort for the metrics command)
 const FlagMetricsPortLocal = "port"
@@ -80,20 +93,35 @@ func runMetrics(cmd *cobra.Command, _ []string) error {
 
 	metrics.SetBuildInfo(config.BuildNumber)
 
-	// Start collectors with independent intervals
-	go runCacheCollector(ctx, cacheInterval)
-	go runRedisCollector(ctx, redisInterval)
-	go runDatabaseCollector(ctx, dbInterval)
+	// Open the Postgres pool once and share it across the cache and database
+	// collectors. The pool is expensive to construct (TLS handshakes,
+	// connection warmup) so creating it per-tick would be wasteful.
+	pool, err := database.OpenPGXPool(ctx)
+	if err != nil {
+		return fmt.Errorf("open database pool: %w", err)
+	}
+
+	// Wait for collectors before closing the pool. Without the join, ctx
+	// cancellation would let the deferred pool.Close fire while a collector
+	// was mid-tick using a connection.
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() { defer wg.Done(); runCacheCollector(ctx, cacheInterval, pool) }()
+	go func() { defer wg.Done(); runRedisCollector(ctx, redisInterval) }()
+	go func() { defer wg.Done(); runDatabaseCollector(ctx, dbInterval, pool) }()
 
 	// Start metrics server (blocks until ctx canceled).
 	addr := fmt.Sprintf(":%d", port)
 	metrics.StartServer(ctx, addr)
+
+	wg.Wait()
+	pool.Close()
 	return nil
 }
 
 // runCacheCollector periodically collects cache file metrics.
 // Uses an atomic flag to prevent overlapping runs when collection takes longer than the interval.
-func runCacheCollector(ctx context.Context, interval time.Duration) {
+func runCacheCollector(ctx context.Context, interval time.Duration, pool *pgxpool.Pool) {
 	log.Info().Dur("interval", interval).Msg("Starting cache collector")
 
 	var running atomic.Bool
@@ -104,7 +132,7 @@ func runCacheCollector(ctx context.Context, interval time.Duration) {
 			return
 		}
 		defer running.Store(false)
-		if err := computeAndUpdateCacheMetrics(ctx); err != nil {
+		if err := computeAndUpdateCacheMetrics(ctx, pool); err != nil {
 			log.Error().Err(err).Msg("Cache metrics computation failed")
 		}
 	}
@@ -124,21 +152,22 @@ func runCacheCollector(ctx context.Context, interval time.Duration) {
 	}
 }
 
-func computeAndUpdateCacheMetrics(ctx context.Context) error {
+func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error {
 	start := time.Now()
 
 	redisClient := cache.NewClient()
 	defer redisClient.Close()
 
-	cacheData, err := getAllMetrics(ctx, redisClient)
+	queries := sqlcdb.New(pool)
+
+	cacheData, err := getAllMetrics(ctx, redisClient, queries)
 	if err != nil {
 		return err
 	}
 
 	// Update Prometheus gauges per season and file type
 	for _, s := range cacheData {
-		season := fmt.Sprintf("%d", s.seasonYear)
-		metrics.SetCacheMetrics(season, s.fileType, s.expected, s.found)
+		metrics.SetCacheMetrics(s.seasonLabel(), s.fileType, s.expected, s.found)
 	}
 
 	// Compute and set totals
@@ -147,7 +176,7 @@ func computeAndUpdateCacheMetrics(ctx context.Context) error {
 		totalExpected += s.expected
 		totalFound += s.found
 	}
-	metrics.SetCacheMetrics("total", "all", totalExpected, totalFound)
+	metrics.SetCacheMetrics(cacheSeasonLabelTotal, cacheSeasonLabelAll, totalExpected, totalFound)
 
 	// Calculate disk usage and file type stats in a single directory walk
 	dataPath := viper.GetString(config.FlagDataPath)

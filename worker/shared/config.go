@@ -88,3 +88,22 @@ var PlayerLogsConcurrencyParam = ConfigIntParam{
 	Flag:    config.FlagPlayerLogsBatchConcurrency,
 	Default: config.DefaultPlayerLogsBatchConcurrency,
 }
+
+// AssetClassConcurrencyParam resolves the within-class concurrency for asset
+// batch activities (how many FetchAssetBatch activities run in parallel inside
+// one FetchAssetsClassWorkflow). No upper cap is configured: the within-class
+// fan-out is limited by the asset CDN's per-host connection pool (see
+// asset.assetMaxIdleConnsPerHost), not by the cross-class parent pool.
+var AssetClassConcurrencyParam = ConfigIntParam{
+	Flag:    config.FlagAssetClassConcurrency,
+	Default: config.DefaultAssetClassConcurrency,
+}
+
+// MaxAssetClassConcurrencyParam resolves how many class child workflows the
+// parent FetchAssetsWorkflow may run concurrently. The flag name reads as a
+// "max" because the parent has nine candidate children and the configured
+// value is the worker-pool size that bounds them.
+var MaxAssetClassConcurrencyParam = ConfigIntParam{
+	Flag:    config.FlagMaxAssetClassConcurrency,
+	Default: config.DefaultMaxAssetClassConcurrency,
+}

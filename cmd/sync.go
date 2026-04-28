@@ -38,6 +38,7 @@ Steps (in execution order):
   import-player-logs         Import player game logs into the database
   fetch-edge-stats           Download Edge tracking data from NHL API
   import-edge-stats          Import Edge tracking data into the database
+  fetch-assets               Cache image assets (player photos, team logos, etc.) to disk
 
 Groups (expand to multiple steps):
   seasons                    fetch-seasons + import-seasons
@@ -200,6 +201,9 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{config.StepImportEdgeStats, workflowImportEdgeStats, "edge stats import",
 			func() (bool, error) { return client.ImportEdgeStats(ctx, buildSeasonsInput()) },
 			client.GetImportEdgeStatsStatus},
+		{config.StepFetchAssets, workflowFetchAssets, "assets fetch",
+			func() (bool, error) { return client.FetchAssets(ctx, nil) },
+			client.GetFetchAssetsStatus},
 	}
 
 	for _, step := range seqSteps {
@@ -463,6 +467,7 @@ func (s *syncState) cancel() {
 		workflowImportPlayerLogs:       {"importPlayerLogs", s.client.CancelImportPlayerLogs},
 		workflowFetchEdgeStats:         {"fetchEdgeStats", s.client.CancelFetchEdgeStats},
 		workflowImportEdgeStats:        {"importEdgeStats", s.client.CancelImportEdgeStats},
+		workflowFetchAssets:            {"fetchAssets", s.client.CancelFetchAssets},
 	}
 
 	for _, wt := range active {

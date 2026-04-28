@@ -342,6 +342,7 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		CancelExtractBoxscorePlayers func(childComplexity int) int
+		CancelFetchAssets            func(childComplexity int) int
 		CancelFetchEdgeStats         func(childComplexity int) int
 		CancelFetchPlayerLandings    func(childComplexity int) int
 		CancelFetchPlayerLogs        func(childComplexity int) int
@@ -356,6 +357,7 @@ type ComplexityRoot struct {
 		CreateDatabase               func(childComplexity int) int
 		DropDatabase                 func(childComplexity int) int
 		ExtractBoxscorePlayers       func(childComplexity int, input *model.SeasonsInput) int
+		FetchAssets                  func(childComplexity int, input *model.FetchAssetsInput) int
 		FetchEdgeStats               func(childComplexity int, input *model.SeasonsInput) int
 		FetchPlayerLandings          func(childComplexity int, input *model.FetchPlayerLandingsInput) int
 		FetchPlayerLogs              func(childComplexity int, input *model.SeasonsInput) int
@@ -455,6 +457,8 @@ type ComplexityRoot struct {
 		EdgeTeamStats                  func(childComplexity int, teamID int, season int, gameType *int) int
 		ExtractBoxscorePlayersProgress func(childComplexity int) int
 		ExtractBoxscorePlayersResult   func(childComplexity int) int
+		FetchAssetsProgress            func(childComplexity int) int
+		FetchAssetsResult              func(childComplexity int) int
 		FetchEdgeStatsProgress         func(childComplexity int) int
 		FetchEdgeStatsResult           func(childComplexity int) int
 		FetchPlayerLandingsProgress    func(childComplexity int) int
@@ -595,6 +599,8 @@ type MutationResolver interface {
 	CancelFetchEdgeStats(ctx context.Context) (bool, error)
 	ImportEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error)
 	CancelImportEdgeStats(ctx context.Context) (bool, error)
+	FetchAssets(ctx context.Context, input *model.FetchAssetsInput) (bool, error)
+	CancelFetchAssets(ctx context.Context) (bool, error)
 	MauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error)
 	MauriceDeleteConversation(ctx context.Context, id string) (bool, error)
 }
@@ -624,6 +630,8 @@ type QueryResolver interface {
 	FetchEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error)
 	ImportEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error)
 	ImportEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error)
+	FetchAssetsResult(ctx context.Context) (*model.WorkflowResult, error)
+	FetchAssetsProgress(ctx context.Context) (*model.ProgressReport, error)
 	MauriceConversations(ctx context.Context, limit *int) ([]*model.MauriceConversation, error)
 	MauriceConversation(ctx context.Context, id string) (*model.MauriceConversationDetail, error)
 	Seasons(ctx context.Context) ([]*model.Season, error)
@@ -2303,6 +2311,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CancelExtractBoxscorePlayers(childComplexity), true
 
+	case "Mutation.cancelFetchAssets":
+		if e.complexity.Mutation.CancelFetchAssets == nil {
+			break
+		}
+
+		return e.complexity.Mutation.CancelFetchAssets(childComplexity), true
+
 	case "Mutation.cancelFetchEdgeStats":
 		if e.complexity.Mutation.CancelFetchEdgeStats == nil {
 			break
@@ -2405,6 +2420,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.ExtractBoxscorePlayers(childComplexity, args["input"].(*model.SeasonsInput)), true
+
+	case "Mutation.fetchAssets":
+		if e.complexity.Mutation.FetchAssets == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_fetchAssets_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.FetchAssets(childComplexity, args["input"].(*model.FetchAssetsInput)), true
 
 	case "Mutation.fetchEdgeStats":
 		if e.complexity.Mutation.FetchEdgeStats == nil {
@@ -3021,6 +3048,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.ExtractBoxscorePlayersResult(childComplexity), true
+
+	case "Query.fetchAssetsProgress":
+		if e.complexity.Query.FetchAssetsProgress == nil {
+			break
+		}
+
+		return e.complexity.Query.FetchAssetsProgress(childComplexity), true
+
+	case "Query.fetchAssetsResult":
+		if e.complexity.Query.FetchAssetsResult == nil {
+			break
+		}
+
+		return e.complexity.Query.FetchAssetsResult(childComplexity), true
 
 	case "Query.fetchEdgeStatsProgress":
 		if e.complexity.Query.FetchEdgeStatsProgress == nil {
@@ -3728,6 +3769,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputFetchAssetsInput,
 		ec.unmarshalInputFetchPlayerLandingsInput,
 		ec.unmarshalInputGameFilter,
 		ec.unmarshalInputPlayerFilter,
@@ -4421,6 +4463,9 @@ type Query {
 	importEdgeStatsResult: WorkflowResult!
 	importEdgeStatsProgress: ProgressReport
 
+	fetchAssetsResult: WorkflowResult!
+	fetchAssetsProgress: ProgressReport
+
 	# Maurice AI chat
 	mauriceConversations(limit: Int): [MauriceConversation!]!
 	mauriceConversation(id: String!): MauriceConversationDetail
@@ -4447,6 +4492,15 @@ input ProcessPlayersInput {
 input FetchPlayerLandingsInput {
 	batchSize: Int
 	concurrency: Int
+}
+
+input FetchAssetsInput {
+	"""Within-class FetchAssetBatch concurrency override (defaults to FlagAssetClassConcurrency)"""
+	classConcurrency: Int
+	"""Cross-class child workflow concurrency override (defaults to FlagMaxAssetClassConcurrency)"""
+	maxClassConcurrency: Int
+	"""Re-download already-cached assets, skipping the Storage.Exists short-circuit"""
+	refreshCurrent: Boolean
 }
 
 type Mutation {
@@ -4478,6 +4532,8 @@ type Mutation {
 	cancelFetchEdgeStats: Boolean!
 	importEdgeStats(input: SeasonsInput): Boolean!
 	cancelImportEdgeStats: Boolean!
+	fetchAssets(input: FetchAssetsInput): Boolean!
+	cancelFetchAssets: Boolean!
 
 	# Maurice AI chat
 	mauriceChat(conversationId: String, message: String!): MauriceChatResponse!
@@ -4520,6 +4576,38 @@ func (ec *executionContext) field_Mutation_extractBoxscorePlayers_argsInput(
 	}
 
 	var zeroVal *model.SeasonsInput
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_fetchAssets_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_fetchAssets_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_fetchAssets_argsInput(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.FetchAssetsInput, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["input"]
+	if !ok {
+		var zeroVal *model.FetchAssetsInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalOFetchAssetsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐFetchAssetsInput(ctx, tmp)
+	}
+
+	var zeroVal *model.FetchAssetsInput
 	return zeroVal, nil
 }
 
@@ -17238,6 +17326,105 @@ func (ec *executionContext) fieldContext_Mutation_cancelImportEdgeStats(_ contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_fetchAssets(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_fetchAssets(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().FetchAssets(rctx, fc.Args["input"].(*model.FetchAssetsInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_fetchAssets(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_fetchAssets_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelFetchAssets(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_cancelFetchAssets(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CancelFetchAssets(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_cancelFetchAssets(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_mauriceChat(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_mauriceChat(ctx, field)
 	if err != nil {
@@ -21119,6 +21306,107 @@ func (ec *executionContext) _Query_importEdgeStatsProgress(ctx context.Context, 
 }
 
 func (ec *executionContext) fieldContext_Query_importEdgeStatsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "total":
+				return ec.fieldContext_ProgressReport_total(ctx, field)
+			case "completed":
+				return ec.fieldContext_ProgressReport_completed(ctx, field)
+			case "message":
+				return ec.fieldContext_ProgressReport_message(ctx, field)
+			case "groups":
+				return ec.fieldContext_ProgressReport_groups(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProgressReport", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_fetchAssetsResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_fetchAssetsResult(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().FetchAssetsResult(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.WorkflowResult)
+	fc.Result = res
+	return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐWorkflowResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_fetchAssetsResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "status":
+				return ec.fieldContext_WorkflowResult_status(ctx, field)
+			case "failureReason":
+				return ec.fieldContext_WorkflowResult_failureReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_fetchAssetsProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_fetchAssetsProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().FetchAssetsProgress(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.ProgressReport)
+	fc.Result = res
+	return ec.marshalOProgressReport2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐProgressReport(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_fetchAssetsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -26963,6 +27251,47 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(_ context.Context
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputFetchAssetsInput(ctx context.Context, obj interface{}) (model.FetchAssetsInput, error) {
+	var it model.FetchAssetsInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"classConcurrency", "maxClassConcurrency", "refreshCurrent"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "classConcurrency":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("classConcurrency"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClassConcurrency = data
+		case "maxClassConcurrency":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxClassConcurrency"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxClassConcurrency = data
+		case "refreshCurrent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("refreshCurrent"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RefreshCurrent = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputFetchPlayerLandingsInput(ctx context.Context, obj interface{}) (model.FetchPlayerLandingsInput, error) {
 	var it model.FetchPlayerLandingsInput
 	asMap := map[string]interface{}{}
@@ -28870,6 +29199,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "fetchAssets":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_fetchAssets(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelFetchAssets":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelFetchAssets(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "mauriceChat":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_mauriceChat(ctx, field)
@@ -29850,6 +30193,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_importEdgeStatsProgress(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "fetchAssetsResult":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_fetchAssetsResult(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "fetchAssetsProgress":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_fetchAssetsProgress(ctx, field)
 				return res
 			}
 
@@ -32751,6 +33135,14 @@ func (ec *executionContext) marshalOEdgeTeamStats2ᚖgithubᚗcomᚋsperanoᚋpu
 		return graphql.Null
 	}
 	return ec._EdgeTeamStats(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOFetchAssetsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐFetchAssetsInput(ctx context.Context, v interface{}) (*model.FetchAssetsInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputFetchAssetsInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOFetchPlayerLandingsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋgraphᚋmodelᚐFetchPlayerLandingsInput(ctx context.Context, v interface{}) (*model.FetchPlayerLandingsInput, error) {

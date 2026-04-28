@@ -91,7 +91,7 @@ at `api-web.nhle.com/application.wadl`. The dfleis repo has a parsed copy in
 
 ## Phase 1: nhl-api-go — Edge Types & Client Methods
 
-**Repo:** `~/code/workspaces/puckdb/nhl-api-go/`
+**Repo:** `~/code/puckdb-project/ws/nhl-api-go/`
 
 ### 1.1 Add Edge Types
 
@@ -627,7 +627,7 @@ for types with optional fields.
 
 ## Phase 2: puckdb — Resource & FileType Definitions
 
-**Repo:** `~/code/workspaces/puckdb/puckdb/`
+**Repo:** `~/code/puckdb-project/ws/puckdb/`
 
 ### 2.1 Add FileTypes
 

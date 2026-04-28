@@ -180,17 +180,24 @@ func renderProgressBar(pct float64, width int) string {
 	return bar.String()
 }
 
-// formatLabelArea formats the label + x/y portion with fixed 22-char width.
-// For single bar (no label): x/y is right-aligned to fill 22 chars.
-// For multi-bar: label is left-aligned, x/y is right-aligned, total 22 chars.
+// formatLabelArea formats the label + x/y portion at the default
+// config.ProgressLabelAreaWidth. Use formatLabelAreaW when the caller has
+// pre-computed a wider area to keep multi-row groups aligned.
 func formatLabelArea(label string, current, total int) string {
+	return formatLabelAreaW(label, current, total, config.ProgressLabelAreaWidth)
+}
+
+// formatLabelAreaW renders label + x/y inside a fixed-width column. If the
+// content is longer than width, padding clamps to one space so the bracket
+// after this column never collides with the progress text — but the column
+// will then exceed width, which misaligns multi-row groups. Callers that need
+// alignment must compute width = max(label + 1 + progress) across all rows.
+func formatLabelAreaW(label string, current, total, width int) string {
 	progress := fmt.Sprintf("%d/%d", current, total)
 	if label == "" {
-		// No label: right-align x/y to fill entire width
-		return fmt.Sprintf("%*s", config.ProgressLabelAreaWidth, progress)
+		return fmt.Sprintf("%*s", width, progress)
 	}
-	// With label: label left, x/y right, pad between them
-	padding := config.ProgressLabelAreaWidth - len(label) - len(progress)
+	padding := width - len(label) - len(progress)
 	if padding < 1 {
 		padding = 1
 	}
@@ -249,7 +256,28 @@ func renderMultiBarGroup(g *model.ProgressGroup) string {
 
 	lines := []string{"▶ " + g.Header}
 
-	// Format: spinner + 22-char label area (label left, x/y right) + bar + percent
+	// Compute label-area width: max(label + 1 + x/y) across all active bars
+	// and the Total line, clamped at the default minimum so short groups still
+	// look like the rest of the UI.
+	width := config.ProgressLabelAreaWidth
+	rowWidth := func(label string, current, total int) int {
+		return len(label) + 1 + len(fmt.Sprintf("%d/%d", current, total))
+	}
+	for _, b := range activeBars {
+		label := ""
+		if b.Label != nil {
+			label = *b.Label
+		}
+		if w := rowWidth(label, b.Current, b.Total); w > width {
+			width = w
+		}
+	}
+	if totalTotal > 0 {
+		if w := rowWidth("Total", totalCurrent, totalTotal); w > width {
+			width = w
+		}
+	}
+
 	for _, b := range activeBars {
 		label := ""
 		if b.Label != nil {
@@ -261,15 +289,14 @@ func renderMultiBarGroup(g *model.ProgressGroup) string {
 		}
 		bar := renderProgressBar(pct, progressBarWidth())
 		lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
-			SpinnerPlaceholder, formatLabelArea(label, b.Current, b.Total), bar, int(pct)))
+			SpinnerPlaceholder, formatLabelAreaW(label, b.Current, b.Total, width), bar, int(pct)))
 	}
 
-	// Total line
 	if totalTotal > 0 {
 		pct := float64(totalCurrent) / float64(totalTotal) * 100
 		bar := renderProgressBar(pct, progressBarWidth())
 		lines = append(lines, fmt.Sprintf("  %s %s %d%%",
-			formatLabelArea("Total", totalCurrent, totalTotal), bar, int(pct)))
+			formatLabelAreaW("Total", totalCurrent, totalTotal, width), bar, int(pct)))
 	}
 
 	return strings.Join(lines, "\n")

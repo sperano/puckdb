@@ -147,6 +147,13 @@ func DownloadYahoo(ctx context.Context, redisClient *redis.Client, url string) (
 // DownloadPublic downloads from public pages without OAuth2 authentication.
 // Use this for public sports.yahoo.com pages that don't require authentication.
 func DownloadPublic(ctx context.Context, url string) ([]byte, error) {
-	client := &GenericClient{Client: &http.Client{Timeout: config.DefaultHTTPClientTimeout}, apiLabel: "public"}
+	client := NewGenericClient(&http.Client{Timeout: config.DefaultHTTPClientTimeout}, "public")
 	return client.Download(ctx, url)
+}
+
+// NewGenericClient constructs a GenericClient with the given underlying HTTP
+// client and api label. The label is used for HTTP metric emission so callers
+// from different packages can be distinguished in dashboards.
+func NewGenericClient(client *http.Client, apiLabel string) *GenericClient {
+	return &GenericClient{Client: client, apiLabel: apiLabel}
 }
