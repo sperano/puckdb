@@ -167,7 +167,7 @@ func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error
 
 	// Update Prometheus gauges per season and file type
 	for _, s := range cacheData {
-		metrics.SetCacheMetrics(s.seasonLabel(), s.fileType, s.expected, s.found)
+		metrics.SetCacheMetrics(s.seasonLabel(), s.fileType.String(), s.expected, s.found)
 	}
 
 	// Compute and set totals
@@ -184,7 +184,7 @@ func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error
 		pathStats := collectDataPathStats(dataPath)
 		metrics.SetCacheDiskSizeBytes(pathStats.totalBytes)
 		for fileType, stats := range pathStats.byType {
-			metrics.SetDataPathFileStats(fileType, stats.count, stats.bytes)
+			metrics.SetDataPathFileStats(fileType.String(), stats.count, stats.bytes)
 		}
 	}
 

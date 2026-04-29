@@ -29,7 +29,7 @@ const cacheMetricsSeasonAll = 0
 // cacheMetrics holds statistics for a single file type within a season
 type cacheMetrics struct {
 	seasonYear int
-	fileType   string
+	fileType   core.FileType
 	expected   int
 	found      int
 }
@@ -188,7 +188,7 @@ func getAllMetrics(ctx context.Context, redisClient *redis.Client, queries *sqlc
 	// loop. Skipped entirely when queries is nil so the metrics command can run
 	// without a database connection during local development.
 	if queries != nil {
-		assetMetrics, err := checkAssetCache(ctx, store.NewDefaultStorage(), newAssetCacheClasses(queries))
+		assetMetrics, err := checkAssetCache(ctx, store.NewDefaultStorage(), newAssetCacheLoaders(queries))
 		if err != nil {
 			return nil, err
 		}
@@ -198,43 +198,43 @@ func getAllMetrics(ctx context.Context, redisClient *redis.Client, queries *sqlc
 	return allMetrics, nil
 }
 
-// assetCacheClass binds an asset class to its FileType label and the loader
-// that produces the row set used to compute (expected, found). The loader is a
-// plain function so tests can stub it without needing a *sqlcdb.Queries mock.
-type assetCacheClass struct {
-	fileType string
-	load     func(context.Context) ([]asset.Asset, error)
-}
+// assetLoader produces the row set for a single asset class. The function
+// shape lets tests stub loaders without needing a *sqlcdb.Queries mock.
+type assetLoader = func(context.Context) ([]asset.Asset, error)
 
-// newAssetCacheClasses builds the production class list from a sqlc Queries
-// instance. Each entry's load delegates to the corresponding asset.Activities
-// loader, which already handles SQL filtering and Asset construction.
-func newAssetCacheClasses(queries *sqlcdb.Queries) []assetCacheClass {
+// newAssetCacheLoaders builds the production loader map from a sqlc Queries
+// instance. Each entry delegates to the corresponding asset.Activities loader,
+// which handles SQL filtering and Asset construction.
+func newAssetCacheLoaders(queries *sqlcdb.Queries) map[core.FileType]assetLoader {
 	acts := &asset.Activities{Queries: queries}
-	return []assetCacheClass{
-		{store.FileTypePlayerHeadshot, acts.LoadPlayerHeadshotAssets},
-		{store.FileTypePlayerHeroImage, acts.LoadPlayerHeroImageAssets},
-		{store.FileTypePlayerYahooImageSmall, acts.LoadPlayerYahooImageSmallAssets},
-		{store.FileTypePlayerYahooImageMedium, acts.LoadPlayerYahooImageMediumAssets},
-		{store.FileTypePlayerYahooImageLarge, acts.LoadPlayerYahooImageLargeAssets},
-		{store.FileTypeTeamLogo, acts.LoadTeamLogoAssets},
-		{store.FileTypeYahooTeamLogo, acts.LoadYahooTeamLogoAssets},
-		{store.FileTypeYahooLeagueLogo, acts.LoadYahooLeagueLogoAssets},
-		{store.FileTypeYahooManagerImage, acts.LoadYahooManagerImageAssets},
+	return map[core.FileType]assetLoader{
+		core.PlayerHeadshot:         acts.LoadPlayerHeadshotAssets,
+		core.PlayerHeroImage:        acts.LoadPlayerHeroImageAssets,
+		core.PlayerYahooImageSmall:  acts.LoadPlayerYahooImageSmallAssets,
+		core.PlayerYahooImageMedium: acts.LoadPlayerYahooImageMediumAssets,
+		core.PlayerYahooImageLarge:  acts.LoadPlayerYahooImageLargeAssets,
+		core.TeamLogo:               acts.LoadTeamLogoAssets,
+		core.YahooTeamLogo:          acts.LoadYahooTeamLogoAssets,
+		core.YahooLeagueLogo:        acts.LoadYahooLeagueLogoAssets,
+		core.YahooManagerImage:      acts.LoadYahooManagerImageAssets,
 	}
 }
 
-// checkAssetCache produces one cacheMetrics entry per asset class. expected is
-// the number of rows the loader returns (== rows the workflow would download);
-// found is how many of those local cache files already exist on disk. A loader
-// error aborts the whole report rather than leaking partial counts that would
-// be indistinguishable from a real cache shortfall.
-func checkAssetCache(ctx context.Context, storage store.Storage, classes []assetCacheClass) ([]cacheMetrics, error) {
-	out := make([]cacheMetrics, 0, len(classes))
-	for _, c := range classes {
-		assets, err := c.load(ctx)
+// checkAssetCache produces one cacheMetrics entry per loader, in
+// core.AllFileTypes declaration order. expected is the number of rows the
+// loader returns; found is how many of those local cache files already exist
+// on disk. A loader error aborts the whole report rather than leaking partial
+// counts that would be indistinguishable from a real cache shortfall.
+func checkAssetCache(ctx context.Context, storage store.Storage, loaders map[core.FileType]assetLoader) ([]cacheMetrics, error) {
+	out := make([]cacheMetrics, 0, len(loaders))
+	for _, ft := range core.AllFileTypes {
+		loader, ok := loaders[ft]
+		if !ok {
+			continue
+		}
+		assets, err := loader(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("load %s: %w", c.fileType, err)
+			return nil, fmt.Errorf("load %s: %w", ft, err)
 		}
 		found := 0
 		for _, a := range assets {
@@ -249,7 +249,7 @@ func checkAssetCache(ctx context.Context, storage store.Storage, classes []asset
 				// Per-row data issue (bad URL extension, arity mismatch). Log
 				// and skip; the row counts as not-found via the unchanged
 				// expected total.
-				log.Warn().Err(err).Str("file_type", c.fileType).Str("url", a.URL).Msg("Asset path computation failed")
+				log.Warn().Err(err).Str("file_type", ft.String()).Str("url", a.URL).Msg("Asset path computation failed")
 				continue
 			}
 			if storage.Exists(ctx, p) {
@@ -258,7 +258,7 @@ func checkAssetCache(ctx context.Context, storage store.Storage, classes []asset
 		}
 		out = append(out, cacheMetrics{
 			seasonYear: cacheMetricsSeasonAll,
-			fileType:   c.fileType,
+			fileType:   ft,
 			expected:   len(assets),
 			found:      found,
 		})
@@ -266,99 +266,85 @@ func checkAssetCache(ctx context.Context, storage store.Storage, classes []asset
 	return out, nil
 }
 
-// checkNHLSeasonCache checks NHL API files (daily schedule, boxscores, play-by-play, shift charts)
+// checkNHLSeasonCache checks NHL API files (daily schedule, boxscores,
+// play-by-play, shift charts, game stories). Iterates core.AllFileTypes and
+// emits one entry per FileType this checker recognizes, in declaration order.
 func checkNHLSeasonCache(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season simpleSeason) []cacheMetrics {
-	cacheData := make([]cacheMetrics, 0)
 	seasonYear := season.StartYear()
 	daysInSeason := core.CountDays(season.start, season.end)
-
-	// Count daily schedule files (1 per day)
 	dailyScheduleCount := countDailyScheduleFilesSimple(ctx, storage, season)
-	cacheData = append(cacheData, cacheMetrics{
-		seasonYear: seasonYear,
-		fileType:   store.FileTypeDailySchedule,
-		expected:   daysInSeason,
-		found:      dailyScheduleCount,
-	})
-
-	// Count game data files (boxscore, play-by-play, shift chart)
 	gameFileCounts := countGameFilesSimple(ctx, storage, gobCache, season)
-	cacheData = append(cacheData, cacheMetrics{
-		seasonYear: seasonYear,
-		fileType:   store.FileTypeBoxscore,
-		expected:   gameFileCounts.expectedGames,
-		found:      gameFileCounts.boxscores,
-	})
-	cacheData = append(cacheData, cacheMetrics{
-		seasonYear: seasonYear,
-		fileType:   store.FileTypePlayByPlay,
-		expected:   gameFileCounts.expectedGames,
-		found:      gameFileCounts.playByPlay,
-	})
-	cacheData = append(cacheData, cacheMetrics{
-		seasonYear: seasonYear,
-		fileType:   store.FileTypeShiftChart,
-		expected:   gameFileCounts.expectedGames,
-		found:      gameFileCounts.shiftCharts,
-	})
-	cacheData = append(cacheData, cacheMetrics{
-		seasonYear: seasonYear,
-		fileType:   store.FileTypeGameStory,
-		expected:   gameFileCounts.expectedGames,
-		found:      gameFileCounts.gameStories,
-	})
 
+	cacheData := make([]cacheMetrics, 0, 5)
+	for _, ft := range core.AllFileTypes {
+		var expected, found int
+		switch ft {
+		case core.DailySchedule:
+			expected, found = daysInSeason, dailyScheduleCount
+		case core.Boxscore:
+			expected, found = gameFileCounts.expectedGames, gameFileCounts.boxscores
+		case core.PlayByPlay:
+			expected, found = gameFileCounts.expectedGames, gameFileCounts.playByPlay
+		case core.ShiftChart:
+			expected, found = gameFileCounts.expectedGames, gameFileCounts.shiftCharts
+		case core.GameStory:
+			expected, found = gameFileCounts.expectedGames, gameFileCounts.gameStories
+		default:
+			continue
+		}
+		cacheData = append(cacheData, cacheMetrics{
+			seasonYear: seasonYear,
+			fileType:   ft,
+			expected:   expected,
+			found:      found,
+		})
+	}
 	return cacheData
 }
 
-// checkYahooSeasonCache checks Yahoo fantasy files (leagues, teams, rosters, summaries)
+// checkYahooSeasonCache checks Yahoo fantasy files (leagues, teams, rosters,
+// summaries). Iterates core.AllFileTypes and emits one entry per FileType this
+// checker recognizes, in declaration order.
 func checkYahooSeasonCache(ctx context.Context, storage store.Storage, nhlSeason simpleSeason, yahooCfg config.Season) []cacheMetrics {
-	cacheData := make([]cacheMetrics, 0)
 	seasonYear := nhlSeason.startYear
 	daysInSeason := core.CountDays(nhlSeason.start, nhlSeason.end)
 
-	// Count leagues
 	leagueCount := countLeagueFiles(ctx, storage, seasonYear, yahooCfg)
-	cacheData = append(cacheData, cacheMetrics{
-		seasonYear: seasonYear,
-		fileType:   store.FileTypeLeague,
-		expected:   len(yahooCfg.Leagues),
-		found:      leagueCount,
-	})
 
-	// Count teams
 	totalTeams := 0
 	for _, league := range yahooCfg.Leagues {
 		totalTeams += len(league.TeamIDs)
 	}
 	teamCount := countTeamFiles(ctx, storage, seasonYear, yahooCfg)
-	cacheData = append(cacheData, cacheMetrics{
-		seasonYear: seasonYear,
-		fileType:   store.FileTypeTeam,
-		expected:   totalTeams,
-		found:      teamCount,
-	})
 
-	// Count rosters (1 per team per day)
 	expectedRosters := totalTeams * daysInSeason
 	rosterCount := countRosterFiles(ctx, storage, nhlSeason, yahooCfg)
-	cacheData = append(cacheData, cacheMetrics{
-		seasonYear: seasonYear,
-		fileType:   store.FileTypeRoster,
-		expected:   expectedRosters,
-		found:      rosterCount,
-	})
 
-	// Count team summaries (1 per team per day)
 	expectedSummaries := totalTeams * daysInSeason
 	summaryCount := countTeamSummaryFiles(ctx, storage, nhlSeason, yahooCfg)
-	cacheData = append(cacheData, cacheMetrics{
-		seasonYear: seasonYear,
-		fileType:   store.FileTypeTeamSummary,
-		expected:   expectedSummaries,
-		found:      summaryCount,
-	})
 
+	cacheData := make([]cacheMetrics, 0, 4)
+	for _, ft := range core.AllFileTypes {
+		var expected, found int
+		switch ft {
+		case core.League:
+			expected, found = len(yahooCfg.Leagues), leagueCount
+		case core.Team:
+			expected, found = totalTeams, teamCount
+		case core.Roster:
+			expected, found = expectedRosters, rosterCount
+		case core.TeamSummary:
+			expected, found = expectedSummaries, summaryCount
+		default:
+			continue
+		}
+		cacheData = append(cacheData, cacheMetrics{
+			seasonYear: seasonYear,
+			fileType:   ft,
+			expected:   expected,
+			found:      found,
+		})
+	}
 	return cacheData
 }
 

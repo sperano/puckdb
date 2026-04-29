@@ -4,37 +4,6 @@ import (
 	"strconv"
 )
 
-// File type name constants for metrics and logging
-const (
-	FileTypeDailySchedule          = "DailySchedule"
-	FileTypeBoxscore               = "Boxscore"
-	FileTypePlayByPlay             = "PlayByPlay"
-	FileTypeShiftChart             = "ShiftChart"
-	FileTypeGameStory              = "GameStory"
-	FileTypeFranchises             = "Franchises"
-	FileTypeSeasonsManifest        = "SeasonsManifest"
-	FileTypeSeasonStandings        = "SeasonStandings"
-	FileTypeLeague                 = "League"
-	FileTypeTeam                   = "Team"
-	FileTypeRoster                 = "Roster"
-	FileTypeTeamSummary            = "TeamSummary"
-	FileTypePlayerLanding          = "PlayerLanding"
-	FileTypePlayerGameLog          = "PlayerGameLog"
-	FileTypeYahooPlayer            = "YahooPlayer"
-	FileTypeGameKey                = "GameKey"
-	FileTypeUnknown                = "Unknown"
-	FileTypeEdge                   = "Edge"
-	FileTypePlayerHeadshot         = "PlayerHeadshot"
-	FileTypePlayerHeroImage        = "PlayerHeroImage"
-	FileTypePlayerYahooImageSmall  = "PlayerYahooImageSmall"
-	FileTypePlayerYahooImageMedium = "PlayerYahooImageMedium"
-	FileTypePlayerYahooImageLarge  = "PlayerYahooImageLarge"
-	FileTypeTeamLogo               = "TeamLogo"
-	FileTypeYahooTeamLogo          = "YahooTeamLogo"
-	FileTypeYahooLeagueLogo        = "YahooLeagueLogo"
-	FileTypeYahooManagerImage      = "YahooManagerImage"
-)
-
 // YahooPlayerID is the unique identifier Yahoo assigns to a player.
 // This is distinct from nhl.PlayerID to prevent accidental mixing of ID namespaces.
 type YahooPlayerID int

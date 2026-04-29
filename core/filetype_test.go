@@ -1,6 +1,11 @@
 package core
 
-import "testing"
+import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"testing"
+)
 
 type stubResource struct {
 	path     string
@@ -122,7 +127,7 @@ func TestFileType_String(t *testing.T) {
 		{"valid type", Boxscore, "Boxscore"},
 		{"last type", ClubScheduleSeasonResource, "ClubScheduleSeason"},
 		{"negative value", FileType(-1), "Unknown"},
-		{"out-of-range positive", FileType(len(names)), "Unknown"},
+		{"out-of-range positive", FileType(len(fileTypes)), "Unknown"},
 	}
 
 	for _, tc := range tests {
@@ -213,8 +218,8 @@ var allFileTypeNames = []struct {
 func TestFileType_String_AllConstants(t *testing.T) {
 	t.Parallel()
 
-	if got, want := len(allFileTypeNames), len(names); got != want {
-		t.Fatalf("allFileTypeNames has %d entries but core has %d FileType values; "+
+	if got, want := len(allFileTypeNames), len(fileTypes); got != want {
+		t.Fatalf("allFileTypeNames has %d entries but core has %d fileTypes values; "+
 			"add the new constant to allFileTypeNames", got, want)
 	}
 
@@ -244,5 +249,77 @@ func TestFileType_StringParseRoundTrip(t *testing.T) {
 				t.Errorf("ParseFileType(%q) = %v, want %v", tc.ft.String(), ft, tc.ft)
 			}
 		})
+	}
+}
+
+// TestFileTypes_NoDriftFromIotaBlock parses filetype.go's AST and asserts the
+// number of FileType const declarations matches the number of entries in the
+// fileTypes table. Drift means: a constant was added to the iota block but not
+// to the fileTypes table — its String() would silently return "Unknown" and
+// it would never appear in AllFileTypes. The test stays in this package
+// because fileTypes is unexported.
+func TestFileTypes_NoDriftFromIotaBlock(t *testing.T) {
+	t.Parallel()
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "filetype.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse filetype.go: %v", err)
+	}
+
+	var declared []string
+	for _, decl := range f.Decls {
+		gd, ok := decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.CONST {
+			continue
+		}
+		// Only consider const blocks where the first spec carries an
+		// explicit FileType type — that's the iota block.
+		if len(gd.Specs) == 0 {
+			continue
+		}
+		first, ok := gd.Specs[0].(*ast.ValueSpec)
+		if !ok || first.Type == nil {
+			continue
+		}
+		ident, ok := first.Type.(*ast.Ident)
+		if !ok || ident.Name != "FileType" {
+			continue
+		}
+		for _, spec := range gd.Specs {
+			vs := spec.(*ast.ValueSpec)
+			for _, name := range vs.Names {
+				declared = append(declared, name.Name)
+			}
+		}
+	}
+
+	if len(declared) != len(fileTypes) {
+		t.Fatalf("filetype.go declares %d FileType constants but the fileTypes "+
+			"table has %d entries; add the new constant to fileTypes "+
+			"(declarations: %v)", len(declared), len(fileTypes), declared)
+	}
+}
+
+// TestFileTypes_NoDuplicates verifies the fileTypes table has unique FileType
+// values and unique names. A duplicate FileType silently overwrites the
+// nameByType map; a duplicate name silently overwrites typeByName, breaking
+// ParseFileType for the loser.
+func TestFileTypes_NoDuplicates(t *testing.T) {
+	t.Parallel()
+
+	seenFT := make(map[FileType]string, len(fileTypes))
+	seenName := make(map[string]FileType, len(fileTypes))
+	for _, e := range fileTypes {
+		if prev, dup := seenFT[e.ft]; dup {
+			t.Errorf("FileType(%d) appears twice in fileTypes (names %q and %q)",
+				int(e.ft), prev, e.name)
+		}
+		seenFT[e.ft] = e.name
+		if prev, dup := seenName[e.name]; dup {
+			t.Errorf("name %q appears twice in fileTypes (FileTypes %d and %d)",
+				e.name, int(prev), int(e.ft))
+		}
+		seenName[e.name] = e.ft
 	}
 }
