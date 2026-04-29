@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -183,8 +184,13 @@ func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error
 	if dataPath != "" {
 		pathStats := collectDataPathStats(dataPath)
 		metrics.SetCacheDiskSizeBytes(pathStats.totalBytes)
-		for fileType, stats := range pathStats.byType {
-			metrics.SetDataPathFileStats(fileType.String(), stats.count, stats.bytes)
+		for _, ft := range core.AllFileTypes {
+			stats := pathStats.byType[ft]
+			var count, bytes int64
+			if stats != nil {
+				count, bytes = stats.count, stats.bytes
+			}
+			metrics.SetDataPathFileStats(ft.String(), count, bytes)
 		}
 	}
 
