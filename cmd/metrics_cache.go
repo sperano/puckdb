@@ -111,18 +111,30 @@ func fetchSeasonsFromNHL(ctx context.Context) ([]simpleSeason, error) {
 	return result, nil
 }
 
-// cacheCollectorWorkers controls the number of concurrent season-checking goroutines.
-// JuiceFS FUSE metadata ops serialize at the kernel layer, so more goroutines
-// just adds context-switch overhead without increasing throughput.
-const cacheCollectorWorkers = 4
+// cacheCollectorWorkers controls the number of concurrent season-checking
+// goroutines. With an indexedStorage in place, per-season Exists checks are
+// O(1) memory lookups, so the residual per-season work is daily-schedule
+// parsing (Redis-backed, with FS fallback). A small pool still helps because
+// it pipelines Redis Get calls and overlaps any remaining FUSE Reads on cold
+// gob-cache misses.
+const cacheCollectorWorkers = 8
 
-// getAllMetrics gathers cache statistics for all seasons using a bounded worker
-// pool, plus the season-independent asset cache aggregates. queries may be nil:
-// when nil, asset cache metrics are skipped (the rest of the per-season scan
-// still runs). A non-nil queries means a Postgres outage during this tick will
-// surface as an error from checkAssetCache and abort the whole computation —
-// accepted regression per plan v2 option (a).
-func getAllMetrics(ctx context.Context, redisClient *redis.Client, queries *sqlcdb.Queries) ([]cacheMetrics, error) {
+// getAllMetrics gathers cache statistics for all seasons using a bounded
+// worker pool, plus the season-independent asset cache aggregates. The
+// storage parameter is shared across workers — passing an indexedStorage
+// here is what turns this function from O(N_files × FUSE_RTT) into
+// O(N_files × map_lookup).
+//
+// queries may be nil: when nil, asset cache metrics are skipped (the rest of
+// the per-season scan still runs). A non-nil queries means a Postgres outage
+// during this tick will surface as an error from checkAssetCache and abort
+// the whole computation — accepted regression per plan v2 option (a).
+func getAllMetrics(
+	ctx context.Context,
+	redisClient *redis.Client,
+	queries *sqlcdb.Queries,
+	storage store.Storage,
+) ([]cacheMetrics, error) {
 	if viper.GetString(config.FlagDataPath) == "" {
 		return nil, fmt.Errorf("data-path is required")
 	}
@@ -149,12 +161,11 @@ func getAllMetrics(ctx context.Context, redisClient *redis.Client, queries *sqlc
 	results := make(chan seasonResult, len(seasons))
 	var wg sync.WaitGroup
 
+	gobCache := cache.NewGobCache(redisClient)
 	for range cacheCollectorWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			storage := store.NewDefaultStorage()
-			gobCache := cache.NewGobCache(redisClient)
 			for s := range work {
 				cacheData := checkNHLSeasonCache(ctx, storage, gobCache, s)
 				if yahooCfg, ok := yahooConfig[s.StartYear()]; ok {
@@ -188,7 +199,7 @@ func getAllMetrics(ctx context.Context, redisClient *redis.Client, queries *sqlc
 	// loop. Skipped entirely when queries is nil so the metrics command can run
 	// without a database connection during local development.
 	if queries != nil {
-		assetMetrics, err := checkAssetCache(ctx, store.NewDefaultStorage(), newAssetCacheLoaders(queries))
+		assetMetrics, err := checkAssetCache(ctx, storage, newAssetCacheLoaders(queries))
 		if err != nil {
 			return nil, err
 		}

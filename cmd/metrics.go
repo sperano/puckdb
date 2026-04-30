@@ -15,6 +15,7 @@ import (
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/sqlcdb"
+	"github.com/sperano/puckdb/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -160,8 +161,21 @@ func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error
 	defer redisClient.Close()
 
 	queries := sqlcdb.New(pool)
+	dataPath := viper.GetString(config.FlagDataPath)
 
-	cacheData, err := getAllMetrics(ctx, redisClient, queries)
+	// Single parallel walk: builds a presence map plus per-type count/byte
+	// stats in one pass. Subsequent Exists checks become O(1) lookups on this
+	// index instead of fresh FUSE Stats — the dominant win of this pipeline.
+	indexStart := time.Now()
+	idx, err := buildPathIndex(ctx, dataPath)
+	if err != nil {
+		return fmt.Errorf("build path index: %w", err)
+	}
+	indexDur := time.Since(indexStart)
+
+	indexedStore := newIndexedStorage(store.NewDefaultStorage(), idx)
+
+	cacheData, err := getAllMetrics(ctx, redisClient, queries, indexedStore)
 	if err != nil {
 		return err
 	}
@@ -179,13 +193,12 @@ func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error
 	}
 	metrics.SetCacheMetrics(cacheSeasonLabelTotal, cacheSeasonLabelAll, totalExpected, totalFound)
 
-	// Calculate disk usage and file type stats in a single directory walk
-	dataPath := viper.GetString(config.FlagDataPath)
+	// Disk-size + per-type byte gauges come straight from the index — no
+	// second tree walk required.
 	if dataPath != "" {
-		pathStats := collectDataPathStats(dataPath)
-		metrics.SetCacheDiskSizeBytes(pathStats.totalBytes)
+		metrics.SetCacheDiskSizeBytes(idx.totalBytes)
 		for _, ft := range core.AllFileTypes {
-			stats := pathStats.byType[ft]
+			stats := idx.byType[ft]
 			var count, bytes int64
 			if stats != nil {
 				count, bytes = stats.count, stats.bytes
@@ -202,6 +215,8 @@ func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error
 		Int("seasons", seasonCount).
 		Int("total_expected", totalExpected).
 		Int("total_found", totalFound).
+		Int("indexed_files", len(idx.present)).
+		Dur("index_duration", indexDur).
 		Dur("duration", time.Since(start)).
 		Msg("Cache metrics updated")
 

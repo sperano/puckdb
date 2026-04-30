@@ -22,9 +22,15 @@ func BenchmarkGetAllMetrics(b *testing.B) {
 	redisClient := cache.NewClient()
 	defer redisClient.Close()
 
+	idx, err := buildPathIndex(context.Background(), "../test-data/cache")
+	if err != nil {
+		b.Fatal(err)
+	}
+	storage := newIndexedStorage(store.NewDefaultStorage(), idx)
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := getAllMetrics(context.Background(), redisClient, nil)
+		_, err := getAllMetrics(context.Background(), redisClient, nil, storage)
 		if err != nil {
 			b.Fatal(err)
 		}

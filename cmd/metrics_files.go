@@ -1,64 +1,18 @@
 package cmd
 
 import (
-	"io/fs"
 	"path/filepath"
 	"strings"
 
 	"github.com/sperano/puckdb/core"
 )
 
-// fileTypeStats holds count and size for a file type
+// fileTypeStats holds count and size for a file type. Populated by
+// buildPathIndex during the single shared walk; readers (per-type Prometheus
+// gauges) consume it directly.
 type fileTypeStats struct {
 	count int64
 	bytes int64
-}
-
-// dataPathStats holds combined results from a single directory walk.
-type dataPathStats struct {
-	totalBytes int64
-	byType     map[core.FileType]*fileTypeStats
-}
-
-// collectDataPathStats walks the data path once, computing both total disk size
-// and per-file-type statistics in a single pass.
-func collectDataPathStats(dataPath string) dataPathStats {
-	result := dataPathStats{byType: make(map[core.FileType]*fileTypeStats)}
-
-	_ = filepath.WalkDir(dataPath, func(filePath string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			if d.Name() == ".git" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		if strings.Contains(filePath, "/.git/") {
-			return nil
-		}
-
-		info, err := d.Info()
-		if err != nil {
-			return nil
-		}
-
-		size := info.Size()
-		result.totalBytes += size
-
-		fileType := classifyFileType(dataPath, filePath, d.Name())
-		if result.byType[fileType] == nil {
-			result.byType[fileType] = &fileTypeStats{}
-		}
-		result.byType[fileType].count++
-		result.byType[fileType].bytes += size
-
-		return nil
-	})
-
-	return result
 }
 
 // classifyFileType determines the file type from a file's path and filename.
