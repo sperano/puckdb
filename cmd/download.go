@@ -137,15 +137,21 @@ func formatYahooTokenWarning(loginURL string) string {
 	return fmt.Sprintf("\033[38;5;196m⚠ No Yahoo token — visit %s\033[0m", loginURL)
 }
 
-// progressBarWidth returns the inner bar width sized to fill the terminal.
+// progressBarWidth returns the inner bar width sized to fill the terminal,
+// given the label-area width on the bar's line. ProgressLineOverhead assumes
+// the default label area; callers that widen it (multi-bar groups with long
+// labels) must pass their actual width so the bar shrinks accordingly,
+// otherwise the rendered line overflows and wraps — which breaks the
+// spinner's in-place redraw.
 // Falls back to DefaultProgressBarWidth if the terminal size is unavailable.
 // The result is snapped to a multiple of 8 for clean gradient segments.
-func progressBarWidth() int {
+func progressBarWidth(labelAreaWidth int) int {
 	w, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil || w <= 0 {
 		return config.DefaultProgressBarWidth
 	}
-	barW := w - config.ProgressLineOverhead
+	overhead := config.ProgressLineOverhead + (labelAreaWidth - config.ProgressLabelAreaWidth)
+	barW := w - overhead
 	barW = (barW / colorThemePaletteSize) * colorThemePaletteSize // snap to multiple of 8
 	if barW < config.MinProgressBarWidth {
 		barW = config.MinProgressBarWidth
@@ -233,7 +239,7 @@ func renderProgressGroup(g *model.ProgressGroup) string {
 			label = *b.Label
 		}
 		pct := float64(b.Current) / float64(b.Total) * 100
-		bar := renderProgressBar(pct, progressBarWidth())
+		bar := renderProgressBar(pct, progressBarWidth(config.ProgressLabelAreaWidth))
 		return fmt.Sprintf("▶ %s\n%s %s %s %d%%",
 			g.Header, SpinnerPlaceholder, formatLabelArea(label, b.Current, b.Total), bar, int(pct))
 	}
@@ -287,14 +293,14 @@ func renderMultiBarGroup(g *model.ProgressGroup) string {
 		if b.Total > 0 {
 			pct = float64(b.Current) / float64(b.Total) * 100
 		}
-		bar := renderProgressBar(pct, progressBarWidth())
+		bar := renderProgressBar(pct, progressBarWidth(width))
 		lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
 			SpinnerPlaceholder, formatLabelAreaW(label, b.Current, b.Total, width), bar, int(pct)))
 	}
 
 	if totalTotal > 0 {
 		pct := float64(totalCurrent) / float64(totalTotal) * 100
-		bar := renderProgressBar(pct, progressBarWidth())
+		bar := renderProgressBar(pct, progressBarWidth(width))
 		lines = append(lines, fmt.Sprintf("  %s %s %d%%",
 			formatLabelAreaW("Total", totalCurrent, totalTotal, width), bar, int(pct)))
 	}
