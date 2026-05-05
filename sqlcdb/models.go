@@ -1216,9 +1216,7 @@ type Player struct {
 	IsActive            bool               `json:"is_active"`
 	HeadshotURL         string             `json:"headshot_url"`
 	HeroImageURL        pgtype.Text        `json:"hero_image_url"`
-	YahooImageSmall     string             `json:"yahoo_image_small"`
-	YahooImageMedium    string             `json:"yahoo_image_medium"`
-	YahooImageLarge     string             `json:"yahoo_image_large"`
+	YahooImage          string             `json:"yahoo_image"`
 	YahooHomeURL        string             `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text        `json:"player_slug"`
 	DraftYear           pgtype.Int4        `json:"draft_year"`

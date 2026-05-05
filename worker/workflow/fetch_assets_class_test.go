@@ -31,13 +31,7 @@ func (s *stubLoaderActivities) LoadPlayerHeadshotAssets(_ context.Context) ([]as
 func (s *stubLoaderActivities) LoadPlayerHeroImageAssets(_ context.Context) ([]asset.Asset, error) {
 	return nil, nil
 }
-func (s *stubLoaderActivities) LoadPlayerYahooImageSmallAssets(_ context.Context) ([]asset.Asset, error) {
-	return nil, nil
-}
-func (s *stubLoaderActivities) LoadPlayerYahooImageMediumAssets(_ context.Context) ([]asset.Asset, error) {
-	return nil, nil
-}
-func (s *stubLoaderActivities) LoadPlayerYahooImageLargeAssets(_ context.Context) ([]asset.Asset, error) {
+func (s *stubLoaderActivities) LoadPlayerYahooImageAssets(_ context.Context) ([]asset.Asset, error) {
 	return nil, nil
 }
 func (s *stubLoaderActivities) LoadTeamLogoAssets(_ context.Context) ([]asset.Asset, error) {
@@ -72,9 +66,7 @@ func (s *FetchAssetsClassWorkflowTestSuite) SetupTest() {
 	// Register all stub loaders so OnActivity-by-name works.
 	s.env.RegisterActivity(s.stub.LoadPlayerHeadshotAssets)
 	s.env.RegisterActivity(s.stub.LoadPlayerHeroImageAssets)
-	s.env.RegisterActivity(s.stub.LoadPlayerYahooImageSmallAssets)
-	s.env.RegisterActivity(s.stub.LoadPlayerYahooImageMediumAssets)
-	s.env.RegisterActivity(s.stub.LoadPlayerYahooImageLargeAssets)
+	s.env.RegisterActivity(s.stub.LoadPlayerYahooImageAssets)
 	s.env.RegisterActivity(s.stub.LoadTeamLogoAssets)
 	s.env.RegisterActivity(s.stub.LoadYahooTeamLogoAssets)
 	s.env.RegisterActivity(s.stub.LoadYahooLeagueLogoAssets)
@@ -278,9 +270,7 @@ func TestPerClassWrappers(t *testing.T) {
 	}{
 		{"PlayerHeadshots", FetchPlayerHeadshotsWorkflow, "LoadPlayerHeadshotAssets"},
 		{"PlayerHeroImages", FetchPlayerHeroImagesWorkflow, "LoadPlayerHeroImageAssets"},
-		{"PlayerYahooImagesSmall", FetchPlayerYahooImagesSmallWorkflow, "LoadPlayerYahooImageSmallAssets"},
-		{"PlayerYahooImagesMedium", FetchPlayerYahooImagesMediumWorkflow, "LoadPlayerYahooImageMediumAssets"},
-		{"PlayerYahooImagesLarge", FetchPlayerYahooImagesLargeWorkflow, "LoadPlayerYahooImageLargeAssets"},
+		{"PlayerYahooImages", FetchPlayerYahooImagesWorkflow, "LoadPlayerYahooImageAssets"},
 		{"TeamLogos", FetchTeamLogosWorkflow, "LoadTeamLogoAssets"},
 		{"YahooTeamLogos", FetchYahooTeamLogosWorkflow, "LoadYahooTeamLogoAssets"},
 		{"YahooLeagueLogos", FetchYahooLeagueLogosWorkflow, "LoadYahooLeagueLogoAssets"},
@@ -299,9 +289,7 @@ func TestPerClassWrappers(t *testing.T) {
 			env.RegisterWorkflow(tc.wrapper)
 			env.RegisterActivity(stub.LoadPlayerHeadshotAssets)
 			env.RegisterActivity(stub.LoadPlayerHeroImageAssets)
-			env.RegisterActivity(stub.LoadPlayerYahooImageSmallAssets)
-			env.RegisterActivity(stub.LoadPlayerYahooImageMediumAssets)
-			env.RegisterActivity(stub.LoadPlayerYahooImageLargeAssets)
+			env.RegisterActivity(stub.LoadPlayerYahooImageAssets)
 			env.RegisterActivity(stub.LoadTeamLogoAssets)
 			env.RegisterActivity(stub.LoadYahooTeamLogoAssets)
 			env.RegisterActivity(stub.LoadYahooLeagueLogoAssets)

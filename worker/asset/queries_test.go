@@ -20,9 +20,7 @@ import (
 type mockAssetQueries struct {
 	headshots     []sqlcdb.ListPlayerHeadshotsRow
 	heroImages    []sqlcdb.ListPlayerHeroImagesRow
-	yahooSmall    []sqlcdb.ListPlayerYahooImagesSmallRow
-	yahooMedium   []sqlcdb.ListPlayerYahooImagesMediumRow
-	yahooLarge    []sqlcdb.ListPlayerYahooImagesLargeRow
+	yahooImages   []sqlcdb.ListPlayerYahooImagesRow
 	teamLogos     []sqlcdb.ListTeamLogosRow
 	yahooTeamLogs []sqlcdb.ListYahooTeamLogosRow
 	leagueLogos   []sqlcdb.ListYahooLeagueLogosRow
@@ -35,14 +33,8 @@ func (m *mockAssetQueries) ListPlayerHeadshots(_ context.Context) ([]sqlcdb.List
 func (m *mockAssetQueries) ListPlayerHeroImages(_ context.Context) ([]sqlcdb.ListPlayerHeroImagesRow, error) {
 	return m.heroImages, nil
 }
-func (m *mockAssetQueries) ListPlayerYahooImagesSmall(_ context.Context) ([]sqlcdb.ListPlayerYahooImagesSmallRow, error) {
-	return m.yahooSmall, nil
-}
-func (m *mockAssetQueries) ListPlayerYahooImagesMedium(_ context.Context) ([]sqlcdb.ListPlayerYahooImagesMediumRow, error) {
-	return m.yahooMedium, nil
-}
-func (m *mockAssetQueries) ListPlayerYahooImagesLarge(_ context.Context) ([]sqlcdb.ListPlayerYahooImagesLargeRow, error) {
-	return m.yahooLarge, nil
+func (m *mockAssetQueries) ListPlayerYahooImages(_ context.Context) ([]sqlcdb.ListPlayerYahooImagesRow, error) {
+	return m.yahooImages, nil
 }
 func (m *mockAssetQueries) ListTeamLogos(_ context.Context) ([]sqlcdb.ListTeamLogosRow, error) {
 	return m.teamLogos, nil
@@ -63,14 +55,8 @@ func (m *mockAssetQueries) CountPlayerHeadshots(_ context.Context) (int64, error
 func (m *mockAssetQueries) CountPlayerHeroImages(_ context.Context) (int64, error) {
 	return int64(len(m.heroImages)), nil
 }
-func (m *mockAssetQueries) CountPlayerYahooImagesSmall(_ context.Context) (int64, error) {
-	return int64(len(m.yahooSmall)), nil
-}
-func (m *mockAssetQueries) CountPlayerYahooImagesMedium(_ context.Context) (int64, error) {
-	return int64(len(m.yahooMedium)), nil
-}
-func (m *mockAssetQueries) CountPlayerYahooImagesLarge(_ context.Context) (int64, error) {
-	return int64(len(m.yahooLarge)), nil
+func (m *mockAssetQueries) CountPlayerYahooImages(_ context.Context) (int64, error) {
+	return int64(len(m.yahooImages)), nil
 }
 func (m *mockAssetQueries) CountTeamLogos(_ context.Context) (int64, error) {
 	return int64(len(m.teamLogos)), nil
@@ -178,47 +164,19 @@ func TestLoadPlayerHeroImageAssets(t *testing.T) {
 	}
 }
 
-func TestLoadPlayerYahooImageSmallAssets(t *testing.T) {
+func TestLoadPlayerYahooImageAssets(t *testing.T) {
 	t.Parallel()
 	q := &mockAssetQueries{
-		yahooSmall: []sqlcdb.ListPlayerYahooImagesSmallRow{
-			{ID: 8478402, YahooImageSmall: "https://s.yimg.com/iu/api/res/1.2/player8478402-small.jpg"},
+		yahooImages: []sqlcdb.ListPlayerYahooImagesRow{
+			{ID: 8478402, YahooImage: "https://s.yimg.com/iu/api/res/1.2/player8478402.jpg"},
 		},
 	}
 	a := newTestActivities(q)
-	assets, err := a.LoadPlayerYahooImageSmallAssets(context.Background())
+	assets, err := a.LoadPlayerYahooImageAssets(context.Background())
 	require.NoError(t, err)
 	require.Len(t, assets, 1)
-	require.Equal(t, core.PlayerYahooImageSmall, assets[0].FileType)
+	require.Equal(t, core.PlayerYahooImage, assets[0].FileType)
 	require.Equal(t, []int64{8478402}, assets[0].IDs)
-}
-
-func TestLoadPlayerYahooImageMediumAssets(t *testing.T) {
-	t.Parallel()
-	q := &mockAssetQueries{
-		yahooMedium: []sqlcdb.ListPlayerYahooImagesMediumRow{
-			{ID: 8478402, YahooImageMedium: "https://s.yimg.com/iu/api/res/1.2/player8478402-medium.jpg"},
-		},
-	}
-	a := newTestActivities(q)
-	assets, err := a.LoadPlayerYahooImageMediumAssets(context.Background())
-	require.NoError(t, err)
-	require.Len(t, assets, 1)
-	require.Equal(t, core.PlayerYahooImageMedium, assets[0].FileType)
-}
-
-func TestLoadPlayerYahooImageLargeAssets(t *testing.T) {
-	t.Parallel()
-	q := &mockAssetQueries{
-		yahooLarge: []sqlcdb.ListPlayerYahooImagesLargeRow{
-			{ID: 8478402, YahooImageLarge: "https://s.yimg.com/iu/api/res/1.2/player8478402-large.jpg"},
-		},
-	}
-	a := newTestActivities(q)
-	assets, err := a.LoadPlayerYahooImageLargeAssets(context.Background())
-	require.NoError(t, err)
-	require.Len(t, assets, 1)
-	require.Equal(t, core.PlayerYahooImageLarge, assets[0].FileType)
 }
 
 func TestLoadTeamLogoAssets(t *testing.T) {
@@ -314,9 +272,7 @@ func TestCountActivities(t *testing.T) {
 	q := &mockAssetQueries{
 		headshots:     make([]sqlcdb.ListPlayerHeadshotsRow, 3),
 		heroImages:    make([]sqlcdb.ListPlayerHeroImagesRow, 5),
-		yahooSmall:    make([]sqlcdb.ListPlayerYahooImagesSmallRow, 7),
-		yahooMedium:   make([]sqlcdb.ListPlayerYahooImagesMediumRow, 11),
-		yahooLarge:    make([]sqlcdb.ListPlayerYahooImagesLargeRow, 13),
+		yahooImages:   make([]sqlcdb.ListPlayerYahooImagesRow, 13),
 		teamLogos:     make([]sqlcdb.ListTeamLogosRow, 17),
 		yahooTeamLogs: make([]sqlcdb.ListYahooTeamLogosRow, 19),
 		leagueLogos:   make([]sqlcdb.ListYahooLeagueLogosRow, 23),
@@ -333,9 +289,7 @@ func TestCountActivities(t *testing.T) {
 	}{
 		{"PlayerHeadshot", a.CountPlayerHeadshotAssets, 3},
 		{"PlayerHeroImage", a.CountPlayerHeroImageAssets, 5},
-		{"PlayerYahooImageSmall", a.CountPlayerYahooImageSmallAssets, 7},
-		{"PlayerYahooImageMedium", a.CountPlayerYahooImageMediumAssets, 11},
-		{"PlayerYahooImageLarge", a.CountPlayerYahooImageLargeAssets, 13},
+		{"PlayerYahooImage", a.CountPlayerYahooImageAssets, 13},
 		{"TeamLogo", a.CountTeamLogoAssets, 17},
 		{"YahooTeamLogo", a.CountYahooTeamLogoAssets, 19},
 		{"YahooLeagueLogo", a.CountYahooLeagueLogoAssets, 23},

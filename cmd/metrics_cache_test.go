@@ -244,17 +244,15 @@ func TestNewAssetCacheLoaders(t *testing.T) {
 	t.Parallel()
 
 	loaders := newAssetCacheLoaders(nil)
-	require.Len(t, loaders, 9)
+	require.Len(t, loaders, 7)
 	want := map[core.FileType]bool{
-		core.PlayerHeadshot:         true,
-		core.PlayerHeroImage:        true,
-		core.PlayerYahooImageSmall:  true,
-		core.PlayerYahooImageMedium: true,
-		core.PlayerYahooImageLarge:  true,
-		core.TeamLogo:               true,
-		core.YahooTeamLogo:          true,
-		core.YahooLeagueLogo:        true,
-		core.YahooManagerImage:      true,
+		core.PlayerHeadshot:    true,
+		core.PlayerHeroImage:   true,
+		core.PlayerYahooImage:  true,
+		core.TeamLogo:          true,
+		core.YahooTeamLogo:     true,
+		core.YahooLeagueLogo:   true,
+		core.YahooManagerImage: true,
 	}
 	for ft := range loaders {
 		require.True(t, want[ft], "unexpected fileType %q", ft)

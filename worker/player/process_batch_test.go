@@ -702,7 +702,7 @@ func encodeYahooPlayer(t *testing.T, player *store.YahooPlayer) []byte {
 	return buf.Bytes()
 }
 
-func TestProcessPlayerBatch_PopulatesYahooImageLarge(t *testing.T) {
+func TestProcessPlayerBatch_PopulatesYahooImage(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -755,9 +755,7 @@ func TestProcessPlayerBatch_PopulatesYahooImageLarge(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, result.Matched)
 
-	assert.Equal(t, wantURL, captured.YahooImageLarge)
-	assert.Empty(t, captured.YahooImageSmall, "small variant has no source URL yet")
-	assert.Empty(t, captured.YahooImageMedium, "medium variant has no source URL yet")
+	assert.Equal(t, wantURL, captured.YahooImage)
 }
 
 func TestProcessPlayerBatch_UnmatchedLeavesYahooImageEmpty(t *testing.T) {
@@ -803,5 +801,5 @@ func TestProcessPlayerBatch_UnmatchedLeavesYahooImageEmpty(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, result.Matched)
 
-	assert.Empty(t, captured.YahooImageLarge)
+	assert.Empty(t, captured.YahooImage)
 }

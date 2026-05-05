@@ -233,12 +233,8 @@ func classifyAssetFile(parts []string, filename string) core.FileType {
 			return core.PlayerHeadshot
 		case strings.HasPrefix(filename, "hero."):
 			return core.PlayerHeroImage
-		case strings.HasPrefix(filename, "yahoo-small."):
-			return core.PlayerYahooImageSmall
-		case strings.HasPrefix(filename, "yahoo-medium."):
-			return core.PlayerYahooImageMedium
-		case strings.HasPrefix(filename, "yahoo-large."):
-			return core.PlayerYahooImageLarge
+		case strings.HasPrefix(filename, "yahoo."):
+			return core.PlayerYahooImage
 		}
 	case "teams":
 		if len(parts) >= 3 && parts[2] == "logos" {

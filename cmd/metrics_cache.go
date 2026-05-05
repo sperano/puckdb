@@ -212,15 +212,13 @@ type assetLoader = func(context.Context) ([]asset.Asset, error)
 func newAssetCacheLoaders(queries *sqlcdb.Queries) map[core.FileType]assetLoader {
 	acts := &asset.Activities{Queries: queries}
 	return map[core.FileType]assetLoader{
-		core.PlayerHeadshot:         acts.LoadPlayerHeadshotAssets,
-		core.PlayerHeroImage:        acts.LoadPlayerHeroImageAssets,
-		core.PlayerYahooImageSmall:  acts.LoadPlayerYahooImageSmallAssets,
-		core.PlayerYahooImageMedium: acts.LoadPlayerYahooImageMediumAssets,
-		core.PlayerYahooImageLarge:  acts.LoadPlayerYahooImageLargeAssets,
-		core.TeamLogo:               acts.LoadTeamLogoAssets,
-		core.YahooTeamLogo:          acts.LoadYahooTeamLogoAssets,
-		core.YahooLeagueLogo:        acts.LoadYahooLeagueLogoAssets,
-		core.YahooManagerImage:      acts.LoadYahooManagerImageAssets,
+		core.PlayerHeadshot:    acts.LoadPlayerHeadshotAssets,
+		core.PlayerHeroImage:   acts.LoadPlayerHeroImageAssets,
+		core.PlayerYahooImage:  acts.LoadPlayerYahooImageAssets,
+		core.TeamLogo:          acts.LoadTeamLogoAssets,
+		core.YahooTeamLogo:     acts.LoadYahooTeamLogoAssets,
+		core.YahooLeagueLogo:   acts.LoadYahooLeagueLogoAssets,
+		core.YahooManagerImage: acts.LoadYahooManagerImageAssets,
 	}
 }
 

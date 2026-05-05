@@ -60,34 +60,12 @@ func (q *Queries) CountPlayerHeroImages(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-const countPlayerYahooImagesLarge = `-- name: CountPlayerYahooImagesLarge :one
-SELECT COUNT(*) FROM players WHERE yahoo_image_large <> ''
+const countPlayerYahooImages = `-- name: CountPlayerYahooImages :one
+SELECT COUNT(*) FROM players WHERE yahoo_image <> ''
 `
 
-func (q *Queries) CountPlayerYahooImagesLarge(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countPlayerYahooImagesLarge)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countPlayerYahooImagesMedium = `-- name: CountPlayerYahooImagesMedium :one
-SELECT COUNT(*) FROM players WHERE yahoo_image_medium <> ''
-`
-
-func (q *Queries) CountPlayerYahooImagesMedium(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countPlayerYahooImagesMedium)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countPlayerYahooImagesSmall = `-- name: CountPlayerYahooImagesSmall :one
-SELECT COUNT(*) FROM players WHERE yahoo_image_small <> ''
-`
-
-func (q *Queries) CountPlayerYahooImagesSmall(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countPlayerYahooImagesSmall)
+func (q *Queries) CountPlayerYahooImages(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countPlayerYahooImages)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -114,7 +92,7 @@ func (q *Queries) DeletePlayer(ctx context.Context, id int64) error {
 }
 
 const getActivePlayers = `-- name: GetActivePlayers :many
-SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE is_active = TRUE ORDER BY last_name, first_name
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE is_active = TRUE ORDER BY last_name, first_name
 `
 
 func (q *Queries) GetActivePlayers(ctx context.Context) ([]Player, error) {
@@ -146,9 +124,7 @@ func (q *Queries) GetActivePlayers(ctx context.Context) ([]Player, error) {
 			&i.IsActive,
 			&i.HeadshotURL,
 			&i.HeroImageURL,
-			&i.YahooImageSmall,
-			&i.YahooImageMedium,
-			&i.YahooImageLarge,
+			&i.YahooImage,
 			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
@@ -168,7 +144,7 @@ func (q *Queries) GetActivePlayers(ctx context.Context) ([]Player, error) {
 }
 
 const getAllPlayers = `-- name: GetAllPlayers :many
-SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players ORDER BY last_name, first_name
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players ORDER BY last_name, first_name
 `
 
 func (q *Queries) GetAllPlayers(ctx context.Context) ([]Player, error) {
@@ -200,9 +176,7 @@ func (q *Queries) GetAllPlayers(ctx context.Context) ([]Player, error) {
 			&i.IsActive,
 			&i.HeadshotURL,
 			&i.HeroImageURL,
-			&i.YahooImageSmall,
-			&i.YahooImageMedium,
-			&i.YahooImageLarge,
+			&i.YahooImage,
 			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
@@ -222,7 +196,7 @@ func (q *Queries) GetAllPlayers(ctx context.Context) ([]Player, error) {
 }
 
 const getPlayer = `-- name: GetPlayer :one
-SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE id = $1
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE id = $1
 `
 
 func (q *Queries) GetPlayer(ctx context.Context, id int64) (Player, error) {
@@ -248,9 +222,7 @@ func (q *Queries) GetPlayer(ctx context.Context, id int64) (Player, error) {
 		&i.IsActive,
 		&i.HeadshotURL,
 		&i.HeroImageURL,
-		&i.YahooImageSmall,
-		&i.YahooImageMedium,
-		&i.YahooImageLarge,
+		&i.YahooImage,
 		&i.YahooHomeURL,
 		&i.PlayerSlug,
 		&i.DraftYear,
@@ -263,7 +235,7 @@ func (q *Queries) GetPlayer(ctx context.Context, id int64) (Player, error) {
 }
 
 const getPlayerByYahooID = `-- name: GetPlayerByYahooID :one
-SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE yahoo_id = $1
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE yahoo_id = $1
 `
 
 func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (Player, error) {
@@ -289,9 +261,7 @@ func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (
 		&i.IsActive,
 		&i.HeadshotURL,
 		&i.HeroImageURL,
-		&i.YahooImageSmall,
-		&i.YahooImageMedium,
-		&i.YahooImageLarge,
+		&i.YahooImage,
 		&i.YahooHomeURL,
 		&i.PlayerSlug,
 		&i.DraftYear,
@@ -304,7 +274,7 @@ func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (
 }
 
 const getPlayersByPosition = `-- name: GetPlayersByPosition :many
-SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE position = $1 ORDER BY last_name, first_name
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE position = $1 ORDER BY last_name, first_name
 `
 
 func (q *Queries) GetPlayersByPosition(ctx context.Context, position NullPlayerPosition) ([]Player, error) {
@@ -336,9 +306,7 @@ func (q *Queries) GetPlayersByPosition(ctx context.Context, position NullPlayerP
 			&i.IsActive,
 			&i.HeadshotURL,
 			&i.HeroImageURL,
-			&i.YahooImageSmall,
-			&i.YahooImageMedium,
-			&i.YahooImageLarge,
+			&i.YahooImage,
 			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
@@ -358,7 +326,7 @@ func (q *Queries) GetPlayersByPosition(ctx context.Context, position NullPlayerP
 }
 
 const getPlayersByTeam = `-- name: GetPlayersByTeam :many
-SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE team_id = $1 ORDER BY last_name, first_name
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE team_id = $1 ORDER BY last_name, first_name
 `
 
 func (q *Queries) GetPlayersByTeam(ctx context.Context, teamID pgtype.Int8) ([]Player, error) {
@@ -390,9 +358,7 @@ func (q *Queries) GetPlayersByTeam(ctx context.Context, teamID pgtype.Int8) ([]P
 			&i.IsActive,
 			&i.HeadshotURL,
 			&i.HeroImageURL,
-			&i.YahooImageSmall,
-			&i.YahooImageMedium,
-			&i.YahooImageLarge,
+			&i.YahooImage,
 			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
@@ -484,83 +450,25 @@ func (q *Queries) ListPlayerHeroImages(ctx context.Context) ([]ListPlayerHeroIma
 	return items, nil
 }
 
-const listPlayerYahooImagesLarge = `-- name: ListPlayerYahooImagesLarge :many
-SELECT id, yahoo_image_large FROM players WHERE yahoo_image_large <> '' ORDER BY id
+const listPlayerYahooImages = `-- name: ListPlayerYahooImages :many
+SELECT id, yahoo_image FROM players WHERE yahoo_image <> '' ORDER BY id
 `
 
-type ListPlayerYahooImagesLargeRow struct {
-	ID              int64  `json:"id"`
-	YahooImageLarge string `json:"yahoo_image_large"`
+type ListPlayerYahooImagesRow struct {
+	ID         int64  `json:"id"`
+	YahooImage string `json:"yahoo_image"`
 }
 
-func (q *Queries) ListPlayerYahooImagesLarge(ctx context.Context) ([]ListPlayerYahooImagesLargeRow, error) {
-	rows, err := q.db.Query(ctx, listPlayerYahooImagesLarge)
+func (q *Queries) ListPlayerYahooImages(ctx context.Context) ([]ListPlayerYahooImagesRow, error) {
+	rows, err := q.db.Query(ctx, listPlayerYahooImages)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListPlayerYahooImagesLargeRow{}
+	items := []ListPlayerYahooImagesRow{}
 	for rows.Next() {
-		var i ListPlayerYahooImagesLargeRow
-		if err := rows.Scan(&i.ID, &i.YahooImageLarge); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPlayerYahooImagesMedium = `-- name: ListPlayerYahooImagesMedium :many
-SELECT id, yahoo_image_medium FROM players WHERE yahoo_image_medium <> '' ORDER BY id
-`
-
-type ListPlayerYahooImagesMediumRow struct {
-	ID               int64  `json:"id"`
-	YahooImageMedium string `json:"yahoo_image_medium"`
-}
-
-func (q *Queries) ListPlayerYahooImagesMedium(ctx context.Context) ([]ListPlayerYahooImagesMediumRow, error) {
-	rows, err := q.db.Query(ctx, listPlayerYahooImagesMedium)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListPlayerYahooImagesMediumRow{}
-	for rows.Next() {
-		var i ListPlayerYahooImagesMediumRow
-		if err := rows.Scan(&i.ID, &i.YahooImageMedium); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPlayerYahooImagesSmall = `-- name: ListPlayerYahooImagesSmall :many
-SELECT id, yahoo_image_small FROM players WHERE yahoo_image_small <> '' ORDER BY id
-`
-
-type ListPlayerYahooImagesSmallRow struct {
-	ID              int64  `json:"id"`
-	YahooImageSmall string `json:"yahoo_image_small"`
-}
-
-func (q *Queries) ListPlayerYahooImagesSmall(ctx context.Context) ([]ListPlayerYahooImagesSmallRow, error) {
-	rows, err := q.db.Query(ctx, listPlayerYahooImagesSmall)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListPlayerYahooImagesSmallRow{}
-	for rows.Next() {
-		var i ListPlayerYahooImagesSmallRow
-		if err := rows.Scan(&i.ID, &i.YahooImageSmall); err != nil {
+		var i ListPlayerYahooImagesRow
+		if err := rows.Scan(&i.ID, &i.YahooImage); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -572,7 +480,7 @@ func (q *Queries) ListPlayerYahooImagesSmall(ctx context.Context) ([]ListPlayerY
 }
 
 const listPlayers = `-- name: ListPlayers :many
-SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players
 WHERE
     ($1::text IS NULL OR
      first_name ILIKE '%' || $1 || '%' OR
@@ -631,9 +539,7 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Pla
 			&i.IsActive,
 			&i.HeadshotURL,
 			&i.HeroImageURL,
-			&i.YahooImageSmall,
-			&i.YahooImageMedium,
-			&i.YahooImageLarge,
+			&i.YahooImage,
 			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
@@ -653,7 +559,7 @@ func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Pla
 }
 
 const searchPlayersByFullName = `-- name: SearchPlayersByFullName :many
-SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players
 WHERE (first_name_normalized LIKE '%' || lower($1) || '%' AND last_name_normalized LIKE '%' || lower($2) || '%')
    OR (first_name_normalized LIKE '%' || lower($2) || '%' AND last_name_normalized LIKE '%' || lower($1) || '%')
    OR (first_name ILIKE '%' || $1 || '%' AND last_name ILIKE '%' || $2 || '%')
@@ -705,9 +611,7 @@ func (q *Queries) SearchPlayersByFullName(ctx context.Context, arg SearchPlayers
 			&i.IsActive,
 			&i.HeadshotURL,
 			&i.HeroImageURL,
-			&i.YahooImageSmall,
-			&i.YahooImageMedium,
-			&i.YahooImageLarge,
+			&i.YahooImage,
 			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
@@ -727,7 +631,7 @@ func (q *Queries) SearchPlayersByFullName(ctx context.Context, arg SearchPlayers
 }
 
 const searchPlayersByName = `-- name: SearchPlayersByName :many
-SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image_small, yahoo_image_medium, yahoo_image_large, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players
 WHERE first_name_normalized LIKE '%' || lower($1) || '%'
    OR last_name_normalized LIKE '%' || lower($1) || '%'
    OR first_name ILIKE '%' || $1 || '%'
@@ -772,9 +676,7 @@ func (q *Queries) SearchPlayersByName(ctx context.Context, lower string) ([]Play
 			&i.IsActive,
 			&i.HeadshotURL,
 			&i.HeroImageURL,
-			&i.YahooImageSmall,
-			&i.YahooImageMedium,
-			&i.YahooImageLarge,
+			&i.YahooImage,
 			&i.YahooHomeURL,
 			&i.PlayerSlug,
 			&i.DraftYear,
@@ -796,20 +698,16 @@ func (q *Queries) SearchPlayersByName(ctx context.Context, lower string) ([]Play
 const updatePlayerYahooInfo = `-- name: UpdatePlayerYahooInfo :exec
 UPDATE players SET
     yahoo_id = $2,
-    yahoo_image_small = $3,
-    yahoo_image_medium = $4,
-    yahoo_image_large = $5,
-    yahoo_home_url = $6
+    yahoo_image = $3,
+    yahoo_home_url = $4
 WHERE id = $1
 `
 
 type UpdatePlayerYahooInfoParams struct {
-	ID               int64       `json:"id"`
-	YahooID          pgtype.Int8 `json:"yahoo_id"`
-	YahooImageSmall  string      `json:"yahoo_image_small"`
-	YahooImageMedium string      `json:"yahoo_image_medium"`
-	YahooImageLarge  string      `json:"yahoo_image_large"`
-	YahooHomeURL     string      `json:"yahoo_home_url"`
+	ID           int64       `json:"id"`
+	YahooID      pgtype.Int8 `json:"yahoo_id"`
+	YahooImage   string      `json:"yahoo_image"`
+	YahooHomeURL string      `json:"yahoo_home_url"`
 }
 
 // Use this when importing from Yahoo API (updates Yahoo-specific fields)
@@ -817,9 +715,7 @@ func (q *Queries) UpdatePlayerYahooInfo(ctx context.Context, arg UpdatePlayerYah
 	_, err := q.db.Exec(ctx, updatePlayerYahooInfo,
 		arg.ID,
 		arg.YahooID,
-		arg.YahooImageSmall,
-		arg.YahooImageMedium,
-		arg.YahooImageLarge,
+		arg.YahooImage,
 		arg.YahooHomeURL,
 	)
 	return err
@@ -831,7 +727,7 @@ INSERT INTO players (
     position, shoots_catches, height_inches, weight_pounds,
     birth_date, birth_city, birth_state_province, birth_country,
     sweater_number, is_active, headshot_url, hero_image_url,
-    yahoo_image_small, yahoo_image_medium, yahoo_image_large,
+    yahoo_image,
     yahoo_home_url, player_slug,
     draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick
 ) VALUES (
@@ -839,9 +735,9 @@ INSERT INTO players (
     $8, $9, $10, $11,
     $12, $13, $14, $15,
     $16, $17, $18, $19,
-    $20, $21, $22,
-    $23, $24,
-    $25, $26, $27, $28, $29
+    $20,
+    $21, $22,
+    $23, $24, $25, $26, $27
 )
 ON CONFLICT (id) DO UPDATE SET
     yahoo_id = COALESCE(EXCLUDED.yahoo_id, players.yahoo_id),
@@ -862,9 +758,7 @@ ON CONFLICT (id) DO UPDATE SET
     is_active = EXCLUDED.is_active,
     headshot_url = CASE WHEN EXCLUDED.headshot_url != '' THEN EXCLUDED.headshot_url ELSE players.headshot_url END,
     hero_image_url = COALESCE(EXCLUDED.hero_image_url, players.hero_image_url),
-    yahoo_image_small = CASE WHEN EXCLUDED.yahoo_image_small != '' THEN EXCLUDED.yahoo_image_small ELSE players.yahoo_image_small END,
-    yahoo_image_medium = CASE WHEN EXCLUDED.yahoo_image_medium != '' THEN EXCLUDED.yahoo_image_medium ELSE players.yahoo_image_medium END,
-    yahoo_image_large = CASE WHEN EXCLUDED.yahoo_image_large != '' THEN EXCLUDED.yahoo_image_large ELSE players.yahoo_image_large END,
+    yahoo_image = CASE WHEN EXCLUDED.yahoo_image != '' THEN EXCLUDED.yahoo_image ELSE players.yahoo_image END,
     yahoo_home_url = CASE WHEN EXCLUDED.yahoo_home_url != '' THEN EXCLUDED.yahoo_home_url ELSE players.yahoo_home_url END,
     player_slug = COALESCE(EXCLUDED.player_slug, players.player_slug),
     draft_year = COALESCE(EXCLUDED.draft_year, players.draft_year),
@@ -894,9 +788,7 @@ type UpsertPlayerParams struct {
 	IsActive            bool               `json:"is_active"`
 	HeadshotURL         string             `json:"headshot_url"`
 	HeroImageURL        pgtype.Text        `json:"hero_image_url"`
-	YahooImageSmall     string             `json:"yahoo_image_small"`
-	YahooImageMedium    string             `json:"yahoo_image_medium"`
-	YahooImageLarge     string             `json:"yahoo_image_large"`
+	YahooImage          string             `json:"yahoo_image"`
 	YahooHomeURL        string             `json:"yahoo_home_url"`
 	PlayerSlug          pgtype.Text        `json:"player_slug"`
 	DraftYear           pgtype.Int4        `json:"draft_year"`
@@ -927,9 +819,7 @@ func (q *Queries) UpsertPlayer(ctx context.Context, arg UpsertPlayerParams) erro
 		arg.IsActive,
 		arg.HeadshotURL,
 		arg.HeroImageURL,
-		arg.YahooImageSmall,
-		arg.YahooImageMedium,
-		arg.YahooImageLarge,
+		arg.YahooImage,
 		arg.YahooHomeURL,
 		arg.PlayerSlug,
 		arg.DraftYear,

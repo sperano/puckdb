@@ -53,15 +53,13 @@ var validImageMIMETypes = map[string]struct{}{
 // successful remote fetch. NHL types use OriginRemoteNHLCDN; Yahoo types use
 // OriginRemoteYahooCDN.
 var assetOrigins = map[core.FileType]core.DataOrigin{
-	core.PlayerHeadshot:         core.OriginRemoteNHLCDN,
-	core.PlayerHeroImage:        core.OriginRemoteNHLCDN,
-	core.TeamLogo:               core.OriginRemoteNHLCDN,
-	core.PlayerYahooImageSmall:  core.OriginRemoteYahooCDN,
-	core.PlayerYahooImageMedium: core.OriginRemoteYahooCDN,
-	core.PlayerYahooImageLarge:  core.OriginRemoteYahooCDN,
-	core.YahooTeamLogo:          core.OriginRemoteYahooCDN,
-	core.YahooLeagueLogo:        core.OriginRemoteYahooCDN,
-	core.YahooManagerImage:      core.OriginRemoteYahooCDN,
+	core.PlayerHeadshot:    core.OriginRemoteNHLCDN,
+	core.PlayerHeroImage:   core.OriginRemoteNHLCDN,
+	core.TeamLogo:          core.OriginRemoteNHLCDN,
+	core.PlayerYahooImage:  core.OriginRemoteYahooCDN,
+	core.YahooTeamLogo:     core.OriginRemoteYahooCDN,
+	core.YahooLeagueLogo:   core.OriginRemoteYahooCDN,
+	core.YahooManagerImage: core.OriginRemoteYahooCDN,
 }
 
 // assetQueries defines the database query methods required by Activities.
@@ -72,9 +70,7 @@ var assetOrigins = map[core.FileType]core.DataOrigin{
 type assetQueries interface {
 	ListPlayerHeadshots(ctx context.Context) ([]sqlcdb.ListPlayerHeadshotsRow, error)
 	ListPlayerHeroImages(ctx context.Context) ([]sqlcdb.ListPlayerHeroImagesRow, error)
-	ListPlayerYahooImagesSmall(ctx context.Context) ([]sqlcdb.ListPlayerYahooImagesSmallRow, error)
-	ListPlayerYahooImagesMedium(ctx context.Context) ([]sqlcdb.ListPlayerYahooImagesMediumRow, error)
-	ListPlayerYahooImagesLarge(ctx context.Context) ([]sqlcdb.ListPlayerYahooImagesLargeRow, error)
+	ListPlayerYahooImages(ctx context.Context) ([]sqlcdb.ListPlayerYahooImagesRow, error)
 	ListTeamLogos(ctx context.Context) ([]sqlcdb.ListTeamLogosRow, error)
 	ListYahooTeamLogos(ctx context.Context) ([]sqlcdb.ListYahooTeamLogosRow, error)
 	ListYahooLeagueLogos(ctx context.Context) ([]sqlcdb.ListYahooLeagueLogosRow, error)
@@ -82,9 +78,7 @@ type assetQueries interface {
 
 	CountPlayerHeadshots(ctx context.Context) (int64, error)
 	CountPlayerHeroImages(ctx context.Context) (int64, error)
-	CountPlayerYahooImagesSmall(ctx context.Context) (int64, error)
-	CountPlayerYahooImagesMedium(ctx context.Context) (int64, error)
-	CountPlayerYahooImagesLarge(ctx context.Context) (int64, error)
+	CountPlayerYahooImages(ctx context.Context) (int64, error)
 	CountTeamLogos(ctx context.Context) (int64, error)
 	CountYahooTeamLogos(ctx context.Context) (int64, error)
 	CountYahooLeagueLogos(ctx context.Context) (int64, error)

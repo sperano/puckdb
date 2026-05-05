@@ -381,12 +381,10 @@ func registerAssetWorkflows(w worker.Worker) {
 	// Parent: orchestrates the nine class children
 	w.RegisterWorkflow(workflow.FetchAssetsWorkflow)
 
-	// Nine entry-point wrappers — each is a distinct workflow type in the Temporal UI
+	// Per-class entry-point wrappers — each is a distinct workflow type in the Temporal UI
 	w.RegisterWorkflow(workflow.FetchPlayerHeadshotsWorkflow)
 	w.RegisterWorkflow(workflow.FetchPlayerHeroImagesWorkflow)
-	w.RegisterWorkflow(workflow.FetchPlayerYahooImagesSmallWorkflow)
-	w.RegisterWorkflow(workflow.FetchPlayerYahooImagesMediumWorkflow)
-	w.RegisterWorkflow(workflow.FetchPlayerYahooImagesLargeWorkflow)
+	w.RegisterWorkflow(workflow.FetchPlayerYahooImagesWorkflow)
 	w.RegisterWorkflow(workflow.FetchTeamLogosWorkflow)
 	w.RegisterWorkflow(workflow.FetchYahooTeamLogosWorkflow)
 	w.RegisterWorkflow(workflow.FetchYahooLeagueLogosWorkflow)
@@ -421,9 +419,7 @@ func registerAssetActivities(w worker.Worker, queries *sqlcdb.Queries) {
 	// Query (loader) activities — one per asset class
 	w.RegisterActivity(assetActivities.LoadPlayerHeadshotAssets)
 	w.RegisterActivity(assetActivities.LoadPlayerHeroImageAssets)
-	w.RegisterActivity(assetActivities.LoadPlayerYahooImageSmallAssets)
-	w.RegisterActivity(assetActivities.LoadPlayerYahooImageMediumAssets)
-	w.RegisterActivity(assetActivities.LoadPlayerYahooImageLargeAssets)
+	w.RegisterActivity(assetActivities.LoadPlayerYahooImageAssets)
 	w.RegisterActivity(assetActivities.LoadTeamLogoAssets)
 	w.RegisterActivity(assetActivities.LoadYahooTeamLogoAssets)
 	w.RegisterActivity(assetActivities.LoadYahooLeagueLogoAssets)
@@ -433,9 +429,7 @@ func registerAssetActivities(w worker.Worker, queries *sqlcdb.Queries) {
 	// FetchAssetsWorkflow to size its progress bars before dispatch.
 	w.RegisterActivity(assetActivities.CountPlayerHeadshotAssets)
 	w.RegisterActivity(assetActivities.CountPlayerHeroImageAssets)
-	w.RegisterActivity(assetActivities.CountPlayerYahooImageSmallAssets)
-	w.RegisterActivity(assetActivities.CountPlayerYahooImageMediumAssets)
-	w.RegisterActivity(assetActivities.CountPlayerYahooImageLargeAssets)
+	w.RegisterActivity(assetActivities.CountPlayerYahooImageAssets)
 	w.RegisterActivity(assetActivities.CountTeamLogoAssets)
 	w.RegisterActivity(assetActivities.CountYahooTeamLogoAssets)
 	w.RegisterActivity(assetActivities.CountYahooLeagueLogoAssets)

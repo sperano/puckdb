@@ -55,9 +55,7 @@ const (
 	ClubScheduleSeasonResource
 	PlayerHeadshot
 	PlayerHeroImage
-	PlayerYahooImageSmall
-	PlayerYahooImageMedium
-	PlayerYahooImageLarge
+	PlayerYahooImage
 	TeamLogo
 	YahooTeamLogo
 	YahooLeagueLogo
@@ -129,9 +127,7 @@ var fileTypes = []fileTypeEntry{
 	{ClubScheduleSeasonResource, "ClubScheduleSeason"},
 	{PlayerHeadshot, "PlayerHeadshot"},
 	{PlayerHeroImage, "PlayerHeroImage"},
-	{PlayerYahooImageSmall, "PlayerYahooImageSmall"},
-	{PlayerYahooImageMedium, "PlayerYahooImageMedium"},
-	{PlayerYahooImageLarge, "PlayerYahooImageLarge"},
+	{PlayerYahooImage, "PlayerYahooImage"},
 	{TeamLogo, "TeamLogo"},
 	{YahooTeamLogo, "YahooTeamLogo"},
 	{YahooLeagueLogo, "YahooLeagueLogo"},

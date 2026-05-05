@@ -70,7 +70,7 @@ INSERT INTO players (
     position, shoots_catches, height_inches, weight_pounds,
     birth_date, birth_city, birth_state_province, birth_country,
     sweater_number, is_active, headshot_url, hero_image_url,
-    yahoo_image_small, yahoo_image_medium, yahoo_image_large,
+    yahoo_image,
     yahoo_home_url, player_slug,
     draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick
 ) VALUES (
@@ -78,9 +78,9 @@ INSERT INTO players (
     $8, $9, $10, $11,
     $12, $13, $14, $15,
     $16, $17, $18, $19,
-    $20, $21, $22,
-    $23, $24,
-    $25, $26, $27, $28, $29
+    $20,
+    $21, $22,
+    $23, $24, $25, $26, $27
 )
 ON CONFLICT (id) DO UPDATE SET
     yahoo_id = COALESCE(EXCLUDED.yahoo_id, players.yahoo_id),
@@ -101,9 +101,7 @@ ON CONFLICT (id) DO UPDATE SET
     is_active = EXCLUDED.is_active,
     headshot_url = CASE WHEN EXCLUDED.headshot_url != '' THEN EXCLUDED.headshot_url ELSE players.headshot_url END,
     hero_image_url = COALESCE(EXCLUDED.hero_image_url, players.hero_image_url),
-    yahoo_image_small = CASE WHEN EXCLUDED.yahoo_image_small != '' THEN EXCLUDED.yahoo_image_small ELSE players.yahoo_image_small END,
-    yahoo_image_medium = CASE WHEN EXCLUDED.yahoo_image_medium != '' THEN EXCLUDED.yahoo_image_medium ELSE players.yahoo_image_medium END,
-    yahoo_image_large = CASE WHEN EXCLUDED.yahoo_image_large != '' THEN EXCLUDED.yahoo_image_large ELSE players.yahoo_image_large END,
+    yahoo_image = CASE WHEN EXCLUDED.yahoo_image != '' THEN EXCLUDED.yahoo_image ELSE players.yahoo_image END,
     yahoo_home_url = CASE WHEN EXCLUDED.yahoo_home_url != '' THEN EXCLUDED.yahoo_home_url ELSE players.yahoo_home_url END,
     player_slug = COALESCE(EXCLUDED.player_slug, players.player_slug),
     draft_year = COALESCE(EXCLUDED.draft_year, players.draft_year),
@@ -175,10 +173,8 @@ WHERE (players.first_name, players.last_name, players.team_id,
 -- Use this when importing from Yahoo API (updates Yahoo-specific fields)
 UPDATE players SET
     yahoo_id = $2,
-    yahoo_image_small = $3,
-    yahoo_image_medium = $4,
-    yahoo_image_large = $5,
-    yahoo_home_url = $6
+    yahoo_image = $3,
+    yahoo_home_url = $4
 WHERE id = $1;
 
 -- name: LinkYahooToNHLPlayer :exec
@@ -224,20 +220,8 @@ SELECT id, hero_image_url FROM players WHERE hero_image_url IS NOT NULL AND hero
 -- name: CountPlayerHeroImages :one
 SELECT COUNT(*) FROM players WHERE hero_image_url IS NOT NULL AND hero_image_url <> '';
 
--- name: ListPlayerYahooImagesSmall :many
-SELECT id, yahoo_image_small FROM players WHERE yahoo_image_small <> '' ORDER BY id;
+-- name: ListPlayerYahooImages :many
+SELECT id, yahoo_image FROM players WHERE yahoo_image <> '' ORDER BY id;
 
--- name: CountPlayerYahooImagesSmall :one
-SELECT COUNT(*) FROM players WHERE yahoo_image_small <> '';
-
--- name: ListPlayerYahooImagesMedium :many
-SELECT id, yahoo_image_medium FROM players WHERE yahoo_image_medium <> '' ORDER BY id;
-
--- name: CountPlayerYahooImagesMedium :one
-SELECT COUNT(*) FROM players WHERE yahoo_image_medium <> '';
-
--- name: ListPlayerYahooImagesLarge :many
-SELECT id, yahoo_image_large FROM players WHERE yahoo_image_large <> '' ORDER BY id;
-
--- name: CountPlayerYahooImagesLarge :one
-SELECT COUNT(*) FROM players WHERE yahoo_image_large <> '';
+-- name: CountPlayerYahooImages :one
+SELECT COUNT(*) FROM players WHERE yahoo_image <> '';

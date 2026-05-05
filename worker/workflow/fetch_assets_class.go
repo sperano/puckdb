@@ -97,20 +97,10 @@ var (
 		Label:      "Player Hero Images",
 		LoaderName: "LoadPlayerHeroImageAssets",
 	}
-	classPlayerYahooSmall = assetClass{
-		FileType:   core.PlayerYahooImageSmall,
-		Label:      "Player Yahoo Images (Small)",
-		LoaderName: "LoadPlayerYahooImageSmallAssets",
-	}
-	classPlayerYahooMedium = assetClass{
-		FileType:   core.PlayerYahooImageMedium,
-		Label:      "Player Yahoo Images (Medium)",
-		LoaderName: "LoadPlayerYahooImageMediumAssets",
-	}
-	classPlayerYahooLarge = assetClass{
-		FileType:   core.PlayerYahooImageLarge,
-		Label:      "Player Yahoo Images (Large)",
-		LoaderName: "LoadPlayerYahooImageLargeAssets",
+	classPlayerYahooImage = assetClass{
+		FileType:   core.PlayerYahooImage,
+		Label:      "Player Yahoo Images",
+		LoaderName: "LoadPlayerYahooImageAssets",
 	}
 	classTeamLogos = assetClass{
 		FileType:   core.TeamLogo,
@@ -312,26 +302,10 @@ func FetchPlayerHeroImagesWorkflow(ctx workflow.Context, input FetchAssetsInput)
 	})
 }
 
-// FetchPlayerYahooImagesSmallWorkflow downloads all small Yahoo player images.
-func FetchPlayerYahooImagesSmallWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
+// FetchPlayerYahooImagesWorkflow downloads all Yahoo player images.
+func FetchPlayerYahooImagesWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
 	return FetchAssetsClassWorkflow(ctx, FetchAssetsClassInput{
-		Class:          classPlayerYahooSmall,
-		RefreshCurrent: input.refreshCurrent(),
-	})
-}
-
-// FetchPlayerYahooImagesMediumWorkflow downloads all medium Yahoo player images.
-func FetchPlayerYahooImagesMediumWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
-	return FetchAssetsClassWorkflow(ctx, FetchAssetsClassInput{
-		Class:          classPlayerYahooMedium,
-		RefreshCurrent: input.refreshCurrent(),
-	})
-}
-
-// FetchPlayerYahooImagesLargeWorkflow downloads all large Yahoo player images.
-func FetchPlayerYahooImagesLargeWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
-	return FetchAssetsClassWorkflow(ctx, FetchAssetsClassInput{
-		Class:          classPlayerYahooLarge,
+		Class:          classPlayerYahooImage,
 		RefreshCurrent: input.refreshCurrent(),
 	})
 }

@@ -41,44 +41,16 @@ func (a *Activities) LoadPlayerHeroImageAssets(ctx context.Context) ([]Asset, er
 	return assets, nil
 }
 
-// LoadPlayerYahooImageSmallAssets queries all small Yahoo player images and
-// converts them to Assets.
-func (a *Activities) LoadPlayerYahooImageSmallAssets(ctx context.Context) ([]Asset, error) {
-	rows, err := a.Queries.ListPlayerYahooImagesSmall(ctx)
+// LoadPlayerYahooImageAssets queries all Yahoo player images and converts them
+// to Assets.
+func (a *Activities) LoadPlayerYahooImageAssets(ctx context.Context) ([]Asset, error) {
+	rows, err := a.Queries.ListPlayerYahooImages(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list player yahoo images small: %w", err)
+		return nil, fmt.Errorf("list player yahoo images: %w", err)
 	}
 	assets := make([]Asset, 0, len(rows))
 	for _, r := range rows {
-		assets = append(assets, NewPlayerYahooImage(nhl.PlayerID(r.ID), YahooImageSizeSmall, r.YahooImageSmall))
-	}
-	return assets, nil
-}
-
-// LoadPlayerYahooImageMediumAssets queries all medium Yahoo player images and
-// converts them to Assets.
-func (a *Activities) LoadPlayerYahooImageMediumAssets(ctx context.Context) ([]Asset, error) {
-	rows, err := a.Queries.ListPlayerYahooImagesMedium(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list player yahoo images medium: %w", err)
-	}
-	assets := make([]Asset, 0, len(rows))
-	for _, r := range rows {
-		assets = append(assets, NewPlayerYahooImage(nhl.PlayerID(r.ID), YahooImageSizeMedium, r.YahooImageMedium))
-	}
-	return assets, nil
-}
-
-// LoadPlayerYahooImageLargeAssets queries all large Yahoo player images and
-// converts them to Assets.
-func (a *Activities) LoadPlayerYahooImageLargeAssets(ctx context.Context) ([]Asset, error) {
-	rows, err := a.Queries.ListPlayerYahooImagesLarge(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list player yahoo images large: %w", err)
-	}
-	assets := make([]Asset, 0, len(rows))
-	for _, r := range rows {
-		assets = append(assets, NewPlayerYahooImage(nhl.PlayerID(r.ID), YahooImageSizeLarge, r.YahooImageLarge))
+		assets = append(assets, NewPlayerYahooImage(nhl.PlayerID(r.ID), r.YahooImage))
 	}
 	return assets, nil
 }
@@ -165,32 +137,12 @@ func (a *Activities) CountPlayerHeroImageAssets(ctx context.Context) (int, error
 	return int(n), nil
 }
 
-// CountPlayerYahooImageSmallAssets returns the number of small Yahoo player
-// image rows the loader would produce.
-func (a *Activities) CountPlayerYahooImageSmallAssets(ctx context.Context) (int, error) {
-	n, err := a.Queries.CountPlayerYahooImagesSmall(ctx)
+// CountPlayerYahooImageAssets returns the number of Yahoo player image rows
+// the loader would produce.
+func (a *Activities) CountPlayerYahooImageAssets(ctx context.Context) (int, error) {
+	n, err := a.Queries.CountPlayerYahooImages(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("count player yahoo images small: %w", err)
-	}
-	return int(n), nil
-}
-
-// CountPlayerYahooImageMediumAssets returns the number of medium Yahoo player
-// image rows the loader would produce.
-func (a *Activities) CountPlayerYahooImageMediumAssets(ctx context.Context) (int, error) {
-	n, err := a.Queries.CountPlayerYahooImagesMedium(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("count player yahoo images medium: %w", err)
-	}
-	return int(n), nil
-}
-
-// CountPlayerYahooImageLargeAssets returns the number of large Yahoo player
-// image rows the loader would produce.
-func (a *Activities) CountPlayerYahooImageLargeAssets(ctx context.Context) (int, error) {
-	n, err := a.Queries.CountPlayerYahooImagesLarge(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("count player yahoo images large: %w", err)
+		return 0, fmt.Errorf("count player yahoo images: %w", err)
 	}
 	return int(n), nil
 }

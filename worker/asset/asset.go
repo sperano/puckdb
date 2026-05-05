@@ -31,31 +31,6 @@ func (a Asset) Path() (string, error) {
 	return builder(a.IDs, ext)
 }
 
-// YahooImageSize selects which Yahoo player image size slot to use.
-type YahooImageSize int
-
-const (
-	YahooImageSizeSmall YahooImageSize = iota
-	YahooImageSizeMedium
-	YahooImageSizeLarge
-)
-
-// yahooImageSizeFileType maps a YahooImageSize to its corresponding FileType.
-// Returns core.Unknown for unrecognised sizes so the downstream pathBuilders
-// lookup fails loudly, consistent with extFromURL's strict-allowlist philosophy.
-func yahooImageSizeFileType(size YahooImageSize) core.FileType {
-	switch size {
-	case YahooImageSizeSmall:
-		return core.PlayerYahooImageSmall
-	case YahooImageSizeMedium:
-		return core.PlayerYahooImageMedium
-	case YahooImageSizeLarge:
-		return core.PlayerYahooImageLarge
-	default:
-		return core.Unknown
-	}
-}
-
 // NewPlayerHeadshot constructs an Asset for an NHL player headshot.
 func NewPlayerHeadshot(playerID nhl.PlayerID, url string) Asset {
 	return Asset{
@@ -74,11 +49,10 @@ func NewPlayerHeroImage(playerID nhl.PlayerID, url string) Asset {
 	}
 }
 
-// NewPlayerYahooImage constructs an Asset for a Yahoo player image. The size
-// parameter selects the specific FileType (Small, Medium, or Large).
-func NewPlayerYahooImage(playerID nhl.PlayerID, size YahooImageSize, url string) Asset {
+// NewPlayerYahooImage constructs an Asset for a Yahoo player image.
+func NewPlayerYahooImage(playerID nhl.PlayerID, url string) Asset {
 	return Asset{
-		FileType: yahooImageSizeFileType(size),
+		FileType: core.PlayerYahooImage,
 		URL:      url,
 		IDs:      []int64{int64(playerID)},
 	}

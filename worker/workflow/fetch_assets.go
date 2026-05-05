@@ -45,9 +45,7 @@ type assetClassEntry struct {
 var parentAssetClasses = []assetClassEntry{
 	{Class: classPlayerHeadshots, CountName: "CountPlayerHeadshotAssets", Workflow: FetchPlayerHeadshotsWorkflow, Slug: "player-headshots"},
 	{Class: classPlayerHeroImages, CountName: "CountPlayerHeroImageAssets", Workflow: FetchPlayerHeroImagesWorkflow, Slug: "player-hero-images"},
-	{Class: classPlayerYahooSmall, CountName: "CountPlayerYahooImageSmallAssets", Workflow: FetchPlayerYahooImagesSmallWorkflow, Slug: "player-yahoo-small"},
-	{Class: classPlayerYahooMedium, CountName: "CountPlayerYahooImageMediumAssets", Workflow: FetchPlayerYahooImagesMediumWorkflow, Slug: "player-yahoo-medium"},
-	{Class: classPlayerYahooLarge, CountName: "CountPlayerYahooImageLargeAssets", Workflow: FetchPlayerYahooImagesLargeWorkflow, Slug: "player-yahoo-large"},
+	{Class: classPlayerYahooImage, CountName: "CountPlayerYahooImageAssets", Workflow: FetchPlayerYahooImagesWorkflow, Slug: "player-yahoo-images"},
 	{Class: classTeamLogos, CountName: "CountTeamLogoAssets", Workflow: FetchTeamLogosWorkflow, Slug: "team-logos"},
 	{Class: classYahooTeamLogos, CountName: "CountYahooTeamLogoAssets", Workflow: FetchYahooTeamLogosWorkflow, Slug: "yahoo-team-logos"},
 	{Class: classYahooLeagueLogos, CountName: "CountYahooLeagueLogoAssets", Workflow: FetchYahooLeagueLogosWorkflow, Slug: "yahoo-league-logos"},

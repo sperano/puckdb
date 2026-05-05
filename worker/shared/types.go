@@ -21,10 +21,8 @@ type PartialPlayer struct {
 	TeamID        int64
 
 	// Yahoo-specific fields
-	YahooHomeURL     string
-	YahooImageSmall  string
-	YahooImageMedium string
-	YahooImageLarge  string
+	YahooHomeURL string
+	YahooImage   string
 
 	// Track data sources for merge priority
 	HasYahooData    bool

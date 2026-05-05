@@ -62,11 +62,11 @@ func (s *FetchAssetsWorkflowTestSuite) mockAllChildren(counts core.OriginCounts)
 }
 
 // TestFetchAssetsWorkflow_AggregatesCounts verifies the parent sums OriginCounts
-// across all nine children.
+// across all class children.
 func (s *FetchAssetsWorkflowTestSuite) TestFetchAssetsWorkflow_AggregatesCounts() {
 	s.mockAllCounts(50)
-	// Each child reports 7 NHL CDN downloads + 3 file-system hits → 9*7 = 63
-	// remote, 9*3 = 27 file-system, after aggregation.
+	// Each child reports 7 NHL CDN downloads + 3 file-system hits → N*7
+	// remote, N*3 file-system, after aggregation, where N = number of classes.
 	s.mockAllChildren(core.OriginCounts{
 		core.OriginRemoteNHLCDN: 7,
 		core.OriginFileSystem:   3,
@@ -79,9 +79,10 @@ func (s *FetchAssetsWorkflowTestSuite) TestFetchAssetsWorkflow_AggregatesCounts(
 
 	var counts core.OriginCounts
 	s.NoError(s.env.GetWorkflowResult(&counts))
-	s.Equal(63, counts[core.OriginRemoteNHLCDN])
-	s.Equal(27, counts[core.OriginFileSystem])
-	s.Equal(90, counts.Total())
+	n := len(parentAssetClasses)
+	s.Equal(n*7, counts[core.OriginRemoteNHLCDN])
+	s.Equal(n*3, counts[core.OriginFileSystem])
+	s.Equal(n*10, counts.Total())
 }
 
 // TestFetchAssetsWorkflow_NilInput verifies a nil pointer input is treated as

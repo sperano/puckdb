@@ -31,23 +31,11 @@ var pathBuilders = map[core.FileType]func(ids []int64, ext string) (string, erro
 		}
 		return fmt.Sprintf("assets/players/%d/hero.%s", ids[0], ext), nil
 	},
-	core.PlayerYahooImageSmall: func(ids []int64, ext string) (string, error) {
+	core.PlayerYahooImage: func(ids []int64, ext string) (string, error) {
 		if len(ids) != arityPlayer {
-			return "", fmt.Errorf("PlayerYahooImageSmall expects %d ID(s), got %d", arityPlayer, len(ids))
+			return "", fmt.Errorf("PlayerYahooImage expects %d ID(s), got %d", arityPlayer, len(ids))
 		}
-		return fmt.Sprintf("assets/players/%d/yahoo-small.%s", ids[0], ext), nil
-	},
-	core.PlayerYahooImageMedium: func(ids []int64, ext string) (string, error) {
-		if len(ids) != arityPlayer {
-			return "", fmt.Errorf("PlayerYahooImageMedium expects %d ID(s), got %d", arityPlayer, len(ids))
-		}
-		return fmt.Sprintf("assets/players/%d/yahoo-medium.%s", ids[0], ext), nil
-	},
-	core.PlayerYahooImageLarge: func(ids []int64, ext string) (string, error) {
-		if len(ids) != arityPlayer {
-			return "", fmt.Errorf("PlayerYahooImageLarge expects %d ID(s), got %d", arityPlayer, len(ids))
-		}
-		return fmt.Sprintf("assets/players/%d/yahoo-large.%s", ids[0], ext), nil
+		return fmt.Sprintf("assets/players/%d/yahoo.%s", ids[0], ext), nil
 	},
 	core.TeamLogo: func(ids []int64, ext string) (string, error) {
 		if len(ids) != arityTeam {

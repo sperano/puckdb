@@ -30,23 +30,11 @@ func TestAssetPath(t *testing.T) {
 			asset: Asset{FileType: core.PlayerHeroImage, URL: "https://assets.nhle.com/mugs/hero/8478402.png", IDs: []int64{8478402}},
 			want:  "assets/players/8478402/hero.png",
 		},
-		// PlayerYahooImageSmall
+		// PlayerYahooImage
 		{
-			name:  "PlayerYahooImageSmall happy path",
-			asset: Asset{FileType: core.PlayerYahooImageSmall, URL: "https://s.yimg.com/iu/api/res/1.2/small_8478402.jpg", IDs: []int64{8478402}},
-			want:  "assets/players/8478402/yahoo-small.jpg",
-		},
-		// PlayerYahooImageMedium
-		{
-			name:  "PlayerYahooImageMedium happy path",
-			asset: Asset{FileType: core.PlayerYahooImageMedium, URL: "https://s.yimg.com/iu/api/res/1.2/med_8478402.jpg", IDs: []int64{8478402}},
-			want:  "assets/players/8478402/yahoo-medium.jpg",
-		},
-		// PlayerYahooImageLarge
-		{
-			name:  "PlayerYahooImageLarge happy path",
-			asset: Asset{FileType: core.PlayerYahooImageLarge, URL: "https://s.yimg.com/iu/api/res/1.2/large_8478402.jpg", IDs: []int64{8478402}},
-			want:  "assets/players/8478402/yahoo-large.jpg",
+			name:  "PlayerYahooImage happy path",
+			asset: Asset{FileType: core.PlayerYahooImage, URL: "https://s.yimg.com/iu/api/res/1.2/8478402.jpg", IDs: []int64{8478402}},
+			want:  "assets/players/8478402/yahoo.jpg",
 		},
 		// TeamLogo
 		{
@@ -165,32 +153,12 @@ func TestConstructors(t *testing.T) {
 		require.Equal(t, testURL, a.URL)
 	})
 
-	t.Run("NewPlayerYahooImage_Small", func(t *testing.T) {
+	t.Run("NewPlayerYahooImage", func(t *testing.T) {
 		t.Parallel()
-		a := NewPlayerYahooImage(testPlayerID, YahooImageSizeSmall, testURL)
-		require.Equal(t, core.PlayerYahooImageSmall, a.FileType)
+		a := NewPlayerYahooImage(testPlayerID, testURL)
+		require.Equal(t, core.PlayerYahooImage, a.FileType)
 		require.Equal(t, []int64{int64(testPlayerID)}, a.IDs)
-	})
-
-	t.Run("NewPlayerYahooImage_Medium", func(t *testing.T) {
-		t.Parallel()
-		a := NewPlayerYahooImage(testPlayerID, YahooImageSizeMedium, testURL)
-		require.Equal(t, core.PlayerYahooImageMedium, a.FileType)
-	})
-
-	t.Run("NewPlayerYahooImage_Large", func(t *testing.T) {
-		t.Parallel()
-		a := NewPlayerYahooImage(testPlayerID, YahooImageSizeLarge, testURL)
-		require.Equal(t, core.PlayerYahooImageLarge, a.FileType)
-	})
-
-	t.Run("NewPlayerYahooImage_invalidSize_surfacesAsPathError", func(t *testing.T) {
-		t.Parallel()
-		const invalidSize = YahooImageSize(99)
-		a := NewPlayerYahooImage(testPlayerID, invalidSize, "https://example.com/foo.png")
-		require.Equal(t, core.Unknown, a.FileType)
-		_, err := a.Path()
-		require.Error(t, err, "Path() must error when FileType is Unknown")
+		require.Equal(t, testURL, a.URL)
 	})
 
 	t.Run("NewTeamLogo", func(t *testing.T) {
