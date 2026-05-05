@@ -29,35 +29,43 @@ func runDatabaseCollector(ctx context.Context, interval time.Duration, pool *pgx
 	}
 }
 
-// rowCountQuery uses pg_stat_user_tables estimates instead of COUNT(*) to avoid
-// full sequential scans on large tables. The statistics are kept fresh by the
-// hourly ANALYZE cron job.
-const rowCountQuery = `SELECT relname::text, n_live_tup
-	FROM pg_stat_user_tables
-	WHERE schemaname = 'public'
-	ORDER BY relname`
+// tableStatsQuery returns the row count and total on-disk size per public
+// table. reltuples is replicated via WAL (works on standby replicas) — unlike
+// pg_stat_user_tables.n_live_tup which is part of the per-instance cumulative
+// stats system. GREATEST clamps the -1 sentinel PG14+ returns for tables that
+// have never been analyzed. pg_total_relation_size covers heap + indexes +
+// TOAST, matching what pg_database_size totals to.
+const tableStatsQuery = `SELECT c.relname::text,
+	   GREATEST(0, c.reltuples)::bigint AS rows,
+	   pg_total_relation_size(c.oid)::bigint AS bytes
+	FROM pg_class c
+	JOIN pg_namespace n ON n.oid = c.relnamespace
+	WHERE n.nspname = 'public' AND c.relkind = 'r'
+	ORDER BY c.relname`
 
 func collectDatabaseMetrics(ctx context.Context, pool *pgxpool.Pool) {
 	start := time.Now()
 
-	rows, err := pool.Query(ctx, rowCountQuery)
+	rows, err := pool.Query(ctx, tableStatsQuery)
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to query table row estimates")
+		log.Warn().Err(err).Msg("Failed to query table stats")
 	}
 
-	var totalRows int64
+	var totalRows, totalTableBytes int64
 	var tableCount int
 	if rows != nil {
 		defer rows.Close()
 		for rows.Next() {
 			var table string
-			var count int64
-			if err := rows.Scan(&table, &count); err != nil {
-				log.Warn().Err(err).Msg("Failed to scan row estimate")
+			var count, bytes int64
+			if err := rows.Scan(&table, &count, &bytes); err != nil {
+				log.Warn().Err(err).Msg("Failed to scan table stats")
 				continue
 			}
 			metrics.SetDBTableRowCount(table, count)
+			metrics.SetDBTableSizeBytes(table, bytes)
 			totalRows += count
+			totalTableBytes += bytes
 			tableCount++
 		}
 	}
@@ -74,6 +82,7 @@ func collectDatabaseMetrics(ctx context.Context, pool *pgxpool.Pool) {
 	log.Info().
 		Int("tables", tableCount).
 		Int64("total_rows", totalRows).
+		Int64("total_table_bytes", totalTableBytes).
 		Int64("db_size_bytes", dbSizeBytes).
 		Dur("duration", time.Since(start)).
 		Msg("Database metrics updated")

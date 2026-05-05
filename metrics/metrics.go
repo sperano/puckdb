@@ -149,6 +149,11 @@ var (
 		Help: "Number of rows in database tables",
 	}, []string{"table"})
 
+	dbTableSizeBytes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "puckdb_db_table_size_bytes",
+		Help: "Total on-disk size in bytes per table (heap + indexes + TOAST)",
+	}, []string{"table"})
+
 	dbSizeBytes = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "puckdb_db_size_bytes",
 		Help: "Total size of the database in bytes",
@@ -202,6 +207,7 @@ func init() {
 		redisOAuthTokenValid,
 		redisLastUpdated,
 		dbTableRowCount,
+		dbTableSizeBytes,
 		dbSizeBytes,
 		dbLastUpdated,
 		buildInfo,
@@ -408,6 +414,13 @@ func SetRedisMetricsTimestamp() {
 // SetDBTableRowCount records the row count for a database table
 func SetDBTableRowCount(table string, count int64) {
 	dbTableRowCount.WithLabelValues(table).Set(float64(count))
+}
+
+// SetDBTableSizeBytes records the on-disk size in bytes for a database table.
+// The value should come from pg_total_relation_size, which includes the heap,
+// indexes, and TOAST.
+func SetDBTableSizeBytes(table string, bytes int64) {
+	dbTableSizeBytes.WithLabelValues(table).Set(float64(bytes))
 }
 
 // SetDBSizeBytes records the total database size in bytes

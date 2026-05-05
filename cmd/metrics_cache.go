@@ -34,13 +34,6 @@ type cacheMetrics struct {
 	found      int
 }
 
-func (s cacheMetrics) percentage() float64 {
-	if s.expected == 0 {
-		return 0
-	}
-	return float64(s.found) / float64(s.expected) * 100
-}
-
 // seasonLabel returns the Prometheus season label for this metric. The
 // cacheMetricsSeasonAll sentinel renders as cacheSeasonLabelAll so
 // season-independent gauges (asset caches) remain distinguishable from real
@@ -517,6 +510,54 @@ func filterFinalNonPreseasonGames(gameIDs []nhl.GameID) []nhl.GameID {
 		result = append(result, id)
 	}
 	return result
+}
+
+// appendOnDiskOnlyMetrics ensures the rolled-up "Expected"/"Found" totals
+// reconcile with the "Total Files" gauge built from the same filesystem walk.
+// Without it, totals drift apart in two ways:
+//
+//  1. FileTypes with no workflow-prescribed expected count (Edge tracking,
+//     PlayerLanding, asset caches) contribute to the on-disk total but not to
+//     the rolled-up expected/found.
+//  2. FileTypes covered by the per-season schedule that have on-disk extras
+//     the schedule doesn't enumerate (preseason/exhibition/All-Star games
+//     leave surplus Boxscore/PlayByPlay/ShiftChart/GameStory files behind).
+//
+// For each FileType we emit a single synthetic season=all row with
+// expected == found == surplus, where surplus is (idx_count - sum_expected)
+// for covered types and idx_count for uncovered types. The per-season
+// scheduled rows are left untouched — surplus rows are additive — so genuine
+// "missing scheduled file" gaps still surface in the rolled-up found < expected
+// delta. Unknown is included so junk files (e.g., .DS_Store, partial
+// downloads) reconcile rather than leaving a small permanent gap.
+func appendOnDiskOnlyMetrics(cacheData []cacheMetrics, idx *pathIndex) []cacheMetrics {
+	coveredExpected := make(map[core.FileType]int, len(cacheData))
+	for _, s := range cacheData {
+		coveredExpected[s.fileType] += s.expected
+	}
+	for _, ft := range core.AllFileTypes {
+		var count int
+		if stats := idx.byType[ft]; stats != nil {
+			count = int(stats.count)
+		}
+		expected, isCovered := coveredExpected[ft]
+		surplus := count
+		if isCovered {
+			surplus = count - expected
+			if surplus <= 0 {
+				continue
+			}
+		} else if count == 0 {
+			continue
+		}
+		cacheData = append(cacheData, cacheMetrics{
+			seasonYear: cacheMetricsSeasonAll,
+			fileType:   ft,
+			expected:   surplus,
+			found:      surplus,
+		})
+	}
+	return cacheData
 }
 
 func countUniqueSeasons(cacheData []cacheMetrics) int {

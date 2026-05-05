@@ -701,3 +701,107 @@ func encodeYahooPlayer(t *testing.T, player *store.YahooPlayer) []byte {
 	require.NoError(t, err)
 	return buf.Bytes()
 }
+
+func TestProcessPlayerBatch_PopulatesYahooImageLarge(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+	upserter := NewMockPlayerUpserter()
+
+	playerID := nhl.PlayerID(8478402)
+	yahooID := store.YahooPlayerID(5479)
+	const wantURL = "https://s.yimg.com/xe/i/us/sp/v/nhl_cutout/players_l/10172025/5479.png"
+
+	yahooPlayer := &store.YahooPlayer{
+		YahooID:   yahooID,
+		FirstName: "Connor",
+		LastName:  "McDavid",
+		Team:      "EDM",
+		ImageURL:  wantURL,
+	}
+	poolData := encodeYahooPlayer(t, yahooPlayer)
+	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{
+		yahooID.String(): string(poolData),
+	})
+	mockRedis.ExpectSRem(YahooIDAvailableKey, yahooID).SetVal(1)
+
+	teamAbbrev := "EDM"
+	landing := &nhl.PlayerLanding{
+		PlayerID:          playerID,
+		FirstName:         nhl.LocalizedString{Default: "Connor"},
+		LastName:          nhl.LocalizedString{Default: "McDavid"},
+		Position:          "C",
+		IsActive:          true,
+		CurrentTeamAbbrev: &teamAbbrev,
+		BirthDate:         "1997-01-13",
+	}
+	landingJSON, err := json.Marshal(landing)
+	require.NoError(t, err)
+	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+
+	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
+
+	var captured sqlcdb.UpsertPlayerParams
+	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
+		Run(func(args mock.Arguments) { captured = args.Get(1).(sqlcdb.UpsertPlayerParams) }).
+		Return(nil)
+
+	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
+	result, err := a.ProcessPlayerBatch(ctx, []store.BoxscorePlayer{{ID: int64(playerID)}})
+	require.NoError(t, err)
+	require.Equal(t, 1, result.Matched)
+
+	assert.Equal(t, wantURL, captured.YahooImageLarge)
+	assert.Empty(t, captured.YahooImageSmall, "small variant has no source URL yet")
+	assert.Empty(t, captured.YahooImageMedium, "medium variant has no source URL yet")
+}
+
+func TestProcessPlayerBatch_UnmatchedLeavesYahooImageEmpty(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+	upserter := NewMockPlayerUpserter()
+
+	playerID := nhl.PlayerID(8478402)
+	otherYahooID := store.YahooPlayerID(9999)
+
+	other := &store.YahooPlayer{
+		YahooID:   otherYahooID,
+		FirstName: "Some",
+		LastName:  "OtherPerson",
+		ImageURL:  "https://example.com/other.png",
+	}
+	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{
+		otherYahooID.String(): string(encodeYahooPlayer(t, other)),
+	})
+
+	landing := &nhl.PlayerLanding{
+		PlayerID:  playerID,
+		FirstName: nhl.LocalizedString{Default: "Connor"},
+		LastName:  nhl.LocalizedString{Default: "McDavid"},
+		Position:  "C",
+	}
+	landingJSON, err := json.Marshal(landing)
+	require.NoError(t, err)
+	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+
+	var captured sqlcdb.UpsertPlayerParams
+	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
+		Run(func(args mock.Arguments) { captured = args.Get(1).(sqlcdb.UpsertPlayerParams) }).
+		Return(nil)
+
+	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
+	result, err := a.ProcessPlayerBatch(ctx, []store.BoxscorePlayer{{ID: int64(playerID)}})
+	require.NoError(t, err)
+	require.Equal(t, 0, result.Matched)
+
+	assert.Empty(t, captured.YahooImageLarge)
+}

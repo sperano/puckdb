@@ -261,6 +261,9 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match matching.YahooID
 	if match.Matched {
 		params.YahooID = pgtype.Int8{Int64: int64(match.YahooID), Valid: true}
 		params.YahooHomeURL = fmt.Sprintf("%s%d/", yahooPlayerBaseURL, match.YahooID)
+		// Yahoo's HTML only exposes the large-size image. Small/medium columns
+		// stay empty until a separate enrichment path provides those variants.
+		params.YahooImageLarge = match.ImageURL
 	}
 
 	params.TeamID = shared.PtrToInt8(landing.CurrentTeamID)

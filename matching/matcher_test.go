@@ -575,3 +575,41 @@ func TestNhlAbbrevToYahooTeam(t *testing.T) {
 	// Verify we have entries for all expected teams
 	assert.GreaterOrEqual(t, len(nhlAbbrevToYahooTeam), 32)
 }
+
+func TestMatchYahooID_PropagatesImageURL(t *testing.T) {
+	t.Parallel()
+
+	sweater := 97
+	landing := &nhl.PlayerLanding{
+		FirstName:     nhl.LocalizedString{Default: "Connor"},
+		LastName:      nhl.LocalizedString{Default: "McDavid"},
+		SweaterNumber: &sweater,
+	}
+
+	const wantURL = "https://s.yimg.com/xe/i/us/sp/v/nhl_cutout/players_l/10172025/100.png"
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
+		100: {YahooID: 100, FirstName: "Connor", LastName: "McDavid", JerseyNumber: 97, Team: "Edmonton", ImageURL: wantURL},
+	}
+
+	result, err := MatchYahooID(landing, "EDM", time.Time{}, pool)
+	require.NoError(t, err)
+	require.True(t, result.Matched)
+	assert.Equal(t, wantURL, result.ImageURL)
+}
+
+func TestMatchYahooID_NoMatchHasEmptyImageURL(t *testing.T) {
+	t.Parallel()
+
+	landing := &nhl.PlayerLanding{
+		FirstName: nhl.LocalizedString{Default: "Nobody"},
+		LastName:  nhl.LocalizedString{Default: "Here"},
+	}
+	pool := map[store.YahooPlayerID]*store.YahooPlayer{
+		100: {YahooID: 100, FirstName: "Connor", LastName: "McDavid", ImageURL: "https://example.com/100.png"},
+	}
+
+	result, err := MatchYahooID(landing, "EDM", time.Time{}, pool)
+	require.NoError(t, err)
+	require.False(t, result.Matched)
+	assert.Empty(t, result.ImageURL)
+}

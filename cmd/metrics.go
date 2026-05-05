@@ -180,6 +180,14 @@ func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error
 		return err
 	}
 
+	// Backfill expected/found from the on-disk index for any FileType the
+	// per-season + asset checks don't enumerate (e.g., Edge tracking files,
+	// PlayerLanding, PlayerGameLog, YahooPlayer, singletons like Franchises).
+	// Without this the "Expected Files" total under-counts every file type
+	// whose workflow-prescribed expected count we don't compute, making it
+	// disagree with the "Total Files" gauge derived from the same walk.
+	cacheData = appendOnDiskOnlyMetrics(cacheData, idx)
+
 	// Update Prometheus gauges per season and file type
 	for _, s := range cacheData {
 		metrics.SetCacheMetrics(s.seasonLabel(), s.fileType.String(), s.expected, s.found)

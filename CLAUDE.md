@@ -237,6 +237,7 @@ The Prometheus registry is split in three (see `metrics/metrics.go`):
 | `puckdb_redis_oauth_token_valid` | Gauge | `user` | 1 = valid token, 0 = missing/expired |
 | `puckdb_redis_last_updated_timestamp` | Gauge | — | Unix ts of last Redis scan |
 | `puckdb_db_table_row_count` | Gauge | `table` | Row count per table |
+| `puckdb_db_table_size_bytes` | Gauge | `table` | On-disk size per table (heap + indexes + TOAST) |
 | `puckdb_db_size_bytes` | Gauge | — | Total database size |
 | `puckdb_db_last_updated_timestamp` | Gauge | — | Unix ts of last DB scan |
 | `puckdb_build_info` | Gauge | `version` | Build version of the running binary |

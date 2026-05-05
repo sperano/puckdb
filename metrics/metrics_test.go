@@ -381,6 +381,13 @@ func TestSetDBSizeBytes(t *testing.T) {
 	assert.Equal(t, float64(want), testutil.ToFloat64(dbSizeBytes))
 }
 
+func TestSetDBTableSizeBytes(t *testing.T) {
+	const table = "shifts"
+	const want = 2_566_955_008
+	SetDBTableSizeBytes(table, want)
+	assert.Equal(t, float64(want), testutil.ToFloat64(dbTableSizeBytes.WithLabelValues(table)))
+}
+
 func TestSetBuildInfo(t *testing.T) {
 	// Use a unique version string so this test can't collide with any
 	// other test or process-level call to SetBuildInfo.

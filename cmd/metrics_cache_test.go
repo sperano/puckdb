@@ -120,6 +120,109 @@ func TestCheckAssetCache_EmptyLoader(t *testing.T) {
 	require.Equal(t, 0, got[0].found)
 }
 
+// TestAppendOnDiskOnlyMetrics_ReconcilesTotals asserts that
+// appendOnDiskOnlyMetrics produces a cacheData slice whose rolled-up expected
+// and found totals match the on-disk totals from the index — the contract that
+// keeps the "Total Files" panel and the "Cache Statistics" panel consistent.
+// It exercises three reconciliation cases in one shot:
+//   - covered FileType with no surplus (idx_count == sum_expected) → no row added
+//   - covered FileType with on-disk surplus (preseason boxscores) → synthetic
+//     season=all row carrying the surplus
+//   - uncovered FileType (Edge tracking) → synthetic season=all row carrying
+//     the full on-disk count
+//
+// The original per-season scheduled rows must remain untouched so that
+// found < expected gaps for missing scheduled files still surface in the
+// rolled-up delta.
+func TestAppendOnDiskOnlyMetrics_ReconcilesTotals(t *testing.T) {
+	t.Parallel()
+
+	const (
+		boxscoreExpected = 100
+		boxscoreFound    = 80
+		boxscoreOnDisk   = 9999
+		rosterExpected   = 50
+		rosterFound      = 50
+		rosterOnDisk     = 50
+		edgeOnDisk       = 42
+	)
+	in := []cacheMetrics{
+		{seasonYear: 2024, fileType: core.Boxscore, expected: boxscoreExpected, found: boxscoreFound},
+		{seasonYear: 2024, fileType: core.Roster, expected: rosterExpected, found: rosterFound},
+	}
+	idx := &pathIndex{
+		byType: map[core.FileType]*fileTypeStats{
+			core.Boxscore:         {count: boxscoreOnDisk},
+			core.Roster:           {count: rosterOnDisk},
+			core.EdgeSkaterDetail: {count: edgeOnDisk},
+		},
+	}
+
+	got := appendOnDiskOnlyMetrics(in, idx)
+
+	// Original scheduled rows preserved verbatim.
+	require.Equal(t, in[0], got[0], "original covered Boxscore row must not be modified")
+	require.Equal(t, in[1], got[1], "original covered Roster row must not be modified")
+
+	// Indexed by (fileType, seasonYear) so we can assert per-row.
+	type key struct {
+		ft     core.FileType
+		season int
+	}
+	rows := make(map[key]cacheMetrics, len(got))
+	for _, m := range got {
+		rows[key{m.fileType, m.seasonYear}] = m
+	}
+
+	// Boxscore surplus (9999 on disk, 100 scheduled → 9899 surplus).
+	surplus, ok := rows[key{core.Boxscore, cacheMetricsSeasonAll}]
+	require.True(t, ok, "covered Boxscore with surplus must emit a season=all reconciliation row")
+	require.Equal(t, boxscoreOnDisk-boxscoreExpected, surplus.expected)
+	require.Equal(t, boxscoreOnDisk-boxscoreExpected, surplus.found)
+
+	// Roster has no surplus (idx == expected) → no extra row.
+	_, ok = rows[key{core.Roster, cacheMetricsSeasonAll}]
+	require.False(t, ok, "covered Roster with no surplus must not emit a reconciliation row")
+
+	// Uncovered EdgeSkaterDetail backfilled with full on-disk count.
+	edge, ok := rows[key{core.EdgeSkaterDetail, cacheMetricsSeasonAll}]
+	require.True(t, ok, "uncovered Edge type must be backfilled from index")
+	require.Equal(t, edgeOnDisk, edge.expected)
+	require.Equal(t, edgeOnDisk, edge.found)
+
+	// Rolled-up totals reconcile exactly with the index.
+	var totalExpected, totalFound, idxTotal int
+	for _, m := range got {
+		totalExpected += m.expected
+		totalFound += m.found
+	}
+	for _, s := range idx.byType {
+		idxTotal += int(s.count)
+	}
+	require.Equal(t, idxTotal, totalExpected, "expected total must equal on-disk total after reconciliation")
+	require.Equal(t, idxTotal-(boxscoreExpected-boxscoreFound), totalFound, "found total must equal on-disk total minus genuinely missing scheduled files")
+}
+
+// TestAppendOnDiskOnlyMetrics_SkipsZeroCountTypes asserts that FileTypes with
+// no on-disk presence and no schedule coverage (the common case for unused
+// types) do not produce noise rows. Without this, every never-used FileType
+// would emit an expected=0/found=0 gauge for season=all.
+func TestAppendOnDiskOnlyMetrics_SkipsZeroCountTypes(t *testing.T) {
+	t.Parallel()
+
+	idx := &pathIndex{
+		byType: map[core.FileType]*fileTypeStats{
+			core.Boxscore: {count: 5},
+		},
+	}
+	got := appendOnDiskOnlyMetrics(nil, idx)
+
+	require.Len(t, got, 1, "only the on-disk Boxscore should yield a row; absent types must not emit zero-count noise")
+	require.Equal(t, core.Boxscore, got[0].fileType)
+	require.Equal(t, 5, got[0].expected)
+	require.Equal(t, 5, got[0].found)
+}
+
 // TestCacheMetricsSeasonLabel verifies the sentinel renders as "all" for
 // season-independent metrics and as a year string otherwise.
 func TestCacheMetricsSeasonLabel(t *testing.T) {

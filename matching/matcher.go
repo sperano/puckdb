@@ -58,11 +58,16 @@ func (r MatchReason) String() string {
 	}
 }
 
-// YahooIDMatchResult contains the result of a Yahoo ID matching attempt.
+// YahooIDMatchResult contains the result of a Yahoo ID matching attempt. When
+// Matched is true, ImageURL holds the parsed Yahoo player image URL (the
+// `players_l/...png` variant) so callers can persist it without re-parsing the
+// HTML or re-querying the pool. Empty when Matched is false or when the source
+// page had no image.
 type YahooIDMatchResult struct {
-	YahooID store.YahooPlayerID
-	Matched bool
-	Reason  MatchReason
+	YahooID  store.YahooPlayerID
+	Matched  bool
+	Reason   MatchReason
+	ImageURL string
 }
 
 // NormalizeName prepares a name for matching by:
@@ -344,9 +349,10 @@ func MatchYahooID(
 				Msg("Fuzzy matched player")
 		}
 		return YahooIDMatchResult{
-			YahooID: match.player.YahooID,
-			Matched: true,
-			Reason:  finalReason,
+			YahooID:  match.player.YahooID,
+			Matched:  true,
+			Reason:   finalReason,
+			ImageURL: match.player.ImageURL,
 		}
 	}
 
