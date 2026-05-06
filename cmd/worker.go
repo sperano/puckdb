@@ -61,9 +61,9 @@ func cmdWorker() *cobra.Command {
 			// Determine which queue to poll
 			var queueName string
 			switch queueType {
-			case "tasks":
+			case "tasks": // TODO constant for this string
 				queueName = temporal.QueueTasks
-			case "admin":
+			case "admin": // TODO constant for this string
 				queueName = temporal.QueueAdmin
 			default:
 				return fmt.Errorf("invalid queue type %q: must be 'tasks' or 'admin'", queueType)
@@ -81,7 +81,7 @@ func cmdWorker() *cobra.Command {
 				errChCapTasks = 3 // metrics + main worker + asset worker
 			)
 			errChCap := errChCapAdmin
-			if queueType == "tasks" {
+			if queueType == "tasks" { // TODO use the constant
 				errChCap = errChCapTasks
 			}
 			errCh := make(chan error, errChCap)
@@ -128,7 +128,7 @@ func cmdWorker() *cobra.Command {
 			})
 
 			// Register workflows and activities based on queue type
-			if queueType == "admin" {
+			if queueType == "admin" { // TODO use constant
 				// Admin queue: lightweight admin operations only
 				w.RegisterWorkflow(admin.DropDatabaseWorkflow)
 				w.RegisterWorkflow(admin.MigrateDatabaseWorkflow)
