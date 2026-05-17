@@ -116,3 +116,33 @@ WHERE (play_events.period, play_events.period_type,
        EXCLUDED.winning_player_id, EXCLUDED.losing_player_id,
        EXCLUDED.player_id, EXCLUDED.reason,
        EXCLUDED.away_sog, EXCLUDED.home_sog);
+
+-- name: GetGamePlayEvents :many
+-- Play events for a game, ordered chronologically by sort_order.
+-- Optional filters: type_desc_keys (e.g. {'shot-on-goal','goal'}) and period.
+-- Pass NULL / empty array to disable a filter. `limit` caps the row count
+-- (NULL = no cap); combine with type_desc_keys to get e.g. the first 2 shots.
+SELECT *
+FROM play_events
+WHERE game_id = @game_id::bigint
+  AND (sqlc.narg('period')::int IS NULL OR period = sqlc.narg('period'))
+  AND (cardinality(@type_desc_keys::text[]) = 0
+       OR type_desc_key::text = ANY(@type_desc_keys::text[]))
+ORDER BY sort_order
+LIMIT sqlc.narg('limit')::int;
+
+-- name: GetFirstMatchingEventPerTeam :many
+-- For each (game, team) in the given set, return the earliest play event
+-- (by sort_order) whose type_desc_key matches the supplied prerequisite filter.
+-- The type_desc_keys filter is applied BEFORE the per-team earliest selection,
+-- so e.g. type_desc_keys = {'shot-on-goal','goal'} returns each team's first
+-- SHOT (not its first event-of-any-kind that happens to be a shot).
+-- Caller resolves scope (season → game_ids) before calling. Must pass a
+-- non-empty type_desc_keys array.
+SELECT DISTINCT ON (game_id, event_owner_team_id) *
+FROM play_events
+WHERE game_id = ANY(@game_ids::bigint[])
+  AND event_owner_team_id IS NOT NULL
+  AND cardinality(@type_desc_keys::text[]) > 0
+  AND type_desc_key::text = ANY(@type_desc_keys::text[])
+ORDER BY game_id, event_owner_team_id, sort_order;

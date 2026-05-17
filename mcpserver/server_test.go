@@ -70,6 +70,9 @@ var expectedTools = []string{
 	"get_playoff_series",
 	"get_stanley_cup_finals",
 	"get_stanley_cup_winners",
+	// Play events (2)
+	"get_game_play_events",
+	"get_first_matching_event_per_team",
 }
 
 func TestNewServer_RegistersAllTools(t *testing.T) {

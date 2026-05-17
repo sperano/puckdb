@@ -4,3 +4,184 @@
 // source: play_events.sql
 
 package sqlcdb
+
+import (
+	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+const getFirstMatchingEventPerTeam = `-- name: GetFirstMatchingEventPerTeam :many
+SELECT DISTINCT ON (game_id, event_owner_team_id) game_id, event_id, period, period_type, time_in_period, time_remaining, situation_code, home_team_defending_side, type_desc_key, sort_order, x_coord, y_coord, zone_code, event_owner_team_id, shot_type, shooting_player_id, goalie_in_net_id, blocking_player_id, scoring_player_id, scoring_player_total, assist1_player_id, assist1_player_total, assist2_player_id, assist2_player_total, away_score, home_score, highlight_clip_id, highlight_clip_url, discrete_clip_id, penalty_type_code, penalty_desc_key, penalty_duration, committed_by_player_id, drawn_by_player_id, hitting_player_id, hittee_player_id, winning_player_id, losing_player_id, player_id, reason, away_sog, home_sog
+FROM play_events
+WHERE game_id = ANY($1::bigint[])
+  AND event_owner_team_id IS NOT NULL
+  AND cardinality($2::text[]) > 0
+  AND type_desc_key::text = ANY($2::text[])
+ORDER BY game_id, event_owner_team_id, sort_order
+`
+
+type GetFirstMatchingEventPerTeamParams struct {
+	GameIds      []int64  `json:"game_ids"`
+	TypeDescKeys []string `json:"type_desc_keys"`
+}
+
+// For each (game, team) in the given set, return the earliest play event
+// (by sort_order) whose type_desc_key matches the supplied prerequisite filter.
+// The type_desc_keys filter is applied BEFORE the per-team earliest selection,
+// so e.g. type_desc_keys = {'shot-on-goal','goal'} returns each team's first
+// SHOT (not its first event-of-any-kind that happens to be a shot).
+// Caller resolves scope (season → game_ids) before calling. Must pass a
+// non-empty type_desc_keys array.
+func (q *Queries) GetFirstMatchingEventPerTeam(ctx context.Context, arg GetFirstMatchingEventPerTeamParams) ([]PlayEvent, error) {
+	rows, err := q.db.Query(ctx, getFirstMatchingEventPerTeam, arg.GameIds, arg.TypeDescKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PlayEvent{}
+	for rows.Next() {
+		var i PlayEvent
+		if err := rows.Scan(
+			&i.GameID,
+			&i.EventID,
+			&i.Period,
+			&i.PeriodType,
+			&i.TimeInPeriod,
+			&i.TimeRemaining,
+			&i.SituationCode,
+			&i.HomeTeamDefendingSide,
+			&i.TypeDescKey,
+			&i.SortOrder,
+			&i.XCoord,
+			&i.YCoord,
+			&i.ZoneCode,
+			&i.EventOwnerTeamID,
+			&i.ShotType,
+			&i.ShootingPlayerID,
+			&i.GoalieInNetID,
+			&i.BlockingPlayerID,
+			&i.ScoringPlayerID,
+			&i.ScoringPlayerTotal,
+			&i.Assist1PlayerID,
+			&i.Assist1PlayerTotal,
+			&i.Assist2PlayerID,
+			&i.Assist2PlayerTotal,
+			&i.AwayScore,
+			&i.HomeScore,
+			&i.HighlightClipID,
+			&i.HighlightClipUrl,
+			&i.DiscreteClipID,
+			&i.PenaltyTypeCode,
+			&i.PenaltyDescKey,
+			&i.PenaltyDuration,
+			&i.CommittedByPlayerID,
+			&i.DrawnByPlayerID,
+			&i.HittingPlayerID,
+			&i.HitteePlayerID,
+			&i.WinningPlayerID,
+			&i.LosingPlayerID,
+			&i.PlayerID,
+			&i.Reason,
+			&i.AwaySog,
+			&i.HomeSog,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGamePlayEvents = `-- name: GetGamePlayEvents :many
+SELECT game_id, event_id, period, period_type, time_in_period, time_remaining, situation_code, home_team_defending_side, type_desc_key, sort_order, x_coord, y_coord, zone_code, event_owner_team_id, shot_type, shooting_player_id, goalie_in_net_id, blocking_player_id, scoring_player_id, scoring_player_total, assist1_player_id, assist1_player_total, assist2_player_id, assist2_player_total, away_score, home_score, highlight_clip_id, highlight_clip_url, discrete_clip_id, penalty_type_code, penalty_desc_key, penalty_duration, committed_by_player_id, drawn_by_player_id, hitting_player_id, hittee_player_id, winning_player_id, losing_player_id, player_id, reason, away_sog, home_sog
+FROM play_events
+WHERE game_id = $1::bigint
+  AND ($2::int IS NULL OR period = $2)
+  AND (cardinality($3::text[]) = 0
+       OR type_desc_key::text = ANY($3::text[]))
+ORDER BY sort_order
+LIMIT $4::int
+`
+
+type GetGamePlayEventsParams struct {
+	GameID       int64       `json:"game_id"`
+	Period       pgtype.Int4 `json:"period"`
+	TypeDescKeys []string    `json:"type_desc_keys"`
+	Limit        pgtype.Int4 `json:"limit"`
+}
+
+// Play events for a game, ordered chronologically by sort_order.
+// Optional filters: type_desc_keys (e.g. {'shot-on-goal','goal'}) and period.
+// Pass NULL / empty array to disable a filter. `limit` caps the row count
+// (NULL = no cap); combine with type_desc_keys to get e.g. the first 2 shots.
+func (q *Queries) GetGamePlayEvents(ctx context.Context, arg GetGamePlayEventsParams) ([]PlayEvent, error) {
+	rows, err := q.db.Query(ctx, getGamePlayEvents,
+		arg.GameID,
+		arg.Period,
+		arg.TypeDescKeys,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PlayEvent{}
+	for rows.Next() {
+		var i PlayEvent
+		if err := rows.Scan(
+			&i.GameID,
+			&i.EventID,
+			&i.Period,
+			&i.PeriodType,
+			&i.TimeInPeriod,
+			&i.TimeRemaining,
+			&i.SituationCode,
+			&i.HomeTeamDefendingSide,
+			&i.TypeDescKey,
+			&i.SortOrder,
+			&i.XCoord,
+			&i.YCoord,
+			&i.ZoneCode,
+			&i.EventOwnerTeamID,
+			&i.ShotType,
+			&i.ShootingPlayerID,
+			&i.GoalieInNetID,
+			&i.BlockingPlayerID,
+			&i.ScoringPlayerID,
+			&i.ScoringPlayerTotal,
+			&i.Assist1PlayerID,
+			&i.Assist1PlayerTotal,
+			&i.Assist2PlayerID,
+			&i.Assist2PlayerTotal,
+			&i.AwayScore,
+			&i.HomeScore,
+			&i.HighlightClipID,
+			&i.HighlightClipUrl,
+			&i.DiscreteClipID,
+			&i.PenaltyTypeCode,
+			&i.PenaltyDescKey,
+			&i.PenaltyDuration,
+			&i.CommittedByPlayerID,
+			&i.DrawnByPlayerID,
+			&i.HittingPlayerID,
+			&i.HitteePlayerID,
+			&i.WinningPlayerID,
+			&i.LosingPlayerID,
+			&i.PlayerID,
+			&i.Reason,
+			&i.AwaySog,
+			&i.HomeSog,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
