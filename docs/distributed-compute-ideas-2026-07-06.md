@@ -21,7 +21,9 @@
   `helm/ollama/` previously pointed at a stale IP for a different Mac,
   ollama-host, whose Ollama binds to localhost; as of 2026-07-06 the chart is an
   ExternalName to `ollama.local`, but **cluster pods still get connection
-  refused** — ollama-host's Ollama needs `OLLAMA_HOST=0.0.0.0` before any
+  refused** — pfSense blocks the cluster subnet 192.0.2.10/24 from
+  initiating into the 192.0.2.10/24 LAN. A pass rule for
+  `192.0.2.10/24 → 192.0.2.10:11434/tcp` is required before any
   cluster-side Ollama sim works); NHL API politeness (no client-side limiter
   exists, concurrency-bounded only).
 

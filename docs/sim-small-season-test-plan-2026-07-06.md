@@ -109,12 +109,14 @@ feedback loops with genuinely erratic output.
   tool-call `outcome` distribution recorded in telemetry. Do NOT assert on
   specific rosters/decisions — llama output is nondeterministic.
 - Precondition check in-test: ping `{OLLAMA_URL}/api/tags` and skip with a
-  clear message if unreachable or the model is missing. (Verified 2026-07-06:
+  clear message if unreachable or the model is missing. (Verified 2026-07-07:
   `ollama.local:11434` serves llama3.1:8b, llama3.3, qwen2.5:7b/14b,
-  qwen3:8b/14b/32b — but is only reachable from the local network, **not from
-  cluster pods**, where the connection is refused; ollama-host's Ollama likely
-  needs `OLLAMA_HOST=0.0.0.0`. Fix that before running cluster-side sims with
-  Ollama agents.)
+  qwen3:8b/14b/32b and Ollama listens on all interfaces — but **pfSense blocks
+  the cluster subnet 192.0.2.10/24 from initiating into the 192.0.2.10/24
+  LAN** (one-way; LAN→cluster works). A pfSense pass rule for
+  `192.0.2.10/24 → 192.0.2.10:11434/tcp` is required before
+  cluster-side sims can use Ollama agents. Tests run from a LAN machine are
+  unaffected.)
 - Companion artifact: `poolsim-smoke.yaml` checked in at repo root — the same
   4-Ollama-agent config usable manually via `puckdb sim create --config
   poolsim-smoke.yaml` against the real cluster (uses the actual 20242025
