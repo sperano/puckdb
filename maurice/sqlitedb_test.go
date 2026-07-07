@@ -266,6 +266,89 @@ func TestSQLite_CreateMessage_WithToolCalls(t *testing.T) {
 	assert.Equal(t, "get_player", msgs[0].ToolCalls[0].Function.Name)
 }
 
+// --- CreateMessages: atomic turn persistence ---
+
+// A failing write mid-batch must roll the whole turn back: the earlier,
+// individually-valid inserts must NOT survive. Here the second message
+// references a nonexistent conversation, tripping the FK constraint
+// (PRAGMA foreign_keys is ON), after the first message already inserted.
+func TestSQLite_CreateMessages_RollsBackOnMidBatchFailure(t *testing.T) {
+	db := openTestDB(t)
+	conv, err := db.CreateConversation(context.Background())
+	require.NoError(t, err)
+
+	params := []CreateMessageParams{
+		{ConversationID: conv.ID, Role: "user", Content: "first (valid)"},
+		{ConversationID: "does-not-exist", Role: "assistant", Content: "second (FK violation)"},
+	}
+	created, err := db.CreateMessages(context.Background(), params)
+	require.Error(t, err, "FK violation on the second insert must fail the batch")
+	assert.Nil(t, created)
+
+	msgs, err := db.GetMessages(context.Background(), conv.ID)
+	require.NoError(t, err)
+	assert.Empty(t, msgs, "the first insert must roll back with the failed turn")
+}
+
+// Happy path: every message is persisted in order, the returned slice
+// matches params order, and the conversation's updated_at is bumped.
+func TestSQLite_CreateMessages_PersistsWholeTurnInOrder(t *testing.T) {
+	db := openTestDB(t)
+	conv, err := db.CreateConversation(context.Background())
+	require.NoError(t, err)
+	originalUpdated := conv.UpdatedAt
+
+	params := []CreateMessageParams{
+		{ConversationID: conv.ID, Role: "user", Content: "q"},
+		{ConversationID: conv.ID, Role: "assistant", ToolCalls: []llm.ToolCall{{
+			ID:       "call_1",
+			Type:     "function",
+			Function: llm.ToolCallFunction{Name: "pg_read_query", Arguments: `{"sql":"SELECT 1"}`},
+		}}},
+		{ConversationID: conv.ID, Role: "tool", Content: "rows", ToolCallID: "call_1"},
+		{ConversationID: conv.ID, Role: "assistant", Content: "final"},
+	}
+	created, err := db.CreateMessages(context.Background(), params)
+	require.NoError(t, err)
+	require.Len(t, created, 4)
+	assert.Equal(t, "final", created[3].Content)
+
+	msgs, err := db.GetMessages(context.Background(), conv.ID)
+	require.NoError(t, err)
+	require.Len(t, msgs, 4)
+	assert.Equal(t, "user", msgs[0].Role)
+	assert.Equal(t, "assistant", msgs[1].Role)
+	require.Len(t, msgs[1].ToolCalls, 1)
+	assert.Equal(t, "tool", msgs[2].Role)
+	assert.Equal(t, "call_1", msgs[2].ToolCallID)
+	assert.Equal(t, "assistant", msgs[3].Role)
+	assert.Equal(t, "final", msgs[3].Content)
+
+	updated, err := db.GetConversation(context.Background(), conv.ID)
+	require.NoError(t, err)
+	assert.True(t, !updated.UpdatedAt.Before(originalUpdated), "updated_at must be bumped for the turn")
+}
+
+// Empty batch is a no-op that returns no messages and no error.
+func TestSQLite_CreateMessages_EmptyIsNoOp(t *testing.T) {
+	db := openTestDB(t)
+	created, err := db.CreateMessages(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, created)
+}
+
+// Error path: a closed DB fails the batch at BeginTx.
+func TestSQLite_CreateMessages_ErrorOnClosedDB(t *testing.T) {
+	s, raw := alreadyMigratedDB(t)
+	require.NoError(t, raw.Close())
+
+	created, err := s.CreateMessages(context.Background(), []CreateMessageParams{
+		{ConversationID: "any", Role: "user", Content: "hi"},
+	})
+	require.Error(t, err)
+	assert.Nil(t, created)
+}
+
 // CASCADE delete: deleting a conversation must remove its messages.
 // The schema declares ON DELETE CASCADE; the constructor enables
 // PRAGMA foreign_keys=ON. This test pins both halves of that contract.

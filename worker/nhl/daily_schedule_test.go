@@ -112,7 +112,7 @@ func (s *DailyScheduleTestSuite) TestDownloadSchedule() {
 	require.NoError(s.T(), future.Get(&result))
 	mockClient.AssertExpectations(s.T())
 
-	assert.True(s.T(), mem.Exists(context.Background(),resource.DailySchedule{Date: day}.Path()))
+	assert.True(s.T(), mem.Exists(context.Background(), resource.DailySchedule{Date: day}.Path()))
 }
 
 func (s *DailyScheduleTestSuite) TestDownloadScheduleError() {

@@ -7,8 +7,8 @@ import (
 	"github.com/sperano/puckdb/config"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/client"
-	zerologadapter "logur.dev/adapter/zerolog"
 	"google.golang.org/grpc"
+	zerologadapter "logur.dev/adapter/zerolog"
 	"logur.dev/logur"
 )
 

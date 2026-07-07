@@ -325,4 +325,3 @@ func TestFormatProgressReport(t *testing.T) {
 		})
 	}
 }
-

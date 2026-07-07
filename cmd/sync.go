@@ -18,6 +18,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+// syncFlagGroups lists every flag group the sync command exposes. Defined
+// once and shared by InitFlags and BindFlags (in syncInit) so the two can
+// never drift out of sync.
+var syncFlagGroups = []*config.FlagGroup{
+	&config.SeasonRangeFlags,
+	&config.SeasonConcurrencyFlags,
+	&config.SyncBehaviorFlags,
+	&config.SpinnerFlags,
+}
+
 func cmdSync() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "sync [steps...]",
@@ -66,12 +76,7 @@ Groups (expand to multiple steps):
 		},
 	}
 	flags := cmd.PersistentFlags()
-	config.InitFlags(flags,
-		&config.SeasonRangeFlags,
-		&config.SeasonConcurrencyFlags,
-		&config.SyncBehaviorFlags,
-		&config.SpinnerFlags,
-	)
+	config.InitFlags(flags, syncFlagGroups...)
 	return cmd
 }
 
@@ -83,16 +88,15 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 	if err := config.APIServerAddrFlags.Bind(cmd.Root().PersistentFlags()); err != nil {
 		return err
 	}
-	if err := config.BindFlags(flags,
-		&config.SeasonRangeFlags,
-		&config.SeasonConcurrencyFlags,
-		&config.SyncBehaviorFlags,
-		&config.SpinnerFlags,
-	); err != nil {
+	if err := config.BindFlags(flags, syncFlagGroups...); err != nil {
 		return err
 	}
-	BindFlags(cmd.PersistentFlags())
-	BindFlags(cmd.Flags())
+	if err := BindFlags(cmd.PersistentFlags()); err != nil {
+		return err
+	}
+	if err := BindFlags(cmd.Flags()); err != nil {
+		return err
+	}
 
 	// Apply import-specific defaults before setting up logger
 	if !logLevelChanged {
@@ -130,13 +134,24 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
 
 	go func() {
-		<-sigChan
-		state.cancel()
-		cancel()
+		select {
+		case <-ctx.Done():
+			// runSync finished (or was already canceled); nothing to do.
+			// Returning here prevents the goroutine from leaking while
+			// blocked on sigChan for the process lifetime.
+			return
+		case <-sigChan:
+			// First Ctrl-C: restore default signal handling so a second
+			// Ctrl-C force-quits even while the (blocking) cancel RPC in
+			// state.cancel() is still in flight.
+			signal.Stop(sigChan)
+			state.cancel()
+			cancel()
+		}
 	}()
-	defer signal.Stop(sigChan)
 
 	// Parallel phase: init + yahoo-players + fetch-seasons
 	var parallelRunners []workflowRunner
@@ -376,17 +391,19 @@ func monitorWorkflows(ctx context.Context, sp *spinner, runners []workflowRunner
 		// Combine all messages, appending Yahoo warning once at the end.
 		// Only check statuses that were freshly polled this iteration —
 		// completed workflows use cached statuses that may have stale token info.
-		combined := strings.Join(messages, "\n")
+		var combinedBuilder strings.Builder
+		combinedBuilder.WriteString(strings.Join(messages, "\n"))
 		for i, st := range statuses {
 			if done[i] || st == nil {
 				continue
 			}
 			if w := yahooWarning(st); w != "" {
-				combined += "\n" + w
+				combinedBuilder.WriteString("\n")
+				combinedBuilder.WriteString(w)
 				break
 			}
 		}
-		sp.SetMessage(combined)
+		sp.SetMessage(combinedBuilder.String())
 
 		if allDone {
 			sp.Stop()
@@ -478,4 +495,3 @@ func (s *syncState) cancel() {
 		}
 	}
 }
-

@@ -225,11 +225,11 @@ func cmdSimStatus() *cobra.Command {
 
 // renderSimPoolStatus prints a four-section status block:
 //
-//	1. Header: pool ID + name (quoted).
-//	2. Summary: aligned key-value block (season, status, sim_date, llm_cost).
-//	3. Progress: per-group ASCII bars, or a "not started" notice.
-//	4. Next step: status-aware command suggestion.
-//	5. Standings: rank + quoted agent name + total roto points.
+//  1. Header: pool ID + name (quoted).
+//  2. Summary: aligned key-value block (season, status, sim_date, llm_cost).
+//  3. Progress: per-group ASCII bars, or a "not started" notice.
+//  4. Next step: status-aware command suggestion.
+//  5. Standings: rank + quoted agent name + total roto points.
 //
 // Pure-function over the response — no I/O dependencies — so tests
 // pass an in-memory buffer.

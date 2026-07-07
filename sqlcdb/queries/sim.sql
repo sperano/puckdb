@@ -458,11 +458,20 @@ EXCEPT SELECT t.player_id FROM sim_transactions t
 INSERT INTO sim_waiver_priority (pool_id, agent_id, priority)
 VALUES ($1, $2, $3);
 
+-- ListSimWaiverPriorityByPool locks the returned rows FOR UPDATE. Its only
+-- caller (ProcessWaivers) reads the priority order and later writes a
+-- restamped order back to the same rows within the same transaction — the
+-- lock closes the read-outside/write-inside-tx gap that otherwise permits a
+-- lost update if two waiver-resolution transactions for the same pool were
+-- ever in flight concurrently (see PLAN.md > "Waivers"). Must be called from
+-- inside a Transactor.InTx callback; taking a row lock outside a transaction
+-- has no effect beyond the statement itself.
 -- name: ListSimWaiverPriorityByPool :many
 SELECT pool_id, agent_id, priority
 FROM sim_waiver_priority
 WHERE pool_id = $1
-ORDER BY priority;
+ORDER BY priority
+FOR UPDATE;
 
 -- UpdateSimWaiverPriority lets the caller re-rank an agent (e.g., winner drops
 -- to bottom). The whole table is small (≤ num_teams rows per pool) so we just
@@ -556,16 +565,15 @@ WHERE id = $1;
 -- ListSimPlayersOnWaivers lists players visible to claim_player: dropped within
 -- the last waiver_days, with no winning claim recorded yet. Returns the most
 -- recent drop transaction's date so the caller can compute "clears on" UI.
--- $3 = waiver_days
 -- name: ListSimPlayersOnWaivers :many
 SELECT DISTINCT ON (t.player_id)
     t.player_id,
     t.date AS dropped_on,
-    (t.date + ($3::INT) * INTERVAL '1 day')::DATE AS clears_on
+    (t.date + (sqlc.arg('waiver_days')::INT) * INTERVAL '1 day')::DATE AS clears_on
 FROM sim_transactions t
-WHERE t.pool_id = $1
+WHERE t.pool_id = sqlc.arg('pool_id')
   AND t.type = 'drop'
-  AND t.date > ($2::DATE - ($3::INT) * INTERVAL '1 day')
+  AND t.date > (sqlc.arg('sim_date')::DATE - (sqlc.arg('waiver_days')::INT) * INTERVAL '1 day')
   AND NOT EXISTS (
       SELECT 1 FROM sim_waiver_claims wc
       WHERE wc.pool_id = t.pool_id

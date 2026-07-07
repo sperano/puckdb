@@ -226,6 +226,15 @@ func ValidateAndResolveLineup(args SetLineupArgs, roster RosterState, catalog Pl
 		working = make(map[int64]RosterSlot)
 	}
 
+	// batchPlaced holds every player whose slot was assigned by an
+	// EARLIER move in this batch (movers and their displaced collateral).
+	// A full target slot must be freed by evicting an ORIGINAL occupant;
+	// evicting a batch-placed player would silently undo an earlier move
+	// (move[0]→D then move[1]→D-when-full must not push move[0]'s player
+	// back to BN). pickDisplacement refuses batch-placed occupants and the
+	// move is rejected via ErrSlotCapacityExceeded instead.
+	batchPlaced := make(map[int64]struct{})
+
 	resolved := make([]ResolvedLineupMove, 0, len(args.Moves))
 
 	for i, mv := range args.Moves {
@@ -259,7 +268,7 @@ func ValidateAndResolveLineup(args SetLineupArgs, roster RosterState, catalog Pl
 		// yet, but might be there in the no-op branch above).
 		var displaced int64
 		if needsDisplacement(working, mv.Slot, roster.Limits) {
-			displaced = pickDisplacement(working, mv.Slot)
+			displaced = pickDisplacement(working, mv.Slot, batchPlaced)
 			if displaced == 0 {
 				return nil, fmt.Errorf("set_lineup[%d] player=%d slot=%s: %w",
 					i, mv.PlayerID, mv.Slot, ErrSlotCapacityExceeded)
@@ -278,6 +287,7 @@ func ValidateAndResolveLineup(args SetLineupArgs, roster RosterState, catalog Pl
 		// Apply.
 		if displaced != 0 {
 			working[displaced] = SlotBN
+			batchPlaced[displaced] = struct{}{}
 			resolved = append(resolved, ResolvedLineupMove{
 				Sequence:          i,
 				PlayerID:          mv.PlayerID,
@@ -294,6 +304,7 @@ func ValidateAndResolveLineup(args SetLineupArgs, roster RosterState, catalog Pl
 			})
 		}
 		working[mv.PlayerID] = mv.Slot
+		batchPlaced[mv.PlayerID] = struct{}{}
 	}
 
 	return resolved, nil
@@ -328,26 +339,36 @@ func needsDisplacementExcluding(placements map[int64]RosterSlot, slot RosterSlot
 }
 
 // pickDisplacement chooses which player to evict from a full slot.
-// V1 rule: lowest player_id. Deterministic, easy to reason about,
-// invariant under re-runs (which matters for Temporal idempotency:
-// the same lineup-set call from a retry produces the same displaced
-// row in sim_lineup_moves). Returns 0 if no occupant is found —
-// caller treats that as ErrSlotCapacityExceeded.
+// V1 rule: lowest player_id among the slot's ORIGINAL occupants —
+// players NOT placed into the slot by an earlier move in the same
+// batch (batchPlaced). Displacing a batch-placed player would silently
+// undo that earlier move, so those are never candidates; when every
+// occupant is batch-placed the function returns 0 and the caller
+// surfaces ErrSlotCapacityExceeded. Also returns 0 when the slot has no
+// occupants at all.
+//
+// Lowest-ID is deterministic and invariant under re-runs, which matters
+// for Temporal idempotency: the same lineup-set call from a retry
+// produces the same displaced row in sim_lineup_moves.
 //
 // A future improvement might be "displace least-recently-rostered"
 // or "displace player with the worst recent stats", but those need
 // state we don't have at this layer; bringing them in would couple
 // validation to game-state logic. Lowest-ID is the right V1 default.
-func pickDisplacement(placements map[int64]RosterSlot, slot RosterSlot) int64 {
-	var ids []int64
+func pickDisplacement(placements map[int64]RosterSlot, slot RosterSlot, batchPlaced map[int64]struct{}) int64 {
+	var original []int64
 	for id, s := range placements {
-		if s == slot {
-			ids = append(ids, id)
+		if s != slot {
+			continue
 		}
+		if _, placed := batchPlaced[id]; placed {
+			continue
+		}
+		original = append(original, id)
 	}
-	if len(ids) == 0 {
+	if len(original) == 0 {
 		return 0
 	}
-	slices.Sort(ids)
-	return ids[0]
+	slices.Sort(original)
+	return original[0]
 }

@@ -214,6 +214,10 @@ type stubSimQueries struct {
 	getPlayerByID  map[int64]sqlcdb.Player
 	getPlayerErr   error
 
+	// GetPlayersByIDs call recording — tests assert the N+1 batching
+	// collapses to one call per activity invocation.
+	getPlayersByIDsCalls [][]int64
+
 	// BuildManageRosterContextActivity inputs/outputs.
 	getSimAgentByID                 map[int32]sqlcdb.SimAgent
 	getSimAgentErr                  error
@@ -636,14 +640,28 @@ func (s *stubSimQueries) GetClubGoalieStatsBySeason(_ context.Context, _ sqlcdb.
 	return s.clubGoalieRows, nil
 }
 
-func (s *stubSimQueries) GetPlayer(_ context.Context, id int64) (sqlcdb.Player, error) {
+// GetPlayersByIDs is the batched stand-in for the old per-ID GetPlayer.
+// Mirrors GetPlayer's per-id fallback (a bare {ID: id} row when the
+// test hasn't pre-populated getPlayerByID) so existing tests that only
+// set getPlayerByID keep working unchanged. Forces p.ID == id on the
+// returned row regardless of what's stored in the fixture map — real
+// GetPlayersByIDs rows always carry their own id column, but existing
+// getPlayerByID fixtures were written for a lookup keyed purely by map
+// key (GetPlayer never examined p.ID), so plenty of them leave ID
+// zero-valued. loadPlayersByIDs re-keys the batch result by p.ID, so
+// this needs to hold for the batching to route rows correctly.
+func (s *stubSimQueries) GetPlayersByIDs(_ context.Context, ids []int64) ([]sqlcdb.Player, error) {
+	s.getPlayersByIDsCalls = append(s.getPlayersByIDsCalls, ids)
 	if s.getPlayerErr != nil {
-		return sqlcdb.Player{}, s.getPlayerErr
+		return nil, s.getPlayerErr
 	}
-	if p, ok := s.getPlayerByID[id]; ok {
-		return p, nil
+	out := make([]sqlcdb.Player, 0, len(ids))
+	for _, id := range ids {
+		p := s.getPlayerByID[id] // zero value when absent, matching GetPlayer's {ID: id} fallback
+		p.ID = id
+		out = append(out, p)
 	}
-	return sqlcdb.Player{ID: id}, nil
+	return out, nil
 }
 
 func (s *stubSimQueries) GetSimAgent(_ context.Context, id int32) (sqlcdb.SimAgent, error) {
@@ -993,7 +1011,10 @@ func (s *BuildContextTestSuite) TestStandings_RankOneIsLeader() {
 	s.queries.getSimStandingsLatestDateReturn = pgDate(t, "2025-01-10")
 	var err error
 	s.queries.listSimStandingsByDateRows, err = buildStandingRows(t,
-		[]struct{ agent int32; pts float64 }{
+		[]struct {
+			agent int32
+			pts   float64
+		}{
 			{1, 6}, {2, 5}, {3, 4}, {4, 3}, {5, 2}, {6, 1},
 		},
 	)
@@ -1036,7 +1057,10 @@ func (s *BuildContextTestSuite) TestStandings_TiedRank() {
 	s.queries.getSimStandingsLatestDateReturn = pgDate(t, "2025-01-10")
 	var err error
 	s.queries.listSimStandingsByDateRows, err = buildStandingRows(t,
-		[]struct{ agent int32; pts float64 }{
+		[]struct {
+			agent int32
+			pts   float64
+		}{
 			{3, 3}, {1, 2.5}, {2, 2.5},
 		},
 	)

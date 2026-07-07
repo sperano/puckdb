@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/sperano/puckdb/metrics"
@@ -89,39 +90,69 @@ func (s *InstrumentedStorage) Stat(ctx context.Context, path string) (os.FileInf
 	return info, err
 }
 
-// File type patterns for path-based inference.
+// File type matchers for path-based inference.
 // Order matters: more specific patterns should come before general ones.
+//
+// Most patterns are fixed substrings (or simple prefix/suffix checks), so
+// they're matched directly with strings.Contains/HasPrefix/HasSuffix rather
+// than compiling and evaluating a regexp on every filesystem operation.
+// Only the Yahoo team/league/game-key patterns have two independently
+// wildcarded path segments (e.g. "yahoo/.*/teams/.*/team.xml$") and still
+// need a real regexp to match correctly.
 var fileTypePatterns = []struct {
-	pattern  *regexp.Regexp
+	match    func(path string) bool
 	fileType string
 }{
 	// NHL patterns
-	{regexp.MustCompile(`/daily-schedule/`), "DailyScheduleFile"},
-	{regexp.MustCompile(`/boxscores/`), "BoxscoreFile"},
-	{regexp.MustCompile(`/play-by-play/`), "PlayByPlayFile"},
-	{regexp.MustCompile(`/shiftcharts/`), "ShiftChartFile"},
-	{regexp.MustCompile(`/gamestory/`), "GameStoryFile"},
-	{regexp.MustCompile(`player-landings/missing/`), "PlayerLandingMissingFile"},
-	{regexp.MustCompile(`player-landings/`), "PlayerLandingFile"},
-	{regexp.MustCompile(`/player-gamelogs/`), "PlayerGameLogFile"},
-	{regexp.MustCompile(`^franchises\.json$`), "FranchisesFile"},
-	{regexp.MustCompile(`^seasons\.json$`), "SeasonsManifestFile"},
-	{regexp.MustCompile(`/standings\.json$`), "SeasonStandingsFile"},
+	{containsMatcher("/daily-schedule/"), "DailyScheduleFile"},
+	{containsMatcher("/boxscores/"), "BoxscoreFile"},
+	{containsMatcher("/play-by-play/"), "PlayByPlayFile"},
+	{containsMatcher("/shiftcharts/"), "ShiftChartFile"},
+	{containsMatcher("/gamestory/"), "GameStoryFile"},
+	{containsMatcher("player-landings/missing/"), "PlayerLandingMissingFile"},
+	{containsMatcher("player-landings/"), "PlayerLandingFile"},
+	{containsMatcher("/player-gamelogs/"), "PlayerGameLogFile"},
+	{exactMatcher("franchises.json"), "FranchisesFile"},
+	{exactMatcher("seasons.json"), "SeasonsManifestFile"},
+	{suffixMatcher("/standings.json"), "SeasonStandingsFile"},
 
 	// Yahoo patterns
-	{regexp.MustCompile(`yahoo/players/missing/`), "MissingYahooPlayerFile"},
-	{regexp.MustCompile(`yahoo/players/`), "YahooPlayerFile"},
-	{regexp.MustCompile(`yahoo/rosters/`), "RosterFile"},
-	{regexp.MustCompile(`yahoo/team-summary/`), "TeamSummaryFile"},
-	{regexp.MustCompile(`yahoo/.*/teams/.*/team\.xml$`), "TeamFile"},
-	{regexp.MustCompile(`yahoo/.*/leagues/.*/league\.xml$`), "LeagueFile"},
-	{regexp.MustCompile(`yahoo/.*/game-key\.xml$`), "GameKeyFile"},
+	{containsMatcher("yahoo/players/missing/"), "MissingYahooPlayerFile"},
+	{containsMatcher("yahoo/players/"), "YahooPlayerFile"},
+	{containsMatcher("yahoo/rosters/"), "RosterFile"},
+	{containsMatcher("yahoo/team-summary/"), "TeamSummaryFile"},
+	{regexpMatcher(`yahoo/.*/teams/.*/team\.xml$`), "TeamFile"},
+	{regexpMatcher(`yahoo/.*/leagues/.*/league\.xml$`), "LeagueFile"},
+	{regexpMatcher(`yahoo/.*/game-key\.xml$`), "GameKeyFile"},
+}
+
+// containsMatcher returns a matcher that reports whether path contains sub.
+func containsMatcher(sub string) func(path string) bool {
+	return func(path string) bool { return strings.Contains(path, sub) }
+}
+
+// exactMatcher returns a matcher that reports whether path equals s exactly.
+func exactMatcher(s string) func(path string) bool {
+	return func(path string) bool { return path == s }
+}
+
+// suffixMatcher returns a matcher that reports whether path ends with suffix.
+func suffixMatcher(suffix string) func(path string) bool {
+	return func(path string) bool { return strings.HasSuffix(path, suffix) }
+}
+
+// regexpMatcher compiles pattern once and returns a matcher backed by it, for
+// patterns with more than one wildcarded path segment where substring checks
+// alone can't preserve the required ordering.
+func regexpMatcher(pattern string) func(path string) bool {
+	re := regexp.MustCompile(pattern)
+	return re.MatchString
 }
 
 // inferFileType determines the file type label from a path string.
 func inferFileType(path string) string {
 	for _, p := range fileTypePatterns {
-		if p.pattern.MatchString(path) {
+		if p.match(path) {
 			return p.fileType
 		}
 	}

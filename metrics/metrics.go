@@ -120,11 +120,16 @@ var (
 		Help: "LLM failures classified by reason (timeout|api_error|tool_use_failure|parse_error|validation)",
 	}, []string{"provider", "model", "reason"})
 
-	simDayDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	// No pool_id label: pool identifiers are unbounded, so labeling
+	// per pool would blow up Prometheus series cardinality without
+	// bound. Per-pool day durations live in the DB / trace tables
+	// instead; this metric measures the fleet-wide day-loop pacing
+	// distribution.
+	simDayDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "puckdb_sim_day_duration_seconds",
-		Help:    "Wall-clock duration of one simulated day's activity batch (waivers + FA pool + agents + stats + standings), per pool",
+		Help:    "Wall-clock duration of one simulated day's activity batch (waivers + FA pool + agents + stats + standings), aggregated across all pools",
 		Buckets: simDayBuckets,
-	}, []string{"pool_id"})
+	})
 )
 
 // Simulation LLM-failure reason labels. Constants rather than free
@@ -513,6 +518,9 @@ func IncSimLLMFailure(provider, model, reason string) {
 // activity invoked by SimPoolWorkflow at the end of each day —
 // the workflow goroutine itself can't observe Prometheus directly
 // (non-deterministic side effect breaks replay).
-func ObserveSimDayDuration(poolID string, duration time.Duration) {
-	simDayDuration.WithLabelValues(poolID).Observe(duration.Seconds())
+//
+// Deliberately unlabeled: see the simDayDuration declaration for why
+// pool_id is not a label (unbounded cardinality).
+func ObserveSimDayDuration(duration time.Duration) {
+	simDayDuration.Observe(duration.Seconds())
 }

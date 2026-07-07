@@ -31,6 +31,7 @@ type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	SimPool() SimPoolResolver
 }
 
 type DirectiveRoot struct {
@@ -727,6 +728,11 @@ type QueryResolver interface {
 	SimTransactions(ctx context.Context, poolID int, agentID *int, date *string, limit *int) ([]*model.SimTransaction, error)
 	SimStandingsHistory(ctx context.Context, poolID int) ([][]*model.SimStandingEntry, error)
 	SimPoolProgress(ctx context.Context, poolID int) (*model.ProgressReport, error)
+}
+type SimPoolResolver interface {
+	Agents(ctx context.Context, obj *model.SimPool) ([]*model.SimAgent, error)
+	Standings(ctx context.Context, obj *model.SimPool) ([]*model.SimStandingEntry, error)
+	CurrentDraftAction(ctx context.Context, obj *model.SimPool) (*model.CurrentDraftAction, error)
 }
 
 type executableSchema graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot]
@@ -4617,10 +4623,15 @@ type SimPool {
   status: String!
   simDate: String
   totalLlmCostUsd: Float!
-  agents: [SimAgent!]!
-  standings: [SimStandingEntry!]!
+  # agents / standings / currentDraftAction are forceResolver fields: the
+  # simPools list query resolves only the scalar columns above (one
+  # ListSimPools query total), and these expensive nested fields are fetched
+  # lazily — per pool, only when a client actually selects them. See
+  # graph/simulation_helpers.go > loadSimPoolAgents/Standings/CurrentDraftAction.
+  agents: [SimAgent!]! @goField(forceResolver: true)
+  standings: [SimStandingEntry!]! @goField(forceResolver: true)
   """Current draft action — non-null only while status='draft' and at least one agent has a draft_position. Computed from sim_transactions count + sim_agents.draft_position (snake order)."""
-  currentDraftAction: CurrentDraftAction
+  currentDraftAction: CurrentDraftAction @goField(forceResolver: true)
   """Config-time stop point. One of: never | team_name | draft | season."""
   stopAfter: String!
   """Cap on the season day loop (0 = no cap)."""
@@ -17130,7 +17141,7 @@ func (ec *executionContext) _SimPool_agents(ctx context.Context, field graphql.C
 			return ec.fieldContext_SimPool_agents(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Agents, nil
+			return ec.Resolvers.SimPool().Agents(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.SimAgent) graphql.Marshaler {
@@ -17144,8 +17155,8 @@ func (ec *executionContext) fieldContext_SimPool_agents(_ context.Context, field
 	fc = &graphql.FieldContext{
 		Object:     "SimPool",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_SimAgent(ctx, field)
 		},
@@ -17162,7 +17173,7 @@ func (ec *executionContext) _SimPool_standings(ctx context.Context, field graphq
 			return ec.fieldContext_SimPool_standings(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Standings, nil
+			return ec.Resolvers.SimPool().Standings(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.SimStandingEntry) graphql.Marshaler {
@@ -17176,8 +17187,8 @@ func (ec *executionContext) fieldContext_SimPool_standings(_ context.Context, fi
 	fc = &graphql.FieldContext{
 		Object:     "SimPool",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_SimStandingEntry(ctx, field)
 		},
@@ -17194,7 +17205,7 @@ func (ec *executionContext) _SimPool_currentDraftAction(ctx context.Context, fie
 			return ec.fieldContext_SimPool_currentDraftAction(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.CurrentDraftAction, nil
+			return ec.Resolvers.SimPool().CurrentDraftAction(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CurrentDraftAction) graphql.Marshaler {
@@ -17208,8 +17219,8 @@ func (ec *executionContext) fieldContext_SimPool_currentDraftAction(_ context.Co
 	fc = &graphql.FieldContext{
 		Object:     "SimPool",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_CurrentDraftAction(ctx, field)
 		},
@@ -23971,51 +23982,144 @@ func (ec *executionContext) _SimPool(ctx context.Context, sel ast.SelectionSet, 
 		case "id":
 			out.Values[i] = ec._SimPool_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._SimPool_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "season":
 			out.Values[i] = ec._SimPool_season(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "status":
 			out.Values[i] = ec._SimPool_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "simDate":
 			out.Values[i] = ec._SimPool_simDate(ctx, field, obj)
 		case "totalLlmCostUsd":
 			out.Values[i] = ec._SimPool_totalLlmCostUsd(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "agents":
-			out.Values[i] = ec._SimPool_agents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._SimPool_agents(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "standings":
-			out.Values[i] = ec._SimPool_standings(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._SimPool_standings(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "currentDraftAction":
-			out.Values[i] = ec._SimPool_currentDraftAction(ctx, field, obj)
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._SimPool_currentDraftAction(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "stopAfter":
 			out.Values[i] = ec._SimPool_stopAfter(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "maxSeasonDays":
 			out.Values[i] = ec._SimPool_maxSeasonDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))

@@ -218,11 +218,14 @@ type SimQueries interface {
 	ListSimAgentsByPool(ctx context.Context, poolID int32) ([]sqlcdb.SimAgent, error)
 	GetSeason(ctx context.Context, id int32) (sqlcdb.Season, error)
 
-	// LoadDraftCandidates reads — prior-season club stats + per-player
-	// position lookups for the draft phase.
+	// LoadDraftCandidates reads — prior-season club stats + batched
+	// per-player position lookups for the draft phase. Also used by
+	// BuildManageRosterContext's roster/position-catalog reads (see
+	// loadPlayersByIDs in context_activity.go) — one query per call
+	// site instead of one GetPlayer per player.
 	GetClubSkaterStatsBySeason(ctx context.Context, arg sqlcdb.GetClubSkaterStatsBySeasonParams) ([]sqlcdb.GetClubSkaterStatsBySeasonRow, error)
 	GetClubGoalieStatsBySeason(ctx context.Context, arg sqlcdb.GetClubGoalieStatsBySeasonParams) ([]sqlcdb.GetClubGoalieStatsBySeasonRow, error)
-	GetPlayer(ctx context.Context, id int64) (sqlcdb.Player, error)
+	GetPlayersByIDs(ctx context.Context, ids []int64) ([]sqlcdb.Player, error)
 
 	// Turn telemetry — every LLM-driven activity writes a sim_agent_turns
 	// header plus the per-round, per-tool-call, and per-message children.
@@ -248,6 +251,32 @@ type SimQueries interface {
 	// duplicate pending claim by the same agent is rejected as a clean action
 	// error instead of violating the pending-one-per-agent-player unique index.
 	ListSimWaiverClaimsPendingByAgent(ctx context.Context, arg sqlcdb.ListSimWaiverClaimsPendingByAgentParams) ([]sqlcdb.SimWaiverClaim, error)
+}
+
+// loadPlayersByIDs batches sqlcdb.Player lookups for ids, returning
+// id → Player for every id that resolved to a row. Missing ids are
+// silently absent from the returned map — GetPlayersByIDs uses
+// WHERE id = ANY($1), so it can't distinguish "id not requested"
+// from "id requested but no matching row"; callers that need a
+// found/not-found distinction check the map directly (`p, ok :=
+// players[id]`) rather than relying on an error.
+//
+// Empty ids → empty map, no DB round trip (mirrors the zero-players
+// case every call site already has to handle for an empty roster /
+// free-agent list).
+func loadPlayersByIDs(ctx context.Context, q SimQueries, ids []int64) (map[int64]sqlcdb.Player, error) {
+	if len(ids) == 0 {
+		return map[int64]sqlcdb.Player{}, nil
+	}
+	rows, err := q.GetPlayersByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]sqlcdb.Player, len(rows))
+	for _, p := range rows {
+		out[p.ID] = p
+	}
+	return out, nil
 }
 
 // ============================================================================
@@ -461,7 +490,7 @@ func (a *Activities) UpdateStandings(ctx context.Context, in UpdateStandingsInpu
 func groupTotalsByCategory(totals []sqlcdb.SimAgentTotal, agentIDs []int32) ([]CategoryStats, error) {
 	byCat := make(map[Category][]AgentCategoryStat)
 	for _, t := range totals {
-		val, err := numericToFloat(t.Value)
+		val, err := NumericToFloat(t.Value)
 		if err != nil {
 			return nil, fmt.Errorf("decode totals value (agent=%d, cat=%s): %w", t.AgentID, t.Category, err)
 		}
@@ -512,12 +541,12 @@ func numericFromFloat(f float64) (pgtype.Numeric, error) {
 	return n, nil
 }
 
-// numericToFloat converts a pgtype.Numeric (DB read) to float64
+// NumericToFloat converts a pgtype.Numeric (DB read) to float64
 // (scoring engine). NULL becomes 0 — sim_agent_totals.value is
 // NOT NULL by schema, but the helper handles invalid Numerics
 // defensively so a future loosening of the column nullability can't
 // silently NaN the scoring engine.
-func numericToFloat(n pgtype.Numeric) (float64, error) {
+func NumericToFloat(n pgtype.Numeric) (float64, error) {
 	if !n.Valid {
 		return 0, nil
 	}

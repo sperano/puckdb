@@ -38,7 +38,7 @@ const (
 
 // colorThemes maps theme names to 8-shade ANSI 256-color palettes (dark to light).
 var colorThemes = map[string][colorThemePaletteSize]int{
-	ThemeBlue:   {17, 19, 21, 27, 33, 39, 45, 51},       // navy → cyan
+	ThemeBlue:   {17, 19, 21, 27, 33, 39, 45, 51},        // navy → cyan
 	ThemeRed:    {88, 124, 160, 196, 202, 208, 214, 220}, // crimson → gold
 	ThemeGreen:  {22, 28, 34, 40, 46, 82, 118, 154},      // dark green → chartreuse
 	ThemeTeal:   {23, 30, 37, 44, 51, 87, 123, 159},      // dark teal → pale aqua

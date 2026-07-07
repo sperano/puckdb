@@ -45,7 +45,7 @@ WHERE (edge_goalie_stats.gaa_value, edge_goalie_stats.gaa_percentile,
 DELETE FROM edge_goalie_shot_location_summary
 WHERE player_id = $1 AND season = $2 AND game_type = $3;
 
--- name: InsertEdgeGoalieShotLocationSummary :exec
+-- name: UpsertEdgeGoalieShotLocationSummary :exec
 INSERT INTO edge_goalie_shot_location_summary (
     player_id, season, game_type, location_code,
     goals_against, goals_against_percentile, goals_against_league_avg,
@@ -68,7 +68,7 @@ ON CONFLICT (player_id, season, game_type, location_code) DO UPDATE SET
 DELETE FROM edge_goalie_shot_locations
 WHERE player_id = $1 AND season = $2 AND game_type = $3;
 
--- name: InsertEdgeGoalieShotLocation :exec
+-- name: UpsertEdgeGoalieShotLocation :exec
 INSERT INTO edge_goalie_shot_locations (
     player_id, season, game_type, area,
     saves, saves_percentile, save_pctg, save_pctg_percentile

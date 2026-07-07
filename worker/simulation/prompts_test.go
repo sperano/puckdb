@@ -2,6 +2,7 @@ package simulation
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -58,6 +59,33 @@ func TestBuildSystemPrompt_EmptyStrategy(t *testing.T) {
 	got := BuildSystemPrompt(AgentConfig{}, 5)
 	assert.Contains(t, got, "Your strategy: \n", "empty strategy must leave the line stub intact")
 	assert.NotContains(t, got, "{strategy}")
+}
+
+// TestV1FixedRosterMatchesPrompt pins the V1 fixed-roster assumption
+// documented on PoolConfig (types.go) and on v1FixedCategories /
+// v1FixedRoster (prompts.go, just above systemPromptTemplate): the
+// system prompt's "9 roto categories" line and "Roster: ..." line are
+// hard-coded text, not derived from PoolConfig at runtime. If either
+// constant changes without the corresponding edit to
+// systemPromptTemplate (or vice versa), this test fails — that's the
+// point, since a silent divergence here would mean the agent is being
+// told a roster/category shape the validators don't actually enforce.
+func TestV1FixedRosterMatchesPrompt(t *testing.T) {
+	require.Len(t, v1FixedCategories, 9, `systemPromptTemplate says "9 roto categories"`)
+	for _, cat := range v1FixedCategories {
+		assert.Contains(t, systemPromptTemplate, cat,
+			"category %q must appear in the system prompt's category line", cat)
+	}
+
+	cfg := PoolConfig{RosterPositions: v1FixedRoster}
+	wantRosterLine := fmt.Sprintf(
+		"Roster: %dC, %dLW, %dRW, %dD, %dUtil, %dG active | %dBN bench | %dIR",
+		cfg.RosterPositions[SlotC], cfg.RosterPositions[SlotLW], cfg.RosterPositions[SlotRW],
+		cfg.RosterPositions[SlotD], cfg.RosterPositions[SlotUtil], cfg.RosterPositions[SlotG],
+		cfg.RosterPositions[SlotBN], cfg.RosterPositions[SlotIR],
+	)
+	assert.Contains(t, systemPromptTemplate, wantRosterLine,
+		"v1FixedRoster must match the prompt's hard-coded Roster: line")
 }
 
 // ============================================================================

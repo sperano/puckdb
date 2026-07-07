@@ -92,7 +92,7 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 		}
 
 		landingRes := resource.PlayerLanding{PlayerID: playerID}
-		landing, origin, err := cache.ReadParsedCached[*nhl.PlayerLanding](ctx, a.Storage, a.GobCache, landingRes)
+		landing, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, landingRes)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("player %d: read error: %v", p.ID, err))
 			continue

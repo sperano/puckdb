@@ -19,21 +19,21 @@ func TestFSStorage_ReadWriteExists(t *testing.T) {
 	data := []byte(`{"key": "value"}`)
 
 	// Initially does not exist
-	assert.False(t, s.Exists(context.Background(),path))
+	assert.False(t, s.Exists(context.Background(), path))
 
 	// Read returns error for non-existent file
-	_, err := s.Read(context.Background(),path)
+	_, err := s.Read(context.Background(), path)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 
 	// Write creates directories and file
-	err = s.Write(context.Background(),path, data)
+	err = s.Write(context.Background(), path, data)
 	require.NoError(t, err)
 
 	// Now exists
-	assert.True(t, s.Exists(context.Background(),path))
+	assert.True(t, s.Exists(context.Background(), path))
 
 	// Read returns the data
-	got, err := s.Read(context.Background(),path)
+	got, err := s.Read(context.Background(), path)
 	require.NoError(t, err)
 	assert.Equal(t, data, got)
 
@@ -49,13 +49,13 @@ func TestFSStorage_WriteOverwrites(t *testing.T) {
 
 	path := "file.txt"
 
-	err := s.Write(context.Background(),path, []byte("original"))
+	err := s.Write(context.Background(), path, []byte("original"))
 	require.NoError(t, err)
 
-	err = s.Write(context.Background(),path, []byte("updated"))
+	err = s.Write(context.Background(), path, []byte("updated"))
 	require.NoError(t, err)
 
-	got, err := s.Read(context.Background(),path)
+	got, err := s.Read(context.Background(), path)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("updated"), got)
 }
@@ -68,18 +68,18 @@ func TestFSStorage_Delete(t *testing.T) {
 	path := "to-delete.txt"
 
 	// Delete non-existent file returns nil (not an error)
-	err := s.Delete(context.Background(),path)
+	err := s.Delete(context.Background(), path)
 	assert.NoError(t, err)
 
 	// Create file
-	err = s.Write(context.Background(),path, []byte("data"))
+	err = s.Write(context.Background(), path, []byte("data"))
 	require.NoError(t, err)
-	assert.True(t, s.Exists(context.Background(),path))
+	assert.True(t, s.Exists(context.Background(), path))
 
 	// Delete removes it
-	err = s.Delete(context.Background(),path)
+	err = s.Delete(context.Background(), path)
 	assert.NoError(t, err)
-	assert.False(t, s.Exists(context.Background(),path))
+	assert.False(t, s.Exists(context.Background(), path))
 }
 
 func TestFSStorage_List(t *testing.T) {
@@ -90,13 +90,13 @@ func TestFSStorage_List(t *testing.T) {
 	dir := "games/2024/01/15"
 
 	// Create some files
-	require.NoError(t, s.Write(context.Background(),dir+"/boxscore-2024020001.json", []byte("{}")))
-	require.NoError(t, s.Write(context.Background(),dir+"/boxscore-2024020002.json", []byte("{}")))
-	require.NoError(t, s.Write(context.Background(),dir+"/daily-schedule-2024-01-15.json", []byte("{}")))
-	require.NoError(t, s.Write(context.Background(),dir+"/readme.txt", []byte("ignored"))) // different extension
+	require.NoError(t, s.Write(context.Background(), dir+"/boxscore-2024020001.json", []byte("{}")))
+	require.NoError(t, s.Write(context.Background(), dir+"/boxscore-2024020002.json", []byte("{}")))
+	require.NoError(t, s.Write(context.Background(), dir+"/daily-schedule-2024-01-15.json", []byte("{}")))
+	require.NoError(t, s.Write(context.Background(), dir+"/readme.txt", []byte("ignored"))) // different extension
 
 	// List JSON files
-	names, err := s.List(context.Background(),dir, "json")
+	names, err := s.List(context.Background(), dir, "json")
 	require.NoError(t, err)
 
 	assert.Len(t, names, 3)
@@ -115,7 +115,7 @@ func TestFSStorage_ListEmptyDir(t *testing.T) {
 	dir := "empty"
 	require.NoError(t, os.MkdirAll(filepath.Join(root, dir), 0755))
 
-	names, err := s.List(context.Background(),dir, "json")
+	names, err := s.List(context.Background(), dir, "json")
 	require.NoError(t, err)
 	assert.Empty(t, names)
 }
@@ -125,7 +125,7 @@ func TestFSStorage_ListNonExistentDir(t *testing.T) {
 	root := t.TempDir()
 	s := NewFSStorage(root)
 
-	_, err := s.List(context.Background(),"does-not-exist", "json")
+	_, err := s.List(context.Background(), "does-not-exist", "json")
 	assert.Error(t, err)
 }
 

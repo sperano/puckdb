@@ -1,9 +1,10 @@
 package simulation
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -96,17 +97,22 @@ func (a *Activities) ProcessWaivers(ctx context.Context, in ProcessWaiversInput)
 		return ProcessWaiversResult{Skipped: true}, nil
 	}
 
-	priorities, err := a.Queries.ListSimWaiverPriorityByPool(ctx, in.PoolID)
-	if err != nil {
-		return ProcessWaiversResult{}, fmt.Errorf("simulation: list waiver priority: %w", err)
-	}
-
 	// groupedClaims groups by player_id in deterministic player_id order
 	// so the processing sequence is reproducible.
 	groupedClaims := groupClaimsByPlayer(claims)
 
 	var result ProcessWaiversResult
 	err = a.Tx.InTx(ctx, func(q SimQueries) error {
+		// Read the priority order inside the transaction — the query
+		// takes FOR UPDATE row locks, so the read-modify-write (read
+		// here, restamp-and-write below) is atomic against a concurrent
+		// ProcessWaivers transaction for the same pool. See the query's
+		// doc comment in sqlcdb/queries/sim.sql for the race this closes.
+		priorities, err := q.ListSimWaiverPriorityByPool(ctx, in.PoolID)
+		if err != nil {
+			return fmt.Errorf("simulation: list waiver priority: %w", err)
+		}
+
 		// currentPriorities tracks the live priority order as groups are
 		// resolved. Each contested win rotates the winner to the bottom
 		// before the next group resolves, so a priority-1 agent doesn't
@@ -183,7 +189,7 @@ func groupClaimsByPlayer(claims []sqlcdb.SimWaiverClaim) [][]sqlcdb.SimWaiverCla
 		}
 		byPlayer[c.PlayerID] = append(byPlayer[c.PlayerID], c)
 	}
-	sort.Slice(playerOrder, func(i, j int) bool { return playerOrder[i] < playerOrder[j] })
+	slices.Sort(playerOrder)
 
 	groups := make([][]sqlcdb.SimWaiverClaim, 0, len(byPlayer))
 	for _, pid := range playerOrder {
@@ -208,13 +214,13 @@ func resolveGroup(group []sqlcdb.SimWaiverClaim, priorities []sqlcdb.SimWaiverPr
 
 	sorted := make([]sqlcdb.SimWaiverClaim, len(group))
 	copy(sorted, group)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		pi := priorityOf[sorted[i].AgentID]
-		pj := priorityOf[sorted[j].AgentID]
-		if pi != pj {
-			return pi < pj
+	slices.SortStableFunc(sorted, func(a, b sqlcdb.SimWaiverClaim) int {
+		pa := priorityOf[a.AgentID]
+		pb := priorityOf[b.AgentID]
+		if pa != pb {
+			return cmp.Compare(pa, pb)
 		}
-		return sorted[i].ID < sorted[j].ID
+		return cmp.Compare(a.ID, b.ID)
 	})
 	return claimResolution{
 		playerID: sorted[0].PlayerID,
@@ -426,7 +432,9 @@ func demoteWinners(priorities []sqlcdb.SimWaiverPriority, winners []int32) []sql
 	// to preserve relative order within each bucket.
 	sorted := make([]sqlcdb.SimWaiverPriority, len(priorities))
 	copy(sorted, priorities)
-	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Priority < sorted[j].Priority })
+	slices.SortStableFunc(sorted, func(a, b sqlcdb.SimWaiverPriority) int {
+		return cmp.Compare(a.Priority, b.Priority)
+	})
 
 	kept := make([]sqlcdb.SimWaiverPriority, 0, len(sorted))
 	demoted := make([]sqlcdb.SimWaiverPriority, 0, len(winSet))

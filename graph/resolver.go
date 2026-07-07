@@ -7,15 +7,16 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
+	"fmt"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/jackc/pgx/v5"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/maurice"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/temporal"
-	"github.com/sperano/puckdb/worker/admin"
 	"github.com/sperano/puckdb/worker/shared"
 	"github.com/sperano/puckdb/worker/workflow"
 	"github.com/spf13/viper"
@@ -25,16 +26,28 @@ import (
 
 // Imports are managed by goimports
 
+// txBeginner is the subset of *pgxpool.Pool the resolver needs to run a
+// multi-statement write atomically (createSimPool). Kept as an interface so
+// the resolver doesn't hard-depend on pgxpool and tests can inject a fake.
+type txBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
 // Resolver holds the dependencies used by GraphQL resolvers. MauriceService
 // may be nil when Maurice AI chat is not configured — resolvers that need it
 // return errMauriceNotConfigured. Queries may be nil when the resolver is
 // constructed without a live database connection — data queries then return
-// errors rather than panicking. TemporalClient and RedisClient are required.
+// errors rather than panicking. DB is the pgx pool used for resolvers that
+// need an explicit transaction (createSimPool); it may be nil when the
+// resolver is constructed without a live database connection, in which case
+// those mutations return errDatabaseNotConfigured. TemporalClient and
+// RedisClient are required.
 type Resolver struct {
 	TemporalClient client.Client
 	RedisClient    *redis.Client
 	MauriceService maurice.Service
 	Queries        *sqlcdb.Queries
+	DB             txBeginner
 }
 
 var temporalStatusToGQL = map[temporalEnums.WorkflowExecutionStatus]model.TemporalWorkflowStatus{
@@ -48,69 +61,14 @@ var temporalStatusToGQL = map[temporalEnums.WorkflowExecutionStatus]model.Tempor
 	temporalEnums.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:        model.TemporalWorkflowStatusTimedOut,
 }
 
-func (r *Resolver) clearDatabase(ctx context.Context) (bool, error) {
-	return r.executeAdminWorkflow(ctx, admin.WorkflowIDResetDatabase, admin.ResetDatabaseWorkflow)
-}
-
-func (r *Resolver) dropDatabase(ctx context.Context) (bool, error) {
-	return r.executeAdminWorkflow(ctx, admin.WorkflowIDDropDatabase, admin.DropDatabaseWorkflow)
-}
-
-func (r *Resolver) createDatabase(ctx context.Context) (bool, error) {
-	return r.executeAdminWorkflow(ctx, admin.WorkflowIDMigrateDatabase, admin.MigrateDatabaseWorkflow)
-}
-
-func (r *Resolver) flushRedisDB(ctx context.Context) (bool, error) {
-	return r.executeAdminWorkflow(ctx, admin.WorkflowIDFlushRedis, admin.FlushRedisWorkflow)
-}
-
-func (r *Resolver) fetchSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, shared.WorkflowIDFetchSeasons, workflow.FetchSeasonsWorkflow, input)
-}
-
-func (r *Resolver) cancelFetchSeasons(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, shared.WorkflowIDFetchSeasons)
-}
-
-func (r *Resolver) fetchSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, shared.WorkflowIDFetchSeasons)
-}
-
-func (r *Resolver) fetchSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, shared.WorkflowIDFetchSeasons)
-}
-
-func (r *Resolver) fetchPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, shared.WorkflowIDFetchPlayerLogs, workflow.FetchPlayerLogsWorkflow, input)
-}
-
-func (r *Resolver) cancelFetchPlayerLogs(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, shared.WorkflowIDFetchPlayerLogs)
-}
-
-func (r *Resolver) fetchPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, shared.WorkflowIDFetchPlayerLogs)
-}
-
-func (r *Resolver) fetchPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, shared.WorkflowIDFetchPlayerLogs)
-}
-
-func (r *Resolver) fetchYahooPlayers(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, workflow.WorkflowIDFetchYahooPlayers, workflow.FetchYahooPlayersWorkflow, (*workflow.FetchYahooPlayersInput)(nil))
-}
-
-func (r *Resolver) cancelFetchYahooPlayers(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, workflow.WorkflowIDFetchYahooPlayers)
-}
-
-func (r *Resolver) fetchYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, workflow.WorkflowIDFetchYahooPlayers)
-}
-
-func (r *Resolver) fetchYahooPlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, workflow.WorkflowIDFetchYahooPlayers)
-}
+// Simple long-running workflows that need no input conversion, and their
+// admin-queue counterparts, have no dedicated resolver.go wrapper: the
+// schema.resolvers.go field methods call executeWorkflow / executeAdminWorkflow
+// / cancelWorkflow / getWorkflowResult / queryProgressReport directly with the
+// workflow's shared.WorkflowID* / worker/admin constant. Only workflows that
+// need real input-shape conversion (processPlayers, fetchPlayerLandings,
+// fetchAssets) or extra post-processing (processPlayersResultData) get a
+// resolver.go method.
 
 func (r *Resolver) processPlayers(ctx context.Context, input *model.ProcessPlayersInput) (bool, error) {
 	// Convert GraphQL input to workflow input
@@ -120,18 +78,6 @@ func (r *Resolver) processPlayers(ctx context.Context, input *model.ProcessPlaye
 		workflowInput.Concurrency = input.Concurrency
 	}
 	return r.executeWorkflow(ctx, workflow.WorkflowIDProcessPlayers, workflow.ProcessPlayersWorkflow, workflowInput)
-}
-
-func (r *Resolver) cancelProcessPlayers(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, workflow.WorkflowIDProcessPlayers)
-}
-
-func (r *Resolver) processPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, workflow.WorkflowIDProcessPlayers)
-}
-
-func (r *Resolver) processPlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, workflow.WorkflowIDProcessPlayers)
 }
 
 func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.ProcessPlayersResultData, error) {
@@ -170,54 +116,6 @@ func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.Process
 	}, nil
 }
 
-func (r *Resolver) importSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, shared.WorkflowIDImportSeasons, workflow.ImportSeasonsWorkflow, input)
-}
-
-func (r *Resolver) cancelImportSeasons(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, shared.WorkflowIDImportSeasons)
-}
-
-func (r *Resolver) importSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, shared.WorkflowIDImportSeasons)
-}
-
-func (r *Resolver) importSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, shared.WorkflowIDImportSeasons)
-}
-
-func (r *Resolver) importPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, shared.WorkflowIDImportPlayerLogs, workflow.ImportPlayerLogsWorkflow, input)
-}
-
-func (r *Resolver) cancelImportPlayerLogs(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, shared.WorkflowIDImportPlayerLogs)
-}
-
-func (r *Resolver) importPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, shared.WorkflowIDImportPlayerLogs)
-}
-
-func (r *Resolver) importPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, shared.WorkflowIDImportPlayerLogs)
-}
-
-func (r *Resolver) extractBoxscorePlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, workflow.WorkflowIDExtractBoxscorePlayers, workflow.ExtractBoxscorePlayersWorkflow, input)
-}
-
-func (r *Resolver) cancelExtractBoxscorePlayers(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, workflow.WorkflowIDExtractBoxscorePlayers)
-}
-
-func (r *Resolver) extractBoxscorePlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, workflow.WorkflowIDExtractBoxscorePlayers)
-}
-
-func (r *Resolver) extractBoxscorePlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, workflow.WorkflowIDExtractBoxscorePlayers)
-}
-
 func (r *Resolver) fetchPlayerLandings(ctx context.Context, input *model.FetchPlayerLandingsInput) (bool, error) {
 	// Convert GraphQL input to workflow input
 	workflowInput := &workflow.FetchPlayerLandingsInput{}
@@ -226,50 +124,6 @@ func (r *Resolver) fetchPlayerLandings(ctx context.Context, input *model.FetchPl
 		workflowInput.Concurrency = input.Concurrency
 	}
 	return r.executeWorkflow(ctx, workflow.WorkflowIDFetchPlayerLandings, workflow.FetchPlayerLandingsWorkflow, workflowInput)
-}
-
-func (r *Resolver) cancelFetchPlayerLandings(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, workflow.WorkflowIDFetchPlayerLandings)
-}
-
-func (r *Resolver) fetchPlayerLandingsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, workflow.WorkflowIDFetchPlayerLandings)
-}
-
-func (r *Resolver) fetchPlayerLandingsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, workflow.WorkflowIDFetchPlayerLandings)
-}
-
-func (r *Resolver) fetchEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, shared.WorkflowIDFetchEdgeStats, workflow.FetchEdgeSeasonsWorkflow, input)
-}
-
-func (r *Resolver) cancelFetchEdgeStats(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, shared.WorkflowIDFetchEdgeStats)
-}
-
-func (r *Resolver) fetchEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, shared.WorkflowIDFetchEdgeStats)
-}
-
-func (r *Resolver) fetchEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, shared.WorkflowIDFetchEdgeStats)
-}
-
-func (r *Resolver) importEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.executeWorkflow(ctx, shared.WorkflowIDImportEdgeStats, workflow.ImportEdgeSeasonsWorkflow, input)
-}
-
-func (r *Resolver) cancelImportEdgeStats(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, shared.WorkflowIDImportEdgeStats)
-}
-
-func (r *Resolver) importEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, shared.WorkflowIDImportEdgeStats)
-}
-
-func (r *Resolver) importEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, shared.WorkflowIDImportEdgeStats)
 }
 
 func (r *Resolver) fetchAssets(ctx context.Context, input *model.FetchAssetsInput) (bool, error) {
@@ -282,39 +136,27 @@ func (r *Resolver) fetchAssets(ctx context.Context, input *model.FetchAssetsInpu
 	return r.executeAssetWorkflow(ctx, shared.WorkflowIDFetchAssets, workflow.FetchAssetsWorkflow, workflowInput)
 }
 
-func (r *Resolver) cancelFetchAssets(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, shared.WorkflowIDFetchAssets)
-}
-
-func (r *Resolver) fetchAssetsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, shared.WorkflowIDFetchAssets)
-}
-
-func (r *Resolver) fetchAssetsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, shared.WorkflowIDFetchAssets)
-}
-
-func (r *Resolver) initialize(ctx context.Context) (bool, error) {
-	return r.executeWorkflow(ctx, workflow.WorkflowIDInitialize, workflow.InitializeWorkflow, nil)
-}
-
-func (r *Resolver) cancelInitialize(ctx context.Context) (bool, error) {
-	return r.cancelWorkflow(ctx, workflow.WorkflowIDInitialize)
-}
-
-func (r *Resolver) initializeResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.getWorkflowResult(ctx, workflow.WorkflowIDInitialize)
-}
-
-func (r *Resolver) initializeProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.queryProgressReport(ctx, workflow.WorkflowIDInitialize)
-}
-
 func (r *Resolver) cancelWorkflow(ctx context.Context, workflowID string) (bool, error) {
 	if err := r.TemporalClient.CancelWorkflow(ctx, workflowID, ""); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// isTerminalFailureStatus reports whether a workflow status is a terminal
+// non-success state whose FailureReason should be populated. Completed is a
+// success and ContinuedAsNew / Running / Unspecified are not terminal
+// failures, so none of them carry a reason.
+func isTerminalFailureStatus(s model.TemporalWorkflowStatus) bool {
+	switch s {
+	case model.TemporalWorkflowStatusFailed,
+		model.TemporalWorkflowStatusTimedOut,
+		model.TemporalWorkflowStatusTerminated,
+		model.TemporalWorkflowStatusCanceled:
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *Resolver) getWorkflowResult(ctx context.Context, workflowID string) (*model.WorkflowResult, error) {
@@ -323,19 +165,26 @@ func (r *Resolver) getWorkflowResult(ctx context.Context, workflowID string) (*m
 		return nil, err
 	}
 
-	status := temporalStatusToGQL[resp.WorkflowExecutionInfo.Status]
+	rawStatus := resp.WorkflowExecutionInfo.Status
+	status, ok := temporalStatusToGQL[rawStatus]
+	if !ok {
+		// A status Temporal added that this build doesn't know about.
+		// Surface it explicitly rather than silently returning the zero
+		// enum (which reads as UNSPECIFIED and hides the mismatch).
+		return nil, fmt.Errorf("workflow %s has unknown temporal status %v", workflowID, rawStatus)
+	}
 	result := &model.WorkflowResult{
 		Status: status,
 	}
 
-	// If the workflow failed, try to get the failure reason
-	if status == model.TemporalWorkflowStatusFailed {
-		// Get the workflow run to extract the error
+	// For every terminal non-success state (Failed, TimedOut, Terminated,
+	// Canceled) fetch the run result to extract the failure reason. run.Get
+	// returns the terminal error for all of these, not just Failed.
+	if isTerminalFailureStatus(status) {
 		run := r.TemporalClient.GetWorkflow(ctx, workflowID, "")
 		var dummy any
-		err := run.Get(ctx, &dummy)
-		if err != nil {
-			result.FailureReason = ptr(err.Error())
+		if err := run.Get(ctx, &dummy); err != nil {
+			result.FailureReason = new(err.Error())
 		}
 	}
 
@@ -452,10 +301,7 @@ func (r *Resolver) mergeChildWorkflowProgress(ctx context.Context, report *model
 			bar := report.Groups[q.groupIdx].Bars[q.barIdx]
 			bar.Started = true
 
-			current := childCurrent
-			if current > bar.Total {
-				current = bar.Total // Safety cap
-			}
+			current := min(childCurrent, bar.Total) // Safety cap
 			if current > bar.Current {
 				diff := current - bar.Current
 				bar.Current = current
@@ -471,7 +317,6 @@ type childQuery struct {
 	barIdx     int
 	workflowID string
 }
-
 
 func (r *Resolver) yahooTokenStatus(ctx context.Context) (*model.YahooTokenStatus, error) {
 	valid, err := cache.HasValidToken(ctx, r.RedisClient, config.DefaultUser)
@@ -630,26 +475,26 @@ func (r *Resolver) executeAssetWorkflow(ctx context.Context, workflowID string, 
 }
 
 // TODO move to temporal/worker
-func workflowOptions(id string) client.StartWorkflowOptions {
+
+// buildWorkflowOptions is the shared core of workflowOptions /
+// adminWorkflowOptions / assetWorkflowOptions below — they differ only in
+// which task queue a workflow is dispatched to.
+func buildWorkflowOptions(id, taskQueue string) client.StartWorkflowOptions {
 	return client.StartWorkflowOptions{
 		ID:                  id,
-		TaskQueue:           temporal.QueueTasks,
+		TaskQueue:           taskQueue,
 		WorkflowTaskTimeout: config.DefaultWorkflowTaskTimeout,
 	}
+}
+
+func workflowOptions(id string) client.StartWorkflowOptions {
+	return buildWorkflowOptions(id, temporal.QueueTasks)
 }
 
 func adminWorkflowOptions(id string) client.StartWorkflowOptions {
-	return client.StartWorkflowOptions{
-		ID:                  id,
-		TaskQueue:           temporal.QueueAdmin,
-		WorkflowTaskTimeout: config.DefaultWorkflowTaskTimeout,
-	}
+	return buildWorkflowOptions(id, temporal.QueueAdmin)
 }
 
 func assetWorkflowOptions(id string) client.StartWorkflowOptions {
-	return client.StartWorkflowOptions{
-		ID:                  id,
-		TaskQueue:           shared.TaskQueueAssets,
-		WorkflowTaskTimeout: config.DefaultWorkflowTaskTimeout,
-	}
+	return buildWorkflowOptions(id, shared.TaskQueueAssets)
 }

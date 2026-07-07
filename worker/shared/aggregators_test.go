@@ -42,7 +42,7 @@ func TestAggregateInto(t *testing.T) {
 		})
 
 		acc := &testAdder{}
-		handler := AggregateInto[int](acc)
+		handler := AggregateInto(acc)
 
 		for _, val := range []int{10, 20, 30} {
 			future := workflow.ExecuteActivity(ctx, returnInt, val)
@@ -157,7 +157,7 @@ func TestAggregateInto_Error(t *testing.T) {
 		})
 
 		acc := &testAdder{}
-		handler := AggregateInto[int](acc)
+		handler := AggregateInto(acc)
 
 		future := workflow.ExecuteActivity(ctx, failingActivity)
 		return handler(ctx, 0, future)

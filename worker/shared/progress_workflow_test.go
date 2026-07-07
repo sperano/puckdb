@@ -56,9 +56,9 @@ func gobEncodeReport(t *testing.T, report *ProgressReport) []byte {
 	return buf.Bytes()
 }
 
-// assertErrorFromActivity is a sentinel returned by the mocked Load
+// errSimulatedRedis is a sentinel returned by the mocked Load
 // activity to exercise the error-propagation branch in LoadReportTracker.
-var assertErrorFromActivity = errors.New("simulated redis error")
+var errSimulatedRedis = errors.New("simulated redis error")
 
 // ReportTrackerSuite tests the workflow-context-dependent ReportTracker
 // methods: InitTracker, StartGroup, CompleteGroup, IncrementBar, GetElapsed,
@@ -319,7 +319,7 @@ func TestSaveActivityProgress_RedisError(t *testing.T) {
 
 func (s *LoadReportTrackerSuite) TestActivityError_PropagatesError() {
 	env := s.NewTestWorkflowEnvironment()
-	env.OnActivity(((*ProgressActivities)(nil)).Load, mock.Anything, mock.Anything).Return([]byte(nil), assertErrorFromActivity)
+	env.OnActivity(((*ProgressActivities)(nil)).Load, mock.Anything, mock.Anything).Return([]byte(nil), errSimulatedRedis)
 
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
 		_, err := LoadReportTracker(ctx)
@@ -328,4 +328,3 @@ func (s *LoadReportTrackerSuite) TestActivityError_PropagatesError() {
 	})
 	s.NoError(env.GetWorkflowError())
 }
-

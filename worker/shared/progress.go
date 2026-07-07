@@ -15,10 +15,10 @@ import (
 
 // ProgressBar represents a single progress bar within a group.
 type ProgressBar struct {
-	Label           string `json:"label,omitempty"`
-	Current         int    `json:"current"`
-	Total           int    `json:"total"`
-	Started         bool   `json:"started,omitempty"`
+	Label   string `json:"label,omitempty"`
+	Current int    `json:"current"`
+	Total   int    `json:"total"`
+	Started bool   `json:"started,omitempty"`
 	// ProgressSourceKey is the Redis key from which the resolver merges this bar's
 	// live progress. It may hold a real child workflow ID (when the bar corresponds
 	// to a spawned child workflow) or a synthetic key published by an activity that
@@ -273,8 +273,18 @@ func (t *ReportTracker) RunWorkerPoolWithIncrement(ctx workflow.Context, groupId
 	for len(active) > 0 {
 		selector := workflow.NewSelector(ctx)
 
-		for idx, future := range active {
-			capturedIdx := idx
+		// Register futures in ascending index order. Ranging over `active`
+		// (a map) would use Go's randomized iteration order; Selector.Select
+		// fires the first-registered ready branch, so a random registration
+		// order makes the side-effecting IncrementBarBy/Save commands and the
+		// firstErr choice non-deterministic across replay. All active keys are
+		// in [0, nextIndex).
+		for i := 0; i < nextIndex; i++ {
+			future, ok := active[i]
+			if !ok {
+				continue
+			}
+			capturedIdx := i
 			capturedFuture := future
 			selector.AddFuture(capturedFuture, func(f workflow.Future) {
 				if handler != nil {
@@ -332,8 +342,18 @@ func (t *ReportTracker) RunWorkerPoolMultiBar(ctx workflow.Context, groupIdx, ba
 	for len(active) > 0 {
 		selector := workflow.NewSelector(ctx)
 
-		for idx, future := range active {
-			capturedIdx := idx
+		// Register futures in ascending index order. Ranging over `active`
+		// (a map) would use Go's randomized iteration order; Selector.Select
+		// fires the first-registered ready branch, so a random registration
+		// order makes the side-effecting CompleteBar/Save commands and the
+		// firstErr choice non-deterministic across replay. All active keys are
+		// in [0, nextIndex).
+		for i := 0; i < nextIndex; i++ {
+			future, ok := active[i]
+			if !ok {
+				continue
+			}
+			capturedIdx := i
 			capturedFuture := future
 			selector.AddFuture(capturedFuture, func(f workflow.Future) {
 				if handler != nil {

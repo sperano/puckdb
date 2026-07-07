@@ -156,7 +156,7 @@ func TestAsciiBar(t *testing.T) {
 		{0, 10, 10, "[          ]"},
 		{5, 10, 10, "[#####     ]"},
 		{10, 10, 10, "[##########]"},
-		{0, 0, 5, "[     ]"},     // total=0 → empty bar (not panic)
+		{0, 0, 5, "[     ]"},         // total=0 → empty bar (not panic)
 		{15, 10, 10, "[##########]"}, // overflow clamps to width
 		{-1, 10, 10, "[          ]"},
 	}

@@ -312,7 +312,7 @@ func (q *Queries) GetEdgeSkaterStatsBySeason(ctx context.Context, arg GetEdgeSka
 	return items, nil
 }
 
-const insertEdgeSkaterShotLocation = `-- name: InsertEdgeSkaterShotLocation :exec
+const upsertEdgeSkaterShotLocation = `-- name: UpsertEdgeSkaterShotLocation :exec
 INSERT INTO edge_skater_shot_locations (
     player_id, season, game_type, area,
     sog, goals, shooting_pctg, sog_percentile, goals_percentile, shooting_pctg_percentile
@@ -327,7 +327,7 @@ ON CONFLICT (player_id, season, game_type, area) DO UPDATE SET
     shooting_pctg_percentile = EXCLUDED.shooting_pctg_percentile
 `
 
-type InsertEdgeSkaterShotLocationParams struct {
+type UpsertEdgeSkaterShotLocationParams struct {
 	PlayerID               int64         `json:"player_id"`
 	Season                 int32         `json:"season"`
 	GameType               GameType      `json:"game_type"`
@@ -340,8 +340,8 @@ type InsertEdgeSkaterShotLocationParams struct {
 	ShootingPctgPercentile pgtype.Float4 `json:"shooting_pctg_percentile"`
 }
 
-func (q *Queries) InsertEdgeSkaterShotLocation(ctx context.Context, arg InsertEdgeSkaterShotLocationParams) error {
-	_, err := q.db.Exec(ctx, insertEdgeSkaterShotLocation,
+func (q *Queries) UpsertEdgeSkaterShotLocation(ctx context.Context, arg UpsertEdgeSkaterShotLocationParams) error {
+	_, err := q.db.Exec(ctx, upsertEdgeSkaterShotLocation,
 		arg.PlayerID,
 		arg.Season,
 		arg.GameType,
@@ -356,7 +356,7 @@ func (q *Queries) InsertEdgeSkaterShotLocation(ctx context.Context, arg InsertEd
 	return err
 }
 
-const insertEdgeSkaterSogSummary = `-- name: InsertEdgeSkaterSogSummary :exec
+const upsertEdgeSkaterSogSummary = `-- name: UpsertEdgeSkaterSogSummary :exec
 INSERT INTO edge_skater_sog_summary (
     player_id, season, game_type, location_code,
     shots, shots_percentile, shots_league_avg,
@@ -376,7 +376,7 @@ ON CONFLICT (player_id, season, game_type, location_code) DO UPDATE SET
     shooting_pctg_league_avg = EXCLUDED.shooting_pctg_league_avg
 `
 
-type InsertEdgeSkaterSogSummaryParams struct {
+type UpsertEdgeSkaterSogSummaryParams struct {
 	PlayerID               int64         `json:"player_id"`
 	Season                 int32         `json:"season"`
 	GameType               GameType      `json:"game_type"`
@@ -392,8 +392,8 @@ type InsertEdgeSkaterSogSummaryParams struct {
 	ShootingPctgLeagueAvg  pgtype.Float4 `json:"shooting_pctg_league_avg"`
 }
 
-func (q *Queries) InsertEdgeSkaterSogSummary(ctx context.Context, arg InsertEdgeSkaterSogSummaryParams) error {
-	_, err := q.db.Exec(ctx, insertEdgeSkaterSogSummary,
+func (q *Queries) UpsertEdgeSkaterSogSummary(ctx context.Context, arg UpsertEdgeSkaterSogSummaryParams) error {
+	_, err := q.db.Exec(ctx, upsertEdgeSkaterSogSummary,
 		arg.PlayerID,
 		arg.Season,
 		arg.GameType,

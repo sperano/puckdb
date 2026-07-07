@@ -113,7 +113,7 @@ func (s *CollectDayStatsTestSuite) TestSingleSkater_EmitsAllSixCategories() {
 	require.Len(t, s.queries.upsertDailyPlayerCalls, 6)
 	byCat := map[string]float64{}
 	for _, c := range s.queries.upsertDailyPlayerCalls {
-		v, err := numericToFloat(c.Value)
+		v, err := NumericToFloat(c.Value)
 		require.NoError(t, err)
 		byCat[c.Category] = v
 	}
@@ -166,13 +166,13 @@ func (s *CollectDayStatsTestSuite) TestGoalie_DecisionSemantics_W() {
 	for _, c := range s.queries.upsertDailyPlayerCalls {
 		byCat[c.Category] = c
 	}
-	wValue, _ := numericToFloat(byCat[string(CategoryW)].Value)
+	wValue, _ := NumericToFloat(byCat[string(CategoryW)].Value)
 	assert.Equal(t, 1.0, wValue, "decision=W contributes 1 to W")
-	gaValue, _ := numericToFloat(byCat[string(CategoryGA)].Value)
+	gaValue, _ := NumericToFloat(byCat[string(CategoryGA)].Value)
 	assert.Equal(t, 2.0, gaValue, "GA carries the goals_against count")
 
 	gaa := byCat[string(CategoryGAA)]
-	gaaValue, _ := numericToFloat(gaa.Value)
+	gaaValue, _ := NumericToFloat(gaa.Value)
 	assert.Equal(t, 0.0, gaaValue, "GAA per-player value is 0 — components carry the truth")
 	assert.True(t, gaa.GoalieGA.Valid)
 	assert.Equal(t, int32(2), gaa.GoalieGA.Int32)
@@ -212,9 +212,9 @@ func (s *CollectDayStatsTestSuite) TestGoalie_NullDecisionGivesZeroW_ButGAStillA
 	for _, c := range s.queries.upsertDailyPlayerCalls {
 		byCat[c.Category] = c
 	}
-	wValue, _ := numericToFloat(byCat[string(CategoryW)].Value)
+	wValue, _ := NumericToFloat(byCat[string(CategoryW)].Value)
 	assert.Equal(t, 0.0, wValue, "NULL decision → 0 W")
-	gaValue, _ := numericToFloat(byCat[string(CategoryGA)].Value)
+	gaValue, _ := NumericToFloat(byCat[string(CategoryGA)].Value)
 	assert.Equal(t, 3.0, gaValue, "GA still accumulates from NULL-decision rows")
 }
 
@@ -246,7 +246,7 @@ func (s *CollectDayStatsTestSuite) TestGoalie_NonWinDecisionsContributeZeroW() {
 		for _, c := range s.queries.upsertDailyPlayerCalls {
 			byCat[c.Category] = c
 		}
-		wValue, _ := numericToFloat(byCat[string(CategoryW)].Value)
+		wValue, _ := NumericToFloat(byCat[string(CategoryW)].Value)
 		assert.Equal(t, 0.0, wValue, "decision=%s → 0 W", dec)
 	}
 }

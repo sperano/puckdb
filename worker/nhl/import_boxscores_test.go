@@ -400,7 +400,7 @@ func (s *ImportBoxscoresSuite) TestScheduleFileParseError() {
 	mem := store.NewMemStorage()
 	upserter := NewMockBoxscoreUpserter()
 
-	mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), []byte("invalid json"))
+	mem.Write(context.Background(), resource.DailySchedule{Date: s.testDate}.Path(), []byte("invalid json"))
 
 	result, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
@@ -414,7 +414,7 @@ func (s *ImportBoxscoresSuite) TestSkipsNonFinalGames() {
 	upserter := NewMockBoxscoreUpserter()
 
 	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"LIVE"},{"id":2024020002,"gameState":"PRE"}]}`)
-	mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
+	mem.Write(context.Background(), resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 
 	result, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
@@ -428,7 +428,7 @@ func (s *ImportBoxscoresSuite) TestSkipsPreseasonGames() {
 	upserter := NewMockBoxscoreUpserter()
 
 	scheduleJSON := []byte(`{"games":[{"id":2024010001,"gameState":"OFF"}]}`)
-	mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
+	mem.Write(context.Background(), resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 
 	result, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
@@ -442,7 +442,7 @@ func (s *ImportBoxscoresSuite) TestBoxscoreFileMissing() {
 	upserter := NewMockBoxscoreUpserter()
 
 	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-	mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
+	mem.Write(context.Background(), resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 
 	_, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
@@ -455,8 +455,8 @@ func (s *ImportBoxscoresSuite) TestBoxscoreFileParseError() {
 	upserter := NewMockBoxscoreUpserter()
 
 	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
-	mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
-	mem.Write(context.Background(),resource.Boxscore{Date: s.testDate, GameID: nhlapi.GameID(2024020001)}.Path(), []byte("invalid json"))
+	mem.Write(context.Background(), resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
+	mem.Write(context.Background(), resource.Boxscore{Date: s.testDate, GameID: nhlapi.GameID(2024020001)}.Path(), []byte("invalid json"))
 
 	_, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
@@ -473,8 +473,8 @@ func (s *ImportBoxscoresSuite) TestUpsertGameError() {
 	boxscoreJSON, err := json.Marshal(boxscore)
 	s.Require().NoError(err)
 
-	s.Require().NoError(mem.Write(context.Background(),resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON))
-	s.Require().NoError(mem.Write(context.Background(),resource.Boxscore{Date: s.testDate, GameID: nhlapi.GameID(2024020001)}.Path(), boxscoreJSON))
+	s.Require().NoError(mem.Write(context.Background(), resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON))
+	s.Require().NoError(mem.Write(context.Background(), resource.Boxscore{Date: s.testDate, GameID: nhlapi.GameID(2024020001)}.Path(), boxscoreJSON))
 
 	upserter.On("UpsertGame", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertGameParams")).
 		Return(errors.New("database error"))
@@ -509,6 +509,47 @@ func TestUpsertSkaterStats(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
+
+	t.Run("surfaces error from every failed row", func(t *testing.T) {
+		boxscore := &nhlapi.Boxscore{
+			ID:       nhlapi.GameID(2024020001),
+			AwayTeam: nhlapi.BoxscoreTeam{ID: nhlapi.TeamID(2)},
+			HomeTeam: nhlapi.BoxscoreTeam{ID: nhlapi.TeamID(1)},
+			PlayerByGameStats: nhlapi.PlayerByGameStats{
+				AwayTeam: nhlapi.TeamPlayerStats{
+					Forwards: []nhlapi.SkaterStats{
+						{PlayerID: nhlapi.PlayerID(101), Name: nhlapi.LocalizedString{Default: "Away One"}, Position: "C"},
+						{PlayerID: nhlapi.PlayerID(102), Name: nhlapi.LocalizedString{Default: "Away Two"}, Position: "LW"},
+					},
+				},
+				HomeTeam: nhlapi.TeamPlayerStats{
+					Forwards: []nhlapi.SkaterStats{
+						{PlayerID: nhlapi.PlayerID(201), Name: nhlapi.LocalizedString{Default: "Home One"}, Position: "RW"},
+					},
+				},
+			},
+		}
+
+		const skaterCount = 3
+		writeErr := errors.New("db write failed")
+		result := sqlcdb.NewUpsertGameSkaterStatsBatchBatchResults(errBatchResults{err: writeErr}, skaterCount)
+
+		upserter := NewMockBoxscoreUpserter()
+		upserter.On("UpsertGameSkaterStatsBatch", mock.Anything, mock.Anything).Return(result)
+
+		count, err := upsertSkaterStats(context.Background(), upserter, boxscore)
+
+		require.Error(t, err)
+		assert.Equal(t, 0, count)
+
+		var batchErr *shared.BatchError
+		require.ErrorAs(t, err, &batchErr)
+		// All three failures must be surfaced, not just the first.
+		assert.Len(t, batchErr.Errors, skaterCount)
+		assert.ErrorIs(t, err, writeErr)
+		// Per-row context is preserved for every failed row.
+		assert.Contains(t, err.Error(), "player 101")
+	})
 }
 
 // =============================================================================
@@ -532,6 +573,45 @@ func TestUpsertGoalieStats(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
+	})
+
+	t.Run("surfaces error from every failed row", func(t *testing.T) {
+		boxscore := &nhlapi.Boxscore{
+			ID:       nhlapi.GameID(2024020001),
+			AwayTeam: nhlapi.BoxscoreTeam{ID: nhlapi.TeamID(2)},
+			HomeTeam: nhlapi.BoxscoreTeam{ID: nhlapi.TeamID(1)},
+			PlayerByGameStats: nhlapi.PlayerByGameStats{
+				AwayTeam: nhlapi.TeamPlayerStats{
+					Goalies: []nhlapi.GoalieStats{
+						{PlayerID: nhlapi.PlayerID(301), Name: nhlapi.LocalizedString{Default: "Away Goalie"}, Position: "G"},
+					},
+				},
+				HomeTeam: nhlapi.TeamPlayerStats{
+					Goalies: []nhlapi.GoalieStats{
+						{PlayerID: nhlapi.PlayerID(401), Name: nhlapi.LocalizedString{Default: "Home Goalie"}, Position: "G"},
+					},
+				},
+			},
+		}
+
+		const goalieCount = 2
+		writeErr := errors.New("db write failed")
+		result := sqlcdb.NewUpsertGameGoalieStatsBatchBatchResults(errBatchResults{err: writeErr}, goalieCount)
+
+		upserter := NewMockBoxscoreUpserter()
+		upserter.On("UpsertGameGoalieStatsBatch", mock.Anything, mock.Anything).Return(result)
+
+		count, err := upsertGoalieStats(context.Background(), upserter, boxscore)
+
+		require.Error(t, err)
+		assert.Equal(t, 0, count)
+
+		var batchErr *shared.BatchError
+		require.ErrorAs(t, err, &batchErr)
+		// Both failures must be surfaced, not just the first.
+		assert.Len(t, batchErr.Errors, goalieCount)
+		assert.ErrorIs(t, err, writeErr)
+		assert.Contains(t, err.Error(), "player 301")
 	})
 }
 

@@ -130,8 +130,20 @@ type AgentConfig struct {
 // "Immutable after creation" per PLAN.md > "Configuration > Config
 // is immutable" — to change settings, cancel and create a new pool.
 type PoolConfig struct {
-	Season               int                `json:"season"`
-	NumTeams             int                `json:"num_teams"`
+	Season   int `json:"season"`
+	NumTeams int `json:"num_teams"`
+
+	// Categories / RosterPositions are read from sim_pools at pool
+	// creation, but V1's LLM system prompt (prompts.go
+	// systemPromptTemplate) hard-codes the same 9 categories and the
+	// same roster composition as fixed text — the prompt is NOT
+	// re-derived from these fields at runtime. See prompts.go's
+	// v1FixedCategories / v1FixedRoster and
+	// TestV1FixedRosterMatchesPrompt for the pinned assumption. If a
+	// pool is ever created with different categories/roster than V1's
+	// defaults, the agent's prompt will still describe the V1 shape —
+	// wiring the two together is out of scope until multi-shape pools
+	// are supported.
 	Categories           []string           `json:"categories"`
 	RosterPositions      map[RosterSlot]int `json:"roster_positions"`
 	WaiverDays           int                `json:"waiver_days"`

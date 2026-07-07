@@ -12,7 +12,7 @@ type stubResource struct {
 	fileType FileType
 }
 
-func (s stubResource) Path() string  { return s.path }
+func (s stubResource) Path() string   { return s.path }
 func (s stubResource) Type() FileType { return s.fileType }
 
 func TestRedisKey(t *testing.T) {

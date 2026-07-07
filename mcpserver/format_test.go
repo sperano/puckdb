@@ -86,9 +86,10 @@ func TestResultCSV_Headers(t *testing.T) {
 	type row struct {
 		ID       int64  `json:"id"`
 		FullName string `json:"full_name"`
-		unexported string  //nolint:unused
-		Skip     string `json:"-"`
-		NoTag    string
+		//lint:ignore U1000 deliberately never set — pins that ResultCSV skips unexported fields
+		unexported string
+		Skip       string `json:"-"`
+		NoTag      string
 	}
 	rows := []row{{ID: 1, FullName: "Carey Price"}}
 	result, err := ResultCSV(rows)

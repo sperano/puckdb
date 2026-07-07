@@ -45,11 +45,11 @@ func ImportSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) erro
 	}
 
 	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
-		GroupIdx:    GroupImportSeasonsData,
-		Counter:     shared.CountDaysWithPlayoffs,
+		GroupIdx:      GroupImportSeasonsData,
+		Counter:       shared.CountDaysWithPlayoffs,
 		SourceKeyFunc: WorkflowIDImportSeason,
-		GroupLabel:  "Imported",
-		CountLabel:  "cache reads",
+		GroupLabel:    "Imported",
+		CountLabel:    "cache reads",
 	}, func(ctx workflow.Context, i int) workflow.Future {
 		season := seasons[i]
 		return workflow.ExecuteChildWorkflow(

@@ -103,9 +103,81 @@ func (s *sqliteDB) DeleteConversation(ctx context.Context, id string) error {
 	return err
 }
 
+// execer is implemented by both *sql.DB and *sql.Tx, letting insertMessage run
+// either standalone or inside a transaction.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
 func (s *sqliteDB) CreateMessage(ctx context.Context, p CreateMessageParams) (*Message, error) {
-	id := uuid.New().String()
 	now := time.Now().UTC()
+	msg, err := insertMessage(ctx, s.db, p, now)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update conversation's updated_at (best-effort, matching historical behavior).
+	_, _ = s.db.ExecContext(ctx,
+		"UPDATE conversations SET updated_at = ? WHERE id = ?",
+		now.Format(time.RFC3339Nano), p.ConversationID,
+	)
+
+	return msg, nil
+}
+
+// CreateMessages inserts every message inside a single transaction so the turn
+// is persisted all-or-nothing; the conversation's updated_at is bumped once at
+// the end. A failure on any insert (or the commit) rolls the whole batch back.
+// The returned slice matches params order on success.
+//
+// Every message in the turn is stamped with the SAME created_at. Ordering is
+// then decided by the rowid tiebreaker in GetMessages' "ORDER BY created_at
+// ASC, rowid ASC", which preserves insertion (turn) order regardless of
+// timestamp resolution. A shared timestamp also avoids the trailing-zero
+// trimming hazard of time.RFC3339Nano, whose string form does not always sort
+// chronologically across distinct sub-second values.
+func (s *sqliteDB) CreateMessages(ctx context.Context, params []CreateMessageParams) ([]*Message, error) {
+	if len(params) == 0 {
+		return nil, nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Rollback after a successful Commit is a no-op (database/sql returns
+	// ErrTxDone, which we ignore), so this deferred call can stay unconditional.
+	defer func() { _ = tx.Rollback() }()
+
+	now := time.Now().UTC()
+	result := make([]*Message, len(params))
+	for i, p := range params {
+		msg, err := insertMessage(ctx, tx, p, now)
+		if err != nil {
+			return nil, err
+		}
+		result[i] = msg
+	}
+
+	// Bump the conversation's updated_at once for the whole turn. Unlike the
+	// single-message path this is inside the transaction, so a failure here
+	// rolls the turn back rather than being silently ignored.
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE conversations SET updated_at = ? WHERE id = ?",
+		now.Format(time.RFC3339Nano), params[len(params)-1].ConversationID,
+	); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// insertMessage writes one message row via the given execer, stamped with the
+// given created_at, and returns the resulting Message.
+func insertMessage(ctx context.Context, ex execer, p CreateMessageParams, now time.Time) (*Message, error) {
+	id := uuid.New().String()
 	nowStr := now.Format(time.RFC3339Nano)
 
 	var toolCallsJSON *string
@@ -123,20 +195,13 @@ func (s *sqliteDB) CreateMessage(ctx context.Context, p CreateMessageParams) (*M
 		toolCallID = &p.ToolCallID
 	}
 
-	_, err := s.db.ExecContext(ctx,
+	if _, err := ex.ExecContext(ctx,
 		`INSERT INTO messages (id, conversation_id, role, content, tool_calls, tool_call_id, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		id, p.ConversationID, p.Role, p.Content, toolCallsJSON, toolCallID, nowStr,
-	)
-	if err != nil {
+	); err != nil {
 		return nil, err
 	}
-
-	// Update conversation's updated_at
-	_, _ = s.db.ExecContext(ctx,
-		"UPDATE conversations SET updated_at = ? WHERE id = ?",
-		nowStr, p.ConversationID,
-	)
 
 	return &Message{
 		ID:         id,

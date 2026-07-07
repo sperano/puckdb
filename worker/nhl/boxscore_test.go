@@ -191,7 +191,7 @@ func seedBoxscoreDay(t *testing.T, mem *store.MemStorage, day time.Time, gameID 
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(context.Background(),resource.Boxscore{Date: day, GameID: gameID}.Path(), boxscoreData))
+	require.NoError(t, mem.Write(context.Background(), resource.Boxscore{Date: day, GameID: gameID}.Path(), boxscoreData))
 }
 
 // testExtractInput creates an ExtractBoxscoreInput from a season for testing.

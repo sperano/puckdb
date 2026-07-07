@@ -37,17 +37,26 @@ func Root() *cobra.Command {
 	return rootCmd
 }
 
-func BindFlags(flags *pflag.FlagSet) {
+// BindFlags applies viper config values onto any flag that was not explicitly
+// set on the command line. It returns the first error encountered so callers
+// (PreRunE/commonInit) can propagate it to cobra, which reports it and lets
+// deferred cleanup run — rather than log.Fatal, which bypasses every defer.
+func BindFlags(flags *pflag.FlagSet) error {
+	var bindErr error
 	flags.VisitAll(func(f *pflag.Flag) {
+		if bindErr != nil {
+			return
+		}
 		name := strings.ReplaceAll(f.Name, "-", "_")
 		// Apply the viper config value to the flag when the flag is not set and viper has a value
 		if !f.Changed && viper.IsSet(name) {
 			val := viper.Get(name)
 			if err := flags.Set(f.Name, fmt.Sprintf("%v", val)); err != nil {
-				log.Fatal().Err(err).Msgf("failed to set value for %s: %v", f.Name, val)
+				bindErr = fmt.Errorf("set value for %s to %v: %w", f.Name, val, err)
 			}
 		}
 	})
+	return bindErr
 }
 
 func commonInit(cmd *cobra.Command) error {
@@ -58,8 +67,12 @@ func commonInit(cmd *cobra.Command) error {
 	if err := config.APIServerAddrFlags.Bind(cmd.Root().PersistentFlags()); err != nil {
 		return err
 	}
-	BindFlags(cmd.PersistentFlags())
-	BindFlags(cmd.Flags())
+	if err := BindFlags(cmd.PersistentFlags()); err != nil {
+		return err
+	}
+	if err := BindFlags(cmd.Flags()); err != nil {
+		return err
+	}
 	config.SetupLogger()
 	config.SetLogLevel()
 	config.LogIntro()

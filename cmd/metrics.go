@@ -32,6 +32,19 @@ const cacheSeasonLabelTotal = "total"
 // Local flag name for port (aliased from config.FlagMetricsPort for the metrics command)
 const FlagMetricsPortLocal = "port"
 
+// metricsFlagGroups lists every flag group the metrics command exposes.
+// Defined once and shared by InitFlags and BindFlags so the two can never
+// drift out of sync.
+var metricsFlagGroups = []*config.FlagGroup{
+	&config.DataPathFlags,
+	&config.YahooSeasonsFlags,
+	&config.MetricsIntervalFlags,
+	&config.RedisFlags,
+	&config.PostgresFlags,
+	&config.GobCacheFlags,
+	&config.SeasonRangeFlags,
+}
+
 func cmdMetrics() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "metrics",
@@ -51,28 +64,12 @@ Each collector runs independently at its own interval.`,
 			if err := viper.BindPFlag(config.FlagMetricsPort, flags.Lookup(FlagMetricsPortLocal)); err != nil {
 				return err
 			}
-			return config.BindFlags(flags,
-				&config.DataPathFlags,
-				&config.YahooSeasonsFlags,
-				&config.MetricsIntervalFlags,
-				&config.RedisFlags,
-				&config.PostgresFlags,
-				&config.GobCacheFlags,
-				&config.SeasonRangeFlags,
-			)
+			return config.BindFlags(flags, metricsFlagGroups...)
 		},
 		RunE: runMetrics,
 	}
 	flags := cmd.Flags()
-	config.InitFlags(flags,
-		&config.DataPathFlags,
-		&config.YahooSeasonsFlags,
-		&config.SeasonRangeFlags,
-		&config.RedisFlags,
-		&config.PostgresFlags,
-		&config.GobCacheFlags,
-		&config.MetricsIntervalFlags,
-	)
+	config.InitFlags(flags, metricsFlagGroups...)
 	flags.Int(FlagMetricsPortLocal, config.DefaultMetricsPort, "Port for metrics endpoint")
 	return cmd
 }

@@ -105,7 +105,7 @@ func (m *MockNHLClient) Franchises(ctx context.Context) ([]nhl.Franchise, error)
 }
 
 func (m *MockNHLClient) SearchPlayer(ctx context.Context, query string, limit ...int) ([]nhl.PlayerSearchResult, error) {
-	callArgs := []interface{}{ctx, query}
+	callArgs := []any{ctx, query}
 	for _, l := range limit {
 		callArgs = append(callArgs, l)
 	}
@@ -371,7 +371,7 @@ func (m *MockPlayerCareerUpserter) UpsertInternationalSeasonTeam(ctx context.Con
 var _ shared.NHLClient = (*MockNHLClient)(nil)
 
 // anyArgs is a redismock matcher that accepts any arguments.
-func anyArgs(expected, actual []interface{}) error { return nil }
+func anyArgs(expected, actual []any) error { return nil }
 
 // mockBatchResults implements pgx.BatchResults for testing.
 type mockBatchResults struct {

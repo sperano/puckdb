@@ -75,11 +75,11 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsIn
 	// Phase 1: Extract boxscore players per season
 	var ba *worknhl.BoxscoreActivities
 	if _, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
-		GroupIdx:    GroupExtractBoxscorePlayers,
-		Counter:     shared.CountDaysInSeason,
+		GroupIdx:      GroupExtractBoxscorePlayers,
+		Counter:       shared.CountDaysInSeason,
 		SourceKeyFunc: WorkflowIDExtractSeason,
-		GroupLabel:  "Extracted players for",
-		CountLabel:  "boxscore reads",
+		GroupLabel:    "Extracted players for",
+		CountLabel:    "boxscore reads",
 	}, func(_ workflow.Context, i int) workflow.Future {
 		return workflow.ExecuteActivity(ctx, ba.ExtractAndSaveBoxscorePlayers,
 			worknhl.ExtractAndSaveInput{

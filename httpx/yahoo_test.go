@@ -215,7 +215,7 @@ func TestYahooAuthenticatedHandlerWithConfig_Success(t *testing.T) {
 	mock.ExpectGet("eric_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	anyArgs := func(expected, actual []interface{}) error { return nil }
+	anyArgs := func(expected, actual []any) error { return nil }
 	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_test-auth-code", "x", time.Hour).SetVal(true)
 
 	// Mock: save the new token
@@ -268,7 +268,7 @@ func TestExchangeCodeWithConfig_AuthCodeAlreadyUsed(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s - SetNX returns false (already exists)
-	anyArgs := func(expected, actual []interface{}) error { return nil }
+	anyArgs := func(expected, actual []any) error { return nil }
 	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_already-used-code", "x", time.Hour).SetVal(false)
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "already-used-code")
@@ -296,7 +296,7 @@ func TestExchangeCodeWithConfig_TokenExchangeFails(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	anyArgs := func(expected, actual []interface{}) error { return nil }
+	anyArgs := func(expected, actual []any) error { return nil }
 	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_expired-code", "x", time.Hour).SetVal(true)
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "expired-code")
@@ -329,7 +329,7 @@ func TestExchangeCodeWithConfig_TokenSaveFails(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	anyArgs := func(expected, actual []interface{}) error { return nil }
+	anyArgs := func(expected, actual []any) error { return nil }
 	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_valid-code", "x", time.Hour).SetVal(true)
 
 	// Mock: save token fails
@@ -365,7 +365,7 @@ func TestExchangeCodeWithConfig_Success(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	anyArgs := func(expected, actual []interface{}) error { return nil }
+	anyArgs := func(expected, actual []any) error { return nil }
 	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_valid-code", "x", time.Hour).SetVal(true)
 
 	// Mock: save token succeeds

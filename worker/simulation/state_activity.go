@@ -22,7 +22,7 @@ import (
 // (matches the legacy JSONB shape) — the workflow's roster validators
 // don't care; they look up by slot key.
 func poolConfigFromRow(p sqlcdb.SimPool) (PoolConfig, error) {
-	cap, err := numericToFloat(p.MaxLLMCostUsdPerPool)
+	maxCostUsd, err := NumericToFloat(p.MaxLLMCostUsdPerPool)
 	if err != nil {
 		return PoolConfig{}, fmt.Errorf("decode max_llm_cost_usd_per_pool: %w", err)
 	}
@@ -36,7 +36,7 @@ func poolConfigFromRow(p sqlcdb.SimPool) (PoolConfig, error) {
 		Categories:           append([]string(nil), p.Categories...),
 		WaiverDays:           int(p.WaiverDays),
 		DraftRounds:          int(p.DraftRounds),
-		MaxLLMCostUsdPerPool: cap,
+		MaxLLMCostUsdPerPool: maxCostUsd,
 		RosterPositions: map[RosterSlot]int{
 			SlotC:    int(p.RosterC),
 			SlotLW:   int(p.RosterLW),
@@ -67,7 +67,7 @@ func agentConfigFromRow(a sqlcdb.SimAgent) (AgentConfig, error) {
 		MaxTokens:      int(a.MaxTokens),
 	}
 	if a.Temperature.Valid {
-		f, err := numericToFloat(a.Temperature)
+		f, err := NumericToFloat(a.Temperature)
 		if err != nil {
 			return AgentConfig{}, fmt.Errorf("decode temperature: %w", err)
 		}
@@ -166,7 +166,7 @@ func (a *Activities) LoadPoolState(ctx context.Context, in LoadPoolStateInput) (
 		return LoadPoolStateResult{}, fmt.Errorf("simulation: get season %d: %w", cfg.Season, err)
 	}
 
-	totalCost, err := numericToFloat(pool.TotalLLMCostUSD)
+	totalCost, err := NumericToFloat(pool.TotalLLMCostUSD)
 	if err != nil {
 		return LoadPoolStateResult{}, fmt.Errorf("simulation: decode total_llm_cost_usd: %w", err)
 	}
@@ -206,9 +206,9 @@ func (a *Activities) LoadPoolState(ctx context.Context, in LoadPoolStateInput) (
 //      season + game_type='regular_season'. These tables aggregate
 //      a player's stats per (player, team), so a traded player has
 //      multiple rows that we sum in Go.
-//   3. Look up each player's position (single GetPlayer per
-//      player — V1 N+1; future "GetPlayersByIDs" sqlc query would
-//      batch). Skaters with position outside C/LW/RW/D and goalies
+//   3. Look up each player's position via one batched
+//      GetPlayersByIDs call (was one GetPlayer per player).
+//      Skaters with position outside C/LW/RW/D and goalies
 //      whose Position isn't G are dropped — V1 doesn't draft "F"
 //      players (PLAN.md "5-position table only").
 //   4. Skip zero-score players (G+A == 0 for skaters, W == 0 for
@@ -281,6 +281,10 @@ func priorSeasonID(season int32) (int32, error) {
 // loadSkaterCandidates aggregates club_skater_stats per (player_id)
 // across teams (handles trades), looks up position, filters to the
 // 4 valid skater positions, and skips zero-score players.
+//
+// Position lookups are batched with one GetPlayersByIDs call over
+// every surviving (nonzero-score) candidate — previously one GetPlayer
+// per candidate, ~400-600 calls for a full season's worth of skaters.
 func (a *Activities) loadSkaterCandidates(ctx context.Context, season int32) ([]SkaterDraftCandidate, error) {
 	rows, err := a.Queries.GetClubSkaterStatsBySeason(ctx, sqlcdb.GetClubSkaterStatsBySeasonParams{
 		Season:   season,
@@ -297,30 +301,47 @@ func (a *Activities) loadSkaterCandidates(ctx context.Context, season int32) ([]
 	}
 	byPlayer := map[int64]*agg{}
 	for _, r := range rows {
-		a, ok := byPlayer[r.PlayerID]
+		entry, ok := byPlayer[r.PlayerID]
 		if !ok {
-			a = &agg{first: r.FirstName, last: r.LastName}
-			byPlayer[r.PlayerID] = a
+			entry = &agg{first: r.FirstName, last: r.LastName}
+			byPlayer[r.PlayerID] = entry
 		}
-		a.goals += int(r.Goals)
-		a.assists += int(r.Assists)
+		entry.goals += int(r.Goals)
+		entry.assists += int(r.Assists)
 	}
 
-	out := make([]SkaterDraftCandidate, 0, len(byPlayer))
-	for id, agg := range byPlayer {
-		if agg.goals+agg.assists == 0 {
+	// Drop zero-score players before the batch lookup — they're
+	// filtered regardless, so there's no reason to fetch their
+	// position too.
+	ids := make([]int64, 0, len(byPlayer))
+	for id, cand := range byPlayer {
+		if cand.goals+cand.assists == 0 {
 			continue // below the noise floor — no draft signal
 		}
-		pos, ok := skaterDraftPosition(ctx, a.Queries, id)
+		ids = append(ids, id)
+	}
+	players, err := loadPlayersByIDs(ctx, a.Queries, ids)
+	if err != nil {
+		return nil, fmt.Errorf("simulation: batch load skater candidate players: %w", err)
+	}
+
+	out := make([]SkaterDraftCandidate, 0, len(ids))
+	for _, id := range ids {
+		cand := byPlayer[id]
+		p, found := players[id]
+		if !found {
+			continue // club stats row with no matching players row (data gap)
+		}
+		pos, ok := skaterDraftPosition(p)
 		if !ok {
 			continue // F / G / unknown → not a skater draft candidate
 		}
 		out = append(out, SkaterDraftCandidate{
 			PlayerID: id,
-			Name:     agg.first + " " + agg.last,
+			Name:     cand.first + " " + cand.last,
 			Position: pos,
-			PriorG:   agg.goals,
-			PriorA:   agg.assists,
+			PriorG:   cand.goals,
+			PriorA:   cand.assists,
 		})
 	}
 	return out, nil
@@ -328,6 +349,7 @@ func (a *Activities) loadSkaterCandidates(ctx context.Context, season int32) ([]
 
 // loadGoalieCandidates is the goalie-side of the candidate dance.
 // Sums Wins + GoalsAgainst across team rows; filters position to G.
+// Position lookups batch the same way loadSkaterCandidates does.
 func (a *Activities) loadGoalieCandidates(ctx context.Context, season int32) ([]GoalieDraftCandidate, error) {
 	rows, err := a.Queries.GetClubGoalieStatsBySeason(ctx, sqlcdb.GetClubGoalieStatsBySeasonParams{
 		Season:   season,
@@ -344,42 +366,55 @@ func (a *Activities) loadGoalieCandidates(ctx context.Context, season int32) ([]
 	}
 	byPlayer := map[int64]*agg{}
 	for _, r := range rows {
-		a, ok := byPlayer[r.PlayerID]
+		entry, ok := byPlayer[r.PlayerID]
 		if !ok {
-			a = &agg{first: r.FirstName, last: r.LastName}
-			byPlayer[r.PlayerID] = a
+			entry = &agg{first: r.FirstName, last: r.LastName}
+			byPlayer[r.PlayerID] = entry
 		}
-		a.wins += int(r.Wins)
-		a.ga += int(r.GoalsAgainst)
+		entry.wins += int(r.Wins)
+		entry.ga += int(r.GoalsAgainst)
 	}
 
-	out := make([]GoalieDraftCandidate, 0, len(byPlayer))
-	for id, agg := range byPlayer {
-		if agg.wins == 0 {
+	ids := make([]int64, 0, len(byPlayer))
+	for id, cand := range byPlayer {
+		if cand.wins == 0 {
 			continue // a goalie with zero W has no draft signal
+		}
+		ids = append(ids, id)
+	}
+	players, err := loadPlayersByIDs(ctx, a.Queries, ids)
+	if err != nil {
+		return nil, fmt.Errorf("simulation: batch load goalie candidate players: %w", err)
+	}
+
+	out := make([]GoalieDraftCandidate, 0, len(ids))
+	for _, id := range ids {
+		cand := byPlayer[id]
+		p, found := players[id]
+		if !found {
+			continue // club stats row with no matching players row (data gap)
 		}
 		// Goalies share the position-lookup helper — skaterDraftPosition
 		// returns ok=false for G, so we use a goalie-specific path.
-		if !isGoalieByLookup(ctx, a.Queries, id) {
+		if !isGoalie(p) {
 			continue
 		}
 		out = append(out, GoalieDraftCandidate{
 			PlayerID: id,
-			Name:     agg.first + " " + agg.last,
+			Name:     cand.first + " " + cand.last,
 			Position: "G",
-			PriorW:   agg.wins,
-			PriorGA:  agg.ga,
+			PriorW:   cand.wins,
+			PriorGA:  cand.ga,
 		})
 	}
 	return out, nil
 }
 
-// skaterDraftPosition looks up a player's NHL position and returns
-// the prompt-side position string ("C"/"LW"/"RW"/"D") or ok=false
-// for any other value (including F, G, NULL, unknown).
-func skaterDraftPosition(ctx context.Context, q SimQueries, playerID int64) (string, bool) {
-	p, err := q.GetPlayer(ctx, playerID)
-	if err != nil || !p.Position.Valid {
+// skaterDraftPosition returns the prompt-side position string
+// ("C"/"LW"/"RW"/"D") for an already-loaded player, or ok=false for
+// any other value (including F, G, NULL, unknown).
+func skaterDraftPosition(p sqlcdb.Player) (string, bool) {
+	if !p.Position.Valid {
 		return "", false
 	}
 	switch p.Position.PlayerPosition {
@@ -396,13 +431,9 @@ func skaterDraftPosition(ctx context.Context, q SimQueries, playerID int64) (str
 	}
 }
 
-// isGoalieByLookup returns true iff the player's position is G.
-func isGoalieByLookup(ctx context.Context, q SimQueries, playerID int64) bool {
-	p, err := q.GetPlayer(ctx, playerID)
-	if err != nil || !p.Position.Valid {
-		return false
-	}
-	return p.Position.PlayerPosition == sqlcdb.PlayerPositionG
+// isGoalie returns true iff the player's position is G.
+func isGoalie(p sqlcdb.Player) bool {
+	return p.Position.Valid && p.Position.PlayerPosition == sqlcdb.PlayerPositionG
 }
 
 // ============================================================================
@@ -680,7 +711,13 @@ func (a *Activities) persistTeamNameTurn(
 				return fmt.Errorf("persist team_name+summary for agent %d: %w", agentID, err)
 			}
 		}
-		if _, err := RecordTurnTelemetry(ctx, q, header, captures, res, toolCaptures, messages, recordMessages); err != nil {
+		if _, err := RecordTurnTelemetry(ctx, q, TurnTelemetry{
+			Header:         header,
+			Captures:       captures,
+			ToolCalls:      toolCaptures,
+			Messages:       messages,
+			RecordMessages: recordMessages,
+		}); err != nil {
 			return err
 		}
 		return nil

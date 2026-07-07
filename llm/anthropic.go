@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	anthropicVersion       = "2023-06-01"
+	anthropicVersion          = "2023-06-01"
 	anthropicDefaultMaxTokens = 4096
 )
 
@@ -39,11 +39,11 @@ func NewAnthropicClient(baseURL, apiKey, model string, opts ...Option) Client {
 // --- Anthropic wire types (unexported) ---
 
 type anthropicRequest struct {
-	Model     string                `json:"model"`
-	Messages  []anthropicMessage    `json:"messages"`
+	Model     string                 `json:"model"`
+	Messages  []anthropicMessage     `json:"messages"`
 	System    []anthropicSystemBlock `json:"system,omitempty"`
-	Tools     []anthropicTool       `json:"tools,omitempty"`
-	MaxTokens int                   `json:"max_tokens"`
+	Tools     []anthropicTool        `json:"tools,omitempty"`
+	MaxTokens int                    `json:"max_tokens"`
 }
 
 // anthropicSystemBlock is one block of the system prompt. Anthropic accepts

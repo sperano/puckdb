@@ -24,15 +24,33 @@ func TestProgressReportStatusQueries(t *testing.T) {
 	}
 
 	methods := []statusMethod{
-		{"GetInitializeStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) { return c.GetInitializeStatus(ctx) }, "initializeResult", "initializeProgress"},
-		{"GetFetchSeasonsStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) { return c.GetFetchSeasonsStatus(ctx) }, "fetchSeasonsResult", "fetchSeasonsProgress"},
-		{"GetFetchPlayerLogsStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) { return c.GetFetchPlayerLogsStatus(ctx) }, "fetchPlayerLogsResult", "fetchPlayerLogsProgress"},
-		{"GetFetchYahooPlayersStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) { return c.GetFetchYahooPlayersStatus(ctx) }, "fetchYahooPlayersResult", "fetchYahooPlayersProgress"},
-		{"GetProcessPlayersStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) { return c.GetProcessPlayersStatus(ctx) }, "processPlayersResult", "processPlayersProgress"},
-		{"GetImportSeasonsStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) { return c.GetImportSeasonsStatus(ctx) }, "importSeasonsResult", "importSeasonsProgress"},
-		{"GetImportPlayerLogsStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) { return c.GetImportPlayerLogsStatus(ctx) }, "importPlayerLogsResult", "importPlayerLogsProgress"},
-		{"GetExtractBoxscorePlayersStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) { return c.GetExtractBoxscorePlayersStatus(ctx) }, "extractBoxscorePlayersResult", "extractBoxscorePlayersProgress"},
-		{"GetFetchPlayerLandingsStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) { return c.GetFetchPlayerLandingsStatus(ctx) }, "fetchPlayerLandingsResult", "fetchPlayerLandingsProgress"},
+		{"GetInitializeStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) {
+			return c.GetInitializeStatus(ctx)
+		}, "initializeResult", "initializeProgress"},
+		{"GetFetchSeasonsStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) {
+			return c.GetFetchSeasonsStatus(ctx)
+		}, "fetchSeasonsResult", "fetchSeasonsProgress"},
+		{"GetFetchPlayerLogsStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) {
+			return c.GetFetchPlayerLogsStatus(ctx)
+		}, "fetchPlayerLogsResult", "fetchPlayerLogsProgress"},
+		{"GetFetchYahooPlayersStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) {
+			return c.GetFetchYahooPlayersStatus(ctx)
+		}, "fetchYahooPlayersResult", "fetchYahooPlayersProgress"},
+		{"GetProcessPlayersStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) {
+			return c.GetProcessPlayersStatus(ctx)
+		}, "processPlayersResult", "processPlayersProgress"},
+		{"GetImportSeasonsStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) {
+			return c.GetImportSeasonsStatus(ctx)
+		}, "importSeasonsResult", "importSeasonsProgress"},
+		{"GetImportPlayerLogsStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) {
+			return c.GetImportPlayerLogsStatus(ctx)
+		}, "importPlayerLogsResult", "importPlayerLogsProgress"},
+		{"GetExtractBoxscorePlayersStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) {
+			return c.GetExtractBoxscorePlayersStatus(ctx)
+		}, "extractBoxscorePlayersResult", "extractBoxscorePlayersProgress"},
+		{"GetFetchPlayerLandingsStatus", func(ctx context.Context, c *GraphQLClient) (*WorkflowStatus, error) {
+			return c.GetFetchPlayerLandingsStatus(ctx)
+		}, "fetchPlayerLandingsResult", "fetchPlayerLandingsProgress"},
 	}
 
 	for _, m := range methods {

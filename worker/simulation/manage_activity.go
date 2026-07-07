@@ -3,6 +3,7 @@ package simulation
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -153,6 +154,16 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 		return ManageRosterResult{Skipped: true, SkipReason: SkipReasonCostCapReached}, nil
 	}
 
+	// Read record_full_messages up-front, alongside the idempotency and
+	// cost-cap probes, so every avoidable failure point sits BEFORE the
+	// LLM runs. Reading it post-LLM (at commit time) means a flake there
+	// discards a completed, paid-for turn and forces a Temporal retry
+	// that re-bills the LLM (the idempotency marker isn't written yet).
+	recordMessages, err := a.Queries.GetSimPoolRecordFullMessages(ctx, in.PoolID)
+	if err != nil {
+		return ManageRosterResult{}, fmt.Errorf("simulation: fetch record_full_messages flag: %w", err)
+	}
+
 	agent, err := a.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
 	if err != nil {
 		return ManageRosterResult{}, fmt.Errorf("simulation: build agent: %w", err)
@@ -160,7 +171,7 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 
 	outcome := a.runDailyAgent(ctx, agent, in)
 
-	if err := a.commitDailyTurn(ctx, in, outcome); err != nil {
+	if err := a.commitDailyTurn(ctx, in, outcome, recordMessages); err != nil {
 		return ManageRosterResult{}, err
 	}
 
@@ -341,13 +352,9 @@ type dailyWorkingState struct {
 // activity even on a stub Transactor that doesn't roll back).
 func newDailyWorkingState(in ManageRosterInput) *dailyWorkingState {
 	placements := make(map[int64]RosterSlot, len(in.Roster.Placements))
-	for k, v := range in.Roster.Placements {
-		placements[k] = v
-	}
+	maps.Copy(placements, in.Roster.Placements)
 	limits := make(map[RosterSlot]int, len(in.Roster.Limits))
-	for k, v := range in.Roster.Limits {
-		limits[k] = v
-	}
+	maps.Copy(limits, in.Roster.Limits)
 	freeAgents := make(map[int64]struct{}, len(in.FreeAgents))
 	for _, id := range in.FreeAgents {
 		freeAgents[id] = struct{}{}
@@ -357,9 +364,7 @@ func newDailyWorkingState(in ManageRosterInput) *dailyWorkingState {
 		onWaivers[id] = struct{}{}
 	}
 	positions := make(mapPositionCatalog, len(in.Positions))
-	for k, v := range in.Positions {
-		positions[k] = v
-	}
+	maps.Copy(positions, in.Positions)
 	pendingClaims := make(map[int64]struct{}, len(in.PendingClaims))
 	for _, id := range in.PendingClaims {
 		pendingClaims[id] = struct{}{}
@@ -559,16 +564,16 @@ func applyLineupToWorkingState(work *dailyWorkingState, resolved []ResolvedLineu
 // At least one of {actions, pass, error, notes-only} writes a tx row
 // — the idempotency probe for the next attempt depends on it. Notes-
 // only turns ALSO write a `pass` row to mark the day processed.
-func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, outcome dailyOutcome) error {
+// commitDailyTurn takes recordMessages (the sim_pools.record_full_messages
+// flag) as a parameter rather than reading it here: the read happens
+// up-front in ManageRoster, before the LLM runs, so a flaky read can't
+// discard a completed, paid-for turn (see ManageRoster).
+func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, outcome dailyOutcome, recordMessages bool) error {
 	costNum, err := numericFromFloat(outcome.costUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode cost: %w", err)
 	}
 
-	recordMessages, err := a.Queries.GetSimPoolRecordFullMessages(ctx, in.PoolID)
-	if err != nil {
-		return fmt.Errorf("simulation: fetch record_full_messages flag: %w", err)
-	}
 	var messages []llm.Message
 	if recordMessages && outcome.res != nil {
 		messages = outcome.res.Messages
@@ -640,7 +645,13 @@ func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, 
 		// Turn telemetry — landed inside the same tx as the action rows
 		// so a crash mid-commit leaves all-or-nothing state.
 		header := dailyTurnHeader(in, outcome)
-		if _, err := RecordTurnTelemetry(ctx, q, header, outcome.captures, outcome.res, outcome.toolCaptures, messages, recordMessages); err != nil {
+		if _, err := RecordTurnTelemetry(ctx, q, TurnTelemetry{
+			Header:         header,
+			Captures:       outcome.captures,
+			ToolCalls:      outcome.toolCaptures,
+			Messages:       messages,
+			RecordMessages: recordMessages,
+		}); err != nil {
 			return err
 		}
 		return nil

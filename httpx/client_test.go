@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -301,6 +303,33 @@ func TestDownloadPublic_Error(t *testing.T) {
 }
 
 // TestUserAgent verifies the User-Agent constant is set
+func TestDownloadYahoo_TokenMissingSetsPublicURL(t *testing.T) {
+	// Mutates process-global viper config, so this test cannot run in parallel.
+	const publicURL = "https://puck.example.com"
+	viper.Set(config.FlagYahooOAuth2ClientID, "test-client-id")
+	viper.Set(config.FlagYahooOAuth2ClientSecret, "test-client-secret")
+	viper.Set(config.FlagPublicURL, publicURL)
+	t.Cleanup(func() {
+		viper.Set(config.FlagYahooOAuth2ClientID, nil)
+		viper.Set(config.FlagYahooOAuth2ClientSecret, nil)
+		viper.Set(config.FlagPublicURL, nil)
+	})
+
+	client, mock := redismock.NewClientMock()
+	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
+
+	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
+
+	_, err := DownloadYahoo(ctx, client, "https://example.com/resource")
+	require.Error(t, err)
+
+	var tokenErr *cache.OAuth2TokenMissingError
+	require.True(t, errors.As(err, &tokenErr))
+	assert.Equal(t, publicURL, tokenErr.PublicURL)
+	assert.Contains(t, err.Error(), publicURL+"/yahoo/login")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUserAgent(t *testing.T) {
 	t.Parallel()
 
@@ -321,8 +350,7 @@ func BenchmarkGenericClient_Download(b *testing.B) {
 		apiLabel: "bench",
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		client.Download(context.Background(), server.URL)
 	}
 }
@@ -437,7 +465,7 @@ func TestNewYahooClientWithConfig_TokenRefreshAndSave(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
 
 	// Mock Redis to save the new token
-	anyArgs := func(expected, actual []interface{}) error { return nil }
+	anyArgs := func(expected, actual []any) error { return nil }
 	mock.CustomMatch(anyArgs).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
 
 	client, err := NewYahooClientWithConfig(ctx, redisClient, conf)
@@ -479,7 +507,7 @@ func TestNewYahooClientWithConfig_TokenSaveError(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
 
 	// Mock Redis save to fail
-	anyArgs := func(expected, actual []interface{}) error { return nil }
+	anyArgs := func(expected, actual []any) error { return nil }
 	mock.CustomMatch(anyArgs).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetErr(redis.ErrClosed)
 
 	_, err := NewYahooClientWithConfig(ctx, redisClient, conf)

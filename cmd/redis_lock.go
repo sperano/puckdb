@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,7 +19,7 @@ func withRedisLock(ctx context.Context, lockName string, timeout time.Duration, 
 
 	locker := redislock.New(redisClient)
 	lock, err := locker.Obtain(ctx, lockName, timeout, nil)
-	if err == redislock.ErrNotObtained {
+	if errors.Is(err, redislock.ErrNotObtained) {
 		log.Warn().Str("lock", lockName).Msg("Lock not obtained, another process is running")
 		return nil
 	}

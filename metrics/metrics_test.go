@@ -162,18 +162,17 @@ func TestObserveSimDayDuration(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		poolID   string
 		duration time.Duration
 	}{
-		{"fast pool", "1", 5 * time.Second},
-		{"slow pool", "42", 90 * time.Second},
-		{"big pool", "100", 5 * time.Minute},
+		{"fast pool", 5 * time.Second},
+		{"slow pool", 90 * time.Second},
+		{"big pool", 5 * time.Minute},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.NotPanics(t, func() {
-				ObserveSimDayDuration(tt.poolID, tt.duration)
+				ObserveSimDayDuration(tt.duration)
 			})
 		})
 	}
@@ -190,7 +189,7 @@ func TestSimulationMetricsRegistered(t *testing.T) {
 	// metadata after the first WithLabelValues call).
 	ObserveSimLLMCallDuration("anthropic", "claude-haiku-4-5", "RegisteredAgent", 1*time.Second)
 	IncSimLLMFailure("anthropic", "claude-haiku-4-5", SimFailureAPIError)
-	ObserveSimDayDuration("999", 30*time.Second)
+	ObserveSimDayDuration(30 * time.Second)
 
 	families, err := WorkerRegistry.Gather()
 	require.NoError(t, err)
@@ -646,8 +645,7 @@ func TestServeWithShutdown_ListenError(t *testing.T) {
 	defer l.Close()
 
 	srv := &http.Server{Addr: l.Addr().String(), Handler: http.NewServeMux()}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- serveWithShutdown(ctx, srv) }()

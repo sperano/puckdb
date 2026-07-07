@@ -59,9 +59,14 @@ type GenericClient struct {
 // UserAgent is used for public requests to avoid being blocked as a bot
 const UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+// publicHTTPClient is shared across DownloadPublic calls so TCP connections
+// to public Yahoo pages are kept alive and reused instead of being
+// re-established (and re-TLS-handshaked) on every download.
+var publicHTTPClient = &http.Client{Timeout: config.DefaultHTTPClientTimeout}
+
 func (c *GenericClient) Download(ctx context.Context, url string) ([]byte, error) {
 	log.Trace().Str("url", url).Msg("Downloading")
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -132,11 +137,13 @@ func DownloadYahoo(ctx context.Context, redisClient *redis.Client, url string) (
 	// this can fail if no oauth2 token is found in redis
 	client, err := NewYahooClient(ctx, redisClient)
 	if err != nil {
-		// Wrap OAuth2 token missing error with full login URL
-		var tokenErr *cache.OAuth2TokenMissingError
-		if errors.As(err, &tokenErr) {
-			publicURL := viper.GetString(config.FlagPublicURL)
-			return nil, fmt.Errorf("%s: %w", url, &cache.OAuth2TokenMissingError{PublicURL: publicURL})
+		// Preserve the matched token error's context; only fill in the login
+		// URL when it doesn't already carry one.
+		if tokenErr, ok := errors.AsType[*cache.OAuth2TokenMissingError](err); ok {
+			if tokenErr.PublicURL == "" {
+				tokenErr.PublicURL = viper.GetString(config.FlagPublicURL)
+			}
+			return nil, fmt.Errorf("%s: %w", url, tokenErr)
 		}
 		return nil, fmt.Errorf("%s: %w", url, err)
 	}
@@ -147,7 +154,7 @@ func DownloadYahoo(ctx context.Context, redisClient *redis.Client, url string) (
 // DownloadPublic downloads from public pages without OAuth2 authentication.
 // Use this for public sports.yahoo.com pages that don't require authentication.
 func DownloadPublic(ctx context.Context, url string) ([]byte, error) {
-	client := NewGenericClient(&http.Client{Timeout: config.DefaultHTTPClientTimeout}, "public")
+	client := NewGenericClient(publicHTTPClient, "public")
 	return client.Download(ctx, url)
 }
 

@@ -50,7 +50,7 @@ func (m *mockBatchResults) Exec() (pgconn.CommandTag, error) {
 
 func (m *mockBatchResults) Query() (pgx.Rows, error) { return nil, nil }
 func (m *mockBatchResults) QueryRow() pgx.Row        { return nil }
-func (m *mockBatchResults) Close() error              { return nil }
+func (m *mockBatchResults) Close() error             { return nil }
 
 // fakeRosterUpserter implements SeasonRosterUpserter for testing.
 type fakeRosterUpserter struct {
@@ -79,19 +79,19 @@ func (f *fakeRosterUpserter) UpsertSeasonRosterBatch(_ context.Context, arg []sq
 func testRosterPlayers() []nhlapi.RosterPlayer {
 	return []nhlapi.RosterPlayer{
 		{
-			ID:             nhlapi.PlayerID(8449552),
-			FirstName:      nhlapi.LocalizedString{Default: "Gord"},
-			LastName:       nhlapi.LocalizedString{Default: "Wilson"},
-			Position:       "D",
-			ShootsCatches:  "L",
-			Headshot:       "https://example.com/headshot.jpg",
-			HeightInInches: 72,
-			WeightInPounds: 175,
-			BirthDate:      "1932-08-13",
-			BirthCountry:   "CAN",
-			BirthCity:      &nhlapi.LocalizedString{Default: "Port Arthur"},
+			ID:                 nhlapi.PlayerID(8449552),
+			FirstName:          nhlapi.LocalizedString{Default: "Gord"},
+			LastName:           nhlapi.LocalizedString{Default: "Wilson"},
+			Position:           "D",
+			ShootsCatches:      "L",
+			Headshot:           "https://example.com/headshot.jpg",
+			HeightInInches:     72,
+			WeightInPounds:     175,
+			BirthDate:          "1932-08-13",
+			BirthCountry:       "CAN",
+			BirthCity:          &nhlapi.LocalizedString{Default: "Port Arthur"},
 			BirthStateProvince: &nhlapi.LocalizedString{Default: "ON"},
-			SweaterNumber:  4,
+			SweaterNumber:      4,
 		},
 		{
 			ID:             nhlapi.PlayerID(8449553),

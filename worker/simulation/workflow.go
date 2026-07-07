@@ -108,7 +108,7 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 	// disconnected context (the workflow's own ctx is already
 	// cancelled and would short-circuit ExecuteActivity).
 	defer func() {
-		if retErr != nil && ctx.Err() != nil {
+		if shouldMarkCancelled(retErr) {
 			cleanupCtx, cancel := workflow.NewDisconnectedContext(ctx)
 			defer cancel()
 			if err := writePoolStatus(cleanupCtx, in.PoolID, PoolStatusCancelled); err != nil {
@@ -156,7 +156,7 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 		if state.PoolConfig.StopAfter == StopAfterTeamName {
 			logger.Info("SimPoolWorkflow exit (StopAfterTeamName)", "pool_id", in.PoolID)
 			state.CurrentStatus = PoolStatusComplete
-			return completePool(ctx, in.PoolID, tracker)
+			return completePoolStatusOnly(ctx, in.PoolID)
 		}
 	}
 
@@ -174,7 +174,7 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 		if state.PoolConfig.StopAfter == StopAfterDraft {
 			logger.Info("SimPoolWorkflow exit (StopAfterDraft)", "pool_id", in.PoolID)
 			state.CurrentStatus = PoolStatusComplete
-			return completePool(ctx, in.PoolID, tracker)
+			return completePoolStatusOnly(ctx, in.PoolID)
 		}
 		in.SimDate = state.SeasonStartDate
 	}
@@ -206,6 +206,26 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 	return nil
 }
 
+// shouldMarkCancelled reports whether a workflow that returned retErr
+// ended because of a genuine cancellation, as opposed to a
+// ContinueAsNew rollover or a normal completion. This gates the
+// cancel-cleanup defer's status='cancelled' write.
+//
+// retErr also carries workflow.NewContinueAsNewError on the 30-day
+// rollover; a cancel arriving in the same decision window as a CAN
+// would otherwise (under a bare `ctx.Err() != nil` check) mark a
+// still-continuing pool cancelled. We exclude CAN explicitly and
+// require a real CanceledError so only an actual cancellation counts.
+func shouldMarkCancelled(retErr error) bool {
+	if retErr == nil {
+		return false
+	}
+	if workflow.IsContinueAsNewError(retErr) {
+		return false
+	}
+	return temporal.IsCanceledError(retErr)
+}
+
 // simState is the workflow's view of the pool. Built once from
 // LoadPoolStateActivity; immutable across the workflow's lifetime
 // EXCEPT for CurrentStatus and TotalLLMCostUsd, which are updated
@@ -217,6 +237,11 @@ type simState struct {
 	PoolConfig PoolConfig
 	AgentIDs   []int32
 	Agents     []AgentConfig
+	// AgentConfigByID indexes Agents by agent ID — built once in
+	// loadSimState from the parallel AgentIDs/Agents slices so the
+	// draft and daily-turn loops can resolve an AgentConfig with an
+	// O(1) lookup instead of an O(agents) scan per pick/turn.
+	AgentConfigByID map[int32]AgentConfig
 	// AgentNotes is parallel to AgentIDs — initial sim_agents.notes
 	// values at workflow boot. The runDraftPhase loop maintains its
 	// own mutable notesByAgent map keyed by agentID; the entries here
@@ -257,11 +282,16 @@ func loadSimState(ctx workflow.Context, in SimPoolWorkflowInput) (simState, erro
 			totalDays = days
 		}
 	}
+	agentConfigByID := make(map[int32]AgentConfig, len(res.AgentIDs))
+	for i, id := range res.AgentIDs {
+		agentConfigByID[id] = res.Agents[i]
+	}
 	return simState{
 		PoolID:          in.PoolID,
 		PoolConfig:      res.PoolConfig,
 		AgentIDs:        res.AgentIDs,
 		Agents:          res.Agents,
+		AgentConfigByID: agentConfigByID,
 		AgentNotes:      res.AgentNotes,
 		SeasonStartDate: res.SeasonStartDate,
 		SeasonEndDate:   res.SeasonEndDate,
@@ -449,7 +479,6 @@ func runDraftPhase(
 		}
 	}
 	candidateByID := buildCandidateLookup(candidates)
-	totalPicks := state.PoolConfig.NumTeams * rounds
 	pickNumber := 0
 
 	// Snake order built from round1 ordering.
@@ -488,7 +517,6 @@ func runDraftPhase(
 		}
 		state.TotalLLMCostUsd += res.CostUsd
 		tracker.IncrementBar(ctx, 0, 0)
-		_ = totalPicks // kept for future "% complete" log line
 
 		// Cost-cap exit: the first tripped pick already wrote the
 		// cost_cap_reached row and sent the pause signal. Mirror the
@@ -600,14 +628,9 @@ func assembleDraftPickInput(
 		takenSlice = append(takenSlice, id)
 	}
 
-	// Locate AgentConfig for this agent_id.
-	var agentCfg AgentConfig
-	for i, id := range state.AgentIDs {
-		if id == agentID {
-			agentCfg = state.Agents[i]
-			break
-		}
-	}
+	// Locate AgentConfig for this agent_id via the precomputed lookup
+	// (built once in loadSimState) rather than scanning AgentIDs.
+	agentCfg := state.AgentConfigByID[agentID]
 
 	byPosition, bestAvailable := SelectAvailableByPosition(candidates.Skaters, candidates.Goalies, taken)
 	yourRoster := make([]DraftRosterRow, 0, len(agentPicks))
@@ -729,15 +752,21 @@ func runSeasonPhase(
 		dayDuration := workflow.Now(ctx).Sub(dayStart)
 
 		// Telemetry activity — observes the day-duration histogram.
-		// Failures don't abort the workflow (the activity returns
-		// nil on metric write); we only check the err to honor
-		// ctx-cancel semantics.
+		// A metric-write failure must NOT abort the season, so the
+		// activity's own error is intentionally discarded. But a cancel
+		// that lands while it runs surfaces via ctx, so we re-check
+		// ctx.Err() immediately after and stop before mutating one more
+		// day of state (simDate/DayCount/progress bar).
 		recordCtx := workflow.WithActivityOptions(ctx, defaultActivityOptions())
 		var telemActs *Activities
 		_ = workflow.ExecuteActivity(recordCtx, telemActs.RecordDayDuration, RecordDayDurationInput{
 			PoolID:          in.PoolID,
 			DurationSeconds: dayDuration.Seconds(),
 		}).Get(ctx, nil)
+		if err := ctx.Err(); err != nil {
+			logger.Info("Season phase cancelled (after day-duration)", "sim_date", in.SimDate.Time)
+			return false, err
+		}
 
 		in.SimDate = addOneDay(in.SimDate)
 		in.DayCount++
@@ -834,13 +863,7 @@ func processOneDay(
 	}
 
 	for _, agentID := range order {
-		var agentCfg AgentConfig
-		for i, id := range state.AgentIDs {
-			if id == agentID {
-				agentCfg = state.Agents[i]
-				break
-			}
-		}
+		agentCfg := state.AgentConfigByID[agentID]
 		var input ManageRosterInput
 		if err := workflow.ExecuteActivity(dbCtx, acts.BuildManageRosterContext, BuildManageRosterContextInput{
 			PoolID:      state.PoolID,
@@ -858,6 +881,19 @@ func processOneDay(
 			return fmt.Errorf("manage roster (agent %d): %w", agentID, err)
 		}
 		state.TotalLLMCostUsd += res.CostUsd
+
+		// Cost-cap exit: the first agent to trip the cap already wrote
+		// the cost_cap_reached row and sent the pause signal
+		// (runCostCapBranch). Mirror the draft loop — stop processing
+		// the remaining agents so they don't each independently re-run
+		// runCostCapBranch and flood the audit table with duplicate rows
+		// + redundant pause signals. The pause signal is picked up by
+		// checkPause() at the end of the day's iteration.
+		if res.SkipReason == SkipReasonCostCapReached {
+			workflow.GetLogger(ctx).Info("Daily loop exit (cost cap reached)",
+				"sim_date", simDate.Time, "agent_id", agentID)
+			return nil
+		}
 	}
 
 	// CollectDayStats + UpdateStandings only fire if FINAL games
@@ -901,7 +937,7 @@ func processOneDay(
 // but human-readable telemetry helps when tracing replay-failure
 // stack traces).
 func shuffleAgents(ctx workflow.Context, ids []int32, kind string) error {
-	enc := workflow.SideEffect(ctx, func(ctx workflow.Context) interface{} {
+	enc := workflow.SideEffect(ctx, func(ctx workflow.Context) any {
 		return workflow.Now(ctx).UnixNano()
 	})
 	var seed int64
@@ -927,9 +963,20 @@ func addOneDay(base pgtype.Date) pgtype.Date {
 // Phase 3 — Complete
 // ============================================================================
 
-// completePool flips status to 'complete' and exits cleanly.
+// completePool flips status to 'complete' and exits cleanly. Used by
+// the normal end-of-season path, which has StartGroup-ed the Season
+// group (group 1) so CompleteGroup on it is well-formed.
 func completePool(ctx workflow.Context, poolID int32, tracker *shared.ReportTracker) error {
 	tracker.CompleteGroup(ctx, 1, fmt.Sprintf("Season complete in %s", tracker.GetElapsed(ctx, 1)))
+	return writePoolStatus(ctx, poolID, PoolStatusComplete)
+}
+
+// completePoolStatusOnly flips the pool to 'complete' WITHOUT touching
+// the Season progress group. Used by the pre-season StopAfter exits
+// (StopAfterTeamName, StopAfterDraft), which never StartGroup-ed the
+// Season group: CompleteGroup(ctx, 1) there would emit a bogus "Season
+// complete" event and read an unstarted (zero) group timer.
+func completePoolStatusOnly(ctx workflow.Context, poolID int32) error {
 	return writePoolStatus(ctx, poolID, PoolStatusComplete)
 }
 

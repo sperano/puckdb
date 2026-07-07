@@ -385,7 +385,7 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 		result.errored = true
 		result.errorKind = ErrorKindToolUseFailure
 		result.errorDetail = "fallback returned 0 — no draftable player available"
-		return result, fmt.Errorf("simulation: fallback returned 0 — no draftable player available")
+		return result, errors.New("simulation: fallback returned 0 — no draftable player available")
 	}
 	result.playerID = fallbackID
 	result.usedFallback = true
@@ -477,7 +477,12 @@ func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pic
 		}
 
 		header := draftTurnHeader(in, pick)
-		if _, err := RecordTurnTelemetry(ctx, q, header, pick.captures, nil, pick.toolCaptures, nil, recordMessages); err != nil {
+		if _, err := RecordTurnTelemetry(ctx, q, TurnTelemetry{
+			Header:         header,
+			Captures:       pick.captures,
+			ToolCalls:      pick.toolCaptures,
+			RecordMessages: recordMessages,
+		}); err != nil {
 			return err
 		}
 		return nil

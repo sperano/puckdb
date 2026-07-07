@@ -397,6 +397,34 @@ func (s *ProcessWaiversTestSuite) TestCommitError_Aborts() {
 }
 
 // ----------------------------------------------------------------------------
+// B4 (2026-07-06 review) — priority read happens inside the transaction,
+// not before it, so ListSimWaiverPriorityByPool's FOR UPDATE lock actually
+// covers the read-modify-write. stubTransactor.beforeFn fires at InTx
+// entry, before ProcessWaivers' callback runs — if the priority read had
+// already happened outside InTx (the old code path), listPriorityArgs
+// would be non-empty by the time beforeFn observes it.
+// ----------------------------------------------------------------------------
+
+func (s *ProcessWaiversTestSuite) TestListPriority_ReadInsideTransaction() {
+	t := s.T()
+	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
+	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+
+	var argsAtTxEntry int
+	s.tx.beforeFn = func() {
+		argsAtTxEntry = len(s.queries.listPriorityArgs)
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, s.input())
+	require.NoError(t, err)
+	var got ProcessWaiversResult
+	require.NoError(t, future.Get(&got))
+
+	assert.Zero(t, argsAtTxEntry, "priority must not be read before InTx begins")
+	assert.Len(t, s.queries.listPriorityArgs, 1, "priority read exactly once, inside the tx callback")
+}
+
+// ----------------------------------------------------------------------------
 // resolved_at threads through to the status update.
 // ----------------------------------------------------------------------------
 

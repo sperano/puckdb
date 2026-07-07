@@ -135,6 +135,9 @@ func (a *Activities) BuildManageRosterContext(ctx context.Context, in BuildManag
 // loadAgentPendingClaims returns the player_ids the agent currently has
 // a pending waiver claim on, plus the named rows rendered into the daily
 // prompt. Empty (no open claims) is the common path.
+//
+// Claimed + drop player names are resolved with one batched
+// GetPlayersByIDs call (was up to 2 GetPlayer calls per row).
 func (a *Activities) loadAgentPendingClaims(ctx context.Context, poolID, agentID int32) ([]int64, []PendingClaimRow, error) {
 	rows, err := a.Queries.ListSimWaiverClaimsPendingByAgent(ctx, sqlcdb.ListSimWaiverClaimsPendingByAgentParams{
 		PoolID:  poolID,
@@ -143,14 +146,27 @@ func (a *Activities) loadAgentPendingClaims(ctx context.Context, poolID, agentID
 	if err != nil {
 		return nil, nil, err
 	}
+
+	playerIDs := make([]int64, 0, len(rows)*2)
+	for _, r := range rows {
+		playerIDs = append(playerIDs, r.PlayerID)
+		if r.DropPlayerID.Valid {
+			playerIDs = append(playerIDs, r.DropPlayerID.Int64)
+		}
+	}
+	players, err := loadPlayersByIDs(ctx, a.Queries, playerIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("simulation: batch load pending-claim players: %w", err)
+	}
+
 	ids := make([]int64, 0, len(rows))
 	promptRows := make([]PendingClaimRow, 0, len(rows))
 	for _, r := range rows {
 		ids = append(ids, r.PlayerID)
 
-		p, err := a.Queries.GetPlayer(ctx, r.PlayerID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("simulation: get claimed player %d: %w", r.PlayerID, err)
+		p, ok := players[r.PlayerID]
+		if !ok {
+			return nil, nil, fmt.Errorf("simulation: get claimed player %d: not found", r.PlayerID)
 		}
 		row := PendingClaimRow{
 			Player:     p.FirstName + " " + p.LastName,
@@ -158,9 +174,9 @@ func (a *Activities) loadAgentPendingClaims(ctx context.Context, poolID, agentID
 			ResolvesOn: formatPgDateOrEmpty(r.ProcessDate),
 		}
 		if r.DropPlayerID.Valid {
-			dp, err := a.Queries.GetPlayer(ctx, r.DropPlayerID.Int64)
-			if err != nil {
-				return nil, nil, fmt.Errorf("simulation: get claim drop player %d: %w", r.DropPlayerID.Int64, err)
+			dp, ok := players[r.DropPlayerID.Int64]
+			if !ok {
+				return nil, nil, fmt.Errorf("simulation: get claim drop player %d: not found", r.DropPlayerID.Int64)
 			}
 			row.DropPlayer = dp.FirstName + " " + dp.LastName
 		}
@@ -179,9 +195,9 @@ func (a *Activities) loadAgentPendingClaims(ctx context.Context, poolID, agentID
 // is not an error.
 func (a *Activities) loadOnWaivers(ctx context.Context, poolID int32, simDate pgtype.Date, waiverDays int) ([]int64, error) {
 	rows, err := a.Queries.ListSimPlayersOnWaivers(ctx, sqlcdb.ListSimPlayersOnWaiversParams{
-		PoolID:  poolID,
-		Column2: simDate,
-		Column3: int32(waiverDays),
+		PoolID:     poolID,
+		SimDate:    simDate,
+		WaiverDays: int32(waiverDays),
 	})
 	if err != nil {
 		return nil, err
@@ -210,7 +226,8 @@ func (a *Activities) loadAgentNotes(ctx context.Context, agentID int32) (string,
 //   - Positions map (player_id → NHL position) for ValidateAndResolveLineup's catalog.
 //   - []RosterRow for the daily prompt's your_roster block.
 //
-// One DB read for the rosters plus one GetPlayer per player (V1 N+1).
+// One DB read for the rosters plus one batched GetPlayersByIDs call
+// covering every roster player (was one GetPlayer per player).
 // Players with a NULL players.position are omitted from the position map
 // with a warning; they will appear on the roster but cannot be slotted into
 // any active slot (set_lineup will return a clear "position lookup" error).
@@ -227,6 +244,15 @@ func (a *Activities) loadRosterAndPositions(
 		return RosterState{}, nil, nil, fmt.Errorf("simulation: list roster (agent %d): %w", agentID, err)
 	}
 
+	ids := make([]int64, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.PlayerID)
+	}
+	players, err := loadPlayersByIDs(ctx, a.Queries, ids)
+	if err != nil {
+		return RosterState{}, nil, nil, fmt.Errorf("simulation: batch load roster (agent %d): %w", agentID, err)
+	}
+
 	placements := make(map[int64]RosterSlot, len(rows))
 	positions := make(map[int64]sqlcdb.PlayerPosition, len(rows))
 	rosterRows := make([]RosterRow, 0, len(rows))
@@ -234,9 +260,9 @@ func (a *Activities) loadRosterAndPositions(
 	for _, r := range rows {
 		placements[r.PlayerID] = RosterSlot(r.Slot)
 
-		p, err := a.Queries.GetPlayer(ctx, r.PlayerID)
-		if err != nil {
-			return RosterState{}, nil, nil, fmt.Errorf("simulation: get player %d: %w", r.PlayerID, err)
+		p, ok := players[r.PlayerID]
+		if !ok {
+			return RosterState{}, nil, nil, fmt.Errorf("simulation: get player %d: not found", r.PlayerID)
 		}
 		if p.Position.Valid {
 			positions[r.PlayerID] = p.Position.PlayerPosition
@@ -274,19 +300,29 @@ func (a *Activities) loadRosterAndPositions(
 // set_lineup validator rather than a silent permanent failure.
 //
 // Called for FA and on-waivers candidates so that an agent who adds a player
-// in round 1 can immediately slot them in round 2 of the same turn.
+// in round 1 can immediately slot them in round 2 of the same turn. Position
+// lookups are batched with one GetPlayersByIDs call (was one GetPlayer per
+// candidate not already on the roster).
 func (a *Activities) loadCandidatePositions(
 	ctx context.Context,
 	playerIDs []int64,
 	positions map[int64]sqlcdb.PlayerPosition,
 ) error {
+	need := make([]int64, 0, len(playerIDs))
 	for _, id := range playerIDs {
 		if _, already := positions[id]; already {
 			continue
 		}
-		p, err := a.Queries.GetPlayer(ctx, id)
-		if err != nil {
-			return fmt.Errorf("simulation: get player %d for position catalog: %w", id, err)
+		need = append(need, id)
+	}
+	players, err := loadPlayersByIDs(ctx, a.Queries, need)
+	if err != nil {
+		return fmt.Errorf("simulation: batch load candidate positions: %w", err)
+	}
+	for _, id := range need {
+		p, ok := players[id]
+		if !ok {
+			return fmt.Errorf("simulation: get player %d for position catalog: not found", id)
 		}
 		if p.Position.Valid {
 			positions[id] = p.Position.PlayerPosition
@@ -335,8 +371,14 @@ func (a *Activities) loadStandingsRows(ctx context.Context, poolID, agentID int3
 	byAgent := map[int32]map[string]catEntry{} // agent_id → category → entry
 	totalRotoPts := map[int32]float64{}
 	for _, r := range rows {
-		pts, _ := numericToFloat(r.RotoPoints)
-		val, _ := numericToFloat(r.Value)
+		pts, err := NumericToFloat(r.RotoPoints)
+		if err != nil {
+			return nil, fmt.Errorf("simulation: decode roto_points (agent %d, category %q): %w", r.AgentID, r.Category, err)
+		}
+		val, err := NumericToFloat(r.Value)
+		if err != nil {
+			return nil, fmt.Errorf("simulation: decode value (agent %d, category %q): %w", r.AgentID, r.Category, err)
+		}
 		if _, ok := byAgent[r.AgentID]; !ok {
 			byAgent[r.AgentID] = map[string]catEntry{}
 		}

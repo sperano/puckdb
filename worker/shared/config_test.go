@@ -11,12 +11,12 @@ type capturingLogger struct {
 	warnMessages []string
 }
 
-func (l *capturingLogger) Debug(string, ...interface{}) {}
-func (l *capturingLogger) Info(string, ...interface{})  {}
-func (l *capturingLogger) Warn(msg string, _ ...interface{}) {
+func (l *capturingLogger) Debug(string, ...any) {}
+func (l *capturingLogger) Info(string, ...any)  {}
+func (l *capturingLogger) Warn(msg string, _ ...any) {
 	l.warnMessages = append(l.warnMessages, msg)
 }
-func (l *capturingLogger) Error(string, ...interface{}) {}
+func (l *capturingLogger) Error(string, ...any) {}
 
 func intPtr(v int) *int { return &v }
 

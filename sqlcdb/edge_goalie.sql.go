@@ -265,7 +265,7 @@ func (q *Queries) GetEdgeGoalieStatsBySeason(ctx context.Context, arg GetEdgeGoa
 	return items, nil
 }
 
-const insertEdgeGoalieShotLocation = `-- name: InsertEdgeGoalieShotLocation :exec
+const upsertEdgeGoalieShotLocation = `-- name: UpsertEdgeGoalieShotLocation :exec
 INSERT INTO edge_goalie_shot_locations (
     player_id, season, game_type, area,
     saves, saves_percentile, save_pctg, save_pctg_percentile
@@ -278,7 +278,7 @@ ON CONFLICT (player_id, season, game_type, area) DO UPDATE SET
     save_pctg_percentile = EXCLUDED.save_pctg_percentile
 `
 
-type InsertEdgeGoalieShotLocationParams struct {
+type UpsertEdgeGoalieShotLocationParams struct {
 	PlayerID           int64         `json:"player_id"`
 	Season             int32         `json:"season"`
 	GameType           GameType      `json:"game_type"`
@@ -289,8 +289,8 @@ type InsertEdgeGoalieShotLocationParams struct {
 	SavePctgPercentile pgtype.Float4 `json:"save_pctg_percentile"`
 }
 
-func (q *Queries) InsertEdgeGoalieShotLocation(ctx context.Context, arg InsertEdgeGoalieShotLocationParams) error {
-	_, err := q.db.Exec(ctx, insertEdgeGoalieShotLocation,
+func (q *Queries) UpsertEdgeGoalieShotLocation(ctx context.Context, arg UpsertEdgeGoalieShotLocationParams) error {
+	_, err := q.db.Exec(ctx, upsertEdgeGoalieShotLocation,
 		arg.PlayerID,
 		arg.Season,
 		arg.GameType,
@@ -303,7 +303,7 @@ func (q *Queries) InsertEdgeGoalieShotLocation(ctx context.Context, arg InsertEd
 	return err
 }
 
-const insertEdgeGoalieShotLocationSummary = `-- name: InsertEdgeGoalieShotLocationSummary :exec
+const upsertEdgeGoalieShotLocationSummary = `-- name: UpsertEdgeGoalieShotLocationSummary :exec
 INSERT INTO edge_goalie_shot_location_summary (
     player_id, season, game_type, location_code,
     goals_against, goals_against_percentile, goals_against_league_avg,
@@ -323,7 +323,7 @@ ON CONFLICT (player_id, season, game_type, location_code) DO UPDATE SET
     save_pctg_league_avg = EXCLUDED.save_pctg_league_avg
 `
 
-type InsertEdgeGoalieShotLocationSummaryParams struct {
+type UpsertEdgeGoalieShotLocationSummaryParams struct {
 	PlayerID               int64         `json:"player_id"`
 	Season                 int32         `json:"season"`
 	GameType               GameType      `json:"game_type"`
@@ -339,8 +339,8 @@ type InsertEdgeGoalieShotLocationSummaryParams struct {
 	SavePctgLeagueAvg      pgtype.Float4 `json:"save_pctg_league_avg"`
 }
 
-func (q *Queries) InsertEdgeGoalieShotLocationSummary(ctx context.Context, arg InsertEdgeGoalieShotLocationSummaryParams) error {
-	_, err := q.db.Exec(ctx, insertEdgeGoalieShotLocationSummary,
+func (q *Queries) UpsertEdgeGoalieShotLocationSummary(ctx context.Context, arg UpsertEdgeGoalieShotLocationSummaryParams) error {
+	_, err := q.db.Exec(ctx, upsertEdgeGoalieShotLocationSummary,
 		arg.PlayerID,
 		arg.Season,
 		arg.GameType,

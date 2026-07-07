@@ -393,6 +393,63 @@ func (q *Queries) GetPlayersByBirthplace(ctx context.Context, arg GetPlayersByBi
 	return items, nil
 }
 
+const getPlayersByIDs = `-- name: GetPlayersByIDs :many
+SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE id = ANY($1::bigint[])
+`
+
+// Batches the single-ID GetPlayer lookup for callers that would
+// otherwise issue one query per player in a loop (simulation draft
+// candidates, roster/position catalogs, GraphQL sim-pool roster
+// names). Order is NOT guaranteed to match the input slice — callers
+// needing a specific order must index the result by id themselves.
+func (q *Queries) GetPlayersByIDs(ctx context.Context, ids []int64) ([]Player, error) {
+	rows, err := q.db.Query(ctx, getPlayersByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Player{}
+	for rows.Next() {
+		var i Player
+		if err := rows.Scan(
+			&i.ID,
+			&i.YahooID,
+			&i.FirstName,
+			&i.LastName,
+			&i.FirstNameNormalized,
+			&i.LastNameNormalized,
+			&i.TeamID,
+			&i.Position,
+			&i.ShootsCatches,
+			&i.HeightInches,
+			&i.WeightPounds,
+			&i.BirthDate,
+			&i.BirthCity,
+			&i.BirthStateProvince,
+			&i.BirthCountry,
+			&i.SweaterNumber,
+			&i.IsActive,
+			&i.HeadshotURL,
+			&i.HeroImageURL,
+			&i.YahooImage,
+			&i.YahooHomeURL,
+			&i.PlayerSlug,
+			&i.DraftYear,
+			&i.DraftTeamAbbrev,
+			&i.DraftRound,
+			&i.DraftPickInRound,
+			&i.DraftOverallPick,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPlayersByPosition = `-- name: GetPlayersByPosition :many
 SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE position = $1 ORDER BY last_name, first_name
 `
@@ -612,6 +669,7 @@ WHERE
     AND ($5::text IS NULL OR position = $5)
     AND ($6::boolean IS NULL OR is_active = $6)
 ORDER BY last_name, first_name
+LIMIT 500
 `
 
 type ListPlayersParams struct {
@@ -623,6 +681,8 @@ type ListPlayersParams struct {
 	IsActive      pgtype.Bool `json:"is_active"`
 }
 
+// Server-side ceiling so an unfiltered players query can't stream the whole
+// table into memory. Mirrors SearchPlayersByName's LIMIT 500 (graph.maxListLimit).
 func (q *Queries) ListPlayers(ctx context.Context, arg ListPlayersParams) ([]Player, error) {
 	rows, err := q.db.Query(ctx, listPlayers,
 		arg.Name,

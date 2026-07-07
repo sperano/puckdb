@@ -50,6 +50,12 @@ const tailBacklog = 10
 // Keeps lines readable while preserving the gist of small calls.
 const tailArgPreviewMax = 80
 
+// simTailFlagGroups lists every flag group `sim tail` exposes. Defined
+// once and shared by InitFlags and BindFlags so the two can never drift.
+var simTailFlagGroups = []*config.FlagGroup{
+	&config.PostgresFlags,
+}
+
 func cmdSimTail() *cobra.Command {
 	var poolID int
 	cmd := &cobra.Command{
@@ -64,7 +70,7 @@ context, then follows. Ctrl-C to exit.
 
 Each turn is one summary line plus one indented line per tool call.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), &config.PostgresFlags)
+			return config.BindFlags(cmd.Flags(), simTailFlagGroups...)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -77,7 +83,7 @@ Each turn is one summary line plus one indented line per tool call.`,
 		},
 	}
 	cmd.Flags().IntVar(&poolID, "pool", 0, "Restrict to a single pool ID (0 = all pools)")
-	config.InitFlags(cmd.Flags(), &config.PostgresFlags)
+	config.InitFlags(cmd.Flags(), simTailFlagGroups...)
 	return cmd
 }
 
@@ -215,14 +221,14 @@ func agentLabel(agentID int32, teamName, summary, model string) string {
 // tailToolCall is one sim_agent_tool_calls row, restricted to the
 // fields we print.
 type tailToolCall struct {
-	RoundIndex     int
-	Sequence       int
-	ToolName       string
-	RecoveredName  *string
-	ArgumentsRaw   string
-	Outcome        string
-	FailureReason  *string
-	AppliedTxID    *int64
+	RoundIndex    int
+	Sequence      int
+	ToolName      string
+	RecoveredName *string
+	ArgumentsRaw  string
+	Outcome       string
+	FailureReason *string
+	AppliedTxID   *int64
 }
 
 // drainSimTail SELECTs all turns with id > lastSeenID, prints each one

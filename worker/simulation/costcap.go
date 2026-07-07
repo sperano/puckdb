@@ -39,6 +39,12 @@ const SignalPause = "pause"
 // of the cap field is "set high to disable" per PLAN.md; honoring
 // that for both "high" and "missing" is the safe interpretation.
 //
+// The `current >= capUsd` comparison is a cumulative post-hoc soft
+// ceiling: a call's token cost is unknowable until the call is made,
+// so one call can overshoot the cap before the next check trips it.
+// That one-call overshoot is inherent and expected — the cap bounds
+// spend within one call's cost, not to the dollar.
+//
 // Any DB error aborts the activity so Temporal retries; we'd rather
 // retry than silently re-bill the operator on a flaky read.
 func (a *Activities) checkCostCap(ctx context.Context, poolID int32, capUsd float64) (tripped bool, currentCost, cap float64, err error) {
@@ -49,7 +55,7 @@ func (a *Activities) checkCostCap(ctx context.Context, poolID int32, capUsd floa
 	if err != nil {
 		return false, 0, 0, fmt.Errorf("simulation: cost-cap probe (get pool): %w", err)
 	}
-	current, err := numericToFloat(pool.TotalLLMCostUSD)
+	current, err := NumericToFloat(pool.TotalLLMCostUSD)
 	if err != nil {
 		return false, 0, 0, fmt.Errorf("simulation: decode total_llm_cost_usd: %w", err)
 	}

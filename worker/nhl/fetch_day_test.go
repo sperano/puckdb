@@ -84,14 +84,14 @@ func (s *FetchDayTestSuite) seedCachedSchedule(mem *store.MemStorage) {
 	schedule := &nhlapi.DailySchedule{Games: []nhlapi.ScheduleGame{}}
 	data, err := json.Marshal(schedule)
 	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(context.Background(),resource.DailySchedule{Date: s.day}.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(), resource.DailySchedule{Date: s.day}.Path(), data))
 }
 
 func (s *FetchDayTestSuite) seedCachedStandings(mem *store.MemStorage) {
 	standings := []nhlapi.Standing{}
 	data, err := json.Marshal(standings)
 	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(context.Background(),resource.DailyStandings{Date: s.day}.Path(), data))
+	s.Require().NoError(mem.Write(context.Background(), resource.DailyStandings{Date: s.day}.Path(), data))
 }
 
 func (s *FetchDayTestSuite) TestNoTeams() {
@@ -164,8 +164,8 @@ func (s *FetchDayTestSuite) TestWithTeams() {
 	for _, team := range teams {
 		rosterRes := resource.Roster{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: s.day, GameKey: testGameKey}
 		summaryRes := resource.TeamSummary{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: s.day, GameKey: testGameKey}
-		assert.True(s.T(), mem.Exists(context.Background(),rosterRes.Path()), "expected roster file for team %d", team.TeamID)
-		assert.True(s.T(), mem.Exists(context.Background(),summaryRes.Path()), "expected summary file for team %d", team.TeamID)
+		assert.True(s.T(), mem.Exists(context.Background(), rosterRes.Path()), "expected roster file for team %d", team.TeamID)
+		assert.True(s.T(), mem.Exists(context.Background(), summaryRes.Path()), "expected summary file for team %d", team.TeamID)
 	}
 }
 
@@ -249,7 +249,7 @@ func (s *FetchDayTestSuite) TestTeamSummaryDownloadError() {
 	summaryRes := resource.TeamSummary{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: s.day, GameKey: testGameKey}
 
 	validXML := []byte(`<fantasy_content><team></team></fantasy_content>`)
-	require.NoError(s.T(), mem.Write(context.Background(),rosterRes.Path(), validXML))
+	require.NoError(s.T(), mem.Write(context.Background(), rosterRes.Path(), validXML))
 	mockRedis.ExpectGet(core.RedisKey(rosterRes)).SetErr(redis.Nil)
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(rosterRes), "x", cache.GobCacheTTL).SetVal("OK")
 
@@ -293,8 +293,8 @@ func (s *FetchDayTestSuite) TestSecondTeamRosterError() {
 
 	roster1 := resource.Roster{LeagueID: testLeagueID, TeamID: 1, Date: s.day, GameKey: testGameKey}
 	summary1 := resource.TeamSummary{LeagueID: testLeagueID, TeamID: 1, Date: s.day, GameKey: testGameKey}
-	require.NoError(s.T(), mem.Write(context.Background(),roster1.Path(), validXML))
-	require.NoError(s.T(), mem.Write(context.Background(),summary1.Path(), validXML))
+	require.NoError(s.T(), mem.Write(context.Background(), roster1.Path(), validXML))
+	require.NoError(s.T(), mem.Write(context.Background(), summary1.Path(), validXML))
 	mockRedis.ExpectGet(core.RedisKey(roster1)).SetErr(redis.Nil)
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(roster1), "x", cache.GobCacheTTL).SetVal("OK")
 	mockRedis.ExpectGet(core.RedisKey(summary1)).SetErr(redis.Nil)

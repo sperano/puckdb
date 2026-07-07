@@ -20,7 +20,7 @@ func TestFormatTurnHeader_OkDailyWithDate(t *testing.T) {
 	got := formatTurnHeader(tailTurn{
 		ID:          42,
 		PoolID:      3,
-		TeamName:   "sonnet",
+		TeamName:    "sonnet",
 		Phase:       "daily",
 		SimDate:     &date,
 		Status:      "ok",
@@ -43,7 +43,7 @@ func TestFormatTurnHeader_TeamNamePhaseNullDate(t *testing.T) {
 	t.Parallel()
 	got := formatTurnHeader(tailTurn{
 		PoolID:      1,
-		TeamName:   "haiku",
+		TeamName:    "haiku",
 		Phase:       "team_name",
 		SimDate:     nil,
 		Status:      "ok",
@@ -61,7 +61,7 @@ func TestFormatTurnHeader_ErroredAppendsErrKind(t *testing.T) {
 	kind := "parse_error"
 	got := formatTurnHeader(tailTurn{
 		PoolID:      2,
-		TeamName:   "llama",
+		TeamName:    "llama",
 		Phase:       "draft",
 		SimDate:     new(time.Date(2024, 10, 12, 0, 0, 0, 0, time.UTC)),
 		Status:      "errored",
@@ -146,7 +146,7 @@ func TestFormatTailRow_TurnWithCalls(t *testing.T) {
 	out := formatTailRow(
 		tailTurn{
 			PoolID:      3,
-			TeamName:   "sonnet",
+			TeamName:    "sonnet",
 			Phase:       "daily",
 			SimDate:     &date,
 			Status:      "ok",
@@ -174,7 +174,7 @@ func TestFormatTailRow_TurnWithNoCalls(t *testing.T) {
 	out := formatTailRow(
 		tailTurn{
 			PoolID:      1,
-			TeamName:   "haiku",
+			TeamName:    "haiku",
 			Phase:       "daily",
 			Status:      "skipped",
 			CompletedAt: time.Now(),
@@ -245,4 +245,3 @@ func TestFormatToolCallLine_NilMapSkipsDecoration(t *testing.T) {
 	}, nil)
 	assert.NotContains(t, got, "[")
 }
-

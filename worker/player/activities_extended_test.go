@@ -612,7 +612,7 @@ func (s *YahooActivitySuite) TestSaveYahooPlayersToRedis_Success() {
 	}
 
 	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
-	localAnyArgs := func(expected, actual []interface{}) error { return nil }
+	localAnyArgs := func(expected, actual []any) error { return nil }
 	mockRedis.CustomMatch(localAnyArgs).ExpectHSet(YahooIDPoolKey, "x", "x").SetVal(1)
 	mockRedis.CustomMatch(localAnyArgs).ExpectSAdd(YahooIDAvailableKey, "x").SetVal(1)
 	mockRedis.ExpectExpire(YahooIDPoolKey, ImportPlayersTTL).SetVal(true)
@@ -922,7 +922,7 @@ func TestSaveVerifiedNonNHLIDs_PipelineError(t *testing.T) {
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
 
-	localAnyArgs := func(expected, actual []interface{}) error { return nil }
+	localAnyArgs := func(expected, actual []any) error { return nil }
 	mockRedis.CustomMatch(localAnyArgs).ExpectSAdd(VerifiedNonNHLKey, "x").SetErr(errors.New("pipe failed"))
 
 	err := SaveVerifiedNonNHLIDs(ctx, redisClient, []store.YahooPlayerID{1})
@@ -1144,7 +1144,7 @@ func TestSaveVerifiedNonNHLIDs_Success(t *testing.T) {
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.MatchExpectationsInOrder(false)
 
-	localAnyArgs := func(expected, actual []interface{}) error { return nil }
+	localAnyArgs := func(expected, actual []any) error { return nil }
 	mockRedis.CustomMatch(localAnyArgs).ExpectSAdd(VerifiedNonNHLKey, "x", "x").SetVal(2)
 	mockRedis.ExpectExpire(VerifiedNonNHLKey, VerifiedNonNHLTTL).SetVal(true)
 

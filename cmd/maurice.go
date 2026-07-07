@@ -33,24 +33,26 @@ var mauriceModels = []maurice.ModelEntry{
 	//{"llama4:scout", "Meta Scout", llm.ProviderOllama},
 }
 
+// mauriceFlagGroups lists every flag group the maurice command exposes.
+// Defined once and shared by InitFlags and BindFlags so the two can never drift.
+var mauriceFlagGroups = []*config.FlagGroup{
+	&config.MauriceFlags,
+}
+
 func cmdMaurice() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "maurice",
 		Short: "Interactive AI hockey chat",
 		Long:  `Start an interactive REPL to chat with Maurice, the hockey AI assistant`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(),
-				&config.MauriceFlags,
-			)
+			return config.BindFlags(cmd.Flags(), mauriceFlagGroups...)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runMaurice(cmd)
 		},
 	}
 	flags := cmd.Flags()
-	config.InitFlags(flags,
-		&config.MauriceFlags,
-	)
+	config.InitFlags(flags, mauriceFlagGroups...)
 	config.InitLoggingFlags(flags, config.LogLevelWarn, mauriceLogPath())
 	return cmd
 }

@@ -334,7 +334,6 @@ func TestClassifyFileType(t *testing.T) {
 	}
 }
 
-
 func TestFilterRegularSeasonGames(t *testing.T) {
 	// Game ID format: YYYYTTNNNN where TT is game type
 	// 01 = preseason, 02 = regular season, 03 = playoffs

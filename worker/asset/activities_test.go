@@ -63,6 +63,26 @@ func (m urlDownloader) downloader() shared.Downloader {
 	return m.download
 }
 
+// recordingDownloader is a shared.Downloader that records, in order, every URL
+// it was asked to download. Tests use it to assert that rows after a batch-abort
+// are not processed.
+type recordingDownloader struct {
+	responses map[string]downloadResponse
+	requested []string
+}
+
+func (r *recordingDownloader) download(_ context.Context, url string) ([]byte, error) {
+	r.requested = append(r.requested, url)
+	if resp, ok := r.responses[url]; ok {
+		return resp.body, resp.err
+	}
+	return nil, fmt.Errorf("unexpected download URL: %s", url)
+}
+
+// noopHeartbeat is a heartbeatFunc that does nothing, for direct fetchAssetBatch
+// calls that bypass the Temporal test environment.
+func noopHeartbeat(_ context.Context, _ string) {}
+
 func httpErr(code int) *httpx.HTTPError {
 	return &httpx.HTTPError{
 		StatusCode: code,
@@ -339,7 +359,7 @@ func TestHeartbeat_Cadence(t *testing.T) {
 	}
 
 	assets := make([]Asset, numAssets)
-	for i := 0; i < numAssets; i++ {
+	for i := range numAssets {
 		assets[i] = Asset{
 			FileType: core.PlayerHeadshot,
 			URL:      fmt.Sprintf("https://assets.nhle.com/mugs/headshot/%d.png", i+1),
@@ -399,8 +419,9 @@ func TestProcessAsset_StorageWriteError(t *testing.T) {
 
 	ctx := context.Background()
 	ast := Asset{FileType: core.PlayerHeadshot, URL: assetURL, IDs: []int64{999}}
-	result := act.processAsset(ctx, ast, false)
+	result, err := act.processAsset(ctx, ast, false)
 
+	require.NoError(t, err, "a non-context write failure must not abort the batch")
 	require.NotEmpty(t, result.Err, "write failure should produce a non-empty Err")
 }
 
@@ -415,6 +436,104 @@ func (e *errStorage) Write(_ context.Context, _ string, _ []byte) error {
 
 func (e *errStorage) Exists(_ context.Context, _ string) bool {
 	return false
+}
+
+// ─── Context cancellation aborts the batch ─────────────────────────────────
+
+// TestContextCanceled_DownloadAbortsBatch verifies that when the downloader
+// returns a context-cancellation error mid-batch, fetchAssetBatch aborts with
+// that error instead of stringifying it into a per-row Err and continuing.
+// The row after the cancelled one must not be downloaded.
+func TestContextCanceled_DownloadAbortsBatch(t *testing.T) {
+	t.Parallel()
+
+	const (
+		url0 = "https://assets.nhle.com/mugs/headshot/1.png" // succeeds
+		url1 = "https://assets.nhle.com/mugs/headshot/2.png" // context.Canceled
+		url2 = "https://assets.nhle.com/mugs/headshot/3.png" // must not be reached
+	)
+
+	rec := &recordingDownloader{responses: map[string]downloadResponse{
+		url0: {body: validPNG()},
+		url1: {err: context.Canceled},
+		url2: {body: validPNG()},
+	}}
+
+	assets := []Asset{
+		{FileType: core.PlayerHeadshot, URL: url0, IDs: []int64{1}},
+		{FileType: core.PlayerHeadshot, URL: url1, IDs: []int64{2}},
+		{FileType: core.PlayerHeadshot, URL: url2, IDs: []int64{3}},
+	}
+
+	act := &Activities{Storage: store.NewMemStorage(), Download: rec.download}
+	_, err := act.fetchAssetBatch(context.Background(), FetchAssetBatchInput{Assets: assets}, noopHeartbeat)
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, []string{url0, url1}, rec.requested,
+		"batch must abort at the cancelled row and not download later rows")
+}
+
+// TestContextCanceled_DeadlineExceededAbortsBatch verifies the deadline-exceeded
+// variant is treated identically to cancellation.
+func TestContextCanceled_DeadlineExceededAbortsBatch(t *testing.T) {
+	t.Parallel()
+
+	const (
+		url0 = "https://assets.nhle.com/mugs/headshot/1.png" // deadline exceeded
+		url1 = "https://assets.nhle.com/mugs/headshot/2.png" // must not be reached
+	)
+
+	rec := &recordingDownloader{responses: map[string]downloadResponse{
+		url0: {err: context.DeadlineExceeded},
+		url1: {body: validPNG()},
+	}}
+
+	assets := []Asset{
+		{FileType: core.PlayerHeadshot, URL: url0, IDs: []int64{1}},
+		{FileType: core.PlayerHeadshot, URL: url1, IDs: []int64{2}},
+	}
+
+	act := &Activities{Storage: store.NewMemStorage(), Download: rec.download}
+	_, err := act.fetchAssetBatch(context.Background(), FetchAssetBatchInput{Assets: assets}, noopHeartbeat)
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, []string{url0}, rec.requested,
+		"batch must abort at the first row and not download later rows")
+}
+
+// TestContextCanceled_PreCancelledContextAbortsBatch verifies that a context
+// already cancelled before the batch starts aborts immediately without
+// downloading any rows.
+func TestContextCanceled_PreCancelledContextAbortsBatch(t *testing.T) {
+	t.Parallel()
+
+	const (
+		url0 = "https://assets.nhle.com/mugs/headshot/1.png"
+		url1 = "https://assets.nhle.com/mugs/headshot/2.png"
+	)
+
+	rec := &recordingDownloader{responses: map[string]downloadResponse{
+		url0: {body: validPNG()},
+		url1: {body: validPNG()},
+	}}
+
+	assets := []Asset{
+		{FileType: core.PlayerHeadshot, URL: url0, IDs: []int64{1}},
+		{FileType: core.PlayerHeadshot, URL: url1, IDs: []int64{2}},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	act := &Activities{Storage: store.NewMemStorage(), Download: rec.download}
+	_, err := act.fetchAssetBatch(ctx, FetchAssetBatchInput{Assets: assets}, noopHeartbeat)
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, rec.requested,
+		"no rows should be downloaded when the context is pre-cancelled")
 }
 
 // ─── validateAssetBytes / looksLikeSVG ────────────────────────────────────────

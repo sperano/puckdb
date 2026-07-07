@@ -15,9 +15,9 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
+	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
@@ -40,21 +40,26 @@ const (
 	graphQLPath   = "/graphql"
 )
 
+// apiFlagGroups lists every flag group the api command exposes. Defined
+// once and shared by InitFlags (registration) and BindFlags (viper binding
+// in PreRunE) so the two can never drift out of sync.
+var apiFlagGroups = []*config.FlagGroup{
+	&config.RedisFlags,
+	&config.YahooOAuth2Flags,
+	&config.TemporalFlags,
+	&config.APIPortFlags,
+	&config.TLSFlags,
+	&config.MauriceFlags,
+	&config.PostgresFlags,
+}
+
 func cmdAPI() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "api",
 		Short: "Start HTTP/GraphQL server",
 		Long:  `Start the HTTP server with GraphQL endpoint and Yahoo OAuth handlers`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(),
-				&config.YahooOAuth2Flags,
-				&config.RedisFlags,
-				&config.TemporalFlags,
-				&config.APIPortFlags,
-				&config.TLSFlags,
-				&config.MauriceFlags,
-				&config.PostgresFlags,
-			)
+			return config.BindFlags(cmd.Flags(), apiFlagGroups...)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.LogFlagValues()
@@ -83,6 +88,7 @@ func cmdAPI() *cobra.Command {
 				TemporalClient: temporalClient,
 				RedisClient:    redisClient,
 				Queries:        queries,
+				DB:             pool,
 			}
 
 			// Initialize Maurice AI chat
@@ -106,15 +112,7 @@ func cmdAPI() *cobra.Command {
 		},
 	}
 	flags := cmd.Flags()
-	config.InitFlags(flags,
-		&config.RedisFlags,
-		&config.YahooOAuth2Flags,
-		&config.TemporalFlags,
-		&config.APIPortFlags,
-		&config.TLSFlags,
-		&config.MauriceFlags,
-		&config.PostgresFlags,
-	)
+	config.InitFlags(flags, apiFlagGroups...)
 	return cmd
 }
 
@@ -270,13 +268,16 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 	svc := maurice.NewService(
 		llmClient,
 		mcpClient,
-		maurice.NewPgDB(sqlcdb.New(pool)),
+		maurice.NewPgDB(pool),
 		viper.GetInt(config.FlagMauriceMaxHistory),
 		viper.GetInt(config.FlagMauriceMaxTokens),
 		viper.GetInt(config.FlagMauriceMaxToolRounds),
 	)
 
 	cleanup := func() {
+		if err := svc.Close(); err != nil {
+			log.Warn().Err(err).Msg("maurice service close")
+		}
 		mcpClient.Close()
 	}
 

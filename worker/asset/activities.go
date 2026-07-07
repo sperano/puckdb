@@ -146,7 +146,15 @@ func (a *Activities) fetchAssetBatch(ctx context.Context, in FetchAssetBatchInpu
 		default:
 		}
 
-		out.Results[i] = a.processAsset(ctx, asset, in.RefreshCurrent)
+		res, err := a.processAsset(ctx, asset, in.RefreshCurrent)
+		if err != nil {
+			// processAsset returns a non-nil error only for context cancellation
+			// (or deadline). Abort the whole batch so Temporal retries the
+			// unprocessed remainder, rather than recording the cancellation as a
+			// spurious permanent per-row failure and continuing.
+			return out, err
+		}
+		out.Results[i] = res
 
 		// Heartbeat every heartbeatEveryNRows rows so Temporal knows the activity
 		// is still alive during large batches.
@@ -158,70 +166,76 @@ func (a *Activities) fetchAssetBatch(ctx context.Context, in FetchAssetBatchInpu
 	return out, nil
 }
 
-// processAsset executes the full per-row pipeline for a single asset and
-// returns the result. It never returns an error to the caller; failures are
-// encoded in FetchAssetResult.Err.
-func (a *Activities) processAsset(ctx context.Context, ast Asset, refreshCurrent bool) FetchAssetResult {
+// processAsset executes the full per-row pipeline for a single asset.
+//
+// The returned error is non-nil only for context cancellation (context.Canceled
+// or context.DeadlineExceeded), which is a batch-level abort condition: the
+// caller must stop processing and let Temporal retry the remaining rows. All
+// other per-row failures — bad URL extension, HTTP errors, MIME validation
+// failures, non-context storage write errors — are encoded in
+// FetchAssetResult.Err with a nil error so the batch keeps running.
+func (a *Activities) processAsset(ctx context.Context, ast Asset, refreshCurrent bool) (FetchAssetResult, error) {
 	// Step 1: empty URL — defensive no-op; Phase 3 SQL filters before dispatch.
 	if ast.URL == "" {
-		return FetchAssetResult{Origin: core.OriginUnknown}
+		return FetchAssetResult{Origin: core.OriginUnknown}, nil
 	}
 
 	// Step 2: compute the local cache path from (FileType, IDs, URL extension).
 	localPath, err := ast.Path()
 	if err != nil {
-		return FetchAssetResult{Err: err.Error()}
+		return FetchAssetResult{Err: err.Error()}, nil
 	}
 
 	// Step 3: idempotency check — skip download if the file is already cached
 	// (unless RefreshCurrent overrides this).
 	if !refreshCurrent && a.Storage.Exists(ctx, localPath) {
 		metrics.IncDownload(ast.FileType, metrics.ResultHit)
-		return FetchAssetResult{Origin: core.OriginFileSystem}
+		return FetchAssetResult{Origin: core.OriginFileSystem}, nil
 	}
 
 	// Step 4: download the asset bytes.
 	data, err := a.Download(ctx, ast.URL)
 	if err != nil {
-		// Context cancellation must abort the batch, not be stringified into
-		// per-row Err entries. Surface as the batch error.
+		// Context cancellation must abort the batch, not be stringified into a
+		// per-row Err entry. Surface it as the batch error.
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return FetchAssetResult{Err: err.Error()}
+			return FetchAssetResult{}, err
 		}
 		var httpErr *httpx.HTTPError
 		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
 			// 404 — URL is permanently dead. Record via metric; do not write to
 			// disk. This is a per-row outcome, not a batch failure.
 			metrics.IncDownload(ast.FileType, metrics.ResultMissing)
-			return FetchAssetResult{Origin: core.OriginUnknown}
+			return FetchAssetResult{Origin: core.OriginUnknown}, nil
 		}
 		// Other HTTP or I/O error.
 		metrics.IncDownload(ast.FileType, metrics.ResultError)
-		return FetchAssetResult{Err: err.Error()}
+		return FetchAssetResult{Err: err.Error()}, nil
 	}
 
 	// Step 5: validate bytes — MIME type and minimum size.
 	if err := validateAssetBytes(data, localPath); err != nil {
 		metrics.IncDownload(ast.FileType, metrics.ResultError)
-		return FetchAssetResult{Err: fmt.Sprintf("validation: %s for %s", err, ast.URL)}
+		return FetchAssetResult{Err: fmt.Sprintf("validation: %s for %s", err, ast.URL)}, nil
 	}
 
 	// Step 6: write to storage.
 	if err := a.Storage.Write(ctx, localPath, data); err != nil {
+		// Context cancellation aborts the batch; surface as the batch error.
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return FetchAssetResult{Err: err.Error()}
+			return FetchAssetResult{}, err
 		}
 		// Storage write failures often indicate broader trouble (full disk,
 		// JuiceFS mount issues). Log a warning but keep the batch running.
 		log.Warn().Err(err).Str("path", localPath).Msg("asset: storage write failed")
 		metrics.IncDownload(ast.FileType, metrics.ResultError)
-		return FetchAssetResult{Err: err.Error()}
+		return FetchAssetResult{Err: err.Error()}, nil
 	}
 
 	// Step 7: record success.
 	origin := assetOrigins[ast.FileType]
 	metrics.IncDownload(ast.FileType, metrics.ResultMiss)
-	return FetchAssetResult{Origin: origin}
+	return FetchAssetResult{Origin: origin}, nil
 }
 
 // validateAssetBytes verifies that the response body looks like a valid image
@@ -237,10 +251,7 @@ func validateAssetBytes(data []byte, localPath string) error {
 		return fmt.Errorf("response too small (%d bytes)", len(data))
 	}
 
-	sniffLen := len(data)
-	if sniffLen > mimeSniffLen {
-		sniffLen = mimeSniffLen
-	}
+	sniffLen := min(len(data), mimeSniffLen)
 	mimeType := http.DetectContentType(data[:sniffLen])
 
 	// Raster image formats: direct MIME match.

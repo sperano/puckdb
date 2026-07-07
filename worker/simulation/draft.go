@@ -104,7 +104,7 @@ type GoalieDraftCandidate struct {
 // retries). The input slice is NOT mutated — callers may reuse it.
 func RankSkaters(candidates []SkaterDraftCandidate) []SkaterDraftCandidate {
 	out := slices.Clone(candidates)
-	slices.SortFunc(out, func(a, b SkaterDraftCandidate) int {
+	slices.SortStableFunc(out, func(a, b SkaterDraftCandidate) int {
 		if d := b.Score() - a.Score(); d != 0 {
 			return d
 		}
@@ -117,7 +117,7 @@ func RankSkaters(candidates []SkaterDraftCandidate) []SkaterDraftCandidate {
 // Defensive copy of the input; same determinism contract as RankSkaters.
 func RankGoalies(candidates []GoalieDraftCandidate) []GoalieDraftCandidate {
 	out := slices.Clone(candidates)
-	slices.SortFunc(out, func(a, b GoalieDraftCandidate) int {
+	slices.SortStableFunc(out, func(a, b GoalieDraftCandidate) int {
 		if d := b.PriorW - a.PriorW; d != 0 {
 			return d
 		}
@@ -178,7 +178,7 @@ func SelectAvailableByPosition(
 ) (byPosition map[string][]DraftablePlayer, bestAvailable []DraftablePlayer) {
 
 	byPosition = map[string][]DraftablePlayer{
-		"C": {}, "LW": {}, "RW": {}, "D": {}, "G": {},
+		string(SlotC): {}, string(SlotLW): {}, string(SlotRW): {}, string(SlotD): {}, string(SlotG): {},
 	}
 
 	for _, s := range rankedSkaters {
@@ -204,13 +204,13 @@ func SelectAvailableByPosition(
 		if _, t := taken[g.PlayerID]; t {
 			continue
 		}
-		if len(byPosition["G"]) >= MaxAvailablePerPosition {
+		if len(byPosition[string(SlotG)]) >= MaxAvailablePerPosition {
 			continue
 		}
-		byPosition["G"] = append(byPosition["G"], DraftablePlayer{
+		byPosition[string(SlotG)] = append(byPosition[string(SlotG)], DraftablePlayer{
 			Player:     g.Name,
 			ID:         g.PlayerID,
-			Position:   "G",
+			Position:   string(SlotG),
 			LastSeason: GoalieStats{W: g.PriorW, GA: g.PriorGA},
 		})
 	}
@@ -241,11 +241,11 @@ func SelectAvailableByPosition(
 // (excluding BN/IR). Fallback uses these to compute positional need.
 // Util is excluded — it's a flexible slot, not tied to a position.
 var activeSlotLimits = map[string]int{
-	"C":  2,
-	"LW": 2,
-	"RW": 2,
-	"D":  3,
-	"G":  2,
+	string(SlotC):  2,
+	string(SlotLW): 2,
+	string(SlotRW): 2,
+	string(SlotD):  3,
+	string(SlotG):  2,
 }
 
 // FallbackDraftPick returns a deterministic player_id when the LLM has
@@ -280,7 +280,7 @@ func FallbackDraftPick(
 
 	// Build a deficit-ordered list of positions. Stable order across
 	// retries — fixed position ordering is the tiebreaker.
-	positions := []string{"C", "LW", "RW", "D", "G"}
+	positions := []string{string(SlotC), string(SlotLW), string(SlotRW), string(SlotD), string(SlotG)}
 	slices.SortStableFunc(positions, func(a, b string) int {
 		da := activeSlotLimits[a] - filled[a]
 		db := activeSlotLimits[b] - filled[b]
@@ -293,7 +293,7 @@ func FallbackDraftPick(
 			continue
 		}
 
-		if pos == "G" {
+		if pos == string(SlotG) {
 			for _, g := range rankedGoalies {
 				if _, t := taken[g.PlayerID]; t {
 					continue
@@ -334,7 +334,9 @@ func FallbackDraftPick(
 // goalie in BN still counts toward "G filled"; a C in Util still
 // counts toward "C filled".
 func positionFillCounts(roster RosterState, catalog PlayerCatalog) (map[string]int, error) {
-	filled := map[string]int{"C": 0, "LW": 0, "RW": 0, "D": 0, "G": 0}
+	filled := map[string]int{
+		string(SlotC): 0, string(SlotLW): 0, string(SlotRW): 0, string(SlotD): 0, string(SlotG): 0,
+	}
 	for playerID := range roster.Placements {
 		pos, err := catalog.Position(playerID)
 		if err != nil {
@@ -346,15 +348,15 @@ func positionFillCounts(roster RosterState, catalog PlayerCatalog) (map[string]i
 		// validation time.
 		switch pos {
 		case sqlcdb.PlayerPositionC:
-			filled["C"]++
+			filled[string(SlotC)]++
 		case sqlcdb.PlayerPositionLW:
-			filled["LW"]++
+			filled[string(SlotLW)]++
 		case sqlcdb.PlayerPositionRW:
-			filled["RW"]++
+			filled[string(SlotRW)]++
 		case sqlcdb.PlayerPositionD:
-			filled["D"]++
+			filled[string(SlotD)]++
 		case sqlcdb.PlayerPositionG:
-			filled["G"]++
+			filled[string(SlotG)]++
 		}
 	}
 	return filled, nil

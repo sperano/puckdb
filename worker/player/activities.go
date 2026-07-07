@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
@@ -28,11 +28,11 @@ type PlayerCareerUpserter interface {
 
 // Activities groups player-related activities with their dependencies.
 type Activities struct {
-	Storage      store.Storage
-	NHLClient    shared.NHLClient
-	RedisClient  *redis.Client
-	GobCache     *cache.GobCache
-	Queries      PlayerUpserter
+	Storage       store.Storage
+	NHLClient     shared.NHLClient
+	RedisClient   *redis.Client
+	GobCache      *cache.GobCache
+	Queries       PlayerUpserter
 	CareerQueries PlayerCareerUpserter
 }
 
@@ -101,12 +101,12 @@ func (a *Activities) ensurePlayerLandingCached(
 	missingRes := resource.MissingPlayerLanding{PlayerID: playerID}
 	landingRes := resource.PlayerLanding{PlayerID: playerID}
 
-	if a.Storage.Exists(ctx,missingRes.Path()) {
+	if a.Storage.Exists(ctx, missingRes.Path()) {
 		log.Debug().Str("player_id", playerID.String()).Msg("Player landing already marked as missing")
 		return playerLandingMissing, nil
 	}
 
-	if a.Storage.Exists(ctx,landingRes.Path()) {
+	if a.Storage.Exists(ctx, landingRes.Path()) {
 		log.Debug().Str("player_id", playerID.String()).Msg("Player landing already cached")
 		return playerLandingCached, nil
 	}
@@ -292,7 +292,7 @@ type gameLogDownloadOptions struct {
 func (a *Activities) downloadPlayerGameLogToCache(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType, opts gameLogDownloadOptions) (gameLogDownloadStatus, error) {
 	gameTypeID := gameType.Int()
 	gameLogRes := resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: gameTypeID}
-	fileExists := a.Storage.Exists(ctx,gameLogRes.Path())
+	fileExists := a.Storage.Exists(ctx, gameLogRes.Path())
 
 	if fileExists {
 		if opts.isCurrent && !opts.refreshCurrent {
@@ -349,4 +349,3 @@ func (a *Activities) downloadPlayerGameLogToCache(ctx context.Context, playerID 
 
 	return gameLogDownloaded, nil
 }
-

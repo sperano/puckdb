@@ -74,23 +74,38 @@ type SetTeamNameArgs struct {
 // Each schema is a JSON object literal with type / properties / required.
 // ============================================================================
 
-const draftPlayerSchema = `{
+// reasonMaxLength bounds the `reason` argument on every action tool
+// (draft_player, set_lineup, add_player, claim_player, drop_player).
+// Shared by reasonProperty below so all five schemas and the system
+// prompt's "≤200 chars" claim (prompts.go) can't drift independently.
+const reasonMaxLength = 200
+
+// reasonProperty returns the JSON Schema fragment for the `reason`
+// argument shared by every action tool. `action` completes "One short
+// sentence explaining why this <action>." — the only part that varies
+// per tool. Extracted so the maxLength/description shape lives in one
+// place instead of five hand-copied string literals.
+func reasonProperty(action string) string {
+	return fmt.Sprintf(`"reason": {
+      "type": "string",
+      "description": "One short sentence explaining why this %s. Logged in sim_transactions.reasoning for human review.",
+      "maxLength": %d
+    }`, action, reasonMaxLength)
+}
+
+var draftPlayerSchema = fmt.Sprintf(`{
   "type": "object",
   "properties": {
     "player_id": {
       "type": "integer",
       "description": "NHL player ID to draft from the available pool."
     },
-    "reason": {
-      "type": "string",
-      "description": "One short sentence explaining why this player. Logged in sim_transactions.reasoning for human review.",
-      "maxLength": 200
-    }
+    %s
   },
   "required": ["player_id", "reason"]
-}`
+}`, reasonProperty("player"))
 
-const setLineupSchema = `{
+var setLineupSchema = fmt.Sprintf(`{
   "type": "object",
   "properties": {
     "moves": {
@@ -108,16 +123,12 @@ const setLineupSchema = `{
         "required": ["player_id", "slot"]
       }
     },
-    "reason": {
-      "type": "string",
-      "description": "One short sentence explaining why this lineup. Logged in sim_transactions.reasoning for human review.",
-      "maxLength": 200
-    }
+    %s
   },
   "required": ["moves", "reason"]
-}`
+}`, reasonProperty("lineup"))
 
-const addPlayerSchema = `{
+var addPlayerSchema = fmt.Sprintf(`{
   "type": "object",
   "properties": {
     "player_id": {
@@ -128,16 +139,12 @@ const addPlayerSchema = `{
       "type": "integer",
       "description": "Required if roster is full (21 players). The roster player to drop to make room. If omitted while roster is full, the call fails with no retry."
     },
-    "reason": {
-      "type": "string",
-      "description": "One short sentence explaining why this add. Logged in sim_transactions.reasoning for human review.",
-      "maxLength": 200
-    }
+    %s
   },
   "required": ["player_id", "reason"]
-}`
+}`, reasonProperty("add"))
 
-const claimPlayerSchema = `{
+var claimPlayerSchema = fmt.Sprintf(`{
   "type": "object",
   "properties": {
     "player_id": {
@@ -148,30 +155,22 @@ const claimPlayerSchema = `{
       "type": "integer",
       "description": "Required if roster is full. Drop is executed only if the claim wins."
     },
-    "reason": {
-      "type": "string",
-      "description": "One short sentence explaining why this claim. Logged in sim_transactions.reasoning for human review.",
-      "maxLength": 200
-    }
+    %s
   },
   "required": ["player_id", "reason"]
-}`
+}`, reasonProperty("claim"))
 
-const dropPlayerSchema = `{
+var dropPlayerSchema = fmt.Sprintf(`{
   "type": "object",
   "properties": {
     "player_id": {
       "type": "integer",
       "description": "NHL player ID of the rostered player to release. They go on waivers for waiver_days, then become a free agent if unclaimed."
     },
-    "reason": {
-      "type": "string",
-      "description": "One short sentence explaining why this drop. Logged in sim_transactions.reasoning for human review.",
-      "maxLength": 200
-    }
+    %s
   },
   "required": ["player_id", "reason"]
-}`
+}`, reasonProperty("drop"))
 
 const setTeamNameSchema = `{
   "type": "object",
@@ -204,9 +203,11 @@ const updateNotesSchema = `{
 }`
 
 // makeTool builds a single tool, eliminating the boilerplate around the
-// nested ToolFunction + json.RawMessage wrapping. Cacheable goes on the
-// LAST tool in each phase's tool list — see DraftTools / DailyTools.
-func makeTool(name, description, schema string, cacheable bool) llm.Tool {
+// nested ToolFunction + json.RawMessage wrapping. Cacheable defaults to
+// false here — it is set on the LAST tool of a phase's list by
+// markCacheBoundary, not per-call, so the cache boundary can't drift if
+// a phase's tool list is ever reordered or extended.
+func makeTool(name, description, schema string) llm.Tool {
 	return llm.Tool{
 		Type: "function",
 		Function: llm.ToolFunction{
@@ -214,20 +215,34 @@ func makeTool(name, description, schema string, cacheable bool) llm.Tool {
 			Description: description,
 			Parameters:  json.RawMessage(schema),
 		},
-		Cacheable: cacheable,
 	}
+}
+
+// markCacheBoundary sets Cacheable on the LAST tool in the slice.
+// Anthropic's translator places the cache_control marker on the final
+// cacheable block in wire order, so the marker must always land on the
+// last entry — computing this from len(tools)-1 instead of hand-setting
+// a bool on one specific makeTool call means reordering or adding to a
+// phase's tool list can never silently leave the marker mid-list (or
+// off the list entirely).
+func markCacheBoundary(tools []llm.Tool) []llm.Tool {
+	if len(tools) > 0 {
+		tools[len(tools)-1].Cacheable = true
+	}
+	return tools
 }
 
 // TeamNameTools returns the tool list visible during the one-shot
 // team-name pick phase that runs before the draft. A single tool so
-// the agent has exactly one valid action.
+// the agent has exactly one valid action. Not cache-boundary-marked:
+// this phase runs once per agent, so there's no repeated call for a
+// cached prefix to benefit.
 func TeamNameTools() []llm.Tool {
 	return []llm.Tool{
 		makeTool(
 			ToolSetTeamName,
 			"Commit your team's name. Called exactly once at the start of the simulation.",
 			setTeamNameSchema,
-			false,
 		),
 	}
 }
@@ -236,24 +251,23 @@ func TeamNameTools() []llm.Tool {
 //
 // Only two tools — `draft_player` (the single decision per turn) and
 // `update_notes` (so the agent can build a multi-round draft plan).
-// `update_notes` is LAST so it carries the cache_control marker; the
-// system prompt + both tool definitions become the agent's cacheable
-// prefix and stay byte-identical across all 18 draft rounds.
+// `update_notes` is LAST so it carries the cache_control marker (see
+// markCacheBoundary); the system prompt + both tool definitions become
+// the agent's cacheable prefix and stay byte-identical across all 18
+// draft rounds.
 func DraftTools() []llm.Tool {
-	return []llm.Tool{
+	return markCacheBoundary([]llm.Tool{
 		makeTool(
 			ToolDraftPlayer,
 			"Draft a player. Called once per draft turn.",
 			draftPlayerSchema,
-			false,
 		),
 		makeTool(
 			ToolUpdateNotes,
 			"Replace persistent notes. Use during the draft to record positional plans and reasoning that should inform later picks (e.g. \"locked two elite Cs, targeting goalies in rounds 5-6\").",
 			updateNotesSchema,
-			true, // cacheable boundary
 		),
-	}
+	})
 }
 
 // DailyTools returns the tool list visible during the daily-management
@@ -261,43 +275,39 @@ func DraftTools() []llm.Tool {
 // season).
 //
 // Order matters for the cache: the LAST entry carries the cache_control
-// marker. We put `update_notes` last so the cacheable prefix is
-// (system + the four roster-management tools + update_notes) — i.e. the
-// entire tool definition block. Reordering this list will silently
-// invalidate the cache for any in-flight pool, costing real money.
+// marker (see markCacheBoundary). We put `update_notes` last so the
+// cacheable prefix is (system + the four roster-management tools +
+// update_notes) — i.e. the entire tool definition block. Reordering
+// this list will silently invalidate the cache for any in-flight pool,
+// costing real money.
 func DailyTools() []llm.Tool {
-	return []llm.Tool{
+	return markCacheBoundary([]llm.Tool{
 		makeTool(
 			ToolSetLineup,
 			"Set today's lineup. Moves are applied in array order (not atomically); displaced players auto-move to BN.",
 			setLineupSchema,
-			false,
 		),
 		makeTool(
 			ToolAddPlayer,
 			"Pick up a free agent (a player never owned in this pool, or who cleared waivers). First-processed agent wins same-day contested adds.",
 			addPlayerSchema,
-			false,
 		),
 		makeTool(
 			ToolClaimPlayer,
 			"File a waiver claim on a recently-dropped player. Resolved after the configured waiver period; highest waiver priority wins contested claims.",
 			claimPlayerSchema,
-			false,
 		),
 		makeTool(
 			ToolDropPlayer,
 			"Release a player from your roster. They go on waivers for waiver_days; if unclaimed they become a free agent.",
 			dropPlayerSchema,
-			false,
 		),
 		makeTool(
 			ToolUpdateNotes,
 			"Replace your persistent notes. Notes carry across days; treat as a terse strategy scratchpad rather than a journal.",
 			updateNotesSchema,
-			true, // cacheable boundary
 		),
-	}
+	})
 }
 
 // ParseArgs unmarshals a tool call's Arguments into the requested type.

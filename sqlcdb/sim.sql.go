@@ -1900,11 +1900,11 @@ const listSimPlayersOnWaivers = `-- name: ListSimPlayersOnWaivers :many
 SELECT DISTINCT ON (t.player_id)
     t.player_id,
     t.date AS dropped_on,
-    (t.date + ($3::INT) * INTERVAL '1 day')::DATE AS clears_on
+    (t.date + ($1::INT) * INTERVAL '1 day')::DATE AS clears_on
 FROM sim_transactions t
-WHERE t.pool_id = $1
+WHERE t.pool_id = $2
   AND t.type = 'drop'
-  AND t.date > ($2::DATE - ($3::INT) * INTERVAL '1 day')
+  AND t.date > ($3::DATE - ($1::INT) * INTERVAL '1 day')
   AND NOT EXISTS (
       SELECT 1 FROM sim_waiver_claims wc
       WHERE wc.pool_id = t.pool_id
@@ -1916,9 +1916,9 @@ ORDER BY t.player_id, t.date DESC
 `
 
 type ListSimPlayersOnWaiversParams struct {
-	PoolID  int32       `json:"pool_id"`
-	Column2 pgtype.Date `json:"column_2"`
-	Column3 int32       `json:"column_3"`
+	WaiverDays int32       `json:"waiver_days"`
+	PoolID     int32       `json:"pool_id"`
+	SimDate    pgtype.Date `json:"sim_date"`
 }
 
 type ListSimPlayersOnWaiversRow struct {
@@ -1930,9 +1930,8 @@ type ListSimPlayersOnWaiversRow struct {
 // ListSimPlayersOnWaivers lists players visible to claim_player: dropped within
 // the last waiver_days, with no winning claim recorded yet. Returns the most
 // recent drop transaction's date so the caller can compute "clears on" UI.
-// $3 = waiver_days
 func (q *Queries) ListSimPlayersOnWaivers(ctx context.Context, arg ListSimPlayersOnWaiversParams) ([]ListSimPlayersOnWaiversRow, error) {
-	rows, err := q.db.Query(ctx, listSimPlayersOnWaivers, arg.PoolID, arg.Column2, arg.Column3)
+	rows, err := q.db.Query(ctx, listSimPlayersOnWaivers, arg.WaiverDays, arg.PoolID, arg.SimDate)
 	if err != nil {
 		return nil, err
 	}
@@ -2413,8 +2412,17 @@ SELECT pool_id, agent_id, priority
 FROM sim_waiver_priority
 WHERE pool_id = $1
 ORDER BY priority
+FOR UPDATE
 `
 
+// ListSimWaiverPriorityByPool locks the returned rows FOR UPDATE. Its only
+// caller (ProcessWaivers) reads the priority order and later writes a
+// restamped order back to the same rows within the same transaction — the
+// lock closes the read-outside/write-inside-tx gap that otherwise permits a
+// lost update if two waiver-resolution transactions for the same pool were
+// ever in flight concurrently (see PLAN.md > "Waivers"). Must be called from
+// inside a Transactor.InTx callback; taking a row lock outside a transaction
+// has no effect beyond the statement itself.
 func (q *Queries) ListSimWaiverPriorityByPool(ctx context.Context, poolID int32) ([]SimWaiverPriority, error) {
 	rows, err := q.db.Query(ctx, listSimWaiverPriorityByPool, poolID)
 	if err != nil {

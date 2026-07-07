@@ -19,22 +19,27 @@ const (
 	flagMCPServerStdio   = "stdio"
 )
 
+// mcpServerFlagGroups lists every flag group the mcp-server command
+// exposes. Defined once and shared by InitFlags and BindFlags so the two
+// can never drift.
+var mcpServerFlagGroups = []*config.FlagGroup{
+	&config.PostgresFlags,
+}
+
 func cmdMCPServer() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp-server",
 		Short: "Start the PuckDB MCP server",
 		Long:  "Serve curated NHL data tools via the Model Context Protocol (MCP)",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(),
-				&config.PostgresFlags,
-			)
+			return config.BindFlags(cmd.Flags(), mcpServerFlagGroups...)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runMCPServer(cmd)
 		},
 	}
 	flags := cmd.Flags()
-	config.InitFlags(flags, &config.PostgresFlags)
+	config.InitFlags(flags, mcpServerFlagGroups...)
 	config.InitLoggingFlags(flags, config.LogLevelInfo, config.DefaultLogFile)
 	flags.Int(flagMCPServerPort, defaultMCPServerPort, "MCP server HTTP port")
 	flags.Bool(flagMCPServerStdio, false, "Serve over stdio instead of HTTP")

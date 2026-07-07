@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/graph/generated"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/sqlcdb"
 )
@@ -31,7 +32,7 @@ func (r *mutationResolver) CancelSimPool(ctx context.Context, poolID int) (*mode
 	if err := r.TemporalClient.CancelWorkflow(ctx, wfID, ""); err != nil {
 		return nil, fmt.Errorf("cancel sim pool %d: %w", poolID, err)
 	}
-	return r.Resolver.loadSimPool(ctx, int32(poolID))
+	return r.Resolver.loadSimPoolScalar(ctx, int32(poolID))
 }
 
 // SimPool is the resolver for the simPool field.
@@ -40,7 +41,7 @@ func (r *mutationResolver) CancelSimPool(ctx context.Context, poolID int) (*mode
 // surfaces this as GraphQL `null`, the canonical "not found" output
 // for nullable singular queries).
 func (r *queryResolver) SimPool(ctx context.Context, id int) (*model.SimPool, error) {
-	pool, err := r.Resolver.loadSimPool(ctx, int32(id))
+	pool, err := r.Resolver.loadSimPoolScalar(ctx, int32(id))
 	if err != nil {
 		return nil, err
 	}
@@ -49,13 +50,14 @@ func (r *queryResolver) SimPool(ctx context.Context, id int) (*model.SimPool, er
 
 // SimPools is the resolver for the simPools field.
 //
-// Lists every sim pool. For each pool, loadSimPool runs the full
-// agents+roster+standings dance — at small dashboard scales (a few
-// pools each with ~5 agents) this is fine; for high-cardinality
-// listings we'd want a "pool scalars only" path that defers heavy
-// nested resolution to client-requested fields, but that needs the
-// `@goField(forceResolver: true)` schema annotation we're skipping
-// in V1.
+// Lists every sim pool with a single ListSimPools query, decoding each
+// row to its scalar columns only. The expensive nested fields —
+// agents, standings, currentDraftAction — are @goField(forceResolver)
+// on the SimPool type, so they are fetched per pool only when a client
+// actually selects them (see the SimPool field resolvers below). A
+// scalars-only simPools query therefore costs exactly one DB round
+// trip regardless of pool or agent count; unselected nested fields
+// cost nothing.
 func (r *queryResolver) SimPools(ctx context.Context) ([]*model.SimPool, error) {
 	pools, err := r.Resolver.Queries.ListSimPools(ctx)
 	if err != nil {
@@ -63,11 +65,7 @@ func (r *queryResolver) SimPools(ctx context.Context) ([]*model.SimPool, error) 
 	}
 	out := make([]*model.SimPool, 0, len(pools))
 	for _, p := range pools {
-		full, err := r.Resolver.loadSimPool(ctx, p.ID)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, full)
+		out = append(out, decodeSimPoolBase(p))
 	}
 	return out, nil
 }
@@ -137,3 +135,34 @@ func (r *queryResolver) SimStandingsHistory(ctx context.Context, poolID int) ([]
 func (r *queryResolver) SimPoolProgress(ctx context.Context, poolID int) (*model.ProgressReport, error) {
 	return r.Resolver.queryProgressReport(ctx, simPoolWorkflowIDForPool(int32(poolID)))
 }
+
+// Agents is the resolver for the agents field.
+//
+// Lazily assembles the pool's agents (each with roster +
+// totalRotoPoints) only when a client selects SimPool.agents — so the
+// simPools list query pays for this per-pool assembly only for the
+// pools whose agents are actually requested.
+func (r *simPoolResolver) Agents(ctx context.Context, obj *model.SimPool) ([]*model.SimAgent, error) {
+	return r.Resolver.loadSimPoolAgents(ctx, int32(obj.ID))
+}
+
+// Standings is the resolver for the standings field.
+//
+// Lazily reads the pool's latest standings snapshot only when a client
+// selects SimPool.standings.
+func (r *simPoolResolver) Standings(ctx context.Context, obj *model.SimPool) ([]*model.SimStandingEntry, error) {
+	return r.Resolver.loadSimPoolStandings(ctx, int32(obj.ID))
+}
+
+// CurrentDraftAction is the resolver for the currentDraftAction field.
+//
+// Lazily computes the pool's current draft action only when a client
+// selects SimPool.currentDraftAction.
+func (r *simPoolResolver) CurrentDraftAction(ctx context.Context, obj *model.SimPool) (*model.CurrentDraftAction, error) {
+	return r.Resolver.loadSimPoolCurrentDraftAction(ctx, int32(obj.ID))
+}
+
+// SimPool returns generated.SimPoolResolver implementation.
+func (r *Resolver) SimPool() generated.SimPoolResolver { return &simPoolResolver{r} }
+
+type simPoolResolver struct{ *Resolver }

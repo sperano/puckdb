@@ -43,11 +43,11 @@ func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error
 
 // SeasonGroupConfig configures how processSeasonGroup processes a group of seasons.
 type SeasonGroupConfig struct {
-	GroupIdx    int
-	Counter     shared.SeasonCounterFunc
+	GroupIdx      int
+	Counter       shared.SeasonCounterFunc
 	SourceKeyFunc shared.ProgressSourceKeyFunc
-	GroupLabel  string // verb phrase for completion message (e.g., "Iterated", "Extracted players for")
-	CountLabel  string // label for OriginCounts summary (e.g., "children count", "boxscore reads")
+	GroupLabel    string // verb phrase for completion message (e.g., "Iterated", "Extracted players for")
+	CountLabel    string // label for OriginCounts summary (e.g., "children count", "boxscore reads")
 }
 
 // processSeasonGroup runs concurrent work across seasons with progress tracking.
@@ -127,8 +127,8 @@ func iterateSeasons(ctx workflow.Context, input *model.SeasonsInput, progReport 
 	}
 
 	counts, err := processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
-		GroupIdx:    groupIdx,
-		Counter:     counter,
+		GroupIdx:      groupIdx,
+		Counter:       counter,
 		SourceKeyFunc: sourceKeyFunc,
 	}, func(ctx workflow.Context, i int) workflow.Future {
 		return starter(ctx, seasons[i])

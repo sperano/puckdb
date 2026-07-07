@@ -60,11 +60,11 @@ func ImportPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) e
 	}
 
 	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
-		GroupIdx:    GroupImportPlayerLogsData,
-		Counter:     playerCounter(playerCounts),
+		GroupIdx:      GroupImportPlayerLogsData,
+		Counter:       playerCounter(playerCounts),
 		SourceKeyFunc: WorkflowIDImportSeasonPlayerLogs,
-		GroupLabel:  "Imported player logs for",
-		CountLabel:  "cache reads",
+		GroupLabel:    "Imported player logs for",
+		CountLabel:    "cache reads",
 	}, func(ctx workflow.Context, i int) workflow.Future {
 		season := seasons[i]
 		return workflow.ExecuteChildWorkflow(

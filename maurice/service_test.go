@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,7 +18,12 @@ import (
 
 // --- Mock LLM Client ---
 
+// mockLLMClient is safe for concurrent Complete calls, which matters because
+// background title generation calls Complete from a detached goroutine while
+// the test reads the recorded state. responses/errors are set once at
+// construction and read without the lock.
 type mockLLMClient struct {
+	mu        sync.Mutex
 	responses []*llm.Response
 	errors    []error
 	calls     int
@@ -25,9 +31,11 @@ type mockLLMClient struct {
 }
 
 func (m *mockLLMClient) Complete(ctx context.Context, req *llm.Request) (*llm.Response, error) {
+	m.mu.Lock()
 	idx := m.calls
 	m.calls++
 	m.requests = append(m.requests, req)
+	m.mu.Unlock()
 	if idx < len(m.errors) && m.errors[idx] != nil {
 		return nil, m.errors[idx]
 	}
@@ -40,6 +48,7 @@ func (m *mockLLMClient) Complete(ctx context.Context, req *llm.Request) (*llm.Re
 // --- Mock DB ---
 
 type mockDB struct {
+	mu            sync.Mutex // guards all fields; background title generation writes concurrently
 	conversations map[string]*Conversation
 	messages      map[string][]*Message
 	nextID        int
@@ -61,12 +70,15 @@ func newMockDB() *mockDB {
 	}
 }
 
+// nextUUID must be called while holding m.mu.
 func (m *mockDB) nextUUID() string {
 	m.nextID++
 	return fmt.Sprintf("00000000-0000-0000-0000-%012d", m.nextID)
 }
 
 func (m *mockDB) CreateConversation(ctx context.Context) (*Conversation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
@@ -81,6 +93,8 @@ func (m *mockDB) CreateConversation(ctx context.Context) (*Conversation, error) 
 }
 
 func (m *mockDB) GetConversation(ctx context.Context, id string) (*Conversation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.getConversationErr != nil {
 		return nil, m.getConversationErr
 	}
@@ -92,6 +106,8 @@ func (m *mockDB) GetConversation(ctx context.Context, id string) (*Conversation,
 }
 
 func (m *mockDB) UpdateConversationTitle(ctx context.Context, id, title string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.updateTitleErr != nil {
 		return m.updateTitleErr
 	}
@@ -102,6 +118,8 @@ func (m *mockDB) UpdateConversationTitle(ctx context.Context, id, title string) 
 }
 
 func (m *mockDB) ListConversations(ctx context.Context, limit int) ([]*Conversation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.listConversationsErr != nil {
 		return nil, m.listConversationsErr
 	}
@@ -116,12 +134,16 @@ func (m *mockDB) ListConversations(ctx context.Context, limit int) ([]*Conversat
 }
 
 func (m *mockDB) DeleteConversation(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.conversations, id)
 	delete(m.messages, id)
 	return nil
 }
 
 func (m *mockDB) CreateMessage(ctx context.Context, p CreateMessageParams) (*Message, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.createMessageErr != nil {
 		return nil, m.createMessageErr
 	}
@@ -137,7 +159,35 @@ func (m *mockDB) CreateMessage(ctx context.Context, p CreateMessageParams) (*Mes
 	return msg, nil
 }
 
+// CreateMessages mimics the real backends' atomic contract: if createMessageErr
+// is armed the whole batch fails and nothing is appended; otherwise every
+// message is appended in order.
+func (m *mockDB) CreateMessages(ctx context.Context, params []CreateMessageParams) ([]*Message, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.createMessageErr != nil {
+		return nil, m.createMessageErr
+	}
+	created := make([]*Message, len(params))
+	for i, p := range params {
+		created[i] = &Message{
+			ID:         m.nextUUID(),
+			Role:       p.Role,
+			Content:    p.Content,
+			ToolCalls:  p.ToolCalls,
+			ToolCallID: p.ToolCallID,
+			CreatedAt:  time.Now(),
+		}
+	}
+	for i, p := range params {
+		m.messages[p.ConversationID] = append(m.messages[p.ConversationID], created[i])
+	}
+	return created, nil
+}
+
 func (m *mockDB) GetMessages(ctx context.Context, conversationID string) ([]*Message, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.getMessagesErr != nil {
 		return nil, m.getMessagesErr
 	}
@@ -195,11 +245,14 @@ func TestChat_SimpleQA(t *testing.T) {
 	resp, err := svc.Chat(context.Background(), nil, "Who has the most NHL goals?")
 
 	require.NoError(t, err)
+	// Await the detached title generation so recorded LLM state is stable.
+	require.NoError(t, svc.Close())
+
 	assert.Equal(t, "Wayne Gretzky holds the record with 894 goals.", resp.Content)
 	assert.NotEmpty(t, resp.ConversationID)
 	assert.Empty(t, resp.ToolsUsed)
-	// 1 main call + possibly 1 async title generation (instant mock races)
-	assert.GreaterOrEqual(t, llmMock.calls, 1)
+	// 1 main call + 1 title generation (awaited via Close).
+	assert.Equal(t, 2, llmMock.calls)
 
 	// Verify system prompt was included in the first (main) request
 	require.GreaterOrEqual(t, len(llmMock.requests), 1)
@@ -231,9 +284,13 @@ func TestChat_WithToolCalls(t *testing.T) {
 	resp, err := svc.Chat(context.Background(), nil, "Who has the most goals?")
 
 	require.NoError(t, err)
+	// Await the detached title generation so the call count is deterministic.
+	require.NoError(t, svc.Close())
+
 	assert.Equal(t, "Based on the data, Wayne Gretzky has the most goals.", resp.Content)
 	assert.Equal(t, []string{"pg_read_query"}, resp.ToolsUsed)
-	assert.Equal(t, 2, llmMock.calls)
+	// 2 tool-loop rounds + 1 background title generation.
+	assert.Equal(t, 3, llmMock.calls)
 }
 
 func TestChat_ExistingConversation(t *testing.T) {
@@ -394,7 +451,7 @@ func TestChat_StoreUserMessageError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Contains(t, err.Error(), "store user message")
+	assert.Contains(t, err.Error(), "persist turn")
 }
 
 func TestChat_LoadHistoryError(t *testing.T) {
@@ -429,6 +486,9 @@ func TestChat_ToolCacheListError_ContinuesWithoutTools(t *testing.T) {
 	resp, err := svc.Chat(context.Background(), nil, "hi")
 
 	require.NoError(t, err)
+	// Await the detached title generation so recorded requests are stable.
+	require.NoError(t, svc.Close())
+
 	assert.Equal(t, "answer", resp.Content)
 	// Tools must be nil on the request (omitted, not empty slice).
 	require.GreaterOrEqual(t, len(llmMock.requests), 1)
@@ -456,6 +516,9 @@ func TestChat_MaxToolRoundsExhausted_ForcesFinalCompletion(t *testing.T) {
 	resp, err := svc.Chat(context.Background(), nil, "hi")
 
 	require.NoError(t, err)
+	// Await the detached title generation so recorded requests are stable.
+	require.NoError(t, svc.Close())
+
 	assert.Equal(t, "Forced final answer.", resp.Content)
 	// maxRounds tool-call rounds + 1 forced final = 4 calls.
 	assert.GreaterOrEqual(t, llmMock.calls, maxRounds+1)
@@ -687,4 +750,136 @@ func TestTruncateLog(t *testing.T) {
 			assert.Equal(t, tc.want, truncateLog(tc.in, tc.max))
 		})
 	}
+}
+
+// --- B17: atomic turn persistence ---
+
+// A crash mid-turn (here, the LLM failing on the second round after a tool
+// call) must leave NO persisted messages for the turn — not the user message,
+// not the partial tool result — so loadHistory on resume is not poisoned.
+func TestChat_MidTurnFailure_PersistsNothing(t *testing.T) {
+	db := newMockDB()
+	conv, _ := db.CreateConversation(context.Background())
+
+	llmMock := &mockLLMClient{
+		responses: []*llm.Response{toolCallResponse("pg_read_query", "c1"), nil},
+		errors:    []error{nil, errors.New("model crash mid-turn")},
+	}
+	mcpMock := newMockMCP()
+
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
+	resp, err := svc.Chat(context.Background(), &conv.ID, "question")
+	require.NoError(t, svc.Close())
+
+	require.Error(t, err)
+	assert.Nil(t, resp)
+
+	msgs, err := db.GetMessages(context.Background(), conv.ID)
+	require.NoError(t, err)
+	assert.Empty(t, msgs, "mid-turn failure must not persist a partial turn")
+}
+
+// A successful tool-using turn persists the whole turn — user, assistant
+// tool_calls, tool result, final assistant — in order, in one post-loop batch.
+func TestChat_SuccessfulTurn_PersistsWholeTurnInOrder(t *testing.T) {
+	db := newMockDB()
+	conv, _ := db.CreateConversation(context.Background())
+
+	llmMock := &mockLLMClient{
+		responses: []*llm.Response{
+			toolCallResponse("pg_read_query", "c1"),
+			{Content: "final"},
+		},
+	}
+	mcpMock := newMockMCP()
+	mcpMock.callResults["pg_read_query"] = "rows"
+
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
+	_, err := svc.Chat(context.Background(), &conv.ID, "q")
+	require.NoError(t, err)
+	require.NoError(t, svc.Close())
+
+	msgs, err := db.GetMessages(context.Background(), conv.ID)
+	require.NoError(t, err)
+	require.Len(t, msgs, 4)
+	assert.Equal(t, "user", msgs[0].Role)
+	assert.Equal(t, "assistant", msgs[1].Role)
+	require.Len(t, msgs[1].ToolCalls, 1)
+	assert.Equal(t, "tool", msgs[2].Role)
+	assert.Equal(t, "c1", msgs[2].ToolCallID)
+	assert.Equal(t, "assistant", msgs[3].Role)
+	assert.Equal(t, "final", msgs[3].Content)
+}
+
+// --- T1-H: detached, bounded, awaited title generation ---
+
+// gatedLLM lets a test hold the title-generation Complete call until the test
+// releases it, and records the context error observed at that moment. Requests
+// with MaxTokens == titleGenMaxTokens are treated as the title call.
+type gatedLLM struct {
+	proceed     chan struct{}
+	observedErr chan error
+}
+
+const titleGenMaxTokens = 20
+
+func (g *gatedLLM) Complete(ctx context.Context, req *llm.Request) (*llm.Response, error) {
+	if req.MaxTokens != titleGenMaxTokens {
+		return &llm.Response{Content: "answer"}, nil
+	}
+	<-g.proceed
+	err := ctx.Err()
+	g.observedErr <- err
+	if err != nil {
+		return nil, err
+	}
+	return &llm.Response{Content: "My Title"}, nil
+}
+
+// Title generation must survive cancellation of the request context (it derives
+// from context.WithoutCancel), and Close must await it.
+func TestChat_TitleGeneration_DetachedFromRequestContext(t *testing.T) {
+	db := newMockDB()
+	g := &gatedLLM{proceed: make(chan struct{}), observedErr: make(chan error, 1)}
+	svc := NewService(g, newMockMCP(), db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	resp, err := svc.Chat(ctx, nil, "hi") // returns immediately; title goroutine now blocked on proceed
+	require.NoError(t, err)
+
+	// Cancel the request context, then let the title call observe its own
+	// context. WithoutCancel means the title context is still live.
+	cancel()
+	close(g.proceed)
+	gotErr := <-g.observedErr // read before Close so shutdown can't be the cause
+	assert.NoError(t, gotErr, "title context must survive request-context cancellation")
+
+	require.NoError(t, svc.Close()) // awaits the in-flight title goroutine
+
+	convDetail, err := db.GetConversation(context.Background(), resp.ConversationID)
+	require.NoError(t, err)
+	require.NotNil(t, convDetail.Title)
+	assert.Equal(t, "My Title", *convDetail.Title)
+}
+
+// Many concurrent Chats must not race or deadlock; title generation is bounded
+// and Close drains cleanly. Run with -race to exercise the concurrency.
+func TestChat_ConcurrentChats_BoundedAndClosable(t *testing.T) {
+	db := newMockDB()
+	svc := NewService(&mockLLMClient{}, newMockMCP(), db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
+
+	const n = 25
+	var wg sync.WaitGroup
+	for range n {
+		wg.Go(func() {
+			_, err := svc.Chat(context.Background(), nil, "q")
+			assert.NoError(t, err)
+		})
+	}
+	wg.Wait()
+	require.NoError(t, svc.Close())
+
+	convs, err := db.ListConversations(context.Background(), n*2)
+	require.NoError(t, err)
+	assert.Len(t, convs, n)
 }

@@ -65,7 +65,7 @@ WHERE (edge_team_stats.shot_attempts_over_90, edge_team_stats.shot_attempts_over
        EXCLUDED.nz_pctg, EXCLUDED.nz_rank,
        EXCLUDED.dz_pctg, EXCLUDED.dz_rank);
 
--- name: InsertEdgeTeamSogSummary :exec
+-- name: UpsertEdgeTeamSogSummary :exec
 INSERT INTO edge_team_sog_summary (
     team_id, season, game_type, location_code,
     shots, shots_rank, shots_league_avg,
@@ -84,7 +84,7 @@ ON CONFLICT (team_id, season, game_type, location_code) DO UPDATE SET
     shooting_pctg_rank = EXCLUDED.shooting_pctg_rank,
     shooting_pctg_league_avg = EXCLUDED.shooting_pctg_league_avg;
 
--- name: InsertEdgeTeamShotLocation :exec
+-- name: UpsertEdgeTeamShotLocation :exec
 INSERT INTO edge_team_shot_locations (
     team_id, season, game_type, area,
     shots, shots_rank
@@ -94,7 +94,7 @@ ON CONFLICT (team_id, season, game_type, area) DO UPDATE SET
     shots = EXCLUDED.shots,
     shots_rank = EXCLUDED.shots_rank;
 
--- name: InsertEdgeTeamZoneTimeByStrength :exec
+-- name: UpsertEdgeTeamZoneTimeByStrength :exec
 INSERT INTO edge_team_zone_time_by_strength (
     team_id, season, game_type, strength_code,
     oz_pctg, oz_rank, nz_pctg, nz_rank, dz_pctg, dz_rank

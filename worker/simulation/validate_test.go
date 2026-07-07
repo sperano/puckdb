@@ -119,7 +119,7 @@ func TestValidateAddPlayer_BenchFullIRVacant_RequiresDrop(t *testing.T) {
 	// would have returned false — but the bench is full, so an add needs a drop.
 	limits := defaultLimits() // BN cap = 6
 	placements := map[int64]RosterSlot{
-		1: SlotC,
+		1:  SlotC,
 		13: SlotBN, 14: SlotBN, 15: SlotBN, 16: SlotBN, 17: SlotBN, 18: SlotBN, // BN full
 		19: SlotIR, // IR has 2 vacancies
 	}
@@ -137,7 +137,7 @@ func TestValidateAddPlayer_BenchHasRoom_AcceptsNoDrop(t *testing.T) {
 	placements := map[int64]RosterSlot{
 		1: SlotC, 2: SlotC,
 		13: SlotBN, 14: SlotBN, 15: SlotBN, 16: SlotBN, 17: SlotBN, // BN at 5/6
-		19: SlotIR, 20: SlotIR, 21: SlotIR,                          // IR full
+		19: SlotIR, 20: SlotIR, 21: SlotIR, // IR full
 	}
 	roster := RosterState{Placements: placements, Limits: limits}
 	fa := PoolFreeAgentState{FreeAgents: map[int64]struct{}{99: {}}}
@@ -525,6 +525,150 @@ func TestValidateAndResolveLineup_CatalogErrorSurfaces(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "position lookup")
+}
+
+// ============================================================================
+// ValidateAndResolveLineup — batch displacement must not undo an earlier move
+// (Finding T1-F). pickDisplacement may only evict ORIGINAL occupants of the
+// target slot; a player placed there by an earlier move in the same batch is
+// protected, and if every occupant is batch-placed the move is rejected.
+// ============================================================================
+
+// lineupState is a thin RosterState constructor for the batch-displacement
+// table tests.
+func lineupState(placements map[int64]RosterSlot, limits map[RosterSlot]int) RosterState {
+	return RosterState{Placements: placements, Limits: limits}
+}
+
+// Two players routed into the same 3-cap D slot in one batch: the second
+// move fills D to capacity by displacing an ORIGINAL occupant, never the
+// player the first move just placed there.
+func TestValidateAndResolveLineup_BatchDoesNotDisplaceEarlierMove(t *testing.T) {
+	// D cap 3, originally holding {8, 9} (one free slot). BN has room.
+	roster := lineupState(
+		map[int64]RosterSlot{
+			8: SlotD, 9: SlotD,
+			3: SlotBN, 4: SlotBN,
+		},
+		defaultLimits(),
+	)
+	catalog := stubCatalog{
+		3: sqlcdb.PlayerPositionD, 4: sqlcdb.PlayerPositionD,
+		8: sqlcdb.PlayerPositionD, 9: sqlcdb.PlayerPositionD,
+	}
+
+	// move[0]: player 3 (BN) → D  (free capacity, no displacement)
+	// move[1]: player 4 (BN) → D  (D now full; must displace an ORIGINAL
+	//          occupant — 8 or 9 — NOT player 3 placed by move[0]).
+	resolved, err := ValidateAndResolveLineup(
+		SetLineupArgs{Moves: []LineupMoveArg{
+			{PlayerID: 3, Slot: SlotD},
+			{PlayerID: 4, Slot: SlotD},
+		}},
+		roster, catalog,
+	)
+	require.NoError(t, err)
+	require.Len(t, resolved, 2)
+
+	assert.Zero(t, resolved[0].DisplacedPlayerID, "move[0] had free capacity")
+	assert.Equal(t, int64(8), resolved[1].DisplacedPlayerID,
+		"move[1] must displace lowest-ID ORIGINAL occupant (8), never player 3 placed by move[0]")
+	assert.NotEqual(t, int64(3), resolved[1].DisplacedPlayerID,
+		"displacing the player an earlier move placed would silently undo that move")
+}
+
+// When every occupant of the target slot was placed by earlier moves in the
+// same batch, there is no original occupant to evict → reject rather than
+// silently unwind an earlier move.
+func TestValidateAndResolveLineup_BatchAllPlacedRejectsCapacity(t *testing.T) {
+	// Util cap 1, originally EMPTY. Two C-eligible players routed to Util
+	// in one batch. move[0] fills it; move[1] would have to displace the
+	// player move[0] just placed — rejected.
+	roster := lineupState(
+		map[int64]RosterSlot{1: SlotBN, 2: SlotBN},
+		defaultLimits(),
+	)
+	catalog := stubCatalog{1: sqlcdb.PlayerPositionC, 2: sqlcdb.PlayerPositionC}
+
+	_, err := ValidateAndResolveLineup(
+		SetLineupArgs{Moves: []LineupMoveArg{
+			{PlayerID: 1, Slot: SlotUtil},
+			{PlayerID: 2, Slot: SlotUtil},
+		}},
+		roster, catalog,
+	)
+	require.Error(t, err, "second move into a 1-cap slot filled by the first move must be rejected")
+	assert.ErrorIs(t, err, ErrSlotCapacityExceeded)
+}
+
+// Table-driven coverage across fromSlot origins for the "displace an original
+// occupant, protect batch-placed players" rule. Each case runs a two-move
+// batch where move[1] triggers displacement on a slot that move[0] touched.
+func TestValidateAndResolveLineup_BatchDisplacementByOrigin(t *testing.T) {
+	// D cap 3. Original D occupants 8, 9. The first move places a player
+	// into D from a variety of origins; the second move fills D and must
+	// displace an original occupant (8), preserving the first mover.
+	cases := []struct {
+		name         string
+		firstPlayer  int64
+		firstFrom    RosterSlot
+		firstFromPos sqlcdb.PlayerPosition
+	}{
+		{"first from BN", 3, SlotBN, sqlcdb.PlayerPositionD},
+		{"first from Util (slot->slot)", 3, SlotUtil, sqlcdb.PlayerPositionD},
+		{"first from IR", 3, SlotIR, sqlcdb.PlayerPositionD},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			placements := map[int64]RosterSlot{
+				8: SlotD, 9: SlotD, // original D occupants (cap 3 → one free)
+				tc.firstPlayer: tc.firstFrom,
+				4:              SlotBN, // second mover
+			}
+			roster := lineupState(placements, defaultLimits())
+			catalog := stubCatalog{
+				tc.firstPlayer: tc.firstFromPos,
+				4:              sqlcdb.PlayerPositionD,
+				8:              sqlcdb.PlayerPositionD,
+				9:              sqlcdb.PlayerPositionD,
+			}
+
+			resolved, err := ValidateAndResolveLineup(
+				SetLineupArgs{Moves: []LineupMoveArg{
+					{PlayerID: tc.firstPlayer, Slot: SlotD},
+					{PlayerID: 4, Slot: SlotD},
+				}},
+				roster, catalog,
+			)
+			require.NoError(t, err)
+			require.Len(t, resolved, 2)
+			assert.Zero(t, resolved[0].DisplacedPlayerID, "first move into D had free capacity")
+			assert.Equal(t, int64(8), resolved[1].DisplacedPlayerID,
+				"second move must displace lowest-ID original occupant, not the batch-placed first mover")
+		})
+	}
+}
+
+// The legit swap (PLAN.md pattern) still works after the fix: the displaced
+// player in move[0] is an ORIGINAL occupant, so it is a valid eviction target.
+func TestValidateAndResolveLineup_BatchSwapStillDisplacesOriginal(t *testing.T) {
+	roster := lineupState(
+		map[int64]RosterSlot{1: SlotC, 2: SlotUtil},
+		defaultLimits(),
+	)
+	catalog := stubCatalog{1: sqlcdb.PlayerPositionC, 2: sqlcdb.PlayerPositionC}
+
+	resolved, err := ValidateAndResolveLineup(
+		SetLineupArgs{Moves: []LineupMoveArg{
+			{PlayerID: 1, Slot: SlotUtil}, // displaces original occupant 2 → BN
+			{PlayerID: 2, Slot: SlotC},    // 2 (now BN) → C, C freed by move[0]
+		}},
+		roster, catalog,
+	)
+	require.NoError(t, err)
+	require.Len(t, resolved, 2)
+	assert.Equal(t, int64(2), resolved[0].DisplacedPlayerID,
+		"move[0] displaces the ORIGINAL Util occupant — that is allowed")
 }
 
 // Cross-validator check: errors.Is sees through fmt.Errorf wrapping

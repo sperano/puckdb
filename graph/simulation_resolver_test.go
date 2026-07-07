@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -20,7 +23,7 @@ import (
 // resolver_test.go) with the signal interface the simulation
 // mutations need. Each test that exercises a signal mutation calls
 // .On("SignalWorkflow", ...) to set an expectation.
-func (m *MockTemporalClient) SignalWorkflow(ctx context.Context, workflowID, runID, signalName string, arg interface{}) error {
+func (m *MockTemporalClient) SignalWorkflow(ctx context.Context, workflowID, runID, signalName string, arg any) error {
 	args := m.Called(ctx, workflowID, runID, signalName, arg)
 	return args.Error(0)
 }
@@ -74,7 +77,7 @@ func TestNumericFromFloat_RoundTrip(t *testing.T) {
 	for _, want := range cases {
 		n, err := numericFromFloat(want)
 		require.NoError(t, err)
-		got, err := numericToFloat(n)
+		got, err := simulation.NumericToFloat(n)
 		require.NoError(t, err)
 		assert.InDelta(t, want, got, 1e-6)
 	}
@@ -188,13 +191,11 @@ func TestGroupStandingsByDate(t *testing.T) {
 	assert.Len(t, out[1], 1, "day2 has one row")
 }
 
-func TestStringPtrIfNotEmpty(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, stringPtrIfNotEmpty(""))
-	got := stringPtrIfNotEmpty("hello")
-	require.NotNil(t, got)
-	assert.Equal(t, "hello", *got)
-}
+// ptrStringIfNotEmpty (used above via decodeSimTransactions/decodeLineupMoves)
+// is covered by TestPtrStringIfNotEmpty in convert_test.go — it used to have
+// a graph/simulation_helpers.go-local twin named stringPtrIfNotEmpty with an
+// identical body and identical test coverage; the twin was removed as part
+// of the T3-A dedup pass.
 
 func TestNullPositionString(t *testing.T) {
 	t.Parallel()
@@ -215,7 +216,6 @@ func TestNullPositionString(t *testing.T) {
 // post-signal pool reload is exercised end-to-end in the integration
 // test layer.
 // ============================================================================
-
 
 // numericFromFloatForTest constructs a pgtype.Numeric from a float64
 // for fixture rows. Six fractional digits matches the precision
@@ -252,6 +252,56 @@ func TestMapGetSimPoolErr_WrapsOtherErrors(t *testing.T) {
 	assert.False(t, errors.As(got, &nf), "non-no-rows errors must NOT be PoolNotFoundError")
 	assert.ErrorIs(t, got, boom, "underlying cause must remain unwrappable for log/diagnostic purposes")
 	assert.Contains(t, got.Error(), "get sim pool 7")
+}
+
+// ============================================================================
+// resolveLatestStandingsDate — B6: real DB errors must not be swallowed
+// ============================================================================
+
+func TestResolveLatestStandingsDate(t *testing.T) {
+	t.Parallel()
+	validDate := pgtype.Date{Time: time.Date(2024, 11, 15, 0, 0, 0, 0, time.UTC), Valid: true}
+
+	t.Run("no error passes the date through", func(t *testing.T) {
+		t.Parallel()
+		got, err := resolveLatestStandingsDate(validDate, nil)
+		require.NoError(t, err)
+		assert.Equal(t, validDate, got)
+	})
+
+	t.Run("nil-valid date (no standings yet) passes through without error", func(t *testing.T) {
+		t.Parallel()
+		got, err := resolveLatestStandingsDate(pgtype.Date{}, nil)
+		require.NoError(t, err)
+		assert.False(t, got.Valid)
+	})
+
+	t.Run("ErrNoRows is treated as empty standings, not an error", func(t *testing.T) {
+		t.Parallel()
+		got, err := resolveLatestStandingsDate(pgtype.Date{}, pgx.ErrNoRows)
+		require.NoError(t, err)
+		assert.False(t, got.Valid, "no-rows must surface as an invalid (empty) date")
+	})
+
+	t.Run("a real DB error is returned, not swallowed", func(t *testing.T) {
+		t.Parallel()
+		boom := errors.New("connection reset by peer")
+		got, err := resolveLatestStandingsDate(validDate, boom)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, boom, "underlying cause must remain unwrappable")
+		assert.False(t, got.Valid, "on error the returned date must be the empty zero value")
+	})
+}
+
+// TestCreateSimPoolImpl_RequiresDB pins B7's precondition: the transactional
+// insert path needs a pgx pool handle. Without one it must fail fast with
+// errDatabaseNotConfigured rather than nil-panic on r.DB.Begin. Full commit/
+// rollback ordering is covered in the DB-backed integration layer.
+func TestCreateSimPoolImpl_RequiresDB(t *testing.T) {
+	t.Parallel()
+	r := &Resolver{} // no DB, no Queries
+	_, err := r.createSimPoolImpl(context.Background(), model.CreateSimPoolInput{})
+	require.ErrorIs(t, err, errDatabaseNotConfigured)
 }
 
 // ============================================================================
@@ -394,4 +444,183 @@ func TestCurrentDraftAction_IgnoresAgentsWithNullPosition(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, 1, got.AgentID, "shuffled agent #1 is on the clock")
 	assert.Equal(t, 1, got.TotalPicks, "totalPicks counts only positioned agents")
+}
+
+// ============================================================================
+// SimPool forceResolver split — the simPools list query must issue exactly
+// one (scalars-only) query, with the expensive nested fields (agents /
+// standings / currentDraftAction) fetched lazily per pool only when selected.
+//
+// These tests drive the resolvers through a recording DBTX fake injected as
+// r.Queries, asserting on which sqlc queries actually reach the database.
+// ============================================================================
+
+// recordingDBTX is a sqlcdb.DBTX that records the name of every query it is
+// asked to run and returns synthetic empty results. ListSimPools optionally
+// yields simPoolRows rows so a scalars-only list query can be observed with
+// pools actually present (the regression the forceResolver split guards: the
+// list path must NOT fan out into per-pool nested queries).
+type recordingDBTX struct {
+	mu          sync.Mutex
+	names       []string
+	simPoolRows int
+}
+
+// queryName extracts the "ListSimPools" style identifier sqlc bakes into each
+// generated query constant as a leading "-- name: <Name> :<kind>" comment.
+func queryName(sql string) string {
+	const marker = "name: "
+	i := strings.Index(sql, marker)
+	if i < 0 {
+		return sql
+	}
+	rest := sql[i+len(marker):]
+	if j := strings.IndexAny(rest, " \t\r\n"); j >= 0 {
+		return rest[:j]
+	}
+	return rest
+}
+
+func (d *recordingDBTX) record(sql string) {
+	d.mu.Lock()
+	d.names = append(d.names, queryName(sql))
+	d.mu.Unlock()
+}
+
+// recorded returns a copy of the query-name log.
+func (d *recordingDBTX) recorded() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]string(nil), d.names...)
+}
+
+func (d *recordingDBTX) Exec(_ context.Context, sql string, _ ...interface{}) (pgconn.CommandTag, error) {
+	d.record(sql)
+	return pgconn.CommandTag{}, nil
+}
+
+func (d *recordingDBTX) Query(_ context.Context, sql string, _ ...interface{}) (pgx.Rows, error) {
+	d.record(sql)
+	rows := 0
+	if queryName(sql) == "ListSimPools" {
+		rows = d.simPoolRows
+	}
+	return &fakeRows{remaining: rows}, nil
+}
+
+func (d *recordingDBTX) QueryRow(_ context.Context, sql string, _ ...interface{}) pgx.Row {
+	d.record(sql)
+	return fakeRow{}
+}
+
+func (d *recordingDBTX) CopyFrom(_ context.Context, _ pgx.Identifier, _ []string, _ pgx.CopyFromSource) (int64, error) {
+	return 0, nil
+}
+
+func (d *recordingDBTX) SendBatch(_ context.Context, _ *pgx.Batch) pgx.BatchResults {
+	return nil
+}
+
+// fakeRows is a minimal pgx.Rows that yields `remaining` synthetic rows.
+// Scan leaves every dest untouched, so :many queries decode to zero-value
+// structs — enough to exercise query routing without a real database.
+type fakeRows struct{ remaining int }
+
+func (r *fakeRows) Next() bool {
+	if r.remaining > 0 {
+		r.remaining--
+		return true
+	}
+	return false
+}
+func (r *fakeRows) Scan(_ ...any) error                          { return nil }
+func (r *fakeRows) Close()                                       {}
+func (r *fakeRows) Err() error                                   { return nil }
+func (r *fakeRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
+func (r *fakeRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (r *fakeRows) Values() ([]any, error)                       { return nil, nil }
+func (r *fakeRows) RawValues() [][]byte                          { return nil }
+func (r *fakeRows) Conn() *pgx.Conn                              { return nil }
+
+// fakeRow is a minimal pgx.Row whose Scan leaves dest untouched — a :one
+// query decodes to a zero-value result with no error.
+type fakeRow struct{}
+
+func (fakeRow) Scan(_ ...any) error { return nil }
+
+// resolverWithDB builds a graph Resolver whose Queries handle runs against the
+// given recording DBTX.
+func resolverWithDB(db *recordingDBTX) *Resolver {
+	return &Resolver{Queries: sqlcdb.New(db)}
+}
+
+// TestSimPools_ScalarsOnlyIssuesSingleQuery is the core regression guard: the
+// simPools list resolver must issue exactly one ListSimPools query and never
+// fan out into per-pool nested reads, even when pools are present.
+func TestSimPools_ScalarsOnlyIssuesSingleQuery(t *testing.T) {
+	t.Parallel()
+	db := &recordingDBTX{simPoolRows: 3}
+	r := resolverWithDB(db)
+
+	pools, err := r.Query().SimPools(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, pools, 3, "three scalar pools decoded from the single list query")
+
+	assert.Equal(t, []string{"ListSimPools"}, db.recorded(),
+		"scalars-only simPools must issue exactly one query and no per-pool nested reads")
+}
+
+// TestSimPoolAgents_LazyPerPoolQueries pins that the SimPool.agents field
+// resolver fetches its data lazily and pool-scoped: one agents read, the
+// shared latest-standings probe, and one pool-wide roster read. Crucially it
+// must NOT touch ListSimPools (that belongs to the list path).
+func TestSimPoolAgents_LazyPerPoolQueries(t *testing.T) {
+	t.Parallel()
+	db := &recordingDBTX{}
+	r := resolverWithDB(db)
+
+	agents, err := r.SimPool().Agents(context.Background(), &model.SimPool{ID: 7})
+	require.NoError(t, err)
+	assert.Empty(t, agents)
+
+	got := db.recorded()
+	assert.ElementsMatch(t,
+		[]string{"ListSimAgentsByPool", "GetSimStandingsLatestDate", "ListSimRosterByPool"},
+		got,
+		"agents field resolver issues only pool-scoped queries")
+	assert.NotContains(t, got, "ListSimPools")
+}
+
+// TestSimPoolStandings_LazyLatestSnapshot pins that the SimPool.standings
+// field resolver reads only the latest-standings probe when the pool has no
+// standings yet (invalid latest date short-circuits before ListSimStandingsByDate).
+func TestSimPoolStandings_LazyLatestSnapshot(t *testing.T) {
+	t.Parallel()
+	db := &recordingDBTX{}
+	r := resolverWithDB(db)
+
+	standings, err := r.SimPool().Standings(context.Background(), &model.SimPool{ID: 7})
+	require.NoError(t, err)
+	assert.Empty(t, standings)
+
+	assert.Equal(t, []string{"GetSimStandingsLatestDate"}, db.recorded(),
+		"no standings yet → only the latest-date probe, no snapshot fetch")
+}
+
+// TestSimPoolCurrentDraftAction_LazyPerPoolQueries pins that the
+// SimPool.currentDraftAction field resolver reads the pool row, its agents,
+// and the draft-pick count — and returns nil for a non-draft pool.
+func TestSimPoolCurrentDraftAction_LazyPerPoolQueries(t *testing.T) {
+	t.Parallel()
+	db := &recordingDBTX{}
+	r := resolverWithDB(db)
+
+	action, err := r.SimPool().CurrentDraftAction(context.Background(), &model.SimPool{ID: 7})
+	require.NoError(t, err)
+	assert.Nil(t, action, "zero-status pool is not drafting → nil action")
+
+	assert.ElementsMatch(t,
+		[]string{"GetSimPool", "ListSimAgentsByPool", "CountSimDraftPicks"},
+		db.recorded(),
+		"currentDraftAction issues only pool-scoped queries")
 }

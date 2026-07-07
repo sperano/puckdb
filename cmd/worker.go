@@ -1,8 +1,10 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,32 +32,45 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
+// Worker queue type values accepted by the --worker-queue flag (config.FlagWorkerQueue).
+// These select which Temporal task queue (temporal.QueueTasks / temporal.QueueAdmin)
+// the worker polls, and are distinct from those queue name constants.
+const (
+	workerQueueTypeTasks = "tasks"
+	workerQueueTypeAdmin = "admin"
+)
+
+// workerFlagGroups lists every flag group the worker command exposes.
+// Defined once and shared by InitFlags (registration) and BindFlags
+// (viper binding in PreRunE) so the two can never drift out of sync.
+var workerFlagGroups = []*config.FlagGroup{
+	&config.YahooOAuth2Flags,
+	&config.YahooSeasonsFlags,
+	&config.DataPathFlags,
+	&config.RedisFlags,
+	&config.PostgresFlags,
+	&config.TemporalFlags,
+	&config.TemporalRetryFlags,
+	&config.WorkerPortFlags,
+	&config.DownloadConcurrencyFlags,
+	&config.YahooPlayerFlags,
+	&config.GobCacheFlags,
+	&config.YahooDownloadSleepFlags,
+	&config.WorkerConcurrencyFlags,
+	&config.PlayerLandingFlags,
+	&config.ProcessPlayersFlags,
+	&config.PlayerLogsFlags,
+	&config.AssetFlags,
+	&config.MauriceFlags,
+}
+
 func cmdWorker() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "worker",
 		Short: "Start Temporal worker",
 		Long:  `Start the Temporal worker to process import workflows`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(),
-				&config.YahooOAuth2Flags,
-				&config.YahooSeasonsFlags,
-				&config.DataPathFlags,
-				&config.RedisFlags,
-				&config.PostgresFlags,
-				&config.TemporalFlags,
-				&config.TemporalRetryFlags,
-				&config.WorkerPortFlags,
-				&config.DownloadConcurrencyFlags,
-				&config.YahooPlayerFlags,
-				&config.GobCacheFlags,
-				&config.YahooDownloadSleepFlags,
-				&config.WorkerConcurrencyFlags,
-				&config.PlayerLandingFlags,
-				&config.ProcessPlayersFlags,
-				&config.PlayerLogsFlags,
-				&config.AssetFlags,
-				&config.MauriceFlags,
-			)
+			return config.BindFlags(cmd.Flags(), workerFlagGroups...)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.LogFlagValues()
@@ -65,12 +80,12 @@ func cmdWorker() *cobra.Command {
 			// Determine which queue to poll
 			var queueName string
 			switch queueType {
-			case "tasks": // TODO constant for this string
+			case workerQueueTypeTasks:
 				queueName = temporal.QueueTasks
-			case "admin": // TODO constant for this string
+			case workerQueueTypeAdmin:
 				queueName = temporal.QueueAdmin
 			default:
-				return fmt.Errorf("invalid queue type %q: must be 'tasks' or 'admin'", queueType)
+				return fmt.Errorf("invalid queue type %q: must be %q or %q", queueType, workerQueueTypeTasks, workerQueueTypeAdmin)
 			}
 
 			// errCh receives the first fatal error from any goroutine (metrics
@@ -85,25 +100,36 @@ func cmdWorker() *cobra.Command {
 				errChCapTasks = 3 // metrics + main worker + asset worker
 			)
 			errChCap := errChCapAdmin
-			if queueType == "tasks" { // TODO use the constant
+			if queueType == workerQueueTypeTasks {
 				errChCap = errChCapTasks
 			}
 			errCh := make(chan error, errChCap)
 
+			// Wire SIGINT/SIGTERM into a context so the non-Temporal resources
+			// (metrics HTTP server, database pool construction) observe
+			// shutdown. main() calls Execute() (not ExecuteContext), so
+			// cmd.Context() is a plain background context with no signal wiring;
+			// signal.NotifyContext adds it here. The Temporal workers drain via
+			// their own worker.InterruptCh() below, which fires on the same
+			// signals, so both shutdown paths agree.
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
 			// Start metrics HTTP server (health check verifies JuiceFS mount).
-			// cmd.Context() carries the cobra-wired SIGINT/SIGTERM signal so the
-			// server drains in-flight requests on shutdown instead of being
-			// hard-killed.
+			// ctx carries SIGINT/SIGTERM (wired above) so the server drains
+			// in-flight requests on shutdown instead of being hard-killed.
 			metricsAddr := fmt.Sprintf(":%d", viper.GetInt(config.FlagWorkerPort))
 			dataPath := viper.GetString(config.FlagDataPath)
 			go func() {
-				if err := metrics.StartWorkerServer(cmd.Context(), metricsAddr, dataPath); err != nil {
+				if err := metrics.StartWorkerServer(ctx, metricsAddr, dataPath); err != nil {
 					errCh <- fmt.Errorf("metrics server: %w", err)
 				}
 			}()
 
-			// Open shared database pool for activities
-			ctx := context.Background()
+			// Open shared database pool for activities. ctx is used only for
+			// pool construction (pgx does not retain it for the pool lifetime),
+			// so signal cancellation here never aborts in-flight activity
+			// queries, which carry their own Temporal activity contexts.
 			pool, err := database.OpenPGXPool(ctx)
 			if err != nil {
 				return fmt.Errorf("open database pool: %w", err)
@@ -132,7 +158,7 @@ func cmdWorker() *cobra.Command {
 			})
 
 			// Register workflows and activities based on queue type
-			if queueType == "admin" { // TODO use constant
+			if queueType == workerQueueTypeAdmin {
 				// Admin queue: lightweight admin operations only
 				w.RegisterWorkflow(admin.DropDatabaseWorkflow)
 				w.RegisterWorkflow(admin.MigrateDatabaseWorkflow)
@@ -173,26 +199,7 @@ func cmdWorker() *cobra.Command {
 		},
 	}
 	flags := cmd.Flags()
-	config.InitFlags(flags,
-		&config.YahooOAuth2Flags,
-		&config.YahooSeasonsFlags,
-		&config.DataPathFlags,
-		&config.RedisFlags,
-		&config.PostgresFlags,
-		&config.TemporalFlags,
-		&config.TemporalRetryFlags,
-		&config.WorkerPortFlags,
-		&config.DownloadConcurrencyFlags,
-		&config.YahooPlayerFlags,
-		&config.GobCacheFlags,
-		&config.YahooDownloadSleepFlags,
-		&config.WorkerConcurrencyFlags,
-		&config.PlayerLandingFlags,
-		&config.ProcessPlayersFlags,
-		&config.PlayerLogsFlags,
-		&config.AssetFlags,
-		&config.MauriceFlags,
-	)
+	config.InitFlags(flags, workerFlagGroups...)
 	return cmd
 }
 
@@ -226,20 +233,52 @@ func registerTasksWorkflows(w worker.Worker) {
 	w.RegisterWorkflow(simulation.SimPoolWorkflow)
 }
 
+// taskActivityDeps holds the dependencies shared by every per-domain
+// activity registration helper below. Building it once in
+// registerTasksActivities and threading it through avoids repeating the
+// same five-argument signature on each helper.
+type taskActivityDeps struct {
+	storage         store.Storage
+	queries         *sqlcdb.Queries
+	nhlClient       shared.NHLClient
+	gobCache        *cache.GobCache
+	redisClient     *redis.Client
+	yahooDownloader shared.Downloader
+}
+
 // registerTasksActivities registers all activities for the tasks queue.
 // tclient is needed by simulation.Activities to signal the parent
 // SimPoolWorkflow when the LLM cost cap trips.
 func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *redis.Client, tclient client.Client) error {
-	storage := store.NewDefaultStorage()
-	queries := sqlcdb.New(pool)
-	nhlClient := shared.NewNHLClient()
 	gobCache, err := newGobCache(redisClient)
 	if err != nil {
 		return err
 	}
 
-	// Simulation activities — see worker/simulation. AgentFactory is nil
-	// so each activity falls back to defaultAgentFactory (NewAgent).
+	d := taskActivityDeps{
+		storage:         store.NewDefaultStorage(),
+		queries:         sqlcdb.New(pool),
+		nhlClient:       shared.NewNHLClient(),
+		gobCache:        gobCache,
+		redisClient:     redisClient,
+		yahooDownloader: shared.NewYahooDownloader(redisClient),
+	}
+
+	registerSimulationActivities(w, pool, d.queries, tclient)
+	registerProgressActivities(w, redisClient)
+	registerYahooFetchActivities(w, d)
+
+	importYahooActivities := registerYahooImportActivities(w, d)
+	registerNHLActivities(w, d, importYahooActivities)
+	registerPlayerActivities(w, d)
+
+	return nil
+}
+
+// registerSimulationActivities registers the simulation pool activities.
+// See worker/simulation. AgentFactory is nil so each activity falls back
+// to defaultAgentFactory (NewAgent).
+func registerSimulationActivities(w worker.Worker, pool *pgxpool.Pool, queries *sqlcdb.Queries, tclient client.Client) {
 	simActs := &simulation.Activities{
 		Queries:  queries,
 		Tx:       simulation.NewPgxTransactor(pool),
@@ -263,44 +302,62 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	w.RegisterActivity(simActs.RecordDraftOrder)
 	w.RegisterActivity(simActs.PickTeamName)
 	w.RegisterActivity(simActs.RecordDayDuration)
+}
 
-	yahooDownloader := shared.NewYahooDownloader(redisClient)
-
-	registerProgressActivities(w, redisClient)
-
-	// Yahoo fetch activities
+// registerYahooFetchActivities registers the Yahoo Fantasy API download activities.
+func registerYahooFetchActivities(w worker.Worker, d taskActivityDeps) {
 	fetchYahooActivities := &yahoo.FetchActivities{
-		Storage:          storage,
-		Download:         yahooDownloader,
-		GobCache:         gobCache,
+		Storage:          d.storage,
+		Download:         d.yahooDownloader,
+		GobCache:         d.gobCache,
 		PublicDownloader: yahoo.HTTPDownloaderFunc(httpx.DownloadPublic),
 	}
 	w.RegisterActivity(fetchYahooActivities.FetchLeague)
 	w.RegisterActivity(fetchYahooActivities.FetchTeams)
 	w.RegisterActivity(fetchYahooActivities.FetchYahooPlayerBatch)
 	w.RegisterActivity(fetchYahooActivities.FetchYahooLeagueData)
+}
 
-	// Franchise activities
+// registerYahooImportActivities registers the Yahoo cached-file-to-Postgres
+// import activities. Returns the activities struct since worknhl.ImportActivities
+// embeds it as its Yahoo field.
+func registerYahooImportActivities(w worker.Worker, d taskActivityDeps) *yahoo.ImportActivities {
+	importYahooActivities := &yahoo.ImportActivities{
+		Storage:  d.storage,
+		GobCache: d.gobCache,
+		Queries:  d.queries,
+	}
+	w.RegisterActivity(importYahooActivities.ImportYahooLeague)
+	w.RegisterActivity(importYahooActivities.ImportYahooTeams)
+	w.RegisterActivity(importYahooActivities.ImportYahooDataForDate)
+	w.RegisterActivity(importYahooActivities.ImportYahooLeagueData)
+	return importYahooActivities
+}
+
+// registerNHLActivities registers all NHL-domain activities: franchises,
+// seasons/Edge tracking, cached-file import, daily schedule, playoffs, and
+// boxscore extraction. importYahooActivities is threaded in because
+// worknhl.ImportActivities delegates Yahoo-specific import steps to it.
+func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActivities *yahoo.ImportActivities) {
 	franchiseActivities := &worknhl.FranchiseActivities{
-		Storage:   storage,
-		GobCache:  gobCache,
-		Upserter:  queries,
-		NHLClient: nhlClient,
+		Storage:   d.storage,
+		GobCache:  d.gobCache,
+		Upserter:  d.queries,
+		NHLClient: d.nhlClient,
 	}
 	w.RegisterActivity(franchiseActivities.FetchFranchises)
 	w.RegisterActivity(franchiseActivities.UpsertFranchises)
 
-	// Seasons activities
 	seasonsActivities := &worknhl.SeasonsActivities{
-		Storage:             storage,
-		GobCache:            gobCache,
-		NHLClient:           nhlClient,
-		SeasonsUpserter:     queries,
-		SeasonTeamsUpserter: queries,
-		RosterQueries:       queries,
-		ClubStatsQueries:    queries,
-		EdgeQueries:         queries,
-		RedisClient:         redisClient,
+		Storage:             d.storage,
+		GobCache:            d.gobCache,
+		NHLClient:           d.nhlClient,
+		SeasonsUpserter:     d.queries,
+		SeasonTeamsUpserter: d.queries,
+		RosterQueries:       d.queries,
+		ClubStatsQueries:    d.queries,
+		EdgeQueries:         d.queries,
+		RedisClient:         d.redisClient,
 	}
 	w.RegisterActivity(seasonsActivities.FetchSeasonsManifest)
 	w.RegisterActivity(seasonsActivities.UpsertSeasons)
@@ -322,22 +379,10 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	w.RegisterActivity(seasonsActivities.ImportEdgeTeamSkaters)
 	w.RegisterActivity(seasonsActivities.ImportEdgeTeamGoalies)
 
-	// Yahoo import activities
-	importYahooActivities := &yahoo.ImportActivities{
-		Storage:  storage,
-		GobCache: gobCache,
-		Queries:  queries,
-	}
-	w.RegisterActivity(importYahooActivities.ImportYahooLeague)
-	w.RegisterActivity(importYahooActivities.ImportYahooTeams)
-	w.RegisterActivity(importYahooActivities.ImportYahooDataForDate)
-	w.RegisterActivity(importYahooActivities.ImportYahooLeagueData)
-
-	// Import activities
 	importActivities := &worknhl.ImportActivities{
-		Storage:  storage,
-		GobCache: gobCache,
-		Queries:  queries,
+		Storage:  d.storage,
+		GobCache: d.gobCache,
+		Queries:  d.queries,
 		Yahoo:    importYahooActivities,
 	}
 	w.RegisterActivity(importActivities.ImportDay)
@@ -349,46 +394,47 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	w.RegisterActivity(importActivities.ImportPlayerGameLogsBatch)
 	w.RegisterActivity(importActivities.CollectSeasonPlayerIDs)
 
-	// Daily schedule activities
 	dailyScheduleActivities := &worknhl.DailyScheduleActivities{
-		Storage:     storage,
-		NHLClient:   nhlClient,
-		GobCache:    gobCache,
-		RedisClient: redisClient,
-		Download:    yahooDownloader,
+		Storage:     d.storage,
+		NHLClient:   d.nhlClient,
+		GobCache:    d.gobCache,
+		RedisClient: d.redisClient,
+		Download:    d.yahooDownloader,
 	}
 	w.RegisterActivity(dailyScheduleActivities.FetchDailySchedule)
 	w.RegisterActivity(dailyScheduleActivities.FetchDay)
 
-	// Playoff activities
 	playoffActivities := &worknhl.PlayoffActivities{
-		Storage:   storage,
-		GobCache:  gobCache,
-		NHLClient: nhlClient,
-		Teams:     queries,
-		Queries:   queries,
+		Storage:   d.storage,
+		GobCache:  d.gobCache,
+		NHLClient: d.nhlClient,
+		Teams:     d.queries,
+		Queries:   d.queries,
 	}
 	w.RegisterActivity(playoffActivities.FetchPlayoffGames)
 	w.RegisterActivity(playoffActivities.ImportPlayoffGames)
 
-	// Boxscore extraction activities
 	boxscoreActivities := &worknhl.BoxscoreActivities{
-		Storage:     storage,
-		GobCache:    gobCache,
-		RedisClient: redisClient,
+		Storage:     d.storage,
+		GobCache:    d.gobCache,
+		RedisClient: d.redisClient,
 	}
 	w.RegisterActivity(boxscoreActivities.ExtractBoxscoreDataForSeason)
 	w.RegisterActivity(boxscoreActivities.ExtractAndSaveBoxscorePlayers)
 	w.RegisterActivity(workplayer.ConsolidateBoxscorePlayersActivity)
+}
 
-	// Player activities
+// registerPlayerActivities registers player-domain activities: landing page
+// fetch, game log download/import, boxscore-player consolidation, and
+// Yahoo/NHL player matching.
+func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 	playerActivities := &workplayer.Activities{
-		Storage:       storage,
-		NHLClient:     nhlClient,
-		RedisClient:   redisClient,
-		GobCache:      gobCache,
-		Queries:       queries,
-		CareerQueries: queries,
+		Storage:       d.storage,
+		NHLClient:     d.nhlClient,
+		RedisClient:   d.redisClient,
+		GobCache:      d.gobCache,
+		Queries:       d.queries,
+		CareerQueries: d.queries,
 	}
 	w.RegisterActivity(playerActivities.FetchPlayerLandingsBatch)
 	w.RegisterActivity(playerActivities.DownloadPlayerGameLogsBatch)
@@ -402,8 +448,6 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	w.RegisterActivity(playerActivities.LoadUnmatchedYahooPlayers)
 	w.RegisterActivity(playerActivities.VerifyUnmatchedBatch)
 	w.RegisterActivity(playerActivities.CleanupYahooIDPoolData)
-
-	return nil
 }
 
 // registerAssetWorkflows registers all asset download workflows on the given

@@ -2,7 +2,6 @@ package simulation
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"github.com/sperano/puckdb/metrics"
@@ -45,7 +44,6 @@ func (a *Activities) RecordDayDuration(ctx context.Context, in RecordDayDuration
 		"pool_id", in.PoolID,
 		"duration_seconds", in.DurationSeconds,
 	)
-	metrics.ObserveSimDayDuration(strconv.FormatInt(int64(in.PoolID), 10),
-		time.Duration(in.DurationSeconds*float64(time.Second)))
+	metrics.ObserveSimDayDuration(time.Duration(in.DurationSeconds * float64(time.Second)))
 	return nil
 }

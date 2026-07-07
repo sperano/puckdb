@@ -3,6 +3,7 @@ package simulation
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -615,7 +616,7 @@ func (s *ManageRosterTestSuite) TestCost_AccumulatesAcrossRounds() {
 	require.NoError(t, future.Get(&got))
 
 	require.Len(t, s.queries.incrementCostCalls, 1)
-	costFloat, err := numericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
+	costFloat, err := NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
 	require.NoError(t, err)
 	// 3 rounds with non-zero usage (two tool rounds + one final).
 	// Pin only that the sum is strictly greater than a single round's
@@ -654,7 +655,7 @@ func (s *ManageRosterTestSuite) TestRoundLimit_CapsLLMCalls() {
 	// Script MaxDailyToolRounds + 1 tool-call responses; loop should
 	// terminate after MaxDailyToolRounds and not consume the extra.
 	resps := make([]*llm.Response, 0, MaxDailyToolRounds+1)
-	for i := 0; i < MaxDailyToolRounds+1; i++ {
+	for i := range MaxDailyToolRounds + 1 {
 		resps = append(resps, dailyToolResponse(ToolUpdateNotes,
 			fmt.Sprintf(`{"notes":"round %d"}`, i), ""))
 	}
@@ -675,9 +676,7 @@ func (s *ManageRosterTestSuite) TestWorkingState_DoesNotMutateInput() {
 	t := s.T()
 	in := s.validInput()
 	originalPlacements := map[int64]RosterSlot{}
-	for k, v := range in.Roster.Placements {
-		originalPlacements[k] = v
-	}
+	maps.Copy(originalPlacements, in.Roster.Placements)
 	originalFA := append([]int64(nil), in.FreeAgents...)
 
 	s.llm.responses = []*llm.Response{
@@ -760,6 +759,28 @@ func (s *ManageRosterTestSuite) TestPreflightOrder_IdempotencyBeforeCostCap() {
 	require.NoError(t, err)
 	assert.Empty(t, s.queries.getPoolArgs,
 		"idempotency hit must short-circuit before the cost-cap probe runs")
+}
+
+// ----------------------------------------------------------------------------
+// T1-C — record_full_messages must be read BEFORE the LLM runs. A flake
+// in that read must abort before any billing, not after a completed turn
+// (which would discard a paid-for turn and re-bill on Temporal retry).
+// ----------------------------------------------------------------------------
+
+func (s *ManageRosterTestSuite) TestRecordFullMessages_ReadBeforeLLM() {
+	t := s.T()
+	s.queries.getRecordFullMessagesErr = errors.New("connection lost")
+	s.llm.responses = []*llm.Response{
+		dailyToolResponse(ToolDropPlayer, `{"player_id":8478402}`, ""),
+		finalTextResponse("..."),
+	}
+
+	_, err := s.env.ExecuteActivity(s.acts.ManageRoster, s.validInput())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "record_full_messages")
+	assert.Zero(t, s.llm.calls.Load(),
+		"record_full_messages must be read before the LLM runs so a flaky read can't discard a paid-for turn")
+	assert.Zero(t, s.tx.inTxCalled, "no commit tx when the pre-LLM flag read fails")
 }
 
 // ----------------------------------------------------------------------------

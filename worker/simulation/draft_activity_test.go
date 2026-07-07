@@ -366,7 +366,7 @@ func (s *DraftPickTestSuite) TestHappyPath_WritesRosterAndTransaction() {
 
 	// Cost increment fired with a non-zero amount.
 	require.Len(t, s.queries.incrementCostCalls, 1)
-	costFloat, err := numericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
+	costFloat, err := NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
 	require.NoError(t, err)
 	assert.InDelta(t, got.CostUsd, costFloat, 1e-9)
 }

@@ -3,6 +3,7 @@ package nhl
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
@@ -24,19 +25,19 @@ type ImportEdgeTeamInput struct {
 type EdgeStatsUpserter interface {
 	// Skater (upsert via ON CONFLICT to handle parallel activities for traded players)
 	UpsertEdgeSkaterStats(ctx context.Context, arg sqlcdb.UpsertEdgeSkaterStatsParams) error
-	InsertEdgeSkaterShotLocation(ctx context.Context, arg sqlcdb.InsertEdgeSkaterShotLocationParams) error
-	InsertEdgeSkaterSogSummary(ctx context.Context, arg sqlcdb.InsertEdgeSkaterSogSummaryParams) error
+	UpsertEdgeSkaterShotLocation(ctx context.Context, arg sqlcdb.UpsertEdgeSkaterShotLocationParams) error
+	UpsertEdgeSkaterSogSummary(ctx context.Context, arg sqlcdb.UpsertEdgeSkaterSogSummaryParams) error
 
 	// Goalie (upsert via ON CONFLICT to handle parallel activities for traded goalies)
 	UpsertEdgeGoalieStats(ctx context.Context, arg sqlcdb.UpsertEdgeGoalieStatsParams) error
-	InsertEdgeGoalieShotLocationSummary(ctx context.Context, arg sqlcdb.InsertEdgeGoalieShotLocationSummaryParams) error
-	InsertEdgeGoalieShotLocation(ctx context.Context, arg sqlcdb.InsertEdgeGoalieShotLocationParams) error
+	UpsertEdgeGoalieShotLocationSummary(ctx context.Context, arg sqlcdb.UpsertEdgeGoalieShotLocationSummaryParams) error
+	UpsertEdgeGoalieShotLocation(ctx context.Context, arg sqlcdb.UpsertEdgeGoalieShotLocationParams) error
 
 	// Team (all upserts for consistency)
 	UpsertEdgeTeamStats(ctx context.Context, arg sqlcdb.UpsertEdgeTeamStatsParams) error
-	InsertEdgeTeamSogSummary(ctx context.Context, arg sqlcdb.InsertEdgeTeamSogSummaryParams) error
-	InsertEdgeTeamShotLocation(ctx context.Context, arg sqlcdb.InsertEdgeTeamShotLocationParams) error
-	InsertEdgeTeamZoneTimeByStrength(ctx context.Context, arg sqlcdb.InsertEdgeTeamZoneTimeByStrengthParams) error
+	UpsertEdgeTeamSogSummary(ctx context.Context, arg sqlcdb.UpsertEdgeTeamSogSummaryParams) error
+	UpsertEdgeTeamShotLocation(ctx context.Context, arg sqlcdb.UpsertEdgeTeamShotLocationParams) error
+	UpsertEdgeTeamZoneTimeByStrength(ctx context.Context, arg sqlcdb.UpsertEdgeTeamZoneTimeByStrengthParams) error
 	UpsertEdgeTeamShotDifferential(ctx context.Context, arg sqlcdb.UpsertEdgeTeamShotDifferentialParams) error
 
 	// Shared
@@ -66,7 +67,7 @@ func (a *SeasonsActivities) importEdgeSkaters(ctx context.Context, queries EdgeS
 			continue
 		}
 
-		skaters := append(roster.Forwards, roster.Defensemen...)
+		skaters := slices.Concat(roster.Forwards, roster.Defensemen)
 		for _, player := range skaters {
 			playerID := player.ID
 			detailRes := resource.EdgeSkaterDetail{PlayerID: playerID, Season: season, GameType: gameType}
@@ -135,7 +136,7 @@ func importEdgeSkaterDetail(ctx context.Context, queries EdgeStatsUpserter, deta
 
 	// Upsert shot locations (ON CONFLICT handles race conditions from parallel activities)
 	for _, loc := range detail.SogDetails {
-		if err := queries.InsertEdgeSkaterShotLocation(ctx, sqlcdb.InsertEdgeSkaterShotLocationParams{
+		if err := queries.UpsertEdgeSkaterShotLocation(ctx, sqlcdb.UpsertEdgeSkaterShotLocationParams{
 			PlayerID:               playerID,
 			Season:                 season,
 			GameType:               gameType,
@@ -153,7 +154,7 @@ func importEdgeSkaterDetail(ctx context.Context, queries EdgeStatsUpserter, deta
 
 	// Upsert SOG summary (ON CONFLICT handles race conditions from parallel activities)
 	for _, sog := range detail.SogSummary {
-		if err := queries.InsertEdgeSkaterSogSummary(ctx, sqlcdb.InsertEdgeSkaterSogSummaryParams{
+		if err := queries.UpsertEdgeSkaterSogSummary(ctx, sqlcdb.UpsertEdgeSkaterSogSummaryParams{
 			PlayerID:               playerID,
 			Season:                 season,
 			GameType:               gameType,
@@ -253,7 +254,7 @@ func importEdgeGoalieDetail(ctx context.Context, queries EdgeStatsUpserter, deta
 
 	// Upsert shot location summary (ON CONFLICT handles race conditions from parallel activities)
 	for _, loc := range detail.ShotLocationSummary {
-		if err := queries.InsertEdgeGoalieShotLocationSummary(ctx, sqlcdb.InsertEdgeGoalieShotLocationSummaryParams{
+		if err := queries.UpsertEdgeGoalieShotLocationSummary(ctx, sqlcdb.UpsertEdgeGoalieShotLocationSummaryParams{
 			PlayerID:               playerID,
 			Season:                 season,
 			GameType:               gameType,
@@ -274,7 +275,7 @@ func importEdgeGoalieDetail(ctx context.Context, queries EdgeStatsUpserter, deta
 
 	// Upsert shot locations (ON CONFLICT handles race conditions from parallel activities)
 	for _, loc := range detail.ShotLocationDetails {
-		if err := queries.InsertEdgeGoalieShotLocation(ctx, sqlcdb.InsertEdgeGoalieShotLocationParams{
+		if err := queries.UpsertEdgeGoalieShotLocation(ctx, sqlcdb.UpsertEdgeGoalieShotLocationParams{
 			PlayerID:           playerID,
 			Season:             season,
 			GameType:           gameType,
@@ -370,7 +371,7 @@ func importEdgeTeamDetail(ctx context.Context, queries EdgeStatsUpserter, detail
 
 	// Upsert SOG summary
 	for _, sog := range detail.SogSummary {
-		if err := queries.InsertEdgeTeamSogSummary(ctx, sqlcdb.InsertEdgeTeamSogSummaryParams{
+		if err := queries.UpsertEdgeTeamSogSummary(ctx, sqlcdb.UpsertEdgeTeamSogSummaryParams{
 			TeamID:                teamID,
 			Season:                season,
 			GameType:              gameType,
@@ -391,7 +392,7 @@ func importEdgeTeamDetail(ctx context.Context, queries EdgeStatsUpserter, detail
 
 	// Upsert shot locations
 	for _, loc := range detail.SogDetails {
-		if err := queries.InsertEdgeTeamShotLocation(ctx, sqlcdb.InsertEdgeTeamShotLocationParams{
+		if err := queries.UpsertEdgeTeamShotLocation(ctx, sqlcdb.UpsertEdgeTeamShotLocationParams{
 			TeamID:    teamID,
 			Season:    season,
 			GameType:  gameType,
@@ -452,7 +453,7 @@ func (a *SeasonsActivities) importEdgeTeamZoneTimeDetails(ctx context.Context, q
 func importEdgeTeamZoneTime(ctx context.Context, queries EdgeStatsUpserter, detail *nhlapi.EdgeTeamZoneTimeDetails, teamID int64, season int32, gameType sqlcdb.GameType) error {
 	// Upsert zone time by strength
 	for _, zt := range detail.ZoneTimeDetails {
-		if err := queries.InsertEdgeTeamZoneTimeByStrength(ctx, sqlcdb.InsertEdgeTeamZoneTimeByStrengthParams{
+		if err := queries.UpsertEdgeTeamZoneTimeByStrength(ctx, sqlcdb.UpsertEdgeTeamZoneTimeByStrengthParams{
 			TeamID:       teamID,
 			Season:       season,
 			GameType:     gameType,
@@ -472,13 +473,13 @@ func importEdgeTeamZoneTime(ctx context.Context, queries EdgeStatsUpserter, deta
 	if detail.ShotDifferential != nil {
 		sd := detail.ShotDifferential
 		if err := queries.UpsertEdgeTeamShotDifferential(ctx, sqlcdb.UpsertEdgeTeamShotDifferentialParams{
-			TeamID:                       teamID,
-			Season:                       season,
-			GameType:                     gameType,
-			ShotAttemptDifferential:      pf32(sd.ShotAttemptDifferential),
-			ShotAttemptDifferentialRank:  pi32(sd.ShotAttemptDifferentialRank),
-			SogDifferential:              pf32(sd.SOGDifferential),
-			SogDifferentialRank:          pi32(sd.SOGDifferentialRank),
+			TeamID:                      teamID,
+			Season:                      season,
+			GameType:                    gameType,
+			ShotAttemptDifferential:     pf32(sd.ShotAttemptDifferential),
+			ShotAttemptDifferentialRank: pi32(sd.ShotAttemptDifferentialRank),
+			SogDifferential:             pf32(sd.SOGDifferential),
+			SogDifferentialRank:         pi32(sd.SOGDifferentialRank),
 		}); err != nil {
 			return fmt.Errorf("upsert shot differential: %w", err)
 		}
@@ -546,7 +547,7 @@ func (a *SeasonsActivities) ImportEdgeTeamSkaters(ctx context.Context, input Imp
 	}
 
 	var imported int
-	skaters := append(roster.Forwards, roster.Defensemen...)
+	skaters := slices.Concat(roster.Forwards, roster.Defensemen)
 	for _, player := range skaters {
 		playerID := player.ID
 		detailRes := resource.EdgeSkaterDetail{PlayerID: playerID, Season: season, GameType: gameType}

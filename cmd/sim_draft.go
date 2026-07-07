@@ -24,6 +24,12 @@ import (
 
 const draftReasoningPreviewMax = 70
 
+// simDraftFlagGroups lists every flag group `sim draft` exposes. Defined
+// once and shared by InitFlags and BindFlags so the two can never drift.
+var simDraftFlagGroups = []*config.FlagGroup{
+	&config.PostgresFlags,
+}
+
 func cmdSimDraft() *cobra.Command {
 	var fullReasoning bool
 	cmd := &cobra.Command{
@@ -31,7 +37,7 @@ func cmdSimDraft() *cobra.Command {
 		Short: "Show draft picks grouped by agent",
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), &config.PostgresFlags)
+			return config.BindFlags(cmd.Flags(), simDraftFlagGroups...)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			poolID, err := parsePoolID(args[0])
@@ -48,7 +54,7 @@ func cmdSimDraft() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&fullReasoning, "reasoning", false, "Show full per-pick reasoning instead of a one-line preview")
-	config.InitFlags(cmd.Flags(), &config.PostgresFlags)
+	config.InitFlags(cmd.Flags(), simDraftFlagGroups...)
 	return cmd
 }
 

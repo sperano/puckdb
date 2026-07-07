@@ -327,53 +327,42 @@ func RecoverAction(call llm.ToolCall, knownTools []llm.Tool) (action Action, rec
 		call.Function.Name, call.Function.Arguments)
 }
 
+// parseLenientAction decodes call's raw Arguments into a T (one of the
+// per-tool *Args structs in tools.go) using the given unmarshal
+// function, returning it boxed as an Action. Parameterizing by
+// unmarshal func (rather than hard-coding LenientUnmarshalJSON) is what
+// lets every case in parseActionLenient below collapse to a one-liner
+// that differs only in the concrete Args type — the same shape
+// ParseAction (agent.go) uses with ParseArgs[T] as its unmarshal func.
+// The two switches aren't merged across files in this pass: agent.go is
+// owned by a different work item this wave.
+func parseLenientAction[T Action](call llm.ToolCall, unmarshal func([]byte, any) error) (Action, error) {
+	var args T
+	if err := unmarshal([]byte(call.Function.Arguments), &args); err != nil {
+		return nil, err
+	}
+	return args, nil
+}
+
 // parseActionLenient is ParseAction but using LenientUnmarshalJSON.
 // Mirrors ParseAction's switch, kept private — the public parse path
 // stays strict; this fallback only fires from RecoverAction.
 func parseActionLenient(call llm.ToolCall) (Action, error) {
 	switch call.Function.Name {
 	case ToolDraftPlayer:
-		var args DraftPlayerArgs
-		if err := LenientUnmarshalJSON([]byte(call.Function.Arguments), &args); err != nil {
-			return nil, err
-		}
-		return args, nil
+		return parseLenientAction[DraftPlayerArgs](call, LenientUnmarshalJSON)
 	case ToolSetLineup:
-		var args SetLineupArgs
-		if err := LenientUnmarshalJSON([]byte(call.Function.Arguments), &args); err != nil {
-			return nil, err
-		}
-		return args, nil
+		return parseLenientAction[SetLineupArgs](call, LenientUnmarshalJSON)
 	case ToolAddPlayer:
-		var args AddPlayerArgs
-		if err := LenientUnmarshalJSON([]byte(call.Function.Arguments), &args); err != nil {
-			return nil, err
-		}
-		return args, nil
+		return parseLenientAction[AddPlayerArgs](call, LenientUnmarshalJSON)
 	case ToolClaimPlayer:
-		var args ClaimPlayerArgs
-		if err := LenientUnmarshalJSON([]byte(call.Function.Arguments), &args); err != nil {
-			return nil, err
-		}
-		return args, nil
+		return parseLenientAction[ClaimPlayerArgs](call, LenientUnmarshalJSON)
 	case ToolDropPlayer:
-		var args DropPlayerArgs
-		if err := LenientUnmarshalJSON([]byte(call.Function.Arguments), &args); err != nil {
-			return nil, err
-		}
-		return args, nil
+		return parseLenientAction[DropPlayerArgs](call, LenientUnmarshalJSON)
 	case ToolUpdateNotes:
-		var args UpdateNotesArgs
-		if err := LenientUnmarshalJSON([]byte(call.Function.Arguments), &args); err != nil {
-			return nil, err
-		}
-		return args, nil
+		return parseLenientAction[UpdateNotesArgs](call, LenientUnmarshalJSON)
 	case ToolSetTeamName:
-		var args SetTeamNameArgs
-		if err := LenientUnmarshalJSON([]byte(call.Function.Arguments), &args); err != nil {
-			return nil, err
-		}
-		return args, nil
+		return parseLenientAction[SetTeamNameArgs](call, LenientUnmarshalJSON)
 	default:
 		return nil, fmt.Errorf("simulation: unknown tool %q (lenient)", call.Function.Name)
 	}

@@ -1,6 +1,14 @@
 -- name: GetPlayer :one
 SELECT * FROM players WHERE id = $1;
 
+-- name: GetPlayersByIDs :many
+-- Batches the single-ID GetPlayer lookup for callers that would
+-- otherwise issue one query per player in a loop (simulation draft
+-- candidates, roster/position catalogs, GraphQL sim-pool roster
+-- names). Order is NOT guaranteed to match the input slice — callers
+-- needing a specific order must index the result by id themselves.
+SELECT * FROM players WHERE id = ANY(sqlc.arg('ids')::bigint[]);
+
 -- name: GetPlayerByYahooID :one
 SELECT * FROM players WHERE yahoo_id = $1;
 
@@ -119,7 +127,10 @@ WHERE
     AND (sqlc.narg('team_id')::bigint IS NULL OR team_id = sqlc.narg('team_id'))
     AND (sqlc.narg('position')::text IS NULL OR position = sqlc.narg('position'))
     AND (sqlc.narg('is_active')::boolean IS NULL OR is_active = sqlc.narg('is_active'))
-ORDER BY last_name, first_name;
+ORDER BY last_name, first_name
+-- Server-side ceiling so an unfiltered players query can't stream the whole
+-- table into memory. Mirrors SearchPlayersByName's LIMIT 500 (graph.maxListLimit).
+LIMIT 500;
 
 -- name: UpsertPlayer :exec
 INSERT INTO players (

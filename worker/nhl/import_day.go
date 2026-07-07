@@ -16,8 +16,8 @@ import (
 // ImportDayInput contains parameters for importing all data for a single day.
 type ImportDayInput struct {
 	Date      time.Time        `json:"date"`
-	Season    int              `json:"season"`    // start year (e.g., 2023)
-	SeasonID  int              `json:"seasonID"`  // full ID (e.g., 20232024)
+	Season    int              `json:"season"`   // start year (e.g., 2023)
+	SeasonID  int              `json:"seasonID"` // full ID (e.g., 20232024)
 	TeamIDs   []yahoo.TeamInfo `json:"teamIDs"`
 	TotalDays int              `json:"totalDays"` // total days in season for progress tracking
 }

@@ -210,7 +210,7 @@ func TestSpinner_ColorThemePaletteCycles(t *testing.T) {
 
 	// Verify each frame index maps to the expected palette shade (teal: 23,30,37,44,51,87,123,159)
 	expected := [colorThemePaletteSize]string{
-		"\033[38;5;23m⠋\033[0m",  // darkest
+		"\033[38;5;23m⠋\033[0m", // darkest
 		"\033[38;5;30m⠙\033[0m",
 		"\033[38;5;37m⠹\033[0m",
 		"\033[38;5;44m⠸\033[0m",

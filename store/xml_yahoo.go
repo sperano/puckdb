@@ -44,11 +44,11 @@ func (f *FlexTimestamp) UnmarshalXML(d *xml.Decoder, start xml.StartElement) err
 
 // FantasyContent is the root element returned by Yahoo Fantasy API responses.
 type FantasyContent struct {
-	XMLName      xml.Name      `xml:"fantasy_content"`
-	Game         FantasyGame   `xml:"game"`
-	Games        []FantasyGame `xml:"games>game"`
-	League       League        `xml:"league"`
-	Team         Team          `xml:"team"`
+	XMLName xml.Name      `xml:"fantasy_content"`
+	Game    FantasyGame   `xml:"game"`
+	Games   []FantasyGame `xml:"games>game"`
+	League  League        `xml:"league"`
+	Team    Team          `xml:"team"`
 }
 
 // FantasyGame represents a Yahoo Fantasy game (sport + season combination).
@@ -72,24 +72,24 @@ type FantasyGame struct {
 
 // League represents a Yahoo Fantasy league.
 type League struct {
-	XMLName               xml.Name `xml:"league"`
-	ID                    int      `xml:"league_id"`
-	Key                   string   `xml:"league_key"`
-	Name                  string   `xml:"name"`
-	URL                   string   `xml:"url"`
-	LogoURL               string   `xml:"logo_url"`
-	DraftStatus           string   `xml:"draft_status"`
-	NumTeams              int      `xml:"num_teams"`
-	EditKey               string   `xml:"edit_key"`
+	XMLName               xml.Name      `xml:"league"`
+	ID                    int           `xml:"league_id"`
+	Key                   string        `xml:"league_key"`
+	Name                  string        `xml:"name"`
+	URL                   string        `xml:"url"`
+	LogoURL               string        `xml:"logo_url"`
+	DraftStatus           string        `xml:"draft_status"`
+	NumTeams              int           `xml:"num_teams"`
+	EditKey               string        `xml:"edit_key"`
 	LeagueUpdateTimestamp FlexTimestamp `xml:"league_update_timestamp"`
-	ScoringType           string   `xml:"scoring_type"`
-	LeagueType            string   `xml:"league_type"`
-	IsProLeague           int      `xml:"is_pro_league"`
-	IsCashLeague          int      `xml:"is_cash_league"`
-	StartDate             string   `xml:"start_date"`
-	EndDate               string   `xml:"end_date"`
-	GameCode              string   `xml:"game_code"`
-	Season                int             `xml:"season"`
+	ScoringType           string        `xml:"scoring_type"`
+	LeagueType            string        `xml:"league_type"`
+	IsProLeague           int           `xml:"is_pro_league"`
+	IsCashLeague          int           `xml:"is_cash_league"`
+	StartDate             string        `xml:"start_date"`
+	EndDate               string        `xml:"end_date"`
+	GameCode              string        `xml:"game_code"`
+	Season                int           `xml:"season"`
 	Settings              Settings
 	Transactions          Transactions    `xml:"transactions"`
 	DraftResults          DraftResultList `xml:"draft_results"`
@@ -98,24 +98,24 @@ type League struct {
 
 // Settings contains league configuration.
 type Settings struct {
-	XMLName            xml.Name `xml:"settings"`
-	DraftType          string   `xml:"draft_type"`
-	IsAuctionDraft     int      `xml:"is_auction_draft"`
-	PersistentURL      string   `xml:"persistent_url"`
-	UsesPlayoff        int      `xml:"uses_playoff"`
-	WaiverType         string   `xml:"waiver_type"`
-	WaiverRule         string   `xml:"waiver_rule"`
+	XMLName            xml.Name      `xml:"settings"`
+	DraftType          string        `xml:"draft_type"`
+	IsAuctionDraft     int           `xml:"is_auction_draft"`
+	PersistentURL      string        `xml:"persistent_url"`
+	UsesPlayoff        int           `xml:"uses_playoff"`
+	WaiverType         string        `xml:"waiver_type"`
+	WaiverRule         string        `xml:"waiver_rule"`
 	DraftTime          FlexTimestamp `xml:"draft_time"`
-	DraftPickTime      int      `xml:"draft_pick_time"`
-	PostDraftPlayers   string   `xml:"post_draft_players"`
-	MaxTeams           int      `xml:"max_teams"`
-	WaiverTime         int      `xml:"waiver_time"`
-	TradeEndDate       string   `xml:"trade_end_date"`
-	TradeRatifyType    string   `xml:"trade_ratify_type"`
-	TradeRejectTime    int      `xml:"trade_reject_time"`
-	PlayerPool         string   `xml:"player_pool"`
-	CantCutList        string   `xml:"cant_cut_list"`
-	SendbirdChannelURL string   `xml:"sendbird_channel_url"`
+	DraftPickTime      int           `xml:"draft_pick_time"`
+	PostDraftPlayers   string        `xml:"post_draft_players"`
+	MaxTeams           int           `xml:"max_teams"`
+	WaiverTime         int           `xml:"waiver_time"`
+	TradeEndDate       string        `xml:"trade_end_date"`
+	TradeRatifyType    string        `xml:"trade_ratify_type"`
+	TradeRejectTime    int           `xml:"trade_reject_time"`
+	PlayerPool         string        `xml:"player_pool"`
+	CantCutList        string        `xml:"cant_cut_list"`
+	SendbirdChannelURL string        `xml:"sendbird_channel_url"`
 	RosterPositions    RosterPositions
 	StatCategories     RosterStatCategories
 }
@@ -405,12 +405,12 @@ type Transactions struct {
 
 // Transaction represents a single Yahoo Fantasy transaction (add, drop, trade, etc).
 type Transaction struct {
-	XMLName        xml.Name          `xml:"transaction"`
-	TransactionKey string            `xml:"transaction_key"`
-	TransactionID  int               `xml:"transaction_id"`
-	Type           string            `xml:"type"`
-	Status         string            `xml:"status"`
-	Timestamp      FlexTimestamp     `xml:"timestamp"`
+	XMLName        xml.Name           `xml:"transaction"`
+	TransactionKey string             `xml:"transaction_key"`
+	TransactionID  int                `xml:"transaction_id"`
+	Type           string             `xml:"type"`
+	Status         string             `xml:"status"`
+	Timestamp      FlexTimestamp      `xml:"timestamp"`
 	Players        TransactionPlayers `xml:"players"`
 }
 
@@ -423,23 +423,23 @@ type TransactionPlayers struct {
 
 // TransactionPlayer represents a player in a transaction.
 type TransactionPlayer struct {
-	XMLName         xml.Name               `xml:"player"`
-	Key             string                 `xml:"player_key"`
-	ID              int                    `xml:"player_id"`
-	Name            PlayerName             `xml:"name"`
-	TransactionData TransactionPlayerData  `xml:"transaction_data"`
+	XMLName         xml.Name              `xml:"player"`
+	Key             string                `xml:"player_key"`
+	ID              int                   `xml:"player_id"`
+	Name            PlayerName            `xml:"name"`
+	TransactionData TransactionPlayerData `xml:"transaction_data"`
 }
 
 // TransactionPlayerData contains transaction-specific data for a player.
 type TransactionPlayerData struct {
-	XMLName            xml.Name `xml:"transaction_data"`
-	Type               string   `xml:"type"`
-	SourceType         string   `xml:"source_type"`
-	SourceTeamKey      string   `xml:"source_team_key"`
-	SourceTeamName     string   `xml:"source_team_name"`
-	DestinationType    string   `xml:"destination_type"`
-	DestinationTeamKey string   `xml:"destination_team_key"`
-	DestinationTeamName string  `xml:"destination_team_name"`
+	XMLName             xml.Name `xml:"transaction_data"`
+	Type                string   `xml:"type"`
+	SourceType          string   `xml:"source_type"`
+	SourceTeamKey       string   `xml:"source_team_key"`
+	SourceTeamName      string   `xml:"source_team_name"`
+	DestinationType     string   `xml:"destination_type"`
+	DestinationTeamKey  string   `xml:"destination_team_key"`
+	DestinationTeamName string   `xml:"destination_team_name"`
 }
 
 // ============================================================================
@@ -469,8 +469,8 @@ type DraftResult struct {
 
 // Scoreboard contains weekly matchup results.
 type Scoreboard struct {
-	XMLName xml.Name  `xml:"scoreboard"`
-	Week    int       `xml:"week"`
+	XMLName  xml.Name    `xml:"scoreboard"`
+	Week     int         `xml:"week"`
 	Matchups MatchupList `xml:"matchups"`
 }
 

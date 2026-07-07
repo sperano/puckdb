@@ -46,11 +46,11 @@ func ImportEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) 
 	}
 
 	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
-		GroupIdx:    0,
-		Counter:     countEdgeImportActivities,
+		GroupIdx:      0,
+		Counter:       countEdgeImportActivities,
 		SourceKeyFunc: WorkflowIDImportEdge,
-		GroupLabel:  "Imported Edge stats for",
-		CountLabel:  "imports",
+		GroupLabel:    "Imported Edge stats for",
+		CountLabel:    "imports",
 	}, func(ctx workflow.Context, i int) workflow.Future {
 		season := seasons[i]
 		return workflow.ExecuteChildWorkflow(

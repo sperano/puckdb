@@ -334,137 +334,6 @@ func (q *Queries) GetEdgeTeamZoneTimeByStrength(ctx context.Context, arg GetEdge
 	return items, nil
 }
 
-const insertEdgeTeamShotLocation = `-- name: InsertEdgeTeamShotLocation :exec
-INSERT INTO edge_team_shot_locations (
-    team_id, season, game_type, area,
-    shots, shots_rank
-)
-VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT (team_id, season, game_type, area) DO UPDATE SET
-    shots = EXCLUDED.shots,
-    shots_rank = EXCLUDED.shots_rank
-`
-
-type InsertEdgeTeamShotLocationParams struct {
-	TeamID    int64       `json:"team_id"`
-	Season    int32       `json:"season"`
-	GameType  GameType    `json:"game_type"`
-	Area      string      `json:"area"`
-	Shots     pgtype.Int4 `json:"shots"`
-	ShotsRank pgtype.Int4 `json:"shots_rank"`
-}
-
-func (q *Queries) InsertEdgeTeamShotLocation(ctx context.Context, arg InsertEdgeTeamShotLocationParams) error {
-	_, err := q.db.Exec(ctx, insertEdgeTeamShotLocation,
-		arg.TeamID,
-		arg.Season,
-		arg.GameType,
-		arg.Area,
-		arg.Shots,
-		arg.ShotsRank,
-	)
-	return err
-}
-
-const insertEdgeTeamSogSummary = `-- name: InsertEdgeTeamSogSummary :exec
-INSERT INTO edge_team_sog_summary (
-    team_id, season, game_type, location_code,
-    shots, shots_rank, shots_league_avg,
-    goals, goals_rank, goals_league_avg,
-    shooting_pctg, shooting_pctg_rank, shooting_pctg_league_avg
-)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-ON CONFLICT (team_id, season, game_type, location_code) DO UPDATE SET
-    shots = EXCLUDED.shots,
-    shots_rank = EXCLUDED.shots_rank,
-    shots_league_avg = EXCLUDED.shots_league_avg,
-    goals = EXCLUDED.goals,
-    goals_rank = EXCLUDED.goals_rank,
-    goals_league_avg = EXCLUDED.goals_league_avg,
-    shooting_pctg = EXCLUDED.shooting_pctg,
-    shooting_pctg_rank = EXCLUDED.shooting_pctg_rank,
-    shooting_pctg_league_avg = EXCLUDED.shooting_pctg_league_avg
-`
-
-type InsertEdgeTeamSogSummaryParams struct {
-	TeamID                int64         `json:"team_id"`
-	Season                int32         `json:"season"`
-	GameType              GameType      `json:"game_type"`
-	LocationCode          string        `json:"location_code"`
-	Shots                 pgtype.Int4   `json:"shots"`
-	ShotsRank             pgtype.Int4   `json:"shots_rank"`
-	ShotsLeagueAvg        pgtype.Float4 `json:"shots_league_avg"`
-	Goals                 pgtype.Int4   `json:"goals"`
-	GoalsRank             pgtype.Int4   `json:"goals_rank"`
-	GoalsLeagueAvg        pgtype.Float4 `json:"goals_league_avg"`
-	ShootingPctg          pgtype.Float4 `json:"shooting_pctg"`
-	ShootingPctgRank      pgtype.Int4   `json:"shooting_pctg_rank"`
-	ShootingPctgLeagueAvg pgtype.Float4 `json:"shooting_pctg_league_avg"`
-}
-
-func (q *Queries) InsertEdgeTeamSogSummary(ctx context.Context, arg InsertEdgeTeamSogSummaryParams) error {
-	_, err := q.db.Exec(ctx, insertEdgeTeamSogSummary,
-		arg.TeamID,
-		arg.Season,
-		arg.GameType,
-		arg.LocationCode,
-		arg.Shots,
-		arg.ShotsRank,
-		arg.ShotsLeagueAvg,
-		arg.Goals,
-		arg.GoalsRank,
-		arg.GoalsLeagueAvg,
-		arg.ShootingPctg,
-		arg.ShootingPctgRank,
-		arg.ShootingPctgLeagueAvg,
-	)
-	return err
-}
-
-const insertEdgeTeamZoneTimeByStrength = `-- name: InsertEdgeTeamZoneTimeByStrength :exec
-INSERT INTO edge_team_zone_time_by_strength (
-    team_id, season, game_type, strength_code,
-    oz_pctg, oz_rank, nz_pctg, nz_rank, dz_pctg, dz_rank
-)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-ON CONFLICT (team_id, season, game_type, strength_code) DO UPDATE SET
-    oz_pctg = EXCLUDED.oz_pctg,
-    oz_rank = EXCLUDED.oz_rank,
-    nz_pctg = EXCLUDED.nz_pctg,
-    nz_rank = EXCLUDED.nz_rank,
-    dz_pctg = EXCLUDED.dz_pctg,
-    dz_rank = EXCLUDED.dz_rank
-`
-
-type InsertEdgeTeamZoneTimeByStrengthParams struct {
-	TeamID       int64         `json:"team_id"`
-	Season       int32         `json:"season"`
-	GameType     GameType      `json:"game_type"`
-	StrengthCode string        `json:"strength_code"`
-	OzPctg       pgtype.Float4 `json:"oz_pctg"`
-	OzRank       pgtype.Int4   `json:"oz_rank"`
-	NzPctg       pgtype.Float4 `json:"nz_pctg"`
-	NzRank       pgtype.Int4   `json:"nz_rank"`
-	DzPctg       pgtype.Float4 `json:"dz_pctg"`
-	DzRank       pgtype.Int4   `json:"dz_rank"`
-}
-
-func (q *Queries) InsertEdgeTeamZoneTimeByStrength(ctx context.Context, arg InsertEdgeTeamZoneTimeByStrengthParams) error {
-	_, err := q.db.Exec(ctx, insertEdgeTeamZoneTimeByStrength,
-		arg.TeamID,
-		arg.Season,
-		arg.GameType,
-		arg.StrengthCode,
-		arg.OzPctg,
-		arg.OzRank,
-		arg.NzPctg,
-		arg.NzRank,
-		arg.DzPctg,
-		arg.DzRank,
-	)
-	return err
-}
-
 const upsertEdgeTeamShotDifferential = `-- name: UpsertEdgeTeamShotDifferential :exec
 INSERT INTO edge_team_shot_differential (
     team_id, season, game_type,
@@ -499,6 +368,93 @@ func (q *Queries) UpsertEdgeTeamShotDifferential(ctx context.Context, arg Upsert
 		arg.ShotAttemptDifferentialRank,
 		arg.SogDifferential,
 		arg.SogDifferentialRank,
+	)
+	return err
+}
+
+const upsertEdgeTeamShotLocation = `-- name: UpsertEdgeTeamShotLocation :exec
+INSERT INTO edge_team_shot_locations (
+    team_id, season, game_type, area,
+    shots, shots_rank
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (team_id, season, game_type, area) DO UPDATE SET
+    shots = EXCLUDED.shots,
+    shots_rank = EXCLUDED.shots_rank
+`
+
+type UpsertEdgeTeamShotLocationParams struct {
+	TeamID    int64       `json:"team_id"`
+	Season    int32       `json:"season"`
+	GameType  GameType    `json:"game_type"`
+	Area      string      `json:"area"`
+	Shots     pgtype.Int4 `json:"shots"`
+	ShotsRank pgtype.Int4 `json:"shots_rank"`
+}
+
+func (q *Queries) UpsertEdgeTeamShotLocation(ctx context.Context, arg UpsertEdgeTeamShotLocationParams) error {
+	_, err := q.db.Exec(ctx, upsertEdgeTeamShotLocation,
+		arg.TeamID,
+		arg.Season,
+		arg.GameType,
+		arg.Area,
+		arg.Shots,
+		arg.ShotsRank,
+	)
+	return err
+}
+
+const upsertEdgeTeamSogSummary = `-- name: UpsertEdgeTeamSogSummary :exec
+INSERT INTO edge_team_sog_summary (
+    team_id, season, game_type, location_code,
+    shots, shots_rank, shots_league_avg,
+    goals, goals_rank, goals_league_avg,
+    shooting_pctg, shooting_pctg_rank, shooting_pctg_league_avg
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+ON CONFLICT (team_id, season, game_type, location_code) DO UPDATE SET
+    shots = EXCLUDED.shots,
+    shots_rank = EXCLUDED.shots_rank,
+    shots_league_avg = EXCLUDED.shots_league_avg,
+    goals = EXCLUDED.goals,
+    goals_rank = EXCLUDED.goals_rank,
+    goals_league_avg = EXCLUDED.goals_league_avg,
+    shooting_pctg = EXCLUDED.shooting_pctg,
+    shooting_pctg_rank = EXCLUDED.shooting_pctg_rank,
+    shooting_pctg_league_avg = EXCLUDED.shooting_pctg_league_avg
+`
+
+type UpsertEdgeTeamSogSummaryParams struct {
+	TeamID                int64         `json:"team_id"`
+	Season                int32         `json:"season"`
+	GameType              GameType      `json:"game_type"`
+	LocationCode          string        `json:"location_code"`
+	Shots                 pgtype.Int4   `json:"shots"`
+	ShotsRank             pgtype.Int4   `json:"shots_rank"`
+	ShotsLeagueAvg        pgtype.Float4 `json:"shots_league_avg"`
+	Goals                 pgtype.Int4   `json:"goals"`
+	GoalsRank             pgtype.Int4   `json:"goals_rank"`
+	GoalsLeagueAvg        pgtype.Float4 `json:"goals_league_avg"`
+	ShootingPctg          pgtype.Float4 `json:"shooting_pctg"`
+	ShootingPctgRank      pgtype.Int4   `json:"shooting_pctg_rank"`
+	ShootingPctgLeagueAvg pgtype.Float4 `json:"shooting_pctg_league_avg"`
+}
+
+func (q *Queries) UpsertEdgeTeamSogSummary(ctx context.Context, arg UpsertEdgeTeamSogSummaryParams) error {
+	_, err := q.db.Exec(ctx, upsertEdgeTeamSogSummary,
+		arg.TeamID,
+		arg.Season,
+		arg.GameType,
+		arg.LocationCode,
+		arg.Shots,
+		arg.ShotsRank,
+		arg.ShotsLeagueAvg,
+		arg.Goals,
+		arg.GoalsRank,
+		arg.GoalsLeagueAvg,
+		arg.ShootingPctg,
+		arg.ShootingPctgRank,
+		arg.ShootingPctgLeagueAvg,
 	)
 	return err
 }
@@ -632,6 +588,50 @@ func (q *Queries) UpsertEdgeTeamStats(ctx context.Context, arg UpsertEdgeTeamSta
 		arg.DzPctg,
 		arg.DzRank,
 		arg.DzLeagueAvg,
+	)
+	return err
+}
+
+const upsertEdgeTeamZoneTimeByStrength = `-- name: UpsertEdgeTeamZoneTimeByStrength :exec
+INSERT INTO edge_team_zone_time_by_strength (
+    team_id, season, game_type, strength_code,
+    oz_pctg, oz_rank, nz_pctg, nz_rank, dz_pctg, dz_rank
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+ON CONFLICT (team_id, season, game_type, strength_code) DO UPDATE SET
+    oz_pctg = EXCLUDED.oz_pctg,
+    oz_rank = EXCLUDED.oz_rank,
+    nz_pctg = EXCLUDED.nz_pctg,
+    nz_rank = EXCLUDED.nz_rank,
+    dz_pctg = EXCLUDED.dz_pctg,
+    dz_rank = EXCLUDED.dz_rank
+`
+
+type UpsertEdgeTeamZoneTimeByStrengthParams struct {
+	TeamID       int64         `json:"team_id"`
+	Season       int32         `json:"season"`
+	GameType     GameType      `json:"game_type"`
+	StrengthCode string        `json:"strength_code"`
+	OzPctg       pgtype.Float4 `json:"oz_pctg"`
+	OzRank       pgtype.Int4   `json:"oz_rank"`
+	NzPctg       pgtype.Float4 `json:"nz_pctg"`
+	NzRank       pgtype.Int4   `json:"nz_rank"`
+	DzPctg       pgtype.Float4 `json:"dz_pctg"`
+	DzRank       pgtype.Int4   `json:"dz_rank"`
+}
+
+func (q *Queries) UpsertEdgeTeamZoneTimeByStrength(ctx context.Context, arg UpsertEdgeTeamZoneTimeByStrengthParams) error {
+	_, err := q.db.Exec(ctx, upsertEdgeTeamZoneTimeByStrength,
+		arg.TeamID,
+		arg.Season,
+		arg.GameType,
+		arg.StrengthCode,
+		arg.OzPctg,
+		arg.OzRank,
+		arg.NzPctg,
+		arg.NzRank,
+		arg.DzPctg,
+		arg.DzRank,
 	)
 	return err
 }

@@ -18,8 +18,20 @@ func WithChildOptions(ctx workflow.Context, id string) workflow.Context {
 		WorkflowExecutionTimeout: time.Duration(ViperIntOrDefault(config.FlagWorkflowExecutionTimeout, config.DefaultWorkflowExecutionTimeout)) * time.Minute,
 		WorkflowTaskTimeout:      config.DefaultWorkflowTaskTimeout,
 		WorkflowID:               id,
-		// Allow terminating orphaned child workflows from previous failed parent runs
-		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING,
+		// Terminate orphaned child workflows left running by a previous failed
+		// parent run. The suggested replacement (WorkflowIdReusePolicy=ALLOW_DUPLICATE
+		// + WorkflowIdConflictPolicy=TERMINATE_EXISTING) is a PROTOCOL-level limitation,
+		// not an SDK-version one: the Temporal proto StartChildWorkflowExecutionCommand-
+		// Attributes has no conflict-policy field. Only WorkflowIdConflictPolicy appears
+		// on the top-level StartWorkflowExecutionRequest (proto field 22); child-workflow
+		// starts carry only WorkflowIdReusePolicy (field 11). Verified against the newest
+		// releases as of 2026-07-07: go.temporal.io/api v1.63.1 and go.temporal.io/sdk
+		// v1.45.0 (ChildWorkflowOptions still exposes no conflict-policy field). No SDK
+		// upgrade can fix this until Temporal adds the field to the child-start command,
+		// so the deprecated reuse policy is the only way to express terminate-if-running
+		// for a child workflow here.
+		//lint:ignore SA1019 no conflict-policy field on the Temporal child-start proto (protocol-level, not SDK-version); see comment above
+		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING, //nolint:staticcheck
 	})
 }
 

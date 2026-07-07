@@ -54,7 +54,7 @@ func gobEncodeSeasonsManifest(t *testing.T, seasons []nhlapi.SeasonInfo) string 
 }
 
 // anySeasonsArgs is a redismock matcher that accepts any arguments.
-func anySeasonsArgs(expected, actual []interface{}) error { return nil }
+func anySeasonsArgs(expected, actual []any) error { return nil }
 
 // failingWriteStorage wraps a storage and fails all Write operations.
 type failingWriteStorage struct {
@@ -281,7 +281,7 @@ func TestDownloadSeasonsManifest_AllMiss_APIFetch(t *testing.T) {
 	nhlClient.AssertExpectations(t)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 
-	assert.True(t, mem.Exists(context.Background(),resource.SeasonsManifest{}.Path()))
+	assert.True(t, mem.Exists(context.Background(), resource.SeasonsManifest{}.Path()))
 }
 
 func TestDownloadSeasonsManifest_APIError_NoFallback(t *testing.T) {
@@ -412,7 +412,7 @@ func TestDownloadSeasonsManifest_StaleFilesystem_APISuccess(t *testing.T) {
 	nhlClient.AssertExpectations(t)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 
-	savedData, err := mem.Read(context.Background(),resource.SeasonsManifest{}.Path())
+	savedData, err := mem.Read(context.Background(), resource.SeasonsManifest{}.Path())
 	require.NoError(t, err)
 	savedResponse, err := resource.SeasonsManifest{}.Parse(savedData)
 	require.NoError(t, err)
@@ -622,7 +622,7 @@ func TestDownloadSeasonStandings_CacheMiss(t *testing.T) {
 	client.AssertExpectations(t)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 
-	assert.True(t, mem.Exists(context.Background(),standingsRes.Path()))
+	assert.True(t, mem.Exists(context.Background(), standingsRes.Path()))
 }
 
 func TestDownloadSeasonStandings_APIError(t *testing.T) {
@@ -896,7 +896,7 @@ func (s *InitializeSeasonTeamsTestSuite) TestInitializeSeasonTeams_Success() {
 }
 
 // anyArgs is a redismock matcher that accepts any arguments (used in franchise/daily schedule tests).
-func anyArgs(expected, actual []interface{}) error { return nil }
+func anyArgs(expected, actual []any) error { return nil }
 
 // ensure sqlcdb import is used
 var _ sqlcdb.UpsertSeasonParams = sqlcdb.UpsertSeasonParams{}

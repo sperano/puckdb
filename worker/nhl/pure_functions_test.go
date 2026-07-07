@@ -174,9 +174,9 @@ func TestPlayEventToParams_OptionalTextFields(t *testing.T) {
 	t.Parallel()
 
 	play := nhlapi.PlayEvent{
-		SituationCode:          "1551",
-		HomeTeamDefendingSide:  "left",
-		PeriodDescriptor:       nhlapi.PeriodDescriptor{PeriodType: "REG"},
+		SituationCode:         "1551",
+		HomeTeamDefendingSide: "left",
+		PeriodDescriptor:      nhlapi.PeriodDescriptor{PeriodType: "REG"},
 	}
 
 	p := playEventToParams(0, play)
@@ -432,9 +432,9 @@ func TestImportPlayerGameLog_MultipleEntries(t *testing.T) {
 	q := &mockPlayerGameLogUpdater{}
 	gameLog := &nhlapi.PlayerGameLog{
 		GameLog: []nhlapi.GameLog{
-			{GameID: nhlapi.GameID(1), PowerPlayPoints: 0},         // skip
-			{GameID: nhlapi.GameID(2), PowerPlayPoints: 1},         // update
-			{GameID: nhlapi.GameID(3), GameWinningGoals: &gwg1},    // update
+			{GameID: nhlapi.GameID(1), PowerPlayPoints: 0},      // skip
+			{GameID: nhlapi.GameID(2), PowerPlayPoints: 1},      // update
+			{GameID: nhlapi.GameID(3), GameWinningGoals: &gwg1}, // update
 		},
 	}
 
@@ -604,4 +604,3 @@ func TestFetchEdgeTeamInput_ShouldInvalidate(t *testing.T) {
 		})
 	}
 }
-

@@ -41,7 +41,7 @@ var (
 	stylePromptLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))  // blue
 	stylePromptModel = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))              // gray
 	stylePromptArrow = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))  // blue
-	styleToolTag     = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Italic(true)  // yellow
+	styleToolTag     = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Italic(true) // yellow
 	styleError       = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))              // red
 	styleHeader      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15"))  // white
 	styleHint        = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))              // gray
@@ -133,6 +133,11 @@ func RunREPL(ctx context.Context, cfg REPLConfig) error {
 	}
 
 	svc := buildService(currentEntry)
+	defer func() {
+		if err := svc.Close(); err != nil {
+			log.Warn().Err(err).Msg("maurice service close")
+		}
+	}()
 	model := currentEntry.ID
 
 	log.Info().
@@ -208,6 +213,9 @@ func RunREPL(ctx context.Context, cfg REPLConfig) error {
 			}
 			currentEntry = cfg.Models[num-1]
 			model = currentEntry.ID
+			if err := svc.Close(); err != nil {
+				log.Warn().Err(err).Msg("maurice service close")
+			}
 			svc = buildService(currentEntry)
 			fmt.Printf("  Switched to %s %s\n",
 				styleMenuCurrent.Render(model),

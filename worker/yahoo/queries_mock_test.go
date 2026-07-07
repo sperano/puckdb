@@ -20,9 +20,9 @@ func (m *mockBatchResults) Exec() (pgconn.CommandTag, error) {
 	return pgconn.NewCommandTag("INSERT 0 1"), m.execErr
 }
 
-func (m *mockBatchResults) Query() (pgx.Rows, error)  { return nil, nil }
-func (m *mockBatchResults) QueryRow() pgx.Row          { return nil }
-func (m *mockBatchResults) Close() error               { return nil }
+func (m *mockBatchResults) Query() (pgx.Rows, error) { return nil, nil }
+func (m *mockBatchResults) QueryRow() pgx.Row        { return nil }
+func (m *mockBatchResults) Close() error             { return nil }
 
 // MockQueries is a testify mock implementing the Queries interface.
 type MockQueries struct {

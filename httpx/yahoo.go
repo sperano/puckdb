@@ -58,7 +58,7 @@ func YahooLandedHandler(w http.ResponseWriter, r *http.Request) {
 <p><a href="/yahoo/login">Refresh token</a></p>
 </body>
 </html>`
-	w.Write([]byte(html))
+	_, _ = w.Write([]byte(html))
 }
 
 func YahooAuthenticatedHandler(redisClient *redis.Client) http.HandlerFunc {

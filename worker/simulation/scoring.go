@@ -4,8 +4,9 @@ package simulation
 // The reference algorithm is documented in PLAN.md "Scoring: Rotisserie".
 
 import (
+	"cmp"
 	"math"
-	"sort"
+	"slices"
 )
 
 // Category identifies one of the 9 Crapettes 2025 roto categories.
@@ -91,12 +92,14 @@ func RankCategory(stats []AgentCategoryStat, lowerIsBetter bool) []CategoryRanki
 	for i := range order {
 		order[i] = i
 	}
-	sort.SliceStable(order, func(i, j int) bool {
-		a, b := stats[order[i]].Value, stats[order[j]].Value
+	// order elements are indices into stats; SortStableFunc passes the
+	// elements themselves, so index stats directly. Stable sort keeps
+	// equal-value rows in input order for reproducible run detection.
+	slices.SortStableFunc(order, func(a, b int) int {
 		if lowerIsBetter {
-			return a < b
+			return cmp.Compare(stats[a].Value, stats[b].Value)
 		}
-		return a > b
+		return cmp.Compare(stats[b].Value, stats[a].Value)
 	})
 
 	// Walk runs of equal value, awarding shared rank + averaged points.
@@ -188,11 +191,11 @@ func AgentRotoTotals(rankings map[Category][]CategoryRanking) []AgentRotoTotal {
 	for id, pts := range totals {
 		out = append(out, AgentRotoTotal{AgentID: id, TotalRotoPoints: pts})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].TotalRotoPoints != out[j].TotalRotoPoints {
-			return out[i].TotalRotoPoints > out[j].TotalRotoPoints
+	slices.SortStableFunc(out, func(a, b AgentRotoTotal) int {
+		if c := cmp.Compare(b.TotalRotoPoints, a.TotalRotoPoints); c != 0 {
+			return c
 		}
-		return out[i].AgentID < out[j].AgentID
+		return cmp.Compare(a.AgentID, b.AgentID)
 	})
 	return out
 }

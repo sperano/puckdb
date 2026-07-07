@@ -91,7 +91,6 @@ func (c *GraphQLClient) executeProgressReportQuery(ctx context.Context, query, r
 	return &status, nil
 }
 
-
 // execute sends a GraphQL request and returns the response
 func (c *GraphQLClient) execute(ctx context.Context, query string, variables map[string]any) (*graphQLResponse, error) {
 	reqBody := graphQLRequest{

@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -92,6 +94,11 @@ func TestNormalizeNameForVerification(t *testing.T) {
 	}
 }
 
+// noopHeartbeat is a heartbeatFunc that does nothing, letting tests exercise
+// verifyUnmatchedBatch with a plain context.Context instead of a full
+// Temporal activity context (activity.RecordHeartbeat panics outside one).
+func noopHeartbeat(context.Context, ...any) {}
+
 // --- verifyUnmatchedBatchImpl tests ---
 
 func TestVerifyUnmatchedBatchImpl_EmptyPlayers(t *testing.T) {
@@ -106,7 +113,7 @@ func TestVerifyUnmatchedBatchImpl_EmptyPlayers(t *testing.T) {
 	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
 
 	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
-	result, err := a.verifyUnmatchedBatchImpl(ctx, []UnmatchedYahooPlayer{})
+	result, err := a.verifyUnmatchedBatch(ctx, []UnmatchedYahooPlayer{}, noopHeartbeat)
 
 	require.NoError(t, err)
 	assert.Empty(t, result.VerifiedNonNHL)
@@ -131,7 +138,7 @@ func TestVerifyUnmatchedBatchImpl_AlreadyVerified(t *testing.T) {
 		{YahooID: 123, FirstName: "Test", LastName: "Player"},
 	}
 
-	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
 
 	require.NoError(t, err)
 	assert.Len(t, result.VerifiedNonNHL, 1)
@@ -168,7 +175,7 @@ func TestVerifyUnmatchedBatchImpl_PlayerNotFoundInNHL(t *testing.T) {
 		{YahooID: 456, FirstName: "John", LastName: "Doe"},
 	}
 
-	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
 
 	require.NoError(t, err)
 	assert.Empty(t, result.VerifiedNonNHL)
@@ -213,7 +220,7 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
 		{YahooID: 789, FirstName: "Minor", LastName: "Leaguer"},
 	}
 
-	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
 
 	require.NoError(t, err)
 	assert.Len(t, result.VerifiedNonNHL, 1)
@@ -259,7 +266,7 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithNHLGames(t *testing.T) {
 		{YahooID: 999, FirstName: "Connor", LastName: "McDavid"},
 	}
 
-	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
 
 	require.NoError(t, err)
 	assert.Empty(t, result.VerifiedNonNHL)
@@ -292,7 +299,7 @@ func TestVerifyUnmatchedBatchImpl_RedisLoadError(t *testing.T) {
 		{YahooID: 111, FirstName: "Test", LastName: "Player"},
 	}
 
-	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
 
 	// Should still succeed despite Redis load error
 	require.NoError(t, err)
@@ -322,7 +329,7 @@ func TestVerifyUnmatchedBatchImpl_SearchError(t *testing.T) {
 		{YahooID: 222, FirstName: "Error", LastName: "Player"},
 	}
 
-	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
 
 	// Function should still succeed
 	require.NoError(t, err)
@@ -355,7 +362,7 @@ func TestVerifyUnmatchedBatchImpl_NameMismatchInSearch(t *testing.T) {
 		{YahooID: 333, FirstName: "John", LastName: "Smith"},
 	}
 
-	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
 
 	require.NoError(t, err)
 	// Player goes to NotFoundInNHL because name didn't match
@@ -409,14 +416,14 @@ func TestVerifyUnmatchedBatchImpl_CachedLandingUsed(t *testing.T) {
 	}
 	landingJSON, err := json.Marshal(landing)
 	require.NoError(t, err, "landing must marshal successfully")
-	require.NoError(t, mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
+	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
 		{YahooID: 444, FirstName: "Cached", LastName: "Player"},
 	}
 
-	result, err := a.verifyUnmatchedBatchImpl(ctx, players)
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
 
 	require.NoError(t, err)
 	// Player has 0 NHL games (only AHL), should be verified non-NHL
@@ -427,4 +434,117 @@ func TestVerifyUnmatchedBatchImpl_CachedLandingUsed(t *testing.T) {
 	// PlayerLanding should NOT have been called (used cache)
 	client.AssertNotCalled(t, "PlayerLanding")
 	client.AssertExpectations(t)
+}
+
+// --- ctx cancellation / heartbeat tests (B14) ---
+
+// TestVerifyUnmatchedBatch_ContextCancelledBeforeStart verifies that a
+// context cancelled before the loop starts returns immediately with
+// ctx.Err(), never calling the NHL API.
+func TestVerifyUnmatchedBatch_ContextCancelledBeforeStart(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 555, FirstName: "Cancelled", LastName: "Player"},
+	}
+
+	start := time.Now()
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
+	elapsed := time.Since(start)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.NotNil(t, result)
+	assert.Less(t, elapsed, verifyAPIDelay,
+		"a cancelled context must return promptly, not after the API delay")
+	client.AssertNotCalled(t, "SearchPlayer")
+	require.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+// TestVerifyUnmatchedBatch_ContextCancelledDuringDelay verifies that
+// cancellation while waiting out the inter-request delay (previously a
+// blocking time.Sleep) returns promptly instead of blocking for the full
+// delay, and that the loop does not proceed to the next player.
+func TestVerifyUnmatchedBatch_ContextCancelledDuringDelay(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	limit := maxSearchResults
+	// Cancel the context as a side effect of processing the first player,
+	// i.e. while the loop would otherwise be sleeping verifyAPIDelay before
+	// moving on to the second player.
+	client.On("SearchPlayer", ctx, "First Player", limit).
+		Run(func(mock.Arguments) { cancel() }).
+		Return([]nhl.PlayerSearchResult{}, nil)
+
+	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 111, FirstName: "First", LastName: "Player"},
+		{YahooID: 222, FirstName: "Second", LastName: "Player"},
+	}
+
+	start := time.Now()
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
+	elapsed := time.Since(start)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.NotNil(t, result)
+	assert.Less(t, elapsed, verifyAPIDelay,
+		"cancellation during the inter-request delay must not block for the full delay")
+	client.AssertNumberOfCalls(t, "SearchPlayer", 1)
+	require.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+// TestVerifyUnmatchedBatch_RecordsHeartbeatPerPlayer verifies a heartbeat is
+// recorded for every player processed, so Temporal's HeartbeatTimeout does
+// not fire mid-batch.
+func TestVerifyUnmatchedBatch_RecordsHeartbeatPerPlayer(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "First Player", limit).Return([]nhl.PlayerSearchResult{}, nil)
+	client.On("SearchPlayer", ctx, "Second Player", limit).Return([]nhl.PlayerSearchResult{}, nil)
+
+	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 111, FirstName: "First", LastName: "Player"},
+		{YahooID: 222, FirstName: "Second", LastName: "Player"},
+	}
+
+	var heartbeats []store.YahooPlayerID
+	recordHeartbeat := func(_ context.Context, details ...any) {
+		require.Len(t, details, 1)
+		id, ok := details[0].(store.YahooPlayerID)
+		require.True(t, ok)
+		heartbeats = append(heartbeats, id)
+	}
+
+	_, err := a.verifyUnmatchedBatch(ctx, players, recordHeartbeat)
+
+	require.NoError(t, err)
+	assert.Equal(t, []store.YahooPlayerID{111, 222}, heartbeats)
+	require.NoError(t, mockRedis.ExpectationsWereMet())
 }

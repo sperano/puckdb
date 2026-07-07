@@ -25,10 +25,10 @@ func timeParseISODate(s string) (time.Time, error) {
 	return time.Parse("2006-01-02", s)
 }
 
-// derefInt / derefString / derefFloat64Ptr unwrap optional GraphQL
-// inputs to the value-type the simulation package's typed structs
-// expect. Nil → zero value (matches the "field omitted" semantics
-// the JSON config used to imply).
+// derefInt / derefString unwrap optional GraphQL inputs to the
+// value-type the simulation package's typed structs expect. Nil →
+// zero value (matches the "field omitted" semantics the JSON config
+// used to imply).
 func derefInt(p *int) int {
 	if p == nil {
 		return 0
@@ -55,14 +55,6 @@ func derefStopAfterOrDefault(p *string) string {
 		return simulation.StopAfterNever.String()
 	}
 	return stop.String()
-}
-
-func derefFloat64Ptr(p *float64) *float64 {
-	if p == nil {
-		return nil
-	}
-	v := *p
-	return &v
 }
 
 // ============================================================================
@@ -109,87 +101,147 @@ func mapGetSimPoolErr(err error, poolID int32) error {
 	return fmt.Errorf("get sim pool %d: %w", poolID, err)
 }
 
-// loadSimPool is the read-side path used by simPool, simPools, and
-// every signal/cancel mutation that returns the post-mutation pool
-// state. It assembles the full SimPool model — pool scalars, agents
-// (each with roster + totalRotoPoints), and the latest standings —
-// in one call.
+// resolveLatestStandingsDate interprets the (date, err) result of
+// GetSimStandingsLatestDate. A real DB error must abort loadSimPool rather
+// than be swallowed into an empty-standings result (the previous
+// `if err == nil && ...` guard hid connection/query failures as "no
+// standings yet"). pgx.ErrNoRows is treated as "no standings yet" — the
+// MAX() aggregate normally returns a NULL row rather than ErrNoRows, but
+// classifying it defensively keeps an empty pool from erroring.
+func resolveLatestStandingsDate(latestDate pgtype.Date, err error) (pgtype.Date, error) {
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.Date{}, nil
+		}
+		return pgtype.Date{}, err
+	}
+	return latestDate, nil
+}
+
+// loadSimPoolScalar is the read-side path used by simPool, simPools,
+// and every cancel/create mutation that returns the post-mutation pool
+// state. It reads ONLY the sim_pools scalar columns (one GetSimPool
+// query) and defers the expensive nested fields — agents, standings,
+// currentDraftAction — to the SimPool field resolvers below, which run
+// per pool only when a client actually selects them.
 //
-// Player names are batched via assemblePlayerNameMap so the N+1
-// GetPlayer cost is paid once per resolver invocation, not once per
-// roster row.
-func (r *Resolver) loadSimPool(ctx context.Context, poolID int32) (*model.SimPool, error) {
+// This is what collapses the simPools list to O(1) queries: the list
+// resolver runs a single ListSimPools query and decodes each row to a
+// scalar model; nested data is never touched unless requested.
+func (r *Resolver) loadSimPoolScalar(ctx context.Context, poolID int32) (*model.SimPool, error) {
 	pool, err := r.Queries.GetSimPool(ctx, poolID)
 	if err != nil {
 		return nil, mapGetSimPoolErr(err, poolID)
 	}
-	out := decodeSimPoolBase(pool)
+	return decodeSimPoolBase(pool), nil
+}
 
+// latestStandingsSnapshot returns the sim_standings rows for the pool's
+// most recent standings date, or an empty slice when the pool has no
+// standings yet. Shared by loadSimPoolAgents (for per-agent
+// totalRotoPoints) and loadSimPoolStandings (for the pool-level
+// standings list) — each resolves independently, so a query selecting
+// both fields reads the snapshot once per field.
+func (r *Resolver) latestStandingsSnapshot(ctx context.Context, poolID int32) ([]sqlcdb.SimStanding, error) {
+	latestDate, err := resolveLatestStandingsDate(r.Queries.GetSimStandingsLatestDate(ctx, poolID))
+	if err != nil {
+		return nil, fmt.Errorf("get latest standings date for pool %d: %w", poolID, err)
+	}
+	if !latestDate.Valid {
+		return nil, nil
+	}
+	rows, err := r.Queries.ListSimStandingsByDate(ctx, sqlcdb.ListSimStandingsByDateParams{
+		PoolID: poolID,
+		Date:   latestDate,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list latest standings for pool %d: %w", poolID, err)
+	}
+	return rows, nil
+}
+
+// loadSimPoolAgents assembles the pool's agents, each with roster +
+// totalRotoPoints. Backs the SimPool.agents field resolver. Query
+// count is bounded and independent of agent count: one
+// ListSimAgentsByPool, the shared latest-standings snapshot (up to two
+// queries), one pool-wide ListSimRosterByPool, and one batched
+// GetPlayersByIDs for every referenced player.
+func (r *Resolver) loadSimPoolAgents(ctx context.Context, poolID int32) ([]*model.SimAgent, error) {
 	agents, err := r.Queries.ListSimAgentsByPool(ctx, poolID)
 	if err != nil {
 		return nil, fmt.Errorf("list agents for pool %d: %w", poolID, err)
 	}
 
-	// Latest standings snapshot — used for both SimPool.standings
-	// AND each SimAgent.totalRotoPoints aggregation.
-	latestDate, err := r.Queries.GetSimStandingsLatestDate(ctx, poolID)
+	// Latest standings snapshot feeds each agent's totalRotoPoints.
+	latestStandings, err := r.latestStandingsSnapshot(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
 	standingsByAgent := map[int32][]sqlcdb.SimStanding{}
-	var latestStandings []sqlcdb.SimStanding
-	if err == nil && latestDate.Valid {
-		latestStandings, err = r.Queries.ListSimStandingsByDate(ctx, sqlcdb.ListSimStandingsByDateParams{
-			PoolID: poolID,
-			Date:   latestDate,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("list latest standings for pool %d: %w", poolID, err)
-		}
-		for _, s := range latestStandings {
-			standingsByAgent[s.AgentID] = append(standingsByAgent[s.AgentID], s)
-		}
+	for _, s := range latestStandings {
+		standingsByAgent[s.AgentID] = append(standingsByAgent[s.AgentID], s)
 	}
 
-	// Collect player IDs across all rosters for the batch name
-	// lookup. simAgent.Roster needs PlayerName + NhlPosition.
+	// One pool-wide roster read (ordered agent_id, slot, player_id)
+	// grouped by agent — avoids a per-agent ListSimRosterByAgent loop.
+	// Grouping preserves each agent's (slot, player_id) sub-ordering
+	// since the query's own ORDER BY already sorts that way within
+	// each agent_id run.
+	poolRosters, err := r.Queries.ListSimRosterByPool(ctx, poolID)
+	if err != nil {
+		return nil, fmt.Errorf("list roster for pool %d: %w", poolID, err)
+	}
 	rostersByAgent := map[int32][]sqlcdb.SimRoster{}
 	playerIDSet := map[int64]struct{}{}
-	for _, a := range agents {
-		rows, err := r.Queries.ListSimRosterByAgent(ctx, sqlcdb.ListSimRosterByAgentParams{
-			PoolID: poolID, AgentID: a.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("list roster for agent %d: %w", a.ID, err)
-		}
-		rostersByAgent[a.ID] = rows
-		for _, r := range rows {
-			playerIDSet[r.PlayerID] = struct{}{}
-		}
+	for _, row := range poolRosters {
+		rostersByAgent[row.AgentID] = append(rostersByAgent[row.AgentID], row)
+		playerIDSet[row.PlayerID] = struct{}{}
 	}
 	players, err := r.assemblePlayerNameMap(ctx, playerIDSet)
 	if err != nil {
 		return nil, err
 	}
 
-	// Build agent models.
-	out.Agents = make([]*model.SimAgent, 0, len(agents))
+	out := make([]*model.SimAgent, 0, len(agents))
 	for _, a := range agents {
 		ag := decodeSimAgentBase(a)
 		ag.Roster = decodeSimRosters(rostersByAgent[a.ID], players)
 		ag.TotalRotoPoints = sumRotoPoints(standingsByAgent[a.ID])
-		out.Agents = append(out.Agents, ag)
+		out = append(out, ag)
 	}
+	return out, nil
+}
 
-	// Standings on the pool itself = latest snapshot. We expose agent
-	// IDs only; the client resolves agent_id → team_name via the
-	// SimPool.agents array (which it has in the same response).
-	out.Standings = decodeStandings(latestStandings)
+// loadSimPoolStandings returns the pool's latest standings snapshot.
+// Backs the SimPool.standings field resolver. We expose agent IDs
+// only; the client resolves agent_id → team_name via the
+// SimPool.agents array.
+func (r *Resolver) loadSimPoolStandings(ctx context.Context, poolID int32) ([]*model.SimStandingEntry, error) {
+	latestStandings, err := r.latestStandingsSnapshot(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	return decodeStandings(latestStandings), nil
+}
 
+// loadSimPoolCurrentDraftAction computes the pool's current draft
+// action. Backs the SimPool.currentDraftAction field resolver. Needs
+// the sim_pools row (for status + draft_rounds), the agents (for
+// shuffled draft positions), and the completed draft-pick count.
+func (r *Resolver) loadSimPoolCurrentDraftAction(ctx context.Context, poolID int32) (*model.CurrentDraftAction, error) {
+	pool, err := r.Queries.GetSimPool(ctx, poolID)
+	if err != nil {
+		return nil, mapGetSimPoolErr(err, poolID)
+	}
+	agents, err := r.Queries.ListSimAgentsByPool(ctx, poolID)
+	if err != nil {
+		return nil, fmt.Errorf("list agents for pool %d: %w", poolID, err)
+	}
 	completedDraftPicks, err := r.Queries.CountSimDraftPicks(ctx, poolID)
 	if err != nil {
 		return nil, fmt.Errorf("count draft picks for pool %d: %w", poolID, err)
 	}
-	out.CurrentDraftAction = currentDraftAction(pool, agents, completedDraftPicks)
-
-	return out, nil
+	return currentDraftAction(pool, agents, completedDraftPicks), nil
 }
 
 // currentDraftAction returns the next draft pick's round/pick/agent
@@ -259,22 +311,38 @@ func currentDraftAction(pool sqlcdb.SimPool, agents []sqlcdb.SimAgent, completed
 }
 
 // assemblePlayerNameMap loads display data for every player_id in
-// the set and returns id → playerSummary. V1 N+1: one GetPlayer per
-// id. Acceptable at typical pool sizes (~120 players); a future
-// "GetPlayersByIDs" sqlc query would batch these once it lands.
+// the set and returns id → playerSummary. Batched into one
+// GetPlayersByIDs call (was one GetPlayer per id).
 //
 // Empty input → empty map (no DB calls).
 func (r *Resolver) assemblePlayerNameMap(ctx context.Context, ids map[int64]struct{}) (map[int64]playerSummary, error) {
-	out := make(map[int64]playerSummary, len(ids))
+	if len(ids) == 0 {
+		return map[int64]playerSummary{}, nil
+	}
+	idList := make([]int64, 0, len(ids))
 	for id := range ids {
-		p, err := r.Queries.GetPlayer(ctx, id)
-		if err != nil {
-			return nil, fmt.Errorf("get player %d: %w", id, err)
-		}
-		out[id] = playerSummary{
+		idList = append(idList, id)
+	}
+	players, err := r.Queries.GetPlayersByIDs(ctx, idList)
+	if err != nil {
+		return nil, fmt.Errorf("get players by ids: %w", err)
+	}
+	out := make(map[int64]playerSummary, len(players))
+	for _, p := range players {
+		out[p.ID] = playerSummary{
 			Name:        p.FirstName + " " + p.LastName,
 			NHLPosition: nullPositionString(p.Position),
 			NHLTeamID:   nullTeamIDString(p.TeamID),
+		}
+	}
+	// WHERE id = ANY($1) silently drops ids with no matching row —
+	// unlike the old per-id GetPlayer, it can't surface a "no rows"
+	// error on its own. Every id here comes off a sim_rosters row
+	// (FK'd to players), so a miss means a data-integrity gap; match
+	// the old fail-fast behavior rather than rendering a blank name.
+	for id := range ids {
+		if _, ok := out[id]; !ok {
+			return nil, fmt.Errorf("get player %d: not found", id)
 		}
 	}
 	return out, nil
@@ -315,7 +383,7 @@ func nullTeamIDString(t pgtype.Int8) string {
 func sumRotoPoints(rows []sqlcdb.SimStanding) float64 {
 	total := 0.0
 	for _, r := range rows {
-		f, err := numericToFloat(r.RotoPoints)
+		f, err := simulation.NumericToFloat(r.RotoPoints)
 		if err != nil {
 			continue
 		}
@@ -349,20 +417,6 @@ func flattenRosterPositions(input []*model.SimRosterPositionInput) map[simulatio
 	return out
 }
 
-// numericToFloat is a graph-package-local copy of the simulation-
-// package helper of the same name. We don't import simulation here
-// for one helper — keeps the dependency graph minimal.
-func numericToFloat(n pgtype.Numeric) (float64, error) {
-	if !n.Valid {
-		return 0, nil
-	}
-	f, err := n.Float64Value()
-	if err != nil {
-		return 0, err
-	}
-	return f.Float64, nil
-}
-
 // ============================================================================
 // sqlcdb → model.* adapters
 // ============================================================================
@@ -370,7 +424,7 @@ func numericToFloat(n pgtype.Numeric) (float64, error) {
 // decodeSimPoolBase produces the scalar-only SimPool. Callers
 // populate Agents / Standings from separate queries.
 func decodeSimPoolBase(p sqlcdb.SimPool) *model.SimPool {
-	cost, _ := numericToFloat(p.TotalLLMCostUSD)
+	cost, _ := simulation.NumericToFloat(p.TotalLLMCostUSD)
 	out := &model.SimPool{
 		ID:              int(p.ID),
 		Name:            p.Name,
@@ -427,8 +481,8 @@ func decodeSimRosters(rows []sqlcdb.SimRoster, players map[int64]playerSummary) 
 func decodeStandings(rows []sqlcdb.SimStanding) []*model.SimStandingEntry {
 	out := make([]*model.SimStandingEntry, 0, len(rows))
 	for _, s := range rows {
-		val, _ := numericToFloat(s.Value)
-		rp, _ := numericToFloat(s.RotoPoints)
+		val, _ := simulation.NumericToFloat(s.Value)
+		rp, _ := simulation.NumericToFloat(s.RotoPoints)
 		out = append(out, &model.SimStandingEntry{
 			AgentID:    int(s.AgentID),
 			Category:   s.Category,
@@ -493,11 +547,11 @@ func (r *Resolver) decodeSimTransactions(ctx context.Context, txs []sqlcdb.SimTr
 		}
 		if t.PlayerID.Valid {
 			name := players[t.PlayerID.Int64].Name
-			row.PlayerName = stringPtrIfNotEmpty(name)
+			row.PlayerName = ptrStringIfNotEmpty(name)
 		}
 		if t.DropPlayerID.Valid {
 			name := players[t.DropPlayerID.Int64].Name
-			row.DropPlayerName = stringPtrIfNotEmpty(name)
+			row.DropPlayerName = ptrStringIfNotEmpty(name)
 		}
 		if t.Round.Valid {
 			v := int(t.Round.Int32)
@@ -516,11 +570,11 @@ func (r *Resolver) decodeSimTransactions(ctx context.Context, txs []sqlcdb.SimTr
 			row.ErrorDetail = &s
 		}
 		if t.CostUSD.Valid {
-			f, _ := numericToFloat(t.CostUSD)
+			f, _ := simulation.NumericToFloat(t.CostUSD)
 			row.CostUsd = &f
 		}
 		if t.CapUSD.Valid {
-			f, _ := numericToFloat(t.CapUSD)
+			f, _ := simulation.NumericToFloat(t.CapUSD)
 			row.CapUsd = &f
 		}
 		row.LineupMoves = decodeLineupMoves(movesByTx[t.ID], players)
@@ -543,7 +597,7 @@ func decodeLineupMoves(rows []sqlcdb.SimLineupMove, players map[int64]playerSumm
 		}
 		if m.DisplacedPlayerID.Valid {
 			name := players[m.DisplacedPlayerID.Int64].Name
-			row.DisplacedPlayerName = stringPtrIfNotEmpty(name)
+			row.DisplacedPlayerName = ptrStringIfNotEmpty(name)
 		}
 		out = append(out, row)
 	}
@@ -603,15 +657,6 @@ func groupStandingsByDate(rows []sqlcdb.SimStanding) [][]*model.SimStandingEntry
 	return out
 }
 
-// stringPtrIfNotEmpty returns &s when non-empty, nil otherwise — the
-// nullable-string convention GraphQL outputs use for "no value here".
-func stringPtrIfNotEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
-
 // ============================================================================
 // CreateSimPool — pool insert + workflow start
 // ============================================================================
@@ -620,39 +665,57 @@ func stringPtrIfNotEmpty(s string) *string {
 // out from the resolver method so it stays unit-testable on a
 // stub Resolver without running the gqlgen executor.
 //
-// Two steps in order:
-//  1. INSERT sim_pools row. The DB auto-generates id and the
-//     workflow_id column ('sim-pool-' || id::text), so no extra
-//     UPDATE is needed.
-//  2. Start the SimPoolWorkflow with WorkflowID = 'sim-pool-{id}'
-//     and WorkflowIDReusePolicy = REJECT_DUPLICATE so retried
-//     mutations don't double-launch.
+// Steps in order:
+//  1. In one DB transaction: INSERT the sim_pools row (the DB
+//     auto-generates id and the workflow_id column
+//     'sim-pool-' || id::text, so no extra UPDATE is needed) plus one
+//     sim_agents row per agent. Wrapping these in a transaction means a
+//     mid-insert failure can't leave an orphaned pool with a partial
+//     agent set.
+//  2. Only AFTER the commit, start the SimPoolWorkflow with
+//     WorkflowID = 'sim-pool-{id}' and WorkflowIDReusePolicy =
+//     REJECT_DUPLICATE so retried mutations don't double-launch.
+//
+// If the workflow start fails after the commit, the pool row is already
+// durable; leaving it in 'draft' would look like a pool that is about to
+// draft but has no workflow driving it. We best-effort flip it to
+// 'cancelled' (an existing terminal status) so operators see it is inert.
 func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimPoolInput) (*model.SimPool, error) {
+	if r.DB == nil {
+		return nil, errDatabaseNotConfigured
+	}
 	rosters := flattenRosterPositions(input.RosterPositions)
 	capNum, err := numericFromFloat(input.MaxLlmCostUsdPerPool)
 	if err != nil {
 		return nil, fmt.Errorf("encode max_llm_cost_usd_per_pool: %w", err)
 	}
 
-	pool, err := r.Queries.InsertSimPool(ctx, sqlcdb.InsertSimPoolParams{
-		Name:                    input.Name,
-		Season:                  int32(input.Season),
-		Status:                  string(simulation.PoolStatusDraft),
-		NumTeams:                int32(len(input.Agents)),
-		WaiverDays:              int32(input.WaiverDays),
-		DraftRounds:             int32(input.DraftRounds),
-		MaxLLMCostUsdPerPool:    capNum,
-		Categories:              append([]string(nil), input.Categories...),
-		RosterC:                 int32(rosters[simulation.SlotC]),
-		RosterLW:                int32(rosters[simulation.SlotLW]),
-		RosterRW:                int32(rosters[simulation.SlotRW]),
-		RosterD:                 int32(rosters[simulation.SlotD]),
-		RosterG:                 int32(rosters[simulation.SlotG]),
-		RosterUtil:              int32(rosters[simulation.SlotUtil]),
-		RosterBN:                int32(rosters[simulation.SlotBN]),
-		RosterIR:      int32(rosters[simulation.SlotIR]),
-		StopAfter:     derefStopAfterOrDefault(input.StopAfter),
-		MaxSeasonDays: int32(derefInt(input.MaxSeasonDays)),
+	tx, err := r.DB.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin sim pool tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op once committed
+	q := r.Queries.WithTx(tx)
+
+	pool, err := q.InsertSimPool(ctx, sqlcdb.InsertSimPoolParams{
+		Name:                 input.Name,
+		Season:               int32(input.Season),
+		Status:               string(simulation.PoolStatusDraft),
+		NumTeams:             int32(len(input.Agents)),
+		WaiverDays:           int32(input.WaiverDays),
+		DraftRounds:          int32(input.DraftRounds),
+		MaxLLMCostUsdPerPool: capNum,
+		Categories:           append([]string(nil), input.Categories...),
+		RosterC:              int32(rosters[simulation.SlotC]),
+		RosterLW:             int32(rosters[simulation.SlotLW]),
+		RosterRW:             int32(rosters[simulation.SlotRW]),
+		RosterD:              int32(rosters[simulation.SlotD]),
+		RosterG:              int32(rosters[simulation.SlotG]),
+		RosterUtil:           int32(rosters[simulation.SlotUtil]),
+		RosterBN:             int32(rosters[simulation.SlotBN]),
+		RosterIR:             int32(rosters[simulation.SlotIR]),
+		StopAfter:            derefStopAfterOrDefault(input.StopAfter),
+		MaxSeasonDays:        int32(derefInt(input.MaxSeasonDays)),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("insert sim pool: %w", err)
@@ -673,7 +736,7 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 			}
 			temperature = t
 		}
-		if _, err := r.Queries.InsertSimAgent(ctx, sqlcdb.InsertSimAgentParams{
+		if _, err := q.InsertSimAgent(ctx, sqlcdb.InsertSimAgentParams{
 			PoolID:         pool.ID,
 			Provider:       strings.ToLower(a.Provider),
 			Model:          a.Model,
@@ -687,6 +750,13 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 		}
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit sim pool: %w", err)
+	}
+
+	// Pool + agents are now durable. Start the workflow that drives the
+	// pool; only reachable after a successful commit so we never launch a
+	// workflow against a half-written pool.
 	wfID := simPoolWorkflowIDForPool(pool.ID)
 	opts := client.StartWorkflowOptions{
 		ID:                    wfID,
@@ -695,9 +765,17 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 	}
 	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, simulation.SimPoolWorkflow,
 		simulation.SimPoolWorkflowInput{PoolID: pool.ID}); err != nil {
-		return nil, fmt.Errorf("start sim pool workflow %s: %w", wfID, err)
+		// The pool row is already committed. Mark it cancelled (best
+		// effort, outside the now-committed tx) so it doesn't linger in
+		// 'draft' with no workflow behind it.
+		if markErr := r.Queries.UpdateSimPoolStatus(ctx, sqlcdb.UpdateSimPoolStatusParams{
+			ID:     pool.ID,
+			Status: string(simulation.PoolStatusCancelled),
+		}); markErr != nil {
+			return nil, fmt.Errorf("start sim pool workflow %s: %w (and failed to mark pool %d cancelled: %v)", wfID, err, pool.ID, markErr)
+		}
+		return nil, fmt.Errorf("start sim pool workflow %s (pool %d marked cancelled): %w", wfID, pool.ID, err)
 	}
 
-	return r.loadSimPool(ctx, pool.ID)
+	return r.loadSimPoolScalar(ctx, pool.ID)
 }
-

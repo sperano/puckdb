@@ -44,6 +44,17 @@ type VerifiedPlayer struct {
 	NHLName     string // The matched NHL player name (may differ from Yahoo name)
 }
 
+// heartbeatFunc records progress on a long-running activity so Temporal
+// knows the worker is still alive. The default implementation calls
+// activity.RecordHeartbeat, which requires a real Temporal activity
+// context; tests substitute a no-op so verifyUnmatchedBatch can be
+// exercised with a plain context.Context.
+type heartbeatFunc func(ctx context.Context, details ...any)
+
+func defaultHeartbeat(ctx context.Context, details ...any) {
+	activity.RecordHeartbeat(ctx, details...)
+}
+
 // VerifyUnmatchedResult contains the categorized results of verification.
 type VerifyUnmatchedResult struct {
 	// VerifiedNonNHL contains Yahoo IDs confirmed to have 0 NHL games.
@@ -82,6 +93,17 @@ func (a *Activities) VerifyUnmatchedBatch(ctx context.Context, players []Unmatch
 
 // verifyUnmatchedBatchImpl contains the testable logic for VerifyUnmatchedBatch.
 func (a *Activities) verifyUnmatchedBatchImpl(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
+	return a.verifyUnmatchedBatch(ctx, players, defaultHeartbeat)
+}
+
+// verifyUnmatchedBatch is the heartbeat-injectable implementation behind
+// verifyUnmatchedBatchImpl. It checks ctx.Done() and records a heartbeat on
+// every iteration, and waits out verifyAPIDelay between NHL API calls with a
+// cancellable select instead of a blocking time.Sleep, so a workflow/worker
+// shutdown or activity cancellation is honored promptly instead of stalling
+// until the whole batch finishes (or, worst case, until the heartbeat
+// timeout fires and Temporal retries the activity).
+func (a *Activities) verifyUnmatchedBatch(ctx context.Context, players []UnmatchedYahooPlayer, heartbeat heartbeatFunc) (*VerifyUnmatchedResult, error) {
 	alreadyVerified, err := LoadVerifiedNonNHLIDs(ctx, a.RedisClient)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load verified non-NHL IDs, will verify all")
@@ -97,6 +119,13 @@ func (a *Activities) verifyUnmatchedBatchImpl(ctx context.Context, players []Unm
 	newlyVerifiedNonNHL := make([]store.YahooPlayerID, 0)
 
 	for i, player := range players {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		default:
+		}
+		heartbeat(ctx, player.YahooID)
+
 		if _, ok := alreadyVerified[player.YahooID]; ok {
 			result.VerifiedNonNHL = append(result.VerifiedNonNHL, player.YahooID)
 			continue
@@ -115,7 +144,11 @@ func (a *Activities) verifyUnmatchedBatchImpl(ctx context.Context, players []Unm
 		}
 
 		if i < len(players)-1 {
-			time.Sleep(verifyAPIDelay)
+			select {
+			case <-ctx.Done():
+				return result, ctx.Err()
+			case <-time.After(verifyAPIDelay):
+			}
 		}
 	}
 

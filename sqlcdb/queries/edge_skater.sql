@@ -72,7 +72,7 @@ WHERE (edge_skater_stats.top_speed_imperial, edge_skater_stats.top_speed_metric,
 DELETE FROM edge_skater_shot_locations
 WHERE player_id = $1 AND season = $2 AND game_type = $3;
 
--- name: InsertEdgeSkaterShotLocation :exec
+-- name: UpsertEdgeSkaterShotLocation :exec
 INSERT INTO edge_skater_shot_locations (
     player_id, season, game_type, area,
     sog, goals, shooting_pctg, sog_percentile, goals_percentile, shooting_pctg_percentile
@@ -90,7 +90,7 @@ ON CONFLICT (player_id, season, game_type, area) DO UPDATE SET
 DELETE FROM edge_skater_sog_summary
 WHERE player_id = $1 AND season = $2 AND game_type = $3;
 
--- name: InsertEdgeSkaterSogSummary :exec
+-- name: UpsertEdgeSkaterSogSummary :exec
 INSERT INTO edge_skater_sog_summary (
     player_id, season, game_type, location_code,
     shots, shots_percentile, shots_league_avg,

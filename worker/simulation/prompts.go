@@ -25,6 +25,29 @@ import (
 // slightest change. Don't add today's date, the day count, or the
 // current standings here — those go in the daily/draft context message
 // (the non-cacheable suffix).
+// v1FixedCategories / v1FixedRoster pin the "9 roto categories" line and
+// the "Roster: ..." line hard-coded into systemPromptTemplate below.
+// V1 supports exactly one scoring/roster shape per PLAN.md — these are
+// NOT read from PoolConfig.Categories / PoolConfig.RosterPositions at
+// runtime (wiring the prompt to per-pool config is out of scope for
+// this pass: it's correctness-adjacent, since a mismatch between what
+// the prompt claims and what the validators enforce would silently
+// mislead the LLM). TestV1FixedRosterMatchesPrompt below fails if
+// either constant is edited without updating systemPromptTemplate (or
+// vice versa) — see the matching doc comment on PoolConfig in types.go.
+var v1FixedCategories = []string{"G", "A", "+/-", "PIM", "PPP", "SOG", "W", "GA", "GAA"}
+
+var v1FixedRoster = map[RosterSlot]int{
+	SlotC:    2,
+	SlotLW:   2,
+	SlotRW:   2,
+	SlotD:    3,
+	SlotUtil: 1,
+	SlotG:    2,
+	SlotBN:   6,
+	SlotIR:   3,
+}
+
 const systemPromptTemplate = `You are an AI fantasy hockey manager in a {N}-team rotisserie pool.
 Your strategy: {strategy}
 
@@ -82,10 +105,15 @@ func BuildSystemPrompt(agent AgentConfig, numTeams int) string {
 // ============================================================================
 
 // CategoryStanding is the {value, rank} pair the LLM sees per category
-// per agent. Value is `any` because counting categories use int and
-// rate categories (GAA) use float; the LLM happily reads both forms.
+// per agent. Value is float64 for both counting categories (G, A, SOG,
+// ...) and rate categories (GAA) — the sole production constructor
+// (loadStandingsRows in context_activity.go) reads sim_standings.value
+// via numericToFloat regardless of category, so there's no int/float
+// split to preserve at this type. encoding/json renders a whole-number
+// float64 the same as an int (e.g. 45, not 45.0), so the LLM-facing
+// JSON is unchanged by this being concrete rather than `any`.
 type CategoryStanding struct {
-	Value any     `json:"value"`
+	Value float64 `json:"value"`
 	Rank  float64 `json:"rank"`
 }
 
@@ -131,6 +159,21 @@ type GoalieStats struct {
 // GoalieStats based on what the activity stuffed in. Activities are
 // expected to put a SkaterStats in for skaters and a GoalieStats in for
 // goalies; mixing is invalid and would confuse the LLM.
+//
+// Evaluated (2026-07) and deliberately kept `any` rather than a generic
+// RosterRow[T Stats] or splitting into RosterRow/GoalieRosterRow:
+//   - []RosterRow (YourRoster) genuinely holds a heterogeneous mix of
+//     skaters and goalies in ONE slice — TestBuildDailyPrompt_RoundTripsAndPreservesSpecialKeys
+//     pins exactly this ("Heterogeneous Last7/Season ... must marshal
+//     differently within the same array"). A generic parameter is
+//     per-slice, not per-element, so RosterRow[T] can't express this
+//     without splitting into two slices — which cascades into every
+//     construction site: context_activity.go (this pass's file) AND
+//     draft.go / workflow.go (DraftablePlayer.LastSeason has the same
+//     shape, same reason — both out of scope for this pass; see
+//     workflow.go/draft.go ownership for the current wave).
+//   - Concrete strengthening was safe for CategoryStanding.Value above
+//     (single homogeneous field, one producer) but does not apply here.
 type RosterRow struct {
 	Player         string     `json:"player"`
 	ID             int64      `json:"id"`
@@ -269,6 +312,11 @@ type DraftRosterRow struct {
 // LastSeason carries the prior-season stats — V1 ranks by prior season
 // only to avoid leaking current-season stats into draft decisions
 // (PLAN.md "Draft ranking uses prior-season stats only").
+//
+// LastSeason is `any` for the same reason as RosterRow.Last7/Season
+// above (heterogeneous skater/goalie rows share one slice); it's
+// constructed in draft.go and workflow.go, both out of scope for this
+// pass, so no change was made here.
 type DraftablePlayer struct {
 	Player     string `json:"player"`
 	ID         int64  `json:"id"`

@@ -15,7 +15,6 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
-
 // ImportSeasonSeriesForDateInput specifies which date's season series data to import.
 type ImportSeasonSeriesForDateInput struct {
 	Date time.Time

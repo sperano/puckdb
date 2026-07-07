@@ -15,32 +15,38 @@ const (
 	yahooTokenStatusField = "yahooTokenStatus { valid loginURL }"
 )
 
+// workflowStatus builds and runs the standard "<name>Result + <name>Progress"
+// status query shared by every workflow status getter below. withYahoo
+// controls whether the yahooTokenStatus field is appended: most workflows
+// can be blocked on a stale/missing Yahoo OAuth token so the CLI can warn
+// about it inline, but Edge-stats and asset workflows don't touch Yahoo.
+func (c *GraphQLClient) workflowStatus(ctx context.Context, resultName, progressName string, withYahoo bool) (*WorkflowStatus, error) {
+	query := "query { " + resultName + " " + resultFields + " " + progressName + " " + progressReportFields
+	if withYahoo {
+		query += " " + yahooTokenStatusField
+	}
+	query += " }"
+	return c.executeProgressReportQuery(ctx, query, resultName, progressName)
+}
+
 // GetFetchSeasonsStatus queries both workflow result and progress
 func (c *GraphQLClient) GetFetchSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { fetchSeasonsResult `+resultFields+` fetchSeasonsProgress `+progressReportFields+` `+yahooTokenStatusField+` }`,
-		"fetchSeasonsResult", "fetchSeasonsProgress")
+	return c.workflowStatus(ctx, "fetchSeasonsResult", "fetchSeasonsProgress", true)
 }
 
 // GetFetchPlayerLogsStatus queries both workflow result and progress (uses ProgressReport format)
 func (c *GraphQLClient) GetFetchPlayerLogsStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { fetchPlayerLogsResult `+resultFields+` fetchPlayerLogsProgress `+progressReportFields+` `+yahooTokenStatusField+` }`,
-		"fetchPlayerLogsResult", "fetchPlayerLogsProgress")
+	return c.workflowStatus(ctx, "fetchPlayerLogsResult", "fetchPlayerLogsProgress", true)
 }
 
 // GetFetchYahooPlayersStatus queries both workflow result and progress (uses ProgressReport format)
 func (c *GraphQLClient) GetFetchYahooPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { fetchYahooPlayersResult `+resultFields+` fetchYahooPlayersProgress `+progressReportFields+` `+yahooTokenStatusField+` }`,
-		"fetchYahooPlayersResult", "fetchYahooPlayersProgress")
+	return c.workflowStatus(ctx, "fetchYahooPlayersResult", "fetchYahooPlayersProgress", true)
 }
 
 // GetProcessPlayersStatus queries both workflow result and progress (uses ProgressReport format)
 func (c *GraphQLClient) GetProcessPlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { processPlayersResult `+resultFields+` processPlayersProgress `+progressReportFields+` `+yahooTokenStatusField+` }`,
-		"processPlayersResult", "processPlayersProgress")
+	return c.workflowStatus(ctx, "processPlayersResult", "processPlayersProgress", true)
 }
 
 // GetProcessPlayersResultData queries the process players workflow result data
@@ -67,58 +73,42 @@ func (c *GraphQLClient) GetProcessPlayersResultData(ctx context.Context) (*model
 
 // GetImportSeasonsStatus queries both workflow result and progress
 func (c *GraphQLClient) GetImportSeasonsStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { importSeasonsResult `+resultFields+` importSeasonsProgress `+progressReportFields+` `+yahooTokenStatusField+` }`,
-		"importSeasonsResult", "importSeasonsProgress")
+	return c.workflowStatus(ctx, "importSeasonsResult", "importSeasonsProgress", true)
 }
 
 // GetImportPlayerLogsStatus queries both workflow result and progress
 func (c *GraphQLClient) GetImportPlayerLogsStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { importPlayerLogsResult `+resultFields+` importPlayerLogsProgress `+progressReportFields+` `+yahooTokenStatusField+` }`,
-		"importPlayerLogsResult", "importPlayerLogsProgress")
+	return c.workflowStatus(ctx, "importPlayerLogsResult", "importPlayerLogsProgress", true)
 }
 
 // GetInitializeStatus queries both workflow result and progress (uses ProgressReport format)
 func (c *GraphQLClient) GetInitializeStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { initializeResult `+resultFields+` initializeProgress `+progressReportFields+` `+yahooTokenStatusField+` }`,
-		"initializeResult", "initializeProgress")
+	return c.workflowStatus(ctx, "initializeResult", "initializeProgress", true)
 }
 
 // GetExtractBoxscorePlayersStatus queries both workflow result and progress (uses ProgressReport format)
 func (c *GraphQLClient) GetExtractBoxscorePlayersStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { extractBoxscorePlayersResult `+resultFields+` extractBoxscorePlayersProgress `+progressReportFields+` `+yahooTokenStatusField+` }`,
-		"extractBoxscorePlayersResult", "extractBoxscorePlayersProgress")
+	return c.workflowStatus(ctx, "extractBoxscorePlayersResult", "extractBoxscorePlayersProgress", true)
 }
 
 // GetFetchPlayerLandingsStatus queries both workflow result and progress (uses ProgressReport format)
 func (c *GraphQLClient) GetFetchPlayerLandingsStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { fetchPlayerLandingsResult `+resultFields+` fetchPlayerLandingsProgress `+progressReportFields+` `+yahooTokenStatusField+` }`,
-		"fetchPlayerLandingsResult", "fetchPlayerLandingsProgress")
+	return c.workflowStatus(ctx, "fetchPlayerLandingsResult", "fetchPlayerLandingsProgress", true)
 }
 
 // GetFetchEdgeStatsStatus queries both workflow result and progress.
 func (c *GraphQLClient) GetFetchEdgeStatsStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { fetchEdgeStatsResult `+resultFields+` fetchEdgeStatsProgress `+progressReportFields+` }`,
-		"fetchEdgeStatsResult", "fetchEdgeStatsProgress")
+	return c.workflowStatus(ctx, "fetchEdgeStatsResult", "fetchEdgeStatsProgress", false)
 }
 
 // GetImportEdgeStatsStatus queries both workflow result and progress.
 func (c *GraphQLClient) GetImportEdgeStatsStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { importEdgeStatsResult `+resultFields+` importEdgeStatsProgress `+progressReportFields+` }`,
-		"importEdgeStatsResult", "importEdgeStatsProgress")
+	return c.workflowStatus(ctx, "importEdgeStatsResult", "importEdgeStatsProgress", false)
 }
 
 // GetFetchAssetsStatus queries both workflow result and progress for the
 // parent FetchAssetsWorkflow. Per-class child workflow progress is merged
 // server-side via each bar's ProgressSourceKey.
 func (c *GraphQLClient) GetFetchAssetsStatus(ctx context.Context) (*WorkflowStatus, error) {
-	return c.executeProgressReportQuery(ctx,
-		`query { fetchAssetsResult `+resultFields+` fetchAssetsProgress `+progressReportFields+` }`,
-		"fetchAssetsResult", "fetchAssetsProgress")
+	return c.workflowStatus(ctx, "fetchAssetsResult", "fetchAssetsProgress", false)
 }

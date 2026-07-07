@@ -169,6 +169,27 @@ const (
     </scoreboard>
   </league>
 </fantasy_content>`
+
+	matchupsWeek3XML = `<?xml version="1.0" encoding="UTF-8"?>
+<fantasy_content>
+  <league>
+    <scoreboard>
+      <week>3</week>
+      <matchups count="1">
+        <matchup>
+          <week>3</week>
+          <status>postevent</status>
+          <is_playoffs>0</is_playoffs>
+          <is_consolation>0</is_consolation>
+          <teams count="2">
+            <team><team_id>3</team_id><team_points><total>61.0</total></team_points></team>
+            <team><team_id>4</team_id><team_points><total>48.5</total></team_points></team>
+          </teams>
+        </matchup>
+      </matchups>
+    </scoreboard>
+  </league>
+</fantasy_content>`
 )
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -211,7 +232,7 @@ func (s *ImportYahooLeagueSuite) TestWithPositionsAndStats() {
 	q := &MockQueries{}
 
 	leagueRes := resource.League{Season: 2023, LeagueID: 12345}
-	require.NoError(s.T(), mem.Write(context.Background(),leagueRes.Path(), []byte(leagueWithPositionsXML)))
+	require.NoError(s.T(), mem.Write(context.Background(), leagueRes.Path(), []byte(leagueWithPositionsXML)))
 
 	q.On("UpsertYahooLeague", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertYahooLeagueParams")).Return(nil)
 	q.On("UpsertYahooLeagueRosterPositionBatch", mock.Anything, mock.Anything).
@@ -237,7 +258,7 @@ func (s *ImportYahooLeagueSuite) TestUpsertLeagueError() {
 	q := &MockQueries{}
 
 	leagueRes := resource.League{Season: 2023, LeagueID: 12345}
-	require.NoError(s.T(), mem.Write(context.Background(),leagueRes.Path(), []byte(leagueWithPositionsXML)))
+	require.NoError(s.T(), mem.Write(context.Background(), leagueRes.Path(), []byte(leagueWithPositionsXML)))
 
 	q.On("UpsertYahooLeague", mock.Anything, mock.Anything).Return(assert.AnError)
 
@@ -307,7 +328,7 @@ func (s *ImportYahooTeamsSuite) TestWithTeamAndManager() {
 	q := &MockQueries{}
 
 	teamRes := resource.Team{Season: 2023, LeagueID: 12345, TeamID: 1}
-	require.NoError(s.T(), mem.Write(context.Background(),teamRes.Path(), []byte(teamWithManagerXML)))
+	require.NoError(s.T(), mem.Write(context.Background(), teamRes.Path(), []byte(teamWithManagerXML)))
 
 	q.On("UpsertYahooTeamBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamBatchBatchResults(&mockBatchResults{}, 1))
@@ -334,7 +355,7 @@ func (s *ImportYahooTeamsSuite) TestTeamUpsertError() {
 	q := &MockQueries{}
 
 	teamRes := resource.Team{Season: 2023, LeagueID: 12345, TeamID: 1}
-	require.NoError(s.T(), mem.Write(context.Background(),teamRes.Path(), []byte(teamWithManagerXML)))
+	require.NoError(s.T(), mem.Write(context.Background(), teamRes.Path(), []byte(teamWithManagerXML)))
 
 	q.On("UpsertYahooTeamBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
@@ -420,8 +441,8 @@ func (s *ImportYahooDataForDateSuite) TestWithSummaryAndRoster() {
 
 	summaryRes := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
 	rosterRes := resource.Roster{LeagueID: 12345, TeamID: 1, Date: date}
-	require.NoError(s.T(), mem.Write(context.Background(),summaryRes.Path(), []byte(summaryWithStatsXML)))
-	require.NoError(s.T(), mem.Write(context.Background(),rosterRes.Path(), []byte(rosterWithPlayersXML)))
+	require.NoError(s.T(), mem.Write(context.Background(), summaryRes.Path(), []byte(summaryWithStatsXML)))
+	require.NoError(s.T(), mem.Write(context.Background(), rosterRes.Path(), []byte(rosterWithPlayersXML)))
 
 	q.On("UpsertYahooTeamSummaryBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{}, 1))
@@ -455,7 +476,7 @@ func (s *ImportYahooDataForDateSuite) TestSummaryUpsertError() {
 	teams := []TeamInfo{{LeagueID: 12345, TeamID: 1}}
 
 	summaryRes := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
-	require.NoError(s.T(), mem.Write(context.Background(),summaryRes.Path(), []byte(summaryWithStatsXML)))
+	require.NoError(s.T(), mem.Write(context.Background(), summaryRes.Path(), []byte(summaryWithStatsXML)))
 
 	q.On("UpsertYahooTeamSummaryBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
@@ -583,9 +604,9 @@ func (s *ImportYahooLeagueDataSuite) TestWithTransactionsDraftMatchups() {
 	txRes := resource.Transactions{Season: 2023, LeagueID: 12345}
 	drRes := resource.DraftResults{Season: 2023, LeagueID: 12345}
 	mu1Res := resource.Matchups{Season: 2023, LeagueID: 12345, Week: 1}
-	require.NoError(s.T(), mem.Write(context.Background(),txRes.Path(), []byte(transactionsWithOneXML)))
-	require.NoError(s.T(), mem.Write(context.Background(),drRes.Path(), []byte(draftResultsWithPicksXML)))
-	require.NoError(s.T(), mem.Write(context.Background(),mu1Res.Path(), []byte(matchupsWeek1XML)))
+	require.NoError(s.T(), mem.Write(context.Background(), txRes.Path(), []byte(transactionsWithOneXML)))
+	require.NoError(s.T(), mem.Write(context.Background(), drRes.Path(), []byte(draftResultsWithPicksXML)))
+	require.NoError(s.T(), mem.Write(context.Background(), mu1Res.Path(), []byte(matchupsWeek1XML)))
 
 	q.On("UpsertYahooTransactionBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTransactionBatchBatchResults(&mockBatchResults{}, 1))
@@ -614,7 +635,7 @@ func (s *ImportYahooLeagueDataSuite) TestTransactionUpsertError() {
 	q := &MockQueries{}
 
 	txRes := resource.Transactions{Season: 2023, LeagueID: 12345}
-	require.NoError(s.T(), mem.Write(context.Background(),txRes.Path(), []byte(transactionsWithOneXML)))
+	require.NoError(s.T(), mem.Write(context.Background(), txRes.Path(), []byte(transactionsWithOneXML)))
 
 	q.On("UpsertYahooTransactionBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTransactionBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
@@ -635,11 +656,11 @@ func (s *ImportYahooLeagueDataSuite) TestMatchupUpsertError() {
 	txRes := resource.Transactions{Season: 2023, LeagueID: 12345}
 	drRes := resource.DraftResults{Season: 2023, LeagueID: 12345}
 	mu1Res := resource.Matchups{Season: 2023, LeagueID: 12345, Week: 1}
-	require.NoError(s.T(), mem.Write(context.Background(),txRes.Path(),
+	require.NoError(s.T(), mem.Write(context.Background(), txRes.Path(),
 		[]byte(`<fantasy_content><league><transactions count="0"></transactions></league></fantasy_content>`)))
-	require.NoError(s.T(), mem.Write(context.Background(),drRes.Path(),
+	require.NoError(s.T(), mem.Write(context.Background(), drRes.Path(),
 		[]byte(`<fantasy_content><league><draft_results count="0"></draft_results></league></fantasy_content>`)))
-	require.NoError(s.T(), mem.Write(context.Background(),mu1Res.Path(), []byte(matchupsWeek1XML)))
+	require.NoError(s.T(), mem.Write(context.Background(), mu1Res.Path(), []byte(matchupsWeek1XML)))
 
 	q.On("UpsertYahooMatchupBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooMatchupBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
@@ -651,6 +672,35 @@ func (s *ImportYahooLeagueDataSuite) TestMatchupUpsertError() {
 
 	require.Error(s.T(), err)
 	assert.Contains(s.T(), err.Error(), "import matchups")
+}
+
+// TestNonContiguousCache_ImportsLaterWeeks verifies that a gap in the cached
+// weeks (week 1 present, week 2 absent, week 3 present) does not stop the import
+// at the gap. The loop must continue past the missing week and still import the
+// later week, matching the fetcher's continue-on-skip semantics.
+func TestImportYahooMatchups_NonContiguousCache_ImportsLaterWeeks(t *testing.T) {
+	t.Parallel()
+	mem := store.NewMemStorage()
+	q := &MockQueries{}
+
+	// Week 1 and week 3 cached; week 2 deliberately absent (gap).
+	mu1Res := resource.Matchups{Season: 2023, LeagueID: 12345, Week: 1}
+	mu3Res := resource.Matchups{Season: 2023, LeagueID: 12345, Week: 3}
+	require.NoError(t, mem.Write(context.Background(), mu1Res.Path(), []byte(matchupsWeek1XML)))
+	require.NoError(t, mem.Write(context.Background(), mu3Res.Path(), []byte(matchupsWeek3XML)))
+
+	// One matchup per cached week → each batch reports one row.
+	q.On("UpsertYahooMatchupBatch", mock.Anything, mock.Anything).
+		Return(sqlcdb.NewUpsertYahooMatchupBatchBatchResults(&mockBatchResults{}, 1))
+
+	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
+	count, err := a.importYahooMatchups(context.Background(),
+		ImportYahooLeagueDataInput{Season: 2023, LeagueID: 12345})
+
+	require.NoError(t, err)
+	// Both weeks import despite the week-2 gap; a break-on-absent loop would return 1.
+	assert.Equal(t, 2, count)
+	q.AssertNumberOfCalls(t, "UpsertYahooMatchupBatch", 2)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -678,7 +728,7 @@ func TestCollectSummaryParams_InvalidStatID_Skipped(t *testing.T) {
   </team>
 </fantasy_content>`)
 	res := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
-	require.NoError(t, mem.Write(context.Background(),res.Path(), xml))
+	require.NoError(t, mem.Write(context.Background(), res.Path(), xml))
 
 	summaryParams := a.collectSummaryParams(
 		context.Background(), teams, date, make(core.OriginCounts),

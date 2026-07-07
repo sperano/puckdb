@@ -18,7 +18,7 @@ func TestInstrumentedStorage_Read(t *testing.T) {
 	inner.SetFile(path, []byte(`{"games": []}`))
 
 	// Test
-	data, err := storage.Read(context.Background(),path)
+	data, err := storage.Read(context.Background(), path)
 	require.NoError(t, err)
 	assert.Equal(t, []byte(`{"games": []}`), data)
 }
@@ -29,7 +29,7 @@ func TestInstrumentedStorage_Write(t *testing.T) {
 	storage := NewInstrumentedStorage(inner)
 
 	path := "seasons/2023/games/2024/01/15/boxscore-2024020123.json"
-	err := storage.Write(context.Background(),path, []byte(`{"id": 2024020123}`))
+	err := storage.Write(context.Background(), path, []byte(`{"id": 2024020123}`))
 	require.NoError(t, err)
 
 	// Verify via inner storage
@@ -42,10 +42,10 @@ func TestInstrumentedStorage_Exists(t *testing.T) {
 	storage := NewInstrumentedStorage(inner)
 
 	path := "player-landings/player-8474564.json"
-	assert.False(t, storage.Exists(context.Background(),path))
+	assert.False(t, storage.Exists(context.Background(), path))
 
 	inner.SetFile(path, []byte(`{}`))
-	assert.True(t, storage.Exists(context.Background(),path))
+	assert.True(t, storage.Exists(context.Background(), path))
 }
 
 func TestInstrumentedStorage_Delete(t *testing.T) {
@@ -56,7 +56,7 @@ func TestInstrumentedStorage_Delete(t *testing.T) {
 	path := "player-landings/missing/player-12345.json"
 	inner.SetFile(path, []byte(`{}`))
 
-	err := storage.Delete(context.Background(),path)
+	err := storage.Delete(context.Background(), path)
 	require.NoError(t, err)
 	assert.False(t, inner.Has(path))
 }
@@ -70,7 +70,7 @@ func TestInstrumentedStorage_List(t *testing.T) {
 	inner.SetFile("20242025/boxscores/2024-01-15/2024020100.json", []byte(`{}`))
 	inner.SetFile("20242025/boxscores/2024-01-15/2024020101.json", []byte(`{}`))
 
-	files, err := storage.List(context.Background(),"20242025/boxscores/2024-01-15", "json")
+	files, err := storage.List(context.Background(), "20242025/boxscores/2024-01-15", "json")
 	require.NoError(t, err)
 	assert.Len(t, files, 2)
 }

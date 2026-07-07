@@ -184,4 +184,3 @@ func DropEverything(ctx context.Context, pool *pgxpool.Pool) error {
 	log.Info().Msg("All tables dropped")
 	return nil
 }
-

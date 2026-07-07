@@ -88,7 +88,7 @@ func registerEdgeTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			return ResultJSON(edgeGoalieResponse{
-				Stats:                stats,
+				Stats:               stats,
 				ShotLocationSummary: locSummary,
 				ShotLocations:       shotLocs,
 			})
@@ -168,22 +168,21 @@ func resolveEdgeGameType(gt string) sqlcdb.GameType {
 // Response types bundle main stats with sub-table data for JSON serialization.
 
 type edgeSkaterResponse struct {
-	Stats         sqlcdb.EdgeSkaterStat          `json:"stats"`
+	Stats         sqlcdb.EdgeSkaterStat           `json:"stats"`
 	ShotLocations []sqlcdb.EdgeSkaterShotLocation `json:"shotLocations"`
 	SogSummary    []sqlcdb.EdgeSkaterSogSummary   `json:"sogSummary"`
 }
 
 type edgeGoalieResponse struct {
-	Stats                sqlcdb.EdgeGoalieStat                 `json:"stats"`
+	Stats               sqlcdb.EdgeGoalieStat                  `json:"stats"`
 	ShotLocationSummary []sqlcdb.EdgeGoalieShotLocationSummary `json:"shotLocationSummary"`
 	ShotLocations       []sqlcdb.EdgeGoalieShotLocation        `json:"shotLocations"`
 }
 
 type edgeTeamResponse struct {
 	Stats              sqlcdb.EdgeTeamStat                 `json:"stats"`
-	SogSummary         []sqlcdb.EdgeTeamSogSummary          `json:"sogSummary"`
-	ShotLocations      []sqlcdb.EdgeTeamShotLocation        `json:"shotLocations"`
-	ZoneTimeByStrength []sqlcdb.EdgeTeamZoneTimeByStrength  `json:"zoneTimeByStrength"`
-	ShotDifferential   *sqlcdb.EdgeTeamShotDifferential     `json:"shotDifferential,omitempty"`
+	SogSummary         []sqlcdb.EdgeTeamSogSummary         `json:"sogSummary"`
+	ShotLocations      []sqlcdb.EdgeTeamShotLocation       `json:"shotLocations"`
+	ZoneTimeByStrength []sqlcdb.EdgeTeamZoneTimeByStrength `json:"zoneTimeByStrength"`
+	ShotDifferential   *sqlcdb.EdgeTeamShotDifferential    `json:"shotDifferential,omitempty"`
 }
-

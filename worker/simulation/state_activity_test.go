@@ -226,6 +226,45 @@ func (s *StateActivityTestSuite) TestLoadDraftCandidates_NullPositionDropped() {
 	assert.Empty(t, got.Skaters)
 }
 
+// TestLoadDraftCandidates_BatchesPlayerLookups guards the T3-B N+1 fix:
+// position lookups for the (up to ~600) draft candidates must collapse
+// to one GetPlayersByIDs call per candidate list (skaters, goalies),
+// not one GetPlayer call per candidate. Also asserts zero-score/zero-W
+// players are excluded from the batch entirely (filtered before the
+// lookup, not after).
+func (s *StateActivityTestSuite) TestLoadDraftCandidates_BatchesPlayerLookups() {
+	t := s.T()
+	s.queries.clubSkaterRows = []sqlcdb.GetClubSkaterStatsBySeasonRow{
+		{PlayerID: 100, FirstName: "F", LastName: "L", Goals: 5, Assists: 5},
+		{PlayerID: 200, FirstName: "F", LastName: "L", Goals: 1, Assists: 0},
+		{PlayerID: 999, FirstName: "F", LastName: "L", Goals: 0, Assists: 0}, // zero-score
+	}
+	s.queries.clubGoalieRows = []sqlcdb.GetClubGoalieStatsBySeasonRow{
+		{PlayerID: 1, FirstName: "F", LastName: "L", Wins: 10, GoalsAgainst: 50},
+		{PlayerID: 2, FirstName: "F", LastName: "L", Wins: 0, GoalsAgainst: 5}, // zero-W
+	}
+	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
+		100: {Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
+		200: {Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionLW, Valid: true}},
+		1:   {Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionG, Valid: true}},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.LoadDraftCandidates, LoadDraftCandidatesInput{Season: 20242025})
+	require.NoError(t, err)
+	var got LoadDraftCandidatesResult
+	require.NoError(t, future.Get(&got))
+
+	require.Len(t, s.queries.getPlayersByIDsCalls, 2,
+		"one batch call for skater candidates, one for goalie candidates — not one per candidate")
+	assert.ElementsMatch(t, []int64{100, 200}, s.queries.getPlayersByIDsCalls[0],
+		"zero-score skater excluded from the batch (filtered before lookup)")
+	assert.ElementsMatch(t, []int64{1}, s.queries.getPlayersByIDsCalls[1],
+		"zero-W goalie excluded from the batch (filtered before lookup)")
+
+	require.Len(t, got.Skaters, 2)
+	require.Len(t, got.Goalies, 1)
+}
+
 func (s *StateActivityTestSuite) TestLoadDraftCandidates_ErrorOnPriorSeason() {
 	t := s.T()
 	// Season below the NHL minimum after the subtraction triggers
@@ -249,6 +288,44 @@ func (s *StateActivityTestSuite) TestLoadDraftCandidates_PropagatesSkaterDBError
 
 func (s *StateActivityTestSuite) registerContextActivity() {
 	s.env.RegisterActivity(s.acts.BuildManageRosterContext)
+}
+
+// TestBuildManageRosterContext_BatchesRosterPlayerLookups guards the
+// T3-B N+1 fix in loadRosterAndPositions: every roster player's name
+// + position is resolved with one GetPlayersByIDs call, not one
+// GetPlayer per roster row. FreeAgents/OnWaivers are left empty so
+// the only batch call in this invocation is the roster one.
+func (s *StateActivityTestSuite) TestBuildManageRosterContext_BatchesRosterPlayerLookups() {
+	t := s.T()
+	s.registerContextActivity()
+	s.queries.getSimAgentByID = map[int32]sqlcdb.SimAgent{1: {ID: 1}}
+	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
+		1: {
+			{PoolID: 1, AgentID: 1, PlayerID: 100, Slot: "C"},
+			{PoolID: 1, AgentID: 1, PlayerID: 200, Slot: "LW"},
+			{PoolID: 1, AgentID: 1, PlayerID: 300, Slot: "BN"},
+		},
+	}
+	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
+		100: {FirstName: "A", LastName: "One", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
+		200: {FirstName: "B", LastName: "Two", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionLW, Valid: true}},
+		300: {FirstName: "C", LastName: "Three", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionD, Valid: true}},
+	}
+
+	in := BuildManageRosterContextInput{
+		PoolID: 1, AgentID: 1,
+		SimDate:    pgDate(t, "2024-11-15"),
+		PoolConfig: PoolConfig{RosterPositions: map[RosterSlot]int{SlotC: 1, SlotLW: 1, SlotBN: 1}},
+	}
+	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, in)
+	require.NoError(t, err)
+	var got ManageRosterInput
+	require.NoError(t, future.Get(&got))
+
+	require.Len(t, s.queries.getPlayersByIDsCalls, 1, "one batched call for the whole roster, not one per player")
+	assert.ElementsMatch(t, []int64{100, 200, 300}, s.queries.getPlayersByIDsCalls[0])
+	require.Len(t, got.DailyPrompt.YourRoster, 3)
+	assert.Equal(t, sqlcdb.PlayerPositionD, got.Positions[300])
 }
 
 func (s *StateActivityTestSuite) TestBuildManageRosterContext_PopulatesNotesAndRoster() {

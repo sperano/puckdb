@@ -102,7 +102,7 @@ func (m *MockNHLClient) Franchises(ctx context.Context) ([]nhlapi.Franchise, err
 }
 
 func (m *MockNHLClient) SearchPlayer(ctx context.Context, query string, limit ...int) ([]nhlapi.PlayerSearchResult, error) {
-	callArgs := []interface{}{ctx, query}
+	callArgs := []any{ctx, query}
 	for _, l := range limit {
 		callArgs = append(callArgs, l)
 	}

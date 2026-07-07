@@ -28,10 +28,15 @@ type SimPool {
   status: String!
   simDate: String
   totalLlmCostUsd: Float!
-  agents: [SimAgent!]!
-  standings: [SimStandingEntry!]!
+  # agents / standings / currentDraftAction are forceResolver fields: the
+  # simPools list query resolves only the scalar columns above (one
+  # ListSimPools query total), and these expensive nested fields are fetched
+  # lazily — per pool, only when a client actually selects them. See
+  # graph/simulation_helpers.go > loadSimPoolAgents/Standings/CurrentDraftAction.
+  agents: [SimAgent!]! @goField(forceResolver: true)
+  standings: [SimStandingEntry!]! @goField(forceResolver: true)
   """Current draft action — non-null only while status='draft' and at least one agent has a draft_position. Computed from sim_transactions count + sim_agents.draft_position (snake order)."""
-  currentDraftAction: CurrentDraftAction
+  currentDraftAction: CurrentDraftAction @goField(forceResolver: true)
   """Config-time stop point. One of: never | team_name | draft | season."""
   stopAfter: String!
   """Cap on the season day loop (0 = no cap)."""

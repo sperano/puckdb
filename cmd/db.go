@@ -34,16 +34,20 @@ func cmdDB() *cobra.Command {
 const dbInitLockName = "puckdb:db-init"
 const dbMigrateLockName = "puckdb:db-migrate"
 
+// dbMigrateFlagGroups lists every flag group `db migrate` exposes. Defined
+// once and shared by InitFlags and BindFlags so the two can never drift.
+var dbMigrateFlagGroups = []*config.FlagGroup{
+	&config.RedisFlags,
+	&config.PostgresFlags,
+}
+
 func cmdDBMigrate() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "migrate",
 		Short: "Run database migrations directly",
 		Long:  `Run database migrations directly without going through GraphQL API. Designed for init containers.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(),
-				&config.RedisFlags,
-				&config.PostgresFlags,
-			)
+			return config.BindFlags(cmd.Flags(), dbMigrateFlagGroups...)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withRedisLock(cmd.Context(), dbMigrateLockName, config.DefaultDBInitLockTTL, func() error {
@@ -55,11 +59,14 @@ func cmdDBMigrate() *cobra.Command {
 			})
 		},
 	}
-	config.InitFlags(cmd.Flags(),
-		&config.RedisFlags,
-		&config.PostgresFlags,
-	)
+	config.InitFlags(cmd.Flags(), dbMigrateFlagGroups...)
 	return cmd
+}
+
+// dbInitFlagGroups lists every flag group `db init` exposes. Defined once
+// and shared by InitFlags and BindFlags so the two can never drift.
+var dbInitFlagGroups = []*config.FlagGroup{
+	&config.RedisFlags,
 }
 
 func cmdDBInit() *cobra.Command {
@@ -68,7 +75,7 @@ func cmdDBInit() *cobra.Command {
 		Short: "Initialize database",
 		Long:  `Run database migrations via GraphQL API. Uses Redis lock to prevent concurrent migrations.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), &config.RedisFlags)
+			return config.BindFlags(cmd.Flags(), dbInitFlagGroups...)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getGraphQLClient()
@@ -88,7 +95,7 @@ func cmdDBInit() *cobra.Command {
 			})
 		},
 	}
-	config.InitFlags(cmd.Flags(), &config.RedisFlags)
+	config.InitFlags(cmd.Flags(), dbInitFlagGroups...)
 	return cmd
 }
 
@@ -117,6 +124,14 @@ func cmdDBDrop() *cobra.Command {
 
 const dbProvisionLockName = "puckdb:db-provision"
 
+// dbProvisionFlagGroups lists every flag group `db provision` exposes.
+// Defined once and shared by InitFlags and BindFlags so the two can never drift.
+var dbProvisionFlagGroups = []*config.FlagGroup{
+	&config.RedisFlags,
+	&config.ProvisionerFlags,
+	&config.PostgresFlags,
+}
+
 func cmdDBProvision() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "provision",
@@ -125,19 +140,11 @@ func cmdDBProvision() *cobra.Command {
 Uses provisioner credentials to create the target database and user.
 This command is idempotent and uses a Redis lock to prevent concurrent runs.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(),
-				&config.RedisFlags,
-				&config.ProvisionerFlags,
-				&config.PostgresFlags,
-			)
+			return config.BindFlags(cmd.Flags(), dbProvisionFlagGroups...)
 		},
 		RunE: runDBProvision,
 	}
-	config.InitFlags(cmd.Flags(),
-		&config.RedisFlags,
-		&config.ProvisionerFlags,
-		&config.PostgresFlags,
-	)
+	config.InitFlags(cmd.Flags(), dbProvisionFlagGroups...)
 	return cmd
 }
 

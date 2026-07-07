@@ -228,19 +228,12 @@ func upsertSkaterStats(ctx context.Context, queries BoxscoreUpserter, b *nhlapi.
 		params[i] = s.params
 	}
 
-	var firstErr error
-	var errIdx int
 	results := queries.UpsertGameSkaterStatsBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && firstErr == nil {
-			firstErr = err
-			errIdx = i
-		}
-	})
-
-	if firstErr != nil {
-		s := skaters[errIdx].skater
-		return errIdx, fmt.Errorf("player %d (%s, %s): %w", s.PlayerID, s.Name, s.Position, firstErr)
+	if err := shared.ExecBatch(results, func(i int) string {
+		s := skaters[i].skater
+		return fmt.Sprintf("player %d (%s, %s)", s.PlayerID, s.Name, s.Position)
+	}); err != nil {
+		return 0, err
 	}
 
 	return len(skaters), nil
@@ -311,19 +304,12 @@ func upsertGoalieStats(ctx context.Context, queries BoxscoreUpserter, b *nhlapi.
 		params[i] = g.params
 	}
 
-	var firstErr error
-	var errIdx int
 	results := queries.UpsertGameGoalieStatsBatch(ctx, params)
-	results.Exec(func(i int, err error) {
-		if err != nil && firstErr == nil {
-			firstErr = err
-			errIdx = i
-		}
-	})
-
-	if firstErr != nil {
-		g := goalies[errIdx].goalie
-		return errIdx, fmt.Errorf("player %d (%s, %s): %w", g.PlayerID, g.Name, g.Position, firstErr)
+	if err := shared.ExecBatch(results, func(i int) string {
+		g := goalies[i].goalie
+		return fmt.Sprintf("player %d (%s, %s)", g.PlayerID, g.Name, g.Position)
+	}); err != nil {
+		return 0, err
 	}
 
 	return len(goalies), nil

@@ -11,66 +11,69 @@ import (
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/generated"
 	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/worker/admin"
+	"github.com/sperano/puckdb/worker/shared"
+	"github.com/sperano/puckdb/worker/workflow"
 )
 
 // ClearDatabase is the resolver for the clearDatabase field.
 func (r *mutationResolver) ClearDatabase(ctx context.Context) (bool, error) {
-	return r.Resolver.clearDatabase(ctx)
+	return r.Resolver.executeAdminWorkflow(ctx, admin.WorkflowIDResetDatabase, admin.ResetDatabaseWorkflow)
 }
 
 // DropDatabase is the resolver for the dropDatabase field.
 func (r *mutationResolver) DropDatabase(ctx context.Context) (bool, error) {
-	return r.Resolver.dropDatabase(ctx)
+	return r.Resolver.executeAdminWorkflow(ctx, admin.WorkflowIDDropDatabase, admin.DropDatabaseWorkflow)
 }
 
 // CreateDatabase is the resolver for the createDatabase field.
 func (r *mutationResolver) CreateDatabase(ctx context.Context) (bool, error) {
-	return r.Resolver.createDatabase(ctx)
+	return r.Resolver.executeAdminWorkflow(ctx, admin.WorkflowIDMigrateDatabase, admin.MigrateDatabaseWorkflow)
 }
 
 // FlushRedisDb is the resolver for the flushRedisDB field.
 func (r *mutationResolver) FlushRedisDb(ctx context.Context) (bool, error) {
-	return r.Resolver.flushRedisDB(ctx)
+	return r.Resolver.executeAdminWorkflow(ctx, admin.WorkflowIDFlushRedis, admin.FlushRedisWorkflow)
 }
 
 // Initialize is the resolver for the initialize field.
 func (r *mutationResolver) Initialize(ctx context.Context) (bool, error) {
-	return r.Resolver.initialize(ctx)
+	return r.Resolver.executeWorkflow(ctx, workflow.WorkflowIDInitialize, workflow.InitializeWorkflow, nil)
 }
 
 // CancelInitialize is the resolver for the cancelInitialize field.
 func (r *mutationResolver) CancelInitialize(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelInitialize(ctx)
+	return r.Resolver.cancelWorkflow(ctx, workflow.WorkflowIDInitialize)
 }
 
 // FetchSeasons is the resolver for the fetchSeasons field.
 func (r *mutationResolver) FetchSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.Resolver.fetchSeasons(ctx, input)
+	return r.Resolver.executeWorkflow(ctx, shared.WorkflowIDFetchSeasons, workflow.FetchSeasonsWorkflow, input)
 }
 
 // CancelFetchSeasons is the resolver for the cancelFetchSeasons field.
 func (r *mutationResolver) CancelFetchSeasons(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelFetchSeasons(ctx)
+	return r.Resolver.cancelWorkflow(ctx, shared.WorkflowIDFetchSeasons)
 }
 
 // FetchPlayerLogs is the resolver for the fetchPlayerLogs field.
 func (r *mutationResolver) FetchPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.Resolver.fetchPlayerLogs(ctx, input)
+	return r.Resolver.executeWorkflow(ctx, shared.WorkflowIDFetchPlayerLogs, workflow.FetchPlayerLogsWorkflow, input)
 }
 
 // CancelFetchPlayerLogs is the resolver for the cancelFetchPlayerLogs field.
 func (r *mutationResolver) CancelFetchPlayerLogs(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelFetchPlayerLogs(ctx)
+	return r.Resolver.cancelWorkflow(ctx, shared.WorkflowIDFetchPlayerLogs)
 }
 
 // FetchYahooPlayers is the resolver for the fetchYahooPlayers field.
 func (r *mutationResolver) FetchYahooPlayers(ctx context.Context) (bool, error) {
-	return r.Resolver.fetchYahooPlayers(ctx)
+	return r.Resolver.executeWorkflow(ctx, workflow.WorkflowIDFetchYahooPlayers, workflow.FetchYahooPlayersWorkflow, (*workflow.FetchYahooPlayersInput)(nil))
 }
 
 // CancelFetchYahooPlayers is the resolver for the cancelFetchYahooPlayers field.
 func (r *mutationResolver) CancelFetchYahooPlayers(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelFetchYahooPlayers(ctx)
+	return r.Resolver.cancelWorkflow(ctx, workflow.WorkflowIDFetchYahooPlayers)
 }
 
 // ProcessPlayers is the resolver for the processPlayers field.
@@ -80,37 +83,37 @@ func (r *mutationResolver) ProcessPlayers(ctx context.Context, input *model.Proc
 
 // CancelProcessPlayers is the resolver for the cancelProcessPlayers field.
 func (r *mutationResolver) CancelProcessPlayers(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelProcessPlayers(ctx)
+	return r.Resolver.cancelWorkflow(ctx, workflow.WorkflowIDProcessPlayers)
 }
 
 // ImportSeasons is the resolver for the importSeasons field.
 func (r *mutationResolver) ImportSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.Resolver.importSeasons(ctx, input)
+	return r.Resolver.executeWorkflow(ctx, shared.WorkflowIDImportSeasons, workflow.ImportSeasonsWorkflow, input)
 }
 
 // CancelImportSeasons is the resolver for the cancelImportSeasons field.
 func (r *mutationResolver) CancelImportSeasons(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelImportSeasons(ctx)
+	return r.Resolver.cancelWorkflow(ctx, shared.WorkflowIDImportSeasons)
 }
 
 // ImportPlayerLogs is the resolver for the importPlayerLogs field.
 func (r *mutationResolver) ImportPlayerLogs(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.Resolver.importPlayerLogs(ctx, input)
+	return r.Resolver.executeWorkflow(ctx, shared.WorkflowIDImportPlayerLogs, workflow.ImportPlayerLogsWorkflow, input)
 }
 
 // CancelImportPlayerLogs is the resolver for the cancelImportPlayerLogs field.
 func (r *mutationResolver) CancelImportPlayerLogs(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelImportPlayerLogs(ctx)
+	return r.Resolver.cancelWorkflow(ctx, shared.WorkflowIDImportPlayerLogs)
 }
 
 // ExtractBoxscorePlayers is the resolver for the extractBoxscorePlayers field.
 func (r *mutationResolver) ExtractBoxscorePlayers(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.Resolver.extractBoxscorePlayers(ctx, input)
+	return r.Resolver.executeWorkflow(ctx, workflow.WorkflowIDExtractBoxscorePlayers, workflow.ExtractBoxscorePlayersWorkflow, input)
 }
 
 // CancelExtractBoxscorePlayers is the resolver for the cancelExtractBoxscorePlayers field.
 func (r *mutationResolver) CancelExtractBoxscorePlayers(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelExtractBoxscorePlayers(ctx)
+	return r.Resolver.cancelWorkflow(ctx, workflow.WorkflowIDExtractBoxscorePlayers)
 }
 
 // FetchPlayerLandings is the resolver for the fetchPlayerLandings field.
@@ -120,27 +123,27 @@ func (r *mutationResolver) FetchPlayerLandings(ctx context.Context, input *model
 
 // CancelFetchPlayerLandings is the resolver for the cancelFetchPlayerLandings field.
 func (r *mutationResolver) CancelFetchPlayerLandings(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelFetchPlayerLandings(ctx)
+	return r.Resolver.cancelWorkflow(ctx, workflow.WorkflowIDFetchPlayerLandings)
 }
 
 // FetchEdgeStats is the resolver for the fetchEdgeStats field.
 func (r *mutationResolver) FetchEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.Resolver.fetchEdgeStats(ctx, input)
+	return r.Resolver.executeWorkflow(ctx, shared.WorkflowIDFetchEdgeStats, workflow.FetchEdgeSeasonsWorkflow, input)
 }
 
 // CancelFetchEdgeStats is the resolver for the cancelFetchEdgeStats field.
 func (r *mutationResolver) CancelFetchEdgeStats(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelFetchEdgeStats(ctx)
+	return r.Resolver.cancelWorkflow(ctx, shared.WorkflowIDFetchEdgeStats)
 }
 
 // ImportEdgeStats is the resolver for the importEdgeStats field.
 func (r *mutationResolver) ImportEdgeStats(ctx context.Context, input *model.SeasonsInput) (bool, error) {
-	return r.Resolver.importEdgeStats(ctx, input)
+	return r.Resolver.executeWorkflow(ctx, shared.WorkflowIDImportEdgeStats, workflow.ImportEdgeSeasonsWorkflow, input)
 }
 
 // CancelImportEdgeStats is the resolver for the cancelImportEdgeStats field.
 func (r *mutationResolver) CancelImportEdgeStats(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelImportEdgeStats(ctx)
+	return r.Resolver.cancelWorkflow(ctx, shared.WorkflowIDImportEdgeStats)
 }
 
 // FetchAssets is the resolver for the fetchAssets field.
@@ -150,7 +153,7 @@ func (r *mutationResolver) FetchAssets(ctx context.Context, input *model.FetchAs
 
 // CancelFetchAssets is the resolver for the cancelFetchAssets field.
 func (r *mutationResolver) CancelFetchAssets(ctx context.Context) (bool, error) {
-	return r.Resolver.cancelFetchAssets(ctx)
+	return r.Resolver.cancelWorkflow(ctx, shared.WorkflowIDFetchAssets)
 }
 
 // MauriceChat is the resolver for the mauriceChat field.
@@ -176,52 +179,52 @@ func (r *queryResolver) YahooTokenStatus(ctx context.Context) (*model.YahooToken
 
 // InitializeResult is the resolver for the initializeResult field.
 func (r *queryResolver) InitializeResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.initializeResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, workflow.WorkflowIDInitialize)
 }
 
 // InitializeProgress is the resolver for the initializeProgress field.
 func (r *queryResolver) InitializeProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.initializeProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, workflow.WorkflowIDInitialize)
 }
 
 // FetchSeasonsResult is the resolver for the fetchSeasonsResult field.
 func (r *queryResolver) FetchSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.fetchSeasonsResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, shared.WorkflowIDFetchSeasons)
 }
 
 // FetchSeasonsProgress is the resolver for the fetchSeasonsProgress field.
 func (r *queryResolver) FetchSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.fetchSeasonsProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, shared.WorkflowIDFetchSeasons)
 }
 
 // FetchPlayerLogsResult is the resolver for the fetchPlayerLogsResult field.
 func (r *queryResolver) FetchPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.fetchPlayerLogsResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, shared.WorkflowIDFetchPlayerLogs)
 }
 
 // FetchPlayerLogsProgress is the resolver for the fetchPlayerLogsProgress field.
 func (r *queryResolver) FetchPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.fetchPlayerLogsProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, shared.WorkflowIDFetchPlayerLogs)
 }
 
 // FetchYahooPlayersResult is the resolver for the fetchYahooPlayersResult field.
 func (r *queryResolver) FetchYahooPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.fetchYahooPlayersResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, workflow.WorkflowIDFetchYahooPlayers)
 }
 
 // FetchYahooPlayersProgress is the resolver for the fetchYahooPlayersProgress field.
 func (r *queryResolver) FetchYahooPlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.fetchYahooPlayersProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, workflow.WorkflowIDFetchYahooPlayers)
 }
 
 // ProcessPlayersResult is the resolver for the processPlayersResult field.
 func (r *queryResolver) ProcessPlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.processPlayersResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, workflow.WorkflowIDProcessPlayers)
 }
 
 // ProcessPlayersProgress is the resolver for the processPlayersProgress field.
 func (r *queryResolver) ProcessPlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.processPlayersProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, workflow.WorkflowIDProcessPlayers)
 }
 
 // ProcessPlayersResultData is the resolver for the processPlayersResultData field.
@@ -231,72 +234,72 @@ func (r *queryResolver) ProcessPlayersResultData(ctx context.Context) (*model.Pr
 
 // ImportSeasonsResult is the resolver for the importSeasonsResult field.
 func (r *queryResolver) ImportSeasonsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.importSeasonsResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, shared.WorkflowIDImportSeasons)
 }
 
 // ImportSeasonsProgress is the resolver for the importSeasonsProgress field.
 func (r *queryResolver) ImportSeasonsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.importSeasonsProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, shared.WorkflowIDImportSeasons)
 }
 
 // ImportPlayerLogsResult is the resolver for the importPlayerLogsResult field.
 func (r *queryResolver) ImportPlayerLogsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.importPlayerLogsResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, shared.WorkflowIDImportPlayerLogs)
 }
 
 // ImportPlayerLogsProgress is the resolver for the importPlayerLogsProgress field.
 func (r *queryResolver) ImportPlayerLogsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.importPlayerLogsProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, shared.WorkflowIDImportPlayerLogs)
 }
 
 // ExtractBoxscorePlayersResult is the resolver for the extractBoxscorePlayersResult field.
 func (r *queryResolver) ExtractBoxscorePlayersResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.extractBoxscorePlayersResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, workflow.WorkflowIDExtractBoxscorePlayers)
 }
 
 // ExtractBoxscorePlayersProgress is the resolver for the extractBoxscorePlayersProgress field.
 func (r *queryResolver) ExtractBoxscorePlayersProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.extractBoxscorePlayersProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, workflow.WorkflowIDExtractBoxscorePlayers)
 }
 
 // FetchPlayerLandingsResult is the resolver for the fetchPlayerLandingsResult field.
 func (r *queryResolver) FetchPlayerLandingsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.fetchPlayerLandingsResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, workflow.WorkflowIDFetchPlayerLandings)
 }
 
 // FetchPlayerLandingsProgress is the resolver for the fetchPlayerLandingsProgress field.
 func (r *queryResolver) FetchPlayerLandingsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.fetchPlayerLandingsProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, workflow.WorkflowIDFetchPlayerLandings)
 }
 
 // FetchEdgeStatsResult is the resolver for the fetchEdgeStatsResult field.
 func (r *queryResolver) FetchEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.fetchEdgeStatsResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, shared.WorkflowIDFetchEdgeStats)
 }
 
 // FetchEdgeStatsProgress is the resolver for the fetchEdgeStatsProgress field.
 func (r *queryResolver) FetchEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.fetchEdgeStatsProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, shared.WorkflowIDFetchEdgeStats)
 }
 
 // ImportEdgeStatsResult is the resolver for the importEdgeStatsResult field.
 func (r *queryResolver) ImportEdgeStatsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.importEdgeStatsResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, shared.WorkflowIDImportEdgeStats)
 }
 
 // ImportEdgeStatsProgress is the resolver for the importEdgeStatsProgress field.
 func (r *queryResolver) ImportEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.importEdgeStatsProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, shared.WorkflowIDImportEdgeStats)
 }
 
 // FetchAssetsResult is the resolver for the fetchAssetsResult field.
 func (r *queryResolver) FetchAssetsResult(ctx context.Context) (*model.WorkflowResult, error) {
-	return r.Resolver.fetchAssetsResult(ctx)
+	return r.Resolver.getWorkflowResult(ctx, shared.WorkflowIDFetchAssets)
 }
 
 // FetchAssetsProgress is the resolver for the fetchAssetsProgress field.
 func (r *queryResolver) FetchAssetsProgress(ctx context.Context) (*model.ProgressReport, error) {
-	return r.Resolver.fetchAssetsProgress(ctx)
+	return r.Resolver.queryProgressReport(ctx, shared.WorkflowIDFetchAssets)
 }
 
 // MauriceConversations is the resolver for the mauriceConversations field.

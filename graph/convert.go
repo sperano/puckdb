@@ -238,56 +238,20 @@ func convertGetGameRow(g sqlcdb.GetGameRow) *model.Game {
 	}
 }
 
+// convertGamesByDateRow and convertListGamesRow reuse convertGetGameRow's
+// mapping via a direct struct conversion: GetGameRow, GetGamesByDateRow, and
+// ListGamesRow are three sqlc-generated row types with identical field sets
+// (only their names differ, and struct tags are ignored for conversion
+// purposes), so `sqlcdb.GetGameRow(g)` is a legal, zero-cost Go conversion.
+// If a future migration/query change makes the field sets diverge, this
+// conversion fails to compile — a loud, safe failure rather than a silent
+// field-mapping bug.
 func convertGamesByDateRow(g sqlcdb.GetGamesByDateRow) *model.Game {
-	return &model.Game{
-		ID:                g.ID,
-		Season:            int(g.Season),
-		GameType:          string(g.GameType),
-		GameDate:          dateString(g.GameDate),
-		Venue:             g.Venue,
-		VenueLocation:     g.VenueLocation,
-		StartTimeUtc:      timestampPtr(g.StartTimeUTC),
-		GameState:         string(g.GameState),
-		GameScheduleState: string(g.GameScheduleState),
-		PeriodNumber:      int(g.PeriodNumber),
-		PeriodType:        string(g.PeriodType),
-		HomeTeamID:        g.HomeTeamID,
-		HomeTeamScore:     int(g.HomeTeamScore),
-		HomeTeamSog:       int(g.HomeTeamSog),
-		HomeTeamName:      g.HomeTeamName,
-		HomeTeamAbbrev:    g.HomeTeamAbbrev,
-		AwayTeamID:        g.AwayTeamID,
-		AwayTeamScore:     int(g.AwayTeamScore),
-		AwayTeamSog:       int(g.AwayTeamSog),
-		AwayTeamName:      g.AwayTeamName,
-		AwayTeamAbbrev:    g.AwayTeamAbbrev,
-	}
+	return convertGetGameRow(sqlcdb.GetGameRow(g))
 }
 
 func convertListGamesRow(g sqlcdb.ListGamesRow) *model.Game {
-	return &model.Game{
-		ID:                g.ID,
-		Season:            int(g.Season),
-		GameType:          string(g.GameType),
-		GameDate:          dateString(g.GameDate),
-		Venue:             g.Venue,
-		VenueLocation:     g.VenueLocation,
-		StartTimeUtc:      timestampPtr(g.StartTimeUTC),
-		GameState:         string(g.GameState),
-		GameScheduleState: string(g.GameScheduleState),
-		PeriodNumber:      int(g.PeriodNumber),
-		PeriodType:        string(g.PeriodType),
-		HomeTeamID:        g.HomeTeamID,
-		HomeTeamScore:     int(g.HomeTeamScore),
-		HomeTeamSog:       int(g.HomeTeamSog),
-		HomeTeamName:      g.HomeTeamName,
-		HomeTeamAbbrev:    g.HomeTeamAbbrev,
-		AwayTeamID:        g.AwayTeamID,
-		AwayTeamScore:     int(g.AwayTeamScore),
-		AwayTeamSog:       int(g.AwayTeamSog),
-		AwayTeamName:      g.AwayTeamName,
-		AwayTeamAbbrev:    g.AwayTeamAbbrev,
-	}
+	return convertGetGameRow(sqlcdb.GetGameRow(g))
 }
 
 func convertStandingsSnapshot(s sqlcdb.StandingsSnapshot) *model.StandingsEntry {

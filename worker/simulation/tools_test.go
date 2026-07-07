@@ -32,6 +32,67 @@ func TestTools_NamesMatchConstants(t *testing.T) {
 	}
 }
 
+// TestSchemasAreValidJSON is a table-driven pass over every hand-written
+// schema string constant/var in tools.go — including setTeamNameSchema
+// and updateNotesSchema, which TestTools_SchemasAreValidObjects below
+// doesn't reach directly (it only walks DraftTools()+DailyTools(),
+// which excludes TeamNameTools()). Kept intentionally minimal (just
+// "does this parse") since TestTools_SchemasAreValidObjects already
+// covers the JSON-Schema-shape assertions for the tools actually wired
+// into a phase's tool list.
+func TestSchemasAreValidJSON(t *testing.T) {
+	tests := []struct {
+		name   string
+		schema string
+	}{
+		{"draftPlayerSchema", draftPlayerSchema},
+		{"setLineupSchema", setLineupSchema},
+		{"addPlayerSchema", addPlayerSchema},
+		{"claimPlayerSchema", claimPlayerSchema},
+		{"dropPlayerSchema", dropPlayerSchema},
+		{"setTeamNameSchema", setTeamNameSchema},
+		{"updateNotesSchema", updateNotesSchema},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var v any
+			require.NoError(t, json.Unmarshal([]byte(tt.schema), &v), "schema must be valid JSON")
+		})
+	}
+}
+
+// TestReasonProperty_SharedFragmentUnique pins that the extracted
+// `reason` property fragment stays a single formatted template: the
+// action word appears in the description, and maxLength stays pinned
+// to reasonMaxLength across every one of the 5 tools that embed it.
+func TestReasonProperty_SharedFragmentUnique(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		schema string
+		action string
+	}{
+		{"draftPlayerSchema", draftPlayerSchema, "player"},
+		{"setLineupSchema", setLineupSchema, "lineup"},
+		{"addPlayerSchema", addPlayerSchema, "add"},
+		{"claimPlayerSchema", claimPlayerSchema, "claim"},
+		{"dropPlayerSchema", dropPlayerSchema, "drop"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var parsed struct {
+				Properties struct {
+					Reason struct {
+						MaxLength int    `json:"maxLength"`
+						Descr     string `json:"description"`
+					} `json:"reason"`
+				} `json:"properties"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(tt.schema), &parsed))
+			assert.Equal(t, reasonMaxLength, parsed.Properties.Reason.MaxLength)
+			assert.Contains(t, parsed.Properties.Reason.Descr, "why this "+tt.action)
+		})
+	}
+}
+
 // Every tool's Parameters must be syntactically valid JSON Schema. We
 // parse as a generic map and assert the top-level shape (object with
 // type + properties + required). Avoids pulling in a JSON-Schema

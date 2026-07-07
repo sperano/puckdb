@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/sqlcdb"
@@ -17,10 +18,11 @@ import (
 
 // Seasons is the resolver for the seasons field.
 func (r *queryResolver) Seasons(ctx context.Context) ([]*model.Season, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	rows, err := r.Resolver.Queries.GetAllSeasons(ctx)
+	rows, err := q.GetAllSeasons(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -33,10 +35,11 @@ func (r *queryResolver) Seasons(ctx context.Context) ([]*model.Season, error) {
 
 // Season is the resolver for the season field.
 func (r *queryResolver) Season(ctx context.Context, id int) (*model.Season, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	s, err := r.Resolver.Queries.GetSeason(ctx, int32(id))
+	s, err := q.GetSeason(ctx, int32(id))
 	if err != nil {
 		return nil, err
 	}
@@ -45,10 +48,11 @@ func (r *queryResolver) Season(ctx context.Context, id int) (*model.Season, erro
 
 // Teams is the resolver for the teams field.
 func (r *queryResolver) Teams(ctx context.Context, season int) ([]*model.Team, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	rows, err := r.Resolver.Queries.GetSeasonTeams(ctx, int32(season))
+	rows, err := q.GetSeasonTeams(ctx, int32(season))
 	if err != nil {
 		return nil, err
 	}
@@ -61,10 +65,11 @@ func (r *queryResolver) Teams(ctx context.Context, season int) ([]*model.Team, e
 
 // Team is the resolver for the team field.
 func (r *queryResolver) Team(ctx context.Context, season int, teamID int64) (*model.Team, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	t, err := r.Resolver.Queries.GetSeasonTeam(ctx, sqlcdb.GetSeasonTeamParams{
+	t, err := q.GetSeasonTeam(ctx, sqlcdb.GetSeasonTeamParams{
 		Season: int32(season),
 		TeamID: teamID,
 	})
@@ -76,10 +81,11 @@ func (r *queryResolver) Team(ctx context.Context, season int, teamID int64) (*mo
 
 // Player is the resolver for the player field.
 func (r *queryResolver) Player(ctx context.Context, id int64) (*model.Player, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	p, err := r.Resolver.Queries.GetPlayer(ctx, id)
+	p, err := q.GetPlayer(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -88,8 +94,9 @@ func (r *queryResolver) Player(ctx context.Context, id int64) (*model.Player, er
 
 // Players is the resolver for the players field.
 func (r *queryResolver) Players(ctx context.Context, filter *model.PlayerFilter) ([]*model.Player, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
 	var params sqlcdb.ListPlayersParams
 	if filter != nil {
@@ -98,7 +105,7 @@ func (r *queryResolver) Players(ctx context.Context, filter *model.PlayerFilter)
 		params.Position = optionalText(filter.Position)
 		params.IsActive = optionalBool(filter.IsActive)
 	}
-	rows, err := r.Resolver.Queries.ListPlayers(ctx, params)
+	rows, err := q.ListPlayers(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +118,24 @@ func (r *queryResolver) Players(ctx context.Context, filter *model.PlayerFilter)
 
 // SearchPlayers is the resolver for the searchPlayers field.
 func (r *queryResolver) SearchPlayers(ctx context.Context, query string) ([]*model.Player, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	// SearchPlayersByName expects a LIKE pattern
-	pattern := "%" + query + "%"
-	rows, err := r.Resolver.Queries.SearchPlayersByName(ctx, pattern)
+	// Bound and sanitize the term. SearchPlayersByName wraps the argument
+	// in '%'…'%' itself and caps results at LIMIT 500, so we pass the raw
+	// (escaped) term — not a pre-built pattern. Escaping the LIKE
+	// metacharacters stops input like "%" from wildcard-matching the whole
+	// table, and the length cap bounds the scan cost. Truncate by rune so a
+	// multibyte term isn't split into invalid UTF-8.
+	term := strings.TrimSpace(query)
+	if runes := []rune(term); len(runes) > maxSearchQueryLen {
+		term = string(runes[:maxSearchQueryLen])
+	}
+	if term == "" {
+		return []*model.Player{}, nil
+	}
+	rows, err := q.SearchPlayersByName(ctx, escapeLikePattern(term))
 	if err != nil {
 		return nil, err
 	}
@@ -129,10 +148,11 @@ func (r *queryResolver) SearchPlayers(ctx context.Context, query string) ([]*mod
 
 // Game is the resolver for the game field.
 func (r *queryResolver) Game(ctx context.Context, id int64) (*model.Game, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	g, err := r.Resolver.Queries.GetGame(ctx, id)
+	g, err := q.GetGame(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -141,11 +161,12 @@ func (r *queryResolver) Game(ctx context.Context, id int64) (*model.Game, error)
 
 // GamesByDate is the resolver for the gamesByDate field.
 func (r *queryResolver) GamesByDate(ctx context.Context, date string) ([]*model.Game, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
 	d := parseDate(date)
-	rows, err := r.Resolver.Queries.GetGamesByDate(ctx, d)
+	rows, err := q.GetGamesByDate(ctx, d)
 	if err != nil {
 		return nil, err
 	}
@@ -158,8 +179,9 @@ func (r *queryResolver) GamesByDate(ctx context.Context, date string) ([]*model.
 
 // Games is the resolver for the games field.
 func (r *queryResolver) Games(ctx context.Context, filter *model.GameFilter) ([]*model.Game, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
 	var params sqlcdb.ListGamesParams
 	if filter != nil {
@@ -169,9 +191,9 @@ func (r *queryResolver) Games(ctx context.Context, filter *model.GameFilter) ([]
 		params.TeamID = optionalInt8(filter.TeamID)
 		params.StartDate = optionalDate(filter.StartDate)
 		params.EndDate = optionalDate(filter.EndDate)
-		params.Limit = optionalInt4(filter.Limit)
+		params.Limit = optionalInt4(clampListLimit(filter.Limit))
 	}
-	rows, err := r.Resolver.Queries.ListGames(ctx, params)
+	rows, err := q.ListGames(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -184,10 +206,11 @@ func (r *queryResolver) Games(ctx context.Context, filter *model.GameFilter) ([]
 
 // Standings is the resolver for the standings field.
 func (r *queryResolver) Standings(ctx context.Context, season int, date string) ([]*model.StandingsEntry, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	rows, err := r.Resolver.Queries.GetStandingsSnapshotsBySeasonAndDate(ctx, sqlcdb.GetStandingsSnapshotsBySeasonAndDateParams{
+	rows, err := q.GetStandingsSnapshotsBySeasonAndDate(ctx, sqlcdb.GetStandingsSnapshotsBySeasonAndDateParams{
 		Season: int32(season),
 		Date:   parseDate(date),
 	})
@@ -203,18 +226,19 @@ func (r *queryResolver) Standings(ctx context.Context, season int, date string) 
 
 // Boxscore is the resolver for the boxscore field.
 func (r *queryResolver) Boxscore(ctx context.Context, gameID int64) (*model.Boxscore, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	game, err := r.Resolver.Queries.GetGame(ctx, gameID)
+	game, err := q.GetGame(ctx, gameID)
 	if err != nil {
 		return nil, fmt.Errorf("game %d: %w", gameID, err)
 	}
-	skaters, err := r.Resolver.Queries.GetGameSkaterStatsByGame(ctx, gameID)
+	skaters, err := q.GetGameSkaterStatsByGame(ctx, gameID)
 	if err != nil {
 		return nil, fmt.Errorf("skater stats for game %d: %w", gameID, err)
 	}
-	goalies, err := r.Resolver.Queries.GetGameGoalieStatsByGame(ctx, gameID)
+	goalies, err := q.GetGameGoalieStatsByGame(ctx, gameID)
 	if err != nil {
 		return nil, fmt.Errorf("goalie stats for game %d: %w", gameID, err)
 	}
@@ -237,10 +261,11 @@ func (r *queryResolver) Boxscore(ctx context.Context, gameID int64) (*model.Boxs
 
 // SkaterGameLog is the resolver for the skaterGameLog field.
 func (r *queryResolver) SkaterGameLog(ctx context.Context, playerID int64, season int) ([]*model.SkaterGameLogEntry, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	rows, err := r.Resolver.Queries.GetSkaterStatsByPlayerAndSeason(ctx, sqlcdb.GetSkaterStatsByPlayerAndSeasonParams{
+	rows, err := q.GetSkaterStatsByPlayerAndSeason(ctx, sqlcdb.GetSkaterStatsByPlayerAndSeasonParams{
 		PlayerID: playerID,
 		Season:   int32(season),
 	})
@@ -256,10 +281,11 @@ func (r *queryResolver) SkaterGameLog(ctx context.Context, playerID int64, seaso
 
 // GoalieGameLog is the resolver for the goalieGameLog field.
 func (r *queryResolver) GoalieGameLog(ctx context.Context, playerID int64, season int) ([]*model.GoalieGameLogEntry, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	rows, err := r.Resolver.Queries.GetGoalieStatsByPlayerAndSeason(ctx, sqlcdb.GetGoalieStatsByPlayerAndSeasonParams{
+	rows, err := q.GetGoalieStatsByPlayerAndSeason(ctx, sqlcdb.GetGoalieStatsByPlayerAndSeasonParams{
 		PlayerID: playerID,
 		Season:   int32(season),
 	})
@@ -275,10 +301,11 @@ func (r *queryResolver) GoalieGameLog(ctx context.Context, playerID int64, seaso
 
 // PlayerSeasonTotals is the resolver for the playerSeasonTotals field.
 func (r *queryResolver) PlayerSeasonTotals(ctx context.Context, playerID int64) ([]*model.PlayerSeasonTotal, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
-	rows, err := r.Resolver.Queries.GetPlayerSeasonTotals(ctx, playerID)
+	rows, err := q.GetPlayerSeasonTotals(ctx, playerID)
 	if err != nil {
 		return nil, err
 	}
@@ -291,8 +318,9 @@ func (r *queryResolver) PlayerSeasonTotals(ctx context.Context, playerID int64) 
 
 // EdgeSkaterStats is the resolver for the edgeSkaterStats field.
 func (r *queryResolver) EdgeSkaterStats(ctx context.Context, playerID int, season int, gameType *int) (*model.EdgeSkaterStats, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
 	gt := resolveGameType(gameType)
 	params := sqlcdb.GetEdgeSkaterStatsParams{
@@ -300,16 +328,16 @@ func (r *queryResolver) EdgeSkaterStats(ctx context.Context, playerID int, seaso
 		Season:   int32(season),
 		GameType: gt,
 	}
-	stats, err := r.Resolver.Queries.GetEdgeSkaterStats(ctx, params)
+	stats, err := q.GetEdgeSkaterStats(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 
-	shotLocs, err := r.Resolver.Queries.GetEdgeSkaterShotLocations(ctx, sqlcdb.GetEdgeSkaterShotLocationsParams(params))
+	shotLocs, err := q.GetEdgeSkaterShotLocations(ctx, sqlcdb.GetEdgeSkaterShotLocationsParams(params))
 	if err != nil {
 		return nil, err
 	}
-	sogSummary, err := r.Resolver.Queries.GetEdgeSkaterSogSummary(ctx, sqlcdb.GetEdgeSkaterSogSummaryParams(params))
+	sogSummary, err := q.GetEdgeSkaterSogSummary(ctx, sqlcdb.GetEdgeSkaterSogSummaryParams(params))
 	if err != nil {
 		return nil, err
 	}
@@ -319,8 +347,9 @@ func (r *queryResolver) EdgeSkaterStats(ctx context.Context, playerID int, seaso
 
 // EdgeGoalieStats is the resolver for the edgeGoalieStats field.
 func (r *queryResolver) EdgeGoalieStats(ctx context.Context, playerID int, season int, gameType *int) (*model.EdgeGoalieStats, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
 	gt := resolveGameType(gameType)
 	params := sqlcdb.GetEdgeGoalieStatsParams{
@@ -328,16 +357,16 @@ func (r *queryResolver) EdgeGoalieStats(ctx context.Context, playerID int, seaso
 		Season:   int32(season),
 		GameType: gt,
 	}
-	stats, err := r.Resolver.Queries.GetEdgeGoalieStats(ctx, params)
+	stats, err := q.GetEdgeGoalieStats(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 
-	locSummary, err := r.Resolver.Queries.GetEdgeGoalieShotLocationSummary(ctx, sqlcdb.GetEdgeGoalieShotLocationSummaryParams(params))
+	locSummary, err := q.GetEdgeGoalieShotLocationSummary(ctx, sqlcdb.GetEdgeGoalieShotLocationSummaryParams(params))
 	if err != nil {
 		return nil, err
 	}
-	shotLocs, err := r.Resolver.Queries.GetEdgeGoalieShotLocations(ctx, sqlcdb.GetEdgeGoalieShotLocationsParams(params))
+	shotLocs, err := q.GetEdgeGoalieShotLocations(ctx, sqlcdb.GetEdgeGoalieShotLocationsParams(params))
 	if err != nil {
 		return nil, err
 	}
@@ -347,8 +376,9 @@ func (r *queryResolver) EdgeGoalieStats(ctx context.Context, playerID int, seaso
 
 // EdgeTeamStats is the resolver for the edgeTeamStats field.
 func (r *queryResolver) EdgeTeamStats(ctx context.Context, teamID int, season int, gameType *int) (*model.EdgeTeamStats, error) {
-	if r.Resolver.Queries == nil {
-		return nil, errDatabaseNotConfigured
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
 	gt := resolveGameType(gameType)
 	teamParams := sqlcdb.GetEdgeTeamStatsParams{
@@ -356,24 +386,24 @@ func (r *queryResolver) EdgeTeamStats(ctx context.Context, teamID int, season in
 		Season:   int32(season),
 		GameType: gt,
 	}
-	stats, err := r.Resolver.Queries.GetEdgeTeamStats(ctx, teamParams)
+	stats, err := q.GetEdgeTeamStats(ctx, teamParams)
 	if err != nil {
 		return nil, err
 	}
 
-	sogSummary, err := r.Resolver.Queries.GetEdgeTeamSogSummary(ctx, sqlcdb.GetEdgeTeamSogSummaryParams(teamParams))
+	sogSummary, err := q.GetEdgeTeamSogSummary(ctx, sqlcdb.GetEdgeTeamSogSummaryParams(teamParams))
 	if err != nil {
 		return nil, err
 	}
-	shotLocs, err := r.Resolver.Queries.GetEdgeTeamShotLocations(ctx, sqlcdb.GetEdgeTeamShotLocationsParams(teamParams))
+	shotLocs, err := q.GetEdgeTeamShotLocations(ctx, sqlcdb.GetEdgeTeamShotLocationsParams(teamParams))
 	if err != nil {
 		return nil, err
 	}
-	zoneTime, err := r.Resolver.Queries.GetEdgeTeamZoneTimeByStrength(ctx, sqlcdb.GetEdgeTeamZoneTimeByStrengthParams(teamParams))
+	zoneTime, err := q.GetEdgeTeamZoneTimeByStrength(ctx, sqlcdb.GetEdgeTeamZoneTimeByStrengthParams(teamParams))
 	if err != nil {
 		return nil, err
 	}
-	shotDiff, err := r.Resolver.Queries.GetEdgeTeamShotDifferential(ctx, sqlcdb.GetEdgeTeamShotDifferentialParams(teamParams))
+	shotDiff, err := q.GetEdgeTeamShotDifferential(ctx, sqlcdb.GetEdgeTeamShotDifferentialParams(teamParams))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}

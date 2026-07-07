@@ -168,4 +168,3 @@ func TestSetBarLabel(t *testing.T) {
 
 	assert.Equal(t, "updated label", report.Groups[0].Bars[0].Label)
 }
-

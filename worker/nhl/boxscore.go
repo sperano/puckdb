@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
-	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
@@ -131,10 +131,7 @@ func (a *BoxscoreActivities) ExtractBoxscoreDataForSeason(ctx context.Context, i
 
 // ExtractAndSaveBoxscorePlayers extracts players from boxscores for a season and saves them to Redis.
 func (a *BoxscoreActivities) ExtractAndSaveBoxscorePlayers(ctx context.Context, input ExtractAndSaveInput) (core.OriginCounts, error) {
-	result, err := a.ExtractBoxscoreDataForSeason(ctx, ExtractBoxscoreInput{
-		Season:  input.Season,
-		EndDate: input.EndDate,
-	})
+	result, err := a.ExtractBoxscoreDataForSeason(ctx, ExtractBoxscoreInput(input))
 	if err != nil {
 		return nil, fmt.Errorf("extract boxscore data: %w", err)
 	}

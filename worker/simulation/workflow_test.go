@@ -128,8 +128,8 @@ func minState() LoadPoolStateResult {
 // satisfier keeps the helper signatures clean.
 type permissiveT struct{}
 
-func (permissiveT) Errorf(string, ...interface{}) {}
-func (permissiveT) FailNow()                      {}
+func (permissiveT) Errorf(string, ...any) {}
+func (permissiveT) FailNow()              {}
 
 var must permissiveT
 
@@ -519,6 +519,150 @@ func (s *SimPoolWorkflowTestSuite) TestDraftCostCap_StopsAfterFirstTrip() {
 	require.NoError(t, s.env.GetWorkflowError())
 	assert.Equal(t, 1, pickCount,
 		"cost-cap exit after pick 1 must suppress all remaining draft picks")
+}
+
+// ============================================================================
+// T1-B: the per-agent daily loop must stop after the first cost-cap trip.
+// Before the fix, every remaining agent still ran BuildManageRosterContext
+// + ManageRoster, each re-tripping the cap → duplicate cost_cap_reached
+// rows + redundant pause signals.
+// ============================================================================
+
+// minState has 2 agents. With MaxSeasonDays=1 exactly one day runs.
+// ManageRoster returns SkipReasonCostCapReached for the first agent, so
+// the daily loop must break: only ONE ManageRoster (and one
+// BuildManageRosterContext) call for that day, not two.
+func (s *SimPoolWorkflowTestSuite) TestDailyCostCap_StopsAfterFirstAgent() {
+	t := s.T()
+	state := minState()
+	state.PoolConfig.MaxSeasonDays = 1
+
+	manageCount := 0
+	s.env.OnActivity(s.acts.ManageRoster, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { manageCount++ }).
+		Return(ManageRosterResult{Skipped: true, SkipReason: SkipReasonCostCapReached}, nil).
+		Maybe()
+	contextCount := 0
+	s.env.OnActivity(s.acts.BuildManageRosterContext, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { contextCount++ }).
+		Return(ManageRosterInput{}, nil).Maybe()
+	s.stubActivityResults(state)
+
+	// CAN-resume input so we go straight to the season day loop.
+	s.env.ExecuteWorkflow(SimPoolWorkflow, SimPoolWorkflowInput{
+		PoolID:  1,
+		SimDate: pgDate(t, "2024-10-08"),
+	})
+	require.True(t, s.env.IsWorkflowCompleted())
+	require.NoError(t, s.env.GetWorkflowError())
+	assert.Equal(t, 1, manageCount,
+		"daily loop must stop after the first agent trips the cost cap")
+	assert.Equal(t, 1, contextCount,
+		"remaining agents must not build daily context after the cap trips")
+}
+
+// ============================================================================
+// T1-D part 1: shouldMarkCancelled classifies the cancel-cleanup gate.
+// A genuine cancellation → true; nil, ContinueAsNew, and any other error
+// → false (only a real cancel flips the pool to 'cancelled').
+// ============================================================================
+
+func TestShouldMarkCancelled(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil (clean completion)", err: nil, want: false},
+		{name: "real cancellation", err: temporal.NewCanceledError(), want: true},
+		{name: "generic activity error", err: assert.AnError, want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, shouldMarkCancelled(tc.err))
+		})
+	}
+}
+
+// ============================================================================
+// T1-D part 2: a cancel that lands during RecordDayDuration stops the
+// season loop and the pool is marked cancelled (not left running).
+// ============================================================================
+
+func (s *SimPoolWorkflowTestSuite) TestCancel_DuringRecordDayDuration_StopsLoop() {
+	t := s.T()
+	state := minState()
+
+	var statuses []PoolStatus
+	s.env.OnActivity(s.acts.SetPoolStatus, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			in := args.Get(1).(SetPoolStatusInput)
+			statuses = append(statuses, in.Status)
+		}).Return(nil).Maybe()
+	// RecordDayDuration blocks until the workflow ctx is cancelled — gives
+	// the delayed cancel a seam to land in, exercising the post-activity
+	// ctx.Err() re-check.
+	s.env.OnActivity(s.acts.RecordDayDuration, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			ctx := args.Get(0).(context.Context)
+			<-ctx.Done()
+		}).Return(context.Canceled).Maybe()
+	s.stubActivityResults(state)
+	s.stubManageRosterPassThrough()
+
+	s.env.RegisterDelayedCallback(func() {
+		s.env.CancelWorkflow()
+	}, 50*time.Millisecond)
+
+	s.env.ExecuteWorkflow(SimPoolWorkflow, SimPoolWorkflowInput{
+		PoolID:  1,
+		SimDate: pgDate(t, "2024-10-08"),
+	})
+	require.True(t, s.env.IsWorkflowCompleted())
+	err := s.env.GetWorkflowError()
+	require.Error(t, err)
+	assert.True(t, isCanceledMessage(err), "expected cancellation error, got: %v", err)
+	assert.Contains(t, statuses, PoolStatusCancelled,
+		"a cancel during RecordDayDuration must flip the pool to 'cancelled'")
+}
+
+// ============================================================================
+// T1-E: pre-season StopAfter exits must NOT complete the never-started
+// Season progress group (group 1). Before the fix, completePool called
+// CompleteGroup(ctx, 1) → a bogus "Season complete" message + a read of
+// an unstarted group timer.
+// ============================================================================
+
+func (s *SimPoolWorkflowTestSuite) TestStopAfterTeamName_DoesNotCompleteSeasonGroup() {
+	s.assertSeasonGroupNotCompletedOnStop(StopAfterTeamName)
+}
+
+func (s *SimPoolWorkflowTestSuite) TestStopAfterDraft_DoesNotCompleteSeasonGroup() {
+	s.assertSeasonGroupNotCompletedOnStop(StopAfterDraft)
+}
+
+func (s *SimPoolWorkflowTestSuite) assertSeasonGroupNotCompletedOnStop(stop StopAfter) {
+	t := s.T()
+	state := minState()
+	state.PoolConfig.StopAfter = stop
+	s.stubActivityResults(state)
+	s.stubManageRosterPassThrough()
+
+	s.env.ExecuteWorkflow(SimPoolWorkflow, SimPoolWorkflowInput{PoolID: 1})
+	require.True(t, s.env.IsWorkflowCompleted())
+	require.NoError(t, s.env.GetWorkflowError())
+
+	val, err := s.env.QueryWorkflow(shared.ProgressReportQueryName)
+	require.NoError(t, err)
+	var report shared.ProgressReport
+	require.NoError(t, val.Get(&report))
+	require.Len(t, report.Groups, 2, "report has Draft + Season groups")
+
+	season := report.Groups[1]
+	assert.Empty(t, season.CompletedMsg,
+		"pre-season stop must not emit a Season-complete message")
+	assert.Zero(t, season.CompletedAt,
+		"pre-season stop must not complete the never-started Season group")
 }
 
 // ============================================================================
