@@ -11,6 +11,7 @@ import (
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/httpx"
+	"github.com/sperano/puckdb/llm"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/sperano/puckdb/store"
@@ -20,10 +21,12 @@ import (
 	worknhl "github.com/sperano/puckdb/worker/nhl"
 	workplayer "github.com/sperano/puckdb/worker/player"
 	"github.com/sperano/puckdb/worker/shared"
+	"github.com/sperano/puckdb/worker/simulation"
 	"github.com/sperano/puckdb/worker/workflow"
 	"github.com/sperano/puckdb/worker/yahoo"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 )
 
@@ -51,6 +54,7 @@ func cmdWorker() *cobra.Command {
 				&config.ProcessPlayersFlags,
 				&config.PlayerLogsFlags,
 				&config.AssetFlags,
+				&config.MauriceFlags,
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -140,7 +144,7 @@ func cmdWorker() *cobra.Command {
 			} else {
 				// Tasks queue: main workloads
 				registerTasksWorkflows(w)
-				if err := registerTasksActivities(w, pool, redisClient); err != nil {
+				if err := registerTasksActivities(w, pool, redisClient, tclient); err != nil {
 					return err
 				}
 
@@ -157,13 +161,11 @@ func cmdWorker() *cobra.Command {
 				registerAssetActivities(aw, queries)
 				registerProgressActivities(aw, redisClient)
 
-				fmt.Printf("Starting asset worker on queue %q\n", shared.TaskQueueAssets)
 				go func() {
 					errCh <- aw.Run(worker.InterruptCh())
 				}()
 			}
 
-			fmt.Printf("Starting worker on queue %q\n", queueName)
 			go func() {
 				errCh <- w.Run(worker.InterruptCh())
 			}()
@@ -189,6 +191,7 @@ func cmdWorker() *cobra.Command {
 		&config.ProcessPlayersFlags,
 		&config.PlayerLogsFlags,
 		&config.AssetFlags,
+		&config.MauriceFlags,
 	)
 	return cmd
 }
@@ -218,10 +221,15 @@ func registerTasksWorkflows(w worker.Worker) {
 	w.RegisterWorkflow(workflow.ProcessPlayersWorkflowContinue)
 	w.RegisterWorkflow(workflow.InitializeWorkflow)
 	w.RegisterWorkflow(workflow.ExtractBoxscorePlayersWorkflow)
+
+	// Simulation workflow
+	w.RegisterWorkflow(simulation.SimPoolWorkflow)
 }
 
 // registerTasksActivities registers all activities for the tasks queue.
-func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *redis.Client) error {
+// tclient is needed by simulation.Activities to signal the parent
+// SimPoolWorkflow when the LLM cost cap trips.
+func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *redis.Client, tclient client.Client) error {
 	storage := store.NewDefaultStorage()
 	queries := sqlcdb.New(pool)
 	nhlClient := shared.NewNHLClient()
@@ -229,6 +237,32 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	if err != nil {
 		return err
 	}
+
+	// Simulation activities — see worker/simulation. AgentFactory is nil
+	// so each activity falls back to defaultAgentFactory (NewAgent).
+	simActs := &simulation.Activities{
+		Queries:  queries,
+		Tx:       simulation.NewPgxTransactor(pool),
+		Signaler: simulation.NewTemporalSignaler(tclient),
+		ProviderConfigs: llm.NewProviderConfigs(llm.ProviderConfigsInput{
+			OllamaBaseURL:   viper.GetString(config.FlagOllamaBaseURL),
+			AnthropicAPIKey: viper.GetString(config.FlagAnthropicAPIKey),
+			OpenAIAPIKey:    viper.GetString(config.FlagOpenAIAPIKey),
+		}),
+	}
+	w.RegisterActivity(simActs.LoadPoolState)
+	w.RegisterActivity(simActs.LoadDraftCandidates)
+	w.RegisterActivity(simActs.DraftPick)
+	w.RegisterActivity(simActs.ProcessWaivers)
+	w.RegisterActivity(simActs.BuildFreeAgentPool)
+	w.RegisterActivity(simActs.BuildManageRosterContext)
+	w.RegisterActivity(simActs.ManageRoster)
+	w.RegisterActivity(simActs.CollectDayStats)
+	w.RegisterActivity(simActs.UpdateStandings)
+	w.RegisterActivity(simActs.SetPoolStatus)
+	w.RegisterActivity(simActs.RecordDraftOrder)
+	w.RegisterActivity(simActs.PickTeamName)
+	w.RegisterActivity(simActs.RecordDayDuration)
 
 	yahooDownloader := shared.NewYahooDownloader(redisClient)
 

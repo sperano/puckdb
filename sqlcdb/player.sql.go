@@ -273,6 +273,126 @@ func (q *Queries) GetPlayerByYahooID(ctx context.Context, yahooID pgtype.Int8) (
 	return i, err
 }
 
+const getPlayersByBirthplace = `-- name: GetPlayersByBirthplace :many
+WITH filtered AS (
+    SELECT DISTINCT ON (sr.player_id)
+        sr.player_id,
+        sr.birth_date,
+        sr.birth_city,
+        sr.birth_state_province,
+        sr.birth_country
+    FROM season_rosters sr
+    WHERE sr.birth_country = $2::text
+      AND ($3::text IS NULL
+           OR sr.birth_city ILIKE $3::text)
+      AND ($4::text IS NULL
+           OR sr.birth_state_province ILIKE $4::text)
+    ORDER BY sr.player_id, sr.season DESC
+),
+career AS (
+    SELECT
+        player_id,
+        SUM(games_played)::bigint AS career_games,
+        SUM(goals)::bigint        AS career_goals,
+        SUM(assists)::bigint      AS career_assists,
+        SUM(points)::bigint       AS career_points,
+        SUM(pim)::bigint          AS career_pim
+    FROM player_season_totals
+    WHERE league_abbrev = 'NHL' AND game_type = 'regular_season'
+    GROUP BY player_id
+)
+SELECT
+    p.id,
+    p.first_name,
+    p.last_name,
+    p.position,
+    f.birth_date,
+    f.birth_city,
+    f.birth_state_province,
+    f.birth_country,
+    COALESCE(c.career_games, 0)::bigint   AS career_games,
+    COALESCE(c.career_goals, 0)::bigint   AS career_goals,
+    COALESCE(c.career_assists, 0)::bigint AS career_assists,
+    COALESCE(c.career_points, 0)::bigint  AS career_points,
+    COALESCE(c.career_pim, 0)::bigint     AS career_pim
+FROM filtered f
+JOIN players p ON p.id = f.player_id
+LEFT JOIN career c ON c.player_id = f.player_id
+ORDER BY COALESCE(c.career_points, 0) DESC, p.last_name, p.first_name
+LIMIT $1::int
+`
+
+type GetPlayersByBirthplaceParams struct {
+	LimitN             int32       `json:"limit_n"`
+	BirthCountry       string      `json:"birth_country"`
+	BirthCity          pgtype.Text `json:"birth_city"`
+	BirthStateProvince pgtype.Text `json:"birth_state_province"`
+}
+
+type GetPlayersByBirthplaceRow struct {
+	ID                 int64              `json:"id"`
+	FirstName          string             `json:"first_name"`
+	LastName           string             `json:"last_name"`
+	Position           NullPlayerPosition `json:"position"`
+	BirthDate          string             `json:"birth_date"`
+	BirthCity          pgtype.Text        `json:"birth_city"`
+	BirthStateProvince pgtype.Text        `json:"birth_state_province"`
+	BirthCountry       string             `json:"birth_country"`
+	CareerGames        int64              `json:"career_games"`
+	CareerGoals        int64              `json:"career_goals"`
+	CareerAssists      int64              `json:"career_assists"`
+	CareerPoints       int64              `json:"career_points"`
+	CareerPim          int64              `json:"career_pim"`
+}
+
+// Players matching a birthplace filter, joined with their NHL regular-
+// season career totals (league_abbrev='NHL', game_type=2). Default
+// ordering is career_points DESC so the same query answers both
+// "list everyone from X" (with a large limit) and "top N from X"
+// (with a small limit). birth_city / birth_state_province use ILIKE
+// so callers can pass partial matches (e.g., 'Montr%' covers
+// 'Montréal' / 'Montreal-Nord' / etc.). Goalies appear at the
+// bottom (low career points); for goalie-specific ranking, sort the
+// result client-side or use a goalie-stat tool.
+func (q *Queries) GetPlayersByBirthplace(ctx context.Context, arg GetPlayersByBirthplaceParams) ([]GetPlayersByBirthplaceRow, error) {
+	rows, err := q.db.Query(ctx, getPlayersByBirthplace,
+		arg.LimitN,
+		arg.BirthCountry,
+		arg.BirthCity,
+		arg.BirthStateProvince,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetPlayersByBirthplaceRow{}
+	for rows.Next() {
+		var i GetPlayersByBirthplaceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FirstName,
+			&i.LastName,
+			&i.Position,
+			&i.BirthDate,
+			&i.BirthCity,
+			&i.BirthStateProvince,
+			&i.BirthCountry,
+			&i.CareerGames,
+			&i.CareerGoals,
+			&i.CareerAssists,
+			&i.CareerPoints,
+			&i.CareerPim,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPlayersByPosition = `-- name: GetPlayersByPosition :many
 SELECT id, yahoo_id, first_name, last_name, first_name_normalized, last_name_normalized, team_id, position, shoots_catches, height_inches, weight_pounds, birth_date, birth_city, birth_state_province, birth_country, sweater_number, is_active, headshot_url, hero_image_url, yahoo_image, yahoo_home_url, player_slug, draft_year, draft_team_abbrev, draft_round, draft_pick_in_round, draft_overall_pick FROM players WHERE position = $1 ORDER BY last_name, first_name
 `

@@ -41,7 +41,7 @@ func buildSeasonsInput() *model.SeasonsInput {
 	return input
 }
 
-func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher) error {
+func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher, wt workflowType) error {
 	// Wait briefly for workflow to start and register query handlers
 	time.Sleep(config.DefaultWorkflowStartupDelay)
 
@@ -60,7 +60,7 @@ func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher) 
 			})
 		} else {
 			consecutiveFailures = 0 // Reset on success
-			msg := formatStatusMessage(status)
+			msg := formatStatusMessage(status, wt)
 			if w := yahooWarning(status); w != "" {
 				msg += "\n" + w
 			}
@@ -116,11 +116,16 @@ func pollDelay(consecutiveFailures int) time.Duration {
 	return delay
 }
 
-func formatStatusMessage(status *WorkflowStatus) string {
+func formatStatusMessage(status *WorkflowStatus, wt workflowType) string {
 	if status.Progress != nil {
 		return formatProgressReport(status.Progress)
 	}
-	return fmt.Sprintf("Workflow status: %s", status.Result.Status)
+	// No progress yet — workflow has either just started, or its query
+	// handler hasn't been picked up by a worker (saturated worker pool).
+	// Render with SpinnerPlaceholder so each line gets its own animated
+	// frame in multi-workflow displays, and name the workflow so the
+	// user knows which one is in this state.
+	return fmt.Sprintf("%s Workflow %s is starting...", SpinnerPlaceholder, wt)
 }
 
 // yahooWarning returns the Yahoo token warning line if the token is missing,

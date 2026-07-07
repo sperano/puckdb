@@ -26,7 +26,7 @@ type NHLClient interface {
 	SeasonStandingManifest(ctx context.Context) ([]nhl.SeasonInfo, error)
 	LeagueStandingsForSeason(ctx context.Context, season nhl.Season) ([]nhl.Standing, error)
 	Franchises(ctx context.Context) ([]nhl.Franchise, error)
-	SearchPlayer(ctx context.Context, query string, limit *int) ([]nhl.PlayerSearchResult, error)
+	SearchPlayer(ctx context.Context, query string, limit ...int) ([]nhl.PlayerSearchResult, error)
 	LeagueStandingsForDate(ctx context.Context, date nhl.GameDate) ([]nhl.Standing, error)
 	RosterSeason(ctx context.Context, teamAbbr string, season nhl.Season) (*nhl.Roster, error)
 	ClubStats(ctx context.Context, teamAbbr string, season nhl.Season, gameType nhl.GameType) (*nhl.ClubStats, error)

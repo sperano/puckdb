@@ -1,0 +1,49 @@
+name: Simulation 2
+season: 20242025
+categories: [G, A, PIM, PPP, SOG, W, GA]
+rosterPositions:
+  - {slot: C,  count: 2}
+  - {slot: LW, count: 2}
+  - {slot: RW, count: 2}
+  - {slot: D,  count: 3}
+  - {slot: G,  count: 2}
+  - {slot: BN, count: 5}
+waiverDays: 2
+draftRounds: 18 
+maxLlmCostUsdPerPool: 20.0
+stopAfter: draft
+maxSeasonDays: 0
+agents:
+  - provider: anthropic
+    model: claude-sonnet-4-6
+    strategy: |
+      Build a balanced roster across all categories. Avoid one-category
+      specialists. Prefer steady veterans over volatile rookies, and keep
+      the bench shallow so waiver pickups can rotate in quickly.
+  - provider: anthropic
+    model: claude-haiku-4-5
+    strategy: |
+      Punt GAA and SV%. Stack high-shot-volume forwards to dominate G,
+      A, SOG, and PPP. Stream goalies aggressively for W only — drop
+      them between starts.
+  - provider: ollama
+    model: "llama3.1:8b"
+    apiBase: "http://ollama.local:11434/v1"
+    strategy: |
+      Target young players entering their breakout window. Tolerate
+      inconsistency in exchange for upside, and use the waiver wire
+      weekly to chase hot streaks rather than holding underperforming
+      stars.
+  - provider: ollama
+    model: "llama3.1:8b"
+    apiBase: "http://ollama.local:11434/v1"
+    strategy: |
+      Try to get the best goaltenders to build your team.
+  - provider: ollama
+    model: "qwen2.5:14b"
+    apiBase: "http://ollama.local:11434/v1"
+    strategy: |
+      Build a balanced roster across all categories. Avoid one-category
+      specialists. Prefer steady veterans over volatile rookies, and keep
+      the bench shallow so waiver pickups can rotate in quickly.
+      

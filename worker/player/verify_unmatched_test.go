@@ -157,7 +157,7 @@ func TestVerifyUnmatchedBatchImpl_PlayerNotFoundInNHL(t *testing.T) {
 
 	// Search returns empty results
 	limit := maxSearchResults
-	client.On("SearchPlayer", ctx, "John Doe", &limit).Return([]nhl.PlayerSearchResult{}, nil)
+	client.On("SearchPlayer", ctx, "John Doe", limit).Return([]nhl.PlayerSearchResult{}, nil)
 
 	// SaveVerifiedNonNHLIDs uses a pipeline - just expect the pipeline to be executed
 	// We can't easily mock the pipeline, but the function logs a warning if it fails
@@ -193,7 +193,7 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
 	// Search returns a matching player
 	playerID := nhl.PlayerID(8476453)
 	limit := maxSearchResults
-	client.On("SearchPlayer", ctx, "Minor Leaguer", &limit).Return([]nhl.PlayerSearchResult{
+	client.On("SearchPlayer", ctx, "Minor Leaguer", limit).Return([]nhl.PlayerSearchResult{
 		{PlayerID: playerID, Name: "Minor Leaguer"},
 	}, nil)
 
@@ -238,7 +238,7 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithNHLGames(t *testing.T) {
 	// Search returns a matching player
 	playerID := nhl.PlayerID(8476453)
 	limit := maxSearchResults
-	client.On("SearchPlayer", ctx, "Connor McDavid", &limit).Return([]nhl.PlayerSearchResult{
+	client.On("SearchPlayer", ctx, "Connor McDavid", limit).Return([]nhl.PlayerSearchResult{
 		{PlayerID: playerID, Name: "Connor McDavid"},
 	}, nil)
 
@@ -285,7 +285,7 @@ func TestVerifyUnmatchedBatchImpl_RedisLoadError(t *testing.T) {
 
 	// Search returns empty results
 	limit := maxSearchResults
-	client.On("SearchPlayer", ctx, "Test Player", &limit).Return([]nhl.PlayerSearchResult{}, nil)
+	client.On("SearchPlayer", ctx, "Test Player", limit).Return([]nhl.PlayerSearchResult{}, nil)
 
 	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
@@ -315,7 +315,7 @@ func TestVerifyUnmatchedBatchImpl_SearchError(t *testing.T) {
 
 	// Search returns an error
 	limit := maxSearchResults
-	client.On("SearchPlayer", ctx, "Error Player", &limit).Return(nil, errors.New("API error"))
+	client.On("SearchPlayer", ctx, "Error Player", limit).Return(nil, errors.New("API error"))
 
 	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
@@ -346,7 +346,7 @@ func TestVerifyUnmatchedBatchImpl_NameMismatchInSearch(t *testing.T) {
 	// Search returns results but none match the name
 	playerID := nhl.PlayerID(8476453)
 	limit := maxSearchResults
-	client.On("SearchPlayer", ctx, "John Smith", &limit).Return([]nhl.PlayerSearchResult{
+	client.On("SearchPlayer", ctx, "John Smith", limit).Return([]nhl.PlayerSearchResult{
 		{PlayerID: playerID, Name: "Bob Jones"}, // Different name - no match
 	}, nil)
 
@@ -392,7 +392,7 @@ func TestVerifyUnmatchedBatchImpl_CachedLandingUsed(t *testing.T) {
 	// Search returns a matching player
 	playerID := nhl.PlayerID(8476453)
 	limit := maxSearchResults
-	client.On("SearchPlayer", ctx, "Cached Player", &limit).Return([]nhl.PlayerSearchResult{
+	client.On("SearchPlayer", ctx, "Cached Player", limit).Return([]nhl.PlayerSearchResult{
 		{PlayerID: playerID, Name: "Cached Player"},
 	}, nil)
 

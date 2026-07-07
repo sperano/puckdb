@@ -203,14 +203,36 @@ func (a *Activities) upsertPlayerCareerData(ctx context.Context, landing *nhl.Pl
 	}
 
 	var totalParams []sqlcdb.UpsertPlayerSeasonTotalBatchParams
+	intlSeen := make(map[string]sqlcdb.UpsertInternationalSeasonTeamParams)
 	for _, st := range landing.SeasonTotals {
 		var sequence int32
 		if st.Sequence != nil {
 			sequence = int32(*st.Sequence)
 		}
+		// Only honor a team_id when it's meaningful for the FK on
+		// player_season_totals.season_team_id_fkey: NHL rows match NHL
+		// franchises in season_teams, international rows match the
+		// 60-67 IDs we upsert ourselves. For other leagues (PCHA, WHA,
+		// AHL, juniors, ...) the lookup may incidentally match an NHL
+		// team_id (e.g., "Victoria Cougars" in PCHA = the 1926-27 NHL
+		// franchise) — leave team_id NULL there so the FK skips.
 		var teamID pgtype.Int8
 		if tid, err := matching.LookupTeamIDByName(st.TeamName.Default); err == nil {
-			teamID = pgtype.Int8{Int64: tid, Valid: true}
+			isInt := matching.IsInternationalTeam(tid)
+			if st.LeagueAbbrev == "NHL" || isInt {
+				teamID = pgtype.Int8{Int64: tid, Valid: true}
+			}
+			if isInt {
+				if info, err := matching.LookupTeamByID(tid); err == nil {
+					key := fmt.Sprintf("%d:%d", st.Season.ID(), tid)
+					intlSeen[key] = sqlcdb.UpsertInternationalSeasonTeamParams{
+						Season:   int32(st.Season.ID()),
+						TeamID:   tid,
+						FullName: info.FullName,
+						Abbrev:   info.Abbrev,
+					}
+				}
+			}
 		}
 		totalParams = append(totalParams, sqlcdb.UpsertPlayerSeasonTotalBatchParams{
 			PlayerID:     playerID,
@@ -227,6 +249,15 @@ func (a *Activities) upsertPlayerCareerData(ctx context.Context, landing *nhl.Pl
 			PlusMinus:    intPtrToInt4(st.PlusMinus),
 			PIM:          intPtrToInt4(st.PIM),
 		})
+	}
+	// Ensure season_teams rows exist for any international (season, team_id)
+	// pairs this player references, so the FK on player_season_totals does
+	// not roll back the batch.
+	for _, p := range intlSeen {
+		if err := a.CareerQueries.UpsertInternationalSeasonTeam(ctx, p); err != nil {
+			return len(awardParams), 0, fmt.Errorf("upsert international season-team season=%d team_id=%d: %w",
+				p.Season, p.TeamID, err)
+		}
 	}
 	if len(totalParams) > 0 {
 		if err := shared.ExecBatch(a.CareerQueries.UpsertPlayerSeasonTotalBatch(ctx, totalParams), func(i int) string {

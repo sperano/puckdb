@@ -267,7 +267,7 @@ func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState
 		log.Warn().Msg("Workflow was not started (may already be running)")
 	}
 
-	if err := monitorWorkflow(ctx, sp, r.getStatus); err != nil {
+	if err := monitorWorkflow(ctx, sp, r.getStatus, r.workflowType); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
@@ -306,14 +306,8 @@ func runParallel(ctx context.Context, out io.Writer, state *syncState, runners .
 		}
 	}
 
-	// Collect status fetchers
-	fetchers := make([]statusFetcher, len(runners))
-	for i, r := range runners {
-		fetchers[i] = r.getStatus
-	}
-
 	// Monitor all workflows
-	if err := monitorWorkflows(ctx, sp, fetchers); err != nil {
+	if err := monitorWorkflows(ctx, sp, runners); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
@@ -324,27 +318,30 @@ func runParallel(ctx context.Context, out io.Writer, state *syncState, runners .
 }
 
 // monitorWorkflows polls multiple status endpoints and combines their display.
-func monitorWorkflows(ctx context.Context, sp *spinner, fetchers []statusFetcher) error {
+// Takes []workflowRunner (rather than []statusFetcher) so each slot's
+// workflowType is available for the per-line "Workflow X is starting..."
+// fallback rendered when progress isn't yet queryable.
+func monitorWorkflows(ctx context.Context, sp *spinner, runners []workflowRunner) error {
 	time.Sleep(config.DefaultWorkflowStartupDelay)
 
 	consecutiveFailures := 0
-	done := make([]bool, len(fetchers))
-	statuses := make([]*WorkflowStatus, len(fetchers))
+	done := make([]bool, len(runners))
+	statuses := make([]*WorkflowStatus, len(runners))
 
 	for {
 		allDone := true
 		var messages []string
 
-		for i, fetch := range fetchers {
+		for i, r := range runners {
 			if done[i] {
 				// Already completed, use cached final message
 				if statuses[i] != nil {
-					messages = append(messages, formatStatusMessage(statuses[i]))
+					messages = append(messages, formatStatusMessage(statuses[i], r.workflowType))
 				}
 				continue
 			}
 
-			status, err := fetch(ctx)
+			status, err := r.getStatus(ctx)
 			if err != nil {
 				consecutiveFailures++
 				if consecutiveFailures >= config.MaxConsecutiveQueryFailures {
@@ -357,7 +354,7 @@ func monitorWorkflows(ctx context.Context, sp *spinner, fetchers []statusFetcher
 
 			consecutiveFailures = 0
 			statuses[i] = status
-			messages = append(messages, formatStatusMessage(status))
+			messages = append(messages, formatStatusMessage(status, r.workflowType))
 
 			switch status.Result.Status {
 			case model.TemporalWorkflowStatusCompleted:

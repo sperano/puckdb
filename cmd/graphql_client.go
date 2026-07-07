@@ -168,3 +168,39 @@ const (
 	workflowImportEdgeStats
 	workflowFetchAssets
 )
+
+// String returns the workflow's GraphQL mutation name (e.g.,
+// "fetchSeasons"). Used for the CLI's spinner-fallback message
+// when progress is unavailable; matches the Cancel* mutation
+// naming so the displayed name is identical to what shows up in
+// the API server logs.
+func (wt workflowType) String() string {
+	switch wt {
+	case workflowInitialize:
+		return "initialize"
+	case workflowYahooPlayers:
+		return "fetchYahooPlayers"
+	case workflowFetchSeasons:
+		return "fetchSeasons"
+	case workflowExtractBoxscorePlayers:
+		return "extractBoxscorePlayers"
+	case workflowFetchPlayerLandings:
+		return "fetchPlayerLandings"
+	case workflowFetchPlayerLogs:
+		return "fetchPlayerLogs"
+	case workflowProcessPlayers:
+		return "processPlayers"
+	case workflowImportSeasons:
+		return "importSeasons"
+	case workflowImportPlayerLogs:
+		return "importPlayerLogs"
+	case workflowFetchEdgeStats:
+		return "fetchEdgeStats"
+	case workflowImportEdgeStats:
+		return "importEdgeStats"
+	case workflowFetchAssets:
+		return "fetchAssets"
+	default:
+		return "unknown"
+	}
+}

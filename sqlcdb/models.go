@@ -656,6 +656,48 @@ func (ns NullShootoutResult) Value() (driver.Value, error) {
 	return string(ns.ShootoutResult), nil
 }
 
+type TeamKindEnum string
+
+const (
+	TeamKindEnumNhl           TeamKindEnum = "nhl"
+	TeamKindEnumInternational TeamKindEnum = "international"
+)
+
+func (e *TeamKindEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TeamKindEnum(s)
+	case string:
+		*e = TeamKindEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TeamKindEnum: %T", src)
+	}
+	return nil
+}
+
+type NullTeamKindEnum struct {
+	TeamKindEnum TeamKindEnum `json:"team_kind_enum"`
+	Valid        bool         `json:"valid"` // Valid is true if TeamKindEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTeamKindEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.TeamKindEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TeamKindEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTeamKindEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TeamKindEnum), nil
+}
+
 type ZoneCode string
 
 const (
@@ -1275,16 +1317,17 @@ type SeasonRoster struct {
 }
 
 type SeasonTeam struct {
-	Season           int32       `json:"season"`
-	TeamID           int64       `json:"team_id"`
-	FranchiseID      pgtype.Int8 `json:"franchise_id"`
-	FullName         string      `json:"full_name"`
-	Abbrev           string      `json:"abbrev"`
-	LogoUrl          pgtype.Text `json:"logo_url"`
-	DivisionName     string      `json:"division_name"`
-	DivisionAbbrev   string      `json:"division_abbrev"`
-	ConferenceName   pgtype.Text `json:"conference_name"`
-	ConferenceAbbrev pgtype.Text `json:"conference_abbrev"`
+	Season           int32        `json:"season"`
+	TeamID           int64        `json:"team_id"`
+	FranchiseID      pgtype.Int8  `json:"franchise_id"`
+	FullName         string       `json:"full_name"`
+	Abbrev           string       `json:"abbrev"`
+	LogoUrl          pgtype.Text  `json:"logo_url"`
+	DivisionName     pgtype.Text  `json:"division_name"`
+	DivisionAbbrev   pgtype.Text  `json:"division_abbrev"`
+	ConferenceName   pgtype.Text  `json:"conference_name"`
+	ConferenceAbbrev pgtype.Text  `json:"conference_abbrev"`
+	TeamKind         TeamKindEnum `json:"team_kind"`
 }
 
 type Shift struct {
@@ -1311,6 +1354,207 @@ type ShootoutAttempt struct {
 	ShotType   string         `json:"shot_type"`
 	Result     ShootoutResult `json:"result"`
 	GameWinner bool           `json:"game_winner"`
+}
+
+type SimAgent struct {
+	ID              int32              `json:"id"`
+	PoolID          int32              `json:"pool_id"`
+	DraftPosition   pgtype.Int4        `json:"draft_position"`
+	Provider        string             `json:"provider"`
+	Model           string             `json:"model"`
+	Strategy        string             `json:"strategy"`
+	Notes           string             `json:"notes"`
+	TimeoutSeconds  int32              `json:"timeout_seconds"`
+	Temperature     pgtype.Numeric     `json:"temperature"`
+	APIBase         string             `json:"api_base"`
+	MaxTokens       int32              `json:"max_tokens"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	TeamName        string             `json:"team_name"`
+	StrategySummary string             `json:"strategy_summary"`
+}
+
+type SimAgentDailyPlayerStat struct {
+	PoolID           int32          `json:"pool_id"`
+	AgentID          int32          `json:"agent_id"`
+	Date             pgtype.Date    `json:"date"`
+	PlayerID         int64          `json:"player_id"`
+	Category         string         `json:"category"`
+	Value            pgtype.Numeric `json:"value"`
+	GoalieGA         pgtype.Int4    `json:"goalie_ga"`
+	GoalieTOISeconds pgtype.Int4    `json:"goalie_toi_seconds"`
+}
+
+type SimAgentDailyStat struct {
+	PoolID           int32          `json:"pool_id"`
+	AgentID          int32          `json:"agent_id"`
+	Date             pgtype.Date    `json:"date"`
+	Category         string         `json:"category"`
+	Value            pgtype.Numeric `json:"value"`
+	GoalieGA         pgtype.Int4    `json:"goalie_ga"`
+	GoalieTOISeconds pgtype.Int4    `json:"goalie_toi_seconds"`
+}
+
+type SimAgentToolCall struct {
+	TurnID               int32       `json:"turn_id"`
+	RoundIndex           int32       `json:"round_index"`
+	Sequence             int32       `json:"sequence"`
+	ToolName             string      `json:"tool_name"`
+	RecoveredName        pgtype.Text `json:"recovered_name"`
+	ArgumentsRaw         string      `json:"arguments_raw"`
+	Arguments            []byte      `json:"arguments"`
+	Result               string      `json:"result"`
+	Outcome              string      `json:"outcome"`
+	FailureReason        pgtype.Text `json:"failure_reason"`
+	AppliedTransactionID pgtype.Int4 `json:"applied_transaction_id"`
+	LatencyMs            int32       `json:"latency_ms"`
+}
+
+type SimAgentTotal struct {
+	PoolID           int32          `json:"pool_id"`
+	AgentID          int32          `json:"agent_id"`
+	Category         string         `json:"category"`
+	Value            pgtype.Numeric `json:"value"`
+	GoalieGA         pgtype.Int4    `json:"goalie_ga"`
+	GoalieTOISeconds pgtype.Int4    `json:"goalie_toi_seconds"`
+}
+
+type SimAgentTurn struct {
+	ID                  int32              `json:"id"`
+	PoolID              int32              `json:"pool_id"`
+	AgentID             int32              `json:"agent_id"`
+	SimDate             pgtype.Date        `json:"sim_date"`
+	Phase               string             `json:"phase"`
+	PickNumber          int32              `json:"pick_number"`
+	Status              string             `json:"status"`
+	SkipReason          pgtype.Text        `json:"skip_reason"`
+	ErrorKind           pgtype.Text        `json:"error_kind"`
+	ErrorDetail         pgtype.Text        `json:"error_detail"`
+	Provider            string             `json:"provider"`
+	Model               string             `json:"model"`
+	Temperature         pgtype.Numeric     `json:"temperature"`
+	MaxTokens           pgtype.Int4        `json:"max_tokens"`
+	Rounds              int32              `json:"rounds"`
+	PromptTokens        int32              `json:"prompt_tokens"`
+	CompletionTokens    int32              `json:"completion_tokens"`
+	CacheCreationTokens int32              `json:"cache_creation_tokens"`
+	CacheReadTokens     int32              `json:"cache_read_tokens"`
+	CostUSD             pgtype.Numeric     `json:"cost_usd"`
+	LatencyMs           int32              `json:"latency_ms"`
+	FinalText           string             `json:"final_text"`
+	StartedAt           pgtype.Timestamptz `json:"started_at"`
+	CompletedAt         pgtype.Timestamptz `json:"completed_at"`
+}
+
+type SimAgentTurnMessage struct {
+	TurnID     int32       `json:"turn_id"`
+	Ordinal    int32       `json:"ordinal"`
+	Role       string      `json:"role"`
+	Content    string      `json:"content"`
+	ToolCallID pgtype.Text `json:"tool_call_id"`
+	ToolCalls  []byte      `json:"tool_calls"`
+}
+
+type SimAgentTurnRound struct {
+	TurnID              int32  `json:"turn_id"`
+	RoundIndex          int32  `json:"round_index"`
+	AssistantText       string `json:"assistant_text"`
+	PromptTokens        int32  `json:"prompt_tokens"`
+	CompletionTokens    int32  `json:"completion_tokens"`
+	CacheCreationTokens int32  `json:"cache_creation_tokens"`
+	CacheReadTokens     int32  `json:"cache_read_tokens"`
+	LatencyMs           int32  `json:"latency_ms"`
+}
+
+type SimLineupMove struct {
+	TransactionID     int32       `json:"transaction_id"`
+	Sequence          int32       `json:"sequence"`
+	PlayerID          int64       `json:"player_id"`
+	FromSlot          string      `json:"from_slot"`
+	ToSlot            string      `json:"to_slot"`
+	DisplacedPlayerID pgtype.Int8 `json:"displaced_player_id"`
+}
+
+type SimPool struct {
+	ID                   int32              `json:"id"`
+	Name                 string             `json:"name"`
+	Season               int32              `json:"season"`
+	Status               string             `json:"status"`
+	SimDate              pgtype.Date        `json:"sim_date"`
+	NumTeams             int32              `json:"num_teams"`
+	WaiverDays           int32              `json:"waiver_days"`
+	DraftRounds          int32              `json:"draft_rounds"`
+	MaxLLMCostUsdPerPool pgtype.Numeric     `json:"max_llm_cost_usd_per_pool"`
+	Categories           []string           `json:"categories"`
+	RosterC              int32              `json:"roster_c"`
+	RosterLW             int32              `json:"roster_lw"`
+	RosterRW             int32              `json:"roster_rw"`
+	RosterD              int32              `json:"roster_d"`
+	RosterG              int32              `json:"roster_g"`
+	RosterUtil           int32              `json:"roster_util"`
+	RosterBN             int32              `json:"roster_bn"`
+	RosterIR             int32              `json:"roster_ir"`
+	TotalLLMCostUSD      pgtype.Numeric     `json:"total_llm_cost_usd"`
+	WorkflowID           pgtype.Text        `json:"workflow_id"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	RecordFullMessages   bool               `json:"record_full_messages"`
+	StopAfter            string             `json:"stop_after"`
+	MaxSeasonDays        int32              `json:"max_season_days"`
+}
+
+type SimRoster struct {
+	PoolID      int32       `json:"pool_id"`
+	AgentID     int32       `json:"agent_id"`
+	PlayerID    int64       `json:"player_id"`
+	Slot        string      `json:"slot"`
+	AcquiredAt  pgtype.Date `json:"acquired_at"`
+	AcquiredVia string      `json:"acquired_via"`
+}
+
+type SimStanding struct {
+	PoolID     int32          `json:"pool_id"`
+	Date       pgtype.Date    `json:"date"`
+	AgentID    int32          `json:"agent_id"`
+	Category   string         `json:"category"`
+	Value      pgtype.Numeric `json:"value"`
+	RotoPoints pgtype.Numeric `json:"roto_points"`
+}
+
+type SimTransaction struct {
+	ID           int32              `json:"id"`
+	PoolID       int32              `json:"pool_id"`
+	AgentID      int32              `json:"agent_id"`
+	Date         pgtype.Date        `json:"date"`
+	Type         string             `json:"type"`
+	PlayerID     pgtype.Int8        `json:"player_id"`
+	Reasoning    string             `json:"reasoning"`
+	Round        pgtype.Int4        `json:"round"`
+	Pick         pgtype.Int4        `json:"pick"`
+	DropPlayerID pgtype.Int8        `json:"drop_player_id"`
+	ErrorKind    pgtype.Text        `json:"error_kind"`
+	ErrorDetail  pgtype.Text        `json:"error_detail"`
+	CostUSD      pgtype.Numeric     `json:"cost_usd"`
+	CapUSD       pgtype.Numeric     `json:"cap_usd"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type SimWaiverClaim struct {
+	ID           int32              `json:"id"`
+	PoolID       int32              `json:"pool_id"`
+	AgentID      int32              `json:"agent_id"`
+	PlayerID     int64              `json:"player_id"`
+	DropPlayerID pgtype.Int8        `json:"drop_player_id"`
+	FiledDate    pgtype.Date        `json:"filed_date"`
+	ProcessDate  pgtype.Date        `json:"process_date"`
+	Status       string             `json:"status"`
+	ResolvedAt   pgtype.Date        `json:"resolved_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type SimWaiverPriority struct {
+	PoolID   int32 `json:"pool_id"`
+	AgentID  int32 `json:"agent_id"`
+	Priority int32 `json:"priority"`
 }
 
 type SkaterRecentStat struct {

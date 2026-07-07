@@ -1,0 +1,220 @@
+# Simulation pool — GraphQL schema.
+#
+# See worker/simulation/PLAN.md > "GraphQL API" for the canonical
+# spec and the resolver-to-Temporal-query mapping. The split is:
+#
+#   SimPool.{id,name,season,status,simDate,totalLlmCostUsd}
+#       → workflow `summary` query (cheap, always called)
+#   SimPool.standings
+#       → workflow `latest_standings` query (only if requested)
+#   SimPool.agents[].roster
+#       → workflow `rosters` query
+#   simStandingsHistory
+#       → workflow `standings_for_date` per date
+#   simTransactions
+#       → DB read (sim_transactions / sim_lineup_moves are durable)
+#
+# This separate file lives alongside graph/data.graphqls so gqlgen's
+# follow-schema layout generates simulation.resolvers.go in
+# isolation from the workflow-control resolvers in
+# schema.resolvers.go.
+
+# ----- Types -----
+
+type SimPool {
+  id: Int!
+  name: String!
+  season: Int!
+  status: String!
+  simDate: String
+  totalLlmCostUsd: Float!
+  agents: [SimAgent!]!
+  standings: [SimStandingEntry!]!
+  """Current draft action — non-null only while status='draft' and at least one agent has a draft_position. Computed from sim_transactions count + sim_agents.draft_position (snake order)."""
+  currentDraftAction: CurrentDraftAction
+  """Config-time stop point. One of: never | team_name | draft | season."""
+  stopAfter: String!
+  """Cap on the season day loop (0 = no cap)."""
+  maxSeasonDays: Int!
+}
+
+type CurrentDraftAction {
+  round: Int!
+  pick: Int!
+  totalPicks: Int!
+  """ID of the agent on the clock. Zero pre-shuffle (draft order not yet assigned). Client resolves the display name from the SimPool.agents array."""
+  agentId: Int!
+}
+
+type SimAgent {
+  id: Int!
+  """Agent-picked team name; empty until the workflow's Phase 0 PickTeamName fires. Display layers should fall back to 'agent #<id>' when empty."""
+  teamName: String!
+  provider: String!
+  model: String!
+  """Shuffled draft order set by the workflow after its SideEffect-seeded shuffle. NULL before the draft starts."""
+  draftPosition: Int
+  roster: [SimRosterEntry!]!
+  totalRotoPoints: Float!
+}
+
+type SimRosterEntry {
+  playerId: Int!
+  playerName: String!
+  slot: String!
+  nhlPosition: String!
+  nhlTeam: String!
+}
+
+type SimStandingEntry {
+  agentId: Int!
+  category: String!
+  value: Float!
+  rotoPoints: Float!
+}
+
+# Per-type column population (PLAN.md > "sim_transactions"):
+#   draft_pick        → playerName, reasoning, round, pick
+#   add / claim       → playerName, reasoning, dropPlayerName
+#   drop              → playerName, reasoning
+#   lineup_set        → reasoning, lineupMoves[]
+#   pass / error      → reasoning (+ errorKind, errorDetail for `error`)
+#   cost_cap_reached  → reasoning, costUsd, capUsd
+type SimTransaction {
+  id: Int!
+  """ID of the agent who made the transaction. Client resolves the display name from the SimPool.agents array."""
+  agentId: Int!
+  date: String!
+  type: String!
+  playerName: String
+  reasoning: String!
+  round: Int
+  pick: Int
+  dropPlayerName: String
+  errorKind: String
+  errorDetail: String
+  costUsd: Float
+  capUsd: Float
+  lineupMoves: [SimLineupMove!]!
+}
+
+type SimLineupMove {
+  sequence: Int!
+  playerName: String!
+  fromSlot: String!
+  toSlot: String!
+  displacedPlayerName: String
+}
+
+# ----- Inputs -----
+
+# CreateSimPoolInput mirrors worker/simulation.PoolConfig — the JSONB
+# payload that lands in sim_pools.config — plus the user-facing pool
+# name. RosterPositions is a list of {slot, count} entries because
+# GraphQL doesn't natively support maps; the resolver flattens this
+# into the Go map[RosterSlot]int that PoolConfig.RosterPositions
+# expects.
+input CreateSimPoolInput {
+  """Display name for the pool (e.g., 'Crapettes Sonnet vs Haiku')."""
+  name: String!
+  """NHL season ID (e.g., 20242025) — must exist in the seasons table."""
+  season: Int!
+  """Roto categories to score, by string label (G, A, +/-, PIM, PPP, SOG, W, GA, GAA)."""
+  categories: [String!]!
+  """Per-slot roster capacity. Slot must be one of C/LW/RW/D/G/Util/BN/IR."""
+  rosterPositions: [SimRosterPositionInput!]!
+  """Calendar days a dropped player spends on waivers before becoming a free agent."""
+  waiverDays: Int!
+  """Number of draft rounds (typically 18 for an NHL roster)."""
+  draftRounds: Int!
+  """Per-pool cumulative LLM spend cap in USD. <= 0 disables the cap (PLAN.md > "Cost cap")."""
+  maxLlmCostUsdPerPool: Float!
+  """Agent definitions — one per fantasy team. Pool size = len(agents)."""
+  agents: [CreateSimAgentInput!]!
+
+  """
+  Config-time stop point. The workflow exits cleanly (status=complete)
+  when it reaches the configured boundary. One of:
+    never       — run to season end (default).
+    team_name   — exit after Phase 0 team-name picks complete.
+    draft       — exit after the snake draft completes.
+    season      — explicit synonym for never.
+  Omitted = "never".
+  """
+  stopAfter: String
+  """Cap on the season day loop (0 or omitted = no cap). Useful for fast small-sample debugging (e.g. maxSeasonDays: 10)."""
+  maxSeasonDays: Int
+}
+
+input SimRosterPositionInput {
+  """One of: C, LW, RW, D, G, Util, BN, IR."""
+  slot: String!
+  count: Int!
+}
+
+input CreateSimAgentInput {
+  """Provider string: anthropic | openai | ollama | google."""
+  provider: String!
+  """Model identifier passed to the provider's API (e.g., 'claude-haiku-4-5')."""
+  model: String!
+  """Free-form strategy descriptor; baked into the system prompt."""
+  strategy: String!
+  """Per-call HTTP timeout. Omitted = use llm package default."""
+  timeoutSeconds: Int
+  """LLM temperature override. Omitted = provider default."""
+  temperature: Float
+  """API base URL override (used for Gemini via the OpenAI-compatible endpoint)."""
+  apiBase: String
+  """Max output tokens. Omitted = provider default."""
+  maxTokens: Int
+}
+
+# ----- Queries -----
+
+extend type Query {
+  """Single sim pool by ID, with agents/standings/etc resolved on demand."""
+  simPool(id: Int!): SimPool
+  """All sim pools, ordered by created_at descending."""
+  simPools: [SimPool!]!
+  """
+  Audit log for a pool. agentId/date are optional filters — pass null
+  (or omit) to get the full pool log. limit caps the row count;
+  ordered by created_at desc.
+  """
+  simTransactions(poolId: Int!, agentId: Int, date: String, limit: Int): [SimTransaction!]!
+  """
+  All daily standings snapshots for a pool, oldest day first. Each
+  inner list is one date's per-(agent, category) standing rows.
+  Heavy — clients should prefer SimPool.standings (latest only) for
+  the dashboard view.
+  """
+  simStandingsHistory(poolId: Int!): [[SimStandingEntry!]!]!
+  """
+  Reads the workflow's progressReport from Redis at
+  progress:sim-pool-{pool_id} via worker/shared.LoadReportTracker.
+  Returns null if the workflow hasn't yet initialized its tracker.
+  """
+  simPoolProgress(poolId: Int!): ProgressReport
+}
+
+# ----- Mutations -----
+#
+# There is intentionally no editSimPool / updateSimAgent — pool and
+# agent config are immutable after creation. To change settings,
+# cancel and create a new pool (PLAN.md > "Configuration > Config is
+# immutable").
+
+extend type Mutation {
+  """
+  Insert a sim_pools row, then start the SimPoolWorkflow with
+  WorkflowID = 'sim-pool-{pool_id}'. WorkflowIDReusePolicy =
+  REJECT_DUPLICATE so the resolver itself is idempotent on retry.
+  """
+  createSimPool(input: CreateSimPoolInput!): SimPool!
+  """
+  Cancel the workflow via Temporal's RequestCancelWorkflow. The
+  workflow honors workflow.Context cancel, writes status='cancelled',
+  and exits.
+  """
+  cancelSimPool(poolId: Int!): SimPool!
+}

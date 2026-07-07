@@ -101,8 +101,12 @@ func (m *MockNHLClient) Franchises(ctx context.Context) ([]nhlapi.Franchise, err
 	return args.Get(0).([]nhlapi.Franchise), args.Error(1)
 }
 
-func (m *MockNHLClient) SearchPlayer(ctx context.Context, query string, limit *int) ([]nhlapi.PlayerSearchResult, error) {
-	args := m.Called(ctx, query, limit)
+func (m *MockNHLClient) SearchPlayer(ctx context.Context, query string, limit ...int) ([]nhlapi.PlayerSearchResult, error) {
+	callArgs := []interface{}{ctx, query}
+	for _, l := range limit {
+		callArgs = append(callArgs, l)
+	}
+	args := m.Called(callArgs...)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -316,7 +320,6 @@ func (m *MockNHLClient) EdgeTeamLanding(ctx context.Context, season nhlapi.Seaso
 	}
 	return args.Get(0).(*nhlapi.EdgeTeamLanding), args.Error(1)
 }
-
 
 // MockSeasonsUpserter implements seasonsUpserter for testing.
 type MockSeasonsUpserter struct {

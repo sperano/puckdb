@@ -123,6 +123,12 @@ services:
             - TEMPORAL_ADDRESS=temporal:7233
             - TEMPORAL_CORS_ORIGINS=http://localhost:3000
             - TEMPORAL_NOTIFY_ON_NEW_VERSION=false
+            # Drops Secure flag on the CSRF cookie so it's sent over
+            # plain HTTP (and over custom-hostname /etc/hosts entries
+            # like localhost.***REMOVED***). Without this, POSTs from the
+            # UI — including the Cancel button — get rejected with
+            # "missing csrf token in request header".
+            - TEMPORAL_CSRF_COOKIE_INSECURE=true
         image: temporalio/ui:${TEMPORAL_UI_VERSION:-2.32.0}
         ports:
             - "8080:8080"

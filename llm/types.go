@@ -12,18 +12,28 @@ type Request struct {
 }
 
 // Message represents a single chat message.
+//
+// Cacheable is a provider-translation hint: when true and the underlying
+// client supports prompt caching (Anthropic), this message MAY be marked
+// as a cache breakpoint. Only the final cacheable block in wire order
+// receives the actual marker; earlier hints are coalesced into the same
+// cached prefix. Other clients silently ignore the hint.
 type Message struct {
 	Role       string     `json:"role"`
 	Content    string     `json:"content"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 	Name       string     `json:"name,omitempty"`
+	Cacheable  bool       `json:"-"`
 }
 
 // Tool describes a function tool the model can call.
+//
+// Cacheable: see the same field on Message.
 type Tool struct {
-	Type     string       `json:"type"`
-	Function ToolFunction `json:"function"`
+	Type      string       `json:"type"`
+	Function  ToolFunction `json:"function"`
+	Cacheable bool         `json:"-"`
 }
 
 // ToolFunction describes the function within a Tool definition.
@@ -58,10 +68,16 @@ type Response struct {
 }
 
 // Usage reports token consumption.
+//
+// CacheCreationInputTokens and CacheReadInputTokens are populated only by
+// providers that report cache accounting (Anthropic). For other providers
+// they remain zero.
 type Usage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens             int `json:"prompt_tokens"`
+	CompletionTokens         int `json:"completion_tokens"`
+	TotalTokens              int `json:"total_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 }
 
 // HasToolCalls returns true if the response contains tool calls.

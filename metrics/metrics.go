@@ -91,6 +91,51 @@ var (
 		Help:    "Duration of Temporal activities in seconds",
 		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 	}, []string{"activity"})
+
+	// Simulation-specific worker metrics. PLAN.md > "Phase 3.3
+	// Prometheus Metrics" — three metrics covering the LLM cost
+	// surface (call latency, failure rate by classifier) and the
+	// per-pool day-loop pacing.
+	//
+	// LLM call duration buckets cover the realistic range: fast
+	// Haiku calls land sub-second, slower Anthropic Sonnet calls
+	// can run multi-second on a tool-heavy turn, and pathological
+	// retries reach 60s+.
+	simLLMBuckets = []float64{0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 60, 120}
+
+	// Day-loop duration buckets cover one calendar day's worth of
+	// activities (Waivers + FA pool + N agent turns + stats +
+	// standings). Realistic: 5–60s for small pools, 60s+ for
+	// large pools or slow LLMs.
+	simDayBuckets = []float64{1, 5, 10, 30, 60, 120, 300, 600}
+
+	simLLMCallDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "puckdb_sim_llm_call_duration_seconds",
+		Help:    "Duration of one LLM Complete call in the simulation worker, by provider/model/agent",
+		Buckets: simLLMBuckets,
+	}, []string{"provider", "model", "agent_name"})
+
+	simLLMFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "puckdb_sim_llm_failures_total",
+		Help: "LLM failures classified by reason (timeout|api_error|tool_use_failure|parse_error|validation)",
+	}, []string{"provider", "model", "reason"})
+
+	simDayDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "puckdb_sim_day_duration_seconds",
+		Help:    "Wall-clock duration of one simulated day's activity batch (waivers + FA pool + agents + stats + standings), per pool",
+		Buckets: simDayBuckets,
+	}, []string{"pool_id"})
+)
+
+// Simulation LLM-failure reason labels. Constants rather than free
+// strings so the activities and the classifier stay in lockstep —
+// a typo would land in Prometheus as a new (and silent) reason.
+const (
+	SimFailureTimeout        = "timeout"
+	SimFailureAPIError       = "api_error"
+	SimFailureToolUseFailure = "tool_use_failure"
+	SimFailureParseError     = "parse_error"
+	SimFailureValidation     = "validation"
 )
 
 // API metrics (HTTP middleware)
@@ -189,6 +234,9 @@ func init() {
 		httpResponseBytes,
 		downloadTotal,
 		activityDuration,
+		simLLMCallDuration,
+		simLLMFailures,
+		simDayDuration,
 	)
 
 	// Register API metrics
@@ -442,4 +490,29 @@ func SetBuildInfo(version string) {
 func SetDataPathFileStats(fileType string, count int64, bytes int64) {
 	dataPathFilesTotal.WithLabelValues(fileType).Set(float64(count))
 	dataPathBytesTotal.WithLabelValues(fileType).Set(float64(bytes))
+}
+
+// ObserveSimLLMCallDuration records the duration of one LLM Complete
+// call in the simulation worker. Called by the instrumented client
+// wrapper around every Complete invocation; provider/model/agent_name
+// labels let dashboards split spend and latency per agent.
+func ObserveSimLLMCallDuration(provider, model, agentName string, duration time.Duration) {
+	simLLMCallDuration.WithLabelValues(provider, model, agentName).Observe(duration.Seconds())
+}
+
+// IncSimLLMFailure increments the simulation's LLM-failure counter
+// with a typed reason label. Reasons are the SimFailure* constants;
+// the classifier in the simulation package maps Go errors to these
+// strings.
+func IncSimLLMFailure(provider, model, reason string) {
+	simLLMFailures.WithLabelValues(provider, model, reason).Inc()
+}
+
+// ObserveSimDayDuration records the wall-clock duration of one
+// simulated day's activity batch. Called from a small telemetry
+// activity invoked by SimPoolWorkflow at the end of each day —
+// the workflow goroutine itself can't observe Prometheus directly
+// (non-deterministic side effect breaks replay).
+func ObserveSimDayDuration(poolID string, duration time.Duration) {
+	simDayDuration.WithLabelValues(poolID).Observe(duration.Seconds())
 }

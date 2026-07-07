@@ -16,10 +16,11 @@ var expectedTools = []string{
 	"list_teams",
 	"list_seasons",
 	"list_franchises",
-	// Players (8)
+	// Players (9)
 	"get_player",
 	"get_players_by_team",
 	"get_players_by_position",
+	"get_players_by_birthplace",
 	"get_active_players",
 	"get_player_career_totals",
 	"get_player_awards",

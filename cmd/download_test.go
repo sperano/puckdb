@@ -74,6 +74,22 @@ func TestNewGraphQLClient_WithTrailingSlash(t *testing.T) {
 	}
 }
 
+func TestFormatStatusMessage_NilProgress(t *testing.T) {
+	t.Parallel()
+
+	got := formatStatusMessage(
+		&WorkflowStatus{
+			Result:   &model.WorkflowResult{Status: model.TemporalWorkflowStatusRunning},
+			Progress: nil,
+		},
+		workflowFetchSeasons,
+	)
+	want := SpinnerPlaceholder + " Workflow fetchSeasons is starting..."
+	if got != want {
+		t.Errorf("formatStatusMessage() = %q, want %q", got, want)
+	}
+}
+
 func TestFormatStatusMessage(t *testing.T) {
 	t.Parallel()
 
@@ -83,14 +99,6 @@ func TestFormatStatusMessage(t *testing.T) {
 		contains []string
 		excludes []string
 	}{
-		{
-			name: "nil progress shows status only",
-			status: &WorkflowStatus{
-				Result:   &model.WorkflowResult{Status: model.TemporalWorkflowStatusRunning},
-				Progress: nil,
-			},
-			contains: []string{"Workflow status: RUNNING"},
-		},
 		{
 			name: "single bar group with progress",
 			status: &WorkflowStatus{
@@ -183,7 +191,7 @@ func TestFormatStatusMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := formatStatusMessage(tt.status)
+			got := formatStatusMessage(tt.status, workflowFetchSeasons)
 			for _, substr := range tt.contains {
 				if !strings.Contains(got, substr) {
 					t.Errorf("formatStatusMessage() = %q, missing %q", got, substr)

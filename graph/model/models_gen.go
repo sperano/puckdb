@@ -3,6 +3,7 @@
 package model
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strconv"
@@ -13,6 +14,60 @@ type Boxscore struct {
 	Game    *Game              `json:"game"`
 	Skaters []*GameSkaterStats `json:"skaters"`
 	Goalies []*GameGoalieStats `json:"goalies"`
+}
+
+type CreateSimAgentInput struct {
+	// Provider string: anthropic | openai | ollama | google.
+	Provider string `json:"provider"`
+	// Model identifier passed to the provider's API (e.g., 'claude-haiku-4-5').
+	Model string `json:"model"`
+	// Free-form strategy descriptor; baked into the system prompt.
+	Strategy string `json:"strategy"`
+	// Per-call HTTP timeout. Omitted = use llm package default.
+	TimeoutSeconds *int `json:"timeoutSeconds,omitempty"`
+	// LLM temperature override. Omitted = provider default.
+	Temperature *float64 `json:"temperature,omitempty"`
+	// API base URL override (used for Gemini via the OpenAI-compatible endpoint).
+	APIBase *string `json:"apiBase,omitempty"`
+	// Max output tokens. Omitted = provider default.
+	MaxTokens *int `json:"maxTokens,omitempty"`
+}
+
+type CreateSimPoolInput struct {
+	// Display name for the pool (e.g., 'Crapettes Sonnet vs Haiku').
+	Name string `json:"name"`
+	// NHL season ID (e.g., 20242025) — must exist in the seasons table.
+	Season int `json:"season"`
+	// Roto categories to score, by string label (G, A, +/-, PIM, PPP, SOG, W, GA, GAA).
+	Categories []string `json:"categories"`
+	// Per-slot roster capacity. Slot must be one of C/LW/RW/D/G/Util/BN/IR.
+	RosterPositions []*SimRosterPositionInput `json:"rosterPositions"`
+	// Calendar days a dropped player spends on waivers before becoming a free agent.
+	WaiverDays int `json:"waiverDays"`
+	// Number of draft rounds (typically 18 for an NHL roster).
+	DraftRounds int `json:"draftRounds"`
+	// Per-pool cumulative LLM spend cap in USD. <= 0 disables the cap (PLAN.md > "Cost cap").
+	MaxLlmCostUsdPerPool float64 `json:"maxLlmCostUsdPerPool"`
+	// Agent definitions — one per fantasy team. Pool size = len(agents).
+	Agents []*CreateSimAgentInput `json:"agents"`
+	// Config-time stop point. The workflow exits cleanly (status=complete)
+	// when it reaches the configured boundary. One of:
+	//   never       — run to season end (default).
+	//   team_name   — exit after Phase 0 team-name picks complete.
+	//   draft       — exit after the snake draft completes.
+	//   season      — explicit synonym for never.
+	// Omitted = "never".
+	StopAfter *string `json:"stopAfter,omitempty"`
+	// Cap on the season day loop (0 or omitted = no cap). Useful for fast small-sample debugging (e.g. maxSeasonDays: 10).
+	MaxSeasonDays *int `json:"maxSeasonDays,omitempty"`
+}
+
+type CurrentDraftAction struct {
+	Round      int `json:"round"`
+	Pick       int `json:"pick"`
+	TotalPicks int `json:"totalPicks"`
+	// ID of the agent on the clock. Zero pre-shuffle (draft order not yet assigned). Client resolves the display name from the SimPool.agents array.
+	AgentID int `json:"agentId"`
 }
 
 type EdgeGoalieShotLocation struct {
@@ -192,11 +247,11 @@ type EdgeTeamZoneTimeByStrength struct {
 }
 
 type FetchAssetsInput struct {
-	// Within-class FetchAssetBatch concurrency override (defaults to FlagAssetClassConcurrency)
+	// How many asset batches run in parallel inside each class workflow. Falls back to the worker's configured default when unset.
 	ClassConcurrency *int `json:"classConcurrency,omitempty"`
-	// Cross-class child workflow concurrency override (defaults to FlagMaxAssetClassConcurrency)
+	// How many of the nine class workflows run in parallel. Falls back to the worker's configured default when unset.
 	MaxClassConcurrency *int `json:"maxClassConcurrency,omitempty"`
-	// Re-download already-cached assets, skipping the Storage.Exists short-circuit
+	// Re-download every asset, ignoring already-cached files.
 	RefreshCurrent *bool `json:"refreshCurrent,omitempty"`
 }
 
@@ -438,6 +493,82 @@ type SeasonsInput struct {
 	RefreshCurrentEdge *bool `json:"refreshCurrentEdge,omitempty"`
 }
 
+type SimAgent struct {
+	ID int `json:"id"`
+	// Agent-picked team name; empty until the workflow's Phase 0 PickTeamName fires. Display layers should fall back to 'agent #<id>' when empty.
+	TeamName string `json:"teamName"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	// Shuffled draft order set by the workflow after its SideEffect-seeded shuffle. NULL before the draft starts.
+	DraftPosition   *int              `json:"draftPosition,omitempty"`
+	Roster          []*SimRosterEntry `json:"roster"`
+	TotalRotoPoints float64           `json:"totalRotoPoints"`
+}
+
+type SimLineupMove struct {
+	Sequence            int     `json:"sequence"`
+	PlayerName          string  `json:"playerName"`
+	FromSlot            string  `json:"fromSlot"`
+	ToSlot              string  `json:"toSlot"`
+	DisplacedPlayerName *string `json:"displacedPlayerName,omitempty"`
+}
+
+type SimPool struct {
+	ID              int                 `json:"id"`
+	Name            string              `json:"name"`
+	Season          int                 `json:"season"`
+	Status          string              `json:"status"`
+	SimDate         *string             `json:"simDate,omitempty"`
+	TotalLlmCostUsd float64             `json:"totalLlmCostUsd"`
+	Agents          []*SimAgent         `json:"agents"`
+	Standings       []*SimStandingEntry `json:"standings"`
+	// Current draft action — non-null only while status='draft' and at least one agent has a draft_position. Computed from sim_transactions count + sim_agents.draft_position (snake order).
+	CurrentDraftAction *CurrentDraftAction `json:"currentDraftAction,omitempty"`
+	// Config-time stop point. One of: never | team_name | draft | season.
+	StopAfter string `json:"stopAfter"`
+	// Cap on the season day loop (0 = no cap).
+	MaxSeasonDays int `json:"maxSeasonDays"`
+}
+
+type SimRosterEntry struct {
+	PlayerID    int    `json:"playerId"`
+	PlayerName  string `json:"playerName"`
+	Slot        string `json:"slot"`
+	NhlPosition string `json:"nhlPosition"`
+	NhlTeam     string `json:"nhlTeam"`
+}
+
+type SimRosterPositionInput struct {
+	// One of: C, LW, RW, D, G, Util, BN, IR.
+	Slot  string `json:"slot"`
+	Count int    `json:"count"`
+}
+
+type SimStandingEntry struct {
+	AgentID    int     `json:"agentId"`
+	Category   string  `json:"category"`
+	Value      float64 `json:"value"`
+	RotoPoints float64 `json:"rotoPoints"`
+}
+
+type SimTransaction struct {
+	ID int `json:"id"`
+	// ID of the agent who made the transaction. Client resolves the display name from the SimPool.agents array.
+	AgentID        int              `json:"agentId"`
+	Date           string           `json:"date"`
+	Type           string           `json:"type"`
+	PlayerName     *string          `json:"playerName,omitempty"`
+	Reasoning      string           `json:"reasoning"`
+	Round          *int             `json:"round,omitempty"`
+	Pick           *int             `json:"pick,omitempty"`
+	DropPlayerName *string          `json:"dropPlayerName,omitempty"`
+	ErrorKind      *string          `json:"errorKind,omitempty"`
+	ErrorDetail    *string          `json:"errorDetail,omitempty"`
+	CostUsd        *float64         `json:"costUsd,omitempty"`
+	CapUsd         *float64         `json:"capUsd,omitempty"`
+	LineupMoves    []*SimLineupMove `json:"lineupMoves"`
+}
+
 type SkaterGameLogEntry struct {
 	GameID             int64    `json:"gameId"`
 	GameDate           string   `json:"gameDate"`
@@ -540,7 +671,7 @@ func (e TemporalWorkflowStatus) String() string {
 	return string(e)
 }
 
-func (e *TemporalWorkflowStatus) UnmarshalGQL(v interface{}) error {
+func (e *TemporalWorkflowStatus) UnmarshalGQL(v any) error {
 	str, ok := v.(string)
 	if !ok {
 		return fmt.Errorf("enums must be strings")
@@ -555,4 +686,18 @@ func (e *TemporalWorkflowStatus) UnmarshalGQL(v interface{}) error {
 
 func (e TemporalWorkflowStatus) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TemporalWorkflowStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TemporalWorkflowStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }

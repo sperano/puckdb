@@ -12,8 +12,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const httpTimeout = 120 * time.Second
-
 // Client sends completion requests to an LLM provider.
 type Client interface {
 	Complete(ctx context.Context, req *Request) (*Response, error)
@@ -30,14 +28,12 @@ type openaiClient struct {
 // NewOpenAIClient creates an LLM client targeting an OpenAI-compatible endpoint.
 // baseURL should include the scheme and host (e.g. "http://localhost:11434/v1").
 // apiKey may be empty for local providers like Ollama.
-func NewOpenAIClient(baseURL, apiKey, model string) Client {
+func NewOpenAIClient(baseURL, apiKey, model string, opts ...Option) Client {
 	return &openaiClient{
-		baseURL: baseURL,
-		apiKey:  apiKey,
-		model:   model,
-		httpClient: &http.Client{
-			Timeout: httpTimeout,
-		},
+		baseURL:    baseURL,
+		apiKey:     apiKey,
+		model:      model,
+		httpClient: applyOptions(opts),
 	}
 }
 

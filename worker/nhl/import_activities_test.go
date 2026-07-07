@@ -383,7 +383,7 @@ func (s *ImportGameStorySuite) TestGameWithThreeStars_UpsertsCalled() {
 		GameState:         nhlapi.GameStateOff,
 		GameScheduleState: nhlapi.GameScheduleStateOK,
 		Summary: &nhlapi.GameSummary{
-			ThreeStars: &stars,
+			ThreeStars: stars,
 		},
 	}
 	data, err := json.Marshal(story)
@@ -461,7 +461,7 @@ func (s *ImportGameStorySuite) TestThreeStarUpsertError_RecordedInErrors() {
 		GameType:          nhlapi.GameTypeRegularSeason,
 		GameState:         nhlapi.GameStateOff,
 		GameScheduleState: nhlapi.GameScheduleStateOK,
-		Summary:           &nhlapi.GameSummary{ThreeStars: &stars},
+		Summary:           &nhlapi.GameSummary{ThreeStars: stars},
 	}
 	data, err := json.Marshal(story)
 	s.Require().NoError(err)

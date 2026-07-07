@@ -22,37 +22,27 @@ WHERE (seasons.standings_start, seasons.standings_end)
 SELECT COUNT(*) FROM seasons;
 
 -- name: GetSeasonTeams :many
-SELECT
-    season, team_id, franchise_id, full_name, abbrev, logo_url,
-    division_name, division_abbrev, conference_name, conference_abbrev
-FROM season_teams
-WHERE season = $1
+SELECT * FROM season_teams
+WHERE season = $1 AND team_kind = 'nhl'
 ORDER BY division_name, full_name;
 
 -- name: GetSeasonTeamsByDivision :many
-SELECT
-    season, team_id, franchise_id, full_name, abbrev, logo_url,
-    division_name, division_abbrev, conference_name, conference_abbrev
-FROM season_teams
-WHERE season = $1 AND division_name = $2
+SELECT * FROM season_teams
+WHERE season = $1 AND division_name = $2 AND team_kind = 'nhl'
 ORDER BY full_name;
 
 -- name: GetSeasonTeam :one
-SELECT
-    season, team_id, franchise_id, full_name, abbrev, logo_url,
-    division_name, division_abbrev, conference_name, conference_abbrev
-FROM season_teams
-WHERE season = $1 AND team_id = $2;
+SELECT * FROM season_teams
+WHERE season = $1 AND team_id = $2 AND team_kind = 'nhl';
 
 -- name: GetTeamHistory :many
-SELECT
-    season, team_id, franchise_id, full_name, abbrev, logo_url,
-    division_name, division_abbrev, conference_name, conference_abbrev
-FROM season_teams
-WHERE franchise_id = $1
+SELECT * FROM season_teams
+WHERE franchise_id = $1 AND team_kind = 'nhl'
 ORDER BY season DESC;
 
 -- name: UpsertSeasonTeam :exec
+-- Upsert an NHL season-team row. team_kind is implicitly 'nhl' (column
+-- default); international teams use UpsertInternationalSeasonTeam.
 INSERT INTO season_teams (
     season, team_id, franchise_id, full_name, abbrev, logo_url,
     division_name, division_abbrev, conference_name, conference_abbrev
@@ -77,6 +67,22 @@ WHERE (season_teams.franchise_id, season_teams.full_name,
        EXCLUDED.division_name, EXCLUDED.division_abbrev,
        EXCLUDED.conference_name, EXCLUDED.conference_abbrev);
 
+-- name: UpsertInternationalSeasonTeam :exec
+-- Upsert an international/national-team season row (Canada, USA,
+-- Sweden, etc. at NHL API team IDs 60–67) referenced by
+-- player_season_totals for WJC/Olympic/WC entries. franchise_id and
+-- division/conference fields are NULL for these.
+INSERT INTO season_teams (
+    season, team_id, full_name, abbrev, team_kind
+)
+VALUES ($1, $2, $3, $4, 'international')
+ON CONFLICT (season, team_id) DO UPDATE SET
+    full_name = EXCLUDED.full_name,
+    abbrev = EXCLUDED.abbrev
+WHERE season_teams.team_kind = 'international'
+  AND (season_teams.full_name, season_teams.abbrev)
+      IS DISTINCT FROM (EXCLUDED.full_name, EXCLUDED.abbrev);
+
 -- name: CountSeasonTeamsForSeason :one
 SELECT COUNT(*) FROM season_teams WHERE season = $1;
 
@@ -86,7 +92,7 @@ SELECT COUNT(*) FROM season_teams;
 -- name: GetDistinctDivisions :many
 SELECT DISTINCT division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
-WHERE season = $1
+WHERE season = $1 AND team_kind = 'nhl'
 ORDER BY conference_name, division_name;
 
 -- name: ListTeamLogos :many

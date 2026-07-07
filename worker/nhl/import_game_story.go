@@ -114,7 +114,7 @@ func (a *ImportActivities) processGameStory(
 	gid := int64(gameID)
 
 	if story.Summary.ThreeStars != nil {
-		for _, star := range *story.Summary.ThreeStars {
+		for _, star := range story.Summary.ThreeStars {
 			if err := a.Queries.UpsertGameThreeStar(ctx, sqlcdb.UpsertGameThreeStarParams{
 				GameID:   gid,
 				Star:     int16(star.Star),
@@ -152,7 +152,7 @@ func (a *ImportActivities) processGameStory(
 	}
 
 	if story.Summary.Shootout != nil {
-		for _, attempt := range *story.Summary.Shootout {
+		for _, attempt := range story.Summary.Shootout {
 			teamID, err := a.Queries.GetTeamIDByAbbrev(ctx, sqlcdb.GetTeamIDByAbbrevParams{
 				Abbrev: attempt.TeamAbbrev.Default,
 				Season: int32(season),

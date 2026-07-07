@@ -14,7 +14,7 @@ import (
 
 const (
 	anthropicVersion       = "2023-06-01"
-	anthropicDefaultMaxTok = 4096
+	anthropicDefaultMaxTokens = 4096
 )
 
 // anthropicClient implements Client for the Anthropic Messages API.
@@ -27,30 +27,44 @@ type anthropicClient struct {
 
 // NewAnthropicClient creates an LLM client targeting the Anthropic Messages API.
 // baseURL should be "https://api.anthropic.com" (no trailing /v1).
-func NewAnthropicClient(baseURL, apiKey, model string) Client {
+func NewAnthropicClient(baseURL, apiKey, model string, opts ...Option) Client {
 	return &anthropicClient{
-		baseURL: baseURL,
-		apiKey:  apiKey,
-		model:   model,
-		httpClient: &http.Client{
-			Timeout: httpTimeout,
-		},
+		baseURL:    baseURL,
+		apiKey:     apiKey,
+		model:      model,
+		httpClient: applyOptions(opts),
 	}
 }
 
 // --- Anthropic wire types (unexported) ---
 
 type anthropicRequest struct {
-	Model     string             `json:"model"`
-	Messages  []anthropicMessage `json:"messages"`
-	System    string             `json:"system,omitempty"`
-	Tools     []anthropicTool    `json:"tools,omitempty"`
-	MaxTokens int                `json:"max_tokens"`
+	Model     string                `json:"model"`
+	Messages  []anthropicMessage    `json:"messages"`
+	System    []anthropicSystemBlock `json:"system,omitempty"`
+	Tools     []anthropicTool       `json:"tools,omitempty"`
+	MaxTokens int                   `json:"max_tokens"`
+}
+
+// anthropicSystemBlock is one block of the system prompt. Anthropic accepts
+// the system field as either a bare string or an array of blocks; the array
+// form is required to attach cache_control.
+type anthropicSystemBlock struct {
+	Type         string                 `json:"type"`
+	Text         string                 `json:"text"`
+	CacheControl *anthropicCacheControl `json:"cache_control,omitempty"`
+}
+
+// anthropicCacheControl marks a block as the end of a cacheable prefix.
+// Type is always "ephemeral" today; if Anthropic adds more types later
+// the field can grow.
+type anthropicCacheControl struct {
+	Type string `json:"type"`
 }
 
 type anthropicMessage struct {
-	Role    string                 `json:"role"`
-	Content []anthropicContent     `json:"content,omitempty"`
+	Role    string             `json:"role"`
+	Content []anthropicContent `json:"content,omitempty"`
 }
 
 type anthropicContent struct {
@@ -67,12 +81,16 @@ type anthropicContent struct {
 	// tool_result
 	ToolUseID string `json:"tool_use_id,omitempty"`
 	Content   string `json:"content,omitempty"`
+
+	// caching (any block type)
+	CacheControl *anthropicCacheControl `json:"cache_control,omitempty"`
 }
 
 type anthropicTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description,omitempty"`
+	InputSchema  json.RawMessage        `json:"input_schema"`
+	CacheControl *anthropicCacheControl `json:"cache_control,omitempty"`
 }
 
 type anthropicResponse struct {
@@ -84,9 +102,16 @@ type anthropicResponse struct {
 }
 
 type anthropicUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	InputTokens              int `json:"input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 }
+
+// ephemeralCacheControl is the singleton cache_control marker we attach
+// to the final cacheable block. Anthropic only supports "ephemeral" today,
+// so a shared pointer is safe.
+var ephemeralCacheControl = &anthropicCacheControl{Type: "ephemeral"}
 
 // --- Translation ---
 
@@ -145,28 +170,77 @@ func (c *anthropicClient) translateRequest(req *Request) anthropicRequest {
 		MaxTokens: req.MaxTokens,
 	}
 	if ar.MaxTokens <= 0 {
-		ar.MaxTokens = anthropicDefaultMaxTok
+		ar.MaxTokens = anthropicDefaultMaxTokens
 	}
 
-	// Extract system messages and translate the rest
+	// Anthropic supports a single cache breakpoint per request (per the
+	// public spec — up to four are allowed but a single one suffices for
+	// the system+tools cached-prefix pattern this codebase uses). Pick a
+	// single winner among Cacheable hints with precedence message > tool
+	// > system, since a marker placed later in wire order yields a longer
+	// cached prefix. Indices below are ORDINALS within their section
+	// (sysOrd, msgOrd) — they are stable across translation.
+	winSystem, winTool, winMessage := -1, -1, -1
+	sysOrd, msgOrd := 0, 0
 	for _, m := range req.Messages {
 		if m.Role == "system" {
-			ar.System = m.Content
+			if m.Cacheable {
+				winSystem = sysOrd
+			}
+			sysOrd++
+		} else {
+			if m.Cacheable {
+				winMessage = msgOrd
+			}
+			msgOrd++
+		}
+	}
+	for i, t := range req.Tools {
+		if t.Cacheable {
+			winTool = i
+		}
+	}
+	applyToMessage := winMessage >= 0
+	applyToTool := !applyToMessage && winTool >= 0
+	applyToSystem := !applyToMessage && !applyToTool && winSystem >= 0
+
+	// Extract system messages and translate the rest.
+	sysOrd, msgOrd = 0, 0
+	for _, m := range req.Messages {
+		if m.Role == "system" {
+			block := anthropicSystemBlock{Type: "text", Text: m.Content}
+			if applyToSystem && sysOrd == winSystem {
+				block.CacheControl = ephemeralCacheControl
+			}
+			ar.System = append(ar.System, block)
+			sysOrd++
 			continue
 		}
-		ar.Messages = append(ar.Messages, translateMessage(m))
+		translated := translateMessage(m)
+		if applyToMessage && msgOrd == winMessage && len(translated.Content) > 0 {
+			// Mark the LAST content block of the winning message. Coalesce
+			// preserves block order within a same-role run, so this stays
+			// in place.
+			translated.Content[len(translated.Content)-1].CacheControl = ephemeralCacheControl
+		}
+		ar.Messages = append(ar.Messages, translated)
+		msgOrd++
 	}
 
-	// Coalesce consecutive same-role messages (Anthropic requires alternating)
+	// Coalesce consecutive same-role messages (Anthropic requires alternating).
 	ar.Messages = coalesceMessages(ar.Messages)
 
-	// Translate tools
-	for _, t := range req.Tools {
-		ar.Tools = append(ar.Tools, anthropicTool{
+	// Translate tools.
+	for i, t := range req.Tools {
+		at := anthropicTool{
 			Name:        t.Function.Name,
 			Description: t.Function.Description,
 			InputSchema: t.Function.Parameters,
-		})
+		}
+		if applyToTool && i == winTool {
+			at.CacheControl = ephemeralCacheControl
+		}
+		ar.Tools = append(ar.Tools, at)
 	}
 
 	return ar
@@ -239,9 +313,11 @@ func (r *anthropicResponse) toResponse() *Response {
 	}
 	if r.Usage != nil {
 		resp.Usage = &Usage{
-			PromptTokens:     r.Usage.InputTokens,
-			CompletionTokens: r.Usage.OutputTokens,
-			TotalTokens:      r.Usage.InputTokens + r.Usage.OutputTokens,
+			PromptTokens:             r.Usage.InputTokens,
+			CompletionTokens:         r.Usage.OutputTokens,
+			TotalTokens:              r.Usage.InputTokens + r.Usage.OutputTokens,
+			CacheCreationInputTokens: r.Usage.CacheCreationInputTokens,
+			CacheReadInputTokens:     r.Usage.CacheReadInputTokens,
 		}
 	}
 

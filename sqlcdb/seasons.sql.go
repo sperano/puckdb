@@ -88,13 +88,13 @@ func (q *Queries) GetAllSeasons(ctx context.Context) ([]Season, error) {
 const getDistinctDivisions = `-- name: GetDistinctDivisions :many
 SELECT DISTINCT division_name, division_abbrev, conference_name, conference_abbrev
 FROM season_teams
-WHERE season = $1
+WHERE season = $1 AND team_kind = 'nhl'
 ORDER BY conference_name, division_name
 `
 
 type GetDistinctDivisionsRow struct {
-	DivisionName     string      `json:"division_name"`
-	DivisionAbbrev   string      `json:"division_abbrev"`
+	DivisionName     pgtype.Text `json:"division_name"`
+	DivisionAbbrev   pgtype.Text `json:"division_abbrev"`
 	ConferenceName   pgtype.Text `json:"conference_name"`
 	ConferenceAbbrev pgtype.Text `json:"conference_abbrev"`
 }
@@ -138,11 +138,8 @@ func (q *Queries) GetSeason(ctx context.Context, id int32) (Season, error) {
 }
 
 const getSeasonTeam = `-- name: GetSeasonTeam :one
-SELECT
-    season, team_id, franchise_id, full_name, abbrev, logo_url,
-    division_name, division_abbrev, conference_name, conference_abbrev
-FROM season_teams
-WHERE season = $1 AND team_id = $2
+SELECT season, team_id, franchise_id, full_name, abbrev, logo_url, division_name, division_abbrev, conference_name, conference_abbrev, team_kind FROM season_teams
+WHERE season = $1 AND team_id = $2 AND team_kind = 'nhl'
 `
 
 type GetSeasonTeamParams struct {
@@ -164,16 +161,14 @@ func (q *Queries) GetSeasonTeam(ctx context.Context, arg GetSeasonTeamParams) (S
 		&i.DivisionAbbrev,
 		&i.ConferenceName,
 		&i.ConferenceAbbrev,
+		&i.TeamKind,
 	)
 	return i, err
 }
 
 const getSeasonTeams = `-- name: GetSeasonTeams :many
-SELECT
-    season, team_id, franchise_id, full_name, abbrev, logo_url,
-    division_name, division_abbrev, conference_name, conference_abbrev
-FROM season_teams
-WHERE season = $1
+SELECT season, team_id, franchise_id, full_name, abbrev, logo_url, division_name, division_abbrev, conference_name, conference_abbrev, team_kind FROM season_teams
+WHERE season = $1 AND team_kind = 'nhl'
 ORDER BY division_name, full_name
 `
 
@@ -197,6 +192,7 @@ func (q *Queries) GetSeasonTeams(ctx context.Context, season int32) ([]SeasonTea
 			&i.DivisionAbbrev,
 			&i.ConferenceName,
 			&i.ConferenceAbbrev,
+			&i.TeamKind,
 		); err != nil {
 			return nil, err
 		}
@@ -209,17 +205,14 @@ func (q *Queries) GetSeasonTeams(ctx context.Context, season int32) ([]SeasonTea
 }
 
 const getSeasonTeamsByDivision = `-- name: GetSeasonTeamsByDivision :many
-SELECT
-    season, team_id, franchise_id, full_name, abbrev, logo_url,
-    division_name, division_abbrev, conference_name, conference_abbrev
-FROM season_teams
-WHERE season = $1 AND division_name = $2
+SELECT season, team_id, franchise_id, full_name, abbrev, logo_url, division_name, division_abbrev, conference_name, conference_abbrev, team_kind FROM season_teams
+WHERE season = $1 AND division_name = $2 AND team_kind = 'nhl'
 ORDER BY full_name
 `
 
 type GetSeasonTeamsByDivisionParams struct {
-	Season       int32  `json:"season"`
-	DivisionName string `json:"division_name"`
+	Season       int32       `json:"season"`
+	DivisionName pgtype.Text `json:"division_name"`
 }
 
 func (q *Queries) GetSeasonTeamsByDivision(ctx context.Context, arg GetSeasonTeamsByDivisionParams) ([]SeasonTeam, error) {
@@ -242,6 +235,7 @@ func (q *Queries) GetSeasonTeamsByDivision(ctx context.Context, arg GetSeasonTea
 			&i.DivisionAbbrev,
 			&i.ConferenceName,
 			&i.ConferenceAbbrev,
+			&i.TeamKind,
 		); err != nil {
 			return nil, err
 		}
@@ -254,11 +248,8 @@ func (q *Queries) GetSeasonTeamsByDivision(ctx context.Context, arg GetSeasonTea
 }
 
 const getTeamHistory = `-- name: GetTeamHistory :many
-SELECT
-    season, team_id, franchise_id, full_name, abbrev, logo_url,
-    division_name, division_abbrev, conference_name, conference_abbrev
-FROM season_teams
-WHERE franchise_id = $1
+SELECT season, team_id, franchise_id, full_name, abbrev, logo_url, division_name, division_abbrev, conference_name, conference_abbrev, team_kind FROM season_teams
+WHERE franchise_id = $1 AND team_kind = 'nhl'
 ORDER BY season DESC
 `
 
@@ -282,6 +273,7 @@ func (q *Queries) GetTeamHistory(ctx context.Context, franchiseID pgtype.Int8) (
 			&i.DivisionAbbrev,
 			&i.ConferenceName,
 			&i.ConferenceAbbrev,
+			&i.TeamKind,
 		); err != nil {
 			return nil, err
 		}
@@ -326,6 +318,40 @@ func (q *Queries) ListTeamLogos(ctx context.Context) ([]ListTeamLogosRow, error)
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertInternationalSeasonTeam = `-- name: UpsertInternationalSeasonTeam :exec
+INSERT INTO season_teams (
+    season, team_id, full_name, abbrev, team_kind
+)
+VALUES ($1, $2, $3, $4, 'international')
+ON CONFLICT (season, team_id) DO UPDATE SET
+    full_name = EXCLUDED.full_name,
+    abbrev = EXCLUDED.abbrev
+WHERE season_teams.team_kind = 'international'
+  AND (season_teams.full_name, season_teams.abbrev)
+      IS DISTINCT FROM (EXCLUDED.full_name, EXCLUDED.abbrev)
+`
+
+type UpsertInternationalSeasonTeamParams struct {
+	Season   int32  `json:"season"`
+	TeamID   int64  `json:"team_id"`
+	FullName string `json:"full_name"`
+	Abbrev   string `json:"abbrev"`
+}
+
+// Upsert an international/national-team season row (Canada, USA,
+// Sweden, etc. at NHL API team IDs 60–67) referenced by
+// player_season_totals for WJC/Olympic/WC entries. franchise_id and
+// division/conference fields are NULL for these.
+func (q *Queries) UpsertInternationalSeasonTeam(ctx context.Context, arg UpsertInternationalSeasonTeamParams) error {
+	_, err := q.db.Exec(ctx, upsertInternationalSeasonTeam,
+		arg.Season,
+		arg.TeamID,
+		arg.FullName,
+		arg.Abbrev,
+	)
+	return err
 }
 
 const upsertSeason = `-- name: UpsertSeason :exec
@@ -383,12 +409,14 @@ type UpsertSeasonTeamParams struct {
 	FullName         string      `json:"full_name"`
 	Abbrev           string      `json:"abbrev"`
 	LogoUrl          pgtype.Text `json:"logo_url"`
-	DivisionName     string      `json:"division_name"`
-	DivisionAbbrev   string      `json:"division_abbrev"`
+	DivisionName     pgtype.Text `json:"division_name"`
+	DivisionAbbrev   pgtype.Text `json:"division_abbrev"`
 	ConferenceName   pgtype.Text `json:"conference_name"`
 	ConferenceAbbrev pgtype.Text `json:"conference_abbrev"`
 }
 
+// Upsert an NHL season-team row. team_kind is implicitly 'nhl' (column
+// default); international teams use UpsertInternationalSeasonTeam.
 func (q *Queries) UpsertSeasonTeam(ctx context.Context, arg UpsertSeasonTeamParams) error {
 	_, err := q.db.Exec(ctx, upsertSeasonTeam,
 		arg.Season,

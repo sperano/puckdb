@@ -1,0 +1,397 @@
+package graph
+
+import (
+	"context"
+	"errors"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/sqlcdb"
+	"github.com/sperano/puckdb/worker/simulation"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// SignalWorkflow extends the existing MockTemporalClient (defined in
+// resolver_test.go) with the signal interface the simulation
+// mutations need. Each test that exercises a signal mutation calls
+// .On("SignalWorkflow", ...) to set an expectation.
+func (m *MockTemporalClient) SignalWorkflow(ctx context.Context, workflowID, runID, signalName string, arg interface{}) error {
+	args := m.Called(ctx, workflowID, runID, signalName, arg)
+	return args.Error(0)
+}
+
+// ============================================================================
+// Pure-function helper tests
+// ============================================================================
+
+func TestSimPoolWorkflowIDForPool(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		poolID   int32
+		expected string
+	}{
+		{1, "sim-pool-1"},
+		{42, "sim-pool-42"},
+		{100, "sim-pool-100"},
+	}
+	for _, tc := range cases {
+		assert.Equal(t, tc.expected, simPoolWorkflowIDForPool(tc.poolID))
+	}
+}
+
+// flattenRosterPositions is the boundary helper that turns the
+// GraphQL list-of-{slot, count} into the map form sqlc params want.
+// Pinned independently of createSimPoolImpl so a future refactor of
+// the resolver doesn't accidentally break the wire-format contract.
+func TestFlattenRosterPositions(t *testing.T) {
+	t.Parallel()
+	in := []*model.SimRosterPositionInput{
+		{Slot: "C", Count: 2},
+		{Slot: "LW", Count: 2},
+		{Slot: "BN", Count: 5},
+	}
+	got := flattenRosterPositions(in)
+	assert.Equal(t, 2, got[simulation.SlotC])
+	assert.Equal(t, 2, got[simulation.SlotLW])
+	assert.Equal(t, 5, got[simulation.SlotBN])
+	// Slots not in the input default to 0 via map lookup — no
+	// zero-fill needed.
+	assert.Equal(t, 0, got[simulation.SlotG])
+}
+
+// numericFromFloat / numericToFloat round-trip — pin the precision
+// contract since the migration moved max_llm_cost_usd_per_pool +
+// temperature to NUMERIC columns and the resolver is the boundary
+// that encodes float64 input.
+func TestNumericFromFloat_RoundTrip(t *testing.T) {
+	t.Parallel()
+	cases := []float64{0.0, 0.7, 200.0, 12.345678}
+	for _, want := range cases {
+		n, err := numericFromFloat(want)
+		require.NoError(t, err)
+		got, err := numericToFloat(n)
+		require.NoError(t, err)
+		assert.InDelta(t, want, got, 1e-6)
+	}
+}
+
+func TestParseDateOrError(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name      string
+		input     string
+		wantValid bool
+		wantErr   bool
+	}{
+		{"empty is no-filter", "", false, false},
+		{"valid date", "2024-11-15", true, false},
+		{"invalid format", "11/15/2024", false, true},
+		{"garbage", "not a date", false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseDateOrError(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantValid, got.Valid)
+		})
+	}
+}
+
+func TestFormatPgDate(t *testing.T) {
+	t.Parallel()
+	d := pgtype.Date{Time: time.Date(2024, 11, 15, 0, 0, 0, 0, time.UTC), Valid: true}
+	assert.Equal(t, "2024-11-15", formatPgDate(d))
+	assert.Empty(t, formatPgDate(pgtype.Date{}))
+}
+
+func TestSumRotoPoints(t *testing.T) {
+	t.Parallel()
+	rows := []sqlcdb.SimStanding{
+		{RotoPoints: numericFromFloatForTest(t, 5.0)},
+		{RotoPoints: numericFromFloatForTest(t, 3.5)},
+		{RotoPoints: numericFromFloatForTest(t, 1.0)},
+		{RotoPoints: pgtype.Numeric{}}, // invalid → skipped
+	}
+	assert.InDelta(t, 9.5, sumRotoPoints(rows), 1e-9)
+}
+
+func TestSumRotoPoints_Empty(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 0.0, sumRotoPoints(nil))
+}
+
+func TestDecodeSimPoolBase(t *testing.T) {
+	t.Parallel()
+	cost := numericFromFloatForTest(t, 12.34)
+	in := sqlcdb.SimPool{
+		ID: 7, Name: "Test", Season: 20242025, Status: "running",
+		SimDate:         pgtype.Date{Time: time.Date(2024, 11, 15, 0, 0, 0, 0, time.UTC), Valid: true},
+		TotalLLMCostUSD: cost,
+	}
+	out := decodeSimPoolBase(in)
+	assert.Equal(t, 7, out.ID)
+	assert.Equal(t, "Test", out.Name)
+	assert.Equal(t, 20242025, out.Season)
+	assert.Equal(t, "running", out.Status)
+	require.NotNil(t, out.SimDate)
+	assert.Equal(t, "2024-11-15", *out.SimDate)
+	assert.InDelta(t, 12.34, out.TotalLlmCostUsd, 1e-6)
+}
+
+func TestDecodeSimPoolBase_NullSimDate(t *testing.T) {
+	t.Parallel()
+	in := sqlcdb.SimPool{ID: 1, Name: "Pre-draft"}
+	out := decodeSimPoolBase(in)
+	assert.Nil(t, out.SimDate, "null sim_date → nil pointer (GraphQL null)")
+}
+
+func TestDecodeStandings_SortsByAgentThenCategory(t *testing.T) {
+	t.Parallel()
+	rows := []sqlcdb.SimStanding{
+		{AgentID: 2, Category: "G", Value: numericFromFloatForTest(t, 50), RotoPoints: numericFromFloatForTest(t, 5)},
+		{AgentID: 1, Category: "G", Value: numericFromFloatForTest(t, 30), RotoPoints: numericFromFloatForTest(t, 3)},
+		{AgentID: 1, Category: "A", Value: numericFromFloatForTest(t, 40), RotoPoints: numericFromFloatForTest(t, 2)},
+	}
+	out := decodeStandings(rows)
+	require.Len(t, out, 3)
+	// Sorted by (agent_id, category) ascending. Agent 1's "A" comes
+	// before its "G"; agent 2's "G" comes last.
+	assert.Equal(t, 1, out[0].AgentID)
+	assert.Equal(t, "A", out[0].Category)
+	assert.Equal(t, 1, out[1].AgentID)
+	assert.Equal(t, "G", out[1].Category)
+	assert.Equal(t, 2, out[2].AgentID)
+}
+
+func TestGroupStandingsByDate(t *testing.T) {
+	t.Parallel()
+	day1 := pgtype.Date{Time: time.Date(2024, 11, 1, 0, 0, 0, 0, time.UTC), Valid: true}
+	day2 := pgtype.Date{Time: time.Date(2024, 11, 2, 0, 0, 0, 0, time.UTC), Valid: true}
+	rows := []sqlcdb.SimStanding{
+		{Date: day2, AgentID: 1, Category: "G", Value: numericFromFloatForTest(t, 10), RotoPoints: numericFromFloatForTest(t, 1)},
+		{Date: day1, AgentID: 1, Category: "G", Value: numericFromFloatForTest(t, 5), RotoPoints: numericFromFloatForTest(t, 1)},
+		{Date: day1, AgentID: 2, Category: "G", Value: numericFromFloatForTest(t, 3), RotoPoints: numericFromFloatForTest(t, 0)},
+	}
+	out := groupStandingsByDate(rows)
+	require.Len(t, out, 2)
+	// day1 first (sorted ascending by date string).
+	assert.Len(t, out[0], 2, "day1 has two rows")
+	assert.Len(t, out[1], 1, "day2 has one row")
+}
+
+func TestStringPtrIfNotEmpty(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, stringPtrIfNotEmpty(""))
+	got := stringPtrIfNotEmpty("hello")
+	require.NotNil(t, got)
+	assert.Equal(t, "hello", *got)
+}
+
+func TestNullPositionString(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, nullPositionString(sqlcdb.NullPlayerPosition{Valid: false}))
+	got := nullPositionString(sqlcdb.NullPlayerPosition{
+		PlayerPosition: sqlcdb.PlayerPositionC, Valid: true,
+	})
+	assert.Equal(t, "C", got)
+}
+
+// ============================================================================
+// Mutation resolver — signal flow via mock Temporal client.
+//
+// loadSimPool requires a Queries handle, so each signal test stops
+// at the SignalWorkflow assertion: we make loadSimPool fail by
+// nil-Queries (a ListSimPools call would panic) and assert the
+// signal fired with the right workflow ID and signal name. The
+// post-signal pool reload is exercised end-to-end in the integration
+// test layer.
+// ============================================================================
+
+
+// numericFromFloatForTest constructs a pgtype.Numeric from a float64
+// for fixture rows. Six fractional digits matches the precision
+// the simulation package's numericFromFloat uses on the write path.
+func numericFromFloatForTest(t require.TestingT, f float64) pgtype.Numeric {
+	var n pgtype.Numeric
+	require.NoError(t, n.Scan(strconv.FormatFloat(f, 'f', 6, 64)))
+	return n
+}
+
+// ============================================================================
+// PoolNotFoundError + mapGetSimPoolErr — typed lookup-miss handling
+// ============================================================================
+
+func TestPoolNotFoundError_Message(t *testing.T) {
+	t.Parallel()
+	e := &PoolNotFoundError{ID: 42}
+	assert.Equal(t, "no pool found with id 42", e.Error())
+}
+
+func TestMapGetSimPoolErr_TranslatesNoRows(t *testing.T) {
+	t.Parallel()
+	got := mapGetSimPoolErr(pgx.ErrNoRows, 7)
+	var nf *PoolNotFoundError
+	require.True(t, errors.As(got, &nf), "pgx.ErrNoRows must surface as *PoolNotFoundError")
+	assert.Equal(t, int32(7), nf.ID)
+}
+
+func TestMapGetSimPoolErr_WrapsOtherErrors(t *testing.T) {
+	t.Parallel()
+	boom := errors.New("connection reset")
+	got := mapGetSimPoolErr(boom, 7)
+	var nf *PoolNotFoundError
+	assert.False(t, errors.As(got, &nf), "non-no-rows errors must NOT be PoolNotFoundError")
+	assert.ErrorIs(t, got, boom, "underlying cause must remain unwrappable for log/diagnostic purposes")
+	assert.Contains(t, got.Error(), "get sim pool 7")
+}
+
+// ============================================================================
+// currentDraftAction — snake-draft "currently picking" derivation
+// ============================================================================
+
+// agentAt builds a sqlcdb.SimAgent fixture with id, team_name, and an
+// optional shuffled draft_position (pass 0 for NULL).
+func agentAt(id int32, teamName string, draftPos int32) sqlcdb.SimAgent {
+	a := sqlcdb.SimAgent{ID: id, TeamName: teamName}
+	if draftPos > 0 {
+		a.DraftPosition = pgtype.Int4{Int32: draftPos, Valid: true}
+	}
+	return a
+}
+
+func TestCurrentDraftAction_NilWhenNotDraftStatus(t *testing.T) {
+	t.Parallel()
+	pool := sqlcdb.SimPool{Status: "running", DraftRounds: 2}
+	got := currentDraftAction(pool, []sqlcdb.SimAgent{agentAt(1, "A", 1)}, 0)
+	assert.Nil(t, got, "non-draft status must yield nil")
+}
+
+func TestCurrentDraftAction_PreShufflePlaceholder(t *testing.T) {
+	t.Parallel()
+	pool := sqlcdb.SimPool{Status: "draft", DraftRounds: 2}
+	agents := []sqlcdb.SimAgent{
+		{ID: 1, TeamName: "A"},
+		{ID: 2, TeamName: "B"},
+	}
+	got := currentDraftAction(pool, agents, 0)
+	require.NotNil(t, got, "pre-shuffle must show Round 1, Pick 1 placeholder")
+	assert.Equal(t, 1, got.Round)
+	assert.Equal(t, 1, got.Pick)
+	assert.Equal(t, 4, got.TotalPicks) // 2 rounds × 2 agents
+	assert.Equal(t, 0, got.AgentID, "AgentID=0 signals 'order not yet assigned'")
+}
+
+func TestCurrentDraftAction_NilWhenPoolHasNoAgents(t *testing.T) {
+	t.Parallel()
+	pool := sqlcdb.SimPool{Status: "draft", DraftRounds: 2}
+	assert.Nil(t, currentDraftAction(pool, nil, 0),
+		"draft pool with zero agents must yield nil — nothing to render")
+}
+
+func TestCurrentDraftAction_FirstPick(t *testing.T) {
+	t.Parallel()
+	pool := sqlcdb.SimPool{Status: "draft", DraftRounds: 3}
+	agents := []sqlcdb.SimAgent{
+		agentAt(1, "Alpha", 2),
+		agentAt(2, "Beta", 1), // Beta drew position 1
+		agentAt(3, "Gamma", 3),
+	}
+	got := currentDraftAction(pool, agents, 0)
+	require.NotNil(t, got)
+	assert.Equal(t, 1, got.Round)
+	assert.Equal(t, 1, got.Pick)
+	assert.Equal(t, 9, got.TotalPicks) // 3 rounds × 3 teams
+	assert.Equal(t, 2, got.AgentID)
+}
+
+func TestCurrentDraftAction_SnakeReversesOnEvenRounds(t *testing.T) {
+	t.Parallel()
+	pool := sqlcdb.SimPool{Status: "draft", DraftRounds: 3}
+	agents := []sqlcdb.SimAgent{
+		agentAt(1, "P1", 1),
+		agentAt(2, "P2", 2),
+		agentAt(3, "P3", 3),
+	}
+	// Agents in draft_position order: id=1 (pos=1), id=2 (pos=2), id=3 (pos=3).
+	// Round 1: 1, 2, 3 (picks 1-3)
+	// Round 2: 3, 2, 1 (picks 4-6) — snake reverse
+	// Round 3: 1, 2, 3 (picks 7-9) — back to forward
+	cases := []struct {
+		completed   int64
+		wantRound   int
+		wantPick    int
+		wantAgentID int
+	}{
+		{0, 1, 1, 1},
+		{1, 1, 2, 2},
+		{2, 1, 3, 3},
+		{3, 2, 1, 3}, // round 2 first pick goes to whoever was last in round 1
+		{4, 2, 2, 2},
+		{5, 2, 3, 1},
+		{6, 3, 1, 1}, // round 3 first pick: back to original order
+		{7, 3, 2, 2},
+		{8, 3, 3, 3},
+	}
+	for _, tc := range cases {
+		got := currentDraftAction(pool, agents, tc.completed)
+		require.NotNil(t, got, "completed=%d", tc.completed)
+		assert.Equal(t, tc.wantRound, got.Round, "completed=%d round", tc.completed)
+		assert.Equal(t, tc.wantPick, got.Pick, "completed=%d pick", tc.completed)
+		assert.Equal(t, tc.wantAgentID, got.AgentID, "completed=%d agent", tc.completed)
+	}
+}
+
+func TestCurrentDraftAction_NilWhenDraftComplete(t *testing.T) {
+	t.Parallel()
+	pool := sqlcdb.SimPool{Status: "draft", DraftRounds: 2}
+	agents := []sqlcdb.SimAgent{
+		agentAt(1, "A", 1),
+		agentAt(2, "B", 2),
+	}
+	// 4 picks total (2 rounds × 2 teams). After 4 completed, no next pick.
+	assert.Nil(t, currentDraftAction(pool, agents, 4),
+		"all picks complete must yield nil")
+	assert.Nil(t, currentDraftAction(pool, agents, 5),
+		"over-count (defensive) must yield nil too")
+}
+
+func TestCurrentDraftAction_OrdersByDraftPositionNotInputOrder(t *testing.T) {
+	t.Parallel()
+	pool := sqlcdb.SimPool{Status: "draft", DraftRounds: 1}
+	// Agents arrive in input/id order, but draft_position is shuffled.
+	// currentDraftAction must sort by draft_position, not by slice order.
+	agents := []sqlcdb.SimAgent{
+		agentAt(1, "Inputted-First", 3),
+		agentAt(2, "Inputted-Second", 1),
+		agentAt(3, "Inputted-Third", 2),
+	}
+	got := currentDraftAction(pool, agents, 0)
+	require.NotNil(t, got)
+	assert.Equal(t, 2, got.AgentID,
+		"pick 1 of round 1 goes to whoever has draft_position=1 (agent #2), not to whoever the slice listed first")
+}
+
+func TestCurrentDraftAction_IgnoresAgentsWithNullPosition(t *testing.T) {
+	t.Parallel()
+	pool := sqlcdb.SimPool{Status: "draft", DraftRounds: 1}
+	// Mixed: some agents shuffled, some not (shouldn't happen in
+	// practice but the function should defend against it by simply
+	// dropping NULL-positioned agents from the order calculation).
+	agents := []sqlcdb.SimAgent{
+		agentAt(1, "Shuffled", 1),
+		{ID: 2, TeamName: "Unshuffled"}, // NULL draft_position
+	}
+	got := currentDraftAction(pool, agents, 0)
+	require.NotNil(t, got)
+	assert.Equal(t, 1, got.AgentID, "shuffled agent #1 is on the clock")
+	assert.Equal(t, 1, got.TotalPicks, "totalPicks counts only positioned agents")
+}

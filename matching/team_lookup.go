@@ -136,6 +136,29 @@ func init() {
 	}
 }
 
+// internationalTeamIDs is the set of NHL-API team IDs assigned to
+// national teams (used in WJC / Olympic / World Cup season totals).
+// Player landings reference these in seasonTotals; ProcessPlayers uses
+// this to distinguish international rows so it can upsert
+// season_teams entries with team_kind='international' before
+// inserting player_season_totals (which has an FK on (season, team_id)).
+var internationalTeamIDs = map[int64]bool{
+	60: true, // Canada
+	61: true, // Czechia
+	62: true, // Finland
+	63: true, // Germany
+	64: true, // Russia
+	65: true, // Slovakia
+	66: true, // Sweden
+	67: true, // USA
+}
+
+// IsInternationalTeam returns true if the given team ID is a national
+// team (Canada/USA/etc., not an NHL franchise).
+func IsInternationalTeam(id int64) bool {
+	return internationalTeamIDs[id]
+}
+
 // LookupTeamID returns the team ID for an abbreviation.
 // Returns an error if the abbreviation is unknown.
 func LookupTeamID(abbrev string) (int64, error) {

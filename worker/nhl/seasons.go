@@ -294,8 +294,8 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhlapi
 			FullName:         s.TeamName.String(),
 			Abbrev:           s.TeamAbbrev.String(),
 			LogoUrl:          pgtype.Text{String: s.TeamLogo, Valid: s.TeamLogo != ""},
-			DivisionName:     s.DivisionName,
-			DivisionAbbrev:   s.DivisionAbbrev,
+			DivisionName:     pgtype.Text{String: s.DivisionName, Valid: true},
+			DivisionAbbrev:   pgtype.Text{String: s.DivisionAbbrev, Valid: true},
 			ConferenceName:   shared.PtrToText(s.ConferenceName),
 			ConferenceAbbrev: shared.PtrToText(s.ConferenceAbbrev),
 		}

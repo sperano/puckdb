@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
@@ -463,7 +464,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 		yahooPoolResult = &workplayer.SaveYahooIDPoolResult{}
 	}
 
-	return &ProcessPlayersResult{
+	result := &ProcessPlayersResult{
 		TotalPlayers:          len(input.Players),
 		ImportedPlayers:       input.TotalImported,
 		MatchedWithYahoo:      input.TotalMatched,
@@ -475,5 +476,24 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 		VerifiedNonNHLThisRun: unmatchedReport.VerifiedNonNHLCount,
 		TrulyUnmatched:        unmatchedReport.TrulyUnmatched,
 		Errors:                input.AllErrors,
-	}, nil
+	}
+
+	// Per-player errors are best-effort accumulated by ProcessPlayerBatch
+	// (see worker/player/process_batch.go). When the workflow finishes
+	// with any errors collected, log them all (so they appear in worker
+	// logs even when payload truncation hides them in the workflow result)
+	// and fail the workflow so the sync chain halts visibly. A 'success'
+	// completion with silent errors is exactly how the FK-violation gap
+	// (player_season_totals_season_team_id_fkey) went unnoticed.
+	if len(input.AllErrors) > 0 {
+		for _, e := range input.AllErrors {
+			logger.Error("ProcessPlayers per-player error", "error", e)
+		}
+		return result, fmt.Errorf(
+			"ProcessPlayersWorkflow finished with %d per-player error(s):\n  %s",
+			len(input.AllErrors),
+			strings.Join(input.AllErrors, "\n  "))
+	}
+
+	return result, nil
 }

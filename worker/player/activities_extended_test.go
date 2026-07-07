@@ -8,7 +8,6 @@ import (
 	"errors"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/nhl-api-go/nhl"
@@ -122,7 +121,7 @@ func (s *FetchPlayerLandingsBatchSuite) TestCacheHit() {
 	}
 	data, err := json.Marshal(landing)
 	require.NoError(s.T(), err)
-	require.NoError(s.T(), mem.Write(context.Background(),resource.PlayerLanding{PlayerID: playerID}.Path(), data))
+	require.NoError(s.T(), mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), data))
 
 	act := newTestActivities(mem)
 	s.env.RegisterActivity(act.FetchPlayerLandingsBatch)
@@ -185,7 +184,7 @@ func (s *FetchPlayerLandingsBatchSuite) TestMissingPlayer() {
 	assert.Equal(s.T(), 0, stats.Downloaded)
 	assert.Equal(s.T(), 0, stats.CacheHits)
 	assert.Equal(s.T(), 1, stats.Missing)
-	assert.True(s.T(), mem.Exists(context.Background(),resource.MissingPlayerLanding{PlayerID: playerID}.Path()))
+	assert.True(s.T(), mem.Exists(context.Background(), resource.MissingPlayerLanding{PlayerID: playerID}.Path()))
 	client.AssertExpectations(s.T())
 }
 
@@ -194,7 +193,7 @@ func (s *FetchPlayerLandingsBatchSuite) TestAlreadyMarkedMissing() {
 	playerID := nhl.PlayerID(9999999)
 
 	missingData, _ := json.Marshal(store.MissingPlayerLandingData{FirstName: "Ghost", LastName: "Player"})
-	require.NoError(s.T(), mem.Write(context.Background(),resource.MissingPlayerLanding{PlayerID: playerID}.Path(), missingData))
+	require.NoError(s.T(), mem.Write(context.Background(), resource.MissingPlayerLanding{PlayerID: playerID}.Path(), missingData))
 
 	act := newTestActivities(mem)
 	s.env.RegisterActivity(act.FetchPlayerLandingsBatch)
@@ -236,7 +235,7 @@ func (s *FetchPlayerLandingsBatchSuite) TestMultiplePlayers_AllStatuses() {
 	// Pre-populate the cached player's landing file.
 	cachedLanding := &nhl.PlayerLanding{PlayerID: cachedID, FirstName: nhl.LocalizedString{Default: "Connor"}, LastName: nhl.LocalizedString{Default: "McDavid"}}
 	data, _ := json.Marshal(cachedLanding)
-	require.NoError(s.T(), mem.Write(context.Background(),resource.PlayerLanding{PlayerID: cachedID}.Path(), data))
+	require.NoError(s.T(), mem.Write(context.Background(), resource.PlayerLanding{PlayerID: cachedID}.Path(), data))
 
 	// The downloadable player needs a network fetch.
 	// Use mock.Anything for context: the Temporal test env provides its own activity context.
@@ -456,18 +455,17 @@ func (s *DownloadGameLogSuite) TestCurrentSeasonRefresh() {
 	mem := store.NewMemStorage()
 	client := &MockNHLClient{}
 
-	// Determine the current season's start year.
-	now := time.Now()
-	startYear := now.Year()
-	if now.Month() < time.October {
-		startYear = now.Year() - 1
-	}
+	// Determine the current season's start year the same way the activity
+	// does (via shared.IsCurrentSeason -> nhl.Current()), so this test does not
+	// drift against the library's season-rollover convention during the
+	// offseason.
+	startYear := nhl.Current().StartYear()
 	playerID := nhl.PlayerID(8476453)
 	season := nhl.NewSeason(startYear)
 
 	// Pre-write an existing file to trigger the "file exists" branch.
 	existingPath := resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: nhl.GameTypeRegularSeason.Int()}.Path()
-	require.NoError(s.T(), mem.Write(context.Background(),existingPath, []byte(`{"gameLog":[]}`)))
+	require.NoError(s.T(), mem.Write(context.Background(), existingPath, []byte(`{"gameLog":[]}`)))
 
 	// The client must be called because RefreshCurrent=true overrides cache.
 	// Use mock.Anything for context: Temporal test env provides its own activity context.
@@ -545,8 +543,8 @@ func TestYahooActivitySuite(t *testing.T) {
 
 func (s *YahooActivitySuite) TestListYahooPlayerFiles_Success() {
 	mem := store.NewMemStorage()
-	require.NoError(s.T(), mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
-	require.NoError(s.T(), mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 29}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(s.T(), mem.Write(context.Background(), resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(s.T(), mem.Write(context.Background(), resource.YahooPlayer{PlayerID: 29}.Path(), []byte(sampleYahooPlayerHTML)))
 
 	act := &Activities{Storage: mem}
 	s.env.RegisterActivity(act.ListYahooPlayerFiles)
@@ -573,7 +571,7 @@ func (s *YahooActivitySuite) TestListYahooPlayerFiles_Empty() {
 
 func (s *YahooActivitySuite) TestParseYahooPlayerBatch_Success() {
 	mem := store.NewMemStorage()
-	require.NoError(s.T(), mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(s.T(), mem.Write(context.Background(), resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
 
 	act := &Activities{Storage: mem}
 	s.env.RegisterActivity(act.ParseYahooPlayerBatch)
@@ -591,7 +589,7 @@ func (s *YahooActivitySuite) TestParseYahooPlayerBatch_Success() {
 func (s *YahooActivitySuite) TestParseYahooPlayerBatch_PartialErrors() {
 	mem := store.NewMemStorage()
 	// Player 97 parses; player 1 doesn't exist (read error is logged, not returned).
-	require.NoError(s.T(), mem.Write(context.Background(),resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+	require.NoError(s.T(), mem.Write(context.Background(), resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
 
 	act := &Activities{Storage: mem}
 	s.env.RegisterActivity(act.ParseYahooPlayerBatch)
@@ -761,7 +759,7 @@ func (s *VerifyUnmatchedBatchSuite) TestPlayerNotFoundInNHL() {
 	client := &MockNHLClient{}
 	limit := maxSearchResults
 	// Use mock.Anything for context: Temporal test env provides its own activity context.
-	client.On("SearchPlayer", mock.Anything, "John Doe", &limit).
+	client.On("SearchPlayer", mock.Anything, "John Doe", limit).
 		Return([]nhl.PlayerSearchResult{}, nil)
 
 	act := &Activities{
@@ -1288,8 +1286,10 @@ func (s *DownloadGameLogStorageErrorSuite) TestStorageWriteError() {
 func TestIsCurrentSeason_OctoberStartYear(t *testing.T) {
 	t.Parallel()
 
-	// In April 2026, the current season start year is 2025 (2025-2026 season).
-	assert.True(t, shared.IsCurrentSeason(2025))
-	assert.False(t, shared.IsCurrentSeason(2024))
-	assert.False(t, shared.IsCurrentSeason(2026))
+	// Assert relative to the library's current season rather than a
+	// hardcoded year, so the test does not rot as the calendar advances.
+	current := nhl.Current().StartYear()
+	assert.True(t, shared.IsCurrentSeason(current))
+	assert.False(t, shared.IsCurrentSeason(current-1))
+	assert.False(t, shared.IsCurrentSeason(current+1))
 }

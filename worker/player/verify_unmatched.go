@@ -138,8 +138,7 @@ func verifyPlayer(ctx context.Context, client shared.NHLClient, storage store.St
 
 	playerName := player.FirstName + " " + player.LastName
 
-	limit := maxSearchResults
-	searchResults, err := client.SearchPlayer(ctx, playerName, &limit)
+	searchResults, err := client.SearchPlayer(ctx, playerName, maxSearchResults)
 	if err != nil {
 		log.Warn().Err(err).Str("name", playerName).Msg("Search failed")
 		return result

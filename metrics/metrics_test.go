@@ -108,6 +108,108 @@ func TestObserveActivityDuration(t *testing.T) {
 	}
 }
 
+func TestObserveSimLLMCallDuration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		provider  string
+		model     string
+		agentName string
+		duration  time.Duration
+	}{
+		{"anthropic haiku fast", "anthropic", "claude-haiku-4-5", "Sonnet", 250 * time.Millisecond},
+		{"anthropic sonnet slow", "anthropic", "claude-sonnet-4-7", "Opus", 8 * time.Second},
+		{"local ollama free", "ollama", "llama3.1", "Local", 1500 * time.Millisecond},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				ObserveSimLLMCallDuration(tt.provider, tt.model, tt.agentName, tt.duration)
+			})
+		})
+	}
+}
+
+func TestIncSimLLMFailure(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		provider string
+		model    string
+		reason   string
+	}{
+		{"timeout", "anthropic", "claude-haiku-4-5", SimFailureTimeout},
+		{"api_error", "openai", "gpt-4o", SimFailureAPIError},
+		{"tool_use_failure", "anthropic", "claude-sonnet-4-7", SimFailureToolUseFailure},
+		{"parse_error", "openai", "gpt-4o-mini", SimFailureParseError},
+		{"validation", "anthropic", "claude-haiku-4-5", SimFailureValidation},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				IncSimLLMFailure(tt.provider, tt.model, tt.reason)
+			})
+		})
+	}
+}
+
+func TestObserveSimDayDuration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		poolID   string
+		duration time.Duration
+	}{
+		{"fast pool", "1", 5 * time.Second},
+		{"slow pool", "42", 90 * time.Second},
+		{"big pool", "100", 5 * time.Minute},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				ObserveSimDayDuration(tt.poolID, tt.duration)
+			})
+		})
+	}
+}
+
+// SimulationMetricsRegistered pins that all three sim metrics are
+// actually registered on the WorkerRegistry — a regression sentinel
+// against accidentally dropping them from the init() block.
+func TestSimulationMetricsRegistered(t *testing.T) {
+	t.Parallel()
+
+	// Trigger one observation per metric so the gatherer sees a
+	// concrete instance (HistogramVec / CounterVec only emit family
+	// metadata after the first WithLabelValues call).
+	ObserveSimLLMCallDuration("anthropic", "claude-haiku-4-5", "RegisteredAgent", 1*time.Second)
+	IncSimLLMFailure("anthropic", "claude-haiku-4-5", SimFailureAPIError)
+	ObserveSimDayDuration("999", 30*time.Second)
+
+	families, err := WorkerRegistry.Gather()
+	require.NoError(t, err)
+
+	want := map[string]bool{
+		"puckdb_sim_llm_call_duration_seconds": false,
+		"puckdb_sim_llm_failures_total":        false,
+		"puckdb_sim_day_duration_seconds":      false,
+	}
+	for _, f := range families {
+		if _, ok := want[f.GetName()]; ok {
+			want[f.GetName()] = true
+		}
+	}
+	for name, found := range want {
+		assert.Truef(t, found, "metric %s must be registered on WorkerRegistry", name)
+	}
+}
+
 func TestHTTPMetricsMiddleware(t *testing.T) {
 	t.Parallel()
 

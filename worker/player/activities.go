@@ -23,6 +23,7 @@ import (
 type PlayerCareerUpserter interface {
 	UpsertPlayerAwardBatch(ctx context.Context, arg []sqlcdb.UpsertPlayerAwardBatchParams) *sqlcdb.UpsertPlayerAwardBatchBatchResults
 	UpsertPlayerSeasonTotalBatch(ctx context.Context, arg []sqlcdb.UpsertPlayerSeasonTotalBatchParams) *sqlcdb.UpsertPlayerSeasonTotalBatchBatchResults
+	UpsertInternationalSeasonTeam(ctx context.Context, arg sqlcdb.UpsertInternationalSeasonTeamParams) error
 }
 
 // Activities groups player-related activities with their dependencies.

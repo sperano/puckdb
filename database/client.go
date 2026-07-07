@@ -72,9 +72,30 @@ func NewQueries(pool *pgxpool.Pool) *sqlcdb.Queries {
 	return sqlcdb.New(pool)
 }
 
+// MigrateUp runs the embedded SQL migrations against the given
+// dbURL. Exposed for integration tests that don't go through viper
+// — they configure their connection directly via env vars rather
+// than via the puckdb global config flags.
+//
+// Functionally identical to RunSQLMigrations, just with the URL
+// passed in.
+func MigrateUp(dbURL string) error {
+	return runMigrationsUpAt(dbURL)
+}
+
+// MigrateDown is the integration-test counterpart to MigrateUp —
+// runs every down migration against dbURL. Tests call this in
+// t.Cleanup so a fresh schema lands on every test run.
+func MigrateDown(dbURL string) error {
+	return runMigrationsDownAt(dbURL)
+}
+
 // RunSQLMigrations runs the embedded SQL migrations
 func RunSQLMigrations() error {
-	dbURL := GetDatabaseURL()
+	return runMigrationsUpAt(GetDatabaseURL())
+}
+
+func runMigrationsUpAt(dbURL string) error {
 	log.Info().Msg("Running SQL migrations")
 
 	source, err := iofs.New(migrationsFS, "migrations")
@@ -110,7 +131,10 @@ func RunSQLMigrations() error {
 
 // RunSQLMigrationsDown runs all down migrations
 func RunSQLMigrationsDown() error {
-	dbURL := GetDatabaseURL()
+	return runMigrationsDownAt(GetDatabaseURL())
+}
+
+func runMigrationsDownAt(dbURL string) error {
 	log.Info().Msg("Running SQL down migrations")
 
 	source, err := iofs.New(migrationsFS, "migrations")

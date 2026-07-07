@@ -60,11 +60,15 @@ func NewProviderConfigs(in ProviderConfigsInput) map[Provider]ProviderConfig {
 }
 
 // NewClientForProvider creates an LLM client for the given provider.
-// Anthropic uses the native Anthropic SDK; OpenAI and Ollama use the
-// OpenAI-compatible client.
-func NewClientForProvider(provider Provider, cfg ProviderConfig, model string) Client {
+// Anthropic uses the native Anthropic Messages API; OpenAI and Ollama
+// use the OpenAI-compatible chat-completions endpoint.
+//
+// Options forward to the underlying constructor — useful for the
+// per-agent timeout the simulation feature needs (each agent's
+// AgentConfig.TimeoutSeconds becomes WithTimeout(...) here).
+func NewClientForProvider(provider Provider, cfg ProviderConfig, model string, opts ...Option) Client {
 	if provider == ProviderAnthropic {
-		return NewAnthropicClient(cfg.BaseURL, cfg.APIKey, model)
+		return NewAnthropicClient(cfg.BaseURL, cfg.APIKey, model, opts...)
 	}
-	return NewOpenAIClient(cfg.BaseURL, cfg.APIKey, model)
+	return NewOpenAIClient(cfg.BaseURL, cfg.APIKey, model, opts...)
 }

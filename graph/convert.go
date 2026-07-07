@@ -178,8 +178,8 @@ func convertSeasonTeam(t sqlcdb.SeasonTeam) *model.Team {
 		FullName:         t.FullName,
 		Abbrev:           t.Abbrev,
 		LogoURL:          textPtr(t.LogoUrl),
-		DivisionName:     t.DivisionName,
-		DivisionAbbrev:   t.DivisionAbbrev,
+		DivisionName:     t.DivisionName.String,
+		DivisionAbbrev:   t.DivisionAbbrev.String,
 		ConferenceName:   textPtr(t.ConferenceName),
 		ConferenceAbbrev: textPtr(t.ConferenceAbbrev),
 	}

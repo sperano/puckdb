@@ -16,6 +16,63 @@ SELECT * FROM players WHERE team_id = $1 ORDER BY last_name, first_name;
 -- name: GetPlayersByPosition :many
 SELECT * FROM players WHERE position = $1 ORDER BY last_name, first_name;
 
+-- name: GetPlayersByBirthplace :many
+-- Players matching a birthplace filter, joined with their NHL regular-
+-- season career totals (league_abbrev='NHL', game_type=2). Default
+-- ordering is career_points DESC so the same query answers both
+-- "list everyone from X" (with a large limit) and "top N from X"
+-- (with a small limit). birth_city / birth_state_province use ILIKE
+-- so callers can pass partial matches (e.g., 'Montr%' covers
+-- 'Montréal' / 'Montreal-Nord' / etc.). Goalies appear at the
+-- bottom (low career points); for goalie-specific ranking, sort the
+-- result client-side or use a goalie-stat tool.
+WITH filtered AS (
+    SELECT DISTINCT ON (sr.player_id)
+        sr.player_id,
+        sr.birth_date,
+        sr.birth_city,
+        sr.birth_state_province,
+        sr.birth_country
+    FROM season_rosters sr
+    WHERE sr.birth_country = sqlc.arg('birth_country')::text
+      AND (sqlc.narg('birth_city')::text IS NULL
+           OR sr.birth_city ILIKE sqlc.narg('birth_city')::text)
+      AND (sqlc.narg('birth_state_province')::text IS NULL
+           OR sr.birth_state_province ILIKE sqlc.narg('birth_state_province')::text)
+    ORDER BY sr.player_id, sr.season DESC
+),
+career AS (
+    SELECT
+        player_id,
+        SUM(games_played)::bigint AS career_games,
+        SUM(goals)::bigint        AS career_goals,
+        SUM(assists)::bigint      AS career_assists,
+        SUM(points)::bigint       AS career_points,
+        SUM(pim)::bigint          AS career_pim
+    FROM player_season_totals
+    WHERE league_abbrev = 'NHL' AND game_type = 'regular_season'
+    GROUP BY player_id
+)
+SELECT
+    p.id,
+    p.first_name,
+    p.last_name,
+    p.position,
+    f.birth_date,
+    f.birth_city,
+    f.birth_state_province,
+    f.birth_country,
+    COALESCE(c.career_games, 0)::bigint   AS career_games,
+    COALESCE(c.career_goals, 0)::bigint   AS career_goals,
+    COALESCE(c.career_assists, 0)::bigint AS career_assists,
+    COALESCE(c.career_points, 0)::bigint  AS career_points,
+    COALESCE(c.career_pim, 0)::bigint     AS career_pim
+FROM filtered f
+JOIN players p ON p.id = f.player_id
+LEFT JOIN career c ON c.player_id = f.player_id
+ORDER BY COALESCE(c.career_points, 0) DESC, p.last_name, p.first_name
+LIMIT sqlc.arg('limit_n')::int;
+
 -- name: SearchPlayersByName :many
 -- Single-term player search with relevance ranking (exact > prefix > substring)
 SELECT * FROM players

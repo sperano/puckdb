@@ -104,8 +104,12 @@ func (m *MockNHLClient) Franchises(ctx context.Context) ([]nhl.Franchise, error)
 	return args.Get(0).([]nhl.Franchise), args.Error(1)
 }
 
-func (m *MockNHLClient) SearchPlayer(ctx context.Context, query string, limit *int) ([]nhl.PlayerSearchResult, error) {
-	args := m.Called(ctx, query, limit)
+func (m *MockNHLClient) SearchPlayer(ctx context.Context, query string, limit ...int) ([]nhl.PlayerSearchResult, error) {
+	callArgs := []interface{}{ctx, query}
+	for _, l := range limit {
+		callArgs = append(callArgs, l)
+	}
+	args := m.Called(callArgs...)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -320,7 +324,6 @@ func (m *MockNHLClient) EdgeTeamLanding(ctx context.Context, season nhl.Season, 
 	return args.Get(0).(*nhl.EdgeTeamLanding), args.Error(1)
 }
 
-
 // MockPlayerUpserter implements PlayerUpserter for testing.
 type MockPlayerUpserter struct {
 	mock.Mock
@@ -359,6 +362,11 @@ func (m *MockPlayerCareerUpserter) UpsertPlayerSeasonTotalBatch(ctx context.Cont
 	return args.Get(0).(*sqlcdb.UpsertPlayerSeasonTotalBatchBatchResults)
 }
 
+func (m *MockPlayerCareerUpserter) UpsertInternationalSeasonTeam(ctx context.Context, arg sqlcdb.UpsertInternationalSeasonTeamParams) error {
+	args := m.Called(ctx, arg)
+	return args.Error(0)
+}
+
 // Ensure shared import is used.
 var _ shared.NHLClient = (*MockNHLClient)(nil)
 
@@ -379,4 +387,4 @@ func (m *mockBatchResults) Exec() (pgconn.CommandTag, error) {
 
 func (m *mockBatchResults) Query() (pgx.Rows, error) { return nil, nil }
 func (m *mockBatchResults) QueryRow() pgx.Row        { return nil }
-func (m *mockBatchResults) Close() error              { return nil }
+func (m *mockBatchResults) Close() error             { return nil }
