@@ -263,6 +263,31 @@ const (
 	FlagProvisionerPassword = "provisioner-password"
 )
 
+// Admin authorization flags
+const (
+	// FlagAdminGroup is the Authentik group (from the X-authentik-groups
+	// header) whose members are granted access to @admin mutations.
+	FlagAdminGroup = "admin-group"
+
+	// FlagAdminToken is a shared secret accepted via the X-Admin-Token
+	// header as an alternative to group-based admin authorization. Empty
+	// disables the token path entirely.
+	FlagAdminToken = "admin-token"
+)
+
+// API client basic-auth flags. CLI commands that call the GraphQL API
+// through the authentik-gated public host authenticate with an authentik
+// app password over HTTP Basic (the proxy outpost intercepts the
+// Authorization header). Not needed for in-cluster or port-forwarded access.
+const (
+	// FlagAPIUser is the HTTP Basic auth username (authentik username).
+	FlagAPIUser = "api-user"
+
+	// FlagAPIPassword is the HTTP Basic auth password (an authentik app
+	// password). Empty disables basic auth entirely.
+	FlagAPIPassword = "api-password"
+)
+
 // Flag groups - related flags grouped together
 
 // PostgresFlags defines all PostgreSQL connection flags.
@@ -410,6 +435,23 @@ var ProvisionerFlags = FlagGroup{
 		{FlagProvisionerHost, "", "", "PostgreSQL host for provisioner connection", false},
 		{FlagProvisionerUser, "", "", "PostgreSQL user with CREATE DATABASE privileges", false},
 		{FlagProvisionerPassword, "", "", "PostgreSQL provisioner password", true},
+	},
+}
+
+// AdminAuthFlags defines admin authorization flags for the @admin GraphQL directive.
+var AdminAuthFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagAdminGroup, "", DefaultAdminGroup, "Authentik group granting access to admin GraphQL mutations", false},
+		{FlagAdminToken, "", "", "Shared secret token granting access to admin GraphQL mutations (empty disables the token path)", true},
+	},
+}
+
+// APIBasicAuthFlags defines HTTP Basic auth flags for CLI commands calling
+// the GraphQL API through the authentik-gated public host.
+var APIBasicAuthFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagAPIUser, "", "", "HTTP Basic auth username for the GraphQL API (authentik app-password auth)", false},
+		{FlagAPIPassword, "", "", "HTTP Basic auth password for the GraphQL API (empty disables basic auth)", true},
 	},
 }
 
@@ -596,6 +638,8 @@ var allFlagGroups = []*FlagGroup{
 	&YahooOAuth2Flags,
 	&TLSFlags,
 	&MauriceFlags,
+	&AdminAuthFlags,
+	&APIBasicAuthFlags,
 }
 
 // LogFlagValues logs all viper settings at debug level, redacting sensitive values.

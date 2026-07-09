@@ -12,6 +12,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/httpx"
+	"github.com/spf13/viper"
 )
 
 // GraphQL request/response types
@@ -31,15 +33,26 @@ type graphQLError struct {
 
 // GraphQLClient handles communication with the GraphQL API
 type GraphQLClient struct {
-	endpoint   string
-	httpClient *http.Client
+	endpoint    string
+	adminToken  string
+	apiUser     string
+	apiPassword string
+	httpClient  *http.Client
 }
 
-// NewGraphQLClient creates a new GraphQL client
+// NewGraphQLClient creates a new GraphQL client. When admin-token is
+// configured (flag or PUCKDB_ADMIN_TOKEN), it is sent as the X-Admin-Token
+// header so admin mutations pass the server's @admin directive. When
+// api-user/api-password are configured, requests carry HTTP Basic auth so
+// the authentik forward-auth gate on the public host admits them (the
+// password is an authentik app password).
 func NewGraphQLClient(endpoint string) *GraphQLClient {
 	return &GraphQLClient{
-		endpoint:   strings.TrimSuffix(endpoint, "/") + "/graphql/query",
-		httpClient: &http.Client{Timeout: config.DefaultHTTPClientTimeout},
+		endpoint:    strings.TrimSuffix(endpoint, "/") + "/graphql/query",
+		adminToken:  viper.GetString(config.FlagAdminToken),
+		apiUser:     viper.GetString(config.FlagAPIUser),
+		apiPassword: viper.GetString(config.FlagAPIPassword),
+		httpClient:  &http.Client{Timeout: config.DefaultHTTPClientTimeout},
 	}
 }
 
@@ -108,6 +121,12 @@ func (c *GraphQLClient) execute(ctx context.Context, query string, variables map
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if c.adminToken != "" {
+		req.Header.Set(httpx.HeaderAdminToken, c.adminToken)
+	}
+	if c.apiPassword != "" {
+		req.SetBasicAuth(c.apiUser, c.apiPassword)
+	}
 
 	log.Debug().Str("url", c.endpoint).Msg("Submitting GraphQL query")
 

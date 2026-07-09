@@ -26,6 +26,7 @@ var syncFlagGroups = []*config.FlagGroup{
 	&config.SeasonConcurrencyFlags,
 	&config.SyncBehaviorFlags,
 	&config.SpinnerFlags,
+	&config.APIBasicAuthFlags,
 }
 
 func cmdSync() *cobra.Command {

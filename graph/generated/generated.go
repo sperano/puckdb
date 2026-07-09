@@ -35,6 +35,7 @@ type ResolverRoot interface {
 }
 
 type DirectiveRoot struct {
+	Admin func(ctx context.Context, obj any, next graphql.Resolver) (res any, err error)
 }
 
 type ComplexityRoot struct {
@@ -4374,6 +4375,7 @@ type EdgeTeamShotDifferential {
 # https://gqlgen.com/getting-started/
 
 directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
+directive @admin on FIELD_DEFINITION
 
 scalar Int64
 scalar Time
@@ -4558,10 +4560,10 @@ input FetchAssetsInput {
 
 type Mutation {
 	# TODO should this really be available in a mutation?
-    clearDatabase: Boolean! # drop, create, init
-    dropDatabase: Boolean! # deletes all the tables
-    createDatabase: Boolean! # creates all the tables
-    flushRedisDB: Boolean! # flushes all keys in the configured redis db
+    clearDatabase: Boolean! @admin # drop, create, init
+    dropDatabase: Boolean! @admin # deletes all the tables
+    createDatabase: Boolean! @admin # creates all the tables
+    flushRedisDB: Boolean! @admin # flushes all keys in the configured redis db
 
 	initialize: Boolean!
 	cancelInitialize: Boolean!
@@ -12253,7 +12255,20 @@ func (ec *executionContext) _Mutation_clearDatabase(ctx context.Context, field g
 		func(ctx context.Context) (any, error) {
 			return ec.Resolvers.Mutation().ClearDatabase(ctx)
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal bool
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
 			return ec.marshalNBoolean2bool(ctx, selections, v)
 		},
@@ -12276,7 +12291,20 @@ func (ec *executionContext) _Mutation_dropDatabase(ctx context.Context, field gr
 		func(ctx context.Context) (any, error) {
 			return ec.Resolvers.Mutation().DropDatabase(ctx)
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal bool
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
 			return ec.marshalNBoolean2bool(ctx, selections, v)
 		},
@@ -12299,7 +12327,20 @@ func (ec *executionContext) _Mutation_createDatabase(ctx context.Context, field 
 		func(ctx context.Context) (any, error) {
 			return ec.Resolvers.Mutation().CreateDatabase(ctx)
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal bool
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
 			return ec.marshalNBoolean2bool(ctx, selections, v)
 		},
@@ -12322,7 +12363,20 @@ func (ec *executionContext) _Mutation_flushRedisDB(ctx context.Context, field gr
 		func(ctx context.Context) (any, error) {
 			return ec.Resolvers.Mutation().FlushRedisDb(ctx)
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal bool
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
 			return ec.marshalNBoolean2bool(ctx, selections, v)
 		},

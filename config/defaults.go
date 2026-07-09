@@ -166,12 +166,9 @@ const (
 // HTTP/GraphQL server defaults
 const (
 	DefaultHTTPClientTimeout     = 60 * time.Second
-	DefaultWebsocketKeepAlive    = 10 * time.Second
 	DefaultCancelTimeout         = 10 * time.Second
-	DefaultCORSMaxAge            = 300
 	DefaultGraphQLQueryCacheSize = 1000
 	DefaultGraphQLAPQCacheSize   = 100
-	DefaultViteDevServerOrigin   = "http://localhost:5173"
 )
 
 // GraphQL resolver timeout defaults
@@ -220,6 +217,13 @@ const (
 	DefaultMauriceMaxTokens     = 4096
 	DefaultMauriceMaxHistory    = 50
 	DefaultMauriceMaxToolRounds = 10
+)
+
+// Admin authorization defaults
+const (
+	// DefaultAdminGroup is the Authentik group whose members are granted
+	// access to the @admin-guarded GraphQL mutations.
+	DefaultAdminGroup = "puckdb-admins"
 )
 
 // Build version constants

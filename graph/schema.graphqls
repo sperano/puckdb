@@ -3,6 +3,7 @@
 # https://gqlgen.com/getting-started/
 
 directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
+directive @admin on FIELD_DEFINITION
 
 scalar Int64
 scalar Time
@@ -187,10 +188,10 @@ input FetchAssetsInput {
 
 type Mutation {
 	# TODO should this really be available in a mutation?
-    clearDatabase: Boolean! # drop, create, init
-    dropDatabase: Boolean! # deletes all the tables
-    createDatabase: Boolean! # creates all the tables
-    flushRedisDB: Boolean! # flushes all keys in the configured redis db
+    clearDatabase: Boolean! @admin # drop, create, init
+    dropDatabase: Boolean! @admin # deletes all the tables
+    createDatabase: Boolean! @admin # creates all the tables
+    flushRedisDB: Boolean! @admin # flushes all keys in the configured redis db
 
 	initialize: Boolean!
 	cancelInitialize: Boolean!

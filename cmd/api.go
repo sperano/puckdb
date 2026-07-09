@@ -14,7 +14,6 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/cors"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
@@ -51,6 +50,7 @@ var apiFlagGroups = []*config.FlagGroup{
 	&config.TLSFlags,
 	&config.MauriceFlags,
 	&config.PostgresFlags,
+	&config.AdminAuthFlags,
 }
 
 func cmdAPI() *cobra.Command {
@@ -153,19 +153,7 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver) *chi.Mu
 	r := chi.NewRouter()
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(httpx.ChiLogger)
-
-	// Basic CORS
-	// for more ideas, see: https://developer.github.com/v3/#cross-origin-resource-sharing
-	r.Use(cors.Handler(cors.Options{
-		// AllowedOrigins:   []string{"https://foo.com"}, // Use this to allow specific origin hosts.
-		AllowedOrigins: []string{"https://*", "http://*", config.DefaultViteDevServerOrigin},
-		// AllowOriginFunc: func(r *http.Request, origin string) bool { return true },
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: false,
-		MaxAge:           config.DefaultCORSMaxAge,
-	}))
+	r.Use(httpx.HeaderContext)
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("pong"))
@@ -187,10 +175,10 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver) *chi.Mu
 }
 
 func graphqlHandler(resolver *graph.Resolver) http.Handler {
-	server := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
-	server.AddTransport(transport.Websocket{
-		KeepAlivePingInterval: config.DefaultWebsocketKeepAlive,
-	})
+	server := handler.New(generated.NewExecutableSchema(generated.Config{
+		Resolvers:  resolver,
+		Directives: generated.DirectiveRoot{Admin: graph.AdminDirective},
+	}))
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})
 	server.AddTransport(transport.POST{})

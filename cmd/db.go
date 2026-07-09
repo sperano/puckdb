@@ -67,6 +67,8 @@ func cmdDBMigrate() *cobra.Command {
 // and shared by InitFlags and BindFlags so the two can never drift.
 var dbInitFlagGroups = []*config.FlagGroup{
 	&config.RedisFlags,
+	&config.AdminAuthFlags,
+	&config.APIBasicAuthFlags,
 }
 
 func cmdDBInit() *cobra.Command {
@@ -104,6 +106,9 @@ func cmdDBDrop() *cobra.Command {
 		Use:   "drop",
 		Short: "Drop database tables",
 		Long:  `Drop all database tables via GraphQL API. Use with caution.`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return config.BindFlags(cmd.Flags(), &config.AdminAuthFlags, &config.APIBasicAuthFlags)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getGraphQLClient()
 			if err != nil {
@@ -119,6 +124,7 @@ func cmdDBDrop() *cobra.Command {
 			return nil
 		},
 	}
+	config.InitFlags(cmd.Flags(), &config.AdminAuthFlags, &config.APIBasicAuthFlags)
 	return cmd
 }
 
