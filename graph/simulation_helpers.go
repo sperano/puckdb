@@ -438,6 +438,14 @@ func decodeSimPoolBase(p sqlcdb.SimPool) *model.SimPool {
 		s := p.SimDate.Time.Format("2006-01-02")
 		out.SimDate = &s
 	}
+	if p.StartDate.Valid {
+		s := p.StartDate.Time.Format("2006-01-02")
+		out.StartDate = &s
+	}
+	if p.EndDate.Valid {
+		s := p.EndDate.Time.Format("2006-01-02")
+		out.EndDate = &s
+	}
 	return out
 }
 
@@ -627,6 +635,50 @@ func parseDateOrError(s string) (pgtype.Date, error) {
 	return pgtype.Date{Time: t, Valid: true}, nil
 }
 
+// parseSimWindow validates the optional startDate/endDate pool inputs
+// against the season's standings bounds. Nil/empty inputs return
+// Valid=false dates, meaning "use the season bound" — the workflow's
+// LoadPoolState coalesces at read time. Rules:
+//   - each date must parse as YYYY-MM-DD
+//   - each date must lie within [seasonStart, seasonEnd]
+//   - the EFFECTIVE window (after coalescing each side against the
+//     season bound) must have start <= end
+func parseSimWindow(startDate, endDate *string, seasonStart, seasonEnd time.Time) (start, end pgtype.Date, err error) {
+	parse := func(p *string, name string) (pgtype.Date, error) {
+		if p == nil || *p == "" {
+			return pgtype.Date{}, nil
+		}
+		t, err := timeParseISODate(*p)
+		if err != nil {
+			return pgtype.Date{}, fmt.Errorf("invalid %s %q (expected YYYY-MM-DD): %w", name, *p, err)
+		}
+		if t.Before(seasonStart) || t.After(seasonEnd) {
+			return pgtype.Date{}, fmt.Errorf("%s %s outside the season's standings range (%s .. %s)",
+				name, t.Format("2006-01-02"),
+				seasonStart.Format("2006-01-02"), seasonEnd.Format("2006-01-02"))
+		}
+		return pgtype.Date{Time: t, Valid: true}, nil
+	}
+	if start, err = parse(startDate, "startDate"); err != nil {
+		return pgtype.Date{}, pgtype.Date{}, err
+	}
+	if end, err = parse(endDate, "endDate"); err != nil {
+		return pgtype.Date{}, pgtype.Date{}, err
+	}
+	effStart, effEnd := seasonStart, seasonEnd
+	if start.Valid {
+		effStart = start.Time
+	}
+	if end.Valid {
+		effEnd = end.Time
+	}
+	if effStart.After(effEnd) {
+		return pgtype.Date{}, pgtype.Date{}, fmt.Errorf("startDate %s is after endDate %s",
+			effStart.Format("2006-01-02"), effEnd.Format("2006-01-02"))
+	}
+	return start, end, nil
+}
+
 // defaultSimTxLimit caps simTransactions queries that omit the
 // limit arg. Plenty for a dashboard log panel; clients that
 // genuinely need more pass an explicit limit.
@@ -690,6 +742,20 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 		return nil, fmt.Errorf("encode max_llm_cost_usd_per_pool: %w", err)
 	}
 
+	// Resolve the season row up front: the sim window (startDate /
+	// endDate) validates against its standings bounds, and a bad
+	// season id fails here with a clear message instead of as an FK
+	// violation mid-insert.
+	season, err := r.Queries.GetSeason(ctx, int32(input.Season))
+	if err != nil {
+		return nil, fmt.Errorf("season %d: %w", input.Season, err)
+	}
+	startDate, endDate, err := parseSimWindow(input.StartDate, input.EndDate,
+		season.StandingsStart.Time, season.StandingsEnd.Time)
+	if err != nil {
+		return nil, err
+	}
+
 	tx, err := r.DB.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin sim pool tx: %w", err)
@@ -716,6 +782,8 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 		RosterIR:             int32(rosters[simulation.SlotIR]),
 		StopAfter:            derefStopAfterOrDefault(input.StopAfter),
 		MaxSeasonDays:        int32(derefInt(input.MaxSeasonDays)),
+		StartDate:            startDate,
+		EndDate:              endDate,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("insert sim pool: %w", err)

@@ -12,26 +12,11 @@ package simulation
 //
 //   go test -tags=integration ./worker/simulation/...
 //
-// Required environment variables:
+// Suite-level setup (TestMain, env vars, seed helpers, worker
+// bootstrap) lives in integration_helpers_test.go, shared with the
+// livellm build tag.
 //
-//   PUCKDB_TEST_PG_URL   Postgres connection URL for the integration
-//                        test database. The schema is migrated up at
-//                        TestMain start and migrated down at exit, so
-//                        any sim_* + core tables in this DB are
-//                        destroyed. Use a dedicated test DB.
-//                        Example: postgres://puckdb:foo@localhost:5432/puckdb_integration_test?sslmode=disable
-//
-// Optional environment variables:
-//
-//   PUCKDB_TEST_TEMPORAL_DEVSERVER  When set to "1", spins up an
-//                                   in-process Temporal dev server
-//                                   via go.temporal.io/sdk/testsuite.
-//                                   Otherwise the tests will assume
-//                                   a Temporal server reachable at
-//                                   the default address (localhost:7233)
-//                                   and skip if unreachable.
-//
-// What's covered today:
+// What's covered here:
 //
 //   TestIntegrationSchemaSmoke — pins the JSONB→typed-columns
 //   migration cascade. Inserts a pool + 2 agents + a roster row, reads
@@ -39,128 +24,17 @@ package simulation
 //   Catches the integration-time failures that unit tests can't see:
 //   mismatched column lists in sqlc-generated Scan calls, NOT NULL
 //   constraint violations, type-coercion errors at the wire boundary.
-//
-// What's deferred to follow-up commits:
-//
-//   - Full draft + 5-day workflow run with mock-LLM agents
-//   - sim_agent_totals = SUM(sim_agent_daily_stats) invariant
-//   - sim_agent_daily_stats = SUM(sim_agent_daily_player_stats) invariant
-//   - Drop-and-pickup historical attribution
-//   - Waiver claim resolution
-//
-// Each of those needs prior-season fixture data (club_skater_stats /
-// club_goalie_stats) and a running Temporal — heavier than the smoke
-// test. Landing them incrementally so the harness is reviewable in
-// isolation.
 
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/database"
 	"github.com/sperano/puckdb/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// envTestPGURL is the env var the harness reads for the integration
-// test Postgres URL. Tests skip when unset rather than failing — a
-// missing env var means the developer didn't opt into integration
-// runs, not that the suite is broken.
-const envTestPGURL = "PUCKDB_TEST_PG_URL"
-
-// integrationEnv is the per-process state TestMain sets up: a
-// migrated DB, a pgx pool, and the URL (kept for the migrate-down
-// at exit).
-var integrationEnv struct {
-	pool  *pgxpool.Pool
-	dbURL string
-}
-
-// TestMain brings the schema up before the suite runs and tears it
-// down at exit. Skips entirely when PUCKDB_TEST_PG_URL is unset;
-// individual tests then short-circuit via integrationEnv.pool == nil.
-//
-// "Tear down" means migrating every migration back down to zero —
-// the test DB ends each run empty. Slower than per-test TRUNCATE but
-// it guarantees migration-down paths are exercised too.
-func TestMain(m *testing.M) {
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		// Unset → skip the integration suite. Tests will short-
-		// circuit via t.Skip when integrationEnv.pool is nil.
-		os.Exit(m.Run())
-	}
-	integrationEnv.dbURL = dbURL
-
-	if err := database.MigrateDown(dbURL); err != nil {
-		// Down-then-up: any leftover schema from a previously-aborted
-		// run gets cleared first. Errors here are non-fatal — a
-		// genuinely empty DB will warn but still run up cleanly.
-		fmt.Fprintf(os.Stderr, "warn: pre-test MigrateDown: %v\n", err)
-	}
-	if err := database.MigrateUp(dbURL); err != nil {
-		fmt.Fprintf(os.Stderr, "fatal: MigrateUp(%q): %v\n", dbURL, err)
-		os.Exit(1)
-	}
-
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "fatal: pgxpool.New(%q): %v\n", dbURL, err)
-		os.Exit(1)
-	}
-	integrationEnv.pool = pool
-
-	code := m.Run()
-
-	pool.Close()
-	if err := database.MigrateDown(dbURL); err != nil {
-		fmt.Fprintf(os.Stderr, "warn: post-test MigrateDown: %v\n", err)
-	}
-	os.Exit(code)
-}
-
-// requireIntegrationEnv is the per-test guard — skips the test when
-// the suite-level setup didn't run. Returns the prepared pgx pool
-// the test should use.
-func requireIntegrationEnv(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	if integrationEnv.pool == nil {
-		t.Skipf("set %s to run integration tests (e.g. postgres://puckdb:foo@localhost:5432/puckdb_integration_test?sslmode=disable)", envTestPGURL)
-	}
-	return integrationEnv.pool
-}
-
-// seedSeason inserts one minimal seasons row so the FK from
-// sim_pools.season can satisfy. Returns the season ID. Idempotent —
-// a duplicate insert is silently swallowed since later tests may
-// reuse the same season.
-func seedSeason(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id int32) {
-	t.Helper()
-	_, err := pool.Exec(ctx,
-		`INSERT INTO seasons (id, standings_start, standings_end)
-		 VALUES ($1, '2024-10-01', '2025-04-15')
-		 ON CONFLICT (id) DO NOTHING`,
-		id)
-	require.NoError(t, err, "seed seasons row")
-}
-
-// seedPlayer inserts a minimal players row so sim_rosters.player_id
-// has a valid FK target. Returns nothing — tests use the requested
-// id for their assertions.
-func seedPlayer(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id int64, position sqlcdb.PlayerPosition) {
-	t.Helper()
-	_, err := pool.Exec(ctx,
-		`INSERT INTO players (id, first_name, last_name, first_name_normalized, last_name_normalized, position, is_active)
-		 VALUES ($1, 'First', 'Last', 'first', 'last', $2, true)
-		 ON CONFLICT (id) DO NOTHING`,
-		id, position)
-	require.NoError(t, err, "seed players row id=%d", id)
-}
 
 // ============================================================================
 // TestIntegrationSchemaSmoke — pins the JSONB→typed-columns migration.
@@ -191,6 +65,7 @@ func TestIntegrationSchemaSmoke(t *testing.T) {
 	capUSD, err := pgNumericFromFloat(200.0)
 	require.NoError(t, err)
 	pool1, err := q.InsertSimPool(ctx, sqlcdb.InsertSimPoolParams{
+		Name:                 "integration_test_pool",
 		Season:               seasonID,
 		Status:               string(PoolStatusDraft),
 		NumTeams:             2,
@@ -206,6 +81,7 @@ func TestIntegrationSchemaSmoke(t *testing.T) {
 		RosterUtil:           1,
 		RosterBN:             5,
 		RosterIR:             2,
+		StopAfter:            StopAfterNever.String(),
 	})
 	require.NoError(t, err, "InsertSimPool")
 	assert.NotZero(t, pool1.ID, "auto-generated id")
@@ -230,12 +106,14 @@ func TestIntegrationSchemaSmoke(t *testing.T) {
 	assert.InDelta(t, 200.0, gotCap, 0.001)
 
 	// Insert two agents. temperature is the only nullable column —
-	// agent 1 sets it, agent 2 leaves it NULL.
+	// agent 1 sets it, agent 2 leaves it NULL. No Name / DraftPosition
+	// params anymore: identity is team_name (written by Phase 0's
+	// PickTeamName) and draft_position stays NULL until the workflow's
+	// RecordDraftOrder persists the shuffled order.
 	temp, err := pgNumericFromFloat(0.7)
 	require.NoError(t, err)
 	agent1, err := q.InsertSimAgent(ctx, sqlcdb.InsertSimAgentParams{
 		PoolID:         pool1.ID,
-		DraftPosition:  1,
 		Provider:       "anthropic",
 		Model:          "claude-sonnet-4-7",
 		Strategy:       "balanced",
@@ -246,11 +124,10 @@ func TestIntegrationSchemaSmoke(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = q.InsertSimAgent(ctx, sqlcdb.InsertSimAgentParams{
-		PoolID:        pool1.ID,
-		DraftPosition: 2,
-		Provider:      "anthropic",
-		Model:         "claude-haiku-4-5",
-		Strategy:      "aggressive",
+		PoolID:   pool1.ID,
+		Provider: "anthropic",
+		Model:    "claude-haiku-4-5",
+		Strategy: "aggressive",
 		// temperature, api_base, max_tokens, timeout_seconds left at
 		// their zero values — exercises the NULL temperature path.
 	})
@@ -259,14 +136,17 @@ func TestIntegrationSchemaSmoke(t *testing.T) {
 	// Read agents back via ListSimAgentsByPool — pins the LIST query's
 	// column order matches the GET query's column order (would have
 	// caught a regression where one Scan list was updated but the
-	// other wasn't).
+	// other wasn't). Ordering is draft_position NULLS LAST then id;
+	// both rows are pre-draft (NULL) so insertion order holds.
 	listed, err := q.ListSimAgentsByPool(ctx, pool1.ID)
 	require.NoError(t, err)
 	require.Len(t, listed, 2)
-	assert.Equal(t, "Sonnet", listed[0].Name)
+	assert.Equal(t, "claude-sonnet-4-7", listed[0].Model)
 	assert.Equal(t, int32(30), listed[0].TimeoutSeconds)
 	assert.True(t, listed[0].Temperature.Valid, "agent 1's temperature is set")
-	assert.Equal(t, "Haiku", listed[1].Name)
+	assert.False(t, listed[0].DraftPosition.Valid, "draft_position is NULL until RecordDraftOrder")
+	assert.Empty(t, listed[0].TeamName, "team_name is empty until PickTeamName")
+	assert.Equal(t, "claude-haiku-4-5", listed[1].Model)
 	assert.False(t, listed[1].Temperature.Valid, "agent 2's temperature is NULL")
 	assert.Equal(t, int32(0), listed[1].MaxTokens, "max_tokens defaults to 0 when omitted")
 
@@ -303,31 +183,106 @@ func TestIntegrationSchemaSmoke(t *testing.T) {
 	assert.Empty(t, remaining, "ON DELETE CASCADE swept the agents")
 }
 
-// pgNumericFromFloat / pgFloatFromNumeric mirror the simulation
-// package's numericFromFloat / numericToFloat helpers but live in
-// the test file's namespace so the integration test can be read
-// independently.
-func pgNumericFromFloat(f float64) (pgtype.Numeric, error) {
-	var n pgtype.Numeric
-	if err := n.Scan(formatFloat(f)); err != nil {
-		return pgtype.Numeric{}, err
-	}
-	return n, nil
-}
+// ============================================================================
+// TestIntegrationSeedSmallSeason — sanity-checks the parameterized
+// scenario builder in isolation, so a seed-SQL bug surfaces here with
+// a row-count diff instead of inside a full-workflow test as a cryptic
+// zero-stats failure.
+// ============================================================================
 
-func pgFloatFromNumeric(n pgtype.Numeric) (float64, error) {
-	if !n.Valid {
-		return 0, nil
-	}
-	f, err := n.Float64Value()
-	if err != nil {
-		return 0, err
-	}
-	return f.Float64, nil
-}
+func TestIntegrationSeedSmallSeason(t *testing.T) {
+	pool := requireIntegrationEnv(t)
+	ctx := context.Background()
 
-// formatFloat formats f as a fixed-precision string suitable for
-// pgtype.Numeric.Scan.
-func formatFloat(f float64) string {
-	return fmt.Sprintf("%.6f", f)
+	cfg := smallSeasonConfig{
+		Season:         20252026, // distinct season — doesn't share rows with other tests
+		StartDate:      "2025-10-06",
+		Days:           3,
+		GamesPerDay:    2,
+		NumTeams:       4,
+		SkatersPerTeam: 10,
+		GoaliesPerTeam: 2,
+		Seed:           42,
+	}
+	data := seedSmallSeason(t, ctx, pool, cfg, 32)
+
+	require.Len(t, data.TeamIDs, 4)
+	require.Len(t, data.Skaters, 40)
+	require.Len(t, data.Goalies, 8)
+	require.Len(t, data.GameIDs, cfg.Days*cfg.GamesPerDay)
+
+	// DB-side row counts match what the return value claims.
+	var n int
+	require.NoError(t, pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM games WHERE season=$1`, cfg.Season).Scan(&n))
+	assert.Equal(t, len(data.GameIDs), n, "games rows")
+
+	// Every game gets 2 teams × SkatersPerTeam skater rows + 2 goalie rows.
+	require.NoError(t, pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM game_skater_stats WHERE game_id = ANY($1)`, data.GameIDs).Scan(&n))
+	assert.Equal(t, len(data.GameIDs)*2*cfg.SkatersPerTeam, n, "game_skater_stats rows")
+	require.NoError(t, pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM game_goalie_stats WHERE game_id = ANY($1)`, data.GameIDs).Scan(&n))
+	assert.Equal(t, len(data.GameIDs)*2, n, "game_goalie_stats rows")
+
+	// Prior-season draft candidates: one club-stats row per player,
+	// every score strictly positive (zero-score players are dropped
+	// from the candidate pool by loadSkaterCandidates).
+	prior := cfg.Season - 10001
+	require.NoError(t, pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM club_skater_stats WHERE season=$1 AND goals + assists > 0 AND team_id >= $2`,
+		prior, smallSeasonTeamIDBase).Scan(&n))
+	assert.Equal(t, len(data.Skaters), n, "club_skater_stats candidate rows")
+	require.NoError(t, pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM club_goalie_stats WHERE season=$1 AND wins > 0 AND team_id >= $2`,
+		prior, smallSeasonTeamIDBase).Scan(&n))
+	assert.Equal(t, len(data.Goalies), n, "club_goalie_stats candidate rows")
+
+	// A recorded stat line round-trips: pick the first skater's line
+	// on day 1 (their team plays on every rotation with NumTeams=4,
+	// GamesPerDay=2) and compare the DB row against the returned line.
+	day1 := cfg.StartDate
+	skater := data.Skaters[0]
+	line, ok := data.SkaterLines[day1][skater.ID]
+	require.True(t, ok, "skater %d should have a recorded line on %s", skater.ID, day1)
+	var goals, assists, sog, pim, ppp, pm int
+	require.NoError(t, pool.QueryRow(ctx, `
+		SELECT s.goals, s.assists, s.shots_on_goal, s.penalty_minutes, s.power_play_points, s.plus_minus
+		FROM game_skater_stats s JOIN games g ON g.id = s.game_id
+		WHERE s.player_id=$1 AND g.game_date=$2::DATE
+	`, skater.ID, day1).Scan(&goals, &assists, &sog, &pim, &ppp, &pm))
+	assert.Equal(t, line.Goals, goals)
+	assert.Equal(t, line.Assists, assists)
+	assert.Equal(t, line.SOG, sog)
+	assert.Equal(t, line.PIM, pim)
+	assert.Equal(t, line.PPP, ppp)
+	assert.Equal(t, line.PlusMinus, pm)
+
+	// Same for a goalie line: exactly one goalie per team plays per
+	// game; the day-1 playing goalie for the first team is index 0.
+	goalie := data.Goalies[0]
+	gline, ok := data.GoalieLines[day1][goalie.ID]
+	require.True(t, ok, "goalie %d should have a recorded line on %s", goalie.ID, day1)
+	var ga, saves, toi int
+	var decision string
+	require.NoError(t, pool.QueryRow(ctx, `
+		SELECT gs.goals_against, gs.saves, gs.toi_seconds, COALESCE(gs.decision::TEXT, '')
+		FROM game_goalie_stats gs JOIN games g ON g.id = gs.game_id
+		WHERE gs.player_id=$1 AND g.game_date=$2::DATE
+	`, goalie.ID, day1).Scan(&ga, &saves, &toi, &decision))
+	assert.Equal(t, gline.GoalsAgainst, ga)
+	assert.Equal(t, gline.Saves, saves)
+	assert.Equal(t, gline.TOISeconds, toi)
+	wantDecision := "L"
+	if gline.Win {
+		wantDecision = "W"
+	}
+	assert.Equal(t, wantDecision, decision)
+
+	// Determinism: the same config must produce the same lines (the
+	// inserts are ON CONFLICT DO NOTHING, so re-seeding is a no-op at
+	// the DB layer and the returned lines must still match).
+	data2 := seedSmallSeason(t, ctx, pool, cfg, 32)
+	assert.Equal(t, data.SkaterLines, data2.SkaterLines, "seeded rand must be deterministic")
+	assert.Equal(t, data.GoalieLines, data2.GoalieLines)
 }

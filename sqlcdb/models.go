@@ -1500,6 +1500,8 @@ type SimPool struct {
 	RecordFullMessages   bool               `json:"record_full_messages"`
 	StopAfter            string             `json:"stop_after"`
 	MaxSeasonDays        int32              `json:"max_season_days"`
+	StartDate            pgtype.Date        `json:"start_date"`
+	EndDate              pgtype.Date        `json:"end_date"`
 }
 
 type SimRoster struct {

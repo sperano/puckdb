@@ -532,12 +532,14 @@ type ComplexityRoot struct {
 	SimPool struct {
 		Agents             func(childComplexity int) int
 		CurrentDraftAction func(childComplexity int) int
+		EndDate            func(childComplexity int) int
 		ID                 func(childComplexity int) int
 		MaxSeasonDays      func(childComplexity int) int
 		Name               func(childComplexity int) int
 		Season             func(childComplexity int) int
 		SimDate            func(childComplexity int) int
 		Standings          func(childComplexity int) int
+		StartDate          func(childComplexity int) int
 		Status             func(childComplexity int) int
 		StopAfter          func(childComplexity int) int
 		TotalLlmCostUsd    func(childComplexity int) int
@@ -3344,6 +3346,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SimPool.CurrentDraftAction(childComplexity), true
+	case "SimPool.endDate":
+		if e.ComplexityRoot.SimPool.EndDate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimPool.EndDate(childComplexity), true
 	case "SimPool.id":
 		if e.ComplexityRoot.SimPool.ID == nil {
 			break
@@ -3380,6 +3388,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SimPool.Standings(childComplexity), true
+	case "SimPool.startDate":
+		if e.ComplexityRoot.SimPool.StartDate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimPool.StartDate(childComplexity), true
 	case "SimPool.status":
 		if e.ComplexityRoot.SimPool.Status == nil {
 			break
@@ -4638,6 +4652,10 @@ type SimPool {
   stopAfter: String!
   """Cap on the season day loop (0 = no cap)."""
   maxSeasonDays: Int!
+  """Simulation window start (YYYY-MM-DD). Null = season standings start."""
+  startDate: String
+  """Simulation window end (YYYY-MM-DD, inclusive). Null = season standings end."""
+  endDate: String
 }
 
 type CurrentDraftAction {
@@ -4746,6 +4764,19 @@ input CreateSimPoolInput {
   stopAfter: String
   """Cap on the season day loop (0 or omitted = no cap). Useful for fast small-sample debugging (e.g. maxSeasonDays: 10)."""
   maxSeasonDays: Int
+  """
+  Simulation window start, YYYY-MM-DD. Omitted = the season's
+  standings_start. Must lie within the season's standings range and
+  not exceed endDate. Lets a pool replay a specific stretch (e.g.
+  "simulate March 2025") instead of always starting at day one.
+  """
+  startDate: String
+  """
+  Simulation window end, YYYY-MM-DD (inclusive). Omitted = the
+  season's standings_end. Must lie within the season's standings
+  range. maxSeasonDays still caps the window when both are set.
+  """
+  endDate: String
 }
 
 input SimRosterPositionInput {
@@ -5652,6 +5683,10 @@ func (ec *executionContext) childFields_SimPool(ctx context.Context, field graph
 		return ec.fieldContext_SimPool_stopAfter(ctx, field)
 	case "maxSeasonDays":
 		return ec.fieldContext_SimPool_maxSeasonDays(ctx, field)
+	case "startDate":
+		return ec.fieldContext_SimPool_startDate(ctx, field)
+	case "endDate":
+		return ec.fieldContext_SimPool_endDate(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SimPool", field.Name)
 }
@@ -17328,6 +17363,52 @@ func (ec *executionContext) fieldContext_SimPool_maxSeasonDays(_ context.Context
 	return graphql.NewScalarFieldContext("SimPool", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _SimPool_startDate(ctx context.Context, field graphql.CollectedField, obj *model.SimPool) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimPool_startDate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartDate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SimPool_startDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimPool", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimPool_endDate(ctx context.Context, field graphql.CollectedField, obj *model.SimPool) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimPool_endDate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndDate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SimPool_endDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimPool", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _SimRosterEntry_playerId(ctx context.Context, field graphql.CollectedField, obj *model.SimRosterEntry) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -20112,7 +20193,7 @@ func (ec *executionContext) unmarshalInputCreateSimPoolInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "season", "categories", "rosterPositions", "waiverDays", "draftRounds", "maxLlmCostUsdPerPool", "agents", "stopAfter", "maxSeasonDays"}
+	fieldsInOrder := [...]string{"name", "season", "categories", "rosterPositions", "waiverDays", "draftRounds", "maxLlmCostUsdPerPool", "agents", "stopAfter", "maxSeasonDays", "startDate", "endDate"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -20189,6 +20270,20 @@ func (ec *executionContext) unmarshalInputCreateSimPoolInput(ctx context.Context
 				return it, err
 			}
 			it.MaxSeasonDays = data
+		case "startDate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startDate"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartDate = data
+		case "endDate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endDate"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndDate = data
 		}
 	}
 	return it, nil
@@ -24175,6 +24270,10 @@ func (ec *executionContext) _SimPool(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "startDate":
+			out.Values[i] = ec._SimPool_startDate(ctx, field, obj)
+		case "endDate":
+			out.Values[i] = ec._SimPool_endDate(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

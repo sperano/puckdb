@@ -253,6 +253,12 @@ func renderSimPoolStatus(w io.Writer, r *SimPoolStatusResult) {
 	if pool.MaxSeasonDays > 0 {
 		fmt.Fprintf(w, "  max_season_days: %d\n", pool.MaxSeasonDays)
 	}
+	if pool.StartDate != nil {
+		fmt.Fprintf(w, "  start_date: %s\n", *pool.StartDate)
+	}
+	if pool.EndDate != nil {
+		fmt.Fprintf(w, "  end_date: %s\n", *pool.EndDate)
+	}
 
 	fmt.Fprintln(w)
 	if r.Progress != nil {

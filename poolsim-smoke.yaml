@@ -1,0 +1,65 @@
+# poolsim-smoke.yaml — 4-Ollama-agent smoke pool against real cluster data.
+#
+# The manual counterpart of the livellm test layer
+# (worker/simulation/integration_live_test.go): same 4-agent all-Ollama
+# shape, but run against the actual 20242025 season already in prod.
+#
+#   ./puckdb sim create --config poolsim-smoke.yaml
+#   ./puckdb sim tail <pool-id>
+#
+# Compact roster + maxSeasonDays 30 keeps a llama3.1:8b run in the
+# tens-of-minutes range instead of hours. Ollama models cost $0 in
+# pricing.go, so the cost cap never trips.
+#
+# Network prerequisite for CLUSTER-side workers: pfSense must pass
+# 192.0.2.10/24 → 192.0.2.10:11434/tcp (the cluster subnet is
+# otherwise blocked from initiating into the LAN). LAN-side runs are
+# unaffected. See docs/sim-livellm-smoke.md.
+name: Ollama smoke (4x llama3.1:8b)
+season: 20242025
+categories: [G, A, +/-, PIM, PPP, SOG, W, GA, GAA]
+rosterPositions:
+  - {slot: C,  count: 1}
+  - {slot: LW, count: 1}
+  - {slot: RW, count: 1}
+  - {slot: D,  count: 2}
+  - {slot: G,  count: 1}
+  - {slot: BN, count: 2}
+waiverDays: 2
+draftRounds: 8
+maxLlmCostUsdPerPool: 0
+stopAfter: never
+maxSeasonDays: 30
+agents:
+  -
+    provider: ollama
+    model: "llama3.1:8b"
+    apiBase: "http://ollama.local:11434/v1"
+    timeoutSeconds: 240
+    strategy: |
+      Build a balanced roster across all categories. Avoid
+      one-category specialists.
+  -
+    provider: ollama
+    model: "llama3.1:8b"
+    apiBase: "http://ollama.local:11434/v1"
+    timeoutSeconds: 240
+    strategy: |
+      Stack high-shot-volume forwards to dominate G, A, SOG, and PPP.
+      Treat goalie categories as an afterthought.
+  -
+    provider: ollama
+    model: "llama3.1:8b"
+    apiBase: "http://ollama.local:11434/v1"
+    timeoutSeconds: 240
+    strategy: |
+      Goaltending first: get the best goalie available early and
+      protect W and GAA all season.
+  -
+    provider: ollama
+    model: "llama3.1:8b"
+    apiBase: "http://ollama.local:11434/v1"
+    timeoutSeconds: 240
+    strategy: |
+      Chase upside. Prefer players trending up in recent games and
+      churn the waiver wire weekly.

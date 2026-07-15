@@ -68,6 +68,8 @@ func (c *GraphQLClient) SimPoolStatus(ctx context.Context, poolID int) (*SimPool
 			totalLlmCostUsd
 			stopAfter
 			maxSeasonDays
+			startDate
+			endDate
 			currentDraftAction {
 				round
 				pick

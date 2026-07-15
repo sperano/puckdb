@@ -112,7 +112,12 @@ type LoadPoolStateResult struct {
 	// The workflow tracks updates in-memory and refreshes per pick;
 	// loading at boot lets a CAN-resumed run start with the most
 	// recent notes written by the prior execution.
-	AgentNotes      []string    `json:"agent_notes"`
+	AgentNotes []string `json:"agent_notes"`
+	// SeasonStartDate / SeasonEndDate are the EFFECTIVE simulation
+	// window: the pool's start_date / end_date when set, the season's
+	// standings_start / standings_end otherwise (migration 000002).
+	// The day loop starts at SeasonStartDate and exits past
+	// SeasonEndDate; MaxSeasonDays caps the window on top.
 	SeasonStartDate pgtype.Date `json:"season_start_date"`
 	SeasonEndDate   pgtype.Date `json:"season_end_date"`
 	// PoolStatus and TotalLLMCostUsd seed the workflow's in-memory
@@ -171,19 +176,31 @@ func (a *Activities) LoadPoolState(ctx context.Context, in LoadPoolStateInput) (
 		return LoadPoolStateResult{}, fmt.Errorf("simulation: decode total_llm_cost_usd: %w", err)
 	}
 
+	// Effective window: the pool's own start/end dates override the
+	// season bounds when set (createSimPoolImpl validated they lie
+	// within the season's standings range).
+	windowStart := season.StandingsStart
+	if pool.StartDate.Valid {
+		windowStart = pool.StartDate
+	}
+	windowEnd := season.StandingsEnd
+	if pool.EndDate.Valid {
+		windowEnd = pool.EndDate
+	}
+
 	logger.Debug("LoadPoolState complete",
 		"agent_count", len(agentIDs),
 		"season", cfg.Season,
-		"start", season.StandingsStart.Time,
-		"end", season.StandingsEnd.Time,
+		"start", windowStart.Time,
+		"end", windowEnd.Time,
 	)
 	return LoadPoolStateResult{
 		PoolConfig:      cfg,
 		AgentIDs:        agentIDs,
 		Agents:          agentCfgs,
 		AgentNotes:      agentNotes,
-		SeasonStartDate: season.StandingsStart,
-		SeasonEndDate:   season.StandingsEnd,
+		SeasonStartDate: windowStart,
+		SeasonEndDate:   windowEnd,
 		PoolStatus:      PoolStatus(pool.Status),
 		TotalLLMCostUsd: totalCost,
 	}, nil

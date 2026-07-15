@@ -41,6 +41,10 @@ type SimPool {
   stopAfter: String!
   """Cap on the season day loop (0 = no cap)."""
   maxSeasonDays: Int!
+  """Simulation window start (YYYY-MM-DD). Null = season standings start."""
+  startDate: String
+  """Simulation window end (YYYY-MM-DD, inclusive). Null = season standings end."""
+  endDate: String
 }
 
 type CurrentDraftAction {
@@ -149,6 +153,19 @@ input CreateSimPoolInput {
   stopAfter: String
   """Cap on the season day loop (0 or omitted = no cap). Useful for fast small-sample debugging (e.g. maxSeasonDays: 10)."""
   maxSeasonDays: Int
+  """
+  Simulation window start, YYYY-MM-DD. Omitted = the season's
+  standings_start. Must lie within the season's standings range and
+  not exceed endDate. Lets a pool replay a specific stretch (e.g.
+  "simulate March 2025") instead of always starting at day one.
+  """
+  startDate: String
+  """
+  Simulation window end, YYYY-MM-DD (inclusive). Omitted = the
+  season's standings_end. Must lie within the season's standings
+  range. maxSeasonDays still caps the window when both are set.
+  """
+  endDate: String
 }
 
 input SimRosterPositionInput {

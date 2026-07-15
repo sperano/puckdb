@@ -624,3 +624,68 @@ func TestSimPoolCurrentDraftAction_LazyPerPoolQueries(t *testing.T) {
 		db.recorded(),
 		"currentDraftAction issues only pool-scoped queries")
 }
+
+// TestParseSimWindow pins the startDate/endDate validation rules:
+// nil → invalid (use season bound), in-range dates pass through,
+// out-of-range or inverted windows error.
+func TestParseSimWindow(t *testing.T) {
+	t.Parallel()
+	seasonStart := time.Date(2024, 10, 1, 0, 0, 0, 0, time.UTC)
+	seasonEnd := time.Date(2025, 4, 15, 0, 0, 0, 0, time.UTC)
+	str := func(s string) *string { return &s }
+
+	tests := []struct {
+		name       string
+		start, end *string
+		wantStart  string // "" = expect Valid=false
+		wantEnd    string
+		wantErr    string // "" = expect success
+	}{
+		{name: "both nil defaults to season bounds", wantStart: "", wantEnd: ""},
+		{name: "both empty strings same as nil", start: str(""), end: str("")},
+		{name: "explicit window inside season",
+			start: str("2025-03-01"), end: str("2025-03-31"),
+			wantStart: "2025-03-01", wantEnd: "2025-03-31"},
+		{name: "start only", start: str("2025-01-01"), wantStart: "2025-01-01"},
+		{name: "end only", end: str("2024-12-31"), wantEnd: "2024-12-31"},
+		{name: "start on season start boundary", start: str("2024-10-01"), wantStart: "2024-10-01"},
+		{name: "end on season end boundary", end: str("2025-04-15"), wantEnd: "2025-04-15"},
+		{name: "garbage start", start: str("March 5"), wantErr: "invalid startDate"},
+		{name: "start before season", start: str("2024-09-30"), wantErr: "outside the season's standings range"},
+		{name: "end after season", end: str("2025-04-16"), wantErr: "outside the season's standings range"},
+		{name: "inverted explicit window",
+			start: str("2025-03-31"), end: str("2025-03-01"),
+			wantErr: "startDate 2025-03-31 is after endDate 2025-03-01"},
+		{name: "start equal to season-default end is a legal one-day window",
+			// endDate omitted → effective end is the season end; a
+			// start ON that date leaves exactly one sim day. (A start
+			// PAST it is unrepresentable — the range check rejects it
+			// before the window comparison.)
+			start:     str("2025-04-15"),
+			wantStart: "2025-04-15",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			start, end, err := parseSimWindow(tc.start, tc.end, seasonStart, seasonEnd)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			if tc.wantStart == "" {
+				assert.False(t, start.Valid, "start should be unset")
+			} else {
+				require.True(t, start.Valid)
+				assert.Equal(t, tc.wantStart, start.Time.Format("2006-01-02"))
+			}
+			if tc.wantEnd == "" {
+				assert.False(t, end.Valid, "end should be unset")
+			} else {
+				require.True(t, end.Valid)
+				assert.Equal(t, tc.wantEnd, end.Time.Format("2006-01-02"))
+			}
+		})
+	}
+}

@@ -1,7 +1,7 @@
 # Plan: Small-Season Simulation Integration Test (1 Month, 4 Teams, Ollama on ollama.local)
 
 **Date:** 2026-07-06
-**Status:** Proposed
+**Status:** Implemented 2026-07-09 (all phases, incl. phase 5 startDate/endDate) — Layer B runbook in `docs/sim-livellm-smoke.md`
 **Scope:** `worker/simulation/`, `cmd/sim.go` config surface, a new `poolsim-smoke.yaml`
 
 Goal: a repeatable end-to-end proof that a full (small) season simulates

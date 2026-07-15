@@ -2,170 +2,35 @@
 
 package simulation
 
-// Workflow-driven integration test: spins up a real Temporal worker
-// running the full SimPoolWorkflow, with a mock LLM that returns
-// deterministic tool calls. After the workflow completes, asserts
-// the SUM-invariants on the sim_agent_* tables.
+// Workflow-driven integration tests: spin up a real Temporal worker
+// running the full SimPoolWorkflow, with mock LLM clients that return
+// deterministic tool calls. After the workflow completes, assert the
+// SUM-invariants on the sim_agent_* tables.
 //
-// Required env vars (in addition to the suite-level PUCKDB_TEST_PG_URL):
-//
-//   PUCKDB_TEST_REDIS_ADDR       Redis host:port for ProgressActivities
-//                                state. Defaults to localhost:6379.
-//                                The integer DB index is 15 (chosen to
-//                                avoid collision with dev/prod data).
-//
-// Optional env vars:
-//
-//   PUCKDB_TEST_TEMPORAL_HOSTPORT  Existing Temporal server. If set,
-//                                  the test dials it instead of
-//                                  spinning up an in-process DevServer.
-//                                  Default: spin up DevServer (downloads
-//                                  the Temporal CLI on first run, ~50MB).
-//
-// Test skips cleanly when its required services aren't reachable —
-// see startTemporalForTest and connectRedisForTest.
+// Env vars, seed helpers, and worker bootstrap live in
+// integration_helpers_test.go (shared with the livellm build tag).
+// Tests skip cleanly when their required services aren't reachable —
+// see startTemporalForTest and connectRedisForTest there.
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/llm"
 	"github.com/sperano/puckdb/sqlcdb"
-	"github.com/sperano/puckdb/worker/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.temporal.io/sdk/client"
-	"go.temporal.io/sdk/testsuite"
-	"go.temporal.io/sdk/worker"
 )
 
 // ============================================================================
-// Service plumbing — Temporal + Redis
+// Fixture seeding — the fixed 2-team / 4-player / 5-day scenario
 // ============================================================================
-
-// startTemporalForTest returns a Temporal client + a cleanup func.
-// Two modes:
-//  1. PUCKDB_TEST_TEMPORAL_HOSTPORT set → dial that.
-//  2. otherwise → spin up an in-process DevServer.
-//
-// DevServer downloads the Temporal CLI binary the first time it's
-// invoked (cached afterward). Slow first run (~30s); subsequent
-// runs ~3s.
-func startTemporalForTest(t *testing.T) (client.Client, func()) {
-	t.Helper()
-	if hp := os.Getenv("PUCKDB_TEST_TEMPORAL_HOSTPORT"); hp != "" {
-		c, err := client.Dial(client.Options{HostPort: hp})
-		if err != nil {
-			t.Skipf("PUCKDB_TEST_TEMPORAL_HOSTPORT=%q dial failed: %v", hp, err)
-		}
-		return c, func() { c.Close() }
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	srv, err := testsuite.StartDevServer(ctx, testsuite.DevServerOptions{})
-	if err != nil {
-		t.Skipf("DevServer start failed: %v (set PUCKDB_TEST_TEMPORAL_HOSTPORT to use external Temporal)", err)
-	}
-	return srv.Client(), func() { _ = srv.Stop() }
-}
-
-// connectRedisForTest opens a redis client against the configured
-// host (default localhost:6379, DB 15). DB 15 chosen as a high
-// index unlikely to collide with dev/prod keys.
-func connectRedisForTest(t *testing.T) *redis.Client {
-	t.Helper()
-	addr := os.Getenv("PUCKDB_TEST_REDIS_ADDR")
-	if addr == "" {
-		addr = "localhost:6379"
-	}
-	c := redis.NewClient(&redis.Options{Addr: addr, DB: 15})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := c.Ping(ctx).Err(); err != nil {
-		t.Skipf("Redis at %s unreachable: %v (set PUCKDB_TEST_REDIS_ADDR to override)", addr, err)
-	}
-	// Flush DB 15 so a previously-aborted run's progress reports
-	// don't bleed into this run's tracker rehydration.
-	if err := c.FlushDB(ctx).Err(); err != nil {
-		t.Fatalf("flush test redis db: %v", err)
-	}
-	return c
-}
-
-// ============================================================================
-// Fixture seeding
-// ============================================================================
-
-// seedTeam inserts a season_teams row so games + stats joins resolve.
-// Idempotent on (season, team_id).
-func seedTeam(t *testing.T, ctx context.Context, pool *pgxpool.Pool, season int32, teamID int64, abbrev string) {
-	t.Helper()
-	// season_teams composite PK is (season, team_id). The test only
-	// needs a name + abbrev for display purposes; everything else
-	// defaults.
-	_, err := pool.Exec(ctx, `
-		INSERT INTO season_teams (season, team_id, full_name, abbrev, place_name, common_name, division_name, division_abbrev, conference_name, conference_abbrev, logo_url, dark_logo_url, franchise_id)
-		VALUES ($1, $2, $3, $3, $3, $3, '', '', '', '', '', '', $2)
-		ON CONFLICT DO NOTHING
-	`, season, teamID, abbrev)
-	require.NoErrorf(t, err, "seed season_team (%d, %d)", season, teamID)
-}
-
-// seedClubSkaterStats puts one row in club_skater_stats so
-// LoadDraftCandidates' GetClubSkaterStatsBySeason returns a real
-// candidate. Goals + assists drive the prior-season ranking.
-func seedClubSkaterStats(t *testing.T, ctx context.Context, pool *pgxpool.Pool, season int32, playerID int64, teamID int64, goals, assists int) {
-	t.Helper()
-	_, err := pool.Exec(ctx, `
-		INSERT INTO club_skater_stats (season, game_type, team_id, player_id, games_played, goals, assists, points, plus_minus, penalty_minutes, power_play_goals, shorthanded_goals, game_winning_goals, overtime_goals, shots, shooting_pctg, avg_toi_per_game, avg_shifts_per_game, faceoff_win_pctg)
-		VALUES ($1, 'regular_season', $2, $3, 82, $4, $5, $4 + $5, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-		ON CONFLICT DO NOTHING
-	`, season, teamID, playerID, goals, assists)
-	require.NoErrorf(t, err, "seed club_skater_stats player %d", playerID)
-}
-
-// seedClubGoalieStats — goalie equivalent. Wins drive the ranking.
-func seedClubGoalieStats(t *testing.T, ctx context.Context, pool *pgxpool.Pool, season int32, playerID int64, teamID int64, wins int) {
-	t.Helper()
-	_, err := pool.Exec(ctx, `
-		INSERT INTO club_goalie_stats (season, game_type, team_id, player_id, games_played, games_started, wins, losses, overtime_losses, goals_against_average, save_percentage, shots_against, saves, goals_against, shutouts, goals, assists, points, penalty_minutes, toi_seconds)
-		VALUES ($1, 'regular_season', $2, $3, 50, 50, $4, 20, 5, 2.5, 0.92, 1500, 1380, 120, 5, 0, 0, 0, 0, 180000)
-		ON CONFLICT DO NOTHING
-	`, season, teamID, playerID, wins)
-	require.NoErrorf(t, err, "seed club_goalie_stats player %d", playerID)
-}
-
-// seedGame inserts one row in games. game_type=regular_season,
-// game_state=FINAL — required filters for the day-loop scoring path.
-func seedGame(t *testing.T, ctx context.Context, pool *pgxpool.Pool, gameID int64, season int32, gameDate string, homeID, awayID int64) {
-	t.Helper()
-	_, err := pool.Exec(ctx, `
-		INSERT INTO games (id, season, game_type, game_date, game_state, home_team_id, away_team_id, home_team_score, away_team_score, period_descriptor_number, venue, start_time_utc)
-		VALUES ($1, $2, 'regular_season', $3::DATE, 'FINAL', $4, $5, 3, 2, 3, '', NOW())
-		ON CONFLICT DO NOTHING
-	`, gameID, season, gameDate, homeID, awayID)
-	require.NoErrorf(t, err, "seed game %d", gameID)
-}
-
-// seedGameSkaterStats inserts a per-game stat row. CollectDayStats
-// reads these to project onto the agent's roster.
-func seedGameSkaterStats(t *testing.T, ctx context.Context, pool *pgxpool.Pool, gameID, playerID, teamID int64, goals, assists int) {
-	t.Helper()
-	_, err := pool.Exec(ctx, `
-		INSERT INTO game_skater_stats (game_id, player_id, team_id, is_home, sweater_number, position, goals, assists, points, plus_minus, shots_on_goal, toi_seconds, shifts, faceoff_winning_pctg, hits, blocked_shots, penalty_minutes, giveaways, takeaways, power_play_goals, power_play_points, game_winning_goals, ot_goals)
-		VALUES ($1, $2, $3, true, 99, 'C', $4, $5, $4 + $5, 0, 3, 1200, 20, NULL, 1, 1, 0, 0, 0, 0, 0, 0, 0)
-		ON CONFLICT DO NOTHING
-	`, gameID, playerID, teamID, goals, assists)
-	require.NoErrorf(t, err, "seed game_skater_stats game=%d player=%d", gameID, playerID)
-}
 
 // seedScenario seeds the full data set the workflow test needs:
 //   - Two teams in the test season AND prior season (LoadDraftCandidates
@@ -225,96 +90,117 @@ func seedScenario(t *testing.T, ctx context.Context, pool *pgxpool.Pool, testSea
 	return playerIDs
 }
 
-// offsetDate returns startDate + n days as a YYYY-MM-DD string.
-// Avoids dragging time-arithmetic into the test body.
-func offsetDate(startDate string, n int) string {
-	t, err := time.Parse("2006-01-02", startDate)
-	if err != nil {
-		panic(err)
-	}
-	return t.AddDate(0, 0, n).Format("2006-01-02")
-}
-
 // ============================================================================
 // Mock LLM — scripted responses for predictable workflow behavior
+//
+// Dispatch is by REQUEST SHAPE, not call count:
+//
+//   - The tool list offered on the request identifies the phase:
+//     set_team_name → Phase 0, draft_player → draft, otherwise daily.
+//   - A role:"tool" message in the history marks an agentloop
+//     CONTINUATION round (the loop already executed our scripted tool
+//     call and is asking for a follow-up) — the mock answers with a
+//     plain pass so the loop terminates.
+//
+// This is robust against the things a call counter can't survive:
+// Phase 0 team-name activities fan out in parallel, agentloop makes
+// a variable number of Complete calls per turn, and the per-day agent
+// processing order is shuffled.
 // ============================================================================
 
-// scriptedIntegClient is the integration-test LLM client used by
-// TestIntegrationFullDraftAnd5Day. It returns scripted tool-call
-// responses for the draft phase, then "no tool calls" responses
-// for every subsequent (daily) call — agents pass on every day,
-// no mid-sim trades.
-//
-// Shared across every Agent the AgentFactory builds. The atomic
-// counter sequences calls deterministically, so test outcomes
-// don't depend on goroutine interleaving (Temporal can dispatch
-// activities in parallel even for serially-numbered draft picks).
-//
-// Tests that need PER-AGENT scripting (e.g., agent A drops on day
-// 3, agent B passes throughout) use perAgentMockClient instead —
-// the global counter here can't differentiate between agents.
-type scriptedIntegClient struct {
-	draftPicks []int64 // player_ids to return in order
-	called     atomic.Int32
-}
-
-func (c *scriptedIntegClient) Complete(_ context.Context, _ *llm.Request) (*llm.Response, error) {
-	idx := int(c.called.Add(1)) - 1
-	// Draft phase: scripted picks.
-	if idx < len(c.draftPicks) {
-		pid := c.draftPicks[idx]
-		return &llm.Response{
-			Content: fmt.Sprintf("Picking player %d", pid),
-			ToolCalls: []llm.ToolCall{{
-				ID:   fmt.Sprintf("tc_%d", idx),
-				Type: "function",
-				Function: llm.ToolCallFunction{
-					Name:      ToolDraftPlayer,
-					Arguments: fmt.Sprintf(`{"player_id":%d}`, pid),
-				},
-			}},
-			Usage: &llm.Usage{PromptTokens: 100, CompletionTokens: 20, TotalTokens: 120},
-		}, nil
+// reqOffersTool reports whether the request's tool list contains name.
+func reqOffersTool(req *llm.Request, name string) bool {
+	for _, tool := range req.Tools {
+		if tool.Function.Name == name {
+			return true
+		}
 	}
-	// Daily phase: no tool calls = pass.
-	return &llm.Response{
-		Content: "No moves today.",
-		Usage:   &llm.Usage{PromptTokens: 200, CompletionTokens: 30, TotalTokens: 230},
-	}, nil
+	return false
 }
 
-// perAgentMockClient is the per-agent LLM mock for tests where the
-// two agents need to behave differently on different days (drop on
-// day 3, claim on day 4, etc).
+// reqIsContinuation reports whether the request already carries a
+// tool-result message — i.e., this is a follow-up agentloop round
+// after the mock's scripted tool call was executed.
+func reqIsContinuation(req *llm.Request) bool {
+	for _, m := range req.Messages {
+		if m.Role == "tool" {
+			return true
+		}
+	}
+	return false
+}
+
+// perAgentScript is the per-agent behavior description for tests
+// where agents must act differently on different days.
 //
-// Each Agent the AgentFactory builds gets its OWN client wrapping
-// its OWN script. The agent processing order is randomized per day
-// (workflow.SideEffect-seeded shuffle), so a global call counter
-// can't tell which agent is calling — but a per-agent counter
-// always advances in sync with that agent's actual decisions.
+// teamName doubles as the agent's stable identity: tests seed
+// distinct names ("Alpha", "Bravo") and resolve agent IDs back via
+// lookupAgentIDByTeamName after the workflow ran Phase 0.
 //
-// Script entries: each entry is one Complete-call response.
-// Indices are calls made BY THIS AGENT, in workflow order:
+// draftPicks[i] is the player drafted on this agent's i-th draft turn
+// (one turn per round). Assign disjoint players across agents — each
+// agent picks its own list regardless of the shuffled snake order.
 //
-//	[0] = first call (this agent's draft pick)
-//	[1] = day 1 manage_roster
-//	[2] = day 2 manage_roster
-//	... etc.
-//
-// Running off the end of the script returns the default
-// "no tool calls" pass response.
+// daily[i] is the scripted first-round response for sim day i+1
+// (daily[0] = day 1). A nil entry — or running off the end — is a
+// pass. The per-day index advances only on a daily turn's FIRST
+// round; continuation rounds don't consume script entries.
+type perAgentScript struct {
+	teamName   string
+	draftPicks []int64
+	daily      []*llm.Response
+}
+
+// perAgentMockClient wraps one agent's perAgentScript. Each Agent the
+// AgentFactory builds gets its OWN client (getOrCreateAgent caches one
+// Agent per (pool, agent), so the draftIdx/dailyIdx counters advance
+// in sync with that agent's actual turns).
 type perAgentMockClient struct {
-	agentName string
-	script    []*llm.Response
-	called    atomic.Int32
+	script   *perAgentScript
+	draftIdx atomic.Int32
+	dailyIdx atomic.Int32
 }
 
-func (c *perAgentMockClient) Complete(_ context.Context, _ *llm.Request) (*llm.Response, error) {
-	idx := int(c.called.Add(1)) - 1
-	if idx < len(c.script) && c.script[idx] != nil {
-		return c.script[idx], nil
+func (c *perAgentMockClient) Complete(_ context.Context, req *llm.Request) (*llm.Response, error) {
+	if reqIsContinuation(req) {
+		return passResponse(), nil
+	}
+	if reqOffersTool(req, ToolSetTeamName) {
+		return teamNameResponse(c.script.teamName), nil
+	}
+	if reqOffersTool(req, ToolDraftPlayer) {
+		idx := int(c.draftIdx.Add(1)) - 1
+		if idx < len(c.script.draftPicks) {
+			return draftPickResponse(c.script.draftPicks[idx]), nil
+		}
+		// Script exhausted — should not happen in a well-sized test;
+		// pass and let the activity's no-pick handling surface it.
+		return passResponse(), nil
+	}
+	// Daily turn, first round: consume the next day's entry.
+	idx := int(c.dailyIdx.Add(1)) - 1
+	if idx < len(c.script.daily) && c.script.daily[idx] != nil {
+		return c.script.daily[idx], nil
 	}
 	return passResponse(), nil
+}
+
+// teamNameResponse builds a scripted set_team_name tool-call response.
+// Both arguments are required by PickTeamName's validation (name
+// non-empty, summary non-empty and <= MaxStrategySummaryChars).
+func teamNameResponse(name string) *llm.Response {
+	return &llm.Response{
+		Content: fmt.Sprintf("Naming my team %s", name),
+		ToolCalls: []llm.ToolCall{{
+			ID:   "tc_teamname",
+			Type: "function",
+			Function: llm.ToolCallFunction{
+				Name:      ToolSetTeamName,
+				Arguments: fmt.Sprintf(`{"name":%q,"summary":"test strategy"}`, name),
+			},
+		}},
+		Usage: &llm.Usage{PromptTokens: 50, CompletionTokens: 15, TotalTokens: 65},
+	}
 }
 
 // passResponse is the canonical "no tool calls" reply — the workflow
@@ -326,52 +212,65 @@ func passResponse() *llm.Response {
 	}
 }
 
-// draftPickResponse builds a scripted draft_player tool-call response.
-func draftPickResponse(playerID int64) *llm.Response {
+// toolCallResponse builds a one-tool-call response with args
+// marshaled from the actual *Args struct — the same types the
+// executor parses back, so scripted calls can't drift from the tool
+// schemas the way hand-built JSON strings can.
+func toolCallResponse(toolName string, args any, content string) *llm.Response {
+	b, err := json.Marshal(args)
+	if err != nil {
+		panic(fmt.Sprintf("marshal %s args: %v", toolName, err))
+	}
 	return &llm.Response{
-		Content: fmt.Sprintf("Picking player %d", playerID),
+		Content: content,
 		ToolCalls: []llm.ToolCall{{
-			ID:   "tc_draft",
+			ID:   "tc_" + toolName,
 			Type: "function",
 			Function: llm.ToolCallFunction{
-				Name:      ToolDraftPlayer,
-				Arguments: fmt.Sprintf(`{"player_id":%d}`, playerID),
+				Name:      toolName,
+				Arguments: string(b),
 			},
 		}},
-		Usage: &llm.Usage{PromptTokens: 100, CompletionTokens: 20, TotalTokens: 120},
+		Usage: &llm.Usage{PromptTokens: 200, CompletionTokens: 20, TotalTokens: 220},
 	}
+}
+
+// draftPickResponse builds a scripted draft_player tool-call response.
+func draftPickResponse(playerID int64) *llm.Response {
+	return toolCallResponse(ToolDraftPlayer, DraftPlayerArgs{PlayerID: playerID},
+		fmt.Sprintf("Picking player %d", playerID))
 }
 
 // dropPlayerResponse builds a scripted drop_player tool-call response.
 func dropPlayerResponse(playerID int64, reason string) *llm.Response {
-	return &llm.Response{
-		Content: reason,
-		ToolCalls: []llm.ToolCall{{
-			ID:   "tc_drop",
-			Type: "function",
-			Function: llm.ToolCallFunction{
-				Name:      ToolDropPlayer,
-				Arguments: fmt.Sprintf(`{"player_id":%d}`, playerID),
-			},
-		}},
-		Usage: &llm.Usage{PromptTokens: 200, CompletionTokens: 20, TotalTokens: 220},
-	}
+	return toolCallResponse(ToolDropPlayer, DropPlayerArgs{PlayerID: playerID, Reason: reason}, reason)
 }
 
-// claimPlayerResponse builds a scripted claim_player tool-call response.
-func claimPlayerResponse(playerID int64, reason string) *llm.Response {
-	return &llm.Response{
-		Content: reason,
-		ToolCalls: []llm.ToolCall{{
-			ID:   "tc_claim",
-			Type: "function",
-			Function: llm.ToolCallFunction{
-				Name:      ToolClaimPlayer,
-				Arguments: fmt.Sprintf(`{"player_id":%d}`, playerID),
-			},
-		}},
-		Usage: &llm.Usage{PromptTokens: 200, CompletionTokens: 20, TotalTokens: 220},
-	}
+// setLineupMovesResponse builds a scripted set_lineup tool-call
+// response with an arbitrary move list. Needed on day 1: drafted
+// players land on BN, and CollectDayStats scores ACTIVE slots only
+// (BN/IR excluded) — a passive agent scores zero all season.
+func setLineupMovesResponse(moves []LineupMoveArg, reason string) *llm.Response {
+	return toolCallResponse(ToolSetLineup, SetLineupArgs{Moves: moves, Reason: reason}, reason)
+}
+
+// setLineupResponse is the single-move shorthand.
+func setLineupResponse(playerID int64, slot RosterSlot, reason string) *llm.Response {
+	return setLineupMovesResponse([]LineupMoveArg{{PlayerID: playerID, Slot: slot}}, reason)
+}
+
+// addPlayerResponse builds a scripted add_player tool-call response.
+// dropPlayerID may be nil (roster must then have a free slot).
+func addPlayerResponse(playerID int64, dropPlayerID *int64, reason string) *llm.Response {
+	return toolCallResponse(ToolAddPlayer, AddPlayerArgs{PlayerID: playerID, DropPlayerID: dropPlayerID, Reason: reason}, reason)
+}
+
+// claimPlayerResponse builds a scripted claim_player tool-call
+// response. dropPlayerID may be nil when the roster has a free slot;
+// a full roster needs the contingent drop or ValidateClaimPlayer
+// rejects the claim on the future-state capacity check.
+func claimPlayerResponse(playerID int64, dropPlayerID *int64, reason string) *llm.Response {
+	return toolCallResponse(ToolClaimPlayer, ClaimPlayerArgs{PlayerID: playerID, DropPlayerID: dropPlayerID, Reason: reason}, reason)
 }
 
 // ============================================================================
@@ -391,7 +290,11 @@ func claimPlayerResponse(playerID int64, reason string) *llm.Response {
 // a previously-aborted run can be filtered (the suite-level
 // MigrateDown also wipes everything, but a per-test name keeps test
 // runs distinguishable in logs).
-func createIntegrationPool(t *testing.T, ctx context.Context, pool *pgxpool.Pool, season int32, waiverDays int, poolName string) (poolID int32, agent1ID, agent2ID int32) {
+//
+// startDate/endDate bound the pool's simulation window (migration
+// 000016) — this replaced the old UPDATE-the-seasons-row hack, so
+// tests exercise the same per-pool window path production uses.
+func createIntegrationPool(t *testing.T, ctx context.Context, pool *pgxpool.Pool, season int32, waiverDays int, poolName, startDate, endDate string) (poolID int32, agent1ID, agent2ID int32) {
 	t.Helper()
 	q := sqlcdb.New(pool)
 	cap, err := pgNumericFromFloat(200.0)
@@ -407,80 +310,24 @@ func createIntegrationPool(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 		Categories:           []string{"G", "A"},
 		RosterC:              1,
 		RosterBN:             1,
+		StopAfter:            StopAfterNever.String(),
+		StartDate:            mustPgDate(startDate),
+		EndDate:              mustPgDate(endDate),
 	})
 	require.NoError(t, err)
 	poolID = row.ID
 
 	a1, err := q.InsertSimAgent(ctx, sqlcdb.InsertSimAgentParams{
-		PoolID: poolID, DraftPosition: 1,
+		PoolID:   poolID,
 		Provider: "anthropic", Model: "claude-haiku-4-5", Strategy: "balanced",
 	})
 	require.NoError(t, err)
 	a2, err := q.InsertSimAgent(ctx, sqlcdb.InsertSimAgentParams{
-		PoolID: poolID, DraftPosition: 2,
+		PoolID:   poolID,
 		Provider: "anthropic", Model: "claude-haiku-4-5", Strategy: "aggressive",
 	})
 	require.NoError(t, err)
 	return poolID, a1.ID, a2.ID
-}
-
-// ============================================================================
-// Worker setup — registers all sim activities + workflow on a real
-// Temporal worker. Returned cleanup stops the worker. The
-// activitiesFor function lets the caller customize the
-// AgentFactory per-test (single-shared client vs per-agent client).
-// ============================================================================
-
-func setupIntegrationWorker(t *testing.T, tc client.Client, pgPool *pgxpool.Pool, redisClient *redis.Client, agentFactory AgentFactory) func() {
-	t.Helper()
-	acts := &Activities{
-		Queries:      sqlcdb.New(pgPool),
-		Tx:           NewPgxTransactor(pgPool),
-		Signaler:     NewTemporalSignaler(tc),
-		AgentFactory: agentFactory,
-	}
-	progressActs := &shared.ProgressActivities{RedisClient: redisClient}
-
-	w := worker.New(tc, "puckdb-tasks", worker.Options{})
-	w.RegisterWorkflow(SimPoolWorkflow)
-	w.RegisterActivity(acts.LoadPoolState)
-	w.RegisterActivity(acts.LoadDraftCandidates)
-	w.RegisterActivity(acts.RecordDraftOrder)
-	w.RegisterActivity(acts.PickTeamName)
-	w.RegisterActivity(acts.DraftPick)
-	w.RegisterActivity(acts.ProcessWaivers)
-	w.RegisterActivity(acts.BuildFreeAgentPool)
-	w.RegisterActivity(acts.BuildManageRosterContext)
-	w.RegisterActivity(acts.ManageRoster)
-	w.RegisterActivity(acts.CollectDayStats)
-	w.RegisterActivity(acts.UpdateStandings)
-	w.RegisterActivity(acts.SetPoolStatus)
-	w.RegisterActivity(acts.RecordDayDuration)
-	w.RegisterActivity(progressActs.Save)
-	w.RegisterActivity(progressActs.Load)
-	w.RegisterActivity(progressActs.DeleteBatch)
-	require.NoError(t, w.Start())
-	return w.Stop
-}
-
-// runWorkflowToCompletion starts SimPoolWorkflow with the given
-// pool and waits up to 60 seconds for it to finish. Fails the test
-// on timeout — every integration scenario terminates within seconds
-// once activities are mocked, so 60s is a generous upper bound.
-func runWorkflowToCompletion(t *testing.T, ctx context.Context, tc client.Client, poolID int32) {
-	t.Helper()
-	wfID := simPoolWorkflowIDForPoolStr(poolID)
-	run, err := tc.ExecuteWorkflow(ctx,
-		client.StartWorkflowOptions{ID: wfID, TaskQueue: "puckdb-tasks"},
-		SimPoolWorkflow,
-		SimPoolWorkflowInput{PoolID: poolID, AutoAdvance: true},
-	)
-	require.NoError(t, err)
-	waitCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-	if err := run.Get(waitCtx, nil); err != nil {
-		t.Fatalf("workflow %s run.Get: %v", wfID, err)
-	}
 }
 
 // ============================================================================
@@ -498,31 +345,36 @@ func TestIntegrationFullDraftAnd5Day(t *testing.T) {
 	const testSeason int32 = 20242025
 
 	playerIDs := seedScenario(t, ctx, pgPool, testSeason)
-	poolID, _, _ := createIntegrationPool(t, ctx, pgPool, testSeason, 2, "integration_test_workflow")
+	// Pool window = the 5 seeded game days (inclusive) — the per-pool
+	// start_date/end_date bound the day loop.
+	poolID, agent1ID, agent2ID := createIntegrationPool(t, ctx, pgPool, testSeason, 2,
+		"integration_test_workflow", "2024-10-08", offsetDate("2024-10-08", 4))
 
-	// Build the Activities with a mocked AgentFactory so the LLM
-	// calls are deterministic. The script picks playerIDs[0] and
-	// playerIDs[1] in order.
-	mockClient := &scriptedIntegClient{draftPicks: []int64{playerIDs[0], playerIDs[1]}}
+	// Per-agent scripts: each agent drafts its own player, moves them
+	// from BN into the active C slot on day 1 (drafted players land on
+	// BN; only active slots score), then passes for the rest of the
+	// 5-day window.
+	scripts := map[int32]*perAgentScript{
+		agent1ID: {
+			teamName:   "Alpha",
+			draftPicks: []int64{playerIDs[0]},
+			daily: []*llm.Response{
+				setLineupResponse(playerIDs[0], SlotC, "Activate my pick"),
+			},
+		},
+		agent2ID: {
+			teamName:   "Bravo",
+			draftPicks: []int64{playerIDs[1]},
+			daily: []*llm.Response{
+				setLineupResponse(playerIDs[1], SlotC, "Activate my pick"),
+			},
+		},
+	}
 	stop := setupIntegrationWorker(t, tc, pgPool, redisClient,
-		func(cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
-			return &Agent{
-				Config:       cfg,
-				Client:       mockClient,
-				systemPrompt: "test system",
-				draftTools:   DraftTools(),
-				dailyTools:   DailyTools(),
-			}, nil
-		})
+		perAgentFactory(scripts))
 	defer stop()
 
-	// Limit the season range so the day loop terminates quickly:
-	// override seasons.standings_end to day 5 of the simulation.
-	endDate := offsetDate("2024-10-08", 4) // 5 days inclusive
-	_, err := pgPool.Exec(ctx, `UPDATE seasons SET standings_start='2024-10-08', standings_end=$1 WHERE id=$2`, endDate, testSeason)
-	require.NoError(t, err)
-
-	runWorkflowToCompletion(t, ctx, tc, poolID)
+	runWorkflowToCompletion(t, ctx, tc, poolID, 60*time.Second)
 
 	// Invariant assertions — read from the DB and check the
 	// fundamental sums.
@@ -550,46 +402,52 @@ func TestIntegrationDropPickupHistoricalAttribution(t *testing.T) {
 	const testSeason int32 = 20242025
 
 	playerIDs := seedScenario(t, ctx, pgPool, testSeason)
-	poolID, _, _ := createIntegrationPool(t, ctx, pgPool, testSeason, 2, "integration_test_droppickup")
+	poolID, alphaAgentID, bravoAgentID := createIntegrationPool(t, ctx, pgPool, testSeason, 2,
+		"integration_test_droppickup", "2024-10-08", offsetDate("2024-10-08", 4))
 
-	// Per-agent scripts. Agent processing order is randomized each
-	// day, but each agent's OWN counter advances in workflow order:
-	//   [0] draft pick
-	//   [1] day 1 manage_roster (Oct 8)
-	//   [2] day 2 manage_roster (Oct 9)
-	//   [3] day 3 manage_roster (Oct 10) — Alpha drops player A
-	//   [4] day 4 (Oct 11) — pass
-	//   [5] day 5 (Oct 12) — pass
-	alphaScript := []*llm.Response{
-		draftPickResponse(playerIDs[0]), // [0] draft
-		nil,                             // [1] day 1 pass
-		nil,                             // [2] day 2 pass
-		dropPlayerResponse(playerIDs[0], "Drop on day 3"), // [3] day 3 DROP
-		nil, // [4] day 4 pass
-		nil, // [5] day 5 pass
-	}
-	bravoScript := []*llm.Response{
-		draftPickResponse(playerIDs[1]), // [0] draft
-		// Days 1-5: nil entries fall through to passResponse.
+	// Per-agent scripts, keyed by sim_agents.id. Phase dispatch is by
+	// request shape (see perAgentMockClient); the daily slice indexes
+	// by sim day:
+	//   daily[0] = day 1 manage_roster (Oct 8) — activate the pick
+	//              (drafted players land on BN; only active slots score)
+	//   daily[1] = day 2 manage_roster (Oct 9) — pass
+	//   daily[2] = day 3 manage_roster (Oct 10) — Alpha drops player A
+	//   daily[3] = day 4 (Oct 11) — pass
+	//   daily[4] = day 5 (Oct 12) — pass
+	scripts := map[int32]*perAgentScript{
+		alphaAgentID: {
+			teamName:   "Alpha",
+			draftPicks: []int64{playerIDs[0]},
+			daily: []*llm.Response{
+				setLineupResponse(playerIDs[0], SlotC, "Activate my pick"), // day 1
+				nil, // day 2 pass
+				dropPlayerResponse(playerIDs[0], "Drop on day 3"), // day 3 DROP
+				nil, // day 4 pass
+				nil, // day 5 pass
+			},
+		},
+		bravoAgentID: {
+			teamName:   "Bravo",
+			draftPicks: []int64{playerIDs[1]},
+			daily: []*llm.Response{
+				setLineupResponse(playerIDs[1], SlotC, "Activate my pick"), // day 1
+				// Days 2-5: fall through to passResponse.
+			},
+		},
 	}
 
 	stop := setupIntegrationWorker(t, tc, pgPool, redisClient,
-		perAgentFactory(alphaScript, bravoScript))
+		perAgentFactory(scripts))
 	defer stop()
 
-	endDate := offsetDate("2024-10-08", 4)
-	_, err := pgPool.Exec(ctx, `UPDATE seasons SET standings_start='2024-10-08', standings_end=$1 WHERE id=$2`, endDate, testSeason)
-	require.NoError(t, err)
+	runWorkflowToCompletion(t, ctx, tc, poolID, 60*time.Second)
 
-	runWorkflowToCompletion(t, ctx, tc, poolID)
-
-	// Find Alpha's agent_id (Alpha was drafted first per
-	// createIntegrationPool's draft_position=1 ordering — but the
-	// shuffled draft order means Alpha's *pick* could land in
-	// either round-1 slot; what we know for certain is that
-	// playerIDs[0] is on SOMEONE's roster history, and Alpha is
-	// the agent whose script dropped them).
-	alphaID := lookupAgentIDByName(t, ctx, pgPool, poolID, "Alpha")
+	// Resolve Alpha's agent_id via the team name Phase 0 persisted.
+	// This doubles as an assertion that PickTeamName committed the
+	// scripted set_team_name call; it must agree with the ID we keyed
+	// the script by.
+	alphaID := lookupAgentIDByTeamName(t, ctx, pgPool, poolID, "Alpha")
+	require.Equal(t, alphaAgentID, alphaID, "team_name Alpha should belong to the agent whose script drops")
 
 	// Days 1 and 2 should have per-player attribution rows for the
 	// dropped player under Alpha. Day 3 onward must NOT (player was
@@ -608,8 +466,15 @@ func TestIntegrationDropPickupHistoricalAttribution(t *testing.T) {
 
 // ============================================================================
 // TestIntegrationWaiverClaimResolution — agent A drops on day 3,
-// agent B claims on day 4, ProcessWaivers awards to B on day 5
-// (waiver_days=1 fits the 5-day window).
+// agent B claims on day 4, ProcessWaivers awards to B on day 6.
+//
+// Waiver timing with waiver_days=2:
+//   - On-waivers window (ListSimPlayersOnWaivers): a day-3 drop is
+//     claimable while drop_date > sim_date - waiver_days, i.e. on
+//     days 3 and 4. Claiming on day 3 would race Alpha's drop (agent
+//     order is shuffled per day), so Bravo claims on day 4.
+//   - process_date = claim day + waiver_days = day 6, so the season
+//     window must span 6 days for ProcessWaivers to resolve it.
 // ============================================================================
 
 func TestIntegrationWaiverClaimResolution(t *testing.T) {
@@ -623,55 +488,63 @@ func TestIntegrationWaiverClaimResolution(t *testing.T) {
 	const testSeason int32 = 20242025
 
 	playerIDs := seedScenario(t, ctx, pgPool, testSeason)
-	// waiverDays=1 so a claim filed on day 4 processes on day 5
-	// (within the 5-day window).
-	poolID, _, _ := createIntegrationPool(t, ctx, pgPool, testSeason, 1, "integration_test_waiver")
+	// waiverDays=2: the day-3 drop stays claimable on day 4, and the
+	// day-4 claim's process_date lands on day 6 (see header comment).
+	// The pool window spans 6 days — day 6 exists solely so
+	// ProcessWaivers can resolve the claim.
+	poolID, alphaAgentID, bravoAgentID := createIntegrationPool(t, ctx, pgPool, testSeason, 2,
+		"integration_test_waiver", "2024-10-08", offsetDate("2024-10-08", 5))
 
-	// Agent A drafts player playerIDs[0], drops them on day 3.
-	// Agent B drafts player playerIDs[1], drops them on day 2,
+	// Alpha drafts playerIDs[0], drops them on day 3.
+	// Bravo drafts playerIDs[1], drops them on day 2,
 	// then claims playerIDs[0] on day 4.
 	//
-	// Why does B drop their own pick? B needs to make room before
-	// claiming — roster size is 2 (1 active + 1 BN), and a successful
-	// claim adds a player without a corresponding drop in this test
-	// (the claim_player tool's optional drop_player_id arg is NOT
-	// set). With 2 players already on the roster, the FUTURE-state
-	// "roster full + 1" check in ValidateClaimPlayer would reject
-	// the claim. Dropping first frees a slot.
+	// Why does Bravo drop their own pick? Bravo needs to make room
+	// before claiming — roster size is 2 (1 active + 1 BN), and a
+	// successful claim adds a player without a corresponding drop in
+	// this test (the claim_player tool's optional drop_player_id arg
+	// is NOT set). With 2 players already on the roster, the
+	// FUTURE-state "roster full + 1" check in ValidateClaimPlayer
+	// would reject the claim. Dropping first frees a slot.
 	//
 	// Bravo's day-2 drop sends playerIDs[1] to waivers. Alpha doesn't
 	// claim it back, so it just expires — irrelevant to the test.
-	alphaScript := []*llm.Response{
-		draftPickResponse(playerIDs[0]), // [0] draft
-		nil,                             // [1] day 1
-		nil,                             // [2] day 2
-		dropPlayerResponse(playerIDs[0], "Alpha drops X on day 3"), // [3] day 3 DROP
-		nil, // [4] day 4
-		nil, // [5] day 5
-	}
-	bravoScript := []*llm.Response{
-		draftPickResponse(playerIDs[1]), // [0] draft
-		nil,                             // [1] day 1
-		dropPlayerResponse(playerIDs[1], "Bravo drops Y on day 2"), // [2] day 2 DROP (frees roster slot)
-		nil, // [3] day 3 (Alpha drops X this turn)
-		claimPlayerResponse(playerIDs[0], "Bravo claims X on day 4"), // [4] day 4 CLAIM
-		nil, // [5] day 5
+	scripts := map[int32]*perAgentScript{
+		alphaAgentID: {
+			teamName:   "Alpha",
+			draftPicks: []int64{playerIDs[0]},
+			daily: []*llm.Response{
+				setLineupResponse(playerIDs[0], SlotC, "Activate my pick"), // day 1
+				nil, // day 2
+				dropPlayerResponse(playerIDs[0], "Alpha drops X on day 3"), // day 3 DROP
+				nil, // day 4
+				nil, // day 5
+			},
+		},
+		bravoAgentID: {
+			teamName:   "Bravo",
+			draftPicks: []int64{playerIDs[1]},
+			daily: []*llm.Response{
+				setLineupResponse(playerIDs[1], SlotC, "Activate my pick"), // day 1
+				dropPlayerResponse(playerIDs[1], "Bravo drops Y on day 2"), // day 2 DROP (frees roster slot)
+				nil, // day 3 (Alpha drops X this turn)
+				claimPlayerResponse(playerIDs[0], nil, "Bravo claims X on day 4"), // day 4 CLAIM
+				nil, // day 5
+			},
+		},
 	}
 
 	stop := setupIntegrationWorker(t, tc, pgPool, redisClient,
-		perAgentFactory(alphaScript, bravoScript))
+		perAgentFactory(scripts))
 	defer stop()
 
-	endDate := offsetDate("2024-10-08", 4)
-	_, err := pgPool.Exec(ctx, `UPDATE seasons SET standings_start='2024-10-08', standings_end=$1 WHERE id=$2`, endDate, testSeason)
-	require.NoError(t, err)
+	runWorkflowToCompletion(t, ctx, tc, poolID, 60*time.Second)
 
-	runWorkflowToCompletion(t, ctx, tc, poolID)
-
-	// Day 5: ProcessWaivers fires (start of the day loop). With
-	// waiver_days=1, Bravo's day-4 claim has process_date = day 5
-	// → resolves today. Bravo is the only claimant, wins.
-	bravoID := lookupAgentIDByName(t, ctx, pgPool, poolID, "Bravo")
+	// Day 6: ProcessWaivers fires (start of the day loop). Bravo's
+	// day-4 claim has process_date = day 6 → resolves today. Bravo is
+	// the only claimant, wins.
+	bravoID := lookupAgentIDByTeamName(t, ctx, pgPool, poolID, "Bravo")
+	require.Equal(t, bravoAgentID, bravoID, "team_name Bravo should belong to the claiming agent")
 	assertPlayerOnRoster(t, ctx, pgPool, poolID, bravoID, playerIDs[0])
 
 	// The claim row's status flipped to 'won'.
@@ -683,45 +556,45 @@ func TestIntegrationWaiverClaimResolution(t *testing.T) {
 // ============================================================================
 
 // perAgentFactory builds an AgentFactory that hands each agent its
-// own scripted LLM client based on the agent's Name.
-func perAgentFactory(alphaScript, bravoScript []*llm.Response) AgentFactory {
-	scripts := map[string][]*llm.Response{
-		"Alpha": alphaScript,
-		"Bravo": bravoScript,
-	}
-	clients := map[string]*perAgentMockClient{}
-	return func(cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
-		// One client per agent name, cached so each agent's call
-		// counter persists across NewAgent invocations (the
-		// AgentFactory may be called more than once if agentCache
-		// were ever bypassed; today it's called exactly once per
-		// (pool, agent) but defensive caching is cheap).
-		c, ok := clients[cfg.Name]
+// own scripted LLM client, keyed by sim_agents.id (AgentConfig no
+// longer carries a Name — the factory's agentID parameter is the
+// only stable identity at construction time).
+func perAgentFactory(scripts map[int32]*perAgentScript) AgentFactory {
+	clients := map[int32]*perAgentMockClient{}
+	return func(agentID int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
+		script, ok := scripts[agentID]
 		if !ok {
-			c = &perAgentMockClient{
-				agentName: cfg.Name,
-				script:    scripts[cfg.Name],
-			}
-			clients[cfg.Name] = c
+			return nil, fmt.Errorf("perAgentFactory: no script for agent %d", agentID)
+		}
+		// One client per agent id, cached so each agent's daily
+		// counter persists across factory invocations (getOrCreateAgent
+		// caches per (pool, agent) today, but defensive caching is cheap).
+		c, ok := clients[agentID]
+		if !ok {
+			c = &perAgentMockClient{script: script}
+			clients[agentID] = c
 		}
 		return &Agent{
+			ID:           agentID,
 			Config:       cfg,
 			Client:       c,
-			systemPrompt: "test system for " + cfg.Name,
+			systemPrompt: "test system for " + script.teamName,
 			draftTools:   DraftTools(),
 			dailyTools:   DailyTools(),
 		}, nil
 	}
 }
 
-// lookupAgentIDByName returns the sim_agents.id matching the given
-// (pool, name). Tests use this to convert from the human-friendly
-// agent name in the script to the int32 IDs the DB queries want.
-func lookupAgentIDByName(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, poolID int32, name string) int32 {
+// lookupAgentIDByTeamName returns the sim_agents.id matching the given
+// (pool, team_name). The scripted set_team_name responses seed distinct
+// names ("Alpha", "Bravo") during Phase 0, so tests can resolve the
+// human-friendly script identity back to the int32 IDs the DB queries
+// want. (sim_agents has no name column — team_name IS the identity.)
+func lookupAgentIDByTeamName(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, poolID int32, teamName string) int32 {
 	t.Helper()
 	var id int32
-	err := pgPool.QueryRow(ctx, `SELECT id FROM sim_agents WHERE pool_id=$1 AND name=$2`, poolID, name).Scan(&id)
-	require.NoErrorf(t, err, "lookup agent %q in pool %d", name, poolID)
+	err := pgPool.QueryRow(ctx, `SELECT id FROM sim_agents WHERE pool_id=$1 AND team_name=$2`, poolID, teamName).Scan(&id)
+	require.NoErrorf(t, err, "lookup agent team_name=%q in pool %d", teamName, poolID)
 	return id
 }
 
@@ -788,13 +661,6 @@ func assertWaiverClaimStatus(t *testing.T, ctx context.Context, pgPool *pgxpool.
 	`, poolID, agentID, playerID).Scan(&status)
 	require.NoErrorf(t, err, "lookup waiver claim agent=%d player=%d", agentID, playerID)
 	assert.Equal(t, expected, status)
-}
-
-// simPoolWorkflowIDForPoolStr returns "sim-pool-{id}" — duplicates
-// the helper in graph/simulation_helpers.go but accessible from
-// here without a package import.
-func simPoolWorkflowIDForPoolStr(poolID int32) string {
-	return "sim-pool-" + strconv.FormatInt(int64(poolID), 10)
 }
 
 // ============================================================================
@@ -894,15 +760,4 @@ func assertDraftedTwoPlayers(t *testing.T, ctx context.Context, pgPool *pgxpool.
 	}
 	require.NoError(t, rows.Err())
 	assert.ElementsMatch(t, expected, got, "drafted players")
-}
-
-// assertPoolCompleted verifies the workflow's Phase 3 wrote
-// status='complete' via SetPoolStatusActivity. Catches a class of
-// bugs where the day loop exits without going through Phase 3.
-func assertPoolCompleted(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, poolID int32) {
-	t.Helper()
-	var status string
-	err := pgPool.QueryRow(ctx, `SELECT status FROM sim_pools WHERE id = $1`, poolID).Scan(&status)
-	require.NoError(t, err)
-	assert.Equal(t, string(PoolStatusComplete), status)
 }

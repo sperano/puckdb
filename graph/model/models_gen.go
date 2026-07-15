@@ -60,6 +60,15 @@ type CreateSimPoolInput struct {
 	StopAfter *string `json:"stopAfter,omitempty"`
 	// Cap on the season day loop (0 or omitted = no cap). Useful for fast small-sample debugging (e.g. maxSeasonDays: 10).
 	MaxSeasonDays *int `json:"maxSeasonDays,omitempty"`
+	// Simulation window start, YYYY-MM-DD. Omitted = the season's
+	// standings_start. Must lie within the season's standings range and
+	// not exceed endDate. Lets a pool replay a specific stretch (e.g.
+	// "simulate March 2025") instead of always starting at day one.
+	StartDate *string `json:"startDate,omitempty"`
+	// Simulation window end, YYYY-MM-DD (inclusive). Omitted = the
+	// season's standings_end. Must lie within the season's standings
+	// range. maxSeasonDays still caps the window when both are set.
+	EndDate *string `json:"endDate,omitempty"`
 }
 
 type CurrentDraftAction struct {
@@ -528,6 +537,10 @@ type SimPool struct {
 	StopAfter string `json:"stopAfter"`
 	// Cap on the season day loop (0 = no cap).
 	MaxSeasonDays int `json:"maxSeasonDays"`
+	// Simulation window start (YYYY-MM-DD). Null = season standings start.
+	StartDate *string `json:"startDate,omitempty"`
+	// Simulation window end (YYYY-MM-DD, inclusive). Null = season standings end.
+	EndDate *string `json:"endDate,omitempty"`
 }
 
 type SimRosterEntry struct {

@@ -374,7 +374,7 @@ SELECT id, name, season, status, sim_date,
        num_teams, waiver_days, draft_rounds, max_llm_cost_usd_per_pool, categories,
        roster_c, roster_lw, roster_rw, roster_d, roster_g, roster_util, roster_bn, roster_ir,
        total_llm_cost_usd, workflow_id, created_at, updated_at, record_full_messages,
-       stop_after, max_season_days
+       stop_after, max_season_days, start_date, end_date
 FROM sim_pools
 WHERE id = $1
 `
@@ -408,6 +408,8 @@ func (q *Queries) GetSimPool(ctx context.Context, id int32) (SimPool, error) {
 		&i.RecordFullMessages,
 		&i.StopAfter,
 		&i.MaxSeasonDays,
+		&i.StartDate,
+		&i.EndDate,
 	)
 	return i, err
 }
@@ -793,14 +795,14 @@ INSERT INTO sim_pools (
     name, season, status,
     num_teams, waiver_days, draft_rounds, max_llm_cost_usd_per_pool, categories,
     roster_c, roster_lw, roster_rw, roster_d, roster_g, roster_util, roster_bn, roster_ir,
-    stop_after, max_season_days
+    stop_after, max_season_days, start_date, end_date
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 RETURNING id, name, season, status, sim_date,
           num_teams, waiver_days, draft_rounds, max_llm_cost_usd_per_pool, categories,
           roster_c, roster_lw, roster_rw, roster_d, roster_g, roster_util, roster_bn, roster_ir,
           total_llm_cost_usd, workflow_id, created_at, updated_at, record_full_messages,
-          stop_after, max_season_days
+          stop_after, max_season_days, start_date, end_date
 `
 
 type InsertSimPoolParams struct {
@@ -822,6 +824,8 @@ type InsertSimPoolParams struct {
 	RosterIR             int32          `json:"roster_ir"`
 	StopAfter            string         `json:"stop_after"`
 	MaxSeasonDays        int32          `json:"max_season_days"`
+	StartDate            pgtype.Date    `json:"start_date"`
+	EndDate              pgtype.Date    `json:"end_date"`
 }
 
 // =============================================================================
@@ -852,6 +856,8 @@ func (q *Queries) InsertSimPool(ctx context.Context, arg InsertSimPoolParams) (S
 		arg.RosterIR,
 		arg.StopAfter,
 		arg.MaxSeasonDays,
+		arg.StartDate,
+		arg.EndDate,
 	)
 	var i SimPool
 	err := row.Scan(
@@ -880,6 +886,8 @@ func (q *Queries) InsertSimPool(ctx context.Context, arg InsertSimPoolParams) (S
 		&i.RecordFullMessages,
 		&i.StopAfter,
 		&i.MaxSeasonDays,
+		&i.StartDate,
+		&i.EndDate,
 	)
 	return i, err
 }
@@ -1955,7 +1963,7 @@ SELECT id, name, season, status, sim_date,
        num_teams, waiver_days, draft_rounds, max_llm_cost_usd_per_pool, categories,
        roster_c, roster_lw, roster_rw, roster_d, roster_g, roster_util, roster_bn, roster_ir,
        total_llm_cost_usd, workflow_id, created_at, updated_at, record_full_messages,
-       stop_after, max_season_days
+       stop_after, max_season_days, start_date, end_date
 FROM sim_pools
 ORDER BY id DESC
 `
@@ -1995,6 +2003,8 @@ func (q *Queries) ListSimPools(ctx context.Context) ([]SimPool, error) {
 			&i.RecordFullMessages,
 			&i.StopAfter,
 			&i.MaxSeasonDays,
+			&i.StartDate,
+			&i.EndDate,
 		); err != nil {
 			return nil, err
 		}
@@ -2468,9 +2478,9 @@ INSERT INTO sim_agent_totals (pool_id, agent_id, category, value, goalie_ga, goa
 SELECT
     d.pool_id, d.agent_id, 'GAA',
     CASE WHEN SUM(d.goalie_toi_seconds) > 0
-         THEN (SUM(d.goalie_ga)::NUMERIC / SUM(d.goalie_toi_seconds)) * 3600
+         THEN (COALESCE(SUM(d.goalie_ga), 0)::NUMERIC / SUM(d.goalie_toi_seconds)) * 3600
          ELSE 0 END,
-    SUM(d.goalie_ga),
+    COALESCE(SUM(d.goalie_ga), 0),
     SUM(d.goalie_toi_seconds)
 FROM sim_agent_daily_stats d
 WHERE d.pool_id = $1 AND d.category = 'GAA'
@@ -2483,6 +2493,13 @@ ON CONFLICT (pool_id, agent_id, category) DO UPDATE SET
 
 // RecomputeSimAgentTotalsGAA computes GAA from raw components per PLAN.md:
 // season GAA = SUM(goalie_ga) / SUM(goalie_toi_seconds) * 3600.
+//
+// goalie_ga is COALESCEd: the daily rollup stores NULL for a zero GA
+// sum (NULLIF pattern above), so a goalie whose only appearances are
+// SHUTOUTS yields SUM(goalie_ga) = NULL with positive TOI — without
+// the COALESCE the value column computes NULL / toi = NULL and the
+// insert violates sim_agent_totals.value NOT NULL, wedging
+// CollectDayStats in terminal retries.
 func (q *Queries) RecomputeSimAgentTotalsGAA(ctx context.Context, poolID int32) error {
 	_, err := q.db.Exec(ctx, recomputeSimAgentTotalsGAA, poolID)
 	return err
