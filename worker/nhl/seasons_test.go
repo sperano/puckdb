@@ -76,6 +76,9 @@ func (f *failingStatStorage) Stat(_ context.Context, _ string) (os.FileInfo, err
 
 // --- filterSeasons tests ---
 
+// filterTestNow is a fixed reference time after every non-future test season.
+var filterTestNow = d("2025-06-01").Time
+
 func TestFilterSeasons_NoFilters(t *testing.T) {
 	t.Parallel()
 
@@ -85,7 +88,7 @@ func TestFilterSeasons_NoFilters(t *testing.T) {
 		{ID: nhlapi.NewSeason(2024), StandingsStart: d("2024-10-04"), StandingsEnd: d("2025-04-17")},
 	}
 
-	result := filterSeasons(seasons, &model.SeasonsInput{})
+	result := filterSeasons(seasons, &model.SeasonsInput{}, filterTestNow)
 
 	assert.Len(t, result, 3)
 	assert.Equal(t, 2022, result[0].ID.StartYear())
@@ -103,7 +106,7 @@ func TestFilterSeasons_StartFilter(t *testing.T) {
 		{ID: nhlapi.NewSeason(2023), StandingsStart: d("2023-10-10"), StandingsEnd: d("2024-04-18")},
 	}
 
-	result := filterSeasons(seasons, &model.SeasonsInput{StartSeason: ptr(2022)})
+	result := filterSeasons(seasons, &model.SeasonsInput{StartSeason: ptr(2022)}, filterTestNow)
 
 	assert.Len(t, result, 2)
 	assert.Equal(t, 2022, result[0].ID.StartYear())
@@ -120,7 +123,7 @@ func TestFilterSeasons_EndFilter(t *testing.T) {
 		{ID: nhlapi.NewSeason(2023), StandingsStart: d("2023-10-10"), StandingsEnd: d("2024-04-18")},
 	}
 
-	result := filterSeasons(seasons, &model.SeasonsInput{EndSeason: ptr(2021)})
+	result := filterSeasons(seasons, &model.SeasonsInput{EndSeason: ptr(2021)}, filterTestNow)
 
 	assert.Len(t, result, 2)
 	assert.Equal(t, 2020, result[0].ID.StartYear())
@@ -140,7 +143,7 @@ func TestFilterSeasons_BothFilters(t *testing.T) {
 	result := filterSeasons(seasons, &model.SeasonsInput{
 		StartSeason: ptr(2021),
 		EndSeason:   ptr(2022),
-	})
+	}, filterTestNow)
 
 	assert.Len(t, result, 2)
 	assert.Equal(t, 2021, result[0].ID.StartYear())
@@ -155,9 +158,36 @@ func TestFilterSeasons_EmptyResult(t *testing.T) {
 		{ID: nhlapi.NewSeason(2023), StandingsStart: d("2023-10-10"), StandingsEnd: d("2024-04-18")},
 	}
 
-	result := filterSeasons(seasons, &model.SeasonsInput{StartSeason: ptr(2099)})
+	result := filterSeasons(seasons, &model.SeasonsInput{StartSeason: ptr(2099)}, filterTestNow)
 
 	assert.Empty(t, result)
+}
+
+func TestFilterSeasons_SkipsUnstartedSeasons(t *testing.T) {
+	t.Parallel()
+
+	seasons := []nhlapi.SeasonInfo{
+		{ID: nhlapi.NewSeason(2024), StandingsStart: d("2024-10-04"), StandingsEnd: d("2025-04-17")},
+		{ID: nhlapi.NewSeason(2025), StandingsStart: d("2025-10-07"), StandingsEnd: d("2026-04-17")},
+		{ID: nhlapi.NewSeason(2026), StandingsStart: d("2026-09-29"), StandingsEnd: d("2027-04-10")},
+	}
+	offseason := d("2026-07-15").Time
+
+	// Nil input must still drop the not-yet-started season.
+	result := filterSeasons(seasons, nil, offseason)
+	assert.Len(t, result, 2)
+	assert.Equal(t, 2024, result[0].ID.StartYear())
+	assert.Equal(t, 2025, result[1].ID.StartYear())
+
+	// An explicit range covering the future season doesn't resurrect it.
+	result = filterSeasons(seasons, &model.SeasonsInput{StartSeason: ptr(2025), EndSeason: ptr(2026)}, offseason)
+	assert.Len(t, result, 1)
+	assert.Equal(t, 2025, result[0].ID.StartYear())
+
+	// On opening day the season is included (StandingsStart is midnight).
+	openingDay := d("2026-09-29").Time.Add(12 * time.Hour)
+	result = filterSeasons(seasons, nil, openingDay)
+	assert.Len(t, result, 3)
 }
 
 func TestSeasonInfo_Label(t *testing.T) {

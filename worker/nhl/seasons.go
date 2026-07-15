@@ -82,7 +82,7 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 		metrics.IncDownload(core.SeasonsManifest, metrics.ResultRedisHit)
 		return FetchSeasonsManifestResult{
 			Origin:  core.OriginRedis,
-			Seasons: filterSeasons(response.Seasons, input),
+			Seasons: filterSeasons(response.Seasons, input, time.Now()),
 		}, nil
 	}
 
@@ -105,7 +105,7 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 				gobCacheSeasons(ctx, a.GobCache, response)
 				return FetchSeasonsManifestResult{
 					Origin:  core.OriginFileSystem,
-					Seasons: filterSeasons(response.Seasons, input),
+					Seasons: filterSeasons(response.Seasons, input, time.Now()),
 				}, nil
 			}
 			staleData = data
@@ -128,7 +128,7 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 				gobCacheSeasons(ctx, a.GobCache, staleResponse)
 				return FetchSeasonsManifestResult{
 					Origin:  core.OriginFileSystem,
-					Seasons: filterSeasons(staleResponse.Seasons, input),
+					Seasons: filterSeasons(staleResponse.Seasons, input, time.Now()),
 				}, nil
 			}
 		}
@@ -153,23 +153,27 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 	metrics.IncDownload(core.SeasonsManifest, metrics.ResultAPIFetch)
 	return FetchSeasonsManifestResult{
 		Origin:  core.OriginRemoteNHLAPI,
-		Seasons: filterSeasons(seasons, input),
+		Seasons: filterSeasons(seasons, input, time.Now()),
 	}, nil
 }
 
-// filterSeasons filters nhlapi.SeasonInfo by input range.
-func filterSeasons(seasons []nhlapi.SeasonInfo, input *model.SeasonsInput) []nhlapi.SeasonInfo {
-	if input == nil {
-		return seasons
-	}
+// filterSeasons filters nhlapi.SeasonInfo by input range and drops seasons
+// that have not started yet (the NHL manifest publishes the upcoming season
+// months before puck drop; there is nothing to fetch or import for it).
+func filterSeasons(seasons []nhlapi.SeasonInfo, input *model.SeasonsInput, now time.Time) []nhlapi.SeasonInfo {
 	var result []nhlapi.SeasonInfo
 	for _, s := range seasons {
-		startYear := s.ID.StartYear()
-		if input.StartSeason != nil && startYear < *input.StartSeason {
+		if s.StandingsStart.Time.After(now) {
 			continue
 		}
-		if input.EndSeason != nil && startYear > *input.EndSeason {
-			continue
+		if input != nil {
+			startYear := s.ID.StartYear()
+			if input.StartSeason != nil && startYear < *input.StartSeason {
+				continue
+			}
+			if input.EndSeason != nil && startYear > *input.EndSeason {
+				continue
+			}
 		}
 		result = append(result, s)
 	}
