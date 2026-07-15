@@ -10,7 +10,7 @@ import (
 )
 
 // MaxNotesBytes mirrors the CHECK (octet_length(notes) <= 50000)
-// constraint on sim_agents from migration 000013. Validating in the
+// constraint on sim_agents in the schema. Validating in the
 // application layer too lets the activity surface a clean tool-call
 // error to the LLM ("notes too long, retry shorter") rather than
 // letting a Postgres error bubble up.

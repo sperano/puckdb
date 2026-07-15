@@ -1,1 +1,0 @@
-DELETE FROM seasons WHERE id = 20042005;

@@ -478,7 +478,7 @@ func textOrNull(s string) pgtype.Text {
 // int4OrNull turns zero into a SQL NULL. The columns this serves
 // (max_tokens, applied_transaction_id) never carry a legitimate zero
 // value — 0-token cap / tx id 0 are both out-of-band. (pick_number is
-// NOT NULL DEFAULT 0 since migration 000024 and is written directly.)
+// NOT NULL DEFAULT 0 and is written directly.)
 func int4OrNull(v int32) pgtype.Int4 {
 	if v == 0 {
 		return pgtype.Int4{}

@@ -45,7 +45,7 @@ func derefString(p *string) string {
 
 // derefStopAfterOrDefault returns *p as a validated stop_after value,
 // or "never" when *p is nil/empty/invalid. Matches the
-// sim_pools.stop_after CHECK constraint default in migration 000022.
+// sim_pools.stop_after CHECK constraint default in the schema.
 func derefStopAfterOrDefault(p *string) string {
 	if p == nil {
 		return simulation.StopAfterNever.String()

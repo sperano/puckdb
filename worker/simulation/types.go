@@ -101,12 +101,11 @@ const (
 //
 // Persistence: every field maps to a typed sim_agents column —
 // provider, model, strategy, timeout_seconds, temperature, api_base,
-// max_tokens. See sim_agents in 000013_simulation.up.sql.
+// max_tokens. See sim_agents in database/migrations/000001_init.up.sql.
 //
 // No Name field — the agent's identity is its team_name, populated
 // by PickTeamName in Phase 0 of the workflow. Displays fall back to
-// "agent #<id>" during the brief pre-PickTeamName window. See
-// migration 000021 for the rationale.
+// "agent #<id>" during the brief pre-PickTeamName window.
 //
 // Temperature is a pointer so a zero value (0.0 — valid for
 // deterministic sampling) can be distinguished from "unset" (use
@@ -152,8 +151,8 @@ type PoolConfig struct {
 
 	// StopAfter — config-time scope: the workflow exits cleanly
 	// (status=complete) when it reaches the configured phase boundary.
-	// See migration 000022 for the values and rationale. Default is
-	// StopAfterNever, meaning run to season end.
+	// The sim_pools.stop_after CHECK constraint lists the valid
+	// values. Default is StopAfterNever, meaning run to season end.
 	StopAfter StopAfter `json:"stop_after"`
 
 	// MaxSeasonDays caps the season day-loop at N days. 0 means no

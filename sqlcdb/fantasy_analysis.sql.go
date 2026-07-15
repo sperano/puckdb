@@ -446,7 +446,7 @@ type GetYahooRosterWithPlayersParams struct {
 }
 
 // =============================================================================
-// Fantasy Analysis Queries (backed by views from migration 000009)
+// Fantasy Analysis Queries (backed by views defined in the schema migration)
 // =============================================================================
 // =============================================================================
 // Roster-Player Bridge
