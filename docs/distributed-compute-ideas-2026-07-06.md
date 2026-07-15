@@ -1,7 +1,7 @@
 # Ideas: Making the Distributed Design Shine
 
 **Date:** 2026-07-06
-**Status:** Ideas / discussion
+z**Status:** Ideas / discussion
 **Scope:** `worker/`, `worker/simulation/`, hollingsworth helm values, Grafana
 
 ## The headroom, in numbers

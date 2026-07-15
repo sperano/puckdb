@@ -158,7 +158,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req *Request) (*Response
 
 	var wireResp anthropicResponse
 	if err := json.Unmarshal(respBody, &wireResp); err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w", err)
+		return nil, fmt.Errorf("unmarshal response: %w\nresponse: %s", err, truncate(respBody, 500))
 	}
 
 	return wireResp.toResponse(), nil

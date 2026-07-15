@@ -147,7 +147,11 @@ func (c *GraphQLClient) execute(ctx context.Context, query string, variables map
 
 	var gqlResp graphQLResponse
 	if err := json.Unmarshal(body, &gqlResp); err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w", err)
+		bodyPreview := string(body)
+		if len(bodyPreview) > 500 {
+			bodyPreview = bodyPreview[:500] + "..."
+		}
+		return nil, fmt.Errorf("unmarshal response: %w\nresponse: %s", err, bodyPreview)
 	}
 
 	if len(gqlResp.Errors) > 0 {
