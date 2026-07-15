@@ -14,7 +14,7 @@ import (
 // syntax to verify it matches.
 //
 // No {name} placeholder: the agent's identity is its strategy, not a
-// self-referential label. (Pre-migration 000021 this prompt opened
+// self-referential label. (An earlier version of this prompt opened
 // with "You are <name>, an AI fantasy hockey manager…" — the agent's
 // team_name only exists after Phase 0 PickTeamName completes, and
 // referencing it here would invalidate Anthropic's prompt cache once
