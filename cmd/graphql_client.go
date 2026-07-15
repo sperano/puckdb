@@ -16,6 +16,24 @@ import (
 	"github.com/spf13/viper"
 )
 
+// handleHTTPError returns a descriptive error for non-2xx responses, with
+// special handling for authentication redirects.
+func handleHTTPError(statusCode int, location string, body []byte) error {
+	msg := string(body)
+	if len(msg) > 200 {
+		msg = msg[:200] + "..."
+	}
+	switch statusCode {
+	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect:
+		if location != "" {
+			return fmt.Errorf("authentication required (status %d redirect to %s): provide --admin-token or --api-user/--api-password", statusCode, location)
+		}
+		return fmt.Errorf("unexpected redirect (status %d): %s", statusCode, msg)
+	default:
+		return fmt.Errorf("unexpected status code %d: %s", statusCode, msg)
+	}
+}
+
 // GraphQL request/response types
 type graphQLRequest struct {
 	Query     string         `json:"query"`
@@ -52,7 +70,12 @@ func NewGraphQLClient(endpoint string) *GraphQLClient {
 		adminToken:  viper.GetString(config.FlagAdminToken),
 		apiUser:     viper.GetString(config.FlagAPIUser),
 		apiPassword: viper.GetString(config.FlagAPIPassword),
-		httpClient:  &http.Client{Timeout: config.DefaultHTTPClientTimeout},
+		httpClient: &http.Client{
+			Timeout: config.DefaultHTTPClientTimeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 	}
 }
 
@@ -142,7 +165,7 @@ func (c *GraphQLClient) execute(ctx context.Context, query string, variables map
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+		return nil, handleHTTPError(resp.StatusCode, resp.Header.Get("Location"), body)
 	}
 
 	var gqlResp graphQLResponse
