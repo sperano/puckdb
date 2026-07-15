@@ -26,7 +26,7 @@ func handleHTTPError(statusCode int, location string, body []byte) error {
 	switch statusCode {
 	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect:
 		if location != "" {
-			return fmt.Errorf("authentication required (status %d redirect to %s): provide --admin-token or --api-user/--api-password", statusCode, location)
+			return fmt.Errorf("authentication required by the forward-auth gateway (status %d redirect to %s): provide --api-user/--api-password (authentik app password); admin mutations also need --admin-token", statusCode, location)
 		}
 		return fmt.Errorf("unexpected redirect (status %d): %s", statusCode, msg)
 	default:
