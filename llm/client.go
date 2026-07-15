@@ -29,11 +29,15 @@ type openaiClient struct {
 // baseURL should include the scheme and host (e.g. "http://localhost:11434/v1").
 // apiKey may be empty for local providers like Ollama.
 func NewOpenAIClient(baseURL, apiKey, model string, opts ...Option) Client {
+	httpClient := applyOptions(opts)
+	httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	return &openaiClient{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		model:      model,
-		httpClient: applyOptions(opts),
+		httpClient: httpClient,
 	}
 }
 

@@ -28,11 +28,15 @@ type anthropicClient struct {
 // NewAnthropicClient creates an LLM client targeting the Anthropic Messages API.
 // baseURL should be "https://api.anthropic.com" (no trailing /v1).
 func NewAnthropicClient(baseURL, apiKey, model string, opts ...Option) Client {
+	httpClient := applyOptions(opts)
+	httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	return &anthropicClient{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		model:      model,
-		httpClient: applyOptions(opts),
+		httpClient: httpClient,
 	}
 }
 
