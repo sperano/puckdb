@@ -3,12 +3,14 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
 	"github.com/rs/zerolog/log"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
 )
 
 // FlagDef defines a single CLI flag.
@@ -614,18 +616,55 @@ func GetSeasonRange() (start, end int) {
 	return viper.GetInt(FlagFromSeasonYear), viper.GetInt(FlagToSeasonYear)
 }
 
-// SetupViper configures viper for environment variable and config file support.
+// EnvFileName is the dotenv file loaded from the current directory.
+const EnvFileName = ".env"
+
+// EnvVarPrefix is the prefix viper expects on real environment variables,
+// matching SetEnvPrefix below.
+const EnvVarPrefix = "PUCKDB_"
+
+// SetupViper configures viper for environment variable and .env file support.
+//
+// The .env file must be loaded into the process environment rather than as a
+// viper config file: viper applies the env prefix and the -/_ key replacer
+// only to real environment variables, so a config-file key like ADMIN_TOKEN
+// can never satisfy a lookup of the admin-token flag.
 func SetupViper() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.SetEnvPrefix("puckdb")
 	viper.AutomaticEnv()
-	viper.AddConfigPath(".")
-	viper.SetConfigName(".env")
-	viper.SetConfigType("env")
-	if err := viper.ReadInConfig(); err != nil {
-		var configFileNotFoundError viper.ConfigFileNotFoundError
-		if !errors.As(err, &configFileNotFoundError) {
+	loadEnvFile()
+}
+
+// loadEnvFile loads EnvFileName into the process environment. Keys are
+// upper-cased and prefixed with EnvVarPrefix unless already prefixed.
+// Variables already present in the environment are not overwritten, so real
+// environment variables take precedence over .env values (and CLI flags
+// override both via viper).
+func loadEnvFile() {
+	f, err := os.Open(EnvFileName)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
 			log.Warn().Msgf("error reading env file: %s", err.Error())
+		}
+		return
+	}
+	defer f.Close()
+	env, err := gotenv.StrictParse(f)
+	if err != nil {
+		log.Warn().Msgf("error parsing env file: %s", err.Error())
+		return
+	}
+	for key, value := range env {
+		name := strings.ToUpper(key)
+		if !strings.HasPrefix(name, EnvVarPrefix) {
+			name = EnvVarPrefix + name
+		}
+		if _, exists := os.LookupEnv(name); exists {
+			continue
+		}
+		if err := os.Setenv(name, value); err != nil {
+			log.Warn().Msgf("error setting %s from env file: %s", name, err.Error())
 		}
 	}
 }
