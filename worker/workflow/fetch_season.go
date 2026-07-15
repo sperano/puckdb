@@ -20,14 +20,15 @@ const (
 )
 
 // NewFetchSeasonProgressReport creates the progress structure for a single season.
+// The playoff bar starts with Total 0; it is sized to the season's team count
+// (one unit per club-schedule fetch) once ListSeasonTeams has run.
 func NewFetchSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) *shared.ProgressReport {
 	days, _ := shared.CountDaysInSeason(ctx, season)
-	total := days + shared.PlayoffProgressSteps
 	return &shared.ProgressReport{
-		Total: total,
+		Total: days,
 		Groups: []shared.ProgressGroup{
 			{Header: fmt.Sprintf("Fetching %s...", season.Label()), Bars: []shared.ProgressBar{{Total: days}}},
-			{Header: "Fetching playoff games...", Bars: []shared.ProgressBar{{Total: shared.PlayoffProgressSteps}}},
+			{Header: "Fetching playoff games...", Bars: []shared.ProgressBar{{Total: 0}}},
 		},
 	}
 }
@@ -138,22 +139,43 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 	tracker.CompleteGroup(ctx, GroupFetchSeasonData,
 		fmt.Sprintf("Fetched %d days for %s in %s.", numDays, season.Label(), tracker.GetElapsed(ctx, GroupFetchSeasonData)))
 
-	// Fetch playoff games after regular-season day loop
+	// Fetch playoff games after regular-season day loop: one activity per team,
+	// each covering the team's home playoff games, so the bar ticks per team.
 	tracker.StartGroup(ctx, GroupFetchSeasonPlayoff)
 
 	var pa *worknhl.PlayoffActivities
-	playoffInput := worknhl.FetchPlayoffGamesInput{Season: season.ID.StartYear()}
-	var playoffResult worknhl.FetchPlayoffGamesResult
-	if err := workflow.ExecuteActivity(ctx, pa.FetchPlayoffGames, playoffInput).Get(ctx, &playoffResult); err != nil {
-		return nil, fmt.Errorf("fetch playoff games: %w", err)
+	var teams []string
+	if err := workflow.ExecuteActivity(ctx, pa.ListSeasonTeams, startSeason).Get(ctx, &teams); err != nil {
+		return nil, fmt.Errorf("list season teams: %w", err)
+	}
+	tracker.SetBarTotal(GroupFetchSeasonPlayoff, 0, len(teams))
+	tracker.RecalcTotal()
+	tracker.Save(ctx)
+
+	playoffGames := 0
+	err = tracker.RunWorkerPool(ctx, GroupFetchSeasonPlayoff, 0, len(teams), concurrency,
+		func(_ workflow.Context, i int) workflow.Future {
+			input := worknhl.FetchTeamPlayoffGamesInput{Season: startSeason, TeamAbbrev: teams[i]}
+			return workflow.ExecuteActivity(ctx, pa.FetchTeamPlayoffGames, input)
+		},
+		func(ctx workflow.Context, i int, f workflow.Future) error {
+			var res worknhl.FetchTeamPlayoffGamesResult
+			if err := f.Get(ctx, &res); err != nil {
+				return fmt.Errorf("fetch playoff games for %s: %w", teams[i], err)
+			}
+			playoffGames += res.GamesFetched
+			return nil
+		})
+	if err != nil {
+		return nil, err
 	}
 
 	tracker.CompleteGroup(ctx, GroupFetchSeasonPlayoff,
-		fmt.Sprintf("Fetched %d playoff games for %s in %s.", playoffResult.GamesFound, season.Label(), tracker.GetElapsed(ctx, GroupFetchSeasonPlayoff)))
+		fmt.Sprintf("Fetched %d playoff games for %s in %s.", playoffGames, season.Label(), tracker.GetElapsed(ctx, GroupFetchSeasonPlayoff)))
 
 	logger.Info("FetchSeasonWorkflow completed",
 		"startYear", season.ID.StartYear(),
-		"playoffGames", playoffResult.GamesFound)
+		"playoffGames", playoffGames)
 	return counts, nil
 }
 

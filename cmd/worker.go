@@ -411,8 +411,9 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 		Teams:     d.queries,
 		Queries:   d.queries,
 	}
-	w.RegisterActivity(playoffActivities.FetchPlayoffGames)
-	w.RegisterActivity(playoffActivities.ImportPlayoffGames)
+	w.RegisterActivity(playoffActivities.ListSeasonTeams)
+	w.RegisterActivity(playoffActivities.FetchTeamPlayoffGames)
+	w.RegisterActivity(playoffActivities.ImportTeamPlayoffGames)
 
 	boxscoreActivities := &worknhl.BoxscoreActivities{
 		Storage:     d.storage,

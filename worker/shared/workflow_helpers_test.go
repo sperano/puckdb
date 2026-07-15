@@ -286,58 +286,6 @@ func TestFetchDayActivityOptions_ViperOverride(t *testing.T) {
 	assert.Equal(t, 45*time.Minute, opts.StartToCloseTimeout)
 }
 
-// --- CountDaysWithPlayoffs (workflow-context dependent) ---
-
-// CountDaysWithPlayoffsSuite mirrors the existing CountDaysInSeasonSuite
-// pattern. CountDaysWithPlayoffs is just CountDaysInSeason + 1 — pin
-// the +1 so a refactor can't silently drop the playoff progress step.
-type CountDaysWithPlayoffsSuite struct {
-	suite.Suite
-	testsuite.WorkflowTestSuite
-	env *testsuite.TestWorkflowEnvironment
-}
-
-func (s *CountDaysWithPlayoffsSuite) SetupTest() {
-	s.env = s.NewTestWorkflowEnvironment()
-}
-
-func (s *CountDaysWithPlayoffsSuite) AfterTest(suiteName, testName string) {
-	s.env.AssertExpectations(s.T())
-}
-
-func TestCountDaysWithPlayoffsSuite(t *testing.T) {
-	suite.Run(t, new(CountDaysWithPlayoffsSuite))
-}
-
-func (s *CountDaysWithPlayoffsSuite) TestExceedsRegularSeasonByPlayoffSteps() {
-	// Build a season with explicit start and end dates close to the
-	// workflow.Now() so the result is fully deterministic.
-	s.env.ExecuteWorkflow(func(ctx workflow.Context) error {
-		now := workflow.Now(ctx)
-		// 10-day "regular season" ending well before "today" so the
-		// effective end date is the literal end (not yesterday).
-		startDate := now.AddDate(0, 0, -30)
-		endDate := startDate.AddDate(0, 0, 10)
-
-		season := nhl.SeasonInfo{
-			StandingsStart: nhl.DateFromTime(startDate),
-			StandingsEnd:   nhl.DateFromTime(endDate),
-		}
-
-		regular, err := CountDaysInSeason(ctx, season)
-		s.Require().NoError(err)
-
-		withPlayoffs, err := CountDaysWithPlayoffs(ctx, season)
-		s.Require().NoError(err)
-
-		// The +1 (PlayoffProgressSteps) is the entire content of this
-		// function, so the assertion is small but load-bearing.
-		s.Equal(regular+PlayoffProgressSteps, withPlayoffs)
-		return nil
-	})
-	s.NoError(s.env.GetWorkflowError())
-}
-
 // --- WithChildOptions (workflow-context dependent) ---
 
 type WithChildOptionsSuite struct {

@@ -20,14 +20,15 @@ const (
 )
 
 // NewImportSeasonProgressReport creates the progress structure for a single season import.
+// The playoff bar starts with Total 0; it is sized to the season's team count
+// (one unit per club-schedule import) once ListSeasonTeams has run.
 func NewImportSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) *shared.ProgressReport {
 	days, _ := shared.CountDaysInSeason(ctx, season)
-	total := days + shared.PlayoffProgressSteps
 	return &shared.ProgressReport{
-		Total: total,
+		Total: days,
 		Groups: []shared.ProgressGroup{
 			{Header: fmt.Sprintf("Importing games for %s...", season.Label()), Bars: []shared.ProgressBar{{Total: days}}},
-			{Header: "Importing playoff games...", Bars: []shared.ProgressBar{{Total: shared.PlayoffProgressSteps}}},
+			{Header: "Importing playoff games...", Bars: []shared.ProgressBar{{Total: 0}}},
 		},
 	}
 }
@@ -116,25 +117,49 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	tracker.CompleteGroup(ctx, GroupImportDays,
 		fmt.Sprintf("Imported %d days for %s in %s.", numDays, season.Label(), tracker.GetElapsed(ctx, GroupImportDays)))
 
-	// Import playoff games after regular-season day loop
+	// Import playoff games after regular-season day loop: one activity per team,
+	// each covering the team's home playoff games, so the bar ticks per team.
 	tracker.StartGroup(ctx, GroupImportPlayoff)
 
 	var pa *worknhl.PlayoffActivities
-	playoffInput := worknhl.ImportPlayoffGamesInput{Season: season.ID.StartYear()}
-	var playoffResult worknhl.ImportPlayoffGamesResult
-	if err := workflow.ExecuteActivity(ctx, pa.ImportPlayoffGames, playoffInput).Get(ctx, &playoffResult); err != nil {
-		return nil, fmt.Errorf("import playoff games: %w", err)
+	var teams []string
+	if err := workflow.ExecuteActivity(ctx, pa.ListSeasonTeams, startYear).Get(ctx, &teams); err != nil {
+		return nil, fmt.Errorf("list season teams: %w", err)
 	}
-	counts.Add(playoffResult.Origins)
+	tracker.SetBarTotal(GroupImportPlayoff, 0, len(teams))
+	tracker.RecalcTotal()
+	tracker.Save(ctx)
+
+	playoffTotals := worknhl.ImportTeamPlayoffGamesResult{Origins: core.OriginCounts{}}
+	err = tracker.RunWorkerPool(ctx, GroupImportPlayoff, 0, len(teams), dayConcurrency,
+		func(_ workflow.Context, i int) workflow.Future {
+			input := worknhl.ImportTeamPlayoffGamesInput{Season: startYear, TeamAbbrev: teams[i]}
+			return workflow.ExecuteActivity(ctx, pa.ImportTeamPlayoffGames, input)
+		},
+		func(ctx workflow.Context, i int, f workflow.Future) error {
+			var res worknhl.ImportTeamPlayoffGamesResult
+			if err := f.Get(ctx, &res); err != nil {
+				return fmt.Errorf("import playoff games for %s: %w", teams[i], err)
+			}
+			playoffTotals.Origins.Add(res.Origins)
+			playoffTotals.GamesImported += res.GamesImported
+			playoffTotals.SkatersImported += res.SkatersImported
+			playoffTotals.GoaliesImported += res.GoaliesImported
+			return nil
+		})
+	if err != nil {
+		return nil, err
+	}
+	counts.Add(playoffTotals.Origins)
 
 	tracker.CompleteGroup(ctx, GroupImportPlayoff,
 		fmt.Sprintf("Imported %d playoff games (%d skaters, %d goalies) for %s in %s.",
-			playoffResult.GamesImported, playoffResult.SkatersImported, playoffResult.GoaliesImported,
+			playoffTotals.GamesImported, playoffTotals.SkatersImported, playoffTotals.GoaliesImported,
 			season.Label(), tracker.GetElapsed(ctx, GroupImportPlayoff)))
 
 	logger.Info("ImportSeasonWorkflow completed",
 		"startYear", season.ID.StartYear(),
-		"playoffGames", playoffResult.GamesImported)
+		"playoffGames", playoffTotals.GamesImported)
 
 	return counts, nil
 }

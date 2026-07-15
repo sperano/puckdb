@@ -17,7 +17,6 @@ import (
 	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/worker/shared"
 	"go.temporal.io/sdk/activity"
-	"golang.org/x/sync/errgroup"
 )
 
 // PlayoffTeamQuerier provides access to season team abbreviations for playoff fetching.
@@ -34,110 +33,88 @@ type PlayoffActivities struct {
 	Queries   BoxscoreUpserter
 }
 
-// --- Fetch ---
+// --- Season teams ---
 
-// FetchPlayoffGamesInput contains the parameters for fetching playoff game data.
-type FetchPlayoffGamesInput struct {
-	Season int // start year (e.g., 2024 for the 2024-2025 season)
+// ListSeasonTeams returns the team abbreviations for a season. Parent workflows
+// use it to size per-team playoff progress bars; season child workflows use it
+// to drive one fetch/import activity per team.
+func (a *PlayoffActivities) ListSeasonTeams(ctx context.Context, startYear int) ([]string, error) {
+	season := nhlapi.NewSeason(startYear)
+	teams, err := a.Teams.GetSeasonTeamAbbrevs(ctx, int32(season.ID()))
+	if err != nil {
+		return nil, fmt.Errorf("get season teams: %w", err)
+	}
+	abbrevs := make([]string, len(teams))
+	for i, t := range teams {
+		abbrevs[i] = t.Abbrev
+	}
+	return abbrevs, nil
 }
 
-// FetchPlayoffGamesResult contains the results of fetching playoff game data.
-type FetchPlayoffGamesResult struct {
-	TeamsChecked int `json:"teamsChecked"`
+// --- Fetch ---
+
+// FetchTeamPlayoffGamesInput contains the parameters for fetching one team's playoff games.
+type FetchTeamPlayoffGamesInput struct {
+	Season     int    // start year (e.g., 2024 for the 2024-2025 season)
+	TeamAbbrev string // team whose club schedule (and home playoff games) to fetch
+}
+
+// FetchTeamPlayoffGamesResult contains the results of fetching one team's playoff games.
+type FetchTeamPlayoffGamesResult struct {
 	GamesFound   int `json:"gamesFound"`
 	GamesFetched int `json:"gamesFetched"`
 }
 
-// playoffGame holds a deduplicated playoff game ID with its date for cache paths.
+// playoffGame holds a playoff game ID with its date for cache paths.
 type playoffGame struct {
 	ID   nhlapi.GameID
 	Date time.Time
 }
 
-// FetchPlayoffGames fetches club-schedule-season for all teams in a season,
-// extracts playoff game IDs, and downloads boxscore/pbp/shifts for each.
-func (a *PlayoffActivities) FetchPlayoffGames(ctx context.Context, input FetchPlayoffGamesInput) (FetchPlayoffGamesResult, error) {
+// FetchTeamPlayoffGames fetches one team's club-schedule-season, extracts the
+// team's final HOME playoff games, and downloads boxscore/pbp/shifts for each.
+// Home games only: every playoff game has exactly one home team among the
+// season's teams, so running this activity once per team covers each playoff
+// game exactly once with no cross-activity dedup.
+func (a *PlayoffActivities) FetchTeamPlayoffGames(ctx context.Context, input FetchTeamPlayoffGamesInput) (FetchTeamPlayoffGamesResult, error) {
 	logger := activity.GetLogger(ctx)
-	result := FetchPlayoffGamesResult{}
+	result := FetchTeamPlayoffGamesResult{}
 
 	season := nhlapi.NewSeason(input.Season)
-	teams, err := a.Teams.GetSeasonTeamAbbrevs(ctx, int32(season.ID()))
-	if err != nil {
-		return result, fmt.Errorf("get season teams: %w", err)
-	}
-	result.TeamsChecked = len(teams)
+	res := resource.ClubScheduleSeason{Season: input.Season, TeamAbbrev: input.TeamAbbrev}
 
-	// For the current season, invalidate cached club schedules so we pick up
+	// For the current season, invalidate the cached club schedule so we pick up
 	// newly finalized playoff games. Historical seasons keep their cache hits.
-	invalidateSchedules := shared.IsCurrentSeason(input.Season)
-
-	// Fetch club-schedule-season for each team and collect playoff game IDs
-	seen := make(map[nhlapi.GameID]bool)
-	var playoffGames []playoffGame
-
-	for _, team := range teams {
-		activity.RecordHeartbeat(ctx, fmt.Sprintf("schedule:%s", team.Abbrev))
-
-		res := resource.ClubScheduleSeason{Season: input.Season, TeamAbbrev: team.Abbrev}
-		if invalidateSchedules {
-			_ = a.Storage.Delete(ctx, res.Path())
-			_ = a.GobCache.Delete(ctx, core.RedisKey(res))
-		}
-		schedule, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, res,
-			func(ctx context.Context) (*nhlapi.TeamScheduleResponse, error) {
-				return a.NHLClient.ClubScheduleSeason(ctx, team.Abbrev, season)
-			})
-		if errors.Is(err, nhlapi.ErrNotFound) {
-			log.Debug().Str("team", team.Abbrev).Int("season", input.Season).Msg("Club schedule not found, skipping")
-			continue
-		}
-		if err != nil {
-			return result, fmt.Errorf("fetch club schedule for %s: %w", team.Abbrev, err)
-		}
-
-		for _, game := range schedule.Games {
-			if game.GameType != nhlapi.GameTypePlayoffs {
-				continue
-			}
-			if !game.GameState.IsFinal() {
-				continue
-			}
-			if seen[game.ID] {
-				continue
-			}
-			seen[game.ID] = true
-
-			gameDate, err := parseGameDate(game)
-			if err != nil {
-				log.Warn().Str("gameID", game.ID.String()).Err(err).Msg("Skipping playoff game with unparseable date")
-				continue
-			}
-			playoffGames = append(playoffGames, playoffGame{ID: game.ID, Date: gameDate})
-		}
+	if shared.IsCurrentSeason(input.Season) {
+		_ = a.Storage.Delete(ctx, res.Path())
+		_ = a.GobCache.Delete(ctx, core.RedisKey(res))
 	}
 
-	result.GamesFound = len(playoffGames)
-	if len(playoffGames) == 0 {
-		logger.Info("No playoff games found", "season", input.Season)
+	activity.RecordHeartbeat(ctx, fmt.Sprintf("schedule:%s", input.TeamAbbrev))
+	schedule, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, res,
+		func(ctx context.Context) (*nhlapi.TeamScheduleResponse, error) {
+			return a.NHLClient.ClubScheduleSeason(ctx, input.TeamAbbrev, season)
+		})
+	if errors.Is(err, nhlapi.ErrNotFound) {
+		log.Debug().Str("team", input.TeamAbbrev).Int("season", input.Season).Msg("Club schedule not found, skipping")
 		return result, nil
 	}
-
-	// Download game data for each playoff game
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(getGameDownloadConcurrency())
-
-	for _, pg := range playoffGames {
-		g.Go(func() error {
-			activity.RecordHeartbeat(gctx, fmt.Sprintf("playoff:%s", pg.ID.String()))
-			return fetchGameData(gctx, a.Storage, a.GobCache, a.NHLClient, pg.ID, pg.Date)
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return result, err
+	if err != nil {
+		return result, fmt.Errorf("fetch club schedule for %s: %w", input.TeamAbbrev, err)
 	}
 
-	result.GamesFetched = len(playoffGames)
-	logger.Info("Fetched playoff games", "season", input.Season, "teams", len(teams), "games", len(playoffGames))
+	games := homePlayoffGames(schedule, input.TeamAbbrev)
+	result.GamesFound = len(games)
+
+	for _, pg := range games {
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("playoff:%s", pg.ID.String()))
+		if err := fetchGameData(ctx, a.Storage, a.GobCache, a.NHLClient, pg.ID, pg.Date); err != nil {
+			return result, err
+		}
+		result.GamesFetched++
+	}
+
+	logger.Debug("Fetched team playoff games", "season", input.Season, "team", input.TeamAbbrev, "games", len(games))
 	return result, nil
 }
 
@@ -189,36 +166,42 @@ func fetchGameData(ctx context.Context, storage store.Storage, gobCache *cache.G
 
 // --- Import ---
 
-// ImportPlayoffGamesInput contains the parameters for importing playoff games.
-type ImportPlayoffGamesInput struct {
-	Season int // start year (e.g., 2024 for the 2024-2025 season)
+// ImportTeamPlayoffGamesInput contains the parameters for importing one team's playoff games.
+type ImportTeamPlayoffGamesInput struct {
+	Season     int    // start year (e.g., 2024 for the 2024-2025 season)
+	TeamAbbrev string // team whose home playoff games to import
 }
 
-// ImportPlayoffGamesResult contains the results of importing playoff games.
-type ImportPlayoffGamesResult struct {
+// ImportTeamPlayoffGamesResult contains the results of importing one team's playoff games.
+type ImportTeamPlayoffGamesResult struct {
 	GamesImported   int               `json:"gamesImported"`
 	SkatersImported int               `json:"skatersImported"`
 	GoaliesImported int               `json:"goaliesImported"`
 	Origins         core.OriginCounts `json:"origins"`
 }
 
-// ImportPlayoffGames reads cached club-schedule-season files, extracts playoff game IDs,
-// and imports each game's boxscore data to the database.
-func (a *PlayoffActivities) ImportPlayoffGames(ctx context.Context, input ImportPlayoffGamesInput) (ImportPlayoffGamesResult, error) {
+// ImportTeamPlayoffGames reads one team's cached club-schedule-season file,
+// extracts the team's final HOME playoff games (same partition as
+// FetchTeamPlayoffGames), and imports each game's boxscore data to the database.
+// A missing schedule file mirrors the fetch-side ErrNotFound skip: the fetch
+// activity writes no file when the NHL API has no schedule for that team.
+func (a *PlayoffActivities) ImportTeamPlayoffGames(ctx context.Context, input ImportTeamPlayoffGamesInput) (ImportTeamPlayoffGamesResult, error) {
 	logger := activity.GetLogger(ctx)
-	result := ImportPlayoffGamesResult{Origins: core.OriginCounts{}}
+	result := ImportTeamPlayoffGamesResult{Origins: core.OriginCounts{}}
 
-	playoffGames, err := collectPlayoffGames(ctx, a.Storage, a.GobCache, input.Season)
-	if err != nil {
-		return result, err
-	}
-
-	if len(playoffGames) == 0 {
-		logger.Info("No playoff games to import", "season", input.Season)
+	res := resource.ClubScheduleSeason{Season: input.Season, TeamAbbrev: input.TeamAbbrev}
+	if !a.Storage.Exists(ctx, res.Path()) {
+		log.Warn().Str("team", input.TeamAbbrev).Int("season", input.Season).
+			Msg("Club schedule not cached, skipping playoff import for team")
 		return result, nil
 	}
 
-	for _, pg := range playoffGames {
+	schedule, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
+	if err != nil {
+		return result, fmt.Errorf("read club schedule for %s: %w", input.TeamAbbrev, err)
+	}
+
+	for _, pg := range homePlayoffGames(schedule, input.TeamAbbrev) {
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("import-playoff:%s", pg.ID.String()))
 
 		gameResult, err := importSingleGame(ctx, a.Storage, a.GobCache, a.Queries, pg.ID, pg.Date, input.Season)
@@ -231,11 +214,10 @@ func (a *PlayoffActivities) ImportPlayoffGames(ctx context.Context, input Import
 		result.GoaliesImported += gameResult.GoaliesImported
 	}
 
-	logger.Info("Imported playoff games",
+	logger.Debug("Imported team playoff games",
 		"season", input.Season,
-		"games", result.GamesImported,
-		"skaters", result.SkatersImported,
-		"goalies", result.GoaliesImported)
+		"team", input.TeamAbbrev,
+		"games", result.GamesImported)
 
 	return result, nil
 }
@@ -243,7 +225,8 @@ func (a *PlayoffActivities) ImportPlayoffGames(ctx context.Context, input Import
 // --- Helpers ---
 
 // collectPlayoffGames reads cached club-schedule-season files for all teams
-// and returns a deduplicated list of final playoff games.
+// and returns a deduplicated list of final playoff games. Used by
+// extractPlayoffPlayers, which needs the season-wide game list in one pass.
 func collectPlayoffGames(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season int) ([]playoffGame, error) {
 	seen := make(map[nhlapi.GameID]bool)
 	var games []playoffGame
@@ -251,9 +234,9 @@ func collectPlayoffGames(ctx context.Context, storage store.Storage, gobCache *c
 	scheduleDir := fmt.Sprintf("seasons/%d/club-schedule", season)
 	files, err := storage.List(ctx, scheduleDir, "json")
 	if err != nil {
-		// FetchPlayoffGames is expected to have populated this directory before
-		// import runs. A missing directory means the fetch step never ran for
-		// this season or wrote to a different mount — both pathologies the
+		// FetchTeamPlayoffGames is expected to have populated this directory
+		// before import runs. A missing directory means the fetch step never ran
+		// for this season or wrote to a different mount — both pathologies the
 		// operator should see, not silent zero-game imports.
 		return nil, fmt.Errorf("list club schedules for season %d: %w", season, err)
 	}
@@ -301,6 +284,31 @@ func extractTeamAbbrev(filename string) string {
 		return ""
 	}
 	return abbrev
+}
+
+// homePlayoffGames extracts a team's final playoff HOME games from its schedule.
+// Restricting to home games partitions the season's playoff games across teams:
+// each game is returned by exactly one team's schedule.
+func homePlayoffGames(schedule *nhlapi.TeamScheduleResponse, teamAbbrev string) []playoffGame {
+	var games []playoffGame
+	for _, game := range schedule.Games {
+		if game.GameType != nhlapi.GameTypePlayoffs {
+			continue
+		}
+		if !game.GameState.IsFinal() {
+			continue
+		}
+		if game.HomeTeam.Abbrev != teamAbbrev {
+			continue
+		}
+		gameDate, err := parseGameDate(game)
+		if err != nil {
+			log.Warn().Str("gameID", game.ID.String()).Err(err).Msg("Skipping playoff game with unparseable date")
+			continue
+		}
+		games = append(games, playoffGame{ID: game.ID, Date: gameDate})
+	}
+	return games
 }
 
 // parseGameDate extracts a time.Time from a ScheduleGame's GameDate or StartTimeUTC.

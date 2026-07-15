@@ -26,11 +26,30 @@ func NewFetchSeasonsProgressReport() *shared.ProgressReport {
 	}
 }
 
+// daysWithPlayoffTeamsCounter returns a SeasonCounterFunc that sizes a season's
+// bar as regular-season days plus one unit per team for the per-team playoff
+// phase. The team count comes from the ListSeasonTeams activity so the parent
+// bar total matches the child workflow's playoff bar (both read season_teams).
+func daysWithPlayoffTeamsCounter() shared.SeasonCounterFunc {
+	var pa *worknhl.PlayoffActivities
+	return func(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
+		days, err := shared.CountDaysInSeason(ctx, season)
+		if err != nil {
+			return 0, err
+		}
+		var teams []string
+		if err := workflow.ExecuteActivity(ctx, pa.ListSeasonTeams, season.ID.StartYear()).Get(ctx, &teams); err != nil {
+			return 0, fmt.Errorf("list season teams for %d: %w", season.ID.StartYear(), err)
+		}
+		return days + len(teams), nil
+	}
+}
+
 // FetchSeasonsWorkflow downloads all data for the requested seasons by
 // spawning a FetchSeasonWorkflow child for each one.
 func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	return iterateSeasons(ctx, input, NewFetchSeasonsProgressReport(), GroupFetchSeasonsData,
-		shared.CountDaysWithPlayoffs, WorkflowIDFetchSeason,
+		daysWithPlayoffTeamsCounter(), WorkflowIDFetchSeason,
 		func(n int, elapsed string, counts core.OriginCounts) string {
 			return counts.AppendSummary(fmt.Sprintf("Fetched %d seasons in %s.", n, elapsed), "schedules")
 		},

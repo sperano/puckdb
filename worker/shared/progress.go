@@ -157,6 +157,13 @@ func (t *ReportTracker) SetBarTotal(groupIdx, barIdx, total int) {
 	t.report.Groups[groupIdx].Bars[barIdx].Total = total
 }
 
+// RecalcTotal recomputes the report-level Total from all bar totals.
+// Call after SetBarTotal when a bar's size is only known at runtime
+// (e.g., per-team playoff bars sized by a season's team count).
+func (t *ReportTracker) RecalcTotal() {
+	t.report.Total = t.totalFromBars()
+}
+
 // SetBarLabel sets the label for a specific bar.
 func (t *ReportTracker) SetBarLabel(groupIdx, barIdx int, label string) {
 	t.report.Groups[groupIdx].Bars[barIdx].Label = label

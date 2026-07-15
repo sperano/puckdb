@@ -49,6 +49,9 @@ func (s *FetchSeasonsWorkflowTestSuite) SetupTest() {
 	s.env = s.NewTestWorkflowEnvironment()
 	s.env.RegisterWorkflow(FetchSeasonsWorkflow)
 	s.env.RegisterWorkflow(FetchSeasonWorkflow)
+	// The per-season counter sizes playoff bars via ListSeasonTeams.
+	var pa *worknhl.PlayoffActivities
+	s.env.OnActivity(pa.ListSeasonTeams, mock.Anything, mock.Anything).Return([]string{"TOR", "MTL"}, nil).Maybe()
 }
 
 func (s *FetchSeasonsWorkflowTestSuite) AfterTest(suiteName, testName string) {
@@ -275,6 +278,9 @@ func (s *ImportSeasonsWorkflowTestSuite) SetupTest() {
 	s.env = s.NewTestWorkflowEnvironment()
 	s.env.RegisterWorkflow(ImportSeasonsWorkflow)
 	s.env.RegisterWorkflow(ImportSeasonWorkflow)
+	// The per-season counter sizes playoff bars via ListSeasonTeams.
+	var pa *worknhl.PlayoffActivities
+	s.env.OnActivity(pa.ListSeasonTeams, mock.Anything, mock.Anything).Return([]string{"TOR", "MTL"}, nil).Maybe()
 }
 
 func (s *ImportSeasonsWorkflowTestSuite) AfterTest(suiteName, testName string) {
@@ -431,7 +437,8 @@ func (s *ImportSeasonWorkflowTestSuite) mockImportSeasonActivities() {
 	s.env.OnActivity(sa.ImportSeasonRosters, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(sa.ImportClubStats, mock.Anything, mock.Anything).Return(nil)
 	var pa *worknhl.PlayoffActivities
-	s.env.OnActivity(pa.ImportPlayoffGames, mock.Anything, mock.Anything).Return(worknhl.ImportPlayoffGamesResult{}, nil).Maybe()
+	s.env.OnActivity(pa.ListSeasonTeams, mock.Anything, mock.Anything).Return([]string{"TOR", "MTL"}, nil).Maybe()
+	s.env.OnActivity(pa.ImportTeamPlayoffGames, mock.Anything, mock.Anything).Return(worknhl.ImportTeamPlayoffGamesResult{}, nil).Maybe()
 }
 
 // Test ImportSeasonWorkflow success with multiple days
@@ -685,7 +692,8 @@ func (s *FetchSeasonWorkflowTestSuite) mockFetchSeasonActivities() {
 	s.env.OnActivity(sa.FetchSeasonRosters, mock.Anything, mock.Anything).Return(nil)
 	s.env.OnActivity(sa.FetchClubStats, mock.Anything, mock.Anything).Return(nil)
 	var pa *worknhl.PlayoffActivities
-	s.env.OnActivity(pa.FetchPlayoffGames, mock.Anything, mock.Anything).Return(worknhl.FetchPlayoffGamesResult{}, nil).Maybe()
+	s.env.OnActivity(pa.ListSeasonTeams, mock.Anything, mock.Anything).Return([]string{"TOR", "MTL"}, nil).Maybe()
+	s.env.OnActivity(pa.FetchTeamPlayoffGames, mock.Anything, mock.Anything).Return(worknhl.FetchTeamPlayoffGamesResult{}, nil).Maybe()
 }
 
 // Test FetchSeasonWorkflow success with multiple days
