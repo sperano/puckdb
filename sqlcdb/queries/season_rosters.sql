@@ -54,6 +54,9 @@ SELECT COUNT(*) FROM season_rosters;
 SELECT COUNT(*) FROM season_rosters WHERE season = $1;
 
 -- name: GetSeasonTeamAbbrevs :many
+-- NHL clubs only: season_teams also holds international/national teams
+-- (team_kind = 'international') referenced by player_season_totals, which
+-- have no rosters, club stats, or club schedules to fetch.
 SELECT team_id, abbrev FROM season_teams
-WHERE season = $1
+WHERE season = $1 AND team_kind = 'nhl'
 ORDER BY abbrev;

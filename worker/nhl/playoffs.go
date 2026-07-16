@@ -83,9 +83,16 @@ func (a *PlayoffActivities) FetchTeamPlayoffGames(ctx context.Context, input Fet
 	season := nhlapi.NewSeason(input.Season)
 	res := resource.ClubScheduleSeason{Season: input.Season, TeamAbbrev: input.TeamAbbrev}
 
-	// For the current season, invalidate the cached club schedule so we pick up
-	// newly finalized playoff games. Historical seasons keep their cache hits.
-	if shared.IsCurrentSeason(input.Season) {
+	// A cached schedule that still lists non-final games is incomplete by
+	// definition — those games will change state, and playoff games are
+	// appended as rounds get scheduled. Refetch it regardless of the calendar;
+	// completed schedules (all games FINAL/OFF) stay cached forever. A
+	// calendar-based gate (IsCurrentSeason) is wrong here: nhl.Current() rolls
+	// over on July 1, which froze mid-playoff caches fetched in May once the
+	// next sync ran in the offseason.
+	if cached, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res); err == nil && scheduleIncomplete(cached) {
+		log.Debug().Str("team", input.TeamAbbrev).Int("season", input.Season).
+			Msg("Cached club schedule has non-final games, refetching")
 		_ = a.Storage.Delete(ctx, res.Path())
 		_ = a.GobCache.Delete(ctx, core.RedisKey(res))
 	}
@@ -284,6 +291,18 @@ func extractTeamAbbrev(filename string) string {
 		return ""
 	}
 	return abbrev
+}
+
+// scheduleIncomplete reports whether a club schedule still lists games that
+// haven't reached a final state (FUT/PRE/LIVE/postponed/...). Such a schedule
+// will change on the NHL side and must not be served from cache indefinitely.
+func scheduleIncomplete(schedule *nhlapi.TeamScheduleResponse) bool {
+	for _, game := range schedule.Games {
+		if !game.GameState.IsFinal() {
+			return true
+		}
+	}
+	return false
 }
 
 // homePlayoffGames extracts a team's final playoff HOME games from its schedule.

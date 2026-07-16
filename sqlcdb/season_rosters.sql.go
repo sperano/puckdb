@@ -168,7 +168,7 @@ func (q *Queries) GetSeasonRosterByTeam(ctx context.Context, arg GetSeasonRoster
 
 const getSeasonTeamAbbrevs = `-- name: GetSeasonTeamAbbrevs :many
 SELECT team_id, abbrev FROM season_teams
-WHERE season = $1
+WHERE season = $1 AND team_kind = 'nhl'
 ORDER BY abbrev
 `
 
@@ -177,6 +177,9 @@ type GetSeasonTeamAbbrevsRow struct {
 	Abbrev string `json:"abbrev"`
 }
 
+// NHL clubs only: season_teams also holds international/national teams
+// (team_kind = 'international') referenced by player_season_totals, which
+// have no rosters, club stats, or club schedules to fetch.
 func (q *Queries) GetSeasonTeamAbbrevs(ctx context.Context, season int32) ([]GetSeasonTeamAbbrevsRow, error) {
 	rows, err := q.db.Query(ctx, getSeasonTeamAbbrevs, season)
 	if err != nil {
