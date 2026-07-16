@@ -181,11 +181,15 @@ func CountPlayersForSeason(ctx context.Context, client *redis.Client, season nhl
 
 // DownloadPlayerGameLogsInput specifies which player game logs to download.
 type DownloadPlayerGameLogsInput struct {
-	PlayerIDs      []int64 // NHL player IDs
-	StartSeason    int     // Season start year (e.g., 2024 for 2024-2025 season)
-	GameTypes      []int   // Game types to download (2=regular season, 3=playoffs)
-	RefreshCurrent bool    // If true, overwrite files for the current season
-	TotalPlayers   int     // Total players across all batches (for Redis progress reporting)
+	PlayerIDs   []int64 // NHL player IDs
+	StartSeason int     // Season start year (e.g., 2024 for 2024-2025 season)
+	GameTypes   []int   // Game types to download (2=regular season, 3=playoffs)
+	// RefreshCurrent overwrites cached files for this season. The workflow
+	// decides which seasons get it (explicit season range, or the latest
+	// season) — see FetchPlayerLogsWorkflow; activities must not gate it on
+	// IsCurrentSeason, whose July-1 rollover froze just-ended seasons.
+	RefreshCurrent bool
+	TotalPlayers   int // Total players across all batches (for Redis progress reporting)
 }
 
 // DownloadPlayerGameLogsResult contains download statistics.
@@ -193,7 +197,6 @@ type DownloadPlayerGameLogsResult struct {
 	Players    int // Number of players processed in this batch
 	Downloaded int
 	CacheHits  int
-	Skipped    int // Files skipped for current season (not refreshing)
 	Errors     []string
 }
 
@@ -215,7 +218,6 @@ func (a *Activities) DownloadPlayerGameLogsBatch(ctx context.Context, input Down
 	}
 
 	season := nhl.NewSeason(input.StartSeason)
-	isCurrent := shared.IsCurrentSeason(input.StartSeason)
 
 	for _, playerID := range input.PlayerIDs {
 		select {
@@ -240,10 +242,7 @@ func (a *Activities) DownloadPlayerGameLogsBatch(ctx context.Context, input Down
 				continue
 			}
 
-			opts := gameLogDownloadOptions{
-				isCurrent:      isCurrent,
-				refreshCurrent: input.RefreshCurrent,
-			}
+			opts := gameLogDownloadOptions{refresh: input.RefreshCurrent}
 			status, err := a.downloadPlayerGameLogToCache(ctx, pid, season, gameType, opts)
 			if err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("player %d season %s %s: %v", playerID, season, gameType, err))
@@ -255,8 +254,6 @@ func (a *Activities) DownloadPlayerGameLogsBatch(ctx context.Context, input Down
 				result.Downloaded++
 			case gameLogCached:
 				result.CacheHits++
-			case gameLogSkipped:
-				result.Skipped++
 			}
 		}
 	}
@@ -266,7 +263,6 @@ func (a *Activities) DownloadPlayerGameLogsBatch(ctx context.Context, input Down
 		Int("startSeason", input.StartSeason).
 		Int("downloaded", result.Downloaded).
 		Int("cacheHits", result.CacheHits).
-		Int("skipped", result.Skipped).
 		Int("errors", len(result.Errors)).
 		Msg("Download player game logs batch complete")
 
@@ -279,13 +275,11 @@ type gameLogDownloadStatus int
 const (
 	gameLogDownloaded gameLogDownloadStatus = iota
 	gameLogCached
-	gameLogSkipped
 )
 
 // gameLogDownloadOptions controls download behavior.
 type gameLogDownloadOptions struct {
-	isCurrent      bool // True if this is the current season
-	refreshCurrent bool // True if current season files should be overwritten
+	refresh bool // True if cached files for this season should be overwritten
 }
 
 // downloadPlayerGameLogToCache downloads a single player game log to cache.
@@ -295,17 +289,7 @@ func (a *Activities) downloadPlayerGameLogToCache(ctx context.Context, playerID 
 	fileExists := a.Storage.Exists(ctx, gameLogRes.Path())
 
 	if fileExists {
-		if opts.isCurrent && !opts.refreshCurrent {
-			log.Debug().
-				Str("playerID", playerID.String()).
-				Str("season", season.String()).
-				Str("gameType", gameType.String()).
-				Msg("Current season player log exists, not refreshing")
-			metrics.IncDownload(core.PlayerGameLog, metrics.ResultSkip)
-			return gameLogSkipped, nil
-		}
-
-		if !opts.isCurrent {
+		if !opts.refresh {
 			log.Debug().
 				Str("playerID", playerID.String()).
 				Str("season", season.String()).
@@ -319,7 +303,7 @@ func (a *Activities) downloadPlayerGameLogToCache(ctx context.Context, playerID 
 			Str("playerID", playerID.String()).
 			Str("season", season.String()).
 			Str("gameType", gameType.String()).
-			Msg("Refreshing current season player log")
+			Msg("Refreshing cached player log")
 	}
 
 	gameLog, err := a.NHLClient.PlayerGameLog(ctx, playerID, season, gameType)

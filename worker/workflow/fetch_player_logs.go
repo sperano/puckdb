@@ -32,7 +32,12 @@ func NewFetchPlayerLogsProgressReport() *shared.ProgressReport {
 func FetchPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 	var playerAct *workplayer.Activities
-	refreshCurrent := input != nil && input.RefreshCurrentPlayerLogs != nil && *input.RefreshCurrentPlayerLogs
+	// Same refresh scoping as FetchEdgeSeasonsWorkflow: an explicit season
+	// range applies the flag to every season in it; without a range it applies
+	// to the latest season only. Deliberately not IsCurrentSeason — see the
+	// July-1 rollover note there.
+	refreshFlag := input != nil && input.RefreshCurrentPlayerLogs != nil && *input.RefreshCurrentPlayerLogs
+	rangeGiven := input != nil && (input.StartSeason != nil || input.EndSeason != nil)
 	return iterateSeasons(ctx, input, NewFetchPlayerLogsProgressReport(), GroupFetchPlayerLogs,
 		func(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
 			var players []store.BoxscorePlayer
@@ -45,10 +50,11 @@ func FetchPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) er
 		func(n int, elapsed string, counts core.OriginCounts) string {
 			return counts.AppendSummary(fmt.Sprintf("Fetched player logs for %d seasons in %s.", n, elapsed), "player logs")
 		},
-		func(ctx workflow.Context, season nhl.SeasonInfo) workflow.ChildWorkflowFuture {
+		func(ctx workflow.Context, season nhl.SeasonInfo, isLatest bool) workflow.ChildWorkflowFuture {
+			refresh := refreshFlag && (rangeGiven || isLatest)
 			return workflow.ExecuteChildWorkflow(
 				shared.WithChildOptions(ctx, WorkflowIDFetchSeasonPlayerLogs(season.ID.StartYear())),
 				FetchSeasonPlayerLogsWorkflow,
-				FetchSeasonPlayerLogsInput{Season: season, RefreshCurrent: refreshCurrent})
+				FetchSeasonPlayerLogsInput{Season: season, RefreshCurrent: refresh})
 		})
 }

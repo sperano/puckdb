@@ -53,7 +53,7 @@ func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error
 		func(n int, elapsed string, counts core.OriginCounts) string {
 			return counts.AppendSummary(fmt.Sprintf("Fetched %d seasons in %s.", n, elapsed), "schedules")
 		},
-		func(ctx workflow.Context, season nhl.SeasonInfo) workflow.ChildWorkflowFuture {
+		func(ctx workflow.Context, season nhl.SeasonInfo, _ bool) workflow.ChildWorkflowFuture {
 			return workflow.ExecuteChildWorkflow(
 				shared.WithChildOptions(ctx, WorkflowIDFetchSeason(season.ID.StartYear())),
 				FetchSeasonWorkflow, season)
@@ -150,7 +150,7 @@ func iterateSeasons(ctx workflow.Context, input *model.SeasonsInput, progReport 
 		Counter:       counter,
 		SourceKeyFunc: sourceKeyFunc,
 	}, func(ctx workflow.Context, i int) workflow.Future {
-		return starter(ctx, seasons[i])
+		return starter(ctx, seasons[i], i == len(seasons)-1)
 	})
 	if err != nil {
 		return err

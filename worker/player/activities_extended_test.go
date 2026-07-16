@@ -449,17 +449,15 @@ func TestDownloadGameLogSuite(t *testing.T) {
 	suite.Run(t, new(DownloadGameLogSuite))
 }
 
-// TestCurrentSeasonRefresh exercises the path where a current-season file
-// already exists but RefreshCurrent=true forces a re-download.
+// TestCurrentSeasonRefresh exercises the path where a cached file already
+// exists but RefreshCurrent=true forces a re-download. The refresh decision
+// is made by the workflow per season; the activity honors it regardless of
+// the calendar, so any season year works here.
 func (s *DownloadGameLogSuite) TestCurrentSeasonRefresh() {
 	mem := store.NewMemStorage()
 	client := &MockNHLClient{}
 
-	// Determine the current season's start year the same way the activity
-	// does (via shared.IsCurrentSeason -> nhl.Current()), so this test does not
-	// drift against the library's season-rollover convention during the
-	// offseason.
-	startYear := nhl.Current().StartYear()
+	const startYear = 2024
 	playerID := nhl.PlayerID(8476453)
 	season := nhl.NewSeason(startYear)
 
@@ -492,7 +490,7 @@ func (s *DownloadGameLogSuite) TestCurrentSeasonRefresh() {
 	var result DownloadPlayerGameLogsResult
 	require.NoError(s.T(), future.Get(&result))
 	assert.Equal(s.T(), 1, result.Downloaded)
-	assert.Equal(s.T(), 0, result.Skipped)
+	assert.Equal(s.T(), 0, result.CacheHits)
 	assert.Empty(s.T(), result.Errors)
 	client.AssertExpectations(s.T())
 }

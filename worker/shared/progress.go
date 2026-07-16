@@ -189,7 +189,10 @@ type ProgressSourceKeyFunc func(startYear int) string
 
 // ChildWorkflowStarter starts a child workflow for a season and returns its future.
 // Each caller constructs its own input, child options, and workflow ID.
-type ChildWorkflowStarter func(ctx workflow.Context, season nhl.SeasonInfo) workflow.ChildWorkflowFuture
+// isLatest is true for the last season in the run's manifest — the season still
+// accruing data — so starters can scope refresh-style flags to it without
+// consulting the calendar.
+type ChildWorkflowStarter func(ctx workflow.Context, season nhl.SeasonInfo, isLatest bool) workflow.ChildWorkflowFuture
 
 // AddBarsForSeasons adds one bar per season to a group.
 // If sourceKeyFunc is provided, sets each bar's ProgressSourceKey so the resolver

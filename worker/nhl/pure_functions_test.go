@@ -551,56 +551,21 @@ func TestPI32(t *testing.T) {
 
 // --- shouldInvalidate (FetchEdgeInput, FetchEdgeTeamInput) ---
 
-// shouldInvalidate is RefreshCurrent && IsCurrentSeason(Season). The
-// IsCurrentSeason call depends on the wall clock, but the AND short-circuits
-// when RefreshCurrent is false and when Season is unambiguously historical
-// (a year guaranteed to never be "current" — using year 0 here). The
-// "current season" branch is exercised by deriving Season from
-// nhl.Current() at test time so the test stays correct as the calendar
-// advances.
-
-const pastSeasonStartYear = 0
-
+// shouldInvalidate passes RefreshCurrent through unchanged: the workflow
+// decides which seasons to refresh (explicit range or the latest season),
+// and the activity must not re-gate it on the wall clock. The old
+// IsCurrentSeason gate made the flag a silent no-op after nhl.Current()'s
+// July-1 rollover for a season whose playoffs had just ended.
 func TestFetchEdgeInput_ShouldInvalidate(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name           string
-		refreshCurrent bool
-		seasonStart    int
-		want           bool
-	}{
-		{"refresh false short-circuits", false, nhlapi.Current().StartYear(), false},
-		{"refresh true but past season", true, pastSeasonStartYear, false},
-		{"refresh true and current season", true, nhlapi.Current().StartYear(), true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			input := FetchEdgeInput{Season: tc.seasonStart, RefreshCurrent: tc.refreshCurrent}
-			assert.Equal(t, tc.want, input.shouldInvalidate())
-		})
-	}
+	assert.False(t, FetchEdgeInput{Season: 2020, RefreshCurrent: false}.shouldInvalidate())
+	assert.True(t, FetchEdgeInput{Season: 2020, RefreshCurrent: true}.shouldInvalidate())
 }
 
 func TestFetchEdgeTeamInput_ShouldInvalidate(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name           string
-		refreshCurrent bool
-		seasonStart    int
-		want           bool
-	}{
-		{"refresh false short-circuits", false, nhlapi.Current().StartYear(), false},
-		{"refresh true but past season", true, pastSeasonStartYear, false},
-		{"refresh true and current season", true, nhlapi.Current().StartYear(), true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			input := FetchEdgeTeamInput{Season: tc.seasonStart, RefreshCurrent: tc.refreshCurrent}
-			assert.Equal(t, tc.want, input.shouldInvalidate())
-		})
-	}
+	assert.False(t, FetchEdgeTeamInput{Season: 2020, RefreshCurrent: false}.shouldInvalidate())
+	assert.True(t, FetchEdgeTeamInput{Season: 2020, RefreshCurrent: true}.shouldInvalidate())
 }

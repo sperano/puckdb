@@ -14,9 +14,14 @@ import (
 
 // FetchEdgeInput contains the parameters for fetching Edge stats.
 type FetchEdgeInput struct {
-	Season         int  // start year (e.g., 2024 for the 2024-2025 season)
-	GameType       int  // 2 = regular season, 3 = playoffs
-	RefreshCurrent bool // if true AND current season, invalidate cache before fetching
+	Season   int // start year (e.g., 2024 for the 2024-2025 season)
+	GameType int // 2 = regular season, 3 = playoffs
+	// RefreshCurrent invalidates cached data before fetching. The workflow
+	// decides which seasons get it (explicit season range, or the latest
+	// season) — activities must not second-guess it against the calendar:
+	// nhl.Current() rolls over on July 1, which used to freeze mid-playoff
+	// caches for the season that just ended.
+	RefreshCurrent bool
 }
 
 // FetchEdgeTeamInput contains parameters for fetching Edge stats for a single team.
@@ -25,16 +30,16 @@ type FetchEdgeTeamInput struct {
 	GameType       int    // 2 = regular season, 3 = playoffs
 	TeamID         int64  // team ID
 	TeamAbbrev     string // team abbreviation (for roster lookup)
-	RefreshCurrent bool   // if true AND current season, invalidate cache
+	RefreshCurrent bool   // see FetchEdgeInput.RefreshCurrent
 }
 
 func (i FetchEdgeTeamInput) shouldInvalidate() bool {
-	return i.RefreshCurrent && shared.IsCurrentSeason(i.Season)
+	return i.RefreshCurrent
 }
 
 // shouldInvalidate returns true if cached Edge data should be deleted before fetching.
 func (i FetchEdgeInput) shouldInvalidate() bool {
-	return i.RefreshCurrent && shared.IsCurrentSeason(i.Season)
+	return i.RefreshCurrent
 }
 
 // EdgeTeamInfo contains team information returned by GetEdgeSeasonTeams.

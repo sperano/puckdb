@@ -469,8 +469,8 @@ var SeasonRangeFlags = FlagGroup{
 // SyncBehaviorFlags defines non-step behavioral flags for sync.
 var SyncBehaviorFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the current season (overwrites cached files)", false},
-		{FlagRefreshCurrentEdge, "", false, "Re-download Edge stats for the current season (overwrites cached files)", false},
+		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the latest season, or for every season in an explicit --start-season/--end-season range (overwrites cached files)", false},
+		{FlagRefreshCurrentEdge, "", false, "Re-download Edge stats for the latest season, or for every season in an explicit --start-season/--end-season range (overwrites cached files)", false},
 	},
 }
 
