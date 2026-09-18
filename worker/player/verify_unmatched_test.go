@@ -215,6 +215,11 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
 	}
 	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
 
+	// A positively verified zero-NHL-games player is persisted to the
+	// exclusion set.
+	mockRedis.ExpectSAdd(VerifiedNonNHLKey, 789).SetVal(1)
+	mockRedis.ExpectExpire(VerifiedNonNHLKey, VerifiedNonNHLTTL).SetVal(true)
+
 	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
 	players := []UnmatchedYahooPlayer{
 		{YahooID: 789, FirstName: "Minor", LastName: "Leaguer"},
@@ -227,7 +232,9 @@ func TestVerifyUnmatchedBatchImpl_PlayerFoundWithZeroGames(t *testing.T) {
 	assert.Equal(t, store.YahooPlayerID(789), result.VerifiedNonNHL[0])
 	assert.Empty(t, result.TrulyUnmatched)
 	assert.Empty(t, result.NotFoundInNHL)
+	assert.Empty(t, result.Unverified)
 	client.AssertExpectations(t)
+	require.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
 func TestVerifyUnmatchedBatchImpl_PlayerFoundWithNHLGames(t *testing.T) {
@@ -331,11 +338,156 @@ func TestVerifyUnmatchedBatchImpl_SearchError(t *testing.T) {
 
 	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
 
-	// Function should still succeed
+	// One player's API failure must not fail the batch...
 	require.NoError(t, err)
-	// Player should be in NotFoundInNHL since search failed
-	assert.Len(t, result.NotFoundInNHL, 1)
+	// ...but a failed search is not a classification: the player is
+	// unverified, not "not found", and must not land in any persisted bucket.
+	assert.Empty(t, result.VerifiedNonNHL)
+	assert.Empty(t, result.NotFoundInNHL)
+	assert.Empty(t, result.TrulyUnmatched)
+	require.Len(t, result.Unverified, 1)
+	assert.Equal(t, store.YahooPlayerID(222), result.Unverified[0].YahooID)
+	assert.False(t, result.Unverified[0].FoundInNHL)
 	client.AssertExpectations(t)
+}
+
+func TestVerifyUnmatchedBatchImpl_LandingError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	// Search matches, but the landing fetch (needed to count NHL games) fails.
+	playerID := nhl.PlayerID(8476453)
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "Landing Fails", limit).Return([]nhl.PlayerSearchResult{
+		{PlayerID: playerID, Name: "Landing Fails"},
+	}, nil)
+	client.On("PlayerLanding", ctx, playerID).Return(nil, errors.New("landing API error"))
+
+	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 223, FirstName: "Landing", LastName: "Fails"},
+	}
+
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
+
+	require.NoError(t, err)
+	// Previously this was filed as VerifiedNonNHL (HasNHLGames defaulted to
+	// false) and cached for the exclusion TTL. A missing landing says nothing
+	// about the player's NHL games.
+	assert.Empty(t, result.VerifiedNonNHL)
+	assert.Empty(t, result.NotFoundInNHL)
+	assert.Empty(t, result.TrulyUnmatched)
+	require.Len(t, result.Unverified, 1)
+	assert.Equal(t, store.YahooPlayerID(223), result.Unverified[0].YahooID)
+	assert.True(t, result.Unverified[0].FoundInNHL, "search did match; only the landing failed")
+	client.AssertExpectations(t)
+}
+
+// TestVerifyUnmatchedBatchImpl_FailedVerificationNotPersisted checks the
+// Redis exclusion set directly: in a batch mixing a failed verification with
+// a positively verified zero-NHL-games player, SADD must carry only the
+// latter's ID. Exact-argument matching on SAdd is what makes this strict —
+// an extra ID would fail the expectation.
+func TestVerifyUnmatchedBatchImpl_FailedVerificationNotPersisted(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "Error Player", limit).Return(nil, errors.New("API error"))
+
+	minorID := nhl.PlayerID(8476453)
+	client.On("SearchPlayer", ctx, "Minor Leaguer", limit).Return([]nhl.PlayerSearchResult{
+		{PlayerID: minorID, Name: "Minor Leaguer"},
+	}, nil)
+	client.On("PlayerLanding", ctx, minorID).Return(&nhl.PlayerLanding{
+		PlayerID: minorID,
+		SeasonTotals: []nhl.SeasonTotal{
+			{LeagueAbbrev: "AHL", GameType: nhl.GameTypeRegularSeason, GamesPlayed: 50},
+		},
+	}, nil)
+
+	const failedYahooID, verifiedYahooID = 222, 789
+	mockRedis.ExpectSAdd(VerifiedNonNHLKey, verifiedYahooID).SetVal(1)
+	mockRedis.ExpectExpire(VerifiedNonNHLKey, VerifiedNonNHLTTL).SetVal(true)
+
+	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
+	players := []UnmatchedYahooPlayer{
+		{YahooID: failedYahooID, FirstName: "Error", LastName: "Player"},
+		{YahooID: verifiedYahooID, FirstName: "Minor", LastName: "Leaguer"},
+	}
+
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
+
+	require.NoError(t, err)
+	assert.Equal(t, []store.YahooPlayerID{verifiedYahooID}, result.VerifiedNonNHL)
+	require.Len(t, result.Unverified, 1)
+	assert.Equal(t, store.YahooPlayerID(failedYahooID), result.Unverified[0].YahooID)
+	client.AssertExpectations(t)
+	require.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+// TestVerifyUnmatchedBatchImpl_RetryAfterFailureClassifies verifies that a
+// player whose verification failed is classified normally once the API
+// recovers: nothing about the failure was cached, so the second run repeats
+// the search and files the player as truly unmatched.
+func TestVerifyUnmatchedBatchImpl_RetryAfterFailureClassifies(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+
+	// Both runs see an empty exclusion set: the first run persisted nothing.
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	playerID := nhl.PlayerID(8478402)
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "Connor McDavid", limit).
+		Return(nil, errors.New("transient API error")).Once()
+	client.On("SearchPlayer", ctx, "Connor McDavid", limit).
+		Return([]nhl.PlayerSearchResult{{PlayerID: playerID, Name: "Connor McDavid"}}, nil).Once()
+	client.On("PlayerLanding", ctx, playerID).Return(&nhl.PlayerLanding{
+		PlayerID: playerID,
+		SeasonTotals: []nhl.SeasonTotal{
+			{LeagueAbbrev: "NHL", GameType: nhl.GameTypeRegularSeason, GamesPlayed: 82},
+		},
+	}, nil)
+
+	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 999, FirstName: "Connor", LastName: "McDavid"},
+	}
+
+	first, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
+	require.NoError(t, err)
+	require.Len(t, first.Unverified, 1)
+	assert.Empty(t, first.TrulyUnmatched)
+
+	second, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
+	require.NoError(t, err)
+	assert.Empty(t, second.Unverified)
+	require.Len(t, second.TrulyUnmatched, 1)
+	assert.Equal(t, store.YahooPlayerID(999), second.TrulyUnmatched[0].YahooID)
+	assert.Equal(t, 82, second.TrulyUnmatched[0].NHLGames)
+	client.AssertExpectations(t)
+	require.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
 func TestVerifyUnmatchedBatchImpl_NameMismatchInSearch(t *testing.T) {
@@ -508,6 +660,43 @@ func TestVerifyUnmatchedBatch_ContextCancelledDuringDelay(t *testing.T) {
 	assert.Less(t, elapsed, verifyAPIDelay,
 		"cancellation during the inter-request delay must not block for the full delay")
 	client.AssertNumberOfCalls(t, "SearchPlayer", 1)
+	require.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+// TestVerifyUnmatchedBatch_ContextCancelledInsideAPICall verifies that when
+// the cancellation surfaces as the NHL client's error (the usual shape: the
+// HTTP call returns ctx.Err()), the batch returns ctx.Err() instead of
+// filing the player as unverified and going on to the Redis save. This is
+// the last player in the batch, so the top-of-loop ctx check cannot catch it.
+func TestVerifyUnmatchedBatch_ContextCancelledInsideAPICall(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	limit := maxSearchResults
+	client.On("SearchPlayer", ctx, "Cancelled Player", limit).
+		Run(func(mock.Arguments) { cancel() }).
+		Return(nil, context.Canceled)
+
+	a := &Activities{Storage: mem, NHLClient: client, RedisClient: redisClient}
+	players := []UnmatchedYahooPlayer{
+		{YahooID: 555, FirstName: "Cancelled", LastName: "Player"},
+	}
+
+	result, err := a.verifyUnmatchedBatch(ctx, players, noopHeartbeat)
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Unverified)
+	assert.Empty(t, result.NotFoundInNHL)
+	assert.Empty(t, result.VerifiedNonNHL)
+	client.AssertExpectations(t)
 	require.NoError(t, mockRedis.ExpectationsWereMet())
 }
 

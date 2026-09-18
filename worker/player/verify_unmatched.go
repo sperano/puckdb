@@ -2,6 +2,7 @@ package player
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 	"unicode"
@@ -56,6 +57,12 @@ func defaultHeartbeat(ctx context.Context, details ...any) {
 }
 
 // VerifyUnmatchedResult contains the categorized results of verification.
+//
+// Only VerifiedNonNHL and NotFoundInNHL are positively established
+// classifications and get persisted to the exclusion set (VerifiedNonNHLKey).
+// Unverified is deliberately not persisted: an NHL API failure says nothing
+// about the player, and caching it would hide a real NHL player from
+// unmatched reporting for the whole exclusion TTL.
 type VerifyUnmatchedResult struct {
 	// VerifiedNonNHL contains Yahoo IDs confirmed to have 0 NHL games.
 	VerifiedNonNHL []store.YahooPlayerID
@@ -64,8 +71,31 @@ type VerifyUnmatchedResult struct {
 	// These need investigation.
 	TrulyUnmatched []VerifiedPlayer
 
-	// NotFoundInNHL contains players not found in the NHL search at all.
+	// NotFoundInNHL contains players the NHL search completed for but
+	// returned no matching name.
 	NotFoundInNHL []VerifiedPlayer
+
+	// Unverified contains players whose verification could not be completed
+	// because an NHL API call failed. Their classification is unknown; they
+	// are not persisted and will be verified again on the next run.
+	Unverified []VerifiedPlayer
+}
+
+// classify appends the verified player to the matching result bucket and
+// reports whether the player is now positively established as non-NHL, i.e.
+// whether its Yahoo ID may be persisted to the exclusion set.
+func (r *VerifyUnmatchedResult) classify(verified VerifiedPlayer) (persist bool) {
+	switch {
+	case !verified.FoundInNHL:
+		r.NotFoundInNHL = append(r.NotFoundInNHL, verified)
+		return true
+	case verified.HasNHLGames:
+		r.TrulyUnmatched = append(r.TrulyUnmatched, verified)
+		return false
+	default:
+		r.VerifiedNonNHL = append(r.VerifiedNonNHL, verified.YahooID)
+		return true
+	}
 }
 
 // VerifyUnmatchedBatch verifies a batch of unmatched Yahoo players against the NHL API.
@@ -74,6 +104,7 @@ type VerifyUnmatchedResult struct {
 // - VerifiedNonNHL: confirmed 0 NHL games (can be ignored in future)
 // - TrulyUnmatched: have NHL games but weren't matched (need investigation)
 // - NotFoundInNHL: no matching name in NHL database
+// - Unverified: NHL API failure, classification unknown (retried next run)
 func (a *Activities) VerifyUnmatchedBatch(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
 	logger := activity.GetLogger(ctx)
 
@@ -86,7 +117,8 @@ func (a *Activities) VerifyUnmatchedBatch(ctx context.Context, players []Unmatch
 		"batch_size", len(players),
 		"verified_non_nhl", len(result.VerifiedNonNHL),
 		"truly_unmatched", len(result.TrulyUnmatched),
-		"not_found", len(result.NotFoundInNHL))
+		"not_found", len(result.NotFoundInNHL),
+		"unverified", len(result.Unverified))
 
 	return result, nil
 }
@@ -114,6 +146,7 @@ func (a *Activities) verifyUnmatchedBatch(ctx context.Context, players []Unmatch
 		VerifiedNonNHL: make([]store.YahooPlayerID, 0),
 		TrulyUnmatched: make([]VerifiedPlayer, 0),
 		NotFoundInNHL:  make([]VerifiedPlayer, 0),
+		Unverified:     make([]VerifiedPlayer, 0),
 	}
 
 	newlyVerifiedNonNHL := make([]store.YahooPlayerID, 0)
@@ -131,15 +164,17 @@ func (a *Activities) verifyUnmatchedBatch(ctx context.Context, players []Unmatch
 			continue
 		}
 
-		verified := verifyPlayer(ctx, a.NHLClient, a.Storage, a.GobCache, player)
-
-		if !verified.FoundInNHL {
-			result.NotFoundInNHL = append(result.NotFoundInNHL, verified)
-			newlyVerifiedNonNHL = append(newlyVerifiedNonNHL, player.YahooID)
-		} else if verified.HasNHLGames {
-			result.TrulyUnmatched = append(result.TrulyUnmatched, verified)
-		} else {
-			result.VerifiedNonNHL = append(result.VerifiedNonNHL, player.YahooID)
+		verified, err := verifyPlayer(ctx, a.NHLClient, a.Storage, a.GobCache, player)
+		if err != nil {
+			// A failed API call may be the cancellation itself (the client
+			// returns ctx.Err()); honor it here rather than filing the
+			// player as unverified and falling through to the Redis save.
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return result, ctxErr
+			}
+			log.Warn().Err(err).Int("yahooID", int(player.YahooID)).Msg("Player verification failed, leaving unverified")
+			result.Unverified = append(result.Unverified, verified)
+		} else if result.classify(verified) {
 			newlyVerifiedNonNHL = append(newlyVerifiedNonNHL, player.YahooID)
 		}
 
@@ -162,7 +197,12 @@ func (a *Activities) verifyUnmatchedBatch(ctx context.Context, players []Unmatch
 }
 
 // verifyPlayer checks if a Yahoo player has any NHL regular season games.
-func verifyPlayer(ctx context.Context, client shared.NHLClient, storage store.Storage, gobCache *cache.GobCache, player UnmatchedYahooPlayer) VerifiedPlayer {
+//
+// A non-nil error means the verification could not be completed (an NHL API
+// call failed) and the returned VerifiedPlayer must not be treated as a
+// classification. With a nil error, FoundInNHL=false is a positive result:
+// the search completed and no name matched.
+func verifyPlayer(ctx context.Context, client shared.NHLClient, storage store.Storage, gobCache *cache.GobCache, player UnmatchedYahooPlayer) (VerifiedPlayer, error) {
 	result := VerifiedPlayer{
 		YahooID:   player.YahooID,
 		FirstName: player.FirstName,
@@ -173,17 +213,16 @@ func verifyPlayer(ctx context.Context, client shared.NHLClient, storage store.St
 
 	searchResults, err := client.SearchPlayer(ctx, playerName, maxSearchResults)
 	if err != nil {
-		log.Warn().Err(err).Str("name", playerName).Msg("Search failed")
-		return result
+		return result, fmt.Errorf("search %q: %w", playerName, err)
 	}
 
 	if len(searchResults) == 0 {
-		return result
+		return result, nil
 	}
 
 	matchedResult := findMatchingPlayer(playerName, searchResults)
 	if matchedResult == nil {
-		return result
+		return result, nil
 	}
 
 	result.FoundInNHL = true
@@ -192,8 +231,7 @@ func verifyPlayer(ctx context.Context, client shared.NHLClient, storage store.St
 
 	landing, err := fetchPlayerLanding(ctx, client, storage, gobCache, matchedResult.PlayerID)
 	if err != nil {
-		log.Warn().Err(err).Str("name", playerName).Msg("Failed to get landing data")
-		return result
+		return result, fmt.Errorf("landing for %q (nhl id %d): %w", playerName, result.NHLPlayerID, err)
 	}
 
 	nhlGames := 0
@@ -208,7 +246,7 @@ func verifyPlayer(ctx context.Context, client shared.NHLClient, storage store.St
 	result.NHLGames = nhlGames
 	result.HasNHLGames = nhlGames > 0
 
-	return result
+	return result, nil
 }
 
 // fetchPlayerLanding retrieves player landing data, using cache if available.

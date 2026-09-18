@@ -27,6 +27,10 @@ type UnmatchedReport struct {
 
 	// NotFoundCount is the number of players not found in the NHL database.
 	NotFoundCount int
+
+	// UnverifiedCount is the number of players whose verification failed
+	// (NHL API error). They are not cached and will be re-verified next run.
+	UnverifiedCount int
 }
 
 // LoadUnmatchedYahooPlayers loads the list of unmatched Yahoo players from Redis.

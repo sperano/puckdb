@@ -417,10 +417,16 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 				unmatchedReport.TrulyUnmatched = append(unmatchedReport.TrulyUnmatched, batchResult.TrulyUnmatched...)
 				unmatchedReport.VerifiedNonNHLCount += len(batchResult.VerifiedNonNHL)
 				unmatchedReport.NotFoundCount += len(batchResult.NotFoundInNHL)
+				unmatchedReport.UnverifiedCount += len(batchResult.Unverified)
 				return nil
 			})
 		if err != nil {
 			logger.Warn("Error during verify pool execution", "error", err)
+		}
+
+		if unmatchedReport.UnverifiedCount > 0 {
+			logger.Warn("Some unmatched players could not be verified (NHL API errors); they will be retried next run",
+				"unverified", unmatchedReport.UnverifiedCount)
 		}
 
 		// Log truly unmatched players
@@ -446,9 +452,9 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 
 	// Mark Phase 3 complete with comprehensive summary
 	tracker.CompleteGroup(ctx, GroupVerifyUnmatched,
-		fmt.Sprintf("Imported %d players: %d Yahoo! matched, %d truly unmatched and %d errors in %s.",
+		fmt.Sprintf("Imported %d players: %d Yahoo! matched, %d truly unmatched, %d unverified and %d errors in %s.",
 			input.TotalImported, input.TotalMatched, len(unmatchedReport.TrulyUnmatched),
-			len(input.AllErrors), tracker.GetElapsed(ctx, GroupVerifyUnmatched)))
+			unmatchedReport.UnverifiedCount, len(input.AllErrors), tracker.GetElapsed(ctx, GroupVerifyUnmatched)))
 
 	logger.Info("ProcessPlayersWorkflow completed",
 		"totalPlayers", len(input.Players),
