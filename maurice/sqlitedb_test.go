@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
-	"github.com/sperano/puckdb/llm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,139 +23,82 @@ func openTestDB(t *testing.T) DB {
 	return db
 }
 
-func TestSQLite_CreateAndGetConversation(t *testing.T) {
-	db := openTestDB(t)
+// TestSQLite_Contract runs the backend-neutral persistence contract
+// (dbcontract_test.go) against the SQLite adapter.
+func TestSQLite_Contract(t *testing.T) {
+	runDBContract(t, openTestDB)
+}
 
+// The stored timestamp strings must sort in time order, since ListConversations
+// and GetMessages ORDER BY a TEXT column. time.RFC3339Nano fails this exact
+// case: "…11.12Z" > "…11.123456Z" as strings because 'Z' > '3'.
+func TestSQLiteTimeLayout_SortsChronologically(t *testing.T) {
+	earlier := time.Date(2026, 9, 17, 11, 0, 11, 120_000_000, time.UTC)
+	later := earlier.Add(3_456 * time.Microsecond)
+
+	assert.Less(t, earlier.Format(sqliteTimeLayout), later.Format(sqliteTimeLayout))
+	assert.Greater(t, earlier.Format(time.RFC3339Nano), later.Format(time.RFC3339Nano),
+		"RFC3339Nano is expected to misorder this pair; if it stops doing so the layout constant may be redundant")
+
+	parsed, err := time.Parse(time.RFC3339Nano, earlier.Format(sqliteTimeLayout))
+	require.NoError(t, err)
+	assert.True(t, parsed.Equal(earlier), "padded values must still parse with RFC3339Nano")
+}
+
+// --- Corrupt-row tests: decode failures must surface, not be swallowed ---
+
+// seedSQLiteRows returns a store plus its raw handle and one conversation,
+// for tests that need to plant rows the adapter itself would never write.
+func seedSQLiteRows(t *testing.T) (DB, *sql.DB, *Conversation) {
+	t.Helper()
+	raw, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { raw.Close() })
+	db, err := NewSQLiteDB(raw)
+	require.NoError(t, err)
 	conv, err := db.CreateConversation(context.Background())
 	require.NoError(t, err)
-	assert.NotEmpty(t, conv.ID)
-	assert.Nil(t, conv.Title)
-	assert.False(t, conv.CreatedAt.IsZero())
-
-	got, err := db.GetConversation(context.Background(), conv.ID)
-	require.NoError(t, err)
-	assert.Equal(t, conv.ID, got.ID)
+	return db, raw, conv
 }
 
-func TestSQLite_UpdateTitle(t *testing.T) {
-	db := openTestDB(t)
-
-	conv, _ := db.CreateConversation(context.Background())
-	err := db.UpdateConversationTitle(context.Background(), conv.ID, "Hockey Chat")
+func TestSQLite_GetMessages_CorruptToolCallsIsError(t *testing.T) {
+	db, raw, conv := seedSQLiteRows(t)
+	_, err := raw.Exec(
+		`INSERT INTO messages (id, conversation_id, role, content, tool_calls, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		"corrupt", conv.ID, "assistant", "", "not json", time.Now().UTC().Format(sqliteTimeLayout),
+	)
 	require.NoError(t, err)
 
-	got, err := db.GetConversation(context.Background(), conv.ID)
-	require.NoError(t, err)
-	require.NotNil(t, got.Title)
-	assert.Equal(t, "Hockey Chat", *got.Title)
+	msgs, err := db.GetMessages(context.Background(), conv.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "message corrupt: decode tool calls")
+	assert.Nil(t, msgs)
 }
 
-func TestSQLite_ListConversations(t *testing.T) {
-	db := openTestDB(t)
-
-	db.CreateConversation(context.Background())
-	db.CreateConversation(context.Background())
-
-	convs, err := db.ListConversations(context.Background(), 10)
+func TestSQLite_GetMessages_CorruptTimestampIsError(t *testing.T) {
+	db, raw, conv := seedSQLiteRows(t)
+	_, err := raw.Exec(
+		`INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)`,
+		"corrupt", conv.ID, "user", "hi", "yesterday",
+	)
 	require.NoError(t, err)
-	assert.Len(t, convs, 2)
+
+	_, err = db.GetMessages(context.Background(), conv.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `message corrupt: parse created_at "yesterday"`)
 }
 
-func TestSQLite_DeleteConversation(t *testing.T) {
-	db := openTestDB(t)
-
-	conv, _ := db.CreateConversation(context.Background())
-	err := db.DeleteConversation(context.Background(), conv.ID)
+func TestSQLite_GetConversation_CorruptTimestampIsError(t *testing.T) {
+	db, raw, conv := seedSQLiteRows(t)
+	_, err := raw.Exec(`UPDATE conversations SET updated_at = ? WHERE id = ?`, "never", conv.ID)
 	require.NoError(t, err)
 
 	_, err = db.GetConversation(context.Background(), conv.ID)
 	require.Error(t, err)
-}
+	assert.Contains(t, err.Error(), `parse updated_at "never"`)
 
-func TestSQLite_CreateAndGetMessages(t *testing.T) {
-	db := openTestDB(t)
-
-	conv, _ := db.CreateConversation(context.Background())
-
-	// User message
-	msg1, err := db.CreateMessage(context.Background(), CreateMessageParams{
-		ConversationID: conv.ID,
-		Role:           "user",
-		Content:        "Who scored the most goals?",
-	})
-	require.NoError(t, err)
-	assert.NotEmpty(t, msg1.ID)
-	assert.Equal(t, "user", msg1.Role)
-
-	// Assistant message with tool calls
-	msg2, err := db.CreateMessage(context.Background(), CreateMessageParams{
-		ConversationID: conv.ID,
-		Role:           "assistant",
-		ToolCalls: []llm.ToolCall{{
-			ID:   "call_1",
-			Type: "function",
-			Function: llm.ToolCallFunction{
-				Name:      "pg_read_query",
-				Arguments: `{"sql":"SELECT 1"}`,
-			},
-		}},
-	})
-	require.NoError(t, err)
-	require.Len(t, msg2.ToolCalls, 1)
-	assert.Equal(t, "pg_read_query", msg2.ToolCalls[0].Function.Name)
-
-	// Tool result
-	_, err = db.CreateMessage(context.Background(), CreateMessageParams{
-		ConversationID: conv.ID,
-		Role:           "tool",
-		Content:        `[{"count":894}]`,
-		ToolCallID:     "call_1",
-	})
-	require.NoError(t, err)
-
-	// Retrieve all messages
-	msgs, err := db.GetMessages(context.Background(), conv.ID)
-	require.NoError(t, err)
-	assert.Len(t, msgs, 3)
-	assert.Equal(t, "user", msgs[0].Role)
-	assert.Equal(t, "assistant", msgs[1].Role)
-	assert.Equal(t, "tool", msgs[2].Role)
-	assert.Equal(t, "call_1", msgs[2].ToolCallID)
-
-	// Verify tool calls survived round-trip
-	require.Len(t, msgs[1].ToolCalls, 1)
-	assert.Equal(t, "call_1", msgs[1].ToolCalls[0].ID)
-}
-
-func TestSQLite_CascadeDelete(t *testing.T) {
-	db := openTestDB(t)
-
-	conv, _ := db.CreateConversation(context.Background())
-	db.CreateMessage(context.Background(), CreateMessageParams{
-		ConversationID: conv.ID, Role: "user", Content: "test",
-	})
-
-	// Delete conversation should cascade to messages
-	err := db.DeleteConversation(context.Background(), conv.ID)
-	require.NoError(t, err)
-
-	msgs, err := db.GetMessages(context.Background(), conv.ID)
-	require.NoError(t, err)
-	assert.Empty(t, msgs)
-}
-
-func TestSQLite_MessageUpdatesConversationTimestamp(t *testing.T) {
-	db := openTestDB(t)
-
-	conv, _ := db.CreateConversation(context.Background())
-	originalUpdated := conv.UpdatedAt
-
-	db.CreateMessage(context.Background(), CreateMessageParams{
-		ConversationID: conv.ID, Role: "user", Content: "test",
-	})
-
-	updated, _ := db.GetConversation(context.Background(), conv.ID)
-	assert.True(t, !updated.UpdatedAt.Before(originalUpdated))
+	_, err = db.ListConversations(context.Background(), 10)
+	require.Error(t, err, "a corrupt row must fail the listing rather than be silently zeroed")
 }
 
 // --- Error-path tests using a closed *sql.DB ---
@@ -211,17 +154,6 @@ func TestSQLite_ListConversations_ErrorOnClosedDB(t *testing.T) {
 	assert.Nil(t, convs)
 }
 
-func TestSQLite_CreateMessage_ErrorOnClosedDB(t *testing.T) {
-	s, raw := alreadyMigratedDB(t)
-	require.NoError(t, raw.Close())
-
-	msg, err := s.CreateMessage(context.Background(), CreateMessageParams{
-		ConversationID: "missing-conv-id", Role: "user", Content: "hi",
-	})
-	require.Error(t, err)
-	assert.Nil(t, msg)
-}
-
 func TestSQLite_GetMessages_ErrorOnClosedDB(t *testing.T) {
 	s, raw := alreadyMigratedDB(t)
 	require.NoError(t, raw.Close())
@@ -229,112 +161,6 @@ func TestSQLite_GetMessages_ErrorOnClosedDB(t *testing.T) {
 	msgs, err := s.GetMessages(context.Background(), "any-conv-id")
 	require.Error(t, err)
 	assert.Nil(t, msgs)
-}
-
-// --- ToolCalls JSON round-trip tests ---
-
-// CreateMessage and GetMessages (via scanMessage) exercise a JSON
-// round-trip when ToolCalls is non-empty. Pin both branches: empty
-// (NULL in DB) and non-empty (JSON-encoded TEXT).
-
-func TestSQLite_CreateMessage_WithToolCalls(t *testing.T) {
-	db := openTestDB(t)
-	conv, err := db.CreateConversation(context.Background())
-	require.NoError(t, err)
-
-	toolCalls := []llm.ToolCall{
-		{
-			ID:       "call-1",
-			Type:     "function",
-			Function: llm.ToolCallFunction{Name: "get_player", Arguments: `{"id":42}`},
-		},
-	}
-	created, err := db.CreateMessage(context.Background(), CreateMessageParams{
-		ConversationID: conv.ID,
-		Role:           "assistant",
-		Content:        "looking up player",
-		ToolCalls:      toolCalls,
-	})
-	require.NoError(t, err)
-	assert.NotEmpty(t, created.ID)
-
-	msgs, err := db.GetMessages(context.Background(), conv.ID)
-	require.NoError(t, err)
-	require.Len(t, msgs, 1)
-	require.Len(t, msgs[0].ToolCalls, 1)
-	assert.Equal(t, "call-1", msgs[0].ToolCalls[0].ID)
-	assert.Equal(t, "get_player", msgs[0].ToolCalls[0].Function.Name)
-}
-
-// --- CreateMessages: atomic turn persistence ---
-
-// A failing write mid-batch must roll the whole turn back: the earlier,
-// individually-valid inserts must NOT survive. Here the second message
-// references a nonexistent conversation, tripping the FK constraint
-// (PRAGMA foreign_keys is ON), after the first message already inserted.
-func TestSQLite_CreateMessages_RollsBackOnMidBatchFailure(t *testing.T) {
-	db := openTestDB(t)
-	conv, err := db.CreateConversation(context.Background())
-	require.NoError(t, err)
-
-	params := []CreateMessageParams{
-		{ConversationID: conv.ID, Role: "user", Content: "first (valid)"},
-		{ConversationID: "does-not-exist", Role: "assistant", Content: "second (FK violation)"},
-	}
-	created, err := db.CreateMessages(context.Background(), params)
-	require.Error(t, err, "FK violation on the second insert must fail the batch")
-	assert.Nil(t, created)
-
-	msgs, err := db.GetMessages(context.Background(), conv.ID)
-	require.NoError(t, err)
-	assert.Empty(t, msgs, "the first insert must roll back with the failed turn")
-}
-
-// Happy path: every message is persisted in order, the returned slice
-// matches params order, and the conversation's updated_at is bumped.
-func TestSQLite_CreateMessages_PersistsWholeTurnInOrder(t *testing.T) {
-	db := openTestDB(t)
-	conv, err := db.CreateConversation(context.Background())
-	require.NoError(t, err)
-	originalUpdated := conv.UpdatedAt
-
-	params := []CreateMessageParams{
-		{ConversationID: conv.ID, Role: "user", Content: "q"},
-		{ConversationID: conv.ID, Role: "assistant", ToolCalls: []llm.ToolCall{{
-			ID:       "call_1",
-			Type:     "function",
-			Function: llm.ToolCallFunction{Name: "pg_read_query", Arguments: `{"sql":"SELECT 1"}`},
-		}}},
-		{ConversationID: conv.ID, Role: "tool", Content: "rows", ToolCallID: "call_1"},
-		{ConversationID: conv.ID, Role: "assistant", Content: "final"},
-	}
-	created, err := db.CreateMessages(context.Background(), params)
-	require.NoError(t, err)
-	require.Len(t, created, 4)
-	assert.Equal(t, "final", created[3].Content)
-
-	msgs, err := db.GetMessages(context.Background(), conv.ID)
-	require.NoError(t, err)
-	require.Len(t, msgs, 4)
-	assert.Equal(t, "user", msgs[0].Role)
-	assert.Equal(t, "assistant", msgs[1].Role)
-	require.Len(t, msgs[1].ToolCalls, 1)
-	assert.Equal(t, "tool", msgs[2].Role)
-	assert.Equal(t, "call_1", msgs[2].ToolCallID)
-	assert.Equal(t, "assistant", msgs[3].Role)
-	assert.Equal(t, "final", msgs[3].Content)
-
-	updated, err := db.GetConversation(context.Background(), conv.ID)
-	require.NoError(t, err)
-	assert.True(t, !updated.UpdatedAt.Before(originalUpdated), "updated_at must be bumped for the turn")
-}
-
-// Empty batch is a no-op that returns no messages and no error.
-func TestSQLite_CreateMessages_EmptyIsNoOp(t *testing.T) {
-	db := openTestDB(t)
-	created, err := db.CreateMessages(context.Background(), nil)
-	require.NoError(t, err)
-	assert.Empty(t, created)
 }
 
 // Error path: a closed DB fails the batch at BeginTx.
@@ -347,23 +173,4 @@ func TestSQLite_CreateMessages_ErrorOnClosedDB(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Nil(t, created)
-}
-
-// CASCADE delete: deleting a conversation must remove its messages.
-// The schema declares ON DELETE CASCADE; the constructor enables
-// PRAGMA foreign_keys=ON. This test pins both halves of that contract.
-func TestSQLite_DeleteConversation_CascadesMessages(t *testing.T) {
-	db := openTestDB(t)
-	conv, err := db.CreateConversation(context.Background())
-	require.NoError(t, err)
-	_, err = db.CreateMessage(context.Background(), CreateMessageParams{
-		ConversationID: conv.ID, Role: "user", Content: "hello",
-	})
-	require.NoError(t, err)
-
-	require.NoError(t, db.DeleteConversation(context.Background(), conv.ID))
-
-	msgs, err := db.GetMessages(context.Background(), conv.ID)
-	require.NoError(t, err)
-	assert.Empty(t, msgs, "messages must cascade-delete with their conversation")
 }

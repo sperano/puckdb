@@ -141,24 +141,6 @@ func (m *mockDB) DeleteConversation(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *mockDB) CreateMessage(ctx context.Context, p CreateMessageParams) (*Message, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.createMessageErr != nil {
-		return nil, m.createMessageErr
-	}
-	msg := &Message{
-		ID:         m.nextUUID(),
-		Role:       p.Role,
-		Content:    p.Content,
-		ToolCalls:  p.ToolCalls,
-		ToolCallID: p.ToolCallID,
-		CreatedAt:  time.Now(),
-	}
-	m.messages[p.ConversationID] = append(m.messages[p.ConversationID], msg)
-	return msg, nil
-}
-
 // CreateMessages mimics the real backends' atomic contract: if createMessageErr
 // is armed the whole batch fails and nothing is appended; otherwise every
 // message is appended in order.
@@ -602,15 +584,16 @@ func TestLoadHistory_TruncatesToMaxHistory(t *testing.T) {
 	// the LLM request.
 	const seeded = 30
 	const maxHistory = 5
+	seed := make([]CreateMessageParams, seeded)
 	for i := range seeded {
-		_, _ = db.CreateMessage(context.Background(), CreateMessageParams{
-			ConversationID: conv.ID, Role: "user", Content: fmt.Sprintf("m%d", i),
-		})
+		seed[i] = CreateMessageParams{ConversationID: conv.ID, Role: "user", Content: fmt.Sprintf("m%d", i)}
 	}
+	_, err := db.CreateMessages(context.Background(), seed)
+	require.NoError(t, err)
 
 	llmMock := &mockLLMClient{responses: []*llm.Response{{Content: "ok"}}}
 	svc := NewService(llmMock, newMockMCP(), db, maxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
-	_, err := svc.Chat(context.Background(), &conv.ID, "follow-up")
+	_, err = svc.Chat(context.Background(), &conv.ID, "follow-up")
 	require.NoError(t, err)
 
 	// Request[0] = system prompt, then up to maxHistory previous + the
@@ -639,15 +622,16 @@ func TestLoadHistory_SkipsLeadingToolAfterTruncation(t *testing.T) {
 	// with a tool message. Construct: 4 messages where last 3 starts
 	// with tool.
 	roles := []string{"user", "assistant", "tool", "user"} // oldest -> newest
-	for _, r := range roles {
-		_, _ = db.CreateMessage(context.Background(), CreateMessageParams{
-			ConversationID: conv.ID, Role: r, Content: r + "-content",
-		})
+	seed := make([]CreateMessageParams, len(roles))
+	for i, r := range roles {
+		seed[i] = CreateMessageParams{ConversationID: conv.ID, Role: r, Content: r + "-content"}
 	}
+	_, err := db.CreateMessages(context.Background(), seed)
+	require.NoError(t, err)
 
 	llmMock := &mockLLMClient{responses: []*llm.Response{{Content: "ok"}}}
 	svc := NewService(llmMock, newMockMCP(), db, maxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
-	_, err := svc.Chat(context.Background(), &conv.ID, "follow-up")
+	_, err = svc.Chat(context.Background(), &conv.ID, "follow-up")
 	require.NoError(t, err)
 
 	require.GreaterOrEqual(t, len(llmMock.requests), 1)

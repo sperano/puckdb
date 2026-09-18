@@ -30,19 +30,24 @@ func (q *Queries) CreateConversation(ctx context.Context, title pgtype.Text) (Ma
 }
 
 const createMessage = `-- name: CreateMessage :one
-INSERT INTO maurice_messages (conversation_id, role, content, tool_calls, tool_call_id)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO maurice_messages (conversation_id, role, content, tool_calls, tool_call_id, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, conversation_id, role, content, tool_calls, tool_call_id, created_at
 `
 
 type CreateMessageParams struct {
-	ConversationID pgtype.UUID `json:"conversation_id"`
-	Role           ChatRole    `json:"role"`
-	Content        string      `json:"content"`
-	ToolCalls      []byte      `json:"tool_calls"`
-	ToolCallID     pgtype.Text `json:"tool_call_id"`
+	ConversationID pgtype.UUID        `json:"conversation_id"`
+	Role           ChatRole           `json:"role"`
+	Content        string             `json:"content"`
+	ToolCalls      []byte             `json:"tool_calls"`
+	ToolCallID     pgtype.Text        `json:"tool_call_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+// created_at is supplied explicitly rather than left to DEFAULT NOW(): NOW()
+// is the transaction start time, so every message of a turn inserted in one
+// transaction would share it and GetMessagesByConversation could not
+// reconstruct turn order. The caller stamps a strictly increasing value.
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (MauriceMessage, error) {
 	row := q.db.QueryRow(ctx, createMessage,
 		arg.ConversationID,
@@ -50,6 +55,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 		arg.Content,
 		arg.ToolCalls,
 		arg.ToolCallID,
+		arg.CreatedAt,
 	)
 	var i MauriceMessage
 	err := row.Scan(
@@ -157,6 +163,23 @@ func (q *Queries) ListConversations(ctx context.Context, limit int32) ([]Maurice
 		return nil, err
 	}
 	return items, nil
+}
+
+const touchConversation = `-- name: TouchConversation :exec
+UPDATE maurice_conversations
+SET updated_at = clock_timestamp()
+WHERE id = $1
+`
+
+// Bumps the conversation's activity timestamp. Runs in the same transaction
+// as the message inserts so ListConversations (ORDER BY updated_at DESC)
+// only surfaces a conversation once its turn committed. clock_timestamp()
+// rather than NOW(): NOW() is the transaction START time, which would put
+// updated_at before the messages stamped during the transaction and order
+// overlapping turns by begin time instead of by when they actually landed.
+func (q *Queries) TouchConversation(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, touchConversation, id)
+	return err
 }
 
 const updateConversationTitle = `-- name: UpdateConversationTitle :exec

@@ -422,6 +422,18 @@ maurice (<model-name>) >
 
 Always run the full test suite (`go test ./...`) and verify 100% pass rate before committing any changes. Do not commit if any tests fail.
 
+### Database-backed tests
+
+Tests that need a real PostgreSQL read `PUCKDB_TEST_PG_URL` and skip when it is unset. Point it at a dedicated throwaway database — the harnesses migrate and truncate it:
+
+```bash
+docker run -d --rm --name puckdb-test-pg -e POSTGRES_USER=puckdb -e POSTGRES_PASSWORD=foo \
+  -e POSTGRES_DB=puckdb_test -p 15433:5432 postgres:16-alpine
+PUCKDB_TEST_PG_URL='postgres://puckdb:foo@localhost:15433/puckdb_test?sslmode=disable' go test ./maurice/
+```
+
+`maurice/dbcontract_test.go` is the shared persistence contract for the Maurice `DB` implementations; SQLite runs it in-memory on every `go test`, PostgreSQL runs it only with the env var set. Any behaviour change to one adapter must keep both passing.
+
 ### Serialization Error Handling
 
 When testing code that serializes/deserializes domain objects:

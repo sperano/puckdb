@@ -30,6 +30,15 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id
 CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updated_at DESC);
 `
 
+// sqliteTimeLayout is the fixed-width form every timestamp is stored in. It is
+// RFC 3339 with the fractional seconds always padded to nine digits, unlike
+// time.RFC3339Nano which trims trailing zeros: with trimming, "…11.12Z" sorts
+// AFTER "…11.123456Z" because 'Z' > '3', so ORDER BY on the TEXT column would
+// not be chronological. Padding keeps every value the same width, making the
+// string order and the time order identical. time.RFC3339Nano still parses
+// both padded and (legacy) trimmed values.
+const sqliteTimeLayout = "2006-01-02T15:04:05.000000000Z07:00"
+
 type sqliteDB struct {
 	db *sql.DB
 }
@@ -51,7 +60,7 @@ func NewSQLiteDB(db *sql.DB) (DB, error) {
 func (s *sqliteDB) CreateConversation(ctx context.Context) (*Conversation, error) {
 	id := uuid.New().String()
 	now := time.Now().UTC()
-	nowStr := now.Format(time.RFC3339Nano)
+	nowStr := now.Format(sqliteTimeLayout)
 	_, err := s.db.ExecContext(ctx,
 		"INSERT INTO conversations (id, created_at, updated_at) VALUES (?, ?, ?)",
 		id, nowStr, nowStr,
@@ -70,7 +79,7 @@ func (s *sqliteDB) GetConversation(ctx context.Context, id string) (*Conversatio
 }
 
 func (s *sqliteDB) UpdateConversationTitle(ctx context.Context, id, title string) error {
-	now := time.Now().UTC().Format(time.RFC3339Nano)
+	now := time.Now().UTC().Format(sqliteTimeLayout)
 	_, err := s.db.ExecContext(ctx,
 		"UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?",
 		title, now, id,
@@ -103,46 +112,27 @@ func (s *sqliteDB) DeleteConversation(ctx context.Context, id string) error {
 	return err
 }
 
-// execer is implemented by both *sql.DB and *sql.Tx, letting insertMessage run
-// either standalone or inside a transaction.
-type execer interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
-
-func (s *sqliteDB) CreateMessage(ctx context.Context, p CreateMessageParams) (*Message, error) {
-	now := time.Now().UTC()
-	msg, err := insertMessage(ctx, s.db, p, now)
-	if err != nil {
-		return nil, err
-	}
-
-	// Update conversation's updated_at (best-effort, matching historical behavior).
-	_, _ = s.db.ExecContext(ctx,
-		"UPDATE conversations SET updated_at = ? WHERE id = ?",
-		now.Format(time.RFC3339Nano), p.ConversationID,
-	)
-
-	return msg, nil
-}
-
-// CreateMessages inserts every message inside a single transaction so the turn
-// is persisted all-or-nothing; the conversation's updated_at is bumped once at
-// the end. A failure on any insert (or the commit) rolls the whole batch back.
-// The returned slice matches params order on success.
+// CreateMessages inserts every message inside a single transaction and bumps
+// the conversation's updated_at in that same transaction, so the turn is
+// persisted all-or-nothing and ListConversations reflects it as soon as it
+// commits. A failure on any insert, the bump, or the commit rolls the whole
+// batch back. The returned slice matches params order on success.
 //
 // Every message in the turn is stamped with the SAME created_at. Ordering is
 // then decided by the rowid tiebreaker in GetMessages' "ORDER BY created_at
 // ASC, rowid ASC", which preserves insertion (turn) order regardless of
-// timestamp resolution. A shared timestamp also avoids the trailing-zero
-// trimming hazard of time.RFC3339Nano, whose string form does not always sort
-// chronologically across distinct sub-second values.
+// timestamp resolution.
 func (s *sqliteDB) CreateMessages(ctx context.Context, params []CreateMessageParams) ([]*Message, error) {
 	if len(params) == 0 {
 		return nil, nil
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	convID, err := batchConversationID(params)
 	if err != nil {
 		return nil, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
 	}
 	// Rollback after a successful Commit is a no-op (database/sql returns
 	// ErrTxDone, which we ignore), so this deferred call can stay unconditional.
@@ -153,19 +143,19 @@ func (s *sqliteDB) CreateMessages(ctx context.Context, params []CreateMessagePar
 	for i, p := range params {
 		msg, err := insertMessage(ctx, tx, p, now)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("insert message %d: %w", i, err)
 		}
 		result[i] = msg
 	}
 
-	// Bump the conversation's updated_at once for the whole turn. Unlike the
-	// single-message path this is inside the transaction, so a failure here
-	// rolls the turn back rather than being silently ignored.
+	// Bump the conversation's updated_at once for the whole turn. Inside the
+	// transaction so a failure here rolls the turn back rather than leaving
+	// messages without an activity bump.
 	if _, err := tx.ExecContext(ctx,
 		"UPDATE conversations SET updated_at = ? WHERE id = ?",
-		now.Format(time.RFC3339Nano), params[len(params)-1].ConversationID,
+		now.Format(sqliteTimeLayout), convID,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("touch conversation: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -174,11 +164,11 @@ func (s *sqliteDB) CreateMessages(ctx context.Context, params []CreateMessagePar
 	return result, nil
 }
 
-// insertMessage writes one message row via the given execer, stamped with the
-// given created_at, and returns the resulting Message.
-func insertMessage(ctx context.Context, ex execer, p CreateMessageParams, now time.Time) (*Message, error) {
+// insertMessage writes one message row inside the given transaction, stamped
+// with the given created_at, and returns the resulting Message.
+func insertMessage(ctx context.Context, tx *sql.Tx, p CreateMessageParams, now time.Time) (*Message, error) {
 	id := uuid.New().String()
-	nowStr := now.Format(time.RFC3339Nano)
+	nowStr := now.Format(sqliteTimeLayout)
 
 	var toolCallsJSON *string
 	if len(p.ToolCalls) > 0 {
@@ -195,7 +185,7 @@ func insertMessage(ctx context.Context, ex execer, p CreateMessageParams, now ti
 		toolCallID = &p.ToolCallID
 	}
 
-	if _, err := ex.ExecContext(ctx,
+	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO messages (id, conversation_id, role, content, tool_calls, tool_call_id, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		id, p.ConversationID, p.Role, p.Content, toolCallsJSON, toolCallID, nowStr,
@@ -239,6 +229,18 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
+// parseStoredTime decodes a timestamp column. RFC3339Nano parses both the
+// padded sqliteTimeLayout and legacy trimmed values.
+func parseStoredTime(column, value string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse %s %q: %w", column, value, err)
+	}
+	return t, nil
+}
+
+// scanConversation maps a row to a Conversation. A timestamp that does not
+// parse is reported rather than zeroed, since ordering and display depend on it.
 func scanConversation(s rowScanner) (*Conversation, error) {
 	var id, createdAt, updatedAt string
 	var title sql.NullString
@@ -246,14 +248,23 @@ func scanConversation(s rowScanner) (*Conversation, error) {
 		return nil, err
 	}
 	conv := &Conversation{ID: id}
-	conv.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdAt)
-	conv.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updatedAt)
+	var err error
+	if conv.CreatedAt, err = parseStoredTime("created_at", createdAt); err != nil {
+		return nil, fmt.Errorf("conversation %s: %w", id, err)
+	}
+	if conv.UpdatedAt, err = parseStoredTime("updated_at", updatedAt); err != nil {
+		return nil, fmt.Errorf("conversation %s: %w", id, err)
+	}
 	if title.Valid {
 		conv.Title = &title.String
 	}
 	return conv, nil
 }
 
+// scanMessage maps a row to a Message. A tool_calls value that does not decode
+// is reported rather than dropped: silently returning a message without its
+// tool calls would hand the LLM a history whose tool results have no matching
+// calls.
 func scanMessage(s rowScanner) (*Message, error) {
 	var id, role, content, createdAt string
 	var toolCallsStr, toolCallID sql.NullString
@@ -265,12 +276,17 @@ func scanMessage(s rowScanner) (*Message, error) {
 		Role:    role,
 		Content: content,
 	}
-	msg.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdAt)
+	var err error
+	if msg.CreatedAt, err = parseStoredTime("created_at", createdAt); err != nil {
+		return nil, fmt.Errorf("message %s: %w", id, err)
+	}
 	if toolCallID.Valid {
 		msg.ToolCallID = toolCallID.String
 	}
 	if toolCallsStr.Valid {
-		_ = json.Unmarshal([]byte(toolCallsStr.String), &msg.ToolCalls)
+		if err := json.Unmarshal([]byte(toolCallsStr.String), &msg.ToolCalls); err != nil {
+			return nil, fmt.Errorf("message %s: decode tool calls: %w", id, err)
+		}
 	}
 	return msg, nil
 }
