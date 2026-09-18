@@ -19,36 +19,15 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-func getDSN(host string, user string, password string, dbname string, port int, sslmode string, timezone string) string {
-	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s timezone=%s",
-		host, user, password, dbname, port, sslmode, timezone)
-}
-
-func GetDSN() string {
-	return getDSN(viper.GetString(config.FlagPostgresHost),
-		viper.GetString(config.FlagPostgresUser),
-		viper.GetString(config.FlagPostgresPassword),
-		viper.GetString(config.FlagPostgresDatabase),
-		viper.GetInt(config.FlagPostgresPort),
-		viper.GetString(config.FlagPostgresSSLMode),
-		viper.GetString(config.FlagPostgresTimeZone))
-}
-
-// GetDatabaseURL returns a PostgreSQL connection URL for pgx
-func GetDatabaseURL() string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		viper.GetString(config.FlagPostgresUser),
-		viper.GetString(config.FlagPostgresPassword),
-		viper.GetString(config.FlagPostgresHost),
-		viper.GetInt(config.FlagPostgresPort),
-		viper.GetString(config.FlagPostgresDatabase),
-		viper.GetString(config.FlagPostgresSSLMode))
-}
-
 // OpenPGXPool opens a pgx connection pool for use with SQLC
 func OpenPGXPool(ctx context.Context) (*pgxpool.Pool, error) {
-	dbURL := GetDatabaseURL()
-	log.Debug().Str("host", viper.GetString(config.FlagPostgresHost)).Msg("Initializing pgx pool")
+	connConfig := ConnConfigFromViper()
+	log.Debug().Str("host", connConfig.Host).Msg("Initializing pgx pool")
+
+	dbURL, err := connConfig.URL()
+	if err != nil {
+		return nil, err
+	}
 
 	poolConfig, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
@@ -92,7 +71,11 @@ func MigrateDown(dbURL string) error {
 
 // RunSQLMigrations runs the embedded SQL migrations
 func RunSQLMigrations() error {
-	return runMigrationsUpAt(GetDatabaseURL())
+	dbURL, err := ConnConfigFromViper().URL()
+	if err != nil {
+		return err
+	}
+	return runMigrationsUpAt(dbURL)
 }
 
 func runMigrationsUpAt(dbURL string) error {
@@ -131,7 +114,11 @@ func runMigrationsUpAt(dbURL string) error {
 
 // RunSQLMigrationsDown runs all down migrations
 func RunSQLMigrationsDown() error {
-	return runMigrationsDownAt(GetDatabaseURL())
+	dbURL, err := ConnConfigFromViper().URL()
+	if err != nil {
+		return err
+	}
+	return runMigrationsDownAt(dbURL)
 }
 
 func runMigrationsDownAt(dbURL string) error {
