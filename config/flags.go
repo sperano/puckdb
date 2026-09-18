@@ -159,7 +159,6 @@ const (
 const (
 	FlagYahooOAuth2ClientID     = "yahoo-oauth2-client-id"
 	FlagYahooOAuth2ClientSecret = "yahoo-oauth2-client-secret"
-	FlagYahooLogToken           = "yahoo-log-token"
 	FlagYahooSeasons            = "yahoo-seasons"
 	FlagPublicURL               = "public-url"
 )
@@ -343,7 +342,6 @@ var YahooOAuth2Flags = FlagGroup{
 		{FlagYahooOAuth2ClientID, "", "", "Yahoo! OAuth2 Client ID", false},
 		{FlagYahooOAuth2ClientSecret, "", "", "Yahoo! OAuth2 Client Secret", true},
 		{FlagPublicURL, "", "", "Public URL for OAuth callbacks (e.g., https://localhost:8787 or http://api.example.com)", false},
-		{FlagYahooLogToken, "", false, "Log the token after successful authentication (for debugging)", false},
 	},
 }
 

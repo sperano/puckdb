@@ -276,8 +276,8 @@ func TestExchangeCodeWithConfig_AuthCodeAlreadyUsed(t *testing.T) {
 	// Key format: %s_yahoo_oauth2_token
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
-	// Key format: yahoo_oauth2_code_%s - SetNX returns false (already exists)
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("yahoo_oauth2_code_already-used-code", "x", time.Hour).SetVal(false)
+	// Key is digest-derived (wildcard-matched here) - SetNX returns false (already exists)
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(false)
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "already-used-code")
 	assert.Error(t, err)
@@ -303,8 +303,8 @@ func TestExchangeCodeWithConfig_TokenExchangeFails(t *testing.T) {
 	// Key format: %s_yahoo_oauth2_token
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
-	// Key format: yahoo_oauth2_code_%s
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("yahoo_oauth2_code_expired-code", "x", time.Hour).SetVal(true)
+	// Key is digest-derived (wildcard-matched here)
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "expired-code")
 	assert.Error(t, err)
@@ -335,8 +335,8 @@ func TestExchangeCodeWithConfig_TokenSaveFails(t *testing.T) {
 	// Key format: %s_yahoo_oauth2_token
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
-	// Key format: yahoo_oauth2_code_%s
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("yahoo_oauth2_code_valid-code", "x", time.Hour).SetVal(true)
+	// Key is digest-derived (wildcard-matched here)
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
 
 	// Mock: save token fails
 	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetErr(redis.ErrClosed)
@@ -370,8 +370,8 @@ func TestExchangeCodeWithConfig_Success(t *testing.T) {
 	// Key format: %s_yahoo_oauth2_token
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
-	// Key format: yahoo_oauth2_code_%s
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("yahoo_oauth2_code_valid-code", "x", time.Hour).SetVal(true)
+	// Key is digest-derived (wildcard-matched here)
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
 
 	// Mock: save token succeeds
 	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")

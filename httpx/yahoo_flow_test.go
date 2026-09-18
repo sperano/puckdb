@@ -88,7 +88,9 @@ func expectSuccessfulExchange(mock redismock.ClientMock, state, code string) {
 	mock.ExpectDel(loginStateKey(state)).SetVal(1)
 	// Key format: %s_yahoo_oauth2_token (config.DefaultUser = "eric")
 	mock.ExpectGet("eric_yahoo_oauth2_token").RedisNil()
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("yahoo_oauth2_code_"+code, "x", time.Hour).SetVal(true)
+	// The code key is digest-derived and private to cache; anyArgsMatch makes
+	// the literal irrelevant.
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
 	mock.CustomMatch(anyArgsMatch).ExpectSet("eric_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
 }
 

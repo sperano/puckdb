@@ -121,9 +121,8 @@ func yahooAuthenticatedHandler(redisClient *redis.Client, resolve callbackConfig
 			return
 		}
 
-		if viper.GetBool(config.FlagYahooLogToken) {
-			log.Debug().Str("code", code).Msg("Authentication code received from Yahoo")
-		}
+		// The code is a credential: it is never logged.
+		log.Debug().Msg("Authorization code received from Yahoo")
 		ctxV := context.WithValue(r.Context(), config.CtxUser, config.DefaultUser)
 		if err := exchangeCodeWithConfig(ctxV, redisClient, conf, config.DefaultUser, code); err != nil {
 			handleError(w, http.StatusForbidden, fmt.Errorf("should probably authenticate again: %w", err))
