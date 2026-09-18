@@ -88,17 +88,36 @@ func TestYahooLandedHandler(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "/yahoo/login")
 }
 
+func TestYahooAuthenticatedHandler_MissingState(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodGet, "/yahoo/callback?code=some-code", nil)
+	w := httptest.NewRecorder()
+
+	// nil Redis: the request must be rejected before any storage access.
+	handler := YahooAuthenticatedHandler(nil)
+	handler(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "missing state")
+}
+
 func TestYahooAuthenticatedHandler_MissingCode(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "/yahoo/callback", nil)
+	client, mock := redismock.NewClientMock()
+	mock.ExpectDel(loginStateKey(testLoginState)).SetVal(1)
+
+	req := httptest.NewRequest(http.MethodGet, "/yahoo/callback?state="+testLoginState, nil)
+	req.AddCookie(&http.Cookie{Name: config.YahooLoginStateCookie, Value: testLoginState})
 	w := httptest.NewRecorder()
 
-	handler := YahooAuthenticatedHandler(nil)
+	handler := YahooAuthenticatedHandler(client)
 	handler(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "missing authorization code")
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestYahooAuthenticatedHandler_OAuthError(t *testing.T) {
@@ -174,62 +193,52 @@ func TestYahooLoginHandlerWithConfig(t *testing.T) {
 	t.Parallel()
 
 	conf := createYahooTestOAuthConfig("https://api.login.yahoo.com")
+	client, mock := redismock.NewClientMock()
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "pending", cache.LoginStateTTL).SetVal(true)
 
 	req := httptest.NewRequest(http.MethodGet, "/yahoo/login", nil)
 	w := httptest.NewRecorder()
 
-	handler := YahooLoginHandlerWithConfig(conf)
+	handler := YahooLoginHandlerWithConfig(client, conf)
 	handler(w, req)
 
 	assert.Equal(t, http.StatusFound, w.Code)
 
-	location := w.Header().Get("Location")
-	assert.Contains(t, location, "https://api.login.yahoo.com/auth")
-	assert.Contains(t, location, "client_id=test-client-id")
-	assert.Contains(t, location, "state=state")
+	location, err := url.Parse(w.Header().Get("Location"))
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.login.yahoo.com/auth", location.Scheme+"://"+location.Host+location.Path)
+	assert.Equal(t, "test-client-id", location.Query().Get("client_id"))
+	state := location.Query().Get("state")
+	assert.NotEmpty(t, state)
+	assert.NotEqual(t, "state", state, "state must be random, not a constant")
+
+	// The same state must be bound to the browser via the cookie.
+	cookies := w.Result().Cookies()
+	require.Len(t, cookies, 1)
+	assert.Equal(t, config.YahooLoginStateCookie, cookies[0].Name)
+	assert.Equal(t, state, cookies[0].Value)
+	assert.True(t, cookies[0].HttpOnly)
 
 	// Verify no-cache headers are set
 	assert.Equal(t, "no-cache, no-store, must-revalidate", w.Header().Get("Cache-Control"))
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestYahooAuthenticatedHandlerWithConfig_Success(t *testing.T) {
+func TestYahooLoginHandlerWithConfig_StateStoreFails(t *testing.T) {
 	t.Parallel()
 
-	// Create a mock OAuth2 token server
-	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
-			"access_token": "new-access-token",
-			"token_type": "Bearer",
-			"refresh_token": "new-refresh-token",
-			"expires_in": 3600
-		}`))
-	}))
-	defer tokenServer.Close()
-
-	conf := createYahooTestOAuthConfig(tokenServer.URL)
+	conf := createYahooTestOAuthConfig("https://api.login.yahoo.com")
 	client, mock := redismock.NewClientMock()
-	mock.MatchExpectationsInOrder(false)
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "pending", cache.LoginStateTTL).SetErr(redis.ErrClosed)
 
-	// Key format: %s_yahoo_oauth2_token (config.DefaultUser = "eric")
-	mock.ExpectGet("eric_yahoo_oauth2_token").RedisNil()
-
-	// Key format: yahoo_oauth2_code_%s
-	anyArgs := func(expected, actual []any) error { return nil }
-	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_test-auth-code", "x", time.Hour).SetVal(true)
-
-	// Mock: save the new token
-	mock.CustomMatch(anyArgs).ExpectSet("eric_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
-
-	req := httptest.NewRequest(http.MethodGet, "/yahoo/callback", nil)
 	w := httptest.NewRecorder()
+	YahooLoginHandlerWithConfig(client, conf)(w, httptest.NewRequest(http.MethodGet, "/yahoo/login", nil))
 
-	handler := YahooAuthenticatedHandlerWithConfig(client, conf, "http://localhost/success", "test-auth-code")
-	handler(w, req)
-
-	assert.Equal(t, http.StatusFound, w.Code)
-	assert.Equal(t, "http://localhost/success", w.Header().Get("Location"))
-	assert.NoError(t, mock.ExpectationsWereMet())
+	// Without a registered state the login cannot be verified later, so no
+	// redirect and no cookie may be issued.
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Empty(t, w.Header().Get("Location"))
+	assert.Empty(t, w.Result().Cookies())
 }
 
 func TestExchangeCodeWithConfig_AlreadyHasValidToken(t *testing.T) {
@@ -268,8 +277,7 @@ func TestExchangeCodeWithConfig_AuthCodeAlreadyUsed(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s - SetNX returns false (already exists)
-	anyArgs := func(expected, actual []any) error { return nil }
-	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_already-used-code", "x", time.Hour).SetVal(false)
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("yahoo_oauth2_code_already-used-code", "x", time.Hour).SetVal(false)
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "already-used-code")
 	assert.Error(t, err)
@@ -296,8 +304,7 @@ func TestExchangeCodeWithConfig_TokenExchangeFails(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	anyArgs := func(expected, actual []any) error { return nil }
-	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_expired-code", "x", time.Hour).SetVal(true)
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("yahoo_oauth2_code_expired-code", "x", time.Hour).SetVal(true)
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "expired-code")
 	assert.Error(t, err)
@@ -329,11 +336,10 @@ func TestExchangeCodeWithConfig_TokenSaveFails(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	anyArgs := func(expected, actual []any) error { return nil }
-	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_valid-code", "x", time.Hour).SetVal(true)
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("yahoo_oauth2_code_valid-code", "x", time.Hour).SetVal(true)
 
 	// Mock: save token fails
-	mock.CustomMatch(anyArgs).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetErr(redis.ErrClosed)
+	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetErr(redis.ErrClosed)
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "valid-code")
 	assert.Error(t, err)
@@ -365,11 +371,10 @@ func TestExchangeCodeWithConfig_Success(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
 	// Key format: yahoo_oauth2_code_%s
-	anyArgs := func(expected, actual []any) error { return nil }
-	mock.CustomMatch(anyArgs).ExpectSetNX("yahoo_oauth2_code_valid-code", "x", time.Hour).SetVal(true)
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("yahoo_oauth2_code_valid-code", "x", time.Hour).SetVal(true)
 
 	// Mock: save token succeeds
-	mock.CustomMatch(anyArgs).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
+	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "valid-code")
 	assert.NoError(t, err)
@@ -400,7 +405,7 @@ func TestYahooLoginHandler_MissingConfig(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/yahoo/login", nil)
 	w := httptest.NewRecorder()
 
-	YahooLoginHandler(w, req)
+	YahooLoginHandler(nil)(w, req)
 
 	// OauthConfig returns an error -> handleError writes 500.
 	assert.Equal(t, http.StatusInternalServerError, w.Code)

@@ -167,7 +167,7 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver) *chi.Mu
 	})
 	// Yahoo Oauth2
 	r.Route("/yahoo", func(r chi.Router) {
-		r.Get("/login", httpx.YahooLoginHandler)
+		r.Get("/login", httpx.YahooLoginHandler(redisClient))
 		r.Get("/authenticated", httpx.YahooAuthenticatedHandler(redisClient))
 		r.Get("/landed", httpx.YahooLandedHandler)
 	})

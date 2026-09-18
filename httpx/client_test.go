@@ -465,8 +465,7 @@ func TestNewYahooClientWithConfig_TokenRefreshAndSave(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
 
 	// Mock Redis to save the new token
-	anyArgs := func(expected, actual []any) error { return nil }
-	mock.CustomMatch(anyArgs).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
+	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
 
 	client, err := NewYahooClientWithConfig(ctx, redisClient, conf)
 	require.NoError(t, err)
@@ -507,8 +506,7 @@ func TestNewYahooClientWithConfig_TokenSaveError(t *testing.T) {
 	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
 
 	// Mock Redis save to fail
-	anyArgs := func(expected, actual []any) error { return nil }
-	mock.CustomMatch(anyArgs).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetErr(redis.ErrClosed)
+	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetErr(redis.ErrClosed)
 
 	_, err := NewYahooClientWithConfig(ctx, redisClient, conf)
 	require.Error(t, err)
