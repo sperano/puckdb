@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -25,9 +26,9 @@ func cmdDB() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "db",
 		Short: "Database operations",
-		Long:  `Database management commands: init, drop, provision, migrate.`,
+		Long:  `Database management commands: init, drop, provision, migrate, force-version.`,
 	}
-	cmd.AddCommand(cmdDBInit(), cmdDBDrop(), cmdDBProvision(), cmdDBMigrate())
+	cmd.AddCommand(cmdDBInit(), cmdDBDrop(), cmdDBProvision(), cmdDBMigrate(), cmdDBForceVersion())
 	return cmd
 }
 
@@ -55,6 +56,38 @@ func cmdDBMigrate() *cobra.Command {
 					return fmt.Errorf("migration failed: %w", err)
 				}
 				log.Info().Msg("Database migrations completed successfully")
+				return nil
+			})
+		},
+	}
+	config.InitFlags(cmd.Flags(), dbMigrateFlagGroups...)
+	return cmd
+}
+
+func cmdDBForceVersion() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "force-version <version>",
+		Short: "Mark a dirty migration state clean at a version, without running SQL",
+		Long: `Repair a database left dirty by a failed migration.
+
+This runs no migration SQL: it only records that the schema matches <version>.
+Inspect the schema first and pass the version it actually matches; use 0 when
+no migration is applied. Refuses to act on a database that is not dirty, and on
+a version the embedded migrations do not define. See docs/migration-recovery.md.`,
+		Args: cobra.ExactArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return config.BindFlags(cmd.Flags(), dbMigrateFlagGroups...)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("version must be an integer: %w", err)
+			}
+			return withRedisLock(cmd.Context(), dbMigrateLockName, config.DefaultDBInitLockTTL, func() error {
+				if err := database.ForceMigrationVersion(version); err != nil {
+					return fmt.Errorf("force version failed: %w", err)
+				}
+				log.Info().Int("version", version).Msg("Migration version forced; run `db migrate` next")
 				return nil
 			})
 		},

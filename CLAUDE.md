@@ -47,6 +47,7 @@ go run github.com/99designs/gqlgen generate   # GraphQL (from puckdb root dir)
 | `db init` | Create tables, seed NHL data |
 | `db drop` | Drop all tables |
 | `db migrate` | Run database migrations directly |
+| `db force-version <version>` | Clear a dirty migration state after inspecting the schema (see `docs/migration-recovery.md`) |
 | `db provision` | Create database/user on shared PostgreSQL |
 | `redis flush` | Flush a Redis database |
 | `yahoo signout` | Clear OAuth2 token from Redis |
