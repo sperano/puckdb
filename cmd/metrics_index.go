@@ -102,7 +102,7 @@ func buildPathIndex(ctx context.Context, dataPath string) (*pathIndex, error) {
 				}
 				return nil
 			}
-			if strings.Contains(p, "/.git/") {
+			if strings.Contains(p, "/.git/") || store.IsTempFile(d.Name()) {
 				return nil
 			}
 			if cerr := ctx.Err(); cerr != nil {
@@ -151,6 +151,9 @@ func buildPathIndex(ctx context.Context, dataPath string) (*pathIndex, error) {
 				childRel = filepath.ToSlash(filepath.Join(rel, name))
 			}
 			if !e.IsDir() {
+				if store.IsTempFile(name) {
+					continue
+				}
 				info, ierr := e.Info()
 				if ierr != nil {
 					continue

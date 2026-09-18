@@ -133,3 +133,33 @@ func TestPathIndex_HasPlatformSeparators(t *testing.T) {
 	require.True(t, idx.has(filepath.Join("a", "b", "c.json")))
 	require.False(t, idx.has("a/b/missing.json"))
 }
+
+// TestBuildPathIndex_SkipsTempFiles guards the cache gauges against temp
+// files orphaned by a crash mid-write: they must contribute neither presence
+// nor bytes, on both the fan-out and the WalkDir scan paths.
+func TestBuildPathIndex_SkipsTempFiles(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const realSize = 11
+	writeFixture(t, root, "seasons/2024/games/2024/01/15/boxscore-2024020001.json", realSize)
+
+	// One orphan deep in the seasons tree (WalkDir path) and one at the top
+	// level (fan-out ReadDir path), both named exactly as FSStorage.Write
+	// stages them.
+	deepDir := filepath.Join(root, "seasons/2024/games/2024/01/15")
+	for _, dir := range []string{deepDir, root} {
+		orphan := filepath.Join(dir, ".boxscore-2024020002.json.tmp-1a2b3c4d5e6f7a8b")
+		require.True(t, store.IsTempFile(filepath.Base(orphan)))
+		require.NoError(t, os.WriteFile(orphan, make([]byte, 1000), 0o644))
+	}
+
+	idx, err := buildPathIndex(context.Background(), root)
+	require.NoError(t, err)
+
+	require.True(t, idx.has("seasons/2024/games/2024/01/15/boxscore-2024020001.json"))
+	require.False(t, idx.has("seasons/2024/games/2024/01/15/.boxscore-2024020002.json.tmp-1a2b3c4d5e6f7a8b"))
+	require.False(t, idx.has(".boxscore-2024020002.json.tmp-1a2b3c4d5e6f7a8b"))
+	require.Equal(t, int64(realSize), idx.totalBytes)
+	require.Equal(t, int64(1), idx.byType[core.Boxscore].count)
+}
