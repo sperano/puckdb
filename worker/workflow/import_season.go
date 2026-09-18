@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
@@ -44,6 +43,11 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 		"startDate", season.StandingsStart.Format(config.DateFormat),
 		"endDate", season.StandingsEnd.Format(config.DateFormat))
 
+	cfg, err := snapshotSeasonConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	tracker, err := shared.InitTracker(ctx, NewImportSeasonProgressReport(ctx, season))
 	if err != nil {
 		return nil, err
@@ -52,7 +56,8 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// Yahoo setup (not tracked in progress)
-	teamIDs, err := importYahooLeaguesAndTeams(ctx, season.ID.StartYear())
+	yahooCfg, hasYahoo := cfg.Yahoo.Season(season.ID.StartYear())
+	teamIDs, err := importYahooLeaguesAndTeams(ctx, yahooCfg, season.ID.StartYear())
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +75,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	}
 
 	// Import Yahoo league-level data (transactions, draft results, matchups)
-	yahooConfig, err := config.GetYahooSeasonsConfig()
-	if err != nil && !errors.Is(err, config.ErrYahooNotConfigured) {
-		return nil, fmt.Errorf("load yahoo seasons config: %w", err)
-	}
-	if yahooCfg, hasYahoo := yahooConfig[season.ID.StartYear()]; hasYahoo {
+	if hasYahoo {
 		var yia *yahoo.ImportActivities
 		for _, league := range yahooCfg.Leagues {
 			leagueDataInput := yahoo.ImportYahooLeagueDataInput{
@@ -92,7 +93,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 
 	endDate := shared.EffectiveEndDate(ctx, season.StandingsEnd.Time)
 	numDays := core.CountDays(season.StandingsStart.Time, endDate)
-	dayConcurrency := shared.GetDayConcurrency()
+	dayConcurrency := cfg.DayConcurrency
 	startDate := season.StandingsStart.Time
 	startYear := season.ID.StartYear()
 	seasonID := season.ID.ID()
@@ -164,22 +165,14 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	return counts, nil
 }
 
-// importYahooLeaguesAndTeams imports Yahoo league and team metadata.
-// Returns the list of team IDs to process for per-day Yahoo data import.
-func importYahooLeaguesAndTeams(ctx workflow.Context, startYear int) ([]yahoo.TeamInfo, error) {
+// importYahooLeaguesAndTeams imports Yahoo league and team metadata from the
+// season's snapshotted Yahoo config. Returns the list of team IDs to process
+// for per-day Yahoo data import, or nil when the season has no leagues.
+func importYahooLeaguesAndTeams(ctx workflow.Context, yahooCfg config.Season, startYear int) ([]yahoo.TeamInfo, error) {
 	logger := workflow.GetLogger(ctx)
 	var teamIDs []yahoo.TeamInfo
 
-	yahooConfig, err := config.GetYahooSeasonsConfig()
-	if err != nil {
-		if errors.Is(err, config.ErrYahooNotConfigured) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("load yahoo seasons config: %w", err)
-	}
-
-	yahooCfg, hasYahoo := yahooConfig[startYear]
-	if !hasYahoo {
+	if len(yahooCfg.Leagues) == 0 {
 		return nil, nil // Season not in Yahoo config
 	}
 

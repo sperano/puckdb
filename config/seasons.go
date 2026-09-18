@@ -22,13 +22,16 @@ var (
 	seasonsErr    error
 )
 
+// League and Season carry json tags because workflows record them in Temporal
+// history (see shared.YahooSeasonsSnapshot); renaming a field would break
+// replay of existing histories.
 type League struct {
-	LeagueID int   `yaml:"league_id"`
-	TeamIDs  []int `yaml:"team_ids"`
+	LeagueID int   `yaml:"league_id" json:"leagueId"`
+	TeamIDs  []int `yaml:"team_ids" json:"teamIds"`
 }
 
 type Season struct {
-	Leagues []League `yaml:"leagues"`
+	Leagues []League `yaml:"leagues" json:"leagues"`
 }
 
 func (s Season) GetLeague(leagueID int) (League, error) {

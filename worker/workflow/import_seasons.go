@@ -23,12 +23,16 @@ func NewImportSeasonsProgressReport() *shared.ProgressReport {
 func ImportSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
+	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
+	if err != nil {
+		return err
+	}
+
 	tracker, err := shared.InitTracker(ctx, NewImportSeasonsProgressReport())
 	if err != nil {
 		return err
 	}
 
-	concurrency := shared.ResolveConfigInt(logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
 	logger.Info("ImportSeasonsWorkflow started",
 		"startSeason", input.StartSeason,
 		"endSeason", input.EndSeason,

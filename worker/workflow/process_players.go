@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/store"
 	workplayer "github.com/sperano/puckdb/worker/player"
 	"github.com/sperano/puckdb/worker/shared"
-	"github.com/spf13/viper"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -62,6 +60,15 @@ type ProcessPlayersInput struct {
 type processPlayersInternalInput struct {
 	BatchSize   int
 	Concurrency int
+
+	// PlayersPerExec is the number of players Phase 2 processes per
+	// ContinueAsNew execution. Snapshotted once by ProcessPlayersWorkflow and
+	// carried through every phase transition; ProcessPlayersWorkflowContinue
+	// resolves it itself only for inputs produced before this field existed
+	// (identified by the zero value, which is otherwise unreachable since
+	// shared.PlayerLandingPlayersPerExecParam always resolves to a positive
+	// default).
+	PlayersPerExec int
 
 	// Player data (loaded from Redis at workflow start)
 	Players []store.BoxscorePlayer
@@ -127,8 +134,12 @@ func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*
 		batchOverride = input.BatchSize
 		concurrencyOverride = input.Concurrency
 	}
-	batchSize := shared.ResolveConfigInt(nil, shared.ProcessPlayersBatchSizeParam, batchOverride)
-	concurrency := shared.ResolveConfigInt(logger, shared.ProcessPlayersConcurrencyParam, concurrencyOverride)
+	cfg, err := snapshotProcessPlayersConfig(ctx, logger, batchOverride, concurrencyOverride)
+	if err != nil {
+		return nil, err
+	}
+	batchSize := cfg.BatchSize
+	concurrency := cfg.Concurrency
 
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
@@ -157,11 +168,12 @@ func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*
 
 	// Run Phase 1 inline (no ContinueAsNew yet — it's fast)
 	return runPhaseLoadYahoo(ctx, tracker, &processPlayersInternalInput{
-		BatchSize:   batchSize,
-		Concurrency: concurrency,
-		Players:     players,
-		Phase:       phaseLoadYahoo,
-		Origins:     core.OriginCounts{},
+		BatchSize:      batchSize,
+		Concurrency:    concurrency,
+		PlayersPerExec: cfg.PlayersPerExec,
+		Players:        players,
+		Phase:          phaseLoadYahoo,
+		Origins:        core.OriginCounts{},
 	})
 }
 
@@ -174,6 +186,16 @@ func ProcessPlayersWorkflowContinue(ctx workflow.Context, input *processPlayersI
 	}
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {
 		return nil, err
+	}
+
+	// PlayersPerExec is 0 only for inputs produced before this field existed;
+	// ProcessPlayersWorkflow always snapshots a positive value for new runs.
+	if input.PlayersPerExec == 0 {
+		playersPerExec, err := shared.SnapshotConfigInt(ctx, nil, shared.PlayerLandingPlayersPerExecParam, nil)
+		if err != nil {
+			return nil, err
+		}
+		input.PlayersPerExec = playersPerExec
 	}
 
 	switch input.Phase {
@@ -238,6 +260,7 @@ func runPhaseLoadYahoo(ctx workflow.Context, tracker *shared.ReportTracker, inpu
 		&processPlayersInternalInput{
 			BatchSize:       input.BatchSize,
 			Concurrency:     input.Concurrency,
+			PlayersPerExec:  input.PlayersPerExec,
 			Players:         input.Players,
 			YahooPoolResult: saveResult,
 			Phase:           phaseProcessPlayers,
@@ -250,10 +273,7 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 	logger := workflow.GetLogger(ctx)
 	var playerAct *workplayer.Activities
 
-	playersPerExec := viper.GetInt(config.FlagPlayerLandingPlayersPerExec)
-	if playersPerExec <= 0 {
-		playersPerExec = config.DefaultPlayerLandingPlayersPerExec
-	}
+	playersPerExec := input.PlayersPerExec
 
 	totalPlayers := len(input.Players)
 	startIdx := input.StartIndex
@@ -324,6 +344,7 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 			&processPlayersInternalInput{
 				BatchSize:       input.BatchSize,
 				Concurrency:     input.Concurrency,
+				PlayersPerExec:  input.PlayersPerExec,
 				Players:         input.Players,
 				YahooPoolResult: input.YahooPoolResult,
 				StartIndex:      endIdx,
@@ -361,6 +382,7 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 		&processPlayersInternalInput{
 			BatchSize:       input.BatchSize,
 			Concurrency:     input.Concurrency,
+			PlayersPerExec:  input.PlayersPerExec,
 			Players:         input.Players,
 			YahooPoolResult: input.YahooPoolResult,
 			Phase:           phaseVerifyUnmatched,

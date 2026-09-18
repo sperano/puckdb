@@ -124,12 +124,16 @@ func iterateSeasons(ctx workflow.Context, input *model.SeasonsInput, progReport 
 	completionMsg CompletionMsgFunc, starter shared.ChildWorkflowStarter) error {
 	logger := workflow.GetLogger(ctx)
 
+	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
+	if err != nil {
+		return err
+	}
+
 	tracker, err := shared.InitTracker(ctx, progReport)
 	if err != nil {
 		return err
 	}
 
-	concurrency := shared.ResolveConfigInt(logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
 	logger.Info("iterateSeasons started",
 		"startSeason", input.StartSeason,
 		"endSeason", input.EndSeason,

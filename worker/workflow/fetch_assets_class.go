@@ -8,6 +8,7 @@ import (
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/worker/asset"
 	"github.com/sperano/puckdb/worker/shared"
+	"go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -144,6 +145,13 @@ type FetchAssetsInput struct {
 	// MaxClassConcurrency overrides FlagMaxAssetClassConcurrency for the
 	// parent's cross-class worker pool. Parent-only.
 	MaxClassConcurrency *int
+	// AssetBatchSize overrides FlagAssetBatchSize for splitting the loaded
+	// assets into FetchAssetBatch batches. The parent sets this from its own
+	// snapshotted config before dispatching children, so children partition
+	// assets exactly the way the parent sized its progress bars; nil on a
+	// direct entry-point invocation (not spawned by the parent), which falls
+	// back to the configured default.
+	AssetBatchSize *int
 }
 
 // refreshCurrent reports whether RefreshCurrent is non-nil and true.
@@ -155,6 +163,36 @@ func (i FetchAssetsInput) refreshCurrent() bool {
 type FetchAssetsClassInput struct {
 	Class          assetClass
 	RefreshCurrent bool
+	// BatchSize overrides FlagAssetBatchSize for splitting the loaded assets
+	// into FetchAssetBatch batches. nil uses the configured default.
+	BatchSize *int
+}
+
+// fetchAssetsClassConfig is the configuration FetchAssetsClassWorkflow
+// snapshots once at start: BatchSize decides how the loaded assets are split
+// and Concurrency decides how many FetchAssetBatch activities run in
+// parallel, so neither may be re-read on replay.
+type fetchAssetsClassConfig struct {
+	BatchSize   int `json:"batchSize"`
+	Concurrency int `json:"concurrency"`
+}
+
+// loadFetchAssetsClassConfig resolves fetchAssetsClassConfig. Only the batch
+// size takes an input override (forwarded by the parent); concurrency comes
+// from configuration alone.
+func loadFetchAssetsClassConfig(logger log.Logger, batchOverride *int) fetchAssetsClassConfig {
+	return fetchAssetsClassConfig{
+		BatchSize:   shared.ResolveConfigInt(nil, shared.AssetBatchSizeParam, batchOverride),
+		Concurrency: shared.ResolveConfigInt(logger, shared.AssetClassConcurrencyParam, nil),
+	}
+}
+
+// snapshotFetchAssetsClassConfig records fetchAssetsClassConfig in history
+// once per execution (see shared.SnapshotConfig).
+func snapshotFetchAssetsClassConfig(ctx workflow.Context, logger log.Logger, batchOverride *int) (fetchAssetsClassConfig, error) {
+	return shared.SnapshotConfig(ctx, func() fetchAssetsClassConfig {
+		return loadFetchAssetsClassConfig(logger, batchOverride)
+	})
 }
 
 const (
@@ -179,6 +217,11 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 		"class", input.Class.Label,
 		"refreshCurrent", input.RefreshCurrent)
 
+	cfg, err := snapshotFetchAssetsClassConfig(ctx, logger, input.BatchSize)
+	if err != nil {
+		return nil, fmt.Errorf("snapshot config for %s: %w", input.Class.Label, err)
+	}
+
 	// Step 1: load all asset rows from the database.
 	queryCtx := workflow.WithActivityOptions(ctx, assetQueryActivityOptions())
 	var assets []asset.Asset
@@ -192,7 +235,7 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 	}
 
 	// Step 2: split assets into batches.
-	batchSize := shared.ViperIntOrDefault(config.FlagAssetBatchSize, config.DefaultAssetBatchSize)
+	batchSize := cfg.BatchSize
 	batches := splitAssetBatches(assets, batchSize)
 	numBatches := len(batches)
 
@@ -213,7 +256,7 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 	tracker.StartGroup(ctx, fetchAssetsProgressGroupIdx)
 
 	// Step 4: dispatch FetchAssetBatch activities via RunWorkerPool.
-	concurrency := shared.ResolveConfigInt(logger, shared.AssetClassConcurrencyParam, nil)
+	concurrency := cfg.Concurrency
 	batchCtx := workflow.WithActivityOptions(ctx, assetActivityOptions())
 	counts := core.OriginCounts{}
 
@@ -286,58 +329,49 @@ func splitAssetBatches(assets []asset.Asset, size int) [][]asset.Asset {
 // assetClass. Temporal registers these as nine distinct workflow types, making
 // them individually visible in the UI without parameterisation confusion.
 
+// newFetchAssetsClassInput builds the child input for one asset class from a
+// wrapper's FetchAssetsInput, forwarding the fields entry-point invocations
+// honour: RefreshCurrent and the AssetBatchSize override (nil on a direct
+// entry-point invocation, which then falls back to the configured default).
+func newFetchAssetsClassInput(class assetClass, input FetchAssetsInput) FetchAssetsClassInput {
+	return FetchAssetsClassInput{
+		Class:          class,
+		RefreshCurrent: input.refreshCurrent(),
+		BatchSize:      input.AssetBatchSize,
+	}
+}
+
 // FetchPlayerHeadshotsWorkflow downloads all NHL player headshot images.
 func FetchPlayerHeadshotsWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
-	return FetchAssetsClassWorkflow(ctx, FetchAssetsClassInput{
-		Class:          classPlayerHeadshots,
-		RefreshCurrent: input.refreshCurrent(),
-	})
+	return FetchAssetsClassWorkflow(ctx, newFetchAssetsClassInput(classPlayerHeadshots, input))
 }
 
 // FetchPlayerHeroImagesWorkflow downloads all NHL player hero images.
 func FetchPlayerHeroImagesWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
-	return FetchAssetsClassWorkflow(ctx, FetchAssetsClassInput{
-		Class:          classPlayerHeroImages,
-		RefreshCurrent: input.refreshCurrent(),
-	})
+	return FetchAssetsClassWorkflow(ctx, newFetchAssetsClassInput(classPlayerHeroImages, input))
 }
 
 // FetchPlayerYahooImagesWorkflow downloads all Yahoo player images.
 func FetchPlayerYahooImagesWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
-	return FetchAssetsClassWorkflow(ctx, FetchAssetsClassInput{
-		Class:          classPlayerYahooImage,
-		RefreshCurrent: input.refreshCurrent(),
-	})
+	return FetchAssetsClassWorkflow(ctx, newFetchAssetsClassInput(classPlayerYahooImage, input))
 }
 
 // FetchTeamLogosWorkflow downloads all NHL team logos (one per team, latest season).
 func FetchTeamLogosWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
-	return FetchAssetsClassWorkflow(ctx, FetchAssetsClassInput{
-		Class:          classTeamLogos,
-		RefreshCurrent: input.refreshCurrent(),
-	})
+	return FetchAssetsClassWorkflow(ctx, newFetchAssetsClassInput(classTeamLogos, input))
 }
 
 // FetchYahooTeamLogosWorkflow downloads all Yahoo fantasy team logos.
 func FetchYahooTeamLogosWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
-	return FetchAssetsClassWorkflow(ctx, FetchAssetsClassInput{
-		Class:          classYahooTeamLogos,
-		RefreshCurrent: input.refreshCurrent(),
-	})
+	return FetchAssetsClassWorkflow(ctx, newFetchAssetsClassInput(classYahooTeamLogos, input))
 }
 
 // FetchYahooLeagueLogosWorkflow downloads all Yahoo fantasy league logos.
 func FetchYahooLeagueLogosWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
-	return FetchAssetsClassWorkflow(ctx, FetchAssetsClassInput{
-		Class:          classYahooLeagueLogos,
-		RefreshCurrent: input.refreshCurrent(),
-	})
+	return FetchAssetsClassWorkflow(ctx, newFetchAssetsClassInput(classYahooLeagueLogos, input))
 }
 
 // FetchYahooManagerImagesWorkflow downloads all Yahoo fantasy team manager images.
 func FetchYahooManagerImagesWorkflow(ctx workflow.Context, input FetchAssetsInput) (core.OriginCounts, error) {
-	return FetchAssetsClassWorkflow(ctx, FetchAssetsClassInput{
-		Class:          classYahooManagerImages,
-		RefreshCurrent: input.refreshCurrent(),
-	})
+	return FetchAssetsClassWorkflow(ctx, newFetchAssetsClassInput(classYahooManagerImages, input))
 }

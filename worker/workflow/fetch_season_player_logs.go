@@ -20,6 +20,31 @@ type FetchSeasonPlayerLogsInput struct {
 // GroupFetchSeasonPlayerLogs is the group index for per-season progress.
 const GroupFetchSeasonPlayerLogs = 0
 
+// fetchSeasonPlayerLogsConfig is the configuration FetchSeasonPlayerLogsWorkflow
+// snapshots once at start: batch size and concurrency decide how many
+// DownloadPlayerGameLogsBatch activities get scheduled, so neither may be
+// re-read on replay.
+type fetchSeasonPlayerLogsConfig struct {
+	BatchSize   int `json:"batchSize"`
+	Concurrency int `json:"concurrency"`
+}
+
+// loadFetchSeasonPlayerLogsConfig resolves the batch size and concurrency for
+// FetchSeasonPlayerLogsWorkflow, matching the resolution used today (no input
+// overrides for either value).
+func loadFetchSeasonPlayerLogsConfig() fetchSeasonPlayerLogsConfig {
+	return fetchSeasonPlayerLogsConfig{
+		BatchSize:   shared.ResolveConfigInt(nil, shared.PlayerLogsBatchSizeParam, nil),
+		Concurrency: shared.ResolveConfigInt(nil, shared.PlayerLogsConcurrencyParam, nil),
+	}
+}
+
+// snapshotFetchSeasonPlayerLogsConfig records fetchSeasonPlayerLogsConfig in
+// history once per execution (see shared.SnapshotConfig).
+func snapshotFetchSeasonPlayerLogsConfig(ctx workflow.Context) (fetchSeasonPlayerLogsConfig, error) {
+	return shared.SnapshotConfig(ctx, loadFetchSeasonPlayerLogsConfig)
+}
+
 // NewFetchSeasonPlayerLogsReport creates the progress report for a single season.
 func NewFetchSeasonPlayerLogsReport(playerCount int) *shared.ProgressReport {
 	return &shared.ProgressReport{
@@ -42,6 +67,11 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 		"endDate", season.StandingsEnd.Format(config.DateFormat),
 		"refreshCurrent", input.RefreshCurrent)
 
+	cfg, err := snapshotFetchSeasonPlayerLogsConfig(ctx)
+	if err != nil {
+		return err
+	}
+
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// Load players from Redis via PlayerActivities
@@ -58,9 +88,9 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 	}
 
 	playerIDs := extractPlayerIDs(players)
-	batchSize := shared.ResolveConfigInt(nil, shared.PlayerLogsBatchSizeParam, nil)
+	batchSize := cfg.BatchSize
 	numBatches := shared.BatchCount(len(playerIDs), batchSize)
-	concurrency := shared.ResolveConfigInt(nil, shared.PlayerLogsConcurrencyParam, nil)
+	concurrency := cfg.Concurrency
 
 	// Set up ReportTracker
 	tracker, err := shared.InitTracker(ctx, NewFetchSeasonPlayerLogsReport(playerCount))

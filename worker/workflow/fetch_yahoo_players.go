@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/worker/shared"
 	"github.com/sperano/puckdb/worker/yahoo"
-	"github.com/spf13/viper"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -19,6 +17,80 @@ type FetchYahooPlayersInput struct {
 	TotalCompleted int       // Cumulative completed count from previous executions
 	TotalFound     int       // Cumulative found players (network downloads + cache hits, excludes 404s)
 	StartedAt      time.Time // Original workflow start time (for elapsed calculation)
+
+	// Config is snapshotted once, on the first execution of a logical run, and
+	// carried across every ContinueAsNew so every execution of that run uses
+	// the settings the run started with instead of re-reading process-local
+	// viper flags that may have changed by the time a later execution
+	// replays. nil on the first execution and on inputs produced before this
+	// field existed, in which case the workflow snapshots fresh.
+	Config *FetchYahooPlayersConfig
+}
+
+// FetchYahooPlayersConfig is the configuration FetchYahooPlayersWorkflow
+// snapshots once per logical run: every value here shapes how many activity
+// batches get scheduled and where the run stops before ContinueAsNew, so none
+// of them may be re-read on replay.
+type FetchYahooPlayersConfig struct {
+	MaxPlayerID         int `json:"maxPlayerID"`
+	Concurrency         int `json:"concurrency"`
+	ActivityBatchSize   int `json:"activityBatchSize"`
+	PlayersPerExecution int `json:"playersPerExecution"`
+}
+
+// loadFetchYahooPlayersConfig resolves FetchYahooPlayersConfig from viper with
+// the package defaults as fallback, so a carried snapshot never freezes a zero
+// (which would loop ContinueAsNew forever) into a run.
+func loadFetchYahooPlayersConfig() FetchYahooPlayersConfig {
+	return FetchYahooPlayersConfig{
+		MaxPlayerID:         shared.ResolveConfigInt(nil, shared.MaxYahooPlayerIDParam, nil),
+		Concurrency:         shared.ResolveConfigInt(nil, shared.YahooPlayerConcurrencyParam, nil),
+		ActivityBatchSize:   shared.ResolveConfigInt(nil, shared.YahooPlayerActivityBatchSizeParam, nil),
+		PlayersPerExecution: shared.ResolveConfigInt(nil, shared.YahooPlayersPerExecutionParam, nil),
+	}
+}
+
+// resolveFetchYahooPlayersConfig returns carried when the caller supplied one
+// (a ContinueAsNew resumption within the same logical run), or snapshots a
+// fresh FetchYahooPlayersConfig for the first execution of a run.
+func resolveFetchYahooPlayersConfig(ctx workflow.Context, carried *FetchYahooPlayersConfig) (*FetchYahooPlayersConfig, error) {
+	if carried != nil {
+		return carried, nil
+	}
+	snapshot, err := shared.SnapshotConfig(ctx, loadFetchYahooPlayersConfig)
+	if err != nil {
+		return nil, err
+	}
+	return &snapshot, nil
+}
+
+// fetchYahooPlayersState is the continuation state carried across
+// ContinueAsNew executions of one logical run. Distinct from
+// FetchYahooPlayersConfig, which is the snapshotted settings for the run.
+type fetchYahooPlayersState struct {
+	StartID        int
+	TotalCompleted int
+	TotalFound     int
+	StartedAt      time.Time
+}
+
+// parseFetchYahooPlayersState extracts the continuation state from input,
+// defaulting to a fresh run's starting point when input is nil (the first
+// execution).
+func parseFetchYahooPlayersState(ctx workflow.Context, input *FetchYahooPlayersInput) fetchYahooPlayersState {
+	state := fetchYahooPlayersState{StartID: 1, StartedAt: workflow.Now(ctx)}
+	if input == nil {
+		return state
+	}
+	if input.StartPlayerID > 0 {
+		state.StartID = input.StartPlayerID
+	}
+	state.TotalCompleted = input.TotalCompleted
+	state.TotalFound = input.TotalFound
+	if !input.StartedAt.IsZero() {
+		state.StartedAt = input.StartedAt
+	}
+	return state
 }
 
 // Group index for FetchYahooPlayers workflow progress
@@ -41,25 +113,25 @@ func NewFetchYahooPlayersProgressReport(total, completed int) *shared.ProgressRe
 func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInput) error {
 	logger := workflow.GetLogger(ctx)
 
-	startID := 1
-	totalCompleted := 0
-	totalFound := 0
-	startedAt := workflow.Now(ctx)
+	state := parseFetchYahooPlayersState(ctx, input)
+	startID := state.StartID
+	totalCompleted := state.TotalCompleted
+	totalFound := state.TotalFound
+	startedAt := state.StartedAt
+
+	var carriedConfig *FetchYahooPlayersConfig
 	if input != nil {
-		if input.StartPlayerID > 0 {
-			startID = input.StartPlayerID
-		}
-		totalCompleted = input.TotalCompleted
-		totalFound = input.TotalFound
-		if !input.StartedAt.IsZero() {
-			startedAt = input.StartedAt
-		}
+		carriedConfig = input.Config
+	}
+	cfg, err := resolveFetchYahooPlayersConfig(ctx, carriedConfig)
+	if err != nil {
+		return err
 	}
 
-	maxPlayerID := viper.GetInt(config.FlagMaxYahooPlayerID)
-	concurrency := viper.GetInt(config.FlagYahooPlayerBatchSize)
-	activityBatchSize := viper.GetInt(config.FlagYahooPlayerActivityBatchSize)
-	playersPerExecution := viper.GetInt(config.FlagYahooPlayersPerExecution)
+	maxPlayerID := cfg.MaxPlayerID
+	concurrency := cfg.Concurrency
+	activityBatchSize := cfg.ActivityBatchSize
+	playersPerExecution := cfg.PlayersPerExecution
 
 	// Calculate this execution's range
 	endID := startID + playersPerExecution - 1
@@ -121,6 +193,7 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 				TotalCompleted: totalCompleted + totalPlayers,
 				TotalFound:     totalFound + executionFound,
 				StartedAt:      startedAt,
+				Config:         cfg,
 			})
 	}
 

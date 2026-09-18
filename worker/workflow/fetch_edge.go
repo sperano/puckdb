@@ -35,6 +35,11 @@ func countEdgeActivities(_ workflow.Context, _ nhl.SeasonInfo) (int, error) {
 func FetchEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
+	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
+	if err != nil {
+		return err
+	}
+
 	tracker, err := shared.InitTracker(ctx, &shared.ProgressReport{
 		Groups: []shared.ProgressGroup{
 			{Header: "Fetching Edge stats...", Bars: []shared.ProgressBar{}},
@@ -44,7 +49,6 @@ func FetchEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) e
 		return err
 	}
 
-	concurrency := shared.ResolveConfigInt(logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	seasons, err := loadSeasonsManifest(ctx, logger, input)

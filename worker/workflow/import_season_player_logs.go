@@ -37,6 +37,11 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 		"startDate", season.StandingsStart.Format(config.DateFormat),
 		"endDate", season.StandingsEnd.Format(config.DateFormat))
 
+	dayConcurrency, err := shared.SnapshotConfigInt(ctx, nil, shared.DayConcurrencyParam, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// Load player IDs from boxscores
@@ -56,7 +61,6 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 	}
 
 	numBatches := shared.BatchCount(len(playerIDs), playerGameLogBatchSize)
-	dayConcurrency := shared.GetDayConcurrency()
 
 	tracker, err := shared.InitTracker(ctx, NewImportSeasonPlayerLogsReport(season, len(playerIDs)))
 	if err != nil {

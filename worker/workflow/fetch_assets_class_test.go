@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/worker/asset"
 	"github.com/stretchr/testify/mock"
@@ -340,6 +341,100 @@ func TestSplitAssetBatches(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ─── Config snapshot tests ────────────────────────────────────────────────────
+
+func TestLoadFetchAssetsClassConfig(t *testing.T) {
+	// Not parallel: viper.Set mutates global state and is not thread-safe.
+
+	t.Run("defaults when nothing configured", func(t *testing.T) {
+		got := loadFetchAssetsClassConfig(nil, nil)
+		require.Equal(t, config.DefaultAssetBatchSize, got.BatchSize)
+		require.Equal(t, config.DefaultAssetClassConcurrency, got.Concurrency)
+	})
+
+	t.Run("viper flags override defaults", func(t *testing.T) {
+		setViperInt(t, config.FlagAssetBatchSize, 250)
+		setViperInt(t, config.FlagAssetClassConcurrency, 4)
+
+		got := loadFetchAssetsClassConfig(nil, nil)
+		require.Equal(t, 250, got.BatchSize)
+		require.Equal(t, 4, got.Concurrency)
+	})
+
+	t.Run("batch size override wins over viper and defaults", func(t *testing.T) {
+		setViperInt(t, config.FlagAssetBatchSize, 250)
+		setViperInt(t, config.FlagAssetClassConcurrency, 4)
+
+		got := loadFetchAssetsClassConfig(nil, intPtr(37))
+		require.Equal(t, 37, got.BatchSize)
+		require.Equal(t, 4, got.Concurrency)
+	})
+}
+
+// ─── Entry-point wrapper forwarding ───────────────────────────────────────────
+
+// TestNewFetchAssetsClassInput verifies the shared wrapper helper forwards
+// RefreshCurrent and AssetBatchSize from the parent's FetchAssetsInput into
+// the child's FetchAssetsClassInput unchanged, and nothing else. Every one
+// of the nine entry-point wrappers is a thin call through this helper, so this
+// single test covers all of them; TestPerClassWrappers separately locks in
+// which assetClass each wrapper passes.
+func TestNewFetchAssetsClassInput(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil input", func(t *testing.T) {
+		t.Parallel()
+		got := newFetchAssetsClassInput(classTeamLogos, FetchAssetsInput{})
+		require.Equal(t, classTeamLogos, got.Class)
+		require.False(t, got.RefreshCurrent)
+		require.Nil(t, got.BatchSize)
+	})
+
+	t.Run("forwards overrides", func(t *testing.T) {
+		t.Parallel()
+		refresh := true
+		input := FetchAssetsInput{
+			RefreshCurrent: &refresh,
+			AssetBatchSize: intPtr(37),
+			// Concurrency knobs are not forwarded and must not leak into the
+			// child's BatchSize.
+			ClassConcurrency:    intPtr(4),
+			MaxClassConcurrency: intPtr(9),
+		}
+		got := newFetchAssetsClassInput(classPlayerHeadshots, input)
+		require.Equal(t, classPlayerHeadshots, got.Class)
+		require.True(t, got.RefreshCurrent)
+		require.Same(t, input.AssetBatchSize, got.BatchSize)
+	})
+}
+
+// TestFetchAssetsClassWorkflow_HonoursBatchSizeOverride is an end-to-end check
+// that BatchSize forwarded through FetchAssetsClassInput actually changes how
+// many FetchAssetBatch activities get scheduled, not just how the input
+// struct is shaped.
+func (s *FetchAssetsClassWorkflowTestSuite) TestFetchAssetsClassWorkflow_HonoursBatchSizeOverride() {
+	assets := makeAssets(5)
+	s.env.OnActivity("LoadPlayerHeadshotAssets", mock.Anything).
+		Return(assets, nil)
+
+	var act *asset.Activities
+	s.env.OnActivity(act.FetchAssetBatch, mock.Anything, mock.Anything).
+		Return(asset.FetchAssetBatchResult{Results: make([]asset.FetchAssetResult, 3)}, nil).Once()
+	s.env.OnActivity(act.FetchAssetBatch, mock.Anything, mock.Anything).
+		Return(asset.FetchAssetBatchResult{Results: make([]asset.FetchAssetResult, 2)}, nil).Once()
+
+	batchSize := 3
+	input := FetchAssetsClassInput{
+		Class:          classPlayerHeadshots,
+		RefreshCurrent: false,
+		BatchSize:      &batchSize,
+	}
+	s.env.ExecuteWorkflow(FetchAssetsClassWorkflow, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
 }
 
 // ─── errTest helper ───────────────────────────────────────────────────────────

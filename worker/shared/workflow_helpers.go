@@ -89,8 +89,3 @@ func CountDaysInSeason(ctx workflow.Context, season nhl.SeasonInfo) (int, error)
 func IsCurrentSeason(startYear int) bool {
 	return nhl.Current().StartYear() == startYear
 }
-
-// GetDayConcurrency returns the configured day concurrency for parallel processing.
-func GetDayConcurrency() int {
-	return ViperIntOrDefault(config.FlagDayConcurrency, config.DefaultDayConcurrency)
-}

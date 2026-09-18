@@ -4,8 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/testsuite"
@@ -146,6 +148,67 @@ func (s *FetchAssetsWorkflowTestSuite) TestFetchAssetsWorkflow_CountErrorFailsPa
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
+}
+
+// TestLoadFetchAssetsConfig verifies the parent's config snapshot resolves
+// BatchSize (no override at the parent level) and MaxClassConcurrency
+// (overridable) from viper and defaults.
+func TestLoadFetchAssetsConfig(t *testing.T) {
+	// Not parallel: viper.Set mutates global state and is not thread-safe.
+
+	t.Run("defaults when nothing configured", func(t *testing.T) {
+		got := loadFetchAssetsConfig(nil, nil)
+		require.Equal(t, config.DefaultAssetBatchSize, got.BatchSize)
+		require.Equal(t, config.DefaultMaxAssetClassConcurrency, got.MaxClassConcurrency)
+	})
+
+	t.Run("viper flags override defaults", func(t *testing.T) {
+		setViperInt(t, config.FlagAssetBatchSize, 250)
+		setViperInt(t, config.FlagMaxAssetClassConcurrency, 5)
+
+		got := loadFetchAssetsConfig(nil, nil)
+		require.Equal(t, 250, got.BatchSize)
+		require.Equal(t, 5, got.MaxClassConcurrency)
+	})
+
+	t.Run("MaxClassConcurrency override wins", func(t *testing.T) {
+		setViperInt(t, config.FlagMaxAssetClassConcurrency, 5)
+
+		got := loadFetchAssetsConfig(nil, intPtr(2))
+		require.Equal(t, 2, got.MaxClassConcurrency)
+	})
+}
+
+// TestFetchAssetsWorkflow_ForwardsAssetBatchSizeToChildren verifies the
+// parent forwards its own snapshotted batch size to every class child via
+// FetchAssetsInput.AssetBatchSize, so children partition assets exactly the
+// way the parent sized its progress bars.
+func (s *FetchAssetsWorkflowTestSuite) TestFetchAssetsWorkflow_ForwardsAssetBatchSizeToChildren() {
+	s.mockAllCounts(0)
+
+	captured := make(map[string]FetchAssetsInput)
+	for _, e := range parentAssetClasses {
+		s.env.OnWorkflow(e.Workflow,
+			mock.Anything,
+			mock.MatchedBy(func(in FetchAssetsInput) bool {
+				captured[e.Slug] = in
+				return true
+			}),
+		).Return(core.OriginCounts{}, nil)
+	}
+
+	setViperInt(s.T(), config.FlagAssetBatchSize, 250)
+
+	s.env.ExecuteWorkflow(FetchAssetsWorkflow, &FetchAssetsInput{})
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+
+	s.Len(captured, len(parentAssetClasses))
+	for slug, in := range captured {
+		s.Require().NotNil(in.AssetBatchSize, "child %s saw nil AssetBatchSize", slug)
+		s.Equal(250, *in.AssetBatchSize, "child %s saw the wrong AssetBatchSize", slug)
+	}
 }
 
 // TestBatchesForRows verifies the row-to-batch conversion used to size

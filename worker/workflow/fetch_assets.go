@@ -3,9 +3,9 @@ package workflow
 import (
 	"fmt"
 
-	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/worker/shared"
+	"go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -17,6 +17,34 @@ const (
 	// fetchAssetsGroupHeader labels the parent's progress group in UI output.
 	fetchAssetsGroupHeader = "Fetching all assets..."
 )
+
+// fetchAssetsConfig is the configuration FetchAssetsWorkflow snapshots once at
+// start: BatchSize sizes both the progress bars (via populateClassBarTotals)
+// and, forwarded to every child, how assets get partitioned into
+// FetchAssetBatch batches; MaxClassConcurrency bounds how many class children
+// run at once. Neither may be re-read on replay.
+type fetchAssetsConfig struct {
+	BatchSize           int `json:"batchSize"`
+	MaxClassConcurrency int `json:"maxClassConcurrency"`
+}
+
+// loadFetchAssetsConfig resolves fetchAssetsConfig, honouring the same input
+// override used today (MaxClassConcurrency; BatchSize has no override at the
+// parent level).
+func loadFetchAssetsConfig(logger log.Logger, maxClassConcurrencyOverride *int) fetchAssetsConfig {
+	return fetchAssetsConfig{
+		BatchSize:           shared.ResolveConfigInt(nil, shared.AssetBatchSizeParam, nil),
+		MaxClassConcurrency: shared.ResolveConfigInt(logger, shared.MaxAssetClassConcurrencyParam, maxClassConcurrencyOverride),
+	}
+}
+
+// snapshotFetchAssetsConfig records fetchAssetsConfig in history once per
+// execution (see shared.SnapshotConfig).
+func snapshotFetchAssetsConfig(ctx workflow.Context, logger log.Logger, maxClassConcurrencyOverride *int) (fetchAssetsConfig, error) {
+	return shared.SnapshotConfig(ctx, func() fetchAssetsConfig {
+		return loadFetchAssetsConfig(logger, maxClassConcurrencyOverride)
+	})
+}
 
 // fetchAssetsClassFunc is the signature shared by the nine entry-point
 // workflows. Constraining the registry's Workflow field to this type catches
@@ -74,19 +102,23 @@ func FetchAssetsWorkflow(ctx workflow.Context, input *FetchAssetsInput) (core.Or
 	logger := workflow.GetLogger(ctx)
 	logger.Info("FetchAssetsWorkflow started", "refreshCurrent", input.refreshCurrent())
 
+	cfg, err := snapshotFetchAssetsConfig(ctx, logger, input.MaxClassConcurrency)
+	if err != nil {
+		return nil, err
+	}
+
 	tracker, err := shared.InitTracker(ctx, newFetchAssetsProgressReport())
 	if err != nil {
 		return nil, err
 	}
 
-	if err := populateClassBarTotals(ctx, tracker); err != nil {
+	if err := populateClassBarTotals(ctx, tracker, cfg.BatchSize); err != nil {
 		return nil, err
 	}
 
 	tracker.StartGroup(ctx, fetchAssetsGroupIdx)
 
-	concurrency := shared.ResolveConfigInt(logger, shared.MaxAssetClassConcurrencyParam, input.MaxClassConcurrency)
-	counts, err := dispatchClassChildren(ctx, tracker, input, concurrency)
+	counts, err := dispatchClassChildren(ctx, tracker, input, cfg.MaxClassConcurrency, cfg.BatchSize)
 	if err != nil {
 		return counts, err
 	}
@@ -122,7 +154,7 @@ func newFetchAssetsProgressReport() *shared.ProgressReport {
 // each bar's Total to the resulting batch count. Counts return rows; we
 // convert to batches so the bar Total matches each child's own progress
 // tracker (which counts batches).
-func populateClassBarTotals(ctx workflow.Context, tracker *shared.ReportTracker) error {
+func populateClassBarTotals(ctx workflow.Context, tracker *shared.ReportTracker, batchSize int) error {
 	queryCtx := workflow.WithActivityOptions(ctx, assetQueryActivityOptions())
 
 	futures := make([]workflow.Future, len(parentAssetClasses))
@@ -130,7 +162,6 @@ func populateClassBarTotals(ctx workflow.Context, tracker *shared.ReportTracker)
 		futures[i] = workflow.ExecuteActivity(queryCtx, e.CountName)
 	}
 
-	batchSize := shared.ViperIntOrDefault(config.FlagAssetBatchSize, config.DefaultAssetBatchSize)
 	for i, f := range futures {
 		var rowCount int
 		if err := f.Get(ctx, &rowCount); err != nil {
@@ -152,17 +183,22 @@ func batchesForRows(rowCount, batchSize int) int {
 // by concurrency (the resolved cross-class concurrency); each child runs on
 // the inherited puckdb-asset-tasks queue.
 //
-// The parent's input is forwarded wholesale; children consult only the fields
-// they care about (currently RefreshCurrent), and forwarding-by-default keeps
-// the path open for future fields without parent-side bookkeeping.
-func dispatchClassChildren(ctx workflow.Context, tracker *shared.ReportTracker, input *FetchAssetsInput, concurrency int) (core.OriginCounts, error) {
+// The parent's input is forwarded wholesale, with one exception: each child's
+// copy gets AssetBatchSize set to the parent's own snapshotted batchSize, so
+// children partition assets exactly the way the parent sized its progress
+// bars. Children otherwise consult only the fields they care about (currently
+// RefreshCurrent and AssetBatchSize), and forwarding-by-default keeps the
+// path open for future fields without parent-side bookkeeping.
+func dispatchClassChildren(ctx workflow.Context, tracker *shared.ReportTracker, input *FetchAssetsInput, concurrency, batchSize int) (core.OriginCounts, error) {
 	counts := core.OriginCounts{}
 	err := tracker.RunWorkerPoolMultiBar(ctx, fetchAssetsGroupIdx, 0, len(parentAssetClasses), concurrency,
 		func(wfCtx workflow.Context, i int) workflow.Future {
 			e := parentAssetClasses[i]
+			childInput := *input
+			childInput.AssetBatchSize = &batchSize
 			return workflow.ExecuteChildWorkflow(
 				shared.WithChildOptions(wfCtx, shared.WorkflowIDFetchAssetsClass(e.Slug)),
-				e.Workflow, *input)
+				e.Workflow, childInput)
 		},
 		func(wfCtx workflow.Context, i int, f workflow.Future) error {
 			var classCounts core.OriginCounts

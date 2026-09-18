@@ -51,6 +51,21 @@ func ResolveConfigInt(logger log.Logger, p ConfigIntParam, override *int) int {
 
 // Pre-defined params for common config patterns.
 
+// DayConcurrencyParam resolves how many per-day activities a season workflow
+// runs in parallel.
+var DayConcurrencyParam = ConfigIntParam{
+	Flag:    config.FlagDayConcurrency,
+	Default: config.DefaultDayConcurrency,
+}
+
+// AssetBatchSizeParam resolves how many assets one FetchAssetBatch activity
+// handles. The parent FetchAssetsWorkflow and its class children must agree on
+// it, so the parent forwards its snapshot to the children.
+var AssetBatchSizeParam = ConfigIntParam{
+	Flag:    config.FlagAssetBatchSize,
+	Default: config.DefaultAssetBatchSize,
+}
+
 var SeasonConcurrencyParam = ConfigIntParam{
 	Default:    config.DefaultSeasonConcurrency,
 	MaxFlag:    config.FlagMaxSeasonConcurrency,
@@ -68,6 +83,35 @@ var PlayerLandingBatchSizeParam = ConfigIntParam{
 	Flag:    config.FlagPlayerLandingBatchSize,
 	Default: config.DefaultPlayerLandingBatchSize,
 }
+
+// PlayerLandingPlayersPerExecParam resolves how many players ProcessPlayersWorkflow
+// processes per ContinueAsNew execution before yielding to a fresh execution.
+var PlayerLandingPlayersPerExecParam = ConfigIntParam{
+	Flag:    config.FlagPlayerLandingPlayersPerExec,
+	Default: config.DefaultPlayerLandingPlayersPerExec,
+}
+
+// Yahoo player fetch params. FetchYahooPlayersWorkflow freezes these for a
+// whole multi-execution run, so each must resolve to a positive value: a
+// carried zero could not be corrected by a worker restart.
+var (
+	MaxYahooPlayerIDParam = ConfigIntParam{
+		Flag:    config.FlagMaxYahooPlayerID,
+		Default: config.DefaultMaxYahooPlayerID,
+	}
+	YahooPlayerConcurrencyParam = ConfigIntParam{
+		Flag:    config.FlagYahooPlayerBatchSize,
+		Default: config.DefaultYahooPlayerBatchSize,
+	}
+	YahooPlayerActivityBatchSizeParam = ConfigIntParam{
+		Flag:    config.FlagYahooPlayerActivityBatchSize,
+		Default: config.DefaultYahooPlayerActivityBatchSize,
+	}
+	YahooPlayersPerExecutionParam = ConfigIntParam{
+		Flag:    config.FlagYahooPlayersPerExecution,
+		Default: config.DefaultYahooPlayersPerExecution,
+	}
+)
 
 var ProcessPlayersConcurrencyParam = ConfigIntParam{
 	Flag:    config.FlagProcessPlayersConcurrency,

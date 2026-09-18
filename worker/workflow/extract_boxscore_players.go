@@ -45,17 +45,20 @@ func NewExtractBoxscorePlayersProgressReport() *shared.ProgressReport {
 func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	logger := workflow.GetLogger(ctx)
 
-	// Register query handler immediately so progress queries work from workflow start
-	tracker, err := shared.InitTracker(ctx, NewExtractBoxscorePlayersProgressReport())
-	if err != nil {
-		return err
-	}
-
 	var seasonOverride *int
 	if input != nil {
 		seasonOverride = input.SeasonConcurrency
 	}
-	concurrency := shared.ResolveConfigInt(logger, shared.SeasonConcurrencyParam, seasonOverride)
+	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, seasonOverride)
+	if err != nil {
+		return err
+	}
+
+	// Register query handler before any activity runs so progress queries work from workflow start
+	tracker, err := shared.InitTracker(ctx, NewExtractBoxscorePlayersProgressReport())
+	if err != nil {
+		return err
+	}
 
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 	seasons, err := loadSeasonsManifest(ctx, logger, input)

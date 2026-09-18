@@ -6,6 +6,7 @@ import (
 	"github.com/sperano/puckdb/store"
 	workplayer "github.com/sperano/puckdb/worker/player"
 	"github.com/sperano/puckdb/worker/shared"
+	"go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -29,6 +30,32 @@ type FetchPlayerLandingsResult struct {
 	TotalPlayers int
 }
 
+// fetchPlayerLandingsConfig is the configuration FetchPlayerLandingsWorkflow
+// snapshots once at start: batch size and concurrency decide how many
+// FetchPlayerLandingsBatch activities get scheduled, so neither may be
+// re-read on replay.
+type fetchPlayerLandingsConfig struct {
+	BatchSize   int `json:"batchSize"`
+	Concurrency int `json:"concurrency"`
+}
+
+// loadFetchPlayerLandingsConfig resolves the batch size and concurrency for
+// FetchPlayerLandingsWorkflow, honouring the same input overrides used today.
+func loadFetchPlayerLandingsConfig(logger log.Logger, batchOverride, concurrencyOverride *int) fetchPlayerLandingsConfig {
+	return fetchPlayerLandingsConfig{
+		BatchSize:   shared.ResolveConfigInt(nil, shared.PlayerLandingBatchSizeParam, batchOverride),
+		Concurrency: shared.ResolveConfigInt(logger, shared.PlayerLandingConcurrencyParam, concurrencyOverride),
+	}
+}
+
+// snapshotFetchPlayerLandingsConfig records fetchPlayerLandingsConfig in
+// history once per execution (see shared.SnapshotConfig).
+func snapshotFetchPlayerLandingsConfig(ctx workflow.Context, logger log.Logger, batchOverride, concurrencyOverride *int) (fetchPlayerLandingsConfig, error) {
+	return shared.SnapshotConfig(ctx, func() fetchPlayerLandingsConfig {
+		return loadFetchPlayerLandingsConfig(logger, batchOverride, concurrencyOverride)
+	})
+}
+
 // NewFetchPlayerLandingsProgressReport creates the initial progress structure.
 func NewFetchPlayerLandingsProgressReport(total int) *shared.ProgressReport {
 	return &shared.ProgressReport{
@@ -50,8 +77,12 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 		batchOverride = input.BatchSize
 		concurrencyOverride = input.Concurrency
 	}
-	batchSize := shared.ResolveConfigInt(nil, shared.PlayerLandingBatchSizeParam, batchOverride)
-	concurrency := shared.ResolveConfigInt(logger, shared.PlayerLandingConcurrencyParam, concurrencyOverride)
+	cfg, err := snapshotFetchPlayerLandingsConfig(ctx, logger, batchOverride, concurrencyOverride)
+	if err != nil {
+		return nil, err
+	}
+	batchSize := cfg.BatchSize
+	concurrency := cfg.Concurrency
 
 	logger.Info("FetchPlayerLandingsWorkflow started",
 		"batchSize", batchSize,

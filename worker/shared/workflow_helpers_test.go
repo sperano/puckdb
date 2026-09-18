@@ -183,34 +183,6 @@ func (s *CountDaysInSeasonSuite) TestSingleDaySeason_ReturnsOne() {
 	s.NoError(s.env.GetWorkflowError())
 }
 
-func TestGetDayConcurrency(t *testing.T) {
-	// Not parallel: viper.Set mutates global state and is not thread-safe.
-
-	t.Run("returns default when viper value is zero", func(t *testing.T) {
-		viper.Set(config.FlagDayConcurrency, 0)
-		t.Cleanup(func() { viper.Set(config.FlagDayConcurrency, 0) })
-
-		result := GetDayConcurrency()
-		assert.Equal(t, config.DefaultDayConcurrency, result)
-	})
-
-	t.Run("returns configured value when viper value is positive", func(t *testing.T) {
-		viper.Set(config.FlagDayConcurrency, 7)
-		t.Cleanup(func() { viper.Set(config.FlagDayConcurrency, 0) })
-
-		result := GetDayConcurrency()
-		assert.Equal(t, 7, result)
-	})
-
-	t.Run("returns default when viper value is negative", func(t *testing.T) {
-		viper.Set(config.FlagDayConcurrency, -3)
-		t.Cleanup(func() { viper.Set(config.FlagDayConcurrency, 0) })
-
-		result := GetDayConcurrency()
-		assert.Equal(t, config.DefaultDayConcurrency, result)
-	})
-}
-
 func TestDefaultActivityOptions(t *testing.T) {
 	// Not parallel: viper.Set mutates global state and is not thread-safe.
 
