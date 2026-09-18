@@ -319,7 +319,7 @@ type childQuery struct {
 }
 
 func (r *Resolver) yahooTokenStatus(ctx context.Context) (*model.YahooTokenStatus, error) {
-	valid, err := cache.HasValidToken(ctx, r.RedisClient, config.DefaultUser)
+	valid, err := cache.HasUsableToken(ctx, r.RedisClient, config.DefaultUser)
 	if err != nil {
 		return nil, err
 	}

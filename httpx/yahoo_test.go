@@ -339,7 +339,7 @@ func TestExchangeCodeWithConfig_TokenSaveFails(t *testing.T) {
 	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
 
 	// Mock: save token fails
-	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetErr(redis.ErrClosed)
+	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", 0).SetErr(redis.ErrClosed)
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "valid-code")
 	assert.Error(t, err)
@@ -374,7 +374,7 @@ func TestExchangeCodeWithConfig_Success(t *testing.T) {
 	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
 
 	// Mock: save token succeeds
-	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
+	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", 0).SetVal("OK")
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "valid-code")
 	assert.NoError(t, err)

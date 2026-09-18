@@ -35,7 +35,7 @@ func runRedisCollector(ctx context.Context, interval time.Duration) {
 
 func collectRedisMetrics(ctx context.Context, redisClient *redis.Client) {
 	start := time.Now()
-	hasToken, err := cache.HasValidToken(ctx, redisClient, config.DefaultUser)
+	hasToken, err := cache.HasUsableToken(ctx, redisClient, config.DefaultUser)
 	if err != nil {
 		log.Error().Err(err).Str("user", config.DefaultUser).Msg("Failed to check OAuth token")
 		return

@@ -115,20 +115,20 @@ func NewYahooClient(ctx context.Context, redisClient *redis.Client) (Client, err
 	return NewYahooClientWithConfig(ctx, redisClient, conf)
 }
 
+// NewYahooClientWithConfig builds an authenticated Yahoo client for the user
+// in ctx. The token is validated (and refreshed, if expired) up front so a
+// user who must log in again is told so here, not by a failed download.
 func NewYahooClientWithConfig(ctx context.Context, redisClient *redis.Client, conf *oauth2.Config) (Client, error) {
-	token, err := cache.LoadToken(ctx, redisClient)
+	user, err := config.UserFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("creating yahoo client: %w", err)
+	}
+	tokenSource, err := newRefreshingTokenSource(ctx, redisClient, conf, user)
 	if err != nil {
 		return nil, err
 	}
-	tokenSource := conf.TokenSource(ctx, token)
-	newToken, err := tokenSource.Token()
-	if err != nil {
+	if _, err := tokenSource.Token(); err != nil {
 		return nil, err
-	}
-	if newToken.AccessToken != token.AccessToken {
-		if err := cache.SaveToken(ctx, redisClient, newToken); err != nil {
-			return nil, err
-		}
 	}
 	return &GenericClient{Client: oauth2.NewClient(ctx, tokenSource), apiLabel: "yahoo"}, nil
 }

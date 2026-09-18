@@ -91,7 +91,7 @@ func expectSuccessfulExchange(mock redismock.ClientMock, state, code string) {
 	// The code key is digest-derived and private to cache; anyArgsMatch makes
 	// the literal irrelevant.
 	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
-	mock.CustomMatch(anyArgsMatch).ExpectSet("eric_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
+	mock.CustomMatch(anyArgsMatch).ExpectSet("eric_yahoo_oauth2_token", "x", 0).SetVal("OK")
 }
 
 func TestYahooLoginFlow_ValidStateCompletesOnce(t *testing.T) {

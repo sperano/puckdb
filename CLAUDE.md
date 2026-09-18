@@ -239,7 +239,7 @@ The Prometheus registry is split in three (see `metrics/metrics.go`):
 | `puckdb_cache_disk_size_bytes` | Gauge | — | Bytes used by cache directory |
 | `puckdb_data_path_files_total` | Gauge | `file_type` | Total files in data path by type |
 | `puckdb_data_path_bytes_total` | Gauge | `file_type` | Total bytes in data path by type |
-| `puckdb_redis_oauth_token_valid` | Gauge | `user` | 1 = valid token, 0 = missing/expired |
+| `puckdb_redis_oauth_token_valid` | Gauge | `user` | 1 = usable token (fresh access token or a refresh token), 0 = missing/unrefreshable |
 | `puckdb_redis_last_updated_timestamp` | Gauge | — | Unix ts of last Redis scan |
 | `puckdb_db_table_row_count` | Gauge | `table` | Row count per table |
 | `puckdb_db_table_size_bytes` | Gauge | `table` | On-disk size per table (heap + indexes + TOAST) |

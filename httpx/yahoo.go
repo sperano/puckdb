@@ -133,8 +133,10 @@ func yahooAuthenticatedHandler(redisClient *redis.Client, resolve callbackConfig
 }
 
 func exchangeCodeWithConfig(ctx context.Context, redisClient *redis.Client, conf *oauth2.Config, user string, code string) error {
-	// Step 1: Check if we already have a valid token
-	// This prevents unnecessary code exchanges and protects against callback replays
+	// Step 1: Check if we already have a fresh access token
+	// This prevents unnecessary code exchanges and protects against callback replays.
+	// Deliberately not HasUsableToken: a user who logs in again while holding
+	// only a refresh token wants that credential replaced, not kept.
 	hasToken, err := cache.HasValidToken(ctx, redisClient, user)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to check for existing token")

@@ -435,80 +435,55 @@ func TestNewYahooClientWithConfig_TokenRefreshAndSave(t *testing.T) {
 	t.Parallel()
 
 	redisClient, mock := redismock.NewClientMock()
-	mock.MatchExpectationsInOrder(false)
-	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, testUser)
+	conf := createTestOAuthConfig(newRefreshServer(t, refreshedTokenJSON).URL)
 
-	// Create a mock OAuth2 token server that returns a new token
-	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
-			"access_token": "new-access-token",
-			"token_type": "Bearer",
-			"refresh_token": "new-refresh-token",
-			"expires_in": 3600
-		}`))
-	}))
-	defer tokenServer.Close()
-
-	conf := createTestOAuthConfig(tokenServer.URL)
-
-	// Create an expired token that will trigger refresh
-	token := &oauth2.Token{
-		AccessToken:  "old-access-token",
-		TokenType:    "Bearer",
-		RefreshToken: "test-refresh-token",
-		Expiry:       time.Now().Add(-1 * time.Hour), // Expired
-	}
-	tokenJSON, _ := cache.TokenAsString(token)
-
-	// Key format: %s_yahoo_oauth2_token
-	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
-
-	// Mock Redis to save the new token
-	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetVal("OK")
+	// An expired stored token: the constructor must refresh it, in order,
+	// under the per-user lock, and persist the result before releasing.
+	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", cache.TokenRefreshLockTTL).SetVal(true)
+	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
+	saved := expectTokenSaved(mock)
+	expectLockReleased(mock)
 
 	client, err := NewYahooClientWithConfig(ctx, redisClient, conf)
 	require.NoError(t, err)
 	assert.NotNil(t, client)
-	assert.NoError(t, mock.ExpectationsWereMet())
+	require.NoError(t, mock.ExpectationsWereMet())
+
+	stored := decodeSavedToken(t, saved)
+	assert.Equal(t, "new-access-token", stored.AccessToken)
+	assert.Equal(t, "new-refresh-token", stored.RefreshToken, "a rotated refresh token is persisted, not just the access token")
+	assert.Len(t, *saved, 3, "the record carries no TTL: the refresh token must outlive the access token")
 }
 
 func TestNewYahooClientWithConfig_TokenSaveError(t *testing.T) {
 	t.Parallel()
 
 	redisClient, mock := redismock.NewClientMock()
-	mock.MatchExpectationsInOrder(false)
-	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
+	ctx := context.WithValue(context.Background(), config.CtxUser, testUser)
+	conf := createTestOAuthConfig(newRefreshServer(t, refreshedTokenJSON).URL)
 
-	// Create a mock OAuth2 token server
-	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
-			"access_token": "new-access-token",
-			"token_type": "Bearer",
-			"refresh_token": "new-refresh-token",
-			"expires_in": 3600
-		}`))
-	}))
-	defer tokenServer.Close()
-
-	conf := createTestOAuthConfig(tokenServer.URL)
-
-	// Create an expired token
-	token := &oauth2.Token{
-		AccessToken:  "old-access-token",
-		TokenType:    "Bearer",
-		RefreshToken: "test-refresh-token",
-		Expiry:       time.Now().Add(-1 * time.Hour),
-	}
-	tokenJSON, _ := cache.TokenAsString(token)
-
-	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
-
-	// Mock Redis save to fail
-	mock.CustomMatch(anyArgsMatch).ExpectSet("testuser_yahoo_oauth2_token", "x", time.Hour).SetErr(redis.ErrClosed)
+	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", cache.TokenRefreshLockTTL).SetVal(true)
+	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
+	mock.CustomMatch(anyArgsMatch).ExpectSet(testUserTokenKey, "x", 0).SetErr(redis.ErrClosed)
+	// The lock is released even though the refresh failed.
+	expectLockReleased(mock)
 
 	_, err := NewYahooClientWithConfig(ctx, redisClient, conf)
+	require.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestNewYahooClientWithConfig_MissingUserContext(t *testing.T) {
+	t.Parallel()
+
+	redisClient, mock := redismock.NewClientMock()
+	conf := createTestOAuthConfig("http://example.com")
+
+	// No expectations: without a user there is no key to read.
+	_, err := NewYahooClientWithConfig(context.Background(), redisClient, conf)
 	require.Error(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

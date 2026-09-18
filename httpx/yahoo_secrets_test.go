@@ -116,7 +116,7 @@ func TestYahooCallback_MalformedStoredTokenLeaksNothing(t *testing.T) {
 	// carries on with the exchange.
 	mock.ExpectGet(defaultUserTokenKey).SetVal(`{"access_token":"` + sentinelAccessToken + `","refresh_token":"` + sentinelRefreshToken)
 	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
-	mock.CustomMatch(anyArgsMatch).ExpectSet(defaultUserTokenKey, "x", time.Hour).SetVal("OK")
+	mock.CustomMatch(anyArgsMatch).ExpectSet(defaultUserTokenKey, "x", 0).SetVal("OK")
 
 	w := completeLogin(client, conf, state, cookie, sentinelAuthCode)
 
