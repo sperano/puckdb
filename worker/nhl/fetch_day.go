@@ -3,65 +3,32 @@ package nhl
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
-	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/worker/shared"
 	"github.com/sperano/puckdb/worker/yahoo"
 	"go.temporal.io/sdk/activity"
 )
 
-// fetchableYahooResource combines URL fetching and parsing capabilities.
-// Both resource.Roster and resource.TeamSummary satisfy this interface.
-type fetchableYahooResource interface {
-	core.URLResource
-	Parse(data []byte) (*store.FantasyContent, error)
-}
-
-func (a *DailyScheduleActivities) fetchYahooResource(ctx context.Context, res fetchableYahooResource) error {
+// fetchYahooResource fetches one Yahoo resource through the shared cache-or-download primitive.
+func (a *DailyScheduleActivities) fetchYahooResource(ctx context.Context, res yahoo.Resource) error {
+	fetcher := yahoo.Fetcher{Storage: a.Storage, GobCache: a.GobCache, Download: a.Download}
+	_, origin, err := fetcher.Fetch(ctx, res)
+	if err != nil {
+		return fmt.Errorf("fetch %s %s: %w", res.Type(), res.Path(), err)
+	}
 	logger := activity.GetLogger(ctx)
-	typeName := res.Type().String()
-
-	_, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
-	if err == nil {
-		logger.Debug(typeName+" loaded from cache", "path", res.Path())
-		metrics.IncDownload(res.Type(), metrics.ResultHit)
-		return nil
+	if origin == core.OriginRemoteYahooAPI {
+		logger.Info(res.Type().String()+" downloaded", "path", res.Path())
+	} else {
+		logger.Debug(res.Type().String()+" loaded from cache", "path", res.Path())
 	}
-
-	start := time.Now()
-	content, err := a.Download(ctx, res.URL())
-	duration := time.Since(start)
-	if err != nil {
-		metrics.ObserveHTTP("yahoo", http.MethodGet, 0, duration, 0)
-		metrics.IncDownload(res.Type(), metrics.ResultError)
-		return fmt.Errorf("download %s: %w", typeName, err)
-	}
-	metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
-
-	if err := a.Storage.Write(ctx, res.Path(), content); err != nil {
-		return fmt.Errorf("save %s: %w", typeName, err)
-	}
-
-	parsed, err := res.Parse(content)
-	if err != nil {
-		return err
-	}
-	if err := cache.Set(a.GobCache, ctx, core.RedisKey(res), parsed); err != nil {
-		return fmt.Errorf("gob cache set %s: %w", typeName, err)
-	}
-
-	logger.Info(typeName+" downloaded", "path", res.Path())
-	metrics.IncDownload(res.Type(), metrics.ResultMiss)
-	yahoo.SleepAfterYahooDownload()
 	return nil
 }
 

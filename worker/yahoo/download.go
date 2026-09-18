@@ -47,36 +47,12 @@ func GetGameKeyForSeason(ctx context.Context, storage store.Storage, gobCache *c
 
 // getGameKeyImpl fetches the game key, using cache or downloading if needed.
 func getGameKeyImpl(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season int, fetcher shared.Downloader, postDownload func()) (int, error) {
-	gameKeyRes := resource.GameKey{Season: season}
-
-	if storage.Exists(ctx, gameKeyRes.Path()) {
-		log.Debug().Int("season", season).Msg("Game key file found")
-		fantasy, _, err := cache.ReadParsedCached(ctx, storage, gobCache, gameKeyRes)
-		if err != nil {
-			return 0, fmt.Errorf("read stored game key for season %d: %w", season, err)
-		}
-		return extractGameKey(fantasy, season)
-	}
-
-	log.Info().Int("season", season).Msg("Downloading game key from Yahoo")
-	content, err := fetcher(ctx, gameKeyRes.URL())
+	f := Fetcher{Storage: storage, GobCache: gobCache, Download: fetcher, Throttle: postDownload}
+	fantasy, origin, err := f.Fetch(ctx, resource.GameKey{Season: season})
 	if err != nil {
 		return 0, fmt.Errorf("fetch game key for season %d: %w", season, err)
 	}
-
-	if err := storage.Write(ctx, gameKeyRes.Path(), content); err != nil {
-		return 0, fmt.Errorf("save game key for season %d: %w", season, err)
-	}
-	log.Info().Int("season", season).Str("path", gameKeyRes.Path()).Msg("Saved game key")
-	if postDownload != nil {
-		postDownload()
-	}
-
-	fantasy, err := gameKeyRes.Parse(content)
-	if err != nil {
-		return 0, fmt.Errorf("parse game key response for season %d: %w", season, err)
-	}
-
+	log.Debug().Int("season", season).Stringer("origin", origin).Msg("Game key fetched")
 	return extractGameKey(fantasy, season)
 }
 

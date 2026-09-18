@@ -108,8 +108,15 @@ func TestReadParsed(t *testing.T) {
 		s.data[r.Path()] = []byte(`not-json`)
 
 		_, err := resource.ReadParsed(context.Background(), s, r)
-		if err == nil {
-			t.Fatal("ReadParsed() expected parse error, got nil")
+		var parseErr *resource.ParseError
+		if !errors.As(err, &parseErr) {
+			t.Fatalf("ReadParsed() error = %v, want *resource.ParseError", err)
+		}
+		if err.Error() != parseErr.Err.Error() {
+			t.Errorf("ParseError must not alter the message: got %q, want %q", err.Error(), parseErr.Err.Error())
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			t.Error("a parse error must not look like a missing file")
 		}
 	})
 }

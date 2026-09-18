@@ -2,17 +2,19 @@ package yahoo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/core"
+	"github.com/sperano/puckdb/httpx"
 	"github.com/sperano/puckdb/metrics"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/worker/shared"
 	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/log"
 )
 
 // maxMatchupWeeks is the upper bound for matchup week iteration.
@@ -27,6 +29,20 @@ type FetchActivities struct {
 	PublicDownloader HTTPDownloader
 }
 
+// fetcher builds the cache-or-download primitive from the activity's dependencies.
+func (a *FetchActivities) fetcher() Fetcher {
+	return Fetcher{Storage: a.Storage, GobCache: a.GobCache, Download: a.Download}
+}
+
+// logFetched logs a Fetch outcome: downloads at Info, cache hits at Debug.
+func logFetched(logger log.Logger, origin core.DataOrigin, what string, keyvals ...any) {
+	if origin == core.OriginRemoteYahooAPI {
+		logger.Info(what+" downloaded", keyvals...)
+		return
+	}
+	logger.Debug(what+" loaded from cache", keyvals...)
+}
+
 // FetchLeague downloads a Yahoo fantasy league file for the given season and league.
 // Uses Redis → FileSystem cache; skips download if already cached.
 func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID int) error {
@@ -39,43 +55,11 @@ func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID 
 	}
 
 	res := resource.League{Season: season, LeagueID: leagueID, GameKey: gameKey}
-
-	// Check Redis → FileSystem cache
-	_, _, err = cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
-	if err == nil {
-		logger.Debug("League loaded from cache", "season", season, "leagueID", leagueID)
-		metrics.IncDownload(core.League, metrics.ResultHit)
-		return nil
-	}
-
-	// Cache miss — download from Yahoo
-	start := time.Now()
-	content, err := a.Download(ctx, res.URL())
-	duration := time.Since(start)
+	_, origin, err := a.fetcher().Fetch(ctx, res)
 	if err != nil {
-		metrics.ObserveHTTP("yahoo", http.MethodGet, 0, duration, 0)
-		metrics.IncDownload(core.League, metrics.ResultError)
-		return fmt.Errorf("download league %d/%d: %w", season, leagueID, err)
+		return fmt.Errorf("fetch league %d/%d: %w", season, leagueID, err)
 	}
-	metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
-
-	// Save raw XML to filesystem
-	if err := a.Storage.Write(ctx, res.Path(), content); err != nil {
-		return fmt.Errorf("save league %d/%d: %w", season, leagueID, err)
-	}
-
-	// Parse and populate Redis cache
-	parsed, err := res.Parse(content)
-	if err != nil {
-		return err
-	}
-	if err := cache.Set(a.GobCache, ctx, core.RedisKey(res), parsed); err != nil {
-		return fmt.Errorf("gob cache set league: %w", err)
-	}
-
-	logger.Info("League downloaded", "season", season, "leagueID", leagueID)
-	metrics.IncDownload(core.League, metrics.ResultMiss)
-	SleepAfterYahooDownload()
+	logFetched(logger, origin, "League", "season", season, "leagueID", leagueID)
 	return nil
 }
 
@@ -129,6 +113,7 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 		"gameKey", gameKey,
 		"numTeams", len(input.Teams))
 
+	fetcher := a.fetcher()
 	for _, team := range input.Teams {
 		select {
 		case <-ctx.Done():
@@ -142,43 +127,11 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 			TeamID:   team.TeamID,
 			GameKey:  gameKey,
 		}
-
-		// Check Redis → FileSystem cache
-		_, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
-		if err == nil {
-			logger.Debug("Team loaded from cache", "leagueID", team.LeagueID, "teamID", team.TeamID)
-			metrics.IncDownload(core.Team, metrics.ResultHit)
-			continue
-		}
-
-		// Cache miss — download from Yahoo
-		start := time.Now()
-		content, err := a.Download(ctx, res.URL())
-		duration := time.Since(start)
+		_, origin, err := fetcher.Fetch(ctx, res)
 		if err != nil {
-			metrics.ObserveHTTP("yahoo", http.MethodGet, 0, duration, 0)
-			metrics.IncDownload(core.Team, metrics.ResultError)
-			return fmt.Errorf("download team %d/%d/%d: %w", input.StartSeason, team.LeagueID, team.TeamID, err)
+			return fmt.Errorf("fetch team %d/%d/%d: %w", input.StartSeason, team.LeagueID, team.TeamID, err)
 		}
-		metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
-
-		// Save raw XML to filesystem
-		if err := a.Storage.Write(ctx, res.Path(), content); err != nil {
-			return fmt.Errorf("save team %d/%d/%d: %w", input.StartSeason, team.LeagueID, team.TeamID, err)
-		}
-
-		// Parse and populate Redis cache
-		parsed, err := res.Parse(content)
-		if err != nil {
-			return err
-		}
-		if err := cache.Set(a.GobCache, ctx, core.RedisKey(res), parsed); err != nil {
-			return fmt.Errorf("gob cache set team: %w", err)
-		}
-
-		logger.Info("Team downloaded", "leagueID", team.LeagueID, "teamID", team.TeamID)
-		metrics.IncDownload(core.Team, metrics.ResultMiss)
-		SleepAfterYahooDownload()
+		logFetched(logger, origin, "Team", "leagueID", team.LeagueID, "teamID", team.TeamID)
 	}
 
 	return nil
@@ -194,95 +147,67 @@ func (a *FetchActivities) FetchYahooLeagueData(ctx context.Context, input FetchY
 		return err
 	}
 
-	if err := a.fetchYahooResource(ctx, resource.Transactions{
-		Season: input.Season, LeagueID: input.LeagueID, GameKey: gameKey,
-	}); err != nil {
+	fetcher := a.fetcher()
+
+	txRes := resource.Transactions{Season: input.Season, LeagueID: input.LeagueID, GameKey: gameKey}
+	_, origin, err := fetcher.Fetch(ctx, txRes)
+	if err != nil {
 		return fmt.Errorf("fetch transactions %d/%d: %w", input.Season, input.LeagueID, err)
 	}
+	logFetched(logger, origin, "Transactions", "season", input.Season, "leagueID", input.LeagueID)
 	activity.RecordHeartbeat(ctx, "transactions")
 
-	if err := a.fetchYahooResource(ctx, resource.DraftResults{
-		Season: input.Season, LeagueID: input.LeagueID, GameKey: gameKey,
-	}); err != nil {
+	drRes := resource.DraftResults{Season: input.Season, LeagueID: input.LeagueID, GameKey: gameKey}
+	_, origin, err = fetcher.Fetch(ctx, drRes)
+	if err != nil {
 		return fmt.Errorf("fetch draft results %d/%d: %w", input.Season, input.LeagueID, err)
 	}
+	logFetched(logger, origin, "Draft results", "season", input.Season, "leagueID", input.LeagueID)
 	activity.RecordHeartbeat(ctx, "draftresults")
 
-	// Fetch matchups week-by-week until we get an empty response or error
-	for week := 1; week <= maxMatchupWeeks; week++ {
-		activity.RecordHeartbeat(ctx, fmt.Sprintf("matchups:week%d", week))
-		res := resource.Matchups{
-			Season: input.Season, LeagueID: input.LeagueID, Week: week, GameKey: gameKey,
-		}
-
-		// Skip if already cached
-		if a.Storage.Exists(ctx, res.Path()) {
-			continue
-		}
-
-		start := time.Now()
-		content, err := a.Download(ctx, res.URL())
-		duration := time.Since(start)
-		if err != nil {
-			// An error fetching a future week likely means we've exhausted available weeks
-			metrics.ObserveHTTP("yahoo", http.MethodGet, 0, duration, 0)
-			logger.Info("Stopped fetching matchups at week", "week", week, "error", err)
-			break
-		}
-		metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
-
-		if err := a.Storage.Write(ctx, res.Path(), content); err != nil {
-			return fmt.Errorf("save matchups week %d: %w", week, err)
-		}
-
-		parsed, err := res.Parse(content)
-		if err != nil {
-			return fmt.Errorf("parse matchups week %d: %w", week, err)
-		}
-		if err := cache.Set(a.GobCache, ctx, core.RedisKey(res), parsed); err != nil {
-			return fmt.Errorf("cache matchups week %d: %w", week, err)
-		}
-
-		SleepAfterYahooDownload()
+	if err := a.fetchMatchups(ctx, fetcher, input, gameKey); err != nil {
+		return err
 	}
 
 	logger.Info("Fetched Yahoo league data", "season", input.Season, "leagueID", input.LeagueID)
 	return nil
 }
 
-// fetchYahooResource fetches a single Yahoo resource with cache-or-download logic.
-func (a *FetchActivities) fetchYahooResource(ctx context.Context, res interface {
-	Path() string
-	URL() string
-	Type() core.FileType
-	Parse([]byte) (*store.FantasyContent, error)
-}) error {
-	// Check cache
-	if a.Storage.Exists(ctx, res.Path()) {
-		return nil
+// fetchMatchups fetches matchups week-by-week until Yahoo rejects a week (end
+// of the series). Any other failure is returned so Temporal retries it.
+func (a *FetchActivities) fetchMatchups(ctx context.Context, fetcher Fetcher, input FetchYahooLeagueDataInput, gameKey int) error {
+	logger := activity.GetLogger(ctx)
+	for week := 1; week <= maxMatchupWeeks; week++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		activity.RecordHeartbeat(ctx, fmt.Sprintf("matchups:week%d", week))
+		res := resource.Matchups{
+			Season: input.Season, LeagueID: input.LeagueID, Week: week, GameKey: gameKey,
+		}
+		_, origin, err := fetcher.Fetch(ctx, res)
+		if isEndOfMatchupWeeks(err) {
+			logger.Info("Stopped fetching matchups at week", "week", week, "error", err)
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("fetch matchups %d/%d week %d: %w", input.Season, input.LeagueID, week, err)
+		}
+		logFetched(logger, origin, "Matchups", "season", input.Season, "leagueID", input.LeagueID, "week", week)
 	}
-
-	start := time.Now()
-	content, err := a.Download(ctx, res.URL())
-	duration := time.Since(start)
-	if err != nil {
-		metrics.ObserveHTTP("yahoo", http.MethodGet, 0, duration, 0)
-		return err
-	}
-	metrics.ObserveHTTP("yahoo", http.MethodGet, http.StatusOK, duration, len(content))
-
-	if err := a.Storage.Write(ctx, res.Path(), content); err != nil {
-		return err
-	}
-
-	parsed, err := res.Parse(content)
-	if err != nil {
-		return err
-	}
-	if err := cache.Set(a.GobCache, ctx, core.RedisKey(res), parsed); err != nil {
-		return err
-	}
-
-	SleepAfterYahooDownload()
 	return nil
+}
+
+// isEndOfMatchupWeeks reports whether a fetch failure means Yahoo has no such
+// week: a definitive 4xx rejection of the download. Transport errors, 5xx,
+// throttling (429), cancellation and storage/parse/cache failures are real
+// faults, not the end of the series.
+func isEndOfMatchupWeeks(err error) bool {
+	var httpErr *httpx.HTTPError
+	if !errors.Is(err, ErrDownload) || !errors.As(err, &httpErr) {
+		return false
+	}
+	return httpErr.IsClientError() && httpErr.StatusCode != http.StatusTooManyRequests
 }

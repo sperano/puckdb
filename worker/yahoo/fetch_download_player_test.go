@@ -3,11 +3,15 @@ package yahoo
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"testing"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/core"
+	"github.com/sperano/puckdb/httpx"
 	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/worker/shared"
@@ -296,15 +300,26 @@ func TestFetchYahooLeagueDataSuite(t *testing.T) {
 	suite.Run(t, new(FetchYahooLeagueDataSuite))
 }
 
-// buildFetchYahooLeagueDataAct creates a FetchActivities with in-memory storage.
-// It seeds the storage with a transactions file and draft results file so that
-// fetchYahooResource finds them on the first call.
+// errNoMoreWeeks is how Yahoo answers a scoreboard request past the end of the season.
+var errNoMoreWeeks = &httpx.HTTPError{StatusCode: http.StatusBadRequest, Status: "400 Bad Request"}
+
+// buildAct creates a FetchActivities with in-memory storage.
 func (s *FetchYahooLeagueDataSuite) buildAct(mem *store.MemStorage, dl shared.Downloader, gobCache *cache.GobCache) *FetchActivities {
 	return &FetchActivities{
 		Storage:  mem,
 		Download: dl,
 		GobCache: gobCache,
 	}
+}
+
+// expectRedisMiss declares the GET every validated read makes before falling through to storage.
+func expectRedisMiss(mockRedis redismock.ClientMock, res core.Resource) {
+	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+}
+
+// expectRedisPopulate declares the SET made once a resource has parsed (from a download or from storage).
+func expectRedisPopulate(mockRedis redismock.ClientMock, res core.Resource) {
+	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(res), "x", cache.GobCacheTTL).SetVal("OK")
 }
 
 func (s *FetchYahooLeagueDataSuite) TestSuccess_AllFromDownload() {
@@ -315,11 +330,14 @@ func (s *FetchYahooLeagueDataSuite) TestSuccess_AllFromDownload() {
 	txRes := resource.Transactions{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
 	drRes := resource.DraftResults{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
 	mu1Res := resource.Matchups{Season: testYahooSeason, LeagueID: testLeagueID, Week: 1, GameKey: testGameKey}
+	mu2Res := resource.Matchups{Season: testYahooSeason, LeagueID: testLeagueID, Week: 2, GameKey: testGameKey}
 
-	// Expect Redis SET for each parsed resource.
-	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(txRes), "x", cache.GobCacheTTL).SetVal("OK")
-	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(drRes), "x", cache.GobCacheTTL).SetVal("OK")
-	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(mu1Res), "x", cache.GobCacheTTL).SetVal("OK")
+	// Each resource: Redis miss → download → Redis SET. Week 2 misses then fails to download.
+	for _, res := range []core.Resource{txRes, drRes, mu1Res} {
+		expectRedisMiss(mockRedis, res)
+		expectRedisPopulate(mockRedis, res)
+	}
+	expectRedisMiss(mockRedis, mu2Res)
 
 	emptyTxXML := []byte(`<fantasy_content><league><transactions count="0"></transactions></league></fantasy_content>`)
 	emptyDrXML := []byte(`<fantasy_content><league><draft_results count="0"></draft_results></league></fantasy_content>`)
@@ -335,7 +353,7 @@ func (s *FetchYahooLeagueDataSuite) TestSuccess_AllFromDownload() {
 		case 3:
 			return []byte(minimalMatchupXML), nil // week 1
 		default:
-			return nil, errors.New("no more weeks")
+			return nil, errNoMoreWeeks
 		}
 	})
 
@@ -345,6 +363,7 @@ func (s *FetchYahooLeagueDataSuite) TestSuccess_AllFromDownload() {
 	_, err := s.env.ExecuteActivity(act.FetchYahooLeagueData, input)
 
 	require.NoError(s.T(), err)
+	require.NoError(s.T(), mockRedis.ExpectationsWereMet())
 	assert.True(s.T(), mem.Exists(context.Background(), txRes.Path()), "transactions file must be written")
 	assert.True(s.T(), mem.Exists(context.Background(), drRes.Path()), "draft results file must be written")
 	assert.True(s.T(), mem.Exists(context.Background(), mu1Res.Path()), "matchup week-1 file must be written")
@@ -352,12 +371,14 @@ func (s *FetchYahooLeagueDataSuite) TestSuccess_AllFromDownload() {
 
 func (s *FetchYahooLeagueDataSuite) TestSuccess_AlreadyCached() {
 	mem := store.NewMemStorage()
-	redisClient, _ := redismock.NewClientMock()
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
 
-	// Pre-write all three resources so fetchYahooResource short-circuits.
+	// Pre-write all three resources so the validated cache read hits storage.
 	txRes := resource.Transactions{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
 	drRes := resource.DraftResults{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
 	mu1Res := resource.Matchups{Season: testYahooSeason, LeagueID: testLeagueID, Week: 1, GameKey: testGameKey}
+	mu2Res := resource.Matchups{Season: testYahooSeason, LeagueID: testLeagueID, Week: 2, GameKey: testGameKey}
 
 	emptyTxXML := []byte(`<fantasy_content><league><transactions count="0"></transactions></league></fantasy_content>`)
 	emptyDrXML := []byte(`<fantasy_content><league><draft_results count="0"></draft_results></league></fantasy_content>`)
@@ -366,7 +387,14 @@ func (s *FetchYahooLeagueDataSuite) TestSuccess_AlreadyCached() {
 	require.NoError(s.T(), mem.Write(context.Background(), drRes.Path(), emptyDrXML))
 	require.NoError(s.T(), mem.Write(context.Background(), mu1Res.Path(), []byte(minimalMatchupXML)))
 
-	dl := mockDownloader(nil, errors.New("should not be called"))
+	// Each cached file: Redis miss → storage hit → Redis populated. Week 2: miss → download fails → stop.
+	for _, res := range []core.Resource{txRes, drRes, mu1Res} {
+		expectRedisMiss(mockRedis, res)
+		expectRedisPopulate(mockRedis, res)
+	}
+	expectRedisMiss(mockRedis, mu2Res)
+
+	dl := mockDownloader(nil, errNoMoreWeeks)
 
 	act := s.buildAct(mem, dl, cache.NewGobCache(redisClient))
 	s.env.RegisterActivity(act.FetchYahooLeagueData)
@@ -375,11 +403,13 @@ func (s *FetchYahooLeagueDataSuite) TestSuccess_AlreadyCached() {
 
 	// No week-2 file → matchup loop stops. No downloads needed → no errors.
 	require.NoError(s.T(), err)
+	require.NoError(s.T(), mockRedis.ExpectationsWereMet())
 }
 
 func (s *FetchYahooLeagueDataSuite) TestTransactionDownloadError() {
 	mem := store.NewMemStorage()
-	redisClient, _ := redismock.NewClientMock()
+	redisClient, mockRedis := redismock.NewClientMock()
+	expectRedisMiss(mockRedis, resource.Transactions{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey})
 
 	dl := mockDownloader(nil, errors.New("yahoo is down"))
 
@@ -390,61 +420,72 @@ func (s *FetchYahooLeagueDataSuite) TestTransactionDownloadError() {
 
 	require.Error(s.T(), err)
 	assert.Contains(s.T(), err.Error(), "fetch transactions")
+	assert.Contains(s.T(), err.Error(), "yahoo is down")
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// fetchYahooResource tests (called directly since it's unexported)
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestFetchYahooResource_CacheHit(t *testing.T) {
-	t.Parallel()
-
-	mem := store.NewMemStorage()
-	redisClient, _ := redismock.NewClientMock()
-
-	res := resource.Transactions{Season: 2023, LeagueID: 99, GameKey: 423}
-	require.NoError(t, mem.Write(context.Background(), res.Path(), []byte(`<fantasy_content><league></league></fantasy_content>`)))
-
-	dl := mockDownloader(nil, errors.New("should not be called"))
-	act := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(redisClient)}
-
-	err := act.fetchYahooResource(context.Background(), res)
-	require.NoError(t, err)
-}
-
-func TestFetchYahooResource_DownloadAndWrite(t *testing.T) {
-	t.Parallel()
-
-	mem := store.NewMemStorage()
-	redisClient, mockRedis := redismock.NewClientMock()
-
-	res := resource.Transactions{Season: 2023, LeagueID: 99, GameKey: 423}
-	xml := []byte(`<fantasy_content><league><transactions count="0"></transactions></league></fantasy_content>`)
-
-	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(res), "x", cache.GobCacheTTL).SetVal("OK")
-
-	dl := mockDownloader(xml, nil)
-	act := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(redisClient)}
-
-	err := act.fetchYahooResource(context.Background(), res)
-	require.NoError(t, err)
-	assert.True(t, mem.Exists(context.Background(), res.Path()))
-}
-
-func TestFetchYahooResource_DownloadError(t *testing.T) {
-	t.Parallel()
-
-	mem := store.NewMemStorage()
-	redisClient, _ := redismock.NewClientMock()
-
-	res := resource.Transactions{Season: 2023, LeagueID: 99, GameKey: 423}
-	act := &FetchActivities{
-		Storage:  mem,
-		Download: mockDownloader(nil, errors.New("timeout")),
-		GobCache: cache.NewGobCache(redisClient),
+// TestMatchupsTransientFailureIsAnError proves that a transient
+// or unrelated download failure is not mistaken for the end of the season.
+func (s *FetchYahooLeagueDataSuite) TestMatchupsTransientFailureIsAnError() {
+	cases := map[string]error{
+		"server error": &httpx.HTTPError{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error"},
+		"throttled":    &httpx.HTTPError{StatusCode: http.StatusTooManyRequests, Status: "429 Too Many Requests"},
+		"transport":    errors.New("connection reset"),
+		"cancelled":    context.Canceled,
 	}
+	for name, dlErr := range cases {
+		s.Run(name, func() {
+			mem := store.NewMemStorage()
+			redisClient, mockRedis := redismock.NewClientMock()
+			mockRedis.MatchExpectationsInOrder(false)
 
-	err := act.fetchYahooResource(context.Background(), res)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "timeout")
+			txRes := resource.Transactions{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
+			drRes := resource.DraftResults{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
+			mu1Res := resource.Matchups{Season: testYahooSeason, LeagueID: testLeagueID, Week: 1, GameKey: testGameKey}
+			for _, res := range []core.Resource{txRes, drRes, mu1Res} {
+				expectRedisMiss(mockRedis, res)
+				expectRedisPopulate(mockRedis, res)
+			}
+
+			emptyXML := []byte(`<fantasy_content><league></league></fantasy_content>`)
+			callCount := 0
+			dl := shared.Downloader(func(_ context.Context, _ string) ([]byte, error) {
+				callCount++
+				if callCount <= 3 { // transactions, draft results, week 1
+					return emptyXML, nil
+				}
+				return nil, dlErr
+			})
+
+			act := s.buildAct(mem, dl, cache.NewGobCache(redisClient))
+			env := s.NewTestActivityEnvironment()
+			env.RegisterActivity(act.FetchYahooLeagueData)
+			_, err := env.ExecuteActivity(act.FetchYahooLeagueData, FetchYahooLeagueDataInput{Season: testYahooSeason, LeagueID: testLeagueID})
+
+			require.Error(s.T(), err)
+			assert.Contains(s.T(), err.Error(), "week 2")
+		})
+	}
+}
+
+func TestIsEndOfMatchupWeeks(t *testing.T) {
+	t.Parallel()
+	wrap := func(err error) error { return fmt.Errorf("%w: Matchups: %w", ErrDownload, err) }
+	cases := map[string]struct {
+		err  error
+		want bool
+	}{
+		"400 rejection":         {wrap(&httpx.HTTPError{StatusCode: http.StatusBadRequest}), true},
+		"404":                   {wrap(&httpx.HTTPError{StatusCode: http.StatusNotFound}), true},
+		"429 throttled":         {wrap(&httpx.HTTPError{StatusCode: http.StatusTooManyRequests}), false},
+		"500":                   {wrap(&httpx.HTTPError{StatusCode: http.StatusInternalServerError}), false},
+		"transport":             {wrap(errors.New("timeout")), false},
+		"4xx not from download": {&httpx.HTTPError{StatusCode: http.StatusBadRequest}, false},
+		"nil":                   {nil, false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, isEndOfMatchupWeeks(tc.err))
+		})
+	}
 }
