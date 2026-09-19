@@ -156,12 +156,10 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 
 	// Read record_full_messages up-front, alongside the idempotency and
 	// cost-cap probes, so every avoidable failure point sits BEFORE the
-	// LLM runs. Reading it post-LLM (at commit time) means a flake there
-	// discards a completed, paid-for turn and forces a Temporal retry
-	// that re-bills the LLM (the idempotency marker isn't written yet).
-	recordMessages, err := a.Queries.GetSimPoolRecordFullMessages(ctx, in.PoolID)
+	// LLM runs (see fetchRecordMessagesFlag for why).
+	recordMessages, err := a.fetchRecordMessagesFlag(ctx, in.PoolID)
 	if err != nil {
-		return ManageRosterResult{}, fmt.Errorf("simulation: fetch record_full_messages flag: %w", err)
+		return ManageRosterResult{}, err
 	}
 
 	agent, err := a.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
@@ -574,10 +572,7 @@ func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, 
 		return fmt.Errorf("simulation: encode cost: %w", err)
 	}
 
-	var messages []llm.Message
-	if recordMessages && outcome.res != nil {
-		messages = outcome.res.Messages
-	}
+	messages := transcriptForRecording(recordMessages, outcome.res)
 
 	return a.Tx.InTx(ctx, func(q SimQueries) error {
 		// Commit-time revalidation: an add validated against the morning

@@ -243,13 +243,41 @@ type TurnTelemetry struct {
 
 	// Messages is the full conversation transcript, recorded only when
 	// RecordMessages is true. Callers should leave this nil rather than
-	// populate-then-gate — commitDailyTurn/persistTeamNameTurn compute
-	// it up front from the same recordMessages flag.
+	// populate-then-gate — every phase's commit path derives it from the
+	// same recordMessages flag via transcriptForRecording.
 	Messages []llm.Message
 
 	// RecordMessages mirrors sim_pools.record_full_messages — gates
 	// whether Messages is written as sim_agent_turn_messages rows.
 	RecordMessages bool
+}
+
+// fetchRecordMessagesFlag reads sim_pools.record_full_messages for the
+// pool. Every LLM-driven activity (PickTeamName, DraftPick, ManageRoster)
+// calls this as a PRE-flight — after the idempotency and cost-cap probes
+// but before the model runs — so a transient DB failure here aborts a
+// turn that has not been paid for yet. Reading the flag at commit time
+// instead would discard a completed, billed turn and force a Temporal
+// retry that re-bills the model (the idempotency marker isn't written
+// until the commit).
+func (a *Activities) fetchRecordMessagesFlag(ctx context.Context, poolID int32) (bool, error) {
+	recordMessages, err := a.Queries.GetSimPoolRecordFullMessages(ctx, poolID)
+	if err != nil {
+		return false, fmt.Errorf("simulation: fetch record_full_messages flag: %w", err)
+	}
+	return recordMessages, nil
+}
+
+// transcriptForRecording returns the transcript TurnTelemetry.Messages
+// should carry: the agentloop's full conversation when recording is
+// enabled, nil otherwise. res may be nil (the loop never returned a
+// result), in which case there is nothing to record regardless of the
+// flag. Centralised so the three phases can't drift on the gate.
+func transcriptForRecording(recordMessages bool, res *agentloop.Result) []llm.Message {
+	if !recordMessages || res == nil {
+		return nil
+	}
+	return res.Messages
 }
 
 // RecordTurnTelemetry writes the turn header, per-round usage rows,

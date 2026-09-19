@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/sperano/puckdb/llm"
+	"github.com/sperano/puckdb/llm/agentloop"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -193,4 +194,16 @@ func TestRecordTurnTelemetryClampsOverflowingTokens(t *testing.T) {
 	assert.EqualValues(t, math.MaxInt32, parent.PromptTokens)
 	assert.EqualValues(t, math.MaxInt32, parent.CompletionTokens)
 	assert.GreaterOrEqual(t, parent.PromptTokens, int32(0), "clamped token count must never be negative")
+}
+
+// transcriptForRecording is the single gate every phase uses to decide
+// what TurnTelemetry.Messages carries: the loop's history only when the
+// flag is on AND the loop produced a result.
+func TestTranscriptForRecording(t *testing.T) {
+	history := []llm.Message{{Role: "system", Content: "sys"}, {Role: "user", Content: "prompt"}}
+	res := &agentloop.Result{Messages: history}
+
+	assert.Equal(t, history, transcriptForRecording(true, res))
+	assert.Nil(t, transcriptForRecording(false, res), "flag off → nothing to record")
+	assert.Nil(t, transcriptForRecording(true, nil), "no loop result → nothing to record")
 }
