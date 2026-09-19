@@ -203,10 +203,10 @@ func registerStatsTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 
 	srv.AddTool(
 		mcp.NewTool("get_club_skater_stats",
-			mcp.WithDescription("Get season skater stats for all players on a team. Defaults to regular season; pass game_type to query playoffs or preseason."),
+			mcp.WithDescription("Get season skater stats for all players on a team. Rows are per club: a traded player appears under each club he played for with only that stint's stats — use get_skater_season_totals for full-season lines. Only regular_season and playoffs are available (preseason is never fetched)."),
 			mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID")),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
-			mcp.WithString("game_type", mcp.Description("Game type: regular_season (default), playoffs, preseason")),
+			mcp.WithString("game_type", mcp.Description("Game type: regular_season (default) or playoffs")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			teamID := req.GetInt("team_id", 0)
@@ -232,10 +232,10 @@ func registerStatsTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 
 	srv.AddTool(
 		mcp.NewTool("get_club_goalie_stats",
-			mcp.WithDescription("Get season goalie stats for all goalies on a team. Defaults to regular season; pass game_type to query playoffs or preseason."),
+			mcp.WithDescription("Get season goalie stats for all goalies on a team. Rows are per club: a traded goalie appears under each club he played for with only that stint's stats — use get_goalie_season_totals for full-season lines. Only regular_season and playoffs are available (preseason is never fetched)."),
 			mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID")),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
-			mcp.WithString("game_type", mcp.Description("Game type: regular_season (default), playoffs, preseason")),
+			mcp.WithString("game_type", mcp.Description("Game type: regular_season (default) or playoffs")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			teamID := req.GetInt("team_id", 0)
