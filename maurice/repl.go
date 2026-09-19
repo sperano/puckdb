@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -150,17 +151,27 @@ func RunREPL(ctx context.Context, cfg REPLConfig) error {
 	fmt.Println(styleHint.Render("  /quit  /new  /history  /load <id>  /model"))
 	fmt.Println()
 
-	scanner := bufio.NewScanner(os.Stdin)
+	lines, scanErr := readLines(ctx, os.Stdin)
 	spin := &spinner{}
 	var conversationID *string
 
 	for {
 		fmt.Print(formatPrompt(model))
-		if !scanner.Scan() {
-			break
+		var input string
+		select {
+		case <-ctx.Done():
+			// First SIGINT/SIGTERM cancels the root signal context (see
+			// cmd.SignalContext). Return cleanly so the deferred service,
+			// MCP and DB cleanup in the callers runs; the stdin goroutine
+			// stays blocked in Scan and exits with the process.
+			fmt.Println()
+			return nil
+		case line, ok := <-lines:
+			if !ok {
+				return scanErr()
+			}
+			input = strings.TrimSpace(line)
 		}
-
-		input := strings.TrimSpace(scanner.Text())
 		if input == "" {
 			continue
 		}
@@ -266,8 +277,29 @@ func RunREPL(ctx context.Context, cfg REPLConfig) error {
 			fmt.Print(rendered)
 		}
 	}
+}
 
-	return scanner.Err()
+// readLines scans r line by line from a dedicated goroutine into the
+// returned channel, closing it on EOF or read error (retrievable via the
+// returned error func once the channel is closed). Cancellation of ctx
+// stops delivery, but a goroutine blocked inside Scan itself cannot be
+// interrupted — it only exits on the next line, EOF, or process exit, so
+// callers must select on ctx.Done rather than wait for the channel to
+// close.
+func readLines(ctx context.Context, r io.Reader) (<-chan string, func() error) {
+	lines := make(chan string)
+	scanner := bufio.NewScanner(r)
+	go func() {
+		defer close(lines)
+		for scanner.Scan() {
+			select {
+			case lines <- scanner.Text():
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return lines, scanner.Err
 }
 
 // printModelMenu prints the model selection menu to stdout.

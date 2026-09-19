@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -130,29 +128,20 @@ func runSync(cmd *cobra.Command, args []string) error {
 	state := &syncState{client: client}
 	out := cmd.OutOrStdout()
 
-	ctx, cancel := context.WithCancel(cmd.Context())
+	// Polling uses a context detached from cmd.Context so that on the first
+	// SIGINT/SIGTERM — delivered as cancellation of the root signal context,
+	// see main.go and SignalContext — the workflow-cancel RPCs issued by
+	// state.cancel() complete before polling is released and runSync
+	// returns. A second signal force-quits: SignalContext restores the
+	// default signal disposition after the first. Unlike worker, sync has
+	// no local signal handler — this behavior depends on main wiring
+	// SignalContext through ExecuteContext; executed without that wired
+	// root, a signal falls back to Go's default disposition and kills the
+	// process without canceling remote workflows.
+	ctx, cancel := context.WithCancel(context.WithoutCancel(cmd.Context()))
 	defer cancel()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(sigChan)
-
-	go func() {
-		select {
-		case <-ctx.Done():
-			// runSync finished (or was already canceled); nothing to do.
-			// Returning here prevents the goroutine from leaking while
-			// blocked on sigChan for the process lifetime.
-			return
-		case <-sigChan:
-			// First Ctrl-C: restore default signal handling so a second
-			// Ctrl-C force-quits even while the (blocking) cancel RPC in
-			// state.cancel() is still in flight.
-			signal.Stop(sigChan)
-			state.cancel()
-			cancel()
-		}
-	}()
+	go watchSyncCancel(ctx, cmd.Context(), state.cancel, cancel)
 
 	// Parallel phase: init + yahoo-players + fetch-seasons
 	var parallelRunners []workflowRunner
@@ -238,6 +227,20 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("✓ Sync completed in %s\n", formatElapsed(time.Since(start)))
 	return nil
+}
+
+// watchSyncCancel bridges root-context cancellation (first SIGINT/SIGTERM)
+// to sync shutdown: it runs cancelWorkflows to completion, then release to
+// unblock polling. If pollCtx ends first (normal completion), it returns
+// without doing either, so the goroutine never leaks.
+func watchSyncCancel(pollCtx, rootCtx context.Context, cancelWorkflows func(), release context.CancelFunc) {
+	select {
+	case <-pollCtx.Done():
+		return
+	case <-rootCtx.Done():
+		cancelWorkflows()
+		release()
+	}
 }
 
 // workflowRunner encapsulates common workflow execution logic.

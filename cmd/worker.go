@@ -107,11 +107,14 @@ func cmdWorker() *cobra.Command {
 
 			// Wire SIGINT/SIGTERM into a context so the non-Temporal resources
 			// (metrics HTTP server, database pool construction) observe
-			// shutdown. main() calls Execute() (not ExecuteContext), so
-			// cmd.Context() is a plain background context with no signal wiring;
-			// signal.NotifyContext adds it here. The Temporal workers drain via
-			// their own worker.InterruptCh() below, which fires on the same
-			// signals, so both shutdown paths agree.
+			// shutdown. main() now delivers SIGINT/SIGTERM as cancellation of
+			// cmd.Context() via ExecuteContext (see SignalContext); the local
+			// NotifyContext here is kept so this command stays signal-correct
+			// when executed without the wired root (tests, embedding), and it
+			// composes harmlessly with the root's signal context otherwise.
+			// The Temporal workers still drain via their own
+			// worker.InterruptCh() below, which fires on the same signals, so
+			// both shutdown paths agree.
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 

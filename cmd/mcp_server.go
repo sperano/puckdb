@@ -1,7 +1,11 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
@@ -12,6 +16,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+// mcpServerShutdownTimeout bounds graceful shutdown of the MCP HTTP server
+// after the command context is canceled.
+const mcpServerShutdownTimeout = 10 * time.Second
 
 // mcpServerFlagGroups lists every flag group the mcp-server command
 // exposes. Defined once and shared by InitFlags and BindFlags so the two
@@ -94,5 +102,31 @@ func runMCPServer(cmd *cobra.Command, transport mcpTransport) error {
 
 	httpSrv := mcpserversdk.NewStreamableHTTPServer(srv)
 	log.Info().Int("port", transport.Port).Msg("Starting PuckDB MCP server (HTTP)")
-	return httpSrv.Start(transport.Addr())
+	return serveMCPHTTP(ctx, httpSrv, transport.Addr())
+}
+
+// serveMCPHTTP runs httpSrv until ctx is canceled, then shuts it down
+// gracefully, bounded by mcpServerShutdownTimeout. Mirrors runHTTPServer:
+// mcp-go's Start has no signal or context handling of its own (unlike
+// ServeStdio, which installs its own SIGINT/SIGTERM handler), so without
+// this the command would ignore the root signal context's cancellation.
+func serveMCPHTTP(ctx context.Context, httpSrv *mcpserversdk.StreamableHTTPServer, addr string) error {
+	errCh := make(chan error, 1)
+	go func() {
+		err := httpSrv.Start(addr)
+		if errors.Is(err, http.ErrServerClosed) {
+			err = nil
+		}
+		errCh <- err
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), mcpServerShutdownTimeout)
+		defer cancel()
+		_ = httpSrv.Shutdown(shutdownCtx)
+		return <-errCh
+	}
 }
