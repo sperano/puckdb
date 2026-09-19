@@ -143,13 +143,14 @@ func fakeAgent(client llm.Client, cfg AgentConfig) *Agent {
 }
 
 // ============================================================================
-// DraftPickTestSuite — covers the activity's six behavior arms:
+// DraftPickTestSuite — covers the activity's behavior arms:
 //   1. idempotency hit
 //   2. cost-cap trip
 //   3. happy-path LLM
 //   4. fallback after 2x failure
 //   5. commit failure surfaces (atomic rollback)
 //   6. signal failure surfaces (so Temporal retries)
+//   7. transcript recording (draft_activity_transcript_test.go)
 // ============================================================================
 
 type DraftPickTestSuite struct {

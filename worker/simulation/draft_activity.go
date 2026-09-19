@@ -157,12 +157,19 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 		return DraftPickResult{Skipped: true, SkipReason: SkipReasonCostCapReached}, nil
 	}
 
+	// Pre-flight the only read the commit path needs, so a DB hiccup
+	// can't fail this activity after the model has been paid.
+	recordMessages, err := a.fetchRecordMessagesFlag(ctx, in.PoolID)
+	if err != nil {
+		return DraftPickResult{}, err
+	}
+
 	pick, err := a.chooseDraftPlayer(ctx, in)
 	if err != nil {
 		return DraftPickResult{}, err
 	}
 
-	if err := a.commitDraftPick(ctx, in, pick); err != nil {
+	if err := a.commitDraftPick(ctx, in, pick, recordMessages); err != nil {
 		return DraftPickResult{}, err
 	}
 
@@ -227,6 +234,10 @@ type chooseResult struct {
 	notesUpdated bool
 
 	// Telemetry — populated by chooseDraftPlayer across all attempts.
+	// res is the raw agentloop result (nil if the loop never returned
+	// one); it carries the full transcript that commitDraftPick records
+	// when the pool's record_full_messages flag is on.
+	res                      *agentloop.Result
 	captures                 []roundCapture
 	toolCaptures             []ToolCallCapture
 	acceptedToolCaptureIndex int
@@ -342,6 +353,7 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 		MaxTokens:     in.AgentConfig.MaxTokens,
 		Temperature:   in.AgentConfig.Temperature,
 	})
+	result.res = res
 	result.captures = recorder.Captures()
 	result.completedAt = time.Now()
 	result.costUsd = costFromAggregate(in.AgentConfig, res)
@@ -411,18 +423,19 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 //
 // Additionally writes the full turn telemetry (sim_agent_turns +
 // children) so the draft attempt is fully auditable: rejected LLM
-// picks, fallback firings, per-round token usage all persist in the
-// same atomic-commit block as the fantasy-side draft_pick row.
-func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pick chooseResult) error {
+// picks, fallback firings, per-round token usage and — when
+// recordMessages is on — the full transcript all persist in the same
+// atomic-commit block as the fantasy-side draft_pick row.
+//
+// recordMessages is a parameter rather than a read here: DraftPick
+// fetches it before the LLM runs (see fetchRecordMessagesFlag).
+func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pick chooseResult, recordMessages bool) error {
 	costNum, err := numericFromFloat(pick.costUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode pick cost: %w", err)
 	}
 
-	recordMessages, err := a.Queries.GetSimPoolRecordFullMessages(ctx, in.PoolID)
-	if err != nil {
-		return fmt.Errorf("simulation: fetch record_full_messages flag: %w", err)
-	}
+	messages := transcriptForRecording(recordMessages, pick.res)
 
 	return a.Tx.InTx(ctx, func(q SimQueries) error {
 		if err := q.InsertSimRoster(ctx, sqlcdb.InsertSimRosterParams{
@@ -481,6 +494,7 @@ func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pic
 			Header:         header,
 			Captures:       pick.captures,
 			ToolCalls:      pick.toolCaptures,
+			Messages:       messages,
 			RecordMessages: recordMessages,
 		}); err != nil {
 			return err

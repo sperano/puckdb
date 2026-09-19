@@ -105,9 +105,9 @@ func (a *Activities) PickTeamName(ctx context.Context, in PickTeamNameInput) (Pi
 
 	// Pre-flight the only read the persist path needs, so a DB hiccup
 	// can't fail this activity after the model has been paid.
-	recordMessages, err := a.Queries.GetSimPoolRecordFullMessages(ctx, in.PoolID)
+	recordMessages, err := a.fetchRecordMessagesFlag(ctx, in.PoolID)
 	if err != nil {
-		return PickTeamNameResult{}, fmt.Errorf("simulation: fetch record_full_messages flag: %w", err)
+		return PickTeamNameResult{}, err
 	}
 
 	turn, err := a.runTeamNameTurn(ctx, in)
@@ -405,10 +405,7 @@ func (a *Activities) persistTeamNameTurn(
 		return fmt.Errorf("simulation: encode team-name cost: %w", err)
 	}
 
-	var messages []llm.Message
-	if recordMessages && turn.res != nil {
-		messages = turn.res.Messages
-	}
+	messages := transcriptForRecording(recordMessages, turn.res)
 
 	return a.Tx.InTx(ctx, func(q SimQueries) error {
 		// team_name is written ONLY on the ok path: it doubles as this
