@@ -49,10 +49,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Scenario constants. The date range and IDOffset must not overlap
-// other tests in this suite (shared DB; ListSimDayGames filters by
-// date only). Season days = 35 > ContinueAsNewDayThreshold (30) so
-// the test crosses one CAN boundary.
+// Scenario constants. IDOffset must not overlap other tests in this
+// suite (shared DB). Season days = 35 > ContinueAsNewDayThreshold (30)
+// so the test crosses one CAN boundary.
 const (
 	smallSeasonTestSeason  int32 = 20262027
 	smallSeasonTestStart         = "2026-01-01"

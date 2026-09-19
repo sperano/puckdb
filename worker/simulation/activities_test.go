@@ -145,7 +145,7 @@ type stubSimQueries struct {
 	insertErrorErr          error
 
 	// CollectDayStats inputs/outputs.
-	listDayGamesArgs   []pgtype.Date
+	listDayGamesArgs   []sqlcdb.ListSimDayGamesParams
 	listDayGamesReturn []sqlcdb.ListSimDayGamesRow
 	listDayGamesErr    error
 
@@ -559,8 +559,8 @@ func (s *stubSimQueries) InsertSimTransactionError(_ context.Context, arg sqlcdb
 	return s.insertErrorReturn, nil
 }
 
-func (s *stubSimQueries) ListSimDayGames(_ context.Context, gameDate pgtype.Date) ([]sqlcdb.ListSimDayGamesRow, error) {
-	s.listDayGamesArgs = append(s.listDayGamesArgs, gameDate)
+func (s *stubSimQueries) ListSimDayGames(_ context.Context, arg sqlcdb.ListSimDayGamesParams) ([]sqlcdb.ListSimDayGamesRow, error) {
+	s.listDayGamesArgs = append(s.listDayGamesArgs, arg)
 	if s.listDayGamesErr != nil {
 		return nil, s.listDayGamesErr
 	}

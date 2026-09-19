@@ -1761,11 +1761,17 @@ const listSimDayGames = `-- name: ListSimDayGames :many
 SELECT id, season, game_type, game_date, game_state,
        home_team_id, away_team_id, home_team_score, away_team_score
 FROM games
-WHERE game_date = $1
+WHERE season = $1
+  AND game_date = $2
   AND game_type = 'regular_season'
   AND game_state IN ('OFF', 'FINAL')
 ORDER BY id
 `
+
+type ListSimDayGamesParams struct {
+	Season   int32       `json:"season"`
+	GameDate pgtype.Date `json:"game_date"`
+}
 
 type ListSimDayGamesRow struct {
 	ID            int64       `json:"id"`
@@ -1779,11 +1785,13 @@ type ListSimDayGamesRow struct {
 	AwayTeamScore int32       `json:"away_team_score"`
 }
 
-// ListSimDayGames returns completed regular-season games for the date —
-// drives the "do we score today?" branch in the day loop. Completed games
-// are stored as 'OFF' (historical) or 'FINAL'; match both, as game.sql does.
-func (q *Queries) ListSimDayGames(ctx context.Context, gameDate pgtype.Date) ([]ListSimDayGamesRow, error) {
-	rows, err := q.db.Query(ctx, listSimDayGames, gameDate)
+// ListSimDayGames returns completed regular-season games of the season on
+// the date — drives the "do we score today?" branch in the day loop. The
+// season predicate keeps another season's games on the same calendar date
+// out of pool scoring. Completed games are stored as 'OFF' (historical) or
+// 'FINAL'; match both, as game.sql does.
+func (q *Queries) ListSimDayGames(ctx context.Context, arg ListSimDayGamesParams) ([]ListSimDayGamesRow, error) {
+	rows, err := q.db.Query(ctx, listSimDayGames, arg.Season, arg.GameDate)
 	if err != nil {
 		return nil, err
 	}

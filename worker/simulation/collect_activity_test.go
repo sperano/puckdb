@@ -76,6 +76,19 @@ func (s *CollectDayStatsTestSuite) TestNoGames_Skips() {
 	assert.Zero(t, s.tx.inTxCalled, "no commit when skipped")
 }
 
+// pin: the day's games are looked up within the input season, so
+// another season's games on the same date can't be scored.
+func (s *CollectDayStatsTestSuite) TestListDayGames_ScopedToSeason() {
+	t := s.T()
+	in := s.validInput()
+
+	_, err := s.env.ExecuteActivity(s.acts.CollectDayStats, in)
+	require.NoError(t, err)
+	assert.Equal(t, []sqlcdb.ListSimDayGamesParams{
+		{Season: in.Season, GameDate: in.SimDate},
+	}, s.queries.listDayGamesArgs)
+}
+
 // ----------------------------------------------------------------------------
 // Single-skater happy path
 // ----------------------------------------------------------------------------

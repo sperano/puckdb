@@ -193,7 +193,7 @@ type SimQueries interface {
 
 	// CollectDayStatsActivity reads + writes — gathers a day's NHL
 	// game stats and rolls them up to per-player + per-agent rows.
-	ListSimDayGames(ctx context.Context, gameDate pgtype.Date) ([]sqlcdb.ListSimDayGamesRow, error)
+	ListSimDayGames(ctx context.Context, arg sqlcdb.ListSimDayGamesParams) ([]sqlcdb.ListSimDayGamesRow, error)
 	GetGameSkaterStatsByGame(ctx context.Context, gameID int64) ([]sqlcdb.GetGameSkaterStatsByGameRow, error)
 	GetGameGoalieStatsByGame(ctx context.Context, gameID int64) ([]sqlcdb.GetGameGoalieStatsByGameRow, error)
 	ListSimActiveRosterByAgent(ctx context.Context, arg sqlcdb.ListSimActiveRosterByAgentParams) ([]sqlcdb.SimRoster, error)

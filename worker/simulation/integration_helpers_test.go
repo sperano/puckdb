@@ -459,9 +459,6 @@ const (
 // IDOffset shifts every generated team/player/game ID. Tests sharing
 // the suite DB MUST use distinct offsets (inserts are ON CONFLICT DO
 // NOTHING, so an ID collision silently keeps the OTHER test's row).
-// They should also use non-overlapping date ranges: ListSimDayGames
-// filters by date only, not season, so games from another test on the
-// same date leak into this test's scoring days.
 type smallSeasonConfig struct {
 	Season         int32
 	StartDate      string // YYYY-MM-DD — first day with games

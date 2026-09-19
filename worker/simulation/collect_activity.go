@@ -15,9 +15,9 @@ import (
 //
 // Lifecycle:
 //
-//	1. ListSimDayGames(simDate). No FINAL regular-season games on that
-//	   date → return Skipped result; the workflow's day loop is wired
-//	   to no-op when there's no game data.
+//	1. ListSimDayGames(season, simDate). No FINAL regular-season games
+//	   of the season on that date → return Skipped result; the
+//	   workflow's day loop is wired to no-op when there's no game data.
 //	2. For each game on the date, fetch every skater + goalie stat row.
 //	   These are pool-independent NHL facts; we cache them by player_id
 //	   so each agent's per-roster scan is a map lookup.
@@ -62,8 +62,9 @@ type CollectDayStatsResult struct {
 }
 
 // SkipReasonNoGames is the SkipReason when no FINAL regular-season
-// games landed on this date — typical for the All-Star break and
-// pre/post-season days that fall in the calendar range.
+// games of the input season landed on this date — typical for the
+// All-Star break and pre/post-season days that fall in the calendar
+// range.
 const SkipReasonNoGames = "no_games"
 
 // CollectDayStats is the Temporal-activity entry point.
@@ -74,16 +75,20 @@ func (a *Activities) CollectDayStats(ctx context.Context, in CollectDayStatsInpu
 	logger := activity.GetLogger(ctx)
 	logger.Debug("CollectDayStats start",
 		"pool_id", in.PoolID,
+		"season", in.Season,
 		"sim_date", in.SimDate.Time,
 		"agent_count", len(in.AgentIDs),
 	)
 
-	games, err := a.Queries.ListSimDayGames(ctx, in.SimDate)
+	games, err := a.Queries.ListSimDayGames(ctx, sqlcdb.ListSimDayGamesParams{
+		Season:   in.Season,
+		GameDate: in.SimDate,
+	})
 	if err != nil {
 		return CollectDayStatsResult{}, fmt.Errorf("simulation: list day games: %w", err)
 	}
 	if len(games) == 0 {
-		logger.Debug("CollectDayStats skipped — no games on date")
+		logger.Debug("CollectDayStats skipped — no games for season on date")
 		return CollectDayStatsResult{Skipped: true, SkipReason: SkipReasonNoGames}, nil
 	}
 

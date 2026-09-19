@@ -616,14 +616,17 @@ SELECT team_id, last_game_date FROM (
 ORDER BY last_game_date DESC
 LIMIT 1;
 
--- ListSimDayGames returns completed regular-season games for the date —
--- drives the "do we score today?" branch in the day loop. Completed games
--- are stored as 'OFF' (historical) or 'FINAL'; match both, as game.sql does.
+-- ListSimDayGames returns completed regular-season games of the season on
+-- the date — drives the "do we score today?" branch in the day loop. The
+-- season predicate keeps another season's games on the same calendar date
+-- out of pool scoring. Completed games are stored as 'OFF' (historical) or
+-- 'FINAL'; match both, as game.sql does.
 -- name: ListSimDayGames :many
 SELECT id, season, game_type, game_date, game_state,
        home_team_id, away_team_id, home_team_score, away_team_score
 FROM games
-WHERE game_date = $1
+WHERE season = $1
+  AND game_date = $2
   AND game_type = 'regular_season'
   AND game_state IN ('OFF', 'FINAL')
 ORDER BY id;
