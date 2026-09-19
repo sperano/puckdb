@@ -7,7 +7,6 @@ import (
 
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/resource"
-	"github.com/sperano/puckdb/worker/shared"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -24,7 +23,9 @@ var gameTypesToFetch = []nhlapi.GameType{
 
 // FetchClubStats fetches and caches pre-aggregated club stats for every team
 // in the given season for both regular season and playoff game types.
-// Teams or game types that have no data are skipped with a log entry.
+// A cached file is refetched while the games of its type are still being
+// played (see seasonAggregateStale). Teams or game types that have no data
+// are skipped with a log entry.
 func (a *SeasonsActivities) FetchClubStats(ctx context.Context, input FetchClubStatsInput) error {
 	logger := activity.GetLogger(ctx)
 
@@ -35,6 +36,7 @@ func (a *SeasonsActivities) FetchClubStats(ctx context.Context, input FetchClubS
 	}
 
 	for _, team := range teams {
+		schedule := readCachedClubSchedule(ctx, a.Storage, a.GobCache, input.Season, team.Abbrev)
 		for _, gameType := range gameTypesToFetch {
 			activity.RecordHeartbeat(ctx, fmt.Sprintf("clubstats:%s:%d", team.Abbrev, gameType))
 
@@ -43,10 +45,10 @@ func (a *SeasonsActivities) FetchClubStats(ctx context.Context, input FetchClubS
 				TeamAbbrev: team.Abbrev,
 				GameType:   gameType.Int(),
 			}
-			_, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, res,
+			_, err := fetchSeasonAggregate(ctx, a.Storage, a.GobCache, res, schedule,
 				func(ctx context.Context) (*nhlapi.ClubStats, error) {
 					return a.NHLClient.ClubStats(ctx, team.Abbrev, season, gameType)
-				})
+				}, gameType)
 			if err != nil {
 				if errors.Is(err, nhlapi.ErrNotFound) {
 					logger.Warn("No club stats available", "team", team.Abbrev, "gameType", gameType)

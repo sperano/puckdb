@@ -1306,6 +1306,7 @@ func (s *FetchSeasonRostersSuite) TestCacheHit_DoesNotCallAPI() {
 	q.On("GetSeasonTeamAbbrevs", mock.Anything, mock.AnythingOfType("int32")).
 		Return([]sqlcdb.GetSeasonTeamAbbrevsRow{{TeamID: 22, Abbrev: "EDM"}}, nil)
 
+	seedSettledClubSchedule(s.T(), mem, 2023, "EDM")
 	season := nhlapi.NewSeason(2023)
 	res := resource.SeasonRoster{Season: 2023, TeamAbbrev: "EDM"}
 	roster := &nhlapi.Roster{}
@@ -1444,6 +1445,7 @@ func (s *FetchClubStatsSuite) TestCacheHit_DoesNotCallAPI() {
 	q.On("GetSeasonTeamAbbrevs", mock.Anything, mock.AnythingOfType("int32")).
 		Return([]sqlcdb.GetSeasonTeamAbbrevsRow{{TeamID: 22, Abbrev: "EDM"}}, nil)
 
+	seedSettledClubSchedule(s.T(), mem, 2023, "EDM")
 	for _, gameType := range gameTypesToFetch {
 		res := resource.ClubStatsResource{Season: 2023, TeamAbbrev: "EDM", GameType: gameType.Int()}
 		stats := &nhlapi.ClubStats{Season: nhlapi.NewSeason(2023), GameType: gameType}

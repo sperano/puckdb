@@ -11,6 +11,7 @@ import (
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/cache"
 	"github.com/sperano/puckdb/core"
+	"github.com/sperano/puckdb/resource"
 	"github.com/sperano/puckdb/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -169,4 +170,60 @@ func TestFetchOrCache_NilCache_HitFromStorage(t *testing.T) {
 	assert.Equal(t, "from-storage", result.Name)
 	assert.Equal(t, 55, result.Value)
 	assert.False(t, fetchCalled, "fetch must not be called when storage has data")
+}
+
+// TestFetchAndCache_BypassesCacheAndOverwrites pins the force path: a live
+// Redis entry and a cached file are both ignored on read and both replaced
+// once the fetch succeeds.
+func TestFetchAndCache_BypassesCacheAndOverwrites(t *testing.T) {
+	t.Parallel()
+
+	client, mock := redismock.NewClientMock()
+	gobCache := cache.NewGobCache(client)
+	mem := store.NewMemStorage()
+	ctx := context.Background()
+
+	stale := &fetchCacheTestData{Name: "stale", Value: 1}
+	require.NoError(t, resource.WriteParsed(ctx, mem, fetchCacheResource{}, stale))
+	// No ExpectGet: a Redis read would fail the mock's expectations.
+	mock.CustomMatch(anyFetchCacheArgs).ExpectSet(fetchCacheRedisKey, "x", cache.GobCacheTTL).SetVal("OK")
+
+	fresh := &fetchCacheTestData{Name: "fresh", Value: 2}
+	result, origin, err := FetchAndCache(ctx, mem, gobCache, fetchCacheResource{}, func(_ context.Context) (*fetchCacheTestData, error) {
+		return fresh, nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, core.OriginRemoteNHLAPI, origin)
+	assert.Equal(t, "fresh", result.Name)
+	onDisk, err := resource.ReadParsed(ctx, mem, fetchCacheResource{})
+	require.NoError(t, err)
+	assert.Equal(t, "fresh", onDisk.Name)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestFetchAndCache_FetchError_KeepsCachedCopy is why callers force a fetch
+// instead of deleting a stale file first: a failed fetch must not lose data.
+func TestFetchAndCache_FetchError_KeepsCachedCopy(t *testing.T) {
+	t.Parallel()
+
+	client, mock := redismock.NewClientMock()
+	gobCache := cache.NewGobCache(client)
+	mem := store.NewMemStorage()
+	ctx := context.Background()
+	stale := &fetchCacheTestData{Name: "stale", Value: 1}
+	require.NoError(t, resource.WriteParsed(ctx, mem, fetchCacheResource{}, stale))
+
+	fetchErr := errors.New("NHL API unavailable")
+	result, origin, err := FetchAndCache(ctx, mem, gobCache, fetchCacheResource{}, func(_ context.Context) (*fetchCacheTestData, error) {
+		return nil, fetchErr
+	})
+
+	assert.ErrorIs(t, err, fetchErr)
+	assert.Nil(t, result)
+	assert.Equal(t, core.OriginUnknown, origin)
+	onDisk, err := resource.ReadParsed(ctx, mem, fetchCacheResource{})
+	require.NoError(t, err)
+	assert.Equal(t, "stale", onDisk.Name)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -26,8 +26,22 @@ func FetchOrCache[T any](
 		metrics.IncDownload(r.Type(), metrics.ResultHit)
 		return obj, origin, nil
 	}
+	return FetchAndCache(ctx, s, gobCache, r, fetch)
+}
 
-	obj, err = fetch(ctx)
+// FetchAndCache bypasses the cache read: it always calls fetch and, on
+// success, overwrites both cache layers. A failed fetch leaves whatever was
+// cached untouched, so callers that know their cached copy is stale refetch
+// through this instead of deleting first — a delete followed by a 404 would
+// destroy the only copy of data the API may never serve again.
+func FetchAndCache[T any](
+	ctx context.Context,
+	s store.Storage,
+	gobCache *cache.GobCache,
+	r core.ReadWritable[T],
+	fetch func(ctx context.Context) (T, error),
+) (T, core.DataOrigin, error) {
+	obj, err := fetch(ctx)
 	if err != nil {
 		var zero T
 		metrics.IncDownload(r.Type(), metrics.ResultError)

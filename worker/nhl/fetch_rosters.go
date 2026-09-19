@@ -7,7 +7,6 @@ import (
 
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/resource"
-	"github.com/sperano/puckdb/worker/shared"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -17,6 +16,8 @@ type FetchSeasonRostersInput struct {
 }
 
 // FetchSeasonRosters fetches and caches the roster for every team in the given season.
+// The endpoint returns the roster as of the last game, so a cached file is
+// refetched while the team still has games to play (see seasonAggregateStale).
 // Teams that have no roster data (e.g., historical franchises) are skipped with a log entry.
 func (a *SeasonsActivities) FetchSeasonRosters(ctx context.Context, input FetchSeasonRostersInput) error {
 	logger := activity.GetLogger(ctx)
@@ -30,7 +31,8 @@ func (a *SeasonsActivities) FetchSeasonRosters(ctx context.Context, input FetchS
 	for _, team := range teams {
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("roster:%s", team.Abbrev))
 		res := resource.SeasonRoster{Season: input.Season, TeamAbbrev: team.Abbrev}
-		_, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, res,
+		schedule := readCachedClubSchedule(ctx, a.Storage, a.GobCache, input.Season, team.Abbrev)
+		_, err := fetchSeasonAggregate(ctx, a.Storage, a.GobCache, res, schedule,
 			func(ctx context.Context) (*nhlapi.Roster, error) {
 				return a.NHLClient.RosterSeason(ctx, team.Abbrev, season)
 			})
