@@ -41,6 +41,8 @@ func WithTimeout(d time.Duration) Option {
 // Useful for tests (httptest server with custom transport) and for
 // production setups that need shared connection pooling. When set, this
 // supersedes WithTimeout — the caller's http.Client governs the timeout.
+// Constructors copy the client before applying package-specific policy;
+// referenced transports, jars, and connection pools remain shared.
 func WithHTTPClient(c *http.Client) Option {
 	return func(o *clientOptions) {
 		o.httpClient = c
@@ -53,8 +55,17 @@ func applyOptions(opts []Option) *http.Client {
 	for _, opt := range opts {
 		opt(co)
 	}
+	var client *http.Client
 	if co.httpClient != nil {
-		return co.httpClient
+		clientCopy := *co.httpClient
+		client = &clientCopy
+	} else {
+		client = &http.Client{Timeout: co.timeout}
 	}
-	return &http.Client{Timeout: co.timeout}
+	client.CheckRedirect = rejectRedirect
+	return client
+}
+
+func rejectRedirect(_ *http.Request, _ []*http.Request) error {
+	return http.ErrUseLastResponse
 }

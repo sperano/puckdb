@@ -1,7 +1,10 @@
 package llm
 
 import (
+	"errors"
 	"net/http"
+	"net/http/cookiejar"
+	"sync"
 	"testing"
 	"time"
 
@@ -52,15 +55,96 @@ func TestApplyOptions_WithHTTPClientSupersedesTimeout(t *testing.T) {
 			WithHTTPClient(custom),
 			WithTimeout(99 * time.Second),
 		})
-		assert.Same(t, custom, hc, "WithHTTPClient must win even when WithTimeout follows")
+		assert.NotSame(t, custom, hc, "caller-owned clients must be copied")
+		assert.Equal(t, custom.Timeout, hc.Timeout)
 	})
 	t.Run("timeout first, custom client after", func(t *testing.T) {
 		hc := applyOptions([]Option{
 			WithTimeout(99 * time.Second),
 			WithHTTPClient(custom),
 		})
-		assert.Same(t, custom, hc)
+		assert.NotSame(t, custom, hc)
+		assert.Equal(t, custom.Timeout, hc.Timeout)
 	})
+}
+
+func TestConstructors_CopyCallerOwnedHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		construct func(*http.Client) *http.Client
+	}{
+		{
+			name: "OpenAI",
+			construct: func(client *http.Client) *http.Client {
+				return NewOpenAIClient("http://example.com", "", "model", WithHTTPClient(client)).(*openaiClient).httpClient
+			},
+		},
+		{
+			name: "Anthropic",
+			construct: func(client *http.Client) *http.Client {
+				return NewAnthropicClient("http://example.com", "key", "model", WithHTTPClient(client)).(*anthropicClient).httpClient
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			transport := &http.Transport{}
+			jar, err := cookiejar.New(nil)
+			require.NoError(t, err)
+			redirectCalls := 0
+			originalRedirect := func(_ *http.Request, _ []*http.Request) error {
+				redirectCalls++
+				return nil
+			}
+			original := &http.Client{
+				Transport:     transport,
+				CheckRedirect: originalRedirect,
+				Jar:           jar,
+				Timeout:       17 * time.Second,
+			}
+
+			constructed := test.construct(original)
+
+			assert.NotSame(t, original, constructed)
+			assert.Same(t, transport, constructed.Transport)
+			assert.Same(t, jar, constructed.Jar)
+			assert.Equal(t, original.Timeout, constructed.Timeout)
+			require.ErrorIs(t, constructed.CheckRedirect(nil, nil), http.ErrUseLastResponse)
+			require.NoError(t, original.CheckRedirect(nil, nil))
+			assert.Equal(t, 1, redirectCalls)
+		})
+	}
+}
+
+func TestConstructors_ConcurrentUseDoesNotMutateCallerClient(t *testing.T) {
+	t.Parallel()
+
+	sentinel := errors.New("caller redirect policy")
+	original := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+		return sentinel
+	}}
+
+	const goroutineCount = 32
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(goroutineCount)
+	for index := 0; index < goroutineCount; index++ {
+		go func(index int) {
+			defer waitGroup.Done()
+			if index%2 == 0 {
+				NewOpenAIClient("http://example.com", "", "model", WithHTTPClient(original))
+			} else {
+				NewAnthropicClient("http://example.com", "key", "model", WithHTTPClient(original))
+			}
+		}(index)
+	}
+	waitGroup.Wait()
+
+	require.ErrorIs(t, original.CheckRedirect(nil, nil), sentinel)
 }
 
 // Constructors must thread options through to the http.Client they hold.

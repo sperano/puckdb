@@ -1,13 +1,10 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -29,9 +26,6 @@ type anthropicClient struct {
 // baseURL should be "https://api.anthropic.com" (no trailing /v1).
 func NewAnthropicClient(baseURL, apiKey, model string, opts ...Option) Client {
 	httpClient := applyOptions(opts)
-	httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
 	return &anthropicClient{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
@@ -129,40 +123,13 @@ func (c *anthropicClient) Complete(ctx context.Context, req *Request) (*Response
 
 	url := c.baseURL + "/v1/messages"
 	log.Debug().Str("url", url).Str("model", c.model).Int("messages", len(wireReq.Messages)).Int("tools", len(wireReq.Tools)).Int("body_bytes", len(body)).Msg("LLM HTTP request")
-	log.Trace().Str("url", url).RawJSON("request_body", body).Msg("LLM HTTP request body")
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", c.apiKey)
-	httpReq.Header.Set("anthropic-version", anthropicVersion)
-
-	start := time.Now()
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	elapsed := time.Since(start)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
-	}
-
-	log.Debug().Int("status", resp.StatusCode).Dur("elapsed", elapsed).Int("body_bytes", len(respBody)).Msg("LLM HTTP response")
-	log.Trace().RawJSON("response_body", respBody).Msg("LLM HTTP response body")
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("LLM API error (status %d): %s", resp.StatusCode, truncate(respBody, 500))
-	}
+	headers := make(http.Header)
+	headers.Set("x-api-key", c.apiKey)
+	headers.Set("anthropic-version", anthropicVersion)
 
 	var wireResp anthropicResponse
-	if err := json.Unmarshal(respBody, &wireResp); err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w\nresponse: %s", err, truncate(respBody, 500))
+	if err := postJSON(ctx, c.httpClient, url, headers, body, &wireResp); err != nil {
+		return nil, err
 	}
 
 	return wireResp.toResponse(), nil
