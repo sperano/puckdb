@@ -518,7 +518,7 @@ var LoggingFlags = FlagGroup{
 // APIServerAddrFlags defines API server address flag.
 var APIServerAddrFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagAPIServerAddr, "A", DefaultAPIServerAddr, "API server address (e.g., http://localhost:8080)", false},
+		{FlagAPIServerAddr, "A", DefaultAPIServerAddr, fmt.Sprintf("API server address (e.g., %s)", DefaultAPIServerAddr), false},
 	},
 }
 

@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -26,6 +27,7 @@ const (
 
 // Server port defaults
 const (
+	DefaultAPIHost     = "localhost"
 	DefaultAPIPort     = 8787
 	DefaultWorkerPort  = 8788
 	DefaultMetricsPort = 8789
@@ -136,9 +138,7 @@ const (
 )
 
 // CLI client defaults
-const (
-	DefaultAPIServerAddr = "http://localhost:8080"
-)
+var DefaultAPIServerAddr = fmt.Sprintf("http://%s:%d", DefaultAPIHost, DefaultAPIPort)
 
 // Workflow polling defaults
 const (

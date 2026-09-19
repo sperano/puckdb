@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -86,4 +87,12 @@ func TestGraphQLClientBasicAuth(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewGraphQLClient_DefaultEndpoint(t *testing.T) {
+	wantBaseURL := fmt.Sprintf("http://%s:%d", config.DefaultAPIHost, config.DefaultAPIPort)
+	require.Equal(t, wantBaseURL, config.DefaultAPIServerAddr)
+
+	client := NewGraphQLClient(config.DefaultAPIServerAddr)
+	require.Equal(t, wantBaseURL+"/graphql/query", client.endpoint)
 }

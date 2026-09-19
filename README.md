@@ -22,7 +22,7 @@ go build -o puckdb .
 # Initialize database
 ./puckdb db init
 
-# Run the API server (GraphQL at localhost:8080/graphql)
+# Run the API server (GraphQL at localhost:8787/graphql)
 ./puckdb api
 
 # In another terminal, run the worker
