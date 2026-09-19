@@ -178,27 +178,6 @@ func TestNullGoalieDecisionPtr(t *testing.T) {
 	})
 }
 
-func TestParseDate(t *testing.T) {
-	t.Run("valid", func(t *testing.T) {
-		d := parseDate("2024-03-15")
-		if !d.Valid || d.Time.Year() != 2024 || d.Time.Month() != 3 || d.Time.Day() != 15 {
-			t.Errorf("expected valid 2024-03-15, got valid=%v time=%v", d.Valid, d.Time)
-		}
-	})
-	t.Run("invalid format", func(t *testing.T) {
-		d := parseDate("not-a-date")
-		if d.Valid {
-			t.Errorf("expected invalid, got valid date %v", d.Time)
-		}
-	})
-	t.Run("empty", func(t *testing.T) {
-		d := parseDate("")
-		if d.Valid {
-			t.Errorf("expected invalid for empty string")
-		}
-	})
-}
-
 func TestOptionalInt4(t *testing.T) {
 	t.Run("present", func(t *testing.T) {
 		v := 42
@@ -264,22 +243,6 @@ func TestOptionalBool(t *testing.T) {
 	})
 	t.Run("nil", func(t *testing.T) {
 		got := optionalBool(nil)
-		if got.Valid {
-			t.Errorf("expected invalid, got %+v", got)
-		}
-	})
-}
-
-func TestOptionalDate(t *testing.T) {
-	t.Run("present", func(t *testing.T) {
-		v := "2024-03-15"
-		got := optionalDate(&v)
-		if !got.Valid || got.Time.Year() != 2024 {
-			t.Errorf("expected valid 2024, got %+v", got)
-		}
-	})
-	t.Run("nil", func(t *testing.T) {
-		got := optionalDate(nil)
 		if got.Valid {
 			t.Errorf("expected invalid, got %+v", got)
 		}

@@ -99,14 +99,6 @@ func nullGoalieDecisionPtr(d sqlcdb.NullGoalieDecision) *string {
 	return &s
 }
 
-func parseDate(s string) pgtype.Date {
-	t, err := time.Parse(time.DateOnly, s)
-	if err != nil {
-		return pgtype.Date{}
-	}
-	return pgtype.Date{Time: t, Valid: true}
-}
-
 func optionalInt4(v *int) pgtype.Int4 {
 	if v == nil {
 		return pgtype.Int4{}
@@ -133,13 +125,6 @@ func optionalBool(v *bool) pgtype.Bool {
 		return pgtype.Bool{}
 	}
 	return pgtype.Bool{Bool: *v, Valid: true}
-}
-
-func optionalDate(v *string) pgtype.Date {
-	if v == nil {
-		return pgtype.Date{}
-	}
-	return parseDate(*v)
 }
 
 func optionalGameType(v *string) sqlcdb.NullGameType {

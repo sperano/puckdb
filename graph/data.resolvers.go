@@ -161,11 +161,14 @@ func (r *queryResolver) Game(ctx context.Context, id int64) (*model.Game, error)
 
 // GamesByDate is the resolver for the gamesByDate field.
 func (r *queryResolver) GamesByDate(ctx context.Context, date string) ([]*model.Game, error) {
+	d, err := parseDateInput("date", date)
+	if err != nil {
+		return nil, err
+	}
 	q, err := r.Resolver.db()
 	if err != nil {
 		return nil, err
 	}
-	d := parseDate(date)
 	rows, err := q.GetGamesByDate(ctx, d)
 	if err != nil {
 		return nil, err
@@ -179,19 +182,26 @@ func (r *queryResolver) GamesByDate(ctx context.Context, date string) ([]*model.
 
 // Games is the resolver for the games field.
 func (r *queryResolver) Games(ctx context.Context, filter *model.GameFilter) ([]*model.Game, error) {
-	q, err := r.Resolver.db()
-	if err != nil {
-		return nil, err
-	}
 	var params sqlcdb.ListGamesParams
 	if filter != nil {
 		params.Season = optionalInt4(filter.Season)
 		params.GameType = optionalGameType(filter.GameType)
 		params.GameState = optionalGameState(filter.GameState)
 		params.TeamID = optionalInt8(filter.TeamID)
-		params.StartDate = optionalDate(filter.StartDate)
-		params.EndDate = optionalDate(filter.EndDate)
+		var err error
+		params.StartDate, err = parseOptionalDateInput("startDate", filter.StartDate)
+		if err != nil {
+			return nil, err
+		}
+		params.EndDate, err = parseOptionalDateInput("endDate", filter.EndDate)
+		if err != nil {
+			return nil, err
+		}
 		params.Limit = optionalInt4(clampListLimit(filter.Limit))
+	}
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
 	}
 	rows, err := q.ListGames(ctx, params)
 	if err != nil {
@@ -206,13 +216,17 @@ func (r *queryResolver) Games(ctx context.Context, filter *model.GameFilter) ([]
 
 // Standings is the resolver for the standings field.
 func (r *queryResolver) Standings(ctx context.Context, season int, date string) ([]*model.StandingsEntry, error) {
+	d, err := parseDateInput("date", date)
+	if err != nil {
+		return nil, err
+	}
 	q, err := r.Resolver.db()
 	if err != nil {
 		return nil, err
 	}
 	rows, err := q.GetStandingsSnapshotsBySeasonAndDate(ctx, sqlcdb.GetStandingsSnapshotsBySeasonAndDateParams{
 		Season: int32(season),
-		Date:   parseDate(date),
+		Date:   d,
 	})
 	if err != nil {
 		return nil, err
