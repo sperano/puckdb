@@ -258,6 +258,13 @@ type stubSimQueries struct {
 	getRecordFullMessagesArgs     []int32
 	getRecordFullMessagesOverride *bool
 	getRecordFullMessagesErr      error
+
+	// SetSimAgentTeamNameAndSummary — PickTeamName's success-path write.
+	// Recorded so tests can assert the name lands (and, on the error
+	// arms, that it does NOT: team_name doubles as the activity's
+	// committed-result marker).
+	setTeamNameCalls []sqlcdb.SetSimAgentTeamNameAndSummaryParams
+	setTeamNameErr   error
 }
 
 func (s *stubSimQueries) ListSimFreeAgentCandidates(_ context.Context, arg sqlcdb.ListSimFreeAgentCandidatesParams) ([]int64, error) {
@@ -359,8 +366,9 @@ func (s *stubSimQueries) SetSimAgentDraftPosition(_ context.Context, _ sqlcdb.Se
 	return nil
 }
 
-func (s *stubSimQueries) SetSimAgentTeamNameAndSummary(_ context.Context, _ sqlcdb.SetSimAgentTeamNameAndSummaryParams) error {
-	return nil
+func (s *stubSimQueries) SetSimAgentTeamNameAndSummary(_ context.Context, arg sqlcdb.SetSimAgentTeamNameAndSummaryParams) error {
+	s.setTeamNameCalls = append(s.setTeamNameCalls, arg)
+	return s.setTeamNameErr
 }
 
 // --- Turn telemetry stubs. Tests that care about telemetry rows inspect
