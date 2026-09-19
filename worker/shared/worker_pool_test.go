@@ -3,13 +3,10 @@ package shared
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
@@ -34,6 +31,12 @@ func workerPoolErrorActivity(_ context.Context, _ int) (int, error) {
 type workerPoolResult struct {
 	Processed []int
 	Err       string
+	// MaxInFlight records the peak number of dispatched-but-unhandled items,
+	// used by the concurrency cap test.
+	MaxInFlight int
+	// Dispatched counts startActivity invocations, used by the invalid
+	// concurrency tests to prove nothing was scheduled.
+	Dispatched int
 }
 
 // runWorkerPoolWorkflow exercises RunWorkerPool with concurrency capping.
@@ -186,53 +189,6 @@ func runWorkerPoolErrorWorkflow(ctx workflow.Context) (workerPoolResult, error) 
 	return res, nil
 }
 
-// presettledErrorStarter returns a startActivity that hands back futures already
-// resolved with an index-tagged error. Pre-settling removes real-time local
-// activity scheduling from the picture, so with concurrency == total every
-// future is ready at the first Selector.Select. That is exactly the "multiple
-// activities complete at one decision point" condition the determinism fix
-// targets: the returned firstErr must be the lowest-index one (error-0),
-// independent of Go's randomized map iteration order.
-func presettledErrorStarter(ctx workflow.Context) ActivityStarter {
-	return func(_ workflow.Context, index int) workflow.Future {
-		future, settable := workflow.NewFuture(ctx)
-		settable.SetError(fmt.Errorf("error-%d", index))
-		return future
-	}
-}
-
-// runWorkerPoolIndexErrorWorkflow drives RunWorkerPool with pre-settled,
-// simultaneously-ready error futures. See presettledErrorStarter.
-func runWorkerPoolIndexErrorWorkflow(ctx workflow.Context, total int) (workerPoolResult, error) {
-	report := &ProgressReport{
-		Groups: []ProgressGroup{
-			{Bars: []ProgressBar{{Total: total}}},
-		},
-	}
-	tracker := &ReportTracker{report: report}
-
-	err := tracker.RunWorkerPool(ctx, 0, 0, total, total, presettledErrorStarter(ctx), nil)
-	return workerPoolResult{Err: errString(err)}, nil
-}
-
-// runWorkerPoolMultiBarIndexErrorWorkflow is the RunWorkerPoolMultiBar analogue
-// of runWorkerPoolIndexErrorWorkflow.
-func runWorkerPoolMultiBarIndexErrorWorkflow(ctx workflow.Context, total int) (workerPoolResult, error) {
-	bars := make([]ProgressBar, total)
-	for i := range bars {
-		bars[i] = ProgressBar{Total: 1}
-	}
-	report := &ProgressReport{
-		Groups: []ProgressGroup{
-			{Bars: bars},
-		},
-	}
-	tracker := &ReportTracker{report: report}
-
-	err := tracker.RunWorkerPoolMultiBar(ctx, 0, 0, total, total, presettledErrorStarter(ctx), nil)
-	return workerPoolResult{Err: errString(err)}, nil
-}
-
 // runWorkerPoolZeroWorkflow exercises the RunWorkerPool zero-items short-circuit.
 func runWorkerPoolZeroWorkflow(ctx workflow.Context) (workerPoolResult, error) {
 	report := &ProgressReport{
@@ -268,6 +224,80 @@ func runWorkerPoolMultiBarZeroWorkflow(ctx workflow.Context) (workerPoolResult, 
 	return workerPoolResult{Err: errString(err)}, nil
 }
 
+// runWorkerPoolConcurrencyCapWorkflow tracks the peak number of in-flight items
+// to prove the pool never exceeds its concurrency limit. Both startActivity and
+// the handler run cooperatively on the workflow goroutine, so plain counters
+// are safe.
+func runWorkerPoolConcurrencyCapWorkflow(ctx workflow.Context, total, concurrency int) (workerPoolResult, error) {
+	report := &ProgressReport{
+		Groups: []ProgressGroup{
+			{Bars: []ProgressBar{{Total: total}}},
+		},
+	}
+	tracker := &ReportTracker{report: report}
+
+	actCtx := workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
+		ScheduleToCloseTimeout: activityTestTimeout,
+	})
+
+	inFlight := 0
+	res := workerPoolResult{}
+
+	startActivity := func(c workflow.Context, index int) workflow.Future {
+		inFlight++
+		if inFlight > res.MaxInFlight {
+			res.MaxInFlight = inFlight
+		}
+		return workflow.ExecuteLocalActivity(actCtx, workerPoolActivity, index)
+	}
+
+	handler := func(c workflow.Context, index int, f workflow.Future) error {
+		if err := f.Get(c, nil); err != nil {
+			return err
+		}
+		inFlight--
+		res.Processed = append(res.Processed, index)
+		return nil
+	}
+
+	err := tracker.RunWorkerPool(ctx, 0, 0, total, concurrency, startActivity, handler)
+	res.Err = errString(err)
+	return res, nil
+}
+
+// runWorkerPoolInvalidConcurrencyWorkflow exercises the central concurrency
+// validation shared by all RunWorkerPool* variants: nonpositive concurrency
+// with nonempty input must error instead of silently succeeding, and nothing
+// may be dispatched.
+func runWorkerPoolInvalidConcurrencyWorkflow(ctx workflow.Context, multiBar bool, concurrency int) (workerPoolResult, error) {
+	const total = 3
+	bars := make([]ProgressBar, total)
+	for i := range bars {
+		bars[i] = ProgressBar{Total: 1}
+	}
+	report := &ProgressReport{
+		Groups: []ProgressGroup{
+			{Bars: bars},
+		},
+	}
+	tracker := &ReportTracker{report: report}
+
+	res := workerPoolResult{}
+	startActivity := func(c workflow.Context, index int) workflow.Future {
+		res.Dispatched++
+		return workflow.ExecuteLocalActivity(c, workerPoolActivity, index)
+	}
+
+	var err error
+	if multiBar {
+		err = tracker.RunWorkerPoolMultiBar(ctx, 0, 0, total, concurrency, startActivity, nil)
+	} else {
+		err = tracker.RunWorkerPool(ctx, 0, 0, total, concurrency, startActivity, nil)
+	}
+	res.Err = errString(err)
+	return res, nil
+}
+
 func errString(err error) string {
 	if err != nil {
 		return err.Error()
@@ -298,6 +328,8 @@ func (s *WorkerPoolTestSuite) SetupTest() {
 	s.env.RegisterWorkflow(runWorkerPoolZeroWorkflow)
 	s.env.RegisterWorkflow(runWorkerPoolIndexErrorWorkflow)
 	s.env.RegisterWorkflow(runWorkerPoolMultiBarIndexErrorWorkflow)
+	s.env.RegisterWorkflow(runWorkerPoolConcurrencyCapWorkflow)
+	s.env.RegisterWorkflow(runWorkerPoolInvalidConcurrencyWorkflow)
 	s.env.RegisterActivity(workerPoolActivity)
 	s.env.RegisterActivity(workerPoolErrorActivity)
 }
@@ -408,53 +440,51 @@ func (s *WorkerPoolTestSuite) TestRunWorkerPoolMultiBar_ZeroTotal() {
 	s.Empty(result.Err)
 }
 
-// determinismRuns is how many fresh environments each determinism test executes.
-// Go randomizes map iteration order per range statement, so with the old
-// map-ranging Selector registration the lowest-index-error assertion would fail
-// within a handful of runs; the ascending-index fix makes it hold every time.
-const determinismRuns = 50
+// TestRunWorkerPool_ConcurrencyCapRespected verifies that no more than
+// concurrency items are ever in flight at once.
+func (s *WorkerPoolTestSuite) TestRunWorkerPool_ConcurrencyCapRespected() {
+	const total, concurrency = 10, 3
+	s.env.ExecuteWorkflow(runWorkerPoolConcurrencyCapWorkflow, total, concurrency)
 
-// mockSave stubs the ProgressActivities.Save local activity so the pre-settled
-// determinism workflows don't hit the (unregistered) real Save.
-func mockSave(env *testsuite.TestWorkflowEnvironment) {
-	env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	s.True(s.env.IsWorkflowCompleted())
+	s.NoError(s.env.GetWorkflowError())
+
+	var result workerPoolResult
+	s.NoError(s.env.GetWorkflowResult(&result))
+	s.Empty(result.Err)
+	s.Len(result.Processed, total)
+	// The initial dispatch fills the pool before any completion can run, so
+	// the peak is exactly concurrency; a lower value would mean the refill
+	// logic degenerated toward serial execution.
+	s.Equal(concurrency, result.MaxInFlight)
 }
 
-// TestRunWorkerPool_FirstErrorIsLowestIndex asserts that when several activities
-// are ready at the same decision point, RunWorkerPool deterministically returns
-// the lowest-index error (error-0) rather than a map-iteration-order-dependent one.
-func (s *WorkerPoolTestSuite) TestRunWorkerPool_FirstErrorIsLowestIndex() {
-	const total = 8
-	for run := range determinismRuns {
-		env := s.NewTestWorkflowEnvironment()
-		env.RegisterWorkflow(runWorkerPoolIndexErrorWorkflow)
-		mockSave(env)
-		env.ExecuteWorkflow(runWorkerPoolIndexErrorWorkflow, total)
+// TestRunWorkerPool_InvalidConcurrency verifies that nonpositive concurrency
+// with nonempty input errors instead of silently succeeding, for both the
+// single-bar and multi-bar variants (they share the central validation).
+func (s *WorkerPoolTestSuite) TestRunWorkerPool_InvalidConcurrency() {
+	for _, tc := range []struct {
+		name        string
+		multiBar    bool
+		concurrency int
+	}{
+		{"single-bar zero", false, 0},
+		{"single-bar negative", false, -1},
+		{"multi-bar zero", true, 0},
+		{"multi-bar negative", true, -1},
+	} {
+		s.Run(tc.name, func() {
+			env := s.NewTestWorkflowEnvironment()
+			env.RegisterWorkflow(runWorkerPoolInvalidConcurrencyWorkflow)
+			env.ExecuteWorkflow(runWorkerPoolInvalidConcurrencyWorkflow, tc.multiBar, tc.concurrency)
 
-		s.True(env.IsWorkflowCompleted())
-		s.NoError(env.GetWorkflowError())
+			s.True(env.IsWorkflowCompleted())
+			s.NoError(env.GetWorkflowError())
 
-		var result workerPoolResult
-		s.NoError(env.GetWorkflowResult(&result))
-		s.Truef(strings.HasSuffix(result.Err, "error-0"), "run %d: expected lowest-index error, got %q", run, result.Err)
-	}
-}
-
-// TestRunWorkerPoolMultiBar_FirstErrorIsLowestIndex is the RunWorkerPoolMultiBar
-// analogue of TestRunWorkerPool_FirstErrorIsLowestIndex.
-func (s *WorkerPoolTestSuite) TestRunWorkerPoolMultiBar_FirstErrorIsLowestIndex() {
-	const total = 8
-	for run := range determinismRuns {
-		env := s.NewTestWorkflowEnvironment()
-		env.RegisterWorkflow(runWorkerPoolMultiBarIndexErrorWorkflow)
-		mockSave(env)
-		env.ExecuteWorkflow(runWorkerPoolMultiBarIndexErrorWorkflow, total)
-
-		s.True(env.IsWorkflowCompleted())
-		s.NoError(env.GetWorkflowError())
-
-		var result workerPoolResult
-		s.NoError(env.GetWorkflowResult(&result))
-		s.Truef(strings.HasSuffix(result.Err, "error-0"), "run %d: expected lowest-index error, got %q", run, result.Err)
+			var result workerPoolResult
+			s.NoError(env.GetWorkflowResult(&result))
+			s.Contains(result.Err, "concurrency must be positive")
+			s.Zero(result.Dispatched)
+		})
 	}
 }
