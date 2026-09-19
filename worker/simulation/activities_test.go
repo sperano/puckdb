@@ -3,6 +3,7 @@ package simulation
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -309,9 +310,21 @@ func (s *stubSimQueries) GetSimTransactionDraftPick(_ context.Context, arg sqlcd
 	return s.getDraftPickReturn, nil
 }
 
+// InsertSimRoster records the call and, when the test seeded a full
+// roster (listFullRosterByAgent non-nil), appends the row so a later
+// ListSimRosterByAgent in the same activity sees the add — mirroring
+// read-your-writes inside the real transaction.
 func (s *stubSimQueries) InsertSimRoster(_ context.Context, arg sqlcdb.InsertSimRosterParams) error {
 	s.insertRosterCalls = append(s.insertRosterCalls, arg)
-	return s.insertRosterErr
+	if s.insertRosterErr != nil {
+		return s.insertRosterErr
+	}
+	if s.listFullRosterByAgent != nil {
+		s.listFullRosterByAgent[arg.AgentID] = append(s.listFullRosterByAgent[arg.AgentID], sqlcdb.SimRoster{
+			PoolID: arg.PoolID, AgentID: arg.AgentID, PlayerID: arg.PlayerID, Slot: arg.Slot,
+		})
+	}
+	return nil
 }
 
 func (s *stubSimQueries) ExistsSimRosterPlayer(_ context.Context, arg sqlcdb.ExistsSimRosterPlayerParams) (bool, error) {
@@ -322,6 +335,10 @@ func (s *stubSimQueries) ExistsSimRosterPlayer(_ context.Context, arg sqlcdb.Exi
 	return s.existsRosterPlayerByPlayer[arg.PlayerID], nil
 }
 
+// DeleteSimRosterRows records the call. Precedence for the rows-affected
+// result: scripted error → per-player override → the seeded full roster
+// (row removed, 1 returned, so a later ListSimRosterByAgent in the same
+// activity no longer sees it) → deleteRosterRowsDefault.
 func (s *stubSimQueries) DeleteSimRosterRows(_ context.Context, arg sqlcdb.DeleteSimRosterRowsParams) (int64, error) {
 	s.deleteRosterRowsCalls = append(s.deleteRosterRowsCalls, arg)
 	if s.deleteRosterRowsErr != nil {
@@ -330,7 +347,29 @@ func (s *stubSimQueries) DeleteSimRosterRows(_ context.Context, arg sqlcdb.Delet
 	if n, ok := s.deleteRosterRowsByPlayer[arg.PlayerID]; ok {
 		return n, nil
 	}
+	if removed := s.removeFromFullRoster(arg.AgentID, arg.PlayerID); removed > 0 {
+		return removed, nil
+	}
 	return s.deleteRosterRowsDefault, nil
+}
+
+// removeFromFullRoster drops (agent, player) from the seeded full roster
+// and reports how many rows went away (0 when unseeded or absent). Shared
+// by both delete variants so the stub roster stays consistent whichever
+// path a test drives.
+func (s *stubSimQueries) removeFromFullRoster(agentID int32, playerID int64) int64 {
+	rows, ok := s.listFullRosterByAgent[agentID]
+	if !ok {
+		return 0
+	}
+	remaining := slices.DeleteFunc(slices.Clone(rows), func(r sqlcdb.SimRoster) bool {
+		return r.PlayerID == playerID
+	})
+	removed := int64(len(rows) - len(remaining))
+	if removed > 0 {
+		s.listFullRosterByAgent[agentID] = remaining
+	}
+	return removed
 }
 
 func (s *stubSimQueries) InsertSimTransactionDraftPick(_ context.Context, arg sqlcdb.InsertSimTransactionDraftPickParams) (sqlcdb.SimTransaction, error) {
@@ -427,7 +466,11 @@ func (s *stubSimQueries) ExistsSimDailyTurnMarker(_ context.Context, arg sqlcdb.
 
 func (s *stubSimQueries) DeleteSimRoster(_ context.Context, arg sqlcdb.DeleteSimRosterParams) error {
 	s.deleteRosterCalls = append(s.deleteRosterCalls, arg)
-	return s.deleteRosterErr
+	if s.deleteRosterErr != nil {
+		return s.deleteRosterErr
+	}
+	s.removeFromFullRoster(arg.AgentID, arg.PlayerID)
+	return nil
 }
 
 func (s *stubSimQueries) UpdateSimRosterSlot(_ context.Context, arg sqlcdb.UpdateSimRosterSlotParams) error {

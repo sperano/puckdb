@@ -180,8 +180,11 @@ func (s *ProcessWaiversTestSuite) TestWinnerWithDrop_AppliesDrop() {
 		claim(100, 1, 8478402, 8499999), // drop player 8499999
 	}
 	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
-	// Drop player is still on the roster → DeleteSimRosterRows reports 1.
-	s.queries.deleteRosterRowsByPlayer = map[int64]int64{8499999: 1}
+	// Drop player is still on the roster → the plan sees it and the
+	// stub's DeleteSimRosterRows reports 1.
+	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
+		1: {rosterRow(1, 8499999)},
+	}
 
 	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)
@@ -520,8 +523,9 @@ func (s *ProcessWaiversTestSuite) TestResolution_PlayerAlreadyRostered_ResolvesL
 	assert.Equal(t, string(WaiverClaimStatusLost), s.queries.updateClaimStatusCalls[0].Status)
 }
 
-// Designated drop player already left the roster (DeleteSimRosterRows
-// reports 0) → no phantom drop tx row; the add still applies if it fits.
+// Designated drop player already left the roster (absent from the
+// winner's roster listing) → no delete is attempted and no phantom drop
+// tx row is written; the add still applies if it fits.
 func (s *ProcessWaiversTestSuite) TestResolution_VanishedDropPlayer_NoPhantomDrop() {
 	t := s.T()
 	in := s.input()
@@ -529,7 +533,10 @@ func (s *ProcessWaiversTestSuite) TestResolution_VanishedDropPlayer_NoPhantomDro
 		claim(100, 1, 8478402, 8499999), // wants to drop a player who's gone
 	}
 	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
-	s.queries.deleteRosterRowsByPlayer = map[int64]int64{8499999: 0} // vanished
+	// Roster holds someone else; 8499999 has vanished.
+	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
+		1: {rosterRow(1, 111)},
+	}
 
 	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)
@@ -537,7 +544,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_VanishedDropPlayer_NoPhantomDro
 	require.NoError(t, future.Get(&got))
 
 	assert.Equal(t, 1, got.ClaimsWon, "add still fits within capacity")
-	require.Len(t, s.queries.deleteRosterRowsCalls, 1)
+	assert.Empty(t, s.queries.deleteRosterRowsCalls, "no delete attempted for a drop player the plan didn't see")
 	assert.Empty(t, s.queries.insertDropCalls, "no drop tx for a vanished drop player")
 	require.Len(t, s.queries.insertAddCalls, 1)
 	assert.False(t, s.queries.insertAddCalls[0].DropPlayerID.Valid,
@@ -554,8 +561,8 @@ func (s *ProcessWaiversTestSuite) TestResolution_VanishedDropAtCapacity_Resolves
 		claim(100, 1, 8478402, 8499999),
 	}
 	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
-	s.queries.deleteRosterRowsByPlayer = map[int64]int64{8499999: 0} // vanished
-	// Winner already holds 2 players (at capacity); the add would make 3.
+	// Winner already holds 2 players (at capacity) and 8499999 has
+	// vanished, so nothing frees a spot; the add would make 3.
 	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
 		1: {rosterRow(1, 111), rosterRow(1, 222)},
 	}
@@ -569,27 +576,28 @@ func (s *ProcessWaiversTestSuite) TestResolution_VanishedDropAtCapacity_Resolves
 	assert.Equal(t, 1, got.ClaimsLost)
 	assert.Empty(t, s.queries.insertRosterCalls, "over-capacity add is not applied")
 	assert.Empty(t, s.queries.insertAddCalls)
+	assert.Empty(t, s.queries.deleteRosterRowsCalls, "rejected claim never touches the roster")
 }
 
-// An agent winning two claims that share one drop_player_id. In a real DB
-// the first resolution deletes the shared drop (rows=1, logs the drop) and
-// the second sees 0 rows for the already-gone player (no second drop tx),
-// while the per-resolution capacity recheck against the live roster count
-// bounds the net effect. The stub can't model mid-tx roster mutation, so
-// this test drives the rows-affected signal explicitly: the shared drop is
-// "gone" (0) on every call, exercising the guard that a vanished drop logs
-// no drop tx, and pins that each resolution still runs its own capacity
-// recheck (two DeleteSimRosterRows + two ListSimRosterByAgent calls).
+// An agent winning two claims that share one drop_player_id. The stub's
+// seeded roster is mutated by the stub's delete/insert, modelling
+// read-your-writes inside the transaction: the first resolution sees the
+// shared drop, removes it and logs the drop; the second no longer sees
+// it, so it attempts no delete and logs no second drop tx. Roster
+// evolution with capacity 3: {111, drop} → {111} → {111, P1} → {111, P1,
+// P2}; the second add fits without a drop.
 func (s *ProcessWaiversTestSuite) TestResolution_TwoClaimsShareDropPlayer_NoDoubleDrop() {
 	t := s.T()
 	in := s.input()
+	in.RosterCapacity = 3
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999),
 		claim(101, 1, 8480039, 8499999),
 	}
 	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
-	// Shared drop player already gone for both deletes → no phantom drop tx.
-	s.queries.deleteRosterRowsByPlayer = map[int64]int64{8499999: 0}
+	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
+		1: {rosterRow(1, 111), rosterRow(1, 8499999)},
+	}
 
 	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)
@@ -598,9 +606,131 @@ func (s *ProcessWaiversTestSuite) TestResolution_TwoClaimsShareDropPlayer_NoDoub
 
 	assert.Equal(t, 2, got.ClaimsWon, "both players awarded (capacity allows)")
 	require.Len(t, s.queries.insertRosterCalls, 2, "both added to BN")
-	assert.Empty(t, s.queries.insertDropCalls, "vanished shared drop logs no drop tx (no double-drop)")
-	// Each resolution runs its own capacity recheck independently.
-	assert.Len(t, s.queries.deleteRosterRowsCalls, 2)
+	require.Len(t, s.queries.deleteRosterRowsCalls, 1, "shared drop deleted once")
+	require.Len(t, s.queries.insertDropCalls, 1, "shared drop logged once (no double-drop)")
+	require.Len(t, s.queries.insertAddCalls, 2)
+	assert.True(t, s.queries.insertAddCalls[0].DropPlayerID.Valid, "first add references the drop")
+	assert.False(t, s.queries.insertAddCalls[1].DropPlayerID.Valid, "second add has no drop to reference")
+}
+
+// ----------------------------------------------------------------------------
+// Conditional roster-loss (2026-09-17 review) — a valid designated drop
+// followed by an over-capacity rejection must leave the roster unchanged:
+// no delete, no drop tx, no add. Before the fix the drop was applied
+// before the capacity check, so the rejected claim still removed the
+// player.
+// ----------------------------------------------------------------------------
+
+func (s *ProcessWaiversTestSuite) TestResolution_ValidDropButOverCapacity_RosterUntouched() {
+	t := s.T()
+	in := s.input()
+	in.RosterCapacity = 2
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
+		claim(100, 1, 8478402, 8499999),
+		claim(101, 2, 8478402, 0), // in-group loser
+	}
+	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1), priority(2, 2)}
+	// Winner holds 3 (already over the capacity of 2, e.g. capacity was
+	// lowered after filing); dropping one still leaves 2, so the add
+	// would make 3 — the claim must be rejected without touching the roster.
+	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
+		1: {rosterRow(1, 111), rosterRow(1, 222), rosterRow(1, 8499999)},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
+	require.NoError(t, err)
+	var got ProcessWaiversResult
+	require.NoError(t, future.Get(&got))
+
+	assert.Equal(t, 0, got.ClaimsWon)
+	assert.Equal(t, 2, got.ClaimsLost, "winner and in-group loser both resolve lost")
+	assert.Empty(t, s.queries.deleteRosterRowsCalls, "designated drop is NOT applied on rejection")
+	assert.Empty(t, s.queries.insertDropCalls, "no drop event on rejection")
+	assert.Empty(t, s.queries.insertRosterCalls)
+	assert.Empty(t, s.queries.insertAddCalls)
+	assert.Len(t, s.queries.listFullRosterByAgent[1], 3, "roster unchanged")
+	for _, c := range s.queries.updateClaimStatusCalls {
+		assert.Equal(t, string(WaiverClaimStatusLost), c.Status)
+	}
+}
+
+// A drop that fits exactly: roster at capacity, valid drop frees the one
+// spot the add needs. Drop and add are both applied (atomic win path).
+func (s *ProcessWaiversTestSuite) TestResolution_ValidDropFreesSpot_Wins() {
+	t := s.T()
+	in := s.input()
+	in.RosterCapacity = 2
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
+		claim(100, 1, 8478402, 8499999),
+	}
+	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
+		1: {rosterRow(1, 111), rosterRow(1, 8499999)},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
+	require.NoError(t, err)
+	var got ProcessWaiversResult
+	require.NoError(t, future.Get(&got))
+
+	assert.Equal(t, 1, got.ClaimsWon)
+	require.Len(t, s.queries.deleteRosterRowsCalls, 1)
+	require.Len(t, s.queries.insertDropCalls, 1)
+	require.Len(t, s.queries.insertRosterCalls, 1)
+	assert.Len(t, s.queries.listFullRosterByAgent[1], 2, "roster stays at capacity after drop+add")
+}
+
+// The plan saw the drop player, but the delete affects 0 rows — the
+// roster changed underneath the transaction and the capacity verdict is
+// void. The activity must fail (rolling the tx back) rather than commit
+// an add the roster may not fit.
+func (s *ProcessWaiversTestSuite) TestResolution_DropVanishesAfterPlan_Aborts() {
+	t := s.T()
+	in := s.input()
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
+		claim(100, 1, 8478402, 8499999),
+	}
+	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
+		1: {rosterRow(1, 8499999)},
+	}
+	// Override the stub's stateful delete: report 0 rows despite the listing.
+	s.queries.deleteRosterRowsByPlayer = map[int64]int64{8499999: 0}
+
+	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
+	require.Error(t, err)
+	// The activity test env serialises the error into a Temporal
+	// ApplicationError, which drops Go error identity, so errors.Is
+	// can't cross the boundary — match on the sentinel's message.
+	assert.ErrorContains(t, err, errWaiverDropVanished.Error())
+	assert.Empty(t, s.queries.insertDropCalls, "no drop tx when the delete removed nothing")
+	assert.Empty(t, s.queries.insertRosterCalls, "add is not attempted after the invariant failure")
+}
+
+// ----------------------------------------------------------------------------
+// Missing-priority claimants sort last, deterministically.
+// ----------------------------------------------------------------------------
+
+func TestResolveGroup_MissingPrioritySortsLast(t *testing.T) {
+	group := []sqlcdb.SimWaiverClaim{
+		{ID: 1, AgentID: 9, PlayerID: 100}, // no priority row
+		{ID: 2, AgentID: 2, PlayerID: 100}, // priority 2
+	}
+	priorities := []sqlcdb.SimWaiverPriority{{AgentID: 2, Priority: 2}}
+
+	r := resolveGroup(group, priorities)
+	assert.Equal(t, int32(2), r.winner.AgentID, "seeded agent beats a claimant with no priority row")
+	require.Len(t, r.losers, 1)
+	assert.Equal(t, int32(9), r.losers[0].AgentID)
+}
+
+func TestResolveGroup_TwoMissingPriorities_TieBreakByClaimID(t *testing.T) {
+	group := []sqlcdb.SimWaiverClaim{
+		{ID: 7, AgentID: 8, PlayerID: 100},
+		{ID: 3, AgentID: 9, PlayerID: 100},
+	}
+	r := resolveGroup(group, nil)
+	assert.Equal(t, int32(3), r.winner.ID, "lowest claim ID wins among equally-unranked claimants")
 }
 
 // ============================================================================

@@ -130,9 +130,10 @@ SELECT EXISTS (
 ) AS exists;
 
 -- DeleteSimRosterRows is the rows-affected variant of DeleteSimRoster. Waiver
--- resolution uses it to detect a "vanished" drop_player_id — a player named at
--- filing time who has since left the roster — so it can skip the phantom drop
--- transaction row instead of logging a drop that deleted nothing.
+-- resolution runs it only after its read-only plan saw the drop player on the
+-- roster inside the same transaction, so 0 rows affected is an invariant
+-- violation that fails the transaction — a drop player who left the roster
+-- since filing is detected by the plan's SELECT, not by this count.
 -- name: DeleteSimRosterRows :execrows
 DELETE FROM sim_rosters
 WHERE pool_id = $1 AND agent_id = $2 AND player_id = $3;

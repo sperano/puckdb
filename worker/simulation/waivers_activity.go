@@ -4,12 +4,26 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"math"
 	"slices"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
+
+// missingWaiverPriority ranks a claimant with no sim_waiver_priority row
+// behind every seeded agent, so a map miss (zero value) can't award them
+// first dibs over a seeded agent.
+//
+// In practice every pool is currently unseeded: nothing in production
+// calls InsertSimWaiverPriority (the migration says "initialized as
+// reverse draft order" but no code does it). For such pools all
+// claimants tie at this rank and resolution falls back to claim-ID
+// order — the same outcome as the old all-zero tie — and demoteWinners
+// has no rows to rotate. Seeding is the product gap; this constant only
+// makes a partially-seeded pool behave sanely.
+const missingWaiverPriority int32 = math.MaxInt32
 
 // ============================================================================
 // ProcessWaiversActivity — resolve every claim due today.
@@ -25,6 +39,9 @@ import (
 //	   — Yahoo convention: priority 1 = first dibs).
 //	3. Atomic commit (Transactor.InTx):
 //	     for each (player, claims) group:
+//	       - commit-time revalidation (read-only): player still free,
+//	         winner's roster fits the add after any still-valid drop;
+//	         otherwise the whole group resolves lost with no write
 //	       - winner gets the player added to BN
 //	       - winner's drop_player_id (if set) gets removed from roster
 //	       - winning claim status → 'won', losing claims → 'lost'
@@ -206,17 +223,26 @@ func groupClaimsByPlayer(claims []sqlcdb.SimWaiverClaim) [][]sqlcdb.SimWaiverCla
 // Sort direction: lower priority number = higher waiver priority =
 // wins. Tie-break by claim ID ascending for determinism (ties
 // shouldn't happen in a well-configured pool but are cheap to guard).
+// An agent with no priority row sorts last (missingWaiverPriority) —
+// a map miss must not hand them Go's zero value, which would rank
+// them ahead of every seeded agent.
 func resolveGroup(group []sqlcdb.SimWaiverClaim, priorities []sqlcdb.SimWaiverPriority) claimResolution {
 	priorityOf := make(map[int32]int32, len(priorities))
 	for _, p := range priorities {
 		priorityOf[p.AgentID] = p.Priority
 	}
+	rank := func(agentID int32) int32 {
+		if p, ok := priorityOf[agentID]; ok {
+			return p
+		}
+		return missingWaiverPriority
+	}
 
 	sorted := make([]sqlcdb.SimWaiverClaim, len(group))
 	copy(sorted, group)
 	slices.SortStableFunc(sorted, func(a, b sqlcdb.SimWaiverClaim) int {
-		pa := priorityOf[a.AgentID]
-		pb := priorityOf[b.AgentID]
+		pa := rank(a.AgentID)
+		pb := rank(b.AgentID)
 		if pa != pb {
 			return cmp.Compare(pa, pb)
 		}
@@ -250,8 +276,8 @@ func clonePriorities(priorities []sqlcdb.SimWaiverPriority) []sqlcdb.SimWaiverPr
 // exercise the pure grouping + priority-selection logic in isolation.
 //
 // The priority map: agent_id → priority number. An agent without a
-// row in priorities is treated as priority MaxInt32 (lowest) — that's
-// a defensive default for a misconfigured pool, not an expected case.
+// row in priorities is treated as missingWaiverPriority (lowest); see
+// that constant for why this is currently the common case.
 func resolveClaims(claims []sqlcdb.SimWaiverClaim, priorities []sqlcdb.SimWaiverPriority) []claimResolution {
 	groups := groupClaimsByPlayer(claims)
 	resolutions := make([]claimResolution, 0, len(groups))
@@ -265,17 +291,9 @@ func resolveClaims(claims []sqlcdb.SimWaiverClaim, priorities []sqlcdb.SimWaiver
 // reports whether the player was actually awarded (true) or the whole
 // group resolved as lost (false).
 //
-// Commit-time revalidation (the state validated at filing time can be
-// stale at process_date):
-//
-//   - If the player is already on a roster in the pool, the add would
-//     hit UNIQUE (pool_id, player_id) — resolve the whole group lost.
-//   - The winner's designated drop may have vanished (left the roster
-//     since filing). DeleteSimRosterRows reports rows-affected: 0 means
-//     no drop happened, so no phantom drop tx row is written and the
-//     add must fit on its own.
-//   - Re-check roster capacity: if adding the player (after any valid
-//     drop) would exceed RosterCapacity, resolve the group as lost.
+// The verdict comes from planWaiverResolution before any write, so the
+// drop/add pair is applied only on the winning path — a rejected claim
+// leaves the roster untouched.
 //
 // On a win, all other still-pending claims on the player (the losers in
 // this group plus any cross-day claim not in the due window) are voided
@@ -283,95 +301,27 @@ func resolveClaims(claims []sqlcdb.SimWaiverClaim, priorities []sqlcdb.SimWaiver
 func applyWaiverResolution(ctx context.Context, q SimQueries, in ProcessWaiversInput, r claimResolution) (bool, error) {
 	w := r.winner
 
-	// Commit-time claimability: player already rostered anywhere in the
-	// pool → nobody can win them. Resolve the whole group as lost.
-	rostered, err := q.ExistsSimRosterPlayer(ctx, sqlcdb.ExistsSimRosterPlayerParams{
-		PoolID: in.PoolID, PlayerID: w.PlayerID,
-	})
+	plan, err := planWaiverResolution(ctx, q, in, w)
 	if err != nil {
-		return false, fmt.Errorf("commit-time roster check (player %d): %w", w.PlayerID, err)
+		return false, err
 	}
-
-	// Apply the winner's drop first (if still valid) so the capacity
-	// check sees the freed spot. A vanished drop (0 rows) means no spot
-	// is freed and no drop tx row is logged.
-	dropApplied := false
-	if !rostered && w.DropPlayerID.Valid {
-		affected, err := q.DeleteSimRosterRows(ctx, sqlcdb.DeleteSimRosterRowsParams{
-			PoolID: in.PoolID, AgentID: w.AgentID, PlayerID: w.DropPlayerID.Int64,
-		})
-		if err != nil {
-			return false, fmt.Errorf("delete drop player roster row: %w", err)
-		}
-		dropApplied = affected > 0
+	if !plan.claimable {
+		return false, markGroupLost(ctx, q, in, r)
 	}
-
-	// Capacity recheck: count the winner's current roster (post-drop).
-	// If the add wouldn't fit, the group resolves as lost.
-	overCapacity := false
-	if !rostered {
-		rosterRows, err := q.ListSimRosterByAgent(ctx, sqlcdb.ListSimRosterByAgentParams{
-			PoolID: in.PoolID, AgentID: w.AgentID,
-		})
-		if err != nil {
-			return false, fmt.Errorf("list winner roster (agent %d): %w", w.AgentID, err)
-		}
-		if int32(len(rosterRows))+1 > in.RosterCapacity {
-			overCapacity = true
-		}
-	}
-
-	if rostered || overCapacity {
-		// Nobody wins — mark every claim in the group lost.
-		if err := markClaimLost(ctx, q, in, w.ID); err != nil {
-			return false, err
-		}
-		for _, l := range r.losers {
-			if err := markClaimLost(ctx, q, in, l.ID); err != nil {
-				return false, err
-			}
-		}
-		return false, nil
-	}
-
-	// Winning claim → 'won'; in-group losers → 'lost'.
-	if err := q.UpdateSimWaiverClaimStatus(ctx, sqlcdb.UpdateSimWaiverClaimStatusParams{
-		ID: w.ID, Status: string(WaiverClaimStatusWon), ResolvedAt: in.SimDate,
-	}); err != nil {
-		return false, fmt.Errorf("mark claim %d won: %w", w.ID, err)
-	}
-	for _, l := range r.losers {
-		if err := markClaimLost(ctx, q, in, l.ID); err != nil {
-			return false, err
-		}
-	}
-	// Void any OTHER still-pending claim on this player (e.g. a cross-day
-	// claim whose process_date hasn't arrived) so it can't later resolve
-	// as a phantom uncontested win against the now-rostered player.
-	if err := q.CancelSimWaiverClaimsForPlayer(ctx, sqlcdb.CancelSimWaiverClaimsForPlayerParams{
-		PoolID: in.PoolID, PlayerID: w.PlayerID, ResolvedAt: in.SimDate, ID: w.ID,
-	}); err != nil {
-		return false, fmt.Errorf("cancel other pending claims (player %d): %w", w.PlayerID, err)
+	if err := markGroupWon(ctx, q, in, r); err != nil {
+		return false, err
 	}
 
 	reasoning := fmt.Sprintf("waiver claim resolution (claim %d)", w.ID)
 
-	// Log the drop tx row only if a roster row was actually removed —
-	// a vanished drop player must not produce a phantom drop.
-	dropTxID := w.DropPlayerID
-	if !dropApplied {
-		dropTxID = pgtype.Int8{}
-	}
-	if dropApplied {
-		if _, err := q.InsertSimTransactionDrop(ctx, sqlcdb.InsertSimTransactionDropParams{
-			PoolID:    in.PoolID,
-			AgentID:   w.AgentID,
-			Date:      in.SimDate,
-			PlayerID:  w.DropPlayerID,
-			Reasoning: reasoning,
-		}); err != nil {
-			return false, fmt.Errorf("insert waiver-drop tx: %w", err)
+	// Apply and log the drop only when the plan saw the player on the
+	// roster — a vanished drop player must not produce a phantom drop.
+	dropTxID := pgtype.Int8{}
+	if plan.dropPresent {
+		if err := applyWaiverDrop(ctx, q, in, w, reasoning); err != nil {
+			return false, err
 		}
+		dropTxID = w.DropPlayerID
 	}
 
 	// Add the claimed player to the winner's roster (BN). Even though
@@ -399,16 +349,6 @@ func applyWaiverResolution(ctx context.Context, q SimQueries, in ProcessWaiversI
 		return false, fmt.Errorf("insert winner add tx: %w", err)
 	}
 	return true, nil
-}
-
-// markClaimLost flips a single claim to 'lost' at the resolution date.
-func markClaimLost(ctx context.Context, q SimQueries, in ProcessWaiversInput, claimID int32) error {
-	if err := q.UpdateSimWaiverClaimStatus(ctx, sqlcdb.UpdateSimWaiverClaimStatusParams{
-		ID: claimID, Status: string(WaiverClaimStatusLost), ResolvedAt: in.SimDate,
-	}); err != nil {
-		return fmt.Errorf("mark claim %d lost: %w", claimID, err)
-	}
-	return nil
 }
 
 // demoteWinners returns the new priority order with every winner

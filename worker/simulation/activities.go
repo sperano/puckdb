@@ -165,8 +165,10 @@ type SimQueries interface {
 	// and waiver resolution) that converts a UNIQUE(pool_id, player_id)
 	// conflict into a clean rejection instead of a tx-aborting violation.
 	ExistsSimRosterPlayer(ctx context.Context, arg sqlcdb.ExistsSimRosterPlayerParams) (bool, error)
-	// DeleteSimRosterRows is the rows-affected drop used by waiver resolution
-	// to detect a vanished drop_player_id and skip the phantom drop row.
+	// DeleteSimRosterRows is the rows-affected drop used by waiver resolution.
+	// The plan step already confirmed the row exists inside the transaction,
+	// so 0 rows here is an invariant violation that fails the transaction —
+	// not a tolerated "vanished drop" (that case is handled by the plan).
 	DeleteSimRosterRows(ctx context.Context, arg sqlcdb.DeleteSimRosterRowsParams) (int64, error)
 	InsertSimTransactionDraftPick(ctx context.Context, arg sqlcdb.InsertSimTransactionDraftPickParams) (sqlcdb.SimTransaction, error)
 	InsertSimTransactionCostCapReached(ctx context.Context, arg sqlcdb.InsertSimTransactionCostCapReachedParams) (sqlcdb.SimTransaction, error)
