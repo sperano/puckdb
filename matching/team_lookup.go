@@ -118,6 +118,27 @@ var teamsByAbbrev = map[string]NHLTeamInfo{
 	"YSW": {101, "YSW", "Young Stars West"},
 }
 
+// utahMammothFirstSeason is the first season the NHL API reports Utah under
+// team ID 68 (Utah Mammoth) instead of 59 (Utah Hockey Club).
+const utahMammothFirstSeason = 20252026
+
+// teamEra reassigns an abbreviation to a different team from firstSeason
+// onward. The NHL API occasionally issues a new team ID while keeping the
+// abbreviation (Utah Hockey Club 59 → Utah Mammoth 68, both "UTA"), and
+// standings identify teams only by abbreviation, so resolving them needs
+// the season.
+type teamEra struct {
+	firstSeason int
+	info        NHLTeamInfo
+}
+
+// teamErasByAbbrev lists, per abbreviation, the eras that override
+// teamsByAbbrev, in ascending firstSeason order. Seasons before the first
+// era resolve through teamsByAbbrev.
+var teamErasByAbbrev = map[string][]teamEra{
+	"UTA": {{utahMammothFirstSeason, NHLTeamInfo{68, "UTA", "Utah Mammoth"}}},
+}
+
 // teamsByID provides reverse lookup by team ID.
 var teamsByID map[int64]NHLTeamInfo
 
@@ -128,12 +149,22 @@ func init() {
 	teamsByID = make(map[int64]NHLTeamInfo, len(teamsByAbbrev))
 	teamsByName = make(map[string]NHLTeamInfo, len(teamsByAbbrev))
 	for _, t := range teamsByAbbrev {
-		// Only store the first occurrence (some abbrevs map to same ID like CGS/CSE)
-		if _, exists := teamsByID[t.ID]; !exists {
-			teamsByID[t.ID] = t
-		}
-		teamsByName[t.FullName] = t
+		addReverseLookups(t)
 	}
+	for _, eras := range teamErasByAbbrev {
+		for _, era := range eras {
+			addReverseLookups(era.info)
+		}
+	}
+}
+
+// addReverseLookups indexes t by ID and full name. Only the first
+// occurrence of an ID is kept (some abbrevs map to the same ID, like CGS/CSE).
+func addReverseLookups(t NHLTeamInfo) {
+	if _, exists := teamsByID[t.ID]; !exists {
+		teamsByID[t.ID] = t
+	}
+	teamsByName[t.FullName] = t
 }
 
 // internationalTeamIDs is the set of NHL-API team IDs assigned to
@@ -166,6 +197,19 @@ func LookupTeamID(abbrev string) (int64, error) {
 		return info.ID, nil
 	}
 	return 0, fmt.Errorf("unknown team abbreviation: %q", abbrev)
+}
+
+// LookupTeamIDForSeason returns the team ID an abbreviation denotes in the
+// given season (e.g. 20252026), honoring teamErasByAbbrev. Use it whenever
+// the source identifies teams by abbreviation only, such as standings.
+func LookupTeamIDForSeason(abbrev string, season int) (int64, error) {
+	eras := teamErasByAbbrev[abbrev]
+	for i := len(eras) - 1; i >= 0; i-- {
+		if season >= eras[i].firstSeason {
+			return eras[i].info.ID, nil
+		}
+	}
+	return LookupTeamID(abbrev)
 }
 
 // LookupTeamByID returns team info by ID.

@@ -335,3 +335,23 @@ FROM finals_games
 WHERE rn = 1
 ORDER BY season DESC
 LIMIT COALESCE(sqlc.narg('limit')::int, 10);
+
+-- name: ListGameTeamsWithoutSeasonTeam :many
+-- Report (season, team, game type) combinations whose games reference a
+-- team_id with no season_teams row for that season. Every games query
+-- INNER JOINs season_teams on both sides, so such games silently vanish.
+-- Only NHL game types are checked: All-Star, Olympic and showcase teams
+-- are intentionally absent from season_teams. excluded_team_ids whitelists
+-- known gaps.
+SELECT s.season, s.team_id, s.game_type, COUNT(*)::bigint AS games
+FROM (
+    SELECT season, game_type, home_team_id AS team_id FROM games
+    UNION ALL
+    SELECT season, game_type, away_team_id AS team_id FROM games
+) s
+LEFT JOIN season_teams st ON st.season = s.season AND st.team_id = s.team_id
+WHERE st.team_id IS NULL
+  AND s.game_type IN ('regular_season', 'playoffs')
+  AND NOT (s.team_id = ANY(sqlc.arg(excluded_team_ids)::bigint[]))
+GROUP BY s.season, s.team_id, s.game_type
+ORDER BY s.season, s.team_id, s.game_type;

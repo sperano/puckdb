@@ -26,9 +26,9 @@ func cmdDB() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "db",
 		Short: "Database operations",
-		Long:  `Database management commands: init, drop, provision, migrate, force-version.`,
+		Long:  `Database management commands: init, drop, provision, migrate, force-version, check-teams.`,
 	}
-	cmd.AddCommand(cmdDBInit(), cmdDBDrop(), cmdDBProvision(), cmdDBMigrate(), cmdDBForceVersion())
+	cmd.AddCommand(cmdDBInit(), cmdDBDrop(), cmdDBProvision(), cmdDBMigrate(), cmdDBForceVersion(), cmdDBCheckTeams())
 	return cmd
 }
 

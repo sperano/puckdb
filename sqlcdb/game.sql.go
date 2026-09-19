@@ -1121,6 +1121,59 @@ func (q *Queries) GetStanleyCupWinners(ctx context.Context, limit pgtype.Int4) (
 	return items, nil
 }
 
+const listGameTeamsWithoutSeasonTeam = `-- name: ListGameTeamsWithoutSeasonTeam :many
+SELECT s.season, s.team_id, s.game_type, COUNT(*)::bigint AS games
+FROM (
+    SELECT season, game_type, home_team_id AS team_id FROM games
+    UNION ALL
+    SELECT season, game_type, away_team_id AS team_id FROM games
+) s
+LEFT JOIN season_teams st ON st.season = s.season AND st.team_id = s.team_id
+WHERE st.team_id IS NULL
+  AND s.game_type IN ('regular_season', 'playoffs')
+  AND NOT (s.team_id = ANY($1::bigint[]))
+GROUP BY s.season, s.team_id, s.game_type
+ORDER BY s.season, s.team_id, s.game_type
+`
+
+type ListGameTeamsWithoutSeasonTeamRow struct {
+	Season   int32    `json:"season"`
+	TeamID   int64    `json:"team_id"`
+	GameType GameType `json:"game_type"`
+	Games    int64    `json:"games"`
+}
+
+// Report (season, team, game type) combinations whose games reference a
+// team_id with no season_teams row for that season. Every games query
+// INNER JOINs season_teams on both sides, so such games silently vanish.
+// Only NHL game types are checked: All-Star, Olympic and showcase teams
+// are intentionally absent from season_teams. excluded_team_ids whitelists
+// known gaps.
+func (q *Queries) ListGameTeamsWithoutSeasonTeam(ctx context.Context, excludedTeamIds []int64) ([]ListGameTeamsWithoutSeasonTeamRow, error) {
+	rows, err := q.db.Query(ctx, listGameTeamsWithoutSeasonTeam, excludedTeamIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGameTeamsWithoutSeasonTeamRow{}
+	for rows.Next() {
+		var i ListGameTeamsWithoutSeasonTeamRow
+		if err := rows.Scan(
+			&i.Season,
+			&i.TeamID,
+			&i.GameType,
+			&i.Games,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGames = `-- name: ListGames :many
 SELECT g.id, g.season, g.game_type, g.game_date, g.venue, g.venue_location, g.start_time_utc, g.eastern_utc_offset, g.venue_utc_offset, g.game_state, g.game_schedule_state, g.period_number, g.period_type, g.max_regulation_periods, g.clock_time_remaining, g.clock_seconds_remaining, g.clock_running, g.clock_in_intermission, g.home_team_id, g.home_team_score, g.home_team_sog, g.away_team_id, g.away_team_score, g.away_team_sog, g.limited_scoring, g.created_at, g.updated_at,
     ht.full_name as home_team_name, ht.abbrev as home_team_abbrev,

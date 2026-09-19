@@ -287,7 +287,7 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhlapi
 	}
 
 	for _, s := range standings {
-		teamID, err := matching.LookupTeamID(s.TeamAbbrev.String())
+		teamID, err := matching.LookupTeamIDForSeason(s.TeamAbbrev.String(), season.ID())
 		if err != nil {
 			return result, fmt.Errorf("season %d team %s: %w", season.ID(), s.TeamAbbrev.String(), err)
 		}
