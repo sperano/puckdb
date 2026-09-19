@@ -179,11 +179,9 @@ func TestLoadFetchAssetsConfig(t *testing.T) {
 	})
 }
 
-// TestFetchAssetsWorkflow_ForwardsAssetBatchSizeToChildren verifies the
-// parent forwards its own snapshotted batch size to every class child via
-// FetchAssetsInput.AssetBatchSize, so children partition assets exactly the
-// way the parent sized its progress bars.
-func (s *FetchAssetsWorkflowTestSuite) TestFetchAssetsWorkflow_ForwardsAssetBatchSizeToChildren() {
+// TestFetchAssetsWorkflow_ForwardsChildOverrides verifies the parent forwards
+// ClassConcurrency and its own snapshotted batch size to every class child.
+func (s *FetchAssetsWorkflowTestSuite) TestFetchAssetsWorkflow_ForwardsChildOverrides() {
 	s.mockAllCounts(0)
 
 	captured := make(map[string]FetchAssetsInput)
@@ -198,8 +196,9 @@ func (s *FetchAssetsWorkflowTestSuite) TestFetchAssetsWorkflow_ForwardsAssetBatc
 	}
 
 	setViperInt(s.T(), config.FlagAssetBatchSize, 250)
+	classConcurrency := 1
 
-	s.env.ExecuteWorkflow(FetchAssetsWorkflow, &FetchAssetsInput{})
+	s.env.ExecuteWorkflow(FetchAssetsWorkflow, &FetchAssetsInput{ClassConcurrency: &classConcurrency})
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
@@ -208,6 +207,8 @@ func (s *FetchAssetsWorkflowTestSuite) TestFetchAssetsWorkflow_ForwardsAssetBatc
 	for slug, in := range captured {
 		s.Require().NotNil(in.AssetBatchSize, "child %s saw nil AssetBatchSize", slug)
 		s.Equal(250, *in.AssetBatchSize, "child %s saw the wrong AssetBatchSize", slug)
+		s.Require().NotNil(in.ClassConcurrency, "child %s saw nil ClassConcurrency", slug)
+		s.Equal(1, *in.ClassConcurrency, "child %s saw the wrong ClassConcurrency", slug)
 	}
 }
 

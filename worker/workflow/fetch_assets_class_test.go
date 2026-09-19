@@ -349,7 +349,7 @@ func TestLoadFetchAssetsClassConfig(t *testing.T) {
 	// Not parallel: viper.Set mutates global state and is not thread-safe.
 
 	t.Run("defaults when nothing configured", func(t *testing.T) {
-		got := loadFetchAssetsClassConfig(nil, nil)
+		got := loadFetchAssetsClassConfig(nil, nil, nil)
 		require.Equal(t, config.DefaultAssetBatchSize, got.BatchSize)
 		require.Equal(t, config.DefaultAssetClassConcurrency, got.Concurrency)
 	})
@@ -358,29 +358,37 @@ func TestLoadFetchAssetsClassConfig(t *testing.T) {
 		setViperInt(t, config.FlagAssetBatchSize, 250)
 		setViperInt(t, config.FlagAssetClassConcurrency, 4)
 
-		got := loadFetchAssetsClassConfig(nil, nil)
+		got := loadFetchAssetsClassConfig(nil, nil, nil)
 		require.Equal(t, 250, got.BatchSize)
 		require.Equal(t, 4, got.Concurrency)
 	})
 
-	t.Run("batch size override wins over viper and defaults", func(t *testing.T) {
+	t.Run("input overrides win over viper and defaults", func(t *testing.T) {
 		setViperInt(t, config.FlagAssetBatchSize, 250)
 		setViperInt(t, config.FlagAssetClassConcurrency, 4)
 
-		got := loadFetchAssetsClassConfig(nil, intPtr(37))
+		got := loadFetchAssetsClassConfig(nil, intPtr(37), intPtr(1))
 		require.Equal(t, 37, got.BatchSize)
-		require.Equal(t, 4, got.Concurrency)
+		require.Equal(t, 1, got.Concurrency)
+	})
+
+	t.Run("invalid concurrency override uses configured value", func(t *testing.T) {
+		setViperInt(t, config.FlagAssetClassConcurrency, 4)
+
+		for _, invalid := range []int{0, -1} {
+			got := loadFetchAssetsClassConfig(nil, nil, &invalid)
+			require.Equal(t, 4, got.Concurrency)
+		}
 	})
 }
 
 // ─── Entry-point wrapper forwarding ───────────────────────────────────────────
 
 // TestNewFetchAssetsClassInput verifies the shared wrapper helper forwards
-// RefreshCurrent and AssetBatchSize from the parent's FetchAssetsInput into
-// the child's FetchAssetsClassInput unchanged, and nothing else. Every one
-// of the nine entry-point wrappers is a thin call through this helper, so this
-// single test covers all of them; TestPerClassWrappers separately locks in
-// which assetClass each wrapper passes.
+// supported fields from the wrapper's FetchAssetsInput into the child's
+// FetchAssetsClassInput unchanged. Every entry-point wrapper calls this helper,
+// so this test covers all fields; TestPerClassWrappers separately locks in the
+// assetClass passed by each wrapper.
 func TestNewFetchAssetsClassInput(t *testing.T) {
 	t.Parallel()
 
@@ -390,16 +398,15 @@ func TestNewFetchAssetsClassInput(t *testing.T) {
 		require.Equal(t, classTeamLogos, got.Class)
 		require.False(t, got.RefreshCurrent)
 		require.Nil(t, got.BatchSize)
+		require.Nil(t, got.Concurrency)
 	})
 
 	t.Run("forwards overrides", func(t *testing.T) {
 		t.Parallel()
 		refresh := true
 		input := FetchAssetsInput{
-			RefreshCurrent: &refresh,
-			AssetBatchSize: intPtr(37),
-			// Concurrency knobs are not forwarded and must not leak into the
-			// child's BatchSize.
+			RefreshCurrent:      &refresh,
+			AssetBatchSize:      intPtr(37),
 			ClassConcurrency:    intPtr(4),
 			MaxClassConcurrency: intPtr(9),
 		}
@@ -407,6 +414,7 @@ func TestNewFetchAssetsClassInput(t *testing.T) {
 		require.Equal(t, classPlayerHeadshots, got.Class)
 		require.True(t, got.RefreshCurrent)
 		require.Same(t, input.AssetBatchSize, got.BatchSize)
+		require.Same(t, input.ClassConcurrency, got.Concurrency)
 	})
 }
 

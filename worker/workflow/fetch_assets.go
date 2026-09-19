@@ -187,8 +187,8 @@ func batchesForRows(rowCount, batchSize int) int {
 // copy gets AssetBatchSize set to the parent's own snapshotted batchSize, so
 // children partition assets exactly the way the parent sized its progress
 // bars. Children otherwise consult only the fields they care about (currently
-// RefreshCurrent and AssetBatchSize), and forwarding-by-default keeps the
-// path open for future fields without parent-side bookkeeping.
+// RefreshCurrent, ClassConcurrency, and AssetBatchSize). Forwarding by default
+// keeps the path open for future fields without parent-side bookkeeping.
 func dispatchClassChildren(ctx workflow.Context, tracker *shared.ReportTracker, input *FetchAssetsInput, concurrency, batchSize int) (core.OriginCounts, error) {
 	counts := core.OriginCounts{}
 	err := tracker.RunWorkerPoolMultiBar(ctx, fetchAssetsGroupIdx, 0, len(parentAssetClasses), concurrency,

@@ -139,8 +139,7 @@ type FetchAssetsInput struct {
 	// nil is treated as false.
 	RefreshCurrent *bool
 	// ClassConcurrency overrides FlagAssetClassConcurrency for the within-class
-	// FetchAssetBatch worker pool. Only honoured when set on the parent's input;
-	// entry-point invocations ignore it.
+	// FetchAssetBatch worker pool.
 	ClassConcurrency *int
 	// MaxClassConcurrency overrides FlagMaxAssetClassConcurrency for the
 	// parent's cross-class worker pool. Parent-only.
@@ -166,6 +165,9 @@ type FetchAssetsClassInput struct {
 	// BatchSize overrides FlagAssetBatchSize for splitting the loaded assets
 	// into FetchAssetBatch batches. nil uses the configured default.
 	BatchSize *int
+	// Concurrency overrides FlagAssetClassConcurrency for the FetchAssetBatch
+	// worker pool. nil uses the configured default.
+	Concurrency *int
 }
 
 // fetchAssetsClassConfig is the configuration FetchAssetsClassWorkflow
@@ -177,21 +179,19 @@ type fetchAssetsClassConfig struct {
 	Concurrency int `json:"concurrency"`
 }
 
-// loadFetchAssetsClassConfig resolves fetchAssetsClassConfig. Only the batch
-// size takes an input override (forwarded by the parent); concurrency comes
-// from configuration alone.
-func loadFetchAssetsClassConfig(logger log.Logger, batchOverride *int) fetchAssetsClassConfig {
+// loadFetchAssetsClassConfig resolves class configuration and input overrides.
+func loadFetchAssetsClassConfig(logger log.Logger, batchOverride, concurrencyOverride *int) fetchAssetsClassConfig {
 	return fetchAssetsClassConfig{
 		BatchSize:   shared.ResolveConfigInt(nil, shared.AssetBatchSizeParam, batchOverride),
-		Concurrency: shared.ResolveConfigInt(logger, shared.AssetClassConcurrencyParam, nil),
+		Concurrency: shared.ResolveConfigInt(logger, shared.AssetClassConcurrencyParam, concurrencyOverride),
 	}
 }
 
 // snapshotFetchAssetsClassConfig records fetchAssetsClassConfig in history
 // once per execution (see shared.SnapshotConfig).
-func snapshotFetchAssetsClassConfig(ctx workflow.Context, logger log.Logger, batchOverride *int) (fetchAssetsClassConfig, error) {
+func snapshotFetchAssetsClassConfig(ctx workflow.Context, logger log.Logger, batchOverride, concurrencyOverride *int) (fetchAssetsClassConfig, error) {
 	return shared.SnapshotConfig(ctx, func() fetchAssetsClassConfig {
-		return loadFetchAssetsClassConfig(logger, batchOverride)
+		return loadFetchAssetsClassConfig(logger, batchOverride, concurrencyOverride)
 	})
 }
 
@@ -217,7 +217,7 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 		"class", input.Class.Label,
 		"refreshCurrent", input.RefreshCurrent)
 
-	cfg, err := snapshotFetchAssetsClassConfig(ctx, logger, input.BatchSize)
+	cfg, err := snapshotFetchAssetsClassConfig(ctx, logger, input.BatchSize, input.Concurrency)
 	if err != nil {
 		return nil, fmt.Errorf("snapshot config for %s: %w", input.Class.Label, err)
 	}
@@ -331,13 +331,14 @@ func splitAssetBatches(assets []asset.Asset, size int) [][]asset.Asset {
 
 // newFetchAssetsClassInput builds the child input for one asset class from a
 // wrapper's FetchAssetsInput, forwarding the fields entry-point invocations
-// honour: RefreshCurrent and the AssetBatchSize override (nil on a direct
-// entry-point invocation, which then falls back to the configured default).
+// honour. Nil overrides on a direct entry-point invocation fall back to the
+// configured defaults.
 func newFetchAssetsClassInput(class assetClass, input FetchAssetsInput) FetchAssetsClassInput {
 	return FetchAssetsClassInput{
 		Class:          class,
 		RefreshCurrent: input.refreshCurrent(),
 		BatchSize:      input.AssetBatchSize,
+		Concurrency:    input.ClassConcurrency,
 	}
 }
 
