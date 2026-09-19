@@ -31,6 +31,7 @@ const (
 	DefaultAPIPort     = 8787
 	DefaultWorkerPort  = 8788
 	DefaultMetricsPort = 8789
+	DefaultMCPPort     = 8790
 )
 
 // Temporal defaults

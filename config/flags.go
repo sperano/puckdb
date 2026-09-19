@@ -239,6 +239,12 @@ const (
 	FlagDBIntervalSeconds      = "db-interval-seconds"
 )
 
+// MCP server flags
+const (
+	FlagMCPPort  = "mcp-port"
+	FlagMCPStdio = "mcp-stdio"
+)
+
 // CLI display flags
 const (
 	FlagVerbose    = "verbose"
@@ -478,6 +484,15 @@ var MetricsIntervalFlags = FlagGroup{
 		{FlagCacheIntervalSeconds, "", DefaultCacheIntervalSeconds, "Interval in seconds for cache metrics collection", false},
 		{FlagRedisIntervalSeconds, "", DefaultRedisIntervalSeconds, "Interval in seconds for Redis metrics collection", false},
 		{FlagDBIntervalSeconds, "", DefaultDBIntervalSeconds, "Interval in seconds for database metrics collection", false},
+	},
+}
+
+// MCPServerFlags defines the MCP server transport flags: the HTTP listen
+// port and the switch to serve over stdio instead.
+var MCPServerFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagMCPPort, "", DefaultMCPPort, "MCP server HTTP port", false},
+		{FlagMCPStdio, "", false, "Serve over stdio instead of HTTP", false},
 	},
 }
 

@@ -44,6 +44,7 @@ go run github.com/99designs/gqlgen generate   # GraphQL (from puckdb root dir)
 | `worker` | Temporal worker for download/import workflows, metrics at `/metrics` |
 | `sync` | Sync data into the database |
 | `metrics` | Expose cache, Redis, and database metrics as Prometheus metrics |
+| `mcp-server` | MCP server exposing curated read-only data tools; HTTP on `--mcp-port` (default 8790) or `--mcp-stdio` |
 | `db init` | Create tables, seed NHL data |
 | `db drop` | Drop all tables |
 | `db migrate` | Run database migrations directly |

@@ -13,17 +13,33 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	defaultMCPServerPort = 8790
-	flagMCPServerPort    = "mcp-port"
-	flagMCPServerStdio   = "stdio"
-)
-
 // mcpServerFlagGroups lists every flag group the mcp-server command
 // exposes. Defined once and shared by InitFlags and BindFlags so the two
 // can never drift.
 var mcpServerFlagGroups = []*config.FlagGroup{
 	&config.PostgresFlags,
+	&config.MCPServerFlags,
+}
+
+// mcpTransport is the resolved transport selection for the MCP server.
+type mcpTransport struct {
+	Stdio bool
+	Port  int
+}
+
+// Addr returns the HTTP listen address; meaningless when Stdio is set.
+func (t mcpTransport) Addr() string {
+	return fmt.Sprintf(":%d", t.Port)
+}
+
+// Validate rejects an HTTP transport without a usable port. viper coerces an
+// unparsable PUCKDB_MCP_PORT to 0, which net.Listen would silently turn into
+// an ephemeral port — the same failure shape the flag binding fix removed.
+func (t mcpTransport) Validate() error {
+	if !t.Stdio && t.Port <= 0 {
+		return fmt.Errorf("invalid --%s %d: must be a positive port", config.FlagMCPPort, t.Port)
+	}
+	return nil
 }
 
 func cmdMCPServer() *cobra.Command {
@@ -35,18 +51,31 @@ func cmdMCPServer() *cobra.Command {
 			return config.BindFlags(cmd.Flags(), mcpServerFlagGroups...)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runMCPServer(cmd)
+			transport := resolveMCPTransport()
+			if err := transport.Validate(); err != nil {
+				return err
+			}
+			return runMCPServer(cmd, transport)
 		},
 	}
 	flags := cmd.Flags()
 	config.InitFlags(flags, mcpServerFlagGroups...)
 	config.InitLoggingFlags(flags, config.LogLevelInfo, config.DefaultLogFile)
-	flags.Int(flagMCPServerPort, defaultMCPServerPort, "MCP server HTTP port")
-	flags.Bool(flagMCPServerStdio, false, "Serve over stdio instead of HTTP")
 	return cmd
 }
 
-func runMCPServer(cmd *cobra.Command) error {
+// resolveMCPTransport reads the transport selection through viper so the
+// flag default, PUCKDB_MCP_* environment variables and explicit CLI flags
+// all follow the same precedence as every other command. It must run after
+// the command's flags have been bound (PreRunE).
+func resolveMCPTransport() mcpTransport {
+	return mcpTransport{
+		Stdio: viper.GetBool(config.FlagMCPStdio),
+		Port:  viper.GetInt(config.FlagMCPPort),
+	}
+}
+
+func runMCPServer(cmd *cobra.Command, transport mcpTransport) error {
 	ctx := cmd.Context()
 
 	pool, err := database.OpenPGXPool(ctx)
@@ -58,16 +87,12 @@ func runMCPServer(cmd *cobra.Command) error {
 	queries := database.NewQueries(pool)
 	srv := mcpserver.NewServer(queries)
 
-	stdio, _ := cmd.Flags().GetBool(flagMCPServerStdio)
-	if stdio {
+	if transport.Stdio {
 		log.Info().Msg("Starting PuckDB MCP server (stdio)")
 		return mcpserversdk.ServeStdio(srv)
 	}
 
-	port := viper.GetInt(flagMCPServerPort)
-	addr := fmt.Sprintf(":%d", port)
-
 	httpSrv := mcpserversdk.NewStreamableHTTPServer(srv)
-	log.Info().Int("port", port).Msg("Starting PuckDB MCP server (HTTP)")
-	return httpSrv.Start(addr)
+	log.Info().Int("port", transport.Port).Msg("Starting PuckDB MCP server (HTTP)")
+	return httpSrv.Start(transport.Addr())
 }
