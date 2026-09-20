@@ -7,10 +7,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
-	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/cache"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -29,21 +30,15 @@ func testContext(t *testing.T) context.Context {
 	return ctx
 }
 
-// newSaveActivityRedis returns a redismock client expecting a Set call
-// against the SaveActivityProgress key prefix. Returns the configured
-// status (typically "OK") or err on the Set, matching the cache layer's
-// progressClient.Set shape.
-func newSaveActivityRedis(t *testing.T, status string, err error) (*redis.Client, redismock.ClientMock) {
+// newSaveActivityRedis returns an in-process Redis and a client bound to it
+// for the SaveActivityProgress tests. Callers that need the failure path
+// call srv.SetError.
+func newSaveActivityRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
 	t.Helper()
-	client, mock := redismock.NewClientMock()
-	anyArgs := func(_, _ []any) error { return nil }
-	expect := mock.CustomMatch(anyArgs).ExpectSet(cache.ProgressReportKeyPrefix, "x", cache.ProgressTTL)
-	if err != nil {
-		expect.SetErr(err)
-	} else {
-		expect.SetVal(status)
-	}
-	return client, mock
+	srv := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: srv.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	return srv, client
 }
 
 // gobEncodeReport is a small helper for encoding a report to the bytes that
@@ -77,7 +72,7 @@ func (s *ReportTrackerSuite) SetupTest() {
 	// Save is invoked on every group start/complete/increment. Mock it as
 	// a no-op so tests don't need a real Redis client. The Load mock is
 	// only needed when a test exercises LoadReportTracker.
-	s.env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	s.env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 }
 
 func (s *ReportTrackerSuite) AfterTest(suiteName, testName string) {
@@ -114,6 +109,44 @@ func (s *ReportTrackerSuite) TestInitTracker_ReturnsTrackerAndRegistersQuery() {
 		return nil
 	})
 	s.NoError(s.env.GetWorkflowError())
+}
+
+// Save must stamp the report with the execution's run identity so the
+// API's run-aware cleanup can keep this run's report. The test env leaves
+// FirstRunID empty, so the stamp resolves to the current RunID here; pin
+// that the activity receives progressRunStamp's answer and never "".
+func (s *ReportTrackerSuite) TestSave_StampsRunIdentity() {
+	env := s.NewTestWorkflowEnvironment()
+	var wantRunID string
+	env.OnActivity(((*ProgressActivities)(nil)).Save,
+		mock.Anything, "default-test-workflow-id", mock.MatchedBy(func(runID string) bool {
+			return runID != "" && runID == wantRunID
+		}), mock.Anything).Return(nil).Once()
+
+	env.ExecuteWorkflow(func(ctx workflow.Context) error {
+		wantRunID = progressRunStamp(workflow.GetInfo(ctx))
+		tracker, err := InitTracker(ctx, freshReport())
+		s.Require().NoError(err)
+		tracker.Save(ctx)
+		return nil
+	})
+	s.NoError(env.GetWorkflowError())
+	env.AssertExpectations(s.T())
+}
+
+// FirstRunID identifies the whole ContinueAsNew chain and wins when set;
+// the current RunID is only the fallback for environments that don't
+// populate it.
+func TestProgressRunStamp(t *testing.T) {
+	t.Parallel()
+	chained := &workflow.Info{
+		WorkflowExecution: workflow.Execution{ID: "wf", RunID: "run-3"},
+		FirstRunID:        "run-1",
+	}
+	assert.Equal(t, "run-1", progressRunStamp(chained), "continued run stamps with the chain's first run")
+
+	unset := &workflow.Info{WorkflowExecution: workflow.Execution{ID: "wf", RunID: "run-1"}}
+	assert.Equal(t, "run-1", progressRunStamp(unset), "falls back to the current run, never empty")
 }
 
 func (s *ReportTrackerSuite) TestStartGroup_SetsStartedAt() {
@@ -300,17 +333,27 @@ func (s *LoadReportTrackerSuite) TestRoundTrip() {
 
 func TestSaveActivityProgress_Success(t *testing.T) {
 	t.Parallel()
-	client, mock := newSaveActivityRedis(t, "OK", nil)
+	ctx := testContext(t)
+	_, client := newSaveActivityRedis(t)
 
-	err := SaveActivityProgress(testContext(t), client, "wf-1", 1700000000000, 5, 10)
-
+	err := SaveActivityProgress(ctx, client, "wf-1", 1700000000000, 5, 10)
 	require.NoError(t, err)
-	require.NoError(t, mock.ExpectationsWereMet())
+
+	// Round-trips through the cache layer as a decodable single-bar report.
+	data, err := cache.LoadProgressReport(ctx, client, "wf-1")
+	require.NoError(t, err)
+	var got ProgressReport
+	require.NoError(t, gob.NewDecoder(bytes.NewReader(data)).Decode(&got))
+	assert.Equal(t, 5, got.Completed)
+	assert.Equal(t, 10, got.Total)
+	require.Len(t, got.Groups, 1)
+	assert.Equal(t, int64(1700000000000), got.Groups[0].StartedAt)
 }
 
 func TestSaveActivityProgress_RedisError(t *testing.T) {
 	t.Parallel()
-	client, _ := newSaveActivityRedis(t, "", errors.New("connection lost"))
+	srv, client := newSaveActivityRedis(t)
+	srv.SetError("connection lost")
 
 	err := SaveActivityProgress(testContext(t), client, "wf-2", 1700000000000, 0, 5)
 

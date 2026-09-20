@@ -16,7 +16,6 @@ import (
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/sperano/puckdb/maurice"
 	"github.com/sperano/puckdb/sqlcdb"
-	"github.com/sperano/puckdb/temporal"
 	"github.com/sperano/puckdb/worker/shared"
 	"github.com/sperano/puckdb/worker/workflow"
 	"github.com/spf13/viper"
@@ -429,72 +428,4 @@ func ptrStringIfNotEmpty(s string) *string {
 		return nil
 	}
 	return &s
-}
-
-// startWorkflow is the shared core that triggers a workflow with the given
-// options, optional input argument, and post-success Redis cleanup. The three
-// public helpers below pin down the queue selection and progress-cleanup
-// policy for each workflow class.
-func (r *Resolver) startWorkflow(ctx context.Context, opts client.StartWorkflowOptions, workflow any, arg any, clearProgress bool) (bool, error) {
-	var err error
-	if arg == nil {
-		_, err = r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow)
-	} else {
-		_, err = r.TemporalClient.ExecuteWorkflow(ctx, opts, workflow, arg)
-	}
-	if err != nil {
-		return false, err
-	}
-	if clearProgress {
-		// The workflow will write fresh progress once it starts, but there's
-		// a gap between trigger and first save where the CLI would read the
-		// old key.
-		_ = cache.DeleteProgressReport(ctx, r.RedisClient, opts.ID)
-	}
-	return true, nil
-}
-
-// executeWorkflow starts a long-running workflow on the main puckdb-tasks queue
-// and clears any stale ProgressReport from a previous run.
-func (r *Resolver) executeWorkflow(ctx context.Context, workflowID string, workflow any, arg any) (bool, error) {
-	return r.startWorkflow(ctx, workflowOptions(workflowID), workflow, arg, true)
-}
-
-// executeAdminWorkflow starts an admin workflow on the dedicated admin queue.
-// Admin workflows (drop DB, migrate DB, flush Redis) are single-step operations
-// that don't publish ProgressReports, so cleanup is skipped.
-func (r *Resolver) executeAdminWorkflow(ctx context.Context, workflowID string, workflow any) (bool, error) {
-	return r.startWorkflow(ctx, adminWorkflowOptions(workflowID), workflow, nil, false)
-}
-
-// executeAssetWorkflow starts a workflow on shared.TaskQueueAssets so the asset
-// worker — not the main tasks worker — picks up the run, and clears stale
-// progress like executeWorkflow.
-func (r *Resolver) executeAssetWorkflow(ctx context.Context, workflowID string, workflow any, arg any) (bool, error) {
-	return r.startWorkflow(ctx, assetWorkflowOptions(workflowID), workflow, arg, true)
-}
-
-// TODO move to temporal/worker
-
-// buildWorkflowOptions is the shared core of workflowOptions /
-// adminWorkflowOptions / assetWorkflowOptions below — they differ only in
-// which task queue a workflow is dispatched to.
-func buildWorkflowOptions(id, taskQueue string) client.StartWorkflowOptions {
-	return client.StartWorkflowOptions{
-		ID:                  id,
-		TaskQueue:           taskQueue,
-		WorkflowTaskTimeout: config.DefaultWorkflowTaskTimeout,
-	}
-}
-
-func workflowOptions(id string) client.StartWorkflowOptions {
-	return buildWorkflowOptions(id, temporal.QueueTasks)
-}
-
-func adminWorkflowOptions(id string) client.StartWorkflowOptions {
-	return buildWorkflowOptions(id, temporal.QueueAdmin)
-}
-
-func assetWorkflowOptions(id string) client.StartWorkflowOptions {
-	return buildWorkflowOptions(id, shared.TaskQueueAssets)
 }

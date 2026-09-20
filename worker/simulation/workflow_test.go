@@ -147,7 +147,7 @@ func (s *SimPoolWorkflowTestSuite) stubActivityResults(state LoadPoolStateResult
 	// shared.InitTracker which fires these via local activities.
 	// Without mocks they'd panic on a nil RedisClient.
 	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Save,
-		mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Load,
 		mock.Anything, mock.Anything).Return([]byte(nil), nil).Maybe()
 

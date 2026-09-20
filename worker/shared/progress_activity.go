@@ -16,11 +16,13 @@ type ProgressActivities struct {
 	RedisClient *redis.Client
 }
 
-// Save persists a gob-encoded ProgressReport to Redis. Called by workflows at
-// key structural changes so the resolver can read progress without querying
+// Save persists a gob-encoded ProgressReport to Redis, stamped with the
+// calling execution chain's FirstRunID so the API's post-start cleanup can
+// tell this run's report from a previous run's. Called by workflows at key
+// structural changes so the resolver can read progress without querying
 // Temporal.
-func (a *ProgressActivities) Save(ctx context.Context, workflowID string, reportJSON []byte) error {
-	return cache.SaveProgressReport(ctx, a.RedisClient, workflowID, reportJSON)
+func (a *ProgressActivities) Save(ctx context.Context, workflowID, runID string, data []byte) error {
+	return cache.SaveProgressReport(ctx, a.RedisClient, workflowID, runID, data)
 }
 
 // Load retrieves a gob-encoded ProgressReport from Redis. Returns nil bytes if

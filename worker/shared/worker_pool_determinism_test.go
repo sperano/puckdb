@@ -112,7 +112,7 @@ const determinismRuns = 50
 // mockSave stubs the ProgressActivities.Save local activity so the pre-settled
 // determinism workflows don't hit the (unregistered) real Save.
 func mockSave(env *testsuite.TestWorkflowEnvironment) {
-	env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 }
 
 // TestRunWorkerPool_FirstErrorIsLowestIndex asserts that when several activities

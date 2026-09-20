@@ -78,13 +78,29 @@ func (t *ReportTracker) Save(ctx workflow.Context) {
 		return
 	}
 	data := buf.Bytes()
-	workflowID := workflow.GetInfo(ctx).WorkflowExecution.ID
+	info := workflow.GetInfo(ctx)
+	workflowID := info.WorkflowExecution.ID
+	runID := progressRunStamp(info)
 	localCtx := workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
 		ScheduleToCloseTimeout: 5 * time.Second,
 	})
-	if err := workflow.ExecuteLocalActivity(localCtx, ((*ProgressActivities)(nil)).Save, workflowID, data).Get(ctx, nil); err != nil {
+	if err := workflow.ExecuteLocalActivity(localCtx, ((*ProgressActivities)(nil)).Save, workflowID, runID, data).Get(ctx, nil); err != nil {
 		workflow.GetLogger(ctx).Warn("Failed to save progress report to Redis", "error", err)
 	}
+}
+
+// progressRunStamp is the run identity a workflow stamps on its saved
+// reports, compared by the API's cache.DeleteStaleProgressReport against
+// the run ExecuteWorkflow returned. FirstRunID, not the current RunID: it
+// survives ContinueAsNew, so the whole chain stamps its reports identically
+// and a continued run's report is never mistaken for a previous start's.
+// Falls back to the current RunID where FirstRunID is unset (the SDK test
+// environment); an empty stamp would read as stale on every start.
+func progressRunStamp(info *workflow.Info) string {
+	if info.FirstRunID != "" {
+		return info.FirstRunID
+	}
+	return info.WorkflowExecution.RunID
 }
 
 // StartGroup marks a group as started with the current timestamp and saves to Redis.
@@ -274,6 +290,10 @@ func FormatDuration(d time.Duration) string {
 // in unchanged on every call, so the field stays stable across loop iterations. On
 // activity retry the caller captures a fresh value, which matches the reset of
 // per-iteration counters (Temporal re-runs the function from the top on retry).
+//
+// The report is saved without a run stamp: these synthetic keys are cleared
+// only by the parent workflow (cleanupStaleChildReports), which runs before
+// the activity can write, so the API's run-aware cleanup never sees them.
 func SaveActivityProgress(ctx context.Context, client *redis.Client, workflowID string, startedAt int64, current, total int) error {
 	report := &ProgressReport{
 		Total:     total,
@@ -286,7 +306,8 @@ func SaveActivityProgress(ctx context.Context, client *redis.Client, workflowID 
 	if err := gob.NewEncoder(&buf).Encode(report); err != nil {
 		return fmt.Errorf("encode activity progress: %w", err)
 	}
-	return cache.SaveProgressReport(ctx, client, workflowID, buf.Bytes())
+	const noRunStamp = ""
+	return cache.SaveProgressReport(ctx, client, workflowID, noRunStamp, buf.Bytes())
 }
 
 // SeasonCounterFunc returns the total count for a season's progress tracking.
