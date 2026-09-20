@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/graph/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -334,93 +332,6 @@ func runParallel(ctx context.Context, out io.Writer, state *syncState, runners .
 	}
 
 	return nil
-}
-
-// monitorWorkflows polls multiple status endpoints and combines their display.
-// Takes []workflowRunner (rather than []statusFetcher) so each slot's
-// workflowType is available for the per-line "Workflow X is starting..."
-// fallback rendered when progress isn't yet queryable.
-func monitorWorkflows(ctx context.Context, sp *spinner, runners []workflowRunner) error {
-	time.Sleep(config.DefaultWorkflowStartupDelay)
-
-	consecutiveFailures := 0
-	done := make([]bool, len(runners))
-	statuses := make([]*WorkflowStatus, len(runners))
-
-	for {
-		allDone := true
-		var messages []string
-
-		for i, r := range runners {
-			if done[i] {
-				// Already completed, use cached final message
-				if statuses[i] != nil {
-					messages = append(messages, formatStatusMessage(statuses[i], r.workflowType))
-				}
-				continue
-			}
-
-			status, err := r.getStatus(ctx)
-			if err != nil {
-				consecutiveFailures++
-				if consecutiveFailures >= config.MaxConsecutiveQueryFailures {
-					sp.Cancel()
-					return fmt.Errorf("workflow query failed %d times consecutively: %w", consecutiveFailures, err)
-				}
-				allDone = false
-				continue
-			}
-
-			consecutiveFailures = 0
-			statuses[i] = status
-			messages = append(messages, formatStatusMessage(status, r.workflowType))
-
-			switch status.Result.Status {
-			case model.TemporalWorkflowStatusCompleted:
-				done[i] = true
-			case model.TemporalWorkflowStatusFailed:
-				sp.Cancel()
-				if status.Result.FailureReason != nil {
-					return fmt.Errorf("workflow failed: %s", *status.Result.FailureReason)
-				}
-				return fmt.Errorf("workflow failed")
-			case model.TemporalWorkflowStatusCanceled:
-				sp.Cancel()
-				return fmt.Errorf("workflow was canceled")
-			default:
-				allDone = false
-			}
-		}
-
-		// Combine all messages, appending Yahoo warning once at the end.
-		// Only check statuses that were freshly polled this iteration —
-		// completed workflows use cached statuses that may have stale token info.
-		var combinedBuilder strings.Builder
-		combinedBuilder.WriteString(strings.Join(messages, "\n"))
-		for i, st := range statuses {
-			if done[i] || st == nil {
-				continue
-			}
-			if w := yahooWarning(st); w != "" {
-				combinedBuilder.WriteString("\n")
-				combinedBuilder.WriteString(w)
-				break
-			}
-		}
-		sp.SetMessage(combinedBuilder.String())
-
-		if allDone {
-			sp.Stop()
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			sp.Cancel()
-			return ctx.Err()
-		case <-time.After(pollDelay(consecutiveFailures)):
-		}
-	}
 }
 
 // syncStep defines a workflow-driven sync phase for the data-driven loop.

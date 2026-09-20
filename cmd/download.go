@@ -1,13 +1,10 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/graph/model"
 	"github.com/spf13/viper"
@@ -39,81 +36,6 @@ func buildSeasonsInput() *model.SeasonsInput {
 	}
 
 	return input
-}
-
-func monitorWorkflow(ctx context.Context, sp *spinner, getStatus statusFetcher, wt workflowType) error {
-	// Wait briefly for workflow to start and register query handlers
-	time.Sleep(config.DefaultWorkflowStartupDelay)
-
-	consecutiveFailures := 0
-
-	for {
-		status, err := getStatus(ctx)
-		if err != nil {
-			consecutiveFailures++
-			if consecutiveFailures >= config.MaxConsecutiveQueryFailures {
-				sp.Cancel()
-				return fmt.Errorf("workflow query failed %d times consecutively: %w", consecutiveFailures, err)
-			}
-			sp.PrintAbove(func() {
-				log.Warn().Err(err).Int("attempt", consecutiveFailures).Msg("Failed to get status, retrying...")
-			})
-		} else {
-			consecutiveFailures = 0 // Reset on success
-			msg := formatStatusMessage(status, wt)
-			if w := yahooWarning(status); w != "" {
-				msg += "\n" + w
-			}
-			sp.mu.Lock()
-			sp.message = msg
-			sp.mu.Unlock()
-
-			switch status.Result.Status {
-			case model.TemporalWorkflowStatusCompleted:
-				sp.Stop()
-				return nil
-			case model.TemporalWorkflowStatusFailed:
-				sp.Cancel()
-				if status.Result.FailureReason != nil {
-					return fmt.Errorf("workflow failed: %s", *status.Result.FailureReason)
-				}
-				return fmt.Errorf("workflow failed")
-			case model.TemporalWorkflowStatusCanceled:
-				sp.Cancel()
-				return fmt.Errorf("workflow was canceled")
-			case model.TemporalWorkflowStatusTerminated:
-				sp.Cancel()
-				return fmt.Errorf("workflow was terminated")
-			case model.TemporalWorkflowStatusTimedOut:
-				sp.Cancel()
-				return fmt.Errorf("workflow timed out")
-			case model.TemporalWorkflowStatusRunning:
-				// Continue polling
-			case model.TemporalWorkflowStatusUnspecified:
-				// Workflow might not have started yet or doesn't exist
-				log.Debug().Msg("Workflow status unspecified")
-			}
-		}
-
-		select {
-		case <-ctx.Done():
-			sp.Cancel()
-			return ctx.Err()
-		case <-time.After(pollDelay(consecutiveFailures)):
-		}
-	}
-}
-
-// pollDelay returns the poll interval, backing off exponentially on consecutive failures.
-func pollDelay(consecutiveFailures int) time.Duration {
-	if consecutiveFailures == 0 {
-		return config.DefaultWorkflowPollInterval
-	}
-	delay := config.DefaultWorkflowPollInterval << consecutiveFailures
-	if delay > config.MaxWorkflowPollBackoff {
-		return config.MaxWorkflowPollBackoff
-	}
-	return delay
 }
 
 func formatStatusMessage(status *WorkflowStatus, wt workflowType) string {
