@@ -6,36 +6,11 @@ import (
 	"testing"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/config"
 	"github.com/sperano/puckdb/core"
 	"github.com/sperano/puckdb/store"
 	"github.com/sperano/puckdb/worker/asset"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
-
-func BenchmarkGetAllMetrics(b *testing.B) {
-	viper.Set(config.FlagDataPath, "../test-data/cache")
-	viper.Set(config.FlagSeasonYear, 2022)
-
-	redisClient := cache.NewClient()
-	defer redisClient.Close()
-
-	idx, err := buildPathIndex(context.Background(), "../test-data/cache")
-	if err != nil {
-		b.Fatal(err)
-	}
-	storage := newIndexedStorage(store.NewDefaultStorage(), idx)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := getAllMetrics(context.Background(), redisClient, nil, storage)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
 
 // makeHeadshotAssets builds n PlayerHeadshot assets with sequential player IDs,
 // using a .png extension so asset.Path() succeeds.

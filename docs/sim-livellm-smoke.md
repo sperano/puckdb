@@ -64,13 +64,13 @@ garbage arguments" (`parse_error`), "model made an illegal move"
 failed" (turn status `errored`, e.g. timeouts — consider a bigger
 `TimeoutSeconds` or a smaller model).
 
-## Option 2 — `poolsim-smoke.yaml` (real cluster data, real model)
+## Option 2 — `examples/poolsim-smoke.yaml` (real cluster data, real model)
 
 The same 4-Ollama-agent shape against the actual `20242025` season in
 prod. Compact roster, `maxSeasonDays: 30`.
 
 ```bash
-./puckdb sim create --config poolsim-smoke.yaml   # prints pool_id
+./puckdb sim create --config examples/poolsim-smoke.yaml   # prints pool_id
 ./puckdb sim tail <pool-id>                       # follow the day loop
 ```
 

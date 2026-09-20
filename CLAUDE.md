@@ -25,12 +25,12 @@ go test -cover ./...                 # With coverage
 
 ### Generate Code
 ```bash
-go run github.com/99designs/gqlgen generate   # GraphQL (from puckdb root dir)
+go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via the go.mod tool directive)
 ```
 
 **GraphQL code generation:**
 1. Edit `graph/schema.graphqls` (schema, types, queries, mutations)
-2. Run `go run github.com/99designs/gqlgen generate` from puckdb directory
+2. Run `go tool gqlgen generate` from puckdb directory
 3. Generated files: `graph/generated/generated.go`, `graph/model/models_gen.go`
 4. New resolvers appear as `panic("not implemented")` stubs in `graph/schema.resolvers.go`
 5. Implement resolver logic in `graph/resolver.go` (private methods like `fetchPlayerLandings`)
@@ -69,14 +69,17 @@ go run github.com/99designs/gqlgen generate   # GraphQL (from puckdb root dir)
 | `resource/` | Typed resource definitions (NHL/Yahoo paths, URLs, parse/format) |
 | `core/` | Shared primitives: file types, data origins, time helpers, resource interfaces |
 | `config/` | Flags, defaults, seasons YAML parsing |
-| `http/` | HTTP client, Yahoo API URL builders |
+| `httpx/` | HTTP client, Yahoo API URL builders |
 | `metrics/` | Prometheus metrics |
 | `temporal/` | Temporal client configuration |
 | `matching/` | NHL ↔ Yahoo player matching |
 | `llm/` | LLM client (used by player enrichment / Maurice) |
 | `maurice/` | Prompt + service layer built on top of `llm/` |
-| `mcp/` | MCP client / tool integration |
-| `tls/` | TLS certificates for internal services |
+| `mcp/` | MCP client (used by Maurice to call tool servers) |
+| `mcpserver/` | MCP server exposing curated read-only data tools (`mcp-server` command) |
+| `tls/` | TLS certificates for internal services (gitignored) |
+
+Non-Go directories: `docs/` (design notes, runbooks), `examples/` (sample pool-simulation and gob-cache configs), `scripts/` (operational shell scripts), `.docker/` (compose-only config for Temporal and Grafana provisioning).
 
 ### Active Workflows
 

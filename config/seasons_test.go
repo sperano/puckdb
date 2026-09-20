@@ -11,7 +11,7 @@ import (
 
 func TestGetSeasons(t *testing.T) {
 	t.Parallel()
-	seasons, err := getYahooSeasons("../test-data/config/seasons.yaml")
+	seasons, err := getYahooSeasons("testdata/seasons.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestGetSeasons_UnmarshallErr(t *testing.T) {
 
 func TestSeasonsMapAccess(t *testing.T) {
 	t.Parallel()
-	seasons, err := getYahooSeasons("../test-data/config/seasons.yaml")
+	seasons, err := getYahooSeasons("testdata/seasons.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestSeasonsMapAccess(t *testing.T) {
 
 func TestLeagueGet(t *testing.T) {
 	t.Parallel()
-	seasons, err := getYahooSeasons("../test-data/config/seasons.yaml")
+	seasons, err := getYahooSeasons("testdata/seasons.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestLeagueGet(t *testing.T) {
 
 func TestLeagueGet_Error(t *testing.T) {
 	t.Parallel()
-	seasons, err := getYahooSeasons("../test-data/config/seasons.yaml")
+	seasons, err := getYahooSeasons("testdata/seasons.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -144,7 +144,12 @@ services:
             - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/puckdb-dashboard.json
         volumes:
             - ./.docker/grafana/provisioning:/etc/grafana/provisioning
-            - ../../grafana/dashboards:/var/lib/grafana/dashboards
+            # Dashboards are maintained in the hollingsworth repo (deployed
+            # via helm/grafana); mount that directory so local Grafana shows
+            # the same dashboard as the cluster. The default is relative to
+            # the primary checkout (ws/puckdb); set GRAFANA_DASHBOARDS_DIR
+            # when running from a worktree.
+            - ${GRAFANA_DASHBOARDS_DIR:-../../../hollingsworth/helm/grafana/dashboards}:/var/lib/grafana/dashboards
         restart: unless-stopped
 
     postgres-mcp:

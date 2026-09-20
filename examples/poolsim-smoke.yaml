@@ -4,7 +4,7 @@
 # (worker/simulation/integration_live_test.go): same 4-agent all-Ollama
 # shape, but run against the actual 20242025 season already in prod.
 #
-#   ./puckdb sim create --config poolsim-smoke.yaml
+#   ./puckdb sim create --config examples/poolsim-smoke.yaml
 #   ./puckdb sim tail <pool-id>
 #
 # Compact roster + maxSeasonDays 30 keeps a llama3.1:8b run in the
