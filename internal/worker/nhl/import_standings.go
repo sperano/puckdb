@@ -6,7 +6,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	nhl "github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -23,7 +22,7 @@ func (a *ImportActivities) ImportStandingsForDate(ctx context.Context, input sha
 		return nil
 	}
 
-	standings, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, standingsRes)
+	standings, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, standingsRes)
 	if err != nil {
 		return fmt.Errorf("read standings for %s: %w", input.Date.Format(config.DateFormat), err)
 	}

@@ -7,7 +7,6 @@ import (
 
 	"github.com/rs/zerolog/log"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/metrics"
@@ -50,7 +49,7 @@ func (a *ImportActivities) ImportPlayerGameLogsBatch(ctx context.Context, input 
 			continue
 		}
 
-		gameLog, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, gameLogRes)
+		gameLog, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, gameLogRes)
 		if err != nil {
 			log.Debug().Err(err).Int64("playerID", playerID).Msg("Failed to read player game log")
 			continue
@@ -123,7 +122,7 @@ func (a *ImportActivities) CollectSeasonPlayerIDs(ctx context.Context, input Col
 			continue
 		}
 
-		schedule, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+		schedule, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, scheduleRes)
 		if err != nil {
 			continue
 		}
@@ -138,7 +137,7 @@ func (a *ImportActivities) CollectSeasonPlayerIDs(ctx context.Context, input Col
 				continue
 			}
 
-			boxscore, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, boxscoreRes)
+			boxscore, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, boxscoreRes)
 			if err != nil {
 				continue
 			}

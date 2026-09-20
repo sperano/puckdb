@@ -64,7 +64,7 @@ func (a *ImportActivities) importBoxscoresForDate(ctx context.Context, queries B
 		return result, nil
 	}
 
-	schedule, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+	schedule, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, scheduleRes)
 	if err != nil {
 		return result, fmt.Errorf("read daily schedule: %w", err)
 	}
@@ -108,7 +108,7 @@ func importSingleGame(ctx context.Context, storage store.Storage, gobCache *cach
 		return result, fmt.Errorf("boxscore file missing for game %s", gameID.String())
 	}
 
-	boxscore, origin, err := cache.ReadParsedCached(ctx, storage, gobCache, boxscoreRes)
+	boxscore, origin, err := gobCache.ReadParsedCached(ctx, storage, boxscoreRes)
 	if err != nil {
 		return result, fmt.Errorf("read boxscore for game %s: %w", gameID.String(), err)
 	}

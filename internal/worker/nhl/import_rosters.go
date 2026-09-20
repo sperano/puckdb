@@ -7,7 +7,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/matching"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -45,7 +44,7 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 			continue
 		}
 
-		roster, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
+		roster, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res)
 		if err != nil {
 			return fmt.Errorf("read roster cache for %s: %w", team.Abbrev, err)
 		}

@@ -7,7 +7,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/metrics"
@@ -42,7 +41,7 @@ func (a *ImportActivities) ImportPlayByPlayForDate(ctx context.Context, input Im
 		return result, nil
 	}
 
-	schedule, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+	schedule, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, scheduleRes)
 	if err != nil {
 		return result, fmt.Errorf("read daily schedule: %w", err)
 	}
@@ -59,7 +58,7 @@ func (a *ImportActivities) ImportPlayByPlayForDate(ctx context.Context, input Im
 			return result, fmt.Errorf("play-by-play file missing for game %s", game.ID.String())
 		}
 
-		pbp, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, pbpRes)
+		pbp, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, pbpRes)
 		if err != nil {
 			return result, fmt.Errorf("read play-by-play for game %s: %w", game.ID.String(), err)
 		}

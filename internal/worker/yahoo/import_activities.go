@@ -41,7 +41,7 @@ func (a *ImportActivities) ImportYahooLeague(ctx context.Context, input ImportYa
 		return result, nil
 	}
 
-	fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, leagueRes)
+	fantasy, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, leagueRes)
 	if err != nil {
 		return result, fmt.Errorf("read league file: %w", err)
 	}
@@ -182,7 +182,7 @@ func (a *ImportActivities) ImportYahooTeams(ctx context.Context, input ImportYah
 			continue
 		}
 
-		fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, teamRes)
+		fantasy, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, teamRes)
 		if err != nil {
 			return result, fmt.Errorf("read team file %d: %w", teamInfo.TeamID, err)
 		}
@@ -309,7 +309,7 @@ func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []Tea
 			continue
 		}
 
-		fantasy, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, summaryRes)
+		fantasy, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, summaryRes)
 		if err != nil {
 			log.Debug().Err(err).
 				Int("teamID", teamInfo.TeamID).
@@ -414,7 +414,7 @@ func (a *ImportActivities) collectRosterParams(ctx context.Context, teams []Team
 			continue
 		}
 
-		fantasy, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, rosterRes)
+		fantasy, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, rosterRes)
 		if err != nil {
 			log.Debug().Err(err).
 				Int("teamID", teamInfo.TeamID).
@@ -517,7 +517,7 @@ func (a *ImportActivities) importYahooTransactions(ctx context.Context, input Im
 		return 0, nil
 	}
 
-	fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
+	fantasy, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res)
 	if err != nil {
 		return 0, fmt.Errorf("read transactions cache: %w", err)
 	}
@@ -580,7 +580,7 @@ func (a *ImportActivities) importYahooDraftResults(ctx context.Context, input Im
 		return 0, nil
 	}
 
-	fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
+	fantasy, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res)
 	if err != nil {
 		return 0, fmt.Errorf("read draft results cache: %w", err)
 	}
@@ -665,7 +665,7 @@ func (a *ImportActivities) importYahooMatchups(ctx context.Context, input Import
 			continue // Week not cached; later weeks may still be present
 		}
 
-		fantasy, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
+		fantasy, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res)
 		if err != nil {
 			return totalImported, fmt.Errorf("read matchups week %d cache: %w", week, err)
 		}

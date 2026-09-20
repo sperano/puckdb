@@ -455,7 +455,7 @@ func countGameFilesSimple(ctx context.Context, storage store.Storage, gobCache *
 			continue
 		}
 
-		schedule, _, err := cache.ReadParsedCached(ctx, storage, gobCache, scheduleRes)
+		schedule, _, err := gobCache.ReadParsedCached(ctx, storage, scheduleRes)
 		if err != nil {
 			log.Warn().Err(err).Time("date", current).Msg("Error parsing daily-schedule file")
 			current = current.AddDate(0, 0, 1)

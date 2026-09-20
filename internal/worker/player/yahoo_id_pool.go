@@ -79,7 +79,7 @@ func parseYahooPlayerBatchImpl(ctx context.Context, storage store.Storage, gobCa
 
 	for _, id := range playerIDs {
 		playerRes := resource.YahooPlayer{PlayerID: id}
-		content, _, err := cache.ReadParsedCached(ctx, storage, gobCache, playerRes)
+		content, _, err := gobCache.ReadParsedCached(ctx, storage, playerRes)
 		if err != nil {
 			result.ReadErrors++
 			continue

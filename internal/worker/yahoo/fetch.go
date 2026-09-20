@@ -68,7 +68,7 @@ func (f Fetcher) Fetch(ctx context.Context, res Resource) (*store.FantasyContent
 // and also treated as a miss so the caller re-downloads it. Any other failure
 // (Redis or storage I/O) is returned rather than turned into a Yahoo download.
 func (f Fetcher) readCached(ctx context.Context, res Resource) (*store.FantasyContent, core.DataOrigin, error) {
-	content, origin, err := cache.ReadParsedCached(ctx, f.Storage, f.GobCache, res)
+	content, origin, err := f.GobCache.ReadParsedCached(ctx, f.Storage, res)
 	var parseErr *resource.ParseError
 	switch {
 	case err == nil:
@@ -110,7 +110,7 @@ func (f Fetcher) download(ctx context.Context, res Resource) (*store.FantasyCont
 
 	// Storage is the source of truth; a Redis write failure is not allowed to
 	// fail the fetch (the next read repopulates Redis from the file).
-	if err := cache.SetParsed(ctx, f.GobCache, res, content); err != nil && !errors.Is(err, cache.ErrNilCache) {
+	if err := f.GobCache.SetParsed(ctx, res, content); err != nil && !errors.Is(err, cache.ErrNilCache) {
 		log.Warn().Str("path", res.Path()).Err(err).Msg("gob cache write failed after Yahoo download; continuing")
 	}
 

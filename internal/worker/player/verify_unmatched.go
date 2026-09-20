@@ -253,7 +253,7 @@ func verifyPlayer(ctx context.Context, client shared.NHLClient, storage store.St
 func fetchPlayerLanding(ctx context.Context, client shared.NHLClient, storage store.Storage, gobCache *cache.GobCache, playerID nhl.PlayerID) (*nhl.PlayerLanding, error) {
 	landingRes := resource.PlayerLanding{PlayerID: playerID}
 	if storage.Exists(ctx, landingRes.Path()) {
-		landing, _, err := cache.ReadParsedCached(ctx, storage, gobCache, landingRes)
+		landing, _, err := gobCache.ReadParsedCached(ctx, storage, landingRes)
 		if err == nil {
 			return landing, nil
 		}

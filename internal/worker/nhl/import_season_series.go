@@ -6,7 +6,6 @@ import (
 	"time"
 
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/metrics"
@@ -43,7 +42,7 @@ func (a *ImportActivities) ImportSeasonSeriesForDate(ctx context.Context, input 
 		return result, nil
 	}
 
-	schedule, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+	schedule, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, scheduleRes)
 	if err != nil {
 		return result, fmt.Errorf("read schedule: %w", err)
 	}
@@ -100,7 +99,7 @@ func (a *ImportActivities) processSeasonSeries(
 		return stats, errors
 	}
 
-	matchup, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, seriesRes)
+	matchup, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, seriesRes)
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("game %d: read error: %v", gameID, err))
 		return stats, errors

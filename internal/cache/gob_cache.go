@@ -90,7 +90,7 @@ func (cache *GobCache) shouldCache(ft core.FileType) bool {
 
 // Get retrieves a gob-encoded object from the cache.
 // Returns (obj, true, nil) on hit, (zero, false, nil) on miss, (zero, false, err) on error.
-func Get[T any](cache *GobCache, ctx context.Context, key string) (T, bool, error) {
+func (cache *GobCache) Get[T any](ctx context.Context, key string) (T, bool, error) {
 	var zero T
 
 	if cache == nil || cache.client == nil {
@@ -119,15 +119,15 @@ func Get[T any](cache *GobCache, ctx context.Context, key string) (T, bool, erro
 }
 
 // Set stores a gob-encoded object in the cache using the default TTL.
-func Set[T any](cache *GobCache, ctx context.Context, key string, obj T) error {
+func (cache *GobCache) Set[T any](ctx context.Context, key string, obj T) error {
 	if cache == nil {
 		return ErrNilCache
 	}
-	return setWithTTL(cache, ctx, key, obj, cache.ttl)
+	return cache.setWithTTL(ctx, key, obj, cache.ttl)
 }
 
 // setWithTTL stores a gob-encoded object in the cache with an explicit TTL.
-func setWithTTL[T any](cache *GobCache, ctx context.Context, key string, obj T, ttl time.Duration) error {
+func (cache *GobCache) setWithTTL[T any](ctx context.Context, key string, obj T, ttl time.Duration) error {
 	if cache == nil || cache.client == nil {
 		return ErrNilCache
 	}
@@ -158,10 +158,9 @@ func (cache *GobCache) Delete(ctx context.Context, key string) error {
 // On cache miss: parses from storage and populates the cache.
 // Respects per-type config: if skip_redis is set for the resource's type,
 // the Redis layer is bypassed entirely and data is read from storage.
-func ReadParsedCached[T any](
+func (cache *GobCache) ReadParsedCached[T any](
 	ctx context.Context,
 	s store.Storage,
-	cache *GobCache,
 	r core.Parseable[T],
 ) (T, core.DataOrigin, error) {
 	ft := r.Type()
@@ -180,7 +179,7 @@ func ReadParsedCached[T any](
 
 	// Try gob cache first (fast path - no JSON parsing).
 	// A nil cache (ErrNilCache) degrades gracefully to storage reads.
-	obj, ok, err := Get[T](cache, ctx, key)
+	obj, ok, err := cache.Get[T](ctx, key)
 	if err != nil && !errors.Is(err, ErrNilCache) {
 		var zero T
 		return zero, core.OriginUnknown, fmt.Errorf("gob cache read: %w", err)
@@ -200,7 +199,7 @@ func ReadParsedCached[T any](
 	// best-effort cache write is not allowed to fail the read: log and continue.
 	// ErrNilCache is expected when the cache degrades gracefully — don't log it.
 	ttl := cache.resolveTTL(ft)
-	if err := setWithTTL(cache, ctx, key, obj, ttl); err != nil && !errors.Is(err, ErrNilCache) {
+	if err := cache.setWithTTL(ctx, key, obj, ttl); err != nil && !errors.Is(err, ErrNilCache) {
 		log.Warn().Str("key", key).Err(err).Msg("gob cache write failed after storage read; serving read result")
 	}
 
@@ -211,20 +210,19 @@ func ReadParsedCached[T any](
 // per-type skip_redis and TTL config. Use it when the raw bytes were written
 // to storage separately (e.g. Yahoo XML kept verbatim), so WriteParsedCached's
 // re-serialization is not wanted. A nil cache returns ErrNilCache.
-func SetParsed[T any](ctx context.Context, cache *GobCache, r core.Resource, obj T) error {
+func (cache *GobCache) SetParsed[T any](ctx context.Context, r core.Resource, obj T) error {
 	if cache != nil && !cache.shouldCache(r.Type()) {
 		return nil
 	}
-	return setWithTTL(cache, ctx, core.RedisKey(r), obj, cache.resolveTTL(r.Type()))
+	return cache.setWithTTL(ctx, core.RedisKey(r), obj, cache.resolveTTL(r.Type()))
 }
 
 // WriteParsedCached writes an object to storage and updates the gob cache.
 // This ensures cache consistency when data is modified.
 // Respects per-type config: if skip_redis is set, only the storage write happens.
-func WriteParsedCached[T any](
+func (cache *GobCache) WriteParsedCached[T any](
 	ctx context.Context,
 	s store.Storage,
-	cache *GobCache,
 	r core.Formattable[T],
 	obj T,
 ) error {
@@ -241,7 +239,7 @@ func WriteParsedCached[T any](
 	// Update cache with per-type TTL
 	key := core.RedisKey(r)
 	ttl := cache.resolveTTL(r.Type())
-	if err := setWithTTL(cache, ctx, key, obj, ttl); err != nil {
+	if err := cache.setWithTTL(ctx, key, obj, ttl); err != nil {
 		return fmt.Errorf("gob cache write: %w", err)
 	}
 

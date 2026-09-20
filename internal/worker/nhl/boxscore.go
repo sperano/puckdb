@@ -164,7 +164,7 @@ func (a *BoxscoreActivities) extractPlayoffPlayers(ctx context.Context, season i
 		}
 
 		boxscoreRes := resource.Boxscore{Date: pg.Date, GameID: pg.ID}
-		boxscore, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, boxscoreRes)
+		boxscore, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, boxscoreRes)
 		if err != nil {
 			continue
 		}
@@ -184,7 +184,7 @@ func (a *BoxscoreActivities) extractPlayersForDay(
 	counts := make(core.OriginCounts)
 
 	scheduleRes := resource.DailySchedule{Date: day}
-	schedule, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+	schedule, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, scheduleRes)
 	if err != nil {
 		return nil, counts, nil // No schedule for this day
 	}
@@ -199,7 +199,7 @@ func (a *BoxscoreActivities) extractPlayersForDay(
 		default:
 		}
 		boxscoreRes := resource.Boxscore{Date: day, GameID: game.ID}
-		boxscore, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, boxscoreRes)
+		boxscore, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, boxscoreRes)
 		if err != nil {
 			continue
 		}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -46,7 +45,7 @@ func (a *SeasonsActivities) importClubStats(ctx context.Context, queries ClubSta
 				continue
 			}
 
-			stats, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
+			stats, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res)
 			if err != nil {
 				return fmt.Errorf("read club stats cache for %s game type %d: %w", team.Abbrev, gameType, err)
 			}

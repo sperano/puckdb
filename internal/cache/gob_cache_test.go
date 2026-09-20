@@ -36,7 +36,7 @@ func TestGobCache_GetSet(t *testing.T) {
 	anyArgs := func(expected, actual []any) error { return nil }
 	mock.CustomMatch(anyArgs).ExpectSet(key, "x", 10*time.Minute).SetVal("OK")
 
-	err := Set(cache, ctx, key, data)
+	err := cache.Set(ctx, key, data)
 	require.NoError(t, err)
 
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -54,7 +54,7 @@ func TestGobCache_GetHit(t *testing.T) {
 	gobData := encodeGob(t, data)
 	mock.ExpectGet(key).SetVal(string(gobData))
 
-	result, ok, err := Get[*testData](cache, ctx, key)
+	result, ok, err := cache.Get[*testData](ctx, key)
 	require.NoError(t, err)
 	assert.True(t, ok)
 	require.NotNil(t, result)
@@ -73,7 +73,7 @@ func TestGobCache_GetMiss(t *testing.T) {
 
 	mock.ExpectGet(key).RedisNil()
 
-	result, ok, err := Get[*testData](cache, ctx, key)
+	result, ok, err := cache.Get[*testData](ctx, key)
 	require.NoError(t, err)
 	assert.False(t, ok)
 	assert.Nil(t, result)
@@ -84,15 +84,16 @@ func TestGobCache_GetMiss(t *testing.T) {
 func TestGobCache_NilCache(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
+	var nilCache *GobCache
 
 	// Get should return ErrNilCache
-	result, ok, err := Get[*testData](nil, ctx, "key")
+	result, ok, err := nilCache.Get[*testData](ctx, "key")
 	assert.ErrorIs(t, err, ErrNilCache)
 	assert.False(t, ok)
 	assert.Nil(t, result)
 
 	// Set should return ErrNilCache
-	err = Set[*testData](nil, ctx, "key", nil)
+	err = nilCache.Set[*testData](ctx, "key", nil)
 	assert.ErrorIs(t, err, ErrNilCache)
 }
 
@@ -160,7 +161,7 @@ func TestGobCache_GetCorruptData_DeletesAndReturnsMiss(t *testing.T) {
 	// Expect the corrupt key to be deleted
 	mock.ExpectDel(key).SetVal(1)
 
-	result, ok, err := Get[*testData](cache, ctx, key)
+	result, ok, err := cache.Get[*testData](ctx, key)
 	require.NoError(t, err)
 	assert.False(t, ok)
 	assert.Nil(t, result)
@@ -206,7 +207,7 @@ func TestReadParsedCached_CacheHit(t *testing.T) {
 	gobData := encodeGob(t, data)
 	mock.ExpectGet(testResourceRedisKey).SetVal(string(gobData))
 
-	result, origin, err := ReadParsedCached(ctx, store.NewMemStorage(), cache, testResource{})
+	result, origin, err := cache.ReadParsedCached(ctx, store.NewMemStorage(), testResource{})
 	require.NoError(t, err)
 	assert.Equal(t, core.OriginRedis, origin)
 	require.NotNil(t, result)
@@ -233,7 +234,7 @@ func TestReadParsedCached_CacheMiss(t *testing.T) {
 	anyArgs := func(expected, actual []any) error { return nil }
 	mock.CustomMatch(anyArgs).ExpectSet(testResourceRedisKey, "x", GobCacheTTL).SetVal("OK")
 
-	result, origin, err := ReadParsedCached(ctx, mem, cache, testResource{})
+	result, origin, err := cache.ReadParsedCached(ctx, mem, testResource{})
 	require.NoError(t, err)
 	assert.Equal(t, core.OriginFileSystem, origin)
 	require.NotNil(t, result)
@@ -254,7 +255,8 @@ func TestReadParsedCached_NilCache(t *testing.T) {
 
 	// A nil cache must degrade gracefully: ErrNilCache from Get is ignored,
 	// ErrNilCache from setWithTTL is also ignored.
-	result, origin, err := ReadParsedCached(ctx, mem, nil, testResource{})
+	var nilCache *GobCache
+	result, origin, err := nilCache.ReadParsedCached(ctx, mem, testResource{})
 	require.NoError(t, err)
 	assert.Equal(t, core.OriginFileSystem, origin)
 	require.NotNil(t, result)
@@ -273,7 +275,7 @@ func TestWriteParsedCached_Success(t *testing.T) {
 	mock.CustomMatch(anyArgs).ExpectSet(testResourceRedisKey, "x", GobCacheTTL).SetVal("OK")
 
 	obj := &testData{Name: "written", Value: 42}
-	err := WriteParsedCached(ctx, mem, cache, testResource{}, obj)
+	err := cache.WriteParsedCached(ctx, mem, testResource{}, obj)
 	require.NoError(t, err)
 
 	// Verify storage was also written.
@@ -299,7 +301,7 @@ func TestSetWithTTL_RedisError(t *testing.T) {
 	mock.CustomMatch(anyArgs).ExpectSet(key, "x", GobCacheTTL).SetErr(redisErr)
 
 	data := &testData{Name: "x", Value: 1}
-	err := setWithTTL(cache, ctx, key, data, GobCacheTTL)
+	err := cache.setWithTTL(ctx, key, data, GobCacheTTL)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "redis set")
 	assert.ErrorIs(t, err, redisErr)
@@ -317,7 +319,7 @@ func TestGet_RedisError(t *testing.T) {
 
 	mock.ExpectGet(key).SetErr(redisErr)
 
-	result, ok, err := Get[*testData](cache, ctx, key)
+	result, ok, err := cache.Get[*testData](ctx, key)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "redis get")
 	assert.ErrorIs(t, err, redisErr)
@@ -342,7 +344,7 @@ func TestReadParsedCached_SkipRedisConfig(t *testing.T) {
 	jsonBytes, _ := json.Marshal(&testData{Name: "skipredis", Value: 5})
 	mem.SetFile("test/resource.json", jsonBytes)
 
-	result, origin, err := ReadParsedCached(ctx, mem, cache, testResource{})
+	result, origin, err := cache.ReadParsedCached(ctx, mem, testResource{})
 	require.NoError(t, err)
 	assert.Equal(t, core.OriginFileSystem, origin)
 	require.NotNil(t, result)
@@ -360,7 +362,7 @@ func TestReadParsedCached_SkipRedisConfig_StorageError(t *testing.T) {
 	cache := NewGobCache(client, WithConfig(cfg))
 	ctx := context.Background()
 
-	_, origin, err := ReadParsedCached(ctx, store.NewMemStorage(), cache, testResource{})
+	_, origin, err := cache.ReadParsedCached(ctx, store.NewMemStorage(), testResource{})
 	assert.Error(t, err)
 	assert.Equal(t, core.OriginFileSystem, origin)
 }
@@ -373,7 +375,7 @@ func TestReadParsedCached_StorageErrorOnMiss(t *testing.T) {
 
 	mock.ExpectGet(testResourceRedisKey).RedisNil()
 
-	_, origin, err := ReadParsedCached(ctx, store.NewMemStorage(), cache, testResource{})
+	_, origin, err := cache.ReadParsedCached(ctx, store.NewMemStorage(), testResource{})
 	assert.Error(t, err)
 	assert.Equal(t, core.OriginFileSystem, origin)
 }
@@ -386,7 +388,7 @@ func TestReadParsedCached_RedisGetError(t *testing.T) {
 
 	mock.ExpectGet(testResourceRedisKey).SetErr(errors.New("connection reset"))
 
-	_, origin, err := ReadParsedCached(ctx, store.NewMemStorage(), cache, testResource{})
+	_, origin, err := cache.ReadParsedCached(ctx, store.NewMemStorage(), testResource{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "gob cache read")
 	assert.Equal(t, core.OriginUnknown, origin)
@@ -408,7 +410,7 @@ func TestReadParsedCached_CacheWriteError(t *testing.T) {
 
 	// A best-effort cache write failure must NOT fail a successful storage read:
 	// the read result is returned with OriginFileSystem and no error.
-	result, origin, err := ReadParsedCached(ctx, mem, cache, testResource{})
+	result, origin, err := cache.ReadParsedCached(ctx, mem, testResource{})
 	require.NoError(t, err)
 	assert.Equal(t, core.OriginFileSystem, origin)
 	require.NotNil(t, result)
@@ -431,7 +433,7 @@ func TestWriteParsedCached_SkipRedisConfig(t *testing.T) {
 	mem := store.NewMemStorage()
 
 	obj := &testData{Name: "skipwrite", Value: 9}
-	err := WriteParsedCached(ctx, mem, cache, testResource{}, obj)
+	err := cache.WriteParsedCached(ctx, mem, testResource{}, obj)
 	require.NoError(t, err)
 
 	stored := mem.Get("test/resource.json")
@@ -451,7 +453,7 @@ func TestSetParsed(t *testing.T) {
 		cache := NewGobCache(client, WithConfig(cfg))
 		mock.CustomMatch(anyArgs).ExpectSet(testResourceRedisKey, "x", typeTTL).SetVal("OK")
 
-		require.NoError(t, SetParsed(context.Background(), cache, testResource{}, obj))
+		require.NoError(t, cache.SetParsed(context.Background(), testResource{}, obj))
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -461,13 +463,14 @@ func TestSetParsed(t *testing.T) {
 		cfg := &GobCacheConfig{Types: map[core.FileType]GobCacheTypeConfig{core.Unknown: {SkipRedis: true}}}
 		cache := NewGobCache(client, WithConfig(cfg))
 
-		require.NoError(t, SetParsed(context.Background(), cache, testResource{}, obj))
+		require.NoError(t, cache.SetParsed(context.Background(), testResource{}, obj))
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("nil cache returns ErrNilCache", func(t *testing.T) {
 		t.Parallel()
-		err := SetParsed(context.Background(), nil, testResource{}, obj)
+		var nilCache *GobCache
+		err := nilCache.SetParsed(context.Background(), testResource{}, obj)
 		assert.ErrorIs(t, err, ErrNilCache)
 	})
 }
@@ -483,7 +486,7 @@ func TestWriteParsedCached_RedisSetError(t *testing.T) {
 	mock.CustomMatch(anyArgs).ExpectSet(testResourceRedisKey, "x", GobCacheTTL).SetErr(errors.New("disk full"))
 
 	obj := &testData{Name: "fail", Value: 0}
-	err := WriteParsedCached(ctx, mem, cache, testResource{}, obj)
+	err := cache.WriteParsedCached(ctx, mem, testResource{}, obj)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "gob cache write")
 

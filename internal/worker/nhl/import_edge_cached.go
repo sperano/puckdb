@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -80,7 +79,7 @@ func (a *SeasonsActivities) importEdgeTeamSkaters(ctx context.Context, scope edg
 	if !ok {
 		return 0, err
 	}
-	return importEdgeRosterDetails(ctx, a, edgeKindSkater, team, slices.Concat(roster.Forwards, roster.Defensemen),
+	return a.importEdgeRosterDetails(ctx, edgeKindSkater, team, slices.Concat(roster.Forwards, roster.Defensemen),
 		func(id nhlapi.PlayerID) core.Parseable[*nhlapi.EdgeSkaterDetail] {
 			return resource.EdgeSkaterDetail{PlayerID: id, Season: scope.season, GameType: scope.gameType}
 		},
@@ -95,7 +94,7 @@ func (a *SeasonsActivities) importEdgeTeamGoalies(ctx context.Context, scope edg
 	if !ok {
 		return 0, err
 	}
-	return importEdgeRosterDetails(ctx, a, edgeKindGoalie, team, roster.Goalies,
+	return a.importEdgeRosterDetails(ctx, edgeKindGoalie, team, roster.Goalies,
 		func(id nhlapi.PlayerID) core.Parseable[*nhlapi.EdgeGoalieDetail] {
 			return resource.EdgeGoalieDetail{GoalieID: id, Season: scope.season, GameType: scope.gameType}
 		},
@@ -107,7 +106,7 @@ func (a *SeasonsActivities) importEdgeTeamGoalies(ctx context.Context, scope edg
 // importEdgeTeamStats imports the team's cached Edge detail.
 func (a *SeasonsActivities) importEdgeTeamStats(ctx context.Context, scope edgeImportScope, team edgeTeam) (int, error) {
 	res := resource.EdgeTeamDetail{TeamID: team.id, Season: scope.season, GameType: scope.gameType}
-	return importCachedEdgeDetail(ctx, a, edgeKindTeam, team.abbrev, res, func(ctx context.Context, detail *nhlapi.EdgeTeamDetail) error {
+	return a.importCachedEdgeDetail(ctx, edgeKindTeam, team.abbrev, res, func(ctx context.Context, detail *nhlapi.EdgeTeamDetail) error {
 		return importEdgeTeamDetail(ctx, a.EdgeQueries, detail, int64(team.id), scope.seasonID, scope.gtLabel)
 	})
 }
@@ -115,7 +114,7 @@ func (a *SeasonsActivities) importEdgeTeamStats(ctx context.Context, scope edgeI
 // importEdgeTeamZoneTimeDetails imports the team's cached zone time details.
 func (a *SeasonsActivities) importEdgeTeamZoneTimeDetails(ctx context.Context, scope edgeImportScope, team edgeTeam) (int, error) {
 	res := resource.EdgeTeamZoneTimeDetails{TeamID: team.id, Season: scope.season, GameType: scope.gameType}
-	return importCachedEdgeDetail(ctx, a, edgeKindTeamZoneTime, team.abbrev, res, func(ctx context.Context, detail *nhlapi.EdgeTeamZoneTimeDetails) error {
+	return a.importCachedEdgeDetail(ctx, edgeKindTeamZoneTime, team.abbrev, res, func(ctx context.Context, detail *nhlapi.EdgeTeamZoneTimeDetails) error {
 		return importEdgeTeamZoneTime(ctx, a.EdgeQueries, detail, int64(team.id), scope.seasonID, scope.gtLabel)
 	})
 }
@@ -137,9 +136,8 @@ func (a *SeasonsActivities) edgeRoster(ctx context.Context, scope edgeImportScop
 
 // importEdgeRosterDetails imports the cached Edge detail of each player and
 // returns how many were imported.
-func importEdgeRosterDetails[T any](
+func (a *SeasonsActivities) importEdgeRosterDetails[T any](
 	ctx context.Context,
-	a *SeasonsActivities,
 	kind string,
 	team edgeTeam,
 	players []nhlapi.RosterPlayer,
@@ -150,7 +148,7 @@ func importEdgeRosterDetails[T any](
 	for _, player := range players {
 		id := player.ID
 		subject := fmt.Sprintf("%s:%d", team.abbrev, id)
-		n, err := importCachedEdgeDetail(ctx, a, kind, subject, resourceFor(id), func(ctx context.Context, detail T) error {
+		n, err := a.importCachedEdgeDetail(ctx, kind, subject, resourceFor(id), func(ctx context.Context, detail T) error {
 			return upsert(ctx, id, detail)
 		})
 		if err != nil {
@@ -171,9 +169,8 @@ func importEdgeRosterDetails[T any](
 // Every call heartbeats before touching storage: a heartbeat is both what
 // keeps a slow import alive past the heartbeat timeout and the only channel
 // through which Temporal delivers cancellation to the activity context.
-func importCachedEdgeDetail[T any](
+func (a *SeasonsActivities) importCachedEdgeDetail[T any](
 	ctx context.Context,
-	a *SeasonsActivities,
 	kind, subject string,
 	res core.Parseable[T],
 	upsert func(context.Context, T) error,
@@ -187,7 +184,7 @@ func importCachedEdgeDetail[T any](
 		return 0, nil
 	}
 
-	detail, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
+	detail, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return 0, fmt.Errorf("import edge %s %s: %w", kind, subject, ctxErr)

@@ -90,7 +90,7 @@ func (a *PlayoffActivities) FetchTeamPlayoffGames(ctx context.Context, input Fet
 	// calendar-based gate (IsCurrentSeason) is wrong here: nhl.Current() rolls
 	// over on July 1, which froze mid-playoff caches fetched in May once the
 	// next sync ran in the offseason.
-	if cached, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res); err == nil && scheduleIncomplete(cached) {
+	if cached, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res); err == nil && scheduleIncomplete(cached) {
 		log.Debug().Str("team", input.TeamAbbrev).Int("season", input.Season).
 			Msg("Cached club schedule has non-final games, refetching")
 		_ = a.Storage.Delete(ctx, res.Path())
@@ -203,7 +203,7 @@ func (a *PlayoffActivities) ImportTeamPlayoffGames(ctx context.Context, input Im
 		return result, nil
 	}
 
-	schedule, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, res)
+	schedule, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res)
 	if err != nil {
 		return result, fmt.Errorf("read club schedule for %s: %w", input.TeamAbbrev, err)
 	}
@@ -255,7 +255,7 @@ func collectPlayoffGames(ctx context.Context, storage store.Storage, gobCache *c
 		}
 
 		res := resource.ClubScheduleSeason{Season: season, TeamAbbrev: abbrev}
-		schedule, _, err := cache.ReadParsedCached(ctx, storage, gobCache, res)
+		schedule, _, err := gobCache.ReadParsedCached(ctx, storage, res)
 		if err != nil {
 			return nil, fmt.Errorf("read club schedule for %s: %w", abbrev, err)
 		}

@@ -17,7 +17,7 @@ func GetSeasons(
 	gobCache *GobCache,
 ) ([]nhl.SeasonInfo, core.DataOrigin, error) {
 	logger := activity.GetLogger(ctx)
-	seasons, origin, err := ReadParsedCached(ctx, storage, gobCache, resource.SeasonsManifest{})
+	seasons, origin, err := gobCache.ReadParsedCached(ctx, storage, resource.SeasonsManifest{})
 	if err != nil {
 		return nil, origin, fmt.Errorf("read seasons from %s: %w", origin, err)
 	}

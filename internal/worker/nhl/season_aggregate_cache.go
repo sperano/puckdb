@@ -89,7 +89,7 @@ func gameTypeCounted(gameType nhlapi.GameType, gameTypes []nhlapi.GameType) bool
 // import.
 func readCachedClubSchedule(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season int, teamAbbrev string) *nhlapi.TeamScheduleResponse {
 	res := resource.ClubScheduleSeason{Season: season, TeamAbbrev: teamAbbrev}
-	schedule, _, err := cache.ReadParsedCached(ctx, storage, gobCache, res)
+	schedule, _, err := gobCache.ReadParsedCached(ctx, storage, res)
 	if err != nil {
 		return nil
 	}

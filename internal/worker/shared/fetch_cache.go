@@ -21,7 +21,7 @@ func FetchOrCache[T any](
 	r core.ReadWritable[T],
 	fetch func(ctx context.Context) (T, error),
 ) (T, core.DataOrigin, error) {
-	obj, origin, err := cache.ReadParsedCached(ctx, s, gobCache, r)
+	obj, origin, err := gobCache.ReadParsedCached(ctx, s, r)
 	if err == nil {
 		metrics.IncDownload(r.Type(), metrics.ResultHit)
 		return obj, origin, nil
@@ -48,7 +48,7 @@ func FetchAndCache[T any](
 		return zero, core.OriginUnknown, err
 	}
 
-	if writeErr := cache.WriteParsedCached(ctx, s, gobCache, r, obj); writeErr != nil {
+	if writeErr := gobCache.WriteParsedCached(ctx, s, r, obj); writeErr != nil {
 		var zero T
 		metrics.IncDownload(r.Type(), metrics.ResultError)
 		return zero, core.OriginUnknown, fmt.Errorf("write %s to cache: %w", r.Type(), writeErr)

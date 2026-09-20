@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/metrics"
@@ -41,7 +40,7 @@ func (a *ImportActivities) ImportShiftChartForDate(ctx context.Context, input Im
 		return result, nil
 	}
 
-	schedule, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scheduleRes)
+	schedule, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, scheduleRes)
 	if err != nil {
 		return result, fmt.Errorf("read daily schedule: %w", err)
 	}
@@ -58,7 +57,7 @@ func (a *ImportActivities) ImportShiftChartForDate(ctx context.Context, input Im
 			return result, fmt.Errorf("shift chart file missing for game %s", game.ID.String())
 		}
 
-		sc, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, scRes)
+		sc, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, scRes)
 		if err != nil {
 			return result, fmt.Errorf("read shift chart for game %s: %w", game.ID.String(), err)
 		}

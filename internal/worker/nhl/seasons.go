@@ -77,7 +77,7 @@ type FetchSeasonsManifestResult struct {
 // If the API fails but stale filesystem data exists, falls back to stale data.
 func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *model.SeasonsInput) (FetchSeasonsManifestResult, error) {
 	// Layer 1: Redis gob cache (fastest, short-lived)
-	if response, ok, _ := cache.Get[nhlapi.SeasonsResponse](a.GobCache, ctx, redisSeasonsManifestKey); ok {
+	if response, ok, _ := a.GobCache.Get[nhlapi.SeasonsResponse](ctx, redisSeasonsManifestKey); ok {
 		log.Debug().Int("count", len(response.Seasons)).Msg("Seasons manifest loaded from Redis")
 		metrics.IncDownload(core.SeasonsManifest, metrics.ResultRedisHit)
 		return FetchSeasonsManifestResult{
@@ -281,7 +281,7 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhlapi
 	result := UpsertSeasonTeamsResult{Season: season}
 
 	standingsRes := resource.SeasonStandings{Season: season}
-	standings, _, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, standingsRes)
+	standings, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, standingsRes)
 	if err != nil {
 		return result, fmt.Errorf("read season standings from cache: %w", err)
 	}
@@ -315,7 +315,7 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhlapi
 
 // gobCacheSeasons stores the seasons manifest in Redis using gob encoding.
 func gobCacheSeasons(ctx context.Context, gobCache *cache.GobCache, response nhlapi.SeasonsResponse) {
-	if err := cache.Set(gobCache, ctx, redisSeasonsManifestKey, response); err != nil && !errors.Is(err, cache.ErrNilCache) {
+	if err := gobCache.Set(ctx, redisSeasonsManifestKey, response); err != nil && !errors.Is(err, cache.ErrNilCache) {
 		log.Warn().Err(err).Msg("Failed to cache seasons manifest in Redis")
 	}
 }

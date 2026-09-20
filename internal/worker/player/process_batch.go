@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/matching"
 	"github.com/sperano/puckdb/internal/metrics"
@@ -92,7 +91,7 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 		}
 
 		landingRes := resource.PlayerLanding{PlayerID: playerID}
-		landing, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, landingRes)
+		landing, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, landingRes)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("player %d: read error: %v", p.ID, err))
 			continue

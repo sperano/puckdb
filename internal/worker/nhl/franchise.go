@@ -68,7 +68,7 @@ type UpsertFranchisesResult struct {
 func (a *FranchiseActivities) UpsertFranchises(ctx context.Context) (UpsertFranchisesResult, error) {
 	logger := activity.GetLogger(ctx)
 
-	franchises, origin, err := cache.ReadParsedCached(ctx, a.Storage, a.GobCache, resource.Franchises{})
+	franchises, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, resource.Franchises{})
 	if err != nil {
 		return UpsertFranchisesResult{}, fmt.Errorf("read franchises from %s: %w", origin, err)
 	}
