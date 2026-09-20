@@ -29,11 +29,11 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 ```
 
 **GraphQL code generation:**
-1. Edit `graph/schema.graphqls` (schema, types, queries, mutations)
+1. Edit `internal/graph/schema.graphqls` (schema, types, queries, mutations)
 2. Run `go tool gqlgen generate` from puckdb directory
-3. Generated files: `graph/generated/generated.go`, `graph/model/models_gen.go`
-4. New resolvers appear as `panic("not implemented")` stubs in `graph/schema.resolvers.go`
-5. Implement resolver logic in `graph/resolver.go` (private methods like `fetchPlayerLandings`)
+3. Generated files: `internal/graph/generated/generated.go`, `internal/graph/model/models_gen.go`
+4. New resolvers appear as `panic("not implemented")` stubs in `internal/graph/schema.resolvers.go`
+5. Implement resolver logic in `internal/graph/resolver.go` (private methods like `fetchPlayerLandings`)
 6. Update `schema.resolvers.go` stubs to call the new `resolver.go` methods
 
 ## CLI Commands
@@ -57,33 +57,35 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 
 ## Package Structure
 
+Only `main.go` and `cmd/` live at the module root; every library package sits under `internal/`, which the Go toolchain prevents other modules from importing.
+
 | Package | Purpose |
 |---------|---------|
 | `cmd/` | CLI commands (Cobra + Viper) |
-| `worker/` | Temporal workflows and activities, split into `workflow/` (top-level workflows), `nhl/`, `yahoo/`, `player/`, `admin/`, `shared/` |
-| `graph/` | GraphQL resolvers and schema (gqlgen) |
-| `database/` | PostgreSQL connection (pgx), migrations |
-| `sqlcdb/` | sqlc-generated type-safe queries |
-| `cache/` | File-based caching, XML/JSON parsing |
-| `store/` | Storage backends (filesystem, in-memory, instrumented) for raw cached files |
-| `resource/` | Typed resource definitions (NHL/Yahoo paths, URLs, parse/format) |
-| `core/` | Shared primitives: file types, data origins, time helpers, resource interfaces |
-| `config/` | Flags, defaults, seasons YAML parsing |
-| `httpx/` | HTTP client, Yahoo API URL builders |
-| `metrics/` | Prometheus metrics |
-| `temporal/` | Temporal client configuration |
-| `matching/` | NHL ↔ Yahoo player matching |
-| `llm/` | LLM client (used by player enrichment / Maurice) |
-| `maurice/` | Prompt + service layer built on top of `llm/` |
-| `mcp/` | MCP client (used by Maurice to call tool servers) |
-| `mcpserver/` | MCP server exposing curated read-only data tools (`mcp-server` command) |
+| `internal/worker/` | Temporal workflows and activities, split into `workflow/` (top-level workflows), `nhl/`, `yahoo/`, `player/`, `admin/`, `shared/` |
+| `internal/graph/` | GraphQL resolvers and schema (gqlgen) |
+| `internal/database/` | PostgreSQL connection (pgx), migrations |
+| `internal/sqlcdb/` | sqlc-generated type-safe queries |
+| `internal/cache/` | File-based caching, XML/JSON parsing |
+| `internal/store/` | Storage backends (filesystem, in-memory, instrumented) for raw cached files |
+| `internal/resource/` | Typed resource definitions (NHL/Yahoo paths, URLs, parse/format) |
+| `internal/core/` | Shared primitives: file types, data origins, time helpers, resource interfaces |
+| `internal/config/` | Flags, defaults, seasons YAML parsing |
+| `internal/httpx/` | HTTP client, Yahoo API URL builders |
+| `internal/metrics/` | Prometheus metrics |
+| `internal/temporal/` | Temporal client configuration |
+| `internal/matching/` | NHL ↔ Yahoo player matching |
+| `internal/llm/` | LLM client (used by player enrichment / Maurice) |
+| `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
+| `internal/mcp/` | MCP client (used by Maurice to call tool servers) |
+| `internal/mcpserver/` | MCP server exposing curated read-only data tools (`mcp-server` command) |
 | `tls/` | TLS certificates for internal services (gitignored) |
 
 Non-Go directories: `docs/` (design notes, runbooks), `examples/` (sample pool-simulation and gob-cache configs), `scripts/` (operational shell scripts), `.docker/` (compose-only config for Temporal and Grafana provisioning).
 
 ### Active Workflows
 
-Defined in `worker/workflow/`:
+Defined in `internal/worker/workflow/`:
 - `FetchSeasonsWorkflow` / `FetchSeasonWorkflow` — NHL season data (parent + child)
 - `ImportSeasonsWorkflow` / `ImportSeasonWorkflow` — Parse cached files into Postgres
 - `FetchPlayerLogsWorkflow` / `FetchSeasonPlayerLogsWorkflow` — Per-player game logs
@@ -96,7 +98,7 @@ Defined in `worker/workflow/`:
 - `ImportEdgeSeasonsWorkflow` / `ImportEdgeWorkflow` — Import cached Edge data into Postgres
 - `InitializeWorkflow` — Database initialization
 
-Defined in `worker/admin/`:
+Defined in `internal/worker/admin/`:
 - `DropDatabaseWorkflow`, `MigrateDatabaseWorkflow`, `ResetDatabaseWorkflow`, `FlushRedisWorkflow`
 
 Task queue: `puckdb-tasks`
@@ -155,7 +157,7 @@ func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core
 
 ### Configuration Inside Workflow Code
 
-Workflow code must never read viper flags or config files directly. Any setting that shapes the command sequence (concurrency, batch sizes, which Yahoo leagues to process) is resolved **once at the start of the workflow** through `shared.SnapshotConfig` / `shared.SnapshotConfigInt`, which records the value in history via `SideEffect` so a replay after a worker restart reuses it instead of re-reading changed local settings. ContinueAsNew runs carry the snapshot in their input (see `FetchYahooPlayersInput.Config`). Activity options (timeouts, retry policy) are not part of the determinism check and may stay live. Reference: `worker/workflow/season_config.go`.
+Workflow code must never read viper flags or config files directly. Any setting that shapes the command sequence (concurrency, batch sizes, which Yahoo leagues to process) is resolved **once at the start of the workflow** through `shared.SnapshotConfig` / `shared.SnapshotConfigInt`, which records the value in history via `SideEffect` so a replay after a worker restart reuses it instead of re-reading changed local settings. ContinueAsNew runs carry the snapshot in their input (see `FetchYahooPlayersInput.Config`). Activity options (timeouts, retry policy) are not part of the determinism check and may stay live. Reference: `internal/worker/workflow/season_config.go`.
 
 ## External Services
 
@@ -176,7 +178,7 @@ Workflow code must never read viper flags or config files directly. Any setting 
 
 ## Configuration Conventions
 
-Flags follow a strict pattern in `config/`:
+Flags follow a strict pattern in `internal/config/`:
 
 1. **Flag names** → constants in `flags.go` (e.g., `FlagAPIPort = "api-port"`)
 2. **Defaults** → constants in `defaults.go` (e.g., `DefaultAPIPort = 8787`)
@@ -188,7 +190,7 @@ Season config: `seasons.yaml` (start/end dates, game keys, league IDs, team IDs)
 
 ## GraphQL API
 
-Schema lives in `graph/schema.graphqls`. Each long-running workflow follows the same pattern: a `start` mutation, a matching `cancel*` mutation, a `*Result` query, and a `*Progress` query.
+Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow follows the same pattern: a `start` mutation, a matching `cancel*` mutation, a `*Result` query, and a `*Progress` query.
 
 **Workflow mutations** (each has a paired `cancel<Name>`):
 - `initialize` — Database initialization
@@ -207,13 +209,13 @@ Schema lives in `graph/schema.graphqls`. Each long-running workflow follows the 
 
 **Workflow queries:** for every workflow above, `<name>Result: WorkflowResult!` and `<name>Progress: ProgressReport`. `processPlayers` additionally exposes `processPlayersResultData: ProcessPlayersResultData`.
 
-**Data queries** (in `graph/data.graphqls`): `seasons`, `teams`, `players`, `games`, `standings`, `boxscore`, `skaterGameLog`, `goalieGameLog`, `playerSeasonTotals`, `edgeSkaterStats`, `edgeGoalieStats`, `edgeTeamStats`
+**Data queries** (in `internal/graph/data.graphqls`): `seasons`, `teams`, `players`, `games`, `standings`, `boxscore`, `skaterGameLog`, `goalieGameLog`, `playerSeasonTotals`, `edgeSkaterStats`, `edgeGoalieStats`, `edgeTeamStats`
 
 **Other queries:** `buildNumber`, `yahooTokenStatus`, `mauriceConversations(limit)`, `mauriceConversation(id)`
 
 ## Metrics
 
-The Prometheus registry is split in three (see `metrics/metrics.go`):
+The Prometheus registry is split in three (see `internal/metrics/metrics.go`):
 - **Worker** registry — exposed by `worker` on `/metrics` (port 8788)
 - **API** registry — exposed by `api` middleware
 - **Collector** registry — exposed by the standalone `metrics` command, which scrapes cache/Redis/DB state
@@ -393,11 +395,11 @@ Interactive REPL for querying hockey data via natural language. Connects to an L
 | Component | File | Purpose |
 |-----------|------|---------|
 | CLI entry | `cmd/maurice.go` | REPL loop, `/model` `/history` `/load` `/new` commands |
-| Service | `maurice/service.go` | Chat orchestration, tool call loop (max 10 rounds), conversation persistence |
-| Prompt | `maurice/prompt.go` | System prompt (instructs LLM to query DB, not guess) |
-| LLM clients | `llm/client.go`, `llm/anthropic.go` | OpenAI-compatible (Ollama/OpenAI) and Anthropic clients |
-| Provider detection | `llm/provider.go` | Auto-detects Anthropic vs OpenAI-compatible from API key/URL |
-| MCP integration | `mcp/` | Connects to puckdb MCP server for database tool calls |
+| Service | `internal/maurice/service.go` | Chat orchestration, tool call loop (max 10 rounds), conversation persistence |
+| Prompt | `internal/maurice/prompt.go` | System prompt (instructs LLM to query DB, not guess) |
+| LLM clients | `internal/llm/client.go`, `internal/llm/anthropic.go` | OpenAI-compatible (Ollama/OpenAI) and Anthropic clients |
+| Provider detection | `internal/llm/provider.go` | Auto-detects Anthropic vs OpenAI-compatible from API key/URL |
+| MCP integration | `internal/mcp/` | Connects to puckdb MCP server for database tool calls |
 | Persistence | `~/.puckdb/maurice.db` | SQLite for conversation history |
 
 ### Configuration
@@ -439,10 +441,10 @@ Tests that need a real PostgreSQL read `PUCKDB_TEST_PG_URL` and skip when it is 
 ```bash
 docker run -d --rm --name puckdb-test-pg -e POSTGRES_USER=puckdb -e POSTGRES_PASSWORD=foo \
   -e POSTGRES_DB=puckdb_test -p 15433:5432 postgres:16-alpine
-PUCKDB_TEST_PG_URL='postgres://puckdb:foo@localhost:15433/puckdb_test?sslmode=disable' go test ./maurice/
+PUCKDB_TEST_PG_URL='postgres://puckdb:foo@localhost:15433/puckdb_test?sslmode=disable' go test ./internal/maurice/
 ```
 
-`maurice/dbcontract_test.go` is the shared persistence contract for the Maurice `DB` implementations; SQLite runs it in-memory on every `go test`, PostgreSQL runs it only with the env var set. Any behaviour change to one adapter must keep both passing.
+`internal/maurice/dbcontract_test.go` is the shared persistence contract for the Maurice `DB` implementations; SQLite runs it in-memory on every `go test`, PostgreSQL runs it only with the env var set. Any behaviour change to one adapter must keep both passing.
 
 ### Serialization Error Handling
 

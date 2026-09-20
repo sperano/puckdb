@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

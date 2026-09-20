@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/core"
-	"github.com/sperano/puckdb/store"
-	"github.com/sperano/puckdb/worker/asset"
+	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/store"
+	"github.com/sperano/puckdb/internal/worker/asset"
 	"github.com/stretchr/testify/require"
 )
 

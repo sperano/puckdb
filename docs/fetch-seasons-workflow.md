@@ -58,7 +58,7 @@ GraphQL mutation: fetchSeasons(input)  ─or─  CLI: sync command
 
 ### 1. FetchSeasonsWorkflow (the parent)
 
-**File:** `worker/workflow_fetch_seasons.go`
+**File:** `internal/worker/workflow_fetch_seasons.go`
 
 1. **Calls activity `FetchSeasonsManifest`** — resolves which seasons to fetch using a 3-layer cache with staleness: Redis (1h TTL) → Filesystem (24h staleness TTL, with stale fallback on API failure) → NHL API. Returns `[]nhl.SeasonInfo`.
 2. **Calls activity `ClearProgressActivity`** — clears stale Redis progress keys for all child workflow IDs (e.g., `"fetch-season-2023"`, `"fetch-season-2024"`).
@@ -66,7 +66,7 @@ GraphQL mutation: fetchSeasons(input)  ─or─  CLI: sync command
 
 ### 2. FetchSeasonWorkflow (one per season)
 
-**File:** `worker/workflow_fetch_season.go`
+**File:** `internal/worker/workflow_fetch_season.go`
 
 For a single season (e.g., 2023-2024):
 
@@ -76,7 +76,7 @@ For a single season (e.g., 2023-2024):
 
 ### 3. FetchDayActivity (one per day — activity, not a workflow)
 
-**File:** `worker/activity_fetch_day.go`
+**File:** `internal/worker/activity_fetch_day.go`
 
 This is a single Temporal activity that internally does several things:
 
@@ -148,7 +148,7 @@ If a standalone activity (Pattern 1) were refactored to be a method on a struct 
 
 ### Interfaces
 
-#### `dayFetcher` — `worker/activity_fetch_day.go`
+#### `dayFetcher` — `internal/worker/activity_fetch_day.go`
 
 ```go
 type dayFetcher interface {
@@ -160,7 +160,7 @@ type dayFetcher interface {
 
 Used by `FetchDayActivity` — bundles everything needed to fetch one day's worth of data.
 
-#### `teamFetcher` — `worker/activity_fetch_teams.go`
+#### `teamFetcher` — `internal/worker/activity_fetch_teams.go`
 
 ```go
 type teamFetcher interface {
@@ -170,7 +170,7 @@ type teamFetcher interface {
 
 Used by `FetchTeamsActivity` — abstracts downloading a single Yahoo team page.
 
-#### `NHLClient` — `worker/download.go`
+#### `NHLClient` — `internal/worker/download.go`
 
 ```go
 type NHLClient interface {
@@ -191,7 +191,7 @@ type NHLClient interface {
 
 Abstracts the NHL API. Has a compile-time check: `var _ NHLClient = (*nhl.Client)(nil)`.
 
-#### `Downloader` function type — `worker/download.go`
+#### `Downloader` function type — `internal/worker/download.go`
 
 ```go
 type Downloader func(url string) ([]byte, error)
@@ -267,7 +267,7 @@ Production:  FetchDayActivity → builds realDayFetcher → calls fetchDay(fetch
 Testing:     TestFetchDay     → builds MockDayFetcher → calls fetchDay(fetcher, ...)
 ```
 
-Mock implementations in `worker/mocks_test.go` use `testify/mock`. A simpler manual mock for `teamFetcher` in `worker/activity_fetch_teams_test.go` records calls and can inject errors at specific indices.
+Mock implementations in `internal/worker/mocks_test.go` use `testify/mock`. A simpler manual mock for `teamFetcher` in `internal/worker/activity_fetch_teams_test.go` records calls and can inject errors at specific indices.
 
 ### 3-Layer Cache (inside `DailyScheduleActivities`)
 

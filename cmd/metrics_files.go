@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sperano/puckdb/core"
+	"github.com/sperano/puckdb/internal/core"
 )
 
 // fileTypeStats holds count and size for a file type. Populated by

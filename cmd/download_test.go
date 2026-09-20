@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/internal/graph/model"
 )
 
 func TestGraphQLClient_Execute(t *testing.T) {

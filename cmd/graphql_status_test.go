@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/internal/graph/model"
 )
 
 // TestProgressReportStatusQueries tests all status methods that use executeProgressReportQuery.

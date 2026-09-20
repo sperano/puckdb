@@ -41,17 +41,17 @@ mcp_servers:
 
 | File | Purpose |
 |------|---------|
-| `maurice/config.go` | Parse `maurice.yaml`, MCP server list with optional tool whitelist |
-| `mcp/multi_client.go` | Unions tools from multiple MCP clients, routes calls by name |
-| `mcpserver/server.go` | MCP server constructor + `RegisterAll` |
-| `mcpserver/format.go` | JSON/CSV result formatters, pgtype unwrapping |
-| `mcpserver/tools_resolve.go` | Resolution tools (search/find by name) |
-| `mcpserver/tools_players.go` | Player detail/stats tools |
-| `mcpserver/tools_games.go` | Game/schedule tools |
-| `mcpserver/tools_stats.go` | Skater/goalie stats tools |
-| `mcpserver/tools_standings.go` | Standings tools |
-| `mcpserver/tools_fantasy.go` | Fantasy analysis tools |
-| `mcpserver/server_test.go` | Tests |
+| `internal/maurice/config.go` | Parse `maurice.yaml`, MCP server list with optional tool whitelist |
+| `internal/mcp/multi_client.go` | Unions tools from multiple MCP clients, routes calls by name |
+| `internal/mcpserver/server.go` | MCP server constructor + `RegisterAll` |
+| `internal/mcpserver/format.go` | JSON/CSV result formatters, pgtype unwrapping |
+| `internal/mcpserver/tools_resolve.go` | Resolution tools (search/find by name) |
+| `internal/mcpserver/tools_players.go` | Player detail/stats tools |
+| `internal/mcpserver/tools_games.go` | Game/schedule tools |
+| `internal/mcpserver/tools_stats.go` | Skater/goalie stats tools |
+| `internal/mcpserver/tools_standings.go` | Standings tools |
+| `internal/mcpserver/tools_fantasy.go` | Fantasy analysis tools |
+| `internal/mcpserver/server_test.go` | Tests |
 | `cmd/mcp_server.go` | `puckdb mcp-server` subcommand (postgres flags + HTTP serve) |
 
 ### Modified Files
@@ -60,8 +60,8 @@ mcp_servers:
 |------|--------|
 | `cmd/maurice.go` | Load config, create MultiClient from server list |
 | `cmd/root.go` | Register `mcp-server` subcommand |
-| `config/flags.go` | Replace `maurice-mcp-url` with `maurice-config` flag |
-| `config/defaults.go` | Default config path (`~/.puckdb/maurice.yaml`) |
+| `internal/config/flags.go` | Replace `maurice-mcp-url` with `maurice-config` flag |
+| `internal/config/defaults.go` | Default config path (`~/.puckdb/maurice.yaml`) |
 
 ## Tool Inventory (~45 tools)
 
@@ -143,32 +143,32 @@ mcp_servers:
 ## Phases
 
 ### Phase 1: Infrastructure ✅
-- [x] `maurice/config.go` — parse `maurice.yaml`
-- [x] `mcp/multi_client.go` — MultiClient with tool whitelisting
-- [x] `mcp/client.go` — added NoopClient for empty config
-- [x] `mcpserver/server.go` — server skeleton with tool registration
-- [x] `mcpserver/format.go` — JSON/CSV formatters with pgtype unwrapping
-- [x] `mcpserver/tools_resolve.go` — 5 resolution tools (search_player, find_team, list_teams, list_seasons, list_franchises)
+- [x] `internal/maurice/config.go` — parse `maurice.yaml`
+- [x] `internal/mcp/multi_client.go` — MultiClient with tool whitelisting
+- [x] `internal/mcp/client.go` — added NoopClient for empty config
+- [x] `internal/mcpserver/server.go` — server skeleton with tool registration
+- [x] `internal/mcpserver/format.go` — JSON/CSV formatters with pgtype unwrapping
+- [x] `internal/mcpserver/tools_resolve.go` — 5 resolution tools (search_player, find_team, list_teams, list_seasons, list_franchises)
 - [x] `cmd/mcp_server.go` — `puckdb mcp-server` command (stdio + HTTP)
 - [x] `cmd/maurice.go` — load config, use MultiClient via `buildMCPClient()`
 - [x] `cmd/api.go` — updated to use config-based MCP client
-- [x] `config/flags.go` — replaced `maurice-mcp-url` with `maurice-config`
-- [x] `config/defaults.go` — updated defaults
+- [x] `internal/config/flags.go` — replaced `maurice-mcp-url` with `maurice-config`
+- [x] `internal/config/defaults.go` — updated defaults
 
 ### Phase 2: Player Tools ✅
-- [x] `mcpserver/tools_resolve.go` — 5 resolution tools (moved to Phase 1)
-- [x] `mcpserver/tools_players.go` — 8 player tools
-- [x] `mcpserver/format.go` — added nullable enum handling (Null* structs)
+- [x] `internal/mcpserver/tools_resolve.go` — 5 resolution tools (moved to Phase 1)
+- [x] `internal/mcpserver/tools_players.go` — 8 player tools
+- [x] `internal/mcpserver/format.go` — added nullable enum handling (Null* structs)
 - [ ] Tests
 
 ### Phase 3: Game + Stats Tools ✅
-- [x] `mcpserver/tools_games.go` — 7 game tools
-- [x] `mcpserver/tools_stats.go` — 10 stats tools
+- [x] `internal/mcpserver/tools_games.go` — 7 game tools
+- [x] `internal/mcpserver/tools_stats.go` — 10 stats tools
 - [x] Tests (server registration test updated)
 
 ### Phase 4: Standings + Fantasy Tools ✅
-- [x] `mcpserver/tools_standings.go` — 4 standings tools
-- [x] `mcpserver/tools_fantasy.go` — 10 fantasy tools
+- [x] `internal/mcpserver/tools_standings.go` — 4 standings tools
+- [x] `internal/mcpserver/tools_fantasy.go` — 10 fantasy tools
 - [x] Tests (server registration test updated, 44 tools total)
 
 ### Phase 5: Deploy

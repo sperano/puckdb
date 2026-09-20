@@ -36,7 +36,7 @@ Agent definitions (in `~/.claude/agents/`):
 
 - Phases run sequentially except 2a ∥ 2b (disjoint files).
 - Migrations: create numbered files only; never hand-apply.
-- sqlc regeneration (`sqlc generate`, repo root) after any `sqlcdb/queries/` change,
+- sqlc regeneration (`sqlc generate`, repo root) after any `internal/sqlcdb/queries/` change,
   plus SimQueries interface + test stub updates.
 - Named constants, no magic numbers; match existing style.
 - Full test pass required before any commit; no commits by agents.

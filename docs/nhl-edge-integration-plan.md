@@ -631,7 +631,7 @@ for types with optional fields.
 
 ### 2.1 Add FileTypes
 
-Add to `core/filetype.go`:
+Add to `internal/core/filetype.go`:
 
 ```go
 EdgeSkaterDetail
@@ -660,7 +660,7 @@ EdgeTeamLanding
 
 ### 2.2 Add Resource Types
 
-Create `resource/edge.go` with resource types implementing `core.URLResource`,
+Create `internal/resource/edge.go` with resource types implementing `core.URLResource`,
 `core.Parseable[T]`, and `core.Formattable[T]`.
 
 **Storage paths** (following existing conventions):
@@ -1053,7 +1053,7 @@ protects against stale rows if the NHL changes the set of areas or location code
 
 ### 4.1 Fetch Activities
 
-Create `worker/nhl/fetch_edge.go`:
+Create `internal/worker/nhl/fetch_edge.go`:
 
 **EdgeFetchActivities struct** — same pattern as existing `FetchActivities`:
 - `Storage`, `GobCache`, `Download` fields
@@ -1085,7 +1085,7 @@ Create `worker/nhl/fetch_edge.go`:
 
 ### 4.2 Import Activities
 
-Create `worker/nhl/import_edge.go`:
+Create `internal/worker/nhl/import_edge.go`:
 
 **EdgeImportActivities struct** — same pattern as existing `ImportActivities`:
 - Read cached Edge JSON from filesystem/GOB cache
@@ -1106,7 +1106,7 @@ Import methods:
 
 ### 5.1 Fetch Workflow
 
-Create `worker/workflow/fetch_edge.go`:
+Create `internal/worker/workflow/fetch_edge.go`:
 
 **FetchEdgeWorkflow** — child workflow, one per season/gameType:
 1. Fetch landing pages (3 calls — league-wide, no entity ID needed)
@@ -1129,7 +1129,7 @@ const MinEdgeStatsSeasonID = 20212022
 
 ### 5.2 Import Workflow
 
-Create `worker/workflow/import_edge.go`:
+Create `internal/worker/workflow/import_edge.go`:
 
 **ImportEdgeWorkflow** — import cached Edge data for a season:
 1. Import team Edge stats (from team-detail)
@@ -1156,7 +1156,7 @@ Add to `cmd/graphql_mutations.go`:
 
 ### 6.1 Schema Types
 
-Add to `graph/data.graphqls`:
+Add to `internal/graph/data.graphqls`:
 
 ```graphql
 type EdgeSkaterStats {

@@ -3,9 +3,9 @@
 Two ways to smoke-test the simulation's real LLM path against Ollama on
 `ollama.local`. Neither runs in CI — these are pre-deploy checks an
 operator runs when touching the LLM/agent-loop code
-(`worker/simulation/agent.go`, `manage_activity.go`, `draft_activity.go`,
-`llm/`). For the hermetic, CI-able guarantee see
-`worker/simulation/integration_smallseason_test.go` (Layer A).
+(`internal/worker/simulation/agent.go`, `manage_activity.go`, `draft_activity.go`,
+`internal/llm/`). For the hermetic, CI-able guarantee see
+`internal/worker/simulation/integration_smallseason_test.go` (Layer A).
 
 ## Option 1 — `TestLiveSmallSeasonOllama` (hermetic data, real model)
 
@@ -43,7 +43,7 @@ cd <puckdb checkout>   # ws/puckdb or a wt/<branch>/puckdb worktree
 PUCKDB_TEST_PG_URL="postgres://puckdb:foo@localhost:15432/puckdb_integration_test?sslmode=disable" \
 PUCKDB_TEST_REDIS_ADDR="localhost:16379" \
 PUCKDB_TEST_OLLAMA_URL="http://ollama.local:11434" \
-go test -tags=livellm -count=1 -timeout 45m -v ./worker/simulation/ -run TestLiveSmallSeasonOllama
+go test -tags=livellm -count=1 -timeout 45m -v ./internal/worker/simulation/ -run TestLiveSmallSeasonOllama
 ```
 
 Optional: `PUCKDB_TEST_OLLAMA_MODEL` (default `llama3.1:8b`).

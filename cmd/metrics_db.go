@@ -6,7 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/metrics"
+	"github.com/sperano/puckdb/internal/metrics"
 )
 
 // runDatabaseCollector periodically collects database table row counts. The

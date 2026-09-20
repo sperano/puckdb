@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sperano/puckdb/core"
-	"github.com/sperano/puckdb/store"
+	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/require"
 )
 

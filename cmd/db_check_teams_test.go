@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sperano/puckdb/sqlcdb"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
 func TestReportOrphanGameTeamsNone(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/graph/model"
 )
 
 // monitorConfig groups the polling knobs shared by the single- and

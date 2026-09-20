@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/database"
+	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/database"
 	"github.com/spf13/cobra"
 )
 

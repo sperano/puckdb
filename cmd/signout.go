@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/internal/cache"
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/spf13/cobra"
 )
 

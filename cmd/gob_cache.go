@@ -5,8 +5,8 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/cache"
-	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/internal/cache"
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/spf13/viper"
 )
 

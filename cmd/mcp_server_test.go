@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )

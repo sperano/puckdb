@@ -35,7 +35,7 @@ puckdb never repairs this on its own. The recorded version alone does not say wh
    `-1` is legitimate: it means "no migration recorded". `db drop` runs every down migration, so a failure in
    `000001_init.down.sql` leaves `-1, dirty`. The error then reads "dirty with no migration recorded (version -1)".
 
-3. **Inspect the schema** and compare it with `database/migrations/<version>_*.up.sql` and `.down.sql` for the
+3. **Inspect the schema** and compare it with `internal/database/migrations/<version>_*.up.sql` and `.down.sql` for the
    dirty version and its neighbours. Decide which version the schema *actually* matches. Check every object the
    migration touches (columns, indexes, views), not just the first one.
 

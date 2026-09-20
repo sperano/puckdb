@@ -5,9 +5,9 @@ import (
 	"io"
 	"text/tabwriter"
 
-	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/database"
-	"github.com/sperano/puckdb/sqlcdb"
+	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/spf13/cobra"
 )
 

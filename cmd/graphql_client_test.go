@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/httpx"
+	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

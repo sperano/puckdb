@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/sperano/puckdb/core"
-	"github.com/sperano/puckdb/store"
+	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/store"
 )
 
 // pathIndex is a precomputed view of the on-disk cache. Building it costs one

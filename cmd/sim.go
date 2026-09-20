@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 )

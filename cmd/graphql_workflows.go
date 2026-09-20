@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 
-	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/internal/graph/model"
 )
 
 // FetchSeasons triggers the fetchSeasons mutation with an optional season range.

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sperano/puckdb/config"
+	"github.com/sperano/puckdb/internal/config"
 )
 
 // colorThemeNames is the ordered list of available theme names for random selection.

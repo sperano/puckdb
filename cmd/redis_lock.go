@@ -8,7 +8,7 @@ import (
 
 	"github.com/bsm/redislock"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/cache"
+	"github.com/sperano/puckdb/internal/cache"
 )
 
 // withRedisLock acquires a distributed lock and executes fn, releasing on return.

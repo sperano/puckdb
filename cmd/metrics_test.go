@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/core"
+	"github.com/sperano/puckdb/internal/core"
 )
 
 func TestClassifyFileType(t *testing.T) {

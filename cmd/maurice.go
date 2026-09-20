@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/llm"
-	"github.com/sperano/puckdb/maurice"
+	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/maurice"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 

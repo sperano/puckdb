@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/database"
-	"github.com/sperano/puckdb/mcpserver"
+	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/mcpserver"
 
 	mcpserversdk "github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"

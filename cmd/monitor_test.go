@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sperano/puckdb/config"
-	"github.com/sperano/puckdb/graph/model"
+	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
