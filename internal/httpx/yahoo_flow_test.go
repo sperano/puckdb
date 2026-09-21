@@ -83,15 +83,19 @@ func newTokenServer(t *testing.T) (*httptest.Server, *atomic.Int32) {
 }
 
 // expectSuccessfulExchange registers the Redis traffic of one complete
-// callback: consume the state, find no token, mark the code, save the token.
+// callback: consume the state, lock replacement, mark the code, and save.
 func expectSuccessfulExchange(mock redismock.ClientMock, state, code string) {
 	mock.ExpectDel(loginStateKey(state)).SetVal(1)
-	// Key format: %s_yahoo_oauth2_token (config.DefaultUser = "eric")
-	mock.ExpectGet("eric_yahoo_oauth2_token").RedisNil()
+	expectTokenReplacementLock(mock)
 	// The code key is digest-derived and private to cache; anyArgsMatch makes
 	// the literal irrelevant.
 	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
 	mock.CustomMatch(anyArgsMatch).ExpectSet("eric_yahoo_oauth2_token", "x", 0).SetVal("OK")
+}
+
+func expectTokenReplacementLock(mock redismock.ClientMock) {
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", cache.TokenRefreshLockTTL).SetVal(true)
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x").SetVal(int64(1))
 }
 
 func TestYahooLoginFlow_ValidStateCompletesOnce(t *testing.T) {

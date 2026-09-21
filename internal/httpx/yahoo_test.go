@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/internal/cache"
@@ -241,28 +242,39 @@ func TestYahooLoginHandlerWithConfig_StateStoreFails(t *testing.T) {
 	assert.Empty(t, w.Result().Cookies())
 }
 
-func TestExchangeCodeWithConfig_AlreadyHasValidToken(t *testing.T) {
+func TestExchangeCodeWithConfig_ReauthorizationReplacesValidToken(t *testing.T) {
 	t.Parallel()
 
-	client, mock := redismock.NewClientMock()
+	redisServer := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
-	conf := createYahooTestOAuthConfig("http://example.com")
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"access_token": "replacement-access-token",
+			"token_type": "Bearer",
+			"refresh_token": "replacement-refresh-token",
+			"expires_in": 3600
+		}`))
+	}))
+	defer tokenServer.Close()
+	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
-	// Create a valid non-expired token
-	token := &oauth2.Token{
+	original := &oauth2.Token{
 		AccessToken:  "valid-access-token",
 		TokenType:    "Bearer",
 		RefreshToken: "valid-refresh-token",
 		Expiry:       time.Now().Add(1 * time.Hour),
 	}
-	tokenJSON, _ := cache.TokenAsString(token)
-
-	// Key format: %s_yahoo_oauth2_token
-	mock.ExpectGet("testuser_yahoo_oauth2_token").SetVal(tokenJSON)
+	require.NoError(t, cache.SaveTokenForUser(ctx, client, "testuser", original))
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "some-code")
-	assert.NoError(t, err) // Should succeed without exchanging
-	assert.NoError(t, mock.ExpectationsWereMet())
+	require.NoError(t, err)
+
+	stored, err := cache.LoadTokenForUser(ctx, client, "testuser")
+	require.NoError(t, err)
+	assert.Equal(t, "replacement-access-token", stored.AccessToken)
+	assert.Equal(t, "replacement-refresh-token", stored.RefreshToken)
 }
 
 func TestExchangeCodeWithConfig_AuthCodeAlreadyUsed(t *testing.T) {
@@ -273,9 +285,7 @@ func TestExchangeCodeWithConfig_AuthCodeAlreadyUsed(t *testing.T) {
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig("http://example.com")
 
-	// Key format: %s_yahoo_oauth2_token
-	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
-
+	expectTokenReplacementLock(mock)
 	// Key is digest-derived (wildcard-matched here) - SetNX returns false (already exists)
 	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(false)
 
@@ -285,7 +295,7 @@ func TestExchangeCodeWithConfig_AuthCodeAlreadyUsed(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestExchangeCodeWithConfig_TokenExchangeFails(t *testing.T) {
+func TestExchangeCodeWithConfig_TokenExchangeFailsPreservesStoredToken(t *testing.T) {
 	t.Parallel()
 
 	// Token server that returns an error
@@ -295,21 +305,25 @@ func TestExchangeCodeWithConfig_TokenExchangeFails(t *testing.T) {
 	}))
 	defer tokenServer.Close()
 
-	client, mock := redismock.NewClientMock()
-	mock.MatchExpectationsInOrder(false)
+	redisServer := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
-
-	// Key format: %s_yahoo_oauth2_token
-	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
-
-	// Key is digest-derived (wildcard-matched here)
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
+	original := &oauth2.Token{
+		AccessToken:  "original-access-token",
+		RefreshToken: "original-refresh-token",
+		Expiry:       time.Now().Add(time.Hour),
+	}
+	require.NoError(t, cache.SaveTokenForUser(ctx, client, "testuser", original))
 
 	err := exchangeCodeWithConfig(ctx, client, conf, "testuser", "expired-code")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "token exchange failed")
-	assert.NoError(t, mock.ExpectationsWereMet())
+
+	stored, loadErr := cache.LoadTokenForUser(ctx, client, "testuser")
+	require.NoError(t, loadErr)
+	assert.Equal(t, original.AccessToken, stored.AccessToken)
+	assert.Equal(t, original.RefreshToken, stored.RefreshToken)
 }
 
 func TestExchangeCodeWithConfig_TokenSaveFails(t *testing.T) {
@@ -332,9 +346,7 @@ func TestExchangeCodeWithConfig_TokenSaveFails(t *testing.T) {
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
-	// Key format: %s_yahoo_oauth2_token
-	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
-
+	expectTokenReplacementLock(mock)
 	// Key is digest-derived (wildcard-matched here)
 	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
 
@@ -367,9 +379,7 @@ func TestExchangeCodeWithConfig_Success(t *testing.T) {
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	conf := createYahooTestOAuthConfig(tokenServer.URL)
 
-	// Key format: %s_yahoo_oauth2_token
-	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
-
+	expectTokenReplacementLock(mock)
 	// Key is digest-derived (wildcard-matched here)
 	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
 

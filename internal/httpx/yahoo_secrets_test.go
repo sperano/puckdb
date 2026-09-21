@@ -22,8 +22,6 @@ const (
 	sentinelAuthCode     = "SENTINEL-AUTH-CODE-42bd"
 	sentinelAccessToken  = "SENTINEL-ACCESS-TOKEN-7f3a"
 	sentinelRefreshToken = "SENTINEL-REFRESH-TOKEN-9c1e"
-	// Key format: %s_yahoo_oauth2_token (config.DefaultUser = "eric")
-	defaultUserTokenKey = "eric_yahoo_oauth2_token"
 )
 
 // captureLogs redirects the global zerolog logger to a buffer at the most
@@ -92,7 +90,7 @@ func TestYahooCallback_ReplayedCodeLeaksNothing(t *testing.T) {
 
 	state, cookie := startLogin(t, client, mock, conf)
 	mock.ExpectDel(loginStateKey(state)).SetVal(1)
-	mock.ExpectGet(defaultUserTokenKey).RedisNil()
+	expectTokenReplacementLock(mock)
 	// SetNX reports the code key already exists: the code was used before.
 	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(false)
 
@@ -102,28 +100,4 @@ func TestYahooCallback_ReplayedCodeLeaksNothing(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "already used", "error context is retained")
 	assertNoSecrets(t, "replay log", logs.String())
 	assertNoSecrets(t, "replay response", w.Body.String())
-}
-
-func TestYahooCallback_MalformedStoredTokenLeaksNothing(t *testing.T) {
-	logs := captureLogs(t)
-	conf := createYahooTestOAuthConfig(newSentinelTokenServer(t).URL)
-	client, mock := redismock.NewClientMock()
-	mock.MatchExpectationsInOrder(false)
-
-	state, cookie := startLogin(t, client, mock, conf)
-	mock.ExpectDel(loginStateKey(state)).SetVal(1)
-	// A truncated token is in Redis; the handler logs the load failure and
-	// carries on with the exchange.
-	mock.ExpectGet(defaultUserTokenKey).SetVal(`{"access_token":"` + sentinelAccessToken + `","refresh_token":"` + sentinelRefreshToken)
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", time.Hour).SetVal(true)
-	mock.CustomMatch(anyArgsMatch).ExpectSet(defaultUserTokenKey, "x", 0).SetVal("OK")
-
-	w := completeLogin(client, conf, state, cookie, sentinelAuthCode)
-
-	assert.Equal(t, http.StatusFound, w.Code)
-	require.NoError(t, mock.ExpectationsWereMet())
-	assert.Contains(t, logs.String(), "Failed to check for existing token")
-	assert.Contains(t, logs.String(), defaultUserTokenKey, "the failing key is still reported")
-	assertNoSecrets(t, "malformed token log", logs.String())
-	assertNoSecrets(t, "malformed token response", w.Body.String())
 }
