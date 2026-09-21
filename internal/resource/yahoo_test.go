@@ -7,6 +7,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/resource"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLeague_Path(t *testing.T) {
@@ -380,9 +381,10 @@ func TestMissingYahooPlayer_ParseFormat(t *testing.T) {
 func TestGameKey_Parse(t *testing.T) {
 	t.Parallel()
 	r := resource.GameKey{Season: 2024}
+	validGameKeyXML := `<fantasy_content><games><game><game_key>453</game_key><code>nhl</code><season>2024</season></game></games></fantasy_content>`
 
 	t.Run("parse_valid", func(t *testing.T) {
-		result, err := r.Parse([]byte(minimalFantasyXML))
+		result, err := r.Parse([]byte(validGameKeyXML))
 		if err != nil {
 			t.Fatalf("Parse() unexpected error: %v", err)
 		}
@@ -390,6 +392,18 @@ func TestGameKey_Parse(t *testing.T) {
 			t.Fatal("Parse() returned nil")
 		}
 	})
+
+	for name, xmlData := range map[string]string{
+		"missing_game": minimalFantasyXML,
+		"zero_key":     `<fantasy_content><games><game><game_key>0</game_key><code>nhl</code><season>2024</season></game></games></fantasy_content>`,
+		"wrong_sport":  `<fantasy_content><games><game><game_key>453</game_key><code>nfl</code><season>2024</season></game></games></fantasy_content>`,
+		"wrong_season": `<fantasy_content><games><game><game_key>453</game_key><code>nhl</code><season>2023</season></game></games></fantasy_content>`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := r.Parse([]byte(xmlData))
+			require.Error(t, err)
+		})
+	}
 
 	t.Run("parse_invalid_xml", func(t *testing.T) {
 		_, err := r.Parse([]byte(invalidXML))

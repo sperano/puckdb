@@ -46,9 +46,13 @@ type FetchSeasonsWorkflowTestSuite struct {
 }
 
 func (s *FetchSeasonsWorkflowTestSuite) SetupTest() {
+	previousLoader := loadYahooSeasons
+	loadYahooSeasons = func() shared.YahooSeasonsSnapshot { return shared.YahooSeasonsSnapshot{} }
+	s.T().Cleanup(func() { loadYahooSeasons = previousLoader })
 	s.env = s.NewTestWorkflowEnvironment()
 	s.env.RegisterWorkflow(FetchSeasonsWorkflow)
-	s.env.RegisterWorkflow(FetchSeasonWorkflow)
+	s.env.RegisterWorkflow(FetchNHLSeasonWorkflow)
+	s.env.RegisterWorkflow(FetchYahooSeasonWorkflow)
 	// The per-season counter sizes playoff bars via ListSeasonTeams.
 	var pa *worknhl.PlayoffActivities
 	s.env.OnActivity(pa.ListSeasonTeams, mock.Anything, mock.Anything).Return([]string{"TOR", "MTL"}, nil).Maybe()
@@ -75,7 +79,7 @@ func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_Success() {
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
 	// Mock the child workflow for each season
-	s.env.OnWorkflow(FetchSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{core.OriginRedis: 1}, nil)
+	s.env.OnWorkflow(FetchNHLSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{core.OriginRedis: 1}, nil)
 
 	s.env.ExecuteWorkflow(FetchSeasonsWorkflow, input)
 
@@ -111,7 +115,7 @@ func (s *FetchSeasonsWorkflowTestSuite) TestFetchSeasonsWorkflow_ChildWorkflowEr
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
 	// Mock the child workflow to return an error
-	s.env.OnWorkflow(FetchSeasonWorkflow, mock.Anything, mock.Anything).Return((core.OriginCounts)(nil), expectedErr)
+	s.env.OnWorkflow(FetchNHLSeasonWorkflow, mock.Anything, mock.Anything).Return((core.OriginCounts)(nil), expectedErr)
 
 	s.env.ExecuteWorkflow(FetchSeasonsWorkflow, input)
 
@@ -275,9 +279,13 @@ type ImportSeasonsWorkflowTestSuite struct {
 }
 
 func (s *ImportSeasonsWorkflowTestSuite) SetupTest() {
+	previousLoader := loadYahooSeasons
+	loadYahooSeasons = func() shared.YahooSeasonsSnapshot { return shared.YahooSeasonsSnapshot{} }
+	s.T().Cleanup(func() { loadYahooSeasons = previousLoader })
 	s.env = s.NewTestWorkflowEnvironment()
 	s.env.RegisterWorkflow(ImportSeasonsWorkflow)
-	s.env.RegisterWorkflow(ImportSeasonWorkflow)
+	s.env.RegisterWorkflow(ImportNHLSeasonWorkflow)
+	s.env.RegisterWorkflow(ImportYahooSeasonWorkflow)
 	// The per-season counter sizes playoff bars via ListSeasonTeams.
 	var pa *worknhl.PlayoffActivities
 	s.env.OnActivity(pa.ListSeasonTeams, mock.Anything, mock.Anything).Return([]string{"TOR", "MTL"}, nil).Maybe()
@@ -303,7 +311,7 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_Success() {
 
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
-	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
+	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 
@@ -338,7 +346,7 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_ChildWorkflow
 
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
-	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, expectedErr)
+	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, expectedErr)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 
@@ -377,7 +385,7 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_MultipleSeaso
 
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
-	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
+	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 
@@ -401,7 +409,7 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_WithConcurren
 
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
-	s.env.OnWorkflow(ImportSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
+	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 

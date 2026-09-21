@@ -36,6 +36,16 @@ func NewFetchSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) *
 // Each season runs in its own child workflow to isolate history.
 // A typical season (~270 days) generates ~600 history events, well under the 50K limit.
 func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
+	return runFetchSeasonWorkflow(ctx, season, true)
+}
+
+// FetchNHLSeasonWorkflow fetches only date-gated NHL data. Yahoo metadata is
+// handled independently by FetchYahooSeasonWorkflow in the parent workflow.
+func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
+	return runFetchSeasonWorkflow(ctx, season, false)
+}
+
+func runFetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo, includeYahoo bool) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 
 	logger.Debug("FetchSeasonWorkflow started",
@@ -59,9 +69,12 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 
 	// Download Yahoo league/team data for the season, if configured.
 	// Note: Yahoo downloads are not tracked in progress - only days are tracked for consistency
-	teamIDs, err := fetchYahooLeaguesAndTeams(ctx, cfg.Yahoo, season.ID.StartYear())
-	if err != nil {
-		return nil, err
+	var teamIDs []yahoo.TeamInfo
+	if includeYahoo {
+		teamIDs, err = fetchYahooLeaguesAndTeams(ctx, cfg.Yahoo, season.ID.StartYear())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Fetch season-level NHL data (rosters, club stats)
@@ -153,43 +166,76 @@ func FetchSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Orig
 // for the season. Returns the team IDs to fetch per-day Yahoo data for, or nil
 // when the season has no Yahoo config.
 func fetchYahooLeaguesAndTeams(ctx workflow.Context, yahooSeasons shared.YahooSeasonsSnapshot, startYear int) ([]yahoo.TeamInfo, error) {
+	result, err := runYahooSeasonMetadata(ctx, yahooSeasons, startYear, false)
+	return result.TeamIDs, err
+}
+
+type yahooSeasonMetadataResult struct {
+	TeamIDs              []yahoo.TeamInfo
+	UnavailableResources []string
+}
+
+func fetchYahooSeasonMetadata(ctx workflow.Context, yahooSeasons shared.YahooSeasonsSnapshot,
+	startYear int) (yahooSeasonMetadataResult, error) {
+	return runYahooSeasonMetadata(ctx, yahooSeasons, startYear, true)
+}
+
+func runYahooSeasonMetadata(ctx workflow.Context, yahooSeasons shared.YahooSeasonsSnapshot,
+	startYear int, captureUnavailable bool) (yahooSeasonMetadataResult, error) {
+	result := yahooSeasonMetadataResult{}
 	season, inYahoo := yahooSeasons.Season(startYear)
 	if !inYahoo {
-		return nil, nil
+		return result, nil
 	}
 
-	var teamIDs []yahoo.TeamInfo
 	var leagueAct *yahoo.FetchActivities
 
 	// Build team list and fetch leagues
 	for _, league := range season.Leagues {
 		if err := workflow.ExecuteActivity(ctx, leagueAct.FetchLeague, startYear, league.LeagueID).Get(ctx, nil); err != nil {
-			return nil, fmt.Errorf("fetch yahoo league %d: %w", league.LeagueID, err)
+			return result, fmt.Errorf("fetch yahoo league %d: %w", league.LeagueID, err)
 		}
 		for _, teamid := range league.TeamIDs {
-			teamIDs = append(teamIDs, yahoo.TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
+			result.TeamIDs = append(result.TeamIDs, yahoo.TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
 		}
 	}
 
 	// Fetch all teams in one batched activity
-	if len(teamIDs) > 0 {
-		input := yahoo.FetchTeamsInput{StartSeason: startYear, Teams: teamIDs}
+	if len(result.TeamIDs) > 0 {
+		input := yahoo.FetchTeamsInput{StartSeason: startYear, Teams: result.TeamIDs}
 		if err := workflow.ExecuteActivity(ctx, leagueAct.FetchTeams, input).Get(ctx, nil); err != nil {
-			return nil, fmt.Errorf("fetch yahoo teams: %w", err)
+			return result, fmt.Errorf("fetch yahoo teams: %w", err)
 		}
 	}
 
 	// Fetch league-level data (transactions, draft results, matchups)
 	for _, league := range season.Leagues {
 		leagueDataInput := yahoo.FetchYahooLeagueDataInput{Season: startYear, LeagueID: league.LeagueID}
-		if err := workflow.ExecuteActivity(ctx, leagueAct.FetchYahooLeagueData, leagueDataInput).Get(ctx, nil); err != nil {
-			return nil, fmt.Errorf("fetch yahoo league data %d: %w", league.LeagueID, err)
+		var leagueResult yahoo.FetchYahooLeagueDataResult
+		future := workflow.ExecuteActivity(ctx, leagueAct.FetchYahooLeagueData, leagueDataInput)
+		var err error
+		if captureUnavailable {
+			err = future.Get(ctx, &leagueResult)
+		} else {
+			err = future.Get(ctx, nil)
+		}
+		if err != nil {
+			return result, fmt.Errorf("fetch yahoo league data %d: %w", league.LeagueID, err)
+		}
+		for _, resourceName := range leagueResult.UnavailableResources {
+			result.UnavailableResources = append(result.UnavailableResources,
+				fmt.Sprintf("league %d %s", league.LeagueID, resourceName))
 		}
 	}
-	return teamIDs, nil
+	return result, nil
 }
 
 // WorkflowIDFetchSeason returns the workflow ID for a single season fetch.
 func WorkflowIDFetchSeason(startYear int) string {
 	return fmt.Sprintf("fetch-season-%d", startYear)
+}
+
+// WorkflowIDFetchNHLSeason identifies an NHL-only season child workflow.
+func WorkflowIDFetchNHLSeason(startYear int) string {
+	return fmt.Sprintf("fetch-nhl-season-%d", startYear)
 }

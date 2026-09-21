@@ -66,7 +66,9 @@ func seasonStubActivities() []namedActivity {
 
 		{"FetchLeague", func(_ context.Context, _ int, _ int) error { return nil }},
 		{"FetchTeams", func(_ context.Context, _ yahoo.FetchTeamsInput) error { return nil }},
-		{"FetchYahooLeagueData", func(_ context.Context, _ yahoo.FetchYahooLeagueDataInput) error { return nil }},
+		{"FetchYahooLeagueData", func(_ context.Context, _ yahoo.FetchYahooLeagueDataInput) (yahoo.FetchYahooLeagueDataResult, error) {
+			return yahoo.FetchYahooLeagueDataResult{}, nil
+		}},
 		{"FetchSeasonRosters", func(_ context.Context, _ worknhl.FetchSeasonRostersInput) error { return nil }},
 		{"FetchClubStats", func(_ context.Context, _ worknhl.FetchClubStatsInput) error { return nil }},
 		{"FetchDay", func(_ context.Context, _ worknhl.FetchDayInput) (core.OriginCounts, error) {

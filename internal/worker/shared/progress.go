@@ -122,6 +122,13 @@ func (t *ReportTracker) CompleteGroup(ctx workflow.Context, groupIdx int, msg st
 	t.Save(ctx)
 }
 
+// SetMessage records a workflow-level status message and persists the report.
+// Use it for selection outcomes and failure context that apply across groups.
+func (t *ReportTracker) SetMessage(ctx workflow.Context, msg string) {
+	t.report.Message = msg
+	t.Save(ctx)
+}
+
 // completedFromBars computes Completed by summing all bar currents across all groups.
 func (t *ReportTracker) completedFromBars() int {
 	completed := 0

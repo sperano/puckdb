@@ -21,6 +21,10 @@ func NewImportSeasonsProgressReport() *shared.ProgressReport {
 // ImportSeasonsWorkflow imports season data from cached files into the database.
 // Spawns ImportSeasonWorkflow children for day-level imports (boxscores, game stories, shifts, Yahoo data).
 func ImportSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
+	if seasonSyncVersion(ctx) != workflow.DefaultVersion {
+		return runSeasonSyncWorkflow(ctx, input, seasonSyncImport)
+	}
+	input = normalizeSeasonsInput(input)
 	logger := workflow.GetLogger(ctx)
 
 	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)

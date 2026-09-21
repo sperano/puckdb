@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGraphQLClient_Execute(t *testing.T) {
@@ -88,6 +89,23 @@ func TestFormatStatusMessage_NilProgress(t *testing.T) {
 	if got != want {
 		t.Errorf("formatStatusMessage() = %q, want %q", got, want)
 	}
+}
+
+func TestFormatProgressReport_IncludesWorkflowMessage(t *testing.T) {
+	t.Parallel()
+	message := "No work matched seasons 2026 onward"
+	report := &model.ProgressReport{
+		Message: &message,
+		Groups: []*model.ProgressGroup{{
+			CompletedMsg: "Skipped NHL data: season has not started.",
+			CompletedAt:  1,
+		}},
+	}
+
+	formatted := formatProgressReport(report)
+
+	assert.Contains(t, formatted, message)
+	assert.Contains(t, formatted, "Skipped NHL data")
 }
 
 func TestFormatStatusMessage(t *testing.T) {

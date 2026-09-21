@@ -24,6 +24,12 @@ type FetchYahooLeagueDataInput struct {
 	LeagueID int
 }
 
+// FetchYahooLeagueDataResult reports optional preseason resources that Yahoo
+// has not published yet. Required league and team resources still fail.
+type FetchYahooLeagueDataResult struct {
+	UnavailableResources []string `json:"unavailableResources,omitempty"`
+}
+
 // ImportYahooLeagueInput contains parameters for importing a Yahoo league.
 type ImportYahooLeagueInput struct {
 	Season   int
@@ -70,7 +76,8 @@ type ImportYahooLeagueDataInput struct {
 
 // ImportYahooLeagueDataResult contains the results of importing league-level Yahoo data.
 type ImportYahooLeagueDataResult struct {
-	TransactionsImported int `json:"transactionsImported"`
-	DraftPicksImported   int `json:"draftPicksImported"`
-	MatchupsImported     int `json:"matchupsImported"`
+	TransactionsImported int      `json:"transactionsImported"`
+	DraftPicksImported   int      `json:"draftPicksImported"`
+	MatchupsImported     int      `json:"matchupsImported"`
+	UnavailableResources []string `json:"unavailableResources,omitempty"`
 }

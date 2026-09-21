@@ -18,9 +18,17 @@ import (
 )
 
 const (
-	validFetchXML     = `<fantasy_content><league></league></fantasy_content>`
-	malformedFetchXML = `<fantasy_content><league>`
+	validFetchXML        = `<fantasy_content><league></league></fantasy_content>`
+	validGameKeyFetchXML = `<fantasy_content><games><game><game_key>423</game_key><code>nhl</code><season>2023</season></game></games></fantasy_content>`
+	malformedFetchXML    = `<fantasy_content><league>`
 )
+
+func validFetchXMLFor(res Resource) []byte {
+	if _, ok := res.(resource.GameKey); ok {
+		return []byte(validGameKeyFetchXML)
+	}
+	return []byte(validFetchXML)
+}
 
 // fetchResources lists every Yahoo resource type routed through Fetcher, so the
 // behavioral tests below run identically for each of them.
@@ -84,8 +92,9 @@ func forEachResource(t *testing.T, fn func(t *testing.T, res Resource)) {
 func TestFetcher_CacheHitSkipsDownload(t *testing.T) {
 	t.Parallel()
 	forEachResource(t, func(t *testing.T, res Resource) {
-		h := newFetchHarness([]byte(validFetchXML))
-		require.NoError(t, h.mem.Write(context.Background(), res.Path(), []byte(validFetchXML)))
+		validXML := validFetchXMLFor(res)
+		h := newFetchHarness(validXML)
+		require.NoError(t, h.mem.Write(context.Background(), res.Path(), validXML))
 
 		content, origin, err := h.fetcher.Fetch(context.Background(), res)
 
@@ -100,7 +109,8 @@ func TestFetcher_CacheHitSkipsDownload(t *testing.T) {
 func TestFetcher_MissDownloadsAndStoresRawXML(t *testing.T) {
 	t.Parallel()
 	forEachResource(t, func(t *testing.T, res Resource) {
-		h := newFetchHarness([]byte(validFetchXML))
+		validXML := validFetchXMLFor(res)
+		h := newFetchHarness(validXML)
 
 		content, origin, err := h.fetcher.Fetch(context.Background(), res)
 
@@ -109,7 +119,7 @@ func TestFetcher_MissDownloadsAndStoresRawXML(t *testing.T) {
 		assert.Equal(t, core.OriginRemoteYahooAPI, origin)
 		assert.Equal(t, 1, h.downloads)
 		assert.Equal(t, 1, h.throttled)
-		assert.Equal(t, []byte(validFetchXML), h.stored(t, res), "raw XML must be stored verbatim")
+		assert.Equal(t, validXML, h.stored(t, res), "raw XML must be stored verbatim")
 	})
 }
 
@@ -130,7 +140,8 @@ func TestFetcher_MalformedDownloadIsNeverStored(t *testing.T) {
 func TestFetcher_MalformedCachedFileIsReplacedByValidDownload(t *testing.T) {
 	t.Parallel()
 	forEachResource(t, func(t *testing.T, res Resource) {
-		h := newFetchHarness([]byte(validFetchXML))
+		validXML := validFetchXMLFor(res)
+		h := newFetchHarness(validXML)
 		require.NoError(t, h.mem.Write(context.Background(), res.Path(), []byte(malformedFetchXML)))
 
 		content, origin, err := h.fetcher.Fetch(context.Background(), res)
@@ -139,7 +150,7 @@ func TestFetcher_MalformedCachedFileIsReplacedByValidDownload(t *testing.T) {
 		assert.NotNil(t, content)
 		assert.Equal(t, core.OriginRemoteYahooAPI, origin)
 		assert.Equal(t, 1, h.downloads)
-		assert.Equal(t, []byte(validFetchXML), h.stored(t, res), "valid download must overwrite the corrupt file")
+		assert.Equal(t, validXML, h.stored(t, res), "valid download must overwrite the corrupt file")
 	})
 }
 
@@ -147,7 +158,8 @@ func TestFetcher_RepeatedMalformedDownloadRecoversOnValidResponse(t *testing.T) 
 	t.Parallel()
 	forEachResource(t, func(t *testing.T, res Resource) {
 		// Corrupt file on disk, first re-download also malformed, second one valid.
-		h := newFetchHarness([]byte(malformedFetchXML), []byte(validFetchXML))
+		validXML := validFetchXMLFor(res)
+		h := newFetchHarness([]byte(malformedFetchXML), validXML)
 		require.NoError(t, h.mem.Write(context.Background(), res.Path(), []byte(malformedFetchXML)))
 
 		_, _, err := h.fetcher.Fetch(context.Background(), res)
@@ -158,8 +170,20 @@ func TestFetcher_RepeatedMalformedDownloadRecoversOnValidResponse(t *testing.T) 
 		require.NoError(t, err, "second attempt: valid response must recover")
 		assert.Equal(t, core.OriginRemoteYahooAPI, origin)
 		assert.Equal(t, 2, h.downloads)
-		assert.Equal(t, []byte(validFetchXML), h.stored(t, res))
+		assert.Equal(t, validXML, h.stored(t, res))
 	})
+}
+
+func TestFetcher_InvalidGameKeyDownloadIsNeverStored(t *testing.T) {
+	t.Parallel()
+	res := resource.GameKey{Season: testYahooSeason}
+	invalidXML := []byte(`<fantasy_content><games><game><game_key>0</game_key><code>nhl</code><season>2023</season></game></games></fantasy_content>`)
+	h := newFetchHarness(invalidXML)
+
+	_, _, err := h.fetcher.Fetch(context.Background(), res)
+
+	require.Error(t, err)
+	assert.False(t, h.mem.Exists(context.Background(), res.Path()))
 }
 
 func TestFetcher_DownloadErrorIsErrDownload(t *testing.T) {

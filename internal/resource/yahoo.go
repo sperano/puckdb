@@ -3,6 +3,7 @@ package resource
 import (
 	"encoding/xml"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sperano/puckdb/internal/core"
@@ -12,6 +13,7 @@ import (
 const (
 	baseYahooAPIURL    = "https://fantasysports.yahooapis.com/fantasy/v2"
 	baseYahooSportsURL = "https://sports.yahoo.com"
+	yahooNHLGameCode   = "nhl"
 
 	// YahooPlayersDir is the directory containing Yahoo player HTML files.
 	YahooPlayersDir = "yahoo-players"
@@ -203,7 +205,26 @@ func (g GameKey) Parse(data []byte) (*store.FantasyContent, error) {
 	if err := xml.Unmarshal(data, &content); err != nil {
 		return nil, fmt.Errorf("parse game key for season %d: %w", g.Season, err)
 	}
+	game, err := gameKeyEntry(content)
+	if err != nil {
+		return nil, fmt.Errorf("parse game key for season %d: %w", g.Season, err)
+	}
+	if game.Key <= 0 || game.Season != g.Season || !strings.EqualFold(game.Code, yahooNHLGameCode) {
+		return nil, fmt.Errorf(
+			"parse game key for season %d: yahoo game key %d is for code %q season %d",
+			g.Season, game.Key, game.Code, game.Season)
+	}
 	return &content, nil
+}
+
+func gameKeyEntry(content store.FantasyContent) (store.FantasyGame, error) {
+	if len(content.Games) > 0 {
+		return content.Games[0], nil
+	}
+	if content.Game.Key != 0 || content.Game.Code != "" || content.Game.Season != 0 {
+		return content.Game, nil
+	}
+	return store.FantasyGame{}, fmt.Errorf("response contains no game")
 }
 
 // Transactions represents a Yahoo Fantasy league's transaction history.

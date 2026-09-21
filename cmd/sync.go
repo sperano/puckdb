@@ -25,6 +25,12 @@ var syncFlagGroups = []*config.FlagGroup{
 	&config.APIBasicAuthFlags,
 }
 
+var seasonBoundFlagNames = []string{
+	config.FlagSeasonYear,
+	config.FlagFromSeasonYear,
+	config.FlagToSeasonYear,
+}
+
 func cmdSync() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "sync [steps...]",
@@ -112,6 +118,9 @@ func syncInit(cmd *cobra.Command, logLevelChanged, logFileChanged bool) error {
 func runSync(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 	fmt.Printf("PuckDB Sync - %s\n", config.BuildNumber)
+	if err := validateExplicitSeasonBounds(cmd); err != nil {
+		return err
+	}
 	apiAddr := viper.GetString(config.FlagAPIServerAddr)
 	if apiAddr == "" {
 		return fmt.Errorf("api-server-addr is required")
@@ -224,6 +233,22 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("✓ Sync completed in %s\n", formatElapsed(time.Since(start)))
+	return nil
+}
+
+func validateExplicitSeasonBounds(cmd *cobra.Command) error {
+	for _, name := range seasonBoundFlagNames {
+		if !cmd.Flags().Changed(name) {
+			continue
+		}
+		value, err := cmd.Flags().GetInt(name)
+		if err != nil {
+			return fmt.Errorf("read --%s: %w", name, err)
+		}
+		if value <= 0 {
+			return fmt.Errorf("--%s must be greater than zero", name)
+		}
+	}
 	return nil
 }
 

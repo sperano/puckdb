@@ -37,8 +37,8 @@ func (a *ImportActivities) ImportYahooLeague(ctx context.Context, input ImportYa
 	// Read the league file
 	leagueRes := resource.League{Season: input.Season, LeagueID: input.LeagueID}
 	if !a.Storage.Exists(ctx, leagueRes.Path()) {
-		logger.Warn("No league file found in cache", "season", input.Season, "leagueID", input.LeagueID)
-		return result, nil
+		return result, fmt.Errorf("required Yahoo league cache is missing for season %d league %d",
+			input.Season, input.LeagueID)
 	}
 
 	fantasy, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, leagueRes)
@@ -166,6 +166,13 @@ func (a *ImportActivities) ImportYahooTeams(ctx context.Context, input ImportYah
 		logger.Warn("No teams to import", "season", input.Season)
 		return result, nil
 	}
+	for _, teamInfo := range input.Teams {
+		teamRes := resource.Team{Season: input.Season, LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID}
+		if !a.Storage.Exists(ctx, teamRes.Path()) {
+			return result, fmt.Errorf("required Yahoo team cache is missing for season %d league %d team %d",
+				input.Season, teamInfo.LeagueID, teamInfo.TeamID)
+		}
+	}
 
 	// Collect all team and manager params
 	var teamParams []sqlcdb.UpsertYahooTeamBatchParams
@@ -174,14 +181,6 @@ func (a *ImportActivities) ImportYahooTeams(ctx context.Context, input ImportYah
 	for _, teamInfo := range input.Teams {
 		// Read the team file
 		teamRes := resource.Team{Season: input.Season, LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID}
-		if !a.Storage.Exists(ctx, teamRes.Path()) {
-			logger.Warn("No team file found in cache",
-				"season", input.Season,
-				"leagueID", teamInfo.LeagueID,
-				"teamID", teamInfo.TeamID)
-			continue
-		}
-
 		fantasy, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, teamRes)
 		if err != nil {
 			return result, fmt.Errorf("read team file %d: %w", teamInfo.TeamID, err)
@@ -478,6 +477,19 @@ func (a *ImportActivities) ImportYahooLeagueData(ctx context.Context, input Impo
 
 	logger := activity.GetLogger(ctx)
 	result := ImportYahooLeagueDataResult{}
+	optionalResources := []struct {
+		name string
+		path string
+	}{
+		{name: "transactions", path: (resource.Transactions{Season: input.Season, LeagueID: input.LeagueID}).Path()},
+		{name: "draft results", path: (resource.DraftResults{Season: input.Season, LeagueID: input.LeagueID}).Path()},
+		{name: "matchups", path: (resource.Matchups{Season: input.Season, LeagueID: input.LeagueID, Week: 1}).Path()},
+	}
+	for _, optional := range optionalResources {
+		if !a.Storage.Exists(ctx, optional.path) {
+			result.UnavailableResources = append(result.UnavailableResources, optional.name)
+		}
+	}
 
 	// Import transactions
 	txCount, err := a.importYahooTransactions(ctx, input)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,8 @@ var (
 	gameKeyCache   = make(map[int]int) // season year -> game key
 	gameKeyCacheMu sync.RWMutex
 )
+
+const yahooNHLGameCode = "nhl"
 
 // GetGameKeyForSeason fetches the Yahoo Fantasy game key for a given NHL season.
 // Results are cached in memory and on disk since game keys never change.
@@ -58,17 +61,21 @@ func getGameKeyImpl(ctx context.Context, storage store.Storage, gobCache *cache.
 
 // extractGameKey extracts the game key from parsed fantasy content.
 func extractGameKey(fantasy *store.FantasyContent, season int) (int, error) {
-	var gameKey int
+	var game store.FantasyGame
 	if len(fantasy.Games) > 0 {
-		gameKey = fantasy.Games[0].Key
+		game = fantasy.Games[0]
 	} else if fantasy.Game.Key != 0 {
-		gameKey = fantasy.Game.Key
+		game = fantasy.Game
 	} else {
 		return 0, fmt.Errorf("no game key found for season %d", season)
 	}
+	if game.Key <= 0 || game.Season != season || !strings.EqualFold(game.Code, yahooNHLGameCode) {
+		return 0, fmt.Errorf("yahoo game key %d is for code %q season %d, requested NHL season %d",
+			game.Key, game.Code, game.Season, season)
+	}
 
-	log.Info().Int("season", season).Int("game_key", gameKey).Msg("Loaded Yahoo game key")
-	return gameKey, nil
+	log.Info().Int("season", season).Int("game_key", game.Key).Msg("Loaded Yahoo game key")
+	return game.Key, nil
 }
 
 // SetGameKeyCache seeds the in-memory game key cache for a given season.

@@ -623,7 +623,7 @@ func BindLoggingFlags(flags *flag.FlagSet) error {
 // Otherwise returns --from-season and --to-season (0 means not set).
 func GetSeasonRange() (start, end int) {
 	season := viper.GetInt(FlagSeasonYear)
-	if season > 0 {
+	if season != 0 {
 		return season, season
 	}
 	return viper.GetInt(FlagFromSeasonYear), viper.GetInt(FlagToSeasonYear)

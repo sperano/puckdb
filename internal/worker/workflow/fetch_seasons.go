@@ -48,6 +48,10 @@ func daysWithPlayoffTeamsCounter() shared.SeasonCounterFunc {
 // FetchSeasonsWorkflow downloads all data for the requested seasons by
 // spawning a FetchSeasonWorkflow child for each one.
 func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
+	if seasonSyncVersion(ctx) != workflow.DefaultVersion {
+		return runSeasonSyncWorkflow(ctx, input, seasonSyncFetch)
+	}
+	input = normalizeSeasonsInput(input)
 	return iterateSeasons(ctx, input, NewFetchSeasonsProgressReport(), GroupFetchSeasonsData,
 		daysWithPlayoffTeamsCounter(), WorkflowIDFetchSeason,
 		func(n int, elapsed string, counts core.OriginCounts) string {
@@ -67,6 +71,8 @@ type SeasonGroupConfig struct {
 	SourceKeyFunc shared.ProgressSourceKeyFunc
 	GroupLabel    string // verb phrase for completion message (e.g., "Iterated", "Extracted players for")
 	CountLabel    string // label for OriginCounts summary (e.g., "children count", "boxscore reads")
+	// CompleteOnlyOnSuccess preserves incomplete bars when a child fails.
+	CompleteOnlyOnSuccess bool
 }
 
 // processSeasonGroup runs concurrent work across seasons with progress tracking.
@@ -86,7 +92,11 @@ func processSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, sea
 	tracker.StartGroup(ctx, cfg.GroupIdx)
 
 	counts := core.OriginCounts{}
-	err := tracker.RunWorkerPoolMultiBar(ctx, cfg.GroupIdx, 0, len(seasons), concurrency, startWork,
+	runPool := tracker.RunWorkerPoolMultiBar
+	if cfg.CompleteOnlyOnSuccess {
+		runPool = tracker.RunWorkerPoolMultiBarSuccessful
+	}
+	err := runPool(ctx, cfg.GroupIdx, 0, len(seasons), concurrency, startWork,
 		func(ctx workflow.Context, i int, f workflow.Future) error {
 			var seasonCounts core.OriginCounts
 			if err := f.Get(ctx, &seasonCounts); err != nil {

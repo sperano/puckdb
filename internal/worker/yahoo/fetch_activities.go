@@ -139,12 +139,13 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 
 // FetchYahooLeagueData fetches transactions, draft results, and matchups for a single league.
 // Each data type is cached independently; already-cached items are skipped.
-func (a *FetchActivities) FetchYahooLeagueData(ctx context.Context, input FetchYahooLeagueDataInput) error {
+func (a *FetchActivities) FetchYahooLeagueData(ctx context.Context, input FetchYahooLeagueDataInput) (FetchYahooLeagueDataResult, error) {
 	logger := activity.GetLogger(ctx)
+	result := FetchYahooLeagueDataResult{}
 
 	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.Season)
 	if err != nil {
-		return err
+		return result, err
 	}
 
 	fetcher := a.fetcher()
@@ -152,35 +153,47 @@ func (a *FetchActivities) FetchYahooLeagueData(ctx context.Context, input FetchY
 	txRes := resource.Transactions{Season: input.Season, LeagueID: input.LeagueID, GameKey: gameKey}
 	_, origin, err := fetcher.Fetch(ctx, txRes)
 	if err != nil {
-		return fmt.Errorf("fetch transactions %d/%d: %w", input.Season, input.LeagueID, err)
+		if !isPreseasonResourceUnavailable(err) {
+			return result, fmt.Errorf("fetch transactions %d/%d: %w", input.Season, input.LeagueID, err)
+		}
+		result.UnavailableResources = append(result.UnavailableResources, "transactions")
+	} else {
+		logFetched(logger, origin, "Transactions", "season", input.Season, "leagueID", input.LeagueID)
 	}
-	logFetched(logger, origin, "Transactions", "season", input.Season, "leagueID", input.LeagueID)
 	activity.RecordHeartbeat(ctx, "transactions")
 
 	drRes := resource.DraftResults{Season: input.Season, LeagueID: input.LeagueID, GameKey: gameKey}
 	_, origin, err = fetcher.Fetch(ctx, drRes)
 	if err != nil {
-		return fmt.Errorf("fetch draft results %d/%d: %w", input.Season, input.LeagueID, err)
+		if !isPreseasonResourceUnavailable(err) {
+			return result, fmt.Errorf("fetch draft results %d/%d: %w", input.Season, input.LeagueID, err)
+		}
+		result.UnavailableResources = append(result.UnavailableResources, "draft results")
+	} else {
+		logFetched(logger, origin, "Draft results", "season", input.Season, "leagueID", input.LeagueID)
 	}
-	logFetched(logger, origin, "Draft results", "season", input.Season, "leagueID", input.LeagueID)
 	activity.RecordHeartbeat(ctx, "draftresults")
 
-	if err := a.fetchMatchups(ctx, fetcher, input, gameKey); err != nil {
-		return err
+	matchupsUnavailable, err := a.fetchMatchups(ctx, fetcher, input, gameKey)
+	if err != nil {
+		return result, err
+	}
+	if matchupsUnavailable {
+		result.UnavailableResources = append(result.UnavailableResources, "matchups")
 	}
 
 	logger.Info("Fetched Yahoo league data", "season", input.Season, "leagueID", input.LeagueID)
-	return nil
+	return result, nil
 }
 
 // fetchMatchups fetches matchups week-by-week until Yahoo rejects a week (end
 // of the series). Any other failure is returned so Temporal retries it.
-func (a *FetchActivities) fetchMatchups(ctx context.Context, fetcher Fetcher, input FetchYahooLeagueDataInput, gameKey int) error {
+func (a *FetchActivities) fetchMatchups(ctx context.Context, fetcher Fetcher, input FetchYahooLeagueDataInput, gameKey int) (bool, error) {
 	logger := activity.GetLogger(ctx)
 	for week := 1; week <= maxMatchupWeeks; week++ {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return false, ctx.Err()
 		default:
 		}
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("matchups:week%d", week))
@@ -190,24 +203,31 @@ func (a *FetchActivities) fetchMatchups(ctx context.Context, fetcher Fetcher, in
 		_, origin, err := fetcher.Fetch(ctx, res)
 		if isEndOfMatchupWeeks(err) {
 			logger.Info("Stopped fetching matchups at week", "week", week, "error", err)
-			return nil
+			return week == 1, nil
 		}
 		if err != nil {
-			return fmt.Errorf("fetch matchups %d/%d week %d: %w", input.Season, input.LeagueID, week, err)
+			return false, fmt.Errorf("fetch matchups %d/%d week %d: %w", input.Season, input.LeagueID, week, err)
 		}
 		logFetched(logger, origin, "Matchups", "season", input.Season, "leagueID", input.LeagueID, "week", week)
 	}
-	return nil
+	return false, nil
 }
 
-// isEndOfMatchupWeeks reports whether a fetch failure means Yahoo has no such
-// week: a definitive 4xx rejection of the download. Transport errors, 5xx,
-// throttling (429), cancellation and storage/parse/cache failures are real
-// faults, not the end of the series.
+func isPreseasonResourceUnavailable(err error) bool {
+	var httpErr *httpx.HTTPError
+	if !errors.Is(err, ErrDownload) || !errors.As(err, &httpErr) {
+		return false
+	}
+	return httpErr.StatusCode == http.StatusBadRequest
+}
+
+// isEndOfMatchupWeeks reports whether Yahoo definitively rejected the week as
+// outside the matchup series. Yahoo 404 responses are intermittent and remain
+// retryable, as do transport, throttling, server, storage, parse, and cache failures.
 func isEndOfMatchupWeeks(err error) bool {
 	var httpErr *httpx.HTTPError
 	if !errors.Is(err, ErrDownload) || !errors.As(err, &httpErr) {
 		return false
 	}
-	return httpErr.IsClientError() && httpErr.StatusCode != http.StatusTooManyRequests
+	return httpErr.StatusCode == http.StatusBadRequest
 }

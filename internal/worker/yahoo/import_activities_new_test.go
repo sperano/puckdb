@@ -210,20 +210,16 @@ func TestImportYahooLeagueSuite(t *testing.T) {
 	suite.Run(t, new(ImportYahooLeagueSuite))
 }
 
-func (s *ImportYahooLeagueSuite) TestNoFile_ReturnsEmpty() {
+func (s *ImportYahooLeagueSuite) TestNoFile_ReturnsActionableError() {
 	mem := store.NewMemStorage()
 	q := &MockQueries{}
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
 
 	s.env.RegisterActivity(a.ImportYahooLeague)
-	val, err := s.env.ExecuteActivity(a.ImportYahooLeague, ImportYahooLeagueInput{Season: 2023, LeagueID: 12345})
+	_, err := s.env.ExecuteActivity(a.ImportYahooLeague, ImportYahooLeagueInput{Season: 2023, LeagueID: 12345})
 
-	require.NoError(s.T(), err)
-
-	var result ImportYahooLeagueResult
-	require.NoError(s.T(), val.Get(&result))
-	assert.Equal(s.T(), 0, result.RosterPositions)
-	assert.Equal(s.T(), 0, result.StatCategories)
+	require.Error(s.T(), err)
+	assert.Contains(s.T(), err.Error(), "required Yahoo league cache is missing")
 	q.AssertNotCalled(s.T(), "UpsertYahooLeague")
 }
 
@@ -305,21 +301,17 @@ func (s *ImportYahooTeamsSuite) TestEmptyTeams_ReturnsEmpty() {
 	q.AssertNotCalled(s.T(), "UpsertYahooTeamBatch")
 }
 
-func (s *ImportYahooTeamsSuite) TestMissingFile_SkipsTeam() {
+func (s *ImportYahooTeamsSuite) TestMissingFile_ReturnsActionableError() {
 	mem := store.NewMemStorage()
 	q := &MockQueries{}
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
 
-	// Team file not written → should be skipped.
 	teams := []TeamInfo{{LeagueID: 12345, TeamID: 1}}
 	s.env.RegisterActivity(a.ImportYahooTeams)
-	val, err := s.env.ExecuteActivity(a.ImportYahooTeams, ImportYahooTeamsInput{Season: 2023, Teams: teams})
+	_, err := s.env.ExecuteActivity(a.ImportYahooTeams, ImportYahooTeamsInput{Season: 2023, Teams: teams})
 
-	require.NoError(s.T(), err)
-
-	var result ImportYahooTeamsResult
-	require.NoError(s.T(), val.Get(&result))
-	assert.Equal(s.T(), 0, result.TeamsImported)
+	require.Error(s.T(), err)
+	assert.Contains(s.T(), err.Error(), "required Yahoo team cache is missing")
 	q.AssertNotCalled(s.T(), "UpsertYahooTeamBatch")
 }
 
@@ -594,6 +586,7 @@ func (s *ImportYahooLeagueDataSuite) TestNoFiles_ReturnsZero() {
 	assert.Equal(s.T(), 0, result.TransactionsImported)
 	assert.Equal(s.T(), 0, result.DraftPicksImported)
 	assert.Equal(s.T(), 0, result.MatchupsImported)
+	assert.ElementsMatch(s.T(), []string{"transactions", "draft results", "matchups"}, result.UnavailableResources)
 	q.AssertNotCalled(s.T(), "UpsertYahooTransactionBatch")
 }
 

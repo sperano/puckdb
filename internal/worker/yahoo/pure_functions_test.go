@@ -21,7 +21,7 @@ func TestExtractGameKey_FromGamesSlice(t *testing.T) {
 	t.Parallel()
 
 	fantasy := &store.FantasyContent{
-		Games: []store.FantasyGame{{Key: 423}},
+		Games: []store.FantasyGame{{Key: 423, Code: "nhl", Season: 2023}},
 	}
 
 	key, err := extractGameKey(fantasy, 2023)
@@ -34,7 +34,7 @@ func TestExtractGameKey_FromGameField(t *testing.T) {
 	t.Parallel()
 
 	fantasy := &store.FantasyContent{
-		Game: store.FantasyGame{Key: 419},
+		Game: store.FantasyGame{Key: 419, Code: "nhl", Season: 2019},
 	}
 
 	key, err := extractGameKey(fantasy, 2019)
@@ -48,8 +48,8 @@ func TestExtractGameKey_GamesSliceTakesPrecedence(t *testing.T) {
 
 	// When both are present, Games[0] wins.
 	fantasy := &store.FantasyContent{
-		Games: []store.FantasyGame{{Key: 423}},
-		Game:  store.FantasyGame{Key: 999},
+		Games: []store.FantasyGame{{Key: 423, Code: "nhl", Season: 2023}},
+		Game:  store.FantasyGame{Key: 999, Code: "nhl", Season: 2023},
 	}
 
 	key, err := extractGameKey(fantasy, 2023)
@@ -81,7 +81,7 @@ func TestGetGameKeyImpl_FromCache(t *testing.T) {
 	season := 2023
 
 	xmlContent := []byte(`<?xml version="1.0" encoding="UTF-8"?>
-<fantasy_content><games><game><game_key>423</game_key><game_id>423</game_id></game></games></fantasy_content>`)
+<fantasy_content><games><game><game_key>423</game_key><game_id>423</game_id><code>nhl</code><season>2023</season></game></games></fantasy_content>`)
 	res := resource.GameKey{Season: season}
 	require.NoError(t, mem.Write(context.Background(), res.Path(), xmlContent))
 
@@ -99,7 +99,7 @@ func TestGetGameKeyImpl_FetcherCalled_WhenNoCache(t *testing.T) {
 	season := 2023
 
 	xmlContent := []byte(`<?xml version="1.0" encoding="UTF-8"?>
-<fantasy_content><games><game><game_key>423</game_key><game_id>423</game_id></game></games></fantasy_content>`)
+<fantasy_content><games><game><game_key>423</game_key><game_id>423</game_id><code>nhl</code><season>2023</season></game></games></fantasy_content>`)
 
 	fetcher := mockDownloader(xmlContent, nil)
 	postDownload := func() {} // no-op
@@ -108,6 +108,20 @@ func TestGetGameKeyImpl_FetcherCalled_WhenNoCache(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 423, key)
+}
+
+func TestExtractGameKey_RejectsWrongSeasonOrSport(t *testing.T) {
+	t.Parallel()
+
+	for _, game := range []store.FantasyGame{
+		{Key: 0, Code: "nhl", Season: 2023},
+		{Key: 423, Code: "nfl", Season: 2023},
+		{Key: 423, Code: "nhl", Season: 2022},
+	} {
+		_, err := extractGameKey(&store.FantasyContent{Games: []store.FantasyGame{game}}, 2023)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requested NHL season 2023")
+	}
 }
 
 func TestGetGameKeyImpl_FetcherError(t *testing.T) {

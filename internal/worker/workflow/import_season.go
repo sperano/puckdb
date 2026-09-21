@@ -36,6 +36,16 @@ func NewImportSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) 
 // Per-day boxscores, game stories, and Yahoo data via ImportDay.
 // Player game log imports are handled separately by ImportSeasonPlayerLogsWorkflow.
 func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
+	return runImportSeasonWorkflow(ctx, season, true)
+}
+
+// ImportNHLSeasonWorkflow imports only date-gated NHL data. Yahoo metadata is
+// handled independently by ImportYahooSeasonWorkflow in the parent workflow.
+func ImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
+	return runImportSeasonWorkflow(ctx, season, false)
+}
+
+func runImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo, includeYahoo bool) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 
 	logger.Info("ImportSeasonWorkflow started",
@@ -56,10 +66,13 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// Yahoo setup (not tracked in progress)
+	var teamIDs []yahoo.TeamInfo
 	yahooCfg, hasYahoo := cfg.Yahoo.Season(season.ID.StartYear())
-	teamIDs, err := importYahooLeaguesAndTeams(ctx, yahooCfg, season.ID.StartYear())
-	if err != nil {
-		return nil, err
+	if includeYahoo {
+		teamIDs, err = importYahooLeaguesAndTeams(ctx, yahooCfg, season.ID.StartYear())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Import season-level data (rosters, club stats, player career, Yahoo league data)
@@ -75,7 +88,7 @@ func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Ori
 	}
 
 	// Import Yahoo league-level data (transactions, draft results, matchups)
-	if hasYahoo {
+	if includeYahoo && hasYahoo {
 		var yia *yahoo.ImportActivities
 		for _, league := range yahooCfg.Leagues {
 			leagueDataInput := yahoo.ImportYahooLeagueDataInput{
@@ -206,4 +219,9 @@ func importYahooLeaguesAndTeams(ctx workflow.Context, yahooCfg config.Season, st
 // WorkflowIDImportSeason returns the workflow ID for a single season import.
 func WorkflowIDImportSeason(startYear int) string {
 	return fmt.Sprintf("import-season-%d", startYear)
+}
+
+// WorkflowIDImportNHLSeason identifies an NHL-only season child workflow.
+func WorkflowIDImportNHLSeason(startYear int) string {
+	return fmt.Sprintf("import-nhl-season-%d", startYear)
 }

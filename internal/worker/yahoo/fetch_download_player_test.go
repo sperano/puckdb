@@ -89,7 +89,7 @@ func TestGetGameKeyForSeason_FallsThroughToImpl(t *testing.T) {
 	gobCache := cache.NewGobCache(nil)
 
 	xmlContent := []byte(`<?xml version="1.0" encoding="UTF-8"?>
-<fantasy_content><games><game><game_key>398</game_key><game_id>398</game_id></game></games></fantasy_content>`)
+<fantasy_content><games><game><game_key>398</game_key><game_id>398</game_id><code>nhl</code><season>2018</season></game></games></fantasy_content>`)
 
 	fetcher := mockDownloader(xmlContent, nil)
 
@@ -475,7 +475,7 @@ func TestIsEndOfMatchupWeeks(t *testing.T) {
 		want bool
 	}{
 		"400 rejection":         {wrap(&httpx.HTTPError{StatusCode: http.StatusBadRequest}), true},
-		"404":                   {wrap(&httpx.HTTPError{StatusCode: http.StatusNotFound}), true},
+		"404":                   {wrap(&httpx.HTTPError{StatusCode: http.StatusNotFound}), false},
 		"429 throttled":         {wrap(&httpx.HTTPError{StatusCode: http.StatusTooManyRequests}), false},
 		"500":                   {wrap(&httpx.HTTPError{StatusCode: http.StatusInternalServerError}), false},
 		"transport":             {wrap(errors.New("timeout")), false},

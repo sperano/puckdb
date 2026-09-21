@@ -240,6 +240,7 @@ func TestGetSeasonRange(t *testing.T) {
 		{"no flags set", 0, 0, 0, 0, 0},
 		{"only from set", 0, 2020, 0, 2020, 0},
 		{"only to set", 0, 0, 2024, 0, 2024},
+		{"negative season preserved", -1, 0, 0, -1, -1},
 	}
 
 	for _, tt := range tests {

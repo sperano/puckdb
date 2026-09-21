@@ -48,6 +48,9 @@ func (r *mutationResolver) CancelInitialize(ctx context.Context) (bool, error) {
 
 // FetchSeasons is the resolver for the fetchSeasons field.
 func (r *mutationResolver) FetchSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	if err := workflow.ValidateSeasonsInput(input); err != nil {
+		return false, err
+	}
 	return r.Resolver.executeWorkflow(ctx, shared.WorkflowIDFetchSeasons, workflow.FetchSeasonsWorkflow, input)
 }
 
@@ -88,6 +91,9 @@ func (r *mutationResolver) CancelProcessPlayers(ctx context.Context) (bool, erro
 
 // ImportSeasons is the resolver for the importSeasons field.
 func (r *mutationResolver) ImportSeasons(ctx context.Context, input *model.SeasonsInput) (bool, error) {
+	if err := workflow.ValidateSeasonsInput(input); err != nil {
+		return false, err
+	}
 	return r.Resolver.executeWorkflow(ctx, shared.WorkflowIDImportSeasons, workflow.ImportSeasonsWorkflow, input)
 }
 

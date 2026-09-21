@@ -33,6 +33,23 @@ func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, groupIdx, barIdx, to
 	return t.RunWorkerPoolWithIncrement(ctx, groupIdx, barIdx, total, concurrency, func(_ int) int { return 1 }, startActivity, handler)
 }
 
+// RunWorkerPoolSuccessful advances progress only after a work item succeeds.
+// It is intended for workflows whose partial-failure state must remain visible.
+func (t *ReportTracker) RunWorkerPoolSuccessful(ctx workflow.Context, groupIdx, barIdx, total, concurrency int,
+	startActivity ActivityStarter, handler ResultHandler) error {
+	return runWorkerPool(ctx, total, concurrency, startActivity, func(ctx workflow.Context, index int, future workflow.Future) error {
+		if handler != nil {
+			if err := handler(ctx, index, future); err != nil {
+				return err
+			}
+		} else if err := future.Get(ctx, nil); err != nil {
+			return err
+		}
+		t.IncrementBar(ctx, groupIdx, barIdx)
+		return nil
+	}, workerPoolHooks{})
+}
+
 // RunWorkerPoolWithIncrement is like RunWorkerPool but uses incrementFunc to determine
 // how much to advance the progress bar for each completed work item.
 func (t *ReportTracker) RunWorkerPoolWithIncrement(ctx workflow.Context, groupIdx, barIdx, total, concurrency int, incrementFunc IncrementFunc, startActivity ActivityStarter, handler ResultHandler) error {
@@ -55,6 +72,25 @@ func (t *ReportTracker) RunWorkerPoolMultiBar(ctx workflow.Context, groupIdx, ba
 			t.CompleteBar(ctx, groupIdx, barStart+index)
 		},
 	})
+}
+
+// RunWorkerPoolMultiBarSuccessful leaves failed bars incomplete while marking
+// only successful work items complete.
+func (t *ReportTracker) RunWorkerPoolMultiBarSuccessful(ctx workflow.Context, groupIdx, barStart, total, concurrency int,
+	startActivity ActivityStarter, handler ResultHandler) error {
+	return runWorkerPool(ctx, total, concurrency, startActivity, func(ctx workflow.Context, index int, future workflow.Future) error {
+		if handler != nil {
+			if err := handler(ctx, index, future); err != nil {
+				return err
+			}
+		} else if err := future.Get(ctx, nil); err != nil {
+			return err
+		}
+		t.CompleteBar(ctx, groupIdx, barStart+index)
+		return nil
+	}, workerPoolHooks{onStart: func(ctx workflow.Context, index int) {
+		t.StartBar(ctx, groupIdx, barStart+index)
+	}})
 }
 
 // runWorkerPool is the single scheduler behind the RunWorkerPool* variants.

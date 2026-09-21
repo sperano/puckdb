@@ -15,10 +15,10 @@ func buildSeasonsInput() *model.SeasonsInput {
 	input := &model.SeasonsInput{}
 
 	start, end := config.GetSeasonRange()
-	if start > 0 {
+	if start != 0 {
 		input.StartSeason = &start
 	}
-	if end > 0 {
+	if end != 0 {
 		input.EndSeason = &end
 	}
 
@@ -140,6 +140,9 @@ func formatLabelAreaW(label string, current, total, width int) string {
 // formatProgressReport renders the new ProgressReport format.
 func formatProgressReport(report *model.ProgressReport) string {
 	var lines []string
+	if report.Message != nil && *report.Message != "" {
+		lines = append(lines, *report.Message)
+	}
 	for _, g := range report.Groups {
 		lines = append(lines, renderProgressGroup(g))
 	}

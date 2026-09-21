@@ -5,9 +5,34 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/internal/config"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestValidateExplicitSeasonBounds(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		flag  string
+		value string
+	}{
+		{name: "zero season", flag: config.FlagSeasonYear, value: "0"},
+		{name: "negative start", flag: config.FlagFromSeasonYear, value: "-1"},
+		{name: "negative end", flag: config.FlagToSeasonYear, value: "-1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := &cobra.Command{}
+			config.InitFlags(cmd.Flags(), &config.SeasonRangeFlags)
+			require.NoError(t, cmd.Flags().Set(tc.flag, tc.value))
+
+			err := validateExplicitSeasonBounds(cmd)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "--"+tc.flag+" must be greater than zero")
+		})
+	}
+}
 
 // watchSyncCancelTestTimeout bounds how long a test waits for
 // watchSyncCancel's goroutine to observe a context transition.
