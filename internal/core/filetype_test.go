@@ -207,6 +207,7 @@ var allFileTypeNames = []struct {
 	{YahooTeamLogo, "YahooTeamLogo"},
 	{YahooLeagueLogo, "YahooLeagueLogo"},
 	{YahooManagerImage, "YahooManagerImage"},
+	{YahooLeaguePlayers, "YahooLeaguePlayers"},
 }
 
 // TestFileType_String_AllConstants pins the String() output for every FileType

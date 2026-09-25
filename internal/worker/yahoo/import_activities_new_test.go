@@ -237,6 +237,8 @@ func (s *ImportYahooLeagueSuite) TestWithPositionsAndStats() {
 		Return(sqlcdb.NewUpsertYahooLeagueRosterPositionBatchBatchResults(&mockBatchResults{}, 2))
 	q.On("UpsertYahooLeagueStatCategoryBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooLeagueStatCategoryBatchBatchResults(&mockBatchResults{}, 2))
+	q.On("UpsertYahooLeagueRuleSnapshot", mock.Anything, mock.Anything).
+		Return(sqlcdb.UpsertYahooLeagueRuleSnapshotRow{ID: 1, Inserted: true}, nil)
 
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
 	s.env.RegisterActivity(a.ImportYahooLeague)

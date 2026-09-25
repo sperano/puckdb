@@ -169,6 +169,7 @@ const (
 	FlagYahooPlayerBatchSize         = "yahoo-player-batch-size"
 	FlagYahooPlayerActivityBatchSize = "yahoo-player-activity-batch-size"
 	FlagYahooPlayersPerExecution     = "yahoo-players-per-execution"
+	FlagYahooPlayerPoolMaxAge        = "yahoo-player-pool-max-age"
 	FlagYahooDownloadSleepMin        = "yahoo-download-sleep-min"
 	FlagYahooDownloadSleepMax        = "yahoo-download-sleep-max"
 )
@@ -365,6 +366,7 @@ var YahooPlayerFlags = FlagGroup{
 		{FlagYahooPlayerBatchSize, "", DefaultYahooPlayerBatchSize, "Number of concurrent activities for downloading Yahoo players", false},
 		{FlagYahooPlayerActivityBatchSize, "", DefaultYahooPlayerActivityBatchSize, "Number of players to process per activity", false},
 		{FlagYahooPlayersPerExecution, "", DefaultYahooPlayersPerExecution, "Players to process per workflow execution before ContinueAsNew", false},
+		{FlagYahooPlayerPoolMaxAge, "", DefaultYahooPlayerPoolMaxAge, "Hours before a league's Yahoo player pool (eligibility and status) is downloaded again", false},
 	},
 }
 
@@ -680,6 +682,24 @@ func loadEnvFile() {
 			log.Warn().Msgf("error setting %s from env file: %s", name, err.Error())
 		}
 	}
+}
+
+// Draft helper report flags
+const (
+	FlagDraftSeason     = "draft-season"
+	FlagDraftLeagues    = "draft-leagues"
+	FlagDraftOutput     = "draft-output"
+	FlagDraftStaleAfter = "draft-stale-after"
+)
+
+// DraftFlags defines the flags of the `draft` report commands.
+var DraftFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagDraftSeason, "", DefaultDraftSeason, "Season start year of the leagues (e.g. 2026); required", false},
+		{FlagDraftLeagues, "", DefaultDraftLeagues, "Comma-separated Yahoo league IDs; required", false},
+		{FlagDraftOutput, "", DefaultDraftOutput, "Write the report to this file instead of standard output", false},
+		{FlagDraftStaleAfter, "", DefaultDraftStaleAfter, "Hours after which league settings or a player pool are reported stale", false},
+	},
 }
 
 // allFlagGroups contains all flag groups for sensitive flag detection.

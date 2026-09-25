@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fantasy_content xml:lang="en-US" yahoo:uri="/fantasy/v2/league/465.l.77777/players;start=0;count=25" xmlns:yahoo="http://www.yahooapis.com/v1/base.rng" xmlns="http://fantasysports.yahooapis.com/fantasy/v2/base.rng">
+  <league>
+    <league_key>465.l.77777</league_key>
+    <league_id>77777</league_id>
+    <name>Points Fixture</name>
+    <draft_status>predraft</draft_status>
+    <num_teams>12</num_teams>
+    <scoring_type>headpoint</scoring_type>
+    <start_date>2026-10-06</start_date>
+    <end_date>2027-04-15</end_date>
+    <game_code>nhl</game_code>
+    <season>2026</season>
+    <players count="7">
+      <player>
+        <player_key>465.p.7001</player_key>
+        <player_id>7001</player_id>
+        <name>
+          <full>Alex Twoway</full>
+          <first>Alex</first>
+          <last>Twoway</last>
+          <ascii_first>Alex</ascii_first>
+          <ascii_last>Twoway</ascii_last>
+        </name>
+        <editorial_player_key>nhl.p.7001</editorial_player_key>
+        <editorial_team_key>nhl.t.1</editorial_team_key>
+        <editorial_team_full_name>TOR Fixture</editorial_team_full_name>
+        <editorial_team_abbr>TOR</editorial_team_abbr>
+        <uniform_number>9</uniform_number>
+        <display_position>C,LW</display_position>
+        <is_undroppable>0</is_undroppable>
+        <position_type>P</position_type>
+        <primary_position>C</primary_position>
+        <eligible_positions><position>C</position><position>LW</position><position>Util</position></eligible_positions>
+      </player>
+      <player>
+        <player_key>465.p.7002</player_key>
+        <player_id>7002</player_id>
+        <name>
+          <full>Ben Blueline</full>
+          <first>Ben</first>
+          <last>Blueline</last>
+          <ascii_first>Ben</ascii_first>
+          <ascii_last>Blueline</ascii_last>
+        </name>
+        <editorial_player_key>nhl.p.7002</editorial_player_key>
+        <editorial_team_key>nhl.t.1</editorial_team_key>
+        <editorial_team_full_name>MTL Fixture</editorial_team_full_name>
+        <editorial_team_abbr>MTL</editorial_team_abbr>
+        <uniform_number>9</uniform_number>
+        <display_position>D</display_position>
+        <is_undroppable>0</is_undroppable>
+        <position_type>P</position_type>
+        <primary_position>D</primary_position>
+        <eligible_positions><position>D</position></eligible_positions>
+      </player>
+      <player>
+        <player_key>465.p.7003</player_key>
+        <player_id>7003</player_id>
+        <name>
+          <full>Carl Crease</full>
+          <first>Carl</first>
+          <last>Crease</last>
+          <ascii_first>Carl</ascii_first>
+          <ascii_last>Crease</ascii_last>
+        </name>
+        <editorial_player_key>nhl.p.7003</editorial_player_key>
+        <editorial_team_key>nhl.t.1</editorial_team_key>
+        <editorial_team_full_name>BOS Fixture</editorial_team_full_name>
+        <editorial_team_abbr>BOS</editorial_team_abbr>
+        <uniform_number>9</uniform_number>
+        <display_position>G</display_position>
+        <is_undroppable>0</is_undroppable>
+        <position_type>G</position_type>
+        <primary_position>G</primary_position>
+        <eligible_positions><position>G</position></eligible_positions>
+      </player>
+      <player>
+        <player_key>465.p.7004</player_key>
+        <player_id>7004</player_id>
+        <name>
+          <full>Dan Hurt</full>
+          <first>Dan</first>
+          <last>Hurt</last>
+          <ascii_first>Dan</ascii_first>
+          <ascii_last>Hurt</ascii_last>
+        </name>
+        <editorial_player_key>nhl.p.7004</editorial_player_key>
+        <editorial_team_key>nhl.t.1</editorial_team_key>
+        <editorial_team_full_name>OTT Fixture</editorial_team_full_name>
+        <editorial_team_abbr>OTT</editorial_team_abbr>
+        <uniform_number>9</uniform_number>
+        <display_position>RW</display_position>
+        <is_undroppable>0</is_undroppable>
+        <position_type>P</position_type>
+        <primary_position>RW</primary_position>
+        <eligible_positions><position>RW</position><position>IR</position><position>IR+</position></eligible_positions>
+        <status>IR</status>
+        <status_full>Injured Reserve</status_full>
+        <injury_note>Upper Body</injury_note>
+        <on_disabled_list>1</on_disabled_list>
+      </player>
+      <player>
+        <player_key>465.p.7005</player_key>
+        <player_id>7005</player_id>
+        <name>
+          <full>Eli Rookie</full>
+          <first>Eli</first>
+          <last>Rookie</last>
+          <ascii_first>Eli</ascii_first>
+          <ascii_last>Rookie</ascii_last>
+        </name>
+        <editorial_player_key>nhl.p.7005</editorial_player_key>
+        <editorial_team_key>nhl.t.1</editorial_team_key>
+        <editorial_team_full_name>SJ Fixture</editorial_team_full_name>
+        <editorial_team_abbr>SJ</editorial_team_abbr>
+        <uniform_number>9</uniform_number>
+        <display_position>C</display_position>
+        <is_undroppable>0</is_undroppable>
+        <position_type>P</position_type>
+        <primary_position>C</primary_position>
+        <eligible_positions><position>C</position><position>NA</position></eligible_positions>
+        <status>NA</status>
+        <status_full>Not Active</status_full>
+      </player>
+      <player>
+        <player_key>465.p.7006</player_key>
+        <player_id>7006</player_id>
+        <name>
+          <full>Finn Nopos</full>
+          <first>Finn</first>
+          <last>Nopos</last>
+          <ascii_first>Finn</ascii_first>
+          <ascii_last>Nopos</ascii_last>
+        </name>
+        <editorial_player_key>nhl.p.7006</editorial_player_key>
+        <editorial_team_key>nhl.t.1</editorial_team_key>
+        <editorial_team_full_name>CHI Fixture</editorial_team_full_name>
+        <editorial_team_abbr>CHI</editorial_team_abbr>
+        <uniform_number>9</uniform_number>
+        <display_position></display_position>
+        <is_undroppable>0</is_undroppable>
+        <position_type>P</position_type>
+        <primary_position></primary_position>
+        <eligible_positions></eligible_positions>
+      </player>
+      <player>
+        <player_key>465.p.7007</player_key>
+        <player_id>7007</player_id>
+        <name>
+          <full>Gus Winger</full>
+          <first>Gus</first>
+          <last>Winger</last>
+          <ascii_first>Gus</ascii_first>
+          <ascii_last>Winger</ascii_last>
+        </name>
+        <editorial_player_key>nhl.p.7007</editorial_player_key>
+        <editorial_team_key>nhl.t.1</editorial_team_key>
+        <editorial_team_full_name>EDM Fixture</editorial_team_full_name>
+        <editorial_team_abbr>EDM</editorial_team_abbr>
+        <uniform_number>9</uniform_number>
+        <display_position>LW,RW</display_position>
+        <is_undroppable>0</is_undroppable>
+        <position_type>P</position_type>
+        <primary_position>LW</primary_position>
+        <eligible_positions><position>LW</position><position>RW</position></eligible_positions>
+        <status>DTD</status>
+        <status_full>Day-to-Day</status_full>
+        <injury_note>Lower Body</injury_note>
+      </player>
+    </players>
+  </league>
+</fantasy_content>

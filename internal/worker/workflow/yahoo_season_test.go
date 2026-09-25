@@ -52,6 +52,8 @@ func TestFetchYahooSeasonWorkflow_TwoConfiguredLeagues(t *testing.T) {
 	env.OnActivity(activities.FetchYahooLeagueData, mock.Anything,
 		yahoo.FetchYahooLeagueDataInput{Season: preseasonTestYear, LeagueID: preseasonSecondLeagueID}).
 		Return(yahoo.FetchYahooLeagueDataResult{UnavailableResources: []string{"draft results"}}, nil).Once()
+	expectPoolUpToDate(env, preseasonTestLeagueID)
+	expectPoolUpToDate(env, preseasonSecondLeagueID)
 
 	env.ExecuteWorkflow(FetchYahooSeasonWorkflow, twoLeagueYahooInput())
 
@@ -82,12 +84,18 @@ func TestImportYahooSeasonWorkflow_TwoConfiguredLeagues(t *testing.T) {
 	env.OnActivity(activities.ImportYahooLeagueData, mock.Anything,
 		yahoo.ImportYahooLeagueDataInput{Season: preseasonTestYear, LeagueID: preseasonSecondLeagueID}).
 		Return(yahoo.ImportYahooLeagueDataResult{UnavailableResources: []string{"transactions"}}, nil).Once()
+	env.OnActivity(activities.ImportYahooLeaguePlayers, mock.Anything,
+		yahoo.ImportYahooLeaguePlayersInput{Season: preseasonTestYear, LeagueID: preseasonTestLeagueID}).
+		Return(yahoo.ImportYahooLeaguePlayersResult{Players: 1}, nil).Once()
+	env.OnActivity(activities.ImportYahooLeaguePlayers, mock.Anything,
+		yahoo.ImportYahooLeaguePlayersInput{Season: preseasonTestYear, LeagueID: preseasonSecondLeagueID}).
+		Return(yahoo.ImportYahooLeaguePlayersResult{Unavailable: true}, nil).Once()
 
 	env.ExecuteWorkflow(ImportYahooSeasonWorkflow, twoLeagueYahooInput())
 
 	require.NoError(t, env.GetWorkflowError())
 	var result YahooSeasonSyncResult
 	require.NoError(t, env.GetWorkflowResult(&result))
-	assert.Equal(t, []string{"league 1002 transactions"}, result.UnavailableResources)
+	assert.Equal(t, []string{"league 1002 transactions", "league 1002 player pool"}, result.UnavailableResources)
 	env.AssertExpectations(t)
 }

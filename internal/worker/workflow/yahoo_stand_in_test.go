@@ -15,7 +15,7 @@ const (
 	standInSourceSeason   = preseasonTestYear - 1
 	standInSourceLeagueID = 1003
 	standInExpectedNote   = "league 1001 (using TEMPORARY stand-in settings from 2025 league 1003; " +
-		"teams, transactions, draft results and matchups skipped)"
+		"teams, transactions, draft results, matchups and player pool skipped)"
 )
 
 // standInYahooInput configures league 1001 with stand-in settings and league
@@ -53,6 +53,8 @@ func TestFetchYahooSeasonWorkflow_StandInLeagueSkipsYahooAPI(t *testing.T) {
 	env.OnActivity(activities.FetchYahooLeagueData, mock.Anything,
 		yahoo.FetchYahooLeagueDataInput{Season: preseasonTestYear, LeagueID: preseasonSecondLeagueID}).
 		Return(yahoo.FetchYahooLeagueDataResult{}, nil).Once()
+	// Only the API league plans a player pool download.
+	expectPoolUpToDate(env, preseasonSecondLeagueID)
 
 	env.ExecuteWorkflow(FetchYahooSeasonWorkflow, standInYahooInput())
 
@@ -97,6 +99,10 @@ func TestImportYahooSeasonWorkflow_StandInLeagueImportsSourceSettings(t *testing
 	env.OnActivity(activities.ImportYahooLeagueData, mock.Anything,
 		yahoo.ImportYahooLeagueDataInput{Season: preseasonTestYear, LeagueID: preseasonSecondLeagueID}).
 		Return(yahoo.ImportYahooLeagueDataResult{}, nil).Once()
+	// Only the API league imports a player pool.
+	env.OnActivity(activities.ImportYahooLeaguePlayers, mock.Anything,
+		yahoo.ImportYahooLeaguePlayersInput{Season: preseasonTestYear, LeagueID: preseasonSecondLeagueID}).
+		Return(yahoo.ImportYahooLeaguePlayersResult{Players: 1}, nil).Once()
 
 	env.ExecuteWorkflow(ImportYahooSeasonWorkflow, standInYahooInput())
 

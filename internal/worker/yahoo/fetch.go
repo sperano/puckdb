@@ -63,6 +63,14 @@ func (f Fetcher) Fetch(ctx context.Context, res Resource) (*store.FantasyContent
 	return f.download(ctx, res)
 }
 
+// Refresh downloads the resource even when a cached copy exists, for
+// resources whose content changes between downloads (a league's player
+// pool). The new copy replaces the cached one.
+func (f Fetcher) Refresh(ctx context.Context, res Resource) (*store.FantasyContent, error) {
+	content, _, err := f.download(ctx, res)
+	return content, err
+}
+
 // readCached reads through the gob cache and reports a miss as (nil, _, nil).
 // A missing file is a miss; a file that exists but does not parse is logged
 // and also treated as a miss so the caller re-downloads it. Any other failure

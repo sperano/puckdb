@@ -111,3 +111,8 @@ func NewUpsertYahooDraftResultBatchBatchResults(br pgx.BatchResults, count int) 
 func NewUpsertYahooMatchupBatchBatchResults(br pgx.BatchResults, count int) *UpsertYahooMatchupBatchBatchResults {
 	return &UpsertYahooMatchupBatchBatchResults{br: br, tot: count}
 }
+
+// NewUpsertYahooLeaguePlayerBatchBatchResults creates batch results for testing.
+func NewUpsertYahooLeaguePlayerBatchBatchResults(br pgx.BatchResults, count int) *UpsertYahooLeaguePlayerBatchBatchResults {
+	return &UpsertYahooLeaguePlayerBatchBatchResults{br: br, tot: count}
+}

@@ -94,67 +94,8 @@ type League struct {
 	Transactions          Transactions    `xml:"transactions"`
 	DraftResults          DraftResultList `xml:"draft_results"`
 	Scoreboard            Scoreboard      `xml:"scoreboard"`
-}
-
-// Settings contains league configuration.
-type Settings struct {
-	XMLName            xml.Name      `xml:"settings"`
-	DraftType          string        `xml:"draft_type"`
-	IsAuctionDraft     int           `xml:"is_auction_draft"`
-	PersistentURL      string        `xml:"persistent_url"`
-	UsesPlayoff        int           `xml:"uses_playoff"`
-	WaiverType         string        `xml:"waiver_type"`
-	WaiverRule         string        `xml:"waiver_rule"`
-	DraftTime          FlexTimestamp `xml:"draft_time"`
-	DraftPickTime      int           `xml:"draft_pick_time"`
-	PostDraftPlayers   string        `xml:"post_draft_players"`
-	MaxTeams           int           `xml:"max_teams"`
-	WaiverTime         int           `xml:"waiver_time"`
-	TradeEndDate       string        `xml:"trade_end_date"`
-	TradeRatifyType    string        `xml:"trade_ratify_type"`
-	TradeRejectTime    int           `xml:"trade_reject_time"`
-	PlayerPool         string        `xml:"player_pool"`
-	CantCutList        string        `xml:"cant_cut_list"`
-	SendbirdChannelURL string        `xml:"sendbird_channel_url"`
-	RosterPositions    RosterPositions
-	StatCategories     RosterStatCategories
-}
-
-// RosterPositions contains the roster position configuration.
-type RosterPositions struct {
-	XMLName xml.Name         `xml:"roster_positions"`
-	Slice   []RosterPosition `xml:"roster_position"`
-}
-
-// RosterPosition represents a position slot in a fantasy roster.
-type RosterPosition struct {
-	XMLName            xml.Name `xml:"roster_position"`
-	Position           string   `xml:"position"`
-	PositionType       string   `xml:"position_type"`
-	Count              int      `xml:"count"`
-	IsStartingPosition int      `xml:"is_starting_position"`
-}
-
-// RosterStatCategories contains the stat categories configuration.
-type RosterStatCategories struct {
-	XMLName xml.Name `xml:"stat_categories"`
-	Stats   RosterStats
-}
-
-// RosterStats contains the list of stat categories.
-type RosterStats struct {
-	XMLName xml.Name     `xml:"stats"`
-	Slice   []RosterStat `xml:"stat"`
-}
-
-// RosterStat represents a single stat category configuration.
-type RosterStat struct {
-	XMLName xml.Name `xml:"stat"`
-	StatID  int      `xml:"stat_id"`
-	Enabled int      `xml:"enabled"`
-	Name    string   `xml:"name"`
-	Group   string   `xml:"group"`
-	Abbr    string   `xml:"abbr"`
+	// Players is filled by the league players collection (the draftable pool).
+	Players Players `xml:"players"`
 }
 
 // ============================================================================

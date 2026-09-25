@@ -41,7 +41,7 @@ type League struct {
 // A league configured with temporary_metadata_from makes no Yahoo API calls;
 // sync imports the source league's settings (scoring categories, roster
 // positions, draft and waiver rules) under the league's own ID instead, and
-// skips its teams, transactions, draft results and matchups. Once Yahoo serves
+// skips its teams, transactions, draft results, matchups and player pool. Once Yahoo serves
 // the league again, drop temporary_metadata_from from the seasons config; the
 // next import replaces the stand-in with the real settings. Then delete this
 // type and its callers.

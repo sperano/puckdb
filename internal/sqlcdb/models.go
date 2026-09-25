@@ -1739,6 +1739,27 @@ type YahooLeague struct {
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 }
 
+type YahooLeaguePlayer struct {
+	LeagueKey         string             `json:"league_key"`
+	Season            int32              `json:"season"`
+	LeagueID          int32              `json:"league_id"`
+	GameKey           int32              `json:"game_key"`
+	PlayerID          int32              `json:"player_id"`
+	PlayerKey         string             `json:"player_key"`
+	FullName          string             `json:"full_name"`
+	EditorialTeamAbbr string             `json:"editorial_team_abbr"`
+	DisplayPosition   string             `json:"display_position"`
+	PrimaryPosition   string             `json:"primary_position"`
+	PositionType      string             `json:"position_type"`
+	EligiblePositions []string           `json:"eligible_positions"`
+	Status            string             `json:"status"`
+	StatusFull        string             `json:"status_full"`
+	InjuryNote        string             `json:"injury_note"`
+	OnDisabledList    bool               `json:"on_disabled_list"`
+	FetchedAt         pgtype.Timestamptz `json:"fetched_at"`
+	ImportedAt        pgtype.Timestamptz `json:"imported_at"`
+}
+
 type YahooLeagueRosterPosition struct {
 	LeagueID           int32  `json:"league_id"`
 	Position           string `json:"position"`
@@ -1747,14 +1768,34 @@ type YahooLeagueRosterPosition struct {
 	IsStartingPosition bool   `json:"is_starting_position"`
 }
 
+type YahooLeagueRuleSnapshot struct {
+	ID              int64              `json:"id"`
+	Season          int32              `json:"season"`
+	LeagueID        int32              `json:"league_id"`
+	LeagueKey       string             `json:"league_key"`
+	GameKey         pgtype.Int4        `json:"game_key"`
+	Source          string             `json:"source"`
+	SourceSeason    int32              `json:"source_season"`
+	SourceLeagueKey string             `json:"source_league_key"`
+	FetchedAt       pgtype.Timestamptz `json:"fetched_at"`
+	RulesHash       string             `json:"rules_hash"`
+	Rules           []byte             `json:"rules"`
+	FirstSeenAt     pgtype.Timestamptz `json:"first_seen_at"`
+	LastSeenAt      pgtype.Timestamptz `json:"last_seen_at"`
+}
+
 type YahooLeagueStatCategory struct {
-	LeagueID  int32         `json:"league_id"`
-	StatID    int32         `json:"stat_id"`
-	Name      string        `json:"name"`
-	Abbr      string        `json:"abbr"`
-	StatGroup string        `json:"stat_group"`
-	Enabled   bool          `json:"enabled"`
-	Value     pgtype.Float4 `json:"value"`
+	LeagueID          int32         `json:"league_id"`
+	StatID            int32         `json:"stat_id"`
+	Name              string        `json:"name"`
+	Abbr              string        `json:"abbr"`
+	StatGroup         string        `json:"stat_group"`
+	Enabled           bool          `json:"enabled"`
+	Value             pgtype.Float4 `json:"value"`
+	DisplayName       string        `json:"display_name"`
+	PositionType      string        `json:"position_type"`
+	SortOrder         pgtype.Int2   `json:"sort_order"`
+	IsOnlyDisplayStat bool          `json:"is_only_display_stat"`
 }
 
 type YahooMatchup struct {

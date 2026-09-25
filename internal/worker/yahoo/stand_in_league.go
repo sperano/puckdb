@@ -7,14 +7,15 @@ package yahoo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
+	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/resource"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
@@ -46,16 +47,19 @@ func (a *ImportActivities) ImportYahooStandInLeague(ctx context.Context, input I
 	defer metrics.TrackActivityDuration("ImportYahooStandInLeague")()
 	logger := activity.GetLogger(ctx)
 
-	source, err := a.readStandInSource(ctx, input)
+	source, fetchedAt, err := a.readStandInSource(ctx, input)
 	if err != nil {
 		return ImportYahooLeagueResult{}, err
 	}
-	if err := a.prepareStandInTarget(ctx, input.LeagueID); err != nil {
+	if err := a.prepareStandInTarget(ctx, input); err != nil {
 		return ImportYahooLeagueResult{}, err
 	}
-	result, err := a.upsertLeague(ctx, standInLeague(source, input))
+	settingsSource := leagueSettingsSource{
+		source: draft.SourceTemporaryStandIn, season: input.Source.Season, leagueKey: source.Key, fetchedAt: fetchedAt,
+	}
+	result, err := a.upsertLeague(ctx, standInLeague(source, input), settingsSource)
 	if err != nil {
-		return result, err
+		return ImportYahooLeagueResult{}, err
 	}
 
 	logger.Warn("Imported TEMPORARY stand-in Yahoo league settings",
@@ -68,67 +72,51 @@ func (a *ImportActivities) ImportYahooStandInLeague(ctx context.Context, input I
 	return result, nil
 }
 
-func (a *ImportActivities) readStandInSource(ctx context.Context, input ImportYahooStandInLeagueInput) (store.League, error) {
+func (a *ImportActivities) readStandInSource(ctx context.Context, input ImportYahooStandInLeagueInput) (store.League, time.Time, error) {
 	if input.Source.Season >= input.Season {
-		return store.League{}, temporal.NewNonRetryableApplicationError(
+		return store.League{}, time.Time{}, temporal.NewNonRetryableApplicationError(
 			fmt.Sprintf("stand-in for season %d league %d must come from an earlier season, got %d",
 				input.Season, input.LeagueID, input.Source.Season), invalidStandInErrorType, nil)
 	}
 	res := resource.League{Season: input.Source.Season, LeagueID: input.Source.LeagueID}
 	if !a.Storage.Exists(ctx, res.Path()) {
-		return store.League{}, fmt.Errorf("stand-in source league cache is missing for season %d league %d; "+
+		return store.League{}, time.Time{}, fmt.Errorf("stand-in source league cache is missing for season %d league %d; "+
 			"fetch season %d first", input.Source.Season, input.Source.LeagueID, input.Source.Season)
 	}
-	fantasy, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res)
-	if err != nil {
-		return store.League{}, fmt.Errorf("read stand-in source league file: %w", err)
-	}
-	return fantasy.League, nil
+	return readLeagueSettings(ctx, a.Storage, res)
 }
 
-// prepareStandInTarget refuses to overwrite real Yahoo settings and clears an
-// earlier stand-in's positions and categories so a changed source cannot
-// leave stale rows behind.
-func (a *ImportActivities) prepareStandInTarget(ctx context.Context, leagueID int) error {
-	stored, found, err := a.storedLeagueKey(ctx, leagueID)
+// prepareStandInTarget refuses to overwrite real Yahoo settings or another
+// season's league, and clears an earlier stand-in's positions and categories
+// so a changed source cannot leave stale rows behind.
+func (a *ImportActivities) prepareStandInTarget(ctx context.Context, input ImportYahooStandInLeagueInput) error {
+	stored, found, err := a.storedLeague(ctx, input.LeagueID)
 	if err != nil {
 		return err
 	}
 	if !found {
 		return nil
 	}
-	if !isStandInLeagueKey(stored) {
+	if err := checkLeagueIdentity(stored, found, input.LeagueID, input.Season); err != nil {
+		return err
+	}
+	if !isStandInLeagueKey(stored.LeagueKey) {
 		return temporal.NewNonRetryableApplicationError(
 			fmt.Sprintf("league %d already has real Yahoo settings (key %s); remove temporary_metadata_from "+
-				"from the seasons config", leagueID, stored), invalidStandInErrorType, nil)
+				"from the seasons config", input.LeagueID, stored.LeagueKey), invalidStandInErrorType, nil)
 	}
-	return a.deleteLeagueSettings(ctx, leagueID)
+	return a.deleteLeagueSettings(ctx, input.LeagueID)
 }
 
 // clearStandInLeagueSettings runs before a real league import: when the stored
 // row is a stand-in, it deletes the stand-in's positions and categories so
 // ones the real league no longer uses do not survive the upsert.
-func (a *ImportActivities) clearStandInLeagueSettings(ctx context.Context, leagueID int) error {
-	stored, found, err := a.storedLeagueKey(ctx, leagueID)
-	if err != nil {
-		return err
-	}
-	if !found || !isStandInLeagueKey(stored) {
+func (a *ImportActivities) clearStandInLeagueSettings(ctx context.Context, stored sqlcdb.YahooLeague, found bool) error {
+	if !found || !isStandInLeagueKey(stored.LeagueKey) {
 		return nil
 	}
-	activity.GetLogger(ctx).Info("Replacing TEMPORARY stand-in Yahoo league settings", "leagueID", leagueID)
-	return a.deleteLeagueSettings(ctx, leagueID)
-}
-
-func (a *ImportActivities) storedLeagueKey(ctx context.Context, leagueID int) (string, bool, error) {
-	stored, err := a.Queries.GetYahooLeague(ctx, int32(leagueID))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", false, nil
-	}
-	if err != nil {
-		return "", false, fmt.Errorf("get league %d: %w", leagueID, err)
-	}
-	return stored.LeagueKey, true, nil
+	activity.GetLogger(ctx).Info("Replacing TEMPORARY stand-in Yahoo league settings", "leagueID", stored.ID)
+	return a.deleteLeagueSettings(ctx, int(stored.ID))
 }
 
 func (a *ImportActivities) deleteLeagueSettings(ctx context.Context, leagueID int) error {

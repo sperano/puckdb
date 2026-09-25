@@ -317,7 +317,7 @@ func (q *Queries) GetYahooLeagueByKey(ctx context.Context, leagueKey string) (Ya
 }
 
 const getYahooLeagueEnabledStatCategories = `-- name: GetYahooLeagueEnabledStatCategories :many
-SELECT league_id, stat_id, name, abbr, stat_group, enabled, value FROM yahoo_league_stat_categories
+SELECT league_id, stat_id, name, abbr, stat_group, enabled, value, display_name, position_type, sort_order, is_only_display_stat FROM yahoo_league_stat_categories
 WHERE league_id = $1 AND enabled = TRUE
 ORDER BY stat_group, name
 `
@@ -339,6 +339,10 @@ func (q *Queries) GetYahooLeagueEnabledStatCategories(ctx context.Context, leagu
 			&i.StatGroup,
 			&i.Enabled,
 			&i.Value,
+			&i.DisplayName,
+			&i.PositionType,
+			&i.SortOrder,
+			&i.IsOnlyDisplayStat,
 		); err != nil {
 			return nil, err
 		}
@@ -420,7 +424,7 @@ func (q *Queries) GetYahooLeagueStartingPositions(ctx context.Context, leagueID 
 
 const getYahooLeagueStatCategories = `-- name: GetYahooLeagueStatCategories :many
 
-SELECT league_id, stat_id, name, abbr, stat_group, enabled, value FROM yahoo_league_stat_categories
+SELECT league_id, stat_id, name, abbr, stat_group, enabled, value, display_name, position_type, sort_order, is_only_display_stat FROM yahoo_league_stat_categories
 WHERE league_id = $1
 ORDER BY stat_group, name
 `
@@ -445,6 +449,10 @@ func (q *Queries) GetYahooLeagueStatCategories(ctx context.Context, leagueID int
 			&i.StatGroup,
 			&i.Enabled,
 			&i.Value,
+			&i.DisplayName,
+			&i.PositionType,
+			&i.SortOrder,
+			&i.IsOnlyDisplayStat,
 		); err != nil {
 			return nil, err
 		}

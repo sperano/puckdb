@@ -51,6 +51,8 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `db force-version <version>` | Clear a dirty migration state after inspecting the schema (see `docs/migration-recovery.md`) |
 | `db check-teams` | Report regular-season/playoff games whose team has no `season_teams` row (such games vanish from games queries) |
 | `db provision` | Create database/user on shared PostgreSQL |
+| `draft rules` | Markdown comparison of leagues' imported rules (scoring, roster, draft, settings) with warnings; `--draft-season`, `--draft-leagues`, `--draft-output` |
+| `draft pool` | Coverage of leagues' draftable player pools (eligibility gaps, unmatched NHL players) |
 | `redis flush` | Flush a Redis database |
 | `yahoo signout` | Clear OAuth2 token from Redis |
 | `maurice` | Interactive AI hockey chat REPL |
@@ -75,6 +77,8 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/metrics/` | Prometheus metrics |
 | `internal/temporal/` | Temporal client configuration |
 | `internal/matching/` | NHL ↔ Yahoo player matching |
+| `internal/draft/` | Draft helper models: normalized league rules, scoring-input validation, roster feasibility, player-pool coverage, comparison reports (see `docs/draft-league-rules.md`) |
+| `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
 | `internal/llm/` | LLM client (used by player enrichment / Maurice) |
 | `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
 | `internal/mcp/` | MCP client (used by Maurice to call tool servers) |
@@ -335,8 +339,12 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `yahoo_matchups` | Head-to-head matchups (PK `(league_id, week, team1_id, team2_id)`) | `league_id`, `week`, `team1_id`, `team2_id`, `team1_points`, `team2_points`, `status`, `is_playoffs`, `is_consolation` |
 | `yahoo_draft_results` | Draft picks (PK `(league_id, round, pick)`) | `league_id`, `round`, `pick`, `team_id`, `player_id`, `cost` |
 | `yahoo_transactions` | Adds, drops, trades (PK `(league_id, transaction_key)`). `players` is a JSONB blob | `league_id`, `transaction_key`, `type`, `timestamp`, `status`, `players` (jsonb) |
-| `yahoo_league_stat_categories` | Scoring categories | `league_id`, `stat_id`, `name`, `is_only_display_stat` |
+| `yahoo_league_stat_categories` | Scoring categories | `league_id`, `stat_id`, `name`, `sort_order` (1 higher / 0 lower is better, NULL unknown), `position_type`, `is_only_display_stat`, `value` (points weight) |
 | `yahoo_league_roster_positions` | Roster position config | `league_id`, `position`, `count` |
+| `yahoo_league_rule_snapshots` | Versioned normalized league rules (UNIQUE `(season, league_key, rules_hash)`); latest = max `last_seen_at` | `season`, `league_id`, `league_key`, `game_key`, `source` (`yahoo_api`/`temporary_stand_in`), `source_league_key`, `fetched_at`, `rules` (jsonb) |
+| `yahoo_league_players` | Draftable pool with league eligibility/status (PK `(league_key, player_id)`) | `season`, `league_id`, `player_key`, `eligible_positions`, `status`, `injury_note`, `fetched_at` |
+
+**Yahoo league identity:** Yahoo league IDs are unique only within one season (game key). The legacy `yahoo_*` tables key by numeric `league_id` alone; the importer refuses to overwrite a `yahoo_leagues` row that belongs to another season. The draft helper tables key by `league_key` + season.
 
 ### Maurice (LLM chat) tables
 

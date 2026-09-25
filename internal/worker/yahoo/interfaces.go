@@ -38,10 +38,23 @@ type YahooStandInLeagueStore interface {
 	DeleteYahooLeagueStatCategories(ctx context.Context, leagueID int32) error
 }
 
+// YahooLeagueRuleStore versions league rules for the draft helper.
+type YahooLeagueRuleStore interface {
+	UpsertYahooLeagueRuleSnapshot(ctx context.Context, arg sqlcdb.UpsertYahooLeagueRuleSnapshotParams) (sqlcdb.UpsertYahooLeagueRuleSnapshotRow, error)
+}
+
+// YahooLeaguePlayerStore replaces a league's draftable player pool.
+type YahooLeaguePlayerStore interface {
+	UpsertYahooLeaguePlayerBatch(ctx context.Context, arg []sqlcdb.UpsertYahooLeaguePlayerBatchParams) *sqlcdb.UpsertYahooLeaguePlayerBatchBatchResults
+	DeleteStaleYahooLeaguePlayers(ctx context.Context, arg sqlcdb.DeleteStaleYahooLeaguePlayersParams) (int64, error)
+}
+
 // Queries is a composite interface for all Yahoo import activity database operations.
 type Queries interface {
 	YahooLeagueUpserter
 	YahooStandInLeagueStore
+	YahooLeagueRuleStore
+	YahooLeaguePlayerStore
 	YahooTeamUpserter
 	YahooDataUpserter
 }

@@ -145,6 +145,7 @@ Run `./puckdb <command> --help` for the complete flags and subcommands.
 | `worker` | Run Temporal workflows and activities |
 | `sync [steps...]` | Fetch and import all data or selected workflow steps |
 | `db` | Migrate, provision, initialize, inspect, or drop the database |
+| `draft` | Compare imported league rules and report player-pool coverage for the draft helper ([notes](docs/draft-league-rules.md)) |
 | `redis` | Redis administration |
 | `metrics` | Export cache, Redis, and database metrics |
 | `mcp-server` | Serve curated read-only data tools over HTTP or stdio |

@@ -96,5 +96,20 @@ func (m *MockQueries) UpsertYahooMatchupBatch(ctx context.Context, arg []sqlcdb.
 	return args.Get(0).(*sqlcdb.UpsertYahooMatchupBatchBatchResults)
 }
 
+func (m *MockQueries) UpsertYahooLeagueRuleSnapshot(ctx context.Context, arg sqlcdb.UpsertYahooLeagueRuleSnapshotParams) (sqlcdb.UpsertYahooLeagueRuleSnapshotRow, error) {
+	args := m.Called(ctx, arg)
+	return args.Get(0).(sqlcdb.UpsertYahooLeagueRuleSnapshotRow), args.Error(1)
+}
+
+func (m *MockQueries) UpsertYahooLeaguePlayerBatch(ctx context.Context, arg []sqlcdb.UpsertYahooLeaguePlayerBatchParams) *sqlcdb.UpsertYahooLeaguePlayerBatchBatchResults {
+	args := m.Called(ctx, arg)
+	return args.Get(0).(*sqlcdb.UpsertYahooLeaguePlayerBatchBatchResults)
+}
+
+func (m *MockQueries) DeleteStaleYahooLeaguePlayers(ctx context.Context, arg sqlcdb.DeleteStaleYahooLeaguePlayersParams) (int64, error) {
+	args := m.Called(ctx, arg)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 // Compile-time check: MockQueries must satisfy Queries.
 var _ Queries = (*MockQueries)(nil)

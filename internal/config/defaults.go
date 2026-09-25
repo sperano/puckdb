@@ -64,6 +64,7 @@ const (
 	DefaultYahooPlayerBatchSize         = 50
 	DefaultYahooPlayerActivityBatchSize = 100
 	DefaultYahooPlayersPerExecution     = 5000
+	DefaultYahooPlayerPoolMaxAge        = 12 // hours
 	DefaultYahooDownloadSleepMin        = 5
 	DefaultYahooDownloadSleepMax        = 15
 )
@@ -225,6 +226,14 @@ const (
 	// DefaultAdminGroup is the Authentik group whose members are granted
 	// access to the @admin-guarded GraphQL mutations.
 	DefaultAdminGroup = "puckdb-admins"
+)
+
+// Draft helper report defaults
+const (
+	DefaultDraftSeason     = 0 // no default: the season must be named
+	DefaultDraftLeagues    = ""
+	DefaultDraftOutput     = ""
+	DefaultDraftStaleAfter = 24 // hours
 )
 
 // Build version constants

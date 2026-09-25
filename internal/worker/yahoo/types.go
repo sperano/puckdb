@@ -40,6 +40,9 @@ type ImportYahooLeagueInput struct {
 type ImportYahooLeagueResult struct {
 	RosterPositions int
 	StatCategories  int
+	// NewRulesVersion is true when the import stored a rules version that
+	// differs from every earlier one for the league.
+	NewRulesVersion bool
 }
 
 // ImportYahooTeamsInput contains parameters for importing Yahoo teams.

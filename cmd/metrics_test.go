@@ -322,6 +322,20 @@ func TestClassifyFileType(t *testing.T) {
 			filename: "week-7.xml",
 			want:     core.YahooMatchups,
 		},
+		{
+			name:     "yahoo league player pool page",
+			dataPath: "/data",
+			filePath: "/data/seasons/2026/yahoo/1001/players/1758369600000/players-0025.xml",
+			filename: "players-0025.xml",
+			want:     core.YahooLeaguePlayers,
+		},
+		{
+			name:     "yahoo league player pool manifest is not a page",
+			dataPath: "/data",
+			filePath: "/data/seasons/2026/yahoo/1001/players/manifest.json",
+			filename: "manifest.json",
+			want:     core.Unknown,
+		},
 	}
 
 	for _, tt := range tests {

@@ -323,6 +323,9 @@ func registerYahooFetchActivities(w worker.Worker, d taskActivityDeps) {
 	w.RegisterActivity(fetchYahooActivities.FetchTeams)
 	w.RegisterActivity(fetchYahooActivities.FetchYahooPlayerBatch)
 	w.RegisterActivity(fetchYahooActivities.FetchYahooLeagueData)
+	w.RegisterActivity(fetchYahooActivities.PlanYahooLeaguePlayerPool)
+	w.RegisterActivity(fetchYahooActivities.FetchYahooLeaguePlayersPage)
+	w.RegisterActivity(fetchYahooActivities.CommitYahooLeaguePlayerPool)
 }
 
 // registerYahooImportActivities registers the Yahoo cached-file-to-Postgres
@@ -339,6 +342,7 @@ func registerYahooImportActivities(w worker.Worker, d taskActivityDeps) *yahoo.I
 	w.RegisterActivity(importYahooActivities.ImportYahooTeams)
 	w.RegisterActivity(importYahooActivities.ImportYahooDataForDate)
 	w.RegisterActivity(importYahooActivities.ImportYahooLeagueData)
+	w.RegisterActivity(importYahooActivities.ImportYahooLeaguePlayers)
 	return importYahooActivities
 }
 

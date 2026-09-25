@@ -71,6 +71,9 @@ func expectSettingsUpserts(q *MockQueries, leagueID int32) {
 			return len(p) == standInTestCategories && p[0].LeagueID == leagueID
 		})).
 		Return(sqlcdb.NewUpsertYahooLeagueStatCategoryBatchBatchResults(&mockBatchResults{}, standInTestCategories))
+	q.On("UpsertYahooLeagueRuleSnapshot", mock.Anything,
+		mock.MatchedBy(func(p sqlcdb.UpsertYahooLeagueRuleSnapshotParams) bool { return p.LeagueID == leagueID })).
+		Return(sqlcdb.UpsertYahooLeagueRuleSnapshotRow{ID: 1, Inserted: true}, nil)
 }
 
 func isNonRetryable(err error) bool {
@@ -128,14 +131,22 @@ func TestImportYahooStandInLeague_ImportsSourceUnderTargetLeague(t *testing.T) {
 	result, err := runStandInImport(t, standInTestActivities(t, q, true), standInTestInput())
 
 	require.NoError(t, err)
-	assert.Equal(t, ImportYahooLeagueResult{RosterPositions: standInTestPositions, StatCategories: standInTestCategories}, result)
+	assert.Equal(t, ImportYahooLeagueResult{
+		RosterPositions: standInTestPositions, StatCategories: standInTestCategories, NewRulesVersion: true,
+	}, result)
 	q.AssertExpectations(t)
+	q.AssertCalled(t, "UpsertYahooLeagueRuleSnapshot", mock.Anything,
+		mock.MatchedBy(func(p sqlcdb.UpsertYahooLeagueRuleSnapshotParams) bool {
+			return p.Source == "temporary_stand_in" && p.Season == standInTestSeason &&
+				p.LeagueKey == "temporary-stand-in.l.1001" && !p.GameKey.Valid &&
+				p.SourceSeason == standInTestSourceSeason && p.SourceLeagueKey == "423.l.12345"
+		}))
 }
 
 func TestImportYahooStandInLeague_ReplacesEarlierStandIn(t *testing.T) {
 	q := &MockQueries{}
 	q.On("GetYahooLeague", mock.Anything, int32(standInTestLeagueID)).
-		Return(sqlcdb.YahooLeague{LeagueKey: standInLeagueKey(standInTestLeagueID)}, nil)
+		Return(sqlcdb.YahooLeague{LeagueKey: standInLeagueKey(standInTestLeagueID), Season: standInTestSeason}, nil)
 	q.On("DeleteYahooLeagueRosterPositions", mock.Anything, int32(standInTestLeagueID)).Return(nil).Once()
 	q.On("DeleteYahooLeagueStatCategories", mock.Anything, int32(standInTestLeagueID)).Return(nil).Once()
 	q.On("UpsertYahooLeague", mock.Anything, mock.Anything).Return(nil)
@@ -150,7 +161,7 @@ func TestImportYahooStandInLeague_ReplacesEarlierStandIn(t *testing.T) {
 func TestImportYahooStandInLeague_RefusesToOverwriteRealSettings(t *testing.T) {
 	q := &MockQueries{}
 	q.On("GetYahooLeague", mock.Anything, int32(standInTestLeagueID)).
-		Return(sqlcdb.YahooLeague{LeagueKey: "465.l.1001"}, nil)
+		Return(sqlcdb.YahooLeague{LeagueKey: "465.l.1001", Season: standInTestSeason}, nil)
 
 	_, err := runStandInImport(t, standInTestActivities(t, q, true), standInTestInput())
 
@@ -202,7 +213,9 @@ func TestImportYahooLeague_ClearsStandInBeforeRealImport(t *testing.T) {
 	require.NoError(t, mem.Write(context.Background(), res.Path(), []byte(leagueWithPositionsXML)))
 	q := &MockQueries{}
 	q.On("GetYahooLeague", mock.Anything, int32(standInTestSourceLeagueID)).
-		Return(sqlcdb.YahooLeague{LeagueKey: standInLeagueKey(standInTestSourceLeagueID)}, nil)
+		Return(sqlcdb.YahooLeague{
+			ID: standInTestSourceLeagueID, LeagueKey: standInLeagueKey(standInTestSourceLeagueID), Season: standInTestSourceSeason,
+		}, nil)
 	q.On("DeleteYahooLeagueRosterPositions", mock.Anything, int32(standInTestSourceLeagueID)).Return(nil).Once()
 	q.On("DeleteYahooLeagueStatCategories", mock.Anything, int32(standInTestSourceLeagueID)).Return(nil).Once()
 	q.On("UpsertYahooLeague", mock.Anything, mock.MatchedBy(func(p sqlcdb.UpsertYahooLeagueParams) bool {
@@ -227,7 +240,7 @@ func TestImportYahooLeague_KeepsRealSettingsRows(t *testing.T) {
 	require.NoError(t, mem.Write(context.Background(), res.Path(), []byte(leagueWithPositionsXML)))
 	q := &MockQueries{}
 	q.On("GetYahooLeague", mock.Anything, int32(standInTestSourceLeagueID)).
-		Return(sqlcdb.YahooLeague{LeagueKey: "423.l.12345"}, nil)
+		Return(sqlcdb.YahooLeague{LeagueKey: "423.l.12345", Season: standInTestSourceSeason}, nil)
 	q.On("UpsertYahooLeague", mock.Anything, mock.Anything).Return(nil)
 	expectSettingsUpserts(q, standInTestSourceLeagueID)
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}

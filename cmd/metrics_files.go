@@ -117,7 +117,7 @@ func classifyNHLFile(parts []string, filename string) core.FileType {
 //	seasons/{Y}/clubstats/clubstats-{teamAbbrev}-{gameType}.json
 //	seasons/{Y}/club-schedule/club-schedule-{teamAbbrev}.json
 //	seasons/{Y}/player-gamelogs/player-{playerID}-{gameType}.json
-//	seasons/{Y}/yahoo/{leagueID}/{league,teams,rosters,summaries,transactions,draft,matchups}/...
+//	seasons/{Y}/yahoo/{leagueID}/{league,teams,rosters,summaries,transactions,draft,matchups,players}/...
 func classifySeasonFile(parts []string, filename string) core.FileType {
 	if len(parts) < 3 {
 		return core.Unknown
@@ -208,6 +208,10 @@ func classifyYahooSeasonFile(parts []string, filename string) core.FileType {
 	case "matchups":
 		if strings.HasPrefix(filename, "week-") {
 			return core.YahooMatchups
+		}
+	case "players":
+		if strings.HasPrefix(filename, "players-") {
+			return core.YahooLeaguePlayers
 		}
 	}
 	return core.Unknown

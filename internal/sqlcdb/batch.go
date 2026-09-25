@@ -1488,6 +1488,112 @@ func (b *UpsertYahooDraftResultBatchBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const upsertYahooLeaguePlayerBatch = `-- name: UpsertYahooLeaguePlayerBatch :batchexec
+
+INSERT INTO yahoo_league_players (
+    league_key, season, league_id, game_key, player_id, player_key,
+    full_name, editorial_team_abbr, display_position, primary_position,
+    position_type, eligible_positions, status, status_full, injury_note,
+    on_disabled_list, fetched_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+ON CONFLICT (league_key, player_id) DO UPDATE SET
+    season = EXCLUDED.season,
+    league_id = EXCLUDED.league_id,
+    game_key = EXCLUDED.game_key,
+    player_key = EXCLUDED.player_key,
+    full_name = EXCLUDED.full_name,
+    editorial_team_abbr = EXCLUDED.editorial_team_abbr,
+    display_position = EXCLUDED.display_position,
+    primary_position = EXCLUDED.primary_position,
+    position_type = EXCLUDED.position_type,
+    eligible_positions = EXCLUDED.eligible_positions,
+    status = EXCLUDED.status,
+    status_full = EXCLUDED.status_full,
+    injury_note = EXCLUDED.injury_note,
+    on_disabled_list = EXCLUDED.on_disabled_list,
+    fetched_at = EXCLUDED.fetched_at,
+    imported_at = NOW()
+`
+
+type UpsertYahooLeaguePlayerBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertYahooLeaguePlayerBatchParams struct {
+	LeagueKey         string             `json:"league_key"`
+	Season            int32              `json:"season"`
+	LeagueID          int32              `json:"league_id"`
+	GameKey           int32              `json:"game_key"`
+	PlayerID          int32              `json:"player_id"`
+	PlayerKey         string             `json:"player_key"`
+	FullName          string             `json:"full_name"`
+	EditorialTeamAbbr string             `json:"editorial_team_abbr"`
+	DisplayPosition   string             `json:"display_position"`
+	PrimaryPosition   string             `json:"primary_position"`
+	PositionType      string             `json:"position_type"`
+	EligiblePositions []string           `json:"eligible_positions"`
+	Status            string             `json:"status"`
+	StatusFull        string             `json:"status_full"`
+	InjuryNote        string             `json:"injury_note"`
+	OnDisabledList    bool               `json:"on_disabled_list"`
+	FetchedAt         pgtype.Timestamptz `json:"fetched_at"`
+}
+
+// =============================================================================
+// Yahoo League Players (draftable pool with league eligibility and status)
+// =============================================================================
+func (q *Queries) UpsertYahooLeaguePlayerBatch(ctx context.Context, arg []UpsertYahooLeaguePlayerBatchParams) *UpsertYahooLeaguePlayerBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueKey,
+			a.Season,
+			a.LeagueID,
+			a.GameKey,
+			a.PlayerID,
+			a.PlayerKey,
+			a.FullName,
+			a.EditorialTeamAbbr,
+			a.DisplayPosition,
+			a.PrimaryPosition,
+			a.PositionType,
+			a.EligiblePositions,
+			a.Status,
+			a.StatusFull,
+			a.InjuryNote,
+			a.OnDisabledList,
+			a.FetchedAt,
+		}
+		batch.Queue(upsertYahooLeaguePlayerBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertYahooLeaguePlayerBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertYahooLeaguePlayerBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertYahooLeaguePlayerBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const upsertYahooLeagueRosterPositionBatch = `-- name: UpsertYahooLeagueRosterPositionBatch :batchexec
 INSERT INTO yahoo_league_roster_positions (
     league_id, position, position_type, count, is_starting_position
@@ -1557,22 +1663,33 @@ func (b *UpsertYahooLeagueRosterPositionBatchBatchResults) Close() error {
 
 const upsertYahooLeagueStatCategoryBatch = `-- name: UpsertYahooLeagueStatCategoryBatch :batchexec
 INSERT INTO yahoo_league_stat_categories (
-    league_id, stat_id, name, abbr, stat_group, enabled, value
+    league_id, stat_id, name, abbr, stat_group, enabled, value,
+    display_name, position_type, sort_order, is_only_display_stat
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (league_id, stat_id) DO UPDATE SET
     name = EXCLUDED.name,
     abbr = EXCLUDED.abbr,
     stat_group = EXCLUDED.stat_group,
     enabled = EXCLUDED.enabled,
-    value = EXCLUDED.value
+    value = EXCLUDED.value,
+    display_name = EXCLUDED.display_name,
+    position_type = EXCLUDED.position_type,
+    sort_order = EXCLUDED.sort_order,
+    is_only_display_stat = EXCLUDED.is_only_display_stat
 WHERE (yahoo_league_stat_categories.name, yahoo_league_stat_categories.abbr,
        yahoo_league_stat_categories.stat_group,
        yahoo_league_stat_categories.enabled,
-       yahoo_league_stat_categories.value)
+       yahoo_league_stat_categories.value,
+       yahoo_league_stat_categories.display_name,
+       yahoo_league_stat_categories.position_type,
+       yahoo_league_stat_categories.sort_order,
+       yahoo_league_stat_categories.is_only_display_stat)
       IS DISTINCT FROM
       (EXCLUDED.name, EXCLUDED.abbr, EXCLUDED.stat_group,
-       EXCLUDED.enabled, EXCLUDED.value)
+       EXCLUDED.enabled, EXCLUDED.value, EXCLUDED.display_name,
+       EXCLUDED.position_type, EXCLUDED.sort_order,
+       EXCLUDED.is_only_display_stat)
 `
 
 type UpsertYahooLeagueStatCategoryBatchBatchResults struct {
@@ -1582,13 +1699,17 @@ type UpsertYahooLeagueStatCategoryBatchBatchResults struct {
 }
 
 type UpsertYahooLeagueStatCategoryBatchParams struct {
-	LeagueID  int32         `json:"league_id"`
-	StatID    int32         `json:"stat_id"`
-	Name      string        `json:"name"`
-	Abbr      string        `json:"abbr"`
-	StatGroup string        `json:"stat_group"`
-	Enabled   bool          `json:"enabled"`
-	Value     pgtype.Float4 `json:"value"`
+	LeagueID          int32         `json:"league_id"`
+	StatID            int32         `json:"stat_id"`
+	Name              string        `json:"name"`
+	Abbr              string        `json:"abbr"`
+	StatGroup         string        `json:"stat_group"`
+	Enabled           bool          `json:"enabled"`
+	Value             pgtype.Float4 `json:"value"`
+	DisplayName       string        `json:"display_name"`
+	PositionType      string        `json:"position_type"`
+	SortOrder         pgtype.Int2   `json:"sort_order"`
+	IsOnlyDisplayStat bool          `json:"is_only_display_stat"`
 }
 
 func (q *Queries) UpsertYahooLeagueStatCategoryBatch(ctx context.Context, arg []UpsertYahooLeagueStatCategoryBatchParams) *UpsertYahooLeagueStatCategoryBatchBatchResults {
@@ -1602,6 +1723,10 @@ func (q *Queries) UpsertYahooLeagueStatCategoryBatch(ctx context.Context, arg []
 			a.StatGroup,
 			a.Enabled,
 			a.Value,
+			a.DisplayName,
+			a.PositionType,
+			a.SortOrder,
+			a.IsOnlyDisplayStat,
 		}
 		batch.Queue(upsertYahooLeagueStatCategoryBatch, vals...)
 	}

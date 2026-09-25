@@ -166,22 +166,33 @@ DELETE FROM yahoo_league_stat_categories WHERE league_id = $1;
 
 -- name: UpsertYahooLeagueStatCategoryBatch :batchexec
 INSERT INTO yahoo_league_stat_categories (
-    league_id, stat_id, name, abbr, stat_group, enabled, value
+    league_id, stat_id, name, abbr, stat_group, enabled, value,
+    display_name, position_type, sort_order, is_only_display_stat
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (league_id, stat_id) DO UPDATE SET
     name = EXCLUDED.name,
     abbr = EXCLUDED.abbr,
     stat_group = EXCLUDED.stat_group,
     enabled = EXCLUDED.enabled,
-    value = EXCLUDED.value
+    value = EXCLUDED.value,
+    display_name = EXCLUDED.display_name,
+    position_type = EXCLUDED.position_type,
+    sort_order = EXCLUDED.sort_order,
+    is_only_display_stat = EXCLUDED.is_only_display_stat
 WHERE (yahoo_league_stat_categories.name, yahoo_league_stat_categories.abbr,
        yahoo_league_stat_categories.stat_group,
        yahoo_league_stat_categories.enabled,
-       yahoo_league_stat_categories.value)
+       yahoo_league_stat_categories.value,
+       yahoo_league_stat_categories.display_name,
+       yahoo_league_stat_categories.position_type,
+       yahoo_league_stat_categories.sort_order,
+       yahoo_league_stat_categories.is_only_display_stat)
       IS DISTINCT FROM
       (EXCLUDED.name, EXCLUDED.abbr, EXCLUDED.stat_group,
-       EXCLUDED.enabled, EXCLUDED.value);
+       EXCLUDED.enabled, EXCLUDED.value, EXCLUDED.display_name,
+       EXCLUDED.position_type, EXCLUDED.sort_order,
+       EXCLUDED.is_only_display_stat);
 
 -- =============================================================================
 -- Yahoo Teams
