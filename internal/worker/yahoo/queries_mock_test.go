@@ -43,6 +43,19 @@ func (m *MockQueries) UpsertYahooLeagueStatCategoryBatch(ctx context.Context, ar
 	return args.Get(0).(*sqlcdb.UpsertYahooLeagueStatCategoryBatchBatchResults)
 }
 
+func (m *MockQueries) GetYahooLeague(ctx context.Context, id int32) (sqlcdb.YahooLeague, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(sqlcdb.YahooLeague), args.Error(1)
+}
+
+func (m *MockQueries) DeleteYahooLeagueRosterPositions(ctx context.Context, leagueID int32) error {
+	return m.Called(ctx, leagueID).Error(0)
+}
+
+func (m *MockQueries) DeleteYahooLeagueStatCategories(ctx context.Context, leagueID int32) error {
+	return m.Called(ctx, leagueID).Error(0)
+}
+
 func (m *MockQueries) UpsertYahooTeamBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamBatchParams) *sqlcdb.UpsertYahooTeamBatchBatchResults {
 	args := m.Called(ctx, arg)
 	return args.Get(0).(*sqlcdb.UpsertYahooTeamBatchBatchResults)

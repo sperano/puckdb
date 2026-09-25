@@ -29,9 +29,19 @@ type YahooDataUpserter interface {
 	UpsertYahooMatchupBatch(ctx context.Context, arg []sqlcdb.UpsertYahooMatchupBatchParams) *sqlcdb.UpsertYahooMatchupBatchBatchResults
 }
 
+// YahooStandInLeagueStore reads and clears league settings so a TEMPORARY
+// stand-in league (see config.LeagueMetadataSource) can be written and later
+// replaced by the real settings without leaving stale rows.
+type YahooStandInLeagueStore interface {
+	GetYahooLeague(ctx context.Context, id int32) (sqlcdb.YahooLeague, error)
+	DeleteYahooLeagueRosterPositions(ctx context.Context, leagueID int32) error
+	DeleteYahooLeagueStatCategories(ctx context.Context, leagueID int32) error
+}
+
 // Queries is a composite interface for all Yahoo import activity database operations.
 type Queries interface {
 	YahooLeagueUpserter
+	YahooStandInLeagueStore
 	YahooTeamUpserter
 	YahooDataUpserter
 }

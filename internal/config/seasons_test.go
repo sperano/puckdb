@@ -1,12 +1,14 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetSeasons(t *testing.T) {
@@ -103,3 +105,40 @@ func TestLeagueGet_Error(t *testing.T) {
 // Note: GetYahooSeasonsConfig uses sync.Once so it can only be tested once per process.
 // This test must be run in isolation or be the first to call GetYahooSeasonsConfig.
 // For this reason, we test the underlying getYahooSeasons function more thoroughly above.
+
+func TestGetSeasons_TemporaryMetadataFrom(t *testing.T) {
+	t.Parallel()
+	seasons, err := getYahooSeasons("testdata/seasons_temporary_metadata.yaml")
+	require.NoError(t, err)
+
+	standIn, plain := seasons[2026].Leagues[0], seasons[2026].Leagues[1]
+	assert.True(t, standIn.UsesTemporaryMetadata())
+	assert.Equal(t, &LeagueMetadataSource{Season: 2025, LeagueID: 1003}, standIn.TemporaryMetadataFrom)
+	assert.False(t, plain.UsesTemporaryMetadata())
+	assert.False(t, seasons[2025].Leagues[0].UsesTemporaryMetadata())
+}
+
+func TestGetSeasons_TemporaryMetadataFromMustBeEarlierSeason(t *testing.T) {
+	t.Parallel()
+	seasons, err := getYahooSeasons("testdata/seasons_temporary_metadata_invalid.yaml")
+	assert.Nil(t, seasons)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "season 2026 league 1001: temporary_metadata_from must name an earlier season")
+}
+
+func TestValidateTemporaryMetadata_RequiresLeagueID(t *testing.T) {
+	t.Parallel()
+	seasons := YahooSeasonsMap{2026: {Leagues: []League{
+		{LeagueID: 1001, TemporaryMetadataFrom: &LeagueMetadataSource{Season: 2025}},
+	}}}
+	assert.Error(t, validateTemporaryMetadata(seasons))
+}
+
+// Leagues are recorded in Temporal history; a league without a stand-in must
+// keep serializing exactly as it did before the field existed.
+func TestLeagueJSON_OmitsAbsentTemporaryMetadata(t *testing.T) {
+	t.Parallel()
+	data, err := json.Marshal(League{LeagueID: 1001, TeamIDs: []int{1}})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"leagueId":1001,"teamIds":[1]}`, string(data))
+}

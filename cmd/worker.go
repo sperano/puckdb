@@ -335,6 +335,7 @@ func registerYahooImportActivities(w worker.Worker, d taskActivityDeps) *yahoo.I
 		Queries:  d.queries,
 	}
 	w.RegisterActivity(importYahooActivities.ImportYahooLeague)
+	w.RegisterActivity(importYahooActivities.ImportYahooStandInLeague) // TEMPORARY: see config.LeagueMetadataSource
 	w.RegisterActivity(importYahooActivities.ImportYahooTeams)
 	w.RegisterActivity(importYahooActivities.ImportYahooDataForDate)
 	w.RegisterActivity(importYahooActivities.ImportYahooLeagueData)

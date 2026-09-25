@@ -1,0 +1,7 @@
+2026:
+  leagues:
+  - league_id: 1001
+    team_ids: [1]
+    temporary_metadata_from:
+      season: 2026
+      league_id: 1003

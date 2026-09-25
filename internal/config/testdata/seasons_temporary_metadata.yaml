@@ -1,0 +1,13 @@
+2025:
+  leagues:
+  - league_id: 1003
+    team_ids: [1,2,3]
+2026:
+  leagues:
+  - league_id: 1001
+    team_ids: [1,2,3]
+    temporary_metadata_from:
+      season: 2025
+      league_id: 1003
+  - league_id: 1002
+    team_ids: [4]

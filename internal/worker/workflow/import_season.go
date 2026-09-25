@@ -91,6 +91,9 @@ func runImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo, includ
 	if includeYahoo && hasYahoo {
 		var yia *yahoo.ImportActivities
 		for _, league := range yahooCfg.Leagues {
+			if league.UsesTemporaryMetadata() {
+				continue
+			}
 			leagueDataInput := yahoo.ImportYahooLeagueDataInput{
 				Season:   season.ID.StartYear(),
 				LeagueID: league.LeagueID,
@@ -195,6 +198,12 @@ func importYahooLeaguesAndTeams(ctx workflow.Context, yahooCfg config.Season, st
 
 	// Import each league and collect team IDs
 	for _, league := range yahooCfg.Leagues {
+		if league.UsesTemporaryMetadata() {
+			if err := importStandInLeague(ctx, startYear, league); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		input := yahoo.ImportYahooLeagueInput{Season: startYear, LeagueID: league.LeagueID}
 		if err := workflow.ExecuteActivity(ctx, yia.ImportYahooLeague, input).Get(ctx, nil); err != nil {
 			return nil, err

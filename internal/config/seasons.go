@@ -28,6 +28,33 @@ var (
 type League struct {
 	LeagueID int   `yaml:"league_id" json:"leagueId"`
 	TeamIDs  []int `yaml:"team_ids" json:"teamIds"`
+	// TemporaryMetadataFrom is TEMPORARY: see LeagueMetadataSource. omitempty
+	// keeps the recorded snapshot of every league without it unchanged.
+	TemporaryMetadataFrom *LeagueMetadataSource `yaml:"temporary_metadata_from,omitempty" json:"temporaryMetadataFrom,omitempty"`
+}
+
+// LeagueMetadataSource names an earlier season's league whose cached Yahoo
+// settings stand in for a league the Yahoo API cannot serve yet.
+//
+// TEMPORARY: Yahoo answers 403 "This application is not authorized to perform
+// this action" for the 2026 leagues while the app's access request is pending.
+// A league configured with temporary_metadata_from makes no Yahoo API calls;
+// sync imports the source league's settings (scoring categories, roster
+// positions, draft and waiver rules) under the league's own ID instead, and
+// skips its teams, transactions, draft results and matchups. Once Yahoo serves
+// the league again, drop temporary_metadata_from from the seasons config; the
+// next import replaces the stand-in with the real settings. Then delete this
+// type and its callers.
+type LeagueMetadataSource struct {
+	Season   int `yaml:"season" json:"season"`
+	LeagueID int `yaml:"league_id" json:"leagueId"`
+}
+
+// UsesTemporaryMetadata reports whether the league imports stand-in settings
+// from another season instead of calling the Yahoo API. TEMPORARY: see
+// LeagueMetadataSource.
+func (l League) UsesTemporaryMetadata() bool {
+	return l.TemporaryMetadataFrom != nil
 }
 
 type Season struct {
@@ -57,7 +84,28 @@ func getYahooSeasons(path string) (YahooSeasonsMap, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't unmarshal yahoo seasons config file %s: %w", path, err)
 	}
+	if err := validateTemporaryMetadata(seasons); err != nil {
+		return nil, fmt.Errorf("invalid yahoo seasons config file %s: %w", path, err)
+	}
 	return seasons, nil
+}
+
+// validateTemporaryMetadata rejects stand-in sources that cannot hold last
+// season's settings: a missing league ID or a season that is not earlier.
+func validateTemporaryMetadata(seasons YahooSeasonsMap) error {
+	for year, season := range seasons {
+		for _, league := range season.Leagues {
+			source := league.TemporaryMetadataFrom
+			if source == nil {
+				continue
+			}
+			if source.LeagueID <= 0 || source.Season >= year {
+				return fmt.Errorf("season %d league %d: temporary_metadata_from must name an earlier season "+
+					"and a league ID, got season %d league %d", year, league.LeagueID, source.Season, source.LeagueID)
+			}
+		}
+	}
+	return nil
 }
 
 // GetYahooSeasonsConfig returns the Yahoo seasons map from the configured YAML

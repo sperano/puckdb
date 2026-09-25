@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
@@ -230,6 +231,7 @@ func (s *ImportYahooLeagueSuite) TestWithPositionsAndStats() {
 	leagueRes := resource.League{Season: 2023, LeagueID: 12345}
 	require.NoError(s.T(), mem.Write(context.Background(), leagueRes.Path(), []byte(leagueWithPositionsXML)))
 
+	q.On("GetYahooLeague", mock.Anything, int32(12345)).Return(sqlcdb.YahooLeague{}, pgx.ErrNoRows)
 	q.On("UpsertYahooLeague", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertYahooLeagueParams")).Return(nil)
 	q.On("UpsertYahooLeagueRosterPositionBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooLeagueRosterPositionBatchBatchResults(&mockBatchResults{}, 2))
@@ -256,6 +258,7 @@ func (s *ImportYahooLeagueSuite) TestUpsertLeagueError() {
 	leagueRes := resource.League{Season: 2023, LeagueID: 12345}
 	require.NoError(s.T(), mem.Write(context.Background(), leagueRes.Path(), []byte(leagueWithPositionsXML)))
 
+	q.On("GetYahooLeague", mock.Anything, int32(12345)).Return(sqlcdb.YahooLeague{}, pgx.ErrNoRows)
 	q.On("UpsertYahooLeague", mock.Anything, mock.Anything).Return(assert.AnError)
 
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}

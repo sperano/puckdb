@@ -55,6 +55,10 @@ func importYahooSeasonLeagueData(ctx workflow.Context, input YahooSeasonWorkflow
 	var activities *yahoo.ImportActivities
 	var unavailable []string
 	for _, league := range input.Season.Leagues {
+		if league.UsesTemporaryMetadata() {
+			unavailable = append(unavailable, standInLeagueNote(league))
+			continue
+		}
 		activityInput := yahoo.ImportYahooLeagueDataInput{
 			Season: input.StartYear, LeagueID: league.LeagueID,
 		}

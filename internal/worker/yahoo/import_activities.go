@@ -32,27 +32,56 @@ func (a *ImportActivities) ImportYahooLeague(ctx context.Context, input ImportYa
 	defer metrics.TrackActivityDuration("ImportYahooLeague")()
 
 	logger := activity.GetLogger(ctx)
-	result := ImportYahooLeagueResult{}
 
 	// Read the league file
 	leagueRes := resource.League{Season: input.Season, LeagueID: input.LeagueID}
 	if !a.Storage.Exists(ctx, leagueRes.Path()) {
-		return result, fmt.Errorf("required Yahoo league cache is missing for season %d league %d",
+		return ImportYahooLeagueResult{}, fmt.Errorf("required Yahoo league cache is missing for season %d league %d",
 			input.Season, input.LeagueID)
 	}
 
 	fantasy, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, leagueRes)
 	if err != nil {
-		return result, fmt.Errorf("read league file: %w", err)
+		return ImportYahooLeagueResult{}, fmt.Errorf("read league file: %w", err)
 	}
 
-	league := fantasy.League
+	if err := a.clearStandInLeagueSettings(ctx, fantasy.League.ID); err != nil {
+		return ImportYahooLeagueResult{}, err
+	}
+	result, err := a.upsertLeague(ctx, fantasy.League)
+	if err != nil {
+		return result, err
+	}
 
-	// Parse dates
-	startDate := shared.ParseDateToPgDate(league.StartDate)
-	endDate := shared.ParseDateToPgDate(league.EndDate)
-	tradeEndDate := shared.ParseDateToPgDate(league.Settings.TradeEndDate)
+	logger.Info("Imported Yahoo league",
+		"season", input.Season,
+		"leagueID", input.LeagueID,
+		"rosterPositions", result.RosterPositions,
+		"statCategories", result.StatCategories)
 
+	return result, nil
+}
+
+// upsertLeague writes the league row, its roster positions and its stat categories.
+func (a *ImportActivities) upsertLeague(ctx context.Context, league store.League) (ImportYahooLeagueResult, error) {
+	result := ImportYahooLeagueResult{}
+	if err := a.Queries.UpsertYahooLeague(ctx, yahooLeagueParams(league)); err != nil {
+		return result, fmt.Errorf("upsert league %d: %w", league.ID, err)
+	}
+	positions, err := a.upsertRosterPositions(ctx, league)
+	if err != nil {
+		return result, err
+	}
+	result.RosterPositions = positions
+	categories, err := a.upsertStatCategories(ctx, league)
+	if err != nil {
+		return result, err
+	}
+	result.StatCategories = categories
+	return result, nil
+}
+
+func yahooLeagueParams(league store.League) sqlcdb.UpsertYahooLeagueParams {
 	// Parse draft time
 	var draftTime pgtype.Timestamptz
 	if league.Settings.DraftTime > 0 {
@@ -62,8 +91,7 @@ func (a *ImportActivities) ImportYahooLeague(ctx context.Context, input ImportYa
 		}
 	}
 
-	// Upsert the league
-	leagueParams := sqlcdb.UpsertYahooLeagueParams{
+	return sqlcdb.UpsertYahooLeagueParams{
 		ID:                    int32(league.ID),
 		LeagueKey:             league.Key,
 		Name:                  league.Name,
@@ -77,8 +105,8 @@ func (a *ImportActivities) ImportYahooLeague(ctx context.Context, input ImportYa
 		DraftStatus:           league.DraftStatus,
 		IsProLeague:           league.IsProLeague == 1,
 		IsCashLeague:          league.IsCashLeague == 1,
-		StartDate:             startDate,
-		EndDate:               endDate,
+		StartDate:             shared.ParseDateToPgDate(league.StartDate),
+		EndDate:               shared.ParseDateToPgDate(league.EndDate),
 		DraftType:             league.Settings.DraftType,
 		IsAuctionDraft:        league.Settings.IsAuctionDraft == 1,
 		DraftTime:             draftTime,
@@ -86,7 +114,7 @@ func (a *ImportActivities) ImportYahooLeague(ctx context.Context, input ImportYa
 		WaiverType:            league.Settings.WaiverType,
 		WaiverRule:            league.Settings.WaiverRule,
 		WaiverTime:            pgtype.Int4{Int32: int32(league.Settings.WaiverTime), Valid: league.Settings.WaiverTime > 0},
-		TradeEndDate:          tradeEndDate,
+		TradeEndDate:          shared.ParseDateToPgDate(league.Settings.TradeEndDate),
 		TradeRatifyType:       league.Settings.TradeRatifyType,
 		TradeRejectTime:       pgtype.Int4{Int32: int32(league.Settings.TradeRejectTime), Valid: league.Settings.TradeRejectTime > 0},
 		MaxTeams:              pgtype.Int4{Int32: int32(league.Settings.MaxTeams), Valid: league.Settings.MaxTeams > 0},
@@ -97,62 +125,60 @@ func (a *ImportActivities) ImportYahooLeague(ctx context.Context, input ImportYa
 		PersistentUrl:         league.Settings.PersistentURL,
 		LeagueUpdateTimestamp: pgtype.Int8{Int64: int64(league.LeagueUpdateTimestamp), Valid: league.LeagueUpdateTimestamp > 0},
 	}
+}
 
-	if err := a.Queries.UpsertYahooLeague(ctx, leagueParams); err != nil {
-		return result, fmt.Errorf("upsert league %d: %w", league.ID, err)
+// upsertRosterPositions batch-upserts the league's roster positions and
+// returns how many it wrote.
+func (a *ImportActivities) upsertRosterPositions(ctx context.Context, league store.League) (int, error) {
+	positions := league.Settings.RosterPositions.Slice
+	if len(positions) == 0 {
+		return 0, nil
+	}
+	posParams := make([]sqlcdb.UpsertYahooLeagueRosterPositionBatchParams, len(positions))
+	for i, pos := range positions {
+		posParams[i] = sqlcdb.UpsertYahooLeagueRosterPositionBatchParams{
+			LeagueID:           int32(league.ID),
+			Position:           pos.Position,
+			PositionType:       pos.PositionType,
+			Count:              int32(pos.Count),
+			IsStartingPosition: pos.IsStartingPosition == 1,
+		}
 	}
 
-	// Batch upsert roster positions
-	if len(league.Settings.RosterPositions.Slice) > 0 {
-		posParams := make([]sqlcdb.UpsertYahooLeagueRosterPositionBatchParams, len(league.Settings.RosterPositions.Slice))
-		for i, pos := range league.Settings.RosterPositions.Slice {
-			posParams[i] = sqlcdb.UpsertYahooLeagueRosterPositionBatchParams{
-				LeagueID:           int32(league.ID),
-				Position:           pos.Position,
-				PositionType:       pos.PositionType,
-				Count:              int32(pos.Count),
-				IsStartingPosition: pos.IsStartingPosition == 1,
-			}
-		}
+	if err := shared.ExecBatch(a.Queries.UpsertYahooLeagueRosterPositionBatch(ctx, posParams), func(i int) string {
+		return fmt.Sprintf("roster position %s", posParams[i].Position)
+	}); err != nil {
+		return 0, err
+	}
+	return len(posParams), nil
+}
 
-		if err := shared.ExecBatch(a.Queries.UpsertYahooLeagueRosterPositionBatch(ctx, posParams), func(i int) string {
-			return fmt.Sprintf("roster position %s", posParams[i].Position)
-		}); err != nil {
-			return result, err
+// upsertStatCategories batch-upserts the league's stat categories and returns
+// how many it wrote.
+func (a *ImportActivities) upsertStatCategories(ctx context.Context, league store.League) (int, error) {
+	stats := league.Settings.StatCategories.Stats.Slice
+	if len(stats) == 0 {
+		return 0, nil
+	}
+	statParams := make([]sqlcdb.UpsertYahooLeagueStatCategoryBatchParams, len(stats))
+	for i, stat := range stats {
+		statParams[i] = sqlcdb.UpsertYahooLeagueStatCategoryBatchParams{
+			LeagueID:  int32(league.ID),
+			StatID:    int32(stat.StatID),
+			Name:      stat.Name,
+			Abbr:      stat.Abbr,
+			StatGroup: stat.Group,
+			Enabled:   stat.Enabled == 1,
+			Value:     pgtype.Float4{}, // Yahoo doesn't provide point values in settings response
 		}
-		result.RosterPositions = len(posParams)
 	}
 
-	// Batch upsert stat categories
-	if len(league.Settings.StatCategories.Stats.Slice) > 0 {
-		statParams := make([]sqlcdb.UpsertYahooLeagueStatCategoryBatchParams, len(league.Settings.StatCategories.Stats.Slice))
-		for i, stat := range league.Settings.StatCategories.Stats.Slice {
-			statParams[i] = sqlcdb.UpsertYahooLeagueStatCategoryBatchParams{
-				LeagueID:  int32(league.ID),
-				StatID:    int32(stat.StatID),
-				Name:      stat.Name,
-				Abbr:      stat.Abbr,
-				StatGroup: stat.Group,
-				Enabled:   stat.Enabled == 1,
-				Value:     pgtype.Float4{}, // Yahoo doesn't provide point values in settings response
-			}
-		}
-
-		if err := shared.ExecBatch(a.Queries.UpsertYahooLeagueStatCategoryBatch(ctx, statParams), func(i int) string {
-			return fmt.Sprintf("stat category %d", statParams[i].StatID)
-		}); err != nil {
-			return result, err
-		}
-		result.StatCategories = len(statParams)
+	if err := shared.ExecBatch(a.Queries.UpsertYahooLeagueStatCategoryBatch(ctx, statParams), func(i int) string {
+		return fmt.Sprintf("stat category %d", statParams[i].StatID)
+	}); err != nil {
+		return 0, err
 	}
-
-	logger.Info("Imported Yahoo league",
-		"season", input.Season,
-		"leagueID", input.LeagueID,
-		"rosterPositions", result.RosterPositions,
-		"statCategories", result.StatCategories)
-
-	return result, nil
+	return len(statParams), nil
 }
 
 // ImportYahooTeams imports Yahoo teams from cached XML into the database.
