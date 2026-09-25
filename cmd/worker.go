@@ -62,6 +62,8 @@ var workerFlagGroups = []*config.FlagGroup{
 	&config.PlayerLogsFlags,
 	&config.AssetFlags,
 	&config.MauriceFlags,
+	&config.NewsSourcesFlags,
+	&config.NewsWorkerFlags,
 }
 
 func cmdWorker() *cobra.Command {
@@ -173,6 +175,9 @@ func cmdWorker() *cobra.Command {
 			} else {
 				// Tasks queue: main workloads
 				registerTasksWorkflows(w)
+				if err := ensureNewsSchedule(ctx, tclient.ScheduleClient(), viper.GetInt(config.FlagNewsScheduleMinutes)); err != nil {
+					return err
+				}
 				if err := registerTasksActivities(w, pool, redisClient, tclient); err != nil {
 					return err
 				}
@@ -238,6 +243,9 @@ func registerTasksWorkflows(w worker.Worker) {
 
 	// Simulation workflow
 	w.RegisterWorkflow(simulation.SimPoolWorkflow)
+
+	// Player news (draft helper)
+	w.RegisterWorkflow(workflow.RefreshNewsWorkflow)
 }
 
 // taskActivityDeps holds the dependencies shared by every per-domain
@@ -278,6 +286,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	importYahooActivities := registerYahooImportActivities(w, d)
 	registerNHLActivities(w, d, importYahooActivities)
 	registerPlayerActivities(w, d)
+	registerNewsActivities(w, pool, d.queries)
 
 	return nil
 }

@@ -162,6 +162,16 @@ func (r *mutationResolver) CancelFetchAssets(ctx context.Context) (bool, error) 
 	return r.Resolver.cancelWorkflow(ctx, shared.WorkflowIDFetchAssets)
 }
 
+// RefreshNews is the resolver for the refreshNews field.
+func (r *mutationResolver) RefreshNews(ctx context.Context, input *model.RefreshNewsInput) (bool, error) {
+	return r.Resolver.executeWorkflow(ctx, shared.WorkflowIDRefreshNews, workflow.RefreshNewsWorkflow, input)
+}
+
+// CancelRefreshNews is the resolver for the cancelRefreshNews field.
+func (r *mutationResolver) CancelRefreshNews(ctx context.Context) (bool, error) {
+	return r.Resolver.cancelWorkflow(ctx, shared.WorkflowIDRefreshNews)
+}
+
 // MauriceChat is the resolver for the mauriceChat field.
 func (r *mutationResolver) MauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error) {
 	return r.Resolver.mauriceChat(ctx, conversationID, message)
@@ -306,6 +316,16 @@ func (r *queryResolver) FetchAssetsResult(ctx context.Context) (*model.WorkflowR
 // FetchAssetsProgress is the resolver for the fetchAssetsProgress field.
 func (r *queryResolver) FetchAssetsProgress(ctx context.Context) (*model.ProgressReport, error) {
 	return r.Resolver.queryProgressReport(ctx, shared.WorkflowIDFetchAssets)
+}
+
+// RefreshNewsResult is the resolver for the refreshNewsResult field.
+func (r *queryResolver) RefreshNewsResult(ctx context.Context) (*model.WorkflowResult, error) {
+	return r.Resolver.getWorkflowResult(ctx, shared.WorkflowIDRefreshNews)
+}
+
+// RefreshNewsProgress is the resolver for the refreshNewsProgress field.
+func (r *queryResolver) RefreshNewsProgress(ctx context.Context) (*model.ProgressReport, error) {
+	return r.Resolver.queryProgressReport(ctx, shared.WorkflowIDRefreshNews)
 }
 
 // MauriceConversations is the resolver for the mauriceConversations field.

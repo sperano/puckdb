@@ -477,6 +477,8 @@ var SyncBehaviorFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the latest season, or for every season in an explicit --start-season/--end-season range (overwrites cached files)", false},
 		{FlagRefreshCurrentEdge, "", false, "Re-download Edge stats for the latest season, or for every season in an explicit --start-season/--end-season range (overwrites cached files)", false},
+		{FlagNewsForce, "", DefaultNewsForce, "refresh-news: fetch every news source now, ignoring refresh schedules (e.g. right before a draft)", false},
+		{FlagNewsOnly, "", DefaultNewsOnly, "refresh-news: comma-separated news source IDs to refresh (default: every enabled source)", false},
 	},
 }
 
@@ -699,6 +701,60 @@ var DraftFlags = FlagGroup{
 		{FlagDraftLeagues, "", DefaultDraftLeagues, "Comma-separated Yahoo league IDs; required", false},
 		{FlagDraftOutput, "", DefaultDraftOutput, "Write the report to this file instead of standard output", false},
 		{FlagDraftStaleAfter, "", DefaultDraftStaleAfter, "Hours after which league settings or a player pool are reported stale", false},
+	},
+}
+
+// Player news flags
+const (
+	FlagNewsSourcesFile         = "news-sources-file"
+	FlagNewsProcessBatchSize    = "news-process-batch-size"
+	FlagNewsIncidentWindowHours = "news-incident-window-hours"
+	FlagNewsRetentionDays       = "news-retention-days"
+	FlagNewsKeepVersions        = "news-keep-versions"
+	FlagNewsFetchMaxAttempts    = "news-fetch-max-attempts"
+	FlagNewsFetchRetryInitial   = "news-fetch-retry-initial"
+	FlagNewsFetchRetryMax       = "news-fetch-retry-max"
+	FlagNewsScheduleMinutes     = "news-schedule-minutes"
+	FlagNewsForce               = "news-force"
+	FlagNewsOnly                = "news-only"
+	FlagNewsSeason              = "news-season"
+	FlagNewsSinceDays           = "news-since-days"
+	FlagNewsLimit               = "news-limit"
+	FlagNewsPlayerNHLID         = "news-player-nhl-id"
+	FlagNewsPlayerYahooID       = "news-player-yahoo-id"
+	FlagNewsOutput              = "news-output"
+)
+
+// NewsSourcesFlags selects the news source set (worker and report).
+var NewsSourcesFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagNewsSourcesFile, "", DefaultNewsSourcesFile, "YAML file of player news sources (default: the built-in set, see docs/draft-player-news.md)", false},
+	},
+}
+
+// NewsWorkerFlags defines the worker's player news ingestion settings.
+var NewsWorkerFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagNewsProcessBatchSize, "", DefaultNewsProcessBatchSize, "Article versions processed per news activity", false},
+		{FlagNewsIncidentWindowHours, "", DefaultNewsIncidentWindowHours, "Hours within which same-category reports for a player join one incident", false},
+		{FlagNewsRetentionDays, "", DefaultNewsRetentionDays, "Days news articles and incidents are kept after they were last seen or reported", false},
+		{FlagNewsKeepVersions, "", DefaultNewsKeepVersions, "Versions kept per news article (versions behind an incident are always kept)", false},
+		{FlagNewsFetchMaxAttempts, "", DefaultNewsFetchMaxAttempts, "Attempts per news source fetch before it is recorded as failed", false},
+		{FlagNewsFetchRetryInitial, "", DefaultNewsFetchRetryInitial, "Seconds before the first news fetch retry (doubles each attempt)", false},
+		{FlagNewsFetchRetryMax, "", DefaultNewsFetchRetryMax, "Maximum seconds between news fetch retries", false},
+		{FlagNewsScheduleMinutes, "", DefaultNewsScheduleMinutes, "Start the news refresh every N minutes via a Temporal schedule (0 removes the schedule)", false},
+	},
+}
+
+// NewsReportFlags defines the flags of the `news report` command.
+var NewsReportFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagNewsSeason, "", DefaultNewsSeason, "Season start year whose Yahoo status coverage is shown (default: the current season)", false},
+		{FlagNewsSinceDays, "", DefaultNewsSinceDays, "Show incidents reported in the last N days", false},
+		{FlagNewsLimit, "", DefaultNewsLimit, "Maximum incidents and unattached subjects listed", false},
+		{FlagNewsPlayerNHLID, "", DefaultNewsPlayerNHLID, "Also report on this NHL player ID", false},
+		{FlagNewsPlayerYahooID, "", DefaultNewsPlayerYahooID, "Also report on this Yahoo player ID", false},
+		{FlagNewsOutput, "", DefaultNewsOutput, "Write the report to this file instead of standard output", false},
 	},
 }
 

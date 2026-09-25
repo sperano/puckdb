@@ -484,6 +484,15 @@ type ProgressReport struct {
 type Query struct {
 }
 
+type RefreshNewsInput struct {
+	// Fetch every selected source now, ignoring refresh schedules (e.g. right before a draft).
+	Force *bool `json:"force,omitempty"`
+	// Source IDs to refresh; every enabled source when unset.
+	Sources []string `json:"sources,omitempty"`
+	// Season start year whose Yahoo league pools supply player status and names; the current season when unset.
+	Season *int `json:"season,omitempty"`
+}
+
 type Season struct {
 	ID             int     `json:"id"`
 	StandingsStart *string `json:"standingsStart,omitempty"`

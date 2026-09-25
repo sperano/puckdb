@@ -51,6 +51,8 @@ Steps (in execution order):
   import-player-logs         Import player game logs into the database
   fetch-edge-stats           Download Edge tracking data from NHL API
   import-edge-stats          Import Edge tracking data into the database
+  refresh-news               Fetch player news and status sources, group reports into incidents
+                             (--news-force ignores refresh schedules, --news-only picks sources)
   fetch-assets               Cache image assets (player photos, team logos, etc.) to disk
 
 Groups (expand to multiple steps):
@@ -213,6 +215,9 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{config.StepImportEdgeStats, workflowImportEdgeStats, "edge stats import",
 			func() (bool, error) { return client.ImportEdgeStats(ctx, buildSeasonsInput()) },
 			client.GetImportEdgeStatsStatus},
+		{config.StepRefreshNews, workflowRefreshNews, "news refresh",
+			func() (bool, error) { return client.RefreshNews(ctx, buildRefreshNewsInput()) },
+			client.GetRefreshNewsStatus},
 		{config.StepFetchAssets, workflowFetchAssets, "assets fetch",
 			func() (bool, error) { return client.FetchAssets(ctx, nil) },
 			client.GetFetchAssetsStatus},
@@ -422,6 +427,7 @@ func (s *syncState) cancel() {
 		workflowFetchEdgeStats:         {"fetchEdgeStats", s.client.CancelFetchEdgeStats},
 		workflowImportEdgeStats:        {"importEdgeStats", s.client.CancelImportEdgeStats},
 		workflowFetchAssets:            {"fetchAssets", s.client.CancelFetchAssets},
+		workflowRefreshNews:            {"refreshNews", s.client.CancelRefreshNews},
 	}
 
 	for _, wt := range active {

@@ -236,6 +236,38 @@ const (
 	DefaultDraftStaleAfter = 24 // hours
 )
 
+// Player news defaults (draft helper)
+const (
+	DefaultNewsSourcesFile = "" // built-in source set
+	// DefaultNewsProcessBatchSize is how many article versions one
+	// processing activity handles.
+	DefaultNewsProcessBatchSize = 200
+	// DefaultNewsIncidentWindowHours: reports of the same category for a
+	// player within this many hours of an incident's span join it (14 days,
+	// so weekly injury updates stay one incident).
+	DefaultNewsIncidentWindowHours = 14 * 24
+	// DefaultNewsRetentionDays keeps articles and incidents this long after
+	// they were last seen or reported (an offseason injury must still be
+	// visible at draft time).
+	DefaultNewsRetentionDays = 400
+	// DefaultNewsKeepVersions is the number of versions kept per article
+	// (versions backing an incident are always kept).
+	DefaultNewsKeepVersions      = 20
+	DefaultNewsFetchMaxAttempts  = 4
+	DefaultNewsFetchRetryInitial = 30  // seconds
+	DefaultNewsFetchRetryMax     = 900 // seconds
+	// DefaultNewsScheduleMinutes of 0 leaves the periodic refresh off.
+	DefaultNewsScheduleMinutes = 0
+	DefaultNewsForce           = false
+	DefaultNewsOnly            = ""
+	DefaultNewsSeason          = 0 // the current season
+	DefaultNewsSinceDays       = 14
+	DefaultNewsLimit           = 50
+	DefaultNewsPlayerNHLID     = 0
+	DefaultNewsPlayerYahooID   = 0
+	DefaultNewsOutput          = ""
+)
+
 // Build version constants
 const (
 	BuildNumberNotAvailable = "n/a"

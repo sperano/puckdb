@@ -1,0 +1,40 @@
+{
+  "type": "story",
+  "_entityId": "a1f0c7e2-0001-4b9a-9d40-000000000001",
+  "selfUrl": "https://forge-dapi.d3.nhle.com/v2/content/en-us/stories/brayden-mcnabb-suspended-three-games-for-cross-checking",
+  "slug": "brayden-mcnabb-suspended-three-games-for-cross-checking",
+  "headline": "Brayden McNabb suspended three games for cross-checking",
+  "summary": "Vegas Golden Knights defenseman Brayden McNabb has been suspended for three preseason and regular-season games for cross-checking Los Angeles Kings forward Quinton Byfield, the NHL Department of Player Safety announced today.",
+  "contentDate": "2026-09-22T17:00:00Z",
+  "lastUpdatedDate": "2026-09-22T17:05:00Z",
+  "parts": [
+    {
+      "type": "photo",
+      "title": "McNabb",
+      "fields": {
+        "caption": "Brayden McNabb of the Vegas Golden Knights."
+      }
+    },
+    {
+      "type": "markdown",
+      "content": "**NEW YORK** &ndash; Vegas Golden Knights defenseman <forge-entity title=\"Brayden McNabb\" slug=\"brayden-mcnabb-8475188\" code=\"player\">Brayden McNabb</forge-entity> has been suspended for three preseason and regular-season games for cross-checking Los Angeles Kings forward <forge-entity title=\"Quinton Byfield\" slug=\"quinton-byfield-8482124\" code=\"player\">Quinton Byfield</forge-entity>, the NHL Department of Player Safety announced today.\n\nThe incident occurred at 14:12 of the second period of the <forge-entity title=\"Vegas Golden Knights\" slug=\"vegas-golden-knights\" code=\"team\">Golden Knights</forge-entity>' preseason game against the Kings.",
+      "contextualFields": {}
+    },
+    {
+      "type": "video",
+      "title": "Explanation video"
+    },
+    {
+      "type": "customentity",
+      "content": {
+        "type": "poll",
+        "id": "p1"
+      }
+    },
+    {
+      "type": "markdown",
+      "content": "[Brayden McNabb](https://www.nhl.com/player/brayden-mcnabb-8475188/stats) will forfeit $41,666.67, and [Byfield](https://www.nhl.com/kings/player/quinton-byfield-8482124) was not injured. The money goes to the Players' Emergency Assistance Fund. Linked coach: [Jim Hiller](https://www.nhl.com/kings/team/staff).",
+      "contextualFields": {}
+    }
+  ]
+}

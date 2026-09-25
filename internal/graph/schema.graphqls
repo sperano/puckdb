@@ -149,6 +149,9 @@ type Query {
 	fetchAssetsResult: WorkflowResult!
 	fetchAssetsProgress: ProgressReport
 
+	refreshNewsResult: WorkflowResult!
+	refreshNewsProgress: ProgressReport
+
 	# Maurice AI chat
 	mauriceConversations(limit: Int): [MauriceConversation!]!
 	mauriceConversation(id: String!): MauriceConversationDetail
@@ -186,6 +189,15 @@ input FetchAssetsInput {
 	refreshCurrent: Boolean
 }
 
+input RefreshNewsInput {
+	"""Fetch every selected source now, ignoring refresh schedules (e.g. right before a draft)."""
+	force: Boolean
+	"""Source IDs to refresh; every enabled source when unset."""
+	sources: [String!]
+	"""Season start year whose Yahoo league pools supply player status and names; the current season when unset."""
+	season: Int
+}
+
 type Mutation {
 	# TODO should this really be available in a mutation?
     clearDatabase: Boolean! @admin # drop, create, init
@@ -217,6 +229,8 @@ type Mutation {
 	cancelImportEdgeStats: Boolean!
 	fetchAssets(input: FetchAssetsInput): Boolean!
 	cancelFetchAssets: Boolean!
+	refreshNews(input: RefreshNewsInput): Boolean!
+	cancelRefreshNews: Boolean!
 
 	# Maurice AI chat
 	mauriceChat(conversationId: String, message: String!): MauriceChatResponse!

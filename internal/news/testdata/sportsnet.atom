@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Sportsnet NHL</title>
+  <entry>
+    <id>tag:sportsnet.ca,2026:article-6709060</id>
+    <title>Canucks acquire defenceman in trade with Sharks</title>
+    <link rel="alternate" href="https://www.sportsnet.ca/nhl/article/canucks-acquire-defenceman/"/>
+    <published>2026-09-20T14:30:00-04:00</published>
+    <updated>2026-09-20T16:00:00-04:00</updated>
+    <author><name>Iain MacIntyre</name></author>
+    <summary type="html">&lt;p&gt;The Vancouver Canucks acquired defenceman &lt;b&gt;Mario Ferraro&lt;/b&gt; from the San Jose Sharks on Sunday.&lt;/p&gt;</summary>
+  </entry>
+</feed>

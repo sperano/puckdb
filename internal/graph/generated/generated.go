@@ -352,6 +352,7 @@ type ComplexityRoot struct {
 		CancelImportSeasons          func(childComplexity int) int
 		CancelInitialize             func(childComplexity int) int
 		CancelProcessPlayers         func(childComplexity int) int
+		CancelRefreshNews            func(childComplexity int) int
 		CancelSimPool                func(childComplexity int, poolID int) int
 		ClearDatabase                func(childComplexity int) int
 		CreateDatabase               func(childComplexity int) int
@@ -372,6 +373,7 @@ type ComplexityRoot struct {
 		MauriceChat                  func(childComplexity int, conversationID *string, message string) int
 		MauriceDeleteConversation    func(childComplexity int, id string) int
 		ProcessPlayers               func(childComplexity int, input *model.ProcessPlayersInput) int
+		RefreshNews                  func(childComplexity int, input *model.RefreshNewsInput) int
 	}
 
 	Player struct {
@@ -490,6 +492,8 @@ type ComplexityRoot struct {
 		ProcessPlayersProgress         func(childComplexity int) int
 		ProcessPlayersResult           func(childComplexity int) int
 		ProcessPlayersResultData       func(childComplexity int) int
+		RefreshNewsProgress            func(childComplexity int) int
+		RefreshNewsResult              func(childComplexity int) int
 		SearchPlayers                  func(childComplexity int, query string) int
 		Season                         func(childComplexity int, id int) int
 		Seasons                        func(childComplexity int) int
@@ -673,6 +677,8 @@ type MutationResolver interface {
 	CancelImportEdgeStats(ctx context.Context) (bool, error)
 	FetchAssets(ctx context.Context, input *model.FetchAssetsInput) (bool, error)
 	CancelFetchAssets(ctx context.Context) (bool, error)
+	RefreshNews(ctx context.Context, input *model.RefreshNewsInput) (bool, error)
+	CancelRefreshNews(ctx context.Context) (bool, error)
 	MauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error)
 	MauriceDeleteConversation(ctx context.Context, id string) (bool, error)
 	CreateSimPool(ctx context.Context, input model.CreateSimPoolInput) (*model.SimPool, error)
@@ -706,6 +712,8 @@ type QueryResolver interface {
 	ImportEdgeStatsProgress(ctx context.Context) (*model.ProgressReport, error)
 	FetchAssetsResult(ctx context.Context) (*model.WorkflowResult, error)
 	FetchAssetsProgress(ctx context.Context) (*model.ProgressReport, error)
+	RefreshNewsResult(ctx context.Context) (*model.WorkflowResult, error)
+	RefreshNewsProgress(ctx context.Context) (*model.ProgressReport, error)
 	MauriceConversations(ctx context.Context, limit *int) ([]*model.MauriceConversation, error)
 	MauriceConversation(ctx context.Context, id string) (*model.MauriceConversationDetail, error)
 	Seasons(ctx context.Context) ([]*model.Season, error)
@@ -2267,6 +2275,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CancelProcessPlayers(childComplexity), true
+	case "Mutation.cancelRefreshNews":
+		if e.ComplexityRoot.Mutation.CancelRefreshNews == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.CancelRefreshNews(childComplexity), true
 	case "Mutation.cancelSimPool":
 		if e.ComplexityRoot.Mutation.CancelSimPool == nil {
 			break
@@ -2457,6 +2471,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ProcessPlayers(childComplexity, args["input"].(*model.ProcessPlayersInput)), true
+	case "Mutation.refreshNews":
+		if e.ComplexityRoot.Mutation.RefreshNews == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_refreshNews_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RefreshNews(childComplexity, args["input"].(*model.RefreshNewsInput)), true
 
 	case "Player.birthCity":
 		if e.ComplexityRoot.Player.BirthCity == nil {
@@ -3112,6 +3137,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ProcessPlayersResultData(childComplexity), true
+	case "Query.refreshNewsProgress":
+		if e.ComplexityRoot.Query.RefreshNewsProgress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.RefreshNewsProgress(childComplexity), true
+	case "Query.refreshNewsResult":
+		if e.ComplexityRoot.Query.RefreshNewsResult == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.RefreshNewsResult(childComplexity), true
 	case "Query.searchPlayers":
 		if e.ComplexityRoot.Query.SearchPlayers == nil {
 			break
@@ -3863,6 +3900,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputGameFilter,
 		ec.unmarshalInputPlayerFilter,
 		ec.unmarshalInputProcessPlayersInput,
+		ec.unmarshalInputRefreshNewsInput,
 		ec.unmarshalInputSeasonsInput,
 		ec.unmarshalInputSimRosterPositionInput,
 	)
@@ -4535,6 +4573,9 @@ type Query {
 	fetchAssetsResult: WorkflowResult!
 	fetchAssetsProgress: ProgressReport
 
+	refreshNewsResult: WorkflowResult!
+	refreshNewsProgress: ProgressReport
+
 	# Maurice AI chat
 	mauriceConversations(limit: Int): [MauriceConversation!]!
 	mauriceConversation(id: String!): MauriceConversationDetail
@@ -4572,6 +4613,15 @@ input FetchAssetsInput {
 	refreshCurrent: Boolean
 }
 
+input RefreshNewsInput {
+	"""Fetch every selected source now, ignoring refresh schedules (e.g. right before a draft)."""
+	force: Boolean
+	"""Source IDs to refresh; every enabled source when unset."""
+	sources: [String!]
+	"""Season start year whose Yahoo league pools supply player status and names; the current season when unset."""
+	season: Int
+}
+
 type Mutation {
 	# TODO should this really be available in a mutation?
     clearDatabase: Boolean! @admin # drop, create, init
@@ -4603,6 +4653,8 @@ type Mutation {
 	cancelImportEdgeStats: Boolean!
 	fetchAssets(input: FetchAssetsInput): Boolean!
 	cancelFetchAssets: Boolean!
+	refreshNews(input: RefreshNewsInput): Boolean!
+	cancelRefreshNews: Boolean!
 
 	# Maurice AI chat
 	mauriceChat(conversationId: String, message: String!): MauriceChatResponse!
@@ -6199,6 +6251,20 @@ func (ec *executionContext) field_Mutation_processPlayers_args(ctx context.Conte
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (*model.ProcessPlayersInput, error) {
 			return ec.unmarshalOProcessPlayersInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐProcessPlayersInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_refreshNews_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (*model.RefreshNewsInput, error) {
+			return ec.unmarshalORefreshNewsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐRefreshNewsInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -13185,6 +13251,73 @@ func (ec *executionContext) fieldContext_Mutation_cancelFetchAssets(_ context.Co
 	return graphql.NewScalarFieldContext("Mutation", field, true, true, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _Mutation_refreshNews(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_refreshNews(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RefreshNews(ctx, fc.Args["input"].(*model.RefreshNewsInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_refreshNews(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_refreshNews_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelRefreshNews(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_cancelRefreshNews(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().CancelRefreshNews(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_cancelRefreshNews(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Mutation_mauriceChat(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15565,6 +15698,70 @@ func (ec *executionContext) _Query_fetchAssetsProgress(ctx context.Context, fiel
 	)
 }
 func (ec *executionContext) fieldContext_Query_fetchAssetsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProgressReport(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_refreshNewsResult(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_refreshNewsResult(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().RefreshNewsResult(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WorkflowResult) graphql.Marshaler {
+			return ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐWorkflowResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_refreshNewsResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WorkflowResult(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_refreshNewsProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_refreshNewsProgress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().RefreshNewsProgress(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ProgressReport) graphql.Marshaler {
+			return ec.marshalOProgressReport2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐProgressReport(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_refreshNewsProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -20530,6 +20727,50 @@ func (ec *executionContext) unmarshalInputProcessPlayersInput(ctx context.Contex
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputRefreshNewsInput(ctx context.Context, obj any) (model.RefreshNewsInput, error) {
+	var it model.RefreshNewsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"force", "sources", "season"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		case "sources":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sources"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Sources = data
+		case "season":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Season = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSeasonsInput(ctx context.Context, obj any) (model.SeasonsInput, error) {
 	var it model.SeasonsInput
 	if obj == nil {
@@ -22360,6 +22601,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "refreshNews":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_refreshNews(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelRefreshNews":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelRefreshNews(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "mauriceChat":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_mauriceChat(ctx, field)
@@ -23395,6 +23650,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_fetchAssetsProgress(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "refreshNewsResult":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_refreshNewsResult(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "refreshNewsProgress":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_refreshNewsProgress(ctx, field)
 				return res
 			}
 
@@ -26557,6 +26853,14 @@ func (ec *executionContext) marshalOProgressReport2ᚖgithubᚗcomᚋsperanoᚋp
 	return ec._ProgressReport(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalORefreshNewsInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐRefreshNewsInput(ctx context.Context, v any) (*model.RefreshNewsInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputRefreshNewsInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalOSeason2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSeason(ctx context.Context, sel ast.SelectionSet, v *model.Season) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -26577,6 +26881,42 @@ func (ec *executionContext) marshalOSimPool2ᚖgithubᚗcomᚋsperanoᚋpuckdb�
 		return graphql.Null
 	}
 	return ec._SimPool(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v any) (*string, error) {

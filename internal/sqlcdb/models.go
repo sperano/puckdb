@@ -1191,6 +1191,92 @@ type MauriceMessage struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type NewsArticle struct {
+	ID              int64              `json:"id"`
+	Publisher       string             `json:"publisher"`
+	ExternalID      string             `json:"external_id"`
+	SourceID        string             `json:"source_id"`
+	Kind            string             `json:"kind"`
+	Url             string             `json:"url"`
+	FirstSeenAt     pgtype.Timestamptz `json:"first_seen_at"`
+	LastSeenAt      pgtype.Timestamptz `json:"last_seen_at"`
+	SourceUpdatedAt pgtype.Timestamptz `json:"source_updated_at"`
+}
+
+type NewsArticleVersion struct {
+	ID               int64              `json:"id"`
+	ArticleID        int64              `json:"article_id"`
+	Version          int32              `json:"version"`
+	ContentHash      string             `json:"content_hash"`
+	TitleFingerprint string             `json:"title_fingerprint"`
+	TextFingerprint  string             `json:"text_fingerprint"`
+	Title            string             `json:"title"`
+	EvidenceText     string             `json:"evidence_text"`
+	Author           string             `json:"author"`
+	Url              string             `json:"url"`
+	PublishedAt      pgtype.Timestamptz `json:"published_at"`
+	SourceUpdatedAt  pgtype.Timestamptz `json:"source_updated_at"`
+	RetrievedAt      pgtype.Timestamptz `json:"retrieved_at"`
+	Subjects         []byte             `json:"subjects"`
+	TeamHints        []string           `json:"team_hints"`
+	CategoryHint     string             `json:"category_hint"`
+	ProcessedAt      pgtype.Timestamptz `json:"processed_at"`
+	Body             string             `json:"body"`
+}
+
+type NewsFetchState struct {
+	SourceID            string             `json:"source_id"`
+	Scope               string             `json:"scope"`
+	Publisher           string             `json:"publisher"`
+	Etag                string             `json:"etag"`
+	LastModified        string             `json:"last_modified"`
+	BodyHash            string             `json:"body_hash"`
+	LastAttemptAt       pgtype.Timestamptz `json:"last_attempt_at"`
+	LastSuccessAt       pgtype.Timestamptz `json:"last_success_at"`
+	DataAsOf            pgtype.Timestamptz `json:"data_as_of"`
+	LastFailureAt       pgtype.Timestamptz `json:"last_failure_at"`
+	LastError           string             `json:"last_error"`
+	ConsecutiveFailures int32              `json:"consecutive_failures"`
+	LastItems           int32              `json:"last_items"`
+	LastNewVersions     int32              `json:"last_new_versions"`
+}
+
+type NewsIncident struct {
+	ID              int64              `json:"id"`
+	NhlPlayerID     pgtype.Int8        `json:"nhl_player_id"`
+	YahooPlayerID   pgtype.Int4        `json:"yahoo_player_id"`
+	PlayerName      string             `json:"player_name"`
+	Category        string             `json:"category"`
+	FirstReportedAt pgtype.Timestamptz `json:"first_reported_at"`
+	LastReportedAt  pgtype.Timestamptz `json:"last_reported_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type NewsIncidentEvidence struct {
+	IncidentID       int64              `json:"incident_id"`
+	VersionID        int64              `json:"version_id"`
+	ArticleID        int64              `json:"article_id"`
+	Publisher        string             `json:"publisher"`
+	Kind             string             `json:"kind"`
+	ReportedAt       pgtype.Timestamptz `json:"reported_at"`
+	Relation         string             `json:"relation"`
+	RelatedVersionID pgtype.Int8        `json:"related_version_id"`
+	AddedAt          pgtype.Timestamptz `json:"added_at"`
+}
+
+type NewsMention struct {
+	VersionID     int64       `json:"version_id"`
+	Ordinal       int32       `json:"ordinal"`
+	Mention       string      `json:"mention"`
+	Role          string      `json:"role"`
+	Resolution    string      `json:"resolution"`
+	Method        string      `json:"method"`
+	NhlPlayerID   pgtype.Int8 `json:"nhl_player_id"`
+	YahooPlayerID pgtype.Int4 `json:"yahoo_player_id"`
+	Candidates    []byte      `json:"candidates"`
+}
+
 type PlayEvent struct {
 	GameID        int64      `json:"game_id"`
 	EventID       int64      `json:"event_id"`

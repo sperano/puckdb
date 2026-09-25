@@ -1,0 +1,51 @@
+{
+  "pagination": {"maxItems": 100},
+  "meta": {"apiVersion": "2.0", "generatedAt": "2026-09-22T18:30:00Z"},
+  "items": [
+    {
+      "type": "story",
+      "_entityId": "a1f0c7e2-0001-4b9a-9d40-000000000001",
+      "slug": "brayden-mcnabb-suspended-three-games-for-cross-checking",
+      "title": "Brayden McNabb suspended three games for cross-checking",
+      "headline": "Brayden McNabb suspended three games for cross-checking",
+      "summary": "Vegas Golden Knights defenseman Brayden McNabb has been suspended for three preseason and regular-season games for cross-checking Los Angeles Kings forward Quinton Byfield, the NHL Department of Player Safety announced today.",
+      "contentDate": "2026-09-22T17:00:00Z",
+      "lastUpdatedDate": "2026-09-22T17:05:00Z",
+      "tags": [
+        {"title": "2026-27", "slug": "2026-27", "externalSourceName": "taxonomy", "extraData": {}},
+        {"title": "Player Safety", "slug": "player-safety", "externalSourceName": "taxonomy", "extraData": {}},
+        {"title": "Brayden McNabb", "slug": "playerid-8475188", "externalSourceName": "player", "extraData": {"playerId": "8475188"}},
+        {"title": "Vegas Golden Knights", "slug": "teamid-54", "externalSourceName": "team", "extraData": {"abbreviation": "VGK", "teamId": "54"}}
+      ],
+      "context": {"title": "NHL", "slug": "nhl", "externalSourceName": "taxonomy", "extraData": {}}
+    },
+    {
+      "type": "story",
+      "_entityId": "a1f0c7e2-0002-4b9a-9d40-000000000002",
+      "slug": "brayden-mcnabb-suspended-three-games-for-cross-checking-x1234",
+      "title": "Brayden McNabb suspended three games for cross-checking",
+      "headline": "Brayden McNabb suspended three games for cross-checking",
+      "summary": "Vegas Golden Knights defenseman Brayden McNabb has been suspended for three preseason and regular-season games for cross-checking Los Angeles Kings forward Quinton Byfield, the NHL Department of Player Safety announced today.",
+      "contentDate": "2026-09-22T17:00:00Z",
+      "lastUpdatedDate": "2026-09-22T17:20:00Z",
+      "tags": [
+        {"title": "Brayden McNabb", "slug": "playerid-8475188", "externalSourceName": "player", "extraData": {"playerId": "8475188"}}
+      ],
+      "context": {"title": "Vegas Golden Knights", "slug": "teamid-54", "externalSourceName": "team", "extraData": {"abbreviation": "VGK", "franchiseId": "38", "teamId": "54"}}
+    },
+    {
+      "type": "story",
+      "_entityId": "a1f0c7e2-0003-4b9a-9d40-000000000003",
+      "slug": "andrew-cristall-fined-for-cross-checking",
+      "title": "Andrew Cristall fined for cross-checking",
+      "headline": "Andrew Cristall fined for cross-checking",
+      "summary": "Washington Capitals forward Andrew Cristall has been fined $2,000, the maximum allowable under the Collective Bargaining Agreement, for cross-checking.",
+      "contentDate": "2026-09-21T15:00:00Z",
+      "lastUpdatedDate": "2026-09-21T15:00:00Z",
+      "tags": [
+        {"title": "Andrew Cristall", "slug": "playerid-8484823", "externalSourceName": "player", "extraData": {"playerId": 8484823}}
+      ],
+      "context": {"title": "Washington Capitals", "slug": "teamid-15", "externalSourceName": "team", "extraData": {"abbreviation": "WSH", "teamId": "15"}}
+    }
+  ]
+}

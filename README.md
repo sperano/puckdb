@@ -146,6 +146,7 @@ Run `./puckdb <command> --help` for the complete flags and subcommands.
 | `sync [steps...]` | Fetch and import all data or selected workflow steps |
 | `db` | Migrate, provision, initialize, inspect, or drop the database |
 | `draft` | Compare imported league rules and report player-pool coverage for the draft helper ([notes](docs/draft-league-rules.md)) |
+| `news report` | Player news coverage, incident candidates and unattached stories for the draft helper; refresh with `sync refresh-news` ([notes](docs/draft-player-news.md)) |
 | `redis` | Redis administration |
 | `metrics` | Export cache, Redis, and database metrics |
 | `mcp-server` | Serve curated read-only data tools over HTTP or stdio |

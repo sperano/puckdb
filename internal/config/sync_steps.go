@@ -20,9 +20,12 @@ const (
 	StepFetchEdgeStats         = "fetch-edge-stats"
 	StepImportEdgeStats        = "import-edge-stats"
 	StepFetchAssets            = "fetch-assets"
+	StepRefreshNews            = "refresh-news"
 )
 
-// AllSyncSteps lists every atomic step in execution order. Asset fetch runs
+// AllSyncSteps lists every atomic step in execution order. News refresh runs
+// after the imports because it resolves players against the imported players
+// and Yahoo pools. Asset fetch runs
 // last because every asset URL is sourced from a row populated by an earlier
 // step (player headshots from players, team logos from season_teams, Yahoo
 // images from yahoo_* tables).
@@ -31,6 +34,7 @@ var AllSyncSteps = []string{
 	StepExtractBoxscorePlayers, StepFetchPlayerLandings, StepFetchPlayerLogs,
 	StepProcessPlayers, StepImportSeasons, StepImportPlayerLogs,
 	StepFetchEdgeStats, StepImportEdgeStats,
+	StepRefreshNews,
 	StepFetchAssets,
 }
 

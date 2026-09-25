@@ -13,6 +13,13 @@ const (
 	// WorkflowIDFetchAssets is the stable workflow ID for the parent asset fetch.
 	WorkflowIDFetchAssets = "fetch-assets"
 
+	// WorkflowIDRefreshNews is the stable workflow ID of an on-demand player
+	// news refresh; scheduled refreshes use ScheduleIDRefreshNews.
+	WorkflowIDRefreshNews = "refresh-news"
+	// ScheduleIDRefreshNews is the Temporal schedule that starts periodic
+	// player news refreshes.
+	ScheduleIDRefreshNews = "refresh-news-schedule"
+
 	// TaskQueueAssets is the Temporal task queue for asset download activities.
 	// It is separate from the main puckdb-tasks queue so asset workloads cannot
 	// starve other workflows (architectural delta 4).

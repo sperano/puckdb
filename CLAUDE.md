@@ -53,6 +53,7 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `db provision` | Create database/user on shared PostgreSQL |
 | `draft rules` | Markdown comparison of leagues' imported rules (scoring, roster, draft, settings) with warnings; `--draft-season`, `--draft-leagues`, `--draft-output` |
 | `draft pool` | Coverage of leagues' draftable player pools (eligibility gaps, unmatched NHL players) |
+| `news report` | Markdown report of player news: source coverage (fresh/failing/stale/missing), incident candidates with attributed evidence, unattached story subjects; `--news-player-nhl-id`/`--news-player-yahoo-id` for one player (see `docs/draft-player-news.md`) |
 | `redis flush` | Flush a Redis database |
 | `yahoo signout` | Clear OAuth2 token from Redis |
 | `maurice` | Interactive AI hockey chat REPL |
@@ -64,7 +65,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | Package | Purpose |
 |---------|---------|
 | `cmd/` | CLI commands (Cobra + Viper) |
-| `internal/worker/` | Temporal workflows and activities, split into `workflow/` (top-level workflows), `nhl/`, `yahoo/`, `player/`, `admin/`, `shared/` |
+| `internal/worker/` | Temporal workflows and activities, split into `workflow/` (top-level workflows), `nhl/`, `yahoo/`, `player/`, `newsfeed/` (player news refresh), `admin/`, `shared/` |
 | `internal/graph/` | GraphQL resolvers and schema (gqlgen) |
 | `internal/database/` | PostgreSQL connection (pgx), migrations |
 | `internal/sqlcdb/` | sqlc-generated type-safe queries |
@@ -78,6 +79,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/temporal/` | Temporal client configuration |
 | `internal/matching/` | NHL ↔ Yahoo player matching |
 | `internal/draft/` | Draft helper models: normalized league rules, scoring-input validation, roster feasibility, player-pool coverage, comparison reports (see `docs/draft-league-rules.md`) |
+| `internal/news/` | Player news for the draft helper: source set (`sources.yaml`), RSS/Atom, NHL content and Yahoo status adapters, conditional fetch, article versions, player resolution, incident grouping, coverage and reports (see `docs/draft-player-news.md`) |
 | `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
 | `internal/llm/` | LLM client (used by player enrichment / Maurice) |
 | `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
@@ -100,6 +102,7 @@ Defined in `internal/worker/workflow/`:
 - `ProcessPlayersWorkflow` — Player enrichment and matching
 - `FetchEdgeSeasonsWorkflow` / `FetchEdgeWorkflow` — NHL Edge tracking data (2021-2022+)
 - `ImportEdgeSeasonsWorkflow` / `ImportEdgeWorkflow` — Import cached Edge data into Postgres
+- `RefreshNewsWorkflow` — Fetch due player news sources, store new article versions, resolve players into incident candidates, prune (on demand, or via the `refresh-news-schedule` Temporal schedule when the worker runs with `--news-schedule-minutes`)
 - `InitializeWorkflow` — Database initialization
 
 Defined in `internal/worker/admin/`:
@@ -206,6 +209,7 @@ Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow fol
 - `fetchYahooPlayers`
 - `processPlayers(input: ProcessPlayersInput)` — Player enrichment + matching
 - `fetchEdgeStats(input: SeasonsInput)` / `importEdgeStats(input: SeasonsInput)` — Edge tracking data
+- `refreshNews(input: RefreshNewsInput)` — Player news refresh (`force`, `sources`, `season`)
 
 **Admin mutations:** `clearDatabase`, `dropDatabase`, `createDatabase`, `flushRedisDB`
 
@@ -345,6 +349,17 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `yahoo_league_players` | Draftable pool with league eligibility/status (PK `(league_key, player_id)`) | `season`, `league_id`, `player_key`, `eligible_positions`, `status`, `injury_note`, `fetched_at` |
 
 **Yahoo league identity:** Yahoo league IDs are unique only within one season (game key). The legacy `yahoo_*` tables key by numeric `league_id` alone; the importer refuses to overwrite a `yahoo_leagues` row that belongs to another season. The draft helper tables key by `league_key` + season.
+
+### Player news tables (draft helper)
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `news_fetch_state` | Fetch coverage per source and scope (PK `(source_id, scope)`); a failure never clears the last success | `etag`, `last_modified`, `body_hash`, `last_attempt_at`, `last_success_at`, `data_as_of`, `last_error`, `consecutive_failures` |
+| `news_articles` | One row per story (UNIQUE `(publisher, external_id)`) | `source_id`, `kind` (`official`/`structured`/`reporting`), `url`, `first_seen_at`, `last_seen_at`, `source_updated_at` |
+| `news_article_versions` | Each distinct content of a story (UNIQUE `(article_id, version)`); unprocessed while `processed_at` is NULL. `evidence_text` is the bounded summary; `body` the full text when the source offers it | `content_hash`, `title_fingerprint`, `text_fingerprint`, `title`, `evidence_text`, `body`, `published_at`, `source_updated_at`, `retrieved_at`, `subjects` (jsonb), `team_hints`, `category_hint` |
+| `news_mentions` | Player references per version (PK `(version_id, ordinal)`) | `role` (`subject`/`mentioned`), `resolution` (`resolved`/`ambiguous`/`unresolved`), `method`, `nhl_player_id`, `yahoo_player_id`, `candidates` (jsonb) |
+| `news_incidents` | Incident candidates: one per player, category and time window, however many reports repeat it | `nhl_player_id`, `yahoo_player_id`, `category`, `first_reported_at`, `last_reported_at` |
+| `news_incident_evidence` | Versions behind an incident (PK `(incident_id, version_id)`) | `publisher`, `kind`, `reported_at`, `relation` (`independent`/`syndicated`/`same_publisher`/`revision`) |
 
 ### Maurice (LLM chat) tables
 

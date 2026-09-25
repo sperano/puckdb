@@ -1,0 +1,106 @@
+# Default player news sources (see docs/draft-player-news.md).
+#
+# priority: lower is more authoritative. Sources are fetched and evidence is
+#   listed in this order; priority never adds certainty to a report.
+# refresh_minutes: a source is not fetched again before this much time has
+#   passed since its last attempt, unless the refresh is forced.
+# stale_after_minutes: coverage older than this is reported stale
+#   (default: 3 x refresh_minutes).
+# max_items: items read from one fetch.
+# fetch_body: download each new or updated story's page for its full text
+#   (nhl_content sources only; one extra request per new or updated story).
+#
+# Every source is free and needs no account. Each story keeps its title, the
+# summary the publisher syndicates (the evidence text reports show) and a link
+# back. The full text is kept too when a source offers it: NHL.com story pages
+# (fetch_body) and RSS/Atom items that carry their full content. Story pages
+# of other publishers are never scraped.
+sources:
+  - id: nhl-player-safety
+    publisher: NHL.com
+    kind: official
+    adapter: nhl_content
+    url: https://forge-dapi.d3.nhle.com/v2/content/en-us/stories?tags.slug=player-safety&$limit=50
+    priority: 10
+    refresh_minutes: 60
+    max_items: 50
+    fetch_body: true
+    enabled: true
+    notes: Department of Player Safety suspensions and fines, as published on NHL.com.
+  - id: nhl-injury
+    publisher: NHL.com
+    kind: official
+    adapter: nhl_content
+    url: https://forge-dapi.d3.nhle.com/v2/content/en-us/stories?tags.slug=injury&$limit=50
+    priority: 20
+    refresh_minutes: 60
+    max_items: 50
+    fetch_body: true
+    enabled: true
+    notes: League and team-site stories tagged injury, with NHL player ID tags.
+  - id: nhl-transactions
+    publisher: NHL.com
+    kind: official
+    adapter: nhl_content
+    url: https://forge-dapi.d3.nhle.com/v2/content/en-us/stories?tags.slug=transactions&$limit=50
+    priority: 30
+    refresh_minutes: 60
+    max_items: 50
+    fetch_body: true
+    enabled: true
+    notes: Team announcements of trades, assignments, recalls and waivers.
+  - id: nhl-press-releases
+    publisher: NHL.com
+    kind: official
+    adapter: nhl_content
+    url: https://forge-dapi.d3.nhle.com/v2/content/en-us/stories?tags.slug=press-release&$limit=50
+    priority: 40
+    refresh_minutes: 120
+    max_items: 50
+    fetch_body: true
+    enabled: true
+    notes: League and team press releases (signings, reinstatements, roster moves).
+  - id: yahoo-status
+    publisher: Yahoo Fantasy
+    kind: structured
+    adapter: yahoo_status
+    priority: 50
+    refresh_minutes: 60
+    stale_after_minutes: 1440
+    enabled: true
+    notes: >-
+      Status, injury note and IR flag from the imported Yahoo league player
+      pools (collected once per player for every league). Run a Yahoo sync to
+      refresh the underlying data.
+  - id: rotowire-nhl
+    publisher: RotoWire
+    kind: reporting
+    adapter: rss
+    url: https://www.rotowire.com/rss/news.php?sport=NHL
+    priority: 60
+    refresh_minutes: 15
+    max_items: 100
+    enabled: true
+    notes: >-
+      Free player news RSS; blurbs name the original reporter. The free feed
+      only carries the latest few items, so it is polled often.
+  - id: sportsnet-nhl
+    publisher: Sportsnet
+    kind: reporting
+    adapter: rss
+    url: https://www.sportsnet.ca/hockey/nhl/feed/
+    priority: 70
+    refresh_minutes: 60
+    max_items: 60
+    enabled: true
+    notes: Sportsnet NHL RSS (supports ETag and Last-Modified).
+  - id: espn-nhl
+    publisher: ESPN
+    kind: reporting
+    adapter: rss
+    url: https://www.espn.com/espn/rss/nhl/news
+    priority: 80
+    refresh_minutes: 120
+    max_items: 30
+    enabled: false
+    notes: Mostly features and previews; disabled by default.

@@ -175,3 +175,16 @@ func (c *GraphQLClient) FetchAssets(ctx context.Context, input *model.FetchAsset
 func (c *GraphQLClient) CancelFetchAssets(ctx context.Context) (bool, error) {
 	return c.executeBoolMutation(ctx, `mutation { cancelFetchAssets }`, "cancelFetchAssets", nil)
 }
+
+// RefreshNews triggers the refreshNews mutation.
+func (c *GraphQLClient) RefreshNews(ctx context.Context, input *model.RefreshNewsInput) (bool, error) {
+	return c.executeBoolMutation(ctx,
+		`mutation($input: RefreshNewsInput) { refreshNews(input: $input) }`,
+		"refreshNews",
+		map[string]any{"input": input})
+}
+
+// CancelRefreshNews cancels the refreshNews workflow.
+func (c *GraphQLClient) CancelRefreshNews(ctx context.Context) (bool, error) {
+	return c.executeBoolMutation(ctx, `mutation { cancelRefreshNews }`, "cancelRefreshNews", nil)
+}

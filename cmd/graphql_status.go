@@ -112,3 +112,8 @@ func (c *GraphQLClient) GetImportEdgeStatsStatus(ctx context.Context) (*Workflow
 func (c *GraphQLClient) GetFetchAssetsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	return c.workflowStatus(ctx, "fetchAssetsResult", "fetchAssetsProgress", false)
 }
+
+// GetRefreshNewsStatus queries the result and progress of RefreshNewsWorkflow.
+func (c *GraphQLClient) GetRefreshNewsStatus(ctx context.Context) (*WorkflowStatus, error) {
+	return c.workflowStatus(ctx, "refreshNewsResult", "refreshNewsProgress", false)
+}
