@@ -217,6 +217,18 @@ go test ./...
 
 Database-backed tests use `PUCKDB_TEST_PG_URL` and skip when it is unset.
 
+The simulation integration tests in `internal/worker/simulation/` sit behind
+the `integration` and `livellm` build tags, so `go test ./...` does not compile
+them. Vet them explicitly to catch compile errors:
+
+```bash
+go vet -tags=integration ./...
+go vet -tags=livellm ./...
+```
+
+Running them needs PostgreSQL, Redis, and (for `livellm`) an Ollama host; see
+[the live-model smoke runbook](docs/sim-livellm-smoke.md).
+
 After changing a GraphQL schema, regenerate the gqlgen output:
 
 ```bash
