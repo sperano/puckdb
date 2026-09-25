@@ -161,3 +161,9 @@ func yahooCategoryStat(statID int) (PlayerKind, Stat, bool) {
 		return "", "", false
 	}
 }
+
+// YahooCategoryStat maps a supported Yahoo scoring ID to the projected stat
+// and player kind. Ranking and coverage use the same versioned mapping.
+func YahooCategoryStat(statID int) (PlayerKind, Stat, bool) {
+	return yahooCategoryStat(statID)
+}

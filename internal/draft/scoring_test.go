@@ -97,6 +97,37 @@ func TestScoringFor_UnknownDirectionInRotoLeague(t *testing.T) {
 	assert.Contains(t, err.Error(), "stat 1 (G) has no sort direction")
 }
 
+func TestScoringFor_DuplicateCategory(t *testing.T) {
+	t.Parallel()
+	category := StatCategory{StatID: statGoals, Abbr: "G", Enabled: true, Direction: HigherIsBetter}
+	rules := Rules{
+		ScoringType: scoringTypeRoto,
+		LeagueKey:   "465.l.1",
+		Categories:  []StatCategory{category, category},
+	}
+	_, err := ScoringFor(Snapshot{Rules: rules, Source: SourceYahooAPI})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrMissingScoringInputs)
+	assert.Contains(t, err.Error(), "stat 1 (G) is duplicated")
+}
+
+func TestScoringFor_ClonesPositionTypes(t *testing.T) {
+	t.Parallel()
+	positionTypes := []string{"P"}
+	rules := Rules{
+		ScoringType: scoringTypeRoto,
+		LeagueKey:   "465.l.1",
+		Categories: []StatCategory{{
+			StatID: statGoals, Abbr: "G", Enabled: true,
+			Direction: HigherIsBetter, PositionTypes: positionTypes,
+		}},
+	}
+	scoring, err := ScoringFor(Snapshot{Rules: rules, Source: SourceYahooAPI})
+	require.NoError(t, err)
+	positionTypes[0] = "G"
+	assert.Equal(t, []string{"P"}, scoring.Stats[0].PositionTypes)
+}
+
 // clearBonus removes any points bonus on a stat modifier so the rest of the
 // league's weights stay usable in a "valid points league" test.
 func clearBonus(league *store.League, statID int) {

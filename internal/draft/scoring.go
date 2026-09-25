@@ -3,6 +3,8 @@ package draft
 import (
 	"errors"
 	"fmt"
+	"math"
+	"slices"
 	"strings"
 )
 
@@ -83,10 +85,16 @@ func ScoringFor(snapshot Snapshot) (Scoring, error) {
 		Provisional: snapshot.Source != SourceYahooAPI,
 	}
 	var problems []string
+	seenStats := make(map[int]bool)
 	for _, category := range rules.Categories {
 		if !category.Scores() {
 			continue
 		}
+		if seenStats[category.StatID] {
+			problems = append(problems, fmt.Sprintf("stat %d (%s) is duplicated", category.StatID, category.Label()))
+			continue
+		}
+		seenStats[category.StatID] = true
 		stat, statProblems := scoringStat(category, kind.format)
 		problems = append(problems, statProblems...)
 		scoring.Stats = append(scoring.Stats, stat)
@@ -103,7 +111,7 @@ func ScoringFor(snapshot Snapshot) (Scoring, error) {
 func scoringStat(category StatCategory, format ScoringFormat) (ScoringStat, []string) {
 	stat := ScoringStat{
 		StatID: category.StatID, Abbr: category.Label(), Name: category.Name,
-		PositionTypes: category.PositionTypes, Direction: category.Direction,
+		PositionTypes: slices.Clone(category.PositionTypes), Direction: category.Direction,
 	}
 	label := fmt.Sprintf("stat %d (%s)", category.StatID, category.Label())
 	var problems []string
@@ -111,12 +119,17 @@ func scoringStat(category StatCategory, format ScoringFormat) (ScoringStat, []st
 	case FormatCategories:
 		if category.Direction == DirectionUnknown {
 			problems = append(problems, label+" has no sort direction")
+		} else if category.Direction != HigherIsBetter && category.Direction != LowerIsBetter {
+			problems = append(problems, label+" has invalid sort direction")
 		}
 	case FormatPoints:
 		if category.Weight == nil {
 			problems = append(problems, label+" has no points weight")
 		} else {
 			stat.Weight = *category.Weight
+			if math.IsNaN(stat.Weight) || math.IsInf(stat.Weight, 0) {
+				problems = append(problems, label+" has nonfinite points weight")
+			}
 		}
 		if len(category.Bonuses) > 0 {
 			problems = append(problems, label+" has points bonuses, which are not supported")
