@@ -1293,6 +1293,79 @@ type PlayerSeasonTotal struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type ProjectionEvaluation struct {
+	ID              pgtype.UUID        `json:"id"`
+	ModelVersion    string             `json:"model_version"`
+	ConfigHash      string             `json:"config_hash"`
+	SourceDataHash  string             `json:"source_data_hash"`
+	TargetSeason    int32              `json:"target_season"`
+	AsOf            pgtype.Timestamptz `json:"as_of"`
+	ObservedAt      pgtype.Timestamptz `json:"observed_at"`
+	PlayerKind      string             `json:"player_kind"`
+	ComparisonModel string             `json:"comparison_model"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type ProjectionEvaluationMetric struct {
+	EvaluationID   pgtype.UUID `json:"evaluation_id"`
+	Stat           string      `json:"stat"`
+	SampleSize     int32       `json:"sample_size"`
+	ModelMae       float64     `json:"model_mae"`
+	ModelRmse      float64     `json:"model_rmse"`
+	ComparisonMae  float64     `json:"comparison_mae"`
+	ComparisonRmse float64     `json:"comparison_rmse"`
+}
+
+type ProjectionPlayer struct {
+	SnapshotID              pgtype.UUID        `json:"snapshot_id"`
+	PlayerKey               string             `json:"player_key"`
+	PlayerID                pgtype.Int8        `json:"player_id"`
+	TeamID                  pgtype.Int8        `json:"team_id"`
+	PlayerKind              string             `json:"player_kind"`
+	Position                string             `json:"position"`
+	Source                  string             `json:"source"`
+	Provider                string             `json:"provider"`
+	ProviderVersion         string             `json:"provider_version"`
+	SourceAsOf              pgtype.Timestamptz `json:"source_as_of"`
+	IncorporatesNewsThrough pgtype.Timestamptz `json:"incorporates_news_through"`
+	HistorySeasons          int32              `json:"history_seasons"`
+	HistoryGames            int32              `json:"history_games"`
+	SampleExposure          float64            `json:"sample_exposure"`
+	Uncertainty             float64            `json:"uncertainty"`
+	InsufficientHistory     bool               `json:"insufficient_history"`
+	MissingStats            []string           `json:"missing_stats"`
+}
+
+type ProjectionSnapshot struct {
+	ID                    pgtype.UUID        `json:"id"`
+	TargetSeason          int32              `json:"target_season"`
+	AsOf                  pgtype.Timestamptz `json:"as_of"`
+	SourceMaxGameDate     pgtype.Date        `json:"source_max_game_date"`
+	ModelVersion          string             `json:"model_version"`
+	ConfigHash            string             `json:"config_hash"`
+	SourceDataHash        string             `json:"source_data_hash"`
+	LookbackSeasons       int32              `json:"lookback_seasons"`
+	SeasonDecay           float64            `json:"season_decay"`
+	SkaterPriorToiSeconds float64            `json:"skater_prior_toi_seconds"`
+	GoaliePriorShots      float64            `json:"goalie_prior_shots"`
+	GoalieShutoutMinToi   int32              `json:"goalie_shutout_min_toi"`
+	MaxGames              float64            `json:"max_games"`
+	IntervalZ             float64            `json:"interval_z"`
+	MinimumUncertainty    float64            `json:"minimum_uncertainty"`
+	MaximumUncertainty    float64            `json:"maximum_uncertainty"`
+	MinimumHistoryGames   int32              `json:"minimum_history_games"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+}
+
+type ProjectionValue struct {
+	SnapshotID pgtype.UUID `json:"snapshot_id"`
+	PlayerKey  string      `json:"player_key"`
+	Stat       string      `json:"stat"`
+	Mean       float64     `json:"mean"`
+	Low        float64     `json:"low"`
+	High       float64     `json:"high"`
+}
+
 type Season struct {
 	ID             int32       `json:"id"`
 	StandingsStart pgtype.Date `json:"standings_start"`
