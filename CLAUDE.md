@@ -54,6 +54,8 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `draft rules` | Markdown comparison of leagues' imported rules (scoring, roster, draft, settings) with warnings; `--draft-season`, `--draft-leagues`, `--draft-output` |
 | `draft pool` | Coverage of leagues' draftable player pools (eligibility gaps, unmatched NHL players) |
 | `news report` | Markdown report of player news: source coverage (fresh/failing/stale/missing), incident candidates with attributed evidence, unattached story subjects; `--news-player-nhl-id`/`--news-player-yahoo-id` for one player (see `docs/draft-player-news.md`) |
+| `news events` | Markdown report of validated news events (evidence quotes, lifecycle history) and the extraction review queue (see `docs/draft-news-events.md`) |
+| `news eval` | Run the labeled news-event corpus through `--news-extract-provider`/`--news-extract-model`, print accuracy and unsupported-claim rate against the release thresholds, record the run (the gate for automatic effects) |
 | `redis flush` | Flush a Redis database |
 | `yahoo signout` | Clear OAuth2 token from Redis |
 | `maurice` | Interactive AI hockey chat REPL |
@@ -80,6 +82,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/matching/` | NHL ↔ Yahoo player matching |
 | `internal/draft/` | Draft helper models: normalized league rules, scoring-input validation, roster feasibility, player-pool coverage, comparison reports (see `docs/draft-league-rules.md`) |
 | `internal/news/` | Player news for the draft helper: source set (`sources.yaml`), RSS/Atom, NHL content and Yahoo status adapters, conditional fetch, article versions, player resolution, incident grouping, coverage and reports (see `docs/draft-player-news.md`) |
+| `internal/newsevent/` | LLM extraction of validated player news events: prompt and strict output schema, quote/claim/chronology validation, injection defenses, deterministic lifecycle reconciliation (active/superseded/retracted/resolved), labeled evaluation corpus (`evalcorpus.yaml`) and release gate (see `docs/draft-news-events.md`) |
 | `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
 | `internal/llm/` | LLM client (used by player enrichment / Maurice) |
 | `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
@@ -102,7 +105,7 @@ Defined in `internal/worker/workflow/`:
 - `ProcessPlayersWorkflow` — Player enrichment and matching
 - `FetchEdgeSeasonsWorkflow` / `FetchEdgeWorkflow` — NHL Edge tracking data (2021-2022+)
 - `ImportEdgeSeasonsWorkflow` / `ImportEdgeWorkflow` — Import cached Edge data into Postgres
-- `RefreshNewsWorkflow` — Fetch due player news sources, store new article versions, resolve players into incident candidates, prune (on demand, or via the `refresh-news-schedule` Temporal schedule when the worker runs with `--news-schedule-minutes`)
+- `RefreshNewsWorkflow` — Fetch due player news sources, store new article versions, resolve players into incident candidates, extract validated events with an LLM when the worker runs with `--news-extract-enabled` (capped calls/tokens per run), prune (on demand, or via the `refresh-news-schedule` Temporal schedule when the worker runs with `--news-schedule-minutes`)
 - `InitializeWorkflow` — Database initialization
 
 Defined in `internal/worker/admin/`:
@@ -360,6 +363,11 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `news_mentions` | Player references per version (PK `(version_id, ordinal)`) | `role` (`subject`/`mentioned`), `resolution` (`resolved`/`ambiguous`/`unresolved`), `method`, `nhl_player_id`, `yahoo_player_id`, `candidates` (jsonb) |
 | `news_incidents` | Incident candidates: one per player, category and time window, however many reports repeat it | `nhl_player_id`, `yahoo_player_id`, `category`, `first_reported_at`, `last_reported_at` |
 | `news_incident_evidence` | Versions behind an incident (PK `(incident_id, version_id)`) | `publisher`, `kind`, `reported_at`, `relation` (`independent`/`syndicated`/`same_publisher`/`revision`) |
+| `news_extractions` | LLM extraction per version and extractor (UNIQUE `(version_id, extractor_key)`; key = provider/model/prompt/schema version) | `input_hash` (cache), `status` (`pending`/`succeeded`/`invalid`/`failed`), `attempts`, `last_error`, `raw_output`, `issues` (jsonb), tokens, `cached_from_id`, `reconciled_at` |
+| `news_events` | Validated events; facts immutable, new details = new event | `nhl_player_id`, `yahoo_player_id`, `event_type`, `report_status` (`confirmed`/`reported`/`rumor`), `effective_from`, `duration_kind`/`_games`/`_days`/`_until`, `change_field`/`_from`/`_to`, `lifecycle` (`active`/`superseded`/`retracted`/`resolved`), `superseded_by`, `incident_id`, `needs_review`, `review_reason` |
+| `news_event_evidence` | Versions behind an event per extraction (PK `(event_id, version_id, extraction_id, relation)`) | `relation` (`supports`/`contradicts`/`retracts`/`resolves`/`withdraws`), `quotes` (jsonb), `publisher`, `kind`, `reported_at` |
+| `news_event_transitions` | Audit trail of every event creation and lifecycle change | `event_id`, `from_lifecycle`, `to_lifecycle`, `version_id`, `extraction_id`, `reason`, `at` |
+| `news_extraction_evaluations` | Runs of the labeled corpus per extractor; the latest passing run on the current corpus version gates automatic effects | `extractor_key`, `corpus_version`, `passed`, `metrics` (jsonb) |
 
 ### Maurice (LLM chat) tables
 

@@ -95,21 +95,26 @@ type PruneInput struct {
 // PruneResult counts what was removed.
 type PruneResult struct {
 	Incidents int64 `json:"incidents"`
+	Events    int64 `json:"events"`
 	Articles  int64 `json:"articles"`
 	Versions  int64 `json:"versions"`
 }
 
 const hoursPerDay = 24
 
-// PruneNews removes incidents last reported and articles last seen before
-// the retention cutoff (an article still backing an incident stays), and
-// old versions beyond KeepVersions per article that back no incident.
+// PruneNews removes incidents and events last reported and articles last
+// seen before the retention cutoff (an article still backing an incident or
+// event stays), and old versions beyond KeepVersions per article that back
+// no incident or event.
 func (a *Activities) PruneNews(ctx context.Context, input PruneInput) (PruneResult, error) {
 	cutoff := news.Timestamptz(a.now().Add(-time.Duration(input.RetentionDays) * hoursPerDay * time.Hour))
 	var result PruneResult
 	var err error
 	if result.Incidents, err = a.Queries.DeleteExpiredNewsIncidents(ctx, cutoff); err != nil {
 		return result, fmt.Errorf("prune news incidents: %w", err)
+	}
+	if result.Events, err = a.Queries.DeleteExpiredNewsEvents(ctx, cutoff); err != nil {
+		return result, fmt.Errorf("prune news events: %w", err)
 	}
 	if result.Articles, err = a.Queries.DeleteExpiredNewsArticles(ctx, cutoff); err != nil {
 		return result, fmt.Errorf("prune news articles: %w", err)

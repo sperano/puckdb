@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -30,15 +29,16 @@ const (
 // newsConfig is what RefreshNewsWorkflow snapshots at start: the source set
 // and the limits that shape which activities run.
 type newsConfig struct {
-	Sources                  []news.Source `json:"sources"`
-	Err                      string        `json:"err,omitempty"`
-	BatchSize                int           `json:"batchSize"`
-	IncidentWindowHours      int           `json:"incidentWindowHours"`
-	RetentionDays            int           `json:"retentionDays"`
-	KeepVersions             int           `json:"keepVersions"`
-	FetchMaxAttempts         int           `json:"fetchMaxAttempts"`
-	FetchRetryInitialSeconds int           `json:"fetchRetryInitialSeconds"`
-	FetchRetryMaxSeconds     int           `json:"fetchRetryMaxSeconds"`
+	Sources                  []news.Source     `json:"sources"`
+	Err                      string            `json:"err,omitempty"`
+	BatchSize                int               `json:"batchSize"`
+	IncidentWindowHours      int               `json:"incidentWindowHours"`
+	RetentionDays            int               `json:"retentionDays"`
+	KeepVersions             int               `json:"keepVersions"`
+	FetchMaxAttempts         int               `json:"fetchMaxAttempts"`
+	FetchRetryInitialSeconds int               `json:"fetchRetryInitialSeconds"`
+	FetchRetryMaxSeconds     int               `json:"fetchRetryMaxSeconds"`
+	Extract                  newsExtractConfig `json:"extract"`
 }
 
 // loadNewsSources reads the source set; a variable so tests can swap it.
@@ -53,6 +53,7 @@ func loadNewsConfig() newsConfig {
 		FetchMaxAttempts:         shared.ViperIntOrDefault(config.FlagNewsFetchMaxAttempts, config.DefaultNewsFetchMaxAttempts),
 		FetchRetryInitialSeconds: shared.ViperIntOrDefault(config.FlagNewsFetchRetryInitial, config.DefaultNewsFetchRetryInitial),
 		FetchRetryMaxSeconds:     shared.ViperIntOrDefault(config.FlagNewsFetchRetryMax, config.DefaultNewsFetchRetryMax),
+		Extract:                  loadNewsExtractConfig(),
 	}
 	sources, err := loadNewsSources(viper.GetString(config.FlagNewsSourcesFile))
 	if err != nil {
@@ -70,23 +71,29 @@ type FailedNewsSource struct {
 
 // RefreshNewsResult summarizes one news refresh.
 type RefreshNewsResult struct {
-	Season      int                  `json:"season"`
-	Fetched     []string             `json:"fetched"`
-	NotModified []string             `json:"notModified"`
-	Failed      []FailedNewsSource   `json:"failed"`
-	NotDue      []newsfeed.NotDue    `json:"notDue"`
-	Stored      news.IngestResult    `json:"stored"`
-	Bodies      news.BodyResult      `json:"bodies"`
-	Processed   news.ProcessOutcome  `json:"processed"`
-	Pruned      newsfeed.PruneResult `json:"pruned"`
+	Season      int                 `json:"season"`
+	Fetched     []string            `json:"fetched"`
+	NotModified []string            `json:"notModified"`
+	Failed      []FailedNewsSource  `json:"failed"`
+	NotDue      []newsfeed.NotDue   `json:"notDue"`
+	Stored      news.IngestResult   `json:"stored"`
+	Bodies      news.BodyResult     `json:"bodies"`
+	Processed   news.ProcessOutcome `json:"processed"`
+	// Extracted is what event extraction did; zero when it is disabled.
+	Extracted newsfeed.ExtractResult `json:"extracted"`
+	// ExtractError is the failure that stopped extraction early, if any.
+	ExtractError string               `json:"extractError,omitempty"`
+	Pruned       newsfeed.PruneResult `json:"pruned"`
 }
 
 // RefreshNewsWorkflow fetches the due news sources, stores new and changed
-// stories, resolves their players into incident candidates and prunes old
-// news. A source that keeps failing is recorded as failed and the others
-// still run; its last good data stays in place and the report shows it
-// aging. The workflow fails on invalid configuration or input, or when
-// planning, processing or pruning fails; stored news is kept either way.
+// stories, resolves their players into incident candidates, extracts
+// validated events with an LLM when enabled, and prunes old news. A source
+// that keeps failing is recorded as failed and the others still run; its
+// last good data stays in place and the report shows it aging. A failed
+// extraction batch is reported in the result and the refresh goes on. The
+// workflow fails on invalid configuration or input, or when planning,
+// processing or pruning fails; stored news is kept either way.
 func RefreshNewsWorkflow(ctx workflow.Context, input *model.RefreshNewsInput) (RefreshNewsResult, error) {
 	cfg, err := shared.SnapshotConfig(ctx, loadNewsConfig)
 	if err != nil {
@@ -124,6 +131,9 @@ func RefreshNewsWorkflow(ctx workflow.Context, input *model.RefreshNewsInput) (R
 	fetchNewsSources(ctx, cfg, plan.Due, &result, tracker)
 	if err := processNewsVersions(ctx, cfg, &result); err != nil {
 		return result, err
+	}
+	if cfg.Extract.Enabled {
+		result.ExtractError = extractNewsEvents(ctx, cfg, &result)
 	}
 	pruneInput := newsfeed.PruneInput{RetentionDays: cfg.RetentionDays, KeepVersions: cfg.KeepVersions}
 	if err := workflow.ExecuteActivity(ctx, act.PruneNews, pruneInput).Get(ctx, &result.Pruned); err != nil {
@@ -178,11 +188,7 @@ func fetchNewsSources(ctx workflow.Context, cfg newsConfig, due []news.Source, r
 
 func recordNewsFailure(ctx workflow.Context, src news.Source, result *RefreshNewsResult, fetchErr error) {
 	var act *newsfeed.Activities
-	message := fetchErr.Error()
-	var appErr *temporal.ApplicationError
-	if errors.As(fetchErr, &appErr) {
-		message = appErr.Message()
-	}
+	message := activityMessage(fetchErr)
 	result.Failed = append(result.Failed, FailedNewsSource{SourceID: src.ID, Error: message})
 	failure := newsfeed.FailureInput{Source: src, Season: result.Season, Error: message}
 	if err := workflow.ExecuteActivity(ctx, act.RecordNewsFetchFailure, failure).Get(ctx, nil); err != nil {
@@ -221,7 +227,7 @@ func processNewsVersions(ctx workflow.Context, cfg newsConfig, result *RefreshNe
 }
 
 func newsSummary(r RefreshNewsResult, elapsed string) string {
-	return fmt.Sprintf("Fetched %d, unchanged %d, failed %d, not due %d sources; %d new versions, %d incidents, %d repeats in %s.",
+	return fmt.Sprintf("Fetched %d, unchanged %d, failed %d, not due %d sources; %d new versions, %d incidents, %d repeats, %d events in %s.",
 		len(r.Fetched), len(r.NotModified), len(r.Failed), len(r.NotDue),
-		r.Stored.NewVersions, r.Processed.IncidentsCreated, r.Processed.Repeats, elapsed)
+		r.Stored.NewVersions, r.Processed.IncidentsCreated, r.Processed.Repeats, r.Extracted.Events.Created, elapsed)
 }

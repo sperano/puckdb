@@ -54,3 +54,17 @@ func TestNewProviderConfigs(t *testing.T) {
 	assert.Equal(t, "http://ollama:11434/v1", configs[ProviderOllama].BaseURL)
 	assert.Empty(t, configs[ProviderOllama].APIKey)
 }
+
+func TestParseProvider(t *testing.T) {
+	cases := map[string]Provider{
+		"anthropic": ProviderAnthropic, " Anthropic ": ProviderAnthropic,
+		"openai": ProviderOpenAI, "OLLAMA": ProviderOllama,
+	}
+	for name, want := range cases {
+		got, err := ParseProvider(name)
+		assert.NoError(t, err, name)
+		assert.Equal(t, want, got, name)
+	}
+	_, err := ParseProvider("gemini")
+	assert.Error(t, err, "no Gemini provider config exists")
+}

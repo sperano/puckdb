@@ -39,9 +39,11 @@ func cmdNews() *cobra.Command {
 		Short: "Player news for the draft helper",
 		Long: `Reports on the player news PuckDB ingests. Refresh news with
 "puckdb sync refresh-news" (add --news-force right before a draft), or let the
-worker refresh it periodically with --news-schedule-minutes.`,
+worker refresh it periodically with --news-schedule-minutes. With
+--news-extract-enabled the worker also extracts validated events with an LLM;
+"news events" reports them and "news eval" measures the extractor.`,
 	}
-	cmd.AddCommand(cmdNewsReport())
+	cmd.AddCommand(cmdNewsReport(), cmdNewsEvents(), cmdNewsEval())
 	return cmd
 }
 

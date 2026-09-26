@@ -13,7 +13,6 @@ import (
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/httpx"
-	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
@@ -64,6 +63,8 @@ var workerFlagGroups = []*config.FlagGroup{
 	&config.MauriceFlags,
 	&config.NewsSourcesFlags,
 	&config.NewsWorkerFlags,
+	&config.NewsExtractModelFlags,
+	&config.NewsExtractWorkerFlags,
 }
 
 func cmdWorker() *cobra.Command {
@@ -296,14 +297,10 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 // to defaultAgentFactory (NewAgent).
 func registerSimulationActivities(w worker.Worker, pool *pgxpool.Pool, queries *sqlcdb.Queries, tclient client.Client) {
 	simActs := &simulation.Activities{
-		Queries:  queries,
-		Tx:       simulation.NewPgxTransactor(pool),
-		Signaler: simulation.NewTemporalSignaler(tclient),
-		ProviderConfigs: llm.NewProviderConfigs(llm.ProviderConfigsInput{
-			OllamaBaseURL:   viper.GetString(config.FlagOllamaBaseURL),
-			AnthropicAPIKey: viper.GetString(config.FlagAnthropicAPIKey),
-			OpenAIAPIKey:    viper.GetString(config.FlagOpenAIAPIKey),
-		}),
+		Queries:         queries,
+		Tx:              simulation.NewPgxTransactor(pool),
+		Signaler:        simulation.NewTemporalSignaler(tclient),
+		ProviderConfigs: configuredLLMProviders(),
 	}
 	w.RegisterActivity(simActs.LoadPoolState)
 	w.RegisterActivity(simActs.LoadDraftCandidates)

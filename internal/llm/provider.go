@@ -1,5 +1,10 @@
 package llm
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Provider identifies an LLM provider for routing.
 type Provider int
 
@@ -25,6 +30,29 @@ func (p Provider) String() string {
 		return "Ollama"
 	default:
 		return "Unknown"
+	}
+}
+
+// Provider names as written in configuration.
+const (
+	providerNameAnthropic = "anthropic"
+	providerNameOpenAI    = "openai"
+	providerNameOllama    = "ollama"
+)
+
+// ParseProvider reads a provider name as written in configuration
+// ("anthropic", "openai" or "ollama", any case).
+func ParseProvider(name string) (Provider, error) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case providerNameAnthropic:
+		return ProviderAnthropic, nil
+	case providerNameOpenAI:
+		return ProviderOpenAI, nil
+	case providerNameOllama:
+		return ProviderOllama, nil
+	default:
+		return 0, fmt.Errorf("unknown LLM provider %q (want %s, %s or %s)",
+			name, providerNameAnthropic, providerNameOpenAI, providerNameOllama)
 	}
 }
 

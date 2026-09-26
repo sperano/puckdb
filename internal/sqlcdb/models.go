@@ -1224,6 +1224,94 @@ type NewsArticleVersion struct {
 	Body             string             `json:"body"`
 }
 
+type NewsEvent struct {
+	ID                 int64              `json:"id"`
+	NhlPlayerID        pgtype.Int8        `json:"nhl_player_id"`
+	YahooPlayerID      pgtype.Int4        `json:"yahoo_player_id"`
+	PlayerName         string             `json:"player_name"`
+	EventType          string             `json:"event_type"`
+	ReportStatus       string             `json:"report_status"`
+	Attribution        string             `json:"attribution"`
+	EffectiveFrom      pgtype.Date        `json:"effective_from"`
+	DurationKind       string             `json:"duration_kind"`
+	DurationGames      pgtype.Int4        `json:"duration_games"`
+	DurationDays       pgtype.Int4        `json:"duration_days"`
+	DurationUntil      pgtype.Date        `json:"duration_until"`
+	ChangeField        string             `json:"change_field"`
+	ChangeFrom         string             `json:"change_from"`
+	ChangeTo           string             `json:"change_to"`
+	Lifecycle          string             `json:"lifecycle"`
+	SupersededBy       pgtype.Int8        `json:"superseded_by"`
+	LifecycleReason    string             `json:"lifecycle_reason"`
+	LifecycleChangedAt pgtype.Timestamptz `json:"lifecycle_changed_at"`
+	IncidentID         pgtype.Int8        `json:"incident_id"`
+	FirstReportedAt    pgtype.Timestamptz `json:"first_reported_at"`
+	LastReportedAt     pgtype.Timestamptz `json:"last_reported_at"`
+	NeedsReview        bool               `json:"needs_review"`
+	ReviewReason       string             `json:"review_reason"`
+	ExtractionID       pgtype.Int8        `json:"extraction_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type NewsEventEvidence struct {
+	EventID      int64              `json:"event_id"`
+	VersionID    int64              `json:"version_id"`
+	ExtractionID int64              `json:"extraction_id"`
+	Relation     string             `json:"relation"`
+	ArticleID    int64              `json:"article_id"`
+	Publisher    string             `json:"publisher"`
+	Kind         string             `json:"kind"`
+	ReportedAt   pgtype.Timestamptz `json:"reported_at"`
+	Quotes       []byte             `json:"quotes"`
+	AddedAt      pgtype.Timestamptz `json:"added_at"`
+}
+
+type NewsEventTransition struct {
+	ID            int64              `json:"id"`
+	EventID       int64              `json:"event_id"`
+	FromLifecycle string             `json:"from_lifecycle"`
+	ToLifecycle   string             `json:"to_lifecycle"`
+	VersionID     pgtype.Int8        `json:"version_id"`
+	ExtractionID  pgtype.Int8        `json:"extraction_id"`
+	Reason        string             `json:"reason"`
+	At            pgtype.Timestamptz `json:"at"`
+}
+
+type NewsExtraction struct {
+	ID               int64              `json:"id"`
+	VersionID        int64              `json:"version_id"`
+	ExtractorKey     string             `json:"extractor_key"`
+	Provider         string             `json:"provider"`
+	Model            string             `json:"model"`
+	PromptVersion    string             `json:"prompt_version"`
+	SchemaVersion    string             `json:"schema_version"`
+	InputHash        string             `json:"input_hash"`
+	Status           string             `json:"status"`
+	Attempts         int32              `json:"attempts"`
+	LastAttemptAt    pgtype.Timestamptz `json:"last_attempt_at"`
+	LastError        string             `json:"last_error"`
+	RawOutput        string             `json:"raw_output"`
+	Issues           []byte             `json:"issues"`
+	Events           int32              `json:"events"`
+	PromptTokens     int32              `json:"prompt_tokens"`
+	CompletionTokens int32              `json:"completion_tokens"`
+	CachedFromID     pgtype.Int8        `json:"cached_from_id"`
+	ReconciledAt     pgtype.Timestamptz `json:"reconciled_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type NewsExtractionEvaluation struct {
+	ID            int64              `json:"id"`
+	ExtractorKey  string             `json:"extractor_key"`
+	CorpusVersion string             `json:"corpus_version"`
+	Cases         int32              `json:"cases"`
+	Passed        bool               `json:"passed"`
+	Metrics       []byte             `json:"metrics"`
+	RunAt         pgtype.Timestamptz `json:"run_at"`
+}
+
 type NewsFetchState struct {
 	SourceID            string             `json:"source_id"`
 	Scope               string             `json:"scope"`

@@ -45,10 +45,11 @@ DELETE FROM news_article_versions v
 WHERE v.processed_at IS NOT NULL
   AND v.version <= (SELECT MAX(lv.version) FROM news_article_versions lv WHERE lv.article_id = v.article_id) - $1::integer
   AND NOT EXISTS (SELECT 1 FROM news_incident_evidence e WHERE e.version_id = v.id)
+  AND NOT EXISTS (SELECT 1 FROM news_event_evidence ee WHERE ee.version_id = v.id)
 `
 
 // Keeps the newest @keep processed versions of each article, plus any version
-// that backs an incident.
+// that backs an incident or an event.
 func (q *Queries) DeleteExcessNewsArticleVersions(ctx context.Context, keep int32) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteExcessNewsArticleVersions, keep)
 	if err != nil {
@@ -65,9 +66,11 @@ WHERE a.last_seen_at < $1
       JOIN news_article_versions v ON v.id = e.version_id
       WHERE v.article_id = a.id
   )
+  AND NOT EXISTS (SELECT 1 FROM news_event_evidence ee WHERE ee.article_id = a.id)
 `
 
-// Articles not seen since the cutoff, unless they still back an incident.
+// Articles not seen since the cutoff, unless they still back an incident or
+// an event.
 func (q *Queries) DeleteExpiredNewsArticles(ctx context.Context, lastSeenAt pgtype.Timestamptz) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteExpiredNewsArticles, lastSeenAt)
 	if err != nil {

@@ -7,8 +7,9 @@ stores, how it groups repeated reports, how it attaches stories to players,
 and how it makes missing or stale coverage visible.
 
 Nothing here ranks or penalizes a player. Ingestion produces attributable
-**incident candidates**. The next step (validated event extraction) reads
-them, and only then does anything reach a ranking.
+**incident candidates**. The next step, validated event extraction (see
+[draft-news-events.md](draft-news-events.md)), reads them, and only then
+does anything reach a ranking.
 
 ## Sources
 
@@ -193,8 +194,8 @@ Each version keeps three times, never merged:
 A report's time is its publication time, else its update time, else its
 retrieval time. Incidents are ordered by it, so a suspension story retrieved
 after the reinstatement still comes first. The time an event took effect
-(return dates, suspension length) is not extracted here; that is the next
-step's job.
+and its stated length are not extracted here; that is the next step's job
+([draft-news-events.md](draft-news-events.md)).
 
 ## Refreshing
 
@@ -262,9 +263,10 @@ puckdb news report --news-since-days 60 --news-output news.md
 
 ## Not done here
 
-- **Event extraction.** Dates, durations, rumor versus confirmed, and fantasy
-  impact are the next step (LLM extraction with validation). The keyword
-  category is only a grouping key.
+- **Event extraction.** Dates, durations and rumor versus confirmed are
+  extracted by the next step ([draft-news-events.md](draft-news-events.md));
+  fantasy impact is not extracted at all. The keyword category is only a
+  grouping key.
 - **Name resolution limits.** Surname-only mentions are not matched. A player
   whom an NHL.com body links is resolved by NHL ID, but becomes a subject only
   when the title names them. Names in a body are not matched by name, and

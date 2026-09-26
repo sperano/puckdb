@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/news"
+	"github.com/sperano/puckdb/internal/newsevent"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -195,4 +196,52 @@ func TestAllSyncSteps_RefreshNewsBeforeFetchAssets(t *testing.T) {
 
 func TestWorkflowRefreshNews_String(t *testing.T) {
 	assert.Equal(t, "refreshNews", workflowRefreshNews.String())
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// news events / news eval flags
+// ────────────────────────────────────────────────────────────────────────────
+
+func TestNewsEventsRequestFromFlags(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
+	viper.Set(config.FlagNewsSinceDays, 3)
+	viper.Set(config.FlagNewsLimit, 7)
+	viper.Set(config.FlagNewsPlayerNHLID, 8475188)
+	viper.Set(config.FlagNewsExtractMaxAttempts, 4)
+
+	req, err := newsEventsRequestFromFlags(now)
+
+	require.NoError(t, err)
+	assert.Equal(t, now.Add(-3*24*time.Hour), req.Since)
+	assert.Equal(t, 7, req.Limit)
+	assert.Equal(t, 4, req.MaxAttempts)
+	assert.Equal(t, int64(8475188), req.Player.NHLPlayerID)
+}
+
+func TestNewsEventsRequestFromFlagsRejectsNonPositiveWindow(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	viper.Set(config.FlagNewsLimit, 7)
+
+	_, err := newsEventsRequestFromFlags(time.Now())
+
+	assert.Error(t, err)
+}
+
+func TestNewsExtractorFromFlags(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	viper.Set(config.FlagNewsExtractProvider, "Ollama")
+	viper.Set(config.FlagNewsExtractModel, "qwen3:8b")
+
+	x, err := newsExtractorFromFlags()
+
+	require.NoError(t, err)
+	assert.Equal(t, "ollama/qwen3:8b/"+newsevent.PromptVersion+"/"+newsevent.SchemaVersion, x.Key())
+
+	viper.Set(config.FlagNewsExtractProvider, "gemini")
+	_, err = newsExtractorFromFlags()
+	assert.Error(t, err)
 }

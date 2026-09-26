@@ -190,22 +190,25 @@ LIMIT $2;
 DELETE FROM news_incidents WHERE last_reported_at < $1;
 
 -- name: DeleteExpiredNewsArticles :execrows
--- Articles not seen since the cutoff, unless they still back an incident.
+-- Articles not seen since the cutoff, unless they still back an incident or
+-- an event.
 DELETE FROM news_articles a
 WHERE a.last_seen_at < $1
   AND NOT EXISTS (
       SELECT 1 FROM news_incident_evidence e
       JOIN news_article_versions v ON v.id = e.version_id
       WHERE v.article_id = a.id
-  );
+  )
+  AND NOT EXISTS (SELECT 1 FROM news_event_evidence ee WHERE ee.article_id = a.id);
 
 -- name: DeleteExcessNewsArticleVersions :execrows
 -- Keeps the newest @keep processed versions of each article, plus any version
--- that backs an incident.
+-- that backs an incident or an event.
 DELETE FROM news_article_versions v
 WHERE v.processed_at IS NOT NULL
   AND v.version <= (SELECT MAX(lv.version) FROM news_article_versions lv WHERE lv.article_id = v.article_id) - @keep::integer
-  AND NOT EXISTS (SELECT 1 FROM news_incident_evidence e WHERE e.version_id = v.id);
+  AND NOT EXISTS (SELECT 1 FROM news_incident_evidence e WHERE e.version_id = v.id)
+  AND NOT EXISTS (SELECT 1 FROM news_event_evidence ee WHERE ee.version_id = v.id);
 
 -- name: ListNewsResolverPlayers :many
 -- NHL players with their most recent team abbreviation.

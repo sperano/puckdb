@@ -268,6 +268,43 @@ const (
 	DefaultNewsOutput          = ""
 )
 
+// Player news event extraction defaults (draft helper). Extraction calls a
+// paid or local LLM, so it is off until enabled.
+const (
+	DefaultNewsExtractEnabled  = false
+	DefaultNewsExtractProvider = "anthropic"
+	DefaultNewsExtractModel    = "claude-haiku-4-5-20251001"
+	// DefaultNewsExtractMaxOutputTokens bounds one reply (a few events).
+	DefaultNewsExtractMaxOutputTokens = 2048
+	// DefaultNewsExtractMaxInputChars bounds the article text sent per
+	// call; the longest NHL.com stories seen are about 26,000 characters.
+	DefaultNewsExtractMaxInputChars = 24_000
+	// DefaultNewsExtractBatchSize is how many versions one activity handles.
+	DefaultNewsExtractBatchSize = 10
+	// DefaultNewsExtractConcurrency is how many model calls one activity
+	// makes at once.
+	DefaultNewsExtractConcurrency = 2
+	// DefaultNewsExtractMaxCalls and DefaultNewsExtractMaxTokens cap one
+	// refresh's model calls and tokens (prompt plus completion); versions
+	// left over wait for the next refresh.
+	DefaultNewsExtractMaxCalls  = 100
+	DefaultNewsExtractMaxTokens = 500_000
+	// DefaultNewsExtractMaxAttempts is how often a failing call is tried
+	// per version and extractor before it is left for review.
+	DefaultNewsExtractMaxAttempts = 3
+	// DefaultNewsExtractRetryMinutes is the wait before a failed call is
+	// tried again.
+	DefaultNewsExtractRetryMinutes = 30
+	// DefaultNewsExtractTimeoutSeconds bounds one model call.
+	DefaultNewsExtractTimeoutSeconds = 120
+	// DefaultNewsExtractLookbackDays: only versions behind incidents
+	// reported this recently are extracted (a model change re-extracts no
+	// older news).
+	DefaultNewsExtractLookbackDays = 180
+	// DefaultNewsEvalCorpus of "" is the built-in labeled corpus.
+	DefaultNewsEvalCorpus = ""
+)
+
 // Build version constants
 const (
 	BuildNumberNotAvailable = "n/a"

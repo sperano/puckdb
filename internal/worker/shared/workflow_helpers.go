@@ -57,6 +57,15 @@ func ViperIntOrDefault(key string, fallback int) int {
 	return fallback
 }
 
+// ViperStringOrDefault returns the viper value for key, or fallback if it
+// is empty.
+func ViperStringOrDefault(key, fallback string) string {
+	if v := viper.GetString(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 // FetchDayActivityOptions returns activity options with longer timeout for FetchDayActivity.
 // This activity downloads multiple files with rate limiting, requiring more time.
 func FetchDayActivityOptions() workflow.ActivityOptions {

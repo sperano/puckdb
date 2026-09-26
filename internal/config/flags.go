@@ -725,6 +725,24 @@ const (
 	FlagNewsOutput              = "news-output"
 )
 
+// Player news event extraction flags
+const (
+	FlagNewsExtractEnabled         = "news-extract-enabled"
+	FlagNewsExtractProvider        = "news-extract-provider"
+	FlagNewsExtractModel           = "news-extract-model"
+	FlagNewsExtractMaxOutputTokens = "news-extract-max-output-tokens"
+	FlagNewsExtractMaxInputChars   = "news-extract-max-input-chars"
+	FlagNewsExtractBatchSize       = "news-extract-batch-size"
+	FlagNewsExtractConcurrency     = "news-extract-concurrency"
+	FlagNewsExtractMaxCalls        = "news-extract-max-calls"
+	FlagNewsExtractMaxTokens       = "news-extract-max-tokens"
+	FlagNewsExtractMaxAttempts     = "news-extract-max-attempts"
+	FlagNewsExtractRetryMinutes    = "news-extract-retry-minutes"
+	FlagNewsExtractTimeoutSeconds  = "news-extract-timeout-seconds"
+	FlagNewsExtractLookbackDays    = "news-extract-lookback-days"
+	FlagNewsEvalCorpus             = "news-eval-corpus"
+)
+
 // NewsSourcesFlags selects the news source set (worker and report).
 var NewsSourcesFlags = FlagGroup{
 	Flags: []FlagDef{
@@ -743,6 +761,54 @@ var NewsWorkerFlags = FlagGroup{
 		{FlagNewsFetchRetryInitial, "", DefaultNewsFetchRetryInitial, "Seconds before the first news fetch retry (doubles each attempt)", false},
 		{FlagNewsFetchRetryMax, "", DefaultNewsFetchRetryMax, "Maximum seconds between news fetch retries", false},
 		{FlagNewsScheduleMinutes, "", DefaultNewsScheduleMinutes, "Start the news refresh every N minutes via a Temporal schedule (0 removes the schedule)", false},
+	},
+}
+
+// NewsExtractModelFlags selects the model that extracts news events and
+// bounds each call (worker and `news eval`).
+var NewsExtractModelFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagNewsExtractProvider, "", DefaultNewsExtractProvider, "LLM provider of news event extraction: anthropic, openai or ollama", false},
+		{FlagNewsExtractModel, "", DefaultNewsExtractModel, "LLM model of news event extraction", false},
+		{FlagNewsExtractMaxOutputTokens, "", DefaultNewsExtractMaxOutputTokens, "Maximum output tokens per news extraction call", false},
+		{FlagNewsExtractMaxInputChars, "", DefaultNewsExtractMaxInputChars, "Maximum article characters sent per news extraction call", false},
+		{FlagNewsExtractTimeoutSeconds, "", DefaultNewsExtractTimeoutSeconds, "Seconds before a news extraction call times out", false},
+	},
+}
+
+// NewsExtractWorkerFlags turns on news event extraction in the refresh and
+// bounds its cost.
+var NewsExtractWorkerFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagNewsExtractEnabled, "", DefaultNewsExtractEnabled, "Extract validated news events with the LLM after each news refresh", false},
+		{FlagNewsExtractBatchSize, "", DefaultNewsExtractBatchSize, "Article versions per news extraction activity", false},
+		{FlagNewsExtractConcurrency, "", DefaultNewsExtractConcurrency, "Concurrent LLM calls per news extraction activity", false},
+		{FlagNewsExtractMaxCalls, "", DefaultNewsExtractMaxCalls, "Maximum LLM calls per news refresh", false},
+		{FlagNewsExtractMaxTokens, "", DefaultNewsExtractMaxTokens, "Maximum LLM tokens (prompt plus completion) per news refresh", false},
+		{FlagNewsExtractMaxAttempts, "", DefaultNewsExtractMaxAttempts, "Attempts per article version before a failing extraction is left for review", false},
+		{FlagNewsExtractRetryMinutes, "", DefaultNewsExtractRetryMinutes, "Minutes before a failed news extraction is retried", false},
+		{FlagNewsExtractLookbackDays, "", DefaultNewsExtractLookbackDays, "Extract only versions behind incidents reported in the last N days", false},
+	},
+}
+
+// NewsEvalFlags defines the flags of the `news eval` command.
+var NewsEvalFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagNewsEvalCorpus, "", DefaultNewsEvalCorpus, "Labeled evaluation corpus YAML (default: the built-in corpus)", false},
+		{FlagNewsIncidentWindowHours, "", DefaultNewsIncidentWindowHours, "Hours within which reports of one event are reconciled together", false},
+		{FlagNewsOutput, "", DefaultNewsOutput, "Write the report to this file instead of standard output", false},
+	},
+}
+
+// NewsEventsReportFlags defines the flags of the `news events` command.
+var NewsEventsReportFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagNewsSinceDays, "", DefaultNewsSinceDays, "Show events and extraction problems of the last N days", false},
+		{FlagNewsLimit, "", DefaultNewsLimit, "Maximum events and extraction problems listed", false},
+		{FlagNewsPlayerNHLID, "", DefaultNewsPlayerNHLID, "Also list every event of this NHL player ID", false},
+		{FlagNewsPlayerYahooID, "", DefaultNewsPlayerYahooID, "Also list every event of this Yahoo player ID", false},
+		{FlagNewsExtractMaxAttempts, "", DefaultNewsExtractMaxAttempts, "Attempts after which a failing extraction is listed for review", false},
+		{FlagNewsOutput, "", DefaultNewsOutput, "Write the report to this file instead of standard output", false},
 	},
 }
 

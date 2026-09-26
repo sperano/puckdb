@@ -9,12 +9,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	puckdbtemporal "github.com/sperano/puckdb/internal/temporal"
 	"github.com/sperano/puckdb/internal/worker/newsfeed"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/workflow"
+	"github.com/spf13/viper"
 	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
@@ -78,10 +81,30 @@ func registerNewsActivities(w worker.Worker, pool *pgxpool.Pool, queries *sqlcdb
 		Pool:       pool,
 		Queries:    queries,
 		HTTPClient: &http.Client{Timeout: newsHTTPTimeout},
+		LLM:        newsLLMFactory(configuredLLMProviders()),
 	}
 	w.RegisterActivity(newsActivities.PlanNewsRefresh)
 	w.RegisterActivity(newsActivities.FetchNewsSource)
 	w.RegisterActivity(newsActivities.RecordNewsFetchFailure)
 	w.RegisterActivity(newsActivities.ProcessNewsVersions)
+	w.RegisterActivity(newsActivities.ExtractNewsEvents)
 	w.RegisterActivity(newsActivities.PruneNews)
+}
+
+// configuredLLMProviders reads the provider keys and URLs shared by every LLM
+// feature.
+func configuredLLMProviders() map[llm.Provider]llm.ProviderConfig {
+	return llm.NewProviderConfigs(llm.ProviderConfigsInput{
+		OllamaBaseURL:   viper.GetString(config.FlagOllamaBaseURL),
+		AnthropicAPIKey: viper.GetString(config.FlagAnthropicAPIKey),
+		OpenAIAPIKey:    viper.GetString(config.FlagOpenAIAPIKey),
+	})
+}
+
+// newsLLMFactory builds news extraction clients from the worker's provider
+// settings; the workflow only names the provider and model.
+func newsLLMFactory(providers map[llm.Provider]llm.ProviderConfig) newsfeed.ClientFactory {
+	return func(provider llm.Provider, model string, timeout time.Duration) llm.Client {
+		return llm.NewClientForProvider(provider, providers[provider], model, llm.WithTimeout(timeout))
+	}
 }

@@ -147,6 +147,8 @@ Run `./puckdb <command> --help` for the complete flags and subcommands.
 | `db` | Migrate, provision, initialize, inspect, or drop the database |
 | `draft` | Compare imported league rules and report player-pool coverage for the draft helper ([notes](docs/draft-league-rules.md)) |
 | `news report` | Player news coverage, incident candidates and unattached stories for the draft helper; refresh with `sync refresh-news` ([notes](docs/draft-player-news.md)) |
+| `news events` | Validated news events (LLM extraction, off unless the worker runs with `--news-extract-enabled`), their evidence and lifecycle, and the review queue ([notes](docs/draft-news-events.md)) |
+| `news eval` | Measure the extraction model on the labeled corpus against the release thresholds |
 | `redis` | Redis administration |
 | `metrics` | Export cache, Redis, and database metrics |
 | `mcp-server` | Serve curated read-only data tools over HTTP or stdio |

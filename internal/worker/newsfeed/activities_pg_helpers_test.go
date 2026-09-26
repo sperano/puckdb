@@ -99,7 +99,8 @@ func openNewsPGTestDB(t *testing.T) *pgxpool.Pool {
 
 func truncateNewsTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	_, err := pool.Exec(context.Background(), `TRUNCATE news_incident_evidence, news_incidents, news_mentions,
+	_, err := pool.Exec(context.Background(), `TRUNCATE news_extraction_evaluations, news_event_transitions,
+		news_event_evidence, news_events, news_extractions, news_incident_evidence, news_incidents, news_mentions,
 		news_article_versions, news_articles, news_fetch_state, yahoo_league_players, season_teams, franchises,
 		seasons, players CASCADE`)
 	require.NoError(t, err)
@@ -116,6 +117,7 @@ func newNewsActivities(pool *pgxpool.Pool, client *http.Client, now time.Time) (
 	env.RegisterActivity(acts.RecordNewsFetchFailure)
 	env.RegisterActivity(acts.ProcessNewsVersions)
 	env.RegisterActivity(acts.PruneNews)
+	env.RegisterActivity(acts.ExtractNewsEvents)
 	return acts, env
 }
 

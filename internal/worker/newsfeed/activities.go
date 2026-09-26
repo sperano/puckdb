@@ -1,6 +1,7 @@
 // Package newsfeed holds the Temporal activities of the player news refresh:
 // planning which sources are due, fetching and storing a source, recording
-// failures, processing new article versions, and pruning old news.
+// failures, processing new article versions, extracting validated events
+// with an LLM, and pruning old news.
 package newsfeed
 
 import (
@@ -30,6 +31,9 @@ type Activities struct {
 	Pool       *pgxpool.Pool
 	Queries    *sqlcdb.Queries
 	HTTPClient *http.Client
+	// LLM builds the model client of news event extraction; nil disables
+	// extraction on this worker.
+	LLM ClientFactory
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
 }
