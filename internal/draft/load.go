@@ -69,7 +69,7 @@ func LoadSnapshot(ctx context.Context, q Queries, season, leagueID int) (Snapsho
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("load rules for season %d league %d: %w", season, leagueID, err)
 	}
-	snapshot, err := snapshotFromRow(row)
+	snapshot, err := SnapshotFromRow(row)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -82,7 +82,8 @@ func LoadSnapshot(ctx context.Context, q Queries, season, leagueID int) (Snapsho
 	return snapshot, nil
 }
 
-func snapshotFromRow(row sqlcdb.YahooLeagueRuleSnapshot) (Snapshot, error) {
+// SnapshotFromRow decodes a stored rules snapshot row.
+func SnapshotFromRow(row sqlcdb.YahooLeagueRuleSnapshot) (Snapshot, error) {
 	var rules Rules
 	if err := json.Unmarshal(row.Rules, &rules); err != nil {
 		return Snapshot{}, fmt.Errorf("decode rules snapshot %d: %w", row.ID, err)

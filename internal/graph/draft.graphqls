@@ -1,0 +1,474 @@
+# Draft helper rankings (see docs/draft-rankings-api.md).
+#
+# Rankings are served from stored, immutable per-league snapshots computed by
+# the refreshDraftRankings workflow. Queries never rank, adjust or call an
+# LLM: filtering, search, sorting and pagination are views over one snapshot,
+# so ranks never change with the filter. The CLI (`puckdb draft rankings`)
+# and its CSV/JSON exports read the same snapshots through the same service.
+
+enum DraftScenario {
+  """No news adjustments."""
+  BASELINE
+  CONSERVATIVE
+  BASE
+  OPTIMISTIC
+}
+
+enum DraftRankingStatus {
+  """A snapshot is served (see issues for anything stale, failing or missing)."""
+  READY
+  """No refresh has run for the league."""
+  NOT_COMPUTED
+  """The league's first refresh is running."""
+  REFRESHING
+  """The league has no snapshot and its last refresh failed."""
+  FAILED
+}
+
+enum DraftIssueCode {
+  MISSING_RULES
+  UNSUPPORTED_SCORING
+  MISSING_POOL
+  MISSING_PROJECTIONS
+  RANKING_FAILED
+  INTERNAL_ERROR
+  REFRESH_CANCELED
+  NEWS_ADJUSTMENTS_UNAVAILABLE
+  PROVISIONAL_RULES
+  NEWS_SOURCE_STALE
+  NEWS_SOURCE_FAILING
+  NEWS_SOURCE_MISSING
+  STALE_SNAPSHOT
+  STALE_POOL
+  OVERRIDES_CHANGED
+  RULES_CHANGED
+  NEWER_SNAPSHOT_AVAILABLE
+  SCENARIO_UNAVAILABLE
+  NOT_COMPUTED
+  REFRESH_RUNNING
+  REFRESH_FAILED
+  REFRESH_INTERRUPTED
+}
+
+enum DraftSortField {
+  OVERALL_RANK
+  POSITION_RANK
+  NAME
+  TEAM
+  SCORE
+  VALUE
+  ADJUSTED_VALUE
+  UNCERTAINTY
+  TIER
+  BASELINE_RANK
+  RANK_CHANGE
+}
+
+enum DraftSortDirection {
+  ASC
+  DESC
+}
+
+enum DraftRefreshState {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum DraftBenchPolicy {
+  INCLUDED
+  EXCLUDED
+}
+
+enum DraftWorkloadCapPolicy {
+  PER_PLAYER
+}
+
+enum DraftOverrideKind {
+  MISSED_GAMES
+  INPUT
+  EXCLUDE_EVENT
+}
+
+enum DraftOverrideInput {
+  GAMES_PLAYED
+  GAMES_STARTED
+  TOI_PER_GAME
+  POWER_PLAY_FACTOR
+}
+
+enum DraftOverrideState {
+  ACTIVE
+  EXPIRED
+  RESET
+}
+
+type DraftIssue {
+  code: DraftIssueCode!
+  message: String!
+}
+
+type DraftCategory {
+  statId: Int!
+  abbr: String!
+  name: String!
+  positionTypes: [String!]!
+  direction: String!
+  """Points per unit (points leagues only)."""
+  weight: Float
+}
+
+type DraftRosterSlot {
+  position: String!
+  positionType: String
+  count: Int!
+  starting: Boolean!
+}
+
+type DraftLeague {
+  season: Int!
+  leagueId: Int!
+  leagueKey: String!
+  name: String!
+  numTeams: Int!
+  scoringType: String!
+  format: String
+  objective: String
+  """Rules copied from a temporary stand-in league."""
+  provisional: Boolean!
+  rulesSource: String!
+  rulesHash: String!
+  rulesFetchedAt: Time
+  categories: [DraftCategory!]!
+  rosterSlots: [DraftRosterSlot!]!
+}
+
+type DraftProjectionInfo {
+  snapshotId: String!
+  modelVersion: String!
+  sourceHash: String!
+  asOf: Time!
+  dataThrough: Time
+}
+
+type DraftAdjustmentInfo {
+  runId: String!
+  id: String!
+  policyVersion: String!
+  calibration: String!
+  alerts: [String!]!
+  warnings: [String!]!
+}
+
+type DraftNewsSource {
+  sourceId: String!
+  publisher: String!
+  scope: String!
+  """fresh, failing, stale or missing when the snapshot was built."""
+  status: String!
+  dataAsOf: Time
+  lastSuccessAt: Time
+  consecutiveFailures: Int!
+  lastError: String
+}
+
+type DraftScenarioVersion {
+  scenario: DraftScenario!
+  version: String!
+}
+
+type DraftRankingOptions {
+  benchPolicy: DraftBenchPolicy!
+  workloadCapPolicy: DraftWorkloadCapPolicy
+  uncertaintyPenalty: Float!
+}
+
+type DraftSnapshot {
+  id: String!
+  """Hash of every scenario's ranking version and the news adjustment."""
+  identity: String!
+  asOf: Time!
+  createdAt: Time!
+  poolSize: Int!
+  poolFetchedAt: Time
+  projection: DraftProjectionInfo!
+  adjustment: DraftAdjustmentInfo
+  options: DraftRankingOptions!
+  assumptions: [String!]!
+  scenarios: [DraftScenario!]!
+  versions: [DraftScenarioVersion!]!
+  news: [DraftNewsSource!]!
+  unavailable: [DraftIssue!]!
+}
+
+type DraftRefresh {
+  id: String!
+  runId: String!
+  state: DraftRefreshState!
+  code: DraftIssueCode
+  error: String
+  snapshotId: String
+  startedAt: Time!
+  finishedAt: Time
+}
+
+type DraftPositionRank {
+  position: String!
+  rank: Int!
+}
+
+type DraftContribution {
+  statId: Int!
+  abbr: String!
+  stat: String!
+  projected: Float!
+  official: Float!
+  adjusted: Float!
+  weight: Float!
+  direction: String!
+  opportunity: Float!
+  explanation: String!
+}
+
+type DraftPlacement {
+  scenario: DraftScenario!
+  overallRank: Int!
+  positionRanks: [DraftPositionRank!]!
+  tier: Int!
+  officialScore: Float!
+  adjustedScore: Float!
+  replacementValue: Float!
+  value: Float!
+  adjustedValue: Float!
+  uncertainty: Float!
+  contributions: [DraftContribution!]!
+  explanations: [String!]!
+}
+
+type DraftEvidence {
+  versionId: Int64!
+  publisher: String!
+  kind: String!
+  url: String
+  reportedAt: Time!
+  retrievedAt: Time!
+  quote: String
+}
+
+type DraftNewsReason {
+  eventId: String!
+  version: Int!
+  incidentId: Int64
+  type: String!
+  status: String!
+  durationKind: String!
+  durationGames: Int
+  effectiveFrom: Time!
+  effectiveUntil: Time
+  outcome: String!
+  detail: String!
+  scenarios: [DraftScenario!]!
+  evidence: [DraftEvidence!]!
+  latestEvidenceAt: Time
+  ageHours: Float!
+}
+
+type DraftScenarioEffect {
+  scenario: DraftScenario!
+  missedGames: Float!
+  availability: Float!
+  gamesFactor: Float!
+  iceTimeFactor: Float!
+  powerPlayFactor: Float!
+  goalieStartsFactor: Float!
+  teamId: Int64
+}
+
+type DraftStatEstimate {
+  mean: Float!
+  low: Float!
+  high: Float!
+}
+
+type DraftScenarioEstimate {
+  scenario: DraftScenario!
+  estimate: DraftStatEstimate!
+}
+
+type DraftStatChange {
+  stat: String!
+  baseline: DraftStatEstimate!
+  adjusted: [DraftScenarioEstimate!]!
+}
+
+type DraftAppliedOverride {
+  override: DraftOverride!
+  scenario: DraftScenario!
+  original: Float!
+  value: Float!
+}
+
+type DraftAdjustment {
+  reasons: [DraftNewsReason!]!
+  effects: [DraftScenarioEffect!]!
+  changes: [DraftStatChange!]!
+  overrides: [DraftAppliedOverride!]!
+  assumptions: [String!]!
+  alerts: [String!]!
+  baselineUncertainty: Float!
+  uncertainty: Float!
+}
+
+type DraftRankedPlayer {
+  playerKey: String!
+  yahooPlayerId: Int!
+  nhlPlayerId: Int64
+  name: String!
+  team: String!
+  eligiblePositions: [String!]!
+  status: String
+  statusFull: String
+  injuryNote: String
+  """Rank in the served scenario over the complete pool; filters never renumber it."""
+  overallRank: Int!
+  """Best rank among the filtered positions (all eligible positions when unfiltered)."""
+  positionRank: Int!
+  positionRanks: [DraftPositionRank!]!
+  tier: Int!
+  officialScore: Float!
+  adjustedScore: Float!
+  replacementValue: Float!
+  value: Float!
+  adjustedValue: Float!
+  uncertainty: Float!
+  baselineRank: Int!
+  """Baseline rank minus served rank: positive when news moved the player up."""
+  rankChange: Int!
+  contributions: [DraftContribution!]!
+  explanations: [String!]!
+  """The player's placement in every scenario of the snapshot."""
+  placements: [DraftPlacement!]!
+  adjustment: DraftAdjustment
+}
+
+type DraftRankingsPage {
+  league: DraftLeague!
+  status: DraftRankingStatus!
+  """The snapshot served; pass its id back as snapshotId to page through it."""
+  snapshot: DraftSnapshot
+  latestSnapshotId: String
+  refresh: DraftRefresh
+  issues: [DraftIssue!]!
+  scenario: DraftScenario
+  totalCount: Int!
+  offset: Int!
+  limit: Int!
+  rows: [DraftRankedPlayer!]!
+}
+
+type DraftLeagueSummary {
+  league: DraftLeague!
+  status: DraftRankingStatus!
+  snapshot: DraftSnapshot
+  refresh: DraftRefresh
+  issues: [DraftIssue!]!
+}
+
+type DraftOverride {
+  id: String!
+  playerKey: String!
+  """Empty when the override covers every league."""
+  leagueKey: String
+  kind: DraftOverrideKind!
+  eventId: String
+  """Unset when the override covers every scenario."""
+  scenario: DraftScenario
+  input: DraftOverrideInput
+  value: Float!
+  reason: String!
+  createdBy: String
+  createdAt: Time!
+  expiresAt: Time
+  resetAt: Time
+  resetReason: String
+  state: DraftOverrideState!
+}
+
+input DraftRankingsInput {
+  """League key (e.g. 465.l.1001), or a numeric league ID with season."""
+  league: String!
+  """Season start year for a numeric league ID; the current season when unset."""
+  season: Int
+  """Serve this snapshot instead of the latest (keeps pages consistent)."""
+  snapshotId: String
+  """BASE when the snapshot has news scenarios, else BASELINE, when unset."""
+  scenario: DraftScenario
+  """C, LW, RW, D, G; a player matching any of them is listed once."""
+  positions: [String!]
+  """Only these players (a comparison)."""
+  playerKeys: [String!]
+  """Words that must all appear in the name, team or player key (accents ignored)."""
+  search: String
+  sort: DraftSortField
+  """Each field's natural direction when unset (ranks ascending, values descending)."""
+  direction: DraftSortDirection
+  offset: Int
+  """Rows per page: 50 when unset, at most 1000."""
+  limit: Int
+}
+
+input DraftComparisonInput {
+  league: String!
+  season: Int
+  snapshotId: String
+  scenario: DraftScenario
+  playerKeys: [String!]!
+}
+
+input RefreshDraftRankingsInput {
+  """Season start year; the current season when unset."""
+  season: Int
+  """Yahoo league IDs; the season's leagues in seasons.yaml when unset."""
+  leagueIds: [Int!]
+  benchPolicy: DraftBenchPolicy
+  """Required to rank a league with a games or starts cap (see docs/draft-ranking.md)."""
+  workloadCapPolicy: DraftWorkloadCapPolicy
+  uncertaintyPenalty: Float
+}
+
+input DraftOverrideCreateInput {
+  playerKey: String!
+  """Limit the override to one league; every league when unset."""
+  leagueKey: String
+  kind: DraftOverrideKind!
+  """The event an EXCLUDE_EVENT override excludes."""
+  eventId: String
+  """Limit the override to one scenario; every scenario when unset."""
+  scenario: DraftScenario
+  input: DraftOverrideInput
+  value: Float
+  reason: String!
+  expiresAt: Time
+}
+
+extend type Query {
+  """Every league of the season with rules or configured in seasons.yaml, with its ranking state."""
+  draftLeagues(season: Int): [DraftLeagueSummary!]!
+  draftRankings(input: DraftRankingsInput!): DraftRankingsPage!
+  """The listed players of one snapshot with every scenario placement and explanation."""
+  draftPlayerComparison(input: DraftComparisonInput!): DraftRankingsPage!
+  draftOverrides(leagueKey: String, playerKey: String, includeInactive: Boolean): [DraftOverride!]!
+
+  refreshDraftRankingsResult: WorkflowResult!
+  refreshDraftRankingsProgress: ProgressReport
+}
+
+extend type Mutation {
+  """Recompute the leagues' snapshots. Rejected while a refresh is running; a failed refresh keeps the last snapshot."""
+  refreshDraftRankings(input: RefreshDraftRankingsInput): Boolean!
+  cancelRefreshDraftRankings: Boolean!
+  """Takes effect at the next refresh; snapshots report OVERRIDES_CHANGED until then."""
+  createDraftOverride(input: DraftOverrideCreateInput!): DraftOverride!
+  resetDraftOverride(id: String!, reason: String!): Boolean!
+}

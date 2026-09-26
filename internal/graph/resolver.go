@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/maurice"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -47,6 +48,8 @@ type Resolver struct {
 	MauriceService maurice.Service
 	Queries        *sqlcdb.Queries
 	DB             txBeginner
+	// Draft serves draft rankings; nil when there is no database.
+	Draft *draftrank.Service
 }
 
 var temporalStatusToGQL = map[temporalEnums.WorkflowExecutionStatus]model.TemporalWorkflowStatus{

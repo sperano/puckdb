@@ -479,6 +479,10 @@ var SyncBehaviorFlags = FlagGroup{
 		{FlagRefreshCurrentEdge, "", false, "Re-download Edge stats for the latest season, or for every season in an explicit --start-season/--end-season range (overwrites cached files)", false},
 		{FlagNewsForce, "", DefaultNewsForce, "refresh-news: fetch every news source now, ignoring refresh schedules (e.g. right before a draft)", false},
 		{FlagNewsOnly, "", DefaultNewsOnly, "refresh-news: comma-separated news source IDs to refresh (default: every enabled source)", false},
+		{FlagDraftLeagues, "", DefaultDraftLeagues, "refresh-draft-rankings: comma-separated Yahoo league IDs (default: the season's leagues in seasons.yaml)", false},
+		{FlagDraftBenchPolicy, "", DefaultDraftBenchPolicy, "refresh-draft-rankings: bench seats in draft demand, included or excluded", false},
+		{FlagDraftWorkloadCaps, "", DefaultDraftWorkloadCaps, "refresh-draft-rankings: interpret max_games_played/max_goalie_starts as per-player caps (see docs/draft-ranking.md)", false},
+		{FlagDraftUncertaintyPenalty, "", DefaultDraftUncertaintyPenalty, "refresh-draft-rankings: nonnegative uncertainty penalty on adjusted value (e.g. 0.5)", false},
 	},
 }
 
@@ -701,6 +705,60 @@ var DraftFlags = FlagGroup{
 		{FlagDraftLeagues, "", DefaultDraftLeagues, "Comma-separated Yahoo league IDs; required", false},
 		{FlagDraftOutput, "", DefaultDraftOutput, "Write the report to this file instead of standard output", false},
 		{FlagDraftStaleAfter, "", DefaultDraftStaleAfter, "Hours after which league settings or a player pool are reported stale", false},
+	},
+}
+
+// Draft ranking flags
+const (
+	FlagDraftLeague        = "draft-league"
+	FlagDraftPositions     = "draft-positions"
+	FlagDraftPlayers       = "draft-players"
+	FlagDraftFormat        = "draft-format"
+	FlagDraftScenario      = "draft-scenario"
+	FlagDraftSearch        = "draft-search"
+	FlagDraftSort          = "draft-sort"
+	FlagDraftDirection     = "draft-direction"
+	FlagDraftOffset        = "draft-offset"
+	FlagDraftLimit         = "draft-limit"
+	FlagDraftSnapshot      = "draft-snapshot"
+	FlagDraftKeepSnapshots = "draft-keep-snapshots"
+	// Refresh settings of the refresh-draft-rankings sync step.
+	FlagDraftBenchPolicy        = "draft-bench-policy"
+	FlagDraftWorkloadCaps       = "draft-workload-caps"
+	FlagDraftUncertaintyPenalty = "draft-uncertainty-penalty"
+)
+
+// DraftRankingsFlags defines the flags of `draft rankings`.
+var DraftRankingsFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagDraftLeague, "", DefaultDraftLeague, "League key (e.g. 465.l.1001) or numeric league ID (with --draft-season); required", false},
+		{FlagDraftSeason, "", DefaultDraftSeason, "Season start year of a numeric league ID (default: the current season)", false},
+		{FlagDraftPositions, "", DefaultDraftPositions, "Comma-separated positions (C,LW,RW,D,G); a player matching any is listed once", false},
+		{FlagDraftPlayers, "", DefaultDraftPlayers, "Comma-separated Yahoo player keys to compare", false},
+		{FlagDraftFormat, "", DefaultDraftFormat, "Output format: table, csv or json", false},
+		{FlagDraftScenario, "", DefaultDraftScenario, "Scenario: baseline, conservative, base or optimistic (default: base when news scenarios exist)", false},
+		{FlagDraftSearch, "", DefaultDraftSearch, "Words that must all appear in the player's name, team or key", false},
+		{FlagDraftSort, "", DefaultDraftSort, "Sort: overall_rank, position_rank, name, team, score, value, adjusted_value, uncertainty, tier, baseline_rank, rank_change", false},
+		{FlagDraftDirection, "", DefaultDraftDirection, "Sort direction: asc or desc (default: the field's natural direction)", false},
+		{FlagDraftOffset, "", DefaultDraftOffset, "Rows to skip", false},
+		{FlagDraftLimit, "", DefaultDraftLimit, "Rows to return (0: every matching player)", false},
+		{FlagDraftSnapshot, "", DefaultDraftSnapshot, "Snapshot ID to read instead of the league's latest", false},
+		{FlagDraftOutput, "", DefaultDraftOutput, "Write the rankings to this file instead of standard output", false},
+		{FlagDraftStaleAfter, "", DefaultDraftStaleAfter, "Hours after which a snapshot or player pool is reported stale", false},
+	},
+}
+
+// DraftAPIFlags defines the API's draft ranking settings.
+var DraftAPIFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagDraftStaleAfter, "", DefaultDraftStaleAfter, "Hours after which a ranking snapshot or player pool is reported stale", false},
+	},
+}
+
+// DraftWorkerFlags defines the worker's draft ranking settings.
+var DraftWorkerFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagDraftKeepSnapshots, "", DefaultDraftKeepSnapshots, "Ranking snapshots kept per league (older ones are deleted after a successful refresh)", false},
 	},
 }
 

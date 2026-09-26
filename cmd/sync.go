@@ -218,6 +218,15 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{config.StepRefreshNews, workflowRefreshNews, "news refresh",
 			func() (bool, error) { return client.RefreshNews(ctx, buildRefreshNewsInput()) },
 			client.GetRefreshNewsStatus},
+		{config.StepRefreshDraftRankings, workflowRefreshDraftRankings, "draft rankings refresh",
+			func() (bool, error) {
+				input, err := buildRefreshDraftRankingsInput()
+				if err != nil {
+					return false, err
+				}
+				return client.RefreshDraftRankings(ctx, input)
+			},
+			client.GetRefreshDraftRankingsStatus},
 		{config.StepFetchAssets, workflowFetchAssets, "assets fetch",
 			func() (bool, error) { return client.FetchAssets(ctx, nil) },
 			client.GetFetchAssetsStatus},
@@ -428,6 +437,7 @@ func (s *syncState) cancel() {
 		workflowImportEdgeStats:        {"importEdgeStats", s.client.CancelImportEdgeStats},
 		workflowFetchAssets:            {"fetchAssets", s.client.CancelFetchAssets},
 		workflowRefreshNews:            {"refreshNews", s.client.CancelRefreshNews},
+		workflowRefreshDraftRankings:   {"refreshDraftRankings", s.client.CancelRefreshDraftRankings},
 	}
 
 	for _, wt := range active {

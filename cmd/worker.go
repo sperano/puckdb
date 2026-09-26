@@ -65,6 +65,7 @@ var workerFlagGroups = []*config.FlagGroup{
 	&config.NewsWorkerFlags,
 	&config.NewsExtractModelFlags,
 	&config.NewsExtractWorkerFlags,
+	&config.DraftWorkerFlags,
 }
 
 func cmdWorker() *cobra.Command {
@@ -245,8 +246,9 @@ func registerTasksWorkflows(w worker.Worker) {
 	// Simulation workflow
 	w.RegisterWorkflow(simulation.SimPoolWorkflow)
 
-	// Player news (draft helper)
+	// Player news and rankings (draft helper)
 	w.RegisterWorkflow(workflow.RefreshNewsWorkflow)
+	w.RegisterWorkflow(workflow.RefreshDraftRankingsWorkflow)
 }
 
 // taskActivityDeps holds the dependencies shared by every per-domain
@@ -288,6 +290,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	registerNHLActivities(w, d, importYahooActivities)
 	registerPlayerActivities(w, d)
 	registerNewsActivities(w, pool, d.queries)
+	registerDraftRankingActivities(w, pool)
 
 	return nil
 }

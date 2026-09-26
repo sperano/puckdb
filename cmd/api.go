@@ -51,6 +51,8 @@ var apiFlagGroups = []*config.FlagGroup{
 	&config.MauriceFlags,
 	&config.PostgresFlags,
 	&config.AdminAuthFlags,
+	&config.YahooSeasonsFlags,
+	&config.DraftAPIFlags,
 }
 
 func cmdAPI() *cobra.Command {
@@ -89,6 +91,7 @@ func cmdAPI() *cobra.Command {
 				RedisClient:    redisClient,
 				Queries:        queries,
 				DB:             pool,
+				Draft:          newDraftService(pool),
 			}
 
 			// Initialize Maurice AI chat

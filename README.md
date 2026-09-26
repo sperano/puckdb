@@ -145,7 +145,7 @@ Run `./puckdb <command> --help` for the complete flags and subcommands.
 | `worker` | Run Temporal workflows and activities |
 | `sync [steps...]` | Fetch and import all data or selected workflow steps |
 | `db` | Migrate, provision, initialize, inspect, or drop the database |
-| `draft` | Compare imported league rules and report player-pool coverage for the draft helper ([notes](docs/draft-league-rules.md)) |
+| `draft` | Compare imported league rules and report player-pool coverage for the draft helper ([notes](docs/draft-league-rules.md)); show or export (CSV/JSON) league rankings with `draft rankings`, refreshed by `sync refresh-draft-rankings` ([notes](docs/draft-rankings-api.md)) |
 | `news report` | Player news coverage, incident candidates and unattached stories for the draft helper; refresh with `sync refresh-news` ([notes](docs/draft-player-news.md)) |
 | `news events` | Validated news events (LLM extraction, off unless the worker runs with `--news-extract-enabled`), their evidence and lifecycle, and the review queue ([notes](docs/draft-news-events.md)) |
 | `news eval` | Measure the extraction model on the labeled corpus against the release thresholds |

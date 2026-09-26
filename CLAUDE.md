@@ -53,6 +53,7 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `db provision` | Create database/user on shared PostgreSQL |
 | `draft rules` | Markdown comparison of leagues' imported rules (scoring, roster, draft, settings) with warnings; `--draft-season`, `--draft-leagues`, `--draft-output` |
 | `draft pool` | Coverage of leagues' draftable player pools (eligibility gaps, unmatched NHL players) |
+| `draft rankings` | A league's stored ranking snapshot as a table, CSV or JSON (`--draft-league`, `--draft-positions`, `--draft-format`, search/sort/pagination flags); same service and values as GraphQL (see `docs/draft-rankings-api.md`) |
 | `news report` | Markdown report of player news: source coverage (fresh/failing/stale/missing), incident candidates with attributed evidence, unattached story subjects; `--news-player-nhl-id`/`--news-player-yahoo-id` for one player (see `docs/draft-player-news.md`) |
 | `news events` | Markdown report of validated news events (evidence quotes, lifecycle history) and the extraction review queue (see `docs/draft-news-events.md`) |
 | `news eval` | Run the labeled news-event corpus through `--news-extract-provider`/`--news-extract-model`, print accuracy and unsupported-claim rate against the release thresholds, record the run (the gate for automatic effects) |
@@ -67,7 +68,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | Package | Purpose |
 |---------|---------|
 | `cmd/` | CLI commands (Cobra + Viper) |
-| `internal/worker/` | Temporal workflows and activities, split into `workflow/` (top-level workflows), `nhl/`, `yahoo/`, `player/`, `newsfeed/` (player news refresh), `admin/`, `shared/` |
+| `internal/worker/` | Temporal workflows and activities, split into `workflow/` (top-level workflows), `nhl/`, `yahoo/`, `player/`, `newsfeed/` (player news refresh), `draftranking/` (draft ranking refresh), `admin/`, `shared/` |
 | `internal/graph/` | GraphQL resolvers and schema (gqlgen) |
 | `internal/database/` | PostgreSQL connection (pgx), migrations |
 | `internal/sqlcdb/` | sqlc-generated type-safe queries |
@@ -81,10 +82,12 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/temporal/` | Temporal client configuration |
 | `internal/matching/` | NHL ↔ Yahoo player matching |
 | `internal/draft/` | Draft helper models: normalized league rules, scoring-input validation, roster feasibility, player-pool coverage, comparison reports (see `docs/draft-league-rules.md`) |
+| `internal/draftrank/` | Draft ranking service shared by GraphQL, the CLI and exports: refresh (projection → news adjustment → rankings per scenario), immutable per-league snapshots, views (position/search/sort/pagination), explicit issue codes, CSV/JSON/table export (see `docs/draft-rankings-api.md`) |
 | `internal/news/` | Player news for the draft helper: source set (`sources.yaml`), RSS/Atom, NHL content and Yahoo status adapters, conditional fetch, article versions, player resolution, incident grouping, coverage and reports (see `docs/draft-player-news.md`) |
 | `internal/newsadjust/` | News adjustments for the draft helper: validated event contract, versioned loading of stored extraction events (review and release-gate holds), as-of event selection (dedupe, supersession, returns, rumors), conservative/base/optimistic scenario snapshots, manager overrides, ranking comparison, run storage and replay (see `docs/draft-news-adjustments.md`) |
 | `internal/newsevent/` | LLM extraction of validated player news events: prompt and strict output schema, quote/claim/chronology validation, injection defenses, deterministic lifecycle reconciliation (active/superseded/retracted/resolved), labeled evaluation corpus (`evalcorpus.yaml`) and release gate (see `docs/draft-news-events.md`) |
 | `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
+| `internal/fixtures/draftfixtures/` | Synthetic draft ranking snapshot and in-memory store shared by the draftrank, GraphQL and CLI tests (test-only import) |
 | `internal/llm/` | LLM client (used by player enrichment / Maurice) |
 | `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
 | `internal/mcp/` | MCP client (used by Maurice to call tool servers) |
@@ -107,6 +110,7 @@ Defined in `internal/worker/workflow/`:
 - `FetchEdgeSeasonsWorkflow` / `FetchEdgeWorkflow` — NHL Edge tracking data (2021-2022+)
 - `ImportEdgeSeasonsWorkflow` / `ImportEdgeWorkflow` — Import cached Edge data into Postgres
 - `RefreshNewsWorkflow` — Fetch due player news sources, store new article versions, resolve players into incident candidates, extract validated events with an LLM when the worker runs with `--news-extract-enabled` (capped calls/tokens per run), prune (on demand, or via the `refresh-news-schedule` Temporal schedule when the worker runs with `--news-schedule-minutes`)
+- `RefreshDraftRankingsWorkflow` — Recompute each league's draft ranking snapshot (baseline + news scenarios) one league at a time; a failed league keeps its last snapshot; rejected while running (fixed workflow ID)
 - `InitializeWorkflow` — Database initialization
 
 Defined in `internal/worker/admin/`:
@@ -214,6 +218,7 @@ Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow fol
 - `processPlayers(input: ProcessPlayersInput)` — Player enrichment + matching
 - `fetchEdgeStats(input: SeasonsInput)` / `importEdgeStats(input: SeasonsInput)` — Edge tracking data
 - `refreshNews(input: RefreshNewsInput)` — Player news refresh (`force`, `sources`, `season`)
+- `refreshDraftRankings(input: RefreshDraftRankingsInput)` — Draft ranking snapshots (`season`, `leagueIds`, bench/workload/uncertainty options)
 
 **Admin mutations:** `clearDatabase`, `dropDatabase`, `createDatabase`, `flushRedisDB`
 
@@ -222,6 +227,8 @@ Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow fol
 **Workflow queries:** for every workflow above, `<name>Result: WorkflowResult!` and `<name>Progress: ProgressReport`. `processPlayers` additionally exposes `processPlayersResultData: ProcessPlayersResultData`.
 
 **Data queries** (in `internal/graph/data.graphqls`): `seasons`, `teams`, `players`, `games`, `standings`, `boxscore`, `skaterGameLog`, `goalieGameLog`, `playerSeasonTotals`, `edgeSkaterStats`, `edgeGoalieStats`, `edgeTeamStats`
+
+**Draft rankings** (in `internal/graph/draft.graphqls`, see `docs/draft-rankings-api.md`): `draftLeagues`, `draftRankings`, `draftPlayerComparison`, `draftOverrides`; mutations `createDraftOverride`, `resetDraftOverride`.
 
 **Other queries:** `buildNumber`, `yahooTokenStatus`, `mauriceConversations(limit)`, `mauriceConversation(id)`
 
@@ -379,6 +386,14 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `news_adjustment_events` | Event versions a run saw (PK `(run_id, event_id)`) | `version`, `incident_id`, `outcome`, `reason`, `scenarios`, `event` (jsonb) |
 | `news_adjustment_scenarios` | Adjusted projection snapshot per scenario (PK `(run_id, scenario)`) | `snapshot_id` → `projection_snapshots` |
 | `news_adjustment_players` | Per-player explanation (PK `(run_id, player_key)`) | `adjustment` (jsonb) |
+
+### Draft ranking tables
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `draft_ranking_snapshots` | One successful ranking refresh of a league; immutable, latest by `as_of` is served | `season`, `league_id`, `league_key`, `identity`, `rules_hash`, `projection_snapshot_id`, `adjustment_run_id`, `as_of`, `meta` (jsonb) |
+| `draft_ranking_players` | Every pool player of a snapshot with each scenario placement (PK `(snapshot_id, player_key)`) | `baseline_rank`, `player` (jsonb) |
+| `draft_ranking_refreshes` | Refresh attempts per league (UNIQUE `(run_id, season, league_id)`) | `status` (`running`/`succeeded`/`failed`/`canceled`), `state` (issue code), `error`, `snapshot_id`, `started_at`, `finished_at` |
 
 ### Maurice (LLM chat) tables
 

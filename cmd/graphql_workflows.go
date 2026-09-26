@@ -188,3 +188,16 @@ func (c *GraphQLClient) RefreshNews(ctx context.Context, input *model.RefreshNew
 func (c *GraphQLClient) CancelRefreshNews(ctx context.Context) (bool, error) {
 	return c.executeBoolMutation(ctx, `mutation { cancelRefreshNews }`, "cancelRefreshNews", nil)
 }
+
+// RefreshDraftRankings triggers the refreshDraftRankings mutation.
+func (c *GraphQLClient) RefreshDraftRankings(ctx context.Context, input *model.RefreshDraftRankingsInput) (bool, error) {
+	return c.executeBoolMutation(ctx,
+		`mutation($input: RefreshDraftRankingsInput) { refreshDraftRankings(input: $input) }`,
+		"refreshDraftRankings",
+		map[string]any{"input": input})
+}
+
+// CancelRefreshDraftRankings cancels the refreshDraftRankings workflow.
+func (c *GraphQLClient) CancelRefreshDraftRankings(ctx context.Context) (bool, error) {
+	return c.executeBoolMutation(ctx, `mutation { cancelRefreshDraftRankings }`, "cancelRefreshDraftRankings", nil)
+}

@@ -79,6 +79,343 @@ type CurrentDraftAction struct {
 	AgentID int `json:"agentId"`
 }
 
+type DraftAdjustment struct {
+	Reasons             []*DraftNewsReason      `json:"reasons"`
+	Effects             []*DraftScenarioEffect  `json:"effects"`
+	Changes             []*DraftStatChange      `json:"changes"`
+	Overrides           []*DraftAppliedOverride `json:"overrides"`
+	Assumptions         []string                `json:"assumptions"`
+	Alerts              []string                `json:"alerts"`
+	BaselineUncertainty float64                 `json:"baselineUncertainty"`
+	Uncertainty         float64                 `json:"uncertainty"`
+}
+
+type DraftAdjustmentInfo struct {
+	RunID         string   `json:"runId"`
+	ID            string   `json:"id"`
+	PolicyVersion string   `json:"policyVersion"`
+	Calibration   string   `json:"calibration"`
+	Alerts        []string `json:"alerts"`
+	Warnings      []string `json:"warnings"`
+}
+
+type DraftAppliedOverride struct {
+	Override *DraftOverride `json:"override"`
+	Scenario DraftScenario  `json:"scenario"`
+	Original float64        `json:"original"`
+	Value    float64        `json:"value"`
+}
+
+type DraftCategory struct {
+	StatID        int      `json:"statId"`
+	Abbr          string   `json:"abbr"`
+	Name          string   `json:"name"`
+	PositionTypes []string `json:"positionTypes"`
+	Direction     string   `json:"direction"`
+	// Points per unit (points leagues only).
+	Weight *float64 `json:"weight,omitempty"`
+}
+
+type DraftComparisonInput struct {
+	League     string         `json:"league"`
+	Season     *int           `json:"season,omitempty"`
+	SnapshotID *string        `json:"snapshotId,omitempty"`
+	Scenario   *DraftScenario `json:"scenario,omitempty"`
+	PlayerKeys []string       `json:"playerKeys"`
+}
+
+type DraftContribution struct {
+	StatID      int     `json:"statId"`
+	Abbr        string  `json:"abbr"`
+	Stat        string  `json:"stat"`
+	Projected   float64 `json:"projected"`
+	Official    float64 `json:"official"`
+	Adjusted    float64 `json:"adjusted"`
+	Weight      float64 `json:"weight"`
+	Direction   string  `json:"direction"`
+	Opportunity float64 `json:"opportunity"`
+	Explanation string  `json:"explanation"`
+}
+
+type DraftEvidence struct {
+	VersionID   int64     `json:"versionId"`
+	Publisher   string    `json:"publisher"`
+	Kind        string    `json:"kind"`
+	URL         *string   `json:"url,omitempty"`
+	ReportedAt  time.Time `json:"reportedAt"`
+	RetrievedAt time.Time `json:"retrievedAt"`
+	Quote       *string   `json:"quote,omitempty"`
+}
+
+type DraftIssue struct {
+	Code    DraftIssueCode `json:"code"`
+	Message string         `json:"message"`
+}
+
+type DraftLeague struct {
+	Season      int     `json:"season"`
+	LeagueID    int     `json:"leagueId"`
+	LeagueKey   string  `json:"leagueKey"`
+	Name        string  `json:"name"`
+	NumTeams    int     `json:"numTeams"`
+	ScoringType string  `json:"scoringType"`
+	Format      *string `json:"format,omitempty"`
+	Objective   *string `json:"objective,omitempty"`
+	// Rules copied from a temporary stand-in league.
+	Provisional    bool               `json:"provisional"`
+	RulesSource    string             `json:"rulesSource"`
+	RulesHash      string             `json:"rulesHash"`
+	RulesFetchedAt *time.Time         `json:"rulesFetchedAt,omitempty"`
+	Categories     []*DraftCategory   `json:"categories"`
+	RosterSlots    []*DraftRosterSlot `json:"rosterSlots"`
+}
+
+type DraftLeagueSummary struct {
+	League   *DraftLeague       `json:"league"`
+	Status   DraftRankingStatus `json:"status"`
+	Snapshot *DraftSnapshot     `json:"snapshot,omitempty"`
+	Refresh  *DraftRefresh      `json:"refresh,omitempty"`
+	Issues   []*DraftIssue      `json:"issues"`
+}
+
+type DraftNewsReason struct {
+	EventID          string           `json:"eventId"`
+	Version          int              `json:"version"`
+	IncidentID       *int64           `json:"incidentId,omitempty"`
+	Type             string           `json:"type"`
+	Status           string           `json:"status"`
+	DurationKind     string           `json:"durationKind"`
+	DurationGames    *int             `json:"durationGames,omitempty"`
+	EffectiveFrom    time.Time        `json:"effectiveFrom"`
+	EffectiveUntil   *time.Time       `json:"effectiveUntil,omitempty"`
+	Outcome          string           `json:"outcome"`
+	Detail           string           `json:"detail"`
+	Scenarios        []DraftScenario  `json:"scenarios"`
+	Evidence         []*DraftEvidence `json:"evidence"`
+	LatestEvidenceAt *time.Time       `json:"latestEvidenceAt,omitempty"`
+	AgeHours         float64          `json:"ageHours"`
+}
+
+type DraftNewsSource struct {
+	SourceID  string `json:"sourceId"`
+	Publisher string `json:"publisher"`
+	Scope     string `json:"scope"`
+	// fresh, failing, stale or missing when the snapshot was built.
+	Status              string     `json:"status"`
+	DataAsOf            *time.Time `json:"dataAsOf,omitempty"`
+	LastSuccessAt       *time.Time `json:"lastSuccessAt,omitempty"`
+	ConsecutiveFailures int        `json:"consecutiveFailures"`
+	LastError           *string    `json:"lastError,omitempty"`
+}
+
+type DraftOverride struct {
+	ID        string `json:"id"`
+	PlayerKey string `json:"playerKey"`
+	// Empty when the override covers every league.
+	LeagueKey *string           `json:"leagueKey,omitempty"`
+	Kind      DraftOverrideKind `json:"kind"`
+	EventID   *string           `json:"eventId,omitempty"`
+	// Unset when the override covers every scenario.
+	Scenario    *DraftScenario      `json:"scenario,omitempty"`
+	Input       *DraftOverrideInput `json:"input,omitempty"`
+	Value       float64             `json:"value"`
+	Reason      string              `json:"reason"`
+	CreatedBy   *string             `json:"createdBy,omitempty"`
+	CreatedAt   time.Time           `json:"createdAt"`
+	ExpiresAt   *time.Time          `json:"expiresAt,omitempty"`
+	ResetAt     *time.Time          `json:"resetAt,omitempty"`
+	ResetReason *string             `json:"resetReason,omitempty"`
+	State       DraftOverrideState  `json:"state"`
+}
+
+type DraftOverrideCreateInput struct {
+	PlayerKey string `json:"playerKey"`
+	// Limit the override to one league; every league when unset.
+	LeagueKey *string           `json:"leagueKey,omitempty"`
+	Kind      DraftOverrideKind `json:"kind"`
+	// The event an EXCLUDE_EVENT override excludes.
+	EventID *string `json:"eventId,omitempty"`
+	// Limit the override to one scenario; every scenario when unset.
+	Scenario  *DraftScenario      `json:"scenario,omitempty"`
+	Input     *DraftOverrideInput `json:"input,omitempty"`
+	Value     *float64            `json:"value,omitempty"`
+	Reason    string              `json:"reason"`
+	ExpiresAt *time.Time          `json:"expiresAt,omitempty"`
+}
+
+type DraftPlacement struct {
+	Scenario         DraftScenario        `json:"scenario"`
+	OverallRank      int                  `json:"overallRank"`
+	PositionRanks    []*DraftPositionRank `json:"positionRanks"`
+	Tier             int                  `json:"tier"`
+	OfficialScore    float64              `json:"officialScore"`
+	AdjustedScore    float64              `json:"adjustedScore"`
+	ReplacementValue float64              `json:"replacementValue"`
+	Value            float64              `json:"value"`
+	AdjustedValue    float64              `json:"adjustedValue"`
+	Uncertainty      float64              `json:"uncertainty"`
+	Contributions    []*DraftContribution `json:"contributions"`
+	Explanations     []string             `json:"explanations"`
+}
+
+type DraftPositionRank struct {
+	Position string `json:"position"`
+	Rank     int    `json:"rank"`
+}
+
+type DraftProjectionInfo struct {
+	SnapshotID   string     `json:"snapshotId"`
+	ModelVersion string     `json:"modelVersion"`
+	SourceHash   string     `json:"sourceHash"`
+	AsOf         time.Time  `json:"asOf"`
+	DataThrough  *time.Time `json:"dataThrough,omitempty"`
+}
+
+type DraftRankedPlayer struct {
+	PlayerKey         string   `json:"playerKey"`
+	YahooPlayerID     int      `json:"yahooPlayerId"`
+	NhlPlayerID       *int64   `json:"nhlPlayerId,omitempty"`
+	Name              string   `json:"name"`
+	Team              string   `json:"team"`
+	EligiblePositions []string `json:"eligiblePositions"`
+	Status            *string  `json:"status,omitempty"`
+	StatusFull        *string  `json:"statusFull,omitempty"`
+	InjuryNote        *string  `json:"injuryNote,omitempty"`
+	// Rank in the served scenario over the complete pool; filters never renumber it.
+	OverallRank int `json:"overallRank"`
+	// Best rank among the filtered positions (all eligible positions when unfiltered).
+	PositionRank     int                  `json:"positionRank"`
+	PositionRanks    []*DraftPositionRank `json:"positionRanks"`
+	Tier             int                  `json:"tier"`
+	OfficialScore    float64              `json:"officialScore"`
+	AdjustedScore    float64              `json:"adjustedScore"`
+	ReplacementValue float64              `json:"replacementValue"`
+	Value            float64              `json:"value"`
+	AdjustedValue    float64              `json:"adjustedValue"`
+	Uncertainty      float64              `json:"uncertainty"`
+	BaselineRank     int                  `json:"baselineRank"`
+	// Baseline rank minus served rank: positive when news moved the player up.
+	RankChange    int                  `json:"rankChange"`
+	Contributions []*DraftContribution `json:"contributions"`
+	Explanations  []string             `json:"explanations"`
+	// The player's placement in every scenario of the snapshot.
+	Placements []*DraftPlacement `json:"placements"`
+	Adjustment *DraftAdjustment  `json:"adjustment,omitempty"`
+}
+
+type DraftRankingOptions struct {
+	BenchPolicy        DraftBenchPolicy        `json:"benchPolicy"`
+	WorkloadCapPolicy  *DraftWorkloadCapPolicy `json:"workloadCapPolicy,omitempty"`
+	UncertaintyPenalty float64                 `json:"uncertaintyPenalty"`
+}
+
+type DraftRankingsInput struct {
+	// League key (e.g. 465.l.1001), or a numeric league ID with season.
+	League string `json:"league"`
+	// Season start year for a numeric league ID; the current season when unset.
+	Season *int `json:"season,omitempty"`
+	// Serve this snapshot instead of the latest (keeps pages consistent).
+	SnapshotID *string `json:"snapshotId,omitempty"`
+	// BASE when the snapshot has news scenarios, else BASELINE, when unset.
+	Scenario *DraftScenario `json:"scenario,omitempty"`
+	// C, LW, RW, D, G; a player matching any of them is listed once.
+	Positions []string `json:"positions,omitempty"`
+	// Only these players (a comparison).
+	PlayerKeys []string `json:"playerKeys,omitempty"`
+	// Words that must all appear in the name, team or player key (accents ignored).
+	Search *string         `json:"search,omitempty"`
+	Sort   *DraftSortField `json:"sort,omitempty"`
+	// Each field's natural direction when unset (ranks ascending, values descending).
+	Direction *DraftSortDirection `json:"direction,omitempty"`
+	Offset    *int                `json:"offset,omitempty"`
+	// Rows per page: 50 when unset, at most 1000.
+	Limit *int `json:"limit,omitempty"`
+}
+
+type DraftRankingsPage struct {
+	League *DraftLeague       `json:"league"`
+	Status DraftRankingStatus `json:"status"`
+	// The snapshot served; pass its id back as snapshotId to page through it.
+	Snapshot         *DraftSnapshot       `json:"snapshot,omitempty"`
+	LatestSnapshotID *string              `json:"latestSnapshotId,omitempty"`
+	Refresh          *DraftRefresh        `json:"refresh,omitempty"`
+	Issues           []*DraftIssue        `json:"issues"`
+	Scenario         *DraftScenario       `json:"scenario,omitempty"`
+	TotalCount       int                  `json:"totalCount"`
+	Offset           int                  `json:"offset"`
+	Limit            int                  `json:"limit"`
+	Rows             []*DraftRankedPlayer `json:"rows"`
+}
+
+type DraftRefresh struct {
+	ID         string            `json:"id"`
+	RunID      string            `json:"runId"`
+	State      DraftRefreshState `json:"state"`
+	Code       *DraftIssueCode   `json:"code,omitempty"`
+	Error      *string           `json:"error,omitempty"`
+	SnapshotID *string           `json:"snapshotId,omitempty"`
+	StartedAt  time.Time         `json:"startedAt"`
+	FinishedAt *time.Time        `json:"finishedAt,omitempty"`
+}
+
+type DraftRosterSlot struct {
+	Position     string  `json:"position"`
+	PositionType *string `json:"positionType,omitempty"`
+	Count        int     `json:"count"`
+	Starting     bool    `json:"starting"`
+}
+
+type DraftScenarioEffect struct {
+	Scenario           DraftScenario `json:"scenario"`
+	MissedGames        float64       `json:"missedGames"`
+	Availability       float64       `json:"availability"`
+	GamesFactor        float64       `json:"gamesFactor"`
+	IceTimeFactor      float64       `json:"iceTimeFactor"`
+	PowerPlayFactor    float64       `json:"powerPlayFactor"`
+	GoalieStartsFactor float64       `json:"goalieStartsFactor"`
+	TeamID             *int64        `json:"teamId,omitempty"`
+}
+
+type DraftScenarioEstimate struct {
+	Scenario DraftScenario      `json:"scenario"`
+	Estimate *DraftStatEstimate `json:"estimate"`
+}
+
+type DraftScenarioVersion struct {
+	Scenario DraftScenario `json:"scenario"`
+	Version  string        `json:"version"`
+}
+
+type DraftSnapshot struct {
+	ID string `json:"id"`
+	// Hash of every scenario's ranking version and the news adjustment.
+	Identity      string                  `json:"identity"`
+	AsOf          time.Time               `json:"asOf"`
+	CreatedAt     time.Time               `json:"createdAt"`
+	PoolSize      int                     `json:"poolSize"`
+	PoolFetchedAt *time.Time              `json:"poolFetchedAt,omitempty"`
+	Projection    *DraftProjectionInfo    `json:"projection"`
+	Adjustment    *DraftAdjustmentInfo    `json:"adjustment,omitempty"`
+	Options       *DraftRankingOptions    `json:"options"`
+	Assumptions   []string                `json:"assumptions"`
+	Scenarios     []DraftScenario         `json:"scenarios"`
+	Versions      []*DraftScenarioVersion `json:"versions"`
+	News          []*DraftNewsSource      `json:"news"`
+	Unavailable   []*DraftIssue           `json:"unavailable"`
+}
+
+type DraftStatChange struct {
+	Stat     string                   `json:"stat"`
+	Baseline *DraftStatEstimate       `json:"baseline"`
+	Adjusted []*DraftScenarioEstimate `json:"adjusted"`
+}
+
+type DraftStatEstimate struct {
+	Mean float64 `json:"mean"`
+	Low  float64 `json:"low"`
+	High float64 `json:"high"`
+}
+
 type EdgeGoalieShotLocation struct {
 	Area               string   `json:"area"`
 	Saves              *int     `json:"saves,omitempty"`
@@ -484,6 +821,17 @@ type ProgressReport struct {
 type Query struct {
 }
 
+type RefreshDraftRankingsInput struct {
+	// Season start year; the current season when unset.
+	Season *int `json:"season,omitempty"`
+	// Yahoo league IDs; the season's leagues in seasons.yaml when unset.
+	LeagueIds   []int             `json:"leagueIds,omitempty"`
+	BenchPolicy *DraftBenchPolicy `json:"benchPolicy,omitempty"`
+	// Required to rank a league with a games or starts cap (see docs/draft-ranking.md).
+	WorkloadCapPolicy  *DraftWorkloadCapPolicy `json:"workloadCapPolicy,omitempty"`
+	UncertaintyPenalty *float64                `json:"uncertaintyPenalty,omitempty"`
+}
+
 type RefreshNewsInput struct {
 	// Fetch every selected source now, ignoring refresh schedules (e.g. right before a draft).
 	Force *bool `json:"force,omitempty"`
@@ -655,6 +1003,692 @@ type WorkflowResult struct {
 type YahooTokenStatus struct {
 	Valid    bool   `json:"valid"`
 	LoginURL string `json:"loginURL"`
+}
+
+type DraftBenchPolicy string
+
+const (
+	DraftBenchPolicyIncluded DraftBenchPolicy = "INCLUDED"
+	DraftBenchPolicyExcluded DraftBenchPolicy = "EXCLUDED"
+)
+
+var AllDraftBenchPolicy = []DraftBenchPolicy{
+	DraftBenchPolicyIncluded,
+	DraftBenchPolicyExcluded,
+}
+
+func (e DraftBenchPolicy) IsValid() bool {
+	switch e {
+	case DraftBenchPolicyIncluded, DraftBenchPolicyExcluded:
+		return true
+	}
+	return false
+}
+
+func (e DraftBenchPolicy) String() string {
+	return string(e)
+}
+
+func (e *DraftBenchPolicy) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftBenchPolicy(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftBenchPolicy", str)
+	}
+	return nil
+}
+
+func (e DraftBenchPolicy) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftBenchPolicy) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftBenchPolicy) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DraftIssueCode string
+
+const (
+	DraftIssueCodeMissingRules               DraftIssueCode = "MISSING_RULES"
+	DraftIssueCodeUnsupportedScoring         DraftIssueCode = "UNSUPPORTED_SCORING"
+	DraftIssueCodeMissingPool                DraftIssueCode = "MISSING_POOL"
+	DraftIssueCodeMissingProjections         DraftIssueCode = "MISSING_PROJECTIONS"
+	DraftIssueCodeRankingFailed              DraftIssueCode = "RANKING_FAILED"
+	DraftIssueCodeInternalError              DraftIssueCode = "INTERNAL_ERROR"
+	DraftIssueCodeRefreshCanceled            DraftIssueCode = "REFRESH_CANCELED"
+	DraftIssueCodeNewsAdjustmentsUnavailable DraftIssueCode = "NEWS_ADJUSTMENTS_UNAVAILABLE"
+	DraftIssueCodeProvisionalRules           DraftIssueCode = "PROVISIONAL_RULES"
+	DraftIssueCodeNewsSourceStale            DraftIssueCode = "NEWS_SOURCE_STALE"
+	DraftIssueCodeNewsSourceFailing          DraftIssueCode = "NEWS_SOURCE_FAILING"
+	DraftIssueCodeNewsSourceMissing          DraftIssueCode = "NEWS_SOURCE_MISSING"
+	DraftIssueCodeStaleSnapshot              DraftIssueCode = "STALE_SNAPSHOT"
+	DraftIssueCodeStalePool                  DraftIssueCode = "STALE_POOL"
+	DraftIssueCodeOverridesChanged           DraftIssueCode = "OVERRIDES_CHANGED"
+	DraftIssueCodeRulesChanged               DraftIssueCode = "RULES_CHANGED"
+	DraftIssueCodeNewerSnapshotAvailable     DraftIssueCode = "NEWER_SNAPSHOT_AVAILABLE"
+	DraftIssueCodeScenarioUnavailable        DraftIssueCode = "SCENARIO_UNAVAILABLE"
+	DraftIssueCodeNotComputed                DraftIssueCode = "NOT_COMPUTED"
+	DraftIssueCodeRefreshRunning             DraftIssueCode = "REFRESH_RUNNING"
+	DraftIssueCodeRefreshFailed              DraftIssueCode = "REFRESH_FAILED"
+	DraftIssueCodeRefreshInterrupted         DraftIssueCode = "REFRESH_INTERRUPTED"
+)
+
+var AllDraftIssueCode = []DraftIssueCode{
+	DraftIssueCodeMissingRules,
+	DraftIssueCodeUnsupportedScoring,
+	DraftIssueCodeMissingPool,
+	DraftIssueCodeMissingProjections,
+	DraftIssueCodeRankingFailed,
+	DraftIssueCodeInternalError,
+	DraftIssueCodeRefreshCanceled,
+	DraftIssueCodeNewsAdjustmentsUnavailable,
+	DraftIssueCodeProvisionalRules,
+	DraftIssueCodeNewsSourceStale,
+	DraftIssueCodeNewsSourceFailing,
+	DraftIssueCodeNewsSourceMissing,
+	DraftIssueCodeStaleSnapshot,
+	DraftIssueCodeStalePool,
+	DraftIssueCodeOverridesChanged,
+	DraftIssueCodeRulesChanged,
+	DraftIssueCodeNewerSnapshotAvailable,
+	DraftIssueCodeScenarioUnavailable,
+	DraftIssueCodeNotComputed,
+	DraftIssueCodeRefreshRunning,
+	DraftIssueCodeRefreshFailed,
+	DraftIssueCodeRefreshInterrupted,
+}
+
+func (e DraftIssueCode) IsValid() bool {
+	switch e {
+	case DraftIssueCodeMissingRules, DraftIssueCodeUnsupportedScoring, DraftIssueCodeMissingPool, DraftIssueCodeMissingProjections, DraftIssueCodeRankingFailed, DraftIssueCodeInternalError, DraftIssueCodeRefreshCanceled, DraftIssueCodeNewsAdjustmentsUnavailable, DraftIssueCodeProvisionalRules, DraftIssueCodeNewsSourceStale, DraftIssueCodeNewsSourceFailing, DraftIssueCodeNewsSourceMissing, DraftIssueCodeStaleSnapshot, DraftIssueCodeStalePool, DraftIssueCodeOverridesChanged, DraftIssueCodeRulesChanged, DraftIssueCodeNewerSnapshotAvailable, DraftIssueCodeScenarioUnavailable, DraftIssueCodeNotComputed, DraftIssueCodeRefreshRunning, DraftIssueCodeRefreshFailed, DraftIssueCodeRefreshInterrupted:
+		return true
+	}
+	return false
+}
+
+func (e DraftIssueCode) String() string {
+	return string(e)
+}
+
+func (e *DraftIssueCode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftIssueCode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftIssueCode", str)
+	}
+	return nil
+}
+
+func (e DraftIssueCode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftIssueCode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftIssueCode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DraftOverrideInput string
+
+const (
+	DraftOverrideInputGamesPlayed     DraftOverrideInput = "GAMES_PLAYED"
+	DraftOverrideInputGamesStarted    DraftOverrideInput = "GAMES_STARTED"
+	DraftOverrideInputToiPerGame      DraftOverrideInput = "TOI_PER_GAME"
+	DraftOverrideInputPowerPlayFactor DraftOverrideInput = "POWER_PLAY_FACTOR"
+)
+
+var AllDraftOverrideInput = []DraftOverrideInput{
+	DraftOverrideInputGamesPlayed,
+	DraftOverrideInputGamesStarted,
+	DraftOverrideInputToiPerGame,
+	DraftOverrideInputPowerPlayFactor,
+}
+
+func (e DraftOverrideInput) IsValid() bool {
+	switch e {
+	case DraftOverrideInputGamesPlayed, DraftOverrideInputGamesStarted, DraftOverrideInputToiPerGame, DraftOverrideInputPowerPlayFactor:
+		return true
+	}
+	return false
+}
+
+func (e DraftOverrideInput) String() string {
+	return string(e)
+}
+
+func (e *DraftOverrideInput) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftOverrideInput(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftOverrideInput", str)
+	}
+	return nil
+}
+
+func (e DraftOverrideInput) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftOverrideInput) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftOverrideInput) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DraftOverrideKind string
+
+const (
+	DraftOverrideKindMissedGames  DraftOverrideKind = "MISSED_GAMES"
+	DraftOverrideKindInput        DraftOverrideKind = "INPUT"
+	DraftOverrideKindExcludeEvent DraftOverrideKind = "EXCLUDE_EVENT"
+)
+
+var AllDraftOverrideKind = []DraftOverrideKind{
+	DraftOverrideKindMissedGames,
+	DraftOverrideKindInput,
+	DraftOverrideKindExcludeEvent,
+}
+
+func (e DraftOverrideKind) IsValid() bool {
+	switch e {
+	case DraftOverrideKindMissedGames, DraftOverrideKindInput, DraftOverrideKindExcludeEvent:
+		return true
+	}
+	return false
+}
+
+func (e DraftOverrideKind) String() string {
+	return string(e)
+}
+
+func (e *DraftOverrideKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftOverrideKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftOverrideKind", str)
+	}
+	return nil
+}
+
+func (e DraftOverrideKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftOverrideKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftOverrideKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DraftOverrideState string
+
+const (
+	DraftOverrideStateActive  DraftOverrideState = "ACTIVE"
+	DraftOverrideStateExpired DraftOverrideState = "EXPIRED"
+	DraftOverrideStateReset   DraftOverrideState = "RESET"
+)
+
+var AllDraftOverrideState = []DraftOverrideState{
+	DraftOverrideStateActive,
+	DraftOverrideStateExpired,
+	DraftOverrideStateReset,
+}
+
+func (e DraftOverrideState) IsValid() bool {
+	switch e {
+	case DraftOverrideStateActive, DraftOverrideStateExpired, DraftOverrideStateReset:
+		return true
+	}
+	return false
+}
+
+func (e DraftOverrideState) String() string {
+	return string(e)
+}
+
+func (e *DraftOverrideState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftOverrideState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftOverrideState", str)
+	}
+	return nil
+}
+
+func (e DraftOverrideState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftOverrideState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftOverrideState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DraftRankingStatus string
+
+const (
+	// A snapshot is served (see issues for anything stale, failing or missing).
+	DraftRankingStatusReady DraftRankingStatus = "READY"
+	// No refresh has run for the league.
+	DraftRankingStatusNotComputed DraftRankingStatus = "NOT_COMPUTED"
+	// The league's first refresh is running.
+	DraftRankingStatusRefreshing DraftRankingStatus = "REFRESHING"
+	// The league has no snapshot and its last refresh failed.
+	DraftRankingStatusFailed DraftRankingStatus = "FAILED"
+)
+
+var AllDraftRankingStatus = []DraftRankingStatus{
+	DraftRankingStatusReady,
+	DraftRankingStatusNotComputed,
+	DraftRankingStatusRefreshing,
+	DraftRankingStatusFailed,
+}
+
+func (e DraftRankingStatus) IsValid() bool {
+	switch e {
+	case DraftRankingStatusReady, DraftRankingStatusNotComputed, DraftRankingStatusRefreshing, DraftRankingStatusFailed:
+		return true
+	}
+	return false
+}
+
+func (e DraftRankingStatus) String() string {
+	return string(e)
+}
+
+func (e *DraftRankingStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftRankingStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftRankingStatus", str)
+	}
+	return nil
+}
+
+func (e DraftRankingStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftRankingStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftRankingStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DraftRefreshState string
+
+const (
+	DraftRefreshStateRunning   DraftRefreshState = "RUNNING"
+	DraftRefreshStateSucceeded DraftRefreshState = "SUCCEEDED"
+	DraftRefreshStateFailed    DraftRefreshState = "FAILED"
+	DraftRefreshStateCanceled  DraftRefreshState = "CANCELED"
+)
+
+var AllDraftRefreshState = []DraftRefreshState{
+	DraftRefreshStateRunning,
+	DraftRefreshStateSucceeded,
+	DraftRefreshStateFailed,
+	DraftRefreshStateCanceled,
+}
+
+func (e DraftRefreshState) IsValid() bool {
+	switch e {
+	case DraftRefreshStateRunning, DraftRefreshStateSucceeded, DraftRefreshStateFailed, DraftRefreshStateCanceled:
+		return true
+	}
+	return false
+}
+
+func (e DraftRefreshState) String() string {
+	return string(e)
+}
+
+func (e *DraftRefreshState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftRefreshState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftRefreshState", str)
+	}
+	return nil
+}
+
+func (e DraftRefreshState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftRefreshState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftRefreshState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DraftScenario string
+
+const (
+	// No news adjustments.
+	DraftScenarioBaseline     DraftScenario = "BASELINE"
+	DraftScenarioConservative DraftScenario = "CONSERVATIVE"
+	DraftScenarioBase         DraftScenario = "BASE"
+	DraftScenarioOptimistic   DraftScenario = "OPTIMISTIC"
+)
+
+var AllDraftScenario = []DraftScenario{
+	DraftScenarioBaseline,
+	DraftScenarioConservative,
+	DraftScenarioBase,
+	DraftScenarioOptimistic,
+}
+
+func (e DraftScenario) IsValid() bool {
+	switch e {
+	case DraftScenarioBaseline, DraftScenarioConservative, DraftScenarioBase, DraftScenarioOptimistic:
+		return true
+	}
+	return false
+}
+
+func (e DraftScenario) String() string {
+	return string(e)
+}
+
+func (e *DraftScenario) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftScenario(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftScenario", str)
+	}
+	return nil
+}
+
+func (e DraftScenario) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftScenario) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftScenario) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DraftSortDirection string
+
+const (
+	DraftSortDirectionAsc  DraftSortDirection = "ASC"
+	DraftSortDirectionDesc DraftSortDirection = "DESC"
+)
+
+var AllDraftSortDirection = []DraftSortDirection{
+	DraftSortDirectionAsc,
+	DraftSortDirectionDesc,
+}
+
+func (e DraftSortDirection) IsValid() bool {
+	switch e {
+	case DraftSortDirectionAsc, DraftSortDirectionDesc:
+		return true
+	}
+	return false
+}
+
+func (e DraftSortDirection) String() string {
+	return string(e)
+}
+
+func (e *DraftSortDirection) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftSortDirection(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftSortDirection", str)
+	}
+	return nil
+}
+
+func (e DraftSortDirection) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftSortDirection) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftSortDirection) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DraftSortField string
+
+const (
+	DraftSortFieldOverallRank   DraftSortField = "OVERALL_RANK"
+	DraftSortFieldPositionRank  DraftSortField = "POSITION_RANK"
+	DraftSortFieldName          DraftSortField = "NAME"
+	DraftSortFieldTeam          DraftSortField = "TEAM"
+	DraftSortFieldScore         DraftSortField = "SCORE"
+	DraftSortFieldValue         DraftSortField = "VALUE"
+	DraftSortFieldAdjustedValue DraftSortField = "ADJUSTED_VALUE"
+	DraftSortFieldUncertainty   DraftSortField = "UNCERTAINTY"
+	DraftSortFieldTier          DraftSortField = "TIER"
+	DraftSortFieldBaselineRank  DraftSortField = "BASELINE_RANK"
+	DraftSortFieldRankChange    DraftSortField = "RANK_CHANGE"
+)
+
+var AllDraftSortField = []DraftSortField{
+	DraftSortFieldOverallRank,
+	DraftSortFieldPositionRank,
+	DraftSortFieldName,
+	DraftSortFieldTeam,
+	DraftSortFieldScore,
+	DraftSortFieldValue,
+	DraftSortFieldAdjustedValue,
+	DraftSortFieldUncertainty,
+	DraftSortFieldTier,
+	DraftSortFieldBaselineRank,
+	DraftSortFieldRankChange,
+}
+
+func (e DraftSortField) IsValid() bool {
+	switch e {
+	case DraftSortFieldOverallRank, DraftSortFieldPositionRank, DraftSortFieldName, DraftSortFieldTeam, DraftSortFieldScore, DraftSortFieldValue, DraftSortFieldAdjustedValue, DraftSortFieldUncertainty, DraftSortFieldTier, DraftSortFieldBaselineRank, DraftSortFieldRankChange:
+		return true
+	}
+	return false
+}
+
+func (e DraftSortField) String() string {
+	return string(e)
+}
+
+func (e *DraftSortField) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftSortField(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftSortField", str)
+	}
+	return nil
+}
+
+func (e DraftSortField) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftSortField) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftSortField) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DraftWorkloadCapPolicy string
+
+const (
+	DraftWorkloadCapPolicyPerPlayer DraftWorkloadCapPolicy = "PER_PLAYER"
+)
+
+var AllDraftWorkloadCapPolicy = []DraftWorkloadCapPolicy{
+	DraftWorkloadCapPolicyPerPlayer,
+}
+
+func (e DraftWorkloadCapPolicy) IsValid() bool {
+	switch e {
+	case DraftWorkloadCapPolicyPerPlayer:
+		return true
+	}
+	return false
+}
+
+func (e DraftWorkloadCapPolicy) String() string {
+	return string(e)
+}
+
+func (e *DraftWorkloadCapPolicy) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftWorkloadCapPolicy(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftWorkloadCapPolicy", str)
+	}
+	return nil
+}
+
+func (e DraftWorkloadCapPolicy) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftWorkloadCapPolicy) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftWorkloadCapPolicy) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type TemporalWorkflowStatus string

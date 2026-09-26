@@ -21,11 +21,13 @@ const (
 	StepImportEdgeStats        = "import-edge-stats"
 	StepFetchAssets            = "fetch-assets"
 	StepRefreshNews            = "refresh-news"
+	StepRefreshDraftRankings   = "refresh-draft-rankings"
 )
 
 // AllSyncSteps lists every atomic step in execution order. News refresh runs
 // after the imports because it resolves players against the imported players
-// and Yahoo pools. Asset fetch runs
+// and Yahoo pools; the draft ranking refresh follows it because rankings are
+// adjusted by the news it extracted. Asset fetch runs
 // last because every asset URL is sourced from a row populated by an earlier
 // step (player headshots from players, team logos from season_teams, Yahoo
 // images from yahoo_* tables).
@@ -35,6 +37,7 @@ var AllSyncSteps = []string{
 	StepProcessPlayers, StepImportSeasons, StepImportPlayerLogs,
 	StepFetchEdgeStats, StepImportEdgeStats,
 	StepRefreshNews,
+	StepRefreshDraftRankings,
 	StepFetchAssets,
 }
 
@@ -45,7 +48,8 @@ var SyncStepGroups = map[string][]string{
 		StepYahooPlayers, StepExtractBoxscorePlayers, StepFetchPlayerLandings,
 		StepFetchPlayerLogs, StepProcessPlayers, StepImportPlayerLogs,
 	},
-	"edge": {StepFetchEdgeStats, StepImportEdgeStats},
+	"edge":  {StepFetchEdgeStats, StepImportEdgeStats},
+	"draft": {StepRefreshNews, StepRefreshDraftRankings},
 }
 
 // ParseSyncSteps resolves CLI arguments into a set of enabled step names.

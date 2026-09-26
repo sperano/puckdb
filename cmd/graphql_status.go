@@ -117,3 +117,9 @@ func (c *GraphQLClient) GetFetchAssetsStatus(ctx context.Context) (*WorkflowStat
 func (c *GraphQLClient) GetRefreshNewsStatus(ctx context.Context) (*WorkflowStatus, error) {
 	return c.workflowStatus(ctx, "refreshNewsResult", "refreshNewsProgress", false)
 }
+
+// GetRefreshDraftRankingsStatus queries the result and progress of
+// RefreshDraftRankingsWorkflow.
+func (c *GraphQLClient) GetRefreshDraftRankingsStatus(ctx context.Context) (*WorkflowStatus, error) {
+	return c.workflowStatus(ctx, "refreshDraftRankingsResult", "refreshDraftRankingsProgress", false)
+}

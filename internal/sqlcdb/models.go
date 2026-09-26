@@ -790,6 +790,41 @@ type ClubSkaterStat struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type DraftRankingPlayer struct {
+	SnapshotID   pgtype.UUID `json:"snapshot_id"`
+	PlayerKey    string      `json:"player_key"`
+	BaselineRank int32       `json:"baseline_rank"`
+	Player       []byte      `json:"player"`
+}
+
+type DraftRankingRefresh struct {
+	ID         pgtype.UUID        `json:"id"`
+	RunID      string             `json:"run_id"`
+	Season     int32              `json:"season"`
+	LeagueID   int32              `json:"league_id"`
+	LeagueKey  string             `json:"league_key"`
+	Status     string             `json:"status"`
+	State      string             `json:"state"`
+	Error      string             `json:"error"`
+	SnapshotID pgtype.UUID        `json:"snapshot_id"`
+	StartedAt  pgtype.Timestamptz `json:"started_at"`
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+}
+
+type DraftRankingSnapshot struct {
+	ID                   pgtype.UUID        `json:"id"`
+	Season               int32              `json:"season"`
+	LeagueID             int32              `json:"league_id"`
+	LeagueKey            string             `json:"league_key"`
+	Identity             string             `json:"identity"`
+	RulesHash            string             `json:"rules_hash"`
+	ProjectionSnapshotID pgtype.UUID        `json:"projection_snapshot_id"`
+	AdjustmentRunID      pgtype.UUID        `json:"adjustment_run_id"`
+	AsOf                 pgtype.Timestamptz `json:"as_of"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	Meta                 []byte             `json:"meta"`
+}
+
 type EdgeGoalieShotLocation struct {
 	PlayerID           int64              `json:"player_id"`
 	Season             int32              `json:"season"`

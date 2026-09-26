@@ -274,5 +274,7 @@ run replays to.
 - **Team context.** A trade changes the team, not the player's rates.
 - **Role phrases.** Roles, leagues and roster statuses outside the fixed
   phrase lists only alert; widening the lists needs labeled examples.
-- **Exposure.** No CLI, GraphQL or workflow runs adjustments yet; that is the
-  rankings API step.
+- **Exposure.** The ranking refresh (`internal/draftrank`, see
+  `draft-rankings-api.md`) runs adjustments with the default policy and
+  serves the scenarios through GraphQL and the CLI; there is no way to choose
+  another policy yet.

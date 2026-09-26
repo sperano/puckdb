@@ -104,3 +104,5 @@ drop the player.
 News adjustments do not change this model. `internal/newsadjust` produces an
 adjusted projection snapshot per scenario, and each is ranked with
 `BuildRanking` like any other snapshot (see `draft-news-adjustments.md`).
+`internal/draftrank` stores those rankings as league snapshots and serves them
+to GraphQL, the CLI and exports (see `draft-rankings-api.md`).

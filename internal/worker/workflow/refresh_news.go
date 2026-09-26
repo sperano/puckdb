@@ -149,6 +149,12 @@ func newsSeason(ctx workflow.Context, input *model.RefreshNewsInput) int {
 	if input.Season != nil && *input.Season > 0 {
 		return *input.Season
 	}
+	return currentSeasonStart(ctx)
+}
+
+// currentSeasonStart is the start year of the season current at the
+// workflow's clock.
+func currentSeasonStart(ctx workflow.Context) int {
 	now := workflow.Now(ctx)
 	if now.Month() < seasonRolloverMonth {
 		return now.Year() - 1

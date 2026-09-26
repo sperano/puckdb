@@ -20,6 +20,11 @@ const (
 	// player news refreshes.
 	ScheduleIDRefreshNews = "refresh-news-schedule"
 
+	// WorkflowIDRefreshDraftRankings is the stable workflow ID of the draft
+	// ranking refresh. Starting it while it runs is rejected, which is how
+	// concurrent refreshes are prevented.
+	WorkflowIDRefreshDraftRankings = "refresh-draft-rankings"
+
 	// TaskQueueAssets is the Temporal task queue for asset download activities.
 	// It is separate from the main puckdb-tasks queue so asset workloads cannot
 	// starve other workflows (architectural delta 4).

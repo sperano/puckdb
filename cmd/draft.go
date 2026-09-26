@@ -33,10 +33,11 @@ func cmdDraft() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "draft",
 		Short: "Draft helper reports",
-		Long: `Reports the draft helper builds on: league rules (rules) and the draftable
-player pool (pool). Both read what the Yahoo sync imported; run a sync first.`,
+		Long: `Reports the draft helper builds on: league rules (rules), the draftable
+player pool (pool) and the stored league rankings (rankings). They read what
+the sync imported and computed; run a sync first.`,
 	}
-	cmd.AddCommand(cmdDraftRules(), cmdDraftPool())
+	cmd.AddCommand(cmdDraftRules(), cmdDraftPool(), cmdDraftRankings())
 	return cmd
 }
 

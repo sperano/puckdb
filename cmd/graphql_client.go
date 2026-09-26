@@ -213,6 +213,7 @@ const (
 	workflowImportEdgeStats
 	workflowFetchAssets
 	workflowRefreshNews
+	workflowRefreshDraftRankings
 )
 
 // String returns the workflow's GraphQL mutation name (e.g.,
@@ -248,6 +249,8 @@ func (wt workflowType) String() string {
 		return "fetchAssets"
 	case workflowRefreshNews:
 		return "refreshNews"
+	case workflowRefreshDraftRankings:
+		return "refreshDraftRankings"
 	default:
 		return "unknown"
 	}

@@ -236,6 +236,28 @@ const (
 	DefaultDraftStaleAfter = 24 // hours
 )
 
+// Draft ranking defaults
+const (
+	DefaultDraftLeague    = ""
+	DefaultDraftPositions = ""
+	DefaultDraftPlayers   = ""
+	DefaultDraftFormat    = "table"
+	DefaultDraftScenario  = "" // the base news scenario when available, else the baseline
+	DefaultDraftSearch    = ""
+	DefaultDraftSort      = "overall_rank"
+	DefaultDraftDirection = "" // each sort field's natural direction
+	DefaultDraftOffset    = 0
+	DefaultDraftLimit     = 0  // every matching player
+	DefaultDraftSnapshot  = "" // the league's latest snapshot
+	// DefaultDraftKeepSnapshots is how many ranking snapshots the worker
+	// keeps per league.
+	DefaultDraftKeepSnapshots = 10
+	// Refresh settings of the refresh-draft-rankings sync step.
+	DefaultDraftBenchPolicy        = "included"
+	DefaultDraftWorkloadCaps       = false
+	DefaultDraftUncertaintyPenalty = "" // no penalty
+)
+
 // Player news defaults (draft helper)
 const (
 	DefaultNewsSourcesFile = "" // built-in source set
