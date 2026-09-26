@@ -1,4 +1,23 @@
 -- name: ListProjectionSkaterHistory :many
+WITH faceoff_totals AS (
+    -- One row per (game, player): counts wins and losses from play_events
+    -- so the LEFT JOIN below cannot multiply game_skater_stats rows.
+    SELECT
+        game_id,
+        player_id,
+        SUM(faceoffs_won)::bigint AS faceoffs_won,
+        SUM(faceoffs_lost)::bigint AS faceoffs_lost
+    FROM (
+        SELECT game_id, winning_player_id AS player_id, 1 AS faceoffs_won, 0 AS faceoffs_lost
+        FROM play_events
+        WHERE type_desc_key = 'faceoff'
+        UNION ALL
+        SELECT game_id, losing_player_id AS player_id, 0 AS faceoffs_won, 1 AS faceoffs_lost
+        FROM play_events
+        WHERE type_desc_key = 'faceoff'
+    ) per_faceoff
+    GROUP BY game_id, player_id
+)
 SELECT
     s.player_id,
     g.season,
@@ -13,9 +32,12 @@ SELECT
     SUM(s.power_play_points)::bigint AS power_play_points,
     SUM(s.shots_on_goal)::bigint AS shots_on_goal,
     SUM(s.hits)::bigint AS hits,
-    SUM(s.blocked_shots)::bigint AS blocked_shots
+    SUM(s.blocked_shots)::bigint AS blocked_shots,
+    COALESCE(SUM(fo.faceoffs_won), 0)::bigint AS faceoffs_won,
+    COALESCE(SUM(fo.faceoffs_lost), 0)::bigint AS faceoffs_lost
 FROM game_skater_stats s
 JOIN games g ON g.id = s.game_id
+LEFT JOIN faceoff_totals fo ON fo.game_id = s.game_id AND fo.player_id = s.player_id
 WHERE g.game_type = 'regular_season'
   AND g.game_state IN ('FINAL', 'OFF')
   AND g.season < $1
@@ -25,6 +47,25 @@ GROUP BY s.player_id, g.season
 ORDER BY s.player_id, g.season;
 
 -- name: ListProjectionSkaterEvaluationData :many
+WITH faceoff_totals AS (
+    -- One row per (game, player): counts wins and losses from play_events
+    -- so the LEFT JOIN below cannot multiply game_skater_stats rows.
+    SELECT
+        game_id,
+        player_id,
+        SUM(faceoffs_won)::bigint AS faceoffs_won,
+        SUM(faceoffs_lost)::bigint AS faceoffs_lost
+    FROM (
+        SELECT game_id, winning_player_id AS player_id, 1 AS faceoffs_won, 0 AS faceoffs_lost
+        FROM play_events
+        WHERE type_desc_key = 'faceoff'
+        UNION ALL
+        SELECT game_id, losing_player_id AS player_id, 0 AS faceoffs_won, 1 AS faceoffs_lost
+        FROM play_events
+        WHERE type_desc_key = 'faceoff'
+    ) per_faceoff
+    GROUP BY game_id, player_id
+)
 SELECT
     s.player_id,
     g.season,
@@ -39,9 +80,12 @@ SELECT
     SUM(s.power_play_points)::bigint AS power_play_points,
     SUM(s.shots_on_goal)::bigint AS shots_on_goal,
     SUM(s.hits)::bigint AS hits,
-    SUM(s.blocked_shots)::bigint AS blocked_shots
+    SUM(s.blocked_shots)::bigint AS blocked_shots,
+    COALESCE(SUM(fo.faceoffs_won), 0)::bigint AS faceoffs_won,
+    COALESCE(SUM(fo.faceoffs_lost), 0)::bigint AS faceoffs_lost
 FROM game_skater_stats s
 JOIN games g ON g.id = s.game_id
+LEFT JOIN faceoff_totals fo ON fo.game_id = s.game_id AND fo.player_id = s.player_id
 WHERE g.game_type = 'regular_season'
   AND g.game_state IN ('FINAL', 'OFF')
   AND g.season <= $1

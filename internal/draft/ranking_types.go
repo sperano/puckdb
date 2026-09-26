@@ -10,7 +10,7 @@ import (
 )
 
 // RankingVersion identifies the draft valuation method independently of its inputs.
-const RankingVersion = "league-replacement-v1"
+const RankingVersion = "league-replacement-v2"
 
 const (
 	defaultCategoryWeight     = 1.0

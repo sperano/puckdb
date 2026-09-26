@@ -139,6 +139,10 @@ func yahooCategoryStat(statID int) (PlayerKind, Stat, bool) {
 		return PlayerKindSkater, StatPowerPlayPoints, true
 	case 14:
 		return PlayerKindSkater, StatShotsOnGoal, true
+	case 16:
+		return PlayerKindSkater, StatFaceoffsWon, true
+	case 17:
+		return PlayerKindSkater, StatFaceoffsLost, true
 	case 19:
 		return PlayerKindGoalie, StatWins, true
 	case 22:

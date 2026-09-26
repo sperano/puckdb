@@ -6,7 +6,7 @@ can be scored differently for each Yahoo league without changing its inputs.
 
 ## Model
 
-The `nhl-baseline-v1` model uses completed NHL regular-season games from the
+The `nhl-baseline-v2` model uses completed NHL regular-season games from the
 three seasons before the target season. Live, postponed, preseason and playoff
 games, and games from the target season or later, are excluded from model inputs.
 Each season is weighted by `season_decay ^ age`, where the immediately prior
@@ -14,8 +14,12 @@ season has age zero. Traded-player rows are summed before workload is
 calculated, so two club rows in one season still count as one season.
 
 Skater counting rates use weighted time on ice and regress toward a
-forward/defense peer rate. Expected games and time on ice per game come from
-weighted historical workload. Goalie save and goals-against rates regress by
+forward/defense peer rate. Faceoffs won and lost regress toward a centre or
+non-centre peer rate instead, since faceoff usage is far more position-specific
+than the other counting stats: lumping centres in with wingers under the
+forward/defense split would badly misstate both groups' peer rate. Expected
+games and time on ice per game come from weighted historical workload. Goalie
+save and goals-against rates regress by
 shots faced; wins and shutouts regress by starts. Goalie GAA and save
 percentage are derived from projected goals against, saves, shots, and time on
 ice rather than averaging historical ratios. The most recent historical team
@@ -75,7 +79,9 @@ leak into held-out results.
 
 The model improves most skater MAEs, but the 2025-26 previous-season baseline
 is better for shots and hits. This is a baseline for later ranking and
-sensitivity work, not evidence that every category has improved.
+sensitivity work, not evidence that every category has improved. Faceoffs won
+and lost were added in `nhl-baseline-v2` after this evaluation was recorded and
+are not yet reflected in the table above.
 
 Goalie component and ratio behavior is covered by deterministic tests. A live
 goalie backtest was not recorded in this change because approval to export the
@@ -104,7 +110,7 @@ discarded.
 statistics and returns a deterministic `CoverageError` for every unsupported
 category or missing player value. Display-only categories are ignored only
 when the caller marks them as such. The currently supported Yahoo scoring IDs
-are 1–5, 8, 14, 19, 22–27, 31 and 32; other IDs fail explicitly. Complete live
+are 1–5, 8, 14, 16, 17, 19, 22–27, 31 and 32; other IDs fail explicitly. Complete live
 coverage requires both the verified league categories and the complete player
 pool from the Yahoo import. `Repository.BuildSnapshot` accepts both in its
 `BuildRequest` and refuses to persist a selected snapshot that fails coverage.

@@ -61,7 +61,7 @@ func evaluateSkaters(snapshot Snapshot, input Input, previousSeason int) Evaluat
 	stats := []Stat{
 		StatGamesPlayed, StatTOISeconds, StatGoals, StatAssists, StatPoints,
 		StatPlusMinus, StatPenaltyMinutes, StatPowerPlayPoints, StatShotsOnGoal,
-		StatHits, StatBlockedShots,
+		StatHits, StatBlockedShots, StatFaceoffsWon, StatFaceoffsLost,
 	}
 	return evaluateKind(
 		snapshot, input.ObservedAt, evaluationDataHash(snapshot.Config, input),
@@ -172,6 +172,8 @@ func aggregateSkaterValues(rows []SkaterSeason, season int) map[string]map[Stat]
 		values[StatShotsOnGoal] += float64(row.ShotsOnGoal)
 		values[StatHits] += float64(row.Hits)
 		values[StatBlockedShots] += float64(row.BlockedShots)
+		values[StatFaceoffsWon] += float64(row.FaceoffsWon)
+		values[StatFaceoffsLost] += float64(row.FaceoffsLost)
 	}
 	return result
 }

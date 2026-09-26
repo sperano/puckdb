@@ -26,14 +26,19 @@ multiplied by `min(1, sqrt(opportunities / mean opportunities))`. A zero or
 missing denominator stops the ranking. This is a deterministic approximation
 of how much a goalie can move a team's season ratio, not a forecast of the
 final roster's exact ratio. The ratio and count contribution formulas are
-part of `league-replacement-v1`.
+part of `league-replacement-v2`.
 
 The season-long category objective uses the full-season standardized values.
 For head-to-head categories, the model subtracts
-`uncertainty / (1 + uncertainty)` times the contribution's absolute value as
-an explicit weekly downside-risk assumption. This lowers uncertain positive
-and negative projections instead of rewarding an uncertain below-average
-estimate. The same Yahoo categories and directions apply in either format.
+`uncertainty / (1 + uncertainty)` times the absolute value of the player's
+summed category value as an explicit weekly downside-risk assumption. This
+lowers uncertain positive and negative totals instead of rewarding an
+uncertain below-average estimate. It applies to the net total, not to each
+category: categories that offset each other, such as faceoffs won and lost,
+cost nothing when they net to zero (`league-replacement-v1` penalized each
+category separately, which charged high-volume centres for both halves of the
+faceoff pair). Per-category contributions are reported before this
+adjustment. The same Yahoo categories and directions apply in either format.
 Points leagues keep their exact imported point weights in both objectives.
 
 Roster demand expands each active position and flex slot by the league team
@@ -91,8 +96,8 @@ under a 10-start cap contributes one quarter of its projected wins) and
 uncertainty. With equal raw scores, a high-uncertainty goalie or rookie has
 the same official value as a stable peer. An explicit uncertainty penalty
 reduces their adjusted value and recommendation rank. For category leagues,
-the head-to-head reliability assumption additionally shrinks uncertain
-contributions. These checks show direction and sensitivity, not calibrated
+the head-to-head reliability assumption additionally lowers uncertain
+players' totals. These checks show direction and sensitivity, not calibrated
 outcome probabilities.
 
 A complete ranking also requires an estimate for every scoring stat of every

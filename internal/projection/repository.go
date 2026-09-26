@@ -171,6 +171,7 @@ func evaluationInput(
 			Goals: int(row.Goals), Assists: int(row.Assists), PlusMinus: int(row.PlusMinus),
 			PenaltyMinutes: int(row.PenaltyMinutes), PowerPlayPoints: int(row.PowerPlayPoints),
 			ShotsOnGoal: int(row.ShotsOnGoal), Hits: int(row.Hits), BlockedShots: int(row.BlockedShots),
+			FaceoffsWon: int(row.FaceoffsWon), FaceoffsLost: int(row.FaceoffsLost),
 		})
 	}
 	for _, row := range goalies {
@@ -220,6 +221,7 @@ func skaterSeasonFromRow(row sqlcdb.ListProjectionSkaterHistoryRow) SkaterSeason
 		Goals: int(row.Goals), Assists: int(row.Assists), PlusMinus: int(row.PlusMinus),
 		PenaltyMinutes: int(row.PenaltyMinutes), PowerPlayPoints: int(row.PowerPlayPoints),
 		ShotsOnGoal: int(row.ShotsOnGoal), Hits: int(row.Hits), BlockedShots: int(row.BlockedShots),
+		FaceoffsWon: int(row.FaceoffsWon), FaceoffsLost: int(row.FaceoffsLost),
 	}
 }
 

@@ -243,7 +243,7 @@ func scoreCandidates(scoring Scoring, options RankingOptions, candidates []ranki
 			if preferred, exists := options.CategoryWeights[stat.StatID]; exists {
 				weight = preferred
 			}
-			official := officialContribution(scoring, stat, value, scales[stat.StatID], candidate.projection.Uncertainty, categoryCount)
+			official := officialContribution(scoring, stat, value, scales[stat.StatID], categoryCount)
 			adjusted := official * weight
 			candidate.official += official
 			candidate.adjusted += adjusted
@@ -255,10 +255,25 @@ func scoreCandidates(scoring Scoring, options RankingOptions, candidates []ranki
 				Explanation: contributionExplanation(scoring, stat, value),
 			})
 		}
+		if scoring.Format != FormatPoints && scoring.Objective == ObjectiveHeadToHead {
+			candidate.official = headToHeadDownside(candidate.official, candidate.projection.Uncertainty)
+			candidate.adjusted = headToHeadDownside(candidate.adjusted, candidate.projection.Uncertainty)
+		}
 	}
 }
 
-func officialContribution(scoring Scoring, stat ScoringStat, value statValue, scale categoryScale, uncertainty float64, count int) float64 {
+// headToHeadDownside applies the head-to-head weekly downside-risk
+// assumption to a player's summed category value: it moves the total away
+// from the player by uncertainty/(1+uncertainty) of its magnitude, so an
+// uncertain positive total shrinks and an uncertain negative total drops
+// further (uncertainty never rewards a below-average projection). It applies
+// to the net total rather than each category, so categories that offset one
+// another, such as faceoffs won and lost, cost nothing when they net to zero.
+func headToHeadDownside(total, uncertainty float64) float64 {
+	return total - uncertainty/(1+uncertainty)*math.Abs(total)
+}
+
+func officialContribution(scoring Scoring, stat ScoringStat, value statValue, scale categoryScale, count int) float64 {
 	if scoring.Format == FormatPoints {
 		return value.mean * stat.Weight
 	}
@@ -270,10 +285,6 @@ func officialContribution(scoring Scoring, stat ScoringStat, value statValue, sc
 		multiplier := math.Sqrt(value.opportunity / scale.reference)
 		standardized *= math.Max(minimumRatioMultiplier, math.Min(multiplier, maximumRatioMultiplier))
 	}
-	if scoring.Objective == ObjectiveHeadToHead {
-		reliabilityPenalty := uncertainty / (1 + uncertainty)
-		standardized -= reliabilityPenalty * math.Abs(standardized)
-	}
 	return standardized / math.Sqrt(float64(count))
 }
 
@@ -283,7 +294,7 @@ func contributionExplanation(scoring Scoring, stat ScoringStat, value statValue)
 	}
 	objective := "season-long category standing"
 	if scoring.Objective == ObjectiveHeadToHead {
-		objective = "weekly category reliability adjusted for projection uncertainty"
+		objective = "weekly category standing (downside risk applied to the player total)"
 	}
 	if value.opportunity > 0 {
 		return fmt.Sprintf("standardized %s for %s, ratio influence weighted by %.1f opportunities", stat.Abbr, objective, value.opportunity)

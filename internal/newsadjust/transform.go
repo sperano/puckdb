@@ -15,6 +15,7 @@ const minimumWorkload = 1e-9
 var skaterIceTimeStats = []projection.Stat{
 	projection.StatTOISeconds, projection.StatPlusMinus, projection.StatPenaltyMinutes,
 	projection.StatShotsOnGoal, projection.StatHits, projection.StatBlockedShots,
+	projection.StatFaceoffsWon, projection.StatFaceoffsLost,
 }
 
 // goalieWorkloadStats scale with starts. Save percentage and GAA are ratios

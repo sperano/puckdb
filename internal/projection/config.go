@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	ModelVersion = "nhl-baseline-v1"
+	ModelVersion = "nhl-baseline-v2"
 
 	DefaultLookbackSeasons       = 3
 	DefaultSeasonDecay           = 0.40

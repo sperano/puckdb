@@ -2,6 +2,18 @@ package projection
 
 import "math"
 
+// Position codes used both for the player's own position and for grouping
+// peers. Faceoffs are grouped more narrowly than other stats: see
+// faceoffPositionGroup.
+const (
+	positionCentre       = "C"
+	positionGroupDefense = "D"
+	positionGroupForward = "F"
+
+	faceoffGroupCentre    = "C"
+	faceoffGroupNonCentre = "W"
+)
+
 type skaterTotals struct {
 	toiSeconds      float64
 	games           float64
@@ -13,6 +25,8 @@ type skaterTotals struct {
 	shotsOnGoal     float64
 	hits            float64
 	blockedShots    float64
+	faceoffsWon     float64
+	faceoffsLost    float64
 }
 
 type skaterHistory struct {
@@ -28,6 +42,7 @@ type skaterHistory struct {
 
 func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerProjection {
 	peers := make(map[string]skaterTotals)
+	faceoffPeers := make(map[string]skaterTotals)
 	history := make(map[int64]*skaterHistory)
 	for _, row := range rows {
 		age, ok := seasonAge(targetSeason, row.Season)
@@ -40,6 +55,11 @@ func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerP
 			peer := peers[group]
 			addSkaterSeason(&peer, row, weight)
 			peers[group] = peer
+
+			faceoffGroup := faceoffPositionGroup(row.Position)
+			faceoffPeer := faceoffPeers[faceoffGroup]
+			addSkaterSeason(&faceoffPeer, row, weight)
+			faceoffPeers[faceoffGroup] = faceoffPeer
 		}
 
 		player := history[row.PlayerID]
@@ -58,7 +78,11 @@ func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerP
 
 	result := make([]PlayerProjection, 0, len(history))
 	for playerID, player := range history {
-		result = append(result, buildSkaterProjection(cfg, playerID, *player, peers[positionGroup(player.position)]))
+		result = append(result, buildSkaterProjection(
+			cfg, playerID, *player,
+			peers[positionGroup(player.position)],
+			faceoffPeers[faceoffPositionGroup(player.position)],
+		))
 	}
 	return result
 }
@@ -88,9 +112,17 @@ func addSkaterSeason(total *skaterTotals, row SkaterSeason, weight float64) {
 	total.shotsOnGoal += weight * float64(row.ShotsOnGoal)
 	total.hits += weight * float64(row.Hits)
 	total.blockedShots += weight * float64(row.BlockedShots)
+	total.faceoffsWon += weight * float64(row.FaceoffsWon)
+	total.faceoffsLost += weight * float64(row.FaceoffsLost)
 }
 
-func buildSkaterProjection(cfg Config, playerID int64, history skaterHistory, peers skaterTotals) PlayerProjection {
+func buildSkaterProjection(
+	cfg Config,
+	playerID int64,
+	history skaterHistory,
+	peers skaterTotals,
+	faceoffPeers skaterTotals,
+) PlayerProjection {
 	expectedGames := clamp(history.totals.games/history.weight, 0, cfg.MaxGames)
 	priorGames := cfg.SkaterPriorTOISeconds / typicalSkaterTOIPerGame
 	fraction := uncertainty(cfg, history.totals.games+priorGames)
@@ -113,6 +145,8 @@ func buildSkaterProjection(cfg Config, playerID int64, history skaterHistory, pe
 	projectSkaterStat(values, StatShotsOnGoal, history.totals.shotsOnGoal, peers.shotsOnGoal, history, peers, cfg, expectedTOI, fraction, true)
 	projectSkaterStat(values, StatHits, history.totals.hits, peers.hits, history, peers, cfg, expectedTOI, fraction, true)
 	projectSkaterStat(values, StatBlockedShots, history.totals.blockedShots, peers.blockedShots, history, peers, cfg, expectedTOI, fraction, true)
+	projectSkaterStat(values, StatFaceoffsWon, history.totals.faceoffsWon, faceoffPeers.faceoffsWon, history, faceoffPeers, cfg, expectedTOI, fraction, true)
+	projectSkaterStat(values, StatFaceoffsLost, history.totals.faceoffsLost, faceoffPeers.faceoffsLost, history, faceoffPeers, cfg, expectedTOI, fraction, true)
 	values[StatPoints] = sumEstimates(values[StatGoals], values[StatAssists])
 
 	return skaterProjection(playerID, history, fraction, cfg.MinimumHistoryGames, values)
@@ -160,10 +194,24 @@ func projectSkaterStat(
 }
 
 func positionGroup(position string) string {
-	if position == "D" {
-		return "D"
+	if position == positionGroupDefense {
+		return positionGroupDefense
 	}
-	return "F"
+	return positionGroupForward
+}
+
+// faceoffPositionGroup groups peers for faceoff regression. Centres take
+// nearly every draw; lumping them with wingers under positionGroup's F/D
+// split (used for every other stat) would regress a centre's faceoff rate
+// toward a forward average dragged down by wingers who rarely take one, and
+// would give wingers and defensemen a peer rate inflated by centres. Splitting
+// centre from everyone else keeps each group's peer rate close to its own
+// true faceoff usage.
+func faceoffPositionGroup(position string) string {
+	if position == positionCentre {
+		return faceoffGroupCentre
+	}
+	return faceoffGroupNonCentre
 }
 
 func safeRate(value, exposure float64) float64 {

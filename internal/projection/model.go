@@ -250,7 +250,7 @@ func supportedStats(kind PlayerKind) []Stat {
 		return []Stat{
 			StatGamesPlayed, StatTOISeconds, StatGoals, StatAssists, StatPoints,
 			StatPlusMinus, StatPenaltyMinutes, StatPowerPlayPoints, StatShotsOnGoal,
-			StatHits, StatBlockedShots,
+			StatHits, StatBlockedShots, StatFaceoffsWon, StatFaceoffsLost,
 		}
 	}
 	if kind == PlayerKindGoalie {

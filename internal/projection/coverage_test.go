@@ -75,7 +75,7 @@ func TestValidateCoverageReportsMissingAndUnsupportedCategories(t *testing.T) {
 	pool := []PoolPlayer{{PlayerKey: "yahoo:rookie", Kind: PlayerKindSkater, Position: "C"}}
 	err = ValidateCoverage(snapshot, []LeagueCategory{
 		{LeagueID: 1001, StatID: 1, Name: "Goals"},
-		{LeagueID: 1002, StatID: 16, Name: "Faceoffs Won"},
+		{LeagueID: 1002, StatID: 100, Name: "Faceoff Percentage"},
 		{LeagueID: 1002, StatID: 999, Name: "Display", DisplayOnly: true},
 	}, pool)
 	var coverageErr *CoverageError
@@ -101,6 +101,22 @@ func TestValidateCoverageAcceptsProjectedCategories(t *testing.T) {
 	require.NoError(t, ValidateCoverage(snapshot, []LeagueCategory{
 		{LeagueID: 1001, StatID: 1, Name: "Goals"},
 		{LeagueID: 1001, StatID: 2, Name: "Assists"},
+	}, pool))
+}
+
+func TestValidateCoverageAcceptsFaceoffCategories(t *testing.T) {
+	t.Parallel()
+
+	const faceoffPlayerID = 75
+	snapshot, err := Generate(DefaultConfig(), Input{
+		TargetSeason: 20262027, AsOf: time.Now(),
+		Skaters: []SkaterSeason{skaterFaceoffSeason(faceoffPlayerID, 20252026, "C", 82, 900, 800)},
+	})
+	require.NoError(t, err)
+	pool := []PoolPlayer{{PlayerKey: playerKey(faceoffPlayerID), Kind: PlayerKindSkater, Position: "C"}}
+	require.NoError(t, ValidateCoverage(snapshot, []LeagueCategory{
+		{LeagueID: 1001, StatID: 16, Name: "Faceoffs Won"},
+		{LeagueID: 1001, StatID: 17, Name: "Faceoffs Lost"},
 	}, pool))
 }
 

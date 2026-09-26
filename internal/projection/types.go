@@ -32,6 +32,8 @@ const (
 	StatShotsOnGoal     Stat = "shots_on_goal"
 	StatHits            Stat = "hits"
 	StatBlockedShots    Stat = "blocked_shots"
+	StatFaceoffsWon     Stat = "faceoffs_won"
+	StatFaceoffsLost    Stat = "faceoffs_lost"
 	StatWins            Stat = "wins"
 	StatShutouts        Stat = "shutouts"
 	StatShotsAgainst    Stat = "shots_against"
@@ -62,6 +64,8 @@ type SkaterSeason struct {
 	ShotsOnGoal     int
 	Hits            int
 	BlockedShots    int
+	FaceoffsWon     int
+	FaceoffsLost    int
 }
 
 type GoalieSeason struct {
