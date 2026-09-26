@@ -82,8 +82,9 @@ func seedStandInSeasonTeam(t *testing.T, pool *pgxpool.Pool, season int, teamID 
 }
 
 // insertStandInRoster gives a player a season_rosters row. An empty
-// position inserts a NULL roster position (season_rosters.position is NULL
-// for nearly every real row; see standInFallbackPositionNHLID below).
+// position inserts a NULL roster position, as rows imported from rosters
+// cached before positions were decoded have (see standInFallbackPositionNHLID
+// below).
 func insertStandInRoster(t *testing.T, pool *pgxpool.Pool, season int, teamID, playerID int64, position string) {
 	t.Helper()
 	if position == "" {
@@ -293,10 +294,10 @@ func resetStandInExtra(t *testing.T, pool *pgxpool.Pool) {
 }
 
 // TestRefresher_StandInLeaguePositionFallbackAndHistoryUpperBound covers the
-// position fallback (season_rosters.position is NULL for nearly every real
-// row, so players.position must carry the pool) and the history window's
-// upper bound (a player whose only game is in the league's own target season
-// must not pass just because it is recent).
+// position fallback (season_rosters.position is NULL for rosters cached
+// before positions were decoded, so players.position must carry those rows)
+// and the history window's upper bound (a player whose only game is in the
+// league's own target season must not pass just because it is recent).
 func TestRefresher_StandInLeaguePositionFallbackAndHistoryUpperBound(t *testing.T) {
 	pool := openDraftTestDB(t)
 	resetStandInExtra(t, pool)

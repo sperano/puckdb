@@ -90,9 +90,11 @@ roster row.
 Unlike the real Yahoo pool, a stand-in player has exactly one eligible
 position — never Yahoo's fuller eligible-positions list. The position comes
 from the roster row (`C`, `LW`, `RW`, `D` or `G`) when it has one, else from
-`players.position`: in practice almost every `season_rosters` row has a NULL
-position (the roster import never stores it), so without the `players.position` fallback the
-stand-in pool would be built with no positions at all. `PlayerKey` is
+`players.position`. Rosters fetched before the roster position fix were
+cached without positions, so their `season_rosters` rows stay NULL until the
+next `fetchSeasons` run refetches them and `importSeasons` re-imports them;
+the fallback covers those rows and any player the endpoint sends without a
+position code. `PlayerKey` is
 synthetic (`nhl.p.<players.id>`, never a Yahoo key); `YahooPlayerID` is
 `players.yahoo_id` when a later match set it, else 0.
 

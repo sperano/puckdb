@@ -290,8 +290,10 @@ type ListSeasonRosterPoolCandidatesRow struct {
 // than one team in the season appears once per team, and the caller
 // deduplicates by picking the most recently updated row. position prefers
 // the roster's own position but falls back to players.position, because
-// season_rosters.position is NULL for essentially every row in practice
-// (the roster import never stores it) while players.position is populated for almost everyone;
+// season_rosters.position is NULL for rows imported from rosters cached
+// before positions were decoded (and for any player the endpoint sends
+// without a position code) while players.position is populated for
+// almost everyone;
 // the caller excludes a player whose position is still unresolved (NULL or
 // 'F') rather than passing it through unpositioned, which would otherwise
 // fail the whole league in the projection model (position is required).
