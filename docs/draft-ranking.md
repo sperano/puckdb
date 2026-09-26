@@ -100,3 +100,7 @@ draftable player. A rookie or unmatched player with missing values stops the
 build with an explicit error; callers must add a versioned imported or manual
 projection override rather than letting the ranking invent a zero estimate or
 drop the player.
+
+News adjustments do not change this model. `internal/newsadjust` produces an
+adjusted projection snapshot per scenario, and each is ranked with
+`BuildRanking` like any other snapshot (see `draft-news-adjustments.md`).

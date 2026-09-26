@@ -1191,6 +1191,64 @@ type MauriceMessage struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type NewsAdjustmentEvent struct {
+	RunID      pgtype.UUID `json:"run_id"`
+	EventID    string      `json:"event_id"`
+	Version    int32       `json:"version"`
+	PlayerKey  string      `json:"player_key"`
+	IncidentID pgtype.Int8 `json:"incident_id"`
+	Outcome    string      `json:"outcome"`
+	Reason     string      `json:"reason"`
+	Scenarios  []string    `json:"scenarios"`
+	Event      []byte      `json:"event"`
+}
+
+type NewsAdjustmentOverride struct {
+	ID          string             `json:"id"`
+	PlayerKey   string             `json:"player_key"`
+	LeagueKey   string             `json:"league_key"`
+	Kind        string             `json:"kind"`
+	EventID     string             `json:"event_id"`
+	Scenario    string             `json:"scenario"`
+	Input       string             `json:"input"`
+	Value       float64            `json:"value"`
+	Reason      string             `json:"reason"`
+	CreatedBy   string             `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+	ResetAt     pgtype.Timestamptz `json:"reset_at"`
+	ResetReason string             `json:"reset_reason"`
+}
+
+type NewsAdjustmentPlayer struct {
+	RunID      pgtype.UUID `json:"run_id"`
+	PlayerKey  string      `json:"player_key"`
+	Adjustment []byte      `json:"adjustment"`
+}
+
+type NewsAdjustmentRun struct {
+	ID                 pgtype.UUID        `json:"id"`
+	AdjustmentID       string             `json:"adjustment_id"`
+	MethodVersion      string             `json:"method_version"`
+	PolicyHash         string             `json:"policy_hash"`
+	Policy             []byte             `json:"policy"`
+	BaselineSnapshotID pgtype.UUID        `json:"baseline_snapshot_id"`
+	BaselineSourceHash string             `json:"baseline_source_hash"`
+	LeagueKey          string             `json:"league_key"`
+	AsOf               pgtype.Timestamptz `json:"as_of"`
+	Season             []byte             `json:"season"`
+	Overrides          []byte             `json:"overrides"`
+	ShadowedOverrides  []byte             `json:"shadowed_overrides"`
+	CoverageWarnings   []byte             `json:"coverage_warnings"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type NewsAdjustmentScenario struct {
+	RunID      pgtype.UUID `json:"run_id"`
+	Scenario   string      `json:"scenario"`
+	SnapshotID pgtype.UUID `json:"snapshot_id"`
+}
+
 type NewsArticle struct {
 	ID              int64              `json:"id"`
 	Publisher       string             `json:"publisher"`

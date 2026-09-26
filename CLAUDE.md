@@ -82,6 +82,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/matching/` | NHL ↔ Yahoo player matching |
 | `internal/draft/` | Draft helper models: normalized league rules, scoring-input validation, roster feasibility, player-pool coverage, comparison reports (see `docs/draft-league-rules.md`) |
 | `internal/news/` | Player news for the draft helper: source set (`sources.yaml`), RSS/Atom, NHL content and Yahoo status adapters, conditional fetch, article versions, player resolution, incident grouping, coverage and reports (see `docs/draft-player-news.md`) |
+| `internal/newsadjust/` | News adjustments for the draft helper: validated event contract, versioned loading of stored extraction events (review and release-gate holds), as-of event selection (dedupe, supersession, returns, rumors), conservative/base/optimistic scenario snapshots, manager overrides, ranking comparison, run storage and replay (see `docs/draft-news-adjustments.md`) |
 | `internal/newsevent/` | LLM extraction of validated player news events: prompt and strict output schema, quote/claim/chronology validation, injection defenses, deterministic lifecycle reconciliation (active/superseded/retracted/resolved), labeled evaluation corpus (`evalcorpus.yaml`) and release gate (see `docs/draft-news-events.md`) |
 | `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
 | `internal/llm/` | LLM client (used by player enrichment / Maurice) |
@@ -368,6 +369,16 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `news_event_evidence` | Versions behind an event per extraction (PK `(event_id, version_id, extraction_id, relation)`) | `relation` (`supports`/`contradicts`/`retracts`/`resolves`/`withdraws`), `quotes` (jsonb), `publisher`, `kind`, `reported_at` |
 | `news_event_transitions` | Audit trail of every event creation and lifecycle change | `event_id`, `from_lifecycle`, `to_lifecycle`, `version_id`, `extraction_id`, `reason`, `at` |
 | `news_extraction_evaluations` | Runs of the labeled corpus per extractor; the latest passing run on the current corpus version gates automatic effects | `extractor_key`, `corpus_version`, `passed`, `metrics` (jsonb) |
+
+### News adjustment tables (draft helper)
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `news_adjustment_overrides` | Manager overrides; never deleted, ended by `reset_at` or `expires_at` | `id`, `player_key`, `league_key`, `kind` (`missed_games`/`input`/`exclude_event`), `event_id`, `scenario`, `input`, `value`, `reason`, `created_at` |
+| `news_adjustment_runs` | One adjustment of a baseline projection snapshot (UNIQUE `adjustment_id`) | `policy` (jsonb), `baseline_snapshot_id`, `league_key`, `as_of`, `season`, `overrides` (as of `as_of`), `coverage_warnings` |
+| `news_adjustment_events` | Event versions a run saw (PK `(run_id, event_id)`) | `version`, `incident_id`, `outcome`, `reason`, `scenarios`, `event` (jsonb) |
+| `news_adjustment_scenarios` | Adjusted projection snapshot per scenario (PK `(run_id, scenario)`) | `snapshot_id` → `projection_snapshots` |
+| `news_adjustment_players` | Per-player explanation (PK `(run_id, player_key)`) | `adjustment` (jsonb) |
 
 ### Maurice (LLM chat) tables
 

@@ -9,9 +9,9 @@ versions it rests on.
 
 The LLM interprets the articles it is given. It is not a source of news, it
 never sees a ranking, and nothing it returns changes a rank. Events carry no
-fantasy impact. Turning them into projection adjustments is a later step,
-and that step may only use them automatically once the extractor passes the
-evaluation below.
+fantasy impact. `internal/newsadjust` turns them into projection adjustments
+(see `docs/draft-news-adjustments.md`), and holds them as alerts until the
+extractor passes the evaluation below.
 
 Code: `internal/newsevent` (prompt, schema, validation, reconciliation,
 evaluation, reports), `internal/worker/newsfeed/extract.go` (the activity),

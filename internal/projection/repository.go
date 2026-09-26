@@ -238,7 +238,21 @@ func (r *Repository) storeSnapshot(ctx context.Context, snapshot Snapshot) (uuid
 		return uuid.Nil, fmt.Errorf("begin projection snapshot transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	queries := r.queries.WithTx(tx)
+	id, err := StoreSnapshotWith(ctx, r.queries.WithTx(tx), snapshot)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return uuid.Nil, fmt.Errorf("commit projection snapshot: %w", err)
+	}
+	return id, nil
+}
+
+// StoreSnapshotWith writes a snapshot through queries bound to the caller's
+// transaction, replacing the rows of an existing snapshot with the same
+// identity. Callers that store a snapshot together with other records use it
+// to keep both in one transaction.
+func StoreSnapshotWith(ctx context.Context, queries *sqlcdb.Queries, snapshot Snapshot) (uuid.UUID, error) {
 	row, err := queries.CreateProjectionSnapshot(ctx, snapshotParams(snapshot))
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("create projection snapshot: %w", err)
@@ -248,9 +262,6 @@ func (r *Repository) storeSnapshot(ctx context.Context, snapshot Snapshot) (uuid
 	}
 	if err := storePlayers(ctx, queries, row.ID, snapshot.Players); err != nil {
 		return uuid.Nil, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return uuid.Nil, fmt.Errorf("commit projection snapshot: %w", err)
 	}
 	return uuid.UUID(row.ID.Bytes), nil
 }
