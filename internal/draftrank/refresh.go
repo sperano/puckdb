@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -98,12 +99,12 @@ func (r *Refresher) refresh(ctx context.Context, req RefreshRequest, asOf time.T
 	if _, err := draft.ScoringFor(rules); err != nil {
 		return uuid.Nil, leagueKey, refreshError(IssueUnsupportedScoring, err)
 	}
-	pool, err := draft.LoadPool(ctx, r.Queries, leagueKey)
+	pool, poolNotes, err := draft.LoadLeaguePool(ctx, r.Queries, rules)
 	if err != nil {
 		return uuid.Nil, leagueKey, err
 	}
 	if len(pool) == 0 {
-		return uuid.Nil, leagueKey, refreshError(IssueMissingPool, fmt.Errorf("league %s has no draftable players; run a Yahoo sync", leagueKey))
+		return uuid.Nil, leagueKey, refreshError(IssueMissingPool, missingPoolError(rules, leagueKey, poolNotes))
 	}
 	r.heartbeat("projections")
 	baselineID, baseline, err := r.baseline(ctx, req.Season, rules, pool, asOf)
@@ -120,6 +121,7 @@ func (r *Refresher) refresh(ctx context.Context, req RefreshRequest, asOf time.T
 		Rules: rules, Pool: pool, Baseline: baseline, BaselineID: baselineID,
 		Adjustment: adjusted.result, AdjustmentRunID: adjusted.runID, AdjustmentWarnings: adjusted.warnings,
 		Options: req.Options, News: adjusted.coverage, Unavailable: adjusted.unavailable, AsOf: asOf,
+		PoolNotes: poolNotes,
 	})
 	if err != nil {
 		return uuid.Nil, leagueKey, err
@@ -127,6 +129,22 @@ func (r *Refresher) refresh(ctx context.Context, req RefreshRequest, asOf time.T
 	r.heartbeat("store")
 	id, err := r.Store.SaveSnapshot(ctx, snapshot, req.Keep)
 	return id, leagueKey, err
+}
+
+// missingPoolError explains an empty pool. A TEMPORARY stand-in league
+// (draft.SourceTemporaryStandIn) has no Yahoo pool to sync at all — its pool
+// notes say what NHL rosters were tried and why nothing qualified — so it
+// gets a distinct message from a real Yahoo league's.
+func missingPoolError(rules draft.Snapshot, leagueKey string, poolNotes []string) error {
+	if rules.Source != draft.SourceTemporaryStandIn {
+		return fmt.Errorf("league %s has no draftable players; run a Yahoo sync", leagueKey)
+	}
+	msg := fmt.Sprintf("league %s has no draftable players: no NHL roster players qualified; "+
+		"import NHL rosters for the season or the prior season", leagueKey)
+	if len(poolNotes) > 0 {
+		msg += ": " + strings.Join(poolNotes, "; ")
+	}
+	return errors.New(msg)
 }
 
 // baseline builds (or, for a day already built, reuses) the league-neutral
@@ -177,10 +195,8 @@ func projectionCategories(rules draft.Rules) []projection.LeagueCategory {
 
 // SeasonID is the NHL season ID ("20262027") of a season start year.
 func SeasonID(startYear int) int {
-	return startYear*seasonIDFactor + startYear + 1
+	return draft.NHLSeasonID(startYear)
 }
-
-const seasonIDFactor = 10_000
 
 func (r *Refresher) now() time.Time {
 	if r.Now == nil {

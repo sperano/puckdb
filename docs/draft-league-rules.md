@@ -60,10 +60,68 @@ game key fail the import.
 
 The pool is downloaded again once it is older than `--yahoo-player-pool-max-age`
 hours (default 12) and not at all once the league's season has ended. Stand-in
-leagues make no Yahoo calls and have no pool.
+leagues make no Yahoo calls, so `yahoo_league_players` stays empty for them.
 
 Players map to NHL players through `players.yahoo_id`; unmatched players
 (typically rookies) stay in the pool and are reported.
+
+### TEMPORARY: stand-in pool from NHL rosters
+
+`draft.LoadLeaguePool` is what every ranking and report reads instead of
+`LoadPool` directly. For a league whose latest rules snapshot is
+`draft.SourceTemporaryStandIn` it calls `draft.LoadStandInPool` instead of
+`LoadPool`, building a pool from `season_rosters` so the league can still be
+ranked while Yahoo refuses it. This is TEMPORARY: it is removed together with
+`temporary_metadata_from` once Yahoo access returns (see
+`internal/draft/standin_pool.go`).
+
+The stand-in pool uses the league's season's own NHL season (`season *
+10000 + season + 1`, `draftrank.SeasonID`) roster rows when every one of
+that season's NHL clubs (`season_teams`, `team_kind = 'nhl'`) has at least
+one `season_rosters` row, falling back to the prior season's otherwise (a
+partial import — a cancelled sync, or camp rosters not all published yet —
+would otherwise silently rank a pool missing whole teams); the coverage
+report and the ranking snapshot's assumptions name which roster season was
+used and, on a fallback, how incomplete the league's own season was (e.g.
+"2026-27 rosters incomplete: 20 of 32 teams"). A player rostered by more
+than one team in that season is kept once, from the most recently updated
+roster row.
+
+Unlike the real Yahoo pool, a stand-in player has exactly one eligible
+position — never Yahoo's fuller eligible-positions list. The position comes
+from the roster row (`C`, `LW`, `RW`, `D` or `G`) when it has one, else from
+`players.position`: in practice almost every `season_rosters` row has a NULL
+position (the roster import never stores it), so without the `players.position` fallback the
+stand-in pool would be built with no positions at all. `PlayerKey` is
+synthetic (`nhl.p.<players.id>`, never a Yahoo key); `YahooPlayerID` is
+`players.yahoo_id` when a later match set it, else 0.
+
+A player is excluded — reported by count and name instead of silently
+dropped, under its own reason — when either of two checks fails:
+
+- **No known position.** Neither the roster row nor `players.position`
+  resolves to `C`, `LW`, `RW`, `D` or `G` (NULL either way, or an unspecified
+  forward, `F`). The projection model requires a position
+  (`projection.validatePoolPlayer`); passing such a player through with no
+  eligible positions would fail the whole league with `INTERNAL_ERROR`
+  instead of just leaving that player out.
+- **No NHL regular-season game** (`game_skater_stats`/`game_goalie_stats`
+  joined to `games` with `game_type = 'regular_season'` and
+  `game_state IN ('FINAL', 'OFF')`) within the projection model's own
+  lookback window for the league's target season
+  (`projection.Config.HistoryFloorSeason` through the season before the
+  target season — the same window
+  `ListProjectionSkaterHistory`/`ListProjectionGoalieHistory` read, three
+  seasons back by default, and excluding the target season itself since its
+  games are not history yet). A player whose only NHL games are older than
+  that window (e.g. a veteran returning from Europe on a camp roster), or
+  whose only games are in the target season itself once that season starts
+  being played, would otherwise pass a naive "ever played" check, get no
+  projection, and fail the whole league with `MISSING_PROJECTIONS`;
+  excluding them here is what this pool is for.
+
+A Yahoo league's `LoadPool` behavior and the projection model itself are
+unchanged.
 
 ## Roster feasibility
 

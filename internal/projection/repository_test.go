@@ -27,6 +27,30 @@ func TestHistoryFloorSeason(t *testing.T) {
 	require.Equal(t, 2025, seasonStartYear(20252026))
 }
 
+// TestConfig_HistoryFloorSeason checks the exported method against both the
+// free function it delegates to (so they cannot drift) and seasonAge, the
+// model's own window check: the floor season is the oldest one seasonAge
+// accepts, and one season older than the floor is rejected.
+func TestConfig_HistoryFloorSeason(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig()
+	const target = 20262027
+
+	floor := cfg.HistoryFloorSeason(target)
+	require.Equal(t, historyFloorSeason(target, cfg.LookbackSeasons), floor)
+
+	age, ok := seasonAge(target, floor)
+	require.True(t, ok)
+	require.Equal(t, cfg.LookbackSeasons-1, age, "the floor season is the oldest one the model counts")
+
+	floorStart := seasonStartYear(floor)
+	beforeFloor := (floorStart-1)*10_000 + floorStart
+	age, ok = seasonAge(target, beforeFloor)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, age, cfg.LookbackSeasons, "one season older than the floor must be rejected")
+}
+
 func TestSourceHashChangesWhenHistoricalDataChanges(t *testing.T) {
 	t.Parallel()
 

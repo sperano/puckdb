@@ -13,7 +13,9 @@ A **snapshot** is one successful refresh of one league
 (`draft_ranking_snapshots`, migration `000010`). The refresh:
 
 1. loads the league's latest rules (`draft.LoadSnapshot`) and draftable pool
-   (`draft.LoadPool`);
+   (`draft.LoadLeaguePool`, which reads the Yahoo pool with `draft.LoadPool`,
+   or — TEMPORARY, only for a `SourceTemporaryStandIn` league — a pool built
+   from NHL rosters with `draft.LoadStandInPool`; see `draft-league-rules.md`);
 2. builds the league-neutral baseline projection of the pool
    (`projection.Repository.BuildSnapshot`, as of the refresh day, so every
    refresh of a day reuses one stored projection);
@@ -192,10 +194,36 @@ status and issues, so the CSV export also writes them to standard error.
 
 - **Category preferences.** `draft.RankingOptions.CategoryWeights` (punting a
   category) is not exposed by the refresh input yet.
-- **Rookie projections.** A pool player without NHL history still fails the
-  refresh with `MISSING_PROJECTIONS`; there is no stored manual/imported
-  projection override yet, so the live 2026 pools will need one before they
-  rank.
+- **Rookie projections.** A Yahoo pool player without NHL history still fails
+  the refresh with `MISSING_PROJECTIONS`; there is no stored manual/imported
+  projection override yet, so a live Yahoo pool with an unprojectable rookie
+  will need one before it ranks. TEMPORARY stand-in pools (below) sidestep
+  this by excluding such players from the pool instead.
+- **TEMPORARY stand-in pool limits** (`draft.LoadStandInPool`, only for a
+  `SourceTemporaryStandIn` league; see `draft-league-rules.md`). A player has
+  exactly one eligible position — the roster's own position, or
+  `players.position` when the roster row didn't say one — never Yahoo's
+  fuller eligible-positions list, so roster feasibility and flex-slot
+  matching are less accurate than with a real Yahoo pool. A player whose
+  position cannot be resolved either way, or who has no NHL regular-season
+  game within the projection model's own lookback window
+  (`projection.Config.HistoryFloorSeason` through the season before the
+  league's target season, three seasons back by default) is left out of the
+  pool entirely rather than reported as a projection failure — the model
+  requires both a position and history, and one unprojectable or unplaceable
+  player would otherwise fail the whole league — so neither a true rookie
+  nor a veteran whose last NHL game is older than the window, nor a player
+  with no resolvable position, ranks even once Yahoo access returns Yahoo's
+  own eligible positions and rookie handling for these leagues. The roster
+  season used is the league's own season when every one of its NHL clubs has
+  an imported roster, otherwise the prior season's (reported in the pool
+  coverage and the snapshot's assumptions, with how incomplete the league's
+  own season was) — a roster season with stale or no data quietly changes
+  who is in the pool. An override (`createDraftOverride`) created against a
+  stand-in player's synthetic key (`nhl.p.<id>`) does not carry over once
+  Yahoo access returns and the league's pool switches to Yahoo's own
+  `<game_key>.p.<id>` keys; it would need to be recreated against the new
+  key.
 - **Per-request staleness of news.** News freshness is the coverage at refresh
   time; a source that goes stale later shows up as `STALE_SNAPSHOT` once the
   snapshot ages past `--draft-stale-after`.

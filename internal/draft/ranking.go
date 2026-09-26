@@ -17,6 +17,15 @@ const (
 	seasonYearFactor      = 10_000
 )
 
+// NHLSeasonID returns the NHL season ID (e.g. 20262027) of a season's start
+// year. draftrank.SeasonID delegates to this so the formula has one home;
+// LoadStandInPool (standin_pool.go, TEMPORARY) also calls it directly, since
+// internal/draft cannot import internal/draftrank, which imports
+// internal/draft.
+func NHLSeasonID(startYear int) int {
+	return startYear*seasonYearFactor + startYear + 1
+}
+
 // BuildRanking values a complete Yahoo player pool against a frozen rules and
 // projection snapshot. It never queries live state or changes scoring rules.
 func BuildRanking(rules Snapshot, projected projection.Snapshot, pool []PoolPlayer, options RankingOptions) (RankingSnapshot, error) {

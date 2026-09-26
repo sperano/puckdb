@@ -52,6 +52,19 @@ func DefaultConfig() Config {
 	}
 }
 
+// HistoryFloorSeason returns the oldest NHL season ID (inclusive) whose
+// games count toward a player's history when projecting targetSeason: the
+// model looks back LookbackSeasons seasons from the one immediately before
+// targetSeason and never reads targetSeason itself (see seasonAge in
+// model.go, and historyFloorSeason, which this delegates to so the two
+// cannot drift). Exported so a caller that builds a candidate pool for
+// projection — such as draft.LoadStandInPool — can tell ahead of time
+// whether a player will have any history, without duplicating the model's
+// window logic.
+func (c Config) HistoryFloorSeason(targetSeason int) int {
+	return historyFloorSeason(targetSeason, c.LookbackSeasons)
+}
+
 func (c Config) Validate() error {
 	switch {
 	case c.ModelVersion == "":

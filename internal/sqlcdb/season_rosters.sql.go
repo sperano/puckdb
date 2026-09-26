@@ -166,6 +166,34 @@ func (q *Queries) GetSeasonRosterByTeam(ctx context.Context, arg GetSeasonRoster
 	return items, nil
 }
 
+const getSeasonRosterCoverage = `-- name: GetSeasonRosterCoverage :one
+SELECT
+    (SELECT COUNT(*) FROM season_teams nt
+        WHERE nt.season = $1::integer AND nt.team_kind = 'nhl') AS nhl_teams,
+    (SELECT COUNT(DISTINCT r.team_id) FROM season_rosters r
+        JOIN season_teams st ON st.season = r.season AND st.team_id = r.team_id
+        WHERE r.season = $1::integer AND st.team_kind = 'nhl') AS teams_with_rosters
+`
+
+type GetSeasonRosterCoverageRow struct {
+	NhlTeams         int64 `json:"nhl_teams"`
+	TeamsWithRosters int64 `json:"teams_with_rosters"`
+}
+
+// TEMPORARY: backs the stand-in draft pool's roster-season fallback
+// (internal/draft/standin_pool.go, config.LeagueMetadataSource). Reports how
+// many of a season's NHL clubs have at least one season_rosters row, so a
+// partial import (a cancelled sync, or camp rosters not all published yet)
+// can be told apart from a complete one and the caller can fall back to the
+// prior season instead of silently ranking a pool missing whole teams.
+// Remove together with temporary_metadata_from once Yahoo access returns.
+func (q *Queries) GetSeasonRosterCoverage(ctx context.Context, season int32) (GetSeasonRosterCoverageRow, error) {
+	row := q.db.QueryRow(ctx, getSeasonRosterCoverage, season)
+	var i GetSeasonRosterCoverageRow
+	err := row.Scan(&i.NhlTeams, &i.TeamsWithRosters)
+	return i, err
+}
+
 const getSeasonTeamAbbrevs = `-- name: GetSeasonTeamAbbrevs :many
 SELECT team_id, abbrev FROM season_teams
 WHERE season = $1 AND team_kind = 'nhl'
@@ -190,6 +218,113 @@ func (q *Queries) GetSeasonTeamAbbrevs(ctx context.Context, season int32) ([]Get
 	for rows.Next() {
 		var i GetSeasonTeamAbbrevsRow
 		if err := rows.Scan(&i.TeamID, &i.Abbrev); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSeasonRosterPoolCandidates = `-- name: ListSeasonRosterPoolCandidates :many
+SELECT
+    r.player_id,
+    r.team_id,
+    COALESCE(r.position, p.position) AS position,
+    r.updated_at,
+    p.first_name,
+    p.last_name,
+    p.yahoo_id,
+    st.abbrev AS team_abbrev,
+    EXISTS (
+        SELECT 1 FROM game_skater_stats gss
+        JOIN games g ON g.id = gss.game_id
+        WHERE gss.player_id = r.player_id
+          AND g.game_type = 'regular_season'
+          AND g.game_state IN ('FINAL', 'OFF')
+          AND g.season >= $1::integer
+          AND g.season < $2::integer
+    ) AS has_skater_history,
+    EXISTS (
+        SELECT 1 FROM game_goalie_stats ggs
+        JOIN games g ON g.id = ggs.game_id
+        WHERE ggs.player_id = r.player_id
+          AND g.game_type = 'regular_season'
+          AND g.game_state IN ('FINAL', 'OFF')
+          AND g.season >= $1::integer
+          AND g.season < $2::integer
+    ) AS has_goalie_history
+FROM season_rosters r
+JOIN players p ON p.id = r.player_id
+JOIN season_teams st ON st.season = r.season AND st.team_id = r.team_id
+WHERE r.season = $3::integer
+ORDER BY r.player_id, r.updated_at DESC, r.team_id
+`
+
+type ListSeasonRosterPoolCandidatesParams struct {
+	MinSeason    int32 `json:"min_season"`
+	TargetSeason int32 `json:"target_season"`
+	Season       int32 `json:"season"`
+}
+
+type ListSeasonRosterPoolCandidatesRow struct {
+	PlayerID         int64              `json:"player_id"`
+	TeamID           int64              `json:"team_id"`
+	Position         NullPlayerPosition `json:"position"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	FirstName        string             `json:"first_name"`
+	LastName         string             `json:"last_name"`
+	YahooID          pgtype.Int8        `json:"yahoo_id"`
+	TeamAbbrev       string             `json:"team_abbrev"`
+	HasSkaterHistory bool               `json:"has_skater_history"`
+	HasGoalieHistory bool               `json:"has_goalie_history"`
+}
+
+// TEMPORARY: backs the stand-in draft pool built from NHL rosters while
+// Yahoo has none (internal/draft/standin_pool.go, config.LeagueMetadataSource).
+// Remove together with temporary_metadata_from once Yahoo access returns.
+//
+// One row per (season, team, player) roster slot; a player rostered by more
+// than one team in the season appears once per team, and the caller
+// deduplicates by picking the most recently updated row. position prefers
+// the roster's own position but falls back to players.position, because
+// season_rosters.position is NULL for essentially every row in practice
+// (the roster import never stores it) while players.position is populated for almost everyone;
+// the caller excludes a player whose position is still unresolved (NULL or
+// 'F') rather than passing it through unpositioned, which would otherwise
+// fail the whole league in the projection model (position is required).
+// has_skater_history and has_goalie_history mirror the tables, state filter
+// and season window ListProjectionSkaterHistory/ListProjectionGoalieHistory
+// read (min_season is projection.Config.HistoryFloorSeason of the league's
+// target season; target_season excludes the target season itself, which
+// hasn't been read as history yet but would otherwise start passing once
+// its games are played), so a player excluded here would also fail
+// projection coverage if included. A qualifying game row also guarantees
+// the projection's own per-season GROUP BY would see games_played >= 1, so
+// no separate count check is needed here.
+func (q *Queries) ListSeasonRosterPoolCandidates(ctx context.Context, arg ListSeasonRosterPoolCandidatesParams) ([]ListSeasonRosterPoolCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listSeasonRosterPoolCandidates, arg.MinSeason, arg.TargetSeason, arg.Season)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSeasonRosterPoolCandidatesRow{}
+	for rows.Next() {
+		var i ListSeasonRosterPoolCandidatesRow
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.TeamID,
+			&i.Position,
+			&i.UpdatedAt,
+			&i.FirstName,
+			&i.LastName,
+			&i.YahooID,
+			&i.TeamAbbrev,
+			&i.HasSkaterHistory,
+			&i.HasGoalieHistory,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

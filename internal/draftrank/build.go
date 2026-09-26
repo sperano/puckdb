@@ -35,6 +35,11 @@ type BuildInput struct {
 	News               []news.SourceCoverage
 	Unavailable        []Issue
 	AsOf               time.Time
+	// PoolNotes are provenance notes from draft.LoadLeaguePool, e.g. a
+	// TEMPORARY stand-in pool's roster season and excluded players (see
+	// draft.StandInPoolResult.Notes). Surfaced in Meta.Assumptions like any
+	// other explicit ranking assumption.
+	PoolNotes []string
 }
 
 // Build ranks the baseline and every news scenario with draft.BuildRanking
@@ -105,6 +110,7 @@ func buildMeta(in BuildInput, scoring draft.Scoring, rankings map[Scenario]draft
 		News:        freshnessOf(in.News),
 		Unavailable: slices.Clone(in.Unavailable),
 	}
+	meta.Assumptions = append(meta.Assumptions, in.PoolNotes...)
 	for _, s := range Scenarios {
 		if ranking, exists := rankings[s]; exists {
 			meta.Versions[s] = ranking.Version

@@ -56,6 +56,11 @@ type Queries interface {
 	GetYahooLeague(ctx context.Context, id int32) (sqlcdb.YahooLeague, error)
 	GetYahooOwnedTeam(ctx context.Context, leagueID int32) (sqlcdb.YahooTeam, error)
 	ListYahooLeaguePlayersWithNHL(ctx context.Context, leagueKey string) ([]sqlcdb.ListYahooLeaguePlayersWithNHLRow, error)
+	// TEMPORARY: back LoadStandInPool (see standin_pool.go,
+	// config.LeagueMetadataSource). Remove together with
+	// temporary_metadata_from once Yahoo access returns.
+	GetSeasonRosterCoverage(ctx context.Context, season int32) (sqlcdb.GetSeasonRosterCoverageRow, error)
+	ListSeasonRosterPoolCandidates(ctx context.Context, arg sqlcdb.ListSeasonRosterPoolCandidatesParams) ([]sqlcdb.ListSeasonRosterPoolCandidatesRow, error)
 }
 
 // LoadSnapshot returns the latest rules version of a league in a season.
@@ -108,10 +113,11 @@ func LoadLeagueReport(ctx context.Context, q Queries, season, leagueID int, now 
 	if err != nil {
 		return LeagueReport{}, err
 	}
-	players, err := LoadPool(ctx, q, snapshot.Rules.LeagueKey)
+	players, poolNotes, err := LoadLeaguePool(ctx, q, snapshot)
 	if err != nil {
 		return LeagueReport{}, err
 	}
+	report.Notes = append(report.Notes, poolNotes...)
 	report.Pool = Coverage(players, now, maxAge)
 	return report, nil
 }
@@ -161,4 +167,24 @@ func LoadPool(ctx context.Context, q Queries, leagueKey string) ([]PoolPlayer, e
 		})
 	}
 	return players, nil
+}
+
+// LoadLeaguePool returns a league's draftable pool and any provenance notes,
+// choosing the source by the snapshot's rules: LoadStandInPool for a
+// TEMPORARY stand-in league (SourceTemporaryStandIn), LoadPool otherwise.
+// Every ranking and report caller goes through this instead of LoadPool
+// directly, so a stand-in league ranks against NHL rosters instead of
+// failing with MISSING_POOL. TEMPORARY: the SourceTemporaryStandIn branch is
+// removed together with temporary_metadata_from once Yahoo access returns
+// (see standin_pool.go, config.LeagueMetadataSource).
+func LoadLeaguePool(ctx context.Context, q Queries, snapshot Snapshot) ([]PoolPlayer, []string, error) {
+	if snapshot.Source != SourceTemporaryStandIn {
+		players, err := LoadPool(ctx, q, snapshot.Rules.LeagueKey)
+		return players, nil, err
+	}
+	result, err := LoadStandInPool(ctx, q, snapshot.Rules.Season)
+	if err != nil {
+		return nil, nil, err
+	}
+	return result.Players, result.Notes(), nil
 }
