@@ -24,6 +24,15 @@ func Generate(cfg Config, input Input) (Snapshot, error) {
 	if input.AsOf.IsZero() {
 		return Snapshot{}, fmt.Errorf("as-of time is required")
 	}
+	if supportsAgingCurve(cfg.ModelVersion) && cfg.AgingCurve == nil {
+		cfg.AgingCurve = fitAgingCurve(input)
+		if err := cfg.Validate(); err != nil {
+			return Snapshot{}, err
+		}
+	}
+	if supportsAgingCurve(cfg.ModelVersion) && cfg.AgingCurve != nil && cfg.AgingCurve.ThroughSeason >= input.TargetSeason {
+		return Snapshot{}, fmt.Errorf("aging curve through season must precede target season")
+	}
 
 	players := projectSkaters(cfg, input.TargetSeason, input.Skaters)
 	players = append(players, projectGoalies(cfg, input.TargetSeason, input.Goalies)...)

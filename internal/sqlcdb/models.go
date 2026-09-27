@@ -1627,6 +1627,7 @@ type ProjectionSnapshot struct {
 	MinimumHistoryGames        int32              `json:"minimum_history_games"`
 	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
 	LinemateRegressionStrength float64            `json:"linemate_regression_strength"`
+	AgingCurve                 []byte             `json:"aging_curve"`
 }
 
 type ProjectionValue struct {

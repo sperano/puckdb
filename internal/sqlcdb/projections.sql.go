@@ -168,16 +168,16 @@ INSERT INTO projection_snapshots (
     target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash,
     lookback_seasons, season_decay, skater_prior_toi_seconds,
     goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty,
-    maximum_uncertainty, minimum_history_games, linemate_regression_strength
+    maximum_uncertainty, minimum_history_games, linemate_regression_strength, aging_curve
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9,
     $10, $11, $12, $13,
-    $14, $15, $16, $17
+    $14, $15, $16, $17, $18
 )
 ON CONFLICT (target_season, as_of, model_version, config_hash, source_data_hash) DO UPDATE SET
     source_max_game_date = EXCLUDED.source_max_game_date
-RETURNING id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength
+RETURNING id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength, aging_curve
 `
 
 type CreateProjectionSnapshotParams struct {
@@ -198,6 +198,7 @@ type CreateProjectionSnapshotParams struct {
 	MaximumUncertainty         float64            `json:"maximum_uncertainty"`
 	MinimumHistoryGames        int32              `json:"minimum_history_games"`
 	LinemateRegressionStrength float64            `json:"linemate_regression_strength"`
+	AgingCurve                 []byte             `json:"aging_curve"`
 }
 
 func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjectionSnapshotParams) (ProjectionSnapshot, error) {
@@ -219,6 +220,7 @@ func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjec
 		arg.MaximumUncertainty,
 		arg.MinimumHistoryGames,
 		arg.LinemateRegressionStrength,
+		arg.AgingCurve,
 	)
 	var i ProjectionSnapshot
 	err := row.Scan(
@@ -241,6 +243,7 @@ func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjec
 		&i.MinimumHistoryGames,
 		&i.CreatedAt,
 		&i.LinemateRegressionStrength,
+		&i.AgingCurve,
 	)
 	return i, err
 }
@@ -291,7 +294,7 @@ func (q *Queries) DeleteProjectionPlayersBySnapshot(ctx context.Context, snapsho
 }
 
 const getProjectionSnapshot = `-- name: GetProjectionSnapshot :one
-SELECT id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength FROM projection_snapshots WHERE id = $1
+SELECT id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength, aging_curve FROM projection_snapshots WHERE id = $1
 `
 
 func (q *Queries) GetProjectionSnapshot(ctx context.Context, id pgtype.UUID) (ProjectionSnapshot, error) {
@@ -317,6 +320,7 @@ func (q *Queries) GetProjectionSnapshot(ctx context.Context, id pgtype.UUID) (Pr
 		&i.MinimumHistoryGames,
 		&i.CreatedAt,
 		&i.LinemateRegressionStrength,
+		&i.AgingCurve,
 	)
 	return i, err
 }
@@ -350,6 +354,7 @@ WITH projection_constants AS (
 )
 SELECT
     s.player_id,
+    p.birth_date,
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     COUNT(DISTINCT s.game_id)::int AS games_played,
@@ -365,12 +370,13 @@ SELECT
     SUM(s.goals_against)::bigint AS goals_against
 FROM game_goalie_stats s
 JOIN games g ON g.id = s.game_id
+JOIN players p ON p.id = s.player_id
 CROSS JOIN projection_constants
 WHERE g.game_type = 'regular_season'
   AND g.game_state IN ('FINAL', 'OFF')
   AND g.season <= $1
   AND g.season >= $2
-GROUP BY s.player_id, g.season
+GROUP BY s.player_id, p.birth_date, g.season
 ORDER BY s.player_id, g.season
 `
 
@@ -381,17 +387,18 @@ type ListProjectionGoalieEvaluationDataParams struct {
 }
 
 type ListProjectionGoalieEvaluationDataRow struct {
-	PlayerID     int64 `json:"player_id"`
-	Season       int32 `json:"season"`
-	TeamID       int64 `json:"team_id"`
-	GamesPlayed  int32 `json:"games_played"`
-	GamesStarted int32 `json:"games_started"`
-	TOISeconds   int64 `json:"toi_seconds"`
-	Wins         int32 `json:"wins"`
-	Shutouts     int32 `json:"shutouts"`
-	ShotsAgainst int64 `json:"shots_against"`
-	Saves        int64 `json:"saves"`
-	GoalsAgainst int64 `json:"goals_against"`
+	PlayerID     int64       `json:"player_id"`
+	BirthDate    pgtype.Date `json:"birth_date"`
+	Season       int32       `json:"season"`
+	TeamID       int64       `json:"team_id"`
+	GamesPlayed  int32       `json:"games_played"`
+	GamesStarted int32       `json:"games_started"`
+	TOISeconds   int64       `json:"toi_seconds"`
+	Wins         int32       `json:"wins"`
+	Shutouts     int32       `json:"shutouts"`
+	ShotsAgainst int64       `json:"shots_against"`
+	Saves        int64       `json:"saves"`
+	GoalsAgainst int64       `json:"goals_against"`
 }
 
 func (q *Queries) ListProjectionGoalieEvaluationData(ctx context.Context, arg ListProjectionGoalieEvaluationDataParams) ([]ListProjectionGoalieEvaluationDataRow, error) {
@@ -405,6 +412,7 @@ func (q *Queries) ListProjectionGoalieEvaluationData(ctx context.Context, arg Li
 		var i ListProjectionGoalieEvaluationDataRow
 		if err := rows.Scan(
 			&i.PlayerID,
+			&i.BirthDate,
 			&i.Season,
 			&i.TeamID,
 			&i.GamesPlayed,
@@ -432,6 +440,7 @@ WITH projection_constants AS (
 )
 SELECT
     s.player_id,
+    p.birth_date,
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     COUNT(DISTINCT s.game_id)::int AS games_played,
@@ -447,13 +456,14 @@ SELECT
     SUM(s.goals_against)::bigint AS goals_against
 FROM game_goalie_stats s
 JOIN games g ON g.id = s.game_id
+JOIN players p ON p.id = s.player_id
 CROSS JOIN projection_constants
 WHERE g.game_type = 'regular_season'
   AND g.game_state IN ('FINAL', 'OFF')
   AND g.season < $1
   AND g.season >= $2
   AND g.game_date <= $3
-GROUP BY s.player_id, g.season
+GROUP BY s.player_id, p.birth_date, g.season
 ORDER BY s.player_id, g.season
 `
 
@@ -465,17 +475,18 @@ type ListProjectionGoalieHistoryParams struct {
 }
 
 type ListProjectionGoalieHistoryRow struct {
-	PlayerID     int64 `json:"player_id"`
-	Season       int32 `json:"season"`
-	TeamID       int64 `json:"team_id"`
-	GamesPlayed  int32 `json:"games_played"`
-	GamesStarted int32 `json:"games_started"`
-	TOISeconds   int64 `json:"toi_seconds"`
-	Wins         int32 `json:"wins"`
-	Shutouts     int32 `json:"shutouts"`
-	ShotsAgainst int64 `json:"shots_against"`
-	Saves        int64 `json:"saves"`
-	GoalsAgainst int64 `json:"goals_against"`
+	PlayerID     int64       `json:"player_id"`
+	BirthDate    pgtype.Date `json:"birth_date"`
+	Season       int32       `json:"season"`
+	TeamID       int64       `json:"team_id"`
+	GamesPlayed  int32       `json:"games_played"`
+	GamesStarted int32       `json:"games_started"`
+	TOISeconds   int64       `json:"toi_seconds"`
+	Wins         int32       `json:"wins"`
+	Shutouts     int32       `json:"shutouts"`
+	ShotsAgainst int64       `json:"shots_against"`
+	Saves        int64       `json:"saves"`
+	GoalsAgainst int64       `json:"goals_against"`
 }
 
 func (q *Queries) ListProjectionGoalieHistory(ctx context.Context, arg ListProjectionGoalieHistoryParams) ([]ListProjectionGoalieHistoryRow, error) {
@@ -494,6 +505,7 @@ func (q *Queries) ListProjectionGoalieHistory(ctx context.Context, arg ListProje
 		var i ListProjectionGoalieHistoryRow
 		if err := rows.Scan(
 			&i.PlayerID,
+			&i.BirthDate,
 			&i.Season,
 			&i.TeamID,
 			&i.GamesPlayed,
@@ -585,6 +597,7 @@ WITH faceoff_totals AS (
 )
 SELECT
     s.player_id,
+    p.birth_date,
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     (ARRAY_AGG(s.position ORDER BY g.game_date DESC, s.game_id DESC))[1]::text AS position,
@@ -602,12 +615,13 @@ SELECT
     COALESCE(SUM(fo.faceoffs_lost), 0)::bigint AS faceoffs_lost
 FROM game_skater_stats s
 JOIN games g ON g.id = s.game_id
+JOIN players p ON p.id = s.player_id
 LEFT JOIN faceoff_totals fo ON fo.game_id = s.game_id AND fo.player_id = s.player_id
 WHERE g.game_type = 'regular_season'
   AND g.game_state IN ('FINAL', 'OFF')
   AND g.season <= $1
   AND g.season >= $2
-GROUP BY s.player_id, g.season
+GROUP BY s.player_id, p.birth_date, g.season
 ORDER BY s.player_id, g.season
 `
 
@@ -617,22 +631,23 @@ type ListProjectionSkaterEvaluationDataParams struct {
 }
 
 type ListProjectionSkaterEvaluationDataRow struct {
-	PlayerID        int64  `json:"player_id"`
-	Season          int32  `json:"season"`
-	TeamID          int64  `json:"team_id"`
-	Position        string `json:"position"`
-	GamesPlayed     int32  `json:"games_played"`
-	TOISeconds      int64  `json:"toi_seconds"`
-	Goals           int64  `json:"goals"`
-	Assists         int64  `json:"assists"`
-	PlusMinus       int64  `json:"plus_minus"`
-	PenaltyMinutes  int64  `json:"penalty_minutes"`
-	PowerPlayPoints int64  `json:"power_play_points"`
-	ShotsOnGoal     int64  `json:"shots_on_goal"`
-	Hits            int64  `json:"hits"`
-	BlockedShots    int64  `json:"blocked_shots"`
-	FaceoffsWon     int64  `json:"faceoffs_won"`
-	FaceoffsLost    int64  `json:"faceoffs_lost"`
+	PlayerID        int64       `json:"player_id"`
+	BirthDate       pgtype.Date `json:"birth_date"`
+	Season          int32       `json:"season"`
+	TeamID          int64       `json:"team_id"`
+	Position        string      `json:"position"`
+	GamesPlayed     int32       `json:"games_played"`
+	TOISeconds      int64       `json:"toi_seconds"`
+	Goals           int64       `json:"goals"`
+	Assists         int64       `json:"assists"`
+	PlusMinus       int64       `json:"plus_minus"`
+	PenaltyMinutes  int64       `json:"penalty_minutes"`
+	PowerPlayPoints int64       `json:"power_play_points"`
+	ShotsOnGoal     int64       `json:"shots_on_goal"`
+	Hits            int64       `json:"hits"`
+	BlockedShots    int64       `json:"blocked_shots"`
+	FaceoffsWon     int64       `json:"faceoffs_won"`
+	FaceoffsLost    int64       `json:"faceoffs_lost"`
 }
 
 func (q *Queries) ListProjectionSkaterEvaluationData(ctx context.Context, arg ListProjectionSkaterEvaluationDataParams) ([]ListProjectionSkaterEvaluationDataRow, error) {
@@ -646,6 +661,7 @@ func (q *Queries) ListProjectionSkaterEvaluationData(ctx context.Context, arg Li
 		var i ListProjectionSkaterEvaluationDataRow
 		if err := rows.Scan(
 			&i.PlayerID,
+			&i.BirthDate,
 			&i.Season,
 			&i.TeamID,
 			&i.Position,
@@ -694,6 +710,7 @@ WITH faceoff_totals AS (
 )
 SELECT
     s.player_id,
+    p.birth_date,
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     (ARRAY_AGG(s.position ORDER BY g.game_date DESC, s.game_id DESC))[1]::text AS position,
@@ -711,13 +728,14 @@ SELECT
     COALESCE(SUM(fo.faceoffs_lost), 0)::bigint AS faceoffs_lost
 FROM game_skater_stats s
 JOIN games g ON g.id = s.game_id
+JOIN players p ON p.id = s.player_id
 LEFT JOIN faceoff_totals fo ON fo.game_id = s.game_id AND fo.player_id = s.player_id
 WHERE g.game_type = 'regular_season'
   AND g.game_state IN ('FINAL', 'OFF')
   AND g.season < $1
   AND g.season >= $2
   AND g.game_date <= $3
-GROUP BY s.player_id, g.season
+GROUP BY s.player_id, p.birth_date, g.season
 ORDER BY s.player_id, g.season
 `
 
@@ -728,22 +746,23 @@ type ListProjectionSkaterHistoryParams struct {
 }
 
 type ListProjectionSkaterHistoryRow struct {
-	PlayerID        int64  `json:"player_id"`
-	Season          int32  `json:"season"`
-	TeamID          int64  `json:"team_id"`
-	Position        string `json:"position"`
-	GamesPlayed     int32  `json:"games_played"`
-	TOISeconds      int64  `json:"toi_seconds"`
-	Goals           int64  `json:"goals"`
-	Assists         int64  `json:"assists"`
-	PlusMinus       int64  `json:"plus_minus"`
-	PenaltyMinutes  int64  `json:"penalty_minutes"`
-	PowerPlayPoints int64  `json:"power_play_points"`
-	ShotsOnGoal     int64  `json:"shots_on_goal"`
-	Hits            int64  `json:"hits"`
-	BlockedShots    int64  `json:"blocked_shots"`
-	FaceoffsWon     int64  `json:"faceoffs_won"`
-	FaceoffsLost    int64  `json:"faceoffs_lost"`
+	PlayerID        int64       `json:"player_id"`
+	BirthDate       pgtype.Date `json:"birth_date"`
+	Season          int32       `json:"season"`
+	TeamID          int64       `json:"team_id"`
+	Position        string      `json:"position"`
+	GamesPlayed     int32       `json:"games_played"`
+	TOISeconds      int64       `json:"toi_seconds"`
+	Goals           int64       `json:"goals"`
+	Assists         int64       `json:"assists"`
+	PlusMinus       int64       `json:"plus_minus"`
+	PenaltyMinutes  int64       `json:"penalty_minutes"`
+	PowerPlayPoints int64       `json:"power_play_points"`
+	ShotsOnGoal     int64       `json:"shots_on_goal"`
+	Hits            int64       `json:"hits"`
+	BlockedShots    int64       `json:"blocked_shots"`
+	FaceoffsWon     int64       `json:"faceoffs_won"`
+	FaceoffsLost    int64       `json:"faceoffs_lost"`
 }
 
 func (q *Queries) ListProjectionSkaterHistory(ctx context.Context, arg ListProjectionSkaterHistoryParams) ([]ListProjectionSkaterHistoryRow, error) {
@@ -757,6 +776,7 @@ func (q *Queries) ListProjectionSkaterHistory(ctx context.Context, arg ListProje
 		var i ListProjectionSkaterHistoryRow
 		if err := rows.Scan(
 			&i.PlayerID,
+			&i.BirthDate,
 			&i.Season,
 			&i.TeamID,
 			&i.Position,

@@ -2,6 +2,7 @@ package projection
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -39,6 +40,17 @@ func snapshotFromRows(row sqlcdb.ProjectionSnapshot, players []sqlcdb.Projection
 		MinimumUncertainty: row.MinimumUncertainty, MaximumUncertainty: row.MaximumUncertainty,
 		MinimumHistoryGames:        int(row.MinimumHistoryGames),
 		LinemateRegressionStrength: row.LinemateRegressionStrength,
+	}
+	if len(row.AgingCurve) > 0 {
+		if err := json.Unmarshal(row.AgingCurve, &cfg.AgingCurve); err != nil {
+			return Snapshot{}, fmt.Errorf("decode projection aging curve: %w", err)
+		}
+	}
+	if supportsAgingCurve(cfg.ModelVersion) && cfg.AgingCurve == nil {
+		return Snapshot{}, fmt.Errorf("projection snapshot is missing its aging curve")
+	}
+	if err := cfg.Validate(); err != nil {
+		return Snapshot{}, fmt.Errorf("invalid projection snapshot config: %w", err)
 	}
 	if configHash(cfg) != row.ConfigHash {
 		return Snapshot{}, fmt.Errorf("projection snapshot config no longer matches its stored hash")

@@ -6,7 +6,7 @@ can be scored differently for each Yahoo league without changing its inputs.
 
 ## Model
 
-The `nhl-baseline-v3` model uses completed NHL regular-season games from the
+The `nhl-baseline-v4` model uses completed NHL regular-season games from the
 three seasons before the target season. Live, postponed, preseason and playoff
 games, and games from the target season or later, are excluded from model inputs.
 Each season is weighted by `season_decay ^ age`, where the immediately prior
@@ -27,7 +27,34 @@ and position are retained as context. TOI and power-play production represent
 observed role; the baseline does not guess at unobserved offseason role or team
 changes.
 
-Version 3 neutralizes historical even-strength linemate context. Shift
+### Age curves
+
+Version `delta-v1` learns age steps from completed regular seasons starting in
+2005-06 and ending before the target season. Age is measured on January 1 of
+the season-ending year. Each player-season is aggregated before the model pairs
+consecutive seasons. For every position group (C, W, D, G) and aged count statistic,
+the step is the mean change in per-60 rate weighted by the harmonic mean of
+the two seasons' time on ice. LW, RW, and the generic F position belong to W.
+Seasons without a birth date or positive time on ice do not enter the fit.
+Faceoffs remain position-specific projections from `nhl-baseline-v2`, but are
+not age-adjusted because `delta-v1` was not fitted or evaluated for them.
+
+The model adds the learned steps from the player's age in their most recent
+history season through their target-season age to the baseline counting rate.
+An age with no observed pair has a zero step. Games, starts, and time on ice
+remain workload forecasts. Skater points come from aged goals plus assists;
+goalie save percentage and goals-against average come from the aged components.
+The complete ordered steps, pair counts, training window, age convention, and
+curve version are stored in the projection config and included in its hash.
+The source-data hash also covers the training seasons and birth dates. The
+combined `nhl-baseline-v4` retains `nhl-baseline-v3` linemate adjustment and
+adds age curves; existing v3 snapshots remain unchanged. `nhl-baseline-v1` and
+`nhl-baseline-v2` snapshots also retain their original config and source-data
+hash formats and can still be loaded.
+
+### Historical linemate context
+
+Version 3 and version 4 neutralize historical even-strength linemate context. Shift
 boundaries form half-open on-ice segments. A segment counts only when both
 teams have the same number of active skaters, from three through five; goalies,
 power plays, penalty kills, empty-net advantages and line-change 6v6 artifacts
@@ -38,7 +65,9 @@ assists toward average context; points remain their sum, power-play production
 is preserved, and no other statistic changes. The correction is
 reliability-weighted against four times the skater TOI prior, so sparse shift
 coverage stays close to neutral. This is strictly a correction for past
-context and makes no assumption about the target season's lines.
+context and makes no assumption about the target season's lines. In version 4,
+this correction is applied before the delta-method age adjustment; points are
+recomputed from the adjusted goals and assists.
 
 The default parameters are:
 
@@ -64,12 +93,68 @@ than claims of a final calibrated model.
 
 ## Historical evaluation
 
-The evaluation used production game-level regular-season aggregates available
-on 2026-09-20. For each target season, the model received only earlier seasons;
-the target season supplied outcomes. Both models were scored on players with a
-target-season row and a previous-season row. Each cell is `model MAE / previous
-season MAE`. Stored evaluations include the configuration hash, source-data
-hash, projection cutoff, and observation time.
+### Delta-v1 age-curve backtest
+
+The `delta-v1` age curve was tested by projecting 2025-26 from the three
+preceding seasons. Curve fitting used 2005-06 through 2024-25 only; the
+2025-26 season was held out for outcomes. The run used NHL public
+regular-season aggregate reports retrieved on 2026-09-26, which do not contain
+the shift-derived linemate inputs. The no-aging skater MAEs closely track the
+earlier production-derived results below, and several match at the displayed
+precision; small differences reflect the distinct aggregate source and
+retrieval date. Both variants were scored on exactly the same players. Delta
+is aged MAE minus no-aging MAE, so a negative value is an improvement.
+
+| Skater statistic | n | No aging MAE | Aged MAE | Delta |
+| --- | ---: | ---: | ---: | ---: |
+| Games played | 791 | 16.041 | 16.041 | 0.000 |
+| TOI seconds | 791 | 16,680.983 | 16,680.983 | 0.000 |
+| Goals | 791 | 4.234 | 4.162 | -0.072 |
+| Assists | 791 | 6.412 | 6.297 | -0.115 |
+| Points | 791 | 9.625 | 9.374 | -0.251 |
+| Plus/minus | 791 | 9.191 | 9.096 | -0.095 |
+| Penalty minutes | 791 | 12.044 | 12.086 | +0.042 |
+| Power-play points | 791 | 2.772 | 2.662 | -0.110 |
+| Shots on goal | 791 | 29.843 | 28.953 | -0.890 |
+| Hits | 791 | 26.229 | 26.708 | +0.480 |
+| Blocked shots | 791 | 15.804 | 16.182 | +0.379 |
+
+| Goalie statistic | n | No aging MAE | Aged MAE | Delta |
+| --- | ---: | ---: | ---: | ---: |
+| Games played | 83 | 10.738 | 10.738 | 0.000 |
+| Games started | 83 | 10.572 | 10.572 | 0.000 |
+| TOI seconds | 83 | 37,481.273 | 37,481.273 | 0.000 |
+| Wins | 83 | 6.325 | 6.299 | -0.026 |
+| Shutouts | 83 | 1.234 | 1.194 | -0.039 |
+| Shots against | 83 | 304.874 | 304.165 | -0.709 |
+| Saves | 83 | 278.681 | 276.980 | -1.701 |
+| Goals against | 83 | 29.434 | 29.692 | +0.258 |
+| Save percentage | 83 | 0.0188 | 0.0178 | -0.0010 |
+| Goals-against average | 83 | 0.4653 | 0.4653 | 0.0000 |
+
+The curve improves six of the nine aged skater categories; penalty minutes,
+hits, and blocked shots regress. Goalie wins, shutouts, shots against, saves,
+and save percentage improve, while goals-against MAE worsens. Workload MAEs
+are identical because games, starts, and TOI are intentionally not aged.
+The same comparison can be rerun through the production SQL loaders against a
+populated test database. That test compares `nhl-baseline-v4` with the
+published linemate-only `nhl-baseline-v3`, isolating the age-curve effect while
+retaining identical historical linemate context:
+
+```bash
+PUCKDB_TEST_PG_URL='postgres://...' \
+  go test -tags=integration ./internal/projection -run TestAgingBacktest20252026 -v
+```
+
+### Baseline-v1 evaluation
+
+The table below evaluates `nhl-baseline-v1` using production game-level
+regular-season aggregates available on 2026-09-20. For each target season, the
+model received only earlier seasons; the target season supplied outcomes. Both
+models were scored on players with a target-season row and a previous-season
+row. Each cell is `model MAE / previous season MAE`. Stored evaluations include
+the configuration hash, source-data hash, projection cutoff, and observation
+time.
 
 This table records the version 1 external evaluation. Its production-derived
 source rows are not committed, so the exact numbers cannot be reproduced from
@@ -118,11 +203,12 @@ rankings are used for the draft helper.
 
 ## Snapshots and coverage
 
-Migration `000004` stores immutable snapshot identity, a source-data hash, and
-model parameters in typed columns. Player metadata is separate from normalized
-stat rows, where each value stores its mean and interval. Exact rebuilds replace
-their player rows atomically, which makes retrying a workflow safe; a historical
-backfill produces a distinct source hash and snapshot.
+Migrations `000004` and `000012` store immutable snapshot identity, a
+source-data hash, model parameters, and linemate context in typed columns;
+`000013` adds the persisted v4 aging curve. Player metadata is separate from
+normalized stat rows, where each value stores its mean and interval. Exact
+rebuilds replace their player rows atomically, which makes retrying a workflow
+safe; a historical backfill produces a distinct source hash and snapshot.
 
 Internal projections use `nhl:<player_id>` keys. Imported or manual overrides
 can add rookies and unresolved players that have no NHL history. These rows

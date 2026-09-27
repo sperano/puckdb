@@ -2,6 +2,7 @@ package projection
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"time"
@@ -75,7 +76,7 @@ func (r *Repository) loadInput(
 	pool []PoolPlayer,
 	overrides []Override,
 ) (Input, error) {
-	lowerSeason := historyFloorSeason(targetSeason, cfg.LookbackSeasons)
+	lowerSeason := projectionLoadFloor(cfg, targetSeason)
 	cutoff := dateValue(asOf)
 	skaters, err := r.queries.ListProjectionSkaterHistory(ctx, sqlcdb.ListProjectionSkaterHistoryParams{
 		Season: int32(targetSeason), Season_2: int32(lowerSeason), GameDate: cutoff,
@@ -86,7 +87,8 @@ func (r *Repository) loadInput(
 	var linemates []sqlcdb.ListProjectionSkaterLinemateContextRow
 	if supportsLinemateContext(cfg.ModelVersion) {
 		linemates, err = r.queries.ListProjectionSkaterLinemateContext(ctx, sqlcdb.ListProjectionSkaterLinemateContextParams{
-			MinSeason: int32(lowerSeason), MaxSeason: int32(historyFloorSeason(targetSeason, 1)), GameDate: cutoff,
+			MinSeason: int32(historyFloorSeason(targetSeason, cfg.LookbackSeasons)),
+			MaxSeason: int32(historyFloorSeason(targetSeason, 1)), GameDate: cutoff,
 		})
 		if err != nil {
 			return Input{}, fmt.Errorf("load skater linemate context: %w", err)
@@ -122,7 +124,7 @@ func (r *Repository) LoadEvaluationInput(
 	if err := validateEvaluationWindow(projectionAsOf, observedAt, season); err != nil {
 		return Input{}, err
 	}
-	lowerSeason := historyFloorSeason(targetSeason, cfg.LookbackSeasons)
+	lowerSeason := projectionLoadFloor(cfg, targetSeason)
 	skaters, err := r.queries.ListProjectionSkaterEvaluationData(
 		ctx,
 		sqlcdb.ListProjectionSkaterEvaluationDataParams{
@@ -137,7 +139,8 @@ func (r *Repository) LoadEvaluationInput(
 		linemates, err = r.queries.ListProjectionSkaterLinemateContext(
 			ctx,
 			sqlcdb.ListProjectionSkaterLinemateContextParams{
-				MinSeason: int32(lowerSeason), MaxSeason: int32(targetSeason), GameDate: dateValue(observedAt),
+				MinSeason: int32(historyFloorSeason(targetSeason, cfg.LookbackSeasons)),
+				MaxSeason: int32(targetSeason), GameDate: dateValue(observedAt),
 			},
 		)
 		if err != nil {
@@ -188,7 +191,7 @@ func evaluationInput(
 	}
 	for _, row := range skaters {
 		input.Skaters = append(input.Skaters, SkaterSeason{
-			PlayerID: row.PlayerID, TeamID: row.TeamID, Season: int(row.Season), Position: string(row.Position),
+			PlayerID: row.PlayerID, BirthDate: optionalDate(row.BirthDate), TeamID: row.TeamID, Season: int(row.Season), Position: string(row.Position),
 			GamesPlayed: int(row.GamesPlayed), TOISeconds: int(row.TOISeconds),
 			Goals: int(row.Goals), Assists: int(row.Assists), PlusMinus: int(row.PlusMinus),
 			PenaltyMinutes: int(row.PenaltyMinutes), PowerPlayPoints: int(row.PowerPlayPoints),
@@ -199,7 +202,7 @@ func evaluationInput(
 	applyLinemateContext(input.Skaters, linemates)
 	for _, row := range goalies {
 		input.Goalies = append(input.Goalies, GoalieSeason{
-			PlayerID: row.PlayerID, TeamID: row.TeamID, Season: int(row.Season), GamesPlayed: int(row.GamesPlayed),
+			PlayerID: row.PlayerID, BirthDate: optionalDate(row.BirthDate), TeamID: row.TeamID, Season: int(row.Season), GamesPlayed: int(row.GamesPlayed),
 			GamesStarted: int(row.GamesStarted), TOISeconds: int(row.TOISeconds),
 			Wins: int(row.Wins), Shutouts: int(row.Shutouts), ShotsAgainst: int(row.ShotsAgainst),
 			Saves: int(row.Saves), GoalsAgainst: int(row.GoalsAgainst),
@@ -297,7 +300,7 @@ func aggregateLinemateRows(
 
 func skaterSeasonFromRow(row sqlcdb.ListProjectionSkaterHistoryRow) SkaterSeason {
 	return SkaterSeason{
-		PlayerID: row.PlayerID, TeamID: row.TeamID, Season: int(row.Season), Position: string(row.Position),
+		PlayerID: row.PlayerID, BirthDate: optionalDate(row.BirthDate), TeamID: row.TeamID, Season: int(row.Season), Position: string(row.Position),
 		GamesPlayed: int(row.GamesPlayed), TOISeconds: int(row.TOISeconds),
 		Goals: int(row.Goals), Assists: int(row.Assists), PlusMinus: int(row.PlusMinus),
 		PenaltyMinutes: int(row.PenaltyMinutes), PowerPlayPoints: int(row.PowerPlayPoints),
@@ -308,7 +311,7 @@ func skaterSeasonFromRow(row sqlcdb.ListProjectionSkaterHistoryRow) SkaterSeason
 
 func goalieSeasonFromRow(row sqlcdb.ListProjectionGoalieHistoryRow) GoalieSeason {
 	return GoalieSeason{
-		PlayerID: row.PlayerID, TeamID: row.TeamID, Season: int(row.Season), GamesPlayed: int(row.GamesPlayed),
+		PlayerID: row.PlayerID, BirthDate: optionalDate(row.BirthDate), TeamID: row.TeamID, Season: int(row.Season), GamesPlayed: int(row.GamesPlayed),
 		GamesStarted: int(row.GamesStarted), TOISeconds: int(row.TOISeconds),
 		Wins: int(row.Wins), Shutouts: int(row.Shutouts), ShotsAgainst: int(row.ShotsAgainst),
 		Saves: int(row.Saves), GoalsAgainst: int(row.GoalsAgainst),
@@ -414,6 +417,14 @@ func storePlayers(
 
 func snapshotParams(snapshot Snapshot) sqlcdb.CreateProjectionSnapshotParams {
 	cfg := snapshot.Config
+	var agingCurve []byte
+	if cfg.AgingCurve != nil {
+		var err error
+		agingCurve, err = json.Marshal(cfg.AgingCurve)
+		if err != nil {
+			panic(fmt.Sprintf("marshal aging curve: %v", err))
+		}
+	}
 	return sqlcdb.CreateProjectionSnapshotParams{
 		TargetSeason: int32(snapshot.TargetSeason), AsOf: timestampValue(snapshot.AsOf),
 		SourceMaxGameDate: dateValue(snapshot.SourceMaxGameDate), ModelVersion: cfg.ModelVersion,
@@ -425,7 +436,23 @@ func snapshotParams(snapshot Snapshot) sqlcdb.CreateProjectionSnapshotParams {
 		MinimumUncertainty:  cfg.MinimumUncertainty, MaximumUncertainty: cfg.MaximumUncertainty,
 		MinimumHistoryGames:        int32(cfg.MinimumHistoryGames),
 		LinemateRegressionStrength: cfg.LinemateRegressionStrength,
+		AgingCurve:                 agingCurve,
 	}
+}
+
+func projectionLoadFloor(cfg Config, targetSeason int) int {
+	floor := historyFloorSeason(targetSeason, cfg.LookbackSeasons)
+	if supportsAgingCurve(cfg.ModelVersion) && AgingTrainingFloorSeason < floor {
+		return AgingTrainingFloorSeason
+	}
+	return floor
+}
+
+func optionalDate(value pgtype.Date) time.Time {
+	if value.Valid {
+		return value.Time.UTC()
+	}
+	return time.Time{}
 }
 
 func playerParams(snapshotID pgtype.UUID, player PlayerProjection) sqlcdb.CreateProjectionPlayerParams {

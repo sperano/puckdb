@@ -6,9 +6,13 @@ import (
 )
 
 const (
-	LegacyModelVersion  = "nhl-baseline-v1"
-	FaceoffModelVersion = "nhl-baseline-v2"
-	ModelVersion        = "nhl-baseline-v3"
+	LegacyModelVersion       = "nhl-baseline-v1"
+	FaceoffModelVersion      = "nhl-baseline-v2"
+	LinemateModelVersion     = "nhl-baseline-v3"
+	ModelVersion             = "nhl-baseline-v4"
+	AgingCurveVersion        = "delta-v1"
+	AgingTrainingFloorSeason = 20052006
+	AgingAgeReference        = "jan-1-season-ending-year"
 
 	DefaultLookbackSeasons            = 3
 	DefaultSeasonDecay                = 0.40
@@ -38,6 +42,7 @@ type Config struct {
 	MinimumUncertainty         float64
 	MaximumUncertainty         float64
 	MinimumHistoryGames        int
+	AgingCurve                 *AgingCurve `json:",omitempty"`
 }
 
 func DefaultConfig() Config {
@@ -92,6 +97,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("legacy model does not support linemate regression")
 	case c.ModelVersion == FaceoffModelVersion && c.LinemateRegressionStrength != 0:
 		return fmt.Errorf("model %q does not support linemate regression", c.ModelVersion)
+	case c.ModelVersion != ModelVersion && c.AgingCurve != nil:
+		return fmt.Errorf("model %q does not support aging curves", c.ModelVersion)
 	case c.GoaliePriorShots < 0:
 		return fmt.Errorf("goalie prior shots must not be negative")
 	case c.GoalieShutoutMinTOI <= 0:
@@ -107,6 +114,9 @@ func (c Config) Validate() error {
 	case c.MinimumHistoryGames < 0:
 		return fmt.Errorf("minimum history games must not be negative")
 	}
+	if c.AgingCurve != nil {
+		return validateAgingCurve(c.AgingCurve)
+	}
 	return nil
 }
 
@@ -115,7 +125,11 @@ func supportsFaceoffs(modelVersion string) bool {
 }
 
 func supportsLinemateContext(modelVersion string) bool {
-	return modelVersion != LegacyModelVersion && modelVersion != FaceoffModelVersion
+	return modelVersion == LinemateModelVersion || modelVersion == ModelVersion
+}
+
+func supportsAgingCurve(modelVersion string) bool {
+	return modelVersion == ModelVersion
 }
 
 func finite(value float64) bool {

@@ -1,6 +1,9 @@
 package projection
 
-import "math"
+import (
+	"math"
+	"time"
+)
 
 // Position codes used both for the player's own position and for grouping
 // peers. Faceoffs are grouped more narrowly than other stats: see
@@ -39,15 +42,17 @@ type linemateTotals struct {
 }
 
 type skaterHistory struct {
-	teamID       int64
-	position     string
-	contextAge   int
-	contextGames int
-	seasons      map[int]struct{}
-	games        int
-	weight       float64
-	totals       skaterTotals
-	linemates    map[string]linemateTotals
+	teamID        int64
+	position      string
+	contextAge    int
+	contextGames  int
+	contextSeason int
+	birthDate     time.Time
+	seasons       map[int]struct{}
+	games         int
+	weight        float64
+	totals        skaterTotals
+	linemates     map[string]linemateTotals
 }
 
 func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerProjection {
@@ -99,7 +104,7 @@ func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerP
 	result := make([]PlayerProjection, 0, len(history))
 	for playerID, player := range history {
 		result = append(result, buildSkaterProjection(
-			cfg, playerID, *player,
+			cfg, targetSeason, playerID, *player,
 			peers[positionGroup(player.position)],
 			faceoffPeers[faceoffPositionGroup(player.position)],
 			leagueLinemates,
@@ -130,6 +135,8 @@ func updateSkaterContext(history *skaterHistory, row SkaterSeason, age int) {
 	history.position = row.Position
 	history.contextAge = age
 	history.contextGames = row.GamesPlayed
+	history.contextSeason = row.Season
+	history.birthDate = row.BirthDate
 }
 
 func addSkaterSeason(total *skaterTotals, row SkaterSeason, weight float64) {
@@ -149,6 +156,7 @@ func addSkaterSeason(total *skaterTotals, row SkaterSeason, weight float64) {
 
 func buildSkaterProjection(
 	cfg Config,
+	targetSeason int,
 	playerID int64,
 	history skaterHistory,
 	peers skaterTotals,
@@ -184,6 +192,9 @@ func buildSkaterProjection(
 	var linemateContext *LinemateContext
 	if supportsLinemateContext(cfg.ModelVersion) {
 		linemateContext = adjustForLinemates(values, history.linemates, leagueLinemates, cfg)
+	}
+	if supportsAgingCurve(cfg.ModelVersion) {
+		ageSkaterValues(cfg.AgingCurve, history, targetSeason, values, expectedTOI, fraction)
 	}
 	values[StatPoints] = sumEstimates(values[StatGoals], values[StatAssists])
 
@@ -262,6 +273,22 @@ func adjustedScoringComponent(value, total, powerPlay, factor float64) float64 {
 	}
 	adjustedTotal := powerPlay + math.Max(total-powerPlay, 0)*factor
 	return value * adjustedTotal / total
+}
+
+func ageSkaterValues(curve *AgingCurve, history skaterHistory, targetSeason int, values map[Stat]Estimate, toi, fraction float64) {
+	from := ageAtSeason(history.birthDate, history.contextSeason)
+	to := ageAtSeason(history.birthDate, targetSeason)
+	group := agingSkaterGroup(history.position)
+	for _, stat := range skaterAgingStats {
+		if stat == StatPoints {
+			continue
+		}
+		delta := agingDelta(curve, group, stat, from, to)
+		if delta == 0 {
+			continue
+		}
+		values[stat] = ageEstimate(values[stat], delta, toi, fraction, stat != StatPlusMinus)
+	}
 }
 
 func skaterProjection(

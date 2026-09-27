@@ -1,6 +1,9 @@
 package projection
 
-import "math"
+import (
+	"math"
+	"time"
+)
 
 const typicalGoalieShotsPerGame = 30
 
@@ -16,13 +19,15 @@ type goalieTotals struct {
 }
 
 type goalieHistory struct {
-	teamID       int64
-	contextAge   int
-	contextGames int
-	seasons      map[int]struct{}
-	games        int
-	weight       float64
-	totals       goalieTotals
+	teamID        int64
+	contextAge    int
+	contextGames  int
+	contextSeason int
+	birthDate     time.Time
+	seasons       map[int]struct{}
+	games         int
+	weight        float64
+	totals        goalieTotals
 }
 
 type goalieWorkload struct {
@@ -58,7 +63,7 @@ func projectGoalies(cfg Config, targetSeason int, rows []GoalieSeason) []PlayerP
 
 	result := make([]PlayerProjection, 0, len(history))
 	for playerID, player := range history {
-		result = append(result, buildGoalieProjection(cfg, playerID, *player, peers))
+		result = append(result, buildGoalieProjection(cfg, targetSeason, playerID, *player, peers))
 	}
 	return result
 }
@@ -73,6 +78,8 @@ func updateGoalieContext(history *goalieHistory, row GoalieSeason, age int) {
 	history.teamID = row.TeamID
 	history.contextAge = age
 	history.contextGames = row.GamesPlayed
+	history.contextSeason = row.Season
+	history.birthDate = row.BirthDate
 }
 
 func addGoalieSeason(total *goalieTotals, row GoalieSeason, weight float64) {
@@ -86,11 +93,12 @@ func addGoalieSeason(total *goalieTotals, row GoalieSeason, weight float64) {
 	total.goalsAgainst += weight * float64(row.GoalsAgainst)
 }
 
-func buildGoalieProjection(cfg Config, playerID int64, history goalieHistory, peers goalieTotals) PlayerProjection {
+func buildGoalieProjection(cfg Config, targetSeason int, playerID int64, history goalieHistory, peers goalieTotals) PlayerProjection {
 	priorGames := cfg.GoaliePriorShots / typicalGoalieShotsPerGame
 	fraction := uncertainty(cfg, history.totals.shotsAgainst/typicalGoalieShotsPerGame+priorGames)
 	workload := projectGoalieWorkload(cfg, history, peers, priorGames)
 	values := projectGoalieValues(cfg, history, peers, workload, priorGames, fraction)
+	ageGoalieValues(cfg.AgingCurve, history, targetSeason, values, fraction)
 	return PlayerProjection{
 		PlayerKey:           playerKey(playerID),
 		PlayerID:            playerIDPointer(playerID),
@@ -105,6 +113,38 @@ func buildGoalieProjection(cfg Config, playerID int64, history goalieHistory, pe
 		InsufficientHistory: history.games < cfg.MinimumHistoryGames,
 		Values:              values,
 	}
+}
+
+func ageGoalieValues(curve *AgingCurve, history goalieHistory, targetSeason int, values map[Stat]Estimate, fraction float64) {
+	from := ageAtSeason(history.birthDate, history.contextSeason)
+	to := ageAtSeason(history.birthDate, targetSeason)
+	if curve == nil || from < 0 || to <= from {
+		return
+	}
+	toi := values[StatTOISeconds].Mean
+	changed := false
+	// Shots and saves are the independent shot components. Goals against is
+	// derived below; its fitted curve remains an auditable identity because
+	// shots against = saves + goals against for every source row.
+	for _, stat := range goalieAppliedAgingStats {
+		delta := agingDelta(curve, agingGroupGoalie, stat, from, to)
+		if delta == 0 {
+			continue
+		}
+		changed = true
+		values[stat] = ageEstimate(values[stat], delta, toi, fraction, true)
+	}
+	if !changed {
+		return
+	}
+	shots := values[StatShotsAgainst].Mean
+	saves := clamp(values[StatSaves].Mean, 0, shots)
+	values[StatSaves] = estimate(saves, fraction, true)
+	values[StatGoalsAgainst] = estimate(shots-saves, fraction, true)
+	values[StatWins] = capEstimate(values[StatWins], values[StatGamesStarted].High)
+	values[StatShutouts] = capEstimate(values[StatShutouts], values[StatGamesStarted].High)
+	values[StatSavePercentage] = ratioEstimate(values[StatSaves], values[StatShotsAgainst], 1, 1)
+	values[StatGoalsAgainstAvg] = ratioEstimate(values[StatGoalsAgainst], values[StatTOISeconds], secondsPerHour, 0)
 }
 
 func projectGoalieWorkload(cfg Config, history goalieHistory, peers goalieTotals, priorGames float64) goalieWorkload {

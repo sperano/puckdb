@@ -37,38 +37,33 @@ func configHash(cfg Config) string {
 }
 
 func sourceDataHash(cfg Config, input Input) string {
+	lowerSeason := historyFloorSeason(input.TargetSeason, cfg.LookbackSeasons)
+	if supportsAgingCurve(cfg.ModelVersion) {
+		lowerSeason = projectionLoadFloor(cfg, input.TargetSeason)
+	}
 	input.Skaters = slices.DeleteFunc(slices.Clone(input.Skaters), func(row SkaterSeason) bool {
-		age, ok := seasonAge(input.TargetSeason, row.Season)
-		return !ok || age >= cfg.LookbackSeasons || row.GamesPlayed <= 0
+		return row.Season < lowerSeason || row.Season >= input.TargetSeason ||
+			!supportsAgingCurve(cfg.ModelVersion) && row.GamesPlayed <= 0
 	})
 	input.Goalies = slices.DeleteFunc(slices.Clone(input.Goalies), func(row GoalieSeason) bool {
-		age, ok := seasonAge(input.TargetSeason, row.Season)
-		return !ok || age >= cfg.LookbackSeasons || row.GamesPlayed <= 0
+		return row.Season < lowerSeason || row.Season >= input.TargetSeason ||
+			!supportsAgingCurve(cfg.ModelVersion) && row.GamesPlayed <= 0
 	})
-	switch cfg.ModelVersion {
-	case LegacyModelVersion:
-		return legacyInputDataHash(input)
-	case FaceoffModelVersion:
-		return faceoffInputDataHash(input)
-	}
-	return inputDataHash(input)
+	return inputDataHash(input, cfg.ModelVersion)
 }
 
 func evaluationDataHash(cfg Config, input Input) string {
 	lowerSeason := historyFloorSeason(input.TargetSeason, cfg.LookbackSeasons)
+	if supportsAgingCurve(cfg.ModelVersion) {
+		lowerSeason = projectionLoadFloor(cfg, input.TargetSeason)
+	}
 	input.Skaters = slices.DeleteFunc(slices.Clone(input.Skaters), func(row SkaterSeason) bool {
 		return row.Season < lowerSeason || row.Season > input.TargetSeason
 	})
 	input.Goalies = slices.DeleteFunc(slices.Clone(input.Goalies), func(row GoalieSeason) bool {
 		return row.Season < lowerSeason || row.Season > input.TargetSeason
 	})
-	switch cfg.ModelVersion {
-	case LegacyModelVersion:
-		return legacyInputDataHash(input)
-	case FaceoffModelVersion:
-		return faceoffInputDataHash(input)
-	}
-	return inputDataHash(input)
+	return inputDataHash(input, cfg.ModelVersion)
 }
 
 type legacySkaterSeason struct {
@@ -89,58 +84,97 @@ type legacySkaterSeason struct {
 }
 
 type faceoffSkaterSeason struct {
-	PlayerID        int64
-	TeamID          int64
-	Season          int
-	Position        string
-	GamesPlayed     int
-	TOISeconds      int
-	Goals           int
-	Assists         int
-	PlusMinus       int
-	PenaltyMinutes  int
-	PowerPlayPoints int
-	ShotsOnGoal     int
-	Hits            int
-	BlockedShots    int
-	FaceoffsWon     int
-	FaceoffsLost    int
+	legacySkaterSeason
+	FaceoffsWon  int
+	FaceoffsLost int
 }
 
-func legacyInputDataHash(input Input) string {
-	legacySkaters := make([]legacySkaterSeason, 0, len(input.Skaters))
-	for _, row := range input.Skaters {
-		legacySkaters = append(legacySkaters, legacySkaterSeason{
-			PlayerID: row.PlayerID, TeamID: row.TeamID, Season: row.Season, Position: row.Position,
-			GamesPlayed: row.GamesPlayed, TOISeconds: row.TOISeconds, Goals: row.Goals, Assists: row.Assists,
-			PlusMinus: row.PlusMinus, PenaltyMinutes: row.PenaltyMinutes,
-			PowerPlayPoints: row.PowerPlayPoints, ShotsOnGoal: row.ShotsOnGoal,
-			Hits: row.Hits, BlockedShots: row.BlockedShots,
-		})
+type linemateSkaterSeason struct {
+	faceoffSkaterSeason
+	LinematePointsPer60 float64
+	LinemateTOISeconds  int
+}
+
+type legacyGoalieSeason struct {
+	PlayerID     int64
+	TeamID       int64
+	Season       int
+	GamesPlayed  int
+	GamesStarted int
+	TOISeconds   int
+	Wins         int
+	Shutouts     int
+	ShotsAgainst int
+	Saves        int
+	GoalsAgainst int
+}
+
+func encodedSkaterHashRows(rows []SkaterSeason, modelVersion string) []string {
+	if modelVersion == ModelVersion {
+		return encodedValues(rows)
 	}
-	return hashInputParts(input, encodedValues(legacySkaters))
-}
-
-func faceoffInputDataHash(input Input) string {
-	faceoffSkaters := make([]faceoffSkaterSeason, 0, len(input.Skaters))
-	for _, row := range input.Skaters {
-		faceoffSkaters = append(faceoffSkaters, faceoffSkaterSeason{
-			PlayerID: row.PlayerID, TeamID: row.TeamID, Season: row.Season, Position: row.Position,
-			GamesPlayed: row.GamesPlayed, TOISeconds: row.TOISeconds, Goals: row.Goals, Assists: row.Assists,
-			PlusMinus: row.PlusMinus, PenaltyMinutes: row.PenaltyMinutes,
-			PowerPlayPoints: row.PowerPlayPoints, ShotsOnGoal: row.ShotsOnGoal,
-			Hits: row.Hits, BlockedShots: row.BlockedShots,
-			FaceoffsWon: row.FaceoffsWon, FaceoffsLost: row.FaceoffsLost,
-		})
+	if modelVersion == LinemateModelVersion {
+		linemates := make([]linemateSkaterSeason, len(rows))
+		for index, row := range rows {
+			linemates[index] = linemateSkaterSeason{
+				faceoffSkaterSeason: faceoffSkaterSeason{
+					legacySkaterSeason: legacySkaterHashRow(row),
+					FaceoffsWon:        row.FaceoffsWon,
+					FaceoffsLost:       row.FaceoffsLost,
+				},
+				LinematePointsPer60: row.LinematePointsPer60,
+				LinemateTOISeconds:  row.LinemateTOISeconds,
+			}
+		}
+		return encodedValues(linemates)
 	}
-	return hashInputParts(input, encodedValues(faceoffSkaters))
+	if modelVersion == FaceoffModelVersion {
+		faceoffs := make([]faceoffSkaterSeason, len(rows))
+		for index, row := range rows {
+			faceoffs[index] = faceoffSkaterSeason{
+				legacySkaterSeason: legacySkaterHashRow(row),
+				FaceoffsWon:        row.FaceoffsWon,
+				FaceoffsLost:       row.FaceoffsLost,
+			}
+		}
+		return encodedValues(faceoffs)
+	}
+	legacy := make([]legacySkaterSeason, len(rows))
+	for index, row := range rows {
+		legacy[index] = legacySkaterHashRow(row)
+	}
+	return encodedValues(legacy)
 }
 
-func inputDataHash(input Input) string {
-	return hashInputParts(input, encodedValues(input.Skaters))
+func legacySkaterHashRow(row SkaterSeason) legacySkaterSeason {
+	return legacySkaterSeason{
+		PlayerID: row.PlayerID, TeamID: row.TeamID, Season: row.Season, Position: row.Position,
+		GamesPlayed: row.GamesPlayed, TOISeconds: row.TOISeconds, Goals: row.Goals, Assists: row.Assists,
+		PlusMinus: row.PlusMinus, PenaltyMinutes: row.PenaltyMinutes, PowerPlayPoints: row.PowerPlayPoints,
+		ShotsOnGoal: row.ShotsOnGoal, Hits: row.Hits, BlockedShots: row.BlockedShots,
+	}
 }
 
-func hashInputParts(input Input, skaters []string) string {
+func encodedGoalieHashRows(rows []GoalieSeason, modelVersion string) []string {
+	if modelVersion == ModelVersion {
+		return encodedValues(rows)
+	}
+	legacy := make([]legacyGoalieSeason, len(rows))
+	for index, row := range rows {
+		legacy[index] = legacyGoalieSeason{
+			PlayerID: row.PlayerID, TeamID: row.TeamID, Season: row.Season, GamesPlayed: row.GamesPlayed,
+			GamesStarted: row.GamesStarted, TOISeconds: row.TOISeconds, Wins: row.Wins, Shutouts: row.Shutouts,
+			ShotsAgainst: row.ShotsAgainst, Saves: row.Saves, GoalsAgainst: row.GoalsAgainst,
+		}
+	}
+	return encodedValues(legacy)
+}
+
+func inputDataHash(input Input, modelVersion string) string {
+	return hashInputParts(input, encodedSkaterHashRows(input.Skaters, modelVersion), encodedGoalieHashRows(input.Goalies, modelVersion))
+}
+
+func hashInputParts(input Input, skaters, goalies []string) string {
 	canonical := struct {
 		TargetSeason      int
 		AsOf              time.Time
@@ -151,11 +185,8 @@ func hashInputParts(input Input, skaters []string) string {
 		Overrides         []string
 	}{
 		TargetSeason: input.TargetSeason, AsOf: input.AsOf.UTC(),
-		SourceMaxGameDate: input.SourceMaxGameDate.UTC(),
-		Skaters:           skaters,
-		Goalies:           encodedValues(input.Goalies),
-		PlayerPool:        encodedValues(input.PlayerPool),
-		Overrides:         encodedValues(input.Overrides),
+		SourceMaxGameDate: input.SourceMaxGameDate.UTC(), Skaters: skaters, Goalies: goalies,
+		PlayerPool: encodedValues(input.PlayerPool), Overrides: encodedValues(input.Overrides),
 	}
 	return hashValue(canonical)
 }

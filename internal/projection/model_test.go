@@ -324,6 +324,33 @@ func TestNeutralLinemateFactorIsIdentityWhenPowerPlayEstimateExceedsPoints(t *te
 	require.Equal(t, powerPlay, values[StatPowerPlayPoints])
 }
 
+func TestPublishedV3UsesLinemateContextButIgnoresBirthDates(t *testing.T) {
+	t.Parallel()
+	strong := skaterSeason(71, 20252026, "C", 82, 20, 30)
+	strong.BirthDate = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)
+	strong.LinematePointsPer60 = 4
+	strong.LinemateTOISeconds = strong.TOISeconds
+	average := strong
+	average.PlayerID = 72
+	average.LinematePointsPer60 = 2
+	input := Input{TargetSeason: 20262027, AsOf: time.Now(), Skaters: []SkaterSeason{strong, average}}
+	cfg := DefaultConfig()
+	cfg.ModelVersion = LinemateModelVersion
+	withBirthDates, err := Generate(cfg, input)
+	require.NoError(t, err)
+
+	withoutBirthDatesInput := input
+	withoutBirthDatesInput.Skaters = slices.Clone(input.Skaters)
+	for index := range withoutBirthDatesInput.Skaters {
+		withoutBirthDatesInput.Skaters[index].BirthDate = time.Time{}
+	}
+	withoutBirthDates, err := Generate(cfg, withoutBirthDatesInput)
+	require.NoError(t, err)
+	require.Equal(t, withoutBirthDates.SourceDataHash, withBirthDates.SourceDataHash)
+	require.Equal(t, withoutBirthDates.Players, withBirthDates.Players)
+	require.NotNil(t, withBirthDates.Players[0].LinemateContext)
+}
+
 func TestLegacyModelIgnoresLinemateContext(t *testing.T) {
 	t.Parallel()
 

@@ -51,6 +51,7 @@ type Estimate struct {
 
 type SkaterSeason struct {
 	PlayerID            int64
+	BirthDate           time.Time
 	TeamID              int64
 	Season              int
 	Position            string
@@ -81,6 +82,7 @@ type LinemateContext struct {
 
 type GoalieSeason struct {
 	PlayerID     int64
+	BirthDate    time.Time
 	TeamID       int64
 	Season       int
 	GamesPlayed  int

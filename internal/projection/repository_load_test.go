@@ -13,6 +13,7 @@ func TestSnapshotFromRowsRestoresStoredSnapshot(t *testing.T) {
 	t.Parallel()
 
 	cfg := DefaultConfig()
+	cfg.AgingCurve = fitAgingCurve(Input{TargetSeason: 20262027})
 	asOf := time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
 	row := snapshotRow(cfg, asOf)
 	players := []sqlcdb.ProjectionPlayer{
@@ -44,10 +45,37 @@ func TestSnapshotFromRowsRestoresStoredSnapshot(t *testing.T) {
 func TestSnapshotFromRowsRejectsAlteredConfig(t *testing.T) {
 	t.Parallel()
 
-	row := snapshotRow(DefaultConfig(), time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
+	cfg := DefaultConfig()
+	cfg.AgingCurve = fitAgingCurve(Input{TargetSeason: 20262027})
+	row := snapshotRow(cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
 	row.SeasonDecay = 0.9
 	_, err := snapshotFromRows(row, nil, nil)
 	require.ErrorContains(t, err, "no longer matches")
+}
+
+func TestSnapshotFromRowsRestoresPreAgingV2Snapshot(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig()
+	cfg.ModelVersion = FaceoffModelVersion
+	cfg.LinemateRegressionStrength = 0
+	row := snapshotRow(cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
+
+	snapshot, err := snapshotFromRows(row, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, cfg, snapshot.Config)
+}
+
+func TestSnapshotFromRowsRestoresPublishedV3LinemateSnapshot(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig()
+	cfg.ModelVersion = LinemateModelVersion
+	row := snapshotRow(cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
+
+	snapshot, err := snapshotFromRows(row, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, cfg, snapshot.Config)
 }
 
 func snapshotRow(cfg Config, asOf time.Time) sqlcdb.ProjectionSnapshot {
@@ -60,5 +88,6 @@ func snapshotRow(cfg Config, asOf time.Time) sqlcdb.ProjectionSnapshot {
 		MaxGames: params.MaxGames, IntervalZ: params.IntervalZ, MinimumUncertainty: params.MinimumUncertainty,
 		MaximumUncertainty: params.MaximumUncertainty, MinimumHistoryGames: params.MinimumHistoryGames,
 		LinemateRegressionStrength: params.LinemateRegressionStrength,
+		AgingCurve:                 params.AgingCurve,
 	}
 }

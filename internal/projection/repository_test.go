@@ -38,6 +38,30 @@ func TestConfigHashPreservesFaceoffSnapshotIdentity(t *testing.T) {
 	require.Equal(t, "bdddb53fe417d350d27bc40bd6aba04188b752e5a5c74c1ae021bafab4567870", configHash(cfg))
 }
 
+func TestPublishedV3ConfigHashRetainsLinemateParameters(t *testing.T) {
+	t.Parallel()
+	cfg := DefaultConfig()
+	cfg.ModelVersion = LinemateModelVersion
+	historical := struct {
+		ModelVersion               string
+		LookbackSeasons            int
+		SeasonDecay                float64
+		SkaterPriorTOISeconds      float64
+		LinemateRegressionStrength float64
+		GoaliePriorShots           float64
+		GoalieShutoutMinTOI        int
+		MaxGames                   float64
+		IntervalZ                  float64
+		MinimumUncertainty         float64
+		MaximumUncertainty         float64
+		MinimumHistoryGames        int
+	}{cfg.ModelVersion, cfg.LookbackSeasons, cfg.SeasonDecay, cfg.SkaterPriorTOISeconds,
+		cfg.LinemateRegressionStrength, cfg.GoaliePriorShots, cfg.GoalieShutoutMinTOI,
+		cfg.MaxGames, cfg.IntervalZ, cfg.MinimumUncertainty, cfg.MaximumUncertainty,
+		cfg.MinimumHistoryGames}
+	require.Equal(t, hashValue(historical), configHash(cfg))
+}
+
 func TestHistoryFloorSeason(t *testing.T) {
 	t.Parallel()
 
@@ -140,6 +164,115 @@ func TestSourceHashIgnoresRowsOutsideModelWindow(t *testing.T) {
 		PlayerID: 1, Season: 20262027, GamesPlayed: 82, TOISeconds: 82, Goals: 100,
 	})
 	require.Equal(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
+}
+
+func TestSourceHashIncludesAgingTrainingRowsOnlyForV4(t *testing.T) {
+	t.Parallel()
+	first := Input{TargetSeason: 20262027, Skaters: []SkaterSeason{
+		{PlayerID: 1, Season: 20252026, GamesPlayed: 10, TOISeconds: 10},
+	}}
+	second := first
+	second.Skaters = append(slices.Clone(first.Skaters), SkaterSeason{
+		PlayerID: 1, Season: 20102011, GamesPlayed: 10, TOISeconds: 10,
+	})
+	require.NotEqual(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
+	legacy := DefaultConfig()
+	legacy.ModelVersion = LegacyModelVersion
+	require.Equal(t, sourceDataHash(legacy, first), sourceDataHash(legacy, second))
+}
+
+func TestSourceHashIncludesZeroGameAgingRows(t *testing.T) {
+	t.Parallel()
+	first := Input{TargetSeason: 20262027}
+	second := Input{TargetSeason: 20262027, Skaters: []SkaterSeason{{
+		PlayerID: 1, BirthDate: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
+		Season: 20202021, TOISeconds: 100,
+	}}}
+	require.NotEqual(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
+}
+
+func TestPreAgingInputHashesKeepVersionedSerialization(t *testing.T) {
+	t.Parallel()
+	input := Input{
+		TargetSeason: 20262027,
+		Skaters: []SkaterSeason{{
+			PlayerID: 1, BirthDate: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
+			TeamID: 2, Season: 20252026, Position: "C", GamesPlayed: 3, TOISeconds: 4,
+			Goals: 5, Assists: 6, PlusMinus: 7, PenaltyMinutes: 8, PowerPlayPoints: 9,
+			ShotsOnGoal: 10, Hits: 11, BlockedShots: 12,
+		}},
+		Goalies: []GoalieSeason{{
+			PlayerID: 13, BirthDate: time.Date(1990, time.January, 1, 0, 0, 0, 0, time.UTC),
+			TeamID: 14, Season: 20252026, GamesPlayed: 15, GamesStarted: 16,
+			TOISeconds: 17, Wins: 18, Shutouts: 19, ShotsAgainst: 20, Saves: 21, GoalsAgainst: 22,
+		}},
+	}
+	const legacyHash = "b658f9737d99e86f1fc3256e27c95ec3e2a1a5633fd605fefc83980feae00310"
+	const faceoffHash = "c9011420d645e7fc6cdbae1c9456dfb9ff9331c7943af1d04078640523321bf6"
+	require.Equal(t, legacyHash, inputDataHash(input, LegacyModelVersion))
+	require.Equal(t, faceoffHash, inputDataHash(input, FaceoffModelVersion))
+	require.NotEqual(t, legacyHash, inputDataHash(input, ModelVersion))
+}
+
+func TestFaceoffModelHashIncludesFaceoffsAndOmitsBirthDates(t *testing.T) {
+	t.Parallel()
+	first := Input{TargetSeason: 20262027, Skaters: []SkaterSeason{{
+		PlayerID: 1, BirthDate: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
+		Season: 20252026, GamesPlayed: 10, TOISeconds: 10, FaceoffsWon: 5,
+	}}}
+	changedBirthDate := first
+	changedBirthDate.Skaters = slices.Clone(first.Skaters)
+	changedBirthDate.Skaters[0].BirthDate = time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)
+	changedFaceoffs := first
+	changedFaceoffs.Skaters = slices.Clone(first.Skaters)
+	changedFaceoffs.Skaters[0].FaceoffsWon++
+
+	require.Equal(t, inputDataHash(first, FaceoffModelVersion), inputDataHash(changedBirthDate, FaceoffModelVersion))
+	require.NotEqual(t, inputDataHash(first, FaceoffModelVersion), inputDataHash(changedFaceoffs, FaceoffModelVersion))
+}
+
+func TestPublishedV3HashIncludesLinemateContextAndOmitsBirthDates(t *testing.T) {
+	t.Parallel()
+	type publishedV3Skater struct {
+		PlayerID            int64
+		TeamID              int64
+		Season              int
+		Position            string
+		GamesPlayed         int
+		TOISeconds          int
+		Goals               int
+		Assists             int
+		PlusMinus           int
+		PenaltyMinutes      int
+		PowerPlayPoints     int
+		ShotsOnGoal         int
+		Hits                int
+		BlockedShots        int
+		FaceoffsWon         int
+		FaceoffsLost        int
+		LinematePointsPer60 float64
+		LinemateTOISeconds  int
+	}
+	first := Input{TargetSeason: 20262027, Skaters: []SkaterSeason{{
+		PlayerID: 1, BirthDate: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
+		Season: 20252026, GamesPlayed: 10, TOISeconds: 10, FaceoffsWon: 4,
+		LinematePointsPer60: 2.5, LinemateTOISeconds: 1200,
+	}}}
+	changedBirthDate := first
+	changedBirthDate.Skaters = slices.Clone(first.Skaters)
+	changedBirthDate.Skaters[0].BirthDate = time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)
+	changedLinemate := first
+	changedLinemate.Skaters = slices.Clone(first.Skaters)
+	changedLinemate.Skaters[0].LinematePointsPer60++
+
+	require.Equal(t, inputDataHash(first, LinemateModelVersion), inputDataHash(changedBirthDate, LinemateModelVersion))
+	require.NotEqual(t, inputDataHash(first, LinemateModelVersion), inputDataHash(changedLinemate, LinemateModelVersion))
+	historical := publishedV3Skater{
+		PlayerID: 1, Season: 20252026, GamesPlayed: 10, TOISeconds: 10,
+		FaceoffsWon: 4, LinematePointsPer60: 2.5, LinemateTOISeconds: 1200,
+	}
+	require.Equal(t, encodedValues([]publishedV3Skater{historical}),
+		encodedSkaterHashRows(first.Skaters, LinemateModelVersion))
 }
 
 func TestApplyLinemateContextWeightsTeammateProductionBySharedTOI(t *testing.T) {

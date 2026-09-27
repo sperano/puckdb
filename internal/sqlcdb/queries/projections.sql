@@ -20,6 +20,7 @@ WITH faceoff_totals AS (
 )
 SELECT
     s.player_id,
+    p.birth_date,
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     (ARRAY_AGG(s.position ORDER BY g.game_date DESC, s.game_id DESC))[1]::text AS position,
@@ -37,13 +38,14 @@ SELECT
     COALESCE(SUM(fo.faceoffs_lost), 0)::bigint AS faceoffs_lost
 FROM game_skater_stats s
 JOIN games g ON g.id = s.game_id
+JOIN players p ON p.id = s.player_id
 LEFT JOIN faceoff_totals fo ON fo.game_id = s.game_id AND fo.player_id = s.player_id
 WHERE g.game_type = 'regular_season'
   AND g.game_state IN ('FINAL', 'OFF')
   AND g.season < $1
   AND g.season >= $2
   AND g.game_date <= $3
-GROUP BY s.player_id, g.season
+GROUP BY s.player_id, p.birth_date, g.season
 ORDER BY s.player_id, g.season;
 
 -- name: ListProjectionSkaterLinemateContext :many
@@ -268,6 +270,7 @@ WITH faceoff_totals AS (
 )
 SELECT
     s.player_id,
+    p.birth_date,
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     (ARRAY_AGG(s.position ORDER BY g.game_date DESC, s.game_id DESC))[1]::text AS position,
@@ -285,12 +288,13 @@ SELECT
     COALESCE(SUM(fo.faceoffs_lost), 0)::bigint AS faceoffs_lost
 FROM game_skater_stats s
 JOIN games g ON g.id = s.game_id
+JOIN players p ON p.id = s.player_id
 LEFT JOIN faceoff_totals fo ON fo.game_id = s.game_id AND fo.player_id = s.player_id
 WHERE g.game_type = 'regular_season'
   AND g.game_state IN ('FINAL', 'OFF')
   AND g.season <= $1
   AND g.season >= $2
-GROUP BY s.player_id, g.season
+GROUP BY s.player_id, p.birth_date, g.season
 ORDER BY s.player_id, g.season;
 
 -- name: ListProjectionGoalieHistory :many
@@ -299,6 +303,7 @@ WITH projection_constants AS (
 )
 SELECT
     s.player_id,
+    p.birth_date,
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     COUNT(DISTINCT s.game_id)::int AS games_played,
@@ -314,13 +319,14 @@ SELECT
     SUM(s.goals_against)::bigint AS goals_against
 FROM game_goalie_stats s
 JOIN games g ON g.id = s.game_id
+JOIN players p ON p.id = s.player_id
 CROSS JOIN projection_constants
 WHERE g.game_type = 'regular_season'
   AND g.game_state IN ('FINAL', 'OFF')
   AND g.season < $1
   AND g.season >= $2
   AND g.game_date <= $3
-GROUP BY s.player_id, g.season
+GROUP BY s.player_id, p.birth_date, g.season
 ORDER BY s.player_id, g.season;
 
 -- name: ListProjectionGoalieEvaluationData :many
@@ -329,6 +335,7 @@ WITH projection_constants AS (
 )
 SELECT
     s.player_id,
+    p.birth_date,
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     COUNT(DISTINCT s.game_id)::int AS games_played,
@@ -344,12 +351,13 @@ SELECT
     SUM(s.goals_against)::bigint AS goals_against
 FROM game_goalie_stats s
 JOIN games g ON g.id = s.game_id
+JOIN players p ON p.id = s.player_id
 CROSS JOIN projection_constants
 WHERE g.game_type = 'regular_season'
   AND g.game_state IN ('FINAL', 'OFF')
   AND g.season <= $1
   AND g.season >= $2
-GROUP BY s.player_id, g.season
+GROUP BY s.player_id, p.birth_date, g.season
 ORDER BY s.player_id, g.season;
 
 -- name: GetProjectionSourceMaxGameDate :one
@@ -366,12 +374,12 @@ INSERT INTO projection_snapshots (
     target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash,
     lookback_seasons, season_decay, skater_prior_toi_seconds,
     goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty,
-    maximum_uncertainty, minimum_history_games, linemate_regression_strength
+    maximum_uncertainty, minimum_history_games, linemate_regression_strength, aging_curve
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9,
     $10, $11, $12, $13,
-    $14, $15, $16, $17
+    $14, $15, $16, $17, $18
 )
 ON CONFLICT (target_season, as_of, model_version, config_hash, source_data_hash) DO UPDATE SET
     source_max_game_date = EXCLUDED.source_max_game_date
