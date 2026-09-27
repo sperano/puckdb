@@ -17,7 +17,9 @@ func TestSnapshotFromRowsRestoresStoredSnapshot(t *testing.T) {
 	row := snapshotRow(cfg, asOf)
 	players := []sqlcdb.ProjectionPlayer{
 		{PlayerKey: "nhl:2", PlayerKind: string(PlayerKindSkater), Position: "C", Source: string(SourceInternal),
-			SourceAsOf: timestampValue(asOf), Uncertainty: 0.2, MissingStats: []string{string(StatHits)}},
+			SourceAsOf: timestampValue(asOf), Uncertainty: 0.2, MissingStats: []string{string(StatHits)},
+			LinemateObservedPointsPer60: floatValue(2.5), LinemateAveragePointsPer60: floatValue(2),
+			LinemateSharedToiSeconds: floatValue(30_000), LinemateAdjustmentFactor: floatValue(0.98)},
 		{PlayerKey: "nhl:1", PlayerID: pgtype.Int8{Int64: 1, Valid: true}, TeamID: pgtype.Int8{Int64: 52, Valid: true},
 			PlayerKind: string(PlayerKindGoalie), Position: "G", Source: string(SourceImported), Provider: "acme",
 			IncorporatesNewsThrough: timestampValue(asOf)},
@@ -33,6 +35,10 @@ func TestSnapshotFromRowsRestoresStoredSnapshot(t *testing.T) {
 	require.Equal(t, asOf, snapshot.Players[0].IncorporatesNewsThrough)
 	require.Empty(t, snapshot.Players[1].Values)
 	require.Equal(t, []Stat{StatHits}, snapshot.Players[1].MissingStats)
+	require.Equal(t, &LinemateContext{
+		ObservedPointsPer60: 2.5, AveragePointsPer60: 2,
+		SharedTOISeconds: 30_000, AdjustmentFactor: 0.98,
+	}, snapshot.Players[1].LinemateContext)
 }
 
 func TestSnapshotFromRowsRejectsAlteredConfig(t *testing.T) {
@@ -53,5 +59,6 @@ func snapshotRow(cfg Config, asOf time.Time) sqlcdb.ProjectionSnapshot {
 		GoaliePriorShots: params.GoaliePriorShots, GoalieShutoutMinToi: params.GoalieShutoutMinToi,
 		MaxGames: params.MaxGames, IntervalZ: params.IntervalZ, MinimumUncertainty: params.MinimumUncertainty,
 		MaximumUncertainty: params.MaximumUncertainty, MinimumHistoryGames: params.MinimumHistoryGames,
+		LinemateRegressionStrength: params.LinemateRegressionStrength,
 	}
 }

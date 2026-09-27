@@ -83,6 +83,15 @@ func (r *Repository) loadInput(
 	if err != nil {
 		return Input{}, fmt.Errorf("load skater projection history: %w", err)
 	}
+	var linemates []sqlcdb.ListProjectionSkaterLinemateContextRow
+	if supportsLinemateContext(cfg.ModelVersion) {
+		linemates, err = r.queries.ListProjectionSkaterLinemateContext(ctx, sqlcdb.ListProjectionSkaterLinemateContextParams{
+			MinSeason: int32(lowerSeason), MaxSeason: int32(historyFloorSeason(targetSeason, 1)), GameDate: cutoff,
+		})
+		if err != nil {
+			return Input{}, fmt.Errorf("load skater linemate context: %w", err)
+		}
+	}
 	goalies, err := r.queries.ListProjectionGoalieHistory(ctx, sqlcdb.ListProjectionGoalieHistoryParams{
 		Season: int32(targetSeason), Season_2: int32(lowerSeason), GameDate: cutoff,
 		MinimumShutoutToiSeconds: int32(cfg.GoalieShutoutMinTOI),
@@ -96,7 +105,7 @@ func (r *Repository) loadInput(
 	if err != nil {
 		return Input{}, fmt.Errorf("load projection source date: %w", err)
 	}
-	return projectionInput(targetSeason, asOf, maxDate, skaters, goalies, pool, overrides), nil
+	return projectionInput(targetSeason, asOf, maxDate, skaters, linemates, goalies, pool, overrides), nil
 }
 
 func (r *Repository) LoadEvaluationInput(
@@ -123,6 +132,18 @@ func (r *Repository) LoadEvaluationInput(
 	if err != nil {
 		return Input{}, fmt.Errorf("load skater evaluation data: %w", err)
 	}
+	var linemates []sqlcdb.ListProjectionSkaterLinemateContextRow
+	if supportsLinemateContext(cfg.ModelVersion) {
+		linemates, err = r.queries.ListProjectionSkaterLinemateContext(
+			ctx,
+			sqlcdb.ListProjectionSkaterLinemateContextParams{
+				MinSeason: int32(lowerSeason), MaxSeason: int32(targetSeason), GameDate: dateValue(observedAt),
+			},
+		)
+		if err != nil {
+			return Input{}, fmt.Errorf("load skater linemate evaluation data: %w", err)
+		}
+	}
 	goalies, err := r.queries.ListProjectionGoalieEvaluationData(
 		ctx,
 		sqlcdb.ListProjectionGoalieEvaluationDataParams{
@@ -133,7 +154,7 @@ func (r *Repository) LoadEvaluationInput(
 	if err != nil {
 		return Input{}, fmt.Errorf("load goalie evaluation data: %w", err)
 	}
-	return evaluationInput(targetSeason, projectionAsOf, observedAt, skaters, goalies), nil
+	return evaluationInput(targetSeason, projectionAsOf, observedAt, skaters, linemates, goalies), nil
 }
 
 func validateEvaluationWindow(projectionAsOf, observedAt time.Time, season sqlcdb.Season) error {
@@ -157,6 +178,7 @@ func evaluationInput(
 	asOf time.Time,
 	observedAt time.Time,
 	skaters []sqlcdb.ListProjectionSkaterEvaluationDataRow,
+	linemates []sqlcdb.ListProjectionSkaterLinemateContextRow,
 	goalies []sqlcdb.ListProjectionGoalieEvaluationDataRow,
 ) Input {
 	input := Input{
@@ -174,6 +196,7 @@ func evaluationInput(
 			FaceoffsWon: int(row.FaceoffsWon), FaceoffsLost: int(row.FaceoffsLost),
 		})
 	}
+	applyLinemateContext(input.Skaters, linemates)
 	for _, row := range goalies {
 		input.Goalies = append(input.Goalies, GoalieSeason{
 			PlayerID: row.PlayerID, TeamID: row.TeamID, Season: int(row.Season), GamesPlayed: int(row.GamesPlayed),
@@ -190,6 +213,7 @@ func projectionInput(
 	asOf time.Time,
 	maxDate pgtype.Date,
 	skaters []sqlcdb.ListProjectionSkaterHistoryRow,
+	linemates []sqlcdb.ListProjectionSkaterLinemateContextRow,
 	goalies []sqlcdb.ListProjectionGoalieHistoryRow,
 	pool []PoolPlayer,
 	overrides []Override,
@@ -208,10 +232,67 @@ func projectionInput(
 	for _, row := range skaters {
 		input.Skaters = append(input.Skaters, skaterSeasonFromRow(row))
 	}
+	applyLinemateContext(input.Skaters, linemates)
 	for _, row := range goalies {
 		input.Goalies = append(input.Goalies, goalieSeasonFromRow(row))
 	}
 	return input
+}
+
+type skaterSeasonKey struct {
+	playerID int64
+	season   int
+}
+
+type linemateContextTotal struct {
+	weightedPoints float64
+	sharedSeconds  int64
+}
+
+func applyLinemateContext(
+	skaters []SkaterSeason,
+	linemates []sqlcdb.ListProjectionSkaterLinemateContextRow,
+) {
+	byPlayerSeason := indexSkaterSeasons(skaters)
+	totals := aggregateLinemateRows(byPlayerSeason, linemates)
+	for key, total := range totals {
+		index := byPlayerSeason[key]
+		skaters[index].LinemateTOISeconds = int(total.sharedSeconds)
+		skaters[index].LinematePointsPer60 = total.weightedPoints / float64(total.sharedSeconds)
+	}
+}
+
+func indexSkaterSeasons(skaters []SkaterSeason) map[skaterSeasonKey]int {
+	byPlayerSeason := make(map[skaterSeasonKey]int, len(skaters))
+	for index := range skaters {
+		key := skaterSeasonKey{playerID: skaters[index].PlayerID, season: skaters[index].Season}
+		byPlayerSeason[key] = index
+	}
+	return byPlayerSeason
+}
+
+func aggregateLinemateRows(
+	byPlayerSeason map[skaterSeasonKey]int,
+	linemates []sqlcdb.ListProjectionSkaterLinemateContextRow,
+) map[skaterSeasonKey]linemateContextTotal {
+	totals := make(map[skaterSeasonKey]linemateContextTotal)
+	for _, context := range linemates {
+		key := skaterSeasonKey{playerID: context.PlayerID, season: int(context.Season)}
+		_, exists := byPlayerSeason[key]
+		if !exists {
+			continue
+		}
+		if context.TeammateEvenStrengthToiSeconds <= 0 || context.SharedToiSeconds <= 0 {
+			continue
+		}
+		pointsPer60 := float64(context.TeammateEvenStrengthPoints) /
+			float64(context.TeammateEvenStrengthToiSeconds) * secondsPerHour
+		total := totals[key]
+		total.weightedPoints += float64(context.SharedToiSeconds) * pointsPer60
+		total.sharedSeconds += context.SharedToiSeconds
+		totals[key] = total
+	}
+	return totals
 }
 
 func skaterSeasonFromRow(row sqlcdb.ListProjectionSkaterHistoryRow) SkaterSeason {
@@ -342,7 +423,8 @@ func snapshotParams(snapshot Snapshot) sqlcdb.CreateProjectionSnapshotParams {
 		GoaliePriorShots: cfg.GoaliePriorShots, MaxGames: cfg.MaxGames, IntervalZ: cfg.IntervalZ,
 		GoalieShutoutMinToi: int32(cfg.GoalieShutoutMinTOI),
 		MinimumUncertainty:  cfg.MinimumUncertainty, MaximumUncertainty: cfg.MaximumUncertainty,
-		MinimumHistoryGames: int32(cfg.MinimumHistoryGames),
+		MinimumHistoryGames:        int32(cfg.MinimumHistoryGames),
+		LinemateRegressionStrength: cfg.LinemateRegressionStrength,
 	}
 }
 
@@ -355,6 +437,13 @@ func playerParams(snapshotID pgtype.UUID, player PlayerProjection) sqlcdb.Create
 	if player.TeamID != nil {
 		teamID = pgtype.Int8{Int64: *player.TeamID, Valid: true}
 	}
+	var observed, average, sharedTOI, adjustment pgtype.Float8
+	if player.LinemateContext != nil {
+		observed = floatValue(player.LinemateContext.ObservedPointsPer60)
+		average = floatValue(player.LinemateContext.AveragePointsPer60)
+		sharedTOI = floatValue(player.LinemateContext.SharedTOISeconds)
+		adjustment = floatValue(player.LinemateContext.AdjustmentFactor)
+	}
 	return sqlcdb.CreateProjectionPlayerParams{
 		SnapshotID: snapshotID, PlayerKey: player.PlayerKey, PlayerID: playerID, TeamID: teamID,
 		PlayerKind: string(player.Kind), Position: player.Position, Source: string(player.Source),
@@ -364,8 +453,14 @@ func playerParams(snapshotID pgtype.UUID, player PlayerProjection) sqlcdb.Create
 		HistorySeasons:          int32(player.HistorySeasons),
 		HistoryGames:            int32(player.HistoryGames), SampleExposure: player.SampleExposure,
 		Uncertainty: player.Uncertainty, InsufficientHistory: player.InsufficientHistory,
-		MissingStats: statStrings(player.MissingStats),
+		MissingStats:                statStrings(player.MissingStats),
+		LinemateObservedPointsPer60: observed, LinemateAveragePointsPer60: average,
+		LinemateSharedToiSeconds: sharedTOI, LinemateAdjustmentFactor: adjustment,
 	}
+}
+
+func floatValue(value float64) pgtype.Float8 {
+	return pgtype.Float8{Float64: value, Valid: true}
 }
 
 func statStrings(stats []Stat) []string {

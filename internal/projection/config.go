@@ -6,49 +6,54 @@ import (
 )
 
 const (
-	ModelVersion = "nhl-baseline-v2"
+	LegacyModelVersion  = "nhl-baseline-v1"
+	FaceoffModelVersion = "nhl-baseline-v2"
+	ModelVersion        = "nhl-baseline-v3"
 
-	DefaultLookbackSeasons       = 3
-	DefaultSeasonDecay           = 0.40
-	DefaultSkaterPriorTOISeconds = 9_000
-	DefaultGoaliePriorShots      = 500
-	DefaultGoalieShutoutMinTOI   = 59 * 60
-	DefaultMaxGames              = 82
-	DefaultIntervalZ             = 1.28
-	DefaultMinimumUncertainty    = 0.10
-	DefaultMaximumUncertainty    = 1.00
-	DefaultMinimumHistoryGames   = 10
+	DefaultLookbackSeasons            = 3
+	DefaultSeasonDecay                = 0.40
+	DefaultSkaterPriorTOISeconds      = 9_000
+	DefaultLinemateRegressionStrength = 0.25
+	DefaultGoaliePriorShots           = 500
+	DefaultGoalieShutoutMinTOI        = 59 * 60
+	DefaultMaxGames                   = 82
+	DefaultIntervalZ                  = 1.28
+	DefaultMinimumUncertainty         = 0.10
+	DefaultMaximumUncertainty         = 1.00
+	DefaultMinimumHistoryGames        = 10
 )
 
 // Config contains every parameter that can affect a baseline snapshot.
 // Persisting it with the snapshot makes model output reproducible.
 type Config struct {
-	ModelVersion          string
-	LookbackSeasons       int
-	SeasonDecay           float64
-	SkaterPriorTOISeconds float64
-	GoaliePriorShots      float64
-	GoalieShutoutMinTOI   int
-	MaxGames              float64
-	IntervalZ             float64
-	MinimumUncertainty    float64
-	MaximumUncertainty    float64
-	MinimumHistoryGames   int
+	ModelVersion               string
+	LookbackSeasons            int
+	SeasonDecay                float64
+	SkaterPriorTOISeconds      float64
+	LinemateRegressionStrength float64
+	GoaliePriorShots           float64
+	GoalieShutoutMinTOI        int
+	MaxGames                   float64
+	IntervalZ                  float64
+	MinimumUncertainty         float64
+	MaximumUncertainty         float64
+	MinimumHistoryGames        int
 }
 
 func DefaultConfig() Config {
 	return Config{
-		ModelVersion:          ModelVersion,
-		LookbackSeasons:       DefaultLookbackSeasons,
-		SeasonDecay:           DefaultSeasonDecay,
-		SkaterPriorTOISeconds: DefaultSkaterPriorTOISeconds,
-		GoaliePriorShots:      DefaultGoaliePriorShots,
-		GoalieShutoutMinTOI:   DefaultGoalieShutoutMinTOI,
-		MaxGames:              DefaultMaxGames,
-		IntervalZ:             DefaultIntervalZ,
-		MinimumUncertainty:    DefaultMinimumUncertainty,
-		MaximumUncertainty:    DefaultMaximumUncertainty,
-		MinimumHistoryGames:   DefaultMinimumHistoryGames,
+		ModelVersion:               ModelVersion,
+		LookbackSeasons:            DefaultLookbackSeasons,
+		SeasonDecay:                DefaultSeasonDecay,
+		SkaterPriorTOISeconds:      DefaultSkaterPriorTOISeconds,
+		LinemateRegressionStrength: DefaultLinemateRegressionStrength,
+		GoaliePriorShots:           DefaultGoaliePriorShots,
+		GoalieShutoutMinTOI:        DefaultGoalieShutoutMinTOI,
+		MaxGames:                   DefaultMaxGames,
+		IntervalZ:                  DefaultIntervalZ,
+		MinimumUncertainty:         DefaultMinimumUncertainty,
+		MaximumUncertainty:         DefaultMaximumUncertainty,
+		MinimumHistoryGames:        DefaultMinimumHistoryGames,
 	}
 }
 
@@ -72,6 +77,7 @@ func (c Config) Validate() error {
 	case c.LookbackSeasons <= 0:
 		return fmt.Errorf("lookback seasons must be positive")
 	case !finite(c.SeasonDecay) || !finite(c.SkaterPriorTOISeconds) ||
+		!finite(c.LinemateRegressionStrength) ||
 		!finite(c.GoaliePriorShots) || !finite(c.MaxGames) ||
 		!finite(c.IntervalZ) || !finite(c.MinimumUncertainty) ||
 		!finite(c.MaximumUncertainty):
@@ -80,6 +86,12 @@ func (c Config) Validate() error {
 		return fmt.Errorf("season decay must be in (0, 1]")
 	case c.SkaterPriorTOISeconds < 0:
 		return fmt.Errorf("skater prior TOI must not be negative")
+	case c.LinemateRegressionStrength < 0 || c.LinemateRegressionStrength > 1:
+		return fmt.Errorf("linemate regression strength must be in [0, 1]")
+	case c.ModelVersion == LegacyModelVersion && c.LinemateRegressionStrength != 0:
+		return fmt.Errorf("legacy model does not support linemate regression")
+	case c.ModelVersion == FaceoffModelVersion && c.LinemateRegressionStrength != 0:
+		return fmt.Errorf("model %q does not support linemate regression", c.ModelVersion)
 	case c.GoaliePriorShots < 0:
 		return fmt.Errorf("goalie prior shots must not be negative")
 	case c.GoalieShutoutMinTOI <= 0:
@@ -96,6 +108,14 @@ func (c Config) Validate() error {
 		return fmt.Errorf("minimum history games must not be negative")
 	}
 	return nil
+}
+
+func supportsFaceoffs(modelVersion string) bool {
+	return modelVersion != LegacyModelVersion
+}
+
+func supportsLinemateContext(modelVersion string) bool {
+	return modelVersion != LegacyModelVersion && modelVersion != FaceoffModelVersion
 }
 
 func finite(value float64) bool {

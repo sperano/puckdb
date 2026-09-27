@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-const PreviousSeasonComparison = "previous-season-total"
+const (
+	PreviousSeasonComparison   = "previous-season-total"
+	LinemateDisabledComparison = "linemate-adjustment-disabled"
+)
 
 type Metric struct {
 	Stat           Stat
@@ -34,11 +37,8 @@ type Evaluation struct {
 // targetSeason and later, while the target rows are used only as outcomes.
 // Both models are scored on the same players that have a previous-season row.
 func Evaluate(cfg Config, input Input) ([]Evaluation, error) {
-	if len(input.Overrides) > 0 {
-		return nil, fmt.Errorf("held-out evaluation does not accept overrides")
-	}
-	if input.ObservedAt.IsZero() || input.ObservedAt.Before(input.AsOf) {
-		return nil, fmt.Errorf("held-out evaluation requires an observation time at or after its as-of time")
+	if err := validateHeldOutInput(input); err != nil {
+		return nil, err
 	}
 	snapshot, err := Generate(cfg, input)
 	if err != nil {
@@ -55,6 +55,44 @@ func Evaluate(cfg Config, input Input) ([]Evaluation, error) {
 	return result, nil
 }
 
+// EvaluateLinemateAdjustment scores the configured skater model against the
+// same model with only its linemate correction disabled. The target-season
+// rows remain outcomes, so callers can report the per-stat error change caused
+// by historical context without changing any other projection parameter.
+func EvaluateLinemateAdjustment(cfg Config, input Input) (Evaluation, error) {
+	if err := validateHeldOutInput(input); err != nil {
+		return Evaluation{}, err
+	}
+	adjusted, err := Generate(cfg, input)
+	if err != nil {
+		return Evaluation{}, err
+	}
+	comparisonConfig := cfg
+	comparisonConfig.LinemateRegressionStrength = 0
+	comparison, err := Generate(comparisonConfig, input)
+	if err != nil {
+		return Evaluation{}, err
+	}
+	actual := aggregateSkaterValues(input.Skaters, input.TargetSeason)
+	comparisonValues := projectedValues(comparison, PlayerKindSkater)
+	stats := supportedStats(PlayerKindSkater)
+	return evaluateKind(
+		adjusted, input.ObservedAt, evaluationDataHash(cfg, input),
+		PlayerKindSkater, actual, comparisonValues, stats,
+		LinemateDisabledComparison,
+	), nil
+}
+
+func validateHeldOutInput(input Input) error {
+	if len(input.Overrides) > 0 {
+		return fmt.Errorf("held-out evaluation does not accept overrides")
+	}
+	if input.ObservedAt.IsZero() || input.ObservedAt.Before(input.AsOf) {
+		return fmt.Errorf("held-out evaluation requires an observation time at or after its as-of time")
+	}
+	return nil
+}
+
 func evaluateSkaters(snapshot Snapshot, input Input, previousSeason int) Evaluation {
 	actual := aggregateSkaterValues(input.Skaters, input.TargetSeason)
 	comparison := aggregateSkaterValues(input.Skaters, previousSeason)
@@ -65,7 +103,7 @@ func evaluateSkaters(snapshot Snapshot, input Input, previousSeason int) Evaluat
 	}
 	return evaluateKind(
 		snapshot, input.ObservedAt, evaluationDataHash(snapshot.Config, input),
-		PlayerKindSkater, actual, comparison, stats,
+		PlayerKindSkater, actual, comparison, stats, PreviousSeasonComparison,
 	)
 }
 
@@ -79,7 +117,7 @@ func evaluateGoalies(snapshot Snapshot, input Input, previousSeason int) Evaluat
 	}
 	return evaluateKind(
 		snapshot, input.ObservedAt, evaluationDataHash(snapshot.Config, input),
-		PlayerKindGoalie, actual, comparison, stats,
+		PlayerKindGoalie, actual, comparison, stats, PreviousSeasonComparison,
 	)
 }
 
@@ -91,6 +129,7 @@ func evaluateKind(
 	actual map[string]map[Stat]float64,
 	comparison map[string]map[Stat]float64,
 	stats []Stat,
+	comparisonModel string,
 ) Evaluation {
 	projections := make(map[string]PlayerProjection)
 	for _, player := range snapshot.Players {
@@ -109,8 +148,23 @@ func evaluateKind(
 		ModelVersion: snapshot.Config.ModelVersion, ConfigHash: configHash(snapshot.Config),
 		SourceDataHash: sourceDataHash, TargetSeason: snapshot.TargetSeason,
 		AsOf: snapshot.AsOf, ObservedAt: observedAt.UTC(), PlayerKind: kind,
-		ComparisonModel: PreviousSeasonComparison, Metrics: metrics,
+		ComparisonModel: comparisonModel, Metrics: metrics,
 	}
+}
+
+func projectedValues(snapshot Snapshot, kind PlayerKind) map[string]map[Stat]float64 {
+	values := make(map[string]map[Stat]float64)
+	for _, player := range snapshot.Players {
+		if player.Kind != kind {
+			continue
+		}
+		stats := make(map[Stat]float64, len(player.Values))
+		for stat, estimate := range player.Values {
+			stats[stat] = estimate.Mean
+		}
+		values[player.PlayerKey] = stats
+	}
+	return values
 }
 
 func scoreStat(

@@ -121,6 +121,9 @@ func rankCandidates(
 			fmt.Sprintf("league scoring: %.3f; best available replacement across %s: %.3f", candidate.official, strings.Join(candidate.positions, "/"), baseline),
 			fmt.Sprintf("projection uncertainty %.1f%%; bench demand %s", candidate.projection.Uncertainty*100, options.BenchPolicy),
 		}
+		if context := candidate.projection.LinemateContext; context != nil {
+			explanations = append(explanations, linemateExplanation(*context))
+		}
 		if provisional {
 			explanations = append(explanations, "rules came from a temporary stand-in and are provisional")
 		}
@@ -136,6 +139,24 @@ func rankCandidates(
 	slices.SortFunc(players, compareRankedPlayers)
 	assignRanksAndTiers(players)
 	return players
+}
+
+func linemateExplanation(context projection.LinemateContext) string {
+	direction := "unchanged"
+	change := math.Abs(context.AdjustmentFactor-1) * 100
+	if context.AdjustmentFactor > 1 {
+		direction = "up"
+	} else if context.AdjustmentFactor < 1 {
+		direction = "down"
+	}
+	return fmt.Sprintf(
+		"historical linemate quality %.2f points/60 vs position-group average %.2f across %.0f shared even-strength seconds; non-power-play scoring adjusted %s %.1f%%",
+		context.ObservedPointsPer60,
+		context.AveragePointsPer60,
+		context.SharedTOISeconds,
+		direction,
+		change,
+	)
 }
 
 func compareRankedPlayers(a, b RankedPlayer) int {

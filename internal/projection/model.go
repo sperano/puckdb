@@ -39,7 +39,7 @@ func Generate(cfg Config, input Input) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	for i := range players {
-		players[i].MissingStats = missingStats(players[i].Kind, players[i].Values)
+		players[i].MissingStats = missingStats(cfg.ModelVersion, players[i].Kind, players[i].Values)
 	}
 	slices.SortFunc(players, func(a, b PlayerProjection) int {
 		return cmp.Compare(a.PlayerKey, b.PlayerKey)
@@ -234,10 +234,13 @@ func applyOverrides(players []PlayerProjection, overrides []Override, snapshotAs
 	return out, nil
 }
 
-func missingStats(kind PlayerKind, values map[Stat]Estimate) []Stat {
+func missingStats(modelVersion string, kind PlayerKind, values map[Stat]Estimate) []Stat {
 	supported := supportedStats(kind)
 	missing := make([]Stat, 0, len(supported))
 	for _, stat := range supported {
+		if !supportsFaceoffs(modelVersion) && (stat == StatFaceoffsWon || stat == StatFaceoffsLost) {
+			continue
+		}
 		if _, exists := values[stat]; !exists {
 			missing = append(missing, stat)
 		}

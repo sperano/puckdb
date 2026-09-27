@@ -102,33 +102,38 @@ INSERT INTO projection_players (
     snapshot_id, player_key, player_id, team_id, player_kind, position, source,
     provider, provider_version, source_as_of, incorporates_news_through,
     history_seasons, history_games, sample_exposure, uncertainty, insufficient_history,
-    missing_stats
+    missing_stats, linemate_observed_points_per_60, linemate_average_points_per_60,
+    linemate_shared_toi_seconds, linemate_adjustment_factor
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7,
     $8, $9, $10, $11,
     $12, $13, $14, $15, $16,
-    $17
+    $17, $18, $19, $20, $21
 )
 `
 
 type CreateProjectionPlayerParams struct {
-	SnapshotID              pgtype.UUID        `json:"snapshot_id"`
-	PlayerKey               string             `json:"player_key"`
-	PlayerID                pgtype.Int8        `json:"player_id"`
-	TeamID                  pgtype.Int8        `json:"team_id"`
-	PlayerKind              string             `json:"player_kind"`
-	Position                string             `json:"position"`
-	Source                  string             `json:"source"`
-	Provider                string             `json:"provider"`
-	ProviderVersion         string             `json:"provider_version"`
-	SourceAsOf              pgtype.Timestamptz `json:"source_as_of"`
-	IncorporatesNewsThrough pgtype.Timestamptz `json:"incorporates_news_through"`
-	HistorySeasons          int32              `json:"history_seasons"`
-	HistoryGames            int32              `json:"history_games"`
-	SampleExposure          float64            `json:"sample_exposure"`
-	Uncertainty             float64            `json:"uncertainty"`
-	InsufficientHistory     bool               `json:"insufficient_history"`
-	MissingStats            []string           `json:"missing_stats"`
+	SnapshotID                  pgtype.UUID        `json:"snapshot_id"`
+	PlayerKey                   string             `json:"player_key"`
+	PlayerID                    pgtype.Int8        `json:"player_id"`
+	TeamID                      pgtype.Int8        `json:"team_id"`
+	PlayerKind                  string             `json:"player_kind"`
+	Position                    string             `json:"position"`
+	Source                      string             `json:"source"`
+	Provider                    string             `json:"provider"`
+	ProviderVersion             string             `json:"provider_version"`
+	SourceAsOf                  pgtype.Timestamptz `json:"source_as_of"`
+	IncorporatesNewsThrough     pgtype.Timestamptz `json:"incorporates_news_through"`
+	HistorySeasons              int32              `json:"history_seasons"`
+	HistoryGames                int32              `json:"history_games"`
+	SampleExposure              float64            `json:"sample_exposure"`
+	Uncertainty                 float64            `json:"uncertainty"`
+	InsufficientHistory         bool               `json:"insufficient_history"`
+	MissingStats                []string           `json:"missing_stats"`
+	LinemateObservedPointsPer60 pgtype.Float8      `json:"linemate_observed_points_per_60"`
+	LinemateAveragePointsPer60  pgtype.Float8      `json:"linemate_average_points_per_60"`
+	LinemateSharedToiSeconds    pgtype.Float8      `json:"linemate_shared_toi_seconds"`
+	LinemateAdjustmentFactor    pgtype.Float8      `json:"linemate_adjustment_factor"`
 }
 
 func (q *Queries) CreateProjectionPlayer(ctx context.Context, arg CreateProjectionPlayerParams) error {
@@ -150,6 +155,10 @@ func (q *Queries) CreateProjectionPlayer(ctx context.Context, arg CreateProjecti
 		arg.Uncertainty,
 		arg.InsufficientHistory,
 		arg.MissingStats,
+		arg.LinemateObservedPointsPer60,
+		arg.LinemateAveragePointsPer60,
+		arg.LinemateSharedToiSeconds,
+		arg.LinemateAdjustmentFactor,
 	)
 	return err
 }
@@ -159,35 +168,36 @@ INSERT INTO projection_snapshots (
     target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash,
     lookback_seasons, season_decay, skater_prior_toi_seconds,
     goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty,
-    maximum_uncertainty, minimum_history_games
+    maximum_uncertainty, minimum_history_games, linemate_regression_strength
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9,
     $10, $11, $12, $13,
-    $14, $15, $16
+    $14, $15, $16, $17
 )
 ON CONFLICT (target_season, as_of, model_version, config_hash, source_data_hash) DO UPDATE SET
     source_max_game_date = EXCLUDED.source_max_game_date
-RETURNING id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at
+RETURNING id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength
 `
 
 type CreateProjectionSnapshotParams struct {
-	TargetSeason          int32              `json:"target_season"`
-	AsOf                  pgtype.Timestamptz `json:"as_of"`
-	SourceMaxGameDate     pgtype.Date        `json:"source_max_game_date"`
-	ModelVersion          string             `json:"model_version"`
-	ConfigHash            string             `json:"config_hash"`
-	SourceDataHash        string             `json:"source_data_hash"`
-	LookbackSeasons       int32              `json:"lookback_seasons"`
-	SeasonDecay           float64            `json:"season_decay"`
-	SkaterPriorToiSeconds float64            `json:"skater_prior_toi_seconds"`
-	GoaliePriorShots      float64            `json:"goalie_prior_shots"`
-	GoalieShutoutMinToi   int32              `json:"goalie_shutout_min_toi"`
-	MaxGames              float64            `json:"max_games"`
-	IntervalZ             float64            `json:"interval_z"`
-	MinimumUncertainty    float64            `json:"minimum_uncertainty"`
-	MaximumUncertainty    float64            `json:"maximum_uncertainty"`
-	MinimumHistoryGames   int32              `json:"minimum_history_games"`
+	TargetSeason               int32              `json:"target_season"`
+	AsOf                       pgtype.Timestamptz `json:"as_of"`
+	SourceMaxGameDate          pgtype.Date        `json:"source_max_game_date"`
+	ModelVersion               string             `json:"model_version"`
+	ConfigHash                 string             `json:"config_hash"`
+	SourceDataHash             string             `json:"source_data_hash"`
+	LookbackSeasons            int32              `json:"lookback_seasons"`
+	SeasonDecay                float64            `json:"season_decay"`
+	SkaterPriorToiSeconds      float64            `json:"skater_prior_toi_seconds"`
+	GoaliePriorShots           float64            `json:"goalie_prior_shots"`
+	GoalieShutoutMinToi        int32              `json:"goalie_shutout_min_toi"`
+	MaxGames                   float64            `json:"max_games"`
+	IntervalZ                  float64            `json:"interval_z"`
+	MinimumUncertainty         float64            `json:"minimum_uncertainty"`
+	MaximumUncertainty         float64            `json:"maximum_uncertainty"`
+	MinimumHistoryGames        int32              `json:"minimum_history_games"`
+	LinemateRegressionStrength float64            `json:"linemate_regression_strength"`
 }
 
 func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjectionSnapshotParams) (ProjectionSnapshot, error) {
@@ -208,6 +218,7 @@ func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjec
 		arg.MinimumUncertainty,
 		arg.MaximumUncertainty,
 		arg.MinimumHistoryGames,
+		arg.LinemateRegressionStrength,
 	)
 	var i ProjectionSnapshot
 	err := row.Scan(
@@ -229,6 +240,7 @@ func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjec
 		&i.MaximumUncertainty,
 		&i.MinimumHistoryGames,
 		&i.CreatedAt,
+		&i.LinemateRegressionStrength,
 	)
 	return i, err
 }
@@ -279,7 +291,7 @@ func (q *Queries) DeleteProjectionPlayersBySnapshot(ctx context.Context, snapsho
 }
 
 const getProjectionSnapshot = `-- name: GetProjectionSnapshot :one
-SELECT id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at FROM projection_snapshots WHERE id = $1
+SELECT id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength FROM projection_snapshots WHERE id = $1
 `
 
 func (q *Queries) GetProjectionSnapshot(ctx context.Context, id pgtype.UUID) (ProjectionSnapshot, error) {
@@ -304,6 +316,7 @@ func (q *Queries) GetProjectionSnapshot(ctx context.Context, id pgtype.UUID) (Pr
 		&i.MaximumUncertainty,
 		&i.MinimumHistoryGames,
 		&i.CreatedAt,
+		&i.LinemateRegressionStrength,
 	)
 	return i, err
 }
@@ -503,7 +516,7 @@ func (q *Queries) ListProjectionGoalieHistory(ctx context.Context, arg ListProje
 }
 
 const listProjectionPlayers = `-- name: ListProjectionPlayers :many
-SELECT snapshot_id, player_key, player_id, team_id, player_kind, position, source, provider, provider_version, source_as_of, incorporates_news_through, history_seasons, history_games, sample_exposure, uncertainty, insufficient_history, missing_stats FROM projection_players
+SELECT snapshot_id, player_key, player_id, team_id, player_kind, position, source, provider, provider_version, source_as_of, incorporates_news_through, history_seasons, history_games, sample_exposure, uncertainty, insufficient_history, missing_stats, linemate_observed_points_per_60, linemate_average_points_per_60, linemate_shared_toi_seconds, linemate_adjustment_factor FROM projection_players
 WHERE snapshot_id = $1
 ORDER BY player_key
 `
@@ -535,6 +548,10 @@ func (q *Queries) ListProjectionPlayers(ctx context.Context, snapshotID pgtype.U
 			&i.Uncertainty,
 			&i.InsufficientHistory,
 			&i.MissingStats,
+			&i.LinemateObservedPointsPer60,
+			&i.LinemateAveragePointsPer60,
+			&i.LinemateSharedToiSeconds,
+			&i.LinemateAdjustmentFactor,
 		); err != nil {
 			return nil, err
 		}
@@ -755,6 +772,249 @@ func (q *Queries) ListProjectionSkaterHistory(ctx context.Context, arg ListProje
 			&i.BlockedShots,
 			&i.FaceoffsWon,
 			&i.FaceoffsLost,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectionSkaterLinemateContext = `-- name: ListProjectionSkaterLinemateContext :many
+WITH eligible_games AS (
+    SELECT id, season
+    FROM games
+    WHERE game_type = 'regular_season'
+      AND game_state IN ('FINAL', 'OFF')
+      AND season >= $1
+      AND season <= $2
+      AND game_date <= $3
+),
+parsed_shifts AS (
+    SELECT
+        s.game_id,
+        g.season,
+        s.player_id,
+        s.team_id,
+        s.period,
+        stats.player_id IS NOT NULL AS is_skater,
+        CASE WHEN s.start_time ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
+            split_part(s.start_time, ':', 1)::integer * 60
+                + split_part(s.start_time, ':', 2)::integer
+        END AS start_second,
+        CASE WHEN s.end_time ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
+            split_part(s.end_time, ':', 1)::integer * 60
+                + split_part(s.end_time, ':', 2)::integer
+        END AS end_second
+    FROM shifts s
+    JOIN eligible_games g ON g.id = s.game_id
+    LEFT JOIN game_skater_stats stats
+      ON stats.game_id = s.game_id
+     AND stats.player_id = s.player_id
+     AND stats.team_id = s.team_id
+    LEFT JOIN game_goalie_stats goalies
+      ON goalies.game_id = s.game_id
+     AND goalies.player_id = s.player_id
+     AND goalies.team_id = s.team_id
+    WHERE s.type_code = '517'
+      AND (stats.player_id IS NOT NULL OR goalies.player_id IS NOT NULL)
+),
+valid_shifts AS (
+    SELECT game_id, season, player_id, team_id, period, is_skater, start_second, end_second
+    FROM parsed_shifts
+    WHERE start_second IS NOT NULL
+      AND end_second IS NOT NULL
+      AND start_second < end_second
+),
+boundaries AS (
+    SELECT game_id, season, period, start_second AS second FROM valid_shifts
+    UNION
+    SELECT game_id, season, period, end_second AS second FROM valid_shifts
+),
+segments AS (
+    SELECT
+        game_id,
+        season,
+        period,
+        second AS start_second,
+        lead(second) OVER (
+            PARTITION BY game_id, period
+            ORDER BY second
+        ) AS end_second
+    FROM boundaries
+),
+active_skaters AS (
+    SELECT DISTINCT
+        segment.game_id,
+        segment.season,
+        segment.period,
+        segment.start_second,
+        segment.end_second,
+        shift_row.team_id,
+        shift_row.player_id,
+        shift_row.is_skater
+    FROM segments segment
+    JOIN valid_shifts shift_row
+      ON shift_row.game_id = segment.game_id
+     AND shift_row.period = segment.period
+     AND shift_row.start_second < segment.end_second
+     AND shift_row.end_second > segment.start_second
+    WHERE segment.end_second > segment.start_second
+),
+team_strength AS (
+    SELECT
+        game_id,
+        season,
+        period,
+        start_second,
+        end_second,
+        team_id,
+        count(*) FILTER (WHERE is_skater) AS skater_count,
+        count(*) FILTER (WHERE NOT is_skater) AS goalie_count
+    FROM active_skaters
+    GROUP BY game_id, season, period, start_second, end_second, team_id
+),
+even_segments AS (
+    SELECT game_id, season, period, start_second, end_second
+    FROM team_strength
+    GROUP BY game_id, season, period, start_second, end_second
+    HAVING count(*) = 2
+       AND min(skater_count) = max(skater_count)
+       AND min(skater_count) BETWEEN 3 AND 5
+       AND min(goalie_count) = 1
+       AND max(goalie_count) = 1
+),
+even_skaters AS (
+    SELECT active.game_id, active.season, active.period, active.start_second, active.end_second, active.team_id, active.player_id, active.is_skater
+    FROM active_skaters active
+    JOIN even_segments segment
+      USING (game_id, season, period, start_second, end_second)
+    WHERE active.is_skater
+),
+pair_overlap AS (
+    SELECT
+        player.season,
+        player.player_id,
+        teammate.player_id AS teammate_id,
+        sum(player.end_second - player.start_second)::bigint AS shared_toi_seconds
+    FROM even_skaters player
+    JOIN even_skaters teammate
+      ON teammate.game_id = player.game_id
+     AND teammate.period = player.period
+     AND teammate.start_second = player.start_second
+     AND teammate.end_second = player.end_second
+     AND teammate.team_id = player.team_id
+     AND teammate.player_id <> player.player_id
+    GROUP BY player.season, player.player_id, teammate.player_id
+),
+even_player_toi AS (
+    SELECT
+        game_id,
+        season,
+        player_id,
+        sum(end_second - start_second)::bigint AS even_strength_toi_seconds
+    FROM even_skaters
+    GROUP BY game_id, season, player_id
+),
+even_strength_points AS (
+    SELECT
+        game.id AS game_id,
+        game.season,
+        scorer.player_id,
+        count(*)::bigint AS even_strength_points
+    FROM play_events event
+    JOIN eligible_games game ON game.id = event.game_id
+    CROSS JOIN LATERAL (
+        SELECT CASE WHEN event.time_in_period ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
+            split_part(event.time_in_period, ':', 1)::integer * 60
+                + split_part(event.time_in_period, ':', 2)::integer
+        END AS event_second
+    ) clock
+    CROSS JOIN LATERAL unnest(ARRAY[
+        event.scoring_player_id,
+        event.assist1_player_id,
+        event.assist2_player_id
+    ]) AS scorer(player_id)
+    JOIN even_skaters coverage
+      ON coverage.game_id = event.game_id
+     AND coverage.period = event.period
+     AND coverage.player_id = scorer.player_id
+     AND clock.event_second > coverage.start_second
+     AND clock.event_second <= coverage.end_second
+    WHERE event.type_desc_key = 'goal'
+      AND scorer.player_id IS NOT NULL
+      AND clock.event_second IS NOT NULL
+      AND event.situation_code IS NOT NULL
+      AND event.situation_code / 1000 % 10 = 1
+      AND event.situation_code % 10 = 1
+      AND event.situation_code / 100 % 10 = event.situation_code / 10 % 10
+      AND event.situation_code / 100 % 10 BETWEEN 3 AND 5
+    GROUP BY game.id, game.season, scorer.player_id
+),
+teammate_rates AS (
+    SELECT
+        toi.season,
+        toi.player_id,
+        coalesce(sum(points.even_strength_points), 0)::bigint AS even_strength_points,
+        sum(toi.even_strength_toi_seconds)::bigint AS even_strength_toi_seconds
+    FROM even_player_toi toi
+    LEFT JOIN even_strength_points points
+      ON points.game_id = toi.game_id
+     AND points.player_id = toi.player_id
+    GROUP BY toi.season, toi.player_id
+)
+SELECT
+    pair.player_id,
+    pair.season,
+    pair.teammate_id,
+    pair.shared_toi_seconds,
+    teammate_toi.even_strength_points AS teammate_even_strength_points,
+    teammate_toi.even_strength_toi_seconds AS teammate_even_strength_toi_seconds
+FROM pair_overlap pair
+JOIN teammate_rates teammate_toi
+  ON teammate_toi.season = pair.season
+ AND teammate_toi.player_id = pair.teammate_id
+ORDER BY pair.player_id, pair.season, pair.teammate_id
+`
+
+type ListProjectionSkaterLinemateContextParams struct {
+	MinSeason int32       `json:"min_season"`
+	MaxSeason int32       `json:"max_season"`
+	GameDate  pgtype.Date `json:"game_date"`
+}
+
+type ListProjectionSkaterLinemateContextRow struct {
+	PlayerID                       int64 `json:"player_id"`
+	Season                         int32 `json:"season"`
+	TeammateID                     int64 `json:"teammate_id"`
+	SharedToiSeconds               int64 `json:"shared_toi_seconds"`
+	TeammateEvenStrengthPoints     int64 `json:"teammate_even_strength_points"`
+	TeammateEvenStrengthToiSeconds int64 `json:"teammate_even_strength_toi_seconds"`
+}
+
+// Split shift charts into atomic half-open intervals, retain equal-strength
+// 3v3 through 5v5 segments, and return exact integer teammate overlap with
+// even-strength production from the same shift-covered games. Go accumulates
+// rates in this stable order so floating-point sums cannot perturb hashes.
+func (q *Queries) ListProjectionSkaterLinemateContext(ctx context.Context, arg ListProjectionSkaterLinemateContextParams) ([]ListProjectionSkaterLinemateContextRow, error) {
+	rows, err := q.db.Query(ctx, listProjectionSkaterLinemateContext, arg.MinSeason, arg.MaxSeason, arg.GameDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectionSkaterLinemateContextRow{}
+	for rows.Next() {
+		var i ListProjectionSkaterLinemateContextRow
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.Season,
+			&i.TeammateID,
+			&i.SharedToiSeconds,
+			&i.TeammateEvenStrengthPoints,
+			&i.TeammateEvenStrengthToiSeconds,
 		); err != nil {
 			return nil, err
 		}

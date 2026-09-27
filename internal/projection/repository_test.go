@@ -20,6 +20,24 @@ func TestConfigHashChangesWithModelInputs(t *testing.T) {
 	require.NotEqual(t, configHash(first), configHash(second))
 }
 
+func TestConfigHashPreservesLegacySnapshotIdentity(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig()
+	cfg.ModelVersion = LegacyModelVersion
+	cfg.LinemateRegressionStrength = 0
+	require.Equal(t, "f65181e5f3856e50f4f71442d0aef10f2c69d37daf77f96476d1a3c81eebdcc6", configHash(cfg))
+}
+
+func TestConfigHashPreservesFaceoffSnapshotIdentity(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig()
+	cfg.ModelVersion = FaceoffModelVersion
+	cfg.LinemateRegressionStrength = 0
+	require.Equal(t, "bdddb53fe417d350d27bc40bd6aba04188b752e5a5c74c1ae021bafab4567870", configHash(cfg))
+}
+
 func TestHistoryFloorSeason(t *testing.T) {
 	t.Parallel()
 
@@ -64,6 +82,41 @@ func TestSourceHashChangesWhenHistoricalDataChanges(t *testing.T) {
 	require.NotEqual(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
 }
 
+func TestSourceHashPreservesLegacySkaterShape(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig()
+	cfg.ModelVersion = LegacyModelVersion
+	cfg.LinemateRegressionStrength = 0
+	input := Input{TargetSeason: 20262027, Skaters: []SkaterSeason{{
+		PlayerID: 1, Season: 20252026, Position: "C", GamesPlayed: 1,
+		TOISeconds: 900, Goals: 1, Assists: 2,
+		LinematePointsPer60: 3.5, LinemateTOISeconds: 1_800,
+	}}}
+
+	require.Equal(t, "765b917af52dfea010f88cac6269cbbbf599cdfc384c18202ca3613efeafb6af", sourceDataHash(cfg, input))
+}
+
+func TestSourceHashPreservesFaceoffSkaterShape(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig()
+	cfg.ModelVersion = FaceoffModelVersion
+	cfg.LinemateRegressionStrength = 0
+	input := Input{TargetSeason: 20262027, Skaters: []SkaterSeason{{
+		PlayerID: 1, Season: 20252026, Position: "C", GamesPlayed: 1,
+		TOISeconds: 900, Goals: 1, Assists: 2, FaceoffsWon: 8, FaceoffsLost: 7,
+	}}}
+
+	withoutContext := sourceDataHash(cfg, input)
+	input.Skaters[0].LinematePointsPer60 = 3.5
+	input.Skaters[0].LinemateTOISeconds = 1_800
+	require.Equal(t, withoutContext, sourceDataHash(cfg, input))
+
+	input.Skaters[0].FaceoffsWon++
+	require.NotEqual(t, withoutContext, sourceDataHash(cfg, input))
+}
+
 func TestSourceHashIgnoresInputOrder(t *testing.T) {
 	t.Parallel()
 
@@ -87,6 +140,26 @@ func TestSourceHashIgnoresRowsOutsideModelWindow(t *testing.T) {
 		PlayerID: 1, Season: 20262027, GamesPlayed: 82, TOISeconds: 82, Goals: 100,
 	})
 	require.Equal(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
+}
+
+func TestApplyLinemateContextWeightsTeammateProductionBySharedTOI(t *testing.T) {
+	t.Parallel()
+
+	skaters := []SkaterSeason{
+		{PlayerID: 1, Season: 20252026, TOISeconds: 10_000},
+		{PlayerID: 2, Season: 20252026, TOISeconds: 36_000, Goals: 10, Assists: 20},
+		{PlayerID: 3, Season: 20252026, TOISeconds: 36_000, Goals: 5, Assists: 5},
+	}
+	rows := []sqlcdb.ListProjectionSkaterLinemateContextRow{
+		{PlayerID: 1, Season: 20252026, TeammateID: 2, SharedToiSeconds: 100,
+			TeammateEvenStrengthPoints: 30, TeammateEvenStrengthToiSeconds: 36_000},
+		{PlayerID: 1, Season: 20252026, TeammateID: 3, SharedToiSeconds: 300,
+			TeammateEvenStrengthPoints: 10, TeammateEvenStrengthToiSeconds: 36_000},
+	}
+	applyLinemateContext(skaters, rows)
+
+	require.Equal(t, 400, skaters[0].LinemateTOISeconds)
+	require.InDelta(t, 1.5, skaters[0].LinematePointsPer60, 0.000_001)
 }
 
 func TestValidateEvaluationWindow(t *testing.T) {

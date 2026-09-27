@@ -56,6 +56,34 @@ func TestBuildRanking_TargetLeagueFixturesUseOwnWeights(t *testing.T) {
 	}
 }
 
+func TestBuildRanking_ExplainsLinemateContextAdjustment(t *testing.T) {
+	player := testPlayer("context-player", projection.PlayerKindSkater, 0, map[projection.Stat]float64{
+		projection.StatGoals: 20,
+	})
+	player.LinemateContext = &projection.LinemateContext{
+		ObservedPointsPer60: 3,
+		AveragePointsPer60:  2,
+		SharedTOISeconds:    12_000,
+		AdjustmentFactor:    0.9,
+	}
+	rules, projected, pool := testRankingInput(
+		"point",
+		[]StatCategory{testWeightedCategory(rankingTestGoalStat, 1)},
+		[]RosterSlot{{Position: PositionCenter, Count: 1, Starting: true}},
+		player,
+	)
+	ranking, err := BuildRanking(rules, projected, pool, RankingOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	explanation := strings.Join(ranking.Players[0].Explanations, "\n")
+	for _, expected := range []string{"linemate quality 3.00", "position-group average 2.00", "adjusted down 10.0%"} {
+		if !strings.Contains(explanation, expected) {
+			t.Fatalf("linemate explanation missing %q: %s", expected, explanation)
+		}
+	}
+}
+
 func testPlayer(key string, kind projection.PlayerKind, uncertainty float64, values map[projection.Stat]float64) projection.PlayerProjection {
 	projected := projection.PlayerProjection{
 		PlayerKey: key, Kind: kind, Uncertainty: uncertainty,

@@ -35,6 +35,36 @@ func TestEvaluateUsesTargetOnlyAsHeldOutOutcome(t *testing.T) {
 	require.Greater(t, goals.ComparisonMAE, 0.0)
 }
 
+func TestEvaluateLinemateAdjustmentComparesSameModelWithoutCorrection(t *testing.T) {
+	t.Parallel()
+
+	strong := skaterSeason(10, 20242025, "C", 82, 20, 30)
+	strong.LinematePointsPer60 = 4
+	strong.LinemateTOISeconds = strong.TOISeconds * evenStrengthLinemates
+	weak := skaterSeason(11, 20242025, "C", 82, 20, 30)
+	weak.LinematePointsPer60 = 1
+	weak.LinemateTOISeconds = weak.TOISeconds * evenStrengthLinemates
+	input := Input{
+		TargetSeason: 20252026,
+		AsOf:         time.Date(2025, time.September, 20, 0, 0, 0, 0, time.UTC),
+		ObservedAt:   time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC),
+		Skaters: []SkaterSeason{
+			strong,
+			weak,
+			skaterSeason(10, 20252026, "C", 82, 19, 29),
+			skaterSeason(11, 20252026, "C", 82, 22, 33),
+		},
+	}
+
+	report, err := EvaluateLinemateAdjustment(DefaultConfig(), input)
+	require.NoError(t, err)
+	require.Equal(t, LinemateDisabledComparison, report.ComparisonModel)
+	require.Equal(t, PlayerKindSkater, report.PlayerKind)
+	goals := findMetric(t, report, StatGoals)
+	require.Equal(t, 2, goals.SampleSize)
+	require.NotEqual(t, goals.ComparisonMAE, goals.ModelMAE)
+}
+
 func TestEvaluateGoalieRatiosAgainstPreviousSeason(t *testing.T) {
 	t.Parallel()
 

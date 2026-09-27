@@ -37,7 +37,8 @@ func snapshotFromRows(row sqlcdb.ProjectionSnapshot, players []sqlcdb.Projection
 		SkaterPriorTOISeconds: row.SkaterPriorToiSeconds, GoaliePriorShots: row.GoaliePriorShots,
 		GoalieShutoutMinTOI: int(row.GoalieShutoutMinToi), MaxGames: row.MaxGames, IntervalZ: row.IntervalZ,
 		MinimumUncertainty: row.MinimumUncertainty, MaximumUncertainty: row.MaximumUncertainty,
-		MinimumHistoryGames: int(row.MinimumHistoryGames),
+		MinimumHistoryGames:        int(row.MinimumHistoryGames),
+		LinemateRegressionStrength: row.LinemateRegressionStrength,
 	}
 	if configHash(cfg) != row.ConfigHash {
 		return Snapshot{}, fmt.Errorf("projection snapshot config no longer matches its stored hash")
@@ -87,6 +88,15 @@ func playerFromRow(row sqlcdb.ProjectionPlayer, values map[Stat]Estimate) Player
 	}
 	if row.IncorporatesNewsThrough.Valid {
 		player.IncorporatesNewsThrough = row.IncorporatesNewsThrough.Time.UTC()
+	}
+	if row.LinemateObservedPointsPer60.Valid && row.LinemateAveragePointsPer60.Valid &&
+		row.LinemateSharedToiSeconds.Valid && row.LinemateAdjustmentFactor.Valid {
+		player.LinemateContext = &LinemateContext{
+			ObservedPointsPer60: row.LinemateObservedPointsPer60.Float64,
+			AveragePointsPer60:  row.LinemateAveragePointsPer60.Float64,
+			SharedTOISeconds:    row.LinemateSharedToiSeconds.Float64,
+			AdjustmentFactor:    row.LinemateAdjustmentFactor.Float64,
+		}
 	}
 	for _, stat := range row.MissingStats {
 		player.MissingStats = append(player.MissingStats, Stat(stat))

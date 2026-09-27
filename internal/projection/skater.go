@@ -12,6 +12,9 @@ const (
 
 	faceoffGroupCentre    = "C"
 	faceoffGroupNonCentre = "W"
+	evenStrengthLinemates = 4
+
+	neutralLinemateAdjustment = 1.0
 )
 
 type skaterTotals struct {
@@ -29,6 +32,12 @@ type skaterTotals struct {
 	faceoffsLost    float64
 }
 
+type linemateTotals struct {
+	weightedPoints float64
+	weightedTOI    float64
+	sharedTOI      float64
+}
+
 type skaterHistory struct {
 	teamID       int64
 	position     string
@@ -38,20 +47,25 @@ type skaterHistory struct {
 	games        int
 	weight       float64
 	totals       skaterTotals
+	linemates    map[string]linemateTotals
 }
 
 func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerProjection {
 	peers := make(map[string]skaterTotals)
 	faceoffPeers := make(map[string]skaterTotals)
 	history := make(map[int64]*skaterHistory)
+	leagueLinemates := make(map[string]linemateTotals)
 	for _, row := range rows {
 		age, ok := seasonAge(targetSeason, row.Season)
 		if !ok || age >= cfg.LookbackSeasons || row.GamesPlayed <= 0 {
 			continue
 		}
 		weight := seasonWeight(cfg.SeasonDecay, age)
+		group := positionGroup(row.Position)
+		leagueContext := leagueLinemates[group]
+		addLinemateSeason(&leagueContext, row, weight)
+		leagueLinemates[group] = leagueContext
 		if row.TOISeconds > 0 {
-			group := positionGroup(row.Position)
 			peer := peers[group]
 			addSkaterSeason(&peer, row, weight)
 			peers[group] = peer
@@ -64,7 +78,10 @@ func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerP
 
 		player := history[row.PlayerID]
 		if player == nil {
-			player = &skaterHistory{seasons: make(map[int]struct{}), contextAge: cfg.LookbackSeasons}
+			player = &skaterHistory{
+				seasons: make(map[int]struct{}), linemates: make(map[string]linemateTotals),
+				contextAge: cfg.LookbackSeasons,
+			}
 			history[row.PlayerID] = player
 		}
 		updateSkaterContext(player, row, age)
@@ -74,6 +91,9 @@ func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerP
 		}
 		player.games += row.GamesPlayed
 		addSkaterSeason(&player.totals, row, weight)
+		playerContext := player.linemates[group]
+		addLinemateSeason(&playerContext, row, weight)
+		player.linemates[group] = playerContext
 	}
 
 	result := make([]PlayerProjection, 0, len(history))
@@ -82,9 +102,20 @@ func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerP
 			cfg, playerID, *player,
 			peers[positionGroup(player.position)],
 			faceoffPeers[faceoffPositionGroup(player.position)],
+			leagueLinemates,
 		))
 	}
 	return result
+}
+
+func addLinemateSeason(total *linemateTotals, row SkaterSeason, weight float64) {
+	if row.LinemateTOISeconds <= 0 || !finite(row.LinematePointsPer60) || row.LinematePointsPer60 < 0 {
+		return
+	}
+	weightedTOI := weight * float64(row.LinemateTOISeconds)
+	total.weightedPoints += row.LinematePointsPer60 * weightedTOI
+	total.weightedTOI += weightedTOI
+	total.sharedTOI += float64(row.LinemateTOISeconds)
 }
 
 func updateSkaterContext(history *skaterHistory, row SkaterSeason, age int) {
@@ -122,6 +153,7 @@ func buildSkaterProjection(
 	history skaterHistory,
 	peers skaterTotals,
 	faceoffPeers skaterTotals,
+	leagueLinemates map[string]linemateTotals,
 ) PlayerProjection {
 	expectedGames := clamp(history.totals.games/history.weight, 0, cfg.MaxGames)
 	priorGames := cfg.SkaterPriorTOISeconds / typicalSkaterTOIPerGame
@@ -145,11 +177,91 @@ func buildSkaterProjection(
 	projectSkaterStat(values, StatShotsOnGoal, history.totals.shotsOnGoal, peers.shotsOnGoal, history, peers, cfg, expectedTOI, fraction, true)
 	projectSkaterStat(values, StatHits, history.totals.hits, peers.hits, history, peers, cfg, expectedTOI, fraction, true)
 	projectSkaterStat(values, StatBlockedShots, history.totals.blockedShots, peers.blockedShots, history, peers, cfg, expectedTOI, fraction, true)
-	projectSkaterStat(values, StatFaceoffsWon, history.totals.faceoffsWon, faceoffPeers.faceoffsWon, history, faceoffPeers, cfg, expectedTOI, fraction, true)
-	projectSkaterStat(values, StatFaceoffsLost, history.totals.faceoffsLost, faceoffPeers.faceoffsLost, history, faceoffPeers, cfg, expectedTOI, fraction, true)
+	if supportsFaceoffs(cfg.ModelVersion) {
+		projectSkaterStat(values, StatFaceoffsWon, history.totals.faceoffsWon, faceoffPeers.faceoffsWon, history, faceoffPeers, cfg, expectedTOI, fraction, true)
+		projectSkaterStat(values, StatFaceoffsLost, history.totals.faceoffsLost, faceoffPeers.faceoffsLost, history, faceoffPeers, cfg, expectedTOI, fraction, true)
+	}
+	var linemateContext *LinemateContext
+	if supportsLinemateContext(cfg.ModelVersion) {
+		linemateContext = adjustForLinemates(values, history.linemates, leagueLinemates, cfg)
+	}
 	values[StatPoints] = sumEstimates(values[StatGoals], values[StatAssists])
 
-	return skaterProjection(playerID, history, fraction, cfg.MinimumHistoryGames, values)
+	projection := skaterProjection(playerID, history, fraction, cfg.MinimumHistoryGames, values)
+	projection.LinemateContext = linemateContext
+	return projection
+}
+
+func adjustForLinemates(
+	values map[Stat]Estimate,
+	player, league map[string]linemateTotals,
+	cfg Config,
+) *LinemateContext {
+	observedPoints, averagePoints, exposure, sharedTOI := aggregateLinemateContext(player, league)
+	if exposure <= 0 {
+		return nil
+	}
+	observed := observedPoints / exposure
+	average := averagePoints / exposure
+	exposurePrior := cfg.SkaterPriorTOISeconds * evenStrengthLinemates
+	contextFactor := linemateAdjustmentFactor(observed, average, cfg.LinemateRegressionStrength, exposure, exposurePrior)
+	adjustNonPowerPlayScoring(values, contextFactor)
+	return &LinemateContext{
+		ObservedPointsPer60: observed,
+		AveragePointsPer60:  average,
+		SharedTOISeconds:    sharedTOI,
+		AdjustmentFactor:    contextFactor,
+	}
+}
+
+func aggregateLinemateContext(player, league map[string]linemateTotals) (
+	observedPoints, averagePoints, exposure, sharedTOI float64,
+) {
+	for _, group := range [...]string{positionGroupForward, positionGroupDefense} {
+		playerGroup := player[group]
+		leagueGroup := league[group]
+		if playerGroup.weightedTOI <= 0 || leagueGroup.weightedTOI <= 0 {
+			continue
+		}
+		observedPoints += playerGroup.weightedPoints
+		averagePoints += leagueGroup.weightedPoints / leagueGroup.weightedTOI * playerGroup.weightedTOI
+		exposure += playerGroup.weightedTOI
+		sharedTOI += playerGroup.sharedTOI
+	}
+	return observedPoints, averagePoints, exposure, sharedTOI
+}
+
+func linemateAdjustmentFactor(observed, average, strength, exposure, exposurePrior float64) float64 {
+	contextTotal := observed + average
+	if contextTotal <= 0 || exposure <= 0 {
+		return neutralLinemateAdjustment
+	}
+	reliability := exposure / (exposure + exposurePrior)
+	return neutralLinemateAdjustment + strength*reliability*(average-observed)/contextTotal
+}
+
+func adjustNonPowerPlayScoring(values map[Stat]Estimate, factor float64) {
+	goals, assists := values[StatGoals], values[StatAssists]
+	total := sumEstimates(goals, assists)
+	powerPlay := values[StatPowerPlayPoints]
+	values[StatGoals] = contextAdjustedEstimate(goals, total, powerPlay, factor)
+	values[StatAssists] = contextAdjustedEstimate(assists, total, powerPlay, factor)
+}
+
+func contextAdjustedEstimate(value, total, powerPlay Estimate, factor float64) Estimate {
+	return normalizeEstimate(Estimate{
+		Mean: adjustedScoringComponent(value.Mean, total.Mean, powerPlay.Mean, factor),
+		Low:  adjustedScoringComponent(value.Low, total.Low, powerPlay.Low, factor),
+		High: adjustedScoringComponent(value.High, total.High, powerPlay.High, factor),
+	}, true)
+}
+
+func adjustedScoringComponent(value, total, powerPlay, factor float64) float64 {
+	if total <= 0 || factor == neutralLinemateAdjustment {
+		return value
+	}
+	adjustedTotal := powerPlay + math.Max(total-powerPlay, 0)*factor
+	return value * adjustedTotal / total
 }
 
 func skaterProjection(

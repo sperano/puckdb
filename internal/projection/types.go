@@ -50,22 +50,33 @@ type Estimate struct {
 }
 
 type SkaterSeason struct {
-	PlayerID        int64
-	TeamID          int64
-	Season          int
-	Position        string
-	GamesPlayed     int
-	TOISeconds      int
-	Goals           int
-	Assists         int
-	PlusMinus       int
-	PenaltyMinutes  int
-	PowerPlayPoints int
-	ShotsOnGoal     int
-	Hits            int
-	BlockedShots    int
-	FaceoffsWon     int
-	FaceoffsLost    int
+	PlayerID            int64
+	TeamID              int64
+	Season              int
+	Position            string
+	GamesPlayed         int
+	TOISeconds          int
+	Goals               int
+	Assists             int
+	PlusMinus           int
+	PenaltyMinutes      int
+	PowerPlayPoints     int
+	ShotsOnGoal         int
+	Hits                int
+	BlockedShots        int
+	FaceoffsWon         int
+	FaceoffsLost        int
+	LinematePointsPer60 float64
+	LinemateTOISeconds  int
+}
+
+// LinemateContext records the historical even-strength context correction
+// used for a skater projection. Rates are TOI-weighted points per 60 minutes.
+type LinemateContext struct {
+	ObservedPointsPer60 float64
+	AveragePointsPer60  float64
+	SharedTOISeconds    float64
+	AdjustmentFactor    float64
 }
 
 type GoalieSeason struct {
@@ -117,6 +128,7 @@ type PlayerProjection struct {
 	Uncertainty             float64
 	InsufficientHistory     bool
 	MissingStats            []Stat
+	LinemateContext         *LinemateContext
 	Values                  map[Stat]Estimate
 }
 

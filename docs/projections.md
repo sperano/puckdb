@@ -6,7 +6,7 @@ can be scored differently for each Yahoo league without changing its inputs.
 
 ## Model
 
-The `nhl-baseline-v2` model uses completed NHL regular-season games from the
+The `nhl-baseline-v3` model uses completed NHL regular-season games from the
 three seasons before the target season. Live, postponed, preseason and playoff
 games, and games from the target season or later, are excluded from model inputs.
 Each season is weighted by `season_decay ^ age`, where the immediately prior
@@ -14,18 +14,31 @@ season has age zero. Traded-player rows are summed before workload is
 calculated, so two club rows in one season still count as one season.
 
 Skater counting rates use weighted time on ice and regress toward a
-forward/defense peer rate. Faceoffs won and lost regress toward a centre or
-non-centre peer rate instead, since faceoff usage is far more position-specific
-than the other counting stats: lumping centres in with wingers under the
-forward/defense split would badly misstate both groups' peer rate. Expected
-games and time on ice per game come from weighted historical workload. Goalie
-save and goals-against rates regress by
-shots faced; wins and shutouts regress by starts. Goalie GAA and save
+forward/defense peer rate. Version 2 added faceoffs won and lost, which regress
+toward a centre or non-centre peer rate instead, since faceoff usage is far more
+position-specific than the other counting stats: lumping centres in with
+wingers under the forward/defense split would badly misstate both groups' peer
+rate. Expected games and time on ice per game come from weighted historical
+workload. Goalie save and goals-against rates regress by shots faced; wins and
+shutouts regress by starts. Goalie GAA and save
 percentage are derived from projected goals against, saves, shots, and time on
 ice rather than averaging historical ratios. The most recent historical team
 and position are retained as context. TOI and power-play production represent
 observed role; the baseline does not guess at unobserved offseason role or team
 changes.
+
+Version 3 neutralizes historical even-strength linemate context. Shift
+boundaries form half-open on-ice segments. A segment counts only when both
+teams have the same number of active skaters, from three through five; goalies,
+power plays, penalty kills, empty-net advantages and line-change 6v6 artifacts
+are excluded. Each teammate's even-strength points-per-60 rate is weighted by
+shared seconds. Forward and defense contexts use separate exposure-weighted
+averages. The model scales the non-power-play share of projected goals and
+assists toward average context; points remain their sum, power-play production
+is preserved, and no other statistic changes. The correction is
+reliability-weighted against four times the skater TOI prior, so sparse shift
+coverage stays close to neutral. This is strictly a correction for past
+context and makes no assumption about the target season's lines.
 
 The default parameters are:
 
@@ -34,6 +47,7 @@ The default parameters are:
 | Lookback | 3 seasons |
 | Season decay | 0.40 |
 | Skater regression prior | 9,000 seconds of TOI |
+| Linemate regression strength | 0.25 |
 | Goalie regression prior | 500 shots faced |
 | Goalie shutout minimum TOI | 3,540 seconds |
 | Maximum games | 82 |
@@ -57,11 +71,11 @@ target-season row and a previous-season row. Each cell is `model MAE / previous
 season MAE`. Stored evaluations include the configuration hash, source-data
 hash, projection cutoff, and observation time.
 
-This table records an external evaluation. Its production-derived source rows
-are not committed, so the exact numbers cannot be reproduced from this
-repository alone. Given equivalent season aggregates, `projection.Evaluate`
-reproduces the calculation and rejects overrides so external projections cannot
-leak into held-out results.
+This table records the version 1 external evaluation. Its production-derived
+source rows are not committed, so the exact numbers cannot be reproduced from
+this repository alone. Given equivalent season aggregates,
+`projection.Evaluate` reproduces the calculation and rejects overrides so
+external projections cannot leak into held-out results.
 
 | Statistic | 2023-24 (n=782) | 2024-25 (n=778) | 2025-26 (n=791) |
 | --- | ---: | ---: | ---: |
@@ -82,6 +96,20 @@ is better for shots and hits. This is a baseline for later ranking and
 sensitivity work, not evidence that every category has improved. Faceoffs won
 and lost were added in `nhl-baseline-v2` after this evaluation was recorded and
 are not yet reflected in the table above.
+
+### Version 3 linemate holdout
+
+`projection.EvaluateLinemateAdjustment` compares version 3 against the same
+configuration with only `LinemateRegressionStrength` set to zero. It uses the
+same player/stat sample on both sides and returns MAE and RMSE per skater stat.
+For a 2025-26 holdout, `Repository.LoadEvaluationInput` reads 2022-23 through
+2024-25 as model history and 2025-26 only as outcomes.
+
+The numeric 2025-26 result is not recorded here. This repository contains no
+production-derived shift or game aggregate export, and database-backed tests
+skip when `PUCKDB_TEST_PG_URL` is unset. The holdout must therefore be run
+against an approved 2022-26 database before the coefficient can be considered
+empirically validated. No error change is inferred from synthetic fixtures.
 
 Goalie component and ratio behavior is covered by deterministic tests. A live
 goalie backtest was not recorded in this change because approval to export the
