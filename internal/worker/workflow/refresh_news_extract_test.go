@@ -18,6 +18,7 @@ import (
 const (
 	extractTestProvider = "ollama"
 	extractTestModel    = "qwen3:8b"
+	extractTestEffort   = "none"
 	extractTestCalls    = 5
 	extractTestTokens   = 10_000
 )
@@ -28,6 +29,7 @@ func withNewsExtraction(t *testing.T) {
 	viper.Set(config.FlagNewsExtractEnabled, true)
 	viper.Set(config.FlagNewsExtractProvider, extractTestProvider)
 	viper.Set(config.FlagNewsExtractModel, extractTestModel)
+	viper.Set(config.FlagNewsExtractReasoningEffort, extractTestEffort)
 	viper.Set(config.FlagNewsExtractMaxCalls, extractTestCalls)
 	viper.Set(config.FlagNewsExtractMaxTokens, extractTestTokens)
 	t.Cleanup(viper.Reset)
@@ -72,7 +74,7 @@ func TestRefreshNewsWorkflow_ExtractsInBatchesWithinTheBudget(t *testing.T) {
 	second := newsfeed.ExtractResult{Versions: 1, Succeeded: 1, Calls: 1, PromptTokens: 1000, Remaining: false}
 	var act *newsfeed.Activities
 	env.OnActivity(act.ExtractNewsEvents, mock.Anything, mock.MatchedBy(func(in newsfeed.ExtractInput) bool {
-		return in.Provider == extractTestProvider && in.Model == extractTestModel &&
+		return in.Provider == extractTestProvider && in.Model == extractTestModel && in.ReasoningEffort == extractTestEffort &&
 			in.RemainingCalls == extractTestCalls && in.RemainingTokens == extractTestTokens
 	})).Return(first, nil).Once()
 	env.OnActivity(act.ExtractNewsEvents, mock.Anything, mock.MatchedBy(func(in newsfeed.ExtractInput) bool {

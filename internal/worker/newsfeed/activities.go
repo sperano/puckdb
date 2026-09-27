@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
@@ -108,6 +109,9 @@ type FetchResult struct {
 	Stored      news.IngestResult `json:"stored"`
 	// Bodies counts the story pages of a fetch_body source.
 	Bodies news.BodyResult `json:"bodies"`
+	// Skipped is why the source had nothing to fetch; nothing was stored
+	// and no attempt recorded, so the next refresh tries it again.
+	Skipped string `json:"skipped,omitempty"`
 }
 
 const (
@@ -137,7 +141,7 @@ func (a *Activities) FetchNewsSource(ctx context.Context, input FetchInput) (Fet
 func (a *Activities) fetchYahooStatus(ctx context.Context, input FetchInput) (FetchResult, error) {
 	statuses, asOf, err := news.LoadYahooStatuses(ctx, a.Queries, input.Season)
 	if errors.Is(err, news.ErrNoYahooPools) {
-		return FetchResult{}, temporal.NewNonRetryableApplicationError(err.Error(), ErrTypeNoCoverage, err)
+		return a.noYahooPools(ctx, input.Season, err)
 	}
 	if err != nil {
 		return FetchResult{}, err
@@ -148,6 +152,35 @@ func (a *Activities) fetchYahooStatus(ctx context.Context, input FetchInput) (Fe
 	}
 	err = a.recordSuccess(ctx, input, news.Validators{}, asOf, stored)
 	return FetchResult{Stored: stored}, err
+}
+
+// noYahooPools skips the Yahoo status source while every league of the
+// season is a TEMPORARY stand-in: Yahoo refuses their player pools, so there
+// is no status to read and nothing a retry or a sync could fix. Otherwise a
+// missing pool is a failure (a Yahoo sync has not run).
+func (a *Activities) noYahooPools(ctx context.Context, season int, cause error) (FetchResult, error) {
+	leagues, err := a.Queries.ListLatestYahooLeagueRuleSnapshots(ctx, int32(season))
+	if err != nil {
+		return FetchResult{}, fmt.Errorf("list league rules of season %d: %w", season, err)
+	}
+	if reason := standInSkipReason(leagues); reason != "" {
+		return FetchResult{Skipped: reason}, nil
+	}
+	return FetchResult{}, temporal.NewNonRetryableApplicationError(cause.Error(), ErrTypeNoCoverage, cause)
+}
+
+// standInSkipReason is why a season without Yahoo pools has no Yahoo status
+// to read, or "" when a league of it should have a pool (or there is none).
+func standInSkipReason(leagues []sqlcdb.YahooLeagueRuleSnapshot) string {
+	if len(leagues) == 0 {
+		return ""
+	}
+	for _, l := range leagues {
+		if draft.Source(l.Source) != draft.SourceTemporaryStandIn {
+			return ""
+		}
+	}
+	return fmt.Sprintf("all %d leagues of the season are temporary stand-ins without a Yahoo player pool", len(leagues))
 }
 
 func (a *Activities) fetchFeed(ctx context.Context, input FetchInput) (FetchResult, error) {

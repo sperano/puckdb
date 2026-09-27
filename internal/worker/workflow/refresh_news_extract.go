@@ -32,6 +32,7 @@ type newsExtractConfig struct {
 	Enabled         bool   `json:"enabled"`
 	Provider        string `json:"provider"`
 	Model           string `json:"model"`
+	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 	MaxOutputTokens int    `json:"maxOutputTokens"`
 	MaxInputChars   int    `json:"maxInputChars"`
 	TimeoutSeconds  int    `json:"timeoutSeconds"`
@@ -49,6 +50,7 @@ func loadNewsExtractConfig() newsExtractConfig {
 		Enabled:         viper.GetBool(config.FlagNewsExtractEnabled),
 		Provider:        shared.ViperStringOrDefault(config.FlagNewsExtractProvider, config.DefaultNewsExtractProvider),
 		Model:           shared.ViperStringOrDefault(config.FlagNewsExtractModel, config.DefaultNewsExtractModel),
+		ReasoningEffort: viper.GetString(config.FlagNewsExtractReasoningEffort),
 		MaxOutputTokens: shared.ViperIntOrDefault(config.FlagNewsExtractMaxOutputTokens, config.DefaultNewsExtractMaxOutputTokens),
 		MaxInputChars:   shared.ViperIntOrDefault(config.FlagNewsExtractMaxInputChars, config.DefaultNewsExtractMaxInputChars),
 		TimeoutSeconds:  shared.ViperIntOrDefault(config.FlagNewsExtractTimeoutSeconds, config.DefaultNewsExtractTimeoutSeconds),
@@ -91,7 +93,8 @@ func extractNewsEvents(ctx workflow.Context, cfg newsConfig, result *RefreshNews
 func newsExtractInput(cfg newsConfig, calls, tokens int) newsfeed.ExtractInput {
 	x := cfg.Extract
 	return newsfeed.ExtractInput{
-		Provider: x.Provider, Model: x.Model, MaxOutputTokens: x.MaxOutputTokens, MaxInputChars: x.MaxInputChars,
+		Provider: x.Provider, Model: x.Model, ReasoningEffort: x.ReasoningEffort,
+		MaxOutputTokens: x.MaxOutputTokens, MaxInputChars: x.MaxInputChars,
 		TimeoutSeconds: x.TimeoutSeconds, BatchSize: x.BatchSize, Concurrency: x.Concurrency,
 		MaxAttempts: x.MaxAttempts, RetryMinutes: x.RetryMinutes, LookbackDays: x.LookbackDays,
 		IncidentWindowHours: cfg.IncidentWindowHours, RemainingCalls: calls, RemainingTokens: tokens,

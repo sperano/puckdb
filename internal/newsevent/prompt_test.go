@@ -7,6 +7,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var promptTestReported = time.Date(2026, time.October, 6, 20, 0, 0, 0, time.UTC)
@@ -95,4 +96,15 @@ func TestSystemPromptMentionsUntrustedDataAndNoTools(t *testing.T) {
 	p := strings.ToLower(SystemPrompt())
 	assert.Contains(t, p, "untrusted data")
 	assert.Contains(t, p, "no tools")
+}
+
+func TestSystemPromptStatesMinimumQuoteLength(t *testing.T) {
+	require.Equal(t, 3, minQuoteWords, "update the prompt's minimum quote length with minQuoteWords")
+	assert.Contains(t, SystemPrompt(), "at least three\n   words long",
+		"a model not told the minimum loses short field quotes to validation")
+}
+
+func TestSystemPromptMapsWeeksToDays(t *testing.T) {
+	require.Equal(t, 7, daysPerWeek, "update the prompt's week conversion with daysPerWeek")
+	assert.Contains(t, SystemPrompt(), "days = 7 x weeks")
 }

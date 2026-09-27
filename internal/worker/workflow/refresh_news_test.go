@@ -163,6 +163,30 @@ func TestRefreshNewsWorkflow_FetchFailureRecordsFailureButSucceeds(t *testing.T)
 	env.AssertExpectations(t)
 }
 
+func TestRefreshNewsWorkflow_SkippedSourceIsNeitherFetchedNorFailed(t *testing.T) {
+	sources := withFixedNewsSources(t)
+	env := newRefreshNewsEnv(t)
+	env.SetStartTime(newsTestNow)
+
+	var act *newsfeed.Activities
+	env.OnActivity(act.PlanNewsRefresh, mock.Anything, planInputMatch(sources, newsTestSeason, false)).
+		Return(newsfeed.Plan{Due: []news.Source{sources[0]}}, nil).Once()
+	const reason = "all 2 leagues of the season are temporary stand-ins without a Yahoo player pool"
+	env.OnActivity(act.FetchNewsSource, mock.Anything, newsfeed.FetchInput{Source: sources[0], Season: newsTestSeason}).
+		Return(newsfeed.FetchResult{Skipped: reason}, nil).Once()
+	mockTrivialProcessAndPrune(env)
+
+	env.ExecuteWorkflow(RefreshNewsWorkflow, &model.RefreshNewsInput{})
+
+	require.NoError(t, env.GetWorkflowError())
+	var result RefreshNewsResult
+	require.NoError(t, env.GetWorkflowResult(&result))
+	assert.Empty(t, result.Fetched)
+	assert.Empty(t, result.Failed, "a skipped source must not be recorded as a fetch failure")
+	assert.Equal(t, []SkippedNewsSource{{SourceID: sources[0].ID, Reason: reason}}, result.Skipped)
+	env.AssertExpectations(t)
+}
+
 func TestRefreshNewsWorkflow_InvalidRequestedSourceFails(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -39,6 +39,7 @@ model names.
 |---|---|---|
 | `--news-extract-enabled` | `false` | Runs extraction after each refresh |
 | `--news-extract-provider` / `--news-extract-model` | `anthropic` / `claude-haiku-4-5-20251001` | Which model reads the articles |
+| `--news-extract-reasoning-effort` | empty | `reasoning_effort` (`none`, `minimal`, `low`, `medium`, `high`) sent to `openai`/`ollama`; `none` turns off a thinking model's reasoning. Anything else fails the extraction as a config error. Ignored by `anthropic` |
 | `--news-extract-max-calls` | 100 | Model calls per refresh |
 | `--news-extract-max-tokens` | 500,000 | Prompt plus completion tokens per refresh |
 | `--news-extract-concurrency` | 2 | Model calls at once per activity |
@@ -49,6 +50,14 @@ model names.
 | `--news-extract-max-attempts` | 3 | Tries per version and extractor before it is left for review |
 | `--news-extract-retry-minutes` | 30 | Wait before a failed call is tried again |
 | `--news-extract-lookback-days` | 180 | Only versions behind incidents reported this recently |
+
+**Thinking models.** Qwen3-family models on Ollama think before they answer
+by default, and the thinking counts against
+`--news-extract-max-output-tokens`. With `qwen3.6:35b-a3b` and the default
+2,048, 15 of the 18 corpus replies were cut off. Given room (16,384 tokens),
+thinking scored worse than no thinking on every measure and took about 8
+minutes per corpus instead of 1. Run such models with
+`--news-extract-reasoning-effort none`.
 
 Versions left over when a cap is reached wait for the next refresh. Tokens
 are counted after each call returns, so concurrent calls can overshoot the
@@ -183,7 +192,10 @@ model output behind it.
 ## Idempotency, retries and caching
 
 - An extraction is keyed by version and **extractor**
-  (`provider/model/prompt-version/schema-version`). A retry updates the row
+  (`provider/model/prompt-version/schema-version`, with
+  `reasoning-<effort>` after the model when an effort is set). The gate is
+  keyed the same way, so an evaluation with thinking does not release
+  extraction without it. A retry updates the row
   (attempts, last error). A new model, prompt or schema is a new row: the
   version is read again, the earlier outcome stays as the audit trail, and a
   matching event only gains evidence.
@@ -282,9 +294,50 @@ run on the current corpus version passed. Changing a label means bumping the
 corpus `version`, after which every extractor must pass again.
 
 ```bash
-puckdb news eval --news-extract-provider ollama --news-extract-model qwen3:32b
+puckdb news eval --news-extract-provider ollama --news-extract-model qwen3.6:35b-a3b \
+  --news-extract-reasoning-effort none --ollama-base-url http://ollama.ollama.svc.cluster.local:11434/v1
 puckdb news eval --news-eval-corpus my-corpus.yaml --news-output eval.md   # not recorded
 ```
+
+### Measured runs
+
+On 2026-09-26, `qwen3.6:35b-a3b` (Ollama 0.30.10 on ollama-host) was run on
+corpus `news-events-corpus-v1` with temperature 0. Repeat runs gave identical
+results. None of these runs was recorded, because there was no database.
+
+| Measure | prompt v1, thinking, 2,048 out | prompt v1, thinking, 16,384 out | prompt v1, `none` | prompt v2, `none` | Threshold |
+|---|---|---|---|---|---|
+| Event recall | 0.167 | 0.833 | 0.889 | 0.944 | ≥ 0.95 |
+| Event precision | 1.000 | 0.833 | 0.842 | 0.895 | ≥ 0.95 |
+| Field accuracy | 0.667 | 0.533 | 0.688 | 0.941 | ≥ 0.90 |
+| Unsupported-claim rate | 0.100 | 0.060 | 0.068 | 0.014 | ≤ 0.02 |
+| Invalid-output rate | 0.833 | 0 | 0 | 0 | ≤ 0.05 |
+| Lifecycle accuracy | 0 | 0.261 | 0.364 | 0.722 | ≥ 1.00 |
+| Injection failures | 1 | 1 | 1 | 0 | ≤ 0 |
+| Completion tokens | 36,121 | 43,353 | 3,700 | 3,676 | |
+
+Prompt v2 fixed two mismatches between the prompt and validation.
+
+- The prompt now states that a quote needs at least three words. Correct
+  short field quotes ("suspended indefinitely") were being cleared.
+- It now says that a stated number of weeks is a `days` length. The model
+  had used `week_to_week` for "out three weeks".
+
+It also says that a coach or general manager speaks for the team, so their
+statements are `confirmed`.
+
+The v2 run still fails on three cases. These are model judgment, not
+contract gaps.
+
+- It invents an injury for the opponent who "left the game and did not
+  return".
+- It reports "listening to offers, league sources say" as `reported`, not a
+  `rumor`.
+- For an AHL assignment it gives `to: American Hockey League`, where the
+  label is the club, `Laval Rocket`.
+
+Until an extractor passes, its events are stored and reported, but the gate
+keeps them from adjusting rankings automatically.
 
 The corpus replays offline in the unit tests with its reference replies, which
 must score perfectly. Adversarial replies are tested too: obeying the
@@ -293,10 +346,10 @@ failed call.
 
 ## Not done here
 
-- **No live model run is part of this change.** The sandbox it was built in
-  had no LLM provider key, so the thresholds have not yet been measured
-  against a real model. Run `puckdb news eval` before enabling extraction.
-  Until a run passes, the gate keeps automatic effects off.
+- **No extractor has passed yet.** See [Measured runs](#measured-runs).
+  `claude-haiku-4-5-20251001` has not been measured, because no Anthropic
+  key was available. Each run on the built-in corpus is recorded, and the
+  gate reads the latest one.
 - **Yahoo status items are not extracted.** They are already structured
   (status codes, injury notes). They keep their incident candidates, but
   they do not resolve or supersede LLM events. A Yahoo status that clears

@@ -9,6 +9,10 @@ type Request struct {
 	Tools       []Tool    `json:"tools,omitempty"`
 	MaxTokens   int       `json:"max_tokens,omitempty"`
 	Temperature *float64  `json:"temperature,omitempty"`
+	// ReasoningEffort is sent as-is to OpenAI-compatible providers ("none"
+	// turns off an Ollama model's thinking); empty leaves the provider's
+	// default. The Anthropic client ignores it.
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }
 
 // Message represents a single chat message.

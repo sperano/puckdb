@@ -150,11 +150,16 @@ func newsExtractorFromFlags() (newsevent.Extractor, error) {
 	if err != nil {
 		return newsevent.Extractor{}, err
 	}
+	effort, err := newsevent.ParseReasoningEffort(viper.GetString(config.FlagNewsExtractReasoningEffort))
+	if err != nil {
+		return newsevent.Extractor{}, err
+	}
 	model := viper.GetString(config.FlagNewsExtractModel)
 	timeout := time.Duration(viper.GetInt(config.FlagNewsExtractTimeoutSeconds)) * time.Second
 	return newsevent.Extractor{
 		Client:   newsLLMFactory(configuredLLMProviders())(provider, model, timeout),
-		Provider: name, Model: model, MaxOutputTokens: viper.GetInt(config.FlagNewsExtractMaxOutputTokens),
+		Provider: name, Model: model, ReasoningEffort: effort,
+		MaxOutputTokens: viper.GetInt(config.FlagNewsExtractMaxOutputTokens),
 	}, nil
 }
 

@@ -42,7 +42,9 @@ type openaiRequest struct {
 	Tools       []Tool    `json:"tools,omitempty"`
 	MaxTokens   int       `json:"max_tokens,omitempty"`
 	Temperature *float64  `json:"temperature,omitempty"`
-	Stream      bool      `json:"stream"`
+	// ReasoningEffort is omitted when empty so providers keep their default.
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	Stream          bool   `json:"stream"`
 }
 
 // openaiResponse is the wire format for OpenAI /v1/chat/completions response.
@@ -61,12 +63,13 @@ type openaiChoice struct {
 
 func (c *openaiClient) Complete(ctx context.Context, req *Request) (*Response, error) {
 	wireReq := openaiRequest{
-		Model:       c.model,
-		Messages:    req.Messages,
-		Tools:       req.Tools,
-		MaxTokens:   req.MaxTokens,
-		Temperature: req.Temperature,
-		Stream:      false,
+		Model:           c.model,
+		Messages:        req.Messages,
+		Tools:           req.Tools,
+		MaxTokens:       req.MaxTokens,
+		Temperature:     req.Temperature,
+		ReasoningEffort: req.ReasoningEffort,
+		Stream:          false,
 	}
 
 	body, err := json.Marshal(wireReq)

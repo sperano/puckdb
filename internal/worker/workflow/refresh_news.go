@@ -69,12 +69,20 @@ type FailedNewsSource struct {
 	Error    string `json:"error"`
 }
 
+// SkippedNewsSource is a source that had nothing to fetch, such as Yahoo
+// status while every league is a stand-in without a Yahoo player pool.
+type SkippedNewsSource struct {
+	SourceID string `json:"sourceId"`
+	Reason   string `json:"reason"`
+}
+
 // RefreshNewsResult summarizes one news refresh.
 type RefreshNewsResult struct {
 	Season      int                 `json:"season"`
 	Fetched     []string            `json:"fetched"`
 	NotModified []string            `json:"notModified"`
 	Failed      []FailedNewsSource  `json:"failed"`
+	Skipped     []SkippedNewsSource `json:"skipped,omitempty"`
 	NotDue      []newsfeed.NotDue   `json:"notDue"`
 	Stored      news.IngestResult   `json:"stored"`
 	Bodies      news.BodyResult     `json:"bodies"`
@@ -179,6 +187,10 @@ func fetchNewsSources(ctx workflow.Context, cfg newsConfig, due []news.Source, r
 			recordNewsFailure(ctx, src, result, err)
 			continue
 		}
+		if fetched.Skipped != "" {
+			result.Skipped = append(result.Skipped, SkippedNewsSource{SourceID: src.ID, Reason: fetched.Skipped})
+			continue
+		}
 		if fetched.NotModified {
 			result.NotModified = append(result.NotModified, src.ID)
 		} else {
@@ -233,7 +245,7 @@ func processNewsVersions(ctx workflow.Context, cfg newsConfig, result *RefreshNe
 }
 
 func newsSummary(r RefreshNewsResult, elapsed string) string {
-	return fmt.Sprintf("Fetched %d, unchanged %d, failed %d, not due %d sources; %d new versions, %d incidents, %d repeats, %d events in %s.",
-		len(r.Fetched), len(r.NotModified), len(r.Failed), len(r.NotDue),
+	return fmt.Sprintf("Fetched %d, unchanged %d, failed %d, skipped %d, not due %d sources; %d new versions, %d incidents, %d repeats, %d events in %s.",
+		len(r.Fetched), len(r.NotModified), len(r.Failed), len(r.Skipped), len(r.NotDue),
 		r.Stored.NewVersions, r.Processed.IncidentsCreated, r.Processed.Repeats, r.Extracted.Events.Created, elapsed)
 }

@@ -34,6 +34,7 @@ type ClientFactory func(provider llm.Provider, model string, timeout time.Durati
 type ExtractInput struct {
 	Provider            string `json:"provider"`
 	Model               string `json:"model"`
+	ReasoningEffort     string `json:"reasoningEffort,omitempty"`
 	MaxOutputTokens     int    `json:"maxOutputTokens"`
 	MaxInputChars       int    `json:"maxInputChars"`
 	TimeoutSeconds      int    `json:"timeoutSeconds"`
@@ -170,6 +171,10 @@ func (a *Activities) extractRunner(input ExtractInput) (*newsevent.Runner, error
 	if err != nil {
 		return nil, temporal.NewNonRetryableApplicationError(err.Error(), ErrTypeExtractConfig, err)
 	}
+	effort, err := newsevent.ParseReasoningEffort(input.ReasoningEffort)
+	if err != nil {
+		return nil, temporal.NewNonRetryableApplicationError(err.Error(), ErrTypeExtractConfig, err)
+	}
 	if a.LLM == nil {
 		err := fmt.Errorf("the worker has no LLM client factory")
 		return nil, temporal.NewNonRetryableApplicationError(err.Error(), ErrTypeExtractConfig, err)
@@ -177,7 +182,8 @@ func (a *Activities) extractRunner(input ExtractInput) (*newsevent.Runner, error
 	client := a.LLM(provider, input.Model, time.Duration(input.TimeoutSeconds)*time.Second)
 	return &newsevent.Runner{
 		Extractor: newsevent.Extractor{
-			Client: client, Provider: input.Provider, Model: input.Model, MaxOutputTokens: input.MaxOutputTokens,
+			Client: client, Provider: input.Provider, Model: input.Model, ReasoningEffort: effort,
+			MaxOutputTokens: input.MaxOutputTokens,
 		},
 		Queries:       a.Queries,
 		InTx:          a.inEventTx,

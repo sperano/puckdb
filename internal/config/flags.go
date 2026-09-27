@@ -788,6 +788,7 @@ const (
 	FlagNewsExtractEnabled         = "news-extract-enabled"
 	FlagNewsExtractProvider        = "news-extract-provider"
 	FlagNewsExtractModel           = "news-extract-model"
+	FlagNewsExtractReasoningEffort = "news-extract-reasoning-effort"
 	FlagNewsExtractMaxOutputTokens = "news-extract-max-output-tokens"
 	FlagNewsExtractMaxInputChars   = "news-extract-max-input-chars"
 	FlagNewsExtractBatchSize       = "news-extract-batch-size"
@@ -828,6 +829,7 @@ var NewsExtractModelFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagNewsExtractProvider, "", DefaultNewsExtractProvider, "LLM provider of news event extraction: anthropic, openai or ollama", false},
 		{FlagNewsExtractModel, "", DefaultNewsExtractModel, "LLM model of news event extraction", false},
+		{FlagNewsExtractReasoningEffort, "", DefaultNewsExtractReasoningEffort, "Reasoning effort of news event extraction for openai and ollama: none, minimal, low, medium or high (none turns off a thinking model's reasoning; empty keeps the provider default; ignored by anthropic)", false},
 		{FlagNewsExtractMaxOutputTokens, "", DefaultNewsExtractMaxOutputTokens, "Maximum output tokens per news extraction call", false},
 		{FlagNewsExtractMaxInputChars, "", DefaultNewsExtractMaxInputChars, "Maximum article characters sent per news extraction call", false},
 		{FlagNewsExtractTimeoutSeconds, "", DefaultNewsExtractTimeoutSeconds, "Seconds before a news extraction call times out", false},

@@ -3,10 +3,12 @@ package newsfeed
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/newsevent"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -67,4 +69,21 @@ func TestExtractResultCountsVersionOutcomes(t *testing.T) {
 	total.Add(r)
 	assert.Equal(t, 2*r.Versions, total.Versions)
 	assert.Equal(t, 2*r.Events.Created, total.Events.Created)
+}
+
+func TestExtractRunnerRejectsUnknownReasoningEffort(t *testing.T) {
+	acts := &Activities{LLM: func(llm.Provider, string, time.Duration) llm.Client { return nil }}
+
+	_, err := acts.extractRunner(ExtractInput{Provider: "ollama", Model: "qwen", ReasoningEffort: "off"})
+
+	assertApplicationErrorType(t, err, ErrTypeExtractConfig, true)
+}
+
+func TestExtractRunnerNormalizesReasoningEffort(t *testing.T) {
+	acts := &Activities{LLM: func(llm.Provider, string, time.Duration) llm.Client { return nil }}
+
+	runner, err := acts.extractRunner(ExtractInput{Provider: "ollama", Model: "qwen", ReasoningEffort: " None "})
+
+	require.NoError(t, err)
+	assert.Equal(t, "none", runner.Extractor.ReasoningEffort)
 }

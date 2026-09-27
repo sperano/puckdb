@@ -114,10 +114,59 @@ func TestExtractorKeyNormalizesProvider(t *testing.T) {
 	x := Extractor{Provider: "  Anthropic  ", Model: "claude-x"}
 	key := x.Key()
 
-	assert.Equal(t, ExtractorKey("anthropic", "claude-x"), key)
+	assert.Equal(t, ExtractorKey("anthropic", "claude-x", ""), key)
 	assert.Contains(t, key, "anthropic")
 	assert.Contains(t, key, PromptVersion)
 	assert.Contains(t, key, SchemaVersion)
-	assert.Equal(t, ExtractorKey("ANTHROPIC", "m"), ExtractorKey(" anthropic ", "m"),
+	assert.Equal(t, ExtractorKey("ANTHROPIC", "m", ""), ExtractorKey(" anthropic ", "m", ""),
 		"provider case and surrounding whitespace must not matter")
+}
+
+func TestExtractorKeyWithoutReasoningEffortKeepsEarlierKeys(t *testing.T) {
+	key := ExtractorKey("anthropic", "claude-x", "  ")
+
+	assert.Equal(t, "anthropic/claude-x/"+PromptVersion+"/"+SchemaVersion, key,
+		"an unset effort must leave the keys of stored extractions and evaluations unchanged")
+}
+
+func TestExtractorKeyIncludesReasoningEffort(t *testing.T) {
+	x := Extractor{Provider: "ollama", Model: "qwen", ReasoningEffort: " None "}
+
+	assert.Equal(t, "ollama/qwen/reasoning-none/"+PromptVersion+"/"+SchemaVersion, x.Key())
+	assert.NotEqual(t, ExtractorKey("ollama", "qwen", ""), x.Key(),
+		"an evaluation without the effort must not release the extractor that sets it")
+}
+
+func TestCallSendsReasoningEffort(t *testing.T) {
+	client := &extractFakeClient{resp: &llm.Response{Content: `{"events": []}`, FinishReason: "stop"}}
+	x := Extractor{Client: client, ReasoningEffort: " None ", MaxOutputTokens: extractTestMaxTokens}
+
+	_, err := x.Call(context.Background(), extractTestInput())
+	require.NoError(t, err)
+	assert.Equal(t, "none", client.req.ReasoningEffort)
+}
+
+func TestParseReasoningEffort(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    string
+		wantErr bool
+	}{
+		{"empty_keeps_provider_default", "", "", false},
+		{"normalized", " None ", "none", false},
+		{"high", "high", "high", false},
+		{"typo_rejected", "off", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseReasoningEffort(tt.in)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

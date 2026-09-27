@@ -296,6 +296,9 @@ const (
 	DefaultNewsExtractEnabled  = false
 	DefaultNewsExtractProvider = "anthropic"
 	DefaultNewsExtractModel    = "claude-haiku-4-5-20251001"
+	// DefaultNewsExtractReasoningEffort of "" sends no reasoning effort, so
+	// the provider's default applies.
+	DefaultNewsExtractReasoningEffort = ""
 	// DefaultNewsExtractMaxOutputTokens bounds one reply (a few events).
 	DefaultNewsExtractMaxOutputTokens = 2048
 	// DefaultNewsExtractMaxInputChars bounds the article text sent per

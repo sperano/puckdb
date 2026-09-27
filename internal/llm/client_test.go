@@ -213,3 +213,34 @@ func TestTruncate(t *testing.T) {
 		})
 	}
 }
+
+func TestComplete_ReasoningEffort(t *testing.T) {
+	tests := []struct {
+		name   string
+		effort string
+		want   any
+	}{
+		{"sent_when_set", "none", "none"},
+		{"omitted_when_empty", "", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var body map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				assert.NoError(t, json.NewEncoder(w).Encode(openaiResponse{
+					Choices: []openaiChoice{{Message: Message{Content: "ok"}}},
+				}))
+			}))
+			defer server.Close()
+
+			client := NewOpenAIClient(server.URL, "", "model")
+			_, err := client.Complete(context.Background(), &Request{
+				Messages:        []Message{{Role: "user", Content: "test"}},
+				ReasoningEffort: tt.effort,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, body["reasoning_effort"])
+		})
+	}
+}

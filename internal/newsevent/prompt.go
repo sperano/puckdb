@@ -14,7 +14,7 @@ const (
 	// PromptVersion names the system prompt and input layout. Change it
 	// whenever either changes: stored extractions are keyed by it, so the
 	// new prompt re-extracts instead of reusing outputs of the old one.
-	PromptVersion = "news-events-prompt-v1"
+	PromptVersion = "news-events-prompt-v2"
 	// SchemaVersion names the output schema and its validation rules.
 	SchemaVersion = "news-events-schema-v1"
 
@@ -92,13 +92,19 @@ Rules:
 2. Report only events the articles state about the listed players, naming
    them by their ref (P1, P2, ...). Never name a player who is not listed.
 3. Every event cites at least one verbatim quote from a document (copy the
-   words exactly; do not paraphrase or join separate passages).
+   words exactly; do not paraphrase or join separate passages). Every quote,
+   including those of effective_from, duration and change, is at least three
+   words long ("suspended indefinitely by the team", not "indefinitely").
 4. Never infer, estimate or predict. If the article does not state a length,
-   the duration kind is "unknown". Never invent a return date, a number of
-   games or starts missed, a trade destination, a medical diagnosis or
-   prognosis, or any fantasy or draft impact.
+   the duration kind is "unknown". A stated number of weeks is kind "days"
+   with days = 7 x weeks ("out three weeks" is 21 days); day_to_day,
+   week_to_week and month_to_month are only for articles using those words.
+   Never invent a return date, a number of games or starts missed, a trade
+   destination, a medical diagnosis or prognosis, or any fantasy or draft
+   impact.
 5. report_status is how firmly the article reports the event: "confirmed"
-   when the league, the team, the player or an official release announces it;
+   when the league, the team (its coach, general manager or a club release),
+   the player or an official release announces it;
    "reported" when a reporter or unnamed sources report it; "rumor" for
    speculation or possibilities; "denied" when the article says it did not
    happen or corrects an earlier report.

@@ -37,7 +37,14 @@ in the same format.
   rows the Yahoo sync imported for the season. A player listed in both target
   leagues (1001 and 1002) is one fact, taken from the newest pool fetch, and
   is shared by both leagues. The data is only as current as the oldest
-  league's last pool import, and coverage reports it that way.
+  league's last pool import, and coverage reports it that way. If the
+  season has no pool, the fetch fails ("run a Yahoo sync first"). The
+  exception is a season whose leagues are all TEMPORARY stand-ins
+  (`temporary_stand_in` rules, see `docs/draft-league-rules.md`). Yahoo
+  refuses their pools, so there is nothing to read and nothing to fix. The
+  refresh lists the source under `skipped` with the reason and records no
+  attempt. Its coverage stays `missing`, so rankings still say that Yahoo
+  status adjusted nothing.
 - Each source has a `priority`: lower is more authoritative, and sources are
   fetched and evidence is listed in that order. Priority never adds certainty
   to a report.
