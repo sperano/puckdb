@@ -127,6 +127,21 @@ type SkaterClubSeason struct {
 	GamesPlayed int
 }
 
+// GoalieStart is one game a goalie started for his club, among the club's
+// most recent started games before the projection cutoff (nhl-baseline-v7's
+// goalie start share). RecencyRank numbers the club's started games newest
+// first over the regular season and playoffs; RegularSeasonRank numbers its
+// regular-season games alone and is 0 for a playoff game.
+type GoalieStart struct {
+	TeamID            int64
+	PlayerID          int64
+	Season            int
+	GameDate          time.Time
+	Playoff           bool
+	RecencyRank       int
+	RegularSeasonRank int
+}
+
 // PlayerTeam is the club a player is rostered by for the target season.
 type PlayerTeam struct {
 	PlayerID int64
@@ -235,6 +250,9 @@ type Input struct {
 	TeamSeasons       []TeamSeason
 	TargetTeams       []PlayerTeam
 	SkaterClubSeasons []SkaterClubSeason
+	// GoalieStarts are the clubs' most recent started games, for the goalie
+	// start share; only nhl-baseline-v7 and later load or hash them.
+	GoalieStarts []GoalieStart
 }
 
 func (p PlayerProjection) Value(stat Stat) Estimate {

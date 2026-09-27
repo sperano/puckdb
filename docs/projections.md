@@ -6,9 +6,11 @@ can be scored differently for each Yahoo league without changing its inputs.
 
 ## Model
 
-The `nhl-baseline-v6` model uses completed NHL regular-season games from the
+The `nhl-baseline-v7` model uses completed NHL regular-season games from the
 three seasons before the target season. Live, postponed, preseason and playoff
-games, and games from the target season or later, are excluded from model inputs.
+games, and games from the target season or later, are excluded from model
+inputs, except that the goalie start share (below) reads the clubs' recent
+playoff starts.
 Each season is weighted by `season_decay ^ age`, where the immediately prior
 season has age zero. Traded-player rows are summed before workload is
 calculated, so two club rows in one season still count as one season.
@@ -80,6 +82,44 @@ source-data and evaluation hashes, projections and evaluation metrics are
 pinned unchanged by `internal/projection/published_pin_test.go`. Skater rows
 come from the boxscore's dressed lineup (scratches are in `game_scratches`),
 so skaters have no equivalent bench rows and are unchanged.
+
+### Goalie start share (v7)
+
+The v6 goalie workload is a decay-weighted per-season average of games and
+starts, with no view of who holds the net at season's end. Montreal 2025-26:
+starts Dobes 42 / Montembeault 23 / Fowler 17, but Dobes took 15 of the last
+23 regular-season starts and all 19 playoff starts, and Montembeault started
+once after February; v6 projects Dobes and Montembeault at about 34 starts
+each.
+
+`nhl-baseline-v7` reads each club's most recent `goalie_share_window_games`
+started games before the cutoff, regular season and playoffs, from
+`ListProjectionGoalieRecentStarts` (`starter = TRUE`; a team-game with no
+flagged starter contributes no row). A goalie's recent share is
+`Σ w·[he started] / Σ w` over those games, where
+`w = 0.5^((rank−1)/goalie_share_half_life_games)`, times
+`goalie_playoff_weight` for a playoff game. With a playoff weight of 0 the
+window counts regular-season games only. When the goalie's target-season
+club (the target-season rosters; for a backtest, his first appearance of the
+held-out season) is the club of his most recent start, his starts become
+`blend·(share × max_games) + (1−blend)·(v6 starts)` with
+`blend = goalie_share_blend`, and his v6 relief appearances
+(`v6 games − v6 starts`) stay on top. A goalie who changed clubs, has no
+recent start or has no target club keeps his v6 starts. Each club's goalies'
+starts are then scaled down proportionally if they sum to more than
+`max_games`. Shots and TOI follow games; wins and shutouts follow starts. A
+zero blend turns the share off. v1 to v6 never load or hash the recent starts,
+and their hashes and outputs are pinned by `published_pin_test.go`; the four
+parameters are stored in typed snapshot columns (migration 000017).
+
+The defaults (window 60, half-life 20 games, playoff weight 1, blend 0.5) are
+**provisional**: they were chosen conservatively and have not been
+backtested. TODO: add an integration backtest (build tag `integration`,
+`PUCKDB_TEST_PG_URL`, modeled on `aging_integration_test.go`) comparing v6
+and v7 goalie games started, games played and wins MAE on target seasons
+2023-24, 2024-25 and 2025-26 over a grid of half-life (10, 20, 40), playoff
+weight (0, 1, 2) and blend (0.25, 0.5, 0.75) at window 60, run it against the
+re-imported production data, and set the defaults from it.
 
 ### Historical linemate context
 

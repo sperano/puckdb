@@ -53,6 +53,7 @@ func sourceDataHash(cfg Config, input Input) string {
 		age, ok := seasonAge(input.TargetSeason, season)
 		return !ok || age >= cfg.LookbackSeasons
 	})
+	input.GoalieStarts = goalieStartHashRows(cfg, input)
 	return inputDataHash(input, cfg.ModelVersion)
 }
 
@@ -71,6 +72,7 @@ func evaluationDataHash(cfg Config, input Input) string {
 	input.TeamSeasons, input.TargetTeams, input.SkaterClubSeasons = teamEnvironmentHashRows(cfg, input, func(season int) bool {
 		return season < teamFloor || season > input.TargetSeason
 	})
+	input.GoalieStarts = goalieStartHashRows(cfg, input)
 	return inputDataHash(input, cfg.ModelVersion)
 }
 
@@ -90,6 +92,16 @@ func teamEnvironmentHashRows(
 		return excluded(row.Season)
 	})
 	return teams, input.TargetTeams, splits
+}
+
+// goalieStartHashRows returns the recent starts a model reads: none before
+// nhl-baseline-v7, so earlier hashes stay what those versions computed, and
+// otherwise the starts inside the history window (usableGoalieStarts).
+func goalieStartHashRows(cfg Config, input Input) []GoalieStart {
+	if !supportsGoalieStartShare(cfg.ModelVersion) {
+		return nil
+	}
+	return usableGoalieStarts(cfg, input.TargetSeason, input.GoalieStarts)
 }
 
 type legacySkaterSeason struct {
@@ -225,6 +237,7 @@ func hashInputParts(input Input, skaters, goalies []string) string {
 		TeamSeasons       []string `json:",omitempty"`
 		TargetTeams       []string `json:",omitempty"`
 		SkaterClubSeasons []string `json:",omitempty"`
+		GoalieStarts      []string `json:",omitempty"`
 	}{
 		TargetSeason: input.TargetSeason, AsOf: input.AsOf.UTC(),
 		SourceMaxGameDate: input.SourceMaxGameDate.UTC(), Skaters: skaters, Goalies: goalies,
@@ -232,6 +245,7 @@ func hashInputParts(input Input, skaters, goalies []string) string {
 		TeamSeasons:       encodedValues(input.TeamSeasons),
 		TargetTeams:       encodedValues(input.TargetTeams),
 		SkaterClubSeasons: encodedValues(input.SkaterClubSeasons),
+		GoalieStarts:      encodedValues(input.GoalieStarts),
 	}
 	return hashValue(canonical)
 }

@@ -526,5 +526,9 @@ func versionConfig(version string) Config {
 	if !supportsTeamEnvironment(version) {
 		cfg.TeamEnvironmentPriorGames, cfg.TeamEnvironmentMaxChange = 0, 0
 	}
+	if !supportsGoalieStartShare(version) {
+		cfg.GoalieShareWindowGames, cfg.GoalieShareHalfLifeGames = 0, 0
+		cfg.GoaliePlayoffWeight, cfg.GoalieShareBlend = 0, 0
+	}
 	return cfg
 }

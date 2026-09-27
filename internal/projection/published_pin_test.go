@@ -61,6 +61,14 @@ var publishedPins = map[string]pinnedHashes{
 		players:    "4769257e0969147fc5d3cba8ea3e132fc0f077ae63c046470a0f3ce7dc25b0e4",
 		evaluated:  "55764c713b3ace2eb122ffe3c76fe7c0908022b299903940d9c4c9c9fa68f736",
 	},
+	// Captured before nhl-baseline-v7 added the goalie start share.
+	GoalieAppearancesModelVersion: {
+		config:     "a277dade264bc578d8e2fcb23835f5fd87e29cb8b7ce72541fd496c6aff005b2",
+		source:     "72efb764d4666fe93c985b5def82181f97ee28993db8ae28c7eb141b6ec068a6",
+		evaluation: "c5594953513c0717518e984d5c545420a4d6808556352c75f531c886af4ddcb0",
+		players:    "a8087c53934c842daaa22a13e588e1fdbdc9d997d796de9f8c8f4980352c9daf",
+		evaluated:  "39bf9443b6632aa5262af24aec5954d03045adf97c01e4720202290cf8ea0a70",
+	},
 }
 
 // TestPublishedVersionsKeepHashesAndOutputs pins every published version's

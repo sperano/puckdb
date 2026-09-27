@@ -172,17 +172,19 @@ INSERT INTO projection_snapshots (
     lookback_seasons, season_decay, skater_prior_toi_seconds,
     goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty,
     maximum_uncertainty, minimum_history_games, linemate_regression_strength, aging_curve,
-    team_environment_prior_games, team_environment_max_change
+    team_environment_prior_games, team_environment_max_change,
+    goalie_share_window_games, goalie_share_half_life_games, goalie_playoff_weight, goalie_share_blend
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9,
     $10, $11, $12, $13,
     $14, $15, $16, $17, $18,
-    $19, $20
+    $19, $20,
+    $21, $22, $23, $24
 )
 ON CONFLICT (target_season, as_of, model_version, config_hash, source_data_hash) DO UPDATE SET
     source_max_game_date = EXCLUDED.source_max_game_date
-RETURNING id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength, aging_curve, team_environment_prior_games, team_environment_max_change
+RETURNING id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength, aging_curve, team_environment_prior_games, team_environment_max_change, goalie_share_window_games, goalie_share_half_life_games, goalie_playoff_weight, goalie_share_blend
 `
 
 type CreateProjectionSnapshotParams struct {
@@ -206,6 +208,10 @@ type CreateProjectionSnapshotParams struct {
 	AgingCurve                 []byte             `json:"aging_curve"`
 	TeamEnvironmentPriorGames  float64            `json:"team_environment_prior_games"`
 	TeamEnvironmentMaxChange   float64            `json:"team_environment_max_change"`
+	GoalieShareWindowGames     int32              `json:"goalie_share_window_games"`
+	GoalieShareHalfLifeGames   float64            `json:"goalie_share_half_life_games"`
+	GoaliePlayoffWeight        float64            `json:"goalie_playoff_weight"`
+	GoalieShareBlend           float64            `json:"goalie_share_blend"`
 }
 
 func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjectionSnapshotParams) (ProjectionSnapshot, error) {
@@ -230,6 +236,10 @@ func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjec
 		arg.AgingCurve,
 		arg.TeamEnvironmentPriorGames,
 		arg.TeamEnvironmentMaxChange,
+		arg.GoalieShareWindowGames,
+		arg.GoalieShareHalfLifeGames,
+		arg.GoaliePlayoffWeight,
+		arg.GoalieShareBlend,
 	)
 	var i ProjectionSnapshot
 	err := row.Scan(
@@ -255,6 +265,10 @@ func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjec
 		&i.AgingCurve,
 		&i.TeamEnvironmentPriorGames,
 		&i.TeamEnvironmentMaxChange,
+		&i.GoalieShareWindowGames,
+		&i.GoalieShareHalfLifeGames,
+		&i.GoaliePlayoffWeight,
+		&i.GoalieShareBlend,
 	)
 	return i, err
 }
@@ -305,7 +319,7 @@ func (q *Queries) DeleteProjectionPlayersBySnapshot(ctx context.Context, snapsho
 }
 
 const getProjectionSnapshot = `-- name: GetProjectionSnapshot :one
-SELECT id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength, aging_curve, team_environment_prior_games, team_environment_max_change FROM projection_snapshots WHERE id = $1
+SELECT id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength, aging_curve, team_environment_prior_games, team_environment_max_change, goalie_share_window_games, goalie_share_half_life_games, goalie_playoff_weight, goalie_share_blend FROM projection_snapshots WHERE id = $1
 `
 
 func (q *Queries) GetProjectionSnapshot(ctx context.Context, id pgtype.UUID) (ProjectionSnapshot, error) {
@@ -334,6 +348,10 @@ func (q *Queries) GetProjectionSnapshot(ctx context.Context, id pgtype.UUID) (Pr
 		&i.AgingCurve,
 		&i.TeamEnvironmentPriorGames,
 		&i.TeamEnvironmentMaxChange,
+		&i.GoalieShareWindowGames,
+		&i.GoalieShareHalfLifeGames,
+		&i.GoaliePlayoffWeight,
+		&i.GoalieShareBlend,
 	)
 	return i, err
 }
@@ -359,6 +377,47 @@ func (q *Queries) GetProjectionSourceMaxGameDate(ctx context.Context, arg GetPro
 	var column_1 pgtype.Date
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const listProjectionEvaluationGoalieTargetTeams = `-- name: ListProjectionEvaluationGoalieTargetTeams :many
+SELECT DISTINCT ON (s.player_id) s.player_id, s.team_id
+FROM game_goalie_stats s
+JOIN games g ON g.id = s.game_id
+WHERE g.game_type = 'regular_season'
+  AND g.game_state IN ('FINAL', 'OFF')
+  AND g.season = $1
+  AND s.toi_seconds > 0
+ORDER BY s.player_id, g.game_date, s.game_id
+`
+
+type ListProjectionEvaluationGoalieTargetTeamsRow struct {
+	PlayerID int64 `json:"player_id"`
+	TeamID   int64 `json:"team_id"`
+}
+
+// Each goalie's first club of a held-out season, counting only games he
+// played in (positive time on ice) so a dressed backup who never entered is
+// not mapped to a club he never played for. nhl-baseline-v7 reads it for its
+// goalie start share; earlier versions never load it, which keeps their
+// evaluation-data hashes unchanged.
+func (q *Queries) ListProjectionEvaluationGoalieTargetTeams(ctx context.Context, season int32) ([]ListProjectionEvaluationGoalieTargetTeamsRow, error) {
+	rows, err := q.db.Query(ctx, listProjectionEvaluationGoalieTargetTeams, season)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectionEvaluationGoalieTargetTeamsRow{}
+	for rows.Next() {
+		var i ListProjectionEvaluationGoalieTargetTeamsRow
+		if err := rows.Scan(&i.PlayerID, &i.TeamID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listProjectionEvaluationTargetTeams = `-- name: ListProjectionEvaluationTargetTeams :many
@@ -578,6 +637,106 @@ func (q *Queries) ListProjectionGoalieHistory(ctx context.Context, arg ListProje
 			&i.ShotsAgainst,
 			&i.Saves,
 			&i.GoalsAgainst,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectionGoalieRecentStarts = `-- name: ListProjectionGoalieRecentStarts :many
+WITH starts AS (
+    SELECT
+        s.team_id,
+        s.player_id,
+        g.id AS game_id,
+        g.season,
+        g.game_date,
+        g.game_type,
+        DENSE_RANK() OVER (
+            PARTITION BY s.team_id ORDER BY g.game_date DESC, g.id DESC
+        ) AS recency_rank,
+        DENSE_RANK() OVER (
+            PARTITION BY s.team_id, g.game_type ORDER BY g.game_date DESC, g.id DESC
+        ) AS type_rank
+    FROM game_goalie_stats s
+    JOIN games g ON g.id = s.game_id
+    WHERE g.game_type IN ('regular_season', 'playoffs')
+      AND g.game_state IN ('FINAL', 'OFF')
+      AND g.season < $2
+      AND g.season >= $3
+      AND g.game_date <= $4
+      AND s.starter = TRUE
+)
+SELECT
+    team_id,
+    player_id,
+    game_id,
+    season,
+    game_date,
+    game_type,
+    recency_rank::int AS recency_rank,
+    (CASE WHEN game_type = 'regular_season' THEN type_rank ELSE 0 END)::int AS regular_season_rank
+FROM starts
+WHERE recency_rank <= $1::int
+   OR (game_type = 'regular_season' AND type_rank <= $1::int)
+ORDER BY team_id, recency_rank, player_id
+`
+
+type ListProjectionGoalieRecentStartsParams struct {
+	WindowGames  int32       `json:"window_games"`
+	TargetSeason int32       `json:"target_season"`
+	MinSeason    int32       `json:"min_season"`
+	Cutoff       pgtype.Date `json:"cutoff"`
+}
+
+type ListProjectionGoalieRecentStartsRow struct {
+	TeamID            int64       `json:"team_id"`
+	PlayerID          int64       `json:"player_id"`
+	GameID            int64       `json:"game_id"`
+	Season            int32       `json:"season"`
+	GameDate          pgtype.Date `json:"game_date"`
+	GameType          GameType    `json:"game_type"`
+	RecencyRank       int32       `json:"recency_rank"`
+	RegularSeasonRank int32       `json:"regular_season_rank"`
+}
+
+// Each club's most recent started games on or before the cutoff, across the
+// regular season and playoffs of the history window, one row per flagged
+// starter (nhl-baseline-v7's goalie start share). starter is TRUE or NULL,
+// never FALSE; a team-game whose boxscore flags no starter (some 2025-26
+// games) contributes no row, so it neither fills a window slot nor dilutes
+// the shares. recency_rank numbers a club's started games newest first over
+// both game types; regular_season_rank numbers its regular-season games
+// alone, so a model that ignores playoffs still gets a full window. Both are
+// DENSE_RANK so a game with two flagged starters takes one slot.
+func (q *Queries) ListProjectionGoalieRecentStarts(ctx context.Context, arg ListProjectionGoalieRecentStartsParams) ([]ListProjectionGoalieRecentStartsRow, error) {
+	rows, err := q.db.Query(ctx, listProjectionGoalieRecentStarts,
+		arg.WindowGames,
+		arg.TargetSeason,
+		arg.MinSeason,
+		arg.Cutoff,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectionGoalieRecentStartsRow{}
+	for rows.Next() {
+		var i ListProjectionGoalieRecentStartsRow
+		if err := rows.Scan(
+			&i.TeamID,
+			&i.PlayerID,
+			&i.GameID,
+			&i.Season,
+			&i.GameDate,
+			&i.GameType,
+			&i.RecencyRank,
+			&i.RegularSeasonRank,
 		); err != nil {
 			return nil, err
 		}

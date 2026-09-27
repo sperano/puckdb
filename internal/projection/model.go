@@ -36,7 +36,7 @@ func Generate(cfg Config, input Input) (Snapshot, error) {
 
 	env := buildTeamEnvironment(cfg, input.TargetSeason, input.TeamSeasons, input.TargetTeams, input.SkaterClubSeasons)
 	players := projectSkaters(cfg, input.TargetSeason, input.Skaters, env)
-	players = append(players, projectGoalies(cfg, input.TargetSeason, input.Goalies)...)
+	players = append(players, projectGoalies(cfg, input)...)
 	players, err := includePlayerPool(players, input.PlayerPool, input.AsOf, cfg.MaximumUncertainty)
 	if err != nil {
 		return Snapshot{}, err

@@ -153,5 +153,9 @@ func snapshotRow(cfg Config, asOf time.Time) sqlcdb.ProjectionSnapshot {
 		AgingCurve:                 params.AgingCurve,
 		TeamEnvironmentPriorGames:  params.TeamEnvironmentPriorGames,
 		TeamEnvironmentMaxChange:   params.TeamEnvironmentMaxChange,
+		GoalieShareWindowGames:     params.GoalieShareWindowGames,
+		GoalieShareHalfLifeGames:   params.GoalieShareHalfLifeGames,
+		GoaliePlayoffWeight:        params.GoaliePlayoffWeight,
+		GoalieShareBlend:           params.GoalieShareBlend,
 	}
 }

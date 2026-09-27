@@ -31,14 +31,38 @@ type goalieHistory struct {
 	totals        goalieTotals
 }
 
+// goalieWorkload is a goalie's projected games, starts, shots against and
+// time on ice; shotsPerGame and toiPerGame let the start share rescale shots
+// and TOI when it changes games.
 type goalieWorkload struct {
-	games  float64
-	starts float64
-	shots  float64
-	toi    float64
+	games        float64
+	starts       float64
+	shots        float64
+	toi          float64
+	shotsPerGame float64
+	toiPerGame   float64
 }
 
-func projectGoalies(cfg Config, targetSeason int, rows []GoalieSeason) []PlayerProjection {
+func projectGoalies(cfg Config, input Input) []PlayerProjection {
+	history, peers := collectGoalieHistory(cfg, input.TargetSeason, input.Goalies)
+	priorGames := cfg.GoaliePriorShots / typicalGoalieShotsPerGame
+	workloads := make(map[int64]goalieWorkload, len(history))
+	for playerID, player := range history {
+		workloads[playerID] = projectGoalieWorkload(cfg, *player, peers, priorGames)
+	}
+	if supportsGoalieStartShare(cfg.ModelVersion) && cfg.GoalieShareBlend > 0 {
+		applyGoalieStartShare(cfg, input, workloads)
+	}
+	result := make([]PlayerProjection, 0, len(history))
+	for playerID, player := range history {
+		result = append(result, buildGoalieProjection(cfg, input.TargetSeason, playerID, *player, peers, workloads[playerID]))
+	}
+	return result
+}
+
+// collectGoalieHistory accumulates each goalie's decay-weighted seasons in
+// the lookback window, and every goalie's together as the peer baseline.
+func collectGoalieHistory(cfg Config, targetSeason int, rows []GoalieSeason) (map[int64]*goalieHistory, goalieTotals) {
 	var peers goalieTotals
 	history := make(map[int64]*goalieHistory)
 	for _, row := range goalieModelRows(cfg.ModelVersion, rows) {
@@ -61,12 +85,7 @@ func projectGoalies(cfg Config, targetSeason int, rows []GoalieSeason) []PlayerP
 		player.games += row.GamesPlayed
 		addGoalieSeason(&player.totals, row, weight)
 	}
-
-	result := make([]PlayerProjection, 0, len(history))
-	for playerID, player := range history {
-		result = append(result, buildGoalieProjection(cfg, targetSeason, playerID, *player, peers))
-	}
-	return result
+	return history, peers
 }
 
 // goalieModelRows returns rows whose GamesPlayed is the games modelVersion
@@ -112,10 +131,11 @@ func addGoalieSeason(total *goalieTotals, row GoalieSeason, weight float64) {
 	total.goalsAgainst += weight * float64(row.GoalsAgainst)
 }
 
-func buildGoalieProjection(cfg Config, targetSeason int, playerID int64, history goalieHistory, peers goalieTotals) PlayerProjection {
+func buildGoalieProjection(
+	cfg Config, targetSeason int, playerID int64, history goalieHistory, peers goalieTotals, workload goalieWorkload,
+) PlayerProjection {
 	priorGames := cfg.GoaliePriorShots / typicalGoalieShotsPerGame
 	fraction := uncertainty(cfg, history.totals.shotsAgainst/typicalGoalieShotsPerGame+priorGames)
-	workload := projectGoalieWorkload(cfg, history, peers, priorGames)
 	values := projectGoalieValues(cfg, history, peers, workload, priorGames, fraction)
 	ageGoalieValues(cfg.AgingCurve, history, targetSeason, values, fraction)
 	return PlayerProjection{
@@ -186,6 +206,7 @@ func projectGoalieWorkload(cfg Config, history goalieHistory, peers goalieTotals
 	return goalieWorkload{
 		games: games, starts: starts,
 		shots: games * shotsPerGame, toi: games * toiPerGame,
+		shotsPerGame: shotsPerGame, toiPerGame: toiPerGame,
 	}
 }
 

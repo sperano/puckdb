@@ -111,6 +111,9 @@ func (r *Repository) loadInput(
 	if err := r.loadTeamInputs(ctx, cfg, &input, cutoff, r.loadTargetTeams); err != nil {
 		return Input{}, err
 	}
+	if input.GoalieStarts, err = r.loadGoalieStarts(ctx, cfg, targetSeason, cutoff); err != nil {
+		return Input{}, err
+	}
 	return input, nil
 }
 
@@ -162,7 +165,14 @@ func (r *Repository) LoadEvaluationInput(
 		return Input{}, fmt.Errorf("load goalie evaluation data: %w", err)
 	}
 	input := evaluationInput(targetSeason, projectionAsOf, observedAt, skaters, linemates, goalies)
-	if err := r.loadTeamInputs(ctx, cfg, &input, dateValue(projectionAsOf), r.loadEvaluationTargetTeams); err != nil {
+	loadTargets := r.loadEvaluationTargetTeams
+	if supportsGoalieStartShare(cfg.ModelVersion) {
+		loadTargets = r.loadEvaluationTargetTeamsWithGoalies
+	}
+	if err := r.loadTeamInputs(ctx, cfg, &input, dateValue(projectionAsOf), loadTargets); err != nil {
+		return Input{}, err
+	}
+	if input.GoalieStarts, err = r.loadGoalieStarts(ctx, cfg, targetSeason, dateValue(projectionAsOf)); err != nil {
 		return Input{}, err
 	}
 	return input, nil
@@ -451,6 +461,10 @@ func snapshotParams(snapshot Snapshot) sqlcdb.CreateProjectionSnapshotParams {
 		AgingCurve:                 agingCurve,
 		TeamEnvironmentPriorGames:  cfg.TeamEnvironmentPriorGames,
 		TeamEnvironmentMaxChange:   cfg.TeamEnvironmentMaxChange,
+		GoalieShareWindowGames:     int32(cfg.GoalieShareWindowGames),
+		GoalieShareHalfLifeGames:   cfg.GoalieShareHalfLifeGames,
+		GoaliePlayoffWeight:        cfg.GoaliePlayoffWeight,
+		GoalieShareBlend:           cfg.GoalieShareBlend,
 	}
 }
 

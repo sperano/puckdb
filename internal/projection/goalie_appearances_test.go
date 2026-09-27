@@ -36,7 +36,7 @@ func TestV6GoalieWorkloadComesFromAppearances(t *testing.T) {
 	row := pinGoalie(benchGoalieID, time.Time{}, benchLastSeason, 77, 43, 42)
 	input := benchInput(row)
 
-	v6 := findProjection(t, mustGenerate(t, benchConfig(ModelVersion), input), playerKey(benchGoalieID))
+	v6 := findProjection(t, mustGenerate(t, benchConfig(GoalieAppearancesModelVersion), input), playerKey(benchGoalieID))
 	require.InDelta(t, 43, v6.Value(StatGamesPlayed).Mean, 1e-9)
 	require.InDelta(t, 42, v6.Value(StatGamesStarted).Mean, 1e-9)
 	require.Equal(t, 43, v6.HistoryGames)
@@ -73,7 +73,7 @@ func TestV6SkipsSeasonsWithoutAppearances(t *testing.T) {
 
 	input := benchInput(pinGoalie(benchOnlyGoalieID, time.Time{}, benchLastSeason, 12, 0, 0))
 
-	v6 := mustGenerate(t, benchConfig(ModelVersion), input)
+	v6 := mustGenerate(t, benchConfig(GoalieAppearancesModelVersion), input)
 	require.Empty(t, v6.Players, "a goalie who only sat on the bench has no history")
 
 	v5 := mustGenerate(t, benchConfig(TeamEnvironmentModelVersion), input)
@@ -91,7 +91,7 @@ func TestV6GoalieContextClubUsesAppearances(t *testing.T) {
 	played.TeamID = benchNewClub
 	input := benchInput(sat, played)
 
-	v6 := findProjection(t, mustGenerate(t, benchConfig(ModelVersion), input), playerKey(benchGoalieID))
+	v6 := findProjection(t, mustGenerate(t, benchConfig(GoalieAppearancesModelVersion), input), playerKey(benchGoalieID))
 	require.Equal(t, int64(benchNewClub), *v6.TeamID)
 	v5 := findProjection(t, mustGenerate(t, benchConfig(TeamEnvironmentModelVersion), input), playerKey(benchGoalieID))
 	require.Equal(t, int64(benchOldClub), *v5.TeamID)
@@ -132,7 +132,7 @@ func TestGoalieSourceHashCoversAppearancesFromV6Only(t *testing.T) {
 func TestV6ConfigBuildsOnV5(t *testing.T) {
 	t.Parallel()
 
-	cfg := DefaultConfig()
+	cfg := versionConfig(GoalieAppearancesModelVersion)
 	require.Equal(t, "nhl-baseline-v6", cfg.ModelVersion)
 	require.NoError(t, cfg.Validate())
 	cfg.AgingCurve = testAgingCurve(AgingStep{Group: agingGroupGoalie, Stat: StatSaves, Age: 25, DeltaPer60: 1})
@@ -140,19 +140,20 @@ func TestV6ConfigBuildsOnV5(t *testing.T) {
 	for _, supports := range []func(string) bool{
 		supportsFaceoffs, supportsLinemateContext, supportsAgingCurve, supportsTeamEnvironment,
 	} {
-		require.True(t, supports(ModelVersion))
+		require.True(t, supports(GoalieAppearancesModelVersion))
 		require.True(t, supports(TeamEnvironmentModelVersion))
 	}
+	require.True(t, countsGoalieAppearances(GoalieAppearancesModelVersion))
 	require.True(t, countsGoalieAppearances(ModelVersion))
 	for version := range publishedPins {
-		require.False(t, countsGoalieAppearances(version), version)
+		require.Equal(t, version == GoalieAppearancesModelVersion, countsGoalieAppearances(version), version)
 		cfg := versionConfig(version)
 		if !supportsLinemateContext(version) {
 			cfg.LinemateRegressionStrength = 0
 		}
 		require.NoError(t, cfg.Validate(), version)
 	}
-	require.NotEqual(t, configHash(versionConfig(TeamEnvironmentModelVersion)), configHash(DefaultConfig()))
+	require.NotEqual(t, configHash(versionConfig(TeamEnvironmentModelVersion)), configHash(cfg))
 }
 
 func mustGenerate(t *testing.T, cfg Config, input Input) Snapshot {

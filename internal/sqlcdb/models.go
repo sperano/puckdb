@@ -1640,6 +1640,10 @@ type ProjectionSnapshot struct {
 	AgingCurve                 []byte             `json:"aging_curve"`
 	TeamEnvironmentPriorGames  float64            `json:"team_environment_prior_games"`
 	TeamEnvironmentMaxChange   float64            `json:"team_environment_max_change"`
+	GoalieShareWindowGames     int32              `json:"goalie_share_window_games"`
+	GoalieShareHalfLifeGames   float64            `json:"goalie_share_half_life_games"`
+	GoaliePlayoffWeight        float64            `json:"goalie_playoff_weight"`
+	GoalieShareBlend           float64            `json:"goalie_share_blend"`
 }
 
 type ProjectionValue struct {

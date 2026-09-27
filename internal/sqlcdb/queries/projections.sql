@@ -381,6 +381,68 @@ WHERE g.game_type = 'regular_season'
   AND g.season = $1
 ORDER BY s.player_id, g.game_date, s.game_id;
 
+-- name: ListProjectionEvaluationGoalieTargetTeams :many
+-- Each goalie's first club of a held-out season, counting only games he
+-- played in (positive time on ice) so a dressed backup who never entered is
+-- not mapped to a club he never played for. nhl-baseline-v7 reads it for its
+-- goalie start share; earlier versions never load it, which keeps their
+-- evaluation-data hashes unchanged.
+SELECT DISTINCT ON (s.player_id) s.player_id, s.team_id
+FROM game_goalie_stats s
+JOIN games g ON g.id = s.game_id
+WHERE g.game_type = 'regular_season'
+  AND g.game_state IN ('FINAL', 'OFF')
+  AND g.season = $1
+  AND s.toi_seconds > 0
+ORDER BY s.player_id, g.game_date, s.game_id;
+
+-- name: ListProjectionGoalieRecentStarts :many
+-- Each club's most recent started games on or before the cutoff, across the
+-- regular season and playoffs of the history window, one row per flagged
+-- starter (nhl-baseline-v7's goalie start share). starter is TRUE or NULL,
+-- never FALSE; a team-game whose boxscore flags no starter (some 2025-26
+-- games) contributes no row, so it neither fills a window slot nor dilutes
+-- the shares. recency_rank numbers a club's started games newest first over
+-- both game types; regular_season_rank numbers its regular-season games
+-- alone, so a model that ignores playoffs still gets a full window. Both are
+-- DENSE_RANK so a game with two flagged starters takes one slot.
+WITH starts AS (
+    SELECT
+        s.team_id,
+        s.player_id,
+        g.id AS game_id,
+        g.season,
+        g.game_date,
+        g.game_type,
+        DENSE_RANK() OVER (
+            PARTITION BY s.team_id ORDER BY g.game_date DESC, g.id DESC
+        ) AS recency_rank,
+        DENSE_RANK() OVER (
+            PARTITION BY s.team_id, g.game_type ORDER BY g.game_date DESC, g.id DESC
+        ) AS type_rank
+    FROM game_goalie_stats s
+    JOIN games g ON g.id = s.game_id
+    WHERE g.game_type IN ('regular_season', 'playoffs')
+      AND g.game_state IN ('FINAL', 'OFF')
+      AND g.season < sqlc.arg(target_season)
+      AND g.season >= sqlc.arg(min_season)
+      AND g.game_date <= sqlc.arg(cutoff)
+      AND s.starter = TRUE
+)
+SELECT
+    team_id,
+    player_id,
+    game_id,
+    season,
+    game_date,
+    game_type,
+    recency_rank::int AS recency_rank,
+    (CASE WHEN game_type = 'regular_season' THEN type_rank ELSE 0 END)::int AS regular_season_rank
+FROM starts
+WHERE recency_rank <= sqlc.arg(window_games)::int
+   OR (game_type = 'regular_season' AND type_rank <= sqlc.arg(window_games)::int)
+ORDER BY team_id, recency_rank, player_id;
+
 -- name: GetProjectionSourceMaxGameDate :one
 SELECT MAX(game_date)::date
 FROM games
@@ -396,13 +458,15 @@ INSERT INTO projection_snapshots (
     lookback_seasons, season_decay, skater_prior_toi_seconds,
     goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty,
     maximum_uncertainty, minimum_history_games, linemate_regression_strength, aging_curve,
-    team_environment_prior_games, team_environment_max_change
+    team_environment_prior_games, team_environment_max_change,
+    goalie_share_window_games, goalie_share_half_life_games, goalie_playoff_weight, goalie_share_blend
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9,
     $10, $11, $12, $13,
     $14, $15, $16, $17, $18,
-    $19, $20
+    $19, $20,
+    $21, $22, $23, $24
 )
 ON CONFLICT (target_season, as_of, model_version, config_hash, source_data_hash) DO UPDATE SET
     source_max_game_date = EXCLUDED.source_max_game_date

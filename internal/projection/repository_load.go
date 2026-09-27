@@ -42,6 +42,10 @@ func snapshotFromRows(row sqlcdb.ProjectionSnapshot, players []sqlcdb.Projection
 		LinemateRegressionStrength: row.LinemateRegressionStrength,
 		TeamEnvironmentPriorGames:  row.TeamEnvironmentPriorGames,
 		TeamEnvironmentMaxChange:   row.TeamEnvironmentMaxChange,
+		GoalieShareWindowGames:     int(row.GoalieShareWindowGames),
+		GoalieShareHalfLifeGames:   row.GoalieShareHalfLifeGames,
+		GoaliePlayoffWeight:        row.GoaliePlayoffWeight,
+		GoalieShareBlend:           row.GoalieShareBlend,
 	}
 	if len(row.AgingCurve) > 0 {
 		if err := json.Unmarshal(row.AgingCurve, &cfg.AgingCurve); err != nil {
