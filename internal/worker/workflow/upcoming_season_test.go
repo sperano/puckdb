@@ -1,28 +1,20 @@
 package workflow
 
 import (
-	"context"
 	"testing"
 
-	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/core"
-	"github.com/sperano/puckdb/internal/graph/model"
 	worknhl "github.com/sperano/puckdb/internal/worker/nhl"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/testsuite"
-	"go.temporal.io/sdk/worker"
-	temporalworkflow "go.temporal.io/sdk/workflow"
 )
 
 const (
 	upcomingTestTeams            = 32
 	upcomingTestTeamsWithRosters = 30
-	preUpcomingFetchWorkflowType = "PreUpcomingFetchSeasonsWorkflow"
-	preUpcomingImportWorkflow    = "PreUpcomingImportSeasonsWorkflow"
 )
 
 func upcomingResult() worknhl.UpcomingSeasonRostersResult {
@@ -93,76 +85,4 @@ func TestFetchSeasonsWorkflow_UpcomingSeasonFailureFailsSync(t *testing.T) {
 	report := queryProgress(t, env)
 	assert.Contains(t, report.Message, "Upcoming NHL season rosters failed for seasons 2026 onward")
 	assert.Empty(t, report.Groups[groupUpcomingSeason].CompletedMsg)
-}
-
-// preUpcomingSeasonSync is the season sync parent as it was before the
-// upcoming-season step: it records histories without that version marker.
-func preUpcomingSeasonSync(mode seasonSyncMode) func(temporalworkflow.Context, *model.SeasonsInput) error {
-	return func(ctx temporalworkflow.Context, input *model.SeasonsInput) error {
-		_ = seasonSyncVersion(ctx)
-		input = normalizeSeasonsInput(input)
-		cfg, err := snapshotSeasonSyncConfig(ctx, input)
-		if err != nil {
-			return err
-		}
-		tracker, err := shared.InitTracker(ctx, newSeasonSyncProgressReport(mode))
-		if err != nil {
-			return err
-		}
-		ctx = temporalworkflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-		rangeLabel := formatSeasonRange(input)
-		yahooSeasons := selectYahooSeasons(cfg.Yahoo, input)
-		if err := processYahooSeasonGroup(ctx, tracker, yahooSeasons, cfg.Concurrency, rangeLabel, mode); err != nil {
-			return err
-		}
-		seasons, err := loadSeasonsManifest(ctx, temporalworkflow.GetLogger(ctx), input)
-		if err != nil {
-			return err
-		}
-		if err := processNHLSeasonGroup(ctx, tracker, seasons, cfg.Concurrency, rangeLabel, mode); err != nil {
-			return err
-		}
-		setSeasonSyncOutcome(ctx, tracker, len(yahooSeasons), len(seasons), rangeLabel)
-		return nil
-	}
-}
-
-func TestSeasonSyncReplaysHistoriesWithoutUpcomingSeasonStep(t *testing.T) {
-	withYahooSnapshot(t, shared.YahooSeasonsSnapshot{})
-	c, stopServer := startTemporalForReplayTest(t)
-	defer stopServer()
-	taskQueue := uniqueReplayName("pre-upcoming-season-tq")
-	season := testSeasonW(replaySeasonStartYear, replaySeasonStart, replaySeasonEnd)
-	input := &model.SeasonsInput{StartSeason: seasonIntPtr(replaySeasonStartYear), EndSeason: seasonIntPtr(replaySeasonStartYear)}
-
-	w := worker.New(c, taskQueue, worker.Options{})
-	w.RegisterWorkflowWithOptions(preUpcomingSeasonSync(seasonSyncFetch),
-		temporalworkflow.RegisterOptions{Name: preUpcomingFetchWorkflowType})
-	w.RegisterWorkflowWithOptions(preUpcomingSeasonSync(seasonSyncImport),
-		temporalworkflow.RegisterOptions{Name: preUpcomingImportWorkflow})
-	for _, name := range []string{"FetchNHLSeasonWorkflow", "ImportNHLSeasonWorkflow"} {
-		w.RegisterWorkflowWithOptions(func(temporalworkflow.Context, nhl.SeasonInfo) (core.OriginCounts, error) {
-			return core.OriginCounts{}, nil
-		}, temporalworkflow.RegisterOptions{Name: name})
-	}
-	for _, item := range []namedActivity{
-		{"Save", func(context.Context, string, string, []byte) error { return nil }},
-		{"DeleteBatch", func(context.Context, []string) error { return nil }},
-		{"FetchSeasonsManifest", func(context.Context, *model.SeasonsInput) (worknhl.FetchSeasonsManifestResult, error) {
-			return worknhl.FetchSeasonsManifestResult{Seasons: []nhl.SeasonInfo{season}}, nil
-		}},
-		{"ListSeasonTeams", func(context.Context, int) ([]string, error) { return replayTeams, nil }},
-	} {
-		w.RegisterActivityWithOptions(item.fn, activity.RegisterOptions{Name: item.name})
-	}
-	require.NoError(t, w.Start())
-	fetchHistory := runSeasonWorkflow(t, c, taskQueue, preUpcomingFetchWorkflowType, "pre-upcoming-fetch", input)
-	importHistory := runSeasonWorkflow(t, c, taskQueue, preUpcomingImportWorkflow, "pre-upcoming-import", input)
-	w.Stop()
-
-	replayer := worker.NewWorkflowReplayer()
-	replayer.RegisterWorkflowWithOptions(FetchSeasonsWorkflow, temporalworkflow.RegisterOptions{Name: preUpcomingFetchWorkflowType})
-	replayer.RegisterWorkflowWithOptions(ImportSeasonsWorkflow, temporalworkflow.RegisterOptions{Name: preUpcomingImportWorkflow})
-	require.NoError(t, replayer.ReplayWorkflowHistory(nil, fetchHistory))
-	require.NoError(t, replayer.ReplayWorkflowHistory(nil, importHistory))
 }

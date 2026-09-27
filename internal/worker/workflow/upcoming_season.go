@@ -10,17 +10,6 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-const (
-	upcomingSeasonChangeID                      = "upcoming-season-rosters"
-	upcomingSeasonVersionAdded workflow.Version = 1
-)
-
-// upcomingSeasonVersion gates the upcoming-season roster step: season syncs
-// recorded before it existed replay without it.
-func upcomingSeasonVersion(ctx workflow.Context) workflow.Version {
-	return workflow.GetVersion(ctx, upcomingSeasonChangeID, workflow.DefaultVersion, upcomingSeasonVersionAdded)
-}
-
 // processUpcomingSeason fetches or imports the rosters of the NHL season
 // that has not started yet (see worknhl.FetchUpcomingSeasonRosters), so the
 // draft helper sees offseason moves before puck drop.

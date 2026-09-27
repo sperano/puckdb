@@ -178,9 +178,9 @@ func TestWorkflowIDFormatters(t *testing.T) {
 		got  string
 		want string
 	}{
-		{"FetchSeason", WorkflowIDFetchSeason(2023), "fetch-season-2023"},
+		{"FetchNHLSeason", WorkflowIDFetchNHLSeason(2023), "fetch-nhl-season-2023"},
 		{"FetchEdge", WorkflowIDFetchEdge(2024), "fetch-edge-2024"},
-		{"ImportSeason", WorkflowIDImportSeason(2019), "import-season-2019"},
+		{"ImportNHLSeason", WorkflowIDImportNHLSeason(2019), "import-nhl-season-2019"},
 		{"ImportEdge", WorkflowIDImportEdge(2025), "import-edge-2025"},
 		{"ImportSeasonPlayerLogs", WorkflowIDImportSeasonPlayerLogs(2024), "import-season-player-logs-2024"},
 	}
@@ -276,30 +276,6 @@ func TestNewFetchPlayerLandingsProgressReport(t *testing.T) {
 	require.Len(t, r.Groups[0].Bars, 1)
 	assert.Equal(t, total, r.Groups[0].Bars[0].Total)
 	assert.Equal(t, "Players", r.Groups[0].Bars[0].Label)
-}
-
-func TestNewFetchSeasonsProgressReport(t *testing.T) {
-	t.Parallel()
-
-	r := NewFetchSeasonsProgressReport()
-
-	require.NotNil(t, r)
-	require.Len(t, r.Groups, 1)
-	assert.Contains(t, r.Groups[0].Header, "Fetching")
-	// Bars are added later as seasons are discovered — the constructor
-	// returns an empty slice, and downstream code appends to it.
-	assert.Empty(t, r.Groups[0].Bars)
-}
-
-func TestNewImportSeasonsProgressReport(t *testing.T) {
-	t.Parallel()
-
-	r := NewImportSeasonsProgressReport()
-
-	require.NotNil(t, r)
-	require.Len(t, r.Groups, 1)
-	assert.Contains(t, r.Groups[0].Header, "Importing")
-	assert.Empty(t, r.Groups[0].Bars)
 }
 
 func TestNewFetchYahooPlayersProgressReport(t *testing.T) {

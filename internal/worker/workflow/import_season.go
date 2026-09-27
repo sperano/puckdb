@@ -12,7 +12,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// Group indices for ImportSeasonWorkflow progress.
+// Group indices for ImportNHLSeasonWorkflow progress.
 const (
 	GroupImportDays    = 0
 	GroupImportPlayoff = 1
@@ -32,23 +32,16 @@ func NewImportSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) 
 	}
 }
 
-// ImportSeasonWorkflow imports day-level data for a single season.
-// Per-day boxscores, game stories, and Yahoo data via ImportDay.
+// ImportNHLSeasonWorkflow imports day-level data for a single season: boxscores,
+// game stories, shifts, and per-day Yahoo team data for any configured Yahoo
+// leagues. Yahoo league/team metadata itself, and league-level data
+// (transactions, draft results, matchups), are imported independently and
+// beforehand by ImportYahooSeasonWorkflow in the parent season-sync workflow.
 // Player game log imports are handled separately by ImportSeasonPlayerLogsWorkflow.
-func ImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
-	return runImportSeasonWorkflow(ctx, season, true)
-}
-
-// ImportNHLSeasonWorkflow imports only date-gated NHL data. Yahoo metadata is
-// handled independently by ImportYahooSeasonWorkflow in the parent workflow.
 func ImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
-	return runImportSeasonWorkflow(ctx, season, false)
-}
-
-func runImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo, includeYahoo bool) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 
-	logger.Info("ImportSeasonWorkflow started",
+	logger.Info("ImportNHLSeasonWorkflow started",
 		"startYear", season.ID.StartYear(),
 		"startDate", season.StandingsStart.Format(config.DateFormat),
 		"endDate", season.StandingsEnd.Format(config.DateFormat))
@@ -65,17 +58,14 @@ func runImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo, includ
 
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
-	// Yahoo setup (not tracked in progress)
-	var teamIDs []yahoo.TeamInfo
-	yahooCfg, hasYahoo := cfg.Yahoo.Season(season.ID.StartYear())
-	if includeYahoo {
-		teamIDs, err = importYahooLeaguesAndTeams(ctx, yahooCfg, season.ID.StartYear())
-		if err != nil {
-			return nil, err
-		}
-	}
+	// Per-day Yahoo team IDs, drawn from the season's snapshotted Yahoo
+	// config. No Yahoo activities run here: league/team metadata import is
+	// ImportYahooSeasonWorkflow's job, and must complete before this
+	// season's day loop starts (day-level roster rows FK to yahoo_teams).
+	yahooCfg, _ := cfg.Yahoo.Season(season.ID.StartYear())
+	teamIDs := yahooTeamIDsForSeason(yahooCfg)
 
-	// Import season-level data (rosters, club stats, player career, Yahoo league data)
+	// Import season-level data (rosters, club stats)
 	var sa *worknhl.SeasonsActivities
 	var ia *worknhl.ImportActivities
 	rosterInput := worknhl.FetchSeasonRostersInput{Season: season.ID.StartYear()}
@@ -85,23 +75,6 @@ func runImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo, includ
 	clubStatsInput := worknhl.FetchClubStatsInput{Season: season.ID.StartYear()}
 	if err := workflow.ExecuteActivity(ctx, sa.ImportClubStats, clubStatsInput).Get(ctx, nil); err != nil {
 		return nil, fmt.Errorf("import club stats: %w", err)
-	}
-
-	// Import Yahoo league-level data (transactions, draft results, matchups)
-	if includeYahoo && hasYahoo {
-		var yia *yahoo.ImportActivities
-		for _, league := range yahooCfg.Leagues {
-			if league.UsesTemporaryMetadata() {
-				continue
-			}
-			leagueDataInput := yahoo.ImportYahooLeagueDataInput{
-				Season:   season.ID.StartYear(),
-				LeagueID: league.LeagueID,
-			}
-			if err := workflow.ExecuteActivity(ctx, yia.ImportYahooLeagueData, leagueDataInput).Get(ctx, nil); err != nil {
-				return nil, fmt.Errorf("import yahoo league data %d: %w", league.LeagueID, err)
-			}
-		}
 	}
 
 	// --- Import days ---
@@ -174,7 +147,7 @@ func runImportSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo, includ
 			playoffTotals.GamesImported, playoffTotals.SkatersImported, playoffTotals.GoaliesImported,
 			season.Label(), tracker.GetElapsed(ctx, GroupImportPlayoff)))
 
-	logger.Info("ImportSeasonWorkflow completed",
+	logger.Info("ImportNHLSeasonWorkflow completed",
 		"startYear", season.ID.StartYear(),
 		"playoffGames", playoffTotals.GamesImported)
 
@@ -223,11 +196,6 @@ func importYahooLeaguesAndTeams(ctx workflow.Context, yahooCfg config.Season, st
 	}
 
 	return teamIDs, nil
-}
-
-// WorkflowIDImportSeason returns the workflow ID for a single season import.
-func WorkflowIDImportSeason(startYear int) string {
-	return fmt.Sprintf("import-season-%d", startYear)
 }
 
 // WorkflowIDImportNHLSeason identifies an NHL-only season child workflow.

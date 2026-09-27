@@ -44,7 +44,7 @@ type FetchDayInput struct {
 }
 
 // FetchDay fetches all data for a single day.
-// This is used by FetchSeasonWorkflow for better performance (avoiding child workflow overhead).
+// This is used by FetchNHLSeasonWorkflow for better performance (avoiding child workflow overhead).
 func (a *DailyScheduleActivities) FetchDay(ctx context.Context, input FetchDayInput) (core.OriginCounts, error) {
 	defer metrics.TrackActivityDuration("FetchDay")()
 	activity.RecordHeartbeat(ctx, nil)

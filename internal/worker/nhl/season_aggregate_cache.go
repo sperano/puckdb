@@ -81,7 +81,7 @@ func gameTypeCounted(gameType nhlapi.GameType, gameTypes []nhlapi.GameType) bool
 // readCachedClubSchedule returns the team's cached club schedule, or nil when
 // it is absent or unreadable. The schedule is written and refreshed by
 // FetchTeamPlayoffGames, which runs after the aggregate fetches in
-// FetchSeasonWorkflow, so the copy read here is one sync run behind. That
+// FetchNHLSeasonWorkflow, so the copy read here is one sync run behind. That
 // only errs on the side of refetching: an old schedule still lists non-final
 // games, and playoff rounds are appended within the settle delay of the
 // previous round ending. A missing schedule makes every aggregate look

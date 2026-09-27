@@ -13,19 +13,6 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// Group index for FetchSeasonsWorkflow progress.
-const GroupFetchSeasonsData = 0
-
-// NewFetchSeasonsProgressReport creates the initial progress structure.
-// Bars are added dynamically once seasons are known.
-func NewFetchSeasonsProgressReport() *shared.ProgressReport {
-	return &shared.ProgressReport{
-		Groups: []shared.ProgressGroup{
-			{Header: "Fetching seasons...", Bars: []shared.ProgressBar{}},
-		},
-	}
-}
-
 // daysWithPlayoffTeamsCounter returns a SeasonCounterFunc that sizes a season's
 // bar as regular-season days plus one unit per team for the per-team playoff
 // phase. The team count comes from the ListSeasonTeams activity so the parent
@@ -45,23 +32,11 @@ func daysWithPlayoffTeamsCounter() shared.SeasonCounterFunc {
 	}
 }
 
-// FetchSeasonsWorkflow downloads all data for the requested seasons by
-// spawning a FetchSeasonWorkflow child for each one.
+// FetchSeasonsWorkflow downloads all data for the requested seasons: Yahoo
+// season metadata (independent of NHL day availability) via
+// FetchYahooSeasonWorkflow, then per-day NHL data via FetchNHLSeasonWorkflow.
 func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
-	if seasonSyncVersion(ctx) != workflow.DefaultVersion {
-		return runSeasonSyncWorkflow(ctx, input, seasonSyncFetch)
-	}
-	input = normalizeSeasonsInput(input)
-	return iterateSeasons(ctx, input, NewFetchSeasonsProgressReport(), GroupFetchSeasonsData,
-		daysWithPlayoffTeamsCounter(), WorkflowIDFetchSeason,
-		func(n int, elapsed string, counts core.OriginCounts) string {
-			return counts.AppendSummary(fmt.Sprintf("Fetched %d seasons in %s.", n, elapsed), "schedules")
-		},
-		func(ctx workflow.Context, season nhl.SeasonInfo, _ bool) workflow.ChildWorkflowFuture {
-			return workflow.ExecuteChildWorkflow(
-				shared.WithChildOptions(ctx, WorkflowIDFetchSeason(season.ID.StartYear())),
-				FetchSeasonWorkflow, season)
-		})
+	return runSeasonSyncWorkflow(ctx, input, seasonSyncFetch)
 }
 
 // SeasonGroupConfig configures how processSeasonGroup processes a group of seasons.

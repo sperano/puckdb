@@ -99,8 +99,8 @@ Non-Go directories: `docs/` (design notes, runbooks), `examples/` (sample pool-s
 ### Active Workflows
 
 Defined in `internal/worker/workflow/`:
-- `FetchSeasonsWorkflow` / `FetchSeasonWorkflow` — NHL season data (parent + child); the parent also fetches the upcoming (not yet started) season's camp rosters for the prior season's clubs
-- `ImportSeasonsWorkflow` / `ImportSeasonWorkflow` — Parse cached files into Postgres; the parent also carries the prior season's clubs forward to the upcoming season (`season_teams`) and imports its camp rosters
+- `FetchSeasonsWorkflow` / `FetchNHLSeasonWorkflow` / `FetchYahooSeasonWorkflow` — NHL season data (parent + children); the parent also fetches the upcoming (not yet started) season's camp rosters for the prior season's clubs
+- `ImportSeasonsWorkflow` / `ImportNHLSeasonWorkflow` / `ImportYahooSeasonWorkflow` — Parse cached files into Postgres; the parent also carries the prior season's clubs forward to the upcoming season (`season_teams`) and imports its camp rosters
 - `FetchPlayerLogsWorkflow` / `FetchSeasonPlayerLogsWorkflow` — Per-player game logs
 - `ImportPlayerLogsWorkflow` / `ImportSeasonPlayerLogsWorkflow` — Import those logs
 - `FetchPlayerLandingsWorkflow` — NHL player landing pages
@@ -167,7 +167,7 @@ func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core
 - Return `core.OriginCounts` for aggregation in parent (separate from progress tracking)
 
 **Reference implementations:**
-- `FetchSeasonWorkflow` — uses `RunWorkerPool` for automatic tracking
+- `FetchNHLSeasonWorkflow` — uses `RunWorkerPool` for automatic tracking
 - `FetchEdgeWorkflow` — uses manual `IncrementBar` calls
 
 ### Configuration Inside Workflow Code

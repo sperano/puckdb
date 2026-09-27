@@ -217,7 +217,6 @@ func cmdWorker() *cobra.Command {
 func registerTasksWorkflows(w worker.Worker) {
 	// Fetch workflows
 	w.RegisterWorkflow(workflow.FetchSeasonsWorkflow)
-	w.RegisterWorkflow(workflow.FetchSeasonWorkflow)
 	w.RegisterWorkflow(workflow.FetchNHLSeasonWorkflow)
 	w.RegisterWorkflow(workflow.FetchYahooSeasonWorkflow)
 	w.RegisterWorkflow(workflow.FetchPlayerLogsWorkflow)
@@ -230,7 +229,6 @@ func registerTasksWorkflows(w worker.Worker) {
 	// Import workflows
 	w.RegisterWorkflow(workflow.ImportSeasonsWorkflow)
 	w.RegisterWorkflow(workflow.ImportPlayerLogsWorkflow)
-	w.RegisterWorkflow(workflow.ImportSeasonWorkflow)
 	w.RegisterWorkflow(workflow.ImportNHLSeasonWorkflow)
 	w.RegisterWorkflow(workflow.ImportYahooSeasonWorkflow)
 	w.RegisterWorkflow(workflow.ImportSeasonPlayerLogsWorkflow)

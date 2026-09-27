@@ -12,9 +12,7 @@ import (
 )
 
 const (
-	seasonSyncSelectionChangeID                  = "independent-yahoo-season-selection"
-	seasonSyncSelectionVersion  workflow.Version = 1
-	seasonYearUnset                              = 0
+	seasonYearUnset = 0
 
 	groupYahooMetadata  = 0
 	groupNHLSeasons     = 1
@@ -86,10 +84,8 @@ func executeSeasonSync(ctx workflow.Context, tracker *shared.ReportTracker, inpu
 	if err := processNHLSeasonGroup(ctx, tracker, seasons, cfg.Concurrency, rangeLabel, mode); err != nil {
 		return err
 	}
-	if upcomingSeasonVersion(ctx) != workflow.DefaultVersion {
-		if err := processUpcomingSeason(ctx, tracker, input, rangeLabel, mode); err != nil {
-			return err
-		}
+	if err := processUpcomingSeason(ctx, tracker, input, rangeLabel, mode); err != nil {
+		return err
 	}
 	setSeasonSyncOutcome(ctx, tracker, len(yahooSeasons), len(seasons), rangeLabel)
 	return nil
@@ -271,8 +267,4 @@ func setSeasonSyncOutcome(ctx workflow.Context, tracker *shared.ReportTracker, y
 	}
 	tracker.SetMessage(ctx, fmt.Sprintf("Completed %s: %d Yahoo season(s), %d started NHL season(s).",
 		rangeLabel, yahooCount, nhlCount))
-}
-
-func seasonSyncVersion(ctx workflow.Context) workflow.Version {
-	return workflow.GetVersion(ctx, seasonSyncSelectionChangeID, workflow.DefaultVersion, seasonSyncSelectionVersion)
 }

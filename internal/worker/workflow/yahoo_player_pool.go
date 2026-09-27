@@ -9,25 +9,9 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// The league player pool steps were added to FetchYahooSeasonWorkflow and
-// ImportYahooSeasonWorkflow after those workflows shipped; histories recorded
-// without them replay at DefaultVersion and skip the steps.
-const (
-	yahooPlayerPoolChangeID                  = "yahoo-league-player-pool"
-	yahooPlayerPoolVersion  workflow.Version = 1
-)
-
-func yahooPlayerPoolEnabled(ctx workflow.Context) bool {
-	return workflow.GetVersion(ctx, yahooPlayerPoolChangeID, workflow.DefaultVersion, yahooPlayerPoolVersion) >=
-		yahooPlayerPoolVersion
-}
-
 // fetchYahooPlayerPools downloads the draftable player pool of every league
 // that calls the Yahoo API (stand-in leagues make no Yahoo calls).
 func fetchYahooPlayerPools(ctx workflow.Context, startYear int, leagues []config.League) error {
-	if !yahooPlayerPoolEnabled(ctx) {
-		return nil
-	}
 	for _, league := range leagues {
 		if league.UsesTemporaryMetadata() {
 			continue
@@ -84,9 +68,6 @@ func fetchYahooPlayerPool(ctx workflow.Context, startYear, leagueID int) error {
 // importYahooPlayerPools imports each API league's latest pool snapshot and
 // returns the leagues that have none yet.
 func importYahooPlayerPools(ctx workflow.Context, startYear int, leagues []config.League) ([]string, error) {
-	if !yahooPlayerPoolEnabled(ctx) {
-		return nil, nil
-	}
 	var act *yahoo.ImportActivities
 	var unavailable []string
 	for _, league := range leagues {
