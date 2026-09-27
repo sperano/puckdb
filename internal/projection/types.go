@@ -80,19 +80,26 @@ type LinemateContext struct {
 	AdjustmentFactor    float64
 }
 
+// GoalieSeason is a goalie's regular-season totals. GamesPlayed counts every
+// boxscore he is listed in, which includes games he dressed for as the
+// backup and never entered; GamesAppeared counts only the games he played
+// (positive time on ice). nhl-baseline-v6 and later read GamesAppeared;
+// earlier versions read GamesPlayed and never see GamesAppeared, which
+// omitempty and encodedGoalieHashRows keep out of their hashes.
 type GoalieSeason struct {
-	PlayerID     int64
-	BirthDate    time.Time
-	TeamID       int64
-	Season       int
-	GamesPlayed  int
-	GamesStarted int
-	TOISeconds   int
-	Wins         int
-	Shutouts     int
-	ShotsAgainst int
-	Saves        int
-	GoalsAgainst int
+	PlayerID      int64
+	BirthDate     time.Time
+	TeamID        int64
+	Season        int
+	GamesPlayed   int
+	GamesAppeared int `json:",omitempty"`
+	GamesStarted  int
+	TOISeconds    int
+	Wins          int
+	Shutouts      int
+	ShotsAgainst  int
+	Saves         int
+	GoalsAgainst  int
 }
 
 // TeamSeason is one NHL club's regular-season scoring environment: goals

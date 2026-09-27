@@ -408,6 +408,10 @@ SELECT
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     COUNT(DISTINCT s.game_id)::int AS games_played,
+    -- games_played counts every boxscore row, including games dressed as
+    -- the backup with no time on ice; games_appeared counts the games played
+    -- (nhl-baseline-v6 reads it, earlier versions keep games_played).
+    COUNT(DISTINCT s.game_id) FILTER (WHERE s.toi_seconds > 0)::int AS games_appeared,
     COUNT(*) FILTER (WHERE s.starter = TRUE)::int AS games_started,
     SUM(s.toi_seconds)::bigint AS toi_seconds,
     COUNT(*) FILTER (WHERE s.decision = 'W')::int AS wins,
@@ -437,18 +441,19 @@ type ListProjectionGoalieEvaluationDataParams struct {
 }
 
 type ListProjectionGoalieEvaluationDataRow struct {
-	PlayerID     int64       `json:"player_id"`
-	BirthDate    pgtype.Date `json:"birth_date"`
-	Season       int32       `json:"season"`
-	TeamID       int64       `json:"team_id"`
-	GamesPlayed  int32       `json:"games_played"`
-	GamesStarted int32       `json:"games_started"`
-	TOISeconds   int64       `json:"toi_seconds"`
-	Wins         int32       `json:"wins"`
-	Shutouts     int32       `json:"shutouts"`
-	ShotsAgainst int64       `json:"shots_against"`
-	Saves        int64       `json:"saves"`
-	GoalsAgainst int64       `json:"goals_against"`
+	PlayerID      int64       `json:"player_id"`
+	BirthDate     pgtype.Date `json:"birth_date"`
+	Season        int32       `json:"season"`
+	TeamID        int64       `json:"team_id"`
+	GamesPlayed   int32       `json:"games_played"`
+	GamesAppeared int32       `json:"games_appeared"`
+	GamesStarted  int32       `json:"games_started"`
+	TOISeconds    int64       `json:"toi_seconds"`
+	Wins          int32       `json:"wins"`
+	Shutouts      int32       `json:"shutouts"`
+	ShotsAgainst  int64       `json:"shots_against"`
+	Saves         int64       `json:"saves"`
+	GoalsAgainst  int64       `json:"goals_against"`
 }
 
 func (q *Queries) ListProjectionGoalieEvaluationData(ctx context.Context, arg ListProjectionGoalieEvaluationDataParams) ([]ListProjectionGoalieEvaluationDataRow, error) {
@@ -466,6 +471,7 @@ func (q *Queries) ListProjectionGoalieEvaluationData(ctx context.Context, arg Li
 			&i.Season,
 			&i.TeamID,
 			&i.GamesPlayed,
+			&i.GamesAppeared,
 			&i.GamesStarted,
 			&i.TOISeconds,
 			&i.Wins,
@@ -494,6 +500,10 @@ SELECT
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     COUNT(DISTINCT s.game_id)::int AS games_played,
+    -- games_played counts every boxscore row, including games dressed as
+    -- the backup with no time on ice; games_appeared counts the games played
+    -- (nhl-baseline-v6 reads it, earlier versions keep games_played).
+    COUNT(DISTINCT s.game_id) FILTER (WHERE s.toi_seconds > 0)::int AS games_appeared,
     COUNT(*) FILTER (WHERE s.starter = TRUE)::int AS games_started,
     SUM(s.toi_seconds)::bigint AS toi_seconds,
     COUNT(*) FILTER (WHERE s.decision = 'W')::int AS wins,
@@ -525,18 +535,19 @@ type ListProjectionGoalieHistoryParams struct {
 }
 
 type ListProjectionGoalieHistoryRow struct {
-	PlayerID     int64       `json:"player_id"`
-	BirthDate    pgtype.Date `json:"birth_date"`
-	Season       int32       `json:"season"`
-	TeamID       int64       `json:"team_id"`
-	GamesPlayed  int32       `json:"games_played"`
-	GamesStarted int32       `json:"games_started"`
-	TOISeconds   int64       `json:"toi_seconds"`
-	Wins         int32       `json:"wins"`
-	Shutouts     int32       `json:"shutouts"`
-	ShotsAgainst int64       `json:"shots_against"`
-	Saves        int64       `json:"saves"`
-	GoalsAgainst int64       `json:"goals_against"`
+	PlayerID      int64       `json:"player_id"`
+	BirthDate     pgtype.Date `json:"birth_date"`
+	Season        int32       `json:"season"`
+	TeamID        int64       `json:"team_id"`
+	GamesPlayed   int32       `json:"games_played"`
+	GamesAppeared int32       `json:"games_appeared"`
+	GamesStarted  int32       `json:"games_started"`
+	TOISeconds    int64       `json:"toi_seconds"`
+	Wins          int32       `json:"wins"`
+	Shutouts      int32       `json:"shutouts"`
+	ShotsAgainst  int64       `json:"shots_against"`
+	Saves         int64       `json:"saves"`
+	GoalsAgainst  int64       `json:"goals_against"`
 }
 
 func (q *Queries) ListProjectionGoalieHistory(ctx context.Context, arg ListProjectionGoalieHistoryParams) ([]ListProjectionGoalieHistoryRow, error) {
@@ -559,6 +570,7 @@ func (q *Queries) ListProjectionGoalieHistory(ctx context.Context, arg ListProje
 			&i.Season,
 			&i.TeamID,
 			&i.GamesPlayed,
+			&i.GamesAppeared,
 			&i.GamesStarted,
 			&i.TOISeconds,
 			&i.Wins,

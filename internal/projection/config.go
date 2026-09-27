@@ -6,11 +6,15 @@ import (
 )
 
 const (
-	LegacyModelVersion       = "nhl-baseline-v1"
-	FaceoffModelVersion      = "nhl-baseline-v2"
-	LinemateModelVersion     = "nhl-baseline-v3"
-	AgingModelVersion        = "nhl-baseline-v4"
-	ModelVersion             = "nhl-baseline-v5"
+	LegacyModelVersion          = "nhl-baseline-v1"
+	FaceoffModelVersion         = "nhl-baseline-v2"
+	LinemateModelVersion        = "nhl-baseline-v3"
+	AgingModelVersion           = "nhl-baseline-v4"
+	TeamEnvironmentModelVersion = "nhl-baseline-v5"
+	// ModelVersion (nhl-baseline-v6) builds on nhl-baseline-v5 and counts a
+	// goalie's games as the games he played in (positive time on ice)
+	// rather than every boxscore he was dressed in; see goalie.go.
+	ModelVersion             = "nhl-baseline-v6"
 	AgingCurveVersion        = "delta-v1"
 	AgingTrainingFloorSeason = 20052006
 	AgingAgeReference        = "jan-1-season-ending-year"
@@ -58,7 +62,7 @@ type Config struct {
 	// TeamEnvironmentPriorGames and TeamEnvironmentMaxChange configure the
 	// team-environment adjustment of skaters whose target-season club
 	// differs from the clubs behind their history (see teamenv.go). Only
-	// nhl-baseline-v5 supports it, and a zero TeamEnvironmentMaxChange
+	// nhl-baseline-v5 and later support it, and a zero TeamEnvironmentMaxChange
 	// disables it; omitempty keeps the config hash of earlier versions'
 	// stored snapshots unchanged.
 	TeamEnvironmentPriorGames float64 `json:",omitempty"`
@@ -164,6 +168,13 @@ func supportsAgingCurve(modelVersion string) bool {
 }
 
 func supportsTeamEnvironment(modelVersion string) bool {
+	return modelVersion == TeamEnvironmentModelVersion || countsGoalieAppearances(modelVersion)
+}
+
+// countsGoalieAppearances reports whether a model counts a goalie's games as
+// his appearances (GoalieSeason.GamesAppeared) instead of every game he
+// dressed for (GamesPlayed, which includes games sat as the backup).
+func countsGoalieAppearances(modelVersion string) bool {
 	return modelVersion == ModelVersion
 }
 

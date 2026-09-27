@@ -96,7 +96,7 @@ func TestGoalieRatiosComeFromProjectedComponents(t *testing.T) {
 		TargetSeason: 20262027,
 		AsOf:         time.Now(),
 		Goalies: []GoalieSeason{{
-			PlayerID: 40, Season: 20252026, GamesPlayed: 50, GamesStarted: 45,
+			PlayerID: 40, Season: 20252026, GamesPlayed: 50, GamesAppeared: 50, GamesStarted: 45,
 			TOISeconds: 162_000, Wins: 30, Shutouts: 5,
 			ShotsAgainst: 1_500, Saves: 1_380, GoalsAgainst: 120,
 		}},

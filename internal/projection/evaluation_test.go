@@ -73,8 +73,8 @@ func TestEvaluateGoalieRatiosAgainstPreviousSeason(t *testing.T) {
 		AsOf:         time.Date(2026, time.September, 20, 0, 0, 0, 0, time.UTC),
 		ObservedAt:   time.Date(2027, time.May, 1, 0, 0, 0, 0, time.UTC),
 		Goalies: []GoalieSeason{
-			{PlayerID: 2, Season: 20252026, GamesPlayed: 50, GamesStarted: 45, TOISeconds: 160_000, Wins: 25, ShotsAgainst: 1_500, Saves: 1_380, GoalsAgainst: 120},
-			{PlayerID: 2, Season: 20262027, GamesPlayed: 55, GamesStarted: 50, TOISeconds: 175_000, Wins: 30, ShotsAgainst: 1_650, Saves: 1_530, GoalsAgainst: 120},
+			{PlayerID: 2, Season: 20252026, GamesPlayed: 50, GamesAppeared: 50, GamesStarted: 45, TOISeconds: 160_000, Wins: 25, ShotsAgainst: 1_500, Saves: 1_380, GoalsAgainst: 120},
+			{PlayerID: 2, Season: 20262027, GamesPlayed: 55, GamesAppeared: 55, GamesStarted: 50, TOISeconds: 175_000, Wins: 30, ShotsAgainst: 1_650, Saves: 1_530, GoalsAgainst: 120},
 		},
 	}
 

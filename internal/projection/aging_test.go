@@ -138,7 +138,7 @@ func TestGoalieAgingKeepsDerivedRatesConsistent(t *testing.T) {
 	input := Input{
 		TargetSeason: 20242025, AsOf: time.Date(2024, time.September, 1, 0, 0, 0, 0, time.UTC),
 		Goalies: []GoalieSeason{{PlayerID: 1, BirthDate: birth, Season: 20232024,
-			GamesPlayed: 4, GamesStarted: 4, TOISeconds: 3600,
+			GamesPlayed: 4, GamesAppeared: 4, GamesStarted: 4, TOISeconds: 3600,
 			ShotsAgainst: 100, Saves: 90, GoalsAgainst: 10}},
 	}
 	snapshot, err := Generate(cfg, input)

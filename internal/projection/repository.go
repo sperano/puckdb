@@ -211,7 +211,7 @@ func evaluationInput(
 	for _, row := range goalies {
 		input.Goalies = append(input.Goalies, GoalieSeason{
 			PlayerID: row.PlayerID, BirthDate: optionalDate(row.BirthDate), TeamID: row.TeamID, Season: int(row.Season), GamesPlayed: int(row.GamesPlayed),
-			GamesStarted: int(row.GamesStarted), TOISeconds: int(row.TOISeconds),
+			GamesAppeared: int(row.GamesAppeared), GamesStarted: int(row.GamesStarted), TOISeconds: int(row.TOISeconds),
 			Wins: int(row.Wins), Shutouts: int(row.Shutouts), ShotsAgainst: int(row.ShotsAgainst),
 			Saves: int(row.Saves), GoalsAgainst: int(row.GoalsAgainst),
 		})
@@ -320,7 +320,7 @@ func skaterSeasonFromRow(row sqlcdb.ListProjectionSkaterHistoryRow) SkaterSeason
 func goalieSeasonFromRow(row sqlcdb.ListProjectionGoalieHistoryRow) GoalieSeason {
 	return GoalieSeason{
 		PlayerID: row.PlayerID, BirthDate: optionalDate(row.BirthDate), TeamID: row.TeamID, Season: int(row.Season), GamesPlayed: int(row.GamesPlayed),
-		GamesStarted: int(row.GamesStarted), TOISeconds: int(row.TOISeconds),
+		GamesAppeared: int(row.GamesAppeared), GamesStarted: int(row.GamesStarted), TOISeconds: int(row.TOISeconds),
 		Wins: int(row.Wins), Shutouts: int(row.Shutouts), ShotsAgainst: int(row.ShotsAgainst),
 		Saves: int(row.Saves), GoalsAgainst: int(row.GoalsAgainst),
 	}

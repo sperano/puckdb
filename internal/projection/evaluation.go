@@ -107,9 +107,14 @@ func evaluateSkaters(snapshot Snapshot, input Input, previousSeason int) Evaluat
 	)
 }
 
+// evaluateGoalies scores goalies against observed games as the evaluated
+// model version counts them (goalieModelRows): appearances from
+// nhl-baseline-v6, every dressed game for the published versions before it,
+// whose stored evaluations stay reproducible.
 func evaluateGoalies(snapshot Snapshot, input Input, previousSeason int) Evaluation {
-	actual := aggregateGoalieValues(input.Goalies, input.TargetSeason)
-	comparison := aggregateGoalieValues(input.Goalies, previousSeason)
+	rows := goalieModelRows(snapshot.Config.ModelVersion, input.Goalies)
+	actual := aggregateGoalieValues(rows, input.TargetSeason)
+	comparison := aggregateGoalieValues(rows, previousSeason)
 	stats := []Stat{
 		StatGamesPlayed, StatGamesStarted, StatTOISeconds, StatWins, StatShutouts,
 		StatShotsAgainst, StatSaves, StatGoalsAgainst, StatSavePercentage,

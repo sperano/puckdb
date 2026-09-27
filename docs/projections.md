@@ -6,7 +6,7 @@ can be scored differently for each Yahoo league without changing its inputs.
 
 ## Model
 
-The `nhl-baseline-v5` model uses completed NHL regular-season games from the
+The `nhl-baseline-v6` model uses completed NHL regular-season games from the
 three seasons before the target season. Live, postponed, preseason and playoff
 games, and games from the target season or later, are excluded from model inputs.
 Each season is weighted by `season_decay ^ age`, where the immediately prior
@@ -19,8 +19,11 @@ toward a centre or non-centre peer rate instead, since faceoff usage is far more
 position-specific than the other counting stats: lumping centres in with
 wingers under the forward/defense split would badly misstate both groups' peer
 rate. Expected games and time on ice per game come from weighted historical
-workload. Goalie save and goals-against rates regress by shots faced; wins and
-shutouts regress by starts. Goalie GAA and save
+workload. A goalie's games are his appearances (games with positive time on
+ice): NHL boxscores also list the dressed backup with no time on ice, and
+through `nhl-baseline-v5` those bench games counted as games played (see
+"Goalie appearances" below). Goalie save and goals-against rates regress by
+shots faced; wins and shutouts regress by starts. Goalie GAA and save
 percentage are derived from projected goals against, saves, shots, and time on
 ice rather than averaging historical ratios. The most recent historical position
 is retained as context, and the team is the player's target-season club when
@@ -51,13 +54,36 @@ curve version are stored in the projection config and included in its hash.
 The source-data hash also covers the training seasons and birth dates. The
 combined `nhl-baseline-v4` retains `nhl-baseline-v3` linemate adjustment and
 adds age curves; existing v3 snapshots remain unchanged. `nhl-baseline-v5`
-keeps both and adds the team-environment adjustment below. `nhl-baseline-v1` and
+keeps both and adds the team-environment adjustment below; `nhl-baseline-v6`
+keeps all of it and counts goalie appearances instead of dressed games.
+`nhl-baseline-v1` and
 `nhl-baseline-v2` snapshots also retain their original config and source-data
 hash formats and can still be loaded.
 
+### Goalie appearances
+
+`game_goalie_stats` has a row for every goalie a boxscore lists, including
+the backup who dressed and never entered (zero time on ice). Through
+`nhl-baseline-v5`, goalie games played were those rows, so a backup's bench
+games counted: in 2025-26 Dobes had 77 rows, 43 appearances and 42 starts;
+Montembeault 53/25/23. That inflated projected games, diluted shots and time
+on ice per game across games not played, let bench games pick a traded
+goalie's context club, and kept seasons with no appearance in the history.
+
+`nhl-baseline-v6` reads `games_appeared` (games with positive time on ice)
+from the goalie history and evaluation queries and uses it wherever games
+enter the goalie model: projected games, the per-game shot and TOI rates and
+their peer rates, history games, the context club and the exclusion of
+seasons without games. Its held-out evaluation scores goalie games against
+appearances too. Earlier versions keep dressed games, and their config,
+source-data and evaluation hashes, projections and evaluation metrics are
+pinned unchanged by `internal/projection/published_pin_test.go`. Skater rows
+come from the boxscore's dressed lineup (scratches are in `game_scratches`),
+so skaters have no equivalent bench rows and are unchanged.
+
 ### Historical linemate context
 
-Versions 3 through 5 neutralize historical even-strength linemate context. Shift
+Versions 3 through 6 neutralize historical even-strength linemate context. Shift
 boundaries form half-open on-ice segments. A segment counts only when both
 teams have the same number of active skaters, from three through five, and
 exactly one goalie each; goalies, power plays, penalty kills, empty-net
@@ -313,7 +339,7 @@ Migrations `000004` and `000012` store immutable snapshot identity, a
 source-data hash, model parameters, and linemate context in typed columns;
 `000013` adds the persisted v4 aging curve; `000014` adds the v5
 team-environment parameters and per-player adjustments, and requires the aging
-curve for v5 as well. Player metadata is separate from
+curve for v5 as well; `000016` requires it for v6. Player metadata is separate from
 normalized stat rows, where each value stores its mean and interval. Exact
 rebuilds replace their player rows atomically, which makes retrying a workflow
 safe; a historical backfill produces a distinct source hash and snapshot.

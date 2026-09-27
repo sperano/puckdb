@@ -210,6 +210,10 @@ SELECT
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     COUNT(DISTINCT s.game_id)::int AS games_played,
+    -- games_played counts every boxscore row, including games dressed as
+    -- the backup with no time on ice; games_appeared counts the games played
+    -- (nhl-baseline-v6 reads it, earlier versions keep games_played).
+    COUNT(DISTINCT s.game_id) FILTER (WHERE s.toi_seconds > 0)::int AS games_appeared,
     COUNT(*) FILTER (WHERE s.starter = TRUE)::int AS games_started,
     SUM(s.toi_seconds)::bigint AS toi_seconds,
     COUNT(*) FILTER (WHERE s.decision = 'W')::int AS wins,
@@ -242,6 +246,10 @@ SELECT
     g.season,
     (ARRAY_AGG(s.team_id ORDER BY g.game_date DESC, s.game_id DESC))[1]::bigint AS team_id,
     COUNT(DISTINCT s.game_id)::int AS games_played,
+    -- games_played counts every boxscore row, including games dressed as
+    -- the backup with no time on ice; games_appeared counts the games played
+    -- (nhl-baseline-v6 reads it, earlier versions keep games_played).
+    COUNT(DISTINCT s.game_id) FILTER (WHERE s.toi_seconds > 0)::int AS games_appeared,
     COUNT(*) FILTER (WHERE s.starter = TRUE)::int AS games_started,
     SUM(s.toi_seconds)::bigint AS toi_seconds,
     COUNT(*) FILTER (WHERE s.decision = 'W')::int AS wins,

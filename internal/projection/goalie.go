@@ -2,6 +2,7 @@ package projection
 
 import (
 	"math"
+	"slices"
 	"time"
 )
 
@@ -40,7 +41,7 @@ type goalieWorkload struct {
 func projectGoalies(cfg Config, targetSeason int, rows []GoalieSeason) []PlayerProjection {
 	var peers goalieTotals
 	history := make(map[int64]*goalieHistory)
-	for _, row := range rows {
+	for _, row := range goalieModelRows(cfg.ModelVersion, rows) {
 		age, ok := seasonAge(targetSeason, row.Season)
 		if !ok || age >= cfg.LookbackSeasons || row.GamesPlayed <= 0 {
 			continue
@@ -66,6 +67,24 @@ func projectGoalies(cfg Config, targetSeason int, rows []GoalieSeason) []PlayerP
 		result = append(result, buildGoalieProjection(cfg, targetSeason, playerID, *player, peers))
 	}
 	return result
+}
+
+// goalieModelRows returns rows whose GamesPlayed is the games modelVersion
+// counts, so the workload, the per-game rate denominators, the context club,
+// the history games and the exclusion of seasons without games all use one
+// definition. From nhl-baseline-v6 that is GamesAppeared: a boxscore lists
+// the dressed backup with no time on ice, and counting those bench games
+// inflated projected games and diluted shots and TOI per game. Earlier
+// versions keep every dressed game so their output is unchanged.
+func goalieModelRows(modelVersion string, rows []GoalieSeason) []GoalieSeason {
+	if !countsGoalieAppearances(modelVersion) {
+		return rows
+	}
+	counted := slices.Clone(rows)
+	for index := range counted {
+		counted[index].GamesPlayed = counted[index].GamesAppeared
+	}
+	return counted
 }
 
 func updateGoalieContext(history *goalieHistory, row GoalieSeason, age int) {

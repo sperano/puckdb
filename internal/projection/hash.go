@@ -181,9 +181,20 @@ func legacySkaterHashRow(row SkaterSeason) legacySkaterSeason {
 	}
 }
 
+// encodedGoalieHashRows encodes the goalie rows a model version reads.
+// nhl-baseline-v4 and v5 hashed the whole GoalieSeason before GamesAppeared
+// existed, so their rows are encoded with it cleared (omitempty drops it and
+// the JSON is byte-identical to theirs); v6 reads it and hashes it.
 func encodedGoalieHashRows(rows []GoalieSeason, modelVersion string) []string {
-	if supportsAgingCurve(modelVersion) {
+	if countsGoalieAppearances(modelVersion) {
 		return encodedValues(rows)
+	}
+	if supportsAgingCurve(modelVersion) {
+		published := slices.Clone(rows)
+		for index := range published {
+			published[index].GamesAppeared = 0
+		}
+		return encodedValues(published)
 	}
 	legacy := make([]legacyGoalieSeason, len(rows))
 	for index, row := range rows {
