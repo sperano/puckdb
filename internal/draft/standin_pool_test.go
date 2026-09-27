@@ -70,6 +70,67 @@ func TestStandInEligiblePositions(t *testing.T) {
 	}
 }
 
+// TestLoadStandInPool_PrefersYahooEligiblePositions covers standInFillPool's
+// three position-resolution cases: a player with draftable Yahoo positions
+// mixed with non-draftable ones uses only the draftable ones; a player with
+// no Yahoo roster row falls back to their NHL position; a player whose
+// latest Yahoo row lists only non-draftable slots also falls back.
+func TestLoadStandInPool_PrefersYahooEligiblePositions(t *testing.T) {
+	t.Parallel()
+	const (
+		multiPositionPlayer = int64(1) // Yahoo: C, LW, Util, IR -> C, LW
+		noYahooRowPlayer    = int64(2) // no yahoo_team_rosters row -> NHL position (D)
+		utilOnlyPlayer      = int64(3) // Yahoo: Util, IR only -> falls back to NHL position (RW)
+	)
+	q := &fakeQueries{
+		rosterCoverage: standInFullCoverage(),
+		rosterRows: []sqlcdb.ListSeasonRosterPoolCandidatesRow{
+			standInRow(multiPositionPlayer, 1, sqlcdb.PlayerPositionC, standInTestUpdatedAt, true, false),
+			standInRow(noYahooRowPlayer, 1, sqlcdb.PlayerPositionD, standInTestUpdatedAt, true, false),
+			standInRow(utilOnlyPlayer, 1, sqlcdb.PlayerPositionRW, standInTestUpdatedAt, true, false),
+		},
+		yahooPositions: []sqlcdb.ListLatestYahooEligiblePositionsByPlayerRow{
+			{PlayerID: multiPositionPlayer, EligiblePositions: []string{"C", "LW", SlotUtility, "IR"}},
+			{PlayerID: utilOnlyPlayer, EligiblePositions: []string{SlotUtility, "IR"}},
+		},
+	}
+	result, err := LoadStandInPool(context.Background(), q, standInTestLeagueSeason)
+	require.NoError(t, err)
+	require.Len(t, result.Players, 3)
+
+	byID := make(map[int64]PoolPlayer, len(result.Players))
+	for _, p := range result.Players {
+		byID[p.NHLPlayerID] = p
+	}
+	assert.Equal(t, []string{PositionCenter, PositionLeftWing}, byID[multiPositionPlayer].EligiblePositions)
+	assert.Equal(t, []string{PositionDefense}, byID[noYahooRowPlayer].EligiblePositions, "no Yahoo row falls back to the NHL position")
+	assert.Equal(t, []string{PositionRightWing}, byID[utilOnlyPlayer].EligiblePositions, "Util/IR-only Yahoo row falls back to the NHL position")
+	assert.Equal(t, 1, result.YahooPositionPlayers)
+
+	notes := result.Notes()
+	assert.Contains(t, notes[0], "Yahoo eligible positions for 1 of 3 players")
+}
+
+func TestStandInDraftablePositions(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		raw  []string
+		want []string
+	}{
+		{"filters and orders multi-position", []string{"C", "LW", SlotUtility, "IR"}, []string{PositionCenter, PositionLeftWing}},
+		{"util and IR only falls to nothing", []string{SlotUtility, "IR"}, nil},
+		{"empty", nil, nil},
+		{"reorders to canonical order", []string{"D", "C"}, []string{PositionCenter, PositionDefense}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, standInDraftablePositions(tt.raw))
+		})
+	}
+}
+
 func TestStandInHasHistory(t *testing.T) {
 	t.Parallel()
 	goalie := standInRow(1, 1, sqlcdb.PlayerPositionG, standInTestUpdatedAt, false, true)
@@ -224,7 +285,7 @@ func TestStandInPoolResult_Notes_FallbackReason(t *testing.T) {
 	result := StandInPoolResult{RosterSeason: standInTestPriorSeason, FallbackReason: "2026-27 rosters incomplete: 20 of 32 teams"}
 	notes := result.Notes()
 	require.Len(t, notes, 2)
-	assert.Equal(t, "provisional pool from NHL 2025-26 rosters (Yahoo unavailable); one position per player", notes[0])
+	assert.Equal(t, "provisional pool from NHL 2025-26 rosters (Yahoo unavailable); Yahoo eligible positions for 0 of 0 players from their latest Yahoo roster, NHL position for the rest", notes[0])
 	assert.Contains(t, notes[1], "used the prior season's rosters: 2026-27 rosters incomplete: 20 of 32 teams")
 }
 

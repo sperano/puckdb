@@ -61,6 +61,7 @@ type Queries interface {
 	// temporary_metadata_from once Yahoo access returns.
 	GetSeasonRosterCoverage(ctx context.Context, season int32) (sqlcdb.GetSeasonRosterCoverageRow, error)
 	ListSeasonRosterPoolCandidates(ctx context.Context, arg sqlcdb.ListSeasonRosterPoolCandidatesParams) ([]sqlcdb.ListSeasonRosterPoolCandidatesRow, error)
+	ListLatestYahooEligiblePositionsByPlayer(ctx context.Context) ([]sqlcdb.ListLatestYahooEligiblePositionsByPlayerRow, error)
 }
 
 // LoadSnapshot returns the latest rules version of a league in a season.

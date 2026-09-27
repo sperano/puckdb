@@ -40,6 +40,9 @@ type fakeQueries struct {
 	// lastListParams records the params of the last ListSeasonRosterPoolCandidates
 	// call, so a test can check what LoadStandInPool asked for.
 	lastListParams sqlcdb.ListSeasonRosterPoolCandidatesParams
+
+	yahooPositions    []sqlcdb.ListLatestYahooEligiblePositionsByPlayerRow
+	yahooPositionsErr error
 }
 
 func (f *fakeQueries) GetLatestYahooLeagueRuleSnapshot(context.Context, sqlcdb.GetLatestYahooLeagueRuleSnapshotParams) (sqlcdb.YahooLeagueRuleSnapshot, error) {
@@ -69,6 +72,10 @@ func (f *fakeQueries) GetSeasonRosterCoverage(context.Context, int32) (sqlcdb.Ge
 func (f *fakeQueries) ListSeasonRosterPoolCandidates(_ context.Context, arg sqlcdb.ListSeasonRosterPoolCandidatesParams) ([]sqlcdb.ListSeasonRosterPoolCandidatesRow, error) {
 	f.lastListParams = arg
 	return f.rosterRows, f.rosterRowsErr
+}
+
+func (f *fakeQueries) ListLatestYahooEligiblePositionsByPlayer(context.Context) ([]sqlcdb.ListLatestYahooEligiblePositionsByPlayerRow, error) {
+	return f.yahooPositions, f.yahooPositionsErr
 }
 
 func timestamptz(t time.Time) pgtype.Timestamptz {

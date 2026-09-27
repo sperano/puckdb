@@ -67,14 +67,18 @@ type StandInPoolResult struct {
 	// projected (see ListSeasonRosterPoolCandidates and
 	// projection.ValidateCoverage).
 	ExcludedNoHistory []ExcludedPlayer
+	// YahooPositionPlayers counts pool players whose EligiblePositions came
+	// from their latest yahoo_team_rosters row rather than their single NHL
+	// position (see standInPlayerPositions).
+	YahooPositionPlayers int
 }
 
 // Notes describes the pool's provenance and any exclusions, for a coverage
 // or ranking report.
 func (r StandInPoolResult) Notes() []string {
 	notes := []string{fmt.Sprintf(
-		"provisional pool from NHL %s rosters (Yahoo unavailable); one position per player",
-		standInSeasonLabel(r.RosterSeason))}
+		"provisional pool from NHL %s rosters (Yahoo unavailable); Yahoo eligible positions for %d of %d players from their latest Yahoo roster, NHL position for the rest",
+		standInSeasonLabel(r.RosterSeason), r.YahooPositionPlayers, len(r.Players))}
 	if r.FallbackReason != "" {
 		notes = append(notes, "used the prior season's rosters: "+r.FallbackReason)
 	}
@@ -131,18 +135,23 @@ func LoadStandInPool(ctx context.Context, q Queries, leagueSeason int) (StandInP
 	if err != nil {
 		return StandInPoolResult{}, fmt.Errorf("load NHL roster pool for season %d: %w", rosterSeason, err)
 	}
+	yahooRows, err := q.ListLatestYahooEligiblePositionsByPlayer(ctx)
+	if err != nil {
+		return StandInPoolResult{}, fmt.Errorf("load latest Yahoo eligible positions: %w", err)
+	}
 	result := StandInPoolResult{
 		RosterSeason: rosterSeason, FallbackReason: fallbackReason,
 		HistoryFloorSeason: floor, HistoryLastSeason: last,
 	}
-	standInFillPool(&result, rows)
+	standInFillPool(&result, rows, standInYahooPositionsByPlayer(yahooRows))
 	return result, nil
 }
 
 // standInFillPool dedupes roster rows by player (most recently updated row
 // wins) and splits them into projectable players and the two exclusion
-// reasons.
-func standInFillPool(result *StandInPoolResult, rows []sqlcdb.ListSeasonRosterPoolCandidatesRow) {
+// reasons. yahooPositions is keyed by NHL player ID (see
+// standInYahooPositionsByPlayer).
+func standInFillPool(result *StandInPoolResult, rows []sqlcdb.ListSeasonRosterPoolCandidatesRow, yahooPositions map[int64][]string) {
 	result.Players = make([]PoolPlayer, 0, len(rows))
 	result.ExcludedNoPosition = make([]ExcludedPlayer, 0, len(rows))
 	result.ExcludedNoHistory = make([]ExcludedPlayer, 0, len(rows))
@@ -155,7 +164,7 @@ func standInFillPool(result *StandInPoolResult, rows []sqlcdb.ListSeasonRosterPo
 		}
 		seen[row.PlayerID] = true
 		name := standInPlayerName(row)
-		positions := standInEligiblePositions(row.Position)
+		positions, fromYahoo := standInPlayerPositions(row, yahooPositions)
 		if len(positions) == 0 {
 			result.ExcludedNoPosition = append(result.ExcludedNoPosition, ExcludedPlayer{Name: name, NHLPlayerID: row.PlayerID})
 			continue
@@ -165,10 +174,24 @@ func standInFillPool(result *StandInPoolResult, rows []sqlcdb.ListSeasonRosterPo
 			continue
 		}
 		result.Players = append(result.Players, standInPoolPlayer(row, name, positions))
+		if fromYahoo {
+			result.YahooPositionPlayers++
+		}
 	}
 	slices.SortFunc(result.Players, func(a, b PoolPlayer) int { return strings.Compare(a.PlayerKey, b.PlayerKey) })
 	slices.SortFunc(result.ExcludedNoPosition, func(a, b ExcludedPlayer) int { return strings.Compare(a.Name, b.Name) })
 	slices.SortFunc(result.ExcludedNoHistory, func(a, b ExcludedPlayer) int { return strings.Compare(a.Name, b.Name) })
+}
+
+// standInPlayerPositions resolves a stand-in player's eligible positions:
+// their latest Yahoo roster's draftable positions when known, the NHL
+// position from season_rosters/players otherwise. fromYahoo reports which
+// source was used, for StandInPoolResult.YahooPositionPlayers.
+func standInPlayerPositions(row sqlcdb.ListSeasonRosterPoolCandidatesRow, yahooPositions map[int64][]string) (positions []string, fromYahoo bool) {
+	if yahoo, ok := yahooPositions[row.PlayerID]; ok {
+		return yahoo, true
+	}
+	return standInEligiblePositions(row.Position), false
 }
 
 // standInRosterSeason picks the roster season backing the pool: the
@@ -260,4 +283,42 @@ func standInEligiblePositions(position sqlcdb.NullPlayerPosition) []string {
 	default:
 		return nil
 	}
+}
+
+// standInYahooPositionsByPlayer indexes a player's draftable Yahoo eligible
+// positions by NHL player ID, keeping only players who have at least one
+// (see standInDraftablePositions): a player whose latest Yahoo roster row
+// lists only non-draftable slots (Util, IR, IR+, NA, BN, ...) is left out
+// so the caller falls back to their NHL position instead of excluding them.
+func standInYahooPositionsByPlayer(rows []sqlcdb.ListLatestYahooEligiblePositionsByPlayerRow) map[int64][]string {
+	byPlayer := make(map[int64][]string, len(rows))
+	for _, row := range rows {
+		if positions := standInDraftablePositions(row.EligiblePositions); len(positions) > 0 {
+			byPlayer[row.PlayerID] = positions
+		}
+	}
+	return byPlayer
+}
+
+// standInDraftablePositions filters a Yahoo roster row's eligible_positions
+// down to the draftable base positions (C, LW, RW, D, G), dropping
+// roster-only slots (Util, IR, IR+, NA, BN, ...), deduping, and returning
+// them in the stable order basePositions defines.
+func standInDraftablePositions(raw []string) []string {
+	present := make(map[string]bool, len(basePositions))
+	for _, p := range raw {
+		if slices.Contains(basePositions, p) {
+			present[p] = true
+		}
+	}
+	if len(present) == 0 {
+		return nil
+	}
+	positions := make([]string, 0, len(present))
+	for _, p := range basePositions {
+		if present[p] {
+			positions = append(positions, p)
+		}
+	}
+	return positions
 }

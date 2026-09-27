@@ -189,3 +189,19 @@ WHERE (yahoo_team_rosters.coverage_type, yahoo_team_rosters.is_editable,
        EXCLUDED.position_type, EXCLUDED.display_position,
        EXCLUDED.primary_position, EXCLUDED.eligible_positions,
        EXCLUDED.uniform_number, EXCLUDED.editorial_team_abbr);
+
+-- name: ListLatestYahooEligiblePositionsByPlayer :many
+-- TEMPORARY: backs the stand-in draft pool's Yahoo eligible-position lookup
+-- (internal/draft/standin_pool.go, config.LeagueMetadataSource). For every
+-- NHL player with a known Yahoo id, returns the raw eligible_positions
+-- (Yahoo position codes, including non-draftable ones like Util/IR) from
+-- their single most recent yahoo_team_rosters row across all leagues and
+-- teams; the caller filters and reorders them. Remove together with
+-- temporary_metadata_from once Yahoo access returns.
+SELECT DISTINCT ON (p.id)
+    p.id AS player_id,
+    ytr.eligible_positions
+FROM players p
+JOIN yahoo_team_rosters ytr ON ytr.player_id = p.yahoo_id
+WHERE p.yahoo_id IS NOT NULL
+ORDER BY p.id, ytr.date DESC;

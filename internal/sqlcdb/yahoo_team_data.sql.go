@@ -631,3 +631,45 @@ func (q *Queries) GetYahooTeamSummary(ctx context.Context, arg GetYahooTeamSumma
 	)
 	return i, err
 }
+
+const listLatestYahooEligiblePositionsByPlayer = `-- name: ListLatestYahooEligiblePositionsByPlayer :many
+SELECT DISTINCT ON (p.id)
+    p.id AS player_id,
+    ytr.eligible_positions
+FROM players p
+JOIN yahoo_team_rosters ytr ON ytr.player_id = p.yahoo_id
+WHERE p.yahoo_id IS NOT NULL
+ORDER BY p.id, ytr.date DESC
+`
+
+type ListLatestYahooEligiblePositionsByPlayerRow struct {
+	PlayerID          int64    `json:"player_id"`
+	EligiblePositions []string `json:"eligible_positions"`
+}
+
+// TEMPORARY: backs the stand-in draft pool's Yahoo eligible-position lookup
+// (internal/draft/standin_pool.go, config.LeagueMetadataSource). For every
+// NHL player with a known Yahoo id, returns the raw eligible_positions
+// (Yahoo position codes, including non-draftable ones like Util/IR) from
+// their single most recent yahoo_team_rosters row across all leagues and
+// teams; the caller filters and reorders them. Remove together with
+// temporary_metadata_from once Yahoo access returns.
+func (q *Queries) ListLatestYahooEligiblePositionsByPlayer(ctx context.Context) ([]ListLatestYahooEligiblePositionsByPlayerRow, error) {
+	rows, err := q.db.Query(ctx, listLatestYahooEligiblePositionsByPlayer)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLatestYahooEligiblePositionsByPlayerRow{}
+	for rows.Next() {
+		var i ListLatestYahooEligiblePositionsByPlayerRow
+		if err := rows.Scan(&i.PlayerID, &i.EligiblePositions); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
