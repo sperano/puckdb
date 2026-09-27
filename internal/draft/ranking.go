@@ -15,6 +15,7 @@ import (
 const (
 	tierGapSpreadFraction = 0.5
 	seasonYearFactor      = 10_000
+	centuryYears          = 100
 )
 
 // NHLSeasonID returns the NHL season ID (e.g. 20262027) of a season's start
@@ -24,6 +25,13 @@ const (
 // internal/draft.
 func NHLSeasonID(startYear int) int {
 	return startYear*seasonYearFactor + startYear + 1
+}
+
+// SeasonLabel formats an NHL season ID (e.g. 20262027) the way NHL
+// broadcasts do ("2026-27"), for human-readable notes.
+func SeasonLabel(seasonID int) string {
+	startYear := seasonID / seasonYearFactor
+	return fmt.Sprintf("%d-%02d", startYear, (startYear+1)%centuryYears)
 }
 
 // BuildRanking values a complete Yahoo player pool against a frozen rules and
@@ -123,6 +131,9 @@ func rankCandidates(
 		}
 		if context := candidate.projection.LinemateContext; context != nil {
 			explanations = append(explanations, linemateExplanation(*context))
+		}
+		if env := candidate.projection.TeamEnvironment; env != nil {
+			explanations = append(explanations, teamEnvironmentExplanation(*env))
 		}
 		if provisional {
 			explanations = append(explanations, "rules came from a temporary stand-in and are provisional")

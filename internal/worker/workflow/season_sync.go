@@ -16,8 +16,9 @@ const (
 	seasonSyncSelectionVersion  workflow.Version = 1
 	seasonYearUnset                              = 0
 
-	groupYahooMetadata = 0
-	groupNHLSeasons    = 1
+	groupYahooMetadata  = 0
+	groupNHLSeasons     = 1
+	groupUpcomingSeason = 2
 )
 
 type seasonSyncMode int
@@ -84,6 +85,11 @@ func executeSeasonSync(ctx workflow.Context, tracker *shared.ReportTracker, inpu
 	}
 	if err := processNHLSeasonGroup(ctx, tracker, seasons, cfg.Concurrency, rangeLabel, mode); err != nil {
 		return err
+	}
+	if upcomingSeasonVersion(ctx) != workflow.DefaultVersion {
+		if err := processUpcomingSeason(ctx, tracker, input, rangeLabel, mode); err != nil {
+			return err
+		}
 	}
 	setSeasonSyncOutcome(ctx, tracker, len(yahooSeasons), len(seasons), rangeLabel)
 	return nil
@@ -153,6 +159,7 @@ func newSeasonSyncProgressReport(mode seasonSyncMode) *shared.ProgressReport {
 	return &shared.ProgressReport{Groups: []shared.ProgressGroup{
 		{Header: verb + " Yahoo season metadata...", Bars: []shared.ProgressBar{{}}},
 		{Header: verb + " started NHL seasons...", Bars: []shared.ProgressBar{}},
+		{Header: verb + " upcoming NHL season rosters...", Bars: []shared.ProgressBar{{}}},
 	}}
 }
 

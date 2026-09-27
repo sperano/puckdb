@@ -110,3 +110,21 @@ ORDER BY team_id, season DESC;
 -- aligns with the rows the loader produces.
 SELECT COUNT(DISTINCT team_id) FROM season_teams
 WHERE logo_url IS NOT NULL AND logo_url <> '';
+
+-- name: CarryForwardSeasonTeam :execrows
+-- Copies one of a season's NHL clubs to the next season, under the team ID
+-- the caller resolved for that season (the NHL has reissued IDs under the
+-- same abbreviation: Utah 59 -> 68), before the NHL publishes the season's
+-- standings (the only source of season_teams otherwise), so its camp
+-- rosters can be imported ahead of puck drop. A club already present for
+-- the new season is left as is; standings replace the copied rows once the
+-- season has them.
+INSERT INTO season_teams (
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
+    division_name, division_abbrev, conference_name, conference_abbrev, team_kind
+)
+SELECT sqlc.arg(to_season)::integer, sqlc.arg(to_team_id)::bigint, franchise_id, full_name, abbrev, logo_url,
+       division_name, division_abbrev, conference_name, conference_abbrev, team_kind
+FROM season_teams
+WHERE season = sqlc.arg(from_season)::integer AND team_id = sqlc.arg(from_team_id)::bigint AND team_kind = 'nhl'
+ON CONFLICT (season, team_id) DO NOTHING;

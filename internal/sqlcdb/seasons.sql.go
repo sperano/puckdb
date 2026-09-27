@@ -11,6 +11,45 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const carryForwardSeasonTeam = `-- name: CarryForwardSeasonTeam :execrows
+INSERT INTO season_teams (
+    season, team_id, franchise_id, full_name, abbrev, logo_url,
+    division_name, division_abbrev, conference_name, conference_abbrev, team_kind
+)
+SELECT $1::integer, $2::bigint, franchise_id, full_name, abbrev, logo_url,
+       division_name, division_abbrev, conference_name, conference_abbrev, team_kind
+FROM season_teams
+WHERE season = $3::integer AND team_id = $4::bigint AND team_kind = 'nhl'
+ON CONFLICT (season, team_id) DO NOTHING
+`
+
+type CarryForwardSeasonTeamParams struct {
+	ToSeason   int32 `json:"to_season"`
+	ToTeamID   int64 `json:"to_team_id"`
+	FromSeason int32 `json:"from_season"`
+	FromTeamID int64 `json:"from_team_id"`
+}
+
+// Copies one of a season's NHL clubs to the next season, under the team ID
+// the caller resolved for that season (the NHL has reissued IDs under the
+// same abbreviation: Utah 59 -> 68), before the NHL publishes the season's
+// standings (the only source of season_teams otherwise), so its camp
+// rosters can be imported ahead of puck drop. A club already present for
+// the new season is left as is; standings replace the copied rows once the
+// season has them.
+func (q *Queries) CarryForwardSeasonTeam(ctx context.Context, arg CarryForwardSeasonTeamParams) (int64, error) {
+	result, err := q.db.Exec(ctx, carryForwardSeasonTeam,
+		arg.ToSeason,
+		arg.ToTeamID,
+		arg.FromSeason,
+		arg.FromTeamID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countSeasonTeams = `-- name: CountSeasonTeams :one
 SELECT COUNT(*) FROM season_teams
 `

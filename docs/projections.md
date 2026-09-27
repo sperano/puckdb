@@ -6,7 +6,7 @@ can be scored differently for each Yahoo league without changing its inputs.
 
 ## Model
 
-The `nhl-baseline-v4` model uses completed NHL regular-season games from the
+The `nhl-baseline-v5` model uses completed NHL regular-season games from the
 three seasons before the target season. Live, postponed, preseason and playoff
 games, and games from the target season or later, are excluded from model inputs.
 Each season is weighted by `season_decay ^ age`, where the immediately prior
@@ -22,10 +22,12 @@ rate. Expected games and time on ice per game come from weighted historical
 workload. Goalie save and goals-against rates regress by shots faced; wins and
 shutouts regress by starts. Goalie GAA and save
 percentage are derived from projected goals against, saves, shots, and time on
-ice rather than averaging historical ratios. The most recent historical team
-and position are retained as context. TOI and power-play production represent
-observed role; the baseline does not guess at unobserved offseason role or team
-changes.
+ice rather than averaging historical ratios. The most recent historical position
+is retained as context, and the team is the player's target-season club when
+its rosters are imported (otherwise the most recent historical club). TOI and
+power-play production represent observed role; the baseline does not guess at
+unobserved offseason role changes. Team changes that the target season's rosters
+show get the team-environment adjustment below.
 
 ### Age curves
 
@@ -48,13 +50,14 @@ The complete ordered steps, pair counts, training window, age convention, and
 curve version are stored in the projection config and included in its hash.
 The source-data hash also covers the training seasons and birth dates. The
 combined `nhl-baseline-v4` retains `nhl-baseline-v3` linemate adjustment and
-adds age curves; existing v3 snapshots remain unchanged. `nhl-baseline-v1` and
+adds age curves; existing v3 snapshots remain unchanged. `nhl-baseline-v5`
+keeps both and adds the team-environment adjustment below. `nhl-baseline-v1` and
 `nhl-baseline-v2` snapshots also retain their original config and source-data
 hash formats and can still be loaded.
 
 ### Historical linemate context
 
-Version 3 and version 4 neutralize historical even-strength linemate context. Shift
+Versions 3 through 5 neutralize historical even-strength linemate context. Shift
 boundaries form half-open on-ice segments. A segment counts only when both
 teams have the same number of active skaters, from three through five; goalies,
 power plays, penalty kills, empty-net advantages and line-change 6v6 artifacts
@@ -65,8 +68,8 @@ assists toward average context; points remain their sum, power-play production
 is preserved, and no other statistic changes. The correction is
 reliability-weighted against four times the skater TOI prior, so sparse shift
 coverage stays close to neutral. This is strictly a correction for past
-context and makes no assumption about the target season's lines. In version 4,
-this correction is applied before the delta-method age adjustment; points are
+context and makes no assumption about the target season's lines. In versions 4
+and 5, this correction is applied before the delta-method age adjustment; points are
 recomputed from the adjusted goals and assists.
 
 The default parameters are:
@@ -83,6 +86,8 @@ The default parameters are:
 | Interval z-score | 1.28 |
 | Uncertainty bounds | 10%–100% |
 | Insufficient-history threshold | 10 games |
+| Team-environment prior | 328 games (four seasons) |
+| Team-environment maximum change | ±5% |
 
 The decay and skater prior were selected from a small grid of 15 combinations
 (`decay` 0.40–1.00, prior 9,000–36,000 seconds). Across the nine skater
@@ -90,6 +95,98 @@ scoring statistics and three held-out seasons below, the selected combination
 had a mean relative MAE of 0.935 against the previous-season baseline. The
 grid and sample are small, so these defaults are versioned parameters rather
 than claims of a final calibrated model.
+
+## Team environment
+
+`nhl-baseline-v5` adds a team-environment adjustment for skaters who change
+clubs (`internal/projection/teamenv.go`). It is applied last, after the
+linemate correction and the age curve.
+
+- **Club environment.** For each club and season, `ListProjectionTeamSeasons`
+  reads from `games` the goals it scored (the shootout winner's extra goal
+  dropped) and its shots on goal, and from `play_events` the power-play
+  opportunities it drew: minor and bench-minor penalties charged to the
+  opponent, counted only in games that have play-by-play. Coincidental minors
+  over-count slightly. Seasons are weighted with the same decay and lookback
+  as player history, and each per-game rate is regressed toward the league
+  average by 328 games of league-average play, then expressed as an index
+  (1 = league average).
+- **Target club.** `ListProjectionTargetTeams` reads each player's club from
+  the target season's imported rosters (the most recently updated row wins).
+  Before those rosters exist, nobody is adjusted.
+- **Adjustment.** A skater whose weighted history includes games for clubs
+  other than the target club has goals and assists scaled by the target club's
+  goals index over their history's games-weighted goals index. A season split
+  by a trade is credited to the clubs its games were played for
+  (`ListProjectionSkaterClubGames`), not only to the last club. Shots on goal
+  use the shots index, and power-play points the power-play-opportunity index.
+  Points follow goals and assists. Every factor is capped at ±5%. Clubs with no
+  environment rows count as league average. Plus/minus, penalty minutes, hits,
+  blocks, faceoffs, workload and every goalie stat are unchanged.
+  A skater with no time on ice has no rate projections to scale and gets no
+  adjustment.
+- **Explanations.** The applied factors are stored per player
+  (`projection_players.team_environment`, migration `000014`). The ranking
+  explanations then show a line such as `team environment: NYR → LAK (100% of
+  weighted history with other clubs); goals ×1.031, assists ×1.031, shots
+  ×0.994, power-play points ×1.012; club rates regressed toward league
+  average`. Snapshot assumptions state how many skaters changed clubs, or that
+  none did because the target season's rosters are not imported.
+
+Snapshots of earlier versions have zero team-environment parameters, which
+means "off"; config validation rejects non-zero ones for them. Their config and
+source-data hashes are unchanged, so they still load. Club environments and
+split-season club games are read over the three-season lookback only, not the
+age curve's longer training window.
+
+### Team-change backtest
+
+`projection.EvaluateTeamChanges` scores the team-dependent stats of *movers*:
+skaters whose target-season club is not their most recent history club. It
+compares the adjusted model with the same config minus the adjustment, and
+with previous-season totals, on the same players. The backtest in
+`internal/projection/teamenv_backtest_live_test.go` reruns it on the public NHL
+stats API's regular-season aggregates (no production data needed):
+
+```sh
+go test -tags=livenhl -run TestTeamEnvironmentBacktest -v ./internal/projection/
+```
+
+That test has a narrower mover definition. A mover has exactly one club in
+the season before the target season and exactly one, different, club in the
+target season. History seasons split across clubs count as a league-average
+environment, and the API's official power-play opportunities stand in for the
+penalty-event count. Those aggregates carry no birth dates or shift data, so
+the v5 age curve has no steps and the linemate correction stays neutral: the
+backtest isolates the team-environment adjustment. Results with the defaults,
+run on 2026-09-27 and unchanged under v5 (`adjusted MAE / unadjusted MAE /
+previous-season MAE`):
+
+| Statistic | 2024-25 movers (n=144) | 2025-26 movers (n=121) |
+| --- | ---: | ---: |
+| Goals | 4.08 / 4.06 / 4.26 | 3.82 / 3.84 / 4.01 |
+| Assists | 6.56 / 6.55 / 6.90 | 6.29 / 6.27 / 6.49 |
+| Points | 9.47 / 9.44 / 9.81 | 9.25 / 9.18 / 9.62 |
+| Shots on goal | 32.87 / 32.77 / 33.81 | 29.66 / 29.83 / 28.18 |
+| Power-play points | 3.05 / 3.05 / 2.83 | 2.54 / 2.55 / 2.57 |
+
+The adjustment does not measurably improve season totals. Every cell is
+within 0.8% of the unadjusted model, and the sign flips between the two
+seasons. Totals are dominated by games-played error, so the test also scores
+the movers' per-60 rates, weighted by actual TOI (`adjusted / unadjusted`
+MAE). Goals 1.009 and 0.991; assists 0.992 and 1.001; shots 1.001 and 0.984;
+power-play points 0.995 and 0.995. Only power-play points improve in both
+seasons.
+
+Over a grid of priors (0–328 games) and caps (5–25%), the mean ratio of
+adjusted to unadjusted season-total MAE was between 1.001 and 1.011 every
+time. Lighter regression and larger caps were worse, and none was better than
+no adjustment. The defaults are therefore the most conservative corner of the
+grid: heavy regression and a ±5% cap. The adjustment keeps offseason moves
+visible and explained in the rankings but barely moves values. Treat it as a
+presentation of known team changes, not as a proven accuracy gain. Goalies
+are not adjusted: team defense affects shots against and wins, but this
+backtest does not cover it.
 
 ## Historical evaluation
 
@@ -179,8 +276,9 @@ external projections cannot leak into held-out results.
 The model improves most skater MAEs, but the 2025-26 previous-season baseline
 is better for shots and hits. This is a baseline for later ranking and
 sensitivity work, not evidence that every category has improved. Faceoffs won
-and lost were added in `nhl-baseline-v2` after this evaluation was recorded and
-are not yet reflected in the table above.
+and lost were added in `nhl-baseline-v2`, and the team-environment adjustment in
+`nhl-baseline-v5`, after this evaluation was recorded; neither is reflected in
+the table above.
 
 ### Version 3 linemate holdout
 
@@ -205,7 +303,9 @@ rankings are used for the draft helper.
 
 Migrations `000004` and `000012` store immutable snapshot identity, a
 source-data hash, model parameters, and linemate context in typed columns;
-`000013` adds the persisted v4 aging curve. Player metadata is separate from
+`000013` adds the persisted v4 aging curve; `000014` adds the v5
+team-environment parameters and per-player adjustments, and requires the aging
+curve for v5 as well. Player metadata is separate from
 normalized stat rows, where each value stores its mean and interval. Exact
 rebuilds replace their player rows atomically, which makes retrying a workflow
 safe; a historical backfill produces a distinct source hash and snapshot.

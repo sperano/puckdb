@@ -53,9 +53,12 @@ type skaterHistory struct {
 	weight        float64
 	totals        skaterTotals
 	linemates     map[string]linemateTotals
+	// teamGames is the player's season-weighted games per club, which
+	// weights their history's team environment (see teamenv.go).
+	teamGames map[int64]float64
 }
 
-func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerProjection {
+func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason, env teamEnvironment) []PlayerProjection {
 	peers := make(map[string]skaterTotals)
 	faceoffPeers := make(map[string]skaterTotals)
 	history := make(map[int64]*skaterHistory)
@@ -85,15 +88,17 @@ func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerP
 		if player == nil {
 			player = &skaterHistory{
 				seasons: make(map[int]struct{}), linemates: make(map[string]linemateTotals),
-				contextAge: cfg.LookbackSeasons,
+				contextAge: cfg.LookbackSeasons, teamGames: make(map[int64]float64),
 			}
 			history[row.PlayerID] = player
 		}
 		updateSkaterContext(player, row, age)
-		if _, seen := player.seasons[row.Season]; !seen {
+		_, seen := player.seasons[row.Season]
+		if !seen {
 			player.seasons[row.Season] = struct{}{}
 			player.weight += weight
 		}
+		env.addClubGames(player, row, weight, !seen)
 		player.games += row.GamesPlayed
 		addSkaterSeason(&player.totals, row, weight)
 		playerContext := player.linemates[group]
@@ -103,12 +108,14 @@ func projectSkaters(cfg Config, targetSeason int, rows []SkaterSeason) []PlayerP
 
 	result := make([]PlayerProjection, 0, len(history))
 	for playerID, player := range history {
-		result = append(result, buildSkaterProjection(
+		projection := buildSkaterProjection(
 			cfg, targetSeason, playerID, *player,
 			peers[positionGroup(player.position)],
 			faceoffPeers[faceoffPositionGroup(player.position)],
 			leagueLinemates,
-		))
+		)
+		applyTeamEnvironment(cfg, env, &projection, *player)
+		result = append(result, projection)
 	}
 	return result
 }

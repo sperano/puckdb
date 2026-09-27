@@ -42,6 +42,70 @@ func TestSnapshotFromRowsRestoresStoredSnapshot(t *testing.T) {
 	}, snapshot.Players[1].LinemateContext)
 }
 
+func TestSnapshotFromRowsRestoresTeamEnvironment(t *testing.T) {
+	t.Parallel()
+
+	asOf := time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
+	env := &TeamEnvironment{
+		FromTeamID: 3, FromTeam: "NYR", ToTeamID: 26, ToTeam: "LAK", OtherClubShare: 1,
+		Factors: map[Stat]float64{StatGoals: 1.04, StatAssists: 1.04, StatShotsOnGoal: 0.97, StatPowerPlayPoints: 1.02},
+	}
+	params, err := playerParams(pgtype.UUID{}, PlayerProjection{
+		PlayerKey: "nhl:9", Kind: PlayerKindSkater, Position: "LW", Source: SourceInternal, TeamEnvironment: env,
+	})
+	require.NoError(t, err)
+	players := []sqlcdb.ProjectionPlayer{{
+		PlayerKey: params.PlayerKey, PlayerKind: params.PlayerKind, Position: params.Position, Source: params.Source,
+		SourceAsOf: timestampValue(asOf), TeamEnvironment: params.TeamEnvironment,
+	}}
+
+	cfg := DefaultConfig()
+	cfg.AgingCurve = fitAgingCurve(Input{TargetSeason: 20262027})
+	snapshot, err := snapshotFromRows(snapshotRow(cfg, asOf), players, nil)
+	require.NoError(t, err)
+	require.Equal(t, env, snapshot.Players[0].TeamEnvironment)
+}
+
+// A published nhl-baseline-v4 snapshot has zero team-environment columns;
+// its config must still hash to the value stored before those fields
+// existed.
+func TestSnapshotFromRowsLoadsV4SnapshotWithoutTeamEnvironment(t *testing.T) {
+	t.Parallel()
+
+	cfg := versionConfig(AgingModelVersion)
+	cfg.AgingCurve = fitAgingCurve(Input{TargetSeason: 20262027})
+	row := snapshotRow(cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
+	row.ConfigHash = agingConfigHash(cfg)
+
+	snapshot, err := snapshotFromRows(row, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, cfg, snapshot.Config)
+}
+
+// agingConfigHash hashes a config the way nhl-baseline-v4 did, before the
+// team-environment fields existed.
+func agingConfigHash(cfg Config) string {
+	return hashValue(struct {
+		ModelVersion               string
+		LookbackSeasons            int
+		SeasonDecay                float64
+		SkaterPriorTOISeconds      float64
+		LinemateRegressionStrength float64
+		GoaliePriorShots           float64
+		GoalieShutoutMinTOI        int
+		MaxGames                   float64
+		IntervalZ                  float64
+		MinimumUncertainty         float64
+		MaximumUncertainty         float64
+		MinimumHistoryGames        int
+		AgingCurve                 *AgingCurve `json:",omitempty"`
+	}{
+		cfg.ModelVersion, cfg.LookbackSeasons, cfg.SeasonDecay, cfg.SkaterPriorTOISeconds,
+		cfg.LinemateRegressionStrength, cfg.GoaliePriorShots, cfg.GoalieShutoutMinTOI, cfg.MaxGames,
+		cfg.IntervalZ, cfg.MinimumUncertainty, cfg.MaximumUncertainty, cfg.MinimumHistoryGames, cfg.AgingCurve,
+	})
+}
+
 func TestSnapshotFromRowsRejectsAlteredConfig(t *testing.T) {
 	t.Parallel()
 
@@ -56,8 +120,7 @@ func TestSnapshotFromRowsRejectsAlteredConfig(t *testing.T) {
 func TestSnapshotFromRowsRestoresPreAgingV2Snapshot(t *testing.T) {
 	t.Parallel()
 
-	cfg := DefaultConfig()
-	cfg.ModelVersion = FaceoffModelVersion
+	cfg := versionConfig(FaceoffModelVersion)
 	cfg.LinemateRegressionStrength = 0
 	row := snapshotRow(cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
 
@@ -69,8 +132,7 @@ func TestSnapshotFromRowsRestoresPreAgingV2Snapshot(t *testing.T) {
 func TestSnapshotFromRowsRestoresPublishedV3LinemateSnapshot(t *testing.T) {
 	t.Parallel()
 
-	cfg := DefaultConfig()
-	cfg.ModelVersion = LinemateModelVersion
+	cfg := versionConfig(LinemateModelVersion)
 	row := snapshotRow(cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
 
 	snapshot, err := snapshotFromRows(row, nil, nil)
@@ -89,5 +151,7 @@ func snapshotRow(cfg Config, asOf time.Time) sqlcdb.ProjectionSnapshot {
 		MaximumUncertainty: params.MaximumUncertainty, MinimumHistoryGames: params.MinimumHistoryGames,
 		LinemateRegressionStrength: params.LinemateRegressionStrength,
 		AgingCurve:                 params.AgingCurve,
+		TeamEnvironmentPriorGames:  params.TeamEnvironmentPriorGames,
+		TeamEnvironmentMaxChange:   params.TeamEnvironmentMaxChange,
 	}
 }

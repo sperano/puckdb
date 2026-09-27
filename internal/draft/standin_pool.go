@@ -199,9 +199,7 @@ func standInRosterSeason(ctx context.Context, q Queries, leagueSeason int) (seas
 // standInSeasonLabel formats an NHL season ID (e.g. 20262027) the way NHL
 // broadcasts do ("2026-27"), for a human-readable note.
 func standInSeasonLabel(seasonID int) string {
-	startYear := seasonID / seasonYearFactor
-	endYearShort := (startYear + 1) % 100
-	return fmt.Sprintf("%d-%02d", startYear, endYearShort)
+	return SeasonLabel(seasonID)
 }
 
 func standInPlayerName(row sqlcdb.ListSeasonRosterPoolCandidatesRow) string {

@@ -59,6 +59,7 @@ type SeasonsActivities struct {
 	SeasonsUpserter     seasonsUpserter
 	SeasonTeamsUpserter seasonTeamsUpserter
 	RosterQueries       SeasonRosterUpserter
+	UpcomingQueries     UpcomingSeasonQueries
 	ClubStatsQueries    ClubStatsUpserter
 	EdgeQueries         EdgeStatsUpserter
 	RedisClient         *redis.Client // for progress tracking (nil-safe)

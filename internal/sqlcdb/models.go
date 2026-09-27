@@ -1605,6 +1605,7 @@ type ProjectionPlayer struct {
 	LinemateAveragePointsPer60  pgtype.Float8      `json:"linemate_average_points_per_60"`
 	LinemateSharedToiSeconds    pgtype.Float8      `json:"linemate_shared_toi_seconds"`
 	LinemateAdjustmentFactor    pgtype.Float8      `json:"linemate_adjustment_factor"`
+	TeamEnvironment             []byte             `json:"team_environment"`
 }
 
 type ProjectionSnapshot struct {
@@ -1628,6 +1629,8 @@ type ProjectionSnapshot struct {
 	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
 	LinemateRegressionStrength float64            `json:"linemate_regression_strength"`
 	AgingCurve                 []byte             `json:"aging_curve"`
+	TeamEnvironmentPriorGames  float64            `json:"team_environment_prior_games"`
+	TeamEnvironmentMaxChange   float64            `json:"team_environment_max_change"`
 }
 
 type ProjectionValue struct {

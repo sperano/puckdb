@@ -95,6 +95,52 @@ type GoalieSeason struct {
 	GoalsAgainst int
 }
 
+// TeamSeason is one NHL club's regular-season scoring environment: goals
+// and shots on goal it scored, and the power-play opportunities it drew in
+// the games that have play-by-play (PowerPlayGames), since opportunities
+// are counted from penalty events.
+type TeamSeason struct {
+	TeamID                 int64
+	Abbrev                 string
+	Season                 int
+	GamesPlayed            int
+	GoalsFor               int
+	ShotsFor               int
+	PowerPlayGames         int
+	PowerPlayOpportunities int
+}
+
+// SkaterClubSeason is the games a skater played for one club in a season
+// split between clubs. SkaterSeason rows name one club per season; these
+// credit a split season's games to the clubs they were played for.
+type SkaterClubSeason struct {
+	PlayerID    int64
+	Season      int
+	TeamID      int64
+	GamesPlayed int
+}
+
+// PlayerTeam is the club a player is rostered by for the target season.
+type PlayerTeam struct {
+	PlayerID int64
+	TeamID   int64
+}
+
+// TeamEnvironment explains how a skater's team-dependent rates were scaled
+// for playing the target season with another club than the ones behind their
+// history. From is their most recent history club; OtherClubShare is the
+// share of their weighted history games played for clubs other than To.
+// Factors multiply the baseline estimates of goals, assists, shots on goal
+// and power-play points (points follow goals and assists).
+type TeamEnvironment struct {
+	FromTeamID     int64            `json:"fromTeamId"`
+	FromTeam       string           `json:"fromTeam,omitempty"`
+	ToTeamID       int64            `json:"toTeamId"`
+	ToTeam         string           `json:"toTeam,omitempty"`
+	OtherClubShare float64          `json:"otherClubShare"`
+	Factors        map[Stat]float64 `json:"factors"`
+}
+
 // Override supplies projection values for a rookie, an unresolved player, or
 // an external provider row. Values replace an internal baseline for the
 // same PlayerKey, while the original baseline remains reproducible in its own
@@ -132,6 +178,10 @@ type PlayerProjection struct {
 	MissingStats            []Stat
 	LinemateContext         *LinemateContext
 	Values                  map[Stat]Estimate
+	// TeamEnvironment is set when a team change scaled the player's
+	// team-dependent rates. omitempty keeps the ranking identity of a
+	// player without one as it was before the adjustment existed.
+	TeamEnvironment *TeamEnvironment `json:",omitempty"`
 }
 
 // PoolPlayer identifies a draftable player independently of NHL history.
@@ -172,6 +222,12 @@ type Input struct {
 	Goalies           []GoalieSeason
 	PlayerPool        []PoolPlayer
 	Overrides         []Override
+	// TeamSeasons are the clubs' scoring environments, TargetTeams the
+	// players' target-season clubs and SkaterClubSeasons the per-club games
+	// of split seasons, for the team-environment adjustment.
+	TeamSeasons       []TeamSeason
+	TargetTeams       []PlayerTeam
+	SkaterClubSeasons []SkaterClubSeason
 }
 
 func (p PlayerProjection) Value(stat Stat) Estimate {

@@ -87,6 +87,28 @@ used and, on a fallback, how incomplete the league's own season was (e.g.
 than one team in that season is kept once, from the most recently updated
 roster row.
 
+The league's own season has clubs and rosters before puck drop because the
+season sync (`fetchSeasons`/`importSeasons`, `sync seasons`) also handles the
+**upcoming season**: the first season of the NHL's standings manifest that
+has not started yet (and is within the requested range). `season_teams` is
+otherwise filled only from standings, which the NHL publishes once games are
+played, and the regular per-season sync skips unstarted seasons. So
+`FetchUpcomingSeasonRosters` fetches that season's roster
+(`/v1/roster/<club>/<season>`, refetched on every run since camp rosters
+change daily) for every NHL club of the prior season, and
+`ImportUpcomingSeasonRosters` stores the season row, carries the prior
+season's NHL clubs forward (`CarryForwardSeasonTeam`: every club, rostered
+or not, so a partial import still reads as incomplete coverage; each under
+the team ID its abbreviation resolves to for the new season, the lookup the
+standings import uses, since the NHL has reissued an ID under the same
+abbreviation before — Utah 59 → 68; a club already present is left as is and
+standings replace the copies once the season has them) and imports the
+cached rosters. The NHL's per-club
+`roster-season` list is not consulted: it lags behind the roster endpoint
+(it still ended at 2025-26 when 2026-27 camp rosters were served). A club
+that relocates or joins between seasons is not handled by the carry-forward
+and would show up as incomplete coverage until standings exist.
+
 Unlike the real Yahoo pool, a stand-in player has exactly one eligible
 position — never Yahoo's fuller eligible-positions list. The position comes
 from the roster row (`C`, `LW`, `RW`, `D` or `G`) when it has one, else from

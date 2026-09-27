@@ -34,7 +34,8 @@ func Generate(cfg Config, input Input) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("aging curve through season must precede target season")
 	}
 
-	players := projectSkaters(cfg, input.TargetSeason, input.Skaters)
+	env := buildTeamEnvironment(cfg, input.TargetSeason, input.TeamSeasons, input.TargetTeams, input.SkaterClubSeasons)
+	players := projectSkaters(cfg, input.TargetSeason, input.Skaters, env)
 	players = append(players, projectGoalies(cfg, input.TargetSeason, input.Goalies)...)
 	players, err := includePlayerPool(players, input.PlayerPool, input.AsOf, cfg.MaximumUncertainty)
 	if err != nil {

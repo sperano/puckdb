@@ -48,6 +48,16 @@ func mockProgressSaves(env *testsuite.TestWorkflowEnvironment) {
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 }
 
+// mockNoUpcomingSeason stubs the upcoming-season roster step as having no
+// upcoming season in range.
+func mockNoUpcomingSeason(env *testsuite.TestWorkflowEnvironment) {
+	var activities *worknhl.SeasonsActivities
+	env.OnActivity(activities.FetchUpcomingSeasonRosters, mock.Anything, mock.Anything).
+		Return(worknhl.UpcomingSeasonRostersResult{}, nil).Maybe()
+	env.OnActivity(activities.ImportUpcomingSeasonRosters, mock.Anything, mock.Anything).
+		Return(worknhl.UpcomingSeasonRostersResult{}, nil).Maybe()
+}
+
 func queryProgress(t *testing.T, env *testsuite.TestWorkflowEnvironment) shared.ProgressReport {
 	t.Helper()
 	encoded, err := env.QueryWorkflow(shared.ProgressReportQueryName)
@@ -93,6 +103,7 @@ func TestFetchSeasonsWorkflow_PreseasonRunsYahooWithoutNHL(t *testing.T) {
 	env.RegisterWorkflow(FetchSeasonsWorkflow)
 	env.RegisterWorkflow(FetchYahooSeasonWorkflow)
 	mockProgressSaves(env)
+	mockNoUpcomingSeason(env)
 
 	input := preseasonInput()
 	var activities *worknhl.SeasonsActivities
@@ -106,7 +117,7 @@ func TestFetchSeasonsWorkflow_PreseasonRunsYahooWithoutNHL(t *testing.T) {
 
 	require.NoError(t, env.GetWorkflowError())
 	report := queryProgress(t, env)
-	require.Len(t, report.Groups, 2)
+	require.Len(t, report.Groups, 3)
 	assert.Contains(t, report.Groups[groupYahooMetadata].CompletedMsg, "Fetched Yahoo metadata for 1 seasons")
 	assert.Contains(t, report.Groups[groupNHLSeasons].CompletedMsg, "no started NHL seasons")
 	assert.Contains(t, report.Message, "1 Yahoo season(s), 0 started NHL season(s)")
@@ -121,6 +132,7 @@ func TestImportSeasonsWorkflow_PreseasonRunsYahooWithoutNHL(t *testing.T) {
 	env.RegisterWorkflow(ImportSeasonsWorkflow)
 	env.RegisterWorkflow(ImportYahooSeasonWorkflow)
 	mockProgressSaves(env)
+	mockNoUpcomingSeason(env)
 
 	input := preseasonInput()
 	var activities *worknhl.SeasonsActivities
@@ -147,6 +159,7 @@ func TestFetchSeasonsWorkflow_StartedSeasonRunsBothDomains(t *testing.T) {
 	env.RegisterWorkflow(FetchYahooSeasonWorkflow)
 	env.RegisterWorkflow(FetchNHLSeasonWorkflow)
 	mockProgressSaves(env)
+	mockNoUpcomingSeason(env)
 
 	season := testSeasonW(preseasonTestYear, "2026-09-29", "2026-10-01")
 	input := preseasonInput()
@@ -175,6 +188,7 @@ func TestFetchSeasonsWorkflow_MissingYahooConfigReportsNoWork(t *testing.T) {
 	env := suite.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(FetchSeasonsWorkflow)
 	mockProgressSaves(env)
+	mockNoUpcomingSeason(env)
 
 	input := preseasonInput()
 	var activities *worknhl.SeasonsActivities
@@ -209,6 +223,7 @@ func TestFetchSeasonsWorkflow_ReportsTemporarilyUnavailableYahooResources(t *tes
 	env.RegisterWorkflow(FetchSeasonsWorkflow)
 	env.RegisterWorkflow(FetchYahooSeasonWorkflow)
 	mockProgressSaves(env)
+	mockNoUpcomingSeason(env)
 
 	input := preseasonInput()
 	var activities *worknhl.SeasonsActivities
@@ -236,6 +251,7 @@ func TestFetchSeasonsWorkflow_PartialYahooFailureKeepsFailedBarIncomplete(t *tes
 	env.RegisterWorkflow(FetchSeasonsWorkflow)
 	env.RegisterWorkflow(FetchYahooSeasonWorkflow)
 	mockProgressSaves(env)
+	mockNoUpcomingSeason(env)
 
 	input := preseasonInput()
 	env.OnWorkflow(FetchYahooSeasonWorkflow, mock.Anything, mock.MatchedBy(func(input YahooSeasonWorkflowInput) bool {

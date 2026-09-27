@@ -16,19 +16,28 @@ import (
 
 // ImportSeasonRosters imports cached season rosters for all teams into the database.
 func (a *SeasonsActivities) ImportSeasonRosters(ctx context.Context, input FetchSeasonRostersInput) error {
-	return a.importSeasonRosters(ctx, a.RosterQueries, input)
+	_, err := a.importSeasonRosters(ctx, a.RosterQueries, input)
+	return err
+}
+
+// rosterImportCounts are the season's NHL clubs and how many of them had a
+// cached, non-empty roster to import.
+type rosterImportCounts struct {
+	teams            int
+	teamsWithRosters int
 }
 
 // importSeasonRosters contains the core roster import logic, accepting a narrow
 // interface to allow testing without a full database connection.
-func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries SeasonRosterUpserter, input FetchSeasonRostersInput) error {
+func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries SeasonRosterUpserter, input FetchSeasonRostersInput) (rosterImportCounts, error) {
 	logger := activity.GetLogger(ctx)
 
 	season := nhlapi.NewSeason(input.Season)
 	teams, err := queries.GetSeasonTeamAbbrevs(ctx, int32(season.ID()))
 	if err != nil {
-		return fmt.Errorf("get season teams: %w", err)
+		return rosterImportCounts{}, fmt.Errorf("get season teams: %w", err)
 	}
+	counts := rosterImportCounts{teams: len(teams)}
 
 	if len(teams) == 0 {
 		logger.Warn("No teams found for season", "season", input.Season, "seasonID", season.ID())
@@ -46,7 +55,7 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 
 		roster, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res)
 		if err != nil {
-			return fmt.Errorf("read roster cache for %s: %w", team.Abbrev, err)
+			return counts, fmt.Errorf("read roster cache for %s: %w", team.Abbrev, err)
 		}
 
 		players := roster.AllPlayers()
@@ -55,7 +64,7 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 		}
 
 		if err := ensureRosterPlayersExist(ctx, queries, players, team.Abbrev); err != nil {
-			return err
+			return counts, err
 		}
 
 		params := make([]sqlcdb.UpsertSeasonRosterBatchParams, len(players))
@@ -79,14 +88,15 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 		if err := shared.ExecBatch(queries.UpsertSeasonRosterBatch(ctx, params), func(i int) string {
 			return fmt.Sprintf("player %d (%s)", params[i].PlayerID, team.Abbrev)
 		}); err != nil {
-			return fmt.Errorf("upsert roster for %s: %w", team.Abbrev, err)
+			return counts, fmt.Errorf("upsert roster for %s: %w", team.Abbrev, err)
 		}
 
 		totalPlayers += len(players)
+		counts.teamsWithRosters++
 	}
 
 	logger.Info("Imported season rosters", "season", input.Season, "teams", len(teams), "players", totalPlayers)
-	return nil
+	return counts, nil
 }
 
 // ensureRosterPlayersExist creates stub player records for any roster players

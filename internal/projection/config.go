@@ -9,7 +9,8 @@ const (
 	LegacyModelVersion       = "nhl-baseline-v1"
 	FaceoffModelVersion      = "nhl-baseline-v2"
 	LinemateModelVersion     = "nhl-baseline-v3"
-	ModelVersion             = "nhl-baseline-v4"
+	AgingModelVersion        = "nhl-baseline-v4"
+	ModelVersion             = "nhl-baseline-v5"
 	AgingCurveVersion        = "delta-v1"
 	AgingTrainingFloorSeason = 20052006
 	AgingAgeReference        = "jan-1-season-ending-year"
@@ -25,6 +26,17 @@ const (
 	DefaultMinimumUncertainty         = 0.10
 	DefaultMaximumUncertainty         = 1.00
 	DefaultMinimumHistoryGames        = 10
+
+	// DefaultTeamEnvironmentPriorGames regresses a club's scoring, shot and
+	// power-play-opportunity rates toward the league average by this many
+	// weighted games of league-average play (four seasons; see teamenv.go).
+	// The 2024-25 and 2025-26 mover backtests (docs/projections.md) found
+	// no reliable gain from lighter regression, so the adjustment is kept
+	// small.
+	DefaultTeamEnvironmentPriorGames = 4 * DefaultMaxGames
+	// DefaultTeamEnvironmentMaxChange caps how far a team change can move a
+	// skater's team-dependent rates, as a fraction in either direction.
+	DefaultTeamEnvironmentMaxChange = 0.05
 )
 
 // Config contains every parameter that can affect a baseline snapshot.
@@ -43,6 +55,14 @@ type Config struct {
 	MaximumUncertainty         float64
 	MinimumHistoryGames        int
 	AgingCurve                 *AgingCurve `json:",omitempty"`
+	// TeamEnvironmentPriorGames and TeamEnvironmentMaxChange configure the
+	// team-environment adjustment of skaters whose target-season club
+	// differs from the clubs behind their history (see teamenv.go). Only
+	// nhl-baseline-v5 supports it, and a zero TeamEnvironmentMaxChange
+	// disables it; omitempty keeps the config hash of earlier versions'
+	// stored snapshots unchanged.
+	TeamEnvironmentPriorGames float64 `json:",omitempty"`
+	TeamEnvironmentMaxChange  float64 `json:",omitempty"`
 }
 
 func DefaultConfig() Config {
@@ -59,6 +79,9 @@ func DefaultConfig() Config {
 		MinimumUncertainty:         DefaultMinimumUncertainty,
 		MaximumUncertainty:         DefaultMaximumUncertainty,
 		MinimumHistoryGames:        DefaultMinimumHistoryGames,
+
+		TeamEnvironmentPriorGames: DefaultTeamEnvironmentPriorGames,
+		TeamEnvironmentMaxChange:  DefaultTeamEnvironmentMaxChange,
 	}
 }
 
@@ -85,7 +108,8 @@ func (c Config) Validate() error {
 		!finite(c.LinemateRegressionStrength) ||
 		!finite(c.GoaliePriorShots) || !finite(c.MaxGames) ||
 		!finite(c.IntervalZ) || !finite(c.MinimumUncertainty) ||
-		!finite(c.MaximumUncertainty):
+		!finite(c.MaximumUncertainty) || !finite(c.TeamEnvironmentPriorGames) ||
+		!finite(c.TeamEnvironmentMaxChange):
 		return fmt.Errorf("projection config values must be finite")
 	case c.SeasonDecay <= 0 || c.SeasonDecay > 1:
 		return fmt.Errorf("season decay must be in (0, 1]")
@@ -97,7 +121,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("legacy model does not support linemate regression")
 	case c.ModelVersion == FaceoffModelVersion && c.LinemateRegressionStrength != 0:
 		return fmt.Errorf("model %q does not support linemate regression", c.ModelVersion)
-	case c.ModelVersion != ModelVersion && c.AgingCurve != nil:
+	case !supportsAgingCurve(c.ModelVersion) && c.AgingCurve != nil:
 		return fmt.Errorf("model %q does not support aging curves", c.ModelVersion)
 	case c.GoaliePriorShots < 0:
 		return fmt.Errorf("goalie prior shots must not be negative")
@@ -113,6 +137,13 @@ func (c Config) Validate() error {
 		return fmt.Errorf("maximum uncertainty must be at least the minimum")
 	case c.MinimumHistoryGames < 0:
 		return fmt.Errorf("minimum history games must not be negative")
+	case c.TeamEnvironmentPriorGames < 0:
+		return fmt.Errorf("team environment prior games must not be negative")
+	case c.TeamEnvironmentMaxChange < 0 || c.TeamEnvironmentMaxChange >= 1:
+		return fmt.Errorf("team environment max change must be in [0, 1)")
+	case !supportsTeamEnvironment(c.ModelVersion) &&
+		(c.TeamEnvironmentPriorGames != 0 || c.TeamEnvironmentMaxChange != 0):
+		return fmt.Errorf("model %q does not support the team-environment adjustment", c.ModelVersion)
 	}
 	if c.AgingCurve != nil {
 		return validateAgingCurve(c.AgingCurve)
@@ -125,10 +156,14 @@ func supportsFaceoffs(modelVersion string) bool {
 }
 
 func supportsLinemateContext(modelVersion string) bool {
-	return modelVersion == LinemateModelVersion || modelVersion == ModelVersion
+	return modelVersion == LinemateModelVersion || supportsAgingCurve(modelVersion)
 }
 
 func supportsAgingCurve(modelVersion string) bool {
+	return modelVersion == AgingModelVersion || supportsTeamEnvironment(modelVersion)
+}
+
+func supportsTeamEnvironment(modelVersion string) bool {
 	return modelVersion == ModelVersion
 }
 

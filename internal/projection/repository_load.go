@@ -40,6 +40,8 @@ func snapshotFromRows(row sqlcdb.ProjectionSnapshot, players []sqlcdb.Projection
 		MinimumUncertainty: row.MinimumUncertainty, MaximumUncertainty: row.MaximumUncertainty,
 		MinimumHistoryGames:        int(row.MinimumHistoryGames),
 		LinemateRegressionStrength: row.LinemateRegressionStrength,
+		TeamEnvironmentPriorGames:  row.TeamEnvironmentPriorGames,
+		TeamEnvironmentMaxChange:   row.TeamEnvironmentMaxChange,
 	}
 	if len(row.AgingCurve) > 0 {
 		if err := json.Unmarshal(row.AgingCurve, &cfg.AgingCurve); err != nil {
@@ -70,7 +72,11 @@ func snapshotFromRows(row sqlcdb.ProjectionSnapshot, players []sqlcdb.Projection
 		byKey[value.PlayerKey][Stat(value.Stat)] = Estimate{Mean: value.Mean, Low: value.Low, High: value.High}
 	}
 	for _, player := range players {
-		snapshot.Players = append(snapshot.Players, playerFromRow(player, byKey[player.PlayerKey]))
+		projected, err := playerFromRow(player, byKey[player.PlayerKey])
+		if err != nil {
+			return Snapshot{}, err
+		}
+		snapshot.Players = append(snapshot.Players, projected)
 	}
 	slices.SortFunc(snapshot.Players, func(a, b PlayerProjection) int {
 		return strings.Compare(a.PlayerKey, b.PlayerKey)
@@ -78,7 +84,7 @@ func snapshotFromRows(row sqlcdb.ProjectionSnapshot, players []sqlcdb.Projection
 	return snapshot, nil
 }
 
-func playerFromRow(row sqlcdb.ProjectionPlayer, values map[Stat]Estimate) PlayerProjection {
+func playerFromRow(row sqlcdb.ProjectionPlayer, values map[Stat]Estimate) (PlayerProjection, error) {
 	if values == nil {
 		values = make(map[Stat]Estimate)
 	}
@@ -113,5 +119,10 @@ func playerFromRow(row sqlcdb.ProjectionPlayer, values map[Stat]Estimate) Player
 	for _, stat := range row.MissingStats {
 		player.MissingStats = append(player.MissingStats, Stat(stat))
 	}
-	return player
+	env, err := decodeTeamEnvironment(row.TeamEnvironment)
+	if err != nil {
+		return PlayerProjection{}, fmt.Errorf("decode team environment of %q: %w", row.PlayerKey, err)
+	}
+	player.TeamEnvironment = env
+	return player, nil
 }

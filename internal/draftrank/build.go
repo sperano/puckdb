@@ -111,6 +111,9 @@ func buildMeta(in BuildInput, scoring draft.Scoring, rankings map[Scenario]draft
 		Unavailable: slices.Clone(in.Unavailable),
 	}
 	meta.Assumptions = append(meta.Assumptions, in.PoolNotes...)
+	if note := teamEnvironmentNote(in.Baseline); note != "" {
+		meta.Assumptions = append(meta.Assumptions, note)
+	}
 	for _, s := range Scenarios {
 		if ranking, exists := rankings[s]; exists {
 			meta.Versions[s] = ranking.Version

@@ -88,11 +88,10 @@ func TestV4CombinesLinemateAndAgeAdjustments(t *testing.T) {
 		AgingStep{Group: "C", Stat: StatGoals, Age: 24, DeltaPer60: 1},
 		AgingStep{Group: "C", Stat: StatGoals, Age: 25, DeltaPer60: 1},
 	)
-	v3Config := DefaultConfig()
-	v3Config.ModelVersion = LinemateModelVersion
+	v3Config := versionConfig(LinemateModelVersion)
 	v3Snapshot, err := Generate(v3Config, input)
 	require.NoError(t, err)
-	v4Config := DefaultConfig()
+	v4Config := versionConfig(AgingModelVersion)
 	v4Config.AgingCurve = curve
 	v4Snapshot, err := Generate(v4Config, input)
 	require.NoError(t, err)
@@ -155,8 +154,7 @@ func TestGoalieAgingKeepsDerivedRatesConsistent(t *testing.T) {
 func TestPreAgingConfigHashesOmitAgingCurve(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{LegacyModelVersion, FaceoffModelVersion} {
-		cfg := DefaultConfig()
-		cfg.ModelVersion = version
+		cfg := versionConfig(version)
 		legacy := struct {
 			ModelVersion          string
 			LookbackSeasons       int

@@ -27,7 +27,7 @@ func TestAgingBacktest20252026(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 
-	agedConfig := DefaultConfig()
+	agedConfig := versionConfig(AgingModelVersion)
 	repository := NewRepository(pool)
 	input, err := repository.LoadEvaluationInput(
 		ctx, agedConfig, agingBacktestTargetSeason,
@@ -36,8 +36,7 @@ func TestAgingBacktest20252026(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	withoutConfig := agedConfig
-	withoutConfig.ModelVersion = LinemateModelVersion
+	withoutConfig := versionConfig(LinemateModelVersion)
 	without, err := Evaluate(withoutConfig, input)
 	require.NoError(t, err)
 	with, err := Evaluate(agedConfig, input)

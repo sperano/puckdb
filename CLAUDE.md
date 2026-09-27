@@ -99,8 +99,8 @@ Non-Go directories: `docs/` (design notes, runbooks), `examples/` (sample pool-s
 ### Active Workflows
 
 Defined in `internal/worker/workflow/`:
-- `FetchSeasonsWorkflow` / `FetchSeasonWorkflow` — NHL season data (parent + child)
-- `ImportSeasonsWorkflow` / `ImportSeasonWorkflow` — Parse cached files into Postgres
+- `FetchSeasonsWorkflow` / `FetchSeasonWorkflow` — NHL season data (parent + child); the parent also fetches the upcoming (not yet started) season's camp rosters for the prior season's clubs
+- `ImportSeasonsWorkflow` / `ImportSeasonWorkflow` — Parse cached files into Postgres; the parent also carries the prior season's clubs forward to the upcoming season (`season_teams`) and imports its camp rosters
 - `FetchPlayerLogsWorkflow` / `FetchSeasonPlayerLogsWorkflow` — Per-player game logs
 - `ImportPlayerLogsWorkflow` / `ImportSeasonPlayerLogsWorkflow` — Import those logs
 - `FetchPlayerLandingsWorkflow` — NHL player landing pages

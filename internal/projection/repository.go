@@ -107,7 +107,11 @@ func (r *Repository) loadInput(
 	if err != nil {
 		return Input{}, fmt.Errorf("load projection source date: %w", err)
 	}
-	return projectionInput(targetSeason, asOf, maxDate, skaters, linemates, goalies, pool, overrides), nil
+	input := projectionInput(targetSeason, asOf, maxDate, skaters, linemates, goalies, pool, overrides)
+	if err := r.loadTeamInputs(ctx, cfg, &input, cutoff, r.loadTargetTeams); err != nil {
+		return Input{}, err
+	}
+	return input, nil
 }
 
 func (r *Repository) LoadEvaluationInput(
@@ -157,7 +161,11 @@ func (r *Repository) LoadEvaluationInput(
 	if err != nil {
 		return Input{}, fmt.Errorf("load goalie evaluation data: %w", err)
 	}
-	return evaluationInput(targetSeason, projectionAsOf, observedAt, skaters, linemates, goalies), nil
+	input := evaluationInput(targetSeason, projectionAsOf, observedAt, skaters, linemates, goalies)
+	if err := r.loadTeamInputs(ctx, cfg, &input, dateValue(projectionAsOf), r.loadEvaluationTargetTeams); err != nil {
+		return Input{}, err
+	}
+	return input, nil
 }
 
 func validateEvaluationWindow(projectionAsOf, observedAt time.Time, season sqlcdb.Season) error {
@@ -398,7 +406,11 @@ func storePlayers(
 	players []PlayerProjection,
 ) error {
 	for _, player := range players {
-		if err := queries.CreateProjectionPlayer(ctx, playerParams(snapshotID, player)); err != nil {
+		params, err := playerParams(snapshotID, player)
+		if err != nil {
+			return err
+		}
+		if err := queries.CreateProjectionPlayer(ctx, params); err != nil {
 			return fmt.Errorf("create projection player %q: %w", player.PlayerKey, err)
 		}
 		stats := make([]Stat, 0, len(player.Values))
@@ -437,6 +449,8 @@ func snapshotParams(snapshot Snapshot) sqlcdb.CreateProjectionSnapshotParams {
 		MinimumHistoryGames:        int32(cfg.MinimumHistoryGames),
 		LinemateRegressionStrength: cfg.LinemateRegressionStrength,
 		AgingCurve:                 agingCurve,
+		TeamEnvironmentPriorGames:  cfg.TeamEnvironmentPriorGames,
+		TeamEnvironmentMaxChange:   cfg.TeamEnvironmentMaxChange,
 	}
 }
 
@@ -455,7 +469,7 @@ func optionalDate(value pgtype.Date) time.Time {
 	return time.Time{}
 }
 
-func playerParams(snapshotID pgtype.UUID, player PlayerProjection) sqlcdb.CreateProjectionPlayerParams {
+func playerParams(snapshotID pgtype.UUID, player PlayerProjection) (sqlcdb.CreateProjectionPlayerParams, error) {
 	var playerID pgtype.Int8
 	if player.PlayerID != nil {
 		playerID = pgtype.Int8{Int64: *player.PlayerID, Valid: true}
@@ -463,6 +477,10 @@ func playerParams(snapshotID pgtype.UUID, player PlayerProjection) sqlcdb.Create
 	var teamID pgtype.Int8
 	if player.TeamID != nil {
 		teamID = pgtype.Int8{Int64: *player.TeamID, Valid: true}
+	}
+	teamEnvironment, err := encodeTeamEnvironment(player.TeamEnvironment)
+	if err != nil {
+		return sqlcdb.CreateProjectionPlayerParams{}, fmt.Errorf("encode team environment of %q: %w", player.PlayerKey, err)
 	}
 	var observed, average, sharedTOI, adjustment pgtype.Float8
 	if player.LinemateContext != nil {
@@ -483,7 +501,8 @@ func playerParams(snapshotID pgtype.UUID, player PlayerProjection) sqlcdb.Create
 		MissingStats:                statStrings(player.MissingStats),
 		LinemateObservedPointsPer60: observed, LinemateAveragePointsPer60: average,
 		LinemateSharedToiSeconds: sharedTOI, LinemateAdjustmentFactor: adjustment,
-	}
+		TeamEnvironment: teamEnvironment,
+	}, nil
 }
 
 func floatValue(value float64) pgtype.Float8 {

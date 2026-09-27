@@ -103,12 +103,13 @@ INSERT INTO projection_players (
     provider, provider_version, source_as_of, incorporates_news_through,
     history_seasons, history_games, sample_exposure, uncertainty, insufficient_history,
     missing_stats, linemate_observed_points_per_60, linemate_average_points_per_60,
-    linemate_shared_toi_seconds, linemate_adjustment_factor
+    linemate_shared_toi_seconds, linemate_adjustment_factor, team_environment
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7,
     $8, $9, $10, $11,
     $12, $13, $14, $15, $16,
-    $17, $18, $19, $20, $21
+    $17, $18, $19, $20, $21,
+    $22
 )
 `
 
@@ -134,6 +135,7 @@ type CreateProjectionPlayerParams struct {
 	LinemateAveragePointsPer60  pgtype.Float8      `json:"linemate_average_points_per_60"`
 	LinemateSharedToiSeconds    pgtype.Float8      `json:"linemate_shared_toi_seconds"`
 	LinemateAdjustmentFactor    pgtype.Float8      `json:"linemate_adjustment_factor"`
+	TeamEnvironment             []byte             `json:"team_environment"`
 }
 
 func (q *Queries) CreateProjectionPlayer(ctx context.Context, arg CreateProjectionPlayerParams) error {
@@ -159,6 +161,7 @@ func (q *Queries) CreateProjectionPlayer(ctx context.Context, arg CreateProjecti
 		arg.LinemateAveragePointsPer60,
 		arg.LinemateSharedToiSeconds,
 		arg.LinemateAdjustmentFactor,
+		arg.TeamEnvironment,
 	)
 	return err
 }
@@ -168,16 +171,18 @@ INSERT INTO projection_snapshots (
     target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash,
     lookback_seasons, season_decay, skater_prior_toi_seconds,
     goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty,
-    maximum_uncertainty, minimum_history_games, linemate_regression_strength, aging_curve
+    maximum_uncertainty, minimum_history_games, linemate_regression_strength, aging_curve,
+    team_environment_prior_games, team_environment_max_change
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9,
     $10, $11, $12, $13,
-    $14, $15, $16, $17, $18
+    $14, $15, $16, $17, $18,
+    $19, $20
 )
 ON CONFLICT (target_season, as_of, model_version, config_hash, source_data_hash) DO UPDATE SET
     source_max_game_date = EXCLUDED.source_max_game_date
-RETURNING id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength, aging_curve
+RETURNING id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength, aging_curve, team_environment_prior_games, team_environment_max_change
 `
 
 type CreateProjectionSnapshotParams struct {
@@ -199,6 +204,8 @@ type CreateProjectionSnapshotParams struct {
 	MinimumHistoryGames        int32              `json:"minimum_history_games"`
 	LinemateRegressionStrength float64            `json:"linemate_regression_strength"`
 	AgingCurve                 []byte             `json:"aging_curve"`
+	TeamEnvironmentPriorGames  float64            `json:"team_environment_prior_games"`
+	TeamEnvironmentMaxChange   float64            `json:"team_environment_max_change"`
 }
 
 func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjectionSnapshotParams) (ProjectionSnapshot, error) {
@@ -221,6 +228,8 @@ func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjec
 		arg.MinimumHistoryGames,
 		arg.LinemateRegressionStrength,
 		arg.AgingCurve,
+		arg.TeamEnvironmentPriorGames,
+		arg.TeamEnvironmentMaxChange,
 	)
 	var i ProjectionSnapshot
 	err := row.Scan(
@@ -244,6 +253,8 @@ func (q *Queries) CreateProjectionSnapshot(ctx context.Context, arg CreateProjec
 		&i.CreatedAt,
 		&i.LinemateRegressionStrength,
 		&i.AgingCurve,
+		&i.TeamEnvironmentPriorGames,
+		&i.TeamEnvironmentMaxChange,
 	)
 	return i, err
 }
@@ -294,7 +305,7 @@ func (q *Queries) DeleteProjectionPlayersBySnapshot(ctx context.Context, snapsho
 }
 
 const getProjectionSnapshot = `-- name: GetProjectionSnapshot :one
-SELECT id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength, aging_curve FROM projection_snapshots WHERE id = $1
+SELECT id, target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash, lookback_seasons, season_decay, skater_prior_toi_seconds, goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty, maximum_uncertainty, minimum_history_games, created_at, linemate_regression_strength, aging_curve, team_environment_prior_games, team_environment_max_change FROM projection_snapshots WHERE id = $1
 `
 
 func (q *Queries) GetProjectionSnapshot(ctx context.Context, id pgtype.UUID) (ProjectionSnapshot, error) {
@@ -321,6 +332,8 @@ func (q *Queries) GetProjectionSnapshot(ctx context.Context, id pgtype.UUID) (Pr
 		&i.CreatedAt,
 		&i.LinemateRegressionStrength,
 		&i.AgingCurve,
+		&i.TeamEnvironmentPriorGames,
+		&i.TeamEnvironmentMaxChange,
 	)
 	return i, err
 }
@@ -346,6 +359,43 @@ func (q *Queries) GetProjectionSourceMaxGameDate(ctx context.Context, arg GetPro
 	var column_1 pgtype.Date
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const listProjectionEvaluationTargetTeams = `-- name: ListProjectionEvaluationTargetTeams :many
+SELECT DISTINCT ON (s.player_id) s.player_id, s.team_id
+FROM game_skater_stats s
+JOIN games g ON g.id = s.game_id
+WHERE g.game_type = 'regular_season'
+  AND g.game_state IN ('FINAL', 'OFF')
+  AND g.season = $1
+ORDER BY s.player_id, g.game_date, s.game_id
+`
+
+type ListProjectionEvaluationTargetTeamsRow struct {
+	PlayerID int64 `json:"player_id"`
+	TeamID   int64 `json:"team_id"`
+}
+
+// Each skater's first club of a held-out season: the club a preseason
+// roster would have shown, for EvaluateTeamChanges.
+func (q *Queries) ListProjectionEvaluationTargetTeams(ctx context.Context, season int32) ([]ListProjectionEvaluationTargetTeamsRow, error) {
+	rows, err := q.db.Query(ctx, listProjectionEvaluationTargetTeams, season)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectionEvaluationTargetTeamsRow{}
+	for rows.Next() {
+		var i ListProjectionEvaluationTargetTeamsRow
+		if err := rows.Scan(&i.PlayerID, &i.TeamID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listProjectionGoalieEvaluationData = `-- name: ListProjectionGoalieEvaluationData :many
@@ -528,7 +578,7 @@ func (q *Queries) ListProjectionGoalieHistory(ctx context.Context, arg ListProje
 }
 
 const listProjectionPlayers = `-- name: ListProjectionPlayers :many
-SELECT snapshot_id, player_key, player_id, team_id, player_kind, position, source, provider, provider_version, source_as_of, incorporates_news_through, history_seasons, history_games, sample_exposure, uncertainty, insufficient_history, missing_stats, linemate_observed_points_per_60, linemate_average_points_per_60, linemate_shared_toi_seconds, linemate_adjustment_factor FROM projection_players
+SELECT snapshot_id, player_key, player_id, team_id, player_kind, position, source, provider, provider_version, source_as_of, incorporates_news_through, history_seasons, history_games, sample_exposure, uncertainty, insufficient_history, missing_stats, linemate_observed_points_per_60, linemate_average_points_per_60, linemate_shared_toi_seconds, linemate_adjustment_factor, team_environment FROM projection_players
 WHERE snapshot_id = $1
 ORDER BY player_key
 `
@@ -564,6 +614,73 @@ func (q *Queries) ListProjectionPlayers(ctx context.Context, snapshotID pgtype.U
 			&i.LinemateAveragePointsPer60,
 			&i.LinemateSharedToiSeconds,
 			&i.LinemateAdjustmentFactor,
+			&i.TeamEnvironment,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectionSkaterClubGames = `-- name: ListProjectionSkaterClubGames :many
+WITH club_games AS (
+    SELECT
+        s.player_id,
+        g.season,
+        s.team_id,
+        COUNT(DISTINCT s.game_id)::int AS games_played,
+        COUNT(*) OVER (PARTITION BY s.player_id, g.season) AS clubs
+    FROM game_skater_stats s
+    JOIN games g ON g.id = s.game_id
+    WHERE g.game_type = 'regular_season'
+      AND g.game_state IN ('FINAL', 'OFF')
+      AND g.season < $1
+      AND g.season >= $2
+      AND g.game_date <= $3
+    GROUP BY s.player_id, g.season, s.team_id
+)
+SELECT player_id, season, team_id, games_played
+FROM club_games
+WHERE clubs > 1
+ORDER BY player_id, season, team_id
+`
+
+type ListProjectionSkaterClubGamesParams struct {
+	Season   int32       `json:"season"`
+	Season_2 int32       `json:"season_2"`
+	GameDate pgtype.Date `json:"game_date"`
+}
+
+type ListProjectionSkaterClubGamesRow struct {
+	PlayerID    int64 `json:"player_id"`
+	Season      int32 `json:"season"`
+	TeamID      int64 `json:"team_id"`
+	GamesPlayed int32 `json:"games_played"`
+}
+
+// Per-club games of the skater seasons that were split between clubs (a
+// trade), over the same games and window as ListProjectionSkaterHistory,
+// whose single row per season names only the last club. The
+// team-environment adjustment weighs a player's history by the clubs the
+// games were actually played for; a season with one club needs no row here.
+func (q *Queries) ListProjectionSkaterClubGames(ctx context.Context, arg ListProjectionSkaterClubGamesParams) ([]ListProjectionSkaterClubGamesRow, error) {
+	rows, err := q.db.Query(ctx, listProjectionSkaterClubGames, arg.Season, arg.Season_2, arg.GameDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectionSkaterClubGamesRow{}
+	for rows.Next() {
+		var i ListProjectionSkaterClubGamesRow
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.Season,
+			&i.TeamID,
+			&i.GamesPlayed,
 		); err != nil {
 			return nil, err
 		}
@@ -1035,6 +1152,151 @@ func (q *Queries) ListProjectionSkaterLinemateContext(ctx context.Context, arg L
 			&i.SharedToiSeconds,
 			&i.TeammateEvenStrengthPoints,
 			&i.TeammateEvenStrengthToiSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectionTargetTeams = `-- name: ListProjectionTargetTeams :many
+SELECT DISTINCT ON (r.player_id) r.player_id, r.team_id
+FROM season_rosters r
+JOIN season_teams st ON st.season = r.season AND st.team_id = r.team_id
+WHERE r.season = $1 AND st.team_kind = 'nhl'
+ORDER BY r.player_id, r.updated_at DESC, r.team_id
+`
+
+type ListProjectionTargetTeamsRow struct {
+	PlayerID int64 `json:"player_id"`
+	TeamID   int64 `json:"team_id"`
+}
+
+// Each player's NHL club for the target season, from its imported rosters:
+// the most recently updated roster row wins when a player appears on more
+// than one club (the same rule as the stand-in draft pool). Empty until the
+// season's rosters are imported, which leaves the team-environment
+// adjustment off.
+func (q *Queries) ListProjectionTargetTeams(ctx context.Context, season int32) ([]ListProjectionTargetTeamsRow, error) {
+	rows, err := q.db.Query(ctx, listProjectionTargetTeams, season)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectionTargetTeamsRow{}
+	for rows.Next() {
+		var i ListProjectionTargetTeamsRow
+		if err := rows.Scan(&i.PlayerID, &i.TeamID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectionTeamSeasons = `-- name: ListProjectionTeamSeasons :many
+WITH club_games AS (
+    SELECT g.id AS game_id, g.season, g.home_team_id AS team_id, g.away_team_id AS opponent_id,
+           g.home_team_score - CASE
+               WHEN g.period_type = 'SO' AND g.home_team_score > g.away_team_score THEN 1 ELSE 0
+           END AS goals_for,
+           g.home_team_sog AS shots_for
+    FROM games g
+    WHERE g.game_type = 'regular_season'
+      AND g.game_state IN ('FINAL', 'OFF')
+      AND g.season < $1
+      AND g.season >= $2
+      AND g.game_date <= $3
+    UNION ALL
+    SELECT g.id, g.season, g.away_team_id, g.home_team_id,
+           g.away_team_score - CASE
+               WHEN g.period_type = 'SO' AND g.away_team_score > g.home_team_score THEN 1 ELSE 0
+           END,
+           g.away_team_sog
+    FROM games g
+    WHERE g.game_type = 'regular_season'
+      AND g.game_state IN ('FINAL', 'OFF')
+      AND g.season < $1
+      AND g.season >= $2
+      AND g.game_date <= $3
+),
+club_power_play AS (
+    SELECT cg.game_id, cg.team_id,
+           EXISTS (SELECT 1 FROM play_events pe WHERE pe.game_id = cg.game_id) AS has_play_by_play,
+           (SELECT COUNT(*) FROM play_events pe
+            WHERE pe.game_id = cg.game_id
+              AND pe.event_owner_team_id = cg.opponent_id
+              AND pe.type_desc_key = 'penalty'
+              AND pe.penalty_type_code IN ('MIN', 'BEN')) AS opportunities
+    FROM club_games cg
+)
+SELECT
+    cg.team_id,
+    cg.season,
+    COALESCE(MAX(st.abbrev), '')::text AS abbrev,
+    COUNT(*)::int AS games_played,
+    SUM(cg.goals_for)::bigint AS goals_for,
+    SUM(cg.shots_for)::bigint AS shots_for,
+    COUNT(*) FILTER (WHERE pp.has_play_by_play)::int AS power_play_games,
+    COALESCE(SUM(pp.opportunities) FILTER (WHERE pp.has_play_by_play), 0)::bigint AS power_play_opportunities
+FROM club_games cg
+JOIN club_power_play pp ON pp.game_id = cg.game_id AND pp.team_id = cg.team_id
+LEFT JOIN season_teams st ON st.season = cg.season AND st.team_id = cg.team_id
+GROUP BY cg.team_id, cg.season
+ORDER BY cg.team_id, cg.season
+`
+
+type ListProjectionTeamSeasonsParams struct {
+	Season   int32       `json:"season"`
+	Season_2 int32       `json:"season_2"`
+	GameDate pgtype.Date `json:"game_date"`
+}
+
+type ListProjectionTeamSeasonsRow struct {
+	TeamID                 int64  `json:"team_id"`
+	Season                 int32  `json:"season"`
+	Abbrev                 string `json:"abbrev"`
+	GamesPlayed            int32  `json:"games_played"`
+	GoalsFor               int64  `json:"goals_for"`
+	ShotsFor               int64  `json:"shots_for"`
+	PowerPlayGames         int32  `json:"power_play_games"`
+	PowerPlayOpportunities int64  `json:"power_play_opportunities"`
+}
+
+// Each NHL club's regular-season environment per season, for the
+// team-environment adjustment (internal/projection/teamenv.go), over the
+// same games and window as ListProjectionSkaterHistory (season_2 <= season
+// < season, completed games through game_date). goals_for drops the
+// shootout winner's extra goal; shots_for is the club's shots on goal.
+// Power-play opportunities are the minor and bench-minor penalties charged
+// to the opponent (coincidental minors over-count slightly), counted only
+// in games that have play-by-play (power_play_games) so a game whose
+// events were never imported does not read as zero opportunities.
+func (q *Queries) ListProjectionTeamSeasons(ctx context.Context, arg ListProjectionTeamSeasonsParams) ([]ListProjectionTeamSeasonsRow, error) {
+	rows, err := q.db.Query(ctx, listProjectionTeamSeasons, arg.Season, arg.Season_2, arg.GameDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectionTeamSeasonsRow{}
+	for rows.Next() {
+		var i ListProjectionTeamSeasonsRow
+		if err := rows.Scan(
+			&i.TeamID,
+			&i.Season,
+			&i.Abbrev,
+			&i.GamesPlayed,
+			&i.GoalsFor,
+			&i.ShotsFor,
+			&i.PowerPlayGames,
+			&i.PowerPlayOpportunities,
 		); err != nil {
 			return nil, err
 		}

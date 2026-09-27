@@ -56,6 +56,7 @@ func (s *FetchSeasonsWorkflowTestSuite) SetupTest() {
 	// The per-season counter sizes playoff bars via ListSeasonTeams.
 	var pa *worknhl.PlayoffActivities
 	s.env.OnActivity(pa.ListSeasonTeams, mock.Anything, mock.Anything).Return([]string{"TOR", "MTL"}, nil).Maybe()
+	mockNoUpcomingSeason(s.env)
 }
 
 func (s *FetchSeasonsWorkflowTestSuite) AfterTest(suiteName, testName string) {
@@ -289,6 +290,7 @@ func (s *ImportSeasonsWorkflowTestSuite) SetupTest() {
 	// The per-season counter sizes playoff bars via ListSeasonTeams.
 	var pa *worknhl.PlayoffActivities
 	s.env.OnActivity(pa.ListSeasonTeams, mock.Anything, mock.Anything).Return([]string{"TOR", "MTL"}, nil).Maybe()
+	mockNoUpcomingSeason(s.env)
 }
 
 func (s *ImportSeasonsWorkflowTestSuite) AfterTest(suiteName, testName string) {

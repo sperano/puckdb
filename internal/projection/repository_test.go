@@ -23,8 +23,7 @@ func TestConfigHashChangesWithModelInputs(t *testing.T) {
 func TestConfigHashPreservesLegacySnapshotIdentity(t *testing.T) {
 	t.Parallel()
 
-	cfg := DefaultConfig()
-	cfg.ModelVersion = LegacyModelVersion
+	cfg := versionConfig(LegacyModelVersion)
 	cfg.LinemateRegressionStrength = 0
 	require.Equal(t, "f65181e5f3856e50f4f71442d0aef10f2c69d37daf77f96476d1a3c81eebdcc6", configHash(cfg))
 }
@@ -32,16 +31,14 @@ func TestConfigHashPreservesLegacySnapshotIdentity(t *testing.T) {
 func TestConfigHashPreservesFaceoffSnapshotIdentity(t *testing.T) {
 	t.Parallel()
 
-	cfg := DefaultConfig()
-	cfg.ModelVersion = FaceoffModelVersion
+	cfg := versionConfig(FaceoffModelVersion)
 	cfg.LinemateRegressionStrength = 0
 	require.Equal(t, "bdddb53fe417d350d27bc40bd6aba04188b752e5a5c74c1ae021bafab4567870", configHash(cfg))
 }
 
 func TestPublishedV3ConfigHashRetainsLinemateParameters(t *testing.T) {
 	t.Parallel()
-	cfg := DefaultConfig()
-	cfg.ModelVersion = LinemateModelVersion
+	cfg := versionConfig(LinemateModelVersion)
 	historical := struct {
 		ModelVersion               string
 		LookbackSeasons            int
@@ -109,8 +106,7 @@ func TestSourceHashChangesWhenHistoricalDataChanges(t *testing.T) {
 func TestSourceHashPreservesLegacySkaterShape(t *testing.T) {
 	t.Parallel()
 
-	cfg := DefaultConfig()
-	cfg.ModelVersion = LegacyModelVersion
+	cfg := versionConfig(LegacyModelVersion)
 	cfg.LinemateRegressionStrength = 0
 	input := Input{TargetSeason: 20262027, Skaters: []SkaterSeason{{
 		PlayerID: 1, Season: 20252026, Position: "C", GamesPlayed: 1,
@@ -124,8 +120,7 @@ func TestSourceHashPreservesLegacySkaterShape(t *testing.T) {
 func TestSourceHashPreservesFaceoffSkaterShape(t *testing.T) {
 	t.Parallel()
 
-	cfg := DefaultConfig()
-	cfg.ModelVersion = FaceoffModelVersion
+	cfg := versionConfig(FaceoffModelVersion)
 	cfg.LinemateRegressionStrength = 0
 	input := Input{TargetSeason: 20262027, Skaters: []SkaterSeason{{
 		PlayerID: 1, Season: 20252026, Position: "C", GamesPlayed: 1,
@@ -176,8 +171,7 @@ func TestSourceHashIncludesAgingTrainingRowsOnlyForV4(t *testing.T) {
 		PlayerID: 1, Season: 20102011, GamesPlayed: 10, TOISeconds: 10,
 	})
 	require.NotEqual(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
-	legacy := DefaultConfig()
-	legacy.ModelVersion = LegacyModelVersion
+	legacy := versionConfig(LegacyModelVersion)
 	require.Equal(t, sourceDataHash(legacy, first), sourceDataHash(legacy, second))
 }
 

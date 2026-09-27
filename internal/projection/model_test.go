@@ -173,8 +173,7 @@ func TestConfigurationRejectsInvalidLinemateRegressionStrength(t *testing.T) {
 	_, err = Generate(cfg, Input{TargetSeason: 20262027, AsOf: time.Now()})
 	require.EqualError(t, err, "linemate regression strength must be in [0, 1]")
 
-	cfg = DefaultConfig()
-	cfg.ModelVersion = LegacyModelVersion
+	cfg = versionConfig(LegacyModelVersion)
 	_, err = Generate(cfg, Input{TargetSeason: 20262027, AsOf: time.Now()})
 	require.EqualError(t, err, "legacy model does not support linemate regression")
 
@@ -334,8 +333,7 @@ func TestPublishedV3UsesLinemateContextButIgnoresBirthDates(t *testing.T) {
 	average.PlayerID = 72
 	average.LinematePointsPer60 = 2
 	input := Input{TargetSeason: 20262027, AsOf: time.Now(), Skaters: []SkaterSeason{strong, average}}
-	cfg := DefaultConfig()
-	cfg.ModelVersion = LinemateModelVersion
+	cfg := versionConfig(LinemateModelVersion)
 	withBirthDates, err := Generate(cfg, input)
 	require.NoError(t, err)
 
@@ -356,8 +354,7 @@ func TestLegacyModelIgnoresLinemateContext(t *testing.T) {
 
 	player := skaterSeason(69, 20252026, "C", 82, 20, 30)
 	input := Input{TargetSeason: 20262027, AsOf: time.Now(), Skaters: []SkaterSeason{player}}
-	cfg := DefaultConfig()
-	cfg.ModelVersion = LegacyModelVersion
+	cfg := versionConfig(LegacyModelVersion)
 	cfg.LinemateRegressionStrength = 0
 
 	without, err := Generate(cfg, input)
@@ -383,8 +380,7 @@ func TestFaceoffModelKeepsFaceoffsAndIgnoresLinemateContext(t *testing.T) {
 	player.FaceoffsWon = 500
 	player.FaceoffsLost = 400
 	input := Input{TargetSeason: 20262027, AsOf: time.Now(), Skaters: []SkaterSeason{player}}
-	cfg := DefaultConfig()
-	cfg.ModelVersion = FaceoffModelVersion
+	cfg := versionConfig(FaceoffModelVersion)
 	cfg.LinemateRegressionStrength = 0
 
 	without, err := Generate(cfg, input)
@@ -520,4 +516,15 @@ func findProjection(t *testing.T, snapshot Snapshot, key string) PlayerProjectio
 	}
 	t.Fatalf("projection %q not found", key)
 	return PlayerProjection{}
+}
+
+// versionConfig is DefaultConfig for model version, without the parameters
+// of later versions that version rejects.
+func versionConfig(version string) Config {
+	cfg := DefaultConfig()
+	cfg.ModelVersion = version
+	if !supportsTeamEnvironment(version) {
+		cfg.TeamEnvironmentPriorGames, cfg.TeamEnvironmentMaxChange = 0, 0
+	}
+	return cfg
 }

@@ -360,6 +360,116 @@ WHERE g.game_type = 'regular_season'
 GROUP BY s.player_id, p.birth_date, g.season
 ORDER BY s.player_id, g.season;
 
+-- name: ListProjectionTeamSeasons :many
+-- Each NHL club's regular-season environment per season, for the
+-- team-environment adjustment (internal/projection/teamenv.go), over the
+-- same games and window as ListProjectionSkaterHistory (season_2 <= season
+-- < season, completed games through game_date). goals_for drops the
+-- shootout winner's extra goal; shots_for is the club's shots on goal.
+-- Power-play opportunities are the minor and bench-minor penalties charged
+-- to the opponent (coincidental minors over-count slightly), counted only
+-- in games that have play-by-play (power_play_games) so a game whose
+-- events were never imported does not read as zero opportunities.
+WITH club_games AS (
+    SELECT g.id AS game_id, g.season, g.home_team_id AS team_id, g.away_team_id AS opponent_id,
+           g.home_team_score - CASE
+               WHEN g.period_type = 'SO' AND g.home_team_score > g.away_team_score THEN 1 ELSE 0
+           END AS goals_for,
+           g.home_team_sog AS shots_for
+    FROM games g
+    WHERE g.game_type = 'regular_season'
+      AND g.game_state IN ('FINAL', 'OFF')
+      AND g.season < $1
+      AND g.season >= $2
+      AND g.game_date <= $3
+    UNION ALL
+    SELECT g.id, g.season, g.away_team_id, g.home_team_id,
+           g.away_team_score - CASE
+               WHEN g.period_type = 'SO' AND g.away_team_score > g.home_team_score THEN 1 ELSE 0
+           END,
+           g.away_team_sog
+    FROM games g
+    WHERE g.game_type = 'regular_season'
+      AND g.game_state IN ('FINAL', 'OFF')
+      AND g.season < $1
+      AND g.season >= $2
+      AND g.game_date <= $3
+),
+club_power_play AS (
+    SELECT cg.game_id, cg.team_id,
+           EXISTS (SELECT 1 FROM play_events pe WHERE pe.game_id = cg.game_id) AS has_play_by_play,
+           (SELECT COUNT(*) FROM play_events pe
+            WHERE pe.game_id = cg.game_id
+              AND pe.event_owner_team_id = cg.opponent_id
+              AND pe.type_desc_key = 'penalty'
+              AND pe.penalty_type_code IN ('MIN', 'BEN')) AS opportunities
+    FROM club_games cg
+)
+SELECT
+    cg.team_id,
+    cg.season,
+    COALESCE(MAX(st.abbrev), '')::text AS abbrev,
+    COUNT(*)::int AS games_played,
+    SUM(cg.goals_for)::bigint AS goals_for,
+    SUM(cg.shots_for)::bigint AS shots_for,
+    COUNT(*) FILTER (WHERE pp.has_play_by_play)::int AS power_play_games,
+    COALESCE(SUM(pp.opportunities) FILTER (WHERE pp.has_play_by_play), 0)::bigint AS power_play_opportunities
+FROM club_games cg
+JOIN club_power_play pp ON pp.game_id = cg.game_id AND pp.team_id = cg.team_id
+LEFT JOIN season_teams st ON st.season = cg.season AND st.team_id = cg.team_id
+GROUP BY cg.team_id, cg.season
+ORDER BY cg.team_id, cg.season;
+
+-- name: ListProjectionSkaterClubGames :many
+-- Per-club games of the skater seasons that were split between clubs (a
+-- trade), over the same games and window as ListProjectionSkaterHistory,
+-- whose single row per season names only the last club. The
+-- team-environment adjustment weighs a player's history by the clubs the
+-- games were actually played for; a season with one club needs no row here.
+WITH club_games AS (
+    SELECT
+        s.player_id,
+        g.season,
+        s.team_id,
+        COUNT(DISTINCT s.game_id)::int AS games_played,
+        COUNT(*) OVER (PARTITION BY s.player_id, g.season) AS clubs
+    FROM game_skater_stats s
+    JOIN games g ON g.id = s.game_id
+    WHERE g.game_type = 'regular_season'
+      AND g.game_state IN ('FINAL', 'OFF')
+      AND g.season < $1
+      AND g.season >= $2
+      AND g.game_date <= $3
+    GROUP BY s.player_id, g.season, s.team_id
+)
+SELECT player_id, season, team_id, games_played
+FROM club_games
+WHERE clubs > 1
+ORDER BY player_id, season, team_id;
+
+-- name: ListProjectionTargetTeams :many
+-- Each player's NHL club for the target season, from its imported rosters:
+-- the most recently updated roster row wins when a player appears on more
+-- than one club (the same rule as the stand-in draft pool). Empty until the
+-- season's rosters are imported, which leaves the team-environment
+-- adjustment off.
+SELECT DISTINCT ON (r.player_id) r.player_id, r.team_id
+FROM season_rosters r
+JOIN season_teams st ON st.season = r.season AND st.team_id = r.team_id
+WHERE r.season = $1 AND st.team_kind = 'nhl'
+ORDER BY r.player_id, r.updated_at DESC, r.team_id;
+
+-- name: ListProjectionEvaluationTargetTeams :many
+-- Each skater's first club of a held-out season: the club a preseason
+-- roster would have shown, for EvaluateTeamChanges.
+SELECT DISTINCT ON (s.player_id) s.player_id, s.team_id
+FROM game_skater_stats s
+JOIN games g ON g.id = s.game_id
+WHERE g.game_type = 'regular_season'
+  AND g.game_state IN ('FINAL', 'OFF')
+  AND g.season = $1
+ORDER BY s.player_id, g.game_date, s.game_id;
+
 -- name: GetProjectionSourceMaxGameDate :one
 SELECT MAX(game_date)::date
 FROM games
@@ -374,12 +484,14 @@ INSERT INTO projection_snapshots (
     target_season, as_of, source_max_game_date, model_version, config_hash, source_data_hash,
     lookback_seasons, season_decay, skater_prior_toi_seconds,
     goalie_prior_shots, goalie_shutout_min_toi, max_games, interval_z, minimum_uncertainty,
-    maximum_uncertainty, minimum_history_games, linemate_regression_strength, aging_curve
+    maximum_uncertainty, minimum_history_games, linemate_regression_strength, aging_curve,
+    team_environment_prior_games, team_environment_max_change
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9,
     $10, $11, $12, $13,
-    $14, $15, $16, $17, $18
+    $14, $15, $16, $17, $18,
+    $19, $20
 )
 ON CONFLICT (target_season, as_of, model_version, config_hash, source_data_hash) DO UPDATE SET
     source_max_game_date = EXCLUDED.source_max_game_date
@@ -391,12 +503,13 @@ INSERT INTO projection_players (
     provider, provider_version, source_as_of, incorporates_news_through,
     history_seasons, history_games, sample_exposure, uncertainty, insufficient_history,
     missing_stats, linemate_observed_points_per_60, linemate_average_points_per_60,
-    linemate_shared_toi_seconds, linemate_adjustment_factor
+    linemate_shared_toi_seconds, linemate_adjustment_factor, team_environment
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7,
     $8, $9, $10, $11,
     $12, $13, $14, $15, $16,
-    $17, $18, $19, $20, $21
+    $17, $18, $19, $20, $21,
+    $22
 );
 
 -- name: CreateProjectionValue :exec

@@ -376,6 +376,7 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 		SeasonsUpserter:     d.queries,
 		SeasonTeamsUpserter: d.queries,
 		RosterQueries:       d.queries,
+		UpcomingQueries:     d.queries,
 		ClubStatsQueries:    d.queries,
 		EdgeQueries:         d.queries,
 		RedisClient:         d.redisClient,
@@ -386,6 +387,8 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	w.RegisterActivity(seasonsActivities.FetchSeasonRosters)
 	w.RegisterActivity(seasonsActivities.FetchClubStats)
 	w.RegisterActivity(seasonsActivities.ImportSeasonRosters)
+	w.RegisterActivity(seasonsActivities.FetchUpcomingSeasonRosters)
+	w.RegisterActivity(seasonsActivities.ImportUpcomingSeasonRosters)
 	w.RegisterActivity(seasonsActivities.ImportClubStats)
 	w.RegisterActivity(seasonsActivities.FetchEdgeLandings)
 	w.RegisterActivity(seasonsActivities.GetEdgeSeasonTeams)

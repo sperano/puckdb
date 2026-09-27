@@ -49,6 +49,10 @@ func sourceDataHash(cfg Config, input Input) string {
 		return row.Season < lowerSeason || row.Season >= input.TargetSeason ||
 			!supportsAgingCurve(cfg.ModelVersion) && row.GamesPlayed <= 0
 	})
+	input.TeamSeasons, input.TargetTeams, input.SkaterClubSeasons = teamEnvironmentHashRows(cfg, input, func(season int) bool {
+		age, ok := seasonAge(input.TargetSeason, season)
+		return !ok || age >= cfg.LookbackSeasons
+	})
 	return inputDataHash(input, cfg.ModelVersion)
 }
 
@@ -63,7 +67,29 @@ func evaluationDataHash(cfg Config, input Input) string {
 	input.Goalies = slices.DeleteFunc(slices.Clone(input.Goalies), func(row GoalieSeason) bool {
 		return row.Season < lowerSeason || row.Season > input.TargetSeason
 	})
+	teamFloor := historyFloorSeason(input.TargetSeason, cfg.LookbackSeasons)
+	input.TeamSeasons, input.TargetTeams, input.SkaterClubSeasons = teamEnvironmentHashRows(cfg, input, func(season int) bool {
+		return season < teamFloor || season > input.TargetSeason
+	})
 	return inputDataHash(input, cfg.ModelVersion)
+}
+
+// teamEnvironmentHashRows returns the team-environment rows a model reads:
+// none before nhl-baseline-v5, so their hashes stay what those versions
+// computed, and otherwise the club and split-season rows outside excluded.
+func teamEnvironmentHashRows(
+	cfg Config, input Input, excluded func(season int) bool,
+) ([]TeamSeason, []PlayerTeam, []SkaterClubSeason) {
+	if !supportsTeamEnvironment(cfg.ModelVersion) {
+		return nil, nil, nil
+	}
+	teams := slices.DeleteFunc(slices.Clone(input.TeamSeasons), func(row TeamSeason) bool {
+		return excluded(row.Season) || row.GamesPlayed <= 0
+	})
+	splits := slices.DeleteFunc(slices.Clone(input.SkaterClubSeasons), func(row SkaterClubSeason) bool {
+		return excluded(row.Season)
+	})
+	return teams, input.TargetTeams, splits
 }
 
 type legacySkaterSeason struct {
@@ -110,7 +136,7 @@ type legacyGoalieSeason struct {
 }
 
 func encodedSkaterHashRows(rows []SkaterSeason, modelVersion string) []string {
-	if modelVersion == ModelVersion {
+	if supportsAgingCurve(modelVersion) {
 		return encodedValues(rows)
 	}
 	if modelVersion == LinemateModelVersion {
@@ -156,7 +182,7 @@ func legacySkaterHashRow(row SkaterSeason) legacySkaterSeason {
 }
 
 func encodedGoalieHashRows(rows []GoalieSeason, modelVersion string) []string {
-	if modelVersion == ModelVersion {
+	if supportsAgingCurve(modelVersion) {
 		return encodedValues(rows)
 	}
 	legacy := make([]legacyGoalieSeason, len(rows))
@@ -183,10 +209,18 @@ func hashInputParts(input Input, skaters, goalies []string) string {
 		Goalies           []string
 		PlayerPool        []string
 		Overrides         []string
+		// omitempty keeps the hash of an input without team environment
+		// data identical to the one earlier versions computed.
+		TeamSeasons       []string `json:",omitempty"`
+		TargetTeams       []string `json:",omitempty"`
+		SkaterClubSeasons []string `json:",omitempty"`
 	}{
 		TargetSeason: input.TargetSeason, AsOf: input.AsOf.UTC(),
 		SourceMaxGameDate: input.SourceMaxGameDate.UTC(), Skaters: skaters, Goalies: goalies,
 		PlayerPool: encodedValues(input.PlayerPool), Overrides: encodedValues(input.Overrides),
+		TeamSeasons:       encodedValues(input.TeamSeasons),
+		TargetTeams:       encodedValues(input.TargetTeams),
+		SkaterClubSeasons: encodedValues(input.SkaterClubSeasons),
 	}
 	return hashValue(canonical)
 }
