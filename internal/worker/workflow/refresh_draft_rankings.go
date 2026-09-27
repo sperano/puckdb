@@ -21,7 +21,9 @@ import (
 
 const (
 	// draftRankingHeartbeatTimeout bounds the gap between a refresh's
-	// heartbeats (one per step); cancellation is delivered on a heartbeat.
+	// heartbeats (sent when each step starts and periodically while it
+	// runs, see draftranking.heartbeatInterval); cancellation is delivered
+	// on a heartbeat.
 	draftRankingHeartbeatTimeout = 5 * time.Minute
 	// draftRankingMaxAttempts bounds retries of an internal failure (a
 	// known failure such as missing rules is not retried).

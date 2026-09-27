@@ -36,14 +36,17 @@ type RefreshInput struct {
 // rules, pool or projections, unsupported scoring, a ranking error) is
 // returned as a failed outcome without an error, so it is not retried; an
 // internal failure is returned as an error and retried by Temporal. The
-// refresh heartbeats between steps, which is how a workflow cancellation
-// reaches it.
+// refresh heartbeats its current step when the step starts and every
+// heartbeatInterval while it runs, which is how a workflow cancellation
+// reaches it and keeps a slow step from being timed out.
 func (a *Activities) RefreshDraftRanking(ctx context.Context, input RefreshInput) (draftrank.Refresh, error) {
 	refresher := draftrank.NewRefresher(a.Pool)
 	if a.Now != nil {
 		refresher.Now = a.Now
 	}
-	refresher.Heartbeat = func(step string) { activity.RecordHeartbeat(ctx, step) }
+	step, stop := startPulse(ctx, heartbeatInterval, func(step string) { activity.RecordHeartbeat(ctx, step) })
+	defer stop()
+	refresher.Heartbeat = step
 	outcome, err := refresher.Refresh(ctx, draftrank.RefreshRequest{
 		RunID: input.RunID, Season: input.Season, LeagueID: input.LeagueID,
 		Options: input.Options, Keep: input.Keep, Sources: input.Sources,
