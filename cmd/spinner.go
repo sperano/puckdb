@@ -79,7 +79,8 @@ type spinner struct {
 	done             chan struct{}
 	mu               sync.Mutex
 	once             sync.Once
-	lineCount        int                                   // tracks number of lines in current message
+	lineCount        int                                   // terminal rows the last render occupies (wrapped lines count once per row)
+	columns          func() int                            // terminal width in columns; 0 when unknown
 	colorTheme       *[colorThemePaletteSize]int           // when set, all lines use this theme
 	randomLineThemes bool                                  // when true, each line gets a shuffled theme
 	keyThemes        map[string][colorThemePaletteSize]int // palette keyed by stable line content
@@ -93,6 +94,7 @@ func newSpinner(w io.Writer, header string) *spinner {
 		message:  header,
 		header:   header,
 		writer:   w,
+		columns:  terminalColumns,
 		interval: config.DefaultSpinnerInterval,
 		stop:     make(chan struct{}),
 		done:     make(chan struct{}),
@@ -269,7 +271,7 @@ func (s *spinner) render(frameIdx int) {
 		}
 	}
 
-	newLineCount := len(lines)
+	newLineCount := totalScreenRows(lines, s.columns())
 
 	// Write lines, clearing to end of each line (handles varying line lengths)
 	for i, line := range lines {
@@ -280,7 +282,7 @@ func (s *spinner) render(frameIdx int) {
 		}
 	}
 
-	// Clear any extra lines from previous render
+	// Clear any extra rows left by a taller previous render
 	if newLineCount < s.lineCount {
 		for i := newLineCount; i < s.lineCount; i++ {
 			fmt.Fprint(s.writer, "\n\033[K")

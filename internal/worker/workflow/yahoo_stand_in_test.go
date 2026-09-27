@@ -14,7 +14,7 @@ import (
 const (
 	standInSourceSeason   = preseasonTestYear - 1
 	standInSourceLeagueID = 1003
-	standInExpectedNote   = "league 1001 (using TEMPORARY stand-in settings from 2025 league 1003"
+	standInExpectedNote   = "league 1001 (using TEMPORARY stand-in settings from 2025 league 1003)"
 )
 
 // standInYahooInput configures league 1001 with stand-in settings and league

@@ -16,6 +16,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/lib/pq v1.10.9
 	github.com/mark3labs/mcp-go v0.45.0
+	github.com/mattn/go-runewidth v0.0.17
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/zerolog v1.34.0
 	github.com/sperano/nhl-api-go v0.0.0-20260926210731-71e3d0b803ce
@@ -82,7 +83,6 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.21 // indirect
-	github.com/mattn/go-runewidth v0.0.17 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect

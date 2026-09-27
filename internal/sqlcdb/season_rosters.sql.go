@@ -251,6 +251,7 @@ SELECT
         SELECT 1 FROM game_goalie_stats ggs
         JOIN games g ON g.id = ggs.game_id
         WHERE ggs.player_id = r.player_id
+          AND ggs.toi_seconds > 0
           AND g.game_type = 'regular_season'
           AND g.game_state IN ('FINAL', 'OFF')
           AND g.season >= $1::integer
@@ -305,7 +306,10 @@ type ListSeasonRosterPoolCandidatesRow struct {
 // its games are played), so a player excluded here would also fail
 // projection coverage if included. A qualifying game row also guarantees
 // the projection's own per-season GROUP BY would see games_played >= 1, so
-// no separate count check is needed here.
+// no separate count check is needed here. Goalie rows count only with time
+// on ice: boxscores also list the dressed backup, and from nhl-baseline-v6
+// the model counts appearances, so a goalie who only ever sat on the bench
+// has no history and would fail coverage.
 func (q *Queries) ListSeasonRosterPoolCandidates(ctx context.Context, arg ListSeasonRosterPoolCandidatesParams) ([]ListSeasonRosterPoolCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listSeasonRosterPoolCandidates, arg.MinSeason, arg.TargetSeason, arg.Season)
 	if err != nil {

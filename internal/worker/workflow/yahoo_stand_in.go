@@ -48,6 +48,6 @@ func importStandInLeague(ctx workflow.Context, startYear int, league config.Leag
 // runs on stand-in settings and which Yahoo data it is missing.
 func standInLeagueNote(league config.League) string {
 	source := league.TemporaryMetadataFrom
-	return fmt.Sprintf("league %d (using TEMPORARY stand-in settings from %d league %d",
+	return fmt.Sprintf("league %d (using TEMPORARY stand-in settings from %d league %d)",
 		league.LeagueID, source.Season, source.LeagueID)
 }
