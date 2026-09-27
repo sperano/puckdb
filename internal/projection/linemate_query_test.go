@@ -1,7 +1,7 @@
 package projection
 
-// PostgreSQL-backed coverage for the shift segmentation query. It skips unless
-// PUCKDB_TEST_PG_URL names a dedicated test database.
+// PostgreSQL-backed coverage for the shift segmentation and linemate queries.
+// It skips unless PUCKDB_TEST_PG_URL names a dedicated test database.
 
 import (
 	"context"
@@ -89,55 +89,58 @@ func TestListProjectionSkaterLinemateContext_SegmentsEvenStrength(t *testing.T) 
 
 func cleanupLinemateFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	_, err := pool.Exec(context.Background(), `
-DELETE FROM shifts WHERE game_id = $1;
-DELETE FROM game_skater_stats WHERE game_id = $1;
-DELETE FROM play_events WHERE game_id = $1;
-DELETE FROM games WHERE id = $1;
-DELETE FROM players WHERE id BETWEEN $2 + 1 AND $2 + 21;
-`, testLinemateGame, testPlayerBase)
+	ctx := context.Background()
+	for _, stmt := range []string{
+		`DELETE FROM shifts WHERE game_id = $1`,
+		`DELETE FROM game_skater_stats WHERE game_id = $1`,
+		`DELETE FROM play_events WHERE game_id = $1`,
+		`DELETE FROM games WHERE id = $1`,
+	} {
+		_, err := pool.Exec(ctx, stmt, testLinemateGame)
+		require.NoError(t, err)
+	}
+	_, err := pool.Exec(ctx, `DELETE FROM players WHERE id BETWEEN $1 + 1 AND $1 + 21`, testPlayerBase)
 	require.NoError(t, err)
 }
 
 func seedLinemateSegments(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	ctx := context.Background()
-	_, err := pool.Exec(ctx, `
+	execFixture(t, pool, `
 INSERT INTO players (id, first_name, last_name)
-SELECT $5 + id, 'Player', id::text FROM generate_series(1, 21) AS id;
-
+SELECT $1 + id, 'Player', id::text FROM generate_series(1, 21) AS id`, testPlayerBase)
+	execFixture(t, pool, `
 INSERT INTO games (
     id, season, game_type, game_date, game_state, home_team_id, away_team_id
-) VALUES ($1, $2, 'regular_season', '2026-03-01', 'FINAL', $3, $4);
-
+) VALUES ($1, $2, 'regular_season', '2026-03-01', 'FINAL', $3, $4)`,
+		testLinemateGame, testLinemateSeason, testHomeTeam, testAwayTeam)
+	execFixture(t, pool, `
 INSERT INTO game_skater_stats (
     game_id, player_id, team_id, is_home, sweater_number, position, toi_seconds
 )
-SELECT $1, $5 + id, CASE WHEN id <= 5 THEN $3 ELSE $4 END,
+SELECT $1, $4 + id, CASE WHEN id <= 5 THEN $2::bigint ELSE $3::bigint END,
        id <= 5, id::smallint, 'C', 40
-FROM generate_series(1, 10) AS id;
-
+FROM generate_series(1, 10) AS id`, testLinemateGame, testHomeTeam, testAwayTeam, testPlayerBase)
+	execFixture(t, pool, `
 INSERT INTO game_goalie_stats (
     game_id, player_id, team_id, is_home, sweater_number, starter, toi_seconds
 ) VALUES
-    ($1, $5 + 20, $3, TRUE, 30, TRUE, 40),
-    ($1, $5 + 21, $4, FALSE, 31, TRUE, 30);
-
+    ($1, $4 + 20, $2, TRUE, 30, TRUE, 40),
+    ($1, $4 + 21, $3, FALSE, 31, TRUE, 30)`, testLinemateGame, testHomeTeam, testAwayTeam, testPlayerBase)
+	execFixture(t, pool, `
 INSERT INTO play_events (
     game_id, event_id, period, period_type, time_in_period, time_remaining,
     situation_code, type_desc_key, sort_order, scoring_player_id, assist1_player_id
 ) VALUES
-    ($1, 1, 1, 'REG', '00:10', '19:50', 1551, 'goal', 1, $5 + 5, $5 + 2),
-    ($1, 2, 1, 'REG', '00:15', '19:45', 1541, 'goal', 2, $5 + 2, NULL),
-    ($1, 3, 1, 'REG', '00:35', '19:25', 1551, 'goal', 3, $5 + 2, NULL);
-`, testLinemateGame, testLinemateSeason, testHomeTeam, testAwayTeam, testPlayerBase)
-	require.NoError(t, err)
+    ($1, 1, 1, 'REG', '00:10', '19:50', 1551, 'goal', 1, $2 + 5, $2 + 2),
+    ($1, 2, 1, 'REG', '00:15', '19:45', 1541, 'goal', 2, $2 + 2, NULL),
+    ($1, 3, 1, 'REG', '00:35', '19:25', 1551, 'goal', 3, $2 + 2, NULL)`, testLinemateGame, testPlayerBase)
 	seedShiftRows(t, pool)
+	rebuildEvenStrengthSegments(t, pool, testLinemateGame)
 }
 
 func seedShiftRows(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	_, err := pool.Exec(context.Background(), `
+	execFixture(t, pool, `
 INSERT INTO shifts (
     id, game_id, player_id, team_id, period, start_time, end_time, duration,
     shift_number, type_code, detail_code, event_number
@@ -155,7 +158,25 @@ INSERT INTO shifts (
     ($4+111, $1, $4+1,  $2, 1, '00:00', '00:40', '00:40', 2, '517', '0', 0),
     ($4+112, $1, $4+2,  $2, 1, 'bad',   '00:40', '00:40', 2, '517', '0', 0),
     ($4+113, $1, $4+20, $2, 1, '00:00', '00:40', '00:40', 1, '517', '0', 0),
-    ($4+114, $1, $4+21, $3, 1, '00:00', '00:30', '00:30', 1, '517', '0', 0);
-`, testLinemateGame, testHomeTeam, testAwayTeam, testPlayerBase)
+    ($4+114, $1, $4+21, $3, 1, '00:00', '00:30', '00:30', 1, '517', '0', 0)`,
+		testLinemateGame, testHomeTeam, testAwayTeam, testPlayerBase)
+}
+
+// rebuildEvenStrengthSegments derives a game's even_strength_segments rows
+// from its fixture shifts, as the shift chart import does.
+func rebuildEvenStrengthSegments(t *testing.T, pool *pgxpool.Pool, gameID int64) {
+	t.Helper()
+	ctx := context.Background()
+	queries := sqlcdb.New(pool)
+	require.NoError(t, queries.DeleteEvenStrengthSegmentsForGame(ctx, gameID))
+	_, err := queries.InsertEvenStrengthSegmentsForGame(ctx, gameID)
+	require.NoError(t, err)
+}
+
+// execFixture runs one fixture statement. pgx prepares parameterized SQL,
+// and PostgreSQL rejects multiple commands in one prepared statement.
+func execFixture(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), sql, args...)
 	require.NoError(t, err)
 }

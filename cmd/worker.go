@@ -257,6 +257,7 @@ func registerTasksWorkflows(w worker.Worker) {
 // same five-argument signature on each helper.
 type taskActivityDeps struct {
 	storage         store.Storage
+	pool            *pgxpool.Pool
 	queries         *sqlcdb.Queries
 	nhlClient       shared.NHLClient
 	gobCache        *cache.GobCache
@@ -275,6 +276,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 
 	d := taskActivityDeps{
 		storage:         store.NewDefaultStorage(),
+		pool:            pool,
 		queries:         sqlcdb.New(pool),
 		nhlClient:       shared.NewNHLClient(),
 		gobCache:        gobCache,
@@ -407,6 +409,7 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 		Storage:  d.storage,
 		GobCache: d.gobCache,
 		Queries:  d.queries,
+		Tx:       worknhl.NewPgxTransactor(d.pool),
 		Yahoo:    importYahooActivities,
 	}
 	w.RegisterActivity(importActivities.ImportDay)

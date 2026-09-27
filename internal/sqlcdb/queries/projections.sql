@@ -49,11 +49,14 @@ GROUP BY s.player_id, p.birth_date, g.season
 ORDER BY s.player_id, g.season;
 
 -- name: ListProjectionSkaterLinemateContext :many
--- Split shift charts into atomic half-open intervals, retain equal-strength
--- 3v3 through 5v5 segments, and return exact integer teammate overlap with
--- even-strength production from the same shift-covered games. Go accumulates
--- rates in this stable order so floating-point sums cannot perturb hashes.
-WITH eligible_games AS (
+-- Return exact integer teammate overlap with even-strength production from
+-- the same shift-covered games. even_strength_segments holds each game's
+-- equal-strength 3v3 through 5v5 atomic segments, built at shift chart
+-- import (see InsertEvenStrengthSegmentsForGame); this query only filters
+-- eligible games and aggregates. Teammates share a segment when they share
+-- its (game, period, start second) and club. Go accumulates rates in this
+-- stable order so floating-point sums cannot perturb hashes.
+WITH eligible_games AS NOT MATERIALIZED (
     SELECT id, season
     FROM games
     WHERE game_type = 'regular_season'
@@ -62,131 +65,31 @@ WITH eligible_games AS (
       AND season <= sqlc.arg(max_season)
       AND game_date <= sqlc.arg(game_date)
 ),
-parsed_shifts AS (
-    SELECT
-        s.game_id,
-        g.season,
-        s.player_id,
-        s.team_id,
-        s.period,
-        stats.player_id IS NOT NULL AS is_skater,
-        CASE WHEN s.start_time ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
-            split_part(s.start_time, ':', 1)::integer * 60
-                + split_part(s.start_time, ':', 2)::integer
-        END AS start_second,
-        CASE WHEN s.end_time ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
-            split_part(s.end_time, ':', 1)::integer * 60
-                + split_part(s.end_time, ':', 2)::integer
-        END AS end_second
-    FROM shifts s
-    JOIN eligible_games g ON g.id = s.game_id
-    LEFT JOIN game_skater_stats stats
-      ON stats.game_id = s.game_id
-     AND stats.player_id = s.player_id
-     AND stats.team_id = s.team_id
-    LEFT JOIN game_goalie_stats goalies
-      ON goalies.game_id = s.game_id
-     AND goalies.player_id = s.player_id
-     AND goalies.team_id = s.team_id
-    WHERE s.type_code = '517'
-      AND (stats.player_id IS NOT NULL OR goalies.player_id IS NOT NULL)
-),
-valid_shifts AS (
-    SELECT *
-    FROM parsed_shifts
-    WHERE start_second IS NOT NULL
-      AND end_second IS NOT NULL
-      AND start_second < end_second
-),
-boundaries AS (
-    SELECT game_id, season, period, start_second AS second FROM valid_shifts
-    UNION
-    SELECT game_id, season, period, end_second AS second FROM valid_shifts
-),
-segments AS (
-    SELECT
-        game_id,
-        season,
-        period,
-        second AS start_second,
-        lead(second) OVER (
-            PARTITION BY game_id, period
-            ORDER BY second
-        ) AS end_second
-    FROM boundaries
-),
-active_skaters AS (
-    SELECT DISTINCT
-        segment.game_id,
-        segment.season,
-        segment.period,
-        segment.start_second,
-        segment.end_second,
-        shift_row.team_id,
-        shift_row.player_id,
-        shift_row.is_skater
-    FROM segments segment
-    JOIN valid_shifts shift_row
-      ON shift_row.game_id = segment.game_id
-     AND shift_row.period = segment.period
-     AND shift_row.start_second < segment.end_second
-     AND shift_row.end_second > segment.start_second
-    WHERE segment.end_second > segment.start_second
-),
-team_strength AS (
-    SELECT
-        game_id,
-        season,
-        period,
-        start_second,
-        end_second,
-        team_id,
-        count(*) FILTER (WHERE is_skater) AS skater_count,
-        count(*) FILTER (WHERE NOT is_skater) AS goalie_count
-    FROM active_skaters
-    GROUP BY game_id, season, period, start_second, end_second, team_id
-),
-even_segments AS (
-    SELECT game_id, season, period, start_second, end_second
-    FROM team_strength
-    GROUP BY game_id, season, period, start_second, end_second
-    HAVING count(*) = 2
-       AND min(skater_count) = max(skater_count)
-       AND min(skater_count) BETWEEN 3 AND 5
-       AND min(goalie_count) = 1
-       AND max(goalie_count) = 1
-),
-even_skaters AS (
-    SELECT active.*
-    FROM active_skaters active
-    JOIN even_segments segment
-      USING (game_id, season, period, start_second, end_second)
-    WHERE active.is_skater
-),
 pair_overlap AS (
     SELECT
-        player.season,
+        game.season,
         player.player_id,
         teammate.player_id AS teammate_id,
         sum(player.end_second - player.start_second)::bigint AS shared_toi_seconds
-    FROM even_skaters player
-    JOIN even_skaters teammate
+    FROM eligible_games game
+    JOIN even_strength_segments player ON player.game_id = game.id
+    JOIN even_strength_segments teammate
       ON teammate.game_id = player.game_id
      AND teammate.period = player.period
      AND teammate.start_second = player.start_second
-     AND teammate.end_second = player.end_second
      AND teammate.team_id = player.team_id
      AND teammate.player_id <> player.player_id
-    GROUP BY player.season, player.player_id, teammate.player_id
+    GROUP BY game.season, player.player_id, teammate.player_id
 ),
 even_player_toi AS (
     SELECT
-        game_id,
-        season,
-        player_id,
-        sum(end_second - start_second)::bigint AS even_strength_toi_seconds
-    FROM even_skaters
-    GROUP BY game_id, season, player_id
+        segment.game_id,
+        game.season,
+        segment.player_id,
+        sum(segment.end_second - segment.start_second)::bigint AS even_strength_toi_seconds
+    FROM eligible_games game
+    JOIN even_strength_segments segment ON segment.game_id = game.id
+    GROUP BY segment.game_id, game.season, segment.player_id
 ),
 even_strength_points AS (
     SELECT
@@ -207,7 +110,7 @@ even_strength_points AS (
         event.assist1_player_id,
         event.assist2_player_id
     ]) AS scorer(player_id)
-    JOIN even_skaters coverage
+    JOIN even_strength_segments coverage
       ON coverage.game_id = event.game_id
      AND coverage.period = event.period
      AND coverage.player_id = scorer.player_id

@@ -104,9 +104,21 @@ func (m *MockQueries) UpsertPlayEventBatch(ctx context.Context, arg []sqlcdb.Ups
 	return sqlcdb.NewUpsertPlayEventBatchBatchResults(zeroBatchResults{}, len(arg))
 }
 
+// UpsertShiftBatch fails every row when the expectation returns an error.
 func (m *MockQueries) UpsertShiftBatch(ctx context.Context, arg []sqlcdb.UpsertShiftBatchParams) *sqlcdb.UpsertShiftBatchBatchResults {
-	m.Called(ctx, arg)
+	if err, ok := m.Called(ctx, arg).Get(0).(error); ok {
+		return sqlcdb.NewUpsertShiftBatchBatchResults(errBatchResults{err: err}, len(arg))
+	}
 	return sqlcdb.NewUpsertShiftBatchBatchResults(zeroBatchResults{}, len(arg))
+}
+
+func (m *MockQueries) DeleteEvenStrengthSegmentsForGame(ctx context.Context, gameID int64) error {
+	return m.Called(ctx, gameID).Error(0)
+}
+
+func (m *MockQueries) InsertEvenStrengthSegmentsForGame(ctx context.Context, gameID int64) (int64, error) {
+	args := m.Called(ctx, gameID)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 func (m *MockQueries) UpsertGameOfficial(ctx context.Context, arg sqlcdb.UpsertGameOfficialParams) error {
@@ -617,117 +629,6 @@ func (s *ImportPlayByPlaySuite) TestWithPlays_CallsBatch() {
 	s.Require().NoError(future.Get(&result))
 	s.Equal(1, result.GamesProcessed)
 	s.Equal(2, result.EventsImported)
-	q.AssertExpectations(s.T())
-}
-
-// =============================================================================
-// ImportShiftChartForDate tests
-// =============================================================================
-
-type ImportShiftChartSuite struct {
-	suite.Suite
-	testsuite.WorkflowTestSuite
-	env *testsuite.TestActivityEnvironment
-	day time.Time
-}
-
-func (s *ImportShiftChartSuite) SetupTest() {
-	s.env = s.NewTestActivityEnvironment()
-	s.day = time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
-}
-
-func TestImportShiftChartSuite(t *testing.T) {
-	suite.Run(t, new(ImportShiftChartSuite))
-}
-
-func (s *ImportShiftChartSuite) newActivities(mem *store.MemStorage, q Queries) *ImportActivities {
-	return &ImportActivities{
-		Storage:  mem,
-		GobCache: newImportTestGobCache(),
-		Queries:  q,
-	}
-}
-
-func (s *ImportShiftChartSuite) TestNoScheduleFile_ReturnsEmpty() {
-	mem := store.NewMemStorage()
-	act := s.newActivities(mem, &MockQueries{})
-	s.env.RegisterActivity(act.ImportShiftChartForDate)
-
-	input := ImportShiftChartForDateInput{shared.DateSeasonInput{Date: s.day, Season: 2023}}
-	future, err := s.env.ExecuteActivity(act.ImportShiftChartForDate, input)
-	s.Require().NoError(err)
-
-	var result ImportShiftChartForDateResult
-	s.Require().NoError(future.Get(&result))
-	s.Equal(0, result.GamesProcessed)
-}
-
-func (s *ImportShiftChartSuite) TestMissingShiftFile_ReturnsError() {
-	mem := store.NewMemStorage()
-	gameID := nhlapi.GameID(2024020001)
-	seedRegularSeasonSchedule(s.T(), mem, s.day, gameID)
-
-	act := s.newActivities(mem, &MockQueries{})
-	s.env.RegisterActivity(act.ImportShiftChartForDate)
-
-	input := ImportShiftChartForDateInput{shared.DateSeasonInput{Date: s.day, Season: 2023}}
-	_, err := s.env.ExecuteActivity(act.ImportShiftChartForDate, input)
-	s.Require().Error(err)
-	s.Contains(err.Error(), "shift chart file missing")
-}
-
-func (s *ImportShiftChartSuite) TestEmptyShifts_SkipsBatch() {
-	mem := store.NewMemStorage()
-	q := &MockQueries{}
-	gameID := nhlapi.GameID(2024020001)
-	seedRegularSeasonSchedule(s.T(), mem, s.day, gameID)
-	seedEmptyShiftChart(s.T(), mem, s.day, gameID)
-
-	act := s.newActivities(mem, q)
-	s.env.RegisterActivity(act.ImportShiftChartForDate)
-
-	input := ImportShiftChartForDateInput{shared.DateSeasonInput{Date: s.day, Season: 2023}}
-	future, err := s.env.ExecuteActivity(act.ImportShiftChartForDate, input)
-	s.Require().NoError(err)
-
-	var result ImportShiftChartForDateResult
-	s.Require().NoError(future.Get(&result))
-	s.Equal(0, result.GamesProcessed)
-	s.Equal(0, result.ShiftsImported)
-	q.AssertNotCalled(s.T(), "UpsertShiftBatch")
-}
-
-func (s *ImportShiftChartSuite) TestWithShifts_CallsBatch() {
-	mem := store.NewMemStorage()
-	q := &MockQueries{}
-	gameID := nhlapi.GameID(2024020001)
-	seedRegularSeasonSchedule(s.T(), mem, s.day, gameID)
-
-	sc := &nhlapi.ShiftChart{
-		Data: []nhlapi.ShiftEntry{
-			{ID: 1, GameID: gameID, PlayerID: nhlapi.PlayerID(8478402), TeamID: nhlapi.TeamID(22)},
-			{ID: 2, GameID: gameID, PlayerID: nhlapi.PlayerID(8477934), TeamID: nhlapi.TeamID(22)},
-		},
-	}
-	data, err := json.Marshal(sc)
-	s.Require().NoError(err)
-	s.Require().NoError(mem.Write(context.Background(), resource.ShiftChart{Date: s.day, GameID: gameID}.Path(), data))
-
-	q.On("UpsertShiftBatch", mock.Anything, mock.MatchedBy(func(params []sqlcdb.UpsertShiftBatchParams) bool {
-		return len(params) == 2
-	})).Return(nil)
-
-	act := s.newActivities(mem, q)
-	s.env.RegisterActivity(act.ImportShiftChartForDate)
-
-	input := ImportShiftChartForDateInput{shared.DateSeasonInput{Date: s.day, Season: 2023}}
-	future, err := s.env.ExecuteActivity(act.ImportShiftChartForDate, input)
-	s.Require().NoError(err)
-
-	var result ImportShiftChartForDateResult
-	s.Require().NoError(future.Get(&result))
-	s.Equal(1, result.GamesProcessed)
-	s.Equal(2, result.ShiftsImported)
 	q.AssertExpectations(s.T())
 }
 

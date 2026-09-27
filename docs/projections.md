@@ -59,9 +59,17 @@ hash formats and can still be loaded.
 
 Versions 3 through 5 neutralize historical even-strength linemate context. Shift
 boundaries form half-open on-ice segments. A segment counts only when both
-teams have the same number of active skaters, from three through five; goalies,
-power plays, penalty kills, empty-net advantages and line-change 6v6 artifacts
-are excluded. Each teammate's even-strength points-per-60 rate is weighted by
+teams have the same number of active skaters, from three through five, and
+exactly one goalie each; goalies, power plays, penalty kills, empty-net
+advantages and line-change 6v6 artifacts are excluded. The shift chart import
+precomputes these segments into `even_strength_segments`: after a game's shifts
+are upserted, its rows are deleted and rebuilt in one transaction from the
+stored shifts and the game's box-score rows, which tell skaters from goalies
+(box scores are imported first). The projection query only filters eligible
+games and aggregates those rows, so a game imported before the table existed
+contributes nothing until its shift chart is imported again. A goal counts for
+a scorer or assister when its clock falls in `(start, end]` of one of that
+player's segments. Each teammate's even-strength points-per-60 rate is weighted by
 shared seconds. Forward and defense contexts use separate exposure-weighted
 averages. The model scales the non-power-play share of projected goals and
 assists toward average context; points remain their sum, power-play production

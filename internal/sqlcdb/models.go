@@ -1039,6 +1039,15 @@ type EdgeTeamZoneTimeByStrength struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type EvenStrengthSegment struct {
+	GameID      int64 `json:"game_id"`
+	Period      int32 `json:"period"`
+	StartSecond int32 `json:"start_second"`
+	EndSecond   int32 `json:"end_second"`
+	TeamID      int64 `json:"team_id"`
+	PlayerID    int64 `json:"player_id"`
+}
+
 type Franchise struct {
 	ID             int64  `json:"id"`
 	FullName       string `json:"full_name"`

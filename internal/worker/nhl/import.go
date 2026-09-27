@@ -40,6 +40,21 @@ type ShiftChartUpserter interface {
 	UpsertShiftBatch(ctx context.Context, arg []sqlcdb.UpsertShiftBatchParams) *sqlcdb.UpsertShiftBatchBatchResults
 }
 
+// EvenStrengthSegmentRebuilder is the interface for rebuilding one game's
+// even_strength_segments rows from its stored shifts. Both calls must run in
+// the same transaction; see Transactor.
+type EvenStrengthSegmentRebuilder interface {
+	DeleteEvenStrengthSegmentsForGame(ctx context.Context, gameID int64) error
+	InsertEvenStrengthSegmentsForGame(ctx context.Context, gameID int64) (int64, error)
+}
+
+// Transactor runs fn in one database transaction: it commits when fn returns
+// nil and rolls back otherwise. fn must use only the rebuilder it is given;
+// the pool-scoped Queries would write outside the transaction.
+type Transactor interface {
+	InTx(ctx context.Context, fn func(EvenStrengthSegmentRebuilder) error) error
+}
+
 // SeasonSeriesUpserter is the interface for database operations needed by season series import.
 type SeasonSeriesUpserter interface {
 	UpsertGameOfficial(ctx context.Context, arg sqlcdb.UpsertGameOfficialParams) error
@@ -67,9 +82,12 @@ type Queries interface {
 
 // ImportActivities holds dependencies for NHL data import activities.
 // These activities read cached data from the filesystem and upsert into the database.
+// Tx runs the multi-statement writes that must be atomic, such as the
+// per-game even-strength segment rebuild after a shift chart import.
 type ImportActivities struct {
 	Storage  store.Storage
 	GobCache *cache.GobCache
 	Queries  Queries
+	Tx       Transactor
 	Yahoo    *yahoo.ImportActivities
 }
