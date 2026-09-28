@@ -10,6 +10,15 @@ import (
 
 const noOwner = -1
 
+// weeklyGoalieMinimumSetting is Yahoo's head-to-head team minimum of goalie
+// games per week; below it the team forfeits the goalie ratio categories.
+const weeklyGoalieMinimumSetting = "min_games_played"
+
+// typicalStarterWeeklyStarts is how many games a starting goalie plays in a
+// fantasy week: an NHL team plays ~82 games over ~26 weeks (~3.15 a week)
+// and a starter takes ~65% of them.
+const typicalStarterWeeklyStarts = 2.0
+
 var (
 	workloadLimitTokens = map[string]bool{
 		"cap": true, "limit": true, "max": true, "maximum": true,
@@ -55,6 +64,12 @@ func capsFromRules(rules Rules) (rankingCaps, error) {
 		if !isWorkloadLimit(key) {
 			continue
 		}
+		if key == weeklyGoalieMinimumSetting && rules.ScoringType == scoringTypeHead {
+			if err := checkWeeklyGoalieMinimum(rules, raw); err != nil {
+				return caps, err
+			}
+			continue
+		}
 		if key != "max_games_played" && key != "max_goalie_starts" {
 			return caps, fmt.Errorf("unmodeled workload limit %q requires an explicit ranking adapter", key)
 		}
@@ -76,6 +91,28 @@ func capsFromRules(rules Rules) (rankingCaps, error) {
 		}
 	}
 	return caps, nil
+}
+
+// checkWeeklyGoalieMinimum accepts a head-to-head weekly goalie minimum only
+// when the starting goalie slots comfortably supply it, so it cannot change
+// player values; a binding minimum is not modeled and fails closed.
+func checkWeeklyGoalieMinimum(rules Rules, raw string) error {
+	minimum, err := strconv.ParseFloat(raw, 64)
+	if err != nil || !finiteRanking(minimum) || minimum <= 0 {
+		return fmt.Errorf("workload limit %q must be a positive number", weeklyGoalieMinimumSetting)
+	}
+	var slots int
+	for _, slot := range rules.RosterSlots {
+		if slot.Position == PositionGoalie && slot.Kind() == SlotKindStarting && slot.Starting {
+			slots += slot.Count
+		}
+	}
+	supply := float64(slots) * typicalStarterWeeklyStarts
+	if supply < minimum {
+		return fmt.Errorf("weekly goalie minimum of %g games is binding (%d starting goalie slots supply about %g) and is not modeled",
+			minimum, slots, supply)
+	}
+	return nil
 }
 
 func isWorkloadLimit(setting string) bool {
