@@ -8,7 +8,6 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/handler/apollotracing"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
@@ -194,7 +193,6 @@ func graphqlHandler(resolver *graph.Resolver) http.Handler {
 	server.Use(extension.AutomaticPersistedQuery{
 		Cache: lru.New[string](config.DefaultGraphQLAPQCacheSize),
 	})
-	server.Use(apollotracing.Tracer{})
 	server.AroundResponses(aroundResponsesLogger)
 	return server
 }
