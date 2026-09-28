@@ -328,7 +328,7 @@ type DraftRankingsInput struct {
 	// Each field's natural direction when unset (ranks ascending, values descending).
 	Direction *DraftSortDirection `json:"direction,omitempty"`
 	Offset    *int                `json:"offset,omitempty"`
-	// Rows per page: 50 when unset, at most 1000.
+	// Rows per page: 50 when unset, at most 200.
 	Limit *int `json:"limit,omitempty"`
 }
 

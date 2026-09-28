@@ -26,9 +26,11 @@ import (
 const (
 	// defaultDraftPageSize is the page size when a request sets none.
 	defaultDraftPageSize = 50
-	// maxDraftPageSize caps a requested page size (a pool has about 1,500
-	// players, so two pages cover it).
-	maxDraftPageSize = 1000
+	// maxDraftPageSize caps a requested page size. Rows carry per-scenario
+	// placements, contributions and news evidence, so a whole pool in one
+	// response (about 850 rows) exhausts the API pod's memory; clients that
+	// want the full board page through it.
+	maxDraftPageSize = 200
 )
 
 var errDraftNotConfigured = errors.New("draft rankings are not available: the API has no database connection")

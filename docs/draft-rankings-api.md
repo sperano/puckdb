@@ -132,8 +132,9 @@ A view never recomputes a value or renumbers a rank.
   fall back to overall rank, then player key, so every order is total and pages
   never overlap.
 - **Pagination**: `offset` and `limit`. GraphQL defaults to 50 rows and caps a
-  page at 1000 (the page reports the limit used); the CLI returns every
-  matching row unless `--draft-limit` is set.
+  page at 200 (the page reports the limit used; pass the first page's
+  `snapshotId` to walk the rest of the board consistently); the CLI returns
+  every matching row unless `--draft-limit` is set.
 
 ## GraphQL
 

@@ -414,7 +414,7 @@ input DraftRankingsInput {
   """Each field's natural direction when unset (ranks ascending, values descending)."""
   direction: DraftSortDirection
   offset: Int
-  """Rows per page: 50 when unset, at most 1000."""
+  """Rows per page: 50 when unset, at most 200."""
   limit: Int
 }
 
