@@ -23,17 +23,18 @@ type ImportShiftChartForDateInput struct {
 
 // ImportShiftChartForDateResult contains the results of importing shift chart data.
 type ImportShiftChartForDateResult struct {
-	GamesProcessed   int               `json:"gamesProcessed"`
-	ShiftsImported   int               `json:"shiftsImported"`
-	SegmentsImported int64             `json:"segmentsImported"`
-	Origins          core.OriginCounts `json:"origins"`
+	GamesProcessed           int               `json:"gamesProcessed"`
+	ShiftsImported           int               `json:"shiftsImported"`
+	EvenStrengthRowsImported int64             `json:"evenStrengthRowsImported"`
+	Origins                  core.OriginCounts `json:"origins"`
 }
 
 // ImportShiftChartForDate imports shift chart data for all games on a given
-// date. After a game's shifts are upserted, its even_strength_segments rows
-// are rebuilt from the stored shifts and the game's box-score rows, so box
-// scores must be imported first (ImportDay does). Every step is idempotent,
-// so a retried activity converges on the same rows.
+// date. After a game's shifts are upserted, its even_strength_pair_toi and
+// even_strength_skater_games rows are rebuilt from the stored shifts and the
+// game's box-score rows, so box scores must be imported first (ImportDay
+// does). Every step is idempotent, so a retried activity converges on the
+// same rows.
 func (a *ImportActivities) ImportShiftChartForDate(ctx context.Context, input ImportShiftChartForDateInput) (ImportShiftChartForDateResult, error) {
 	defer metrics.TrackActivityDuration("ImportShiftChartForDate")()
 
@@ -67,7 +68,7 @@ func (a *ImportActivities) ImportShiftChartForDate(ctx context.Context, input Im
 		"date", input.Date.Format(config.DateFormat),
 		"games", result.GamesProcessed,
 		"shifts", result.ShiftsImported,
-		"segments", result.SegmentsImported)
+		"evenStrengthRows", result.EvenStrengthRowsImported)
 
 	return result, nil
 }
@@ -102,36 +103,44 @@ func (a *ImportActivities) importGameShiftChart(ctx context.Context, date time.T
 		return err
 	}
 
-	segments, err := a.rebuildEvenStrengthSegments(ctx, gameID)
+	rows, err := a.rebuildEvenStrengthTotals(ctx, gameID)
 	if err != nil {
 		return err
 	}
 
 	result.GamesProcessed++
 	result.ShiftsImported += len(sc.Data)
-	result.SegmentsImported += segments
+	result.EvenStrengthRowsImported += rows
 	return nil
 }
 
-// rebuildEvenStrengthSegments replaces a game's even_strength_segments rows
-// in one transaction, so readers never see a half-built game and a retry
-// after a failure at any point rebuilds the same rows.
-func (a *ImportActivities) rebuildEvenStrengthSegments(ctx context.Context, gameID nhlapi.GameID) (int64, error) {
+// rebuildEvenStrengthTotals replaces a game's even_strength_pair_toi and
+// even_strength_skater_games rows in one transaction, so readers never see a
+// half-built game and a retry after a failure at any point rebuilds the same
+// rows. It returns the total rows inserted across both tables.
+func (a *ImportActivities) rebuildEvenStrengthTotals(ctx context.Context, gameID nhlapi.GameID) (int64, error) {
 	id := int64(gameID)
 	var inserted int64
-	err := a.Tx.InTx(ctx, func(q EvenStrengthSegmentRebuilder) error {
-		if err := q.DeleteEvenStrengthSegmentsForGame(ctx, id); err != nil {
-			return fmt.Errorf("delete: %w", err)
+	err := a.Tx.InTx(ctx, func(q EvenStrengthTotalsRebuilder) error {
+		if err := q.DeleteEvenStrengthPairTOIForGame(ctx, id); err != nil {
+			return fmt.Errorf("delete pair toi: %w", err)
 		}
-		n, err := q.InsertEvenStrengthSegmentsForGame(ctx, id)
+		if err := q.DeleteEvenStrengthSkaterGamesForGame(ctx, id); err != nil {
+			return fmt.Errorf("delete skater games: %w", err)
+		}
+		pairs, err := q.InsertEvenStrengthPairTOIForGame(ctx, id)
 		if err != nil {
-			return fmt.Errorf("insert: %w", err)
+			return fmt.Errorf("insert pair toi: %w", err)
 		}
-		inserted = n
+		skaterGames, err := q.InsertEvenStrengthSkaterGamesForGame(ctx, id)
+		if err != nil {
+			return fmt.Errorf("insert skater games: %w", err)
+		}
+		inserted = pairs + skaterGames
 		return nil
 	})
 	if err != nil {
-		return 0, fmt.Errorf("rebuild even-strength segments for game %s: %w", gameID.String(), err)
+		return 0, fmt.Errorf("rebuild even-strength totals for game %s: %w", gameID.String(), err)
 	}
 	return inserted, nil
 }

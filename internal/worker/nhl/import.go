@@ -40,19 +40,21 @@ type ShiftChartUpserter interface {
 	UpsertShiftBatch(ctx context.Context, arg []sqlcdb.UpsertShiftBatchParams) *sqlcdb.UpsertShiftBatchBatchResults
 }
 
-// EvenStrengthSegmentRebuilder is the interface for rebuilding one game's
-// even_strength_segments rows from its stored shifts. Both calls must run in
-// the same transaction; see Transactor.
-type EvenStrengthSegmentRebuilder interface {
-	DeleteEvenStrengthSegmentsForGame(ctx context.Context, gameID int64) error
-	InsertEvenStrengthSegmentsForGame(ctx context.Context, gameID int64) (int64, error)
+// EvenStrengthTotalsRebuilder is the interface for rebuilding one game's
+// even_strength_pair_toi and even_strength_skater_games rows from its stored
+// shifts. All four calls must run in the same transaction; see Transactor.
+type EvenStrengthTotalsRebuilder interface {
+	DeleteEvenStrengthPairTOIForGame(ctx context.Context, gameID int64) error
+	DeleteEvenStrengthSkaterGamesForGame(ctx context.Context, gameID int64) error
+	InsertEvenStrengthPairTOIForGame(ctx context.Context, gameID int64) (int64, error)
+	InsertEvenStrengthSkaterGamesForGame(ctx context.Context, gameID int64) (int64, error)
 }
 
 // Transactor runs fn in one database transaction: it commits when fn returns
 // nil and rolls back otherwise. fn must use only the rebuilder it is given;
 // the pool-scoped Queries would write outside the transaction.
 type Transactor interface {
-	InTx(ctx context.Context, fn func(EvenStrengthSegmentRebuilder) error) error
+	InTx(ctx context.Context, fn func(EvenStrengthTotalsRebuilder) error) error
 }
 
 // SeasonSeriesUpserter is the interface for database operations needed by season series import.

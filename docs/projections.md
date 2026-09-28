@@ -128,22 +128,27 @@ boundaries form half-open on-ice segments. A segment counts only when both
 teams have the same number of active skaters, from three through five, and
 exactly one goalie each; goalies, power plays, penalty kills, empty-net
 advantages and line-change 6v6 artifacts are excluded. The shift chart import
-precomputes these segments into `even_strength_segments`: after a game's shifts
-are upserted, its rows are deleted and rebuilt in one transaction from the
-stored shifts and the game's box-score rows, which tell skaters from goalies
-(box scores are imported first). The projection query only filters eligible
-games and aggregates those rows, so a game imported before the table existed
-contributes nothing until its shift chart is imported again. A goal counts for
-a scorer or assister when its clock falls in `(start, end]` of one of that
-player's segments. Each teammate's even-strength points-per-60 rate is weighted by
-shared seconds. Forward and defense contexts use separate exposure-weighted
-averages. The model scales the non-power-play share of projected goals and
-assists toward average context; points remain their sum, power-play production
-is preserved, and no other statistic changes. The correction is
-reliability-weighted against four times the skater TOI prior, so sparse shift
-coverage stays close to neutral. This is strictly a correction for past
-context and makes no assumption about the target season's lines. In versions 4
-and 5, this correction is applied before the delta-method age adjustment; points are
+derives these segments per game and precomputes their totals into two small
+tables instead of storing every segment: `even_strength_pair_toi` (one row per
+skater and on-ice teammate, both directions, with their total shared seconds
+for the game) and `even_strength_skater_games` (one row per skater, with his
+own even-strength seconds and even-strength points for the game). After a
+game's shifts are upserted, both tables' rows for that game are deleted and
+rebuilt in one transaction from the stored shifts and the game's box-score
+rows, which tell skaters from goalies (box scores are imported first). The
+projection query only filters eligible games and sums those per-game totals,
+so a game imported before these tables existed contributes nothing until its
+shift chart is imported again. A goal counts for a scorer or assister when its
+clock falls in `(start, end]` of one of that player's segments. Each
+teammate's even-strength points-per-60 rate is weighted by shared seconds.
+Forward and defense contexts use separate exposure-weighted averages. The
+model scales the non-power-play share of projected goals and assists toward
+average context; points remain their sum, power-play production is preserved,
+and no other statistic changes. The correction is reliability-weighted against
+four times the skater TOI prior, so sparse shift coverage stays close to
+neutral. This is strictly a correction for past context and makes no
+assumption about the target season's lines. In versions 4 and 5, this
+correction is applied before the delta-method age adjustment; points are
 recomputed from the adjusted goals and assists.
 
 The default parameters are:

@@ -35,11 +35,11 @@ func openTransactorTestDB(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func countTransactorTestSegments(t *testing.T, pool *pgxpool.Pool) int {
+func countTransactorTestPairTOI(t *testing.T, pool *pgxpool.Pool) int {
 	t.Helper()
 	var n int
 	require.NoError(t, pool.QueryRow(context.Background(),
-		`SELECT count(*) FROM even_strength_segments WHERE game_id = $1`, transactorTestGameID).Scan(&n))
+		`SELECT count(*) FROM even_strength_pair_toi WHERE game_id = $1`, transactorTestGameID).Scan(&n))
 	return n
 }
 
@@ -57,28 +57,36 @@ INSERT INTO games (id, season, game_type, game_date, game_state, home_team_id, a
 VALUES ($1, 20232024, 'regular_season', '2024-01-10', 'FINAL', 1, 2)`, transactorTestGameID)
 	require.NoError(t, err)
 	_, err = pool.Exec(ctx, `
-INSERT INTO even_strength_segments (game_id, period, start_second, end_second, team_id, player_id)
-VALUES ($1, 1, 0, 30, 1, $2)`, transactorTestGameID, transactorTestPlayer)
+INSERT INTO even_strength_pair_toi (game_id, player_id, teammate_id, shared_toi_seconds)
+VALUES ($1, $2, $2 + 1::bigint, 30)`, transactorTestGameID, transactorTestPlayer)
 	require.NoError(t, err)
 
 	tx := NewPgxTransactor(pool)
 	errAbort := errors.New("abort after delete")
-	err = tx.InTx(ctx, func(q EvenStrengthSegmentRebuilder) error {
-		require.NoError(t, q.DeleteEvenStrengthSegmentsForGame(ctx, transactorTestGameID))
+	err = tx.InTx(ctx, func(q EvenStrengthTotalsRebuilder) error {
+		require.NoError(t, q.DeleteEvenStrengthPairTOIForGame(ctx, transactorTestGameID))
 		return errAbort
 	})
 	require.ErrorIs(t, err, errAbort)
-	require.Equal(t, 1, countTransactorTestSegments(t, pool), "a failed rebuild keeps the previous rows")
+	require.Equal(t, 1, countTransactorTestPairTOI(t, pool), "a failed rebuild keeps the previous rows")
 
 	// The game has no shifts, so a committed rebuild leaves it empty.
-	err = tx.InTx(ctx, func(q EvenStrengthSegmentRebuilder) error {
-		if err := q.DeleteEvenStrengthSegmentsForGame(ctx, transactorTestGameID); err != nil {
+	err = tx.InTx(ctx, func(q EvenStrengthTotalsRebuilder) error {
+		if err := q.DeleteEvenStrengthPairTOIForGame(ctx, transactorTestGameID); err != nil {
 			return err
 		}
-		inserted, err := q.InsertEvenStrengthSegmentsForGame(ctx, transactorTestGameID)
+		if err := q.DeleteEvenStrengthSkaterGamesForGame(ctx, transactorTestGameID); err != nil {
+			return err
+		}
+		inserted, err := q.InsertEvenStrengthPairTOIForGame(ctx, transactorTestGameID)
+		require.Zero(t, inserted)
+		if err != nil {
+			return err
+		}
+		inserted, err = q.InsertEvenStrengthSkaterGamesForGame(ctx, transactorTestGameID)
 		require.Zero(t, inserted)
 		return err
 	})
 	require.NoError(t, err)
-	require.Zero(t, countTransactorTestSegments(t, pool))
+	require.Zero(t, countTransactorTestPairTOI(t, pool))
 }

@@ -1039,13 +1039,19 @@ type EdgeTeamZoneTimeByStrength struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
-type EvenStrengthSegment struct {
-	GameID      int64 `json:"game_id"`
-	Period      int32 `json:"period"`
-	StartSecond int32 `json:"start_second"`
-	EndSecond   int32 `json:"end_second"`
-	TeamID      int64 `json:"team_id"`
-	PlayerID    int64 `json:"player_id"`
+type EvenStrengthPairToi struct {
+	GameID           int64 `json:"game_id"`
+	PlayerID         int64 `json:"player_id"`
+	TeammateID       int64 `json:"teammate_id"`
+	SharedToiSeconds int32 `json:"shared_toi_seconds"`
+}
+
+type EvenStrengthSkaterGame struct {
+	GameID     int64 `json:"game_id"`
+	PlayerID   int64 `json:"player_id"`
+	TeamID     int64 `json:"team_id"`
+	TOISeconds int32 `json:"toi_seconds"`
+	Points     int32 `json:"points"`
 }
 
 type Franchise struct {

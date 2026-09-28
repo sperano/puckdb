@@ -21,7 +21,7 @@ func NewPgxTransactor(pool *pgxpool.Pool) *PgxTransactor {
 // InTx opens a transaction, calls fn with sqlcdb.New(tx), then commits, or
 // rolls back if fn returns an error. The deferred Rollback is a no-op once
 // the transaction has committed.
-func (t *PgxTransactor) InTx(ctx context.Context, fn func(EvenStrengthSegmentRebuilder) error) error {
+func (t *PgxTransactor) InTx(ctx context.Context, fn func(EvenStrengthTotalsRebuilder) error) error {
 	tx, err := t.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("nhl import: begin tx: %w", err)

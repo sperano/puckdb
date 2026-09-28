@@ -112,11 +112,20 @@ func (m *MockQueries) UpsertShiftBatch(ctx context.Context, arg []sqlcdb.UpsertS
 	return sqlcdb.NewUpsertShiftBatchBatchResults(zeroBatchResults{}, len(arg))
 }
 
-func (m *MockQueries) DeleteEvenStrengthSegmentsForGame(ctx context.Context, gameID int64) error {
+func (m *MockQueries) DeleteEvenStrengthPairTOIForGame(ctx context.Context, gameID int64) error {
 	return m.Called(ctx, gameID).Error(0)
 }
 
-func (m *MockQueries) InsertEvenStrengthSegmentsForGame(ctx context.Context, gameID int64) (int64, error) {
+func (m *MockQueries) DeleteEvenStrengthSkaterGamesForGame(ctx context.Context, gameID int64) error {
+	return m.Called(ctx, gameID).Error(0)
+}
+
+func (m *MockQueries) InsertEvenStrengthPairTOIForGame(ctx context.Context, gameID int64) (int64, error) {
+	args := m.Called(ctx, gameID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockQueries) InsertEvenStrengthSkaterGamesForGame(ctx context.Context, gameID int64) (int64, error) {
 	args := m.Called(ctx, gameID)
 	return args.Get(0).(int64), args.Error(1)
 }

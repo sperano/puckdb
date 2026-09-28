@@ -1,9 +1,10 @@
 package projection
 
 // A multi-game shift fixture for comparing the precomputed
-// even_strength_segments against the legacy query-time segmentation. Every
-// game has shifts, so both queries see the same games; only the regular
-// season, final, pre-cutoff ones may contribute.
+// even_strength_pair_toi / even_strength_skater_games totals against the
+// legacy query-time segmentation. Every game has shifts, so both queries see
+// the same games; only the regular season, final, pre-cutoff ones may
+// contribute.
 
 import (
 	"context"
@@ -227,7 +228,7 @@ SELECT $1::bigint + id, 'Equiv', id::text FROM generate_series(1, $2::int) AS id
 		for i, goal := range game.goals {
 			seedFixtureGoal(t, pool, game.id, int64(i+1), goal)
 		}
-		rebuildEvenStrengthSegments(t, pool, game.id)
+		rebuildEvenStrengthTotals(t, pool, game.id)
 	}
 }
 

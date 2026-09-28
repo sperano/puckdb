@@ -1104,75 +1104,22 @@ WITH eligible_games AS NOT MATERIALIZED (
 pair_overlap AS (
     SELECT
         game.season,
-        player.player_id,
-        teammate.player_id AS teammate_id,
-        sum(player.end_second - player.start_second)::bigint AS shared_toi_seconds
+        pair.player_id,
+        pair.teammate_id,
+        sum(pair.shared_toi_seconds)::bigint AS shared_toi_seconds
     FROM eligible_games game
-    JOIN even_strength_segments player ON player.game_id = game.id
-    JOIN even_strength_segments teammate
-      ON teammate.game_id = player.game_id
-     AND teammate.period = player.period
-     AND teammate.start_second = player.start_second
-     AND teammate.team_id = player.team_id
-     AND teammate.player_id <> player.player_id
-    GROUP BY game.season, player.player_id, teammate.player_id
-),
-even_player_toi AS (
-    SELECT
-        segment.game_id,
-        game.season,
-        segment.player_id,
-        sum(segment.end_second - segment.start_second)::bigint AS even_strength_toi_seconds
-    FROM eligible_games game
-    JOIN even_strength_segments segment ON segment.game_id = game.id
-    GROUP BY segment.game_id, game.season, segment.player_id
-),
-even_strength_points AS (
-    SELECT
-        game.id AS game_id,
-        game.season,
-        scorer.player_id,
-        count(*)::bigint AS even_strength_points
-    FROM play_events event
-    JOIN eligible_games game ON game.id = event.game_id
-    CROSS JOIN LATERAL (
-        SELECT CASE WHEN event.time_in_period ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
-            split_part(event.time_in_period, ':', 1)::integer * 60
-                + split_part(event.time_in_period, ':', 2)::integer
-        END AS event_second
-    ) clock
-    CROSS JOIN LATERAL unnest(ARRAY[
-        event.scoring_player_id,
-        event.assist1_player_id,
-        event.assist2_player_id
-    ]) AS scorer(player_id)
-    JOIN even_strength_segments coverage
-      ON coverage.game_id = event.game_id
-     AND coverage.period = event.period
-     AND coverage.player_id = scorer.player_id
-     AND clock.event_second > coverage.start_second
-     AND clock.event_second <= coverage.end_second
-    WHERE event.type_desc_key = 'goal'
-      AND scorer.player_id IS NOT NULL
-      AND clock.event_second IS NOT NULL
-      AND event.situation_code IS NOT NULL
-      AND event.situation_code / 1000 % 10 = 1
-      AND event.situation_code % 10 = 1
-      AND event.situation_code / 100 % 10 = event.situation_code / 10 % 10
-      AND event.situation_code / 100 % 10 BETWEEN 3 AND 5
-    GROUP BY game.id, game.season, scorer.player_id
+    JOIN even_strength_pair_toi pair ON pair.game_id = game.id
+    GROUP BY game.season, pair.player_id, pair.teammate_id
 ),
 teammate_rates AS (
     SELECT
-        toi.season,
-        toi.player_id,
-        coalesce(sum(points.even_strength_points), 0)::bigint AS even_strength_points,
-        sum(toi.even_strength_toi_seconds)::bigint AS even_strength_toi_seconds
-    FROM even_player_toi toi
-    LEFT JOIN even_strength_points points
-      ON points.game_id = toi.game_id
-     AND points.player_id = toi.player_id
-    GROUP BY toi.season, toi.player_id
+        game.season,
+        skater.player_id,
+        sum(skater.points)::bigint AS even_strength_points,
+        sum(skater.toi_seconds)::bigint AS even_strength_toi_seconds
+    FROM eligible_games game
+    JOIN even_strength_skater_games skater ON skater.game_id = game.id
+    GROUP BY game.season, skater.player_id
 )
 SELECT
     pair.player_id,
@@ -1204,12 +1151,13 @@ type ListProjectionSkaterLinemateContextRow struct {
 }
 
 // Return exact integer teammate overlap with even-strength production from
-// the same shift-covered games. even_strength_segments holds each game's
-// equal-strength 3v3 through 5v5 atomic segments, built at shift chart
-// import (see InsertEvenStrengthSegmentsForGame); this query only filters
-// eligible games and aggregates. Teammates share a segment when they share
-// its (game, period, start second) and club. Go accumulates rates in this
-// stable order so floating-point sums cannot perturb hashes.
+// the same eligible games. even_strength_pair_toi and
+// even_strength_skater_games hold each game's precomputed even-strength
+// totals (both direction pairs, and per-skater TOI/points), built at shift
+// chart import (see InsertEvenStrengthPairTOIForGame and
+// InsertEvenStrengthSkaterGamesForGame in even_strength_totals.sql); this
+// query only filters eligible games and aggregates them. Go accumulates
+// rates in this stable order so floating-point sums cannot perturb hashes.
 func (q *Queries) ListProjectionSkaterLinemateContext(ctx context.Context, arg ListProjectionSkaterLinemateContextParams) ([]ListProjectionSkaterLinemateContextRow, error) {
 	rows, err := q.db.Query(ctx, listProjectionSkaterLinemateContext, arg.MinSeason, arg.MaxSeason, arg.GameDate)
 	if err != nil {

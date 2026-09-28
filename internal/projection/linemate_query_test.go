@@ -135,7 +135,7 @@ INSERT INTO play_events (
     ($1, 2, 1, 'REG', '00:15', '19:45', 1541, 'goal', 2, $2 + 2, NULL),
     ($1, 3, 1, 'REG', '00:35', '19:25', 1551, 'goal', 3, $2 + 2, NULL)`, testLinemateGame, testPlayerBase)
 	seedShiftRows(t, pool)
-	rebuildEvenStrengthSegments(t, pool, testLinemateGame)
+	rebuildEvenStrengthTotals(t, pool, testLinemateGame)
 }
 
 func seedShiftRows(t *testing.T, pool *pgxpool.Pool) {
@@ -162,14 +162,18 @@ INSERT INTO shifts (
 		testLinemateGame, testHomeTeam, testAwayTeam, testPlayerBase)
 }
 
-// rebuildEvenStrengthSegments derives a game's even_strength_segments rows
-// from its fixture shifts, as the shift chart import does.
-func rebuildEvenStrengthSegments(t *testing.T, pool *pgxpool.Pool, gameID int64) {
+// rebuildEvenStrengthTotals derives a game's even_strength_pair_toi and
+// even_strength_skater_games rows from its fixture shifts, as the shift
+// chart import does.
+func rebuildEvenStrengthTotals(t *testing.T, pool *pgxpool.Pool, gameID int64) {
 	t.Helper()
 	ctx := context.Background()
 	queries := sqlcdb.New(pool)
-	require.NoError(t, queries.DeleteEvenStrengthSegmentsForGame(ctx, gameID))
-	_, err := queries.InsertEvenStrengthSegmentsForGame(ctx, gameID)
+	require.NoError(t, queries.DeleteEvenStrengthPairTOIForGame(ctx, gameID))
+	require.NoError(t, queries.DeleteEvenStrengthSkaterGamesForGame(ctx, gameID))
+	_, err := queries.InsertEvenStrengthPairTOIForGame(ctx, gameID)
+	require.NoError(t, err)
+	_, err = queries.InsertEvenStrengthSkaterGamesForGame(ctx, gameID)
 	require.NoError(t, err)
 }
 
