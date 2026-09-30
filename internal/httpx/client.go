@@ -119,6 +119,26 @@ func NewYahooClient(ctx context.Context, redisClient *redis.Client) (Client, err
 // in ctx. The token is validated (and refreshed, if expired) up front so a
 // user who must log in again is told so here, not by a failed download.
 func NewYahooClientWithConfig(ctx context.Context, redisClient *redis.Client, conf *oauth2.Config) (Client, error) {
+	client, err := newYahooHTTPClient(ctx, redisClient, conf)
+	if err != nil {
+		return nil, err
+	}
+	return &GenericClient{Client: client, apiLabel: "yahoo"}, nil
+}
+
+// NewYahooHTTPClient returns the raw OAuth2 HTTP client for the user in ctx,
+// for callers that need the response status and body of a failed request
+// (GenericClient.Download keeps only the status). The token is validated the
+// same way as in NewYahooClientWithConfig.
+func NewYahooHTTPClient(ctx context.Context, redisClient *redis.Client) (*http.Client, error) {
+	conf, err := config.OauthConfig()
+	if err != nil {
+		return nil, err
+	}
+	return newYahooHTTPClient(ctx, redisClient, conf)
+}
+
+func newYahooHTTPClient(ctx context.Context, redisClient *redis.Client, conf *oauth2.Config) (*http.Client, error) {
 	user, err := config.UserFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("creating yahoo client: %w", err)
@@ -130,7 +150,7 @@ func NewYahooClientWithConfig(ctx context.Context, redisClient *redis.Client, co
 	if _, err := tokenSource.Token(); err != nil {
 		return nil, err
 	}
-	return &GenericClient{Client: oauth2.NewClient(ctx, tokenSource), apiLabel: "yahoo"}, nil
+	return oauth2.NewClient(ctx, tokenSource), nil
 }
 
 func DownloadYahoo(ctx context.Context, redisClient *redis.Client, url string) ([]byte, error) {

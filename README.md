@@ -154,7 +154,7 @@ Run `./puckdb <command> --help` for the complete flags and subcommands.
 | `mcp-server` | Serve curated read-only data tools over HTTP or stdio |
 | `maurice` | Start the interactive AI hockey chat REPL |
 | `sim` | Create and operate fantasy-pool simulations |
-| `yahoo` | Yahoo account operations |
+| `yahoo` | Yahoo account operations; `yahoo check-access` reports (and can email) whether the Yahoo API serves a season's leagues yet ([notes](docs/yahoo-access-check.md)) |
 
 `sync` accepts individual steps or groups. Common examples:
 

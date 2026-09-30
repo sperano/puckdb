@@ -163,6 +163,26 @@ const (
 	FlagPublicURL               = "public-url"
 )
 
+// Yahoo access check flags
+const (
+	// FlagYahooCheckSeason is the season (start year) whose Yahoo API access
+	// `yahoo check-access` probes; 0 picks the latest season in the Yahoo
+	// seasons config.
+	FlagYahooCheckSeason = "yahoo-check-season"
+)
+
+// Notification email flags (SMTP submission)
+const (
+	FlagSMTPHost     = "smtp-host"
+	FlagSMTPPort     = "smtp-port"
+	FlagSMTPUsername = "smtp-username"
+	FlagSMTPPassword = "smtp-password"
+	FlagSMTPFrom     = "smtp-from"
+	// FlagNotifyEmailTo is a comma-separated list of recipients. Empty
+	// disables the email; the report is still printed.
+	FlagNotifyEmailTo = "notify-email-to"
+)
+
 // Yahoo player download flags
 const (
 	FlagMaxYahooPlayerID             = "max-yahoo-player-id"
@@ -356,6 +376,25 @@ var YahooOAuth2Flags = FlagGroup{
 var YahooSeasonsFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagYahooSeasons, "S", DefaultYahooSeasonsFile, "Yahoo seasons config file", false},
+	},
+}
+
+// YahooAccessCheckFlags defines the `yahoo check-access` flags.
+var YahooAccessCheckFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagYahooCheckSeason, "", DefaultYahooCheckSeason, "Season (start year) to check; 0 = latest season in the Yahoo seasons config", false},
+	},
+}
+
+// NotifyEmailFlags defines the SMTP submission flags for notification emails.
+var NotifyEmailFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagSMTPHost, "", "", "SMTP submission host for notification emails", false},
+		{FlagSMTPPort, "", DefaultSMTPPort, "SMTP submission port (STARTTLS is used when the server offers it)", false},
+		{FlagSMTPUsername, "", "", "SMTP username (empty sends without authentication)", false},
+		{FlagSMTPPassword, "", "", "SMTP password", true},
+		{FlagSMTPFrom, "", "", "Sender address of notification emails", false},
+		{FlagNotifyEmailTo, "", "", "Comma-separated recipients of notification emails (empty disables the email)", false},
 	},
 }
 
@@ -894,6 +933,7 @@ var allFlagGroups = []*FlagGroup{
 	&MauriceFlags,
 	&AdminAuthFlags,
 	&APIBasicAuthFlags,
+	&NotifyEmailFlags,
 }
 
 // LogFlagValues logs all viper settings at debug level, redacting sensitive values.

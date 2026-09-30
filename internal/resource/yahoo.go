@@ -201,20 +201,31 @@ func (g GameKey) URL() string {
 func (g GameKey) Type() core.FileType { return core.GameKey }
 
 func (g GameKey) Parse(data []byte) (*store.FantasyContent, error) {
+	content, _, err := g.parse(data)
+	return content, err
+}
+
+// ParseKey parses a game key response and returns the validated game key.
+func (g GameKey) ParseKey(data []byte) (int, error) {
+	_, game, err := g.parse(data)
+	return game.Key, err
+}
+
+func (g GameKey) parse(data []byte) (*store.FantasyContent, store.FantasyGame, error) {
 	var content store.FantasyContent
 	if err := xml.Unmarshal(data, &content); err != nil {
-		return nil, fmt.Errorf("parse game key for season %d: %w", g.Season, err)
+		return nil, store.FantasyGame{}, fmt.Errorf("parse game key for season %d: %w", g.Season, err)
 	}
 	game, err := gameKeyEntry(content)
 	if err != nil {
-		return nil, fmt.Errorf("parse game key for season %d: %w", g.Season, err)
+		return nil, store.FantasyGame{}, fmt.Errorf("parse game key for season %d: %w", g.Season, err)
 	}
 	if game.Key <= 0 || game.Season != g.Season || !strings.EqualFold(game.Code, yahooNHLGameCode) {
-		return nil, fmt.Errorf(
+		return nil, store.FantasyGame{}, fmt.Errorf(
 			"parse game key for season %d: yahoo game key %d is for code %q season %d",
 			g.Season, game.Key, game.Code, game.Season)
 	}
-	return &content, nil
+	return &content, game, nil
 }
 
 func gameKeyEntry(content store.FantasyContent) (store.FantasyGame, error) {

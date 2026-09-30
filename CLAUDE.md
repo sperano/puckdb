@@ -59,6 +59,7 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `news eval` | Run the labeled news-event corpus through `--news-extract-provider`/`--news-extract-model`, print accuracy and unsupported-claim rate against the release thresholds, record the run (the gate for automatic effects) |
 | `redis flush` | Flush a Redis database |
 | `yahoo signout` | Clear OAuth2 token from Redis |
+| `yahoo check-access` | Check whether the Yahoo API serves a season's leagues (AUTHORIZED / NOT AUTHORIZED / ERROR), optionally emailing the report over SMTP; meant for a daily CronJob (see `docs/yahoo-access-check.md`) |
 | `maurice` | Interactive AI hockey chat REPL |
 
 ## Package Structure
@@ -86,6 +87,8 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/news/` | Player news for the draft helper: source set (`sources.yaml`), RSS/Atom, NHL content and Yahoo status adapters, conditional fetch, article versions, player resolution, incident grouping, coverage and reports (see `docs/draft-player-news.md`) |
 | `internal/newsadjust/` | News adjustments for the draft helper: validated event contract, versioned loading of stored extraction events (review and release-gate holds), as-of event selection (dedupe, supersession, returns, rumors), conservative/base/optimistic scenario snapshots, manager overrides, ranking comparison, run storage and replay (see `docs/draft-news-adjustments.md`) |
 | `internal/newsevent/` | LLM extraction of validated player news events: prompt and strict output schema, quote/claim/chronology validation, injection defenses, deterministic lifecycle reconciliation (active/superseded/retracted/resolved), labeled evaluation corpus (`evalcorpus.yaml`) and release gate (see `docs/draft-news-events.md`) |
+| `internal/yahooaccess/` | Yahoo API access check: game key and league settings probes, AUTHORIZED / NOT AUTHORIZED / ERROR classification, email subject and report (see `docs/yahoo-access-check.md`) |
+| `internal/notify/` | Plain-text notification emails over SMTP submission (STARTTLS when offered) |
 | `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
 | `internal/fixtures/draftfixtures/` | Synthetic draft ranking snapshot and in-memory store shared by the draftrank, GraphQL and CLI tests (test-only import) |
 | `internal/llm/` | LLM client (used by player enrichment / Maurice) |

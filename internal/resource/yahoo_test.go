@@ -416,6 +416,18 @@ func TestGameKey_Parse(t *testing.T) {
 	})
 }
 
+func TestGameKey_ParseKey(t *testing.T) {
+	t.Parallel()
+	r := resource.GameKey{Season: 2024}
+
+	key, err := r.ParseKey([]byte(`<fantasy_content><games><game><game_key>453</game_key><code>nhl</code><season>2024</season></game></games></fantasy_content>`))
+	require.NoError(t, err)
+	require.Equal(t, 453, key)
+
+	_, err = r.ParseKey([]byte(`<fantasy_content><games><game><game_key>453</game_key><code>nhl</code><season>2023</season></game></games></fantasy_content>`))
+	require.Error(t, err)
+}
+
 func TestTransactions_ParseURL(t *testing.T) {
 	t.Parallel()
 	r := resource.Transactions{Season: 2023, LeagueID: 12345, GameKey: 453}

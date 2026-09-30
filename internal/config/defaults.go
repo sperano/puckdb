@@ -173,6 +173,21 @@ const (
 	DefaultGraphQLAPQCacheSize   = 100
 )
 
+// Yahoo access check defaults
+const (
+	DefaultYahooCheckSeason = 0 // latest season in the Yahoo seasons config
+	// DefaultYahooCheckTimeout bounds the whole check (token load and
+	// refresh, then every call), so a hang still ends in an emailed ERROR.
+	DefaultYahooCheckTimeout = 5 * time.Minute
+)
+
+// Notification email defaults
+const (
+	DefaultSMTPPort = 587
+	// DefaultSMTPTimeout bounds one whole SMTP conversation (dial to QUIT).
+	DefaultSMTPTimeout = 30 * time.Second
+)
+
 // GraphQL resolver timeout defaults
 const (
 	DefaultQueryTimeout         = 30 * time.Second
