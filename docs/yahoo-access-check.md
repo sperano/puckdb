@@ -60,7 +60,10 @@ authenticate over an unencrypted connection, except to localhost.
 
 The check also needs what the worker uses to reach Yahoo:
 
-- Redis (`PUCKDB_REDIS_*`), which holds the OAuth token.
+- Redis (`PUCKDB_REDIS_*`), which holds the OAuth token. A refused
+  connection is retried 3 times, 5 seconds apart, before the check reports
+  ERROR: a new pod can be refused by a NetworkPolicy until its IP reaches the
+  allow list. A reply from Redis, such as a bad password, is not retried.
 - The Yahoo OAuth client (`PUCKDB_YAHOO_OAUTH2_CLIENT_ID` / `_SECRET`), used to
   refresh an expired access token.
 - The Yahoo seasons config (`PUCKDB_YAHOO_SEASONS`).

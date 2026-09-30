@@ -91,6 +91,9 @@ func checkYahooAccess(ctx context.Context) yahooaccess.Report {
 	}
 	redisClient := cache.NewClient()
 	defer redisClient.Close()
+	if err := cache.WaitReady(ctx, redisClient, config.DefaultRedisReadyRetries, config.DefaultRedisReadyRetryDelay); err != nil {
+		return yahooaccess.FailedReport(season, checkedAt, err)
+	}
 	client, err := httpx.NewYahooHTTPClient(ctx, redisClient)
 	if tokenErr, ok := errors.AsType[*cache.OAuth2TokenMissingError](err); ok && tokenErr.PublicURL == "" {
 		tokenErr.PublicURL = viper.GetString(config.FlagPublicURL)

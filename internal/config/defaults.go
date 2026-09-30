@@ -117,6 +117,11 @@ const (
 const (
 	DefaultRedisURL = "localhost:6379"
 	DefaultRedisDB  = 0
+	// A new pod can be refused by Valkey's NetworkPolicy for a few seconds
+	// until its IP reaches the allow list, so short-lived commands retry
+	// their first connection (see cache.WaitReady).
+	DefaultRedisReadyRetries    = 3
+	DefaultRedisReadyRetryDelay = 5 * time.Second
 )
 
 // PostgreSQL defaults
