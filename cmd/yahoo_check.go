@@ -31,8 +31,10 @@ func cmdYahooCheckAccess() *cobra.Command {
 		Short: "Check whether the Yahoo API serves a season's leagues",
 		Long: `Check whether the Yahoo Fantasy API serves a season's leagues to this app:
 resolve the season's game key, then fetch every configured league's settings
-with the stored OAuth token. Prints AUTHORIZED, NOT AUTHORIZED (Yahoo answers
-403) or ERROR (no usable token, network or unexpected response), and emails the
+with the stored OAuth token. Also probes the season before the requested one as
+a control, so the report shows whether the app still reaches a season Yahoo
+already serves. Prints AUTHORIZED, NOT AUTHORIZED (Yahoo answers 403) or ERROR
+(no usable token, network or unexpected response) per season, and emails the
 report when --notify-email-to is set. Exits non-zero on ERROR or when the email
 cannot be sent. See docs/yahoo-access-check.md.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -68,14 +70,15 @@ func runYahooCheckAccess(ctx context.Context, out io.Writer) error {
 		}
 		log.Info().Strs("to", to).Str("subject", email.Subject).Msg("Yahoo access report emailed")
 	}
-	if report.Outcome == yahooaccess.Failed {
-		return fmt.Errorf("yahoo access check for season %d could not decide; see the report above", report.Season)
+	if report.Outcome() == yahooaccess.Failed {
+		return errors.New("yahoo access check could not decide; see the report above")
 	}
 	return nil
 }
 
-// checkYahooAccess runs the check for the configured season; a setup failure
-// (no seasons config, no token) becomes an ERROR report so it is emailed too.
+// checkYahooAccess runs the check for the configured season and the season
+// before it; a setup failure (no seasons config, no token) becomes an ERROR
+// report so it is emailed too.
 func checkYahooAccess(ctx context.Context) yahooaccess.Report {
 	ctx, cancel := context.WithTimeout(ctx, config.DefaultYahooCheckTimeout)
 	defer cancel()
@@ -83,26 +86,26 @@ func checkYahooAccess(ctx context.Context) yahooaccess.Report {
 	season := viper.GetInt(config.FlagYahooCheckSeason)
 	seasons, err := config.GetYahooSeasonsConfig()
 	if err != nil {
-		return yahooaccess.FailedReport(season, checkedAt, err)
+		return yahooaccess.FailedReport(checkedAt, err)
 	}
-	season, leagueIDs, err := yahooaccess.ResolveSeason(seasons, season)
+	checks, err := yahooaccess.ResolveChecks(seasons, season)
 	if err != nil {
-		return yahooaccess.FailedReport(season, checkedAt, err)
+		return yahooaccess.FailedReport(checkedAt, err)
 	}
 	redisClient := cache.NewClient()
 	defer redisClient.Close()
 	if err := cache.WaitReady(ctx, redisClient, config.DefaultRedisReadyRetries, config.DefaultRedisReadyRetryDelay); err != nil {
-		return yahooaccess.FailedReport(season, checkedAt, err)
+		return yahooaccess.FailedReport(checkedAt, err)
 	}
 	client, err := httpx.NewYahooHTTPClient(ctx, redisClient)
 	if tokenErr, ok := errors.AsType[*cache.OAuth2TokenMissingError](err); ok && tokenErr.PublicURL == "" {
 		tokenErr.PublicURL = viper.GetString(config.FlagPublicURL)
 	}
 	if err != nil {
-		return yahooaccess.FailedReport(season, checkedAt, err)
+		return yahooaccess.FailedReport(checkedAt, err)
 	}
 	checker := yahooaccess.Checker{Client: client, Timeout: config.DefaultHTTPClientTimeout}
-	return checker.Check(ctx, season, leagueIDs, checkedAt)
+	return checker.Check(ctx, checks, checkedAt)
 }
 
 func smtpConfigFromFlags() notify.SMTPConfig {

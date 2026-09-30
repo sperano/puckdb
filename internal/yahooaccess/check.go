@@ -61,16 +61,52 @@ type Probe struct {
 	failed bool
 }
 
-// Report is the result of one check.
-type Report struct {
+// SeasonCheck names one season to probe: its game key, then the settings of
+// the given leagues. An empty LeagueIDs skips the league calls, so the game
+// key alone decides the season.
+type SeasonCheck struct {
 	Season    int
-	CheckedAt time.Time
-	Outcome   Outcome
-	// Error is set when the check could not start (no season, no token).
-	Error          string
+	LeagueIDs []int
+}
+
+// SeasonResult is the outcome of one SeasonCheck.
+type SeasonResult struct {
+	Season         int
+	Outcome        Outcome
 	Probes         []Probe
 	LeaguesServed  int
 	LeaguesChecked int
+}
+
+// Report is the result of one check. The requested season comes first in
+// Seasons; the season before it follows as a control, so the report shows
+// whether the app still reaches a season Yahoo already serves.
+type Report struct {
+	CheckedAt time.Time
+	// Error is set when the check could not start (no seasons config, no
+	// usable token), in which case Seasons is empty.
+	Error string
+	// Seasons are the checked seasons, the requested one first.
+	Seasons []SeasonResult
+}
+
+// Outcome is the requested season's verdict, which drives the exit code. It is
+// Failed when the check could not start or recorded no season. The control
+// season is diagnostic only: it is reported, but does not change the verdict.
+func (r Report) Outcome() Outcome {
+	primary, ok := r.Primary()
+	if r.Error != "" || !ok {
+		return Failed
+	}
+	return primary.Outcome
+}
+
+// Primary returns the requested season's result, the first checked season.
+func (r Report) Primary() (SeasonResult, bool) {
+	if len(r.Seasons) == 0 {
+		return SeasonResult{}, false
+	}
+	return r.Seasons[0], true
 }
 
 // Checker probes Yahoo with an authenticated client.
@@ -81,8 +117,8 @@ type Checker struct {
 }
 
 // FailedReport is the report of a check that could not start.
-func FailedReport(season int, checkedAt time.Time, err error) Report {
-	return Report{Season: season, CheckedAt: checkedAt, Outcome: Failed, Error: err.Error()}
+func FailedReport(checkedAt time.Time, err error) Report {
+	return Report{CheckedAt: checkedAt, Error: err.Error()}
 }
 
 // ResolveSeason returns the season to check and its league IDs: season
@@ -98,18 +134,60 @@ func ResolveSeason(seasons config.YahooSeasonsMap, season int) (int, []int, erro
 	if !ok || len(cfg.Leagues) == 0 {
 		return season, nil, fmt.Errorf("the yahoo seasons config lists no league for season %d", season)
 	}
-	leagueIDs := make([]int, 0, len(cfg.Leagues))
-	for _, league := range cfg.Leagues {
-		leagueIDs = append(leagueIDs, league.LeagueID)
-	}
-	return season, leagueIDs, nil
+	return season, leagueIDs(cfg), nil
 }
 
-// Check resolves the season's game key, then fetches every league's settings
-// (skipped when the game key is unknown), and classifies the results.
-func (c Checker) Check(ctx context.Context, season int, leagueIDs []int, checkedAt time.Time) Report {
-	report := Report{Season: season, CheckedAt: checkedAt, LeaguesChecked: len(leagueIDs)}
-	gameKeyResource := resource.GameKey{Season: season}
+// leagueIDs returns a season's configured league IDs.
+func leagueIDs(cfg config.Season) []int {
+	ids := make([]int, 0, len(cfg.Leagues))
+	for _, league := range cfg.Leagues {
+		ids = append(ids, league.LeagueID)
+	}
+	return ids
+}
+
+// ResolveChecks returns the seasons to check, the requested one first: the
+// requested season (or the latest configured season when requested is 0), then
+// the season before it as a control. The control's league IDs come from the
+// seasons config when it lists the season, so the game key is always probed
+// and the leagues too when they are known.
+func ResolveChecks(seasons config.YahooSeasonsMap, requested int) ([]SeasonCheck, error) {
+	primary, leagueIDs, err := ResolveSeason(seasons, requested)
+	if err != nil {
+		return nil, err
+	}
+	checks := []SeasonCheck{{Season: primary, LeagueIDs: leagueIDs}}
+	if previous := primary - 1; previous > 0 {
+		checks = append(checks, SeasonCheck{Season: previous, LeagueIDs: configuredLeagueIDs(seasons, previous)})
+	}
+	return checks, nil
+}
+
+// configuredLeagueIDs returns a season's configured league IDs, or nil when
+// the season is not in the config.
+func configuredLeagueIDs(seasons config.YahooSeasonsMap, season int) []int {
+	cfg, ok := seasons[season]
+	if !ok {
+		return nil
+	}
+	return leagueIDs(cfg)
+}
+
+// Check probes every named season's game key, then its league settings
+// (skipped when the game key is unknown), and classifies each season's
+// results.
+func (c Checker) Check(ctx context.Context, checks []SeasonCheck, checkedAt time.Time) Report {
+	report := Report{CheckedAt: checkedAt, Seasons: make([]SeasonResult, 0, len(checks))}
+	for _, check := range checks {
+		report.Seasons = append(report.Seasons, c.checkSeason(ctx, check))
+	}
+	return report
+}
+
+// checkSeason resolves one season's game key, then fetches its league settings.
+func (c Checker) checkSeason(ctx context.Context, check SeasonCheck) SeasonResult {
+	result := SeasonResult{Season: check.Season, LeaguesChecked: len(check.LeagueIDs)}
+	gameKeyResource := resource.GameKey{Season: check.Season}
 	gameKeyProbe, body := c.probe(ctx, "game key", gameKeyResource.URL())
 	gameKey := 0
 	if gameKeyProbe.StatusCode == http.StatusOK {
@@ -119,22 +197,22 @@ func (c Checker) Check(ctx context.Context, season int, leagueIDs []int, checked
 		}
 		gameKey = key
 	}
-	report.Probes = append(report.Probes, gameKeyProbe)
+	result.Probes = append(result.Probes, gameKeyProbe)
 
-	for _, leagueID := range leagueIDs {
+	for _, leagueID := range check.LeagueIDs {
 		name := fmt.Sprintf("league %d settings", leagueID)
 		if gameKey == 0 {
-			report.Probes = append(report.Probes, Probe{Name: name, Skipped: true, Detail: "not checked: game key unknown"})
+			result.Probes = append(result.Probes, Probe{Name: name, Skipped: true, Detail: "not checked: game key unknown"})
 			continue
 		}
-		probe, _ := c.probe(ctx, name, resource.League{Season: season, LeagueID: leagueID, GameKey: gameKey}.URL())
+		probe, _ := c.probe(ctx, name, resource.League{Season: check.Season, LeagueID: leagueID, GameKey: gameKey}.URL())
 		if probe.StatusCode == http.StatusOK {
-			report.LeaguesServed++
+			result.LeaguesServed++
 		}
-		report.Probes = append(report.Probes, probe)
+		result.Probes = append(result.Probes, probe)
 	}
-	report.Outcome = classify(report.Probes)
-	return report
+	result.Outcome = classify(result.Probes)
+	return result
 }
 
 // classify returns Failed when any probe failed, else NotAuthorized when any

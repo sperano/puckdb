@@ -9,29 +9,39 @@ can email the answer. The intended use is a daily Kubernetes CronJob.
 
 ## What it checks
 
-It makes the same calls the importer makes, using the stored OAuth token:
+It makes the same calls the importer makes, using the stored OAuth token, for
+two seasons:
 
-1. It resolves the season's game key (`games;game_codes=nhl;seasons=<season>`).
-2. If the game key resolves, it fetches the settings of every league the Yahoo
-   seasons config lists for that season (`league/<gameKey>.l.<id>/settings`).
-   If the game key does not resolve, the leagues are listed as not checked.
+1. The requested season, and the season before it as a control. The control
+   shows whether the app still reaches a season Yahoo already serves, which
+   tells "the app lost its access" apart from "the new season is not served
+   yet". The control is diagnostic: only the requested season decides the
+   outcome below and the exit code, and its result still appears in the report
+   and subject.
+2. For each season it resolves the game key
+   (`games;game_codes=nhl;seasons=<season>`), then, if the game key resolves,
+   fetches the settings of every league the Yahoo seasons config lists for that
+   season (`league/<gameKey>.l.<id>/settings`). When a season is not in the
+   config only its game key is probed; when the game key does not resolve its
+   leagues are listed as not checked.
 
-`--yahoo-check-season` picks the season. The default is 0, which means the
-latest season in the Yahoo seasons config.
+`--yahoo-check-season` picks the requested season. The default is 0, which
+means the latest season in the Yahoo seasons config.
 
 | Outcome | Meaning | Exit code |
 | --- | --- | --- |
-| `AUTHORIZED` | Every call returned 200 | 0 |
-| `NOT AUTHORIZED` | Every failed call was a 403 (Yahoo's error text is in the report) | 0 |
-| `ERROR` | The check could not decide. Examples: no seasons config, no leagues for the season, no token or refresh rejected (sign in again at `/yahoo/login`), a network error, another status, an unreadable game key | 1 |
+| `AUTHORIZED` | Every requested-season call returned 200 | 0 |
+| `NOT AUTHORIZED` | Every failed requested-season call was a 403 (Yahoo's error text is in the report) | 0 |
+| `ERROR` | The requested season could not decide. Examples: no seasons config, no leagues for the requested season, no token or refresh rejected (sign in again at `/yahoo/login`), a network error, another status, an unreadable game key | 1 |
 
 The command prints the report. When `--notify-email-to` is set, it also emails
-the report. The subject carries the outcome, so you can read it without
-opening the email:
+the report. The subject carries each season's outcome, so you can read it
+without opening the email:
 
 ```
-[puckdb] Yahoo app AUTHORIZED for 2026 (2/2 leagues) - 2026-10-01
-[puckdb] Yahoo app NOT authorized yet for 2026 (0/2 leagues) - 2026-10-01
+[puckdb] Yahoo app: 2026 AUTHORIZED (2/2 leagues); 2025 AUTHORIZED (1/1 leagues) - 2026-10-01
+[puckdb] Yahoo app: 2026 NOT authorized yet (0/2 leagues); 2025 AUTHORIZED (1/1 leagues) - 2026-10-01
+[puckdb] Yahoo app: 2026 AUTHORIZED (2/2 leagues); 2025 ERROR - 2026-10-01
 [puckdb] Yahoo access check ERROR - 2026-10-01
 ```
 
@@ -47,7 +57,7 @@ environment variable.
 
 | Flag | Env var | Default | Notes |
 | --- | --- | --- | --- |
-| `--yahoo-check-season` | `PUCKDB_YAHOO_CHECK_SEASON` | `0` | 0 = latest configured season |
+| `--yahoo-check-season` | `PUCKDB_YAHOO_CHECK_SEASON` | `0` | 0 = latest configured season; the season before the requested one is always checked as a control |
 | `--notify-email-to` | `PUCKDB_NOTIFY_EMAIL_TO` | empty | Comma-separated recipients; empty = print only |
 | `--smtp-host` | `PUCKDB_SMTP_HOST` | empty | SMTP submission server |
 | `--smtp-port` | `PUCKDB_SMTP_PORT` | `587` | Implicit TLS (port 465) is not supported |

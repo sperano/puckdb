@@ -166,8 +166,8 @@ const (
 // Yahoo access check flags
 const (
 	// FlagYahooCheckSeason is the season (start year) whose Yahoo API access
-	// `yahoo check-access` probes; 0 picks the latest season in the Yahoo
-	// seasons config.
+	// `yahoo check-access` probes first, alongside the season before it; 0
+	// picks the latest season in the Yahoo seasons config.
 	FlagYahooCheckSeason = "yahoo-check-season"
 )
 
@@ -382,7 +382,7 @@ var YahooSeasonsFlags = FlagGroup{
 // YahooAccessCheckFlags defines the `yahoo check-access` flags.
 var YahooAccessCheckFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagYahooCheckSeason, "", DefaultYahooCheckSeason, "Season (start year) to check; 0 = latest season in the Yahoo seasons config", false},
+		{FlagYahooCheckSeason, "", DefaultYahooCheckSeason, "Season (start year) to check first, with the season before it as a control; 0 = latest season in the Yahoo seasons config", false},
 	},
 }
 
