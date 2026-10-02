@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -12,6 +13,7 @@ import (
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/notify"
+	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/yahooaccess"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -21,6 +23,7 @@ var yahooCheckFlagGroups = []*config.FlagGroup{
 	&config.RedisFlags,
 	&config.YahooOAuth2Flags,
 	&config.YahooSeasonsFlags,
+	&config.DataPathFlags,
 	&config.YahooAccessCheckFlags,
 	&config.NotifyEmailFlags,
 }
@@ -31,7 +34,9 @@ func cmdYahooCheckAccess() *cobra.Command {
 		Short: "Check whether the Yahoo API serves a season's leagues",
 		Long: `Check whether the Yahoo Fantasy API serves a season's leagues to this app:
 resolve the season's game key, then fetch every configured league's settings
-with the stored OAuth token. Also probes the season before the requested one as
+with the stored OAuth token. When the game key lookup fails, the leagues are
+still probed with the game key cached in --data-path, as the importer does.
+Also probes the season before the requested one as
 a control, so the report shows whether the app still reaches a season Yahoo
 already serves. Prints AUTHORIZED, NOT AUTHORIZED (Yahoo answers 403) or ERROR
 (no usable token, network or unexpected response) per season, and emails the
@@ -92,6 +97,10 @@ func checkYahooAccess(ctx context.Context) yahooaccess.Report {
 	if err != nil {
 		return yahooaccess.FailedReport(checkedAt, err)
 	}
+	storage, err := cachedDataStorage()
+	if err != nil {
+		return yahooaccess.FailedReport(checkedAt, err)
+	}
 	redisClient := cache.NewClient()
 	defer redisClient.Close()
 	if err := cache.WaitReady(ctx, redisClient, config.DefaultRedisReadyRetries, config.DefaultRedisReadyRetryDelay); err != nil {
@@ -104,8 +113,27 @@ func checkYahooAccess(ctx context.Context) yahooaccess.Report {
 	if err != nil {
 		return yahooaccess.FailedReport(checkedAt, err)
 	}
-	checker := yahooaccess.Checker{Client: client, Timeout: config.DefaultHTTPClientTimeout}
+	checker := yahooaccess.Checker{Client: client, Timeout: config.DefaultHTTPClientTimeout, Storage: storage}
 	return checker.Check(ctx, checks, checkedAt)
+}
+
+// cachedDataStorage returns the storage of the data path holding the
+// importer's cached game keys, or nil when --data-path is not set. A data path
+// that is set but is not a directory (a volume that is not mounted) is an
+// error, so the report does not blame Yahoo for a missing cache.
+func cachedDataStorage() (store.Storage, error) {
+	dataPath := viper.GetString(config.FlagDataPath)
+	if dataPath == "" {
+		return nil, nil
+	}
+	info, err := os.Stat(dataPath)
+	if err != nil {
+		return nil, fmt.Errorf("data path: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("data path %s is not a directory", dataPath)
+	}
+	return store.NewFSStorage(dataPath), nil
 }
 
 func smtpConfigFromFlags() notify.SMTPConfig {

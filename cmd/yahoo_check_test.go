@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/config"
@@ -39,4 +41,30 @@ func TestRunYahooCheckAccess_RejectsBadEmailConfigBeforeChecking(t *testing.T) {
 			require.Empty(t, out.String())
 		})
 	}
+}
+
+// The cached game key fallback is off without a data path, and a data path
+// that is not a directory is refused.
+func TestCachedDataStorage(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	storage, err := cachedDataStorage()
+	require.NoError(t, err)
+	require.Nil(t, storage)
+
+	dir := t.TempDir()
+	viper.Set(config.FlagDataPath, dir)
+	storage, err = cachedDataStorage()
+	require.NoError(t, err)
+	require.NotNil(t, storage)
+
+	viper.Set(config.FlagDataPath, filepath.Join(dir, "not-mounted"))
+	_, err = cachedDataStorage()
+	require.ErrorContains(t, err, "data path")
+
+	file := filepath.Join(dir, "file")
+	require.NoError(t, os.WriteFile(file, nil, 0o600))
+	viper.Set(config.FlagDataPath, file)
+	_, err = cachedDataStorage()
+	require.ErrorContains(t, err, "not a directory")
 }

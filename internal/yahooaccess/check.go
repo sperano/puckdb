@@ -6,6 +6,10 @@
 // is not authorized to perform this action" for a new season while the app's
 // access request is pending (see config.LeagueMetadataSource), so a daily job
 // can report the day that changes.
+//
+// When the game key lookup returns no key, the check falls back to the game
+// key the importer cached in the data path, as the importer itself does, so
+// the leagues are still probed.
 package yahooaccess
 
 import (
@@ -22,6 +26,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/resource"
+	"github.com/sperano/puckdb/internal/store"
 )
 
 const (
@@ -31,6 +36,8 @@ const (
 	// maxDetailRunes bounds the response excerpt quoted in the report when
 	// Yahoo's error body carries no description.
 	maxDetailRunes = 300
+	// gameKeyProbeName names the game key lookup, the first probe of a season.
+	gameKeyProbeName = "game key"
 )
 
 // Outcome is the verdict of one check.
@@ -59,6 +66,9 @@ type Probe struct {
 	Skipped bool
 	// failed marks a probe that makes the whole check undecided.
 	failed bool
+	// informational marks a probe reported but left out of the outcome: a
+	// game key lookup bypassed by a cached game key.
+	informational bool
 }
 
 // SeasonCheck names one season to probe: its game key, then the settings of
@@ -76,6 +86,10 @@ type SeasonResult struct {
 	Probes         []Probe
 	LeaguesServed  int
 	LeaguesChecked int
+	// GameKeyNote says where the league calls' game key came from when the
+	// lookup returned none: the cached copy, or why none was usable. Empty
+	// when the lookup returned the key or no league was to be probed.
+	GameKeyNote string
 }
 
 // Report is the result of one check. The requested season comes first in
@@ -114,6 +128,10 @@ type Checker struct {
 	Client *http.Client
 	// Timeout bounds each call; it must be positive.
 	Timeout time.Duration
+	// Storage reads the data path the importer caches Yahoo files in. When
+	// the game key lookup returns no key, the league calls use the cached
+	// game key instead. Nil disables the fallback.
+	Storage store.Storage
 }
 
 // FailedReport is the report of a check that could not start.
@@ -187,18 +205,9 @@ func (c Checker) Check(ctx context.Context, checks []SeasonCheck, checkedAt time
 // checkSeason resolves one season's game key, then fetches its league settings.
 func (c Checker) checkSeason(ctx context.Context, check SeasonCheck) SeasonResult {
 	result := SeasonResult{Season: check.Season, LeaguesChecked: len(check.LeagueIDs)}
-	gameKeyResource := resource.GameKey{Season: check.Season}
-	gameKeyProbe, body := c.probe(ctx, "game key", gameKeyResource.URL())
-	gameKey := 0
-	if gameKeyProbe.StatusCode == http.StatusOK {
-		key, err := gameKeyResource.ParseKey(body)
-		if err != nil {
-			gameKeyProbe.Detail, gameKeyProbe.failed = err.Error(), true
-		}
-		gameKey = key
-	}
+	gameKeyProbe, gameKey, note := c.resolveGameKey(ctx, check)
 	result.Probes = append(result.Probes, gameKeyProbe)
-
+	result.GameKeyNote = note
 	for _, leagueID := range check.LeagueIDs {
 		name := fmt.Sprintf("league %d settings", leagueID)
 		if gameKey == 0 {
@@ -215,12 +224,43 @@ func (c Checker) checkSeason(ctx context.Context, check SeasonCheck) SeasonResul
 	return result
 }
 
+// resolveGameKey probes the season's game key lookup and returns the probe,
+// the game key (0 when unknown) and the SeasonResult.GameKeyNote. When the
+// lookup returns no key and leagues are to be probed, it falls back to the
+// cached game key; the lookup is then informational, as it is to the
+// importer, and the league calls decide the outcome. A data path that cannot
+// be read fails the probe: the check cannot tell what the importer would do.
+func (c Checker) resolveGameKey(ctx context.Context, check SeasonCheck) (Probe, int, string) {
+	gameKeyResource := resource.GameKey{Season: check.Season}
+	probe, body := c.probe(ctx, gameKeyProbeName, gameKeyResource.URL())
+	if probe.StatusCode == http.StatusOK {
+		key, err := gameKeyResource.ParseKey(body)
+		if err == nil {
+			return probe, key, ""
+		}
+		probe.Detail, probe.failed = err.Error(), true
+	}
+	if len(check.LeagueIDs) == 0 {
+		return probe, 0, ""
+	}
+	key, note, err := c.cachedGameKey(ctx, check.Season)
+	if err != nil {
+		probe.failed = true
+		return probe, 0, note
+	}
+	probe.informational = key != 0
+	return probe, key, note
+}
+
 // classify returns Failed when any probe failed, else NotAuthorized when any
 // probe got a 403 (or was skipped because of one), else Authorized.
+// Informational probes do not count.
 func classify(probes []Probe) Outcome {
 	outcome := Authorized
 	for _, p := range probes {
 		switch {
+		case p.informational:
+			// A game key lookup bypassed by the cached key.
 		case p.failed:
 			return Failed
 		case p.Skipped:

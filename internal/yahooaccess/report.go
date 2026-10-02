@@ -59,6 +59,11 @@ func (r Report) Text() string {
 			if p.URL != "" {
 				fmt.Fprintf(&b, "  %s\n", p.URL)
 			}
+			// The note says which key the league calls below the lookup used
+			// when the lookup returned none.
+			if p.Name == gameKeyProbeName && season.GameKeyNote != "" {
+				fmt.Fprintf(&b, "- cached game key: %s\n", season.GameKeyNote)
+			}
 		}
 	}
 	b.WriteString("\n")

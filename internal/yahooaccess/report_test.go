@@ -110,16 +110,17 @@ func TestReport_Text(t *testing.T) {
 				Season:  testSeason,
 				Outcome: NotAuthorized,
 				Probes: []Probe{
-					{Name: "game key", URL: gameKeyURL, StatusCode: http.StatusForbidden, Detail: notAuthorized},
+					{Name: gameKeyProbeName, URL: gameKeyURL, StatusCode: http.StatusForbidden, Detail: notAuthorized},
 					{Name: "league 111 settings", Skipped: true, Detail: "not checked: game key unknown"},
 				},
 				LeaguesChecked: 1,
+				GameKeyNote:    "none: game-keys/gamekey-2026.xml is not in the data path",
 			},
 			{
 				Season:  testPreviousSeason,
 				Outcome: Authorized,
 				Probes: []Probe{
-					{Name: "game key", URL: previousGameKeyURL, StatusCode: http.StatusOK},
+					{Name: gameKeyProbeName, URL: previousGameKeyURL, StatusCode: http.StatusOK},
 				},
 			},
 		},
@@ -130,6 +131,7 @@ func TestReport_Text(t *testing.T) {
 		"2026 season: NOT AUTHORIZED\n" +
 		"- game key: 403 Forbidden - " + notAuthorized + "\n" +
 		"  " + gameKeyURL + "\n" +
+		"- cached game key: none: game-keys/gamekey-2026.xml is not in the data path\n" +
 		"- league 111 settings: not checked: game key unknown\n\n" +
 		"2025 season: AUTHORIZED\n" +
 		"- game key: 200 OK\n" +

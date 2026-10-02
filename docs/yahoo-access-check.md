@@ -22,17 +22,27 @@ two seasons:
    (`games;game_codes=nhl;seasons=<season>`), then, if the game key resolves,
    fetches the settings of every league the Yahoo seasons config lists for that
    season (`league/<gameKey>.l.<id>/settings`). When a season is not in the
-   config only its game key is probed; when the game key does not resolve its
-   leagues are listed as not checked.
+   config only its game key is probed.
+3. When the game key lookup returns no key (a 403, another error or an
+   unreadable response), the check reads the game key the importer cached in
+   the data path (`game-keys/gamekey-<season>.xml` under `--data-path`) and
+   still fetches the league settings with it. The importer reads that cached
+   copy before it ever calls Yahoo, so the lookup does not matter to it: the
+   lookup's result stays in the report, but the league calls decide the
+   season's outcome. The report shows the cached key on a `cached game key`
+   line, or why none was usable (no `--data-path`, no file, a malformed file).
+   Without a usable cached key the leagues are listed as not checked. A
+   `--data-path` that is not a directory, or a cached file that cannot be read,
+   makes the check ERROR rather than blame Yahoo.
 
 `--yahoo-check-season` picks the requested season. The default is 0, which
 means the latest season in the Yahoo seasons config.
 
 | Outcome | Meaning | Exit code |
 | --- | --- | --- |
-| `AUTHORIZED` | Every requested-season call returned 200 | 0 |
-| `NOT AUTHORIZED` | Every failed requested-season call was a 403 (Yahoo's error text is in the report) | 0 |
-| `ERROR` | The requested season could not decide. Examples: no seasons config, no leagues for the requested season, no token or refresh rejected (sign in again at `/yahoo/login`), a network error, another status, an unreadable game key | 1 |
+| `AUTHORIZED` | Every requested-season call returned 200 (the game key lookup excepted when the leagues used the cached game key) | 0 |
+| `NOT AUTHORIZED` | Every failed requested-season call was a 403 (Yahoo's error text is in the report), the game key lookup excepted when the leagues used the cached game key | 0 |
+| `ERROR` | The requested season could not decide. Examples: no seasons config, no leagues for the requested season, no token or refresh rejected (sign in again at `/yahoo/login`), a network error, another status, an unreadable game key, a `--data-path` that is not a directory or cannot be read | 1 |
 
 The command prints the report. When `--notify-email-to` is set, it also emails
 the report. The subject carries each season's outcome, so you can read it
@@ -58,6 +68,7 @@ environment variable.
 | Flag | Env var | Default | Notes |
 | --- | --- | --- | --- |
 | `--yahoo-check-season` | `PUCKDB_YAHOO_CHECK_SEASON` | `0` | 0 = latest configured season; the season before the requested one is always checked as a control |
+| `--data-path` | `PUCKDB_DATA_PATH` | empty | The worker's data path, read only for cached game keys; empty = no fallback when the game key lookup fails |
 | `--notify-email-to` | `PUCKDB_NOTIFY_EMAIL_TO` | empty | Comma-separated recipients; empty = print only |
 | `--smtp-host` | `PUCKDB_SMTP_HOST` | empty | SMTP submission server |
 | `--smtp-port` | `PUCKDB_SMTP_PORT` | `587` | Implicit TLS (port 465) is not supported |
@@ -84,8 +95,10 @@ The check also needs what the worker uses to reach Yahoo:
 
 The CronJob lives with the deploy manifests, outside this repository. It runs
 the worker image with `args: ["yahoo", "check-access"]`, the environment above
-and the seasons config mounted from its ConfigMap; it needs no database or data
-volume. Use `concurrencyPolicy: Forbid`, `backoffLimit: 0` and
+and the seasons config mounted from its ConfigMap. It needs no database. Mount
+the worker's data volume (read-only is enough) and set `PUCKDB_DATA_PATH` to
+it, so the leagues are still probed when the game key lookup fails; without it
+they are listed as not checked. Use `concurrencyPolicy: Forbid`, `backoffLimit: 0` and
 `restartPolicy: Never`, so a failed run does not retry and send a second email
 the same day. To test it right after applying it:
 
