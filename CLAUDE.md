@@ -468,12 +468,14 @@ Interactive REPL for querying hockey data via natural language. Connects to an L
 
 | Flag | Env Var | Default | Description |
 |------|---------|---------|-------------|
-| `maurice-model` | `PUCKDB_MAURICE_MODEL` | `llama3.1:8b` | LLM model name |
-| `maurice-base-url` | `PUCKDB_MAURICE_BASE_URL` | `http://localhost:11434/v1` | LLM endpoint (Ollama default) |
-| `maurice-api-key` | `PUCKDB_MAURICE_API_KEY` | (empty) | API key (required for Anthropic/OpenAI) |
+| `maurice-model` | `PUCKDB_MAURICE_MODEL` | `claude-sonnet-5-5` | Model ID; must be in `mauriceModels` (`cmd/maurice.go`), which also picks the provider. Unknown IDs fail startup |
+| `ollama-base-url` | `PUCKDB_OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Ollama (OpenAI-compatible) endpoint |
+| `anthropic-api-key` | `PUCKDB_ANTHROPIC_API_KEY` | (empty) | Required for Anthropic models |
+| `openai-api-key` | `PUCKDB_OPENAI_API_KEY` | (empty) | Required for OpenAI models |
 | `maurice-config` | `PUCKDB_MAURICE_CONFIG` | `~/.puckdb/maurice.yaml` | Path to Maurice config file |
 | `maurice-max-tokens` | `PUCKDB_MAURICE_MAX_TOKENS` | `4096` | Max response tokens |
 | `maurice-max-history` | `PUCKDB_MAURICE_MAX_HISTORY` | `50` | Conversation history depth |
+| `maurice-max-tool-rounds` | `PUCKDB_MAURICE_MAX_TOOL_ROUNDS` | `10` | Max tool-call rounds per message |
 
 ### REPL Commands
 

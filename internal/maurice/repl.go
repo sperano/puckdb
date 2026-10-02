@@ -3,6 +3,7 @@ package maurice
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -25,10 +26,26 @@ type ModelEntry struct {
 	Provider    llm.Provider
 }
 
+// ErrUnknownModel reports a model ID that is not in the Maurice model registry.
+var ErrUnknownModel = errors.New("unknown Maurice model")
+
+// FindModel returns the entry in models whose ID matches id. An unknown ID is
+// an error rather than a fallback, so a typo or a model missing from the
+// registry fails loudly instead of being routed to the wrong provider.
+func FindModel(models []ModelEntry, id string) (ModelEntry, error) {
+	for _, e := range models {
+		if e.ID == id {
+			return e, nil
+		}
+	}
+	return ModelEntry{}, fmt.Errorf("%w %q", ErrUnknownModel, id)
+}
+
 // REPLConfig holds all inputs required to run the interactive REPL.
 type REPLConfig struct {
 	DB              DB
 	Models          []ModelEntry
+	InitialModel    string // model ID selected at startup; must be one of Models
 	ProviderConfigs map[llm.Provider]llm.ProviderConfig
 	MCPClient       mcp.Client
 	MaxHistory      int
@@ -114,11 +131,10 @@ func formatPrompt(model string) string {
 // RunREPL starts the interactive Maurice chat loop and blocks until the user
 // exits or the context is cancelled.
 func RunREPL(ctx context.Context, cfg REPLConfig) error {
-	if len(cfg.Models) == 0 {
-		return fmt.Errorf("no models configured")
+	currentEntry, err := FindModel(cfg.Models, cfg.InitialModel)
+	if err != nil {
+		return fmt.Errorf("select initial model: %w", err)
 	}
-
-	currentEntry := cfg.Models[0]
 
 	buildService := func(entry ModelEntry) Service {
 		pcfg := cfg.ProviderConfigs[entry.Provider]

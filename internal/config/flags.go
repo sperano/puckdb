@@ -275,6 +275,7 @@ const (
 
 // Maurice AI chat flags
 const (
+	FlagMauriceModel         = "maurice-model"
 	FlagMauriceConfig        = "maurice-config"
 	FlagMauriceMaxTokens     = "maurice-max-tokens"
 	FlagMauriceMaxHistory    = "maurice-max-history"
@@ -466,6 +467,7 @@ var WorkerConcurrencyFlags = FlagGroup{
 // MauriceFlags defines Maurice AI chat flags.
 var MauriceFlags = FlagGroup{
 	Flags: []FlagDef{
+		{FlagMauriceModel, "", DefaultMauriceModel, "Maurice LLM model ID (must be a registered Maurice model)", false},
 		{FlagMauriceConfig, "", DefaultMauriceConfig, "Path to Maurice config file (MCP servers, etc.)", false},
 		{FlagMauriceMaxTokens, "", DefaultMauriceMaxTokens, "Maurice max tokens per completion", false},
 		{FlagMauriceMaxHistory, "", DefaultMauriceMaxHistory, "Maurice max conversation history messages", false},

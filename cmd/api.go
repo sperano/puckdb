@@ -241,18 +241,14 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 		OpenAIAPIKey:    viper.GetString(config.FlagOpenAIAPIKey),
 	})
 
-	// Resolve model to a known registry entry, defaulting to Ollama.
-	provider := llm.ProviderOllama
-	model := "claude-sonnet-4-6"
-	for _, e := range mauriceModels {
-		if e.ID == model {
-			provider = e.Provider
-			break
-		}
+	entry, err := maurice.FindModel(mauriceModels, viper.GetString(config.FlagMauriceModel))
+	if err != nil {
+		mcpClient.Close()
+		return nil, nil, fmt.Errorf("select model: %w", err)
 	}
 
-	cfg := providerConfigs[provider]
-	llmClient := llm.NewClientForProvider(provider, cfg, model)
+	cfg := providerConfigs[entry.Provider]
+	llmClient := llm.NewClientForProvider(entry.Provider, cfg, entry.ID)
 
 	svc := maurice.NewService(
 		llmClient,
@@ -271,8 +267,8 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 	}
 
 	log.Info().
-		Str("provider", provider.String()).
-		Str("model", model).
+		Str("provider", entry.Provider.String()).
+		Str("model", entry.ID).
 		Msg("Maurice AI chat initialized")
 
 	return svc, cleanup, nil

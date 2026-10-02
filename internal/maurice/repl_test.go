@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/sperano/puckdb/internal/llm"
 )
 
 // readLinesTestTimeout bounds how long a test waits for the readLines
@@ -74,5 +76,38 @@ func receiveLine(t *testing.T, lines <-chan string) string {
 	case <-time.After(readLinesTestTimeout):
 		t.Fatal("timed out waiting for line")
 		return ""
+	}
+}
+
+func TestFindModel(t *testing.T) {
+	t.Parallel()
+	models := []ModelEntry{
+		{ID: "model-a", Provider: llm.ProviderAnthropic},
+		{ID: "model-b", Provider: llm.ProviderOllama},
+	}
+
+	tests := []struct {
+		name    string
+		models  []ModelEntry
+		id      string
+		want    ModelEntry
+		wantErr error
+	}{
+		{name: "found", models: models, id: "model-b", want: models[1]},
+		{name: "unknown id", models: models, id: "model-c", wantErr: ErrUnknownModel},
+		{name: "empty id", models: models, id: "", wantErr: ErrUnknownModel},
+		{name: "empty registry", models: nil, id: "model-a", wantErr: ErrUnknownModel},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := FindModel(tt.models, tt.id)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
 	}
 }

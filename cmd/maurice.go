@@ -24,6 +24,7 @@ const (
 
 var mauriceModels = []maurice.ModelEntry{
 	{ID: "claude-haiku-4-5-20251001", Description: "fastest, lightweight", Provider: llm.ProviderAnthropic},
+	{ID: "claude-sonnet-5-5", Description: "latest Sonnet, strong reasoning", Provider: llm.ProviderAnthropic},
 	{ID: "claude-sonnet-4-6", Description: "fast, strong reasoning", Provider: llm.ProviderAnthropic},
 	{ID: "claude-opus-4-6", Description: "highest capability", Provider: llm.ProviderAnthropic},
 	//{"gpt-4o", "fast multimodal", llm.ProviderOpenAI},
@@ -96,6 +97,7 @@ func runMaurice(cmd *cobra.Command) error {
 	return maurice.RunREPL(cmd.Context(), maurice.REPLConfig{
 		DB:              db,
 		Models:          mauriceModels,
+		InitialModel:    viper.GetString(config.FlagMauriceModel),
 		ProviderConfigs: providerConfigs,
 		MCPClient:       mcpClient,
 		MaxHistory:      maxHistory,

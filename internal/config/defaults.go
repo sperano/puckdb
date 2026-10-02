@@ -234,7 +234,7 @@ const (
 // Maurice AI chat defaults
 const (
 	DefaultOllamaBaseURL        = "http://localhost:11434/v1"
-	DefaultMauriceModel         = "llama3.1:8b"
+	DefaultMauriceModel         = "claude-sonnet-5-5"
 	DefaultMauriceConfig        = "" // empty = ~/.puckdb/maurice.yaml
 	DefaultMauriceMaxTokens     = 4096
 	DefaultMauriceMaxHistory    = 50
