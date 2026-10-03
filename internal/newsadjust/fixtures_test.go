@@ -21,7 +21,7 @@ const (
 	testSkaterKey    = "nhl:8478402"
 	testOtherKey     = "nhl:8479318"
 	testLeague1001   = "465.l.1001"
-	testLeague1002  = "465.l.1002"
+	testLeague1002   = "465.l.1002"
 	testEvidenceID   = 101
 	testGoalieStarts = 60
 	testGoalieShots  = 1800

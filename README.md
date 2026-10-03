@@ -241,8 +241,6 @@ go tool gqlgen generate
 
 Useful project references:
 
-- [Workflow design](docs/workflows.md)
-- [Fetch-seasons workflow](docs/fetch-seasons-workflow.md)
 - [Migration recovery](docs/migration-recovery.md)
 - [NHL Edge API notes](docs/nhl-edge-api.md)
 
