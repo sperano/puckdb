@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/stretchr/testify/assert"
 )
@@ -227,4 +228,28 @@ func TestFormatStatusMessage(t *testing.T) {
 // ptr returns a pointer to the given string
 func ptr(s string) *string {
 	return &s
+}
+
+// Labels with multi-byte characters (the "·" in Yahoo league bars) must be
+// padded by display width, or the Total row's bar starts one column off.
+func TestRenderMultiBarGroup_AlignsMultiByteLabels(t *testing.T) {
+	labels := []string{"2026-27 · 21706", "2026-27 · 5621", "2026-27 · 29249"}
+	group := &model.ProgressGroup{Header: "Fetching Yahoo season metadata..."}
+	for _, label := range labels {
+		group.Bars = append(group.Bars, &model.ProgressBar{Label: &label, Current: 43, Total: 95, Started: true})
+	}
+
+	rows := strings.Split(renderMultiBarGroup(group), "\n")[1:] // skip the header
+	assert.Len(t, rows, len(labels)+1, "one row per bar plus the Total row")
+	want := -1
+	for _, row := range rows {
+		plain := ansiEscapeRe.ReplaceAllString(strings.ReplaceAll(row, SpinnerPlaceholder, " "), "")
+		bracket := strings.Index(plain, "[")
+		assert.GreaterOrEqual(t, bracket, 0, "row has no bar: %q", plain)
+		col := runewidth.StringWidth(plain[:bracket])
+		if want < 0 {
+			want = col
+		}
+		assert.Equal(t, want, col, "bar starts at a different column: %q", plain)
+	}
 }
