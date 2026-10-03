@@ -31,9 +31,13 @@ type PlanYahooLeaguePlayerPoolInput struct {
 }
 
 // YahooLeaguePlayerPoolPlan says whether to download the pool again.
+// PreviousPlayerCount is the player count of the last committed snapshot (0
+// when there is none or it is unreadable), which sizes the download's
+// progress before its pages arrive.
 type YahooLeaguePlayerPoolPlan struct {
-	Refresh bool   `json:"refresh"`
-	Reason  string `json:"reason"`
+	Refresh             bool   `json:"refresh"`
+	Reason              string `json:"reason"`
+	PreviousPlayerCount int    `json:"previousPlayerCount,omitempty"`
 }
 
 // FetchYahooLeaguePlayersPageInput names one page of one pool download.
@@ -88,9 +92,14 @@ func (a *FetchActivities) PlanYahooLeaguePlayerPool(ctx context.Context, input P
 	}
 	maxAge := time.Duration(shared.ViperIntOrDefault(config.FlagYahooPlayerPoolMaxAge, config.DefaultYahooPlayerPoolMaxAge)) * time.Hour
 	if age := now.Sub(manifest.FetchedAt); age < maxAge {
-		return YahooLeaguePlayerPoolPlan{Reason: fmt.Sprintf("pool downloaded %s ago", age.Truncate(time.Minute))}, nil
+		return YahooLeaguePlayerPoolPlan{
+			Reason:              fmt.Sprintf("pool downloaded %s ago", age.Truncate(time.Minute)),
+			PreviousPlayerCount: manifest.Players,
+		}, nil
 	}
-	return YahooLeaguePlayerPoolPlan{Refresh: true, Reason: "pool older than " + maxAge.String()}, nil
+	return YahooLeaguePlayerPoolPlan{
+		Refresh: true, Reason: "pool older than " + maxAge.String(), PreviousPlayerCount: manifest.Players,
+	}, nil
 }
 
 // leagueSeasonEnded reports whether the league's last day is over. A league

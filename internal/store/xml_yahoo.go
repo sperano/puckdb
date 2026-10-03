@@ -96,6 +96,8 @@ type League struct {
 	Scoreboard            Scoreboard      `xml:"scoreboard"`
 	// Players is filled by the league players collection (the draftable pool).
 	Players Players `xml:"players"`
+	// EndWeek is the league's last matchup week; 0 when Yahoo omits it.
+	EndWeek int `xml:"end_week"`
 }
 
 // ============================================================================

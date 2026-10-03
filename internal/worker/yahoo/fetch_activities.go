@@ -27,10 +27,6 @@ const (
 	leagueNotFoundErrorType = "YahooLeagueNotFound"
 )
 
-// maxMatchupWeeks is the upper bound for matchup week iteration.
-// NHL fantasy seasons are typically 23-26 weeks.
-const maxMatchupWeeks = 30
-
 // FetchActivities holds dependencies for Yahoo league and team fetching.
 type FetchActivities struct {
 	Storage          store.Storage
@@ -53,30 +49,36 @@ func logFetched(logger log.Logger, origin core.DataOrigin, what string, keyvals 
 	logger.Debug(what+" loaded from cache", keyvals...)
 }
 
+// FetchLeagueResult reports what the workflow needs from the league file to
+// size its progress: the last matchup week (0 when Yahoo omits it).
+type FetchLeagueResult struct {
+	EndWeek int `json:"endWeek,omitempty"`
+}
+
 // FetchLeague downloads a Yahoo fantasy league file for the given season and league.
 // Uses Redis → FileSystem cache; skips download if already cached.
-func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID int) error {
+func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID int) (FetchLeagueResult, error) {
 	defer metrics.TrackActivityDuration("FetchLeague")()
 	logger := activity.GetLogger(ctx)
 
 	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, season)
 	if err != nil {
-		return err
+		return FetchLeagueResult{}, err
 	}
 
 	res := resource.League{Season: season, LeagueID: leagueID, GameKey: gameKey}
-	_, origin, err := a.fetcher().Fetch(ctx, res)
+	content, origin, err := a.fetcher().Fetch(ctx, res)
 	if err != nil {
 		if isYahooBadRequest(err) {
-			return temporal.NewNonRetryableApplicationError(
+			return FetchLeagueResult{}, temporal.NewNonRetryableApplicationError(
 				fmt.Sprintf("season %d league %d was rejected by Yahoo (400): the league does not exist or "+
 					"is not accessible; check the league IDs in the Yahoo seasons config (or the season's game key)", season, leagueID),
 				leagueNotFoundErrorType, err)
 		}
-		return fmt.Errorf("fetch league %d/%d: %w", season, leagueID, err)
+		return FetchLeagueResult{}, fmt.Errorf("fetch league %d/%d: %w", season, leagueID, err)
 	}
 	logFetched(logger, origin, "League", "season", season, "leagueID", leagueID)
-	return nil
+	return FetchLeagueResult{EndWeek: content.League.EndWeek}, nil
 }
 
 // FetchYahooPlayerBatch fetches a range of Yahoo player pages (from cache or network).
@@ -112,8 +114,9 @@ func (a *FetchActivities) FetchYahooPlayerBatch(ctx context.Context, startID, en
 	return result, nil
 }
 
-// FetchTeams downloads Yahoo fantasy team pages for multiple teams.
-// This batches what would otherwise be N separate activity calls into one.
+// FetchTeams downloads Yahoo fantasy team pages for the given teams. The
+// season sync workflow calls it with one team at a time so each download
+// advances its progress; it still accepts a batch.
 // Uses Redis → FileSystem cache per team; skips download for cached teams.
 func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput) error {
 	defer metrics.TrackActivityDuration("FetchTeams")()
@@ -159,82 +162,6 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 	}
 
 	return nil
-}
-
-// FetchYahooLeagueData fetches transactions, draft results, and matchups for a single league.
-// Each data type is cached independently; already-cached items are skipped.
-func (a *FetchActivities) FetchYahooLeagueData(ctx context.Context, input FetchYahooLeagueDataInput) (FetchYahooLeagueDataResult, error) {
-	logger := activity.GetLogger(ctx)
-	result := FetchYahooLeagueDataResult{}
-
-	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.Season)
-	if err != nil {
-		return result, err
-	}
-
-	fetcher := a.fetcher()
-
-	txRes := resource.Transactions{Season: input.Season, LeagueID: input.LeagueID, GameKey: gameKey}
-	_, origin, err := fetcher.Fetch(ctx, txRes)
-	if err != nil {
-		if !isPreseasonResourceUnavailable(err) {
-			return result, fmt.Errorf("fetch transactions %d/%d: %w", input.Season, input.LeagueID, err)
-		}
-		result.UnavailableResources = append(result.UnavailableResources, "transactions")
-	} else {
-		logFetched(logger, origin, "Transactions", "season", input.Season, "leagueID", input.LeagueID)
-	}
-	activity.RecordHeartbeat(ctx, "transactions")
-
-	drRes := resource.DraftResults{Season: input.Season, LeagueID: input.LeagueID, GameKey: gameKey}
-	_, origin, err = fetcher.Fetch(ctx, drRes)
-	if err != nil {
-		if !isPreseasonResourceUnavailable(err) {
-			return result, fmt.Errorf("fetch draft results %d/%d: %w", input.Season, input.LeagueID, err)
-		}
-		result.UnavailableResources = append(result.UnavailableResources, "draft results")
-	} else {
-		logFetched(logger, origin, "Draft results", "season", input.Season, "leagueID", input.LeagueID)
-	}
-	activity.RecordHeartbeat(ctx, "draftresults")
-
-	matchupsUnavailable, err := a.fetchMatchups(ctx, fetcher, input, gameKey)
-	if err != nil {
-		return result, err
-	}
-	if matchupsUnavailable {
-		result.UnavailableResources = append(result.UnavailableResources, "matchups")
-	}
-
-	logger.Info("Fetched Yahoo league data", "season", input.Season, "leagueID", input.LeagueID)
-	return result, nil
-}
-
-// fetchMatchups fetches matchups week-by-week until Yahoo rejects a week (end
-// of the series). Any other failure is returned so Temporal retries it.
-func (a *FetchActivities) fetchMatchups(ctx context.Context, fetcher Fetcher, input FetchYahooLeagueDataInput, gameKey int) (bool, error) {
-	logger := activity.GetLogger(ctx)
-	for week := 1; week <= maxMatchupWeeks; week++ {
-		select {
-		case <-ctx.Done():
-			return false, ctx.Err()
-		default:
-		}
-		activity.RecordHeartbeat(ctx, fmt.Sprintf("matchups:week%d", week))
-		res := resource.Matchups{
-			Season: input.Season, LeagueID: input.LeagueID, Week: week, GameKey: gameKey,
-		}
-		_, origin, err := fetcher.Fetch(ctx, res)
-		if isEndOfMatchupWeeks(err) {
-			logger.Info("Stopped fetching matchups at week", "week", week, "error", err)
-			return week == 1, nil
-		}
-		if err != nil {
-			return false, fmt.Errorf("fetch matchups %d/%d week %d: %w", input.Season, input.LeagueID, week, err)
-		}
-		logFetched(logger, origin, "Matchups", "season", input.Season, "leagueID", input.LeagueID, "week", week)
-	}
-	return false, nil
 }
 
 // isYahooBadRequest reports whether err is a Yahoo API 400 surfaced by Fetcher

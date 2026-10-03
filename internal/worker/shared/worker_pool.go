@@ -93,6 +93,27 @@ func (t *ReportTracker) RunWorkerPoolMultiBarSuccessful(ctx workflow.Context, gr
 	}})
 }
 
+// RunWorkerPoolBarRangesSuccessful runs work items where item i owns the bars
+// of ranges[i]: they are marked started when the item is dispatched and
+// complete only after it succeeds (handler included, so it may resize them
+// first). A failed item's bars stay incomplete.
+func (t *ReportTracker) RunWorkerPoolBarRangesSuccessful(ctx workflow.Context, groupIdx int, ranges []BarRange,
+	concurrency int, startActivity ActivityStarter, handler ResultHandler) error {
+	return runWorkerPool(ctx, len(ranges), concurrency, startActivity, func(ctx workflow.Context, index int, future workflow.Future) error {
+		if handler != nil {
+			if err := handler(ctx, index, future); err != nil {
+				return err
+			}
+		} else if err := future.Get(ctx, nil); err != nil {
+			return err
+		}
+		t.CompleteBars(ctx, groupIdx, ranges[index])
+		return nil
+	}, workerPoolHooks{onStart: func(ctx workflow.Context, index int) {
+		t.StartBars(ctx, groupIdx, ranges[index])
+	}})
+}
+
 // runWorkerPool is the single scheduler behind the RunWorkerPool* variants.
 // It dispatches work items [0, total) through startActivity with at most
 // concurrency futures in flight, invoking hooks around each item's lifecycle.

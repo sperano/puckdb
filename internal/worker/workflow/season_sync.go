@@ -176,7 +176,7 @@ func seasonSyncPastVerb(mode seasonSyncMode) string {
 func processYahooSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, seasons []YahooSeasonWorkflowInput,
 	concurrency int, rangeLabel string, mode seasonSyncMode) error {
 	cleanupStaleYahooReports(ctx, seasons, mode)
-	addYahooSeasonBars(tracker, seasons, mode)
+	bars := addYahooSeasonBars(tracker, seasons, mode)
 	tracker.StartGroup(ctx, groupYahooMetadata)
 	if len(seasons) == 0 {
 		tracker.CompleteGroup(ctx, groupYahooMetadata,
@@ -184,9 +184,15 @@ func processYahooSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker
 		return nil
 	}
 	results := make([]YahooSeasonSyncResult, len(seasons))
-	err := tracker.RunWorkerPoolMultiBarSuccessful(ctx, groupYahooMetadata, 0, len(seasons), concurrency,
+	err := tracker.RunWorkerPoolBarRangesSuccessful(ctx, groupYahooMetadata, bars, concurrency,
 		func(ctx workflow.Context, i int) workflow.Future { return startYahooSeasonChild(ctx, seasons[i], mode) },
-		func(ctx workflow.Context, i int, future workflow.Future) error { return future.Get(ctx, &results[i]) })
+		func(ctx workflow.Context, i int, future workflow.Future) error {
+			if err := future.Get(ctx, &results[i]); err != nil {
+				return err
+			}
+			applyYahooLeagueTotals(tracker, bars[i], results[i].LeagueTotals)
+			return nil
+		})
 	if err != nil {
 		tracker.SetMessage(ctx, fmt.Sprintf("Yahoo metadata partially completed for %s: %v", rangeLabel, err))
 		return err

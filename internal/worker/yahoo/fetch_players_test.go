@@ -98,6 +98,7 @@ func TestPlanYahooLeaguePlayerPool_OldManifest_Refreshes(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, plan.Refresh)
 	assert.Contains(t, plan.Reason, "older than")
+	assert.Equal(t, 7, plan.PreviousPlayerCount, "the old snapshot sizes the new download")
 }
 
 func TestPlanYahooLeaguePlayerPool_UnreadableManifest_Refreshes(t *testing.T) {
@@ -112,6 +113,7 @@ func TestPlanYahooLeaguePlayerPool_UnreadableManifest_Refreshes(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, plan.Refresh)
 	assert.Contains(t, plan.Reason, "unreadable")
+	assert.Zero(t, plan.PreviousPlayerCount)
 }
 
 func TestPlanYahooLeaguePlayerPool_MissingLeagueFile_Error(t *testing.T) {

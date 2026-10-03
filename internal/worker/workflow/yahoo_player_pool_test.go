@@ -39,11 +39,14 @@ func newPoolFetchEnv(t *testing.T) *testsuite.TestWorkflowEnvironment {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(FetchYahooSeasonWorkflow)
+	// Progress is saved after every page; a failing save would retry on a
+	// timer and move the clock that poolPageAt matches download IDs against.
+	mockProgressSaves(env)
 	var activities *yahoo.FetchActivities
-	env.OnActivity(activities.FetchLeague, mock.Anything, preseasonTestYear, preseasonTestLeagueID).Return(nil)
+	env.OnActivity(activities.FetchLeague, mock.Anything, preseasonTestYear, preseasonTestLeagueID).
+		Return(yahoo.FetchLeagueResult{}, nil)
 	env.OnActivity(activities.FetchTeams, mock.Anything, mock.Anything).Return(nil)
-	env.OnActivity(activities.FetchYahooLeagueData, mock.Anything, mock.Anything).
-		Return(yahoo.FetchYahooLeagueDataResult{}, nil)
+	mockAnyLeagueData(env)
 	return env
 }
 

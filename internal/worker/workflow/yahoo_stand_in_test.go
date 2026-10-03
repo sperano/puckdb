@@ -42,16 +42,12 @@ func TestFetchYahooSeasonWorkflow_StandInLeagueSkipsYahooAPI(t *testing.T) {
 	env.RegisterWorkflow(FetchYahooSeasonWorkflow)
 	var activities *yahoo.FetchActivities
 
-	env.OnActivity(activities.FetchLeague, mock.Anything, standInSourceSeason, standInSourceLeagueID).
-		Return(nil).Once()
-	env.OnActivity(activities.FetchLeague, mock.Anything, preseasonTestYear, preseasonSecondLeagueID).
-		Return(nil).Once()
+	expectLeagueFetch(env, standInSourceSeason, standInSourceLeagueID, unknownEndWeek)
+	expectLeagueFetch(env, preseasonTestYear, preseasonSecondLeagueID, unknownEndWeek)
 	env.OnActivity(activities.FetchTeams, mock.Anything,
 		yahoo.FetchTeamsInput{StartSeason: preseasonTestYear, Teams: onlySecondLeagueTeams}).
 		Return(nil).Once()
-	env.OnActivity(activities.FetchYahooLeagueData, mock.Anything,
-		yahoo.FetchYahooLeagueDataInput{Season: preseasonTestYear, LeagueID: preseasonSecondLeagueID}).
-		Return(yahoo.FetchYahooLeagueDataResult{}, nil).Once()
+	expectLeagueData(env, leagueDataMock{leagueID: preseasonSecondLeagueID, lastWeek: 1})
 	// Only the API league plans a player pool download.
 	expectPoolUpToDate(env, preseasonSecondLeagueID)
 
@@ -71,7 +67,7 @@ func TestFetchYahooSeasonWorkflow_StandInSourceFetchFails(t *testing.T) {
 	var activities *yahoo.FetchActivities
 
 	env.OnActivity(activities.FetchLeague, mock.Anything, standInSourceSeason, standInSourceLeagueID).
-		Return(assert.AnError)
+		Return(yahoo.FetchLeagueResult{}, assert.AnError)
 
 	env.ExecuteWorkflow(FetchYahooSeasonWorkflow, standInYahooInput())
 

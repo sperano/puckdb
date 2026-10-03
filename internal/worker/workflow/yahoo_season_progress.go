@@ -2,44 +2,57 @@ package workflow
 
 import (
 	"fmt"
+	"strconv"
 
-	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"go.temporal.io/sdk/workflow"
 )
 
-const (
-	// yahooChildGroup and yahooChildBar locate the single bar a Yahoo season
-	// child workflow advances, one unit per workflow-level step.
-	yahooChildGroup = 0
-	yahooChildBar   = 0
+// yahooChildGroup is the only group of a Yahoo season child workflow's
+// report. It holds one bar per configured league, in configuration order, so
+// a league's position in the season config is its bar index.
+const yahooChildGroup = 0
 
-	// yahooLeagueAPIStepCount is the extra steps an API-backed league adds on
-	// top of its metadata step: league data (transactions, draft results,
-	// matchups) and the player pool. Stand-in leagues only have the metadata step.
-	yahooLeagueAPIStepCount = 2
-
-	// yahooTeamsBatchStepCount is the single batched teams step, present when
-	// any API-backed league lists teams.
-	yahooTeamsBatchStepCount = 1
-)
-
-// yahooStepFunc records one completed workflow-level step of a Yahoo season sync.
-type yahooStepFunc func(ctx workflow.Context)
-
-// yahooSeasonProgress advances the child workflow's own progress report.
+// yahooSeasonProgress advances the per-league bars of the child workflow's
+// own progress report. Every change is saved so the parent's mirrored bars
+// follow along.
 type yahooSeasonProgress struct {
 	tracker *shared.ReportTracker
 }
 
-func (p yahooSeasonProgress) advance(ctx workflow.Context) {
-	p.tracker.IncrementBar(ctx, yahooChildGroup, yahooChildBar)
+// advance records one completed unit of a league's bar.
+func (p yahooSeasonProgress) advance(ctx workflow.Context, bar int) {
+	p.tracker.IncrementBar(ctx, yahooChildGroup, bar)
+}
+
+// advanceBars records one unit shared by several leagues (a batched import).
+func (p yahooSeasonProgress) advanceBars(ctx workflow.Context, bars []int) {
+	if len(bars) == 0 {
+		return
+	}
+	p.tracker.IncrementBars(ctx, yahooChildGroup, bars)
+}
+
+// resize grows (delta > 0) or shrinks a league's Total once an activity
+// result replaces an estimate, keeping the report Total in step.
+func (p yahooSeasonProgress) resize(ctx workflow.Context, bar, delta int) {
+	if delta == 0 {
+		return
+	}
+	p.tracker.SetBarTotal(yahooChildGroup, bar, p.tracker.Bar(yahooChildGroup, bar).Total+delta)
+	p.tracker.RecalcTotal()
+	p.tracker.Save(ctx)
 }
 
 func (p yahooSeasonProgress) complete(ctx workflow.Context) {
 	p.tracker.CompleteGroup(ctx, yahooChildGroup,
 		fmt.Sprintf("Done in %s.", p.tracker.GetElapsed(ctx, yahooChildGroup)))
+}
+
+// leagueTotals returns each league bar's final Total, for the parent to size
+// its mirrored bars before completing them.
+func (p yahooSeasonProgress) leagueTotals() []int {
+	return p.tracker.GroupBarTotals(yahooChildGroup)
 }
 
 // startYahooSeasonProgress registers the child's progress query handler and
@@ -55,66 +68,71 @@ func startYahooSeasonProgress(ctx workflow.Context, input YahooSeasonWorkflowInp
 }
 
 func newYahooSeasonProgressReport(input YahooSeasonWorkflowInput, mode seasonSyncMode) *shared.ProgressReport {
-	total := yahooSeasonStepTotal(input.Season)
+	bars := make([]shared.ProgressBar, len(input.Season.Leagues))
+	total := 0
+	for i, league := range input.Season.Leagues {
+		bars[i] = shared.ProgressBar{
+			Label: strconv.Itoa(league.LeagueID),
+			Total: yahooLeagueUnits(league, mode),
+		}
+		total += bars[i].Total
+	}
 	return &shared.ProgressReport{
 		Total: total,
 		Groups: []shared.ProgressGroup{{
 			Header: fmt.Sprintf("%s Yahoo %d metadata...", seasonSyncVerb(mode), input.StartYear),
-			Bars:   []shared.ProgressBar{{Total: total}},
+			Bars:   bars,
 		}},
 	}
 }
 
-// yahooSeasonStepTotal counts the workflow-level steps of a Yahoo season sync
-// from its configuration alone: one metadata step per league, the batched
-// teams step, and league data plus player pool per API-backed league. The
-// parent sizes its bar with the same function, so the two always agree.
-func yahooSeasonStepTotal(season config.Season) int {
-	total := 0
-	hasTeams := false
-	for _, league := range season.Leagues {
-		total++
-		if league.UsesTemporaryMetadata() {
-			continue
-		}
-		total += yahooLeagueAPIStepCount
-		hasTeams = hasTeams || len(league.TeamIDs) > 0
-	}
-	if hasTeams {
-		total += yahooTeamsBatchStepCount
-	}
-	return total
+// yahooLeagueBar is one league's bar in the child report.
+type yahooLeagueBar struct {
+	progress yahooSeasonProgress
+	index    int
 }
 
-// yahooSeasonSourceKey maps a start year to the child workflow whose progress
-// report feeds that season's bar in the parent.
-func yahooSeasonSourceKey(mode seasonSyncMode) shared.ProgressSourceKeyFunc {
-	if mode == seasonSyncImport {
-		return WorkflowIDImportYahooSeason
-	}
-	return WorkflowIDFetchYahooSeason
+func (b yahooLeagueBar) advance(ctx workflow.Context) {
+	b.progress.advance(ctx, b.index)
 }
 
-// addYahooSeasonBars adds one bar per Yahoo season, sized by its step total and
-// linked to the child workflow whose progress the resolver merges in.
-func addYahooSeasonBars(tracker *shared.ReportTracker, seasons []YahooSeasonWorkflowInput, mode seasonSyncMode) {
-	sourceKey := yahooSeasonSourceKey(mode)
-	for _, season := range seasons {
-		tracker.AddBar(groupYahooMetadata, shared.ProgressBar{
-			Label:             nhl.SeasonInfo{ID: nhl.NewSeason(season.StartYear)}.Label(),
-			Total:             yahooSeasonStepTotal(season.Season),
-			ProgressSourceKey: sourceKey(season.StartYear),
-		})
-	}
+func (b yahooLeagueBar) resize(ctx workflow.Context, delta int) {
+	b.progress.resize(ctx, b.index, delta)
 }
 
-// cleanupStaleYahooReports drops child reports left by a previous run so the
-// resolver never merges them into this run's bars.
-func cleanupStaleYahooReports(ctx workflow.Context, seasons []YahooSeasonWorkflowInput, mode seasonSyncMode) {
-	sourceKey := yahooSeasonSourceKey(mode)
-	staleIDs := make([]string, len(seasons))
-	for i, season := range seasons {
-		staleIDs[i] = sourceKey(season.StartYear)
+// estimate starts tracking a run of calls already counted in the bar's Total
+// as estimate units.
+func (b yahooLeagueBar) estimate(estimate int) *yahooEstimate {
+	return &yahooEstimate{bar: b, estimate: estimate}
+}
+
+// yahooEstimate tracks a run of downloads whose count is only estimated (a
+// league's matchup weeks, a pool's pages) within one league bar. It grows the
+// bar before a call that would overrun the estimate and shrinks it to the
+// calls actually made when the run ends, so the bar always completes exactly.
+type yahooEstimate struct {
+	bar      yahooLeagueBar
+	estimate int
+	done     int
+}
+
+// beforeCall reserves room for one more call when the estimate is used up.
+func (e *yahooEstimate) beforeCall(ctx workflow.Context) {
+	if e.done < e.estimate {
+		return
 	}
-	deleteStaleProgressReports(ctx, staleIDs)
+	e.bar.resize(ctx, 1)
+	e.estimate++
+}
+
+// afterCall records one completed call.
+func (e *yahooEstimate) afterCall(ctx workflow.Context) {
+	e.done++
+	e.bar.advance(ctx)
+}
+
+// finish drops the estimated calls that were never made.
+func (e *yahooEstimate) finish(ctx workflow.Context) {
+	e.bar.resize(ctx, e.done-e.estimate)
+	e.estimate = e.done
 }
