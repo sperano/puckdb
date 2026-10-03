@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/spf13/viper"
@@ -130,7 +131,7 @@ func formatLabelAreaW(label string, current, total, width int) string {
 	if label == "" {
 		return fmt.Sprintf("%*s", width, progress)
 	}
-	padding := width - len(label) - len(progress)
+	padding := width - runewidth.StringWidth(label) - len(progress)
 	if padding < 1 {
 		padding = 1
 	}
@@ -197,7 +198,7 @@ func renderMultiBarGroup(g *model.ProgressGroup) string {
 	// look like the rest of the UI.
 	width := config.ProgressLabelAreaWidth
 	rowWidth := func(label string, current, total int) int {
-		return len(label) + 1 + len(fmt.Sprintf("%d/%d", current, total))
+		return runewidth.StringWidth(label) + 1 + len(fmt.Sprintf("%d/%d", current, total))
 	}
 	for _, b := range activeBars {
 		label := ""
