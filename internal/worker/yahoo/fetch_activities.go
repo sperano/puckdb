@@ -15,6 +15,16 @@ import (
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/log"
+	"go.temporal.io/sdk/temporal"
+)
+
+const (
+	// teamNotFoundErrorType tags FetchTeams failures where Yahoo answered 400 for
+	// a team key, meaning the team is not in the league (bad team_ids config).
+	teamNotFoundErrorType = "YahooTeamNotFound"
+	// leagueNotFoundErrorType tags FetchLeague failures where Yahoo answered 400
+	// for a league key, meaning the league is not valid (bad league config).
+	leagueNotFoundErrorType = "YahooLeagueNotFound"
 )
 
 // maxMatchupWeeks is the upper bound for matchup week iteration.
@@ -57,6 +67,12 @@ func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID 
 	res := resource.League{Season: season, LeagueID: leagueID, GameKey: gameKey}
 	_, origin, err := a.fetcher().Fetch(ctx, res)
 	if err != nil {
+		if isYahooBadRequest(err) {
+			return temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf("season %d league %d was rejected by Yahoo (400): the league does not exist or "+
+					"is not accessible; check the league IDs in the Yahoo seasons config (or the season's game key)", season, leagueID),
+				leagueNotFoundErrorType, err)
+		}
 		return fmt.Errorf("fetch league %d/%d: %w", season, leagueID, err)
 	}
 	logFetched(logger, origin, "League", "season", season, "leagueID", leagueID)
@@ -120,6 +136,7 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 			return ctx.Err()
 		default:
 		}
+		activity.RecordHeartbeat(ctx, team.TeamID)
 
 		res := resource.Team{
 			Season:   input.StartSeason,
@@ -129,6 +146,13 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 		}
 		_, origin, err := fetcher.Fetch(ctx, res)
 		if err != nil {
+			if isYahooBadRequest(err) {
+				return temporal.NewNonRetryableApplicationError(
+					fmt.Sprintf("season %d league %d team %d was rejected by Yahoo (400): the team is not in "+
+						"the Yahoo league; check team_ids in the Yahoo seasons config (or the season's game key)",
+						input.StartSeason, team.LeagueID, team.TeamID),
+					teamNotFoundErrorType, err)
+			}
 			return fmt.Errorf("fetch team %d/%d/%d: %w", input.StartSeason, team.LeagueID, team.TeamID, err)
 		}
 		logFetched(logger, origin, "Team", "leagueID", team.LeagueID, "teamID", team.TeamID)
@@ -213,7 +237,10 @@ func (a *FetchActivities) fetchMatchups(ctx context.Context, fetcher Fetcher, in
 	return false, nil
 }
 
-func isPreseasonResourceUnavailable(err error) bool {
+// isYahooBadRequest reports whether err is a Yahoo API 400 surfaced by Fetcher
+// (wrapped in ErrDownload). Yahoo uses 400 for keys that definitively do not
+// exist; 404 is intermittent and every other failure stays retryable.
+func isYahooBadRequest(err error) bool {
 	var httpErr *httpx.HTTPError
 	if !errors.Is(err, ErrDownload) || !errors.As(err, &httpErr) {
 		return false
@@ -221,13 +248,15 @@ func isPreseasonResourceUnavailable(err error) bool {
 	return httpErr.StatusCode == http.StatusBadRequest
 }
 
+// isPreseasonResourceUnavailable reports whether Yahoo rejected a resource that
+// does not exist yet before the season starts.
+func isPreseasonResourceUnavailable(err error) bool {
+	return isYahooBadRequest(err)
+}
+
 // isEndOfMatchupWeeks reports whether Yahoo definitively rejected the week as
 // outside the matchup series. Yahoo 404 responses are intermittent and remain
 // retryable, as do transport, throttling, server, storage, parse, and cache failures.
 func isEndOfMatchupWeeks(err error) bool {
-	var httpErr *httpx.HTTPError
-	if !errors.Is(err, ErrDownload) || !errors.As(err, &httpErr) {
-		return false
-	}
-	return httpErr.StatusCode == http.StatusBadRequest
+	return isYahooBadRequest(err)
 }
