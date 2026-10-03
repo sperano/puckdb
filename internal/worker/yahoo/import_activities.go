@@ -538,12 +538,12 @@ func parseYahooPlayerKey(key string) (int, error) {
 func (a *ImportActivities) importYahooMatchups(ctx context.Context, input ImportYahooLeagueDataInput) (int, error) {
 	var totalImported int
 
-	// Iterate every possible week up to maxMatchupWeeks, mirroring the fetcher's
-	// continue-on-skip semantics (fetch_activities.go). The cache may be
+	// Iterate every possible week up to MaxMatchupWeeks, mirroring the fetcher's
+	// continue-on-skip semantics (FetchYahooMatchupWeek). The cache may be
 	// non-contiguous — an individual week can be absent (e.g. a download that
 	// failed mid-sequence) while later weeks are present — so skip absent weeks
 	// rather than stopping at the first gap, which would silently under-import.
-	for week := 1; week <= maxMatchupWeeks; week++ {
+	for week := 1; week <= MaxMatchupWeeks; week++ {
 		res := resource.Matchups{Season: input.Season, LeagueID: input.LeagueID, Week: week}
 		if !a.Storage.Exists(ctx, res.Path()) {
 			continue // Week not cached; later weeks may still be present

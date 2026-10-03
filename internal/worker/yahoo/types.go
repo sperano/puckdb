@@ -18,16 +18,11 @@ type FetchTeamsInput struct {
 	Teams       []TeamInfo
 }
 
-// FetchYahooLeagueDataInput contains parameters for fetching league-level Yahoo data.
+// FetchYahooLeagueDataInput names the league whose league-level data
+// (transactions, draft results) is fetched.
 type FetchYahooLeagueDataInput struct {
 	Season   int
 	LeagueID int
-}
-
-// FetchYahooLeagueDataResult reports optional preseason resources that Yahoo
-// has not published yet. Required league and team resources still fail.
-type FetchYahooLeagueDataResult struct {
-	UnavailableResources []string `json:"unavailableResources,omitempty"`
 }
 
 // ImportYahooLeagueInput contains parameters for importing a Yahoo league.

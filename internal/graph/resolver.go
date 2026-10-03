@@ -239,6 +239,8 @@ func (r *Resolver) queryProgressReport(ctx context.Context, workflowID string) (
 					groupIdx:   groupIdx,
 					barIdx:     j,
 					workflowID: b.ProgressSourceKey,
+					mirror:     b.MirrorSourceBar,
+					sourceBar:  b.ProgressSourceBar,
 				})
 			}
 		}
@@ -260,7 +262,9 @@ func (r *Resolver) queryProgressReport(ctx context.Context, workflowID string) (
 }
 
 // mergeChildWorkflowProgress reads child workflow ProgressReports from Redis
-// and extracts the first bar's Current value as the child's day/player progress.
+// and merges them into the parent bars that point at them: a bar with a
+// source bar index mirrors that one child bar (Current and Total), any other
+// bar takes the sum of every child bar's Current, capped at its own Total.
 // This is exactly-once safe because ProgressReports are saved via local activities
 // (workflow-side), not from retryable activities.
 func (r *Resolver) mergeChildWorkflowProgress(ctx context.Context, report *model.ProgressReport, queries []childQuery) {
@@ -287,22 +291,23 @@ func (r *Resolver) mergeChildWorkflowProgress(ctx context.Context, report *model
 		if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&childReport); err != nil {
 			continue
 		}
-		// Sum progress across all child groups and bars.
 		// Child workflows may have multiple groups (e.g., days + playoffs).
 		if len(childReport.Groups) == 0 {
 			continue
 		}
+		childBars := flattenProgressBars(childReport)
 		childCurrent := 0
-		for _, g := range childReport.Groups {
-			for _, b := range g.Bars {
-				childCurrent += b.Current
-			}
+		for _, b := range childBars {
+			childCurrent += b.Current
 		}
 
 		for _, q := range queryMap[workflowID] {
 			bar := report.Groups[q.groupIdx].Bars[q.barIdx]
 			bar.Started = true
-
+			if q.mirror {
+				mirrorChildBar(report, bar, childBars, q.sourceBar)
+				continue
+			}
 			current := min(childCurrent, bar.Total) // Safety cap
 			if current > bar.Current {
 				diff := current - bar.Current
@@ -313,11 +318,44 @@ func (r *Resolver) mergeChildWorkflowProgress(ctx context.Context, report *model
 	}
 }
 
+// flattenProgressBars lists a report's bars across its groups, in order: the
+// indexing ProgressBar.ProgressSourceBar uses.
+func flattenProgressBars(report shared.ProgressReport) []shared.ProgressBar {
+	var bars []shared.ProgressBar
+	for _, g := range report.Groups {
+		bars = append(bars, g.Bars...)
+	}
+	return bars
+}
+
+// mirrorChildBar copies one child bar's Current and Total into a parent bar
+// whose Total was only an estimate, keeping the report's Total and Completed
+// in step. A bar the parent already completed is final and stays as saved;
+// an out-of-range index leaves the bar untouched.
+func mirrorChildBar(report *model.ProgressReport, bar *model.ProgressBar, childBars []shared.ProgressBar, sourceBar int) {
+	if sourceBar < 0 || sourceBar >= len(childBars) {
+		return
+	}
+	if bar.Total > 0 && bar.Current >= bar.Total {
+		return
+	}
+	child := childBars[sourceBar]
+	current := min(child.Current, child.Total)
+	report.Total += child.Total - bar.Total
+	report.Completed += current - bar.Current
+	bar.Total = child.Total
+	bar.Current = current
+}
+
 // childQuery identifies a bar that needs its child workflow queried for progress.
 type childQuery struct {
 	groupIdx   int
 	barIdx     int
 	workflowID string
+	// mirror selects the child bar at sourceBar instead of summing every
+	// child bar.
+	mirror    bool
+	sourceBar int
 }
 
 func (r *Resolver) yahooTokenStatus(ctx context.Context) (*model.YahooTokenStatus, error) {

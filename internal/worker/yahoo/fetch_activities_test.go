@@ -9,6 +9,7 @@ import (
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/fixtures/yahoofixtures"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -210,4 +211,22 @@ func (s *FetchTeamsTestSuite) TestDownloadError() {
 
 	// First team should not be saved (download failed)
 	assert.False(s.T(), mem.Exists(context.Background(), res.Path()))
+}
+
+// fixtureLeagueEndWeek is the <end_week> of the points league fixture.
+const fixtureLeagueEndWeek = 25
+
+func (s *FetchLeagueTestSuite) TestReturnsEndWeek() {
+	mem := store.NewMemStorage()
+	res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
+	require.NoError(s.T(), mem.Write(context.Background(), res.Path(), yahoofixtures.Read(yahoofixtures.PointsLeague)))
+	act := newFetchActivities(mem, mockDownloader(nil, errors.New("must not download")), cache.NewGobCache(nil))
+	s.env.RegisterActivity(act.FetchLeague)
+
+	val, err := s.env.ExecuteActivity(act.FetchLeague, testYahooSeason, testLeagueID)
+
+	require.NoError(s.T(), err)
+	var result FetchLeagueResult
+	require.NoError(s.T(), val.Get(&result))
+	assert.Equal(s.T(), fixtureLeagueEndWeek, result.EndWeek)
 }

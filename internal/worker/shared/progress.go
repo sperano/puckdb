@@ -24,6 +24,14 @@ type ProgressBar struct {
 	// to a spawned child workflow) or a synthetic key published by an activity that
 	// writes its own ProgressReport (see SaveActivityProgress). Empty means no merge.
 	ProgressSourceKey string `json:"progressSourceKey,omitempty"`
+	// MirrorSourceBar makes this bar mirror one bar of the source report, the
+	// one at index ProgressSourceBar counted across the source's groups in
+	// order: both its Current and its Total. When false the resolver uses the
+	// default merge: the sum of every source bar's Current, capped at this
+	// bar's Total. (A flag rather than a nil-able index because gob drops a
+	// pointer to zero, which would turn index 0 into "unset".)
+	MirrorSourceBar   bool `json:"mirrorSourceBar,omitempty"`
+	ProgressSourceBar int  `json:"progressSourceBar,omitempty"`
 }
 
 // ProgressGroup is a unit of display: header + bars + completion message.
@@ -175,6 +183,30 @@ func (t *ReportTracker) IncrementBarBy(ctx workflow.Context, groupIdx, barIdx, a
 	t.Save(ctx)
 }
 
+// IncrementBars increments several bars of a group by one each and saves to
+// Redis once. Use it when one unit of work counts toward several bars.
+func (t *ReportTracker) IncrementBars(ctx workflow.Context, groupIdx int, barIdxs []int) {
+	for _, barIdx := range barIdxs {
+		t.report.Groups[groupIdx].Bars[barIdx].Current++
+	}
+	t.Save(ctx)
+}
+
+// Bar returns a copy of a specific bar.
+func (t *ReportTracker) Bar(groupIdx, barIdx int) ProgressBar {
+	return t.report.Groups[groupIdx].Bars[barIdx]
+}
+
+// GroupBarTotals returns the Total of every bar in a group, in order.
+func (t *ReportTracker) GroupBarTotals(groupIdx int) []int {
+	bars := t.report.Groups[groupIdx].Bars
+	totals := make([]int, len(bars))
+	for i, bar := range bars {
+		totals[i] = bar.Total
+	}
+	return totals
+}
+
 // SetBarTotal sets the total for a specific bar.
 func (t *ReportTracker) SetBarTotal(groupIdx, barIdx, total int) {
 	t.report.Groups[groupIdx].Bars[barIdx].Total = total
@@ -202,6 +234,30 @@ func (t *ReportTracker) StartBar(ctx workflow.Context, groupIdx, barIdx int) {
 func (t *ReportTracker) CompleteBar(ctx workflow.Context, groupIdx, barIdx int) {
 	bar := &t.report.Groups[groupIdx].Bars[barIdx]
 	bar.Current = bar.Total
+	t.Save(ctx)
+}
+
+// BarRange is a contiguous run of Count bars of one group, from Start.
+type BarRange struct {
+	Start int
+	Count int
+}
+
+// StartBars marks every bar of a range as started and saves to Redis once.
+func (t *ReportTracker) StartBars(ctx workflow.Context, groupIdx int, bars BarRange) {
+	for i := bars.Start; i < bars.Start+bars.Count; i++ {
+		t.report.Groups[groupIdx].Bars[i].Started = true
+	}
+	t.Save(ctx)
+}
+
+// CompleteBars sets Current = Total on every bar of a range and saves to
+// Redis once.
+func (t *ReportTracker) CompleteBars(ctx workflow.Context, groupIdx int, bars BarRange) {
+	for i := bars.Start; i < bars.Start+bars.Count; i++ {
+		bar := &t.report.Groups[groupIdx].Bars[i]
+		bar.Current = bar.Total
+	}
 	t.Save(ctx)
 }
 

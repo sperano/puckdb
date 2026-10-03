@@ -8,7 +8,6 @@ import (
 	"github.com/sperano/puckdb/internal/core"
 	worknhl "github.com/sperano/puckdb/internal/worker/nhl"
 	"github.com/sperano/puckdb/internal/worker/shared"
-	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -151,81 +150,6 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 		"startYear", season.ID.StartYear(),
 		"playoffGames", playoffGames)
 	return counts, nil
-}
-
-type yahooSeasonMetadataResult struct {
-	TeamIDs              []yahoo.TeamInfo
-	UnavailableResources []string
-}
-
-// fetchYahooSeasonMetadata downloads Yahoo league, team, and league-level
-// data (transactions, draft results, matchups) for the season. Returns the
-// team IDs the season's day loop should fetch per-day Yahoo data for, or a
-// zero result when the season has no Yahoo config.
-func fetchYahooSeasonMetadata(ctx workflow.Context, yahooSeasons shared.YahooSeasonsSnapshot,
-	startYear int, step yahooStepFunc) (yahooSeasonMetadataResult, error) {
-	result := yahooSeasonMetadataResult{}
-	season, inYahoo := yahooSeasons.Season(startYear)
-	if !inYahoo {
-		return result, nil
-	}
-
-	var leagueAct *yahoo.FetchActivities
-
-	// Build team list and fetch leagues
-	for _, league := range season.Leagues {
-		if league.UsesTemporaryMetadata() {
-			if err := fetchStandInLeagueSource(ctx, league); err != nil {
-				return result, err
-			}
-			result.UnavailableResources = append(result.UnavailableResources, standInLeagueNote(league))
-			step(ctx)
-			continue
-		}
-		if err := workflow.ExecuteActivity(ctx, leagueAct.FetchLeague, startYear, league.LeagueID).Get(ctx, nil); err != nil {
-			return result, fmt.Errorf("fetch yahoo league %d: %w", league.LeagueID, err)
-		}
-		step(ctx)
-		for _, teamid := range league.TeamIDs {
-			result.TeamIDs = append(result.TeamIDs, yahoo.TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
-		}
-	}
-
-	// Fetch all teams in one batched activity
-	if len(result.TeamIDs) > 0 {
-		input := yahoo.FetchTeamsInput{StartSeason: startYear, Teams: result.TeamIDs}
-		if err := workflow.ExecuteActivity(ctx, leagueAct.FetchTeams, input).Get(ctx, nil); err != nil {
-			return result, fmt.Errorf("fetch yahoo teams: %w", err)
-		}
-		step(ctx)
-	}
-
-	unavailable, err := fetchYahooSeasonLeagueData(ctx, season.Leagues, startYear, step)
-	result.UnavailableResources = append(result.UnavailableResources, unavailable...)
-	return result, err
-}
-
-// fetchYahooSeasonLeagueData fetches league-level data (transactions, draft
-// results, matchups) and returns the optional resources Yahoo has not published.
-func fetchYahooSeasonLeagueData(ctx workflow.Context, leagues []config.League, startYear int,
-	step yahooStepFunc) ([]string, error) {
-	var leagueAct *yahoo.FetchActivities
-	var unavailable []string
-	for _, league := range leagues {
-		if league.UsesTemporaryMetadata() {
-			continue
-		}
-		leagueDataInput := yahoo.FetchYahooLeagueDataInput{Season: startYear, LeagueID: league.LeagueID}
-		var leagueResult yahoo.FetchYahooLeagueDataResult
-		if err := workflow.ExecuteActivity(ctx, leagueAct.FetchYahooLeagueData, leagueDataInput).Get(ctx, &leagueResult); err != nil {
-			return unavailable, fmt.Errorf("fetch yahoo league data %d: %w", league.LeagueID, err)
-		}
-		step(ctx)
-		for _, resourceName := range leagueResult.UnavailableResources {
-			unavailable = append(unavailable, fmt.Sprintf("league %d %s", league.LeagueID, resourceName))
-		}
-	}
-	return unavailable, nil
 }
 
 // WorkflowIDFetchNHLSeason identifies an NHL-only season child workflow.

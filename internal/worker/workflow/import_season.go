@@ -8,7 +8,6 @@ import (
 	"github.com/sperano/puckdb/internal/core"
 	worknhl "github.com/sperano/puckdb/internal/worker/nhl"
 	"github.com/sperano/puckdb/internal/worker/shared"
-	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -152,54 +151,6 @@ func ImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.
 		"playoffGames", playoffTotals.GamesImported)
 
 	return counts, nil
-}
-
-// importYahooLeaguesAndTeams imports Yahoo league and team metadata from the
-// season's snapshotted Yahoo config. Returns the list of team IDs to process
-// for per-day Yahoo data import, or nil when the season has no leagues.
-func importYahooLeaguesAndTeams(ctx workflow.Context, yahooCfg config.Season, startYear int,
-	step yahooStepFunc) ([]yahoo.TeamInfo, error) {
-	logger := workflow.GetLogger(ctx)
-	var teamIDs []yahoo.TeamInfo
-
-	if len(yahooCfg.Leagues) == 0 {
-		return nil, nil // Season not in Yahoo config
-	}
-
-	logger.Info("Importing Yahoo data for season", "startYear", startYear)
-
-	var yia *yahoo.ImportActivities
-
-	// Import each league and collect team IDs
-	for _, league := range yahooCfg.Leagues {
-		if league.UsesTemporaryMetadata() {
-			if err := importStandInLeague(ctx, startYear, league); err != nil {
-				return nil, err
-			}
-			step(ctx)
-			continue
-		}
-		input := yahoo.ImportYahooLeagueInput{Season: startYear, LeagueID: league.LeagueID}
-		if err := workflow.ExecuteActivity(ctx, yia.ImportYahooLeague, input).Get(ctx, nil); err != nil {
-			return nil, err
-		}
-		step(ctx)
-
-		for _, teamID := range league.TeamIDs {
-			teamIDs = append(teamIDs, yahoo.TeamInfo{LeagueID: league.LeagueID, TeamID: teamID})
-		}
-	}
-
-	// Import all teams in one batched activity
-	if len(teamIDs) > 0 {
-		input := yahoo.ImportYahooTeamsInput{Season: startYear, Teams: teamIDs}
-		if err := workflow.ExecuteActivity(ctx, yia.ImportYahooTeams, input).Get(ctx, nil); err != nil {
-			return nil, err
-		}
-		step(ctx)
-	}
-
-	return teamIDs, nil
 }
 
 // WorkflowIDImportNHLSeason identifies an NHL-only season child workflow.
