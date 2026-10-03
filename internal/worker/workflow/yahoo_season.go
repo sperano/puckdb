@@ -25,17 +25,22 @@ type YahooSeasonSyncResult struct {
 func FetchYahooSeasonWorkflow(ctx workflow.Context, input YahooSeasonWorkflowInput) (YahooSeasonSyncResult, error) {
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 	result := YahooSeasonSyncResult{}
+	step, err := startYahooSeasonProgress(ctx, input, seasonSyncFetch)
+	if err != nil {
+		return result, err
+	}
 	snapshot := shared.YahooSeasonsSnapshot{
 		Seasons: config.YahooSeasonsMap{input.StartYear: input.Season},
 	}
-	metadata, err := fetchYahooSeasonMetadata(ctx, snapshot, input.StartYear)
+	metadata, err := fetchYahooSeasonMetadata(ctx, snapshot, input.StartYear, step.advance)
 	if err != nil {
 		return result, fmt.Errorf("yahoo resources for season %d are unavailable: %w", input.StartYear, err)
 	}
 	result.UnavailableResources = metadata.UnavailableResources
-	if err := fetchYahooPlayerPools(ctx, input.StartYear, input.Season.Leagues); err != nil {
+	if err := fetchYahooPlayerPools(ctx, input.StartYear, input.Season.Leagues, step.advance); err != nil {
 		return result, err
 	}
+	step.complete(ctx)
 	return result, nil
 }
 
@@ -43,22 +48,28 @@ func FetchYahooSeasonWorkflow(ctx workflow.Context, input YahooSeasonWorkflowInp
 func ImportYahooSeasonWorkflow(ctx workflow.Context, input YahooSeasonWorkflowInput) (YahooSeasonSyncResult, error) {
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 	result := YahooSeasonSyncResult{}
-	if _, err := importYahooLeaguesAndTeams(ctx, input.Season, input.StartYear); err != nil {
-		return result, fmt.Errorf("import Yahoo season %d metadata: %w", input.StartYear, err)
-	}
-	unavailable, err := importYahooSeasonLeagueData(ctx, input)
+	step, err := startYahooSeasonProgress(ctx, input, seasonSyncImport)
 	if err != nil {
 		return result, err
 	}
-	pools, err := importYahooPlayerPools(ctx, input.StartYear, input.Season.Leagues)
+	if _, err := importYahooLeaguesAndTeams(ctx, input.Season, input.StartYear, step.advance); err != nil {
+		return result, fmt.Errorf("import Yahoo season %d metadata: %w", input.StartYear, err)
+	}
+	unavailable, err := importYahooSeasonLeagueData(ctx, input, step.advance)
+	if err != nil {
+		return result, err
+	}
+	pools, err := importYahooPlayerPools(ctx, input.StartYear, input.Season.Leagues, step.advance)
 	if err != nil {
 		return result, err
 	}
 	result.UnavailableResources = append(unavailable, pools...)
+	step.complete(ctx)
 	return result, nil
 }
 
-func importYahooSeasonLeagueData(ctx workflow.Context, input YahooSeasonWorkflowInput) ([]string, error) {
+func importYahooSeasonLeagueData(ctx workflow.Context, input YahooSeasonWorkflowInput,
+	step yahooStepFunc) ([]string, error) {
 	var activities *yahoo.ImportActivities
 	var unavailable []string
 	for _, league := range input.Season.Leagues {
@@ -73,6 +84,7 @@ func importYahooSeasonLeagueData(ctx workflow.Context, input YahooSeasonWorkflow
 		if err := workflow.ExecuteActivity(ctx, activities.ImportYahooLeagueData, activityInput).Get(ctx, &result); err != nil {
 			return nil, fmt.Errorf("import Yahoo league data %d/%d: %w", input.StartYear, league.LeagueID, err)
 		}
+		step(ctx)
 		for _, resourceName := range result.UnavailableResources {
 			unavailable = append(unavailable, fmt.Sprintf("league %d %s", league.LeagueID, resourceName))
 		}

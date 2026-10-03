@@ -178,6 +178,11 @@ func cleanupStaleChildReports(ctx workflow.Context, seasons []nhl.SeasonInfo, so
 	for i, s := range seasons {
 		staleIDs[i] = sourceKeyFunc(s.ID.StartYear())
 	}
+	deleteStaleProgressReports(ctx, staleIDs)
+}
+
+// deleteStaleProgressReports best-effort deletes saved progress reports by key.
+func deleteStaleProgressReports(ctx workflow.Context, staleIDs []string) {
 	localCtx := workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
 		ScheduleToCloseTimeout: 5 * time.Second,
 	})

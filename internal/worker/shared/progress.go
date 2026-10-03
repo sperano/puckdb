@@ -244,6 +244,13 @@ func (t *ReportTracker) AddBarsForSeasons(ctx workflow.Context, groupIdx int, se
 	return barIndex, nil
 }
 
+// AddBar appends a bar to a group and refreshes the report-level Total.
+// Use it when bars are derived from runtime input (e.g. one per Yahoo season).
+func (t *ReportTracker) AddBar(groupIdx int, bar ProgressBar) {
+	t.report.Groups[groupIdx].Bars = append(t.report.Groups[groupIdx].Bars, bar)
+	t.report.Total = t.totalFromBars()
+}
+
 // totalFromBars computes Total by summing all bar totals across all groups.
 func (t *ReportTracker) totalFromBars() int {
 	total := 0

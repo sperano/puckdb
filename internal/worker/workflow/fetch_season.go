@@ -163,7 +163,7 @@ type yahooSeasonMetadataResult struct {
 // team IDs the season's day loop should fetch per-day Yahoo data for, or a
 // zero result when the season has no Yahoo config.
 func fetchYahooSeasonMetadata(ctx workflow.Context, yahooSeasons shared.YahooSeasonsSnapshot,
-	startYear int) (yahooSeasonMetadataResult, error) {
+	startYear int, step yahooStepFunc) (yahooSeasonMetadataResult, error) {
 	result := yahooSeasonMetadataResult{}
 	season, inYahoo := yahooSeasons.Season(startYear)
 	if !inYahoo {
@@ -179,11 +179,13 @@ func fetchYahooSeasonMetadata(ctx workflow.Context, yahooSeasons shared.YahooSea
 				return result, err
 			}
 			result.UnavailableResources = append(result.UnavailableResources, standInLeagueNote(league))
+			step(ctx)
 			continue
 		}
 		if err := workflow.ExecuteActivity(ctx, leagueAct.FetchLeague, startYear, league.LeagueID).Get(ctx, nil); err != nil {
 			return result, fmt.Errorf("fetch yahoo league %d: %w", league.LeagueID, err)
 		}
+		step(ctx)
 		for _, teamid := range league.TeamIDs {
 			result.TeamIDs = append(result.TeamIDs, yahoo.TeamInfo{LeagueID: league.LeagueID, TeamID: teamid})
 		}
@@ -195,16 +197,18 @@ func fetchYahooSeasonMetadata(ctx workflow.Context, yahooSeasons shared.YahooSea
 		if err := workflow.ExecuteActivity(ctx, leagueAct.FetchTeams, input).Get(ctx, nil); err != nil {
 			return result, fmt.Errorf("fetch yahoo teams: %w", err)
 		}
+		step(ctx)
 	}
 
-	unavailable, err := fetchYahooSeasonLeagueData(ctx, season.Leagues, startYear)
+	unavailable, err := fetchYahooSeasonLeagueData(ctx, season.Leagues, startYear, step)
 	result.UnavailableResources = append(result.UnavailableResources, unavailable...)
 	return result, err
 }
 
 // fetchYahooSeasonLeagueData fetches league-level data (transactions, draft
 // results, matchups) and returns the optional resources Yahoo has not published.
-func fetchYahooSeasonLeagueData(ctx workflow.Context, leagues []config.League, startYear int) ([]string, error) {
+func fetchYahooSeasonLeagueData(ctx workflow.Context, leagues []config.League, startYear int,
+	step yahooStepFunc) ([]string, error) {
 	var leagueAct *yahoo.FetchActivities
 	var unavailable []string
 	for _, league := range leagues {
@@ -216,6 +220,7 @@ func fetchYahooSeasonLeagueData(ctx workflow.Context, leagues []config.League, s
 		if err := workflow.ExecuteActivity(ctx, leagueAct.FetchYahooLeagueData, leagueDataInput).Get(ctx, &leagueResult); err != nil {
 			return unavailable, fmt.Errorf("fetch yahoo league data %d: %w", league.LeagueID, err)
 		}
+		step(ctx)
 		for _, resourceName := range leagueResult.UnavailableResources {
 			unavailable = append(unavailable, fmt.Sprintf("league %d %s", league.LeagueID, resourceName))
 		}
