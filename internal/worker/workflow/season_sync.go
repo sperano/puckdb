@@ -84,10 +84,11 @@ func executeSeasonSync(ctx workflow.Context, tracker *shared.ReportTracker, inpu
 	if err := processNHLSeasonGroup(ctx, tracker, seasons, cfg.Concurrency, rangeLabel, mode); err != nil {
 		return err
 	}
-	if err := processUpcomingSeason(ctx, tracker, input, rangeLabel, mode); err != nil {
+	upcomingSeason, err := processUpcomingSeason(ctx, tracker, input, rangeLabel, mode)
+	if err != nil {
 		return err
 	}
-	setSeasonSyncOutcome(ctx, tracker, len(yahooSeasons), len(seasons), rangeLabel)
+	setSeasonSyncOutcome(ctx, tracker, len(yahooSeasons), len(seasons), upcomingSeason, rangeLabel)
 	return nil
 }
 
@@ -264,13 +265,18 @@ func nhlSeasonSourceKey(mode seasonSyncMode) shared.ProgressSourceKeyFunc {
 	return WorkflowIDFetchNHLSeason
 }
 
-func setSeasonSyncOutcome(ctx workflow.Context, tracker *shared.ReportTracker, yahooCount, nhlCount int, rangeLabel string) {
-	if yahooCount == 0 && nhlCount == 0 {
+func setSeasonSyncOutcome(ctx workflow.Context, tracker *shared.ReportTracker, yahooCount, nhlCount,
+	upcomingSeason int, rangeLabel string) {
+	if yahooCount == 0 && nhlCount == 0 && upcomingSeason == seasonYearUnset {
 		tracker.SetMessage(ctx, fmt.Sprintf(
 			"No work matched %s: no configured Yahoo season matches the range and no started NHL season matches the range.",
 			rangeLabel))
 		return
 	}
-	tracker.SetMessage(ctx, fmt.Sprintf("Completed %s: %d Yahoo season(s), %d started NHL season(s).",
-		rangeLabel, yahooCount, nhlCount))
+	message := fmt.Sprintf("Completed %s: %d Yahoo season(s), %d started NHL season(s)",
+		rangeLabel, yahooCount, nhlCount)
+	if upcomingSeason != seasonYearUnset {
+		message += fmt.Sprintf(", upcoming NHL season %d rosters", upcomingSeason)
+	}
+	tracker.SetMessage(ctx, message+".")
 }

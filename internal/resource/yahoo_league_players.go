@@ -46,8 +46,21 @@ func (l LeaguePlayers) Parse(data []byte) (*store.FantasyContent, error) {
 		return nil, fmt.Errorf("parse league players %d/%d start %d: %w", l.Season, l.LeagueID, l.Start, err)
 	}
 	if content.League.ID != l.LeagueID {
-		return nil, fmt.Errorf("parse league players %d/%d start %d: response is for league %d",
-			l.Season, l.LeagueID, l.Start, content.League.ID)
+		return nil, fmt.Errorf("parse league players %d/%d start %d: response league ID %d does not match requested league %d",
+			l.Season, l.LeagueID, l.Start, content.League.ID, l.LeagueID)
+	}
+	keyGame, keyLeague, err := parseYahooLeagueKey(content.League.Key)
+	if err != nil {
+		return nil, fmt.Errorf("parse league players %d/%d start %d: %w",
+			l.Season, l.LeagueID, l.Start, err)
+	}
+	if keyLeague != l.LeagueID {
+		return nil, fmt.Errorf("parse league players %d/%d start %d: response league key %q contains league ID %d, want %d",
+			l.Season, l.LeagueID, l.Start, content.League.Key, keyLeague, l.LeagueID)
+	}
+	if l.GameKey > 0 && keyGame != l.GameKey {
+		return nil, fmt.Errorf("parse league players %d/%d start %d: response league key %q does not match verified key %d.l.%d",
+			l.Season, l.LeagueID, l.Start, content.League.Key, l.GameKey, l.LeagueID)
 	}
 	return &content, nil
 }

@@ -37,9 +37,11 @@ func FetchYahooSeasonWorkflow(ctx workflow.Context, input YahooSeasonWorkflowInp
 		return result, fmt.Errorf("yahoo resources for season %d are unavailable: %w", input.StartYear, err)
 	}
 	result.UnavailableResources = unavailable
-	if err := fetchYahooPlayerPools(ctx, input.StartYear, input.Season.Leagues, progress); err != nil {
+	pools, err := fetchYahooPlayerPools(ctx, input.StartYear, input.Season.Leagues, progress)
+	if err != nil {
 		return result, err
 	}
+	result.UnavailableResources = append(result.UnavailableResources, pools...)
 	progress.complete(ctx)
 	result.LeagueTotals = progress.leagueTotals()
 	return result, nil

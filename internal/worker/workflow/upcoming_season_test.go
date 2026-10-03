@@ -55,6 +55,8 @@ func TestFetchSeasonsWorkflow_FetchesUpcomingSeasonRosters(t *testing.T) {
 	require.Len(t, report.Groups, 3)
 	assert.Contains(t, report.Groups[groupUpcomingSeason].CompletedMsg,
 		"Fetched 2026-27 rosters for 30 of 32 clubs carried forward from 2025-26")
+	assert.Contains(t, report.Message, "upcoming NHL season 2026 rosters")
+	assert.NotContains(t, report.Message, "No work matched")
 	assert.Equal(t, 1, report.Groups[groupUpcomingSeason].Bars[0].Current)
 	env.AssertExpectations(t)
 }
@@ -65,6 +67,7 @@ func TestImportSeasonsWorkflow_ImportsUpcomingSeasonRosters(t *testing.T) {
 	require.NoError(t, env.GetWorkflowError())
 	report := queryProgress(t, env)
 	assert.Contains(t, report.Groups[groupUpcomingSeason].CompletedMsg, "Imported 2026-27 rosters for 30 of 32 clubs")
+	assert.Contains(t, report.Message, "upcoming NHL season 2026 rosters")
 	env.AssertExpectations(t)
 }
 
@@ -75,6 +78,7 @@ func TestFetchSeasonsWorkflow_NoUpcomingSeasonIsSkipped(t *testing.T) {
 	report := queryProgress(t, env)
 	assert.Contains(t, report.Groups[groupUpcomingSeason].CompletedMsg,
 		"Skipped upcoming NHL season: none in seasons 2026 onward has yet to start.")
+	assert.Contains(t, report.Message, "No work matched seasons 2026 onward")
 	env.AssertExpectations(t)
 }
 

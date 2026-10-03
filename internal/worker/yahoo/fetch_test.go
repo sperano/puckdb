@@ -19,13 +19,17 @@ import (
 
 const (
 	validFetchXML        = `<fantasy_content><league></league></fantasy_content>`
+	validLeagueFetchXML  = `<fantasy_content><league><league_key>423.l.12345</league_key><league_id>12345</league_id><game_code>nhl</game_code><season>2023</season></league></fantasy_content>`
 	validGameKeyFetchXML = `<fantasy_content><games><game><game_key>423</game_key><code>nhl</code><season>2023</season></game></games></fantasy_content>`
 	malformedFetchXML    = `<fantasy_content><league>`
 )
 
 func validFetchXMLFor(res Resource) []byte {
-	if _, ok := res.(resource.GameKey); ok {
+	switch res.(type) {
+	case resource.GameKey:
 		return []byte(validGameKeyFetchXML)
+	case resource.League:
+		return []byte(validLeagueFetchXML)
 	}
 	return []byte(validFetchXML)
 }
@@ -216,7 +220,7 @@ func TestFetcher_Redis(t *testing.T) {
 		f := Fetcher{
 			Storage:  store.NewMemStorage(),
 			GobCache: cache.NewGobCache(redisClient),
-			Download: mockDownloader([]byte(validFetchXML), nil),
+			Download: mockDownloader([]byte(validLeagueFetchXML), nil),
 			Throttle: func() {},
 		}
 		_, _, err := f.Fetch(context.Background(), res)

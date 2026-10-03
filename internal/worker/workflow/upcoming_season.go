@@ -14,7 +14,7 @@ import (
 // that has not started yet (see worknhl.FetchUpcomingSeasonRosters), so the
 // draft helper sees offseason moves before puck drop.
 func processUpcomingSeason(ctx workflow.Context, tracker *shared.ReportTracker, input *model.SeasonsInput,
-	rangeLabel string, mode seasonSyncMode) error {
+	rangeLabel string, mode seasonSyncMode) (int, error) {
 	tracker.SetBarTotal(groupUpcomingSeason, 0, 1)
 	tracker.RecalcTotal()
 	tracker.StartGroup(ctx, groupUpcomingSeason)
@@ -26,12 +26,12 @@ func processUpcomingSeason(ctx workflow.Context, tracker *shared.ReportTracker, 
 	var result worknhl.UpcomingSeasonRostersResult
 	if err := workflow.ExecuteActivity(ctx, activityFn, input).Get(ctx, &result); err != nil {
 		tracker.SetMessage(ctx, fmt.Sprintf("Upcoming NHL season rosters failed for %s: %v", rangeLabel, err))
-		return err
+		return seasonYearUnset, err
 	}
 	tracker.IncrementBar(ctx, groupUpcomingSeason, 0)
 	tracker.CompleteGroup(ctx, groupUpcomingSeason,
 		upcomingSeasonMessage(result, mode, tracker.GetElapsed(ctx, groupUpcomingSeason), rangeLabel))
-	return nil
+	return result.Season, nil
 }
 
 func upcomingSeasonMessage(result worknhl.UpcomingSeasonRostersResult, mode seasonSyncMode, elapsed, rangeLabel string) string {

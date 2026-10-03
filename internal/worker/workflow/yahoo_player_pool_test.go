@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	poolTestLeagueKey   = "465.l.1001"
-	poolTestGameKey     = 465
-	poolTestLastPage    = 3
-	poolTestUpToDateWhy = "pool downloaded 1h0m0s ago"
+	poolTestLeagueKey    = "465.l.1001"
+	poolTestGameKey      = 465
+	poolTestLastPage     = 3
+	poolTestUpToDateWhy  = "pool downloaded 1h0m0s ago"
+	poolUnavailableUnits = 8
 )
 
 // expectPoolUpToDate makes the league's pool plan say no download is due.
@@ -145,6 +146,28 @@ func TestFetchYahooSeasonWorkflow_PlayerPoolPageFailureCommitsNothing(t *testing
 	require.Error(t, env.GetWorkflowError())
 	assert.Contains(t, env.GetWorkflowError().Error(), "fetch Yahoo player pool 2026/1001")
 	env.AssertNotCalled(t, "CommitYahooLeaguePlayerPool", mock.Anything, mock.Anything)
+}
+
+func TestFetchYahooSeasonWorkflow_PlayerPoolUnavailableIsReported(t *testing.T) {
+	env := newPoolFetchEnv(t)
+	expectPoolRefresh(env)
+	var activities *yahoo.FetchActivities
+	env.OnActivity(activities.FetchYahooLeaguePlayersPage, mock.Anything, poolPageAt(env, 0)).
+		Return(yahoo.FetchYahooLeaguePlayersPageResult{Unavailable: true}, nil).Once()
+
+	env.ExecuteWorkflow(FetchYahooSeasonWorkflow, singleLeagueYahooInput())
+
+	require.NoError(t, env.GetWorkflowError())
+	var result YahooSeasonSyncResult
+	require.NoError(t, env.GetWorkflowResult(&result))
+	assert.Equal(t, []string{"league 1001 player pool"}, result.UnavailableResources)
+	env.AssertNotCalled(t, "CommitYahooLeaguePlayerPool", mock.Anything, mock.Anything)
+	report := queryProgress(t, env)
+	require.Len(t, report.Groups[yahooChildGroup].Bars, 1)
+	bar := report.Groups[yahooChildGroup].Bars[0]
+	assert.Equal(t, bar.Total, bar.Current)
+	assert.Equal(t, poolUnavailableUnits, bar.Total,
+		"the unavailable pool has a plan and one attempted page, but no commit unit")
 }
 
 func TestFetchYahooSeasonWorkflow_PlayerPoolUpToDateSkipsDownload(t *testing.T) {

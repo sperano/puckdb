@@ -58,8 +58,16 @@ func TestLeaguePlayers_Parse(t *testing.T) {
 		mismatched := resource.LeaguePlayers{Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID + 1, Start: 0, GameKey: yahoofixtures.PointsGameKey}
 		_, err := mismatched.Parse(yahoofixtures.Read(yahoofixtures.PlayersPage))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "response is for league")
+		assert.Contains(t, err.Error(), "does not match requested league")
 		assert.Contains(t, err.Error(), "77777")
+	})
+
+	t.Run("mismatched_verified_game_key", func(t *testing.T) {
+		mismatched := resource.LeaguePlayers{Season: yahoofixtures.PointsSeason,
+			LeagueID: yahoofixtures.PointsLeagueID, Start: 0, GameKey: yahoofixtures.PointsGameKey + 1}
+		_, err := mismatched.Parse(yahoofixtures.Read(yahoofixtures.PlayersPage))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "does not match verified key")
 	})
 
 	t.Run("malformed_xml", func(t *testing.T) {
