@@ -3,6 +3,7 @@ package resource
 import (
 	"encoding/xml"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,12 @@ const (
 	baseYahooAPIURL    = "https://fantasysports.yahooapis.com/fantasy/v2"
 	baseYahooSportsURL = "https://sports.yahoo.com"
 	yahooNHLGameCode   = "nhl"
+	yahooLeagueKeyType = "l"
+
+	yahooLeagueKeyPartCount = 3
+	yahooLeagueKeyGamePart  = 0
+	yahooLeagueKeyTypePart  = 1
+	yahooLeagueKeyIDPart    = 2
 
 	// YahooPlayersDir is the directory containing Yahoo player HTML files.
 	YahooPlayersDir = "yahoo-players"
@@ -47,7 +54,55 @@ func (l League) Parse(data []byte) (*store.FantasyContent, error) {
 	if err := xml.Unmarshal(data, &content); err != nil {
 		return nil, fmt.Errorf("parse league %d/%d: %w", l.Season, l.LeagueID, err)
 	}
+	if err := l.Validate(&content); err != nil {
+		return nil, fmt.Errorf("parse league %d/%d: %w", l.Season, l.LeagueID, err)
+	}
 	return &content, nil
+}
+
+// Validate confirms that parsed league content belongs to the requested NHL
+// season, league, and (when known) Yahoo game key. FetchLeague calls this even
+// on Redis hits, whose gob payload bypasses Parse.
+func (l League) Validate(content *store.FantasyContent) error {
+	return validateYahooLeagueIdentity(content.League, l.Season, l.LeagueID, l.GameKey)
+}
+
+func validateYahooLeagueIdentity(league store.League, season, leagueID, gameKey int) error {
+	if league.ID != leagueID {
+		return fmt.Errorf("response league ID %d does not match requested league %d", league.ID, leagueID)
+	}
+	if league.Season != season {
+		return fmt.Errorf("response season %d does not match requested season %d", league.Season, season)
+	}
+	if !strings.EqualFold(league.GameCode, yahooNHLGameCode) {
+		return fmt.Errorf("response game code %q is not NHL", league.GameCode)
+	}
+	keyGame, keyLeague, err := parseYahooLeagueKey(league.Key)
+	if err != nil {
+		return err
+	}
+	if keyLeague != leagueID {
+		return fmt.Errorf("response league key %q names league %d, requested league %d",
+			league.Key, keyLeague, leagueID)
+	}
+	if gameKey > 0 && keyGame != gameKey {
+		return fmt.Errorf("response league key %q uses game key %d, verified game key is %d",
+			league.Key, keyGame, gameKey)
+	}
+	return nil
+}
+
+func parseYahooLeagueKey(key string) (int, int, error) {
+	parts := strings.Split(key, ".")
+	if len(parts) != yahooLeagueKeyPartCount || parts[yahooLeagueKeyTypePart] != yahooLeagueKeyType {
+		return 0, 0, fmt.Errorf("response league key %q is not <game-key>.l.<league-id>", key)
+	}
+	gameKey, gameErr := strconv.Atoi(parts[yahooLeagueKeyGamePart])
+	leagueID, leagueErr := strconv.Atoi(parts[yahooLeagueKeyIDPart])
+	if gameErr != nil || leagueErr != nil || gameKey <= 0 || leagueID <= 0 {
+		return 0, 0, fmt.Errorf("response league key %q is not <game-key>.l.<league-id>", key)
+	}
+	return gameKey, leagueID, nil
 }
 
 // Team represents a Yahoo Fantasy team resource.

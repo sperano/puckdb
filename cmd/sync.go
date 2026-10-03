@@ -251,6 +251,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 }
 
 func validateExplicitSeasonBounds(cmd *cobra.Command) error {
+	var fromSeason, toSeason int
 	for _, name := range seasonBoundFlagNames {
 		if !cmd.Flags().Changed(name) {
 			continue
@@ -262,6 +263,16 @@ func validateExplicitSeasonBounds(cmd *cobra.Command) error {
 		if value <= 0 {
 			return fmt.Errorf("--%s must be greater than zero", name)
 		}
+		switch name {
+		case config.FlagFromSeasonYear:
+			fromSeason = value
+		case config.FlagToSeasonYear:
+			toSeason = value
+		}
+	}
+	if fromSeason > 0 && toSeason > 0 && fromSeason > toSeason {
+		return fmt.Errorf("invalid season range: --%s %d is after --%s %d",
+			config.FlagFromSeasonYear, fromSeason, config.FlagToSeasonYear, toSeason)
 	}
 	return nil
 }

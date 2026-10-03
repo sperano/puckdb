@@ -1,15 +1,18 @@
 package yahoo
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
-	"github.com/sperano/puckdb/internal/fixtures/yahoofixtures"
+	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -23,7 +26,7 @@ const (
 	testYahooSeason = 2023
 	testGameKey     = 423
 	testLeagueID    = 12345
-	testLeagueXML   = `<fantasy_content><league></league></fantasy_content>`
+	testLeagueXML   = `<fantasy_content><league><league_key>423.l.12345</league_key><league_id>12345</league_id><game_code>nhl</game_code><season>2023</season><end_week>25</end_week></league></fantasy_content>`
 	testTeamXML     = `<fantasy_content><team></team></fantasy_content>`
 )
 
@@ -120,6 +123,55 @@ func (s *FetchLeagueTestSuite) TestDownloadError() {
 
 	require.Error(s.T(), err)
 	assert.Contains(s.T(), err.Error(), "network error")
+}
+
+func (s *FetchLeagueTestSuite) TestInvalidRedisIdentityIsEvictedAndReloaded() {
+	mem := store.NewMemStorage()
+	res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
+	require.NoError(s.T(), mem.Write(context.Background(), res.Path(), []byte(testLeagueXML)))
+
+	invalid := &store.FantasyContent{League: store.League{
+		ID: testLeagueID + 1, Key: "423.l.12346", GameCode: "nhl", Season: testYahooSeason,
+	}}
+	var encoded bytes.Buffer
+	require.NoError(s.T(), gob.NewEncoder(&encoded).Encode(invalid))
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.ExpectGet(core.RedisKey(res)).SetVal(encoded.String())
+	mockRedis.ExpectDel(core.RedisKey(res)).SetVal(1)
+	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(res), "x", cache.GobCacheTTL).SetVal("OK")
+
+	act := newFetchActivities(mem, mockDownloader(nil, errors.New("must not download")), cache.NewGobCache(redisClient))
+	s.env.RegisterActivity(act.FetchLeague)
+	value, err := s.env.ExecuteActivity(act.FetchLeague, testYahooSeason, testLeagueID)
+
+	require.NoError(s.T(), err)
+	var result FetchLeagueResult
+	require.NoError(s.T(), value.Get(&result))
+	assert.Equal(s.T(), fixtureLeagueEndWeek, result.EndWeek)
+	require.NoError(s.T(), mockRedis.ExpectationsWereMet())
+}
+
+func (s *FetchLeagueTestSuite) TestInvalidRedisIdentityThenBadRequestIsNonRetryable() {
+	res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
+	invalid := &store.FantasyContent{League: store.League{
+		ID: testLeagueID + 1, Key: "423.l.12346", GameCode: "nhl", Season: testYahooSeason,
+	}}
+	var encoded bytes.Buffer
+	require.NoError(s.T(), gob.NewEncoder(&encoded).Encode(invalid))
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.ExpectGet(core.RedisKey(res)).SetVal(encoded.String())
+	mockRedis.ExpectDel(core.RedisKey(res)).SetVal(1)
+	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+	rejection := &httpx.HTTPError{StatusCode: http.StatusBadRequest, Status: "400 Bad Request"}
+
+	act := newFetchActivities(store.NewMemStorage(), failingDownloader(rejection), cache.NewGobCache(redisClient))
+	s.env.RegisterActivity(act.FetchLeague)
+	_, err := s.env.ExecuteActivity(act.FetchLeague, testYahooSeason, testLeagueID)
+
+	assertRetryability(s.T(), err, false, leagueNotFoundErrorType)
+	assert.Contains(s.T(), err.Error(), "check the league IDs")
+	require.NoError(s.T(), mockRedis.ExpectationsWereMet())
 }
 
 // --- FetchTeams tests ---
@@ -219,7 +271,7 @@ const fixtureLeagueEndWeek = 25
 func (s *FetchLeagueTestSuite) TestReturnsEndWeek() {
 	mem := store.NewMemStorage()
 	res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
-	require.NoError(s.T(), mem.Write(context.Background(), res.Path(), yahoofixtures.Read(yahoofixtures.PointsLeague)))
+	require.NoError(s.T(), mem.Write(context.Background(), res.Path(), []byte(testLeagueXML)))
 	act := newFetchActivities(mem, mockDownloader(nil, errors.New("must not download")), cache.NewGobCache(nil))
 	s.env.RegisterActivity(act.FetchLeague)
 

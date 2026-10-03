@@ -2,12 +2,14 @@ package yahoo
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/fixtures/yahoofixtures"
+	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -182,6 +184,38 @@ func TestFetchYahooLeaguePlayersPage_DownloadError(t *testing.T) {
 	a := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil)}
 
 	_, err := runPageActivity(t, a, FetchYahooLeaguePlayersPageInput{Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID, Start: 0})
+
+	require.Error(t, err)
+}
+
+func TestFetchYahooLeaguePlayersPage_FirstPagePreseasonRejectionIsUnavailable(t *testing.T) {
+	SetGameKeyCache(yahoofixtures.PointsSeason, yahoofixtures.PointsGameKey)
+	mem := store.NewMemStorage()
+	rejection := &httpx.HTTPError{StatusCode: http.StatusBadRequest, Status: "400 Bad Request"}
+	dl, _ := countingDownloader(nil, rejection)
+	a := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil)}
+	input := FetchYahooLeaguePlayersPageInput{
+		Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID, Start: 0,
+	}
+
+	result, err := runPageActivity(t, a, input)
+
+	require.NoError(t, err)
+	assert.True(t, result.Unavailable)
+	page := resource.LeaguePlayers{Season: input.Season, LeagueID: input.LeagueID, Start: input.Start}
+	assert.False(t, mem.Exists(context.Background(), page.Path()))
+}
+
+func TestFetchYahooLeaguePlayersPage_LaterPagePreseasonRejectionIsError(t *testing.T) {
+	SetGameKeyCache(yahoofixtures.PointsSeason, yahoofixtures.PointsGameKey)
+	rejection := &httpx.HTTPError{StatusCode: http.StatusBadRequest, Status: "400 Bad Request"}
+	dl, _ := countingDownloader(nil, rejection)
+	a := &FetchActivities{Storage: store.NewMemStorage(), Download: dl, GobCache: cache.NewGobCache(nil)}
+
+	_, err := runPageActivity(t, a, FetchYahooLeaguePlayersPageInput{
+		Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID,
+		Start: resource.LeaguePlayersPageSize,
+	})
 
 	require.Error(t, err)
 }

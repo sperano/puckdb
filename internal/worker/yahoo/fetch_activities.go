@@ -67,18 +67,38 @@ func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID 
 	}
 
 	res := resource.League{Season: season, LeagueID: leagueID, GameKey: gameKey}
-	content, origin, err := a.fetcher().Fetch(ctx, res)
+	fetcher := a.fetcher()
+	content, origin, err := fetcher.Fetch(ctx, res)
 	if err != nil {
-		if isYahooBadRequest(err) {
-			return FetchLeagueResult{}, temporal.NewNonRetryableApplicationError(
-				fmt.Sprintf("season %d league %d was rejected by Yahoo (400): the league does not exist or "+
-					"is not accessible; check the league IDs in the Yahoo seasons config (or the season's game key)", season, leagueID),
-				leagueNotFoundErrorType, err)
+		return FetchLeagueResult{}, classifyLeagueFetchError(season, leagueID, err)
+	}
+	if err := res.Validate(content); err != nil && origin == core.OriginRedis {
+		logger.Warn("Cached Yahoo league identity is invalid; evicting it", "season", season,
+			"leagueID", leagueID, "error", err)
+		if deleteErr := a.GobCache.Delete(ctx, core.RedisKey(res)); deleteErr != nil {
+			return FetchLeagueResult{}, fmt.Errorf("evict invalid cached league %d/%d: %w", season, leagueID, deleteErr)
 		}
-		return FetchLeagueResult{}, fmt.Errorf("fetch league %d/%d: %w", season, leagueID, err)
+		var fetchErr error
+		content, origin, fetchErr = fetcher.Fetch(ctx, res)
+		if fetchErr != nil {
+			return FetchLeagueResult{}, classifyLeagueFetchError(season, leagueID, fetchErr)
+		}
+	}
+	if err := res.Validate(content); err != nil {
+		return FetchLeagueResult{}, fmt.Errorf("validate league %d/%d: %w", season, leagueID, err)
 	}
 	logFetched(logger, origin, "League", "season", season, "leagueID", leagueID)
 	return FetchLeagueResult{EndWeek: content.League.EndWeek}, nil
+}
+
+func classifyLeagueFetchError(season, leagueID int, err error) error {
+	if isYahooBadRequest(err) {
+		return temporal.NewNonRetryableApplicationError(
+			fmt.Sprintf("season %d league %d was rejected by Yahoo (400): the league does not exist or "+
+				"is not accessible; check the league IDs in the Yahoo seasons config (or the season's game key)", season, leagueID),
+			leagueNotFoundErrorType, err)
+	}
+	return fmt.Errorf("fetch league %d/%d: %w", season, leagueID, err)
 }
 
 // FetchYahooPlayerBatch fetches a range of Yahoo player pages (from cache or network).

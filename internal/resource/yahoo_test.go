@@ -226,12 +226,15 @@ const minimalFantasyXML = `<fantasy_content></fantasy_content>`
 // invalidXML contains malformed XML that will always fail to parse.
 const invalidXML = `<not-closed`
 
+const validLeagueXML = `<fantasy_content><league><league_key>453.l.12345</league_key>` +
+	`<league_id>12345</league_id><game_code>nhl</game_code><season>2024</season></league></fantasy_content>`
+
 func TestLeague_ParseURL(t *testing.T) {
 	t.Parallel()
 	r := resource.League{Season: 2024, LeagueID: 12345, GameKey: 453}
 
 	t.Run("parse_valid", func(t *testing.T) {
-		result, err := r.Parse([]byte(minimalFantasyXML))
+		result, err := r.Parse([]byte(validLeagueXML))
 		if err != nil {
 			t.Fatalf("Parse() unexpected error: %v", err)
 		}
@@ -239,6 +242,20 @@ func TestLeague_ParseURL(t *testing.T) {
 			t.Fatal("Parse() returned nil")
 		}
 	})
+
+	for name, xmlData := range map[string]string{
+		"missing_identity": minimalFantasyXML,
+		"wrong_league":     strings.Replace(validLeagueXML, "12345</league_id>", "99999</league_id>", 1),
+		"wrong_season":     strings.Replace(validLeagueXML, "2024</season>", "2023</season>", 1),
+		"wrong_sport":      strings.Replace(validLeagueXML, "nhl</game_code>", "nfl</game_code>", 1),
+		"wrong_game_key":   strings.Replace(validLeagueXML, "453.l.12345", "999.l.12345", 1),
+		"malformed_key":    strings.Replace(validLeagueXML, "453.l.12345", "league-12345", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := r.Parse([]byte(xmlData))
+			require.Error(t, err)
+		})
+	}
 
 	t.Run("parse_invalid_xml", func(t *testing.T) {
 		_, err := r.Parse([]byte(invalidXML))

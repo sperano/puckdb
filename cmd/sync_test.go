@@ -34,6 +34,18 @@ func TestValidateExplicitSeasonBounds(t *testing.T) {
 	}
 }
 
+func TestValidateExplicitSeasonBounds_RejectsReversedRange(t *testing.T) {
+	cmd := &cobra.Command{}
+	config.InitFlags(cmd.Flags(), &config.SeasonRangeFlags)
+	require.NoError(t, cmd.Flags().Set(config.FlagFromSeasonYear, "2027"))
+	require.NoError(t, cmd.Flags().Set(config.FlagToSeasonYear, "2026"))
+
+	err := validateExplicitSeasonBounds(cmd)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--from-season 2027 is after --to-season 2026")
+}
+
 // watchSyncCancelTestTimeout bounds how long a test waits for
 // watchSyncCancel's goroutine to observe a context transition.
 const watchSyncCancelTestTimeout = 2 * time.Second

@@ -50,9 +50,10 @@ type FetchYahooLeaguePlayersPageInput struct {
 
 // FetchYahooLeaguePlayersPageResult reports what one page held.
 type FetchYahooLeaguePlayersPageResult struct {
-	Players   int    `json:"players"`
-	LeagueKey string `json:"leagueKey"`
-	GameKey   int    `json:"gameKey"`
+	Unavailable bool   `json:"unavailable,omitempty"`
+	Players     int    `json:"players"`
+	LeagueKey   string `json:"leagueKey"`
+	GameKey     int    `json:"gameKey"`
 }
 
 // CommitYahooLeaguePlayerPoolInput records a complete pool download.
@@ -122,6 +123,11 @@ func (a *FetchActivities) FetchYahooLeaguePlayersPage(ctx context.Context, input
 	}
 	content, err := a.fetcher().Refresh(ctx, res)
 	if err != nil {
+		if input.Start == 0 && isPreseasonResourceUnavailable(err) {
+			activity.GetLogger(ctx).Warn("Yahoo league player pool is not available yet",
+				"season", input.Season, "leagueID", input.LeagueID)
+			return FetchYahooLeaguePlayersPageResult{Unavailable: true}, nil
+		}
 		return FetchYahooLeaguePlayersPageResult{}, fmt.Errorf("fetch league players %d/%d start %d: %w",
 			input.Season, input.LeagueID, input.Start, err)
 	}
