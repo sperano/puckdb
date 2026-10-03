@@ -157,7 +157,8 @@ func ImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.
 // importYahooLeaguesAndTeams imports Yahoo league and team metadata from the
 // season's snapshotted Yahoo config. Returns the list of team IDs to process
 // for per-day Yahoo data import, or nil when the season has no leagues.
-func importYahooLeaguesAndTeams(ctx workflow.Context, yahooCfg config.Season, startYear int) ([]yahoo.TeamInfo, error) {
+func importYahooLeaguesAndTeams(ctx workflow.Context, yahooCfg config.Season, startYear int,
+	step yahooStepFunc) ([]yahoo.TeamInfo, error) {
 	logger := workflow.GetLogger(ctx)
 	var teamIDs []yahoo.TeamInfo
 
@@ -175,12 +176,14 @@ func importYahooLeaguesAndTeams(ctx workflow.Context, yahooCfg config.Season, st
 			if err := importStandInLeague(ctx, startYear, league); err != nil {
 				return nil, err
 			}
+			step(ctx)
 			continue
 		}
 		input := yahoo.ImportYahooLeagueInput{Season: startYear, LeagueID: league.LeagueID}
 		if err := workflow.ExecuteActivity(ctx, yia.ImportYahooLeague, input).Get(ctx, nil); err != nil {
 			return nil, err
 		}
+		step(ctx)
 
 		for _, teamID := range league.TeamIDs {
 			teamIDs = append(teamIDs, yahoo.TeamInfo{LeagueID: league.LeagueID, TeamID: teamID})
@@ -193,6 +196,7 @@ func importYahooLeaguesAndTeams(ctx workflow.Context, yahooCfg config.Season, st
 		if err := workflow.ExecuteActivity(ctx, yia.ImportYahooTeams, input).Get(ctx, nil); err != nil {
 			return nil, err
 		}
+		step(ctx)
 	}
 
 	return teamIDs, nil

@@ -266,7 +266,11 @@ func TestFetchSeasonsWorkflow_PartialYahooFailureKeepsFailedBarIncomplete(t *tes
 	require.Error(t, env.GetWorkflowError())
 	report := queryProgress(t, env)
 	assert.Contains(t, report.Message, "Yahoo metadata partially completed")
-	assert.Equal(t, 1, report.Groups[groupYahooMetadata].Bars[0].Current)
-	assert.Equal(t, 2, report.Groups[groupYahooMetadata].Bars[0].Total)
+	bars := report.Groups[groupYahooMetadata].Bars
+	require.Len(t, bars, 2)
+	assert.Equal(t, bars[0].Total, bars[0].Current)
+	assert.Zero(t, bars[1].Current)
+	assert.Equal(t, WorkflowIDFetchYahooSeason(2026), bars[0].ProgressSourceKey)
+	assert.Equal(t, WorkflowIDFetchYahooSeason(2027), bars[1].ProgressSourceKey)
 	env.AssertExpectations(t)
 }

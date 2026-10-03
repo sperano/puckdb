@@ -11,7 +11,7 @@ import (
 
 // fetchYahooPlayerPools downloads the draftable player pool of every league
 // that calls the Yahoo API (stand-in leagues make no Yahoo calls).
-func fetchYahooPlayerPools(ctx workflow.Context, startYear int, leagues []config.League) error {
+func fetchYahooPlayerPools(ctx workflow.Context, startYear int, leagues []config.League, step yahooStepFunc) error {
 	for _, league := range leagues {
 		if league.UsesTemporaryMetadata() {
 			continue
@@ -19,6 +19,7 @@ func fetchYahooPlayerPools(ctx workflow.Context, startYear int, leagues []config
 		if err := fetchYahooPlayerPool(ctx, startYear, league.LeagueID); err != nil {
 			return fmt.Errorf("fetch Yahoo player pool %d/%d: %w", startYear, league.LeagueID, err)
 		}
+		step(ctx)
 	}
 	return nil
 }
@@ -67,7 +68,8 @@ func fetchYahooPlayerPool(ctx workflow.Context, startYear, leagueID int) error {
 
 // importYahooPlayerPools imports each API league's latest pool snapshot and
 // returns the leagues that have none yet.
-func importYahooPlayerPools(ctx workflow.Context, startYear int, leagues []config.League) ([]string, error) {
+func importYahooPlayerPools(ctx workflow.Context, startYear int, leagues []config.League,
+	step yahooStepFunc) ([]string, error) {
 	var act *yahoo.ImportActivities
 	var unavailable []string
 	for _, league := range leagues {
@@ -82,6 +84,7 @@ func importYahooPlayerPools(ctx workflow.Context, startYear int, leagues []confi
 		if result.Unavailable {
 			unavailable = append(unavailable, fmt.Sprintf("league %d player pool", league.LeagueID))
 		}
+		step(ctx)
 	}
 	return unavailable, nil
 }
