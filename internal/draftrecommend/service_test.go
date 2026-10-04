@@ -219,6 +219,39 @@ func TestEvaluate_LabelsStaleIncompleteAndMissingOrder(t *testing.T) {
 	}
 }
 
+func TestEvaluate_SuppressesIncompleteRankingButKeepsDeterministicFallback(t *testing.T) {
+	incomplete := recommendationInput(t)
+	incomplete.Ranking.Meta.PoolSize++
+	result, err := Evaluate(incomplete)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.BoardStatus != BoardStatusIncomplete || len(result.Candidates) != 0 {
+		t.Fatalf("incomplete ranking result = %+v", result)
+	}
+
+	fallback := recommendationInput(t)
+	fallback.Ranking.Meta.Unavailable = []draftrank.Issue{{
+		Code: draftrank.IssueNewsAdjustmentsDown, Message: "news service unavailable",
+	}}
+	result, err = Evaluate(fallback)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Candidates) == 0 {
+		t.Fatalf("deterministic fallback was suppressed: %+v", result.Issues)
+	}
+}
+
+func TestEvaluate_RejectsMismatchedSessionLeague(t *testing.T) {
+	in := recommendationInput(t)
+	in.SessionLeagueKey = "nhl.l.other"
+
+	if _, err := Evaluate(in); err == nil {
+		t.Fatal("expected session/ranking league mismatch")
+	}
+}
+
 func TestEvaluate_IsStableAndUpdatesAfterBoardCorrection(t *testing.T) {
 	in := recommendationInput(t)
 	in.Scenario = draftrank.ScenarioBaseline
@@ -275,7 +308,8 @@ func recommendationInput(t *testing.T) Input {
 		Manual: map[draftsession.PickKey]draftsession.ManualChange{}, UpstreamComplete: true,
 	}
 	return Input{
-		Session: state, SessionSafe: true, OurTeamID: 1, Roster: []draft.RosterPlayer{{YahooPlayerID: 101, Name: "keeper", EligiblePositions: []string{draft.PositionCenter}}},
+		Session: state, SessionLeagueKey: "nhl.l.1", SessionSafe: true, OurTeamID: 1,
+		Roster:           []draft.RosterPlayer{{YahooPlayerID: 101, Name: "keeper", EligiblePositions: []string{draft.PositionCenter}}},
 		KeeperPlayerKeys: map[string]bool{"keeper": true},
 		Ranking: &draftrank.Snapshot{SnapshotInfo: draftrank.SnapshotInfo{
 			ID: uuid.New(), Identity: "rank-identity", AsOf: now,

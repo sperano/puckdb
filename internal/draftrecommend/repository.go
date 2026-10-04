@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -107,8 +108,8 @@ ORDER BY generated_at DESC, id DESC LIMIT 1`
 }
 
 func validateStoredRun(input Input, result Result) error {
-	if input.Ranking == nil {
-		return errors.New("store draft recommendation: ranking snapshot is required")
+	if err := validateInput(input); err != nil {
+		return fmt.Errorf("store draft recommendation: %w", err)
 	}
 	if result.RecommendationVersion != RecommendationVersion {
 		return fmt.Errorf("store draft recommendation: unsupported version %q", result.RecommendationVersion)
@@ -127,10 +128,28 @@ func validateStoredRun(input Input, result Result) error {
 		return errors.New("store draft recommendation: source version mismatch")
 	}
 	resolvedScenario, _ := selectedScenario(input)
-	if result.Scenario != resolvedScenario || result.GeneratedAt.IsZero() || result.LatencyMillis < 0 {
+	if result.Scenario != resolvedScenario || !result.GeneratedAt.Equal(input.GeneratedAt) || result.LatencyMillis < 0 ||
+		!equalStrategy(result.Strategy, input.Strategy) || !equalAvailability(result.Availability, input.Availability) ||
+		!equalADP(result.ADP, input.ADP) {
 		return errors.New("store draft recommendation: invalid scenario, time, or latency")
 	}
 	return nil
+}
+
+func equalStrategy(left, right Strategy) bool {
+	return left.RiskTolerance == right.RiskTolerance && left.RiskToleranceSet == right.RiskToleranceSet &&
+		maps.Equal(left.CategoryWeights, right.CategoryWeights)
+}
+
+func equalAvailability(left, right AvailabilitySource) bool {
+	return left.Name == right.Name && left.Version == right.Version && left.AsOf.Equal(right.AsOf) &&
+		maps.Equal(left.Unavailable, right.Unavailable) && maps.Equal(left.UnavailableReasons, right.UnavailableReasons) &&
+		maps.Equal(left.UnavailablePlayerIDs, right.UnavailablePlayerIDs)
+}
+
+func equalADP(left, right ADPSource) bool {
+	return left.Name == right.Name && left.Version == right.Version && left.AsOf.Equal(right.AsOf) &&
+		maps.Equal(left.ByPlayer, right.ByPlayer)
 }
 
 func decodeStoredRun(id uuid.UUID, inputRaw, resultRaw []byte) (StoredRun, error) {

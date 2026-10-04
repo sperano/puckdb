@@ -40,6 +40,7 @@ type AvailabilitySource struct {
 // evaluation. Roster includes keepers and all selected players on our team.
 type Input struct {
 	Session          draftsession.State   `json:"session"`
+	SessionLeagueKey string               `json:"sessionLeagueKey"`
 	SessionSafe      bool                 `json:"sessionSafe"`
 	SessionStale     bool                 `json:"sessionStale"`
 	Ranking          *draftrank.Snapshot  `json:"ranking"`

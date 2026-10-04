@@ -66,6 +66,10 @@ func Evaluate(in Input) (Result, error) {
 		return result, err
 	}
 	refs := availablePlayers(in, scenario, &result)
+	if result.BoardStatus == BoardStatusIncomplete {
+		result.LatencyMillis = time.Since(started).Milliseconds()
+		return result, nil
+	}
 	result.Candidates = evaluateCandidates(in, refs, &result)
 	if len(result.Candidates) == 0 {
 		result.Issues = append(result.Issues, "no available player is feasible for the current roster")
@@ -77,13 +81,17 @@ func Evaluate(in Input) (Result, error) {
 }
 
 func validateInput(in Input) error {
-	if in.Ranking == nil || in.OurTeamID <= 0 || in.GeneratedAt.IsZero() {
-		return fmt.Errorf("%w: ranking, team ID and generated-at time are required", ErrInvalidInput)
+	if in.Ranking == nil || in.SessionLeagueKey == "" || in.OurTeamID <= 0 || in.GeneratedAt.IsZero() {
+		return fmt.Errorf("%w: ranking, session league, team ID and generated-at time are required", ErrInvalidInput)
 	}
 	info := in.Ranking.SnapshotInfo
 	if info.ID == uuid.Nil || info.Identity == "" || info.League.LeagueKey == "" || info.League.RulesHash == "" ||
 		info.Projection.SnapshotID == uuid.Nil || info.Projection.ModelVersion == "" {
 		return fmt.Errorf("%w: ranking, projection and rule versions are required", ErrInvalidInput)
+	}
+	if in.SessionLeagueKey != info.League.LeagueKey {
+		return fmt.Errorf("%w: session league %q differs from ranking league %q",
+			ErrInvalidInput, in.SessionLeagueKey, info.League.LeagueKey)
 	}
 	if in.GeneratedAt.Before(info.AsOf) {
 		return fmt.Errorf("%w: generated-at time precedes the ranking snapshot", ErrInvalidInput)
@@ -144,9 +152,9 @@ func newResult(in Input, scenario draftrank.Scenario, issues []string) Result {
 	for _, issue := range info.Unavailable {
 		result.Issues = append(result.Issues, string(issue.Code)+": "+issue.Message)
 	}
-	if info.PoolSize != len(in.Ranking.Players) || len(info.Unavailable) > 0 {
+	if info.PoolSize != len(in.Ranking.Players) {
 		result.BoardStatus = BoardStatusIncomplete
-		result.Issues = append(result.Issues, "ranking pool is incomplete")
+		result.Issues = append(result.Issues, "ranking pool size does not match its stored players")
 	}
 	return result
 }

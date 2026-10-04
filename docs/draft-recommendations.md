@@ -30,7 +30,10 @@ traded picks work without special cases.
 Recommendations exclude every player on the effective upstream/manual board,
 the supplied roster, the keeper set, and the explicitly unavailable set. A
 partial board, unresolved manual conflict, or stale session produces a labeled
-result with no candidates.
+result with no candidates. A ranking whose stored pool size or per-player
+scenario data is incomplete is also suppressed. Stale but internally complete
+rankings remain visible with a warning, and a news-service outage may fall back
+to the stored baseline ranking so deterministic advice remains available.
 
 Ranking filters continue to use base positions (`C`, `LW`, `RW`, `D`, `G`).
 Ranking snapshots now also retain `RosterEligiblePositions`, the full Yahoo
@@ -78,7 +81,10 @@ retention.
 
 `draftrecommend.Repository` saves, loads, and finds the latest run for an
 exact session version. It verifies source versions before writing and after
-reading. `EvaluateReplay` reports whether historical selections matched the
+reading. `draftrecommend.Service.Recommend` is the durable application entry
+point: it evaluates and saves before returning. The live board/API consumer is
+added by the dependent live-board task; this package does not infer an order
+from incomplete Yahoo settings. `EvaluateReplay` reports whether historical selections matched the
 best-value or best-fit recommendation and returns median and 95th-percentile
 evaluation latency.
 
