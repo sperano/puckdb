@@ -151,7 +151,7 @@ Run `./puckdb <command> --help` for the complete flags and subcommands.
 | `news eval` | Measure the extraction model on the labeled corpus against the release thresholds |
 | `redis` | Redis administration |
 | `metrics` | Export cache, Redis, and database metrics |
-| `mcp-server` | Serve curated read-only data tools over HTTP or stdio |
+| `mcp-server` | Serve curated read-only data tools over HTTP or stdio; `--mcp-toolsets` picks NHL and/or Yahoo tools ([below](#mcp-server)) |
 | `maurice` | Start the interactive AI hockey chat REPL |
 | `sim` | Create and operate fantasy-pool simulations |
 | `yahoo` | Yahoo account operations; `yahoo check-access` reports (and can email) whether the Yahoo API serves a season's leagues yet ([notes](docs/yahoo-access-check.md)) |
@@ -176,7 +176,7 @@ Running `./puckdb sync` without step names executes the full pipeline.
 | GraphQL endpoint | `http://localhost:8787/graphql/query` | POST endpoint used by the CLI |
 | Worker metrics | `http://localhost:8788/metrics` | Workflow and activity metrics |
 | Collector metrics | `http://localhost:8789/metrics` | Started with `puckdb metrics` |
-| MCP server | `http://localhost:8790/mcp` | Started with `puckdb mcp-server` |
+| MCP server | `http://localhost:8790/mcp` | Started with `puckdb mcp-server`; NHL tools only by default |
 | Temporal | `localhost:7233` | Workflow service |
 | Temporal UI | `http://localhost:8080` | Workflow inspection |
 | PostgreSQL | `localhost:5432` | Exposed through PgBouncer |
@@ -185,6 +185,36 @@ Running `./puckdb sync` without step names executes the full pipeline.
 Grafana (`localhost:3001`) and a restricted PostgreSQL MCP server
 (`localhost:8000`) are also defined in `docker-compose.yaml`, but they are not
 required for the quick start.
+
+## MCP server
+
+`puckdb mcp-server` serves read-only tools in two toolsets, chosen with
+`--mcp-toolsets` (`PUCKDB_MCP_TOOLSETS`):
+
+| Toolset | Tools | Server name |
+| --- | --- | --- |
+| `nhl` (default) | Public NHL data: players, games, stats, standings, Edge, playoffs, play-by-play | `puckdb-nhl` |
+| `yahoo` | Yahoo fantasy league data: leagues, teams, rosters, roto standings, unrostered players, matchups, draft results | `puckdb-yahoo` |
+
+`--mcp-toolsets nhl,yahoo` serves both from one instance (`puckdb-nhl-yahoo`).
+To expose the Yahoo data only to some clients, run one instance per audience
+and point each client at the URL it may use:
+
+```bash
+./puckdb mcp-server --mcp-toolsets nhl --mcp-port 8790
+./puckdb mcp-server --mcp-toolsets yahoo --mcp-port 8791 --mcp-yahoo-leagues 465.l.1001
+```
+
+`--mcp-yahoo-leagues` (`PUCKDB_MCP_YAHOO_LEAGUES`) limits the `yahoo` toolset
+to a comma-separated list of league keys (`<game key>.l.<league ID>`; bare
+league IDs are refused because they repeat across seasons). Empty serves
+every league. A league outside the list is answered like a missing one
+(`unknown league_id`), and `get_yahoo_leagues` lists only the served leagues.
+
+The HTTP endpoint has no authentication: splitting the toolsets limits what
+an instance serves, not who can reach it. Keep a Yahoo instance's port off
+networks that untrusted clients can reach. Maurice answers Yahoo questions
+only when its `maurice.yaml` lists a server that serves the `yahoo` toolset.
 
 ## Configuration
 

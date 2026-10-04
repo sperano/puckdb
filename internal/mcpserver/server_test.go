@@ -1,15 +1,17 @@
 package mcpserver
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// expectedTools lists every tool name that should be registered.
-// Update this list whenever a new tool is added.
-var expectedTools = []string{
+// expectedNHLTools lists every tool the nhl toolset registers.
+// Update this list whenever a new NHL tool is added.
+var expectedNHLTools = []string{
 	// Resolution (5)
 	"search_player",
 	"find_team",
@@ -45,22 +47,14 @@ var expectedTools = []string{
 	"get_goalie_game_log",
 	"get_club_skater_stats",
 	"get_club_goalie_stats",
+	// Season stats (2)
+	"get_skater_season_stats",
+	"get_goalie_season_stats",
 	// Standings (4)
 	"get_standings_by_date",
 	"get_standings_by_season",
 	"get_standings_by_season_and_date",
 	"get_standings_by_team",
-	// Fantasy (10)
-	"get_yahoo_leagues",
-	"get_yahoo_teams_by_league",
-	"get_yahoo_roster",
-	"get_yahoo_roto_standings",
-	"get_skater_season_stats",
-	"get_goalie_season_stats",
-	"get_unrostered_skaters",
-	"get_unrostered_goalies",
-	"get_yahoo_matchups",
-	"get_yahoo_draft_results",
 	// Edge (3)
 	"get_edge_skater_stats",
 	"get_edge_goalie_stats",
@@ -76,19 +70,64 @@ var expectedTools = []string{
 	"get_first_matching_event_per_team",
 }
 
-func TestNewServer_RegistersAllTools(t *testing.T) {
-	// NewServer accepts *sqlcdb.Queries; nil is fine here because
-	// we only inspect registrations, not invoke any tool.
-	srv := NewServer((*sqlcdb.Queries)(nil))
+// expectedYahooTools lists every tool the yahoo toolset registers.
+// Update this list whenever a new Yahoo tool is added.
+var expectedYahooTools = []string{
+	"get_yahoo_leagues",
+	"get_yahoo_teams_by_league",
+	"get_yahoo_roster",
+	"get_yahoo_roto_standings",
+	"get_unrostered_skaters",
+	"get_unrostered_goalies",
+	"get_yahoo_matchups",
+	"get_yahoo_draft_results",
+}
 
-	tools := srv.ListTools() // map[string]*server.ServerTool
-	names := make([]string, 0, len(tools))
-	for name := range tools {
+// registeredToolNames builds a server for opts and returns its tool names.
+// NewServer accepts *sqlcdb.Queries; nil is fine here because only the
+// registrations are inspected, no tool is invoked.
+func registeredToolNames(t *testing.T, opts Options) []string {
+	t.Helper()
+	srv, err := NewServer((*sqlcdb.Queries)(nil), opts)
+	require.NoError(t, err)
+	names := make([]string, 0, len(srv.ListTools()))
+	for name := range srv.ListTools() {
 		names = append(names, name)
 	}
+	return names
+}
 
-	assert.Len(t, names, len(expectedTools), "tool count mismatch — update expectedTools when adding new tools")
-	for _, want := range expectedTools {
-		assert.Contains(t, names, want)
+func TestNewServer_RegistersSelectedToolsets(t *testing.T) {
+	tests := []struct {
+		name     string
+		toolsets []Toolset
+		want     []string
+	}{
+		{"nhl", []Toolset{ToolsetNHL}, expectedNHLTools},
+		{"yahoo", []Toolset{ToolsetYahoo}, expectedYahooTools},
+		{"nhl and yahoo", []Toolset{ToolsetNHL, ToolsetYahoo}, append(slices.Clone(expectedNHLTools), expectedYahooTools...)},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			names := registeredToolNames(t, Options{Toolsets: tt.toolsets})
+			assert.ElementsMatch(t, tt.want, names, "update expectedNHLTools/expectedYahooTools when adding tools")
+		})
+	}
+}
+
+// TestToolsetsDoNotOverlap pins the clean cut between the toolsets: a
+// combined server must not silently replace one toolset's tool with the
+// other's.
+func TestToolsetsDoNotOverlap(t *testing.T) {
+	for _, name := range expectedYahooTools {
+		assert.NotContains(t, expectedNHLTools, name)
+	}
+}
+
+func TestNewServer_RejectsInvalidOptions(t *testing.T) {
+	_, err := NewServer((*sqlcdb.Queries)(nil), Options{})
+	require.ErrorContains(t, err, "no toolset selected")
+
+	_, err = NewServer((*sqlcdb.Queries)(nil), Options{Toolsets: []Toolset{"espn"}})
+	require.ErrorContains(t, err, `unknown toolset "espn"`)
 }

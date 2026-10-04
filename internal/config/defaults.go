@@ -34,6 +34,15 @@ const (
 	DefaultMCPPort     = 8790
 )
 
+// MCP server defaults
+const (
+	// DefaultMCPToolsets serves only the public NHL tools; the Yahoo league
+	// tools are opt-in with --mcp-toolsets yahoo or nhl,yahoo.
+	DefaultMCPToolsets = "nhl"
+	// DefaultMCPYahooLeagues is empty: the yahoo toolset serves every league.
+	DefaultMCPYahooLeagues = ""
+)
+
 // Temporal defaults
 const (
 	DefaultTemporalHostPort             = "localhost:7233"

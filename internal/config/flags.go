@@ -262,8 +262,10 @@ const (
 
 // MCP server flags
 const (
-	FlagMCPPort  = "mcp-port"
-	FlagMCPStdio = "mcp-stdio"
+	FlagMCPPort         = "mcp-port"
+	FlagMCPStdio        = "mcp-stdio"
+	FlagMCPToolsets     = "mcp-toolsets"
+	FlagMCPYahooLeagues = "mcp-yahoo-leagues"
 )
 
 // CLI display flags
@@ -536,12 +538,15 @@ var MetricsIntervalFlags = FlagGroup{
 	},
 }
 
-// MCPServerFlags defines the MCP server transport flags: the HTTP listen
-// port and the switch to serve over stdio instead.
+// MCPServerFlags defines the MCP server flags: the HTTP listen port, the
+// switch to serve over stdio instead, the toolsets to expose and the Yahoo
+// leagues the yahoo toolset serves.
 var MCPServerFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagMCPPort, "", DefaultMCPPort, "MCP server HTTP port", false},
 		{FlagMCPStdio, "", false, "Serve over stdio instead of HTTP", false},
+		{FlagMCPToolsets, "", DefaultMCPToolsets, "Comma-separated toolsets to serve: nhl (public NHL data), yahoo (Yahoo fantasy league data), or nhl,yahoo", false},
+		{FlagMCPYahooLeagues, "", DefaultMCPYahooLeagues, "Comma-separated Yahoo league keys the yahoo toolset serves, e.g. 465.l.1001 (default: every league)", false},
 	},
 }
 

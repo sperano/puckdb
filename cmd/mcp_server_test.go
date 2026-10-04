@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/mcpserver"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
@@ -24,6 +25,14 @@ func resolveMCPTransportFor(t *testing.T, args ...string) mcpTransport {
 	require.NoError(t, cmd.ParseFlags(args))
 	require.NoError(t, cmd.PreRunE(cmd, nil))
 	return resolveMCPTransport()
+}
+
+// resolveMCPOptionsFor is resolveMCPTransportFor for the toolset and league
+// selection. Tests calling this must not use t.Parallel either.
+func resolveMCPOptionsFor(t *testing.T, args ...string) (mcpserver.Options, error) {
+	t.Helper()
+	resolveMCPTransportFor(t, args...)
+	return resolveMCPOptions()
 }
 
 func TestMCPServerTransportDefaults(t *testing.T) {
@@ -80,4 +89,56 @@ func TestMCPServerTransportRejectsZeroPortFlag(t *testing.T) {
 func TestMCPServerTransportStdioIgnoresPort(t *testing.T) {
 	got := resolveMCPTransportFor(t, "--mcp-stdio", "--mcp-port", "0")
 	require.NoError(t, got.Validate())
+}
+
+// TestMCPServerToolsetsDefaultIsNHL pins the safe default: the Yahoo league
+// tools are opt-in.
+func TestMCPServerToolsetsDefaultIsNHL(t *testing.T) {
+	got, err := resolveMCPOptionsFor(t)
+	require.NoError(t, err)
+	require.Equal(t, mcpserver.Options{Toolsets: []mcpserver.Toolset{mcpserver.ToolsetNHL}}, got)
+}
+
+func TestMCPServerToolsetsFlag(t *testing.T) {
+	got, err := resolveMCPOptionsFor(t, "--mcp-toolsets", "yahoo", "--mcp-yahoo-leagues", "465.l.1001, 465.l.2002")
+	require.NoError(t, err)
+	require.Equal(t, mcpserver.Options{
+		Toolsets:     []mcpserver.Toolset{mcpserver.ToolsetYahoo},
+		YahooLeagues: []string{"465.l.1001", "465.l.2002"},
+	}, got)
+}
+
+func TestMCPServerToolsetsEnv(t *testing.T) {
+	t.Setenv("PUCKDB_MCP_TOOLSETS", "yahoo,nhl")
+	t.Setenv("PUCKDB_MCP_YAHOO_LEAGUES", "465.l.1001")
+	got, err := resolveMCPOptionsFor(t)
+	require.NoError(t, err)
+	require.Equal(t, []mcpserver.Toolset{mcpserver.ToolsetNHL, mcpserver.ToolsetYahoo}, got.Toolsets)
+	require.Equal(t, []string{"465.l.1001"}, got.YahooLeagues)
+}
+
+func TestMCPServerToolsetsRejectsUnknownToolset(t *testing.T) {
+	_, err := resolveMCPOptionsFor(t, "--mcp-toolsets", "nhl,fantasy")
+	require.ErrorContains(t, err, `invalid --mcp-toolsets: unknown toolset "fantasy"`)
+}
+
+func TestMCPServerToolsetsRejectsEmptyToolsets(t *testing.T) {
+	_, err := resolveMCPOptionsFor(t, "--mcp-toolsets", "")
+	require.ErrorContains(t, err, "invalid --mcp-toolsets: no toolset selected")
+}
+
+// TestMCPServerYahooLeaguesRejectsBareIDs guards the season ambiguity: a
+// bare league ID could match another season's league.
+func TestMCPServerYahooLeaguesRejectsBareIDs(t *testing.T) {
+	_, err := resolveMCPOptionsFor(t, "--mcp-toolsets", "yahoo", "--mcp-yahoo-leagues", "1001")
+	require.ErrorContains(t, err, `invalid --mcp-yahoo-leagues: invalid league key "1001"`)
+}
+
+// TestMCPServerYahooLeaguesWithoutYahooToolsetStarts keeps a shared
+// PUCKDB_MCP_YAHOO_LEAGUES from stopping an nhl-only instance.
+func TestMCPServerYahooLeaguesWithoutYahooToolsetStarts(t *testing.T) {
+	t.Setenv("PUCKDB_MCP_YAHOO_LEAGUES", "465.l.1001")
+	got, err := resolveMCPOptionsFor(t)
+	require.NoError(t, err)
+	require.False(t, got.HasToolset(mcpserver.ToolsetYahoo))
 }

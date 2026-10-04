@@ -44,7 +44,7 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `worker` | Temporal worker for download/import workflows, metrics at `/metrics` |
 | `sync` | Sync data into the database |
 | `metrics` | Expose cache, Redis, and database metrics as Prometheus metrics |
-| `mcp-server` | MCP server exposing curated read-only data tools; HTTP on `--mcp-port` (default 8790) or `--mcp-stdio` |
+| `mcp-server` | MCP server exposing curated read-only data tools; HTTP on `--mcp-port` (default 8790) or `--mcp-stdio`; `--mcp-toolsets` picks `nhl` (default), `yahoo` or `nhl,yahoo` (server name `puckdb-<toolsets>`); `--mcp-yahoo-leagues` limits the `yahoo` toolset to listed league keys (empty: every league) |
 | `db init` | Create tables, seed NHL data |
 | `db drop` | Drop all tables |
 | `db migrate` | Run database migrations directly |
@@ -100,7 +100,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/llm/` | LLM client (used by player enrichment / Maurice) |
 | `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
 | `internal/mcp/` | MCP client (used by Maurice to call tool servers) |
-| `internal/mcpserver/` | MCP server exposing curated read-only data tools (`mcp-server` command) |
+| `internal/mcpserver/` | MCP server exposing curated read-only data tools (`mcp-server` command), split into the `nhl` and `yahoo` toolsets; `league_guard.go` refuses Yahoo leagues outside `--mcp-yahoo-leagues` (refusal = unknown league), and every league-scoped Yahoo tool must go through `leagueGuard.scoped` (enforced by `TestYahooToolsAreLeagueGuarded`) |
 | `tls/` | TLS certificates for internal services (gitignored) |
 
 Non-Go directories: `docs/` (design notes, runbooks), `examples/` (sample pool-simulation and gob-cache configs), `scripts/` (operational shell scripts), `.docker/` (compose-only config for Temporal and Grafana provisioning).

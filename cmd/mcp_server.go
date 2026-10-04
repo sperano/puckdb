@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
@@ -54,7 +55,12 @@ func cmdMCPServer() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp-server",
 		Short: "Start the PuckDB MCP server",
-		Long:  "Serve curated NHL data tools via the Model Context Protocol (MCP)",
+		Long: "Serve curated read-only data tools via the Model Context Protocol (MCP).\n\n" +
+			"--mcp-toolsets picks what one instance serves: nhl (public NHL data, the default), " +
+			"yahoo (Yahoo fantasy league data) or nhl,yahoo. Run one instance per audience, " +
+			"e.g. nhl on 8790 for every client and yahoo on another port for trusted ones. " +
+			"--mcp-yahoo-leagues limits the yahoo toolset to the listed league keys. " +
+			"The HTTP endpoint has no authentication: keep a Yahoo instance's port private.",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return config.BindFlags(cmd.Flags(), mcpServerFlagGroups...)
 		},
@@ -63,7 +69,11 @@ func cmdMCPServer() *cobra.Command {
 			if err := transport.Validate(); err != nil {
 				return err
 			}
-			return runMCPServer(cmd, transport)
+			opts, err := resolveMCPOptions()
+			if err != nil {
+				return err
+			}
+			return runMCPServer(cmd, transport, opts)
 		},
 	}
 	flags := cmd.Flags()
@@ -83,7 +93,28 @@ func resolveMCPTransport() mcpTransport {
 	}
 }
 
-func runMCPServer(cmd *cobra.Command, transport mcpTransport) error {
+// resolveMCPOptions reads the toolset and Yahoo league selection through
+// viper, like resolveMCPTransport. A league list without the yahoo toolset
+// is only logged: a shared PUCKDB_MCP_YAHOO_LEAGUES must not stop an nhl
+// instance from starting.
+func resolveMCPOptions() (mcpserver.Options, error) {
+	toolsets, err := mcpserver.ParseToolsets(viper.GetString(config.FlagMCPToolsets))
+	if err != nil {
+		return mcpserver.Options{}, fmt.Errorf("invalid --%s: %w", config.FlagMCPToolsets, err)
+	}
+	leagues, err := mcpserver.ParseLeagueKeys(viper.GetString(config.FlagMCPYahooLeagues))
+	if err != nil {
+		return mcpserver.Options{}, fmt.Errorf("invalid --%s: %w", config.FlagMCPYahooLeagues, err)
+	}
+	opts := mcpserver.Options{Toolsets: toolsets, YahooLeagues: leagues}
+	if len(leagues) > 0 && !opts.HasToolset(mcpserver.ToolsetYahoo) {
+		log.Warn().Strs("leagues", leagues).
+			Msgf("--%s ignored: the %s toolset is not served", config.FlagMCPYahooLeagues, mcpserver.ToolsetYahoo)
+	}
+	return opts, nil
+}
+
+func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Options) error {
 	ctx := cmd.Context()
 
 	pool, err := database.OpenPGXPool(ctx)
@@ -93,15 +124,21 @@ func runMCPServer(cmd *cobra.Command, transport mcpTransport) error {
 	defer pool.Close()
 
 	queries := database.NewQueries(pool)
-	srv := mcpserver.NewServer(queries)
+	srv, err := mcpserver.NewServer(queries, opts)
+	if err != nil {
+		return err
+	}
+	logEvent := func(e *zerolog.Event) *zerolog.Event {
+		return e.Str("server", mcpserver.ServerName(opts.Toolsets)).Strs("yahoo_leagues", opts.YahooLeagues)
+	}
 
 	if transport.Stdio {
-		log.Info().Msg("Starting PuckDB MCP server (stdio)")
+		logEvent(log.Info()).Msg("Starting PuckDB MCP server (stdio)")
 		return mcpserversdk.ServeStdio(srv)
 	}
 
 	httpSrv := mcpserversdk.NewStreamableHTTPServer(srv)
-	log.Info().Int("port", transport.Port).Msg("Starting PuckDB MCP server (HTTP)")
+	logEvent(log.Info()).Int("port", transport.Port).Msg("Starting PuckDB MCP server (HTTP)")
 	return serveMCPHTTP(ctx, httpSrv, transport.Addr())
 }
 
