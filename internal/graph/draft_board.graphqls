@@ -1,0 +1,234 @@
+"""Connection/freshness state of the persisted Yahoo draft session."""
+enum MauriceDraftConnection {
+  NEVER_SYNCED
+  FRESH
+  STALE
+  ERROR
+  INCOMPLETE
+}
+
+enum MauriceDraftEntrySource {
+  YAHOO
+  MANUAL
+}
+
+enum MauriceDraftWatchState {
+  STOPPED
+  STARTING
+  RUNNING
+  STOPPING
+  FAILED
+  COMPLETE
+}
+
+enum MauriceDraftManualAction {
+  ADD
+  CORRECT
+}
+
+enum MauriceDraftConflictChoice {
+  KEEP_MANUAL
+  ACCEPT_UPSTREAM
+}
+
+type MauriceDraftWatchStatus {
+  state: MauriceDraftWatchState!
+  startedAt: Time
+  stoppedAt: Time
+  lastError: String
+}
+
+type MauriceDraftSyncStatus {
+  connection: MauriceDraftConnection!
+  draftStatus: String!
+  recommendationsSafe: Boolean!
+  complete: Boolean!
+  stateVersion: Int64!
+  syncVersion: Int64!
+  lastPollAt: Time
+  lastSuccessAt: Time
+  lastAuthoritativeAt: Time
+  lastError: String
+  watch: MauriceDraftWatchStatus!
+}
+
+type MauriceDraftTurn {
+  currentRound: Int
+  currentPick: Int
+  picksUntilNextTurn: Int
+  orderKnown: Boolean!
+  draftType: String!
+  """Yahoo's configured per-pick limit; this is not a live countdown."""
+  pickTimeSeconds: Int
+  timingLabel: String!
+}
+
+type MauriceDraftPick {
+  round: Int!
+  pick: Int!
+  teamId: Int!
+  teamName: String!
+  playerId: Int!
+  playerKey: String!
+  playerName: String!
+  source: MauriceDraftEntrySource!
+  conflict: Boolean!
+  """True when this row exposes a conflicted local undo tombstone for recovery."""
+  undone: Boolean!
+  cost: Int
+}
+
+type MauriceDraftRosterAssignment {
+  slot: String!
+  index: Int!
+  playerId: Int!
+  playerKey: String!
+  playerName: String!
+}
+
+type MauriceDraftOpenSlot {
+  slot: String!
+  count: Int!
+}
+
+type MauriceDraftRoster {
+  teamId: Int!
+  teamName: String!
+  feasible: Boolean!
+  assignments: [MauriceDraftRosterAssignment!]!
+  openSlots: [MauriceDraftOpenSlot!]!
+  warnings: [String!]!
+}
+
+type MauriceDraftNewsReason {
+  detail: String!
+  reportedAt: Time
+  status: String!
+  scenarios: [DraftScenario!]!
+}
+
+type MauriceDraftPlayer {
+  playerKey: String!
+  yahooPlayerId: Int!
+  name: String!
+  team: String!
+  eligiblePositions: [String!]!
+  status: String
+  injuryNote: String
+  baselineRank: Int!
+  scenarioRank: Int!
+  valueRank: Int
+  rosterFitRank: Int
+  baselineValue: Float!
+  scenarioValue: Float!
+  newsDelta: Float!
+  shortlisted: Boolean!
+  assignedSlot: String
+  recommendationReasons: [String!]!
+  news: [MauriceDraftNewsReason!]!
+}
+
+type MauriceDraftRecommendations {
+  bestValuePlayerKey: String
+  bestRosterFitPlayerKey: String
+  """Recommendation details are independent of available-player filtering and pagination."""
+  bestValue: MauriceDraftPlayer
+  bestRosterFit: MauriceDraftPlayer
+  issues: [String!]!
+  generatedAt: Time
+  rankingAsOf: Time
+}
+
+type MauriceDraftBoard {
+  league: DraftLeague!
+  scenario: DraftScenario!
+  snapshot: DraftSnapshot!
+  sync: MauriceDraftSyncStatus!
+  turn: MauriceDraftTurn!
+  roster: MauriceDraftRoster!
+  history: [MauriceDraftPick!]!
+  available: [MauriceDraftPlayer!]!
+  shortlist: [MauriceDraftPlayer!]!
+  recommendations: MauriceDraftRecommendations!
+  warnings: [String!]!
+  totalAvailable: Int!
+  offset: Int!
+  limit: Int!
+}
+
+type MauriceDraftSessionEvent {
+  stateVersion: Int64!
+  kind: String!
+  createdAt: Time!
+}
+
+input MauriceDraftBoardInput {
+  league: String!
+  season: Int
+  scenario: DraftScenario
+  positions: [String!]
+  search: String
+  offset: Int
+  limit: Int
+}
+
+input MauriceDraftSessionRefInput {
+  league: String!
+  season: Int
+}
+
+input MauriceDraftManualPickInput {
+  league: String!
+  season: Int
+  action: MauriceDraftManualAction!
+  round: Int!
+  pick: Int!
+  teamKey: String!
+  playerKey: String!
+  cost: Int
+  expectedStateVersion: Int64!
+  clientMutationId: String!
+}
+
+input MauriceDraftSlotInput {
+  league: String!
+  season: Int
+  round: Int!
+  pick: Int!
+  expectedStateVersion: Int64!
+  clientMutationId: String!
+}
+
+input MauriceDraftResolveInput {
+  league: String!
+  season: Int
+  round: Int!
+  pick: Int!
+  choice: MauriceDraftConflictChoice!
+  expectedStateVersion: Int64!
+  clientMutationId: String!
+}
+
+input MauriceDraftShortlistInput {
+  league: String!
+  season: Int
+  playerKey: String!
+  selected: Boolean!
+  expectedStateVersion: Int64!
+}
+
+extend type Query {
+  """Polling read model. Clients order responses by syncVersion and refetch on a stateVersion gap."""
+  mauriceDraftBoard(input: MauriceDraftBoardInput!): MauriceDraftBoard!
+  mauriceDraftEvents(league: String!, season: Int, afterStateVersion: Int64!, limit: Int): [MauriceDraftSessionEvent!]!
+}
+
+extend type Mutation {
+  startMauriceDraftWatch(input: MauriceDraftSessionRefInput!): MauriceDraftWatchStatus!
+  stopMauriceDraftWatch(input: MauriceDraftSessionRefInput!): MauriceDraftWatchStatus!
+  refreshMauriceDraftBoard(input: MauriceDraftSessionRefInput!): MauriceDraftSyncStatus!
+  applyMauriceDraftPick(input: MauriceDraftManualPickInput!): MauriceDraftSyncStatus!
+  undoMauriceDraftPick(input: MauriceDraftSlotInput!): MauriceDraftSyncStatus!
+  resolveMauriceDraftConflict(input: MauriceDraftResolveInput!): MauriceDraftSyncStatus!
+  setMauriceDraftShortlist(input: MauriceDraftShortlistInput!): MauriceDraftSyncStatus!
+}

@@ -56,6 +56,7 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `draft rankings` | A league's stored ranking snapshot as a table, CSV or JSON (`--draft-league`, `--draft-positions`, `--draft-format`, search/sort/pagination flags); same service and values as GraphQL (see `docs/draft-rankings-api.md`) |
 | `sync draft` | Force-refresh and reconcile one full-key Yahoo draft session; `--watch` polls with bounded backoff and final reconciliation (see `docs/yahoo-draft-watch.md`) |
 | `draft session` | Inspect live draft state, capability observations, and perform local add/correct/undo/conflict resolution without submitting Yahoo picks |
+| `api` → `/draft/` | Maurice live draft board: versioned polling, watch/recovery controls, roster-fit recommendations, shortlist and pick history |
 | `news report` | Markdown report of player news: source coverage (fresh/failing/stale/missing), incident candidates with attributed evidence, unattached story subjects; `--news-player-nhl-id`/`--news-player-yahoo-id` for one player (see `docs/draft-player-news.md`) |
 | `news events` | Markdown report of validated news events (evidence quotes, lifecycle history) and the extraction review queue (see `docs/draft-news-events.md`) |
 | `news eval` | Run the labeled news-event corpus through `--news-extract-provider`/`--news-extract-model`, print accuracy and unsupported-claim rate against the release thresholds, record the run (the gate for automatic effects) |
@@ -87,6 +88,8 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/draft/` | Draft helper models: normalized league rules, scoring-input validation, roster feasibility, player-pool coverage, comparison reports (see `docs/draft-league-rules.md`) |
 | `internal/draftrank/` | Draft ranking service shared by GraphQL, the CLI and exports: refresh (projection → news adjustment → rankings per scenario), immutable per-league snapshots, views (position/search/sort/pagination), explicit issue codes, CSV/JSON/table export (see `docs/draft-rankings-api.md`) |
 | `internal/draftrecommend/` | Deterministic live-draft recommendation and replay service over one ranking/session snapshot, with audited numeric reasons and PostgreSQL run storage (see `docs/draft-recommendations.md`) |
+| `internal/draftboard/` | Live-board application service: versioned Yahoo session + ranking/recommendation composition, roster feasibility, shortlist and process-scoped watch controls (see `docs/maurice-draft-board.md`) |
+| `internal/draftboardui/` | Embedded responsive `/draft/` browser client with keyboard navigation and polling/version recovery |
 | `internal/news/` | Player news for the draft helper: source set (`sources.yaml`), RSS/Atom, NHL content and Yahoo status adapters, conditional fetch, article versions, player resolution, incident grouping, coverage and reports (see `docs/draft-player-news.md`) |
 | `internal/newsadjust/` | News adjustments for the draft helper: validated event contract, versioned loading of stored extraction events (review and release-gate holds), as-of event selection (dedupe, supersession, returns, rumors), conservative/base/optimistic scenario snapshots, manager overrides, ranking comparison, run storage and replay (see `docs/draft-news-adjustments.md`) |
 | `internal/newsevent/` | LLM extraction of validated player news events: prompt and strict output schema, quote/claim/chronology validation, injection defenses, deterministic lifecycle reconciliation (active/superseded/retracted/resolved), labeled evaluation corpus (`evalcorpus.yaml`) and release gate (see `docs/draft-news-events.md`) |
@@ -402,9 +405,10 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `draft_ranking_snapshots` | One successful ranking refresh of a league; immutable, latest by `as_of` is served | `season`, `league_id`, `league_key`, `identity`, `rules_hash`, `projection_snapshot_id`, `adjustment_run_id`, `as_of`, `meta` (jsonb) |
 | `draft_ranking_players` | Every pool player of a snapshot with each scenario placement (PK `(snapshot_id, player_key)`) | `baseline_rank`, `player` (jsonb) |
 | `draft_ranking_refreshes` | Refresh attempts per league (UNIQUE `(run_id, season, league_id)`) | `status` (`running`/`succeeded`/`failed`/`canceled`), `state` (issue code), `error`, `snapshot_id`, `started_at`, `finished_at` |
-| `draft_sessions` | Full-league-key live board and manual overlay | `state_version`, `board`, `draft_status`, freshness/error timestamps, recommendation safety |
+| `draft_sessions` | Full-league-key live board and manual overlay | `state_version`, `sync_version`, `board`, `draft_status`, freshness/error timestamps, recommendation safety |
 | `draft_session_observations` | Every Yahoo watch attempt for capability measurement | duration, authority, counts, change, error class |
 | `draft_session_events` | Versioned board/manual changes; identical polls add no event | `state_version`, `kind`, `details`, `created_at` |
+| `draft_shortlist` | Persisted Maurice shortlist per full league key | `league_key`, `player_key`, `created_at` |
 | `draft_recommendation_runs` | Replayable deterministic draft advice input/output | session/ranking/projection/rule versions, strategy, numeric reasons, latency |
 
 ### Maurice (LLM chat) tables

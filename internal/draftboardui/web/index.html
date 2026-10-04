@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maurice Draft Board</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div>
+      <p class="eyebrow">PuckDB · Maurice</p>
+      <h1>Live draft board</h1>
+    </div>
+    <div id="connection" class="status never_synced" role="status" aria-live="polite">Connecting…</div>
+  </header>
+
+  <section class="toolbar" aria-label="Draft controls">
+    <label>League
+      <select id="league">
+        <option value="5621">2026 · 5621</option>
+        <option value="29249">2026 · 29249</option>
+      </select>
+    </label>
+    <label>News scenario
+      <select id="scenario">
+        <option value="BASE">Base</option>
+        <option value="CONSERVATIVE">Conservative</option>
+        <option value="OPTIMISTIC">Optimistic</option>
+        <option value="BASELINE">No news</option>
+      </select>
+    </label>
+    <button id="watch-start">Start watch</button>
+    <button id="watch-stop" class="secondary">Stop watch</button>
+    <button id="refresh" class="secondary">Refresh now</button>
+    <button id="manual">Record pick</button>
+    <button id="correct" class="secondary">Correct pick</button>
+    <button id="undo" class="danger">Undo pick</button>
+  </section>
+
+  <section id="alerts" class="alerts" aria-live="assertive"></section>
+  <section class="draft-meta" aria-label="Draft status">
+    <div><span>Selection</span><strong id="current-pick">Unknown</strong></div>
+    <div><span>Your turn</span><strong id="next-turn">Unknown</strong></div>
+    <div><span>Format</span><strong id="draft-format">Unknown</strong></div>
+    <div><span>Last sync</span><strong id="last-sync">Never</strong></div>
+    <div><span>Version</span><strong id="versions">0 / 0</strong></div>
+  </section>
+
+  <main>
+    <section class="panel players" aria-labelledby="available-title">
+      <div class="panel-title">
+        <div><p class="eyebrow">Decision queue</p><h2 id="available-title">Available players</h2></div>
+        <div id="scenario-age" class="muted"></div>
+      </div>
+      <div class="filters">
+        <label>Search <input id="search" type="search" autocomplete="off"></label>
+        <fieldset id="positions"><legend>Positions</legend></fieldset>
+      </div>
+      <p class="keyboard-help">Keyboard: ↑/↓ moves through players; S toggles shortlist; Enter opens details.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Player</th><th>Pos</th><th>Base</th><th>Fit</th><th>Value</th><th>News</th><th><span class="sr-only">Shortlist</span></th></tr></thead>
+          <tbody id="available"></tbody>
+        </table>
+      </div>
+      <p id="empty" class="empty" hidden>No players match these filters.</p>
+    </section>
+
+    <aside>
+      <section class="panel recommendation" aria-labelledby="recommend-title">
+        <p class="eyebrow">Next pick</p><h2 id="recommend-title">Recommendations</h2>
+        <div id="recommendations"></div>
+      </section>
+      <section class="panel" aria-labelledby="roster-title">
+        <p class="eyebrow">Feasible slots</p><h2 id="roster-title">My roster</h2>
+        <div id="roster"></div>
+      </section>
+      <section class="panel" aria-labelledby="shortlist-title">
+        <p class="eyebrow">Saved across reconnects</p><h2 id="shortlist-title">Shortlist</h2>
+        <ol id="shortlist"></ol>
+      </section>
+      <section class="panel" aria-labelledby="history-title">
+        <p class="eyebrow">Yahoo + local provenance</p><h2 id="history-title">Pick history</h2>
+        <ol id="history"></ol>
+      </section>
+    </aside>
+  </main>
+
+  <dialog id="details"><button id="details-close" class="dialog-close" aria-label="Close">×</button><div id="details-body"></div></dialog>
+  <script src="app.js" defer></script>
+</body>
+</html>

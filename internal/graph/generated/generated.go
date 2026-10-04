@@ -611,6 +611,134 @@ type ComplexityRoot struct {
 		Messages     func(childComplexity int) int
 	}
 
+	MauriceDraftBoard struct {
+		Available       func(childComplexity int) int
+		History         func(childComplexity int) int
+		League          func(childComplexity int) int
+		Limit           func(childComplexity int) int
+		Offset          func(childComplexity int) int
+		Recommendations func(childComplexity int) int
+		Roster          func(childComplexity int) int
+		Scenario        func(childComplexity int) int
+		Shortlist       func(childComplexity int) int
+		Snapshot        func(childComplexity int) int
+		Sync            func(childComplexity int) int
+		TotalAvailable  func(childComplexity int) int
+		Turn            func(childComplexity int) int
+		Warnings        func(childComplexity int) int
+	}
+
+	MauriceDraftNewsReason struct {
+		Detail     func(childComplexity int) int
+		ReportedAt func(childComplexity int) int
+		Scenarios  func(childComplexity int) int
+		Status     func(childComplexity int) int
+	}
+
+	MauriceDraftOpenSlot struct {
+		Count func(childComplexity int) int
+		Slot  func(childComplexity int) int
+	}
+
+	MauriceDraftPick struct {
+		Conflict   func(childComplexity int) int
+		Cost       func(childComplexity int) int
+		Pick       func(childComplexity int) int
+		PlayerID   func(childComplexity int) int
+		PlayerKey  func(childComplexity int) int
+		PlayerName func(childComplexity int) int
+		Round      func(childComplexity int) int
+		Source     func(childComplexity int) int
+		TeamID     func(childComplexity int) int
+		TeamName   func(childComplexity int) int
+		Undone     func(childComplexity int) int
+	}
+
+	MauriceDraftPlayer struct {
+		AssignedSlot          func(childComplexity int) int
+		BaselineRank          func(childComplexity int) int
+		BaselineValue         func(childComplexity int) int
+		EligiblePositions     func(childComplexity int) int
+		InjuryNote            func(childComplexity int) int
+		Name                  func(childComplexity int) int
+		News                  func(childComplexity int) int
+		NewsDelta             func(childComplexity int) int
+		PlayerKey             func(childComplexity int) int
+		RecommendationReasons func(childComplexity int) int
+		RosterFitRank         func(childComplexity int) int
+		ScenarioRank          func(childComplexity int) int
+		ScenarioValue         func(childComplexity int) int
+		Shortlisted           func(childComplexity int) int
+		Status                func(childComplexity int) int
+		Team                  func(childComplexity int) int
+		ValueRank             func(childComplexity int) int
+		YahooPlayerID         func(childComplexity int) int
+	}
+
+	MauriceDraftRecommendations struct {
+		BestRosterFit          func(childComplexity int) int
+		BestRosterFitPlayerKey func(childComplexity int) int
+		BestValue              func(childComplexity int) int
+		BestValuePlayerKey     func(childComplexity int) int
+		GeneratedAt            func(childComplexity int) int
+		Issues                 func(childComplexity int) int
+		RankingAsOf            func(childComplexity int) int
+	}
+
+	MauriceDraftRoster struct {
+		Assignments func(childComplexity int) int
+		Feasible    func(childComplexity int) int
+		OpenSlots   func(childComplexity int) int
+		TeamID      func(childComplexity int) int
+		TeamName    func(childComplexity int) int
+		Warnings    func(childComplexity int) int
+	}
+
+	MauriceDraftRosterAssignment struct {
+		Index      func(childComplexity int) int
+		PlayerID   func(childComplexity int) int
+		PlayerKey  func(childComplexity int) int
+		PlayerName func(childComplexity int) int
+		Slot       func(childComplexity int) int
+	}
+
+	MauriceDraftSessionEvent struct {
+		CreatedAt    func(childComplexity int) int
+		Kind         func(childComplexity int) int
+		StateVersion func(childComplexity int) int
+	}
+
+	MauriceDraftSyncStatus struct {
+		Complete            func(childComplexity int) int
+		Connection          func(childComplexity int) int
+		DraftStatus         func(childComplexity int) int
+		LastAuthoritativeAt func(childComplexity int) int
+		LastError           func(childComplexity int) int
+		LastPollAt          func(childComplexity int) int
+		LastSuccessAt       func(childComplexity int) int
+		RecommendationsSafe func(childComplexity int) int
+		StateVersion        func(childComplexity int) int
+		SyncVersion         func(childComplexity int) int
+		Watch               func(childComplexity int) int
+	}
+
+	MauriceDraftTurn struct {
+		CurrentPick        func(childComplexity int) int
+		CurrentRound       func(childComplexity int) int
+		DraftType          func(childComplexity int) int
+		OrderKnown         func(childComplexity int) int
+		PickTimeSeconds    func(childComplexity int) int
+		PicksUntilNextTurn func(childComplexity int) int
+		TimingLabel        func(childComplexity int) int
+	}
+
+	MauriceDraftWatchStatus struct {
+		LastError func(childComplexity int) int
+		StartedAt func(childComplexity int) int
+		State     func(childComplexity int) int
+		StoppedAt func(childComplexity int) int
+	}
+
 	MauriceMessage struct {
 		Content   func(childComplexity int) int
 		CreatedAt func(childComplexity int) int
@@ -620,6 +748,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		ApplyMauriceDraftPick        func(childComplexity int, input model.MauriceDraftManualPickInput) int
 		CancelExtractBoxscorePlayers func(childComplexity int) int
 		CancelFetchAssets            func(childComplexity int) int
 		CancelFetchEdgeStats         func(childComplexity int) int
@@ -656,8 +785,14 @@ type ComplexityRoot struct {
 		MauriceDeleteConversation    func(childComplexity int, id string) int
 		ProcessPlayers               func(childComplexity int, input *model.ProcessPlayersInput) int
 		RefreshDraftRankings         func(childComplexity int, input *model.RefreshDraftRankingsInput) int
+		RefreshMauriceDraftBoard     func(childComplexity int, input model.MauriceDraftSessionRefInput) int
 		RefreshNews                  func(childComplexity int, input *model.RefreshNewsInput) int
 		ResetDraftOverride           func(childComplexity int, id string, reason string) int
+		ResolveMauriceDraftConflict  func(childComplexity int, input model.MauriceDraftResolveInput) int
+		SetMauriceDraftShortlist     func(childComplexity int, input model.MauriceDraftShortlistInput) int
+		StartMauriceDraftWatch       func(childComplexity int, input model.MauriceDraftSessionRefInput) int
+		StopMauriceDraftWatch        func(childComplexity int, input model.MauriceDraftSessionRefInput) int
+		UndoMauriceDraftPick         func(childComplexity int, input model.MauriceDraftSlotInput) int
 	}
 
 	Player struct {
@@ -774,6 +909,8 @@ type ComplexityRoot struct {
 		InitializeResult               func(childComplexity int) int
 		MauriceConversation            func(childComplexity int, id string) int
 		MauriceConversations           func(childComplexity int, limit *int) int
+		MauriceDraftBoard              func(childComplexity int, input model.MauriceDraftBoardInput) int
+		MauriceDraftEvents             func(childComplexity int, league string, season *int, afterStateVersion int64, limit *int) int
 		Player                         func(childComplexity int, id int64) int
 		PlayerSeasonTotals             func(childComplexity int, playerID int64) int
 		Players                        func(childComplexity int, filter *model.PlayerFilter) int
@@ -975,6 +1112,13 @@ type MutationResolver interface {
 	CancelRefreshDraftRankings(ctx context.Context) (bool, error)
 	CreateDraftOverride(ctx context.Context, input model.DraftOverrideCreateInput) (*model.DraftOverride, error)
 	ResetDraftOverride(ctx context.Context, id string, reason string) (bool, error)
+	StartMauriceDraftWatch(ctx context.Context, input model.MauriceDraftSessionRefInput) (*model.MauriceDraftWatchStatus, error)
+	StopMauriceDraftWatch(ctx context.Context, input model.MauriceDraftSessionRefInput) (*model.MauriceDraftWatchStatus, error)
+	RefreshMauriceDraftBoard(ctx context.Context, input model.MauriceDraftSessionRefInput) (*model.MauriceDraftSyncStatus, error)
+	ApplyMauriceDraftPick(ctx context.Context, input model.MauriceDraftManualPickInput) (*model.MauriceDraftSyncStatus, error)
+	UndoMauriceDraftPick(ctx context.Context, input model.MauriceDraftSlotInput) (*model.MauriceDraftSyncStatus, error)
+	ResolveMauriceDraftConflict(ctx context.Context, input model.MauriceDraftResolveInput) (*model.MauriceDraftSyncStatus, error)
+	SetMauriceDraftShortlist(ctx context.Context, input model.MauriceDraftShortlistInput) (*model.MauriceDraftSyncStatus, error)
 	CreateSimPool(ctx context.Context, input model.CreateSimPoolInput) (*model.SimPool, error)
 	CancelSimPool(ctx context.Context, poolID int) (*model.SimPool, error)
 }
@@ -1034,6 +1178,8 @@ type QueryResolver interface {
 	DraftOverrides(ctx context.Context, leagueKey *string, playerKey *string, includeInactive *bool) ([]*model.DraftOverride, error)
 	RefreshDraftRankingsResult(ctx context.Context) (*model.WorkflowResult, error)
 	RefreshDraftRankingsProgress(ctx context.Context) (*model.ProgressReport, error)
+	MauriceDraftBoard(ctx context.Context, input model.MauriceDraftBoardInput) (*model.MauriceDraftBoard, error)
+	MauriceDraftEvents(ctx context.Context, league string, season *int, afterStateVersion int64, limit *int) ([]*model.MauriceDraftSessionEvent, error)
 	SimPool(ctx context.Context, id int) (*model.SimPool, error)
 	SimPools(ctx context.Context) ([]*model.SimPool, error)
 	SimTransactions(ctx context.Context, poolID int, agentID *int, date *string, limit *int) ([]*model.SimTransaction, error)
@@ -3710,6 +3856,570 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MauriceConversationDetail.Messages(childComplexity), true
 
+	case "MauriceDraftBoard.available":
+		if e.ComplexityRoot.MauriceDraftBoard.Available == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Available(childComplexity), true
+	case "MauriceDraftBoard.history":
+		if e.ComplexityRoot.MauriceDraftBoard.History == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.History(childComplexity), true
+	case "MauriceDraftBoard.league":
+		if e.ComplexityRoot.MauriceDraftBoard.League == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.League(childComplexity), true
+	case "MauriceDraftBoard.limit":
+		if e.ComplexityRoot.MauriceDraftBoard.Limit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Limit(childComplexity), true
+	case "MauriceDraftBoard.offset":
+		if e.ComplexityRoot.MauriceDraftBoard.Offset == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Offset(childComplexity), true
+	case "MauriceDraftBoard.recommendations":
+		if e.ComplexityRoot.MauriceDraftBoard.Recommendations == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Recommendations(childComplexity), true
+	case "MauriceDraftBoard.roster":
+		if e.ComplexityRoot.MauriceDraftBoard.Roster == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Roster(childComplexity), true
+	case "MauriceDraftBoard.scenario":
+		if e.ComplexityRoot.MauriceDraftBoard.Scenario == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Scenario(childComplexity), true
+	case "MauriceDraftBoard.shortlist":
+		if e.ComplexityRoot.MauriceDraftBoard.Shortlist == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Shortlist(childComplexity), true
+	case "MauriceDraftBoard.snapshot":
+		if e.ComplexityRoot.MauriceDraftBoard.Snapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Snapshot(childComplexity), true
+	case "MauriceDraftBoard.sync":
+		if e.ComplexityRoot.MauriceDraftBoard.Sync == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Sync(childComplexity), true
+	case "MauriceDraftBoard.totalAvailable":
+		if e.ComplexityRoot.MauriceDraftBoard.TotalAvailable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.TotalAvailable(childComplexity), true
+	case "MauriceDraftBoard.turn":
+		if e.ComplexityRoot.MauriceDraftBoard.Turn == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Turn(childComplexity), true
+	case "MauriceDraftBoard.warnings":
+		if e.ComplexityRoot.MauriceDraftBoard.Warnings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.Warnings(childComplexity), true
+
+	case "MauriceDraftNewsReason.detail":
+		if e.ComplexityRoot.MauriceDraftNewsReason.Detail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftNewsReason.Detail(childComplexity), true
+	case "MauriceDraftNewsReason.reportedAt":
+		if e.ComplexityRoot.MauriceDraftNewsReason.ReportedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftNewsReason.ReportedAt(childComplexity), true
+	case "MauriceDraftNewsReason.scenarios":
+		if e.ComplexityRoot.MauriceDraftNewsReason.Scenarios == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftNewsReason.Scenarios(childComplexity), true
+	case "MauriceDraftNewsReason.status":
+		if e.ComplexityRoot.MauriceDraftNewsReason.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftNewsReason.Status(childComplexity), true
+
+	case "MauriceDraftOpenSlot.count":
+		if e.ComplexityRoot.MauriceDraftOpenSlot.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftOpenSlot.Count(childComplexity), true
+	case "MauriceDraftOpenSlot.slot":
+		if e.ComplexityRoot.MauriceDraftOpenSlot.Slot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftOpenSlot.Slot(childComplexity), true
+
+	case "MauriceDraftPick.conflict":
+		if e.ComplexityRoot.MauriceDraftPick.Conflict == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.Conflict(childComplexity), true
+	case "MauriceDraftPick.cost":
+		if e.ComplexityRoot.MauriceDraftPick.Cost == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.Cost(childComplexity), true
+	case "MauriceDraftPick.pick":
+		if e.ComplexityRoot.MauriceDraftPick.Pick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.Pick(childComplexity), true
+	case "MauriceDraftPick.playerId":
+		if e.ComplexityRoot.MauriceDraftPick.PlayerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.PlayerID(childComplexity), true
+	case "MauriceDraftPick.playerKey":
+		if e.ComplexityRoot.MauriceDraftPick.PlayerKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.PlayerKey(childComplexity), true
+	case "MauriceDraftPick.playerName":
+		if e.ComplexityRoot.MauriceDraftPick.PlayerName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.PlayerName(childComplexity), true
+	case "MauriceDraftPick.round":
+		if e.ComplexityRoot.MauriceDraftPick.Round == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.Round(childComplexity), true
+	case "MauriceDraftPick.source":
+		if e.ComplexityRoot.MauriceDraftPick.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.Source(childComplexity), true
+	case "MauriceDraftPick.teamId":
+		if e.ComplexityRoot.MauriceDraftPick.TeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.TeamID(childComplexity), true
+	case "MauriceDraftPick.teamName":
+		if e.ComplexityRoot.MauriceDraftPick.TeamName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.TeamName(childComplexity), true
+	case "MauriceDraftPick.undone":
+		if e.ComplexityRoot.MauriceDraftPick.Undone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPick.Undone(childComplexity), true
+
+	case "MauriceDraftPlayer.assignedSlot":
+		if e.ComplexityRoot.MauriceDraftPlayer.AssignedSlot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.AssignedSlot(childComplexity), true
+	case "MauriceDraftPlayer.baselineRank":
+		if e.ComplexityRoot.MauriceDraftPlayer.BaselineRank == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.BaselineRank(childComplexity), true
+	case "MauriceDraftPlayer.baselineValue":
+		if e.ComplexityRoot.MauriceDraftPlayer.BaselineValue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.BaselineValue(childComplexity), true
+	case "MauriceDraftPlayer.eligiblePositions":
+		if e.ComplexityRoot.MauriceDraftPlayer.EligiblePositions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.EligiblePositions(childComplexity), true
+	case "MauriceDraftPlayer.injuryNote":
+		if e.ComplexityRoot.MauriceDraftPlayer.InjuryNote == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.InjuryNote(childComplexity), true
+	case "MauriceDraftPlayer.name":
+		if e.ComplexityRoot.MauriceDraftPlayer.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.Name(childComplexity), true
+	case "MauriceDraftPlayer.news":
+		if e.ComplexityRoot.MauriceDraftPlayer.News == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.News(childComplexity), true
+	case "MauriceDraftPlayer.newsDelta":
+		if e.ComplexityRoot.MauriceDraftPlayer.NewsDelta == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.NewsDelta(childComplexity), true
+	case "MauriceDraftPlayer.playerKey":
+		if e.ComplexityRoot.MauriceDraftPlayer.PlayerKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.PlayerKey(childComplexity), true
+	case "MauriceDraftPlayer.recommendationReasons":
+		if e.ComplexityRoot.MauriceDraftPlayer.RecommendationReasons == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.RecommendationReasons(childComplexity), true
+	case "MauriceDraftPlayer.rosterFitRank":
+		if e.ComplexityRoot.MauriceDraftPlayer.RosterFitRank == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.RosterFitRank(childComplexity), true
+	case "MauriceDraftPlayer.scenarioRank":
+		if e.ComplexityRoot.MauriceDraftPlayer.ScenarioRank == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.ScenarioRank(childComplexity), true
+	case "MauriceDraftPlayer.scenarioValue":
+		if e.ComplexityRoot.MauriceDraftPlayer.ScenarioValue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.ScenarioValue(childComplexity), true
+	case "MauriceDraftPlayer.shortlisted":
+		if e.ComplexityRoot.MauriceDraftPlayer.Shortlisted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.Shortlisted(childComplexity), true
+	case "MauriceDraftPlayer.status":
+		if e.ComplexityRoot.MauriceDraftPlayer.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.Status(childComplexity), true
+	case "MauriceDraftPlayer.team":
+		if e.ComplexityRoot.MauriceDraftPlayer.Team == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.Team(childComplexity), true
+	case "MauriceDraftPlayer.valueRank":
+		if e.ComplexityRoot.MauriceDraftPlayer.ValueRank == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.ValueRank(childComplexity), true
+	case "MauriceDraftPlayer.yahooPlayerId":
+		if e.ComplexityRoot.MauriceDraftPlayer.YahooPlayerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftPlayer.YahooPlayerID(childComplexity), true
+
+	case "MauriceDraftRecommendations.bestRosterFit":
+		if e.ComplexityRoot.MauriceDraftRecommendations.BestRosterFit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRecommendations.BestRosterFit(childComplexity), true
+	case "MauriceDraftRecommendations.bestRosterFitPlayerKey":
+		if e.ComplexityRoot.MauriceDraftRecommendations.BestRosterFitPlayerKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRecommendations.BestRosterFitPlayerKey(childComplexity), true
+	case "MauriceDraftRecommendations.bestValue":
+		if e.ComplexityRoot.MauriceDraftRecommendations.BestValue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRecommendations.BestValue(childComplexity), true
+	case "MauriceDraftRecommendations.bestValuePlayerKey":
+		if e.ComplexityRoot.MauriceDraftRecommendations.BestValuePlayerKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRecommendations.BestValuePlayerKey(childComplexity), true
+	case "MauriceDraftRecommendations.generatedAt":
+		if e.ComplexityRoot.MauriceDraftRecommendations.GeneratedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRecommendations.GeneratedAt(childComplexity), true
+	case "MauriceDraftRecommendations.issues":
+		if e.ComplexityRoot.MauriceDraftRecommendations.Issues == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRecommendations.Issues(childComplexity), true
+	case "MauriceDraftRecommendations.rankingAsOf":
+		if e.ComplexityRoot.MauriceDraftRecommendations.RankingAsOf == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRecommendations.RankingAsOf(childComplexity), true
+
+	case "MauriceDraftRoster.assignments":
+		if e.ComplexityRoot.MauriceDraftRoster.Assignments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRoster.Assignments(childComplexity), true
+	case "MauriceDraftRoster.feasible":
+		if e.ComplexityRoot.MauriceDraftRoster.Feasible == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRoster.Feasible(childComplexity), true
+	case "MauriceDraftRoster.openSlots":
+		if e.ComplexityRoot.MauriceDraftRoster.OpenSlots == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRoster.OpenSlots(childComplexity), true
+	case "MauriceDraftRoster.teamId":
+		if e.ComplexityRoot.MauriceDraftRoster.TeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRoster.TeamID(childComplexity), true
+	case "MauriceDraftRoster.teamName":
+		if e.ComplexityRoot.MauriceDraftRoster.TeamName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRoster.TeamName(childComplexity), true
+	case "MauriceDraftRoster.warnings":
+		if e.ComplexityRoot.MauriceDraftRoster.Warnings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRoster.Warnings(childComplexity), true
+
+	case "MauriceDraftRosterAssignment.index":
+		if e.ComplexityRoot.MauriceDraftRosterAssignment.Index == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRosterAssignment.Index(childComplexity), true
+	case "MauriceDraftRosterAssignment.playerId":
+		if e.ComplexityRoot.MauriceDraftRosterAssignment.PlayerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRosterAssignment.PlayerID(childComplexity), true
+	case "MauriceDraftRosterAssignment.playerKey":
+		if e.ComplexityRoot.MauriceDraftRosterAssignment.PlayerKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRosterAssignment.PlayerKey(childComplexity), true
+	case "MauriceDraftRosterAssignment.playerName":
+		if e.ComplexityRoot.MauriceDraftRosterAssignment.PlayerName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRosterAssignment.PlayerName(childComplexity), true
+	case "MauriceDraftRosterAssignment.slot":
+		if e.ComplexityRoot.MauriceDraftRosterAssignment.Slot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftRosterAssignment.Slot(childComplexity), true
+
+	case "MauriceDraftSessionEvent.createdAt":
+		if e.ComplexityRoot.MauriceDraftSessionEvent.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSessionEvent.CreatedAt(childComplexity), true
+	case "MauriceDraftSessionEvent.kind":
+		if e.ComplexityRoot.MauriceDraftSessionEvent.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSessionEvent.Kind(childComplexity), true
+	case "MauriceDraftSessionEvent.stateVersion":
+		if e.ComplexityRoot.MauriceDraftSessionEvent.StateVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSessionEvent.StateVersion(childComplexity), true
+
+	case "MauriceDraftSyncStatus.complete":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.Complete == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.Complete(childComplexity), true
+	case "MauriceDraftSyncStatus.connection":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.Connection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.Connection(childComplexity), true
+	case "MauriceDraftSyncStatus.draftStatus":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.DraftStatus == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.DraftStatus(childComplexity), true
+	case "MauriceDraftSyncStatus.lastAuthoritativeAt":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.LastAuthoritativeAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.LastAuthoritativeAt(childComplexity), true
+	case "MauriceDraftSyncStatus.lastError":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.LastError == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.LastError(childComplexity), true
+	case "MauriceDraftSyncStatus.lastPollAt":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.LastPollAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.LastPollAt(childComplexity), true
+	case "MauriceDraftSyncStatus.lastSuccessAt":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.LastSuccessAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.LastSuccessAt(childComplexity), true
+	case "MauriceDraftSyncStatus.recommendationsSafe":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.RecommendationsSafe == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.RecommendationsSafe(childComplexity), true
+	case "MauriceDraftSyncStatus.stateVersion":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.StateVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.StateVersion(childComplexity), true
+	case "MauriceDraftSyncStatus.syncVersion":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.SyncVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.SyncVersion(childComplexity), true
+	case "MauriceDraftSyncStatus.watch":
+		if e.ComplexityRoot.MauriceDraftSyncStatus.Watch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftSyncStatus.Watch(childComplexity), true
+
+	case "MauriceDraftTurn.currentPick":
+		if e.ComplexityRoot.MauriceDraftTurn.CurrentPick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftTurn.CurrentPick(childComplexity), true
+	case "MauriceDraftTurn.currentRound":
+		if e.ComplexityRoot.MauriceDraftTurn.CurrentRound == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftTurn.CurrentRound(childComplexity), true
+	case "MauriceDraftTurn.draftType":
+		if e.ComplexityRoot.MauriceDraftTurn.DraftType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftTurn.DraftType(childComplexity), true
+	case "MauriceDraftTurn.orderKnown":
+		if e.ComplexityRoot.MauriceDraftTurn.OrderKnown == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftTurn.OrderKnown(childComplexity), true
+	case "MauriceDraftTurn.pickTimeSeconds":
+		if e.ComplexityRoot.MauriceDraftTurn.PickTimeSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftTurn.PickTimeSeconds(childComplexity), true
+	case "MauriceDraftTurn.picksUntilNextTurn":
+		if e.ComplexityRoot.MauriceDraftTurn.PicksUntilNextTurn == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftTurn.PicksUntilNextTurn(childComplexity), true
+	case "MauriceDraftTurn.timingLabel":
+		if e.ComplexityRoot.MauriceDraftTurn.TimingLabel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftTurn.TimingLabel(childComplexity), true
+
+	case "MauriceDraftWatchStatus.lastError":
+		if e.ComplexityRoot.MauriceDraftWatchStatus.LastError == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftWatchStatus.LastError(childComplexity), true
+	case "MauriceDraftWatchStatus.startedAt":
+		if e.ComplexityRoot.MauriceDraftWatchStatus.StartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftWatchStatus.StartedAt(childComplexity), true
+	case "MauriceDraftWatchStatus.state":
+		if e.ComplexityRoot.MauriceDraftWatchStatus.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftWatchStatus.State(childComplexity), true
+	case "MauriceDraftWatchStatus.stoppedAt":
+		if e.ComplexityRoot.MauriceDraftWatchStatus.StoppedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftWatchStatus.StoppedAt(childComplexity), true
+
 	case "MauriceMessage.content":
 		if e.ComplexityRoot.MauriceMessage.Content == nil {
 			break
@@ -3741,6 +4451,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MauriceMessage.ToolsUsed(childComplexity), true
 
+	case "Mutation.applyMauriceDraftPick":
+		if e.ComplexityRoot.Mutation.ApplyMauriceDraftPick == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_applyMauriceDraftPick_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ApplyMauriceDraftPick(childComplexity, args["input"].(model.MauriceDraftManualPickInput)), true
 	case "Mutation.cancelExtractBoxscorePlayers":
 		if e.ComplexityRoot.Mutation.CancelExtractBoxscorePlayers == nil {
 			break
@@ -4037,6 +4758,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RefreshDraftRankings(childComplexity, args["input"].(*model.RefreshDraftRankingsInput)), true
+	case "Mutation.refreshMauriceDraftBoard":
+		if e.ComplexityRoot.Mutation.RefreshMauriceDraftBoard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_refreshMauriceDraftBoard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RefreshMauriceDraftBoard(childComplexity, args["input"].(model.MauriceDraftSessionRefInput)), true
 	case "Mutation.refreshNews":
 		if e.ComplexityRoot.Mutation.RefreshNews == nil {
 			break
@@ -4059,6 +4791,61 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ResetDraftOverride(childComplexity, args["id"].(string), args["reason"].(string)), true
+	case "Mutation.resolveMauriceDraftConflict":
+		if e.ComplexityRoot.Mutation.ResolveMauriceDraftConflict == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resolveMauriceDraftConflict_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ResolveMauriceDraftConflict(childComplexity, args["input"].(model.MauriceDraftResolveInput)), true
+	case "Mutation.setMauriceDraftShortlist":
+		if e.ComplexityRoot.Mutation.SetMauriceDraftShortlist == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setMauriceDraftShortlist_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetMauriceDraftShortlist(childComplexity, args["input"].(model.MauriceDraftShortlistInput)), true
+	case "Mutation.startMauriceDraftWatch":
+		if e.ComplexityRoot.Mutation.StartMauriceDraftWatch == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_startMauriceDraftWatch_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.StartMauriceDraftWatch(childComplexity, args["input"].(model.MauriceDraftSessionRefInput)), true
+	case "Mutation.stopMauriceDraftWatch":
+		if e.ComplexityRoot.Mutation.StopMauriceDraftWatch == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_stopMauriceDraftWatch_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.StopMauriceDraftWatch(childComplexity, args["input"].(model.MauriceDraftSessionRefInput)), true
+	case "Mutation.undoMauriceDraftPick":
+		if e.ComplexityRoot.Mutation.UndoMauriceDraftPick == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_undoMauriceDraftPick_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UndoMauriceDraftPick(childComplexity, args["input"].(model.MauriceDraftSlotInput)), true
 
 	case "Player.birthCity":
 		if e.ComplexityRoot.Player.BirthCity == nil {
@@ -4707,6 +5494,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MauriceConversations(childComplexity, args["limit"].(*int)), true
+	case "Query.mauriceDraftBoard":
+		if e.ComplexityRoot.Query.MauriceDraftBoard == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceDraftBoard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceDraftBoard(childComplexity, args["input"].(model.MauriceDraftBoardInput)), true
+	case "Query.mauriceDraftEvents":
+		if e.ComplexityRoot.Query.MauriceDraftEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceDraftEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceDraftEvents(childComplexity, args["league"].(string), args["season"].(*int), args["afterStateVersion"].(int64), args["limit"].(*int)), true
 	case "Query.player":
 		if e.ComplexityRoot.Query.Player == nil {
 			break
@@ -5534,6 +6343,12 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputFetchAssetsInput,
 		ec.unmarshalInputFetchPlayerLandingsInput,
 		ec.unmarshalInputGameFilter,
+		ec.unmarshalInputMauriceDraftBoardInput,
+		ec.unmarshalInputMauriceDraftManualPickInput,
+		ec.unmarshalInputMauriceDraftResolveInput,
+		ec.unmarshalInputMauriceDraftSessionRefInput,
+		ec.unmarshalInputMauriceDraftShortlistInput,
+		ec.unmarshalInputMauriceDraftSlotInput,
 		ec.unmarshalInputPlayerFilter,
 		ec.unmarshalInputProcessPlayersInput,
 		ec.unmarshalInputRefreshDraftRankingsInput,
@@ -6532,6 +7347,241 @@ extend type Mutation {
   """Takes effect at the next refresh; snapshots report OVERRIDES_CHANGED until then."""
   createDraftOverride(input: DraftOverrideCreateInput!): DraftOverride!
   resetDraftOverride(id: String!, reason: String!): Boolean!
+}
+`, BuiltIn: false},
+	{Name: "../draft_board.graphqls", Input: `"""Connection/freshness state of the persisted Yahoo draft session."""
+enum MauriceDraftConnection {
+  NEVER_SYNCED
+  FRESH
+  STALE
+  ERROR
+  INCOMPLETE
+}
+
+enum MauriceDraftEntrySource {
+  YAHOO
+  MANUAL
+}
+
+enum MauriceDraftWatchState {
+  STOPPED
+  STARTING
+  RUNNING
+  STOPPING
+  FAILED
+  COMPLETE
+}
+
+enum MauriceDraftManualAction {
+  ADD
+  CORRECT
+}
+
+enum MauriceDraftConflictChoice {
+  KEEP_MANUAL
+  ACCEPT_UPSTREAM
+}
+
+type MauriceDraftWatchStatus {
+  state: MauriceDraftWatchState!
+  startedAt: Time
+  stoppedAt: Time
+  lastError: String
+}
+
+type MauriceDraftSyncStatus {
+  connection: MauriceDraftConnection!
+  draftStatus: String!
+  recommendationsSafe: Boolean!
+  complete: Boolean!
+  stateVersion: Int64!
+  syncVersion: Int64!
+  lastPollAt: Time
+  lastSuccessAt: Time
+  lastAuthoritativeAt: Time
+  lastError: String
+  watch: MauriceDraftWatchStatus!
+}
+
+type MauriceDraftTurn {
+  currentRound: Int
+  currentPick: Int
+  picksUntilNextTurn: Int
+  orderKnown: Boolean!
+  draftType: String!
+  """Yahoo's configured per-pick limit; this is not a live countdown."""
+  pickTimeSeconds: Int
+  timingLabel: String!
+}
+
+type MauriceDraftPick {
+  round: Int!
+  pick: Int!
+  teamId: Int!
+  teamName: String!
+  playerId: Int!
+  playerKey: String!
+  playerName: String!
+  source: MauriceDraftEntrySource!
+  conflict: Boolean!
+  """True when this row exposes a conflicted local undo tombstone for recovery."""
+  undone: Boolean!
+  cost: Int
+}
+
+type MauriceDraftRosterAssignment {
+  slot: String!
+  index: Int!
+  playerId: Int!
+  playerKey: String!
+  playerName: String!
+}
+
+type MauriceDraftOpenSlot {
+  slot: String!
+  count: Int!
+}
+
+type MauriceDraftRoster {
+  teamId: Int!
+  teamName: String!
+  feasible: Boolean!
+  assignments: [MauriceDraftRosterAssignment!]!
+  openSlots: [MauriceDraftOpenSlot!]!
+  warnings: [String!]!
+}
+
+type MauriceDraftNewsReason {
+  detail: String!
+  reportedAt: Time
+  status: String!
+  scenarios: [DraftScenario!]!
+}
+
+type MauriceDraftPlayer {
+  playerKey: String!
+  yahooPlayerId: Int!
+  name: String!
+  team: String!
+  eligiblePositions: [String!]!
+  status: String
+  injuryNote: String
+  baselineRank: Int!
+  scenarioRank: Int!
+  valueRank: Int
+  rosterFitRank: Int
+  baselineValue: Float!
+  scenarioValue: Float!
+  newsDelta: Float!
+  shortlisted: Boolean!
+  assignedSlot: String
+  recommendationReasons: [String!]!
+  news: [MauriceDraftNewsReason!]!
+}
+
+type MauriceDraftRecommendations {
+  bestValuePlayerKey: String
+  bestRosterFitPlayerKey: String
+  """Recommendation details are independent of available-player filtering and pagination."""
+  bestValue: MauriceDraftPlayer
+  bestRosterFit: MauriceDraftPlayer
+  issues: [String!]!
+  generatedAt: Time
+  rankingAsOf: Time
+}
+
+type MauriceDraftBoard {
+  league: DraftLeague!
+  scenario: DraftScenario!
+  snapshot: DraftSnapshot!
+  sync: MauriceDraftSyncStatus!
+  turn: MauriceDraftTurn!
+  roster: MauriceDraftRoster!
+  history: [MauriceDraftPick!]!
+  available: [MauriceDraftPlayer!]!
+  shortlist: [MauriceDraftPlayer!]!
+  recommendations: MauriceDraftRecommendations!
+  warnings: [String!]!
+  totalAvailable: Int!
+  offset: Int!
+  limit: Int!
+}
+
+type MauriceDraftSessionEvent {
+  stateVersion: Int64!
+  kind: String!
+  createdAt: Time!
+}
+
+input MauriceDraftBoardInput {
+  league: String!
+  season: Int
+  scenario: DraftScenario
+  positions: [String!]
+  search: String
+  offset: Int
+  limit: Int
+}
+
+input MauriceDraftSessionRefInput {
+  league: String!
+  season: Int
+}
+
+input MauriceDraftManualPickInput {
+  league: String!
+  season: Int
+  action: MauriceDraftManualAction!
+  round: Int!
+  pick: Int!
+  teamKey: String!
+  playerKey: String!
+  cost: Int
+  expectedStateVersion: Int64!
+  clientMutationId: String!
+}
+
+input MauriceDraftSlotInput {
+  league: String!
+  season: Int
+  round: Int!
+  pick: Int!
+  expectedStateVersion: Int64!
+  clientMutationId: String!
+}
+
+input MauriceDraftResolveInput {
+  league: String!
+  season: Int
+  round: Int!
+  pick: Int!
+  choice: MauriceDraftConflictChoice!
+  expectedStateVersion: Int64!
+  clientMutationId: String!
+}
+
+input MauriceDraftShortlistInput {
+  league: String!
+  season: Int
+  playerKey: String!
+  selected: Boolean!
+  expectedStateVersion: Int64!
+}
+
+extend type Query {
+  """Polling read model. Clients order responses by syncVersion and refetch on a stateVersion gap."""
+  mauriceDraftBoard(input: MauriceDraftBoardInput!): MauriceDraftBoard!
+  mauriceDraftEvents(league: String!, season: Int, afterStateVersion: Int64!, limit: Int): [MauriceDraftSessionEvent!]!
+}
+
+extend type Mutation {
+  startMauriceDraftWatch(input: MauriceDraftSessionRefInput!): MauriceDraftWatchStatus!
+  stopMauriceDraftWatch(input: MauriceDraftSessionRefInput!): MauriceDraftWatchStatus!
+  refreshMauriceDraftBoard(input: MauriceDraftSessionRefInput!): MauriceDraftSyncStatus!
+  applyMauriceDraftPick(input: MauriceDraftManualPickInput!): MauriceDraftSyncStatus!
+  undoMauriceDraftPick(input: MauriceDraftSlotInput!): MauriceDraftSyncStatus!
+  resolveMauriceDraftConflict(input: MauriceDraftResolveInput!): MauriceDraftSyncStatus!
+  setMauriceDraftShortlist(input: MauriceDraftShortlistInput!): MauriceDraftSyncStatus!
 }
 `, BuiltIn: false},
 	{Name: "../schema.graphqls", Input: `# GraphQL schema example
@@ -8167,6 +9217,262 @@ func (ec *executionContext) childFields_MauriceConversationDetail(ctx context.Co
 	return nil, fmt.Errorf("no field named %q was found under type MauriceConversationDetail", field.Name)
 }
 
+func (ec *executionContext) childFields_MauriceDraftBoard(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "league":
+		return ec.fieldContext_MauriceDraftBoard_league(ctx, field)
+	case "scenario":
+		return ec.fieldContext_MauriceDraftBoard_scenario(ctx, field)
+	case "snapshot":
+		return ec.fieldContext_MauriceDraftBoard_snapshot(ctx, field)
+	case "sync":
+		return ec.fieldContext_MauriceDraftBoard_sync(ctx, field)
+	case "turn":
+		return ec.fieldContext_MauriceDraftBoard_turn(ctx, field)
+	case "roster":
+		return ec.fieldContext_MauriceDraftBoard_roster(ctx, field)
+	case "history":
+		return ec.fieldContext_MauriceDraftBoard_history(ctx, field)
+	case "available":
+		return ec.fieldContext_MauriceDraftBoard_available(ctx, field)
+	case "shortlist":
+		return ec.fieldContext_MauriceDraftBoard_shortlist(ctx, field)
+	case "recommendations":
+		return ec.fieldContext_MauriceDraftBoard_recommendations(ctx, field)
+	case "warnings":
+		return ec.fieldContext_MauriceDraftBoard_warnings(ctx, field)
+	case "totalAvailable":
+		return ec.fieldContext_MauriceDraftBoard_totalAvailable(ctx, field)
+	case "offset":
+		return ec.fieldContext_MauriceDraftBoard_offset(ctx, field)
+	case "limit":
+		return ec.fieldContext_MauriceDraftBoard_limit(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftBoard", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftNewsReason(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "detail":
+		return ec.fieldContext_MauriceDraftNewsReason_detail(ctx, field)
+	case "reportedAt":
+		return ec.fieldContext_MauriceDraftNewsReason_reportedAt(ctx, field)
+	case "status":
+		return ec.fieldContext_MauriceDraftNewsReason_status(ctx, field)
+	case "scenarios":
+		return ec.fieldContext_MauriceDraftNewsReason_scenarios(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftNewsReason", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftOpenSlot(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "slot":
+		return ec.fieldContext_MauriceDraftOpenSlot_slot(ctx, field)
+	case "count":
+		return ec.fieldContext_MauriceDraftOpenSlot_count(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftOpenSlot", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftPick(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "round":
+		return ec.fieldContext_MauriceDraftPick_round(ctx, field)
+	case "pick":
+		return ec.fieldContext_MauriceDraftPick_pick(ctx, field)
+	case "teamId":
+		return ec.fieldContext_MauriceDraftPick_teamId(ctx, field)
+	case "teamName":
+		return ec.fieldContext_MauriceDraftPick_teamName(ctx, field)
+	case "playerId":
+		return ec.fieldContext_MauriceDraftPick_playerId(ctx, field)
+	case "playerKey":
+		return ec.fieldContext_MauriceDraftPick_playerKey(ctx, field)
+	case "playerName":
+		return ec.fieldContext_MauriceDraftPick_playerName(ctx, field)
+	case "source":
+		return ec.fieldContext_MauriceDraftPick_source(ctx, field)
+	case "conflict":
+		return ec.fieldContext_MauriceDraftPick_conflict(ctx, field)
+	case "undone":
+		return ec.fieldContext_MauriceDraftPick_undone(ctx, field)
+	case "cost":
+		return ec.fieldContext_MauriceDraftPick_cost(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftPick", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftPlayer(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "playerKey":
+		return ec.fieldContext_MauriceDraftPlayer_playerKey(ctx, field)
+	case "yahooPlayerId":
+		return ec.fieldContext_MauriceDraftPlayer_yahooPlayerId(ctx, field)
+	case "name":
+		return ec.fieldContext_MauriceDraftPlayer_name(ctx, field)
+	case "team":
+		return ec.fieldContext_MauriceDraftPlayer_team(ctx, field)
+	case "eligiblePositions":
+		return ec.fieldContext_MauriceDraftPlayer_eligiblePositions(ctx, field)
+	case "status":
+		return ec.fieldContext_MauriceDraftPlayer_status(ctx, field)
+	case "injuryNote":
+		return ec.fieldContext_MauriceDraftPlayer_injuryNote(ctx, field)
+	case "baselineRank":
+		return ec.fieldContext_MauriceDraftPlayer_baselineRank(ctx, field)
+	case "scenarioRank":
+		return ec.fieldContext_MauriceDraftPlayer_scenarioRank(ctx, field)
+	case "valueRank":
+		return ec.fieldContext_MauriceDraftPlayer_valueRank(ctx, field)
+	case "rosterFitRank":
+		return ec.fieldContext_MauriceDraftPlayer_rosterFitRank(ctx, field)
+	case "baselineValue":
+		return ec.fieldContext_MauriceDraftPlayer_baselineValue(ctx, field)
+	case "scenarioValue":
+		return ec.fieldContext_MauriceDraftPlayer_scenarioValue(ctx, field)
+	case "newsDelta":
+		return ec.fieldContext_MauriceDraftPlayer_newsDelta(ctx, field)
+	case "shortlisted":
+		return ec.fieldContext_MauriceDraftPlayer_shortlisted(ctx, field)
+	case "assignedSlot":
+		return ec.fieldContext_MauriceDraftPlayer_assignedSlot(ctx, field)
+	case "recommendationReasons":
+		return ec.fieldContext_MauriceDraftPlayer_recommendationReasons(ctx, field)
+	case "news":
+		return ec.fieldContext_MauriceDraftPlayer_news(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftPlayer", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftRecommendations(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "bestValuePlayerKey":
+		return ec.fieldContext_MauriceDraftRecommendations_bestValuePlayerKey(ctx, field)
+	case "bestRosterFitPlayerKey":
+		return ec.fieldContext_MauriceDraftRecommendations_bestRosterFitPlayerKey(ctx, field)
+	case "bestValue":
+		return ec.fieldContext_MauriceDraftRecommendations_bestValue(ctx, field)
+	case "bestRosterFit":
+		return ec.fieldContext_MauriceDraftRecommendations_bestRosterFit(ctx, field)
+	case "issues":
+		return ec.fieldContext_MauriceDraftRecommendations_issues(ctx, field)
+	case "generatedAt":
+		return ec.fieldContext_MauriceDraftRecommendations_generatedAt(ctx, field)
+	case "rankingAsOf":
+		return ec.fieldContext_MauriceDraftRecommendations_rankingAsOf(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftRecommendations", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftRoster(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "teamId":
+		return ec.fieldContext_MauriceDraftRoster_teamId(ctx, field)
+	case "teamName":
+		return ec.fieldContext_MauriceDraftRoster_teamName(ctx, field)
+	case "feasible":
+		return ec.fieldContext_MauriceDraftRoster_feasible(ctx, field)
+	case "assignments":
+		return ec.fieldContext_MauriceDraftRoster_assignments(ctx, field)
+	case "openSlots":
+		return ec.fieldContext_MauriceDraftRoster_openSlots(ctx, field)
+	case "warnings":
+		return ec.fieldContext_MauriceDraftRoster_warnings(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftRoster", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftRosterAssignment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "slot":
+		return ec.fieldContext_MauriceDraftRosterAssignment_slot(ctx, field)
+	case "index":
+		return ec.fieldContext_MauriceDraftRosterAssignment_index(ctx, field)
+	case "playerId":
+		return ec.fieldContext_MauriceDraftRosterAssignment_playerId(ctx, field)
+	case "playerKey":
+		return ec.fieldContext_MauriceDraftRosterAssignment_playerKey(ctx, field)
+	case "playerName":
+		return ec.fieldContext_MauriceDraftRosterAssignment_playerName(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftRosterAssignment", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftSessionEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "stateVersion":
+		return ec.fieldContext_MauriceDraftSessionEvent_stateVersion(ctx, field)
+	case "kind":
+		return ec.fieldContext_MauriceDraftSessionEvent_kind(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_MauriceDraftSessionEvent_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftSessionEvent", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftSyncStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "connection":
+		return ec.fieldContext_MauriceDraftSyncStatus_connection(ctx, field)
+	case "draftStatus":
+		return ec.fieldContext_MauriceDraftSyncStatus_draftStatus(ctx, field)
+	case "recommendationsSafe":
+		return ec.fieldContext_MauriceDraftSyncStatus_recommendationsSafe(ctx, field)
+	case "complete":
+		return ec.fieldContext_MauriceDraftSyncStatus_complete(ctx, field)
+	case "stateVersion":
+		return ec.fieldContext_MauriceDraftSyncStatus_stateVersion(ctx, field)
+	case "syncVersion":
+		return ec.fieldContext_MauriceDraftSyncStatus_syncVersion(ctx, field)
+	case "lastPollAt":
+		return ec.fieldContext_MauriceDraftSyncStatus_lastPollAt(ctx, field)
+	case "lastSuccessAt":
+		return ec.fieldContext_MauriceDraftSyncStatus_lastSuccessAt(ctx, field)
+	case "lastAuthoritativeAt":
+		return ec.fieldContext_MauriceDraftSyncStatus_lastAuthoritativeAt(ctx, field)
+	case "lastError":
+		return ec.fieldContext_MauriceDraftSyncStatus_lastError(ctx, field)
+	case "watch":
+		return ec.fieldContext_MauriceDraftSyncStatus_watch(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftSyncStatus", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftTurn(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "currentRound":
+		return ec.fieldContext_MauriceDraftTurn_currentRound(ctx, field)
+	case "currentPick":
+		return ec.fieldContext_MauriceDraftTurn_currentPick(ctx, field)
+	case "picksUntilNextTurn":
+		return ec.fieldContext_MauriceDraftTurn_picksUntilNextTurn(ctx, field)
+	case "orderKnown":
+		return ec.fieldContext_MauriceDraftTurn_orderKnown(ctx, field)
+	case "draftType":
+		return ec.fieldContext_MauriceDraftTurn_draftType(ctx, field)
+	case "pickTimeSeconds":
+		return ec.fieldContext_MauriceDraftTurn_pickTimeSeconds(ctx, field)
+	case "timingLabel":
+		return ec.fieldContext_MauriceDraftTurn_timingLabel(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftTurn", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceDraftWatchStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "state":
+		return ec.fieldContext_MauriceDraftWatchStatus_state(ctx, field)
+	case "startedAt":
+		return ec.fieldContext_MauriceDraftWatchStatus_startedAt(ctx, field)
+	case "stoppedAt":
+		return ec.fieldContext_MauriceDraftWatchStatus_stoppedAt(ctx, field)
+	case "lastError":
+		return ec.fieldContext_MauriceDraftWatchStatus_lastError(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftWatchStatus", field.Name)
+}
+
 func (ec *executionContext) childFields_MauriceMessage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -8727,6 +10033,20 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Mutation_applyMauriceDraftPick_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.MauriceDraftManualPickInput, error) {
+			return ec.unmarshalNMauriceDraftManualPickInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftManualPickInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_cancelSimPool_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8959,6 +10279,20 @@ func (ec *executionContext) field_Mutation_refreshDraftRankings_args(ctx context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_refreshMauriceDraftBoard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.MauriceDraftSessionRefInput, error) {
+			return ec.unmarshalNMauriceDraftSessionRefInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSessionRefInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_refreshNews_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8992,6 +10326,76 @@ func (ec *executionContext) field_Mutation_resetDraftOverride_args(ctx context.C
 		return nil, err
 	}
 	args["reason"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_resolveMauriceDraftConflict_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.MauriceDraftResolveInput, error) {
+			return ec.unmarshalNMauriceDraftResolveInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftResolveInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setMauriceDraftShortlist_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.MauriceDraftShortlistInput, error) {
+			return ec.unmarshalNMauriceDraftShortlistInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftShortlistInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_startMauriceDraftWatch_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.MauriceDraftSessionRefInput, error) {
+			return ec.unmarshalNMauriceDraftSessionRefInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSessionRefInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_stopMauriceDraftWatch_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.MauriceDraftSessionRefInput, error) {
+			return ec.unmarshalNMauriceDraftSessionRefInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSessionRefInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_undoMauriceDraftPick_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.MauriceDraftSlotInput, error) {
+			return ec.unmarshalNMauriceDraftSlotInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSlotInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -9274,6 +10678,58 @@ func (ec *executionContext) field_Query_mauriceConversations_args(ctx context.Co
 		return nil, err
 	}
 	args["limit"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_mauriceDraftBoard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.MauriceDraftBoardInput, error) {
+			return ec.unmarshalNMauriceDraftBoardInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftBoardInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_mauriceDraftEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "league",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["league"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "season",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["season"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "afterStateVersion",
+		func(ctx context.Context, v any) (int64, error) {
+			return ec.unmarshalNInt642int64(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["afterStateVersion"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg3
 	return args, nil
 }
 
@@ -19958,6 +21414,2257 @@ func (ec *executionContext) fieldContext_MauriceConversationDetail_messages(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _MauriceDraftBoard_league(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_league(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.League, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DraftLeague) graphql.Marshaler {
+			return ec.marshalNDraftLeague2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐDraftLeague(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_league(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DraftLeague(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftBoard_scenario(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_scenario(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scenario, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.DraftScenario) graphql.Marshaler {
+			return ec.marshalNDraftScenario2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐDraftScenario(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_scenario(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftBoard", field, false, false, errors.New("field of type DraftScenario does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftBoard_snapshot(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_snapshot(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Snapshot, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DraftSnapshot) graphql.Marshaler {
+			return ec.marshalNDraftSnapshot2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐDraftSnapshot(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_snapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DraftSnapshot(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftBoard_sync(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_sync(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Sync, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftSyncStatus) graphql.Marshaler {
+			return ec.marshalNMauriceDraftSyncStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSyncStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_sync(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftSyncStatus(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftBoard_turn(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_turn(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Turn, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftTurn) graphql.Marshaler {
+			return ec.marshalNMauriceDraftTurn2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftTurn(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_turn(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftTurn(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftBoard_roster(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_roster(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Roster, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftRoster) graphql.Marshaler {
+			return ec.marshalNMauriceDraftRoster2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftRoster(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_roster(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftRoster(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftBoard_history(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_history(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.History, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceDraftPick) graphql.Marshaler {
+			return ec.marshalNMauriceDraftPick2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPickᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_history(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftPick(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftBoard_available(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_available(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Available, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceDraftPlayer) graphql.Marshaler {
+			return ec.marshalNMauriceDraftPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPlayerᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_available(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftPlayer(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftBoard_shortlist(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_shortlist(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Shortlist, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceDraftPlayer) graphql.Marshaler {
+			return ec.marshalNMauriceDraftPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPlayerᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_shortlist(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftPlayer(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftBoard_recommendations(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_recommendations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recommendations, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftRecommendations) graphql.Marshaler {
+			return ec.marshalNMauriceDraftRecommendations2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftRecommendations(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_recommendations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftRecommendations(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftBoard_warnings(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_warnings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftBoard", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftBoard_totalAvailable(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_totalAvailable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalAvailable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_totalAvailable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftBoard", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftBoard_offset(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_offset(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Offset, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_offset(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftBoard", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftBoard_limit(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_limit(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Limit, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_limit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftBoard", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftNewsReason_detail(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftNewsReason) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftNewsReason_detail(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Detail, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftNewsReason_detail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftNewsReason", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftNewsReason_reportedAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftNewsReason) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftNewsReason_reportedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReportedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftNewsReason_reportedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftNewsReason", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftNewsReason_status(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftNewsReason) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftNewsReason_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftNewsReason_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftNewsReason", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftNewsReason_scenarios(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftNewsReason) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftNewsReason_scenarios(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scenarios, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []model.DraftScenario) graphql.Marshaler {
+			return ec.marshalNDraftScenario2ᚕgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐDraftScenarioᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftNewsReason_scenarios(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftNewsReason", field, false, false, errors.New("field of type DraftScenario does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftOpenSlot_slot(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftOpenSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftOpenSlot_slot(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slot, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftOpenSlot_slot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftOpenSlot", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftOpenSlot_count(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftOpenSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftOpenSlot_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftOpenSlot_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftOpenSlot", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_round(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_round(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Round, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_round(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_pick(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_pick(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Pick, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_pick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_teamId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_teamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_teamName(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_teamName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_teamName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_playerId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_playerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_playerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_playerKey(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_playerKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayerKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_playerKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_playerName(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_playerName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayerName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_playerName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_source(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.MauriceDraftEntrySource) graphql.Marshaler {
+			return ec.marshalNMauriceDraftEntrySource2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftEntrySource(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type MauriceDraftEntrySource does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_conflict(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_conflict(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Conflict, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_conflict(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_undone(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_undone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Undone, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_undone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPick_cost(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPick_cost(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cost, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPick_cost(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPick", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_playerKey(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_playerKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayerKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_playerKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_yahooPlayerId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_yahooPlayerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.YahooPlayerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_yahooPlayerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_name(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_team(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_team(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Team, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_team(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_eligiblePositions(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_eligiblePositions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EligiblePositions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_eligiblePositions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_status(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_injuryNote(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_injuryNote(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InjuryNote, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_injuryNote(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_baselineRank(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_baselineRank(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BaselineRank, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_baselineRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_scenarioRank(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_scenarioRank(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ScenarioRank, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_scenarioRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_valueRank(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_valueRank(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ValueRank, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_valueRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_rosterFitRank(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_rosterFitRank(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RosterFitRank, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_rosterFitRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_baselineValue(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_baselineValue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BaselineValue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_baselineValue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_scenarioValue(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_scenarioValue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ScenarioValue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_scenarioValue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_newsDelta(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_newsDelta(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NewsDelta, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_newsDelta(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_shortlisted(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_shortlisted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Shortlisted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_shortlisted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_assignedSlot(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_assignedSlot(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AssignedSlot, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_assignedSlot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_recommendationReasons(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_recommendationReasons(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecommendationReasons, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_recommendationReasons(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftPlayer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftPlayer_news(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftPlayer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftPlayer_news(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.News, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceDraftNewsReason) graphql.Marshaler {
+			return ec.marshalNMauriceDraftNewsReason2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftNewsReasonᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftPlayer_news(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftPlayer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftNewsReason(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftRecommendations_bestValuePlayerKey(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRecommendations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRecommendations_bestValuePlayerKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BestValuePlayerKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRecommendations_bestValuePlayerKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRecommendations", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRecommendations_bestRosterFitPlayerKey(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRecommendations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRecommendations_bestRosterFitPlayerKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BestRosterFitPlayerKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRecommendations_bestRosterFitPlayerKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRecommendations", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRecommendations_bestValue(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRecommendations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRecommendations_bestValue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BestValue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftPlayer) graphql.Marshaler {
+			return ec.marshalOMauriceDraftPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPlayer(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRecommendations_bestValue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftRecommendations",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftPlayer(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftRecommendations_bestRosterFit(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRecommendations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRecommendations_bestRosterFit(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BestRosterFit, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftPlayer) graphql.Marshaler {
+			return ec.marshalOMauriceDraftPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPlayer(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRecommendations_bestRosterFit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftRecommendations",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftPlayer(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftRecommendations_issues(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRecommendations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRecommendations_issues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Issues, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRecommendations_issues(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRecommendations", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRecommendations_generatedAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRecommendations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRecommendations_generatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GeneratedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRecommendations_generatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRecommendations", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRecommendations_rankingAsOf(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRecommendations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRecommendations_rankingAsOf(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RankingAsOf, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRecommendations_rankingAsOf(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRecommendations", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRoster_teamId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRoster) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRoster_teamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRoster_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRoster", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRoster_teamName(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRoster) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRoster_teamName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRoster_teamName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRoster", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRoster_feasible(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRoster) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRoster_feasible(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Feasible, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRoster_feasible(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRoster", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRoster_assignments(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRoster) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRoster_assignments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Assignments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceDraftRosterAssignment) graphql.Marshaler {
+			return ec.marshalNMauriceDraftRosterAssignment2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftRosterAssignmentᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRoster_assignments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftRoster",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftRosterAssignment(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftRoster_openSlots(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRoster) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRoster_openSlots(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OpenSlots, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceDraftOpenSlot) graphql.Marshaler {
+			return ec.marshalNMauriceDraftOpenSlot2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftOpenSlotᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRoster_openSlots(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftRoster",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftOpenSlot(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftRoster_warnings(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRoster) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRoster_warnings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRoster_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRoster", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRosterAssignment_slot(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRosterAssignment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRosterAssignment_slot(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slot, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRosterAssignment_slot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRosterAssignment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRosterAssignment_index(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRosterAssignment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRosterAssignment_index(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Index, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRosterAssignment_index(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRosterAssignment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRosterAssignment_playerId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRosterAssignment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRosterAssignment_playerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRosterAssignment_playerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRosterAssignment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRosterAssignment_playerKey(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRosterAssignment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRosterAssignment_playerKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayerKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRosterAssignment_playerKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRosterAssignment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftRosterAssignment_playerName(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftRosterAssignment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftRosterAssignment_playerName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayerName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftRosterAssignment_playerName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftRosterAssignment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSessionEvent_stateVersion(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSessionEvent_stateVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StateVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSessionEvent_stateVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSessionEvent", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSessionEvent_kind(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSessionEvent_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSessionEvent_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSessionEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSessionEvent_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSessionEvent_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSessionEvent_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSessionEvent", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_connection(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_connection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Connection, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.MauriceDraftConnection) graphql.Marshaler {
+			return ec.marshalNMauriceDraftConnection2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftConnection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_connection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSyncStatus", field, false, false, errors.New("field of type MauriceDraftConnection does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_draftStatus(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_draftStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DraftStatus, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_draftStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSyncStatus", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_recommendationsSafe(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_recommendationsSafe(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecommendationsSafe, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_recommendationsSafe(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSyncStatus", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_complete(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_complete(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Complete, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_complete(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSyncStatus", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_stateVersion(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_stateVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StateVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_stateVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSyncStatus", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_syncVersion(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_syncVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SyncVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_syncVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSyncStatus", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_lastPollAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_lastPollAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastPollAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_lastPollAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSyncStatus", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_lastSuccessAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_lastSuccessAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastSuccessAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_lastSuccessAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSyncStatus", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_lastAuthoritativeAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_lastAuthoritativeAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastAuthoritativeAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_lastAuthoritativeAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSyncStatus", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_lastError(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_lastError(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastError, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_lastError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftSyncStatus", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftSyncStatus_watch(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftSyncStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftSyncStatus_watch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Watch, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftWatchStatus) graphql.Marshaler {
+			return ec.marshalNMauriceDraftWatchStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftWatchStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftSyncStatus_watch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftSyncStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftWatchStatus(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftTurn_currentRound(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftTurn_currentRound(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CurrentRound, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftTurn_currentRound(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftTurn", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftTurn_currentPick(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftTurn_currentPick(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CurrentPick, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftTurn_currentPick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftTurn", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftTurn_picksUntilNextTurn(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftTurn_picksUntilNextTurn(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PicksUntilNextTurn, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftTurn_picksUntilNextTurn(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftTurn", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftTurn_orderKnown(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftTurn_orderKnown(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OrderKnown, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftTurn_orderKnown(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftTurn", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftTurn_draftType(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftTurn_draftType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DraftType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftTurn_draftType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftTurn_pickTimeSeconds(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftTurn_pickTimeSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PickTimeSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftTurn_pickTimeSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftTurn", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftTurn_timingLabel(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftTurn_timingLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TimingLabel, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftTurn_timingLabel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftWatchStatus_state(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftWatchStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftWatchStatus_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.MauriceDraftWatchState) graphql.Marshaler {
+			return ec.marshalNMauriceDraftWatchState2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftWatchState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftWatchStatus_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftWatchStatus", field, false, false, errors.New("field of type MauriceDraftWatchState does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftWatchStatus_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftWatchStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftWatchStatus_startedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftWatchStatus_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftWatchStatus", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftWatchStatus_stoppedAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftWatchStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftWatchStatus_stoppedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StoppedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftWatchStatus_stoppedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftWatchStatus", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceDraftWatchStatus_lastError(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftWatchStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftWatchStatus_lastError(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastError, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftWatchStatus_lastError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceDraftWatchStatus", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _MauriceMessage_id(ctx context.Context, field graphql.CollectedField, obj *model.MauriceMessage) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -21283,6 +24990,314 @@ func (ec *executionContext) fieldContext_Mutation_resetDraftOverride(ctx context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_resetDraftOverride_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_startMauriceDraftWatch(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_startMauriceDraftWatch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().StartMauriceDraftWatch(ctx, fc.Args["input"].(model.MauriceDraftSessionRefInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftWatchStatus) graphql.Marshaler {
+			return ec.marshalNMauriceDraftWatchStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftWatchStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_startMauriceDraftWatch(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftWatchStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_startMauriceDraftWatch_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_stopMauriceDraftWatch(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_stopMauriceDraftWatch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().StopMauriceDraftWatch(ctx, fc.Args["input"].(model.MauriceDraftSessionRefInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftWatchStatus) graphql.Marshaler {
+			return ec.marshalNMauriceDraftWatchStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftWatchStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_stopMauriceDraftWatch(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftWatchStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_stopMauriceDraftWatch_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_refreshMauriceDraftBoard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_refreshMauriceDraftBoard(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RefreshMauriceDraftBoard(ctx, fc.Args["input"].(model.MauriceDraftSessionRefInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftSyncStatus) graphql.Marshaler {
+			return ec.marshalNMauriceDraftSyncStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSyncStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_refreshMauriceDraftBoard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftSyncStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_refreshMauriceDraftBoard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_applyMauriceDraftPick(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_applyMauriceDraftPick(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ApplyMauriceDraftPick(ctx, fc.Args["input"].(model.MauriceDraftManualPickInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftSyncStatus) graphql.Marshaler {
+			return ec.marshalNMauriceDraftSyncStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSyncStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_applyMauriceDraftPick(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftSyncStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_applyMauriceDraftPick_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_undoMauriceDraftPick(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_undoMauriceDraftPick(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UndoMauriceDraftPick(ctx, fc.Args["input"].(model.MauriceDraftSlotInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftSyncStatus) graphql.Marshaler {
+			return ec.marshalNMauriceDraftSyncStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSyncStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_undoMauriceDraftPick(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftSyncStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_undoMauriceDraftPick_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_resolveMauriceDraftConflict(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_resolveMauriceDraftConflict(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ResolveMauriceDraftConflict(ctx, fc.Args["input"].(model.MauriceDraftResolveInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftSyncStatus) graphql.Marshaler {
+			return ec.marshalNMauriceDraftSyncStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSyncStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_resolveMauriceDraftConflict(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftSyncStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resolveMauriceDraftConflict_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setMauriceDraftShortlist(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setMauriceDraftShortlist(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetMauriceDraftShortlist(ctx, fc.Args["input"].(model.MauriceDraftShortlistInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftSyncStatus) graphql.Marshaler {
+			return ec.marshalNMauriceDraftSyncStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSyncStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setMauriceDraftShortlist(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftSyncStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setMauriceDraftShortlist_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -24761,6 +28776,94 @@ func (ec *executionContext) fieldContext_Query_refreshDraftRankingsProgress(_ co
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ProgressReport(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceDraftBoard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceDraftBoard(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceDraftBoard(ctx, fc.Args["input"].(model.MauriceDraftBoardInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceDraftBoard) graphql.Marshaler {
+			return ec.marshalNMauriceDraftBoard2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftBoard(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceDraftBoard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftBoard(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceDraftBoard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceDraftEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceDraftEvents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceDraftEvents(ctx, fc.Args["league"].(string), fc.Args["season"].(*int), fc.Args["afterStateVersion"].(int64), fc.Args["limit"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceDraftSessionEvent) graphql.Marshaler {
+			return ec.marshalNMauriceDraftSessionEvent2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSessionEventᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceDraftEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceDraftSessionEvent(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceDraftEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -29006,6 +33109,403 @@ func (ec *executionContext) unmarshalInputGameFilter(ctx context.Context, obj an
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputMauriceDraftBoardInput(ctx context.Context, obj any) (model.MauriceDraftBoardInput, error) {
+	var it model.MauriceDraftBoardInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"league", "season", "scenario", "positions", "search", "offset", "limit"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "league":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("league"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.League = data
+		case "season":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Season = data
+		case "scenario":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scenario"))
+			data, err := ec.unmarshalODraftScenario2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐDraftScenario(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Scenario = data
+		case "positions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("positions"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Positions = data
+		case "search":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("search"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Search = data
+		case "offset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Offset = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMauriceDraftManualPickInput(ctx context.Context, obj any) (model.MauriceDraftManualPickInput, error) {
+	var it model.MauriceDraftManualPickInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"league", "season", "action", "round", "pick", "teamKey", "playerKey", "cost", "expectedStateVersion", "clientMutationId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "league":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("league"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.League = data
+		case "season":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Season = data
+		case "action":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("action"))
+			data, err := ec.unmarshalNMauriceDraftManualAction2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftManualAction(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Action = data
+		case "round":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("round"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Round = data
+		case "pick":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pick"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Pick = data
+		case "teamKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamKey"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamKey = data
+		case "playerKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("playerKey"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PlayerKey = data
+		case "cost":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cost"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Cost = data
+		case "expectedStateVersion":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expectedStateVersion"))
+			data, err := ec.unmarshalNInt642int64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpectedStateVersion = data
+		case "clientMutationId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientMutationId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientMutationID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMauriceDraftResolveInput(ctx context.Context, obj any) (model.MauriceDraftResolveInput, error) {
+	var it model.MauriceDraftResolveInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"league", "season", "round", "pick", "choice", "expectedStateVersion", "clientMutationId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "league":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("league"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.League = data
+		case "season":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Season = data
+		case "round":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("round"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Round = data
+		case "pick":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pick"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Pick = data
+		case "choice":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("choice"))
+			data, err := ec.unmarshalNMauriceDraftConflictChoice2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftConflictChoice(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Choice = data
+		case "expectedStateVersion":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expectedStateVersion"))
+			data, err := ec.unmarshalNInt642int64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpectedStateVersion = data
+		case "clientMutationId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientMutationId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientMutationID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMauriceDraftSessionRefInput(ctx context.Context, obj any) (model.MauriceDraftSessionRefInput, error) {
+	var it model.MauriceDraftSessionRefInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"league", "season"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "league":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("league"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.League = data
+		case "season":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Season = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMauriceDraftShortlistInput(ctx context.Context, obj any) (model.MauriceDraftShortlistInput, error) {
+	var it model.MauriceDraftShortlistInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"league", "season", "playerKey", "selected", "expectedStateVersion"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "league":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("league"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.League = data
+		case "season":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Season = data
+		case "playerKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("playerKey"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PlayerKey = data
+		case "selected":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("selected"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Selected = data
+		case "expectedStateVersion":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expectedStateVersion"))
+			data, err := ec.unmarshalNInt642int64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpectedStateVersion = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMauriceDraftSlotInput(ctx context.Context, obj any) (model.MauriceDraftSlotInput, error) {
+	var it model.MauriceDraftSlotInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"league", "season", "round", "pick", "expectedStateVersion", "clientMutationId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "league":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("league"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.League = data
+		case "season":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("season"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Season = data
+		case "round":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("round"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Round = data
+		case "pick":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pick"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Pick = data
+		case "expectedStateVersion":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expectedStateVersion"))
+			data, err := ec.unmarshalNInt642int64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpectedStateVersion = data
+		case "clientMutationId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientMutationId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientMutationID = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputPlayerFilter(ctx context.Context, obj any) (model.PlayerFilter, error) {
 	var it model.PlayerFilter
 	if obj == nil {
@@ -32520,6 +37020,802 @@ func (ec *executionContext) _MauriceConversationDetail(ctx context.Context, sel 
 	return out
 }
 
+var mauriceDraftBoardImplementors = []string{"MauriceDraftBoard"}
+
+func (ec *executionContext) _MauriceDraftBoard(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftBoard) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftBoardImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftBoard")
+		case "league":
+			out.Values[i] = ec._MauriceDraftBoard_league(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scenario":
+			out.Values[i] = ec._MauriceDraftBoard_scenario(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshot":
+			out.Values[i] = ec._MauriceDraftBoard_snapshot(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sync":
+			out.Values[i] = ec._MauriceDraftBoard_sync(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "turn":
+			out.Values[i] = ec._MauriceDraftBoard_turn(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "roster":
+			out.Values[i] = ec._MauriceDraftBoard_roster(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "history":
+			out.Values[i] = ec._MauriceDraftBoard_history(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "available":
+			out.Values[i] = ec._MauriceDraftBoard_available(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shortlist":
+			out.Values[i] = ec._MauriceDraftBoard_shortlist(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recommendations":
+			out.Values[i] = ec._MauriceDraftBoard_recommendations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "warnings":
+			out.Values[i] = ec._MauriceDraftBoard_warnings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalAvailable":
+			out.Values[i] = ec._MauriceDraftBoard_totalAvailable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "offset":
+			out.Values[i] = ec._MauriceDraftBoard_offset(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "limit":
+			out.Values[i] = ec._MauriceDraftBoard_limit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftNewsReasonImplementors = []string{"MauriceDraftNewsReason"}
+
+func (ec *executionContext) _MauriceDraftNewsReason(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftNewsReason) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftNewsReasonImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftNewsReason")
+		case "detail":
+			out.Values[i] = ec._MauriceDraftNewsReason_detail(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reportedAt":
+			out.Values[i] = ec._MauriceDraftNewsReason_reportedAt(ctx, field, obj)
+		case "status":
+			out.Values[i] = ec._MauriceDraftNewsReason_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scenarios":
+			out.Values[i] = ec._MauriceDraftNewsReason_scenarios(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftOpenSlotImplementors = []string{"MauriceDraftOpenSlot"}
+
+func (ec *executionContext) _MauriceDraftOpenSlot(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftOpenSlot) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftOpenSlotImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftOpenSlot")
+		case "slot":
+			out.Values[i] = ec._MauriceDraftOpenSlot_slot(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._MauriceDraftOpenSlot_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftPickImplementors = []string{"MauriceDraftPick"}
+
+func (ec *executionContext) _MauriceDraftPick(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftPick) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftPickImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftPick")
+		case "round":
+			out.Values[i] = ec._MauriceDraftPick_round(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pick":
+			out.Values[i] = ec._MauriceDraftPick_pick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamId":
+			out.Values[i] = ec._MauriceDraftPick_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamName":
+			out.Values[i] = ec._MauriceDraftPick_teamName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "playerId":
+			out.Values[i] = ec._MauriceDraftPick_playerId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "playerKey":
+			out.Values[i] = ec._MauriceDraftPick_playerKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "playerName":
+			out.Values[i] = ec._MauriceDraftPick_playerName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "source":
+			out.Values[i] = ec._MauriceDraftPick_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "conflict":
+			out.Values[i] = ec._MauriceDraftPick_conflict(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "undone":
+			out.Values[i] = ec._MauriceDraftPick_undone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cost":
+			out.Values[i] = ec._MauriceDraftPick_cost(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftPlayerImplementors = []string{"MauriceDraftPlayer"}
+
+func (ec *executionContext) _MauriceDraftPlayer(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftPlayer) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftPlayerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftPlayer")
+		case "playerKey":
+			out.Values[i] = ec._MauriceDraftPlayer_playerKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "yahooPlayerId":
+			out.Values[i] = ec._MauriceDraftPlayer_yahooPlayerId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._MauriceDraftPlayer_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "team":
+			out.Values[i] = ec._MauriceDraftPlayer_team(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eligiblePositions":
+			out.Values[i] = ec._MauriceDraftPlayer_eligiblePositions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._MauriceDraftPlayer_status(ctx, field, obj)
+		case "injuryNote":
+			out.Values[i] = ec._MauriceDraftPlayer_injuryNote(ctx, field, obj)
+		case "baselineRank":
+			out.Values[i] = ec._MauriceDraftPlayer_baselineRank(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scenarioRank":
+			out.Values[i] = ec._MauriceDraftPlayer_scenarioRank(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "valueRank":
+			out.Values[i] = ec._MauriceDraftPlayer_valueRank(ctx, field, obj)
+		case "rosterFitRank":
+			out.Values[i] = ec._MauriceDraftPlayer_rosterFitRank(ctx, field, obj)
+		case "baselineValue":
+			out.Values[i] = ec._MauriceDraftPlayer_baselineValue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scenarioValue":
+			out.Values[i] = ec._MauriceDraftPlayer_scenarioValue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "newsDelta":
+			out.Values[i] = ec._MauriceDraftPlayer_newsDelta(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shortlisted":
+			out.Values[i] = ec._MauriceDraftPlayer_shortlisted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "assignedSlot":
+			out.Values[i] = ec._MauriceDraftPlayer_assignedSlot(ctx, field, obj)
+		case "recommendationReasons":
+			out.Values[i] = ec._MauriceDraftPlayer_recommendationReasons(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "news":
+			out.Values[i] = ec._MauriceDraftPlayer_news(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftRecommendationsImplementors = []string{"MauriceDraftRecommendations"}
+
+func (ec *executionContext) _MauriceDraftRecommendations(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftRecommendations) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftRecommendationsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftRecommendations")
+		case "bestValuePlayerKey":
+			out.Values[i] = ec._MauriceDraftRecommendations_bestValuePlayerKey(ctx, field, obj)
+		case "bestRosterFitPlayerKey":
+			out.Values[i] = ec._MauriceDraftRecommendations_bestRosterFitPlayerKey(ctx, field, obj)
+		case "bestValue":
+			out.Values[i] = ec._MauriceDraftRecommendations_bestValue(ctx, field, obj)
+		case "bestRosterFit":
+			out.Values[i] = ec._MauriceDraftRecommendations_bestRosterFit(ctx, field, obj)
+		case "issues":
+			out.Values[i] = ec._MauriceDraftRecommendations_issues(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "generatedAt":
+			out.Values[i] = ec._MauriceDraftRecommendations_generatedAt(ctx, field, obj)
+		case "rankingAsOf":
+			out.Values[i] = ec._MauriceDraftRecommendations_rankingAsOf(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftRosterImplementors = []string{"MauriceDraftRoster"}
+
+func (ec *executionContext) _MauriceDraftRoster(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftRoster) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftRosterImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftRoster")
+		case "teamId":
+			out.Values[i] = ec._MauriceDraftRoster_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamName":
+			out.Values[i] = ec._MauriceDraftRoster_teamName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "feasible":
+			out.Values[i] = ec._MauriceDraftRoster_feasible(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "assignments":
+			out.Values[i] = ec._MauriceDraftRoster_assignments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "openSlots":
+			out.Values[i] = ec._MauriceDraftRoster_openSlots(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "warnings":
+			out.Values[i] = ec._MauriceDraftRoster_warnings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftRosterAssignmentImplementors = []string{"MauriceDraftRosterAssignment"}
+
+func (ec *executionContext) _MauriceDraftRosterAssignment(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftRosterAssignment) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftRosterAssignmentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftRosterAssignment")
+		case "slot":
+			out.Values[i] = ec._MauriceDraftRosterAssignment_slot(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "index":
+			out.Values[i] = ec._MauriceDraftRosterAssignment_index(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "playerId":
+			out.Values[i] = ec._MauriceDraftRosterAssignment_playerId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "playerKey":
+			out.Values[i] = ec._MauriceDraftRosterAssignment_playerKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "playerName":
+			out.Values[i] = ec._MauriceDraftRosterAssignment_playerName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftSessionEventImplementors = []string{"MauriceDraftSessionEvent"}
+
+func (ec *executionContext) _MauriceDraftSessionEvent(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftSessionEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftSessionEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftSessionEvent")
+		case "stateVersion":
+			out.Values[i] = ec._MauriceDraftSessionEvent_stateVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._MauriceDraftSessionEvent_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._MauriceDraftSessionEvent_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftSyncStatusImplementors = []string{"MauriceDraftSyncStatus"}
+
+func (ec *executionContext) _MauriceDraftSyncStatus(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftSyncStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftSyncStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftSyncStatus")
+		case "connection":
+			out.Values[i] = ec._MauriceDraftSyncStatus_connection(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "draftStatus":
+			out.Values[i] = ec._MauriceDraftSyncStatus_draftStatus(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recommendationsSafe":
+			out.Values[i] = ec._MauriceDraftSyncStatus_recommendationsSafe(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "complete":
+			out.Values[i] = ec._MauriceDraftSyncStatus_complete(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stateVersion":
+			out.Values[i] = ec._MauriceDraftSyncStatus_stateVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "syncVersion":
+			out.Values[i] = ec._MauriceDraftSyncStatus_syncVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastPollAt":
+			out.Values[i] = ec._MauriceDraftSyncStatus_lastPollAt(ctx, field, obj)
+		case "lastSuccessAt":
+			out.Values[i] = ec._MauriceDraftSyncStatus_lastSuccessAt(ctx, field, obj)
+		case "lastAuthoritativeAt":
+			out.Values[i] = ec._MauriceDraftSyncStatus_lastAuthoritativeAt(ctx, field, obj)
+		case "lastError":
+			out.Values[i] = ec._MauriceDraftSyncStatus_lastError(ctx, field, obj)
+		case "watch":
+			out.Values[i] = ec._MauriceDraftSyncStatus_watch(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftTurnImplementors = []string{"MauriceDraftTurn"}
+
+func (ec *executionContext) _MauriceDraftTurn(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftTurn) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftTurnImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftTurn")
+		case "currentRound":
+			out.Values[i] = ec._MauriceDraftTurn_currentRound(ctx, field, obj)
+		case "currentPick":
+			out.Values[i] = ec._MauriceDraftTurn_currentPick(ctx, field, obj)
+		case "picksUntilNextTurn":
+			out.Values[i] = ec._MauriceDraftTurn_picksUntilNextTurn(ctx, field, obj)
+		case "orderKnown":
+			out.Values[i] = ec._MauriceDraftTurn_orderKnown(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "draftType":
+			out.Values[i] = ec._MauriceDraftTurn_draftType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pickTimeSeconds":
+			out.Values[i] = ec._MauriceDraftTurn_pickTimeSeconds(ctx, field, obj)
+		case "timingLabel":
+			out.Values[i] = ec._MauriceDraftTurn_timingLabel(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceDraftWatchStatusImplementors = []string{"MauriceDraftWatchStatus"}
+
+func (ec *executionContext) _MauriceDraftWatchStatus(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceDraftWatchStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceDraftWatchStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceDraftWatchStatus")
+		case "state":
+			out.Values[i] = ec._MauriceDraftWatchStatus_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startedAt":
+			out.Values[i] = ec._MauriceDraftWatchStatus_startedAt(ctx, field, obj)
+		case "stoppedAt":
+			out.Values[i] = ec._MauriceDraftWatchStatus_stoppedAt(ctx, field, obj)
+		case "lastError":
+			out.Values[i] = ec._MauriceDraftWatchStatus_lastError(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mauriceMessageImplementors = []string{"MauriceMessage"}
 
 func (ec *executionContext) _MauriceMessage(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceMessage) graphql.Marshaler {
@@ -32846,6 +38142,55 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "resetDraftOverride":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_resetDraftOverride(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startMauriceDraftWatch":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_startMauriceDraftWatch(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stopMauriceDraftWatch":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_stopMauriceDraftWatch(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "refreshMauriceDraftBoard":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_refreshMauriceDraftBoard(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "applyMauriceDraftPick":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_applyMauriceDraftPick(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "undoMauriceDraftPick":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_undoMauriceDraftPick(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resolveMauriceDraftConflict":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resolveMauriceDraftConflict(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setMauriceDraftShortlist":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setMauriceDraftShortlist(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -34454,6 +39799,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_refreshDraftRankingsProgress(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceDraftBoard":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceDraftBoard(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceDraftEvents":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceDraftEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
 				return res
 			}
 
@@ -36512,6 +41901,16 @@ func (ec *executionContext) marshalNDraftScenarioVersion2ᚖgithubᚗcomᚋspera
 	return ec._DraftScenarioVersion(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNDraftSnapshot2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐDraftSnapshot(ctx context.Context, sel ast.SelectionSet, v *model.DraftSnapshot) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DraftSnapshot(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNDraftStatChange2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐDraftStatChangeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DraftStatChange) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -36920,6 +42319,314 @@ func (ec *executionContext) marshalNMauriceConversation2ᚖgithubᚗcomᚋsperan
 		return graphql.Null
 	}
 	return ec._MauriceConversation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftBoard2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftBoard(ctx context.Context, sel ast.SelectionSet, v model.MauriceDraftBoard) graphql.Marshaler {
+	return ec._MauriceDraftBoard(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftBoard2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftBoard(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftBoard) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftBoard(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftBoardInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftBoardInput(ctx context.Context, v any) (model.MauriceDraftBoardInput, error) {
+	res, err := ec.unmarshalInputMauriceDraftBoardInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftConflictChoice2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftConflictChoice(ctx context.Context, v any) (model.MauriceDraftConflictChoice, error) {
+	var res model.MauriceDraftConflictChoice
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceDraftConflictChoice2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftConflictChoice(ctx context.Context, sel ast.SelectionSet, v model.MauriceDraftConflictChoice) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftConnection2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftConnection(ctx context.Context, v any) (model.MauriceDraftConnection, error) {
+	var res model.MauriceDraftConnection
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceDraftConnection2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftConnection(ctx context.Context, sel ast.SelectionSet, v model.MauriceDraftConnection) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftEntrySource2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftEntrySource(ctx context.Context, v any) (model.MauriceDraftEntrySource, error) {
+	var res model.MauriceDraftEntrySource
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceDraftEntrySource2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftEntrySource(ctx context.Context, sel ast.SelectionSet, v model.MauriceDraftEntrySource) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftManualAction2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftManualAction(ctx context.Context, v any) (model.MauriceDraftManualAction, error) {
+	var res model.MauriceDraftManualAction
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceDraftManualAction2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftManualAction(ctx context.Context, sel ast.SelectionSet, v model.MauriceDraftManualAction) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftManualPickInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftManualPickInput(ctx context.Context, v any) (model.MauriceDraftManualPickInput, error) {
+	res, err := ec.unmarshalInputMauriceDraftManualPickInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceDraftNewsReason2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftNewsReasonᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceDraftNewsReason) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceDraftNewsReason2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftNewsReason(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceDraftNewsReason2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftNewsReason(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftNewsReason) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftNewsReason(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftOpenSlot2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftOpenSlotᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceDraftOpenSlot) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceDraftOpenSlot2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftOpenSlot(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceDraftOpenSlot2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftOpenSlot(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftOpenSlot) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftOpenSlot(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftPick2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPickᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceDraftPick) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceDraftPick2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPick(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceDraftPick2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPick(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftPick) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftPick(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPlayerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceDraftPlayer) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceDraftPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPlayer(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceDraftPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPlayer(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftPlayer) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftPlayer(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftRecommendations2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftRecommendations(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftRecommendations) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftRecommendations(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftResolveInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftResolveInput(ctx context.Context, v any) (model.MauriceDraftResolveInput, error) {
+	res, err := ec.unmarshalInputMauriceDraftResolveInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceDraftRoster2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftRoster(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftRoster) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftRoster(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftRosterAssignment2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftRosterAssignmentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceDraftRosterAssignment) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceDraftRosterAssignment2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftRosterAssignment(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceDraftRosterAssignment2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftRosterAssignment(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftRosterAssignment) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftRosterAssignment(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftSessionEvent2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSessionEventᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceDraftSessionEvent) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceDraftSessionEvent2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSessionEvent(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceDraftSessionEvent2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSessionEvent(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftSessionEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftSessionEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftSessionRefInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSessionRefInput(ctx context.Context, v any) (model.MauriceDraftSessionRefInput, error) {
+	res, err := ec.unmarshalInputMauriceDraftSessionRefInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftShortlistInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftShortlistInput(ctx context.Context, v any) (model.MauriceDraftShortlistInput, error) {
+	res, err := ec.unmarshalInputMauriceDraftShortlistInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftSlotInput2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSlotInput(ctx context.Context, v any) (model.MauriceDraftSlotInput, error) {
+	res, err := ec.unmarshalInputMauriceDraftSlotInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceDraftSyncStatus2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSyncStatus(ctx context.Context, sel ast.SelectionSet, v model.MauriceDraftSyncStatus) graphql.Marshaler {
+	return ec._MauriceDraftSyncStatus(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftSyncStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftSyncStatus(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftSyncStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftSyncStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftTurn2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftTurn(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftTurn) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftTurn(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMauriceDraftWatchState2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftWatchState(ctx context.Context, v any) (model.MauriceDraftWatchState, error) {
+	var res model.MauriceDraftWatchState
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceDraftWatchState2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftWatchState(ctx context.Context, sel ast.SelectionSet, v model.MauriceDraftWatchState) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNMauriceDraftWatchStatus2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftWatchStatus(ctx context.Context, sel ast.SelectionSet, v model.MauriceDraftWatchStatus) graphql.Marshaler {
+	return ec._MauriceDraftWatchStatus(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMauriceDraftWatchStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftWatchStatus(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftWatchStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceDraftWatchStatus(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNMauriceMessage2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceMessage) graphql.Marshaler {
@@ -37956,6 +43663,13 @@ func (ec *executionContext) marshalOMauriceConversationDetail2ᚖgithubᚗcomᚋ
 		return graphql.Null
 	}
 	return ec._MauriceConversationDetail(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOMauriceDraftPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceDraftPlayer(ctx context.Context, sel ast.SelectionSet, v *model.MauriceDraftPlayer) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MauriceDraftPlayer(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐPlayer(ctx context.Context, sel ast.SelectionSet, v *model.Player) graphql.Marshaler {
