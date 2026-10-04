@@ -67,6 +67,9 @@ positions do not prove traded-pick ownership. Only a supplied per-pick order is
 treated as verified. Auctions, unknown formats, and incomplete positions omit
 the estimate.
 
+For preflight, refresh, rehearsal, export, and recovery procedures for the two
+2026 leagues, see [Draft day operations](draft-day-operations.md).
+
 ## Keyboard and responsive use
 
 In the available-player table, Up/Down changes the focused player, `S` toggles
