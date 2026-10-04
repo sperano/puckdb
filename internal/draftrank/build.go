@@ -215,6 +215,10 @@ func buildPlayers(in BuildInput, scoring draft.Scoring, rankings map[Scenario]dr
 	for _, ranked := range rankings[ScenarioBaseline].Players {
 		eligible[ranked.PlayerKey] = slices.Clone(ranked.EligiblePositions)
 	}
+	rosterEligible := make(map[string][]string, len(in.Pool))
+	for _, player := range in.Pool {
+		rosterEligible[player.PlayerKey] = slices.Clone(player.EligiblePositions)
+	}
 	adjustments := make(map[string]*newsadjust.PlayerAdjustment)
 	if in.Adjustment != nil {
 		for i := range in.Adjustment.Players {
@@ -226,7 +230,8 @@ func buildPlayers(in BuildInput, scoring draft.Scoring, rankings map[Scenario]dr
 		players = append(players, Player{
 			PlayerKey: p.PlayerKey, YahooPlayerID: p.YahooPlayerID, NHLPlayerID: p.NHLPlayerID,
 			Name: p.Name, Team: p.Team, EligiblePositions: eligible[p.PlayerKey],
-			Status: p.Status, StatusFull: p.StatusFull, InjuryNote: p.InjuryNote,
+			RosterEligiblePositions: rosterEligible[p.PlayerKey],
+			Status:                  p.Status, StatusFull: p.StatusFull, InjuryNote: p.InjuryNote,
 			Placements: placements[p.PlayerKey], Adjustment: adjustments[p.PlayerKey],
 		})
 	}

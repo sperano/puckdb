@@ -59,6 +59,20 @@ func TestBuild_RanksEveryScenarioWithOneRankingModel(t *testing.T) {
 	assert.Equal(t, draftfixtures.NewsSourceID, snapshot.News[0].SourceID)
 }
 
+func TestBuild_PreservesFullYahooRosterEligibility(t *testing.T) {
+	input := fixtureInput(t)
+	for i := range input.Pool {
+		if input.Pool[i].PlayerKey == draftfixtures.CenterWing {
+			input.Pool[i].EligiblePositions = append(input.Pool[i].EligiblePositions, draft.SlotInjuredReserve)
+		}
+	}
+	snapshot, err := draftrank.Build(input)
+	require.NoError(t, err)
+	dual := playerByKey(t, &snapshot, draftfixtures.CenterWing)
+	assert.Equal(t, []string{draft.PositionCenter, draft.PositionLeftWing}, dual.EligiblePositions)
+	assert.Equal(t, []string{draft.PositionCenter, draft.PositionLeftWing, draft.SlotInjuredReserve}, dual.RosterEligiblePositions)
+}
+
 func TestBuild_SuspensionLowersOnlyTheSuspendedPlayer(t *testing.T) {
 	snapshot := fixtureSnapshot(t)
 	suspended := playerByKey(t, snapshot, draftfixtures.SuspendedKey)
