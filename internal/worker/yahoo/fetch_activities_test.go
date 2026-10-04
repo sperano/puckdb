@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/go-redis/redismock/v8"
@@ -45,6 +46,26 @@ func newFetchActivities(mem *store.MemStorage, dl shared.Downloader, gobCache *c
 // anyArgs is a redismock matcher that accepts any arguments.
 func anyArgs(expected, actual []any) error { return nil }
 
+const testResourceCacheLockTTL = 2 * time.Minute
+
+func expectResourceCacheLock(mockRedis redismock.ClientMock) {
+	mockRedis.MatchExpectationsInOrder(false)
+	mockRedis.CustomMatch(anyArgs).ExpectSetNX("lock", "value", testResourceCacheLockTTL).SetVal(true)
+	mockRedis.CustomMatch(anyArgs).ExpectEvalSha("script", []string{"lock"}, "value").SetVal(int64(1))
+}
+
+func expectCoherentRedisMiss(mockRedis redismock.ClientMock, res core.Resource) {
+	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+	expectResourceCacheLock(mockRedis)
+	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+}
+
+func expectCoherentFetchMiss(mockRedis redismock.ClientMock, res core.Resource) {
+	expectCoherentRedisMiss(mockRedis, res)
+	expectResourceCacheLock(mockRedis)
+	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+}
+
 // --- FetchLeague tests ---
 
 type FetchLeagueTestSuite struct {
@@ -72,7 +93,7 @@ func (s *FetchLeagueTestSuite) TestCacheHit() {
 	require.NoError(s.T(), mem.Write(context.Background(), res.Path(), []byte(testLeagueXML)))
 
 	// Redis miss → falls through to filesystem → populates cache
-	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+	expectCoherentRedisMiss(mockRedis, res)
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(res), "x", cache.GobCacheTTL).SetVal("OK")
 
 	act := newFetchActivities(mem, dl, cache.NewGobCache(redisClient))
@@ -91,7 +112,7 @@ func (s *FetchLeagueTestSuite) TestDownloadAndSave() {
 	res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
 
 	// ReadParsedCached: Redis miss, filesystem miss → download → cache.Set
-	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+	expectCoherentFetchMiss(mockRedis, res)
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(res), "x", cache.GobCacheTTL).SetVal("OK")
 
 	act := newFetchActivities(mem, dl, cache.NewGobCache(redisClient))
@@ -115,7 +136,7 @@ func (s *FetchLeagueTestSuite) TestDownloadError() {
 	res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
 
 	// ReadParsedCached misses → download fails before cache.Set
-	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+	expectCoherentFetchMiss(mockRedis, res)
 
 	act := newFetchActivities(mem, dl, cache.NewGobCache(redisClient))
 	s.env.RegisterActivity(act.FetchLeague)
@@ -138,7 +159,7 @@ func (s *FetchLeagueTestSuite) TestInvalidRedisIdentityIsEvictedAndReloaded() {
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.ExpectGet(core.RedisKey(res)).SetVal(encoded.String())
 	mockRedis.ExpectDel(core.RedisKey(res)).SetVal(1)
-	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+	expectCoherentRedisMiss(mockRedis, res)
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(res), "x", cache.GobCacheTTL).SetVal("OK")
 
 	act := newFetchActivities(mem, mockDownloader(nil, errors.New("must not download")), cache.NewGobCache(redisClient))
@@ -162,7 +183,7 @@ func (s *FetchLeagueTestSuite) TestInvalidRedisIdentityThenBadRequestIsNonRetrya
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.ExpectGet(core.RedisKey(res)).SetVal(encoded.String())
 	mockRedis.ExpectDel(core.RedisKey(res)).SetVal(1)
-	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+	expectCoherentFetchMiss(mockRedis, res)
 	rejection := &httpx.HTTPError{StatusCode: http.StatusBadRequest, Status: "400 Bad Request"}
 
 	act := newFetchActivities(store.NewMemStorage(), failingDownloader(rejection), cache.NewGobCache(redisClient))

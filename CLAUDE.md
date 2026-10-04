@@ -54,6 +54,8 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `draft rules` | Markdown comparison of leagues' imported rules (scoring, roster, draft, settings) with warnings; `--draft-season`, `--draft-leagues`, `--draft-output` |
 | `draft pool` | Coverage of leagues' draftable player pools (eligibility gaps, unmatched NHL players) |
 | `draft rankings` | A league's stored ranking snapshot as a table, CSV or JSON (`--draft-league`, `--draft-positions`, `--draft-format`, search/sort/pagination flags); same service and values as GraphQL (see `docs/draft-rankings-api.md`) |
+| `sync draft` | Force-refresh and reconcile one full-key Yahoo draft session; `--watch` polls with bounded backoff and final reconciliation (see `docs/yahoo-draft-watch.md`) |
+| `draft session` | Inspect live draft state, capability observations, and perform local add/correct/undo/conflict resolution without submitting Yahoo picks |
 | `news report` | Markdown report of player news: source coverage (fresh/failing/stale/missing), incident candidates with attributed evidence, unattached story subjects; `--news-player-nhl-id`/`--news-player-yahoo-id` for one player (see `docs/draft-player-news.md`) |
 | `news events` | Markdown report of validated news events (evidence quotes, lifecycle history) and the extraction review queue (see `docs/draft-news-events.md`) |
 | `news eval` | Run the labeled news-event corpus through `--news-extract-provider`/`--news-extract-model`, print accuracy and unsupported-claim rate against the release thresholds, record the run (the gate for automatic effects) |
@@ -399,6 +401,9 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `draft_ranking_snapshots` | One successful ranking refresh of a league; immutable, latest by `as_of` is served | `season`, `league_id`, `league_key`, `identity`, `rules_hash`, `projection_snapshot_id`, `adjustment_run_id`, `as_of`, `meta` (jsonb) |
 | `draft_ranking_players` | Every pool player of a snapshot with each scenario placement (PK `(snapshot_id, player_key)`) | `baseline_rank`, `player` (jsonb) |
 | `draft_ranking_refreshes` | Refresh attempts per league (UNIQUE `(run_id, season, league_id)`) | `status` (`running`/`succeeded`/`failed`/`canceled`), `state` (issue code), `error`, `snapshot_id`, `started_at`, `finished_at` |
+| `draft_sessions` | Full-league-key live board and manual overlay | `state_version`, `board`, `draft_status`, freshness/error timestamps, recommendation safety |
+| `draft_session_observations` | Every Yahoo watch attempt for capability measurement | duration, authority, counts, change, error class |
+| `draft_session_events` | Versioned board/manual changes; identical polls add no event | `state_version`, `kind`, `details`, `created_at` |
 
 ### Maurice (LLM chat) tables
 

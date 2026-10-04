@@ -37,7 +37,7 @@ func cmdDraft() *cobra.Command {
 player pool (pool) and the stored league rankings (rankings). They read what
 the sync imported and computed; run a sync first.`,
 	}
-	cmd.AddCommand(cmdDraftRules(), cmdDraftPool(), cmdDraftRankings())
+	cmd.AddCommand(cmdDraftRules(), cmdDraftPool(), cmdDraftRankings(), cmdDraftSession())
 	return cmd
 }
 

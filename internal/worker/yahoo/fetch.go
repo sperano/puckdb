@@ -60,14 +60,47 @@ func (f Fetcher) Fetch(ctx context.Context, res Resource) (*store.FantasyContent
 		metrics.IncDownload(res.Type(), metrics.ResultHit)
 		return content, origin, nil
 	}
-	return f.download(ctx, res)
+	if cache.RequiresCoherentResourceLock(res.Type()) {
+		return f.fetchMissUnderResourceLock(ctx, res)
+	}
+	return f.download(ctx, res, false)
+}
+
+func (f Fetcher) fetchMissUnderResourceLock(ctx context.Context, res Resource) (*store.FantasyContent, core.DataOrigin, error) {
+	release, err := f.GobCache.LockResource(ctx, core.RedisKey(res))
+	if err != nil {
+		metrics.IncDownload(res.Type(), metrics.ResultError)
+		return nil, core.OriginUnknown, err
+	}
+	defer release()
+
+	content, origin, err := f.readCachedUnderResourceLock(ctx, res)
+	if err != nil {
+		metrics.IncDownload(res.Type(), metrics.ResultError)
+		return nil, core.OriginUnknown, err
+	}
+	if content != nil {
+		metrics.IncDownload(res.Type(), metrics.ResultHit)
+		return content, origin, nil
+	}
+	return f.download(ctx, res, false)
 }
 
 // Refresh downloads the resource even when a cached copy exists, for
 // resources whose content changes between downloads (a league's player
 // pool). The new copy replaces the cached one.
 func (f Fetcher) Refresh(ctx context.Context, res Resource) (*store.FantasyContent, error) {
-	content, _, err := f.download(ctx, res)
+	strictCache := cache.RequiresCoherentResourceLock(res.Type())
+	content, _, err := f.download(ctx, res, strictCache)
+	return content, err
+}
+
+// RefreshCoherent is the strict live-data variant of Refresh. It invalidates
+// the parsed Redis entry before replacing the filesystem source, then requires
+// Redis repopulation to succeed. If repopulation fails, it removes the entry
+// again so no later cache read can return a stale value as current.
+func (f Fetcher) RefreshCoherent(ctx context.Context, res Resource) (*store.FantasyContent, error) {
+	content, _, err := f.download(ctx, res, true)
 	return content, err
 }
 
@@ -77,6 +110,20 @@ func (f Fetcher) Refresh(ctx context.Context, res Resource) (*store.FantasyConte
 // (Redis or storage I/O) is returned rather than turned into a Yahoo download.
 func (f Fetcher) readCached(ctx context.Context, res Resource) (*store.FantasyContent, core.DataOrigin, error) {
 	content, origin, err := f.GobCache.ReadParsedCached(ctx, f.Storage, res)
+	return normalizeCachedResult(res, content, origin, err)
+}
+
+func (f Fetcher) readCachedUnderResourceLock(ctx context.Context, res Resource) (*store.FantasyContent, core.DataOrigin, error) {
+	content, origin, err := f.GobCache.ReadParsedCachedUnderResourceLock(ctx, f.Storage, res)
+	return normalizeCachedResult(res, content, origin, err)
+}
+
+func normalizeCachedResult(
+	res Resource,
+	content *store.FantasyContent,
+	origin core.DataOrigin,
+	err error,
+) (*store.FantasyContent, core.DataOrigin, error) {
 	var parseErr *resource.ParseError
 	switch {
 	case err == nil:
@@ -92,8 +139,18 @@ func (f Fetcher) readCached(ctx context.Context, res Resource) (*store.FantasyCo
 }
 
 // download fetches, validates, stores and caches the resource.
-func (f Fetcher) download(ctx context.Context, res Resource) (*store.FantasyContent, core.DataOrigin, error) {
+func (f Fetcher) download(ctx context.Context, res Resource, strictCache bool) (*store.FantasyContent, core.DataOrigin, error) {
 	ft := res.Type()
+	release := func() {}
+	if strictCache {
+		var err error
+		release, err = f.GobCache.LockResource(ctx, core.RedisKey(res))
+		if err != nil {
+			metrics.IncDownload(ft, metrics.ResultError)
+			return nil, core.OriginUnknown, err
+		}
+	}
+	defer release()
 
 	start := time.Now()
 	raw, err := f.Download(ctx, res.URL())
@@ -111,6 +168,12 @@ func (f Fetcher) download(ctx context.Context, res Resource) (*store.FantasyCont
 		metrics.IncDownload(ft, metrics.ResultError)
 		return nil, core.OriginUnknown, err
 	}
+	if strictCache {
+		if err := f.GobCache.Delete(ctx, core.RedisKey(res)); err != nil && !errors.Is(err, cache.ErrNilCache) {
+			metrics.IncDownload(ft, metrics.ResultError)
+			return nil, core.OriginUnknown, fmt.Errorf("invalidate %s Redis cache: %w", ft, err)
+		}
+	}
 	if err := f.Storage.Write(ctx, res.Path(), raw); err != nil {
 		metrics.IncDownload(ft, metrics.ResultError)
 		return nil, core.OriginUnknown, fmt.Errorf("save %s: %w", ft, err)
@@ -119,6 +182,14 @@ func (f Fetcher) download(ctx context.Context, res Resource) (*store.FantasyCont
 	// Storage is the source of truth; a Redis write failure is not allowed to
 	// fail the fetch (the next read repopulates Redis from the file).
 	if err := f.GobCache.SetParsed(ctx, res, content); err != nil && !errors.Is(err, cache.ErrNilCache) {
+		if strictCache {
+			cleanupErr := f.GobCache.Delete(ctx, core.RedisKey(res))
+			metrics.IncDownload(ft, metrics.ResultError)
+			if cleanupErr != nil && !errors.Is(cleanupErr, cache.ErrNilCache) {
+				return nil, core.OriginUnknown, fmt.Errorf("populate %s Redis cache: %w; remove stale entry: %v", ft, err, cleanupErr)
+			}
+			return nil, core.OriginUnknown, fmt.Errorf("populate %s Redis cache: %w", ft, err)
+		}
 		log.Warn().Str("path", res.Path()).Err(err).Msg("gob cache write failed after Yahoo download; continuing")
 	}
 

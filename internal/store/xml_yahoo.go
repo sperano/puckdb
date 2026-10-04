@@ -391,9 +391,31 @@ type TransactionPlayerData struct {
 
 // DraftResultList contains a list of draft results.
 type DraftResultList struct {
-	XMLName xml.Name      `xml:"draft_results"`
-	Slice   []DraftResult `xml:"draft_result"`
-	Count   int           `xml:"count,attr"`
+	XMLName  xml.Name      `xml:"draft_results"`
+	Slice    []DraftResult `xml:"draft_result"`
+	Count    int           `xml:"-"`
+	HasCount bool          `xml:"-"`
+}
+
+// UnmarshalXML preserves whether Yahoo supplied the count attribute. A
+// missing count and an explicit count="0" are materially different evidence
+// when deciding whether an empty live-draft response may reset a board.
+func (d *DraftResultList) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) error {
+	type draftResultListXML struct {
+		Slice []DraftResult `xml:"draft_result"`
+		Count *int          `xml:"count,attr"`
+	}
+	var decoded draftResultListXML
+	if err := decoder.DecodeElement(&decoded, &start); err != nil {
+		return err
+	}
+	d.XMLName = start.Name
+	d.Slice = decoded.Slice
+	d.HasCount = decoded.Count != nil
+	if decoded.Count != nil {
+		d.Count = *decoded.Count
+	}
+	return nil
 }
 
 // DraftResult represents a single draft pick.
