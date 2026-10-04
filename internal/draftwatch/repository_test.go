@@ -75,6 +75,46 @@ func TestRepositoryConflictVersionAndOrderedEvents(t *testing.T) {
 	assertEventsInVersionOrder(t, fixture)
 }
 
+func TestRepositoryRestartKeepsCompleteBoardAcrossDuplicateAndPartialPolls(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	complete := replayPoll(true, 4,
+		draftsession.ObservedPick{Key: draftsession.PickKey{Round: 1, Pick: 1}, TeamID: 1, PlayerID: 101},
+		draftsession.ObservedPick{Key: draftsession.PickKey{Round: 1, Pick: 2}, TeamID: 2, PlayerID: 102},
+		draftsession.ObservedPick{Key: draftsession.PickKey{Round: 1, Pick: 3}, TeamID: 3, PlayerID: 103},
+		draftsession.ObservedPick{Key: draftsession.PickKey{Round: 1, Pick: 4}, TeamID: 4, PlayerID: 104},
+	)
+	first, firstReport, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity, complete)
+	require.NoError(t, err)
+	require.True(t, firstReport.SafeToRecommend)
+
+	restarted := NewRepository(fixture.repo.pool)
+	recovered, err := restarted.Get(fixture.ctx, fixture.identity.LeagueKey)
+	require.NoError(t, err)
+	assert.Equal(t, first.State, recovered.State)
+	assert.Equal(t, draftsession.EffectiveBoard(first.State), draftsession.EffectiveBoard(recovered.State))
+
+	duplicate, duplicateReport, err := restarted.Reconcile(fixture.ctx, fixture.identity, complete)
+	require.NoError(t, err)
+	assert.False(t, duplicateReport.Changed)
+	assert.Equal(t, recovered.State.Version, duplicate.State.Version)
+
+	partial := replayPoll(false, 4,
+		draftsession.ObservedPick{Key: draftsession.PickKey{Round: 1, Pick: 1}, TeamID: 1, PlayerID: 101},
+		draftsession.ObservedPick{Key: draftsession.PickKey{Round: 1, Pick: 2}, TeamID: 2, PlayerID: 102},
+	)
+	afterPartial, partialReport, err := restarted.Reconcile(fixture.ctx, fixture.identity, partial)
+	require.NoError(t, err)
+	assert.False(t, partialReport.SafeToRecommend)
+	assert.Len(t, afterPartial.State.Upstream, len(complete.Snapshot.Picks), "partial replay must not delete unseen picks")
+}
+
+func replayPoll(authoritative bool, expected int, picks ...draftsession.ObservedPick) PollResult {
+	return PollResult{PolledAt: time.Now().UTC(), Snapshot: draftsession.Snapshot{
+		Authoritative: authoritative, HasExpectedCount: true, ExpectedCount: expected,
+		RawCount: len(picks), Picks: picks,
+	}}
+}
+
 func TestListEventsValidatesCursorAndLimitBeforeDatabaseAccess(t *testing.T) {
 	var repo *Repository
 	_, err := repo.ListEvents(context.Background(), "league", 0, 0)
