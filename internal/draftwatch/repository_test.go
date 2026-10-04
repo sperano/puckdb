@@ -1,0 +1,189 @@
+package draftwatch
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/draftsession"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	envDraftWatchTestPGURL = "PUCKDB_TEST_PG_URL"
+	draftWatchTestDBMarker = "test"
+)
+
+var draftWatchMigrateOnce struct {
+	sync.Once
+	err error
+}
+
+func openDraftWatchTestDB(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	dbURL := os.Getenv(envDraftWatchTestPGURL)
+	if dbURL == "" {
+		t.Skipf("set %s to run PostgreSQL draft watch tests", envDraftWatchTestPGURL)
+	}
+	require.Contains(t, dbURL, draftWatchTestDBMarker,
+		"%s must name a dedicated test database", envDraftWatchTestPGURL)
+	draftWatchMigrateOnce.Do(func() { draftWatchMigrateOnce.err = database.MigrateUp(dbURL) })
+	require.NoError(t, draftWatchMigrateOnce.err)
+	pool, err := pgxpool.New(context.Background(), dbURL)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+func TestRepositorySyncVersionAndExpectedManualState(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity, PollResult{PolledAt: time.Now().UTC()})
+	require.NoError(t, err)
+	assertSessionVersions(t, fixture, 0, 1)
+
+	pollErr := errors.New("test poll failure")
+	require.NoError(t, fixture.repo.RecordFailure(fixture.ctx, fixture.identity, time.Now().UTC(), time.Second, pollErr))
+	assertSessionVersions(t, fixture, 0, 2)
+
+	key := draftsession.PickKey{Round: 1, Pick: 1}
+	manual := manualOperation(key, draftsession.ManualAdd, 11)
+	session, _, err := fixture.repo.ApplyManualAtVersion(fixture.ctx, fixture.identity, manual, 0, time.Now().UTC())
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), session.State.Version)
+	assert.Equal(t, uint64(3), session.SyncVersion)
+	assertManualVersionMismatch(t, fixture, manual, 0, 1)
+}
+
+func TestRepositoryConflictVersionAndOrderedEvents(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	key := draftsession.PickKey{Round: 1, Pick: 1}
+	prepareConflict(t, fixture, key)
+	assertResolutionVersionMismatch(t, fixture, key)
+
+	session, _, err := fixture.repo.ResolveConflictAtVersion(fixture.ctx, fixture.identity, key,
+		draftsession.AcceptUpstream, 3, time.Now().UTC())
+	require.NoError(t, err)
+	assert.Equal(t, uint64(4), session.State.Version)
+	assert.Equal(t, uint64(5), session.SyncVersion)
+	assertEventsInVersionOrder(t, fixture)
+}
+
+func TestListEventsValidatesCursorAndLimitBeforeDatabaseAccess(t *testing.T) {
+	var repo *Repository
+	_, err := repo.ListEvents(context.Background(), "league", 0, 0)
+	assert.ErrorContains(t, err, "limit must be positive")
+	_, err = repo.ListEvents(context.Background(), "league", uint64(^uint64(0)>>1)+1, 1)
+	assert.ErrorContains(t, err, "cursor exceeds PostgreSQL bigint")
+}
+
+type repositoryTestFixture struct {
+	ctx      context.Context
+	identity Identity
+	repo     *Repository
+}
+
+func newRepositoryTestFixture(t *testing.T) repositoryTestFixture {
+	t.Helper()
+	pool := openDraftWatchTestDB(t)
+	ctx := context.Background()
+	identity := testIdentityForRepository(t)
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM draft_sessions WHERE league_key=$1`, identity.LeagueKey) })
+	return repositoryTestFixture{ctx: ctx, identity: identity, repo: NewRepository(pool)}
+}
+
+func assertSessionVersions(t *testing.T, fixture repositoryTestFixture, stateVersion, syncVersion uint64) {
+	t.Helper()
+	session, err := fixture.repo.Get(fixture.ctx, fixture.identity.LeagueKey)
+	require.NoError(t, err)
+	assert.Equal(t, stateVersion, session.State.Version)
+	assert.Equal(t, syncVersion, session.SyncVersion)
+}
+
+func manualOperation(key draftsession.PickKey, kind draftsession.ManualKind, playerID int) draftsession.ManualOperation {
+	return draftsession.ManualOperation{Kind: kind, Key: key,
+		Pick: &draftsession.Pick{Key: key, TeamID: 1, PlayerID: playerID}}
+}
+
+func assertManualVersionMismatch(t *testing.T, fixture repositoryTestFixture, operation draftsession.ManualOperation, expected, actual uint64) {
+	t.Helper()
+	_, _, err := fixture.repo.ApplyManualAtVersion(fixture.ctx, fixture.identity, operation, expected, time.Now().UTC())
+	assertVersionMismatch(t, err, expected, actual)
+}
+
+func assertResolutionVersionMismatch(t *testing.T, fixture repositoryTestFixture, key draftsession.PickKey) {
+	t.Helper()
+	_, _, err := fixture.repo.ResolveConflictAtVersion(fixture.ctx, fixture.identity, key,
+		draftsession.AcceptUpstream, 2, time.Now().UTC())
+	assertVersionMismatch(t, err, 2, 3)
+}
+
+func assertVersionMismatch(t *testing.T, err error, expected, actual uint64) {
+	t.Helper()
+	var stale *StaleStateVersionError
+	require.ErrorAs(t, err, &stale)
+	assert.Equal(t, expected, stale.Expected)
+	assert.Equal(t, actual, stale.Actual)
+	assert.ErrorIs(t, err, ErrStaleStateVersion)
+}
+
+func prepareConflict(t *testing.T, fixture repositoryTestFixture, key draftsession.PickKey) {
+	t.Helper()
+	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity, PollResult{PolledAt: time.Now().UTC()})
+	require.NoError(t, err)
+	add := manualOperation(key, draftsession.ManualAdd, 11)
+	_, _, err = fixture.repo.ApplyManualAtVersion(fixture.ctx, fixture.identity, add, 0, time.Now().UTC())
+	require.NoError(t, err)
+	correct := manualOperation(key, draftsession.ManualCorrect, 12)
+	_, _, err = fixture.repo.ApplyManualAtVersion(fixture.ctx, fixture.identity, correct, 1, time.Now().UTC())
+	require.NoError(t, err)
+	reconcileConflict(t, fixture, key)
+	assertSessionVersions(t, fixture, 3, 4)
+}
+
+func reconcileConflict(t *testing.T, fixture repositoryTestFixture, key draftsession.PickKey) {
+	t.Helper()
+	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity, PollResult{
+		PolledAt: time.Now().UTC(),
+		Snapshot: draftsession.Snapshot{
+			Authoritative: true, HasExpectedCount: true, ExpectedCount: 1, RawCount: 1,
+			Picks: []draftsession.ObservedPick{{Key: key, TeamID: 1, PlayerID: 13}},
+		},
+	})
+	require.NoError(t, err)
+}
+
+func assertEventsInVersionOrder(t *testing.T, fixture repositoryTestFixture) {
+	t.Helper()
+	events, err := fixture.repo.ListEvents(fixture.ctx, fixture.identity.LeagueKey, 0, maxDraftEventPageSize+5)
+	require.NoError(t, err)
+	require.Len(t, events, 4)
+	wantKinds := []string{"manual_add", "manual_correct", "upstream_reconcile", "resolve_accept_upstream"}
+	for i, kind := range wantKinds {
+		assert.Equal(t, uint64(i+1), events[i].StateVersion)
+		assert.Equal(t, kind, events[i].Kind)
+	}
+	events, err = fixture.repo.ListEvents(fixture.ctx, fixture.identity.LeagueKey, 1, 5)
+	require.NoError(t, err)
+	require.Len(t, events, 3)
+	for i := range events {
+		assert.Equal(t, uint64(i+2), events[i].StateVersion)
+	}
+}
+
+func testIdentityForRepository(t *testing.T) Identity {
+	t.Helper()
+	leagueID := int(time.Now().UnixNano()%999_999_999) + 1
+	return Identity{
+		LeagueKey: fmt.Sprintf("999.l.%d", leagueID),
+		Season:    2026,
+		LeagueID:  leagueID,
+		GameKey:   999,
+	}
+}

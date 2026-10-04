@@ -12,6 +12,23 @@ import (
 	"github.com/sperano/puckdb/internal/draftsession"
 )
 
+const maxDraftEventPageSize = 200
+
+var ErrStaleStateVersion = errors.New("draft state version is stale")
+
+// StaleStateVersionError reports the version expected by a mutation and the
+// current version observed after taking the session row lock.
+type StaleStateVersionError struct {
+	Expected uint64
+	Actual   uint64
+}
+
+func (e *StaleStateVersionError) Error() string {
+	return fmt.Sprintf("%v: expected %d, current %d", ErrStaleStateVersion, e.Expected, e.Actual)
+}
+
+func (e *StaleStateVersionError) Is(target error) bool { return target == ErrStaleStateVersion }
+
 // Session is the persisted status needed by CLI and later API consumers.
 type Session struct {
 	Identity            Identity
@@ -25,6 +42,16 @@ type Session struct {
 	LastSuccessAt       *time.Time
 	LastAuthoritativeAt *time.Time
 	LastError           string
+	SyncVersion         uint64
+	UpdatedAt           time.Time
+}
+
+// Event is one persisted state-changing draft board event.
+type Event struct {
+	StateVersion uint64
+	Kind         string
+	Details      json.RawMessage
+	CreatedAt    time.Time
 }
 
 // Observation is one stored poll result used by the capability report.
@@ -47,6 +74,23 @@ type Observation struct {
 type Repository struct{ pool *pgxpool.Pool }
 
 func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
+
+// Ensure creates an empty persisted session when a board is opened before its
+// first poll. Existing sessions are returned unchanged.
+func (r *Repository) Ensure(ctx context.Context, id Identity) (Session, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Session{}, fmt.Errorf("begin draft session initialization: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureSession(ctx, tx, id); err != nil {
+		return Session{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Session{}, fmt.Errorf("commit draft session initialization: %w", err)
+	}
+	return r.Get(ctx, id.LeagueKey)
+}
 
 // Reconcile applies one successful Yahoo poll inside a row-locked transaction.
 func (r *Repository) Reconcile(ctx context.Context, id Identity, poll PollResult) (Session, draftsession.Report, error) {
@@ -100,7 +144,7 @@ func (r *Repository) RecordFailure(ctx context.Context, id Identity, at time.Tim
 	}
 	const update = `
 UPDATE draft_sessions SET last_poll_at=$2, last_error=$3,
-    recommendations_safe=false, updated_at=$2 WHERE league_key=$1`
+    recommendations_safe=false, sync_version=sync_version+1, updated_at=$2 WHERE league_key=$1`
 	if _, err := tx.Exec(ctx, update, id.LeagueKey, at, pollErr.Error()); err != nil {
 		return fmt.Errorf("update failed draft poll: %w", err)
 	}
@@ -119,23 +163,44 @@ UPDATE draft_sessions SET last_poll_at=$2, last_error=$3,
 
 // ApplyManual records one local add, correction, or undo transactionally.
 func (r *Repository) ApplyManual(ctx context.Context, id Identity, operation draftsession.ManualOperation, at time.Time) (Session, draftsession.Report, error) {
+	return r.applyManual(ctx, id, operation, at, nil)
+}
+
+// ApplyManualAtVersion applies a manual operation only if the board still has
+// the expected reducer version. The comparison is made under the session row
+// lock in the same transaction as the state change.
+func (r *Repository) ApplyManualAtVersion(ctx context.Context, id Identity, operation draftsession.ManualOperation, expectedVersion uint64, at time.Time) (Session, draftsession.Report, error) {
+	return r.applyManual(ctx, id, operation, at, &expectedVersion)
+}
+
+func (r *Repository) applyManual(ctx context.Context, id Identity, operation draftsession.ManualOperation, at time.Time, expectedVersion *uint64) (Session, draftsession.Report, error) {
 	kind := "manual_" + string(operation.Kind)
-	return r.mutate(ctx, id, kind, at, func(state draftsession.State) (draftsession.State, draftsession.Report, error) {
+	return r.mutate(ctx, id, kind, at, expectedVersion, func(state draftsession.State) (draftsession.State, draftsession.Report, error) {
 		return draftsession.ApplyManual(state, operation)
 	})
 }
 
 // ResolveConflict applies the required explicit conflict choice.
 func (r *Repository) ResolveConflict(ctx context.Context, id Identity, key draftsession.PickKey, choice draftsession.ConflictChoice, at time.Time) (Session, draftsession.Report, error) {
+	return r.resolveConflict(ctx, id, key, choice, at, nil)
+}
+
+// ResolveConflictAtVersion resolves a conflict only if the board still has
+// the expected reducer version.
+func (r *Repository) ResolveConflictAtVersion(ctx context.Context, id Identity, key draftsession.PickKey, choice draftsession.ConflictChoice, expectedVersion uint64, at time.Time) (Session, draftsession.Report, error) {
+	return r.resolveConflict(ctx, id, key, choice, at, &expectedVersion)
+}
+
+func (r *Repository) resolveConflict(ctx context.Context, id Identity, key draftsession.PickKey, choice draftsession.ConflictChoice, at time.Time, expectedVersion *uint64) (Session, draftsession.Report, error) {
 	kind := "resolve_" + string(choice)
-	return r.mutate(ctx, id, kind, at, func(state draftsession.State) (draftsession.State, draftsession.Report, error) {
+	return r.mutate(ctx, id, kind, at, expectedVersion, func(state draftsession.State) (draftsession.State, draftsession.Report, error) {
 		return draftsession.ResolveConflict(state, key, choice)
 	})
 }
 
 type stateMutation func(draftsession.State) (draftsession.State, draftsession.Report, error)
 
-func (r *Repository) mutate(ctx context.Context, id Identity, kind string, at time.Time, mutate stateMutation) (Session, draftsession.Report, error) {
+func (r *Repository) mutate(ctx context.Context, id Identity, kind string, at time.Time, expectedVersion *uint64, mutate stateMutation) (Session, draftsession.Report, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return Session{}, draftsession.Report{}, fmt.Errorf("begin draft mutation: %w", err)
@@ -147,6 +212,9 @@ func (r *Repository) mutate(ctx context.Context, id Identity, kind string, at ti
 	current, err := loadStateForUpdate(ctx, tx, id.LeagueKey)
 	if err != nil {
 		return Session{}, draftsession.Report{}, err
+	}
+	if expectedVersion != nil && current.Version != *expectedVersion {
+		return Session{}, draftsession.Report{}, &StaleStateVersionError{Expected: *expectedVersion, Actual: current.Version}
 	}
 	next, report, err := mutate(current)
 	if err != nil {
@@ -161,7 +229,7 @@ func (r *Repository) mutate(ctx context.Context, id Identity, kind string, at ti
 	}
 	const update = `
 UPDATE draft_sessions SET state_version=$2, board=$3, board_hash=$4,
-	recommendations_safe=($5 AND last_error=''), updated_at=$6 WHERE league_key=$1`
+	recommendations_safe=($5 AND last_error=''), sync_version=sync_version+1, updated_at=$6 WHERE league_key=$1`
 	if _, err := tx.Exec(ctx, update, id.LeagueKey, databaseVersion(next.Version), raw, hash, report.SafeToRecommend, at); err != nil {
 		return Session{}, draftsession.Report{}, fmt.Errorf("update manual draft state: %w", err)
 	}
@@ -180,16 +248,18 @@ func (r *Repository) Get(ctx context.Context, leagueKey string) (Session, error)
 	const query = `
 SELECT season, league_id, game_key, board, state_version, draft_status,
        recommendations_safe, complete, upstream_pick_count, skipped_pick_count,
-       last_poll_at, last_success_at, last_authoritative_at, last_error
+       last_poll_at, last_success_at, last_authoritative_at, last_error,
+       sync_version, updated_at
 FROM draft_sessions WHERE league_key=$1`
 	var session Session
 	var board []byte
-	var version int64
+	var version, syncVersion int64
 	err := r.pool.QueryRow(ctx, query, leagueKey).Scan(
 		&session.Identity.Season, &session.Identity.LeagueID, &session.Identity.GameKey,
 		&board, &version, &session.DraftStatus, &session.RecommendationsSafe,
 		&session.Complete, &session.UpstreamPickCount, &session.SkippedPickCount,
 		&session.LastPollAt, &session.LastSuccessAt, &session.LastAuthoritativeAt, &session.LastError,
+		&syncVersion, &session.UpdatedAt,
 	)
 	if err != nil {
 		return Session{}, fmt.Errorf("load draft session %s: %w", leagueKey, err)
@@ -202,7 +272,53 @@ FROM draft_sessions WHERE league_key=$1`
 	if version < 0 || session.State.Version != uint64(version) {
 		return Session{}, fmt.Errorf("draft session %s version mismatch: row=%d board=%d", leagueKey, version, session.State.Version)
 	}
+	if syncVersion < 0 {
+		return Session{}, fmt.Errorf("draft session %s has invalid sync version %d", leagueKey, syncVersion)
+	}
+	session.SyncVersion = uint64(syncVersion)
 	return session, nil
+}
+
+// ListEvents returns state-changing events strictly newer than afterVersion in
+// ascending version order. The limit is bounded to protect reconnect polling.
+func (r *Repository) ListEvents(ctx context.Context, leagueKey string, afterVersion uint64, limit int) ([]Event, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("draft event limit must be positive")
+	}
+	if limit > maxDraftEventPageSize {
+		limit = maxDraftEventPageSize
+	}
+	if afterVersion > uint64(^uint64(0)>>1) {
+		return nil, fmt.Errorf("draft event cursor exceeds PostgreSQL bigint")
+	}
+	const query = `
+SELECT state_version, kind, details, created_at
+FROM draft_session_events
+WHERE league_key=$1 AND state_version>$2
+ORDER BY state_version ASC
+LIMIT $3`
+	rows, err := r.pool.Query(ctx, query, leagueKey, int64(afterVersion), limit)
+	if err != nil {
+		return nil, fmt.Errorf("list draft session events: %w", err)
+	}
+	defer rows.Close()
+	events := make([]Event, 0, limit)
+	for rows.Next() {
+		var event Event
+		var version int64
+		if err := rows.Scan(&version, &event.Kind, &event.Details, &event.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan draft session event: %w", err)
+		}
+		if version <= 0 {
+			return nil, fmt.Errorf("draft session event has invalid version %d", version)
+		}
+		event.StateVersion = uint64(version)
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read draft session events: %w", err)
+	}
+	return events, nil
 }
 
 // ListObservations returns the newest bounded observation history.
@@ -277,7 +393,7 @@ UPDATE draft_sessions SET state_version=$2, draft_status=$3, board=$4, board_has
     recommendations_safe=$6, complete=$7, upstream_pick_count=$8, skipped_pick_count=$9,
     last_poll_at=$10, last_success_at=$10,
     last_authoritative_at=CASE WHEN $11 THEN $10 ELSE last_authoritative_at END,
-    last_error='', updated_at=$10
+    last_error='', sync_version=sync_version+1, updated_at=$10
 WHERE league_key=$1`
 	_, err := tx.Exec(ctx, update, leagueKey, databaseVersion(state.Version), poll.DraftStatus, raw, hash,
 		report.SafeToRecommend, poll.DraftComplete, len(state.Upstream), len(report.Skipped),

@@ -19,6 +19,10 @@ import (
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/draftboard"
+	"github.com/sperano/puckdb/internal/draftboardui"
+	"github.com/sperano/puckdb/internal/draftrank"
+	"github.com/sperano/puckdb/internal/draftwatch"
 	"github.com/sperano/puckdb/internal/graph"
 	"github.com/sperano/puckdb/internal/graph/generated"
 	"github.com/sperano/puckdb/internal/httpx"
@@ -26,7 +30,9 @@ import (
 	"github.com/sperano/puckdb/internal/maurice"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
+	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/temporal"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -52,6 +58,10 @@ var apiFlagGroups = []*config.FlagGroup{
 	&config.AdminAuthFlags,
 	&config.YahooSeasonsFlags,
 	&config.DraftAPIFlags,
+	&config.DataPathFlags,
+	&config.GobCacheFlags,
+	&config.YahooDownloadSleepFlags,
+	&config.DraftWatchFlags,
 }
 
 func cmdAPI() *cobra.Command {
@@ -85,12 +95,18 @@ func cmdAPI() *cobra.Command {
 
 			queries := sqlcdb.New(pool)
 
+			draftBoard, err := newDraftBoardService(pool, redisClient)
+			if err != nil {
+				return err
+			}
+			defer closeDraftBoard(draftBoard)
 			resolver := &graph.Resolver{
 				TemporalClient: temporalClient,
 				RedisClient:    redisClient,
 				Queries:        queries,
 				DB:             pool,
 				Draft:          newDraftService(pool),
+				DraftBoard:     draftBoard,
 			}
 
 			// Initialize Maurice AI chat
@@ -116,6 +132,37 @@ func cmdAPI() *cobra.Command {
 	flags := cmd.Flags()
 	config.InitFlags(flags, apiFlagGroups...)
 	return cmd
+}
+
+const draftBoardStalePollIntervals = 3
+
+func newDraftBoardService(pool *pgxpool.Pool, redisClient *redis.Client) (*draftboard.Service, error) {
+	gobCache, err := newGobCache(redisClient)
+	if err != nil {
+		return nil, fmt.Errorf("create live draft cache: %w", err)
+	}
+	repository := draftwatch.NewRepository(pool)
+	runner := draftwatch.Runner{
+		Pool: pool, Repository: repository,
+		Source: draftwatch.NewYahooSource(store.NewDefaultStorage(), gobCache, shared.NewYahooDownloader(redisClient)),
+	}
+	interval := time.Duration(viper.GetInt(config.FlagDraftPollInterval)) * time.Second
+	watchOptions := draftwatch.WatchOptions{
+		Interval:     interval,
+		MaxBackoff:   time.Duration(viper.GetInt(config.FlagDraftMaxBackoff)) * time.Second,
+		FinalTimeout: time.Duration(viper.GetInt(config.FlagDraftFinalTimeout)) * time.Second,
+	}
+	return draftboard.NewPGService(pool, draftrank.NewPGStore(pool), runner,
+		func() draftboard.WatchRunner { return runner }, watchOptions,
+		draftboard.Options{StaleAfter: interval * draftBoardStalePollIntervals}), nil
+}
+
+func closeDraftBoard(service *draftboard.Service) {
+	ctx, cancel := context.WithTimeout(context.Background(), apiShutdownTimeout)
+	defer cancel()
+	if err := service.Close(ctx); err != nil {
+		log.Warn().Err(err).Msg("stop live draft watchers")
+	}
 }
 
 // apiShutdownTimeout bounds graceful shutdown of the API server. Long enough
@@ -162,6 +209,7 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver) *chi.Mu
 	})
 	r.Handle("/metrics", metrics.HandlerFor(metrics.APIRegistry))
 	r.Get("/", homeHandler)
+	r.Mount("/draft", draftboardui.Handler())
 	// GraphQL
 	r.Route(graphQLPath, func(r chi.Router) {
 		r.Get("/", playgroundHandler().ServeHTTP)
@@ -213,6 +261,7 @@ const homeHTML = `<!DOCTYPE html>
     <h1>PuckDB</h1>
     <ul>
         <li><a href="/yahoo/login">Yahoo Login</a></li>
+        <li><a href="/draft/">Maurice live draft board</a></li>
         <li><a href="/graphql">GraphQL Console</a></li>
     </ul>
 </body>

@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/draftboard"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/maurice"
@@ -50,6 +51,8 @@ type Resolver struct {
 	DB             txBeginner
 	// Draft serves draft rankings; nil when there is no database.
 	Draft *draftrank.Service
+	// DraftBoard composes persisted live sessions, rankings and recovery controls.
+	DraftBoard *draftboard.Service
 }
 
 var temporalStatusToGQL = map[temporalEnums.WorkflowExecutionStatus]model.TemporalWorkflowStatus{

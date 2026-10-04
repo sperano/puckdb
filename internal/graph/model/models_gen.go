@@ -719,6 +719,192 @@ type MauriceConversationDetail struct {
 	Messages     []*MauriceMessage    `json:"messages"`
 }
 
+type MauriceDraftBoard struct {
+	League          *DraftLeague                 `json:"league"`
+	Scenario        DraftScenario                `json:"scenario"`
+	Snapshot        *DraftSnapshot               `json:"snapshot"`
+	Sync            *MauriceDraftSyncStatus      `json:"sync"`
+	Turn            *MauriceDraftTurn            `json:"turn"`
+	Roster          *MauriceDraftRoster          `json:"roster"`
+	History         []*MauriceDraftPick          `json:"history"`
+	Available       []*MauriceDraftPlayer        `json:"available"`
+	Shortlist       []*MauriceDraftPlayer        `json:"shortlist"`
+	Recommendations *MauriceDraftRecommendations `json:"recommendations"`
+	Warnings        []string                     `json:"warnings"`
+	TotalAvailable  int                          `json:"totalAvailable"`
+	Offset          int                          `json:"offset"`
+	Limit           int                          `json:"limit"`
+}
+
+type MauriceDraftBoardInput struct {
+	League    string         `json:"league"`
+	Season    *int           `json:"season,omitempty"`
+	Scenario  *DraftScenario `json:"scenario,omitempty"`
+	Positions []string       `json:"positions,omitempty"`
+	Search    *string        `json:"search,omitempty"`
+	Offset    *int           `json:"offset,omitempty"`
+	Limit     *int           `json:"limit,omitempty"`
+}
+
+type MauriceDraftManualPickInput struct {
+	League               string                   `json:"league"`
+	Season               *int                     `json:"season,omitempty"`
+	Action               MauriceDraftManualAction `json:"action"`
+	Round                int                      `json:"round"`
+	Pick                 int                      `json:"pick"`
+	TeamKey              string                   `json:"teamKey"`
+	PlayerKey            string                   `json:"playerKey"`
+	Cost                 *int                     `json:"cost,omitempty"`
+	ExpectedStateVersion int64                    `json:"expectedStateVersion"`
+	ClientMutationID     string                   `json:"clientMutationId"`
+}
+
+type MauriceDraftNewsReason struct {
+	Detail     string          `json:"detail"`
+	ReportedAt *time.Time      `json:"reportedAt,omitempty"`
+	Status     string          `json:"status"`
+	Scenarios  []DraftScenario `json:"scenarios"`
+}
+
+type MauriceDraftOpenSlot struct {
+	Slot  string `json:"slot"`
+	Count int    `json:"count"`
+}
+
+type MauriceDraftPick struct {
+	Round      int                     `json:"round"`
+	Pick       int                     `json:"pick"`
+	TeamID     int                     `json:"teamId"`
+	TeamName   string                  `json:"teamName"`
+	PlayerID   int                     `json:"playerId"`
+	PlayerKey  string                  `json:"playerKey"`
+	PlayerName string                  `json:"playerName"`
+	Source     MauriceDraftEntrySource `json:"source"`
+	Conflict   bool                    `json:"conflict"`
+	// True when this row exposes a conflicted local undo tombstone for recovery.
+	Undone bool `json:"undone"`
+	Cost   *int `json:"cost,omitempty"`
+}
+
+type MauriceDraftPlayer struct {
+	PlayerKey             string                    `json:"playerKey"`
+	YahooPlayerID         int                       `json:"yahooPlayerId"`
+	Name                  string                    `json:"name"`
+	Team                  string                    `json:"team"`
+	EligiblePositions     []string                  `json:"eligiblePositions"`
+	Status                *string                   `json:"status,omitempty"`
+	InjuryNote            *string                   `json:"injuryNote,omitempty"`
+	BaselineRank          int                       `json:"baselineRank"`
+	ScenarioRank          int                       `json:"scenarioRank"`
+	ValueRank             *int                      `json:"valueRank,omitempty"`
+	RosterFitRank         *int                      `json:"rosterFitRank,omitempty"`
+	BaselineValue         float64                   `json:"baselineValue"`
+	ScenarioValue         float64                   `json:"scenarioValue"`
+	NewsDelta             float64                   `json:"newsDelta"`
+	Shortlisted           bool                      `json:"shortlisted"`
+	AssignedSlot          *string                   `json:"assignedSlot,omitempty"`
+	RecommendationReasons []string                  `json:"recommendationReasons"`
+	News                  []*MauriceDraftNewsReason `json:"news"`
+}
+
+type MauriceDraftRecommendations struct {
+	BestValuePlayerKey     *string `json:"bestValuePlayerKey,omitempty"`
+	BestRosterFitPlayerKey *string `json:"bestRosterFitPlayerKey,omitempty"`
+	// Recommendation details are independent of available-player filtering and pagination.
+	BestValue     *MauriceDraftPlayer `json:"bestValue,omitempty"`
+	BestRosterFit *MauriceDraftPlayer `json:"bestRosterFit,omitempty"`
+	Issues        []string            `json:"issues"`
+	GeneratedAt   *time.Time          `json:"generatedAt,omitempty"`
+	RankingAsOf   *time.Time          `json:"rankingAsOf,omitempty"`
+}
+
+type MauriceDraftResolveInput struct {
+	League               string                     `json:"league"`
+	Season               *int                       `json:"season,omitempty"`
+	Round                int                        `json:"round"`
+	Pick                 int                        `json:"pick"`
+	Choice               MauriceDraftConflictChoice `json:"choice"`
+	ExpectedStateVersion int64                      `json:"expectedStateVersion"`
+	ClientMutationID     string                     `json:"clientMutationId"`
+}
+
+type MauriceDraftRoster struct {
+	TeamID      int                             `json:"teamId"`
+	TeamName    string                          `json:"teamName"`
+	Feasible    bool                            `json:"feasible"`
+	Assignments []*MauriceDraftRosterAssignment `json:"assignments"`
+	OpenSlots   []*MauriceDraftOpenSlot         `json:"openSlots"`
+	Warnings    []string                        `json:"warnings"`
+}
+
+type MauriceDraftRosterAssignment struct {
+	Slot       string `json:"slot"`
+	Index      int    `json:"index"`
+	PlayerID   int    `json:"playerId"`
+	PlayerKey  string `json:"playerKey"`
+	PlayerName string `json:"playerName"`
+}
+
+type MauriceDraftSessionEvent struct {
+	StateVersion int64     `json:"stateVersion"`
+	Kind         string    `json:"kind"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+type MauriceDraftSessionRefInput struct {
+	League string `json:"league"`
+	Season *int   `json:"season,omitempty"`
+}
+
+type MauriceDraftShortlistInput struct {
+	League               string `json:"league"`
+	Season               *int   `json:"season,omitempty"`
+	PlayerKey            string `json:"playerKey"`
+	Selected             bool   `json:"selected"`
+	ExpectedStateVersion int64  `json:"expectedStateVersion"`
+}
+
+type MauriceDraftSlotInput struct {
+	League               string `json:"league"`
+	Season               *int   `json:"season,omitempty"`
+	Round                int    `json:"round"`
+	Pick                 int    `json:"pick"`
+	ExpectedStateVersion int64  `json:"expectedStateVersion"`
+	ClientMutationID     string `json:"clientMutationId"`
+}
+
+type MauriceDraftSyncStatus struct {
+	Connection          MauriceDraftConnection   `json:"connection"`
+	DraftStatus         string                   `json:"draftStatus"`
+	RecommendationsSafe bool                     `json:"recommendationsSafe"`
+	Complete            bool                     `json:"complete"`
+	StateVersion        int64                    `json:"stateVersion"`
+	SyncVersion         int64                    `json:"syncVersion"`
+	LastPollAt          *time.Time               `json:"lastPollAt,omitempty"`
+	LastSuccessAt       *time.Time               `json:"lastSuccessAt,omitempty"`
+	LastAuthoritativeAt *time.Time               `json:"lastAuthoritativeAt,omitempty"`
+	LastError           *string                  `json:"lastError,omitempty"`
+	Watch               *MauriceDraftWatchStatus `json:"watch"`
+}
+
+type MauriceDraftTurn struct {
+	CurrentRound       *int   `json:"currentRound,omitempty"`
+	CurrentPick        *int   `json:"currentPick,omitempty"`
+	PicksUntilNextTurn *int   `json:"picksUntilNextTurn,omitempty"`
+	OrderKnown         bool   `json:"orderKnown"`
+	DraftType          string `json:"draftType"`
+	// Yahoo's configured per-pick limit; this is not a live countdown.
+	PickTimeSeconds *int   `json:"pickTimeSeconds,omitempty"`
+	TimingLabel     string `json:"timingLabel"`
+}
+
+type MauriceDraftWatchStatus struct {
+	State     MauriceDraftWatchState `json:"state"`
+	StartedAt *time.Time             `json:"startedAt,omitempty"`
+	StoppedAt *time.Time             `json:"stoppedAt,omitempty"`
+	LastError *string                `json:"lastError,omitempty"`
+}
+
 type MauriceMessage struct {
 	ID        string    `json:"id"`
 	Role      string    `json:"role"`
@@ -1686,6 +1872,296 @@ func (e *DraftWorkloadCapPolicy) UnmarshalJSON(b []byte) error {
 }
 
 func (e DraftWorkloadCapPolicy) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MauriceDraftConflictChoice string
+
+const (
+	MauriceDraftConflictChoiceKeepManual     MauriceDraftConflictChoice = "KEEP_MANUAL"
+	MauriceDraftConflictChoiceAcceptUpstream MauriceDraftConflictChoice = "ACCEPT_UPSTREAM"
+)
+
+var AllMauriceDraftConflictChoice = []MauriceDraftConflictChoice{
+	MauriceDraftConflictChoiceKeepManual,
+	MauriceDraftConflictChoiceAcceptUpstream,
+}
+
+func (e MauriceDraftConflictChoice) IsValid() bool {
+	switch e {
+	case MauriceDraftConflictChoiceKeepManual, MauriceDraftConflictChoiceAcceptUpstream:
+		return true
+	}
+	return false
+}
+
+func (e MauriceDraftConflictChoice) String() string {
+	return string(e)
+}
+
+func (e *MauriceDraftConflictChoice) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MauriceDraftConflictChoice(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MauriceDraftConflictChoice", str)
+	}
+	return nil
+}
+
+func (e MauriceDraftConflictChoice) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MauriceDraftConflictChoice) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MauriceDraftConflictChoice) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Connection/freshness state of the persisted Yahoo draft session.
+type MauriceDraftConnection string
+
+const (
+	MauriceDraftConnectionNeverSynced MauriceDraftConnection = "NEVER_SYNCED"
+	MauriceDraftConnectionFresh       MauriceDraftConnection = "FRESH"
+	MauriceDraftConnectionStale       MauriceDraftConnection = "STALE"
+	MauriceDraftConnectionError       MauriceDraftConnection = "ERROR"
+	MauriceDraftConnectionIncomplete  MauriceDraftConnection = "INCOMPLETE"
+)
+
+var AllMauriceDraftConnection = []MauriceDraftConnection{
+	MauriceDraftConnectionNeverSynced,
+	MauriceDraftConnectionFresh,
+	MauriceDraftConnectionStale,
+	MauriceDraftConnectionError,
+	MauriceDraftConnectionIncomplete,
+}
+
+func (e MauriceDraftConnection) IsValid() bool {
+	switch e {
+	case MauriceDraftConnectionNeverSynced, MauriceDraftConnectionFresh, MauriceDraftConnectionStale, MauriceDraftConnectionError, MauriceDraftConnectionIncomplete:
+		return true
+	}
+	return false
+}
+
+func (e MauriceDraftConnection) String() string {
+	return string(e)
+}
+
+func (e *MauriceDraftConnection) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MauriceDraftConnection(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MauriceDraftConnection", str)
+	}
+	return nil
+}
+
+func (e MauriceDraftConnection) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MauriceDraftConnection) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MauriceDraftConnection) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MauriceDraftEntrySource string
+
+const (
+	MauriceDraftEntrySourceYahoo  MauriceDraftEntrySource = "YAHOO"
+	MauriceDraftEntrySourceManual MauriceDraftEntrySource = "MANUAL"
+)
+
+var AllMauriceDraftEntrySource = []MauriceDraftEntrySource{
+	MauriceDraftEntrySourceYahoo,
+	MauriceDraftEntrySourceManual,
+}
+
+func (e MauriceDraftEntrySource) IsValid() bool {
+	switch e {
+	case MauriceDraftEntrySourceYahoo, MauriceDraftEntrySourceManual:
+		return true
+	}
+	return false
+}
+
+func (e MauriceDraftEntrySource) String() string {
+	return string(e)
+}
+
+func (e *MauriceDraftEntrySource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MauriceDraftEntrySource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MauriceDraftEntrySource", str)
+	}
+	return nil
+}
+
+func (e MauriceDraftEntrySource) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MauriceDraftEntrySource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MauriceDraftEntrySource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MauriceDraftManualAction string
+
+const (
+	MauriceDraftManualActionAdd     MauriceDraftManualAction = "ADD"
+	MauriceDraftManualActionCorrect MauriceDraftManualAction = "CORRECT"
+)
+
+var AllMauriceDraftManualAction = []MauriceDraftManualAction{
+	MauriceDraftManualActionAdd,
+	MauriceDraftManualActionCorrect,
+}
+
+func (e MauriceDraftManualAction) IsValid() bool {
+	switch e {
+	case MauriceDraftManualActionAdd, MauriceDraftManualActionCorrect:
+		return true
+	}
+	return false
+}
+
+func (e MauriceDraftManualAction) String() string {
+	return string(e)
+}
+
+func (e *MauriceDraftManualAction) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MauriceDraftManualAction(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MauriceDraftManualAction", str)
+	}
+	return nil
+}
+
+func (e MauriceDraftManualAction) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MauriceDraftManualAction) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MauriceDraftManualAction) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MauriceDraftWatchState string
+
+const (
+	MauriceDraftWatchStateStopped  MauriceDraftWatchState = "STOPPED"
+	MauriceDraftWatchStateStarting MauriceDraftWatchState = "STARTING"
+	MauriceDraftWatchStateRunning  MauriceDraftWatchState = "RUNNING"
+	MauriceDraftWatchStateStopping MauriceDraftWatchState = "STOPPING"
+	MauriceDraftWatchStateFailed   MauriceDraftWatchState = "FAILED"
+	MauriceDraftWatchStateComplete MauriceDraftWatchState = "COMPLETE"
+)
+
+var AllMauriceDraftWatchState = []MauriceDraftWatchState{
+	MauriceDraftWatchStateStopped,
+	MauriceDraftWatchStateStarting,
+	MauriceDraftWatchStateRunning,
+	MauriceDraftWatchStateStopping,
+	MauriceDraftWatchStateFailed,
+	MauriceDraftWatchStateComplete,
+}
+
+func (e MauriceDraftWatchState) IsValid() bool {
+	switch e {
+	case MauriceDraftWatchStateStopped, MauriceDraftWatchStateStarting, MauriceDraftWatchStateRunning, MauriceDraftWatchStateStopping, MauriceDraftWatchStateFailed, MauriceDraftWatchStateComplete:
+		return true
+	}
+	return false
+}
+
+func (e MauriceDraftWatchState) String() string {
+	return string(e)
+}
+
+func (e *MauriceDraftWatchState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MauriceDraftWatchState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MauriceDraftWatchState", str)
+	}
+	return nil
+}
+
+func (e MauriceDraftWatchState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MauriceDraftWatchState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MauriceDraftWatchState) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
