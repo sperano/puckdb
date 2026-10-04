@@ -82,6 +82,7 @@ Groups (expand to multiple steps):
 	}
 	flags := cmd.PersistentFlags()
 	config.InitFlags(flags, syncFlagGroups...)
+	cmd.AddCommand(cmdSyncDraft())
 	return cmd
 }
 

@@ -733,10 +733,21 @@ func loadEnvFile() {
 
 // Draft helper report flags
 const (
-	FlagDraftSeason     = "draft-season"
-	FlagDraftLeagues    = "draft-leagues"
-	FlagDraftOutput     = "draft-output"
-	FlagDraftStaleAfter = "draft-stale-after"
+	FlagDraftSeason        = "draft-season"
+	FlagDraftLeagues       = "draft-leagues"
+	FlagDraftOutput        = "draft-output"
+	FlagDraftStaleAfter    = "draft-stale-after"
+	FlagDraftSessionLeague = "league"
+	FlagDraftWatch         = "watch"
+	FlagDraftPollInterval  = "draft-poll-interval"
+	FlagDraftMaxBackoff    = "draft-max-backoff"
+	FlagDraftFinalTimeout  = "draft-final-timeout"
+	FlagDraftRound         = "round"
+	FlagDraftPick          = "pick"
+	FlagDraftTeamKey       = "team-key"
+	FlagDraftPlayerKey     = "player-key"
+	FlagDraftCost          = "cost"
+	FlagDraftResolution    = "resolution"
 )
 
 // DraftFlags defines the flags of the `draft` report commands.
@@ -746,6 +757,49 @@ var DraftFlags = FlagGroup{
 		{FlagDraftLeagues, "", DefaultDraftLeagues, "Comma-separated Yahoo league IDs; required", false},
 		{FlagDraftOutput, "", DefaultDraftOutput, "Write the report to this file instead of standard output", false},
 		{FlagDraftStaleAfter, "", DefaultDraftStaleAfter, "Hours after which league settings or a player pool are reported stale", false},
+	},
+}
+
+// DraftSessionFlags identifies a full-key live draft session.
+var DraftSessionFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagDraftSessionLeague, "", DefaultDraftSessionLeague, "Full Yahoo league key or numeric league ID; required", false},
+		{FlagDraftSeason, "", DefaultDraftSeason, "Season start year when resolving a numeric league ID", false},
+	},
+}
+
+// DraftWatchFlags controls live polling. Duration values are seconds so they
+// can be supplied through viper/env files.
+var DraftWatchFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagDraftWatch, "", false, "Keep polling until canceled or Yahoo reports the draft complete", false},
+		{FlagDraftPollInterval, "", DefaultDraftPollIntervalSeconds, "Seconds between successful draft polls", false},
+		{FlagDraftMaxBackoff, "", DefaultDraftMaxBackoffSeconds, "Maximum seconds between failed or rate-limited polls", false},
+		{FlagDraftFinalTimeout, "", DefaultDraftFinalTimeoutSeconds, "Seconds allowed for the final reconciliation after cancellation", false},
+	},
+}
+
+// DraftManualSlotFlags identifies a slot edited by a manual operation.
+var DraftManualSlotFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagDraftRound, "", DefaultDraftRound, "Draft round for a manual operation", false},
+		{FlagDraftPick, "", DefaultDraftPick, "Overall pick number for a manual operation", false},
+	},
+}
+
+// DraftManualPickFlags describes a locally recorded selection.
+var DraftManualPickFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagDraftTeamKey, "", DefaultDraftTeamKey, "Yahoo team key for a manual pick", false},
+		{FlagDraftPlayerKey, "", DefaultDraftPlayerKey, "Yahoo player key for a manual pick", false},
+		{FlagDraftCost, "", DefaultDraftCost, "Auction cost for a manual pick", false},
+	},
+}
+
+// DraftResolutionFlags selects the explicit side of a manual/Yahoo conflict.
+var DraftResolutionFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagDraftResolution, "", DefaultDraftResolution, "Conflict resolution: keep-manual or accept-upstream", false},
 	},
 }
 

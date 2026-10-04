@@ -825,6 +825,53 @@ type DraftRankingSnapshot struct {
 	Meta                 []byte             `json:"meta"`
 }
 
+type DraftSession struct {
+	LeagueKey           string             `json:"league_key"`
+	Season              int32              `json:"season"`
+	LeagueID            int32              `json:"league_id"`
+	GameKey             int32              `json:"game_key"`
+	StateVersion        int64              `json:"state_version"`
+	DraftStatus         string             `json:"draft_status"`
+	Board               []byte             `json:"board"`
+	BoardHash           string             `json:"board_hash"`
+	RecommendationsSafe bool               `json:"recommendations_safe"`
+	Complete            bool               `json:"complete"`
+	UpstreamPickCount   int32              `json:"upstream_pick_count"`
+	SkippedPickCount    int32              `json:"skipped_pick_count"`
+	LastPollAt          pgtype.Timestamptz `json:"last_poll_at"`
+	LastSuccessAt       pgtype.Timestamptz `json:"last_success_at"`
+	LastAuthoritativeAt pgtype.Timestamptz `json:"last_authoritative_at"`
+	LastError           string             `json:"last_error"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DraftSessionEvent struct {
+	ID           int64              `json:"id"`
+	LeagueKey    string             `json:"league_key"`
+	StateVersion int64              `json:"state_version"`
+	Kind         string             `json:"kind"`
+	Details      []byte             `json:"details"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type DraftSessionObservation struct {
+	ID            int64              `json:"id"`
+	LeagueKey     string             `json:"league_key"`
+	PolledAt      pgtype.Timestamptz `json:"polled_at"`
+	DurationMs    int64              `json:"duration_ms"`
+	Success       bool               `json:"success"`
+	Authoritative bool               `json:"authoritative"`
+	Changed       bool               `json:"changed"`
+	DraftStatus   string             `json:"draft_status"`
+	DeclaredCount int32              `json:"declared_count"`
+	ParsedCount   int32              `json:"parsed_count"`
+	SkippedCount  int32              `json:"skipped_count"`
+	SnapshotHash  string             `json:"snapshot_hash"`
+	ErrorClass    string             `json:"error_class"`
+	Error         string             `json:"error"`
+}
+
 type EdgeGoalieShotLocation struct {
 	PlayerID           int64              `json:"player_id"`
 	Season             int32              `json:"season"`

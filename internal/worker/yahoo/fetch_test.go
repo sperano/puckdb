@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
@@ -214,7 +213,7 @@ func TestFetcher_Redis(t *testing.T) {
 	t.Run("valid download populates redis", func(t *testing.T) {
 		t.Parallel()
 		redisClient, mockRedis := redismock.NewClientMock()
-		mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+		expectCoherentFetchMiss(mockRedis, res)
 		mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(res), "x", cache.GobCacheTTL).SetVal("OK")
 
 		f := Fetcher{
@@ -248,5 +247,29 @@ func TestFetcher_Redis(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "CLUSTERDOWN")
 		assert.Equal(t, 0, downloads, "a Redis outage must not fan out into Yahoo downloads")
+	})
+
+	t.Run("coherent refresh removes stale entry when repopulation fails", func(t *testing.T) {
+		t.Parallel()
+		redisClient, mockRedis := redismock.NewClientMock()
+		expectResourceCacheLock(mockRedis)
+		mockRedis.ExpectDel(core.RedisKey(res)).SetVal(1)
+		mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(res), "x", cache.GobCacheTTL).
+			SetErr(errors.New("CLUSTERDOWN"))
+		mockRedis.ExpectDel(core.RedisKey(res)).SetVal(1)
+		storage := store.NewMemStorage()
+		f := Fetcher{
+			Storage:  storage,
+			GobCache: cache.NewGobCache(redisClient),
+			Download: mockDownloader([]byte(validLeagueFetchXML), nil),
+			Throttle: func() {},
+		}
+
+		_, err := f.RefreshCoherent(context.Background(), res)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "populate League Redis cache")
+		assert.True(t, storage.Exists(context.Background(), res.Path()), "validated filesystem copy remains available")
+		require.NoError(t, mockRedis.ExpectationsWereMet())
 	})
 }

@@ -89,7 +89,7 @@ func TestFetchLeague_Retryability(t *testing.T) {
 			seedGameKey()
 			redisClient, mockRedis := redismock.NewClientMock()
 			res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
-			mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
+			expectCoherentFetchMiss(mockRedis, res)
 
 			act := newFetchActivities(store.NewMemStorage(), failingDownloader(tc.err), cache.NewGobCache(redisClient))
 			env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()

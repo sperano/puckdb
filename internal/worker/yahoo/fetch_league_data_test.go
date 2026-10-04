@@ -33,6 +33,10 @@ var errNoMoreWeeks = &httpx.HTTPError{StatusCode: http.StatusBadRequest, Status:
 
 // expectRedisMiss declares the GET every validated read makes before falling through to storage.
 func expectRedisMiss(mockRedis redismock.ClientMock, res core.Resource) {
+	if res.Type() == core.YahooDraftResults {
+		expectCoherentRedisMiss(mockRedis, res)
+		return
+	}
 	mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
 }
 

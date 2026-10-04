@@ -250,10 +250,22 @@ const (
 
 // Draft helper report defaults
 const (
-	DefaultDraftSeason     = 0 // no default: the season must be named
-	DefaultDraftLeagues    = ""
-	DefaultDraftOutput     = ""
-	DefaultDraftStaleAfter = 24 // hours
+	DefaultDraftSeason        = 0 // no default: the season must be named
+	DefaultDraftLeagues       = ""
+	DefaultDraftOutput        = ""
+	DefaultDraftStaleAfter    = 24 // hours
+	DefaultDraftSessionLeague = ""
+	// The watch cadence is deliberately configurable: Yahoo live-draft
+	// latency and throttling must be measured before tightening it.
+	DefaultDraftPollIntervalSeconds = 30
+	DefaultDraftMaxBackoffSeconds   = 300
+	DefaultDraftFinalTimeoutSeconds = 20
+	DefaultDraftRound               = 0
+	DefaultDraftPick                = 0
+	DefaultDraftTeamKey             = ""
+	DefaultDraftPlayerKey           = ""
+	DefaultDraftCost                = 0
+	DefaultDraftResolution          = ""
 )
 
 // Draft ranking defaults

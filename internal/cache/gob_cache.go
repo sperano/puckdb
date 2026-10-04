@@ -163,9 +163,28 @@ func (cache *GobCache) ReadParsedCached[T any](
 	s store.Storage,
 	r core.Parseable[T],
 ) (T, core.DataOrigin, error) {
+	return cache.readParsedCached(ctx, s, r, RequiresCoherentResourceLock(r.Type()))
+}
+
+// ReadParsedCachedUnderResourceLock performs the cache read without acquiring
+// the resource lock. The caller must already hold the lock returned by
+// LockResource for this resource's Redis key.
+func (cache *GobCache) ReadParsedCachedUnderResourceLock[T any](
+	ctx context.Context,
+	s store.Storage,
+	r core.Parseable[T],
+) (T, core.DataOrigin, error) {
+	return cache.readParsedCached(ctx, s, r, false)
+}
+
+func (cache *GobCache) readParsedCached[T any](
+	ctx context.Context,
+	s store.Storage,
+	r core.Parseable[T],
+	lockOnMiss bool,
+) (T, core.DataOrigin, error) {
 	ft := r.Type()
 
-	// Check if this file type should skip Redis entirely.
 	if cache != nil && !cache.shouldCache(ft) {
 		obj, err := resource.ReadParsed(ctx, s, r)
 		if err != nil {
@@ -176,9 +195,6 @@ func (cache *GobCache) ReadParsedCached[T any](
 	}
 
 	key := core.RedisKey(r)
-
-	// Try gob cache first (fast path - no JSON parsing).
-	// A nil cache (ErrNilCache) degrades gracefully to storage reads.
 	obj, ok, err := cache.Get[T](ctx, key)
 	if err != nil && !errors.Is(err, ErrNilCache) {
 		var zero T
@@ -188,22 +204,51 @@ func (cache *GobCache) ReadParsedCached[T any](
 		return obj, core.OriginRedis, nil
 	}
 
-	// Cache miss - parse from storage
-	obj, err = resource.ReadParsed(ctx, s, r)
+	if lockOnMiss {
+		release, lockErr := cache.LockResource(ctx, key)
+		if lockErr != nil {
+			var zero T
+			return zero, core.OriginUnknown, lockErr
+		}
+		defer release()
+		obj, ok, err = cache.Get[T](ctx, key)
+		if err != nil {
+			if !errors.Is(err, ErrNilCache) {
+				var zero T
+				return zero, core.OriginUnknown, fmt.Errorf("gob cache re-read: %w", err)
+			}
+		}
+		if ok {
+			return obj, core.OriginRedis, nil
+		}
+	}
+	return cache.readParsedStorageAndCache(ctx, s, r, key)
+}
+
+func (cache *GobCache) readParsedStorageAndCache[T any](
+	ctx context.Context,
+	s store.Storage,
+	r core.Parseable[T],
+	key string,
+) (T, core.DataOrigin, error) {
+	obj, err := resource.ReadParsed(ctx, s, r)
 	if err != nil {
 		var zero T
 		return zero, core.OriginFileSystem, err
 	}
 
-	// Populate cache for next time. The storage read already succeeded, so a
-	// best-effort cache write is not allowed to fail the read: log and continue.
-	// ErrNilCache is expected when the cache degrades gracefully — don't log it.
-	ttl := cache.resolveTTL(ft)
+	ttl := cache.resolveTTL(r.Type())
 	if err := cache.setWithTTL(ctx, key, obj, ttl); err != nil && !errors.Is(err, ErrNilCache) {
 		log.Warn().Str("key", key).Err(err).Msg("gob cache write failed after storage read; serving read result")
 	}
 
 	return obj, core.OriginFileSystem, nil
+}
+
+// RequiresCoherentResourceLock identifies mutable Yahoo resources whose
+// filesystem and Redis representations must change as one serialized unit.
+func RequiresCoherentResourceLock(ft core.FileType) bool {
+	return ft == core.League || ft == core.YahooDraftResults
 }
 
 // SetParsed stores an already-parsed resource in the gob cache, honouring the
