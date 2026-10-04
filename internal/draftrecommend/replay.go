@@ -11,8 +11,8 @@ const (
 	p95Quantile = 0.95
 )
 
-// EvaluateReplay measures whether each historical selection matched either
-// persisted recommendation and summarizes the recorded evaluation latency.
+// EvaluateReplay measures whether each historical selection matched the
+// recommendation shown for its case and summarizes evaluation latency.
 func EvaluateReplay(cases []ReplayCase) (ReplayMetrics, error) {
 	if len(cases) == 0 {
 		return ReplayMetrics{}, errors.New("draft recommendation replay requires at least one case")
@@ -24,7 +24,11 @@ func EvaluateReplay(cases []ReplayCase) (ReplayMetrics, error) {
 			return ReplayMetrics{}, errors.New("draft recommendation replay contains invalid selection or latency")
 		}
 		latencies = append(latencies, replay.Result.LatencyMillis)
-		if matchesRecommendation(replay.Result, replay.SelectedPlayerKey) {
+		shown := shownRecommendationKey(replay)
+		if shown == "" || !isRecordedRecommendation(replay.Result, shown) {
+			return ReplayMetrics{}, errors.New("draft recommendation replay has no shown recommendation")
+		}
+		if replay.SelectedPlayerKey == shown {
 			metrics.Correct++
 		}
 	}
@@ -35,9 +39,19 @@ func EvaluateReplay(cases []ReplayCase) (ReplayMetrics, error) {
 	return metrics, nil
 }
 
-func matchesRecommendation(result Result, selected string) bool {
-	return result.BestValue != nil && result.BestValue.PlayerKey == selected ||
-		result.BestRosterFit != nil && result.BestRosterFit.PlayerKey == selected
+func shownRecommendationKey(replay ReplayCase) string {
+	if replay.ShownRecommendationKey != "" {
+		return replay.ShownRecommendationKey
+	}
+	if replay.Result.BestValue != nil {
+		return replay.Result.BestValue.PlayerKey
+	}
+	return ""
+}
+
+func isRecordedRecommendation(result Result, key string) bool {
+	return result.BestValue != nil && result.BestValue.PlayerKey == key ||
+		result.BestRosterFit != nil && result.BestRosterFit.PlayerKey == key
 }
 
 func quantile(values []int64, probability float64) int64 {

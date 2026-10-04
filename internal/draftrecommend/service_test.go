@@ -118,6 +118,28 @@ func TestEvaluate_TurnOrderSkipsFilledKeeperAndUsesTradedOwner(t *testing.T) {
 	}
 }
 
+func TestEvaluate_OnClockWaitRiskUsesNextFutureTurn(t *testing.T) {
+	in := recommendationInput(t)
+	in.ADP = ADPSource{
+		Name: "League ADP export", Version: "2026-10-01", AsOf: in.GeneratedAt,
+		ByPlayer: map[string]float64{"center": 3.5},
+	}
+	result, err := Evaluate(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.CurrentPick == nil || result.CurrentPick.TeamID != in.OurTeamID || result.PicksUntilNextTurn == nil || *result.PicksUntilNextTurn != 0 {
+		t.Fatalf("on-clock turn estimate changed: pick=%+v until=%v", result.CurrentPick, result.PicksUntilNextTurn)
+	}
+	center := candidateByKey(result.Candidates, "center")
+	if center.WaitRisk == nil || center.WaitRisk.NextPickNumber != 4 {
+		t.Fatalf("on-clock wait risk uses wrong future pick: %+v", center.WaitRisk)
+	}
+	if center.WaitRisk.Kind != "ADP estimate suggests the player may go before our next turn; availability is uncertain" {
+		t.Fatalf("wait risk did not compare with the next future turn: %q", center.WaitRisk.Kind)
+	}
+}
+
 func TestEvaluate_UsesNewsScenarioAndStrategyWeights(t *testing.T) {
 	in := recommendationInput(t)
 	in.Scenario = draftrank.ScenarioBaseline

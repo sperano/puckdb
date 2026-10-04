@@ -158,6 +158,7 @@ func waitRisk(in Input, key string, result *Result) *WaitRisk {
 	for index, slot := range in.Order {
 		if slot.Key == result.CurrentPick.Key {
 			seenCurrent = true
+			continue
 		}
 		if seenCurrent && !filled[slot.Key] && slot.TeamID == in.OurTeamID {
 			nextPick = index + 1

@@ -139,6 +139,9 @@ type Result struct {
 type ReplayCase struct {
 	Result            Result `json:"result"`
 	SelectedPlayerKey string `json:"selectedPlayerKey"`
+	// ShownRecommendationKey identifies the one recommendation actually
+	// presented to the drafter. Empty retains legacy best-value semantics.
+	ShownRecommendationKey string `json:"shownRecommendationKey,omitempty"`
 }
 
 type ReplayMetrics struct {

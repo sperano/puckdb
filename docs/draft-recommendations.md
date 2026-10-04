@@ -66,8 +66,10 @@ values shows the marginal news cost after those league-specific replacement
 assumptions.
 
 ADP never changes player value. A wait-risk label appears only when the input
-names the ADP source, version, as-of time, and player value. It describes an
-estimate and always states that next-turn availability is uncertain.
+names the ADP source, version, as-of time, and player value. It compares that
+estimate with the next future pick owned by the drafter, including when the
+current pick is already theirs, and always states that next-turn availability
+is uncertain.
 
 ## Persistence and replay
 
@@ -84,9 +86,11 @@ exact session version. It verifies source versions before writing and after
 reading. `draftrecommend.Service.Recommend` is the durable application entry
 point: it evaluates and saves before returning. The live board/API consumer is
 added by the dependent live-board task; this package does not infer an order
-from incomplete Yahoo settings. `EvaluateReplay` reports whether historical selections matched the
-best-value or best-fit recommendation and returns median and 95th-percentile
-evaluation latency.
+from incomplete Yahoo settings. `EvaluateReplay` compares each historical
+selection with `ShownRecommendationKey`, the recommendation actually shown,
+and returns median and 95th-percentile evaluation latency. For older callers
+that omit that field, it uses the recorded best-value recommendation as the
+legacy default; new replay data should always set it explicitly.
 
 Generated prose may be layered on later, but it must only restate the stored
 reasons. The deterministic explanations remain available when no LLM is
