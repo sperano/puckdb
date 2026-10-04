@@ -86,6 +86,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/matching/` | NHL ↔ Yahoo player matching |
 | `internal/draft/` | Draft helper models: normalized league rules, scoring-input validation, roster feasibility, player-pool coverage, comparison reports (see `docs/draft-league-rules.md`) |
 | `internal/draftrank/` | Draft ranking service shared by GraphQL, the CLI and exports: refresh (projection → news adjustment → rankings per scenario), immutable per-league snapshots, views (position/search/sort/pagination), explicit issue codes, CSV/JSON/table export (see `docs/draft-rankings-api.md`) |
+| `internal/draftrecommend/` | Deterministic live-draft recommendation and replay service over one ranking/session snapshot, with audited numeric reasons and PostgreSQL run storage (see `docs/draft-recommendations.md`) |
 | `internal/news/` | Player news for the draft helper: source set (`sources.yaml`), RSS/Atom, NHL content and Yahoo status adapters, conditional fetch, article versions, player resolution, incident grouping, coverage and reports (see `docs/draft-player-news.md`) |
 | `internal/newsadjust/` | News adjustments for the draft helper: validated event contract, versioned loading of stored extraction events (review and release-gate holds), as-of event selection (dedupe, supersession, returns, rumors), conservative/base/optimistic scenario snapshots, manager overrides, ranking comparison, run storage and replay (see `docs/draft-news-adjustments.md`) |
 | `internal/newsevent/` | LLM extraction of validated player news events: prompt and strict output schema, quote/claim/chronology validation, injection defenses, deterministic lifecycle reconciliation (active/superseded/retracted/resolved), labeled evaluation corpus (`evalcorpus.yaml`) and release gate (see `docs/draft-news-events.md`) |
@@ -404,6 +405,7 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `draft_sessions` | Full-league-key live board and manual overlay | `state_version`, `board`, `draft_status`, freshness/error timestamps, recommendation safety |
 | `draft_session_observations` | Every Yahoo watch attempt for capability measurement | duration, authority, counts, change, error class |
 | `draft_session_events` | Versioned board/manual changes; identical polls add no event | `state_version`, `kind`, `details`, `created_at` |
+| `draft_recommendation_runs` | Replayable deterministic draft advice input/output | session/ranking/projection/rule versions, strategy, numeric reasons, latency |
 
 ### Maurice (LLM chat) tables
 

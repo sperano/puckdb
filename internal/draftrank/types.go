@@ -69,17 +69,20 @@ type Placement struct {
 // Player is one pool player of a snapshot with every scenario placement and
 // the news adjustment behind any difference.
 type Player struct {
-	PlayerKey         string                       `json:"playerKey"`
-	YahooPlayerID     int                          `json:"yahooPlayerId"`
-	NHLPlayerID       int64                        `json:"nhlPlayerId,omitempty"`
-	Name              string                       `json:"name"`
-	Team              string                       `json:"team"`
-	EligiblePositions []string                     `json:"eligiblePositions"`
-	Status            string                       `json:"status,omitempty"`
-	StatusFull        string                       `json:"statusFull,omitempty"`
-	InjuryNote        string                       `json:"injuryNote,omitempty"`
-	Placements        map[Scenario]Placement       `json:"placements"`
-	Adjustment        *newsadjust.PlayerAdjustment `json:"adjustment,omitempty"`
+	PlayerKey         string   `json:"playerKey"`
+	YahooPlayerID     int      `json:"yahooPlayerId"`
+	NHLPlayerID       int64    `json:"nhlPlayerId,omitempty"`
+	Name              string   `json:"name"`
+	Team              string   `json:"team"`
+	EligiblePositions []string `json:"eligiblePositions"`
+	// RosterEligiblePositions retains Yahoo's full slot eligibility, including
+	// reserve-only tags. EligiblePositions remains the base-position ranking view.
+	RosterEligiblePositions []string                     `json:"rosterEligiblePositions"`
+	Status                  string                       `json:"status,omitempty"`
+	StatusFull              string                       `json:"statusFull,omitempty"`
+	InjuryNote              string                       `json:"injuryNote,omitempty"`
+	Placements              map[Scenario]Placement       `json:"placements"`
+	Adjustment              *newsadjust.PlayerAdjustment `json:"adjustment,omitempty"`
 }
 
 // Category is one scoring stat of the league.
