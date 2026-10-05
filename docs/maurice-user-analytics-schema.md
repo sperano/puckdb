@@ -192,13 +192,21 @@ Constraints and indexes:
 
 - unique `(conversation_id, turn_number)`;
 - unique `(conversation_id, idempotency_key)`;
+- unique `conversation_id` where `status = 'running'`, so only one prompt can
+  advance a conversation at a time;
 - index `(conversation_id, started_at)`;
 - terminal states require `completed_at`;
 - `completed_at` cannot precede `started_at`.
 
 The request idempotency key prevents a browser retry from producing duplicate
 prompts, token charges, and responses. A request with the same key and a
-different prompt must be rejected.
+different prompt must be rejected. A different request that arrives while the
+conversation has a running turn must receive a conflict and retry after that
+turn reaches a terminal state; otherwise both requests could answer the same
+prior transcript and commit in an arbitrary order. An abandoned running turn
+must be reconciled to `failed` after a named timeout before another turn can
+claim the conversation. Retrying the abandoned request with its original
+idempotency key resumes or returns that turn instead of creating a duplicate.
 
 ### Changes to `maurice_messages`
 
@@ -299,7 +307,7 @@ tool messages remain in `maurice_messages` for replay.
 
 Constraints and indexes:
 
-- unique `(turn_id, provider_tool_call_id)`;
+- unique `(llm_call_id, provider_tool_call_id)`;
 - unique `(llm_call_id, sequence_number)`;
 - index `(tool_name, started_at)` for tool-level analysis;
 - `completed_at >= started_at`.
