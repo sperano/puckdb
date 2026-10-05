@@ -1338,6 +1338,7 @@ type MauriceConversation struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 	UserID    pgtype.UUID        `json:"user_id"`
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type MauriceLlmCall struct {

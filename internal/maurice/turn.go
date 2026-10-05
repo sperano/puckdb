@@ -21,12 +21,16 @@ const (
 	// turnPersistTimeout bounds committing a finished turn. It runs detached
 	// from the request so a client that disconnects still releases its turn.
 	turnPersistTimeout = 30 * time.Second
+	// turnReleaseTimeout bounds the status-only release after a failed
+	// commit. It gets its own deadline: a commit that failed by timing out has
+	// used up turnPersistTimeout.
+	turnReleaseTimeout = 5 * time.Second
 	// staleTurnGrace is extra slack before a running turn counts as abandoned.
 	staleTurnGrace = time.Minute
 	// staleTurnAfter is how long a turn may stay running before a new request
 	// fails it as abandoned. It outlasts any live turn (loop plus commit), so
 	// only a turn whose process died is reconciled.
-	staleTurnAfter = turnTimeout + turnPersistTimeout + staleTurnGrace
+	staleTurnAfter = turnTimeout + turnPersistTimeout + turnReleaseTimeout + staleTurnGrace
 	// maxIdempotencyKeyLen matches the length CHECK on maurice_turns.
 	maxIdempotencyKeyLen = 200
 )
@@ -181,7 +185,7 @@ func (s *service) finalAnswer(ctx context.Context, convID string, res *agentloop
 // to a status-only failure so the conversation is not blocked until the turn
 // goes stale; the turn's usage is then lost and logged as such.
 func (s *service) finishTurn(ctx context.Context, record TurnRecord) ([]string, error) {
-	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), turnPersistTimeout)
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.persistTimeout)
 	defer cancel()
 	ids, err := s.db.FinishTurn(persistCtx, record)
 	if err == nil {
@@ -190,15 +194,23 @@ func (s *service) finishTurn(ctx context.Context, record TurnRecord) ([]string, 
 	log.Error().Err(err).Str("turn", record.TurnID).Int("llm_calls", len(record.Calls)).
 		Msg("persist turn failed; its messages and usage are lost")
 	if !errors.Is(err, ErrTurnNotRunning) {
-		fallback := TurnRecord{
-			TurnID: record.TurnID, ConversationID: record.ConversationID,
-			Status: TurnFailed, ErrorClass: ErrorClassInternal,
-		}
-		if _, ferr := s.db.FinishTurn(persistCtx, fallback); ferr != nil {
-			log.Error().Err(ferr).Str("turn", record.TurnID).Msg("release failed turn")
-		}
+		s.releaseTurn(ctx, record)
 	}
 	return nil, fmt.Errorf("persist turn: %w", err)
+}
+
+// releaseTurn fails the turn without its messages or usage, under its own
+// deadline.
+func (s *service) releaseTurn(ctx context.Context, record TurnRecord) {
+	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.releaseTimeout)
+	defer cancel()
+	fallback := TurnRecord{
+		TurnID: record.TurnID, ConversationID: record.ConversationID,
+		Status: TurnFailed, ErrorClass: ErrorClassInternal,
+	}
+	if _, err := s.db.FinishTurn(releaseCtx, fallback); err != nil {
+		log.Error().Err(err).Str("turn", record.TurnID).Msg("release failed turn")
+	}
 }
 
 // classifiedError attaches an ErrorClass to an error without changing its

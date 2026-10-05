@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS conversations (
 	user_id TEXT NOT NULL,
 	title TEXT,
 	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL
+	updated_at TEXT NOT NULL,
+	deleted_at TEXT
 );
 CREATE TABLE IF NOT EXISTS turns (
 	id TEXT PRIMARY KEY,
@@ -65,6 +66,7 @@ type sqliteUpgrade struct {
 
 var sqliteUpgrades = []sqliteUpgrade{
 	{"conversations", "user_id", "TEXT NOT NULL DEFAULT '" + LocalUserID + "'"},
+	{"conversations", "deleted_at", "TEXT"},
 	{"messages", "turn_id", "TEXT REFERENCES turns(id) ON DELETE CASCADE"},
 	{"messages", "message_number", "INTEGER"},
 }
@@ -127,7 +129,7 @@ func addMissingColumn(ctx context.Context, db *sql.DB, u sqliteUpgrade) error {
 
 func (s *sqliteDB) GetConversation(ctx context.Context, userID, id string) (*Conversation, error) {
 	row := s.db.QueryRowContext(ctx,
-		"SELECT id, title, created_at, updated_at FROM conversations WHERE id = ? AND user_id = ?", id, userID,
+		"SELECT id, title, created_at, updated_at FROM conversations WHERE id = ? AND user_id = ? AND deleted_at IS NULL", id, userID,
 	)
 	conv, err := scanConversation(row)
 	if err == sql.ErrNoRows {
@@ -138,7 +140,7 @@ func (s *sqliteDB) GetConversation(ctx context.Context, userID, id string) (*Con
 
 func (s *sqliteDB) ListConversations(ctx context.Context, userID string, limit int) ([]*Conversation, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, title, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?",
+		"SELECT id, title, created_at, updated_at FROM conversations WHERE user_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?",
 		userID, limit,
 	)
 	if err != nil {
@@ -156,8 +158,12 @@ func (s *sqliteDB) ListConversations(ctx context.Context, userID string, limit i
 	return result, rows.Err()
 }
 
+// DeleteConversation hides the conversation; nothing is removed.
 func (s *sqliteDB) DeleteConversation(ctx context.Context, userID, id string) error {
-	res, err := s.db.ExecContext(ctx, "DELETE FROM conversations WHERE id = ? AND user_id = ?", id, userID)
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE conversations SET deleted_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL",
+		time.Now().UTC().Format(sqliteTimeLayout), id, userID,
+	)
 	if err != nil {
 		return err
 	}
@@ -180,7 +186,7 @@ func (s *sqliteDB) GetMessages(ctx context.Context, userID, conversationID strin
 		 FROM messages m
 		 JOIN conversations c ON c.id = m.conversation_id
 		 LEFT JOIN turns t ON t.id = m.turn_id
-		 WHERE m.conversation_id = ? AND c.user_id = ? AND (m.turn_id IS NULL OR t.status = ?)
+		 WHERE m.conversation_id = ? AND c.user_id = ? AND c.deleted_at IS NULL AND (m.turn_id IS NULL OR t.status = ?)
 		 ORDER BY m.created_at ASC, m.rowid ASC`,
 		conversationID, userID, string(TurnSucceeded),
 	)

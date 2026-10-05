@@ -76,7 +76,8 @@ type CreateConversationRow struct {
 }
 
 // Every conversation query is scoped by its owner: knowing a conversation
-// UUID is not authorization.
+// UUID is not authorization. A conversation with deleted_at set is gone for
+// its owner, but its rows are kept (prompts and usage are kept forever).
 func (q *Queries) CreateConversation(ctx context.Context, userID pgtype.UUID) (CreateConversationRow, error) {
 	row := q.db.QueryRow(ctx, createConversation, userID)
 	var i CreateConversationRow
@@ -144,8 +145,9 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (C
 }
 
 const deleteConversation = `-- name: DeleteConversation :execrows
-DELETE FROM maurice_conversations
-WHERE id = $1 AND user_id = $2
+UPDATE maurice_conversations
+SET deleted_at = clock_timestamp()
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 `
 
 type DeleteConversationParams struct {
@@ -153,6 +155,7 @@ type DeleteConversationParams struct {
 	UserID pgtype.UUID `json:"user_id"`
 }
 
+// Hides the conversation; nothing is removed.
 func (q *Queries) DeleteConversation(ctx context.Context, arg DeleteConversationParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteConversation, arg.ID, arg.UserID)
 	if err != nil {
@@ -164,7 +167,7 @@ func (q *Queries) DeleteConversation(ctx context.Context, arg DeleteConversation
 const getConversation = `-- name: GetConversation :one
 SELECT id, title, created_at, updated_at
 FROM maurice_conversations
-WHERE id = $1 AND user_id = $2
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 `
 
 type GetConversationParams struct {
@@ -196,7 +199,7 @@ SELECT m.id, m.conversation_id, m.role, m.content, m.tool_calls, m.tool_call_id,
 FROM maurice_messages m
 JOIN maurice_turns t ON t.id = m.turn_id
 JOIN maurice_conversations c ON c.id = m.conversation_id
-WHERE m.conversation_id = $1 AND c.user_id = $2 AND t.status = 'succeeded'
+WHERE m.conversation_id = $1 AND c.user_id = $2 AND c.deleted_at IS NULL AND t.status = 'succeeded'
 ORDER BY t.turn_number, m.message_number
 `
 
@@ -247,10 +250,12 @@ func (q *Queries) GetTranscript(ctx context.Context, arg GetTranscriptParams) ([
 }
 
 const getTurnByKey = `-- name: GetTurnByKey :one
-SELECT id, conversation_id, turn_number, request_hash, status, error_class,
-       (status = 'running' AND started_at < clock_timestamp() - make_interval(secs => $3::double precision))::boolean AS stale
-FROM maurice_turns
-WHERE user_id = $1 AND idempotency_key = $2
+SELECT t.id, t.conversation_id, t.turn_number, t.request_hash, t.status, t.error_class,
+       (t.status = 'running' AND t.started_at < clock_timestamp() - make_interval(secs => $3::double precision))::boolean AS stale,
+       (c.deleted_at IS NOT NULL)::boolean AS conversation_deleted
+FROM maurice_turns t
+JOIN maurice_conversations c ON c.id = t.conversation_id
+WHERE t.user_id = $1 AND t.idempotency_key = $2
 `
 
 type GetTurnByKeyParams struct {
@@ -260,13 +265,14 @@ type GetTurnByKeyParams struct {
 }
 
 type GetTurnByKeyRow struct {
-	ID             pgtype.UUID `json:"id"`
-	ConversationID pgtype.UUID `json:"conversation_id"`
-	TurnNumber     int32       `json:"turn_number"`
-	RequestHash    []byte      `json:"request_hash"`
-	Status         string      `json:"status"`
-	ErrorClass     pgtype.Text `json:"error_class"`
-	Stale          bool        `json:"stale"`
+	ID                  pgtype.UUID `json:"id"`
+	ConversationID      pgtype.UUID `json:"conversation_id"`
+	TurnNumber          int32       `json:"turn_number"`
+	RequestHash         []byte      `json:"request_hash"`
+	Status              string      `json:"status"`
+	ErrorClass          pgtype.Text `json:"error_class"`
+	Stale               bool        `json:"stale"`
+	ConversationDeleted bool        `json:"conversation_deleted"`
 }
 
 func (q *Queries) GetTurnByKey(ctx context.Context, arg GetTurnByKeyParams) (GetTurnByKeyRow, error) {
@@ -280,6 +286,7 @@ func (q *Queries) GetTurnByKey(ctx context.Context, arg GetTurnByKeyParams) (Get
 		&i.Status,
 		&i.ErrorClass,
 		&i.Stale,
+		&i.ConversationDeleted,
 	)
 	return i, err
 }
@@ -487,7 +494,7 @@ func (q *Queries) InsertTurn(ctx context.Context, arg InsertTurnParams) (InsertT
 const listConversations = `-- name: ListConversations :many
 SELECT id, title, created_at, updated_at
 FROM maurice_conversations
-WHERE user_id = $1
+WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY updated_at DESC
 LIMIT $2
 `
@@ -532,7 +539,7 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 const lockConversation = `-- name: LockConversation :one
 SELECT id
 FROM maurice_conversations
-WHERE id = $1 AND user_id = $2
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 FOR UPDATE
 `
 
@@ -544,6 +551,27 @@ type LockConversationParams struct {
 // Serializes turn starts on one conversation for the rest of the transaction.
 func (q *Queries) LockConversation(ctx context.Context, arg LockConversationParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, lockConversation, arg.ID, arg.UserID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const lockOwnedConversation = `-- name: LockOwnedConversation :one
+SELECT id
+FROM maurice_conversations
+WHERE id = $1 AND user_id = $2
+FOR UPDATE
+`
+
+type LockOwnedConversationParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+// Ownership check that also matches a deleted conversation, for usage that
+// must be recorded even after the owner deleted it (title generation).
+func (q *Queries) LockOwnedConversation(ctx context.Context, arg LockOwnedConversationParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockOwnedConversation, arg.ID, arg.UserID)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -569,7 +597,7 @@ func (q *Queries) TouchConversation(ctx context.Context, id pgtype.UUID) error {
 const updateConversationTitle = `-- name: UpdateConversationTitle :exec
 UPDATE maurice_conversations
 SET title = $3, updated_at = NOW()
-WHERE id = $1 AND user_id = $2
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 `
 
 type UpdateConversationTitleParams struct {

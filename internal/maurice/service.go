@@ -94,6 +94,10 @@ type service struct {
 	maxTokens     int
 	maxToolRounds int
 	now           func() time.Time
+	// persistTimeout and releaseTimeout bound committing and releasing a
+	// turn (turnPersistTimeout, turnReleaseTimeout).
+	persistTimeout time.Duration
+	releaseTimeout time.Duration
 
 	// titleGroup bounds (via SetLimit) and tracks the detached goroutines that
 	// generate conversation titles, so shutdown can await them.
@@ -129,6 +133,8 @@ func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, cfg ServiceCo
 		maxTokens:      cfg.MaxTokens,
 		maxToolRounds:  cfg.MaxToolRounds,
 		now:            time.Now,
+		persistTimeout: turnPersistTimeout,
+		releaseTimeout: turnReleaseTimeout,
 		titleGroup:     titleGroup,
 		shutdownCtx:    shutdownCtx,
 		shutdownCancel: shutdownCancel,

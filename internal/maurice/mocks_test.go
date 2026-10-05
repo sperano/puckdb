@@ -57,9 +57,12 @@ func (m *mockLLMClient) callCount() int {
 // LLM calls itself).
 type testDB struct {
 	DB
-	mu                 sync.Mutex
-	beginErr           error
-	finishErrOnce      error
+	mu            sync.Mutex
+	beginErr      error
+	finishErrOnce error
+	// finishBlockOnce makes the next FinishTurn wait for its context to end,
+	// like a commit stuck on a slow database.
+	finishBlockOnce    bool
 	getMessagesErr     error
 	getConversationErr error
 	listErr            error
@@ -81,10 +84,14 @@ func (d *testDB) BeginTurn(ctx context.Context, params BeginTurnParams) (*TurnSt
 
 func (d *testDB) FinishTurn(ctx context.Context, record TurnRecord) ([]string, error) {
 	d.mu.Lock()
-	err := d.finishErrOnce
-	d.finishErrOnce = nil
+	err, block := d.finishErrOnce, d.finishBlockOnce
+	d.finishErrOnce, d.finishBlockOnce = nil, false
 	d.finished = append(d.finished, record)
 	d.mu.Unlock()
+	if block {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	if err != nil {
 		return nil, err
 	}

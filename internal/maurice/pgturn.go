@@ -104,6 +104,7 @@ func replayPgTurn(ctx context.Context, q *sqlcdb.Queries, params BeginTurnParams
 		ID: uuidToString(row.ID), ConversationID: uuidToString(row.ConversationID),
 		RequestHash: row.RequestHash, Status: TurnStatus(row.Status),
 		ErrorClass: ErrorClass(row.ErrorClass.String), Stale: row.Stale,
+		ConversationDeleted: row.ConversationDeleted,
 	}
 	abandon, err := checkKeyReuse(params, turn)
 	if err != nil {
@@ -228,7 +229,9 @@ func (db *pgDB) RecordTitle(ctx context.Context, record TitleRecord) error {
 		return err
 	}
 	return db.inTx(ctx, func(q *sqlcdb.Queries) error {
-		_, err := q.LockConversation(ctx, sqlcdb.LockConversationParams{ID: conv, UserID: user})
+		// The call is recorded even if the owner deleted the conversation
+		// meanwhile; only the title update skips a deleted conversation.
+		_, err := q.LockOwnedConversation(ctx, sqlcdb.LockOwnedConversationParams{ID: conv, UserID: user})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrConversationNotFound
 		}

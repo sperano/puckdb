@@ -41,12 +41,17 @@ CREATE INDEX idx_app_sessions_user_activity ON app_sessions (user_id, last_activ
 -- they are deleted (their messages cascade).
 DELETE FROM maurice_conversations;
 
+-- deleted_at hides a conversation from its owner. Deleting never removes
+-- rows: prompts, tool payloads and usage are kept forever, and there is no
+-- erase capability. The ON DELETE CASCADE clauses below only matter to an
+-- operator removing rows by hand.
 ALTER TABLE maurice_conversations
-    ADD COLUMN user_id uuid NOT NULL REFERENCES app_users(id);
+    ADD COLUMN user_id uuid NOT NULL REFERENCES app_users(id),
+    ADD COLUMN deleted_at timestamp with time zone;
 
 DROP INDEX idx_maurice_conversations_updated;
 CREATE INDEX idx_maurice_conversations_user_updated
-    ON maurice_conversations (user_id, updated_at DESC);
+    ON maurice_conversations (user_id, updated_at DESC) WHERE deleted_at IS NULL;
 
 -- Error classes are bounded labels, never provider error text (which may
 -- carry content or credentials).
@@ -159,8 +164,8 @@ CREATE TABLE maurice_tool_calls (
 CREATE INDEX idx_maurice_tool_calls_tool_started ON maurice_tool_calls (tool_name, started_at);
 CREATE INDEX idx_maurice_tool_calls_turn ON maurice_tool_calls (turn_id);
 
--- Per-user usage. Each one-to-many source is aggregated on its own before the
--- join so rows never multiply. Active use is the time spent processing
+-- Per-user usage, deleted conversations included. Each one-to-many source is
+-- aggregated on its own before the join so rows never multiply. Active use is the time spent processing
 -- prompts: terminal turn durations plus title generation calls (which have no
 -- turn). Title generation tokens count toward the user.
 CREATE VIEW app_user_usage AS

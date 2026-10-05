@@ -1,5 +1,6 @@
 -- Every conversation query is scoped by its owner: knowing a conversation
--- UUID is not authorization.
+-- UUID is not authorization. A conversation with deleted_at set is gone for
+-- its owner, but its rows are kept (prompts and usage are kept forever).
 
 -- name: CreateConversation :one
 INSERT INTO maurice_conversations (user_id)
@@ -9,10 +10,18 @@ RETURNING id, title, created_at, updated_at;
 -- name: GetConversation :one
 SELECT id, title, created_at, updated_at
 FROM maurice_conversations
-WHERE id = $1 AND user_id = $2;
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL;
 
 -- name: LockConversation :one
 -- Serializes turn starts on one conversation for the rest of the transaction.
+SELECT id
+FROM maurice_conversations
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+FOR UPDATE;
+
+-- name: LockOwnedConversation :one
+-- Ownership check that also matches a deleted conversation, for usage that
+-- must be recorded even after the owner deleted it (title generation).
 SELECT id
 FROM maurice_conversations
 WHERE id = $1 AND user_id = $2
@@ -21,18 +30,20 @@ FOR UPDATE;
 -- name: UpdateConversationTitle :exec
 UPDATE maurice_conversations
 SET title = $3, updated_at = NOW()
-WHERE id = $1 AND user_id = $2;
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL;
 
 -- name: ListConversations :many
 SELECT id, title, created_at, updated_at
 FROM maurice_conversations
-WHERE user_id = $1
+WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY updated_at DESC
 LIMIT $2;
 
 -- name: DeleteConversation :execrows
-DELETE FROM maurice_conversations
-WHERE id = $1 AND user_id = $2;
+-- Hides the conversation; nothing is removed.
+UPDATE maurice_conversations
+SET deleted_at = clock_timestamp()
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL;
 
 -- name: TouchConversation :exec
 -- Bumps the conversation's activity timestamp. Runs in the same transaction
@@ -61,14 +72,16 @@ SELECT m.id, m.conversation_id, m.role, m.content, m.tool_calls, m.tool_call_id,
 FROM maurice_messages m
 JOIN maurice_turns t ON t.id = m.turn_id
 JOIN maurice_conversations c ON c.id = m.conversation_id
-WHERE m.conversation_id = $1 AND c.user_id = $2 AND t.status = 'succeeded'
+WHERE m.conversation_id = $1 AND c.user_id = $2 AND c.deleted_at IS NULL AND t.status = 'succeeded'
 ORDER BY t.turn_number, m.message_number;
 
 -- name: GetTurnByKey :one
-SELECT id, conversation_id, turn_number, request_hash, status, error_class,
-       (status = 'running' AND started_at < clock_timestamp() - make_interval(secs => sqlc.arg(stale_seconds)::double precision))::boolean AS stale
-FROM maurice_turns
-WHERE user_id = $1 AND idempotency_key = $2;
+SELECT t.id, t.conversation_id, t.turn_number, t.request_hash, t.status, t.error_class,
+       (t.status = 'running' AND t.started_at < clock_timestamp() - make_interval(secs => sqlc.arg(stale_seconds)::double precision))::boolean AS stale,
+       (c.deleted_at IS NOT NULL)::boolean AS conversation_deleted
+FROM maurice_turns t
+JOIN maurice_conversations c ON c.id = t.conversation_id
+WHERE t.user_id = $1 AND t.idempotency_key = $2;
 
 -- name: AbandonTurn :exec
 UPDATE maurice_turns

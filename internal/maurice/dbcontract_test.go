@@ -4,7 +4,7 @@ package maurice
 // adapter (sqlitedb_test.go) and the PostgreSQL adapter (pgdb_test.go) run
 // runDBContract against a fresh store, so observable behaviour — owner
 // scoping, idempotent turns, one running turn per conversation, the
-// transcript excluding failed turns, ordering, cascade deletes — cannot drift
+// transcript excluding failed turns, ordering, deletion — cannot drift
 // between backends without one of them failing here.
 
 import (
@@ -52,7 +52,7 @@ func runDBContract(t *testing.T, open envFactory) {
 		{"StaleTurnReplayIsAbandoned", contractStaleTurnReplayIsAbandoned},
 		{"FailedTurnStaysOutOfTranscript", contractFailedTurnStaysOutOfTranscript},
 		{"FinishTwiceIsRejected", contractFinishTwiceIsRejected},
-		{"CascadeDelete", contractCascadeDelete},
+		{"DeleteHidesConversation", contractDeleteHidesConversation},
 		{"RecordTitle", contractRecordTitle},
 	}
 	for _, tc := range tests {
@@ -394,13 +394,17 @@ func contractFinishTwiceIsRejected(t *testing.T, env contractEnv) {
 	require.ErrorIs(t, err, ErrTurnNotRunning)
 }
 
-func contractCascadeDelete(t *testing.T, env contractEnv) {
+// Deleting hides the conversation from its owner for good: it cannot be read,
+// listed, continued or replayed by key, and deleting it again finds nothing.
+// Its rows stay (prompts and usage are kept forever; see the PostgreSQL test).
+func contractDeleteHidesConversation(t *testing.T, env contractEnv) {
 	ctx := context.Background()
 	user := env.newUser(t)
 	params := turnParams(user, "", "deleted-key", "hello")
 	start, err := env.db.BeginTurn(ctx, params)
 	require.NoError(t, err)
-	finishTurn(t, env.db, start, "hello", TurnMessage{Role: "assistant", Content: "hi"})
+	ids := finishTurn(t, env.db, start, "hello", TurnMessage{Role: "assistant", Content: "hi"})
+	kept := chat(t, env.db, user, "", "other", "conversation")
 
 	require.NoError(t, env.db.DeleteConversation(ctx, user, start.ConversationID))
 
@@ -408,11 +412,18 @@ func contractCascadeDelete(t *testing.T, env contractEnv) {
 	require.ErrorIs(t, err, ErrConversationNotFound)
 	msgs, err := env.db.GetMessages(ctx, user, start.ConversationID)
 	require.NoError(t, err)
-	assert.Empty(t, msgs, "messages must cascade-delete with their conversation")
-	again, err := env.db.BeginTurn(ctx, params)
+	assert.Empty(t, msgs)
+	convs, err := env.db.ListConversations(ctx, user, 10)
 	require.NoError(t, err)
-	assert.Nil(t, again.Replay, "turns (and their keys) cascade-delete too")
+	require.Len(t, convs, 1)
+	assert.Equal(t, kept.ConversationID, convs[0].ID)
+	_, err = env.db.BeginTurn(ctx, turnParams(user, start.ConversationID, uuid.NewString(), "more"))
+	require.ErrorIs(t, err, ErrConversationNotFound)
+	_, err = env.db.BeginTurn(ctx, params)
+	require.ErrorIs(t, err, ErrConversationNotFound, "a key of a deleted conversation replays nothing")
 	require.ErrorIs(t, env.db.DeleteConversation(ctx, user, start.ConversationID), ErrConversationNotFound)
+	require.NoError(t, env.db.RecordTitle(ctx, TitleRecord{UserID: user, ConversationID: start.ConversationID,
+		Title: "late", Call: titleCallRecord(ids)}), "a title finishing after the delete still records its call")
 }
 
 func contractRecordTitle(t *testing.T, env contractEnv) {

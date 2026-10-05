@@ -80,10 +80,11 @@ func sqliteTurnByKey(ctx context.Context, tx *sql.Tx, params BeginTurnParams, st
 	var errorClass sql.NullString
 	var startedAt string
 	err := tx.QueryRowContext(ctx,
-		`SELECT id, conversation_id, request_hash, status, error_class, started_at
-		 FROM turns WHERE user_id = ? AND idempotency_key = ?`,
+		`SELECT t.id, t.conversation_id, t.request_hash, t.status, t.error_class, t.started_at, c.deleted_at IS NOT NULL
+		 FROM turns t JOIN conversations c ON c.id = t.conversation_id
+		 WHERE t.user_id = ? AND t.idempotency_key = ?`,
 		params.UserID, params.IdempotencyKey,
-	).Scan(&turn.ID, &turn.ConversationID, &turn.RequestHash, &turn.Status, &errorClass, &startedAt)
+	).Scan(&turn.ID, &turn.ConversationID, &turn.RequestHash, &turn.Status, &errorClass, &startedAt, &turn.ConversationDeleted)
 	if err != nil {
 		return storedTurn{}, err
 	}
@@ -106,7 +107,7 @@ func ensureSQLiteConversation(ctx context.Context, tx *sql.Tx, params BeginTurnP
 	}
 	var id string
 	err := tx.QueryRowContext(ctx,
-		"SELECT id FROM conversations WHERE id = ? AND user_id = ?", params.ConversationID, params.UserID,
+		"SELECT id FROM conversations WHERE id = ? AND user_id = ? AND deleted_at IS NULL", params.ConversationID, params.UserID,
 	).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrConversationNotFound
@@ -239,14 +240,20 @@ func insertSQLiteMessages(ctx context.Context, tx *sql.Tx, convID string, record
 // RecordTitle sets the conversation title; the call itself is not stored by
 // this backend.
 func (s *sqliteDB) RecordTitle(ctx context.Context, record TitleRecord) error {
-	if _, err := s.GetConversation(ctx, record.UserID, record.ConversationID); err != nil {
+	var owned int
+	if err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM conversations WHERE id = ? AND user_id = ?", record.ConversationID, record.UserID,
+	).Scan(&owned); err != nil {
 		return err
+	}
+	if owned == 0 {
+		return ErrConversationNotFound
 	}
 	if record.Title == "" {
 		return nil
 	}
 	_, err := s.db.ExecContext(ctx,
-		"UPDATE conversations SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+		"UPDATE conversations SET title = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL",
 		record.Title, time.Now().UTC().Format(sqliteTimeLayout), record.ConversationID, record.UserID,
 	)
 	return err

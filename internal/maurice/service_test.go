@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/stretchr/testify/assert"
@@ -199,6 +200,26 @@ func TestChat_PersistTurnError_ReleasesConversation(t *testing.T) {
 
 	_, err = svc.Chat(context.Background(), askIn(convID, "again"))
 	require.NoError(t, err, "the conversation must be free after a failed commit")
+}
+
+// testCommitTimeout stands in for turnPersistTimeout so a stuck commit times
+// out quickly.
+const testCommitTimeout = 10 * time.Millisecond
+
+// A commit that times out has used up its deadline; the release still gets
+// its own and frees the conversation.
+func TestChat_TimedOutCommit_StillReleasesConversation(t *testing.T) {
+	db := newTestDB(t)
+	convID := seedConversation(t, db, TurnMessage{Role: "user", Content: "q"})
+	db.finishBlockOnce = true
+	svc := NewService(&mockLLMClient{}, newMockMCP(), db, testConfig)
+	svc.(*service).persistTimeout = testCommitTimeout
+
+	_, err := svc.Chat(context.Background(), askIn(convID, "hi"))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	svc.(*service).persistTimeout = turnPersistTimeout
+	_, err = svc.Chat(context.Background(), askIn(convID, "again"))
+	require.NoError(t, err, "the release must not reuse the expired commit deadline")
 }
 
 func TestChat_LoadHistoryError(t *testing.T) {

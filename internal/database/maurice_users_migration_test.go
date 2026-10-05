@@ -116,7 +116,8 @@ func TestIntegration_MauriceUsersMigration(t *testing.T) {
 	exists, _ := columnNullable(t, conn, "maurice_conversations", "user_id")
 	assert.False(t, exists)
 	assert.Zero(t, countRows(t, conn, `SELECT count(*) FROM pg_class WHERE relname = 'maurice_turns'`))
-	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_conversations`), "transcripts survive a rollback")
+	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_conversations`),
+		"transcripts survive a rollback; soft-deleted conversations do not")
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_messages WHERE content = 'kept'`))
 	assert.Zero(t, countRows(t, conn, `SELECT count(*) FROM maurice_messages WHERE content = 'failed prompt'`),
 		"failed-turn messages must not become replayable history")
@@ -124,7 +125,8 @@ func TestIntegration_MauriceUsersMigration(t *testing.T) {
 	migrateTo(t, dbURL, mauriceUsersVersion)
 }
 
-// seedOwnedTurns writes one conversation with a succeeded and a failed turn.
+// seedOwnedTurns writes one conversation with a succeeded and a failed turn,
+// and one deleted conversation.
 func seedOwnedTurns(t *testing.T, conn *pgx.Conn) {
 	t.Helper()
 	const (
@@ -135,6 +137,7 @@ func seedOwnedTurns(t *testing.T, conn *pgx.Conn) {
 	)
 	execSQL(t, conn, `INSERT INTO app_users (id, auth_provider, auth_subject, username) VALUES ($1, 'authentik', 'sub', 'u')`, user)
 	execSQL(t, conn, `INSERT INTO maurice_conversations (id, user_id) VALUES ($1, $2)`, conv, user)
+	execSQL(t, conn, `INSERT INTO maurice_conversations (user_id, deleted_at) VALUES ($1, now())`, user)
 	execSQL(t, conn, `INSERT INTO maurice_turns (id, conversation_id, user_id, turn_number, idempotency_key, request_hash, status, error_class, started_at, completed_at)
 		VALUES ($1, $3, $4, 0, 'k0', '\x00', 'succeeded', NULL, now(), now()),
 		       ($2, $3, $4, 1, 'k1', '\x00', 'failed', 'provider_error', now(), now())`, ok, bad, conv, user)

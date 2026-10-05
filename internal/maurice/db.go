@@ -32,8 +32,9 @@ var (
 type DB interface {
 	GetConversation(ctx context.Context, userID, id string) (*Conversation, error)
 	ListConversations(ctx context.Context, userID string, limit int) ([]*Conversation, error)
-	// DeleteConversation returns ErrConversationNotFound when nothing owned
-	// by userID was deleted.
+	// DeleteConversation hides the conversation from its owner for good; its
+	// messages, turns and usage are kept. It returns ErrConversationNotFound
+	// when userID owns no such conversation.
 	DeleteConversation(ctx context.Context, userID, id string) error
 	// GetMessages returns the replayable transcript: the messages of
 	// succeeded turns in turn order.

@@ -77,7 +77,7 @@ func (s *service) generateTitle(ctx context.Context, job titleJob) {
 	}
 
 	// Recording outlives a cancelled generation so the usage is kept.
-	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), turnPersistTimeout)
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.persistTimeout)
 	defer cancel()
 	if err := s.db.RecordTitle(persistCtx, record); err != nil {
 		log.Warn().Err(err).Msg("failed to record conversation title")

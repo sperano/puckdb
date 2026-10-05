@@ -19,13 +19,19 @@ type storedTurn struct {
 	ErrorClass     ErrorClass
 	// Stale reports a running turn older than BeginTurnParams.StaleAfter.
 	Stale bool
+	// ConversationDeleted reports that the owner deleted the turn's
+	// conversation.
+	ConversationDeleted bool
 }
 
 // checkKeyReuse decides what a reused idempotency key means. It rejects a
-// different prompt or conversation and a turn still running. abandon reports
-// a stale running turn that the caller must fail as abandoned before
-// replaying it.
+// key whose conversation was deleted, a different prompt or conversation, and
+// a turn still running. abandon reports a stale running turn that the caller
+// must fail as abandoned before replaying it.
 func checkKeyReuse(params BeginTurnParams, turn storedTurn) (abandon bool, err error) {
+	if turn.ConversationDeleted {
+		return false, ErrConversationNotFound
+	}
 	if !bytes.Equal(turn.RequestHash, params.RequestHash) {
 		return false, ErrIdempotencyKeyReused
 	}

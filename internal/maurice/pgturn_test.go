@@ -218,6 +218,29 @@ func mustSeedMessage(t *testing.T, db DB, user string) string {
 	return finishTurn(t, db, start, "seed", TurnMessage{Role: "assistant", Content: "ok"})[0]
 }
 
+// Deleting a conversation keeps every row behind it and the owner's usage.
+func TestPg_DeleteKeepsPromptsAndUsage(t *testing.T) {
+	pool := openPgTestPool(t)
+	db := NewPgDB(pool)
+	ctx := context.Background()
+	user := newPgUser(t, pool)
+	start := beginTurn(t, db, user, "", "q1")
+	_, err := db.FinishTurn(ctx, usageTurnRecord(start, mustSeedMessage(t, db, user)))
+	require.NoError(t, err)
+	usage := func() int {
+		return pgCount(t, pool, `SELECT input_tokens FROM app_user_usage WHERE user_id = $1`, user)
+	}
+	before := usage()
+
+	require.NoError(t, db.DeleteConversation(ctx, user, start.ConversationID))
+
+	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_conversations WHERE id = $1 AND deleted_at IS NOT NULL`, start.ConversationID))
+	assert.Equal(t, 4, pgCount(t, pool, `SELECT count(*) FROM maurice_messages WHERE conversation_id = $1`, start.ConversationID))
+	assert.Equal(t, 2, pgCount(t, pool, `SELECT count(*) FROM maurice_llm_calls WHERE conversation_id = $1`, start.ConversationID))
+	assert.Equal(t, 2, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls WHERE turn_id = $1`, start.TurnID))
+	assert.Equal(t, before, usage(), "deleting a conversation must not erase usage")
+}
+
 func TestPg_MalformedConversationIDIsNotFound(t *testing.T) {
 	pool := openPgTestPool(t)
 	db := NewPgDB(pool)
