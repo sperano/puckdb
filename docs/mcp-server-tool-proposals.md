@@ -55,7 +55,7 @@ toolset, see open questions).
 
 | Tool | Toolset | Inputs | Returns | Backed by |
 |------|---------|--------|---------|-----------|
-| `get_draft_rankings` | yahoo | `league` (key or ID), `season`, `snapshot_id`, `scenario`, `positions`, `search`, `sort`, `offset`, `limit` (default covers a normal pool, e.g. 1000, up to a named max) | Header (snapshot id, as-of, scenario, total, league name/format/categories/roster slots, `provisional`, `rulesSource`, issues). Then one row per player: rank, name, team, positions, position rank, tier, value, uncertainty, rank change vs. baseline, status/injury note, projected category totals by abbreviation | `draftrank.Service.Rankings`, the same path as GraphQL `draftRankings` and `puckdb draft rankings`; reuse the draftrank CSV export if it fits. Target: 838 players well under 100 KB |
+| `get_draft_rankings` | yahoo | `league` (key or ID), `season`, `snapshot_id`, `scenario`, `positions`, `search`, `sort`, `offset`, `limit` (default covers a normal pool, e.g. 1000, up to a named max) | Header (snapshot id, as-of, scenario, total, league name/format/categories/roster slots, `provisional`, `rulesSource`, issues). Then one row per player: rank, name, team, positions, position rank, tier, value, uncertainty, rank change vs. baseline, status/injury note, projected category totals by abbreviation | `draftrank.Service.Rankings`, the same path as GraphQL `draftRankings` and `puckdb draft rankings`. Target: 838 players well under 100 KB. That needs its own compact writer: `draftrank.WriteCSV` repeats the snapshot id and identity on every row and prints full-precision floats, which comes to roughly 400 KB for 838 players. The MCP writer should print those once in the header, round to a named precision, and print only the projected value per category |
 | `get_draft_player_detail` | yahoo | `league`, `season`, `snapshot_id`, `player_keys` (max ~10) | Every scenario placement with contributions and explanations, for a few players | `draftrank` comparison view (GraphQL `draftPlayerComparison`) |
 | `get_yahoo_league_settings` | yahoo | `league_id` | Scoring categories (name, abbreviation, sort order, points weight, display-only), roster slots, plus a summary of the latest rules snapshot (format, source, stand-in flag) | `GetYahooLeagueStatCategories`, `GetYahooLeagueRosterPositions`, `GetLatestYahooLeagueRuleSnapshot`. Without this, an agent cannot tell what a league scores |
 | `get_yahoo_transactions` | yahoo | `league_id`, `type` (add/drop/trade/...), `since`, `limit` | Transactions, newest first, flattened to one row per player moved (player, from/to team, type, time, status) | `yahoo_transactions` + `yahoo_transaction_players`. Needs a new query: `GetYahooTransactionsByLeague` has no limit or date filter |
@@ -102,7 +102,7 @@ agent cannot turn one into an NHL ID except by searching the name.
 
 | Tool or change | Inputs | Backed by |
 |----------------|--------|-----------|
-| `get_game_summary` | `game_id` | One call for game facts no tool returns today: goals with scorer/time/clip URL (`GetGoalHighlights`), shootout attempts (`GetShootoutAttempts`), officials, coaches and scratches (`GetGameOfficials`, `GetGameCoaches`, `GetGameScratches`), plus the three stars |
+| `get_game_summary` | `game_id` | One call for game facts no tool returns today: goals with scorer/time/clip URL (`GetGoalHighlights`), shootout attempts (`GetShootoutAttempts`), officials, coaches and scratches (`GetGameOfficials`, `GetGameCoaches`, `GetGameScratches`), with the three stars bundled in (already available through `get_game_three_stars`) |
 | `get_player_linemates` | `player_id`, `season` (or date range), `limit` | `even_strength_pair_toi` + `even_strength_skater_games`: shared even-strength TOI per teammate. Only the projection model reads this data today; a new query is needed. Useful for "who is he playing with" |
 | `get_season_roster` | `team_id`, `season` | `GetSeasonRosterByTeam`; `get_players_by_team` returns only the current assignment |
 | `get_skater_season_stats` / `get_goalie_season_stats`: add `sort_by` and `position` | | New query with a whitelisted ORDER BY (sqlc cannot bind a column name): leaders by goals, PPP, hits, blocks, SOG, save percentage, ... |
@@ -138,22 +138,26 @@ agent cannot turn one into an NHL ID except by searching the name.
 
 These are not new calls, but they affect the answers agents get now.
 
-- **The Edge tools probably return nothing.** `get_edge_skater_stats`,
-  `get_edge_goalie_stats` and `get_edge_team_stats` describe `season` as the
-  start year ("2024 for 2024-2025") and pass it to the query unchanged. The
-  import stores `season.ID()` (`internal/worker/nhl/import_edge_cached.go`),
-  that is `20242025` (`startYear*10000 + endYear`), which migration `000003`
-  also assumes. I found this by reading the code; I did not check it against
-  a database. The tools should
-  take `20242025` like every other tool, or accept both forms.
+- **The Edge tools probably fail when used as described.**
+  `get_edge_skater_stats`, `get_edge_goalie_stats` and `get_edge_team_stats`
+  describe `season` as the start year ("2024 for 2024-2025") and pass it to
+  the query unchanged. The import stores `season.ID()`
+  (`internal/worker/nhl/import_edge_cached.go`), that is `20242025`
+  (`startYear*10000 + endYear`), which migration `000003` also assumes. The
+  main queries are `:one`, so a start year gives a "no rows in result set"
+  error, which looks like a server fault rather than a wrong argument.
+  Passing `20242025` should already work despite the description. I found
+  this by reading the code; I did not check it against a database. The tools
+  should take `20242025` like every other tool, or accept both forms.
 - **The unrostered tools mix two dates.** `get_unrostered_skaters` and
   `get_unrostered_goalies` take the roster as of `date`, but their stats come
   from views fixed to the last 30 days before *today*. A past date pairs that
   day's rosters with today's form, and off-season the result is empty. Back
   them with the `get_recent_form` query, using a window that ends at `date`.
-- **Unbounded results.** `get_games_by_team` (every season), `get_standings_by_season`
-  (one row per team per day), `get_active_players` and `get_players_by_position`
-  have no `limit`. They can return thousands of rows into an agent's context.
+- **Unbounded results.** `get_games_by_team` (every season),
+  `get_games_by_season` (1,300+ games), `get_standings_by_season` (one row per
+  team per day), `get_active_players` and `get_players_by_position` have no
+  `limit`. They can return thousands of rows into an agent's context.
   Each should take a `limit` with the default `defaultResultLimit`, or require
   a season.
 
