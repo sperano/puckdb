@@ -64,10 +64,11 @@ func (c *mcpClient) closeLocked() error {
 	return err
 }
 
-// connect establishes a new MCP connection, replacing any existing one. The
-// previous connection's close error is not actionable and must not block the
-// redial, so it is intentionally discarded.
-func (c *mcpClient) connect(ctx context.Context) error {
+// connectLocked establishes a new MCP connection, replacing any existing one.
+// It must be called with c.mu held. The previous connection's close error is
+// not actionable and must not block the redial, so it is intentionally
+// discarded.
+func (c *mcpClient) connectLocked(ctx context.Context) error {
 	_ = c.closeLocked()
 
 	inner, err := c.dial(ctx, c.url)
@@ -86,7 +87,7 @@ func (c *mcpClient) ensureConnected(ctx context.Context) (mcpclient.MCPClient, e
 	if c.inner != nil {
 		return c.inner, nil
 	}
-	if err := c.connect(ctx); err != nil {
+	if err := c.connectLocked(ctx); err != nil {
 		return nil, err
 	}
 	return c.inner, nil
@@ -97,7 +98,7 @@ func (c *mcpClient) reconnect(ctx context.Context) (mcpclient.MCPClient, error) 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if err := c.connect(ctx); err != nil {
+	if err := c.connectLocked(ctx); err != nil {
 		return nil, err
 	}
 	return c.inner, nil

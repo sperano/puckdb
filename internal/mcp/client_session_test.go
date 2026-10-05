@@ -85,7 +85,7 @@ func TestMCPClient_ListTools_ConnectFailure(t *testing.T) {
 
 	_, err := c.ListTools(context.Background())
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "connect")
+	assert.ErrorContains(t, err, "connect:")
 	assert.ErrorContains(t, err, "no route")
 	assert.Equal(t, 1, dial.calls)
 }
@@ -104,6 +104,21 @@ func TestMCPClient_ListTools_InitialSuccess(t *testing.T) {
 	assert.Equal(t, 1, dial.calls)
 	assert.Equal(t, 1, inner.listCalls)
 	assert.Equal(t, 0, inner.closes)
+}
+
+func TestMCPClient_ListTools_ReusesConnection(t *testing.T) {
+	inner := &fakeSession{listTools: func(context.Context, mcpgo.ListToolsRequest) (*mcpgo.ListToolsResult, error) {
+		return listResult("search"), nil
+	}}
+	dial := &dialSequence{clients: []mcpclient.MCPClient{inner}}
+	c := newSessionTestClient(dial)
+
+	for range 2 {
+		_, err := c.ListTools(context.Background())
+		require.NoError(t, err)
+	}
+	assert.Equal(t, 1, dial.calls, "the connection should be dialed once")
+	assert.Equal(t, 2, inner.listCalls)
 }
 
 func TestMCPClient_ListTools_ReconnectsOnceAfterSessionError(t *testing.T) {
@@ -158,6 +173,23 @@ func TestMCPClient_ListTools_RetryAfterReconnectFails(t *testing.T) {
 	assert.ErrorContains(t, err, "operation failed")
 	assert.Equal(t, 2, dial.calls)
 	assert.Equal(t, 1, live.listCalls)
+}
+
+func TestMCPClient_ListTools_RetriesAtMostOnce(t *testing.T) {
+	first := &fakeSession{listTools: func(context.Context, mcpgo.ListToolsRequest) (*mcpgo.ListToolsResult, error) {
+		return nil, sessionError()
+	}}
+	second := &fakeSession{listTools: func(context.Context, mcpgo.ListToolsRequest) (*mcpgo.ListToolsResult, error) {
+		return nil, sessionError()
+	}}
+	dial := &dialSequence{clients: []mcpclient.MCPClient{first, second}}
+	c := newSessionTestClient(dial)
+
+	_, err := c.ListTools(context.Background())
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "list tools")
+	assert.Equal(t, 2, dial.calls, "a second session error must not trigger another reconnect")
+	assert.Equal(t, 1, second.listCalls)
 }
 
 func TestMCPClient_ListTools_NonSessionErrorDoesNotReconnect(t *testing.T) {
@@ -269,7 +301,7 @@ func TestMCPClient_Close_ReturnsInnerErrorAndClears(t *testing.T) {
 	assert.Equal(t, 1, inner.closes)
 }
 
-func TestMCPClient_connect_DiscardsOldCloseError(t *testing.T) {
+func TestMCPClient_reconnect_DiscardsOldCloseError(t *testing.T) {
 	old := &fakeSession{closeErr: errors.New("old close failed")}
 	fresh := &fakeSession{}
 	dial := &dialSequence{clients: []mcpclient.MCPClient{fresh}}
@@ -283,13 +315,13 @@ func TestMCPClient_connect_DiscardsOldCloseError(t *testing.T) {
 	assert.Equal(t, 1, dial.calls)
 }
 
-func TestMCPClient_connect_CloseErrorDoesNotMaskDialError(t *testing.T) {
+func TestMCPClient_reconnect_CloseErrorDoesNotMaskDialError(t *testing.T) {
 	old := &fakeSession{closeErr: errors.New("old close failed")}
 	dial := &dialSequence{errs: []error{errors.New("dial failed")}}
 	c := newSessionTestClient(dial)
 	c.inner = old
 
-	err := c.connect(context.Background())
+	_, err := c.reconnect(context.Background())
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "dial failed")
 	assert.NotContains(t, err.Error(), "old close failed")
