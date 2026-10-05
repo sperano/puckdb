@@ -273,6 +273,9 @@ Useful project references:
 
 - [Migration recovery](docs/migration-recovery.md)
 - [NHL Edge API notes](docs/nhl-edge-api.md)
+- [Code review (October 2026)](https://wiki.spe.quebec/en/puckdb/code-review)
+  — findings, reproduction cases, and prioritized follow-up work from two review
+  passes; requires access to the shared wiki.
 
 Application packages live under `internal/`; command wiring lives in `cmd/`.
 The GraphQL schemas are in `internal/graph/`, database migrations are in
