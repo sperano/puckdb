@@ -381,9 +381,9 @@ func (r *Resolver) yahooTokenStatus(ctx context.Context) (*model.YahooTokenStatu
 
 var errMauriceNotConfigured = errors.New("maurice AI chat is not configured")
 
-// mauriceUser returns the PuckDB user behind the request; every Maurice
-// operation is scoped by it.
-func (r *Resolver) mauriceUser(ctx context.Context) (maurice.Service, string, error) {
+// scopedMaurice returns the Maurice service and the ID of the PuckDB user
+// behind the request; every Maurice operation is scoped by that user.
+func (r *Resolver) scopedMaurice(ctx context.Context) (maurice.Service, string, error) {
 	if r.MauriceService == nil {
 		return nil, "", errMauriceNotConfigured
 	}
@@ -395,7 +395,7 @@ func (r *Resolver) mauriceUser(ctx context.Context) (maurice.Service, string, er
 }
 
 func (r *Resolver) mauriceChat(ctx context.Context, conversationID *string, message string, idempotencyKey *string) (*model.MauriceChatResponse, error) {
-	svc, userID, err := r.mauriceUser(ctx)
+	svc, userID, err := r.scopedMaurice(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +420,7 @@ func (r *Resolver) mauriceChat(ctx context.Context, conversationID *string, mess
 }
 
 func (r *Resolver) mauriceDeleteConversation(ctx context.Context, id string) (bool, error) {
-	svc, userID, err := r.mauriceUser(ctx)
+	svc, userID, err := r.scopedMaurice(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -431,7 +431,7 @@ func (r *Resolver) mauriceDeleteConversation(ctx context.Context, id string) (bo
 }
 
 func (r *Resolver) mauriceConversations(ctx context.Context, limit *int) ([]*model.MauriceConversation, error) {
-	svc, userID, err := r.mauriceUser(ctx)
+	svc, userID, err := r.scopedMaurice(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -456,7 +456,7 @@ func (r *Resolver) mauriceConversations(ctx context.Context, limit *int) ([]*mod
 }
 
 func (r *Resolver) mauriceConversation(ctx context.Context, id string) (*model.MauriceConversationDetail, error) {
-	svc, userID, err := r.mauriceUser(ctx)
+	svc, userID, err := r.scopedMaurice(ctx)
 	if err != nil {
 		return nil, err
 	}
