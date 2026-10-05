@@ -18,8 +18,8 @@ test.db
 /puckdb
 #cache/games
 /.data
-STAR_spe_quebec.crt
-***REMOVED***.key
+*.crt
+*.key
 puckdb-check.log
 .env
 yahoo-seasons.yaml

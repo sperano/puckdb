@@ -124,8 +124,8 @@ services:
             - TEMPORAL_CORS_ORIGINS=http://localhost:3000
             - TEMPORAL_NOTIFY_ON_NEW_VERSION=false
             # Drops Secure flag on the CSRF cookie so it's sent over
-            # plain HTTP (and over custom-hostname /etc/hosts entries
-            # like localhost.***REMOVED***). Without this, POSTs from the
+            # plain HTTP (and over custom hostnames mapped to 127.0.0.1
+            # in /etc/hosts). Without this, POSTs from the
             # UI — including the Cancel button — get rejected with
             # "missing csrf token in request header".
             - TEMPORAL_CSRF_COOKIE_INSECURE=true
