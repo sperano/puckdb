@@ -2,13 +2,16 @@ package maurice
 
 // Shared persistence contract for every DB implementation. Both the SQLite
 // adapter (sqlitedb_test.go) and the PostgreSQL adapter (pgdb_test.go) run
-// runDBContract against a fresh store, so observable behaviour — ordering,
-// tool-call round-trips, cascade deletes, atomic turn writes — cannot drift
+// runDBContract against a fresh store, so observable behaviour — owner
+// scoping, idempotent turns, one running turn per conversation, the
+// transcript excluding failed turns, ordering, cascade deletes — cannot drift
 // between backends without one of them failing here.
 
 import (
 	"context"
+	"crypto/sha256"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sperano/puckdb/internal/llm"
@@ -16,27 +19,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// dbFactory returns a freshly initialised, empty store for one subtest.
-type dbFactory func(t *testing.T) DB
+// contractStaleAfter keeps contract turns from going stale unless a test
+// asks for it.
+const contractStaleAfter = time.Hour
+
+// contractEnv is a freshly initialised, empty store plus a way to make users
+// it accepts.
+type contractEnv struct {
+	db      DB
+	newUser func(t *testing.T) string
+}
+
+type envFactory func(t *testing.T) contractEnv
 
 // runDBContract runs every contract test against the given backend.
-func runDBContract(t *testing.T, open dbFactory) {
+func runDBContract(t *testing.T, open envFactory) {
 	t.Helper()
 	tests := []struct {
 		name string
-		fn   func(t *testing.T, db DB)
+		fn   func(t *testing.T, env contractEnv)
 	}{
-		{"CreateAndGetConversation", contractCreateAndGetConversation},
-		{"UpdateTitle", contractUpdateTitle},
+		{"NewConversationTurn", contractNewConversationTurn},
+		{"OwnerScoping", contractOwnerScoping},
 		{"ListConversationsNewestFirst", contractListConversationsNewestFirst},
-		{"AppendedTurnMovesConversationFirst", contractAppendedTurnMovesConversationFirst},
-		{"OneMessageTurnMovesConversationFirst", contractOneMessageTurnMovesConversationFirst},
+		{"FinishedTurnMovesConversationFirst", contractFinishedTurnMovesConversationFirst},
 		{"MessagesReturnedInTurnOrder", contractMessagesReturnedInTurnOrder},
-		{"ToolCallsRoundTrip", contractToolCallsRoundTrip},
+		{"IdempotentReplay", contractIdempotentReplay},
+		{"RetriedFirstPromptKeepsOneConversation", contractRetriedFirstPromptKeepsOneConversation},
+		{"KeyReuseWithDifferentRequestIsRejected", contractKeyReuseWithDifferentRequestIsRejected},
+		{"RunningTurnBlocksAnother", contractRunningTurnBlocksAnother},
+		{"StaleTurnIsAbandoned", contractStaleTurnIsAbandoned},
+		{"StaleTurnReplayIsAbandoned", contractStaleTurnReplayIsAbandoned},
+		{"FailedTurnStaysOutOfTranscript", contractFailedTurnStaysOutOfTranscript},
+		{"FinishTwiceIsRejected", contractFinishTwiceIsRejected},
 		{"CascadeDelete", contractCascadeDelete},
-		{"MidBatchFailureRollsBackWholeTurn", contractMidBatchFailureRollsBackWholeTurn},
-		{"MixedConversationBatchIsRejected", contractMixedConversationBatchIsRejected},
-		{"EmptyBatchIsNoOp", contractEmptyBatchIsNoOp},
+		{"RecordTitle", contractRecordTitle},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -45,262 +62,386 @@ func runDBContract(t *testing.T, open dbFactory) {
 	}
 }
 
-// createOne writes a one-message turn and returns the stored message.
-func createOne(t *testing.T, db DB, p CreateMessageParams) (*Message, error) {
-	t.Helper()
-	msgs, err := db.CreateMessages(context.Background(), []CreateMessageParams{p})
-	if err != nil {
-		return nil, err
+func turnParams(userID, convID, key, prompt string) BeginTurnParams {
+	hash := sha256.Sum256([]byte(prompt))
+	return BeginTurnParams{
+		UserID: userID, ConversationID: convID, IdempotencyKey: key,
+		RequestHash: hash[:], StaleAfter: contractStaleAfter,
 	}
-	return msgs[0], nil
 }
 
-func contractCreateAndGetConversation(t *testing.T, db DB) {
-	ctx := context.Background()
-	conv, err := db.CreateConversation(ctx)
+func beginTurn(t *testing.T, db DB, userID, convID, prompt string) *TurnStart {
+	t.Helper()
+	start, err := db.BeginTurn(context.Background(), turnParams(userID, convID, uuid.NewString(), prompt))
 	require.NoError(t, err)
-	assert.NotEmpty(t, conv.ID)
+	require.Nil(t, start.Replay)
+	return start
+}
+
+// finishTurn commits a succeeded turn: the prompt, any middle messages, and
+// the answer.
+func finishTurn(t *testing.T, db DB, start *TurnStart, prompt string, rest ...TurnMessage) []string {
+	t.Helper()
+	msgs := append([]TurnMessage{{Role: "user", Content: prompt}}, rest...)
+	ids, err := db.FinishTurn(context.Background(), TurnRecord{
+		TurnID: start.TurnID, ConversationID: start.ConversationID, Status: TurnSucceeded, Messages: msgs,
+	})
+	require.NoError(t, err)
+	require.Len(t, ids, len(msgs))
+	return ids
+}
+
+// chat runs one succeeded prompt/answer turn and returns its start.
+func chat(t *testing.T, db DB, userID, convID, prompt, answer string) *TurnStart {
+	t.Helper()
+	start := beginTurn(t, db, userID, convID, prompt)
+	finishTurn(t, db, start, prompt, TurnMessage{Role: "assistant", Content: answer})
+	return start
+}
+
+func contractNewConversationTurn(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	start := beginTurn(t, env.db, user, "", "hello")
+	assert.True(t, start.NewConversation)
+	assert.Equal(t, 0, start.TurnNumber)
+	require.NotEmpty(t, start.ConversationID)
+
+	conv, err := env.db.GetConversation(ctx, user, start.ConversationID)
+	require.NoError(t, err)
 	assert.Nil(t, conv.Title)
-	assert.False(t, conv.CreatedAt.IsZero())
-	assert.False(t, conv.UpdatedAt.IsZero())
-
-	got, err := db.GetConversation(ctx, conv.ID)
+	msgs, err := env.db.GetMessages(ctx, user, start.ConversationID)
 	require.NoError(t, err)
-	assert.Equal(t, conv.ID, got.ID)
-	assert.Nil(t, got.Title)
+	assert.Empty(t, msgs, "a running turn is not transcript")
 
-	_, err = db.GetConversation(ctx, uuid.NewString())
-	require.Error(t, err, "unknown conversation must be an error, not an empty value")
+	ids := finishTurn(t, env.db, start, "hello", TurnMessage{Role: "assistant", Content: "hi"})
+	msgs, err = env.db.GetMessages(ctx, user, start.ConversationID)
+	require.NoError(t, err)
+	require.Len(t, msgs, 2)
+	assert.Equal(t, ids[0], msgs[0].ID)
+	assert.Equal(t, ids[1], msgs[1].ID)
+
+	next := beginTurn(t, env.db, user, start.ConversationID, "again")
+	assert.False(t, next.NewConversation)
+	assert.Equal(t, 1, next.TurnNumber)
 }
 
-func contractUpdateTitle(t *testing.T, db DB) {
+func contractOwnerScoping(t *testing.T, env contractEnv) {
 	ctx := context.Background()
-	conv, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
+	owner, other := env.newUser(t), env.newUser(t)
+	start := chat(t, env.db, owner, "", "mine", "yours")
+	convID := start.ConversationID
 
-	require.NoError(t, db.UpdateConversationTitle(ctx, conv.ID, "Hockey Chat"))
-
-	got, err := db.GetConversation(ctx, conv.ID)
+	_, err := env.db.GetConversation(ctx, other, convID)
+	require.ErrorIs(t, err, ErrConversationNotFound)
+	msgs, err := env.db.GetMessages(ctx, other, convID)
 	require.NoError(t, err)
-	require.NotNil(t, got.Title)
-	assert.Equal(t, "Hockey Chat", *got.Title)
+	assert.Empty(t, msgs, "another user's transcript must not leak")
+	convs, err := env.db.ListConversations(ctx, other, 10)
+	require.NoError(t, err)
+	assert.Empty(t, convs)
+	_, err = env.db.BeginTurn(ctx, turnParams(other, convID, uuid.NewString(), "hijack"))
+	require.ErrorIs(t, err, ErrConversationNotFound)
+	require.ErrorIs(t, env.db.RecordTitle(ctx, TitleRecord{UserID: other, ConversationID: convID, Title: "x"}), ErrConversationNotFound)
+	require.ErrorIs(t, env.db.DeleteConversation(ctx, other, convID), ErrConversationNotFound)
+
+	conv, err := env.db.GetConversation(ctx, owner, convID)
+	require.NoError(t, err, "the owner's conversation survives another user's delete")
+	assert.Nil(t, conv.Title)
+	msgs, err = env.db.GetMessages(ctx, owner, convID)
+	require.NoError(t, err)
+	assert.Len(t, msgs, 2)
 }
 
-func contractListConversationsNewestFirst(t *testing.T, db DB) {
+func contractListConversationsNewestFirst(t *testing.T, env contractEnv) {
 	ctx := context.Background()
-	older, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
-	newer, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
+	user := env.newUser(t)
+	older := chat(t, env.db, user, "", "q1", "a1")
+	newer := chat(t, env.db, user, "", "q2", "a2")
 
-	convs, err := db.ListConversations(ctx, 10)
+	convs, err := env.db.ListConversations(ctx, user, 10)
 	require.NoError(t, err)
 	require.Len(t, convs, 2)
-	assert.Equal(t, newer.ID, convs[0].ID)
-	assert.Equal(t, older.ID, convs[1].ID)
+	assert.Equal(t, newer.ConversationID, convs[0].ID)
+	assert.Equal(t, older.ConversationID, convs[1].ID)
 
-	limited, err := db.ListConversations(ctx, 1)
+	limited, err := env.db.ListConversations(ctx, user, 1)
 	require.NoError(t, err)
 	require.Len(t, limited, 1)
-	assert.Equal(t, newer.ID, limited[0].ID, "limit keeps the newest")
+	assert.Equal(t, newer.ConversationID, limited[0].ID, "limit keeps the newest")
 }
 
 // Resuming an older conversation must move it to the top of the recent list:
-// the turn write bumps updated_at, which ListConversations orders by.
-func contractAppendedTurnMovesConversationFirst(t *testing.T, db DB) {
+// the turn commit bumps updated_at, which ListConversations orders by.
+func contractFinishedTurnMovesConversationFirst(t *testing.T, env contractEnv) {
 	ctx := context.Background()
-	older, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
-	newer, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
-
-	created, err := db.CreateMessages(ctx, []CreateMessageParams{
-		{ConversationID: older.ID, Role: "user", Content: "resume"},
-		{ConversationID: older.ID, Role: "assistant", Content: "welcome back"},
-	})
+	user := env.newUser(t)
+	older := chat(t, env.db, user, "", "q1", "a1")
+	newer := chat(t, env.db, user, "", "q2", "a2")
+	before, err := env.db.GetConversation(ctx, user, older.ConversationID)
 	require.NoError(t, err)
 
-	convs, err := db.ListConversations(ctx, 10)
+	chat(t, env.db, user, older.ConversationID, "resume", "welcome back")
+
+	convs, err := env.db.ListConversations(ctx, user, 10)
 	require.NoError(t, err)
 	require.Len(t, convs, 2)
-	assert.Equal(t, older.ID, convs[0].ID, "conversation with the newest turn must list first")
-	assert.Equal(t, newer.ID, convs[1].ID)
-
-	got, err := db.GetConversation(ctx, older.ID)
+	assert.Equal(t, older.ConversationID, convs[0].ID, "conversation with the newest turn must list first")
+	assert.Equal(t, newer.ConversationID, convs[1].ID)
+	after, err := env.db.GetConversation(ctx, user, older.ConversationID)
 	require.NoError(t, err)
-	assert.True(t, got.UpdatedAt.After(older.UpdatedAt), "updated_at must advance past creation")
-	// Message created_at may come from the client clock and updated_at from
-	// the server clock (PostgreSQL); the harness runs against a same-host
-	// database so this holds as long as the touch is stamped at write time
-	// rather than at transaction start.
-	lastMsg := created[len(created)-1]
-	assert.False(t, got.UpdatedAt.Before(lastMsg.CreatedAt), "updated_at must not predate the turn it records")
+	assert.True(t, after.UpdatedAt.After(before.UpdatedAt), "updated_at must advance")
 }
 
-// A one-message turn must move the conversation exactly like a longer one.
-func contractOneMessageTurnMovesConversationFirst(t *testing.T, db DB) {
+// Messages come back in the order they were written, within a turn and across
+// turns, and tool calls survive the round-trip.
+func contractMessagesReturnedInTurnOrder(t *testing.T, env contractEnv) {
 	ctx := context.Background()
-	older, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
-	_, err = db.CreateConversation(ctx)
-	require.NoError(t, err)
-
-	_, err = createOne(t, db, CreateMessageParams{
-		ConversationID: older.ID, Role: "user", Content: "resume",
-	})
-	require.NoError(t, err)
-
-	convs, err := db.ListConversations(ctx, 10)
-	require.NoError(t, err)
-	require.Len(t, convs, 2)
-	assert.Equal(t, older.ID, convs[0].ID)
-}
-
-// Messages come back in the order they were written, both within a turn and
-// across turns, and the returned slice of CreateMessages matches params order.
-func contractMessagesReturnedInTurnOrder(t *testing.T, db DB) {
-	ctx := context.Background()
-	conv, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
-
-	turn1 := []CreateMessageParams{
-		{ConversationID: conv.ID, Role: "user", Content: "q1"},
-		{ConversationID: conv.ID, Role: "assistant", ToolCalls: []llm.ToolCall{{
-			ID: "call_1", Type: "function",
-			Function: llm.ToolCallFunction{Name: "pg_read_query", Arguments: `{"sql":"SELECT 1"}`},
-		}}},
-		{ConversationID: conv.ID, Role: "tool", Content: "rows", ToolCallID: "call_1"},
-		{ConversationID: conv.ID, Role: "assistant", Content: "a1"},
+	user := env.newUser(t)
+	toolCalls := []llm.ToolCall{
+		{ID: "call_1", Type: "function", Function: llm.ToolCallFunction{Name: "pg_read_query", Arguments: `{"sql":"SELECT 1"}`}},
+		{ID: "call_2", Type: "function", Function: llm.ToolCallFunction{Name: "find_team", Arguments: `{"abbrev":"MTL"}`}},
 	}
-	created, err := db.CreateMessages(ctx, turn1)
-	require.NoError(t, err)
-	require.Len(t, created, len(turn1))
-	for i, p := range turn1 {
-		assert.NotEmpty(t, created[i].ID)
-		assert.Equal(t, p.Role, created[i].Role, "returned slice must match params order")
-	}
+	first := beginTurn(t, env.db, user, "", "q1")
+	finishTurn(t, env.db, first, "q1",
+		TurnMessage{Role: "assistant", ToolCalls: toolCalls},
+		TurnMessage{Role: "tool", Content: "rows", ToolCallID: "call_1"},
+		TurnMessage{Role: "tool", Content: "team", ToolCallID: "call_2"},
+		TurnMessage{Role: "assistant", Content: "a1"},
+	)
+	chat(t, env.db, user, first.ConversationID, "q2", "a2")
 
-	_, err = db.CreateMessages(ctx, []CreateMessageParams{
-		{ConversationID: conv.ID, Role: "user", Content: "q2"},
-		{ConversationID: conv.ID, Role: "assistant", Content: "a2"},
-	})
+	msgs, err := env.db.GetMessages(ctx, user, first.ConversationID)
 	require.NoError(t, err)
-
-	msgs, err := db.GetMessages(ctx, conv.ID)
-	require.NoError(t, err)
-	require.Len(t, msgs, 6)
-	wantRoles := []string{"user", "assistant", "tool", "assistant", "user", "assistant"}
-	wantContent := []string{"q1", "", "rows", "a1", "q2", "a2"}
+	wantRoles := []string{"user", "assistant", "tool", "tool", "assistant", "user", "assistant"}
+	wantContent := []string{"q1", "", "rows", "team", "a1", "q2", "a2"}
+	require.Len(t, msgs, len(wantRoles))
 	for i := range msgs {
 		assert.Equal(t, wantRoles[i], msgs[i].Role, "message %d role", i)
 		assert.Equal(t, wantContent[i], msgs[i].Content, "message %d content", i)
 	}
+	assert.Equal(t, toolCalls, msgs[1].ToolCalls, "tool calls must survive the round-trip")
+	assert.Empty(t, msgs[0].ToolCalls, "absent tool calls read back empty")
 	assert.Equal(t, "call_1", msgs[2].ToolCallID)
 	for i := 1; i < len(msgs); i++ {
 		assert.False(t, msgs[i].CreatedAt.Before(msgs[i-1].CreatedAt), "created_at must be non-decreasing")
 	}
 }
 
-func contractToolCallsRoundTrip(t *testing.T, db DB) {
+func contractIdempotentReplay(t *testing.T, env contractEnv) {
 	ctx := context.Background()
-	conv, err := db.CreateConversation(ctx)
+	user := env.newUser(t)
+	params := turnParams(user, "", "key-1", "how many goals?")
+	start, err := env.db.BeginTurn(ctx, params)
 	require.NoError(t, err)
+	ids := finishTurn(t, env.db, start, "how many goals?",
+		TurnMessage{Role: "assistant", ToolCalls: []llm.ToolCall{{ID: "c1", Type: "function", Function: llm.ToolCallFunction{Name: "goals"}}}},
+		TurnMessage{Role: "tool", Content: "42", ToolCallID: "c1"},
+		TurnMessage{Role: "assistant", Content: "42 goals"},
+	)
 
-	toolCalls := []llm.ToolCall{
-		{ID: "call-1", Type: "function", Function: llm.ToolCallFunction{Name: "get_player", Arguments: `{"id":42}`}},
-		{ID: "call-2", Type: "function", Function: llm.ToolCallFunction{Name: "find_team", Arguments: `{"abbrev":"MTL"}`}},
-	}
-	created, err := createOne(t, db, CreateMessageParams{
-		ConversationID: conv.ID, Role: "assistant", Content: "looking up", ToolCalls: toolCalls,
-	})
+	params.ConversationID = start.ConversationID
+	replay, err := env.db.BeginTurn(ctx, params)
 	require.NoError(t, err)
-	assert.Equal(t, toolCalls, created.ToolCalls, "returned message carries the tool calls")
+	require.NotNil(t, replay.Replay)
+	assert.Equal(t, TurnSucceeded, replay.Replay.Status)
+	assert.Equal(t, start.TurnID, replay.TurnID)
+	assert.Equal(t, start.ConversationID, replay.ConversationID)
+	assert.Equal(t, ids[len(ids)-1], replay.Replay.MessageID)
+	assert.Equal(t, "42 goals", replay.Replay.Content)
+	assert.Equal(t, []string{"goals"}, replay.Replay.ToolsUsed)
 
-	plain, err := createOne(t, db, CreateMessageParams{
-		ConversationID: conv.ID, Role: "user", Content: "no tools",
-	})
+	msgs, err := env.db.GetMessages(ctx, user, start.ConversationID)
 	require.NoError(t, err)
-	assert.Empty(t, plain.ToolCalls)
-
-	msgs, err := db.GetMessages(ctx, conv.ID)
-	require.NoError(t, err)
-	require.Len(t, msgs, 2)
-	assert.Equal(t, toolCalls, msgs[0].ToolCalls, "tool calls must survive the round-trip")
-	assert.Empty(t, msgs[0].ToolCallID)
-	assert.Empty(t, msgs[1].ToolCalls, "absent tool calls must read back empty, not as a decoding error")
+	assert.Len(t, msgs, 4, "a replay writes nothing")
 }
 
-func contractCascadeDelete(t *testing.T, db DB) {
+func contractRetriedFirstPromptKeepsOneConversation(t *testing.T, env contractEnv) {
 	ctx := context.Background()
-	conv, err := db.CreateConversation(ctx)
+	user := env.newUser(t)
+	params := turnParams(user, "", "first-prompt", "hello")
+	start, err := env.db.BeginTurn(ctx, params)
 	require.NoError(t, err)
-	_, err = createOne(t, db, CreateMessageParams{ConversationID: conv.ID, Role: "user", Content: "hello"})
+	finishTurn(t, env.db, start, "hello", TurnMessage{Role: "assistant", Content: "hi"})
+
+	replay, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err)
+	require.NotNil(t, replay.Replay)
+	assert.Equal(t, start.ConversationID, replay.ConversationID)
+	convs, err := env.db.ListConversations(ctx, user, 10)
+	require.NoError(t, err)
+	assert.Len(t, convs, 1, "a retried first prompt must not open a second conversation")
+}
+
+func contractKeyReuseWithDifferentRequestIsRejected(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	start, err := env.db.BeginTurn(ctx, turnParams(user, "", "shared", "prompt A"))
+	require.NoError(t, err)
+	finishTurn(t, env.db, start, "prompt A", TurnMessage{Role: "assistant", Content: "A"})
+	elsewhere := chat(t, env.db, user, "", "other", "conversation")
+
+	_, err = env.db.BeginTurn(ctx, turnParams(user, start.ConversationID, "shared", "prompt B"))
+	require.ErrorIs(t, err, ErrIdempotencyKeyReused, "same key, different prompt")
+	_, err = env.db.BeginTurn(ctx, turnParams(user, elsewhere.ConversationID, "shared", "prompt A"))
+	require.ErrorIs(t, err, ErrIdempotencyKeyReused, "same key, different conversation")
+
+	// Keys belong to one user: another user may use the same key freely.
+	other := env.newUser(t)
+	_, err = env.db.BeginTurn(ctx, turnParams(other, "", "shared", "prompt B"))
+	require.NoError(t, err)
+}
+
+func contractRunningTurnBlocksAnother(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	params := turnParams(user, "", "running", "slow question")
+	first, err := env.db.BeginTurn(ctx, params)
 	require.NoError(t, err)
 
-	require.NoError(t, db.DeleteConversation(ctx, conv.ID))
+	_, err = env.db.BeginTurn(ctx, turnParams(user, first.ConversationID, uuid.NewString(), "impatient"))
+	require.ErrorIs(t, err, ErrTurnInProgress)
+	params.ConversationID = first.ConversationID
+	_, err = env.db.BeginTurn(ctx, params)
+	require.ErrorIs(t, err, ErrTurnInProgress, "retrying a running turn's key must not run it twice")
 
-	_, err = db.GetConversation(ctx, conv.ID)
-	require.Error(t, err)
-	msgs, err := db.GetMessages(ctx, conv.ID)
+	// Other conversations are not blocked.
+	chat(t, env.db, user, "", "elsewhere", "fine")
+
+	finishTurn(t, env.db, first, "slow question", TurnMessage{Role: "assistant", Content: "done"})
+	next := beginTurn(t, env.db, user, first.ConversationID, "now")
+	assert.Equal(t, 1, next.TurnNumber)
+}
+
+func contractStaleTurnIsAbandoned(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	dead := beginTurn(t, env.db, user, "", "crashed mid-turn")
+
+	params := turnParams(user, dead.ConversationID, uuid.NewString(), "after the crash")
+	params.StaleAfter = 0
+	next, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err, "a stale running turn must not block the conversation")
+	assert.Equal(t, 1, next.TurnNumber)
+
+	_, err = env.db.FinishTurn(ctx, TurnRecord{TurnID: dead.TurnID, ConversationID: dead.ConversationID, Status: TurnSucceeded,
+		Messages: []TurnMessage{{Role: "user", Content: "crashed mid-turn"}}})
+	require.ErrorIs(t, err, ErrTurnNotRunning, "an abandoned turn cannot be committed late")
+}
+
+func contractStaleTurnReplayIsAbandoned(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	params := turnParams(user, "", "dead-key", "crashed mid-turn")
+	dead, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err)
+
+	params.ConversationID, params.StaleAfter = dead.ConversationID, 0
+	replay, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err)
+	require.NotNil(t, replay.Replay)
+	assert.Equal(t, TurnFailed, replay.Replay.Status)
+	assert.Equal(t, ErrorClassAbandoned, replay.Replay.ErrorClass)
+
+	beginTurn(t, env.db, user, dead.ConversationID, "conversation is free again")
+}
+
+func contractFailedTurnStaysOutOfTranscript(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	ok := chat(t, env.db, user, "", "q1", "a1")
+
+	for _, status := range []TurnStatus{TurnFailed, TurnCancelled} {
+		params := turnParams(user, ok.ConversationID, uuid.NewString(), "doomed")
+		start, err := env.db.BeginTurn(ctx, params)
+		require.NoError(t, err)
+		class := ErrorClassProvider
+		if status == TurnCancelled {
+			class = ErrorClassCancelled
+		}
+		ids, err := env.db.FinishTurn(ctx, TurnRecord{
+			TurnID: start.TurnID, ConversationID: start.ConversationID, Status: status, ErrorClass: class,
+			Messages: []TurnMessage{
+				{Role: "user", Content: "doomed"},
+				{Role: "assistant", ToolCalls: []llm.ToolCall{{ID: "c1", Type: "function", Function: llm.ToolCallFunction{Name: "t"}}}},
+				{Role: "tool", Content: "partial", ToolCallID: "c1"},
+			},
+		})
+		require.NoError(t, err)
+		assert.Len(t, ids, 3, "a failed turn keeps its messages as exact prompts")
+
+		replay, err := env.db.BeginTurn(ctx, params)
+		require.NoError(t, err)
+		require.NotNil(t, replay.Replay)
+		assert.Equal(t, status, replay.Replay.Status)
+		assert.Equal(t, class, replay.Replay.ErrorClass)
+	}
+
+	msgs, err := env.db.GetMessages(ctx, user, ok.ConversationID)
+	require.NoError(t, err)
+	require.Len(t, msgs, 2, "failed and cancelled turns must never be replayed as history")
+	assert.Equal(t, "q1", msgs[0].Content)
+	assert.Equal(t, "a1", msgs[1].Content)
+}
+
+func contractFinishTwiceIsRejected(t *testing.T, env contractEnv) {
+	user := env.newUser(t)
+	start := chat(t, env.db, user, "", "q", "a")
+	_, err := env.db.FinishTurn(context.Background(), TurnRecord{
+		TurnID: start.TurnID, ConversationID: start.ConversationID, Status: TurnSucceeded,
+		Messages: []TurnMessage{{Role: "user", Content: "q"}},
+	})
+	require.ErrorIs(t, err, ErrTurnNotRunning)
+}
+
+func contractCascadeDelete(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	params := turnParams(user, "", "deleted-key", "hello")
+	start, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err)
+	finishTurn(t, env.db, start, "hello", TurnMessage{Role: "assistant", Content: "hi"})
+
+	require.NoError(t, env.db.DeleteConversation(ctx, user, start.ConversationID))
+
+	_, err = env.db.GetConversation(ctx, user, start.ConversationID)
+	require.ErrorIs(t, err, ErrConversationNotFound)
+	msgs, err := env.db.GetMessages(ctx, user, start.ConversationID)
 	require.NoError(t, err)
 	assert.Empty(t, msgs, "messages must cascade-delete with their conversation")
+	again, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err)
+	assert.Nil(t, again.Replay, "turns (and their keys) cascade-delete too")
+	require.ErrorIs(t, env.db.DeleteConversation(ctx, user, start.ConversationID), ErrConversationNotFound)
 }
 
-// A failing write mid-batch must roll the whole turn back: the earlier,
-// individually-valid inserts must not survive. The second message references
-// a nonexistent conversation, tripping the FK constraint after the first
-// message already inserted. Both adapters issue the updated_at bump after the
-// inserts, so on this path it never runs; the timestamp assertion guards
-// against a future adapter bumping it up front or outside the transaction.
-func contractMidBatchFailureRollsBackWholeTurn(t *testing.T, db DB) {
+func contractRecordTitle(t *testing.T, env contractEnv) {
 	ctx := context.Background()
-	conv, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
+	user := env.newUser(t)
+	start := beginTurn(t, env.db, user, "", "hello")
+	ids := finishTurn(t, env.db, start, "hello", TurnMessage{Role: "assistant", Content: "hi"})
+	call := titleCallRecord(ids)
 
-	created, err := db.CreateMessages(ctx, []CreateMessageParams{
-		{ConversationID: conv.ID, Role: "user", Content: "first (valid)"},
-		{ConversationID: uuid.NewString(), Role: "assistant", Content: "second (FK violation)"},
-	})
-	require.Error(t, err, "FK violation on the second insert must fail the batch")
-	assert.Nil(t, created)
-
-	msgs, err := db.GetMessages(ctx, conv.ID)
+	require.NoError(t, env.db.RecordTitle(ctx, TitleRecord{UserID: user, ConversationID: start.ConversationID, Call: call}))
+	conv, err := env.db.GetConversation(ctx, user, start.ConversationID)
 	require.NoError(t, err)
-	assert.Empty(t, msgs, "the first insert must roll back with the failed turn")
+	assert.Nil(t, conv.Title, "an empty title leaves the conversation untitled")
 
-	got, err := db.GetConversation(ctx, conv.ID)
+	require.NoError(t, env.db.RecordTitle(ctx, TitleRecord{UserID: user, ConversationID: start.ConversationID, Title: "Hockey Chat", Call: call}))
+	conv, err = env.db.GetConversation(ctx, user, start.ConversationID)
 	require.NoError(t, err)
-	assert.True(t, got.UpdatedAt.Equal(conv.UpdatedAt), "updated_at must roll back with the failed turn")
+	require.NotNil(t, conv.Title)
+	assert.Equal(t, "Hockey Chat", *conv.Title)
 }
 
-// A batch spanning two conversations is rejected up front: nothing is written
-// to either conversation and neither activity timestamp moves.
-func contractMixedConversationBatchIsRejected(t *testing.T, db DB) {
-	ctx := context.Background()
-	a, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
-	b, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
-
-	created, err := db.CreateMessages(ctx, []CreateMessageParams{
-		{ConversationID: a.ID, Role: "user", Content: "for a"},
-		{ConversationID: b.ID, Role: "user", Content: "for b"},
-	})
-	require.ErrorIs(t, err, ErrMixedConversations)
-	assert.Nil(t, created)
-
-	for _, conv := range []*Conversation{a, b} {
-		msgs, err := db.GetMessages(ctx, conv.ID)
-		require.NoError(t, err)
-		assert.Empty(t, msgs)
-		got, err := db.GetConversation(ctx, conv.ID)
-		require.NoError(t, err)
-		assert.True(t, got.UpdatedAt.Equal(conv.UpdatedAt), "updated_at must not move")
+// titleCallRecord is a succeeded title-generation call over a turn's prompt
+// and answer.
+func titleCallRecord(turnIDs []string) LLMCallRecord {
+	instruction := titleGenerationHint
+	now := time.Now()
+	return LLMCallRecord{
+		Kind: CallTitleGeneration, Provider: "anthropic", Model: "test-model", Status: CallSucceeded,
+		StartedAt: now, CompletedAt: now.Add(time.Millisecond), Instruction: &instruction,
+		Inputs: []MessageRef{{MessageID: turnIDs[0]}, {MessageID: turnIDs[len(turnIDs)-1]}},
 	}
-}
-
-func contractEmptyBatchIsNoOp(t *testing.T, db DB) {
-	created, err := db.CreateMessages(context.Background(), nil)
-	require.NoError(t, err)
-	assert.Empty(t, created)
 }

@@ -741,6 +741,42 @@ func (ns NullZoneCode) Value() (driver.Value, error) {
 	return string(ns.ZoneCode), nil
 }
 
+type AppSession struct {
+	ID             pgtype.UUID        `json:"id"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	SessionKeyHash []byte             `json:"session_key_hash"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	LastActivityAt pgtype.Timestamptz `json:"last_activity_at"`
+	EndedAt        pgtype.Timestamptz `json:"ended_at"`
+}
+
+type AppUser struct {
+	ID               pgtype.UUID        `json:"id"`
+	AuthProvider     string             `json:"auth_provider"`
+	AuthSubject      string             `json:"auth_subject"`
+	Username         string             `json:"username"`
+	DisplayName      pgtype.Text        `json:"display_name"`
+	FirstSeenAt      pgtype.Timestamptz `json:"first_seen_at"`
+	ProfileUpdatedAt pgtype.Timestamptz `json:"profile_updated_at"`
+	DisabledAt       pgtype.Timestamptz `json:"disabled_at"`
+}
+
+type AppUserUsage struct {
+	UserID                   pgtype.UUID `json:"user_id"`
+	Username                 string      `json:"username"`
+	PuckdbSessionCount       int64       `json:"puckdb_session_count"`
+	LastSessionStartedAt     interface{} `json:"last_session_started_at"`
+	TurnCount                int64       `json:"turn_count"`
+	SucceededTurnCount       int64       `json:"succeeded_turn_count"`
+	LlmCallCount             int64       `json:"llm_call_count"`
+	InputTokens              int64       `json:"input_tokens"`
+	OutputTokens             int64       `json:"output_tokens"`
+	CacheCreationInputTokens int64       `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int64       `json:"cache_read_input_tokens"`
+	LlmCallSeconds           int64       `json:"llm_call_seconds"`
+	ActiveSeconds            int32       `json:"active_seconds"`
+}
+
 type ClubGoalieStat struct {
 	Season              int32              `json:"season"`
 	GameType            GameType           `json:"game_type"`
@@ -825,6 +861,24 @@ type DraftRankingSnapshot struct {
 	Meta                 []byte             `json:"meta"`
 }
 
+type DraftRecommendationRun struct {
+	ID                   pgtype.UUID        `json:"id"`
+	LeagueKey            string             `json:"league_key"`
+	SessionVersion       int64              `json:"session_version"`
+	RankingSnapshotID    pgtype.UUID        `json:"ranking_snapshot_id"`
+	RankingIdentity      string             `json:"ranking_identity"`
+	RankingVersion       string             `json:"ranking_version"`
+	ProjectionSnapshotID pgtype.UUID        `json:"projection_snapshot_id"`
+	ProjectionVersion    string             `json:"projection_version"`
+	RulesHash            string             `json:"rules_hash"`
+	Scenario             string             `json:"scenario"`
+	Strategy             []byte             `json:"strategy"`
+	Input                []byte             `json:"input"`
+	Result               []byte             `json:"result"`
+	GeneratedAt          pgtype.Timestamptz `json:"generated_at"`
+	LatencyMilliseconds  int64              `json:"latency_milliseconds"`
+}
+
 type DraftSession struct {
 	LeagueKey           string             `json:"league_key"`
 	Season              int32              `json:"season"`
@@ -844,6 +898,7 @@ type DraftSession struct {
 	LastError           string             `json:"last_error"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	SyncVersion         int64              `json:"sync_version"`
 }
 
 type DraftSessionEvent struct {
@@ -870,6 +925,12 @@ type DraftSessionObservation struct {
 	SnapshotHash  string             `json:"snapshot_hash"`
 	ErrorClass    string             `json:"error_class"`
 	Error         string             `json:"error"`
+}
+
+type DraftShortlist struct {
+	LeagueKey string             `json:"league_key"`
+	PlayerKey string             `json:"player_key"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type EdgeGoalieShotLocation struct {
@@ -1276,6 +1337,36 @@ type MauriceConversation struct {
 	Title     pgtype.Text        `json:"title"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	UserID    pgtype.UUID        `json:"user_id"`
+}
+
+type MauriceLlmCall struct {
+	ID                       int64              `json:"id"`
+	TurnID                   pgtype.UUID        `json:"turn_id"`
+	ConversationID           pgtype.UUID        `json:"conversation_id"`
+	CallKind                 string             `json:"call_kind"`
+	RoundNumber              pgtype.Int4        `json:"round_number"`
+	ProviderRequestID        pgtype.Text        `json:"provider_request_id"`
+	Provider                 string             `json:"provider"`
+	Model                    string             `json:"model"`
+	Status                   string             `json:"status"`
+	FinishReason             pgtype.Text        `json:"finish_reason"`
+	StartedAt                pgtype.Timestamptz `json:"started_at"`
+	CompletedAt              pgtype.Timestamptz `json:"completed_at"`
+	InputTokens              pgtype.Int8        `json:"input_tokens"`
+	OutputTokens             pgtype.Int8        `json:"output_tokens"`
+	CacheCreationInputTokens pgtype.Int8        `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     pgtype.Int8        `json:"cache_read_input_tokens"`
+	ErrorClass               pgtype.Text        `json:"error_class"`
+	SystemPrompt             pgtype.Text        `json:"system_prompt"`
+	Instruction              pgtype.Text        `json:"instruction"`
+	ToolDefinitions          []byte             `json:"tool_definitions"`
+}
+
+type MauriceLlmCallMessage struct {
+	LlmCallID   int64       `json:"llm_call_id"`
+	InputNumber int32       `json:"input_number"`
+	MessageID   pgtype.UUID `json:"message_id"`
 }
 
 type MauriceMessage struct {
@@ -1286,6 +1377,36 @@ type MauriceMessage struct {
 	ToolCalls      []byte             `json:"tool_calls"`
 	ToolCallID     pgtype.Text        `json:"tool_call_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	TurnID         pgtype.UUID        `json:"turn_id"`
+	MessageNumber  int32              `json:"message_number"`
+}
+
+type MauriceToolCall struct {
+	ID                 int64              `json:"id"`
+	TurnID             pgtype.UUID        `json:"turn_id"`
+	LlmCallID          int64              `json:"llm_call_id"`
+	SequenceNumber     int32              `json:"sequence_number"`
+	ProviderToolCallID pgtype.Text        `json:"provider_tool_call_id"`
+	ToolName           string             `json:"tool_name"`
+	Arguments          []byte             `json:"arguments"`
+	ArgumentsRaw       string             `json:"arguments_raw"`
+	Result             pgtype.Text        `json:"result"`
+	Status             string             `json:"status"`
+	StartedAt          pgtype.Timestamptz `json:"started_at"`
+	CompletedAt        pgtype.Timestamptz `json:"completed_at"`
+}
+
+type MauriceTurn struct {
+	ID             pgtype.UUID        `json:"id"`
+	ConversationID pgtype.UUID        `json:"conversation_id"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	TurnNumber     int32              `json:"turn_number"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	RequestHash    []byte             `json:"request_hash"`
+	Status         string             `json:"status"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	ErrorClass     pgtype.Text        `json:"error_class"`
 }
 
 type NewsAdjustmentEvent struct {

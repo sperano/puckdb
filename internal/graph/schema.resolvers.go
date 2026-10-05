@@ -173,8 +173,8 @@ func (r *mutationResolver) CancelRefreshNews(ctx context.Context) (bool, error) 
 }
 
 // MauriceChat is the resolver for the mauriceChat field.
-func (r *mutationResolver) MauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error) {
-	return r.Resolver.mauriceChat(ctx, conversationID, message)
+func (r *mutationResolver) MauriceChat(ctx context.Context, conversationID *string, message string, idempotencyKey *string) (*model.MauriceChatResponse, error) {
+	return r.Resolver.mauriceChat(ctx, conversationID, message, idempotencyKey)
 }
 
 // MauriceDeleteConversation is the resolver for the mauriceDeleteConversation field.

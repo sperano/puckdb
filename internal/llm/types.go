@@ -74,14 +74,16 @@ type Response struct {
 // Usage reports token consumption.
 //
 // CacheCreationInputTokens and CacheReadInputTokens are populated only by
-// providers that report cache accounting (Anthropic). For other providers
-// they remain zero.
+// providers that report cache accounting (Anthropic), which also set
+// CacheReported. For other providers they remain zero and CacheReported is
+// false, so "not reported" can be told apart from a reported zero.
 type Usage struct {
-	PromptTokens             int `json:"prompt_tokens"`
-	CompletionTokens         int `json:"completion_tokens"`
-	TotalTokens              int `json:"total_tokens"`
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
-	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
+	PromptTokens             int  `json:"prompt_tokens"`
+	CompletionTokens         int  `json:"completion_tokens"`
+	TotalTokens              int  `json:"total_tokens"`
+	CacheCreationInputTokens int  `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int  `json:"cache_read_input_tokens,omitempty"`
+	CacheReported            bool `json:"-"`
 }
 
 // HasToolCalls returns true if the response contains tool calls.

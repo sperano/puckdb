@@ -233,6 +233,8 @@ type Mutation {
 	cancelRefreshNews: Boolean!
 
 	# Maurice AI chat
-	mauriceChat(conversationId: String, message: String!): MauriceChatResponse!
+	# idempotencyKey makes retries safe: resending the same key returns the
+	# original answer instead of running the prompt again. Omit it to never retry.
+	mauriceChat(conversationId: String, message: String!, idempotencyKey: String): MauriceChatResponse!
 	mauriceDeleteConversation(id: String!): Boolean!
 }
