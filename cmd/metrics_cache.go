@@ -238,6 +238,7 @@ func checkAssetCache(ctx context.Context, storage store.Storage, loaders map[cor
 		if err != nil {
 			return nil, fmt.Errorf("load %s: %w", ft, err)
 		}
+		labeled := store.WithFileType(storage, ft)
 		found := 0
 		for _, a := range assets {
 			// Honor cancellation between rows. With ~10K rows per class and
@@ -254,7 +255,7 @@ func checkAssetCache(ctx context.Context, storage store.Storage, loaders map[cor
 				log.Warn().Err(err).Str("file_type", ft.String()).Str("url", a.URL).Msg("Asset path computation failed")
 				continue
 			}
-			if storage.Exists(ctx, p) {
+			if labeled.Exists(ctx, p) {
 				found++
 			}
 		}
@@ -353,7 +354,7 @@ func checkYahooSeasonCache(ctx context.Context, storage store.Storage, nhlSeason
 func countLeagueFiles(ctx context.Context, storage store.Storage, seasonYear int, cfg config.Season) int {
 	count := 0
 	for _, league := range cfg.Leagues {
-		if storage.Exists(ctx, resource.League{Season: seasonYear, LeagueID: league.LeagueID}.Path()) {
+		if resource.Exists(ctx, storage, resource.League{Season: seasonYear, LeagueID: league.LeagueID}) {
 			count++
 		}
 	}
@@ -364,7 +365,7 @@ func countTeamFiles(ctx context.Context, storage store.Storage, seasonYear int, 
 	count := 0
 	for _, league := range cfg.Leagues {
 		for _, teamID := range league.TeamIDs {
-			if storage.Exists(ctx, resource.Team{Season: seasonYear, LeagueID: league.LeagueID, TeamID: teamID}.Path()) {
+			if resource.Exists(ctx, storage, resource.Team{Season: seasonYear, LeagueID: league.LeagueID, TeamID: teamID}) {
 				count++
 			}
 		}
@@ -383,7 +384,7 @@ func countRosterFiles(ctx context.Context, storage store.Storage, nhlSeason simp
 	for !current.After(end) {
 		for _, league := range cfg.Leagues {
 			for _, teamID := range league.TeamIDs {
-				if storage.Exists(ctx, resource.Roster{LeagueID: league.LeagueID, TeamID: teamID, Date: current}.Path()) {
+				if resource.Exists(ctx, storage, resource.Roster{LeagueID: league.LeagueID, TeamID: teamID, Date: current}) {
 					count++
 				}
 			}
@@ -404,7 +405,7 @@ func countTeamSummaryFiles(ctx context.Context, storage store.Storage, nhlSeason
 	for !current.After(end) {
 		for _, league := range cfg.Leagues {
 			for _, teamID := range league.TeamIDs {
-				if storage.Exists(ctx, resource.TeamSummary{LeagueID: league.LeagueID, TeamID: teamID, Date: current}.Path()) {
+				if resource.Exists(ctx, storage, resource.TeamSummary{LeagueID: league.LeagueID, TeamID: teamID, Date: current}) {
 					count++
 				}
 			}
@@ -423,7 +424,7 @@ func countDailyScheduleFilesSimple(ctx context.Context, storage store.Storage, s
 	}
 
 	for !current.After(end) {
-		if storage.Exists(ctx, resource.DailySchedule{Date: current}.Path()) {
+		if resource.Exists(ctx, storage, resource.DailySchedule{Date: current}) {
 			count++
 		}
 		current = current.AddDate(0, 0, 1)
@@ -450,7 +451,7 @@ func countGameFilesSimple(ctx context.Context, storage store.Storage, gobCache *
 
 	for !current.After(end) {
 		scheduleRes := resource.DailySchedule{Date: current}
-		if !storage.Exists(ctx, scheduleRes.Path()) {
+		if !resource.Exists(ctx, storage, scheduleRes) {
 			current = current.AddDate(0, 0, 1)
 			continue
 		}
@@ -473,16 +474,16 @@ func countGameFilesSimple(ctx context.Context, storage store.Storage, gobCache *
 		counts.expectedGames += len(gameIDs)
 
 		for _, gameID := range gameIDs {
-			if storage.Exists(ctx, resource.Boxscore{Date: current, GameID: gameID}.Path()) {
+			if resource.Exists(ctx, storage, resource.Boxscore{Date: current, GameID: gameID}) {
 				counts.boxscores++
 			}
-			if storage.Exists(ctx, resource.PlayByPlay{Date: current, GameID: gameID}.Path()) {
+			if resource.Exists(ctx, storage, resource.PlayByPlay{Date: current, GameID: gameID}) {
 				counts.playByPlay++
 			}
-			if storage.Exists(ctx, resource.ShiftChart{Date: current, GameID: gameID}.Path()) {
+			if resource.Exists(ctx, storage, resource.ShiftChart{Date: current, GameID: gameID}) {
 				counts.shiftCharts++
 			}
-			if storage.Exists(ctx, resource.GameStory{Date: current, GameID: gameID}.Path()) {
+			if resource.Exists(ctx, storage, resource.GameStory{Date: current, GameID: gameID}) {
 				counts.gameStories++
 			}
 		}

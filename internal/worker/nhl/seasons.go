@@ -90,10 +90,10 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 	// Layer 2: Filesystem cache with staleness check
 	var staleData []byte
 	manifestRes := resource.SeasonsManifest{}
-	if a.Storage.Exists(ctx, manifestRes.Path()) {
-		data, err := a.Storage.Read(ctx, manifestRes.Path())
+	if resource.Exists(ctx, a.Storage, manifestRes) {
+		data, err := resource.Read(ctx, a.Storage, manifestRes)
 		if err == nil {
-			info, statErr := a.Storage.Stat(ctx, manifestRes.Path())
+			info, statErr := resource.Stat(ctx, a.Storage, manifestRes)
 			isStale := (statErr != nil && !os.IsNotExist(statErr)) ||
 				(statErr == nil && time.Since(info.ModTime()) > config.DefaultSeasonsManifestStaleTTL)
 
@@ -146,7 +146,7 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 	data, err := manifestRes.Format(response)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to format seasons manifest, skipping filesystem write")
-	} else if writeErr := a.Storage.Write(ctx, manifestRes.Path(), data); writeErr != nil {
+	} else if writeErr := resource.Write(ctx, a.Storage, manifestRes, data); writeErr != nil {
 		log.Warn().Err(writeErr).Msg("Failed to write seasons manifest to filesystem")
 	}
 	gobCacheSeasons(ctx, a.GobCache, response)

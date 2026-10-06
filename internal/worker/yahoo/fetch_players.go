@@ -172,7 +172,7 @@ func (a *FetchActivities) readPreviousManifest(ctx context.Context, res resource
 func (a *FetchActivities) deletePoolPages(ctx context.Context, season, leagueID int, manifest resource.LeaguePlayerPoolManifest) {
 	for _, start := range manifest.Starts {
 		page := resource.LeaguePlayers{Season: season, LeagueID: leagueID, DownloadID: manifest.DownloadID, Start: start}
-		if err := a.Storage.Delete(ctx, page.Path()); err != nil {
+		if err := resource.Delete(ctx, a.Storage, page); err != nil {
 			activity.GetLogger(ctx).Warn("Could not delete replaced player pool page", "path", page.Path(), "error", err)
 		}
 	}

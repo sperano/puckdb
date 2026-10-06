@@ -18,27 +18,57 @@ import (
 func TestObserveFSOp(t *testing.T) {
 	t.Parallel()
 
+	// Operation names are unique to this test so parallel tests recording
+	// real filesystem operations do not change the counts.
 	tests := []struct {
 		name      string
 		operation string
-		fileType  string
-		duration  time.Duration
+		fileType  core.FileType
 		bytes     int
+		wantBytes uint64
 	}{
-		{"read with bytes", "read", "boxscore", 100 * time.Millisecond, 1024},
-		{"write with bytes", "write", "schedule", 50 * time.Millisecond, 2048},
-		{"read without bytes", "read", "standings", 10 * time.Millisecond, 0},
-		{"negative bytes ignored", "stat", "roster", 5 * time.Millisecond, -1},
+		{"read with bytes", "test-read", core.Boxscore, 1024, 1},
+		{"write with bytes", "test-write", core.DailySchedule, 2048, 1},
+		{"read without bytes", "test-read-empty", core.SeasonStandings, 0, 0},
+		{"negative bytes ignored", "test-stat", core.Roster, -1, 0},
+		{"unknown type", "test-unknown", core.Unknown, 1, 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Should not panic
-			assert.NotPanics(t, func() {
-				ObserveFSOp(tt.operation, tt.fileType, tt.duration, tt.bytes)
-			})
+			label := tt.fileType.String()
+			durationsBefore := histogramSampleCount(t, "puckdb_fs_operation_duration_seconds", tt.operation, label)
+			bytesBefore := histogramSampleCount(t, "puckdb_fs_bytes", tt.operation, label)
+
+			ObserveFSOp(tt.operation, tt.fileType, time.Millisecond, tt.bytes)
+
+			assert.Equal(t, durationsBefore+1, histogramSampleCount(t, "puckdb_fs_operation_duration_seconds", tt.operation, label))
+			assert.Equal(t, bytesBefore+tt.wantBytes, histogramSampleCount(t, "puckdb_fs_bytes", tt.operation, label))
 		})
 	}
+}
+
+// histogramSampleCount returns the number of observations of the worker
+// histogram name under the given operation and file_type labels.
+func histogramSampleCount(t *testing.T, name, operation, fileType string) uint64 {
+	t.Helper()
+	families, err := WorkerRegistry.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+		for _, m := range family.GetMetric() {
+			labels := map[string]string{}
+			for _, l := range m.GetLabel() {
+				labels[l.GetName()] = l.GetValue()
+			}
+			if labels["operation"] == operation && labels["file_type"] == fileType {
+				return m.GetHistogram().GetSampleCount()
+			}
+		}
+	}
+	return 0
 }
 
 func TestObserveHTTP(t *testing.T) {

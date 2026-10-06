@@ -31,7 +31,7 @@ func (a *Activities) ListYahooPlayerFiles(ctx context.Context) ([]store.YahooPla
 
 // listYahooPlayers returns all Yahoo player IDs that have data stored.
 func listYahooPlayers(ctx context.Context, storage store.Storage) ([]store.YahooPlayerID, error) {
-	names, err := storage.List(ctx, resource.YahooPlayersDir, "html")
+	names, err := store.WithFileType(storage, resource.YahooPlayer{}.Type()).List(ctx, resource.YahooPlayersDir, "html")
 	if err != nil {
 		return nil, err
 	}

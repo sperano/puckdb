@@ -270,10 +270,11 @@ func init() {
 }
 
 // ObserveFSOp records a filesystem operation duration and optionally bytes
-func ObserveFSOp(operation, fileType string, duration time.Duration, bytes int) {
-	fsOpDuration.WithLabelValues(operation, fileType).Observe(duration.Seconds())
+func ObserveFSOp(operation string, fileType core.FileType, duration time.Duration, bytes int) {
+	label := fileType.String()
+	fsOpDuration.WithLabelValues(operation, label).Observe(duration.Seconds())
 	if bytes > 0 {
-		fsBytes.WithLabelValues(operation, fileType).Observe(float64(bytes))
+		fsBytes.WithLabelValues(operation, label).Observe(float64(bytes))
 	}
 }
 

@@ -93,7 +93,7 @@ func (a *PlayoffActivities) FetchTeamPlayoffGames(ctx context.Context, input Fet
 	if cached, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res); err == nil && scheduleIncomplete(cached) {
 		log.Debug().Str("team", input.TeamAbbrev).Int("season", input.Season).
 			Msg("Cached club schedule has non-final games, refetching")
-		_ = a.Storage.Delete(ctx, res.Path())
+		_ = resource.Delete(ctx, a.Storage, res)
 		_ = a.GobCache.Delete(ctx, core.RedisKey(res))
 	}
 
@@ -197,7 +197,7 @@ func (a *PlayoffActivities) ImportTeamPlayoffGames(ctx context.Context, input Im
 	result := ImportTeamPlayoffGamesResult{Origins: core.OriginCounts{}}
 
 	res := resource.ClubScheduleSeason{Season: input.Season, TeamAbbrev: input.TeamAbbrev}
-	if !a.Storage.Exists(ctx, res.Path()) {
+	if !resource.Exists(ctx, a.Storage, res) {
 		log.Warn().Str("team", input.TeamAbbrev).Int("season", input.Season).
 			Msg("Club schedule not cached, skipping playoff import for team")
 		return result, nil
@@ -239,7 +239,7 @@ func collectPlayoffGames(ctx context.Context, storage store.Storage, gobCache *c
 	var games []playoffGame
 
 	scheduleDir := fmt.Sprintf("seasons/%d/club-schedule", season)
-	files, err := storage.List(ctx, scheduleDir, "json")
+	files, err := store.WithFileType(storage, resource.ClubScheduleSeason{}.Type()).List(ctx, scheduleDir, "json")
 	if err != nil {
 		// FetchTeamPlayoffGames is expected to have populated this directory
 		// before import runs. A missing directory means the fetch step never ran

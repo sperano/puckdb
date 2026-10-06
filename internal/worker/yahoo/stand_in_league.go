@@ -79,7 +79,7 @@ func (a *ImportActivities) readStandInSource(ctx context.Context, input ImportYa
 				input.Season, input.LeagueID, input.Source.Season), invalidStandInErrorType, nil)
 	}
 	res := resource.League{Season: input.Source.Season, LeagueID: input.Source.LeagueID}
-	if !a.Storage.Exists(ctx, res.Path()) {
+	if !resource.Exists(ctx, a.Storage, res) {
 		return store.League{}, time.Time{}, fmt.Errorf("stand-in source league cache is missing for season %d league %d; "+
 			"fetch season %d first", input.Source.Season, input.Source.LeagueID, input.Source.Season)
 	}

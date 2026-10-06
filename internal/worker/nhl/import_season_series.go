@@ -38,7 +38,7 @@ func (a *ImportActivities) ImportSeasonSeriesForDate(ctx context.Context, input 
 	result := &ImportSeasonSeriesForDateResult{Origins: core.OriginCounts{}}
 
 	scheduleRes := resource.DailySchedule{Date: input.Date}
-	if !a.Storage.Exists(ctx, scheduleRes.Path()) {
+	if !resource.Exists(ctx, a.Storage, scheduleRes) {
 		return result, nil
 	}
 
@@ -95,7 +95,7 @@ func (a *ImportActivities) processSeasonSeries(
 	var errors []string
 
 	seriesRes := resource.SeasonSeries{Date: date, GameID: gameID}
-	if !a.Storage.Exists(ctx, seriesRes.Path()) {
+	if !resource.Exists(ctx, a.Storage, seriesRes) {
 		return stats, errors
 	}
 

@@ -45,7 +45,7 @@ func (a *ImportActivities) ImportPlayerGameLogsBatch(ctx context.Context, input 
 			GameType: regularSeasonGameType,
 		}
 
-		if !a.Storage.Exists(ctx, gameLogRes.Path()) {
+		if !resource.Exists(ctx, a.Storage, gameLogRes) {
 			continue
 		}
 
@@ -118,7 +118,7 @@ func (a *ImportActivities) CollectSeasonPlayerIDs(ctx context.Context, input Col
 	endDate := input.EndDate
 	for d := season.StandingsStart.Time; !d.After(endDate); d = d.AddDate(0, 0, 1) {
 		scheduleRes := resource.DailySchedule{Date: d}
-		if !a.Storage.Exists(ctx, scheduleRes.Path()) {
+		if !resource.Exists(ctx, a.Storage, scheduleRes) {
 			continue
 		}
 
@@ -133,7 +133,7 @@ func (a *ImportActivities) CollectSeasonPlayerIDs(ctx context.Context, input Col
 			}
 
 			boxscoreRes := resource.Boxscore{Date: d, GameID: game.ID}
-			if !a.Storage.Exists(ctx, boxscoreRes.Path()) {
+			if !resource.Exists(ctx, a.Storage, boxscoreRes) {
 				continue
 			}
 
