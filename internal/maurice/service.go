@@ -69,7 +69,6 @@ type Message struct {
 
 type service struct {
 	llmClient     llm.Client
-	mcpClient     mcp.Client
 	toolCache     *mcp.ToolCache
 	db            DB
 	maxHistory    int
@@ -101,7 +100,6 @@ func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, maxHistory, m
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	return &service{
 		llmClient:      llmClient,
-		mcpClient:      mcpClient,
 		toolCache:      mcp.NewToolCache(mcpClient),
 		db:             db,
 		maxHistory:     maxHistory,
@@ -135,7 +133,8 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 	// Get tool definitions. Partial discovery is usable, but the model and
 	// caller must both see the degraded-data warning. If every configured
 	// server failed, do not let the model produce an ungrounded answer.
-	llmTools, err := s.toolCache.GetLLMTools(ctx)
+	toolSet, err := s.toolCache.GetLLMToolSet(ctx)
+	llmTools := toolSet.Tools
 	var warnings []string
 	if err != nil {
 		if len(llmTools) == 0 {
@@ -157,7 +156,7 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 	// error so a failed tool surfaces to the model instead of aborting the turn
 	// — exactly the historical behavior.
 	historyLen := len(history)
-	res, runErr := agentloop.Run(ctx, s.llmClient, history, s.mcpToolExecutor(convID), agentloop.Config{
+	res, runErr := agentloop.Run(ctx, s.llmClient, history, s.mcpToolExecutor(convID, toolSet.Caller), agentloop.Config{
 		Tools:         llmTools,
 		MaxToolRounds: s.maxToolRounds,
 		MaxTokens:     s.maxTokens,
@@ -249,12 +248,12 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 // against the MCP client. A tool-call error is formatted into the returned
 // result string with a nil error, so the failure is surfaced to the model on the
 // next round rather than aborting the turn (the historical Chat behavior).
-func (s *service) mcpToolExecutor(convID string) agentloop.ToolExecutor {
+func (s *service) mcpToolExecutor(convID string, caller mcp.ToolCaller) agentloop.ToolExecutor {
 	return func(ctx context.Context, tc llm.ToolCall) (string, error) {
 		log.Debug().Str("conversation", convID).Str("tool", tc.Function.Name).Str("call_id", tc.ID).Msg("calling MCP tool")
 		log.Trace().Str("conversation", convID).Str("tool", tc.Function.Name).Str("arguments", tc.Function.Arguments).Msg("MCP tool arguments")
 
-		result, err := s.mcpClient.CallTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments))
+		result, err := caller.CallTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments))
 		if err != nil {
 			resultContent := fmt.Sprintf("Error calling tool %s: %s", tc.Function.Name, err.Error())
 			log.Warn().Err(err).Str("tool", tc.Function.Name).Msg("tool call failed")

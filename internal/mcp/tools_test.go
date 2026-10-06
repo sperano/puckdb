@@ -106,6 +106,35 @@ func TestToolCache_DoesNotCachePartialDiscoveryFailure(t *testing.T) {
 	assert.Equal(t, 2, mock.calls, "partial discovery must retry, then cache a full success")
 }
 
+func TestToolCache_PartialDiscoveryCallersKeepTheirRouteSnapshot(t *testing.T) {
+	first := &routingClient{tools: []mcpgo.Tool{mcpgo.NewTool("first")}}
+	second := &routingClient{listErr: errors.New("second offline")}
+	cache := NewToolCache(NewMultiClient(
+		MultiClientOption{Name: "first-server", Client: first},
+		MultiClientOption{Name: "second-server", Client: second},
+	))
+
+	firstSet, err := cache.GetLLMToolSet(t.Context())
+	require.Error(t, err)
+	require.Len(t, firstSet.Tools, 1)
+
+	first.listErr = errors.New("first offline")
+	second.listErr = nil
+	second.tools = []mcpgo.Tool{mcpgo.NewTool("second")}
+	secondSet, err := cache.GetLLMToolSet(t.Context())
+	require.Error(t, err)
+	require.Len(t, secondSet.Tools, 1)
+
+	_, err = firstSet.Caller.CallTool(t.Context(), "first", nil)
+	require.NoError(t, err)
+	_, err = secondSet.Caller.CallTool(t.Context(), "second", nil)
+	require.NoError(t, err)
+	_, err = firstSet.Caller.CallTool(t.Context(), "second", nil)
+	require.EqualError(t, err, "unknown tool: second")
+	_, err = secondSet.Caller.CallTool(t.Context(), "first", nil)
+	require.EqualError(t, err, "unknown tool: first")
+}
+
 func TestToolCache_GetLLMTools(t *testing.T) {
 	mock := &mockClient{
 		tools: []mcpgo.Tool{

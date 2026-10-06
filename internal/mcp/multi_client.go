@@ -86,6 +86,25 @@ func (mc *MultiClient) ListTools(ctx context.Context) ([]mcpgo.Tool, error) {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 
+	tools, routes, err := mc.discoverTools(ctx)
+	// Publish the routes from the same discovery snapshot as the returned
+	// tools. Routes belonging to a server that failed this refresh are removed.
+	mc.routes = routes
+	return tools, err
+}
+
+// listToolsSnapshot returns a caller bound to exactly the routes advertised by
+// this discovery. Maurice uses it so a concurrent refresh cannot invalidate
+// tools already offered to an in-flight chat.
+func (mc *MultiClient) listToolsSnapshot(ctx context.Context) ([]mcpgo.Tool, ToolCaller, error) {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+
+	tools, routes, err := mc.discoverTools(ctx)
+	return tools, &routeSnapshot{routes: routes}, err
+}
+
+func (mc *MultiClient) discoverTools(ctx context.Context) ([]mcpgo.Tool, map[string]Client, error) {
 	routes := make(map[string]Client)
 	var all []mcpgo.Tool
 	var failures []ServerDiscoveryFailure
@@ -108,13 +127,10 @@ func (mc *MultiClient) ListTools(ctx context.Context) ([]mcpgo.Tool, error) {
 		}
 	}
 
-	// Publish the routes from the same discovery snapshot as the returned
-	// tools. Routes belonging to a server that failed this refresh are removed.
-	mc.routes = routes
 	if len(failures) > 0 {
-		return all, &DiscoveryError{Failures: failures}
+		return all, routes, &DiscoveryError{Failures: failures}
 	}
-	return all, nil
+	return all, routes, nil
 }
 
 func (mc *MultiClient) CallTool(ctx context.Context, name string, arguments json.RawMessage) (*ToolResult, error) {
@@ -122,6 +138,18 @@ func (mc *MultiClient) CallTool(ctx context.Context, name string, arguments json
 	client, ok := mc.routes[name]
 	mc.mu.Unlock()
 
+	if !ok {
+		return nil, fmt.Errorf("unknown tool: %s", name)
+	}
+	return client.CallTool(ctx, name, arguments)
+}
+
+type routeSnapshot struct {
+	routes map[string]Client
+}
+
+func (s *routeSnapshot) CallTool(ctx context.Context, name string, arguments json.RawMessage) (*ToolResult, error) {
+	client, ok := s.routes[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
