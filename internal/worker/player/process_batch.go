@@ -89,8 +89,14 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 		}
 	}
 
+	logProcessPlayerBatch(len(players), result)
+	return result, nil
+}
+
+// logProcessPlayerBatch logs the outcome of one ProcessPlayerBatch run.
+func logProcessPlayerBatch(batchSize int, result ProcessPlayerBatchResult) {
 	log.Info().
-		Int("batch_size", len(players)).
+		Int("batch_size", batchSize).
 		Int("downloaded", result.Downloaded).
 		Int("cache_hits", result.Origins.Total()-result.Downloaded).
 		Int("missing", result.Missing).
@@ -98,8 +104,6 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 		Int("matched", result.Matched).
 		Int("errors", len(result.Errors)).
 		Msg("Process player batch complete")
-
-	return result, nil
 }
 
 // importPlayerLanding reads p's stored landing, matches it to a Yahoo ID from
@@ -124,20 +128,7 @@ func (a *Activities) importPlayerLanding(
 	}
 
 	matchResult := matchLandingYahooID(landing, yahooPool)
-	if matchResult.Matched {
-		clearParams := sqlcdb.ClearConflictingYahooIDParams{
-			YahooID: pgtype.Int8{Int64: int64(matchResult.YahooID), Valid: true},
-			ID:      p.ID,
-		}
-		if err := a.Queries.ClearConflictingYahooID(ctx, clearParams); err != nil {
-			log.Warn().Err(err).
-				Int64("nhl_id", p.ID).
-				Int("yahoo_id", int(matchResult.YahooID)).
-				Msg("Failed to clear conflicting yahoo_id")
-		}
-	}
-
-	if err := a.Queries.UpsertPlayer(ctx, buildProcessUpsertParams(landing, matchResult)); err != nil {
+	if err := a.upsertLandingPlayer(ctx, p.ID, landing, matchResult); err != nil {
 		errMsg := fmt.Sprintf("player %d (%s %s): upsert error: %v",
 			p.ID, landing.FirstName.Default, landing.LastName.Default, err)
 		if matchResult.Matched {
@@ -161,6 +152,30 @@ func (a *Activities) importPlayerLanding(
 		result.TotalsImported += totals
 	}
 	return matchResult.YahooID, matchResult.Matched
+}
+
+// upsertLandingPlayer upserts the player of landing with its Yahoo match.
+// A matched Yahoo ID is first cleared from every player but nhlID; a failure
+// there is logged, and the upsert reports any remaining conflict.
+func (a *Activities) upsertLandingPlayer(
+	ctx context.Context,
+	nhlID int64,
+	landing *nhl.PlayerLanding,
+	matchResult matching.YahooIDMatchResult,
+) error {
+	if matchResult.Matched {
+		clearParams := sqlcdb.ClearConflictingYahooIDParams{
+			YahooID: pgtype.Int8{Int64: int64(matchResult.YahooID), Valid: true},
+			ID:      nhlID,
+		}
+		if err := a.Queries.ClearConflictingYahooID(ctx, clearParams); err != nil {
+			log.Warn().Err(err).
+				Int64("nhl_id", nhlID).
+				Int("yahoo_id", int(matchResult.YahooID)).
+				Msg("Failed to clear conflicting yahoo_id")
+		}
+	}
+	return a.Queries.UpsertPlayer(ctx, buildProcessUpsertParams(landing, matchResult))
 }
 
 // matchLandingYahooID matches a landing to a Yahoo ID from yahooPool by name,
