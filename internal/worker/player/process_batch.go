@@ -11,7 +11,6 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/matching"
-	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
@@ -58,17 +57,8 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 	var matchedYahooIDs []store.YahooPlayerID
 
 	for _, p := range players {
-		select {
-		case <-ctx.Done():
-			return result, ctx.Err()
-		default:
-		}
-
-		playerID := nhl.PlayerID(p.ID)
-
-		downloadStatus, err := a.ensurePlayerLandingCached(ctx, playerID, p)
+		downloadStatus, err := a.cachePlayerLanding(ctx, p)
 		if err != nil {
-			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
 			return result, err
 		}
 
@@ -76,10 +66,8 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 		case playerLandingDownloaded:
 			result.Downloaded++
 			result.Origins.Record(core.OriginRemoteNHLAPI)
-			metrics.IncDownload(core.PlayerLanding, metrics.ResultMiss)
 		case playerLandingMissing:
 			result.Missing++
-			metrics.IncDownload(core.PlayerLanding, metrics.ResultMissing)
 			if err := a.importMissingPlayer(ctx, p); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("player %d (missing): import error: %v", p.ID, err))
 			} else {
@@ -90,72 +78,9 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 			// File exists in storage — will be read via GobCache below
 		}
 
-		landingRes := resource.PlayerLanding{PlayerID: playerID}
-		landing, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, landingRes)
-		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("player %d: read error: %v", p.ID, err))
-			continue
+		if yahooID, matched := a.importPlayerLanding(ctx, p, downloadStatus, yahooPool, &result); matched {
+			matchedYahooIDs = append(matchedYahooIDs, yahooID)
 		}
-		if downloadStatus == playerLandingCached {
-			result.Origins.Record(origin)
-		}
-
-		var teamAbbrev string
-		if landing.CurrentTeamAbbrev != nil {
-			teamAbbrev = *landing.CurrentTeamAbbrev
-		}
-		var nhlBirthDate time.Time
-		if landing.BirthDate != "" {
-			nhlBirthDate = shared.ParseDate(landing.BirthDate)
-		}
-		matchResult, err := matching.MatchYahooID(landing, teamAbbrev, nhlBirthDate, yahooPool)
-		if err != nil {
-			log.Debug().
-				Err(err).
-				Int64("nhl_id", p.ID).
-				Str("name", landing.FirstName.Default+" "+landing.LastName.Default).
-				Msg("Yahoo ID matching warning")
-		}
-
-		params := buildProcessUpsertParams(landing, matchResult)
-
-		if matchResult.Matched {
-			clearParams := sqlcdb.ClearConflictingYahooIDParams{
-				YahooID: pgtype.Int8{Int64: int64(matchResult.YahooID), Valid: true},
-				ID:      p.ID,
-			}
-			if err := a.Queries.ClearConflictingYahooID(ctx, clearParams); err != nil {
-				log.Warn().Err(err).
-					Int64("nhl_id", p.ID).
-					Int("yahoo_id", int(matchResult.YahooID)).
-					Msg("Failed to clear conflicting yahoo_id")
-			}
-		}
-
-		if err := a.Queries.UpsertPlayer(ctx, params); err != nil {
-			errMsg := fmt.Sprintf("player %d (%s %s): upsert error: %v",
-				p.ID, landing.FirstName.Default, landing.LastName.Default, err)
-			if matchResult.Matched {
-				errMsg = fmt.Sprintf("player %d (%s %s, yahoo_id=%d): upsert error: %v",
-					p.ID, landing.FirstName.Default, landing.LastName.Default, matchResult.YahooID, err)
-			}
-			result.Errors = append(result.Errors, errMsg)
-			continue
-		}
-
-		result.Imported++
-		if matchResult.Matched {
-			result.Matched++
-			matchedYahooIDs = append(matchedYahooIDs, matchResult.YahooID)
-		}
-
-		awards, totals, err := a.upsertPlayerCareerData(ctx, landing)
-		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("player %d career data: %v", p.ID, err))
-			continue
-		}
-		result.AwardsImported += awards
-		result.TotalsImported += totals
 	}
 
 	if len(matchedYahooIDs) > 0 {
@@ -164,8 +89,14 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 		}
 	}
 
+	logProcessPlayerBatch(len(players), result)
+	return result, nil
+}
+
+// logProcessPlayerBatch logs the outcome of one ProcessPlayerBatch run.
+func logProcessPlayerBatch(batchSize int, result ProcessPlayerBatchResult) {
 	log.Info().
-		Int("batch_size", len(players)).
+		Int("batch_size", batchSize).
 		Int("downloaded", result.Downloaded).
 		Int("cache_hits", result.Origins.Total()-result.Downloaded).
 		Int("missing", result.Missing).
@@ -173,8 +104,100 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 		Int("matched", result.Matched).
 		Int("errors", len(result.Errors)).
 		Msg("Process player batch complete")
+}
 
-	return result, nil
+// importPlayerLanding reads p's stored landing, matches it to a Yahoo ID from
+// yahooPool and upserts the player with its career data, recording the
+// outcome in result. It returns the matched Yahoo ID, if any, so the caller
+// can remove it from the pool once the batch is done.
+func (a *Activities) importPlayerLanding(
+	ctx context.Context,
+	p store.BoxscorePlayer,
+	downloadStatus playerLandingStatus,
+	yahooPool map[store.YahooPlayerID]*store.YahooPlayer,
+	result *ProcessPlayerBatchResult,
+) (store.YahooPlayerID, bool) {
+	landingRes := resource.PlayerLanding{PlayerID: nhl.PlayerID(p.ID)}
+	landing, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, landingRes)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("player %d: read error: %v", p.ID, err))
+		return 0, false
+	}
+	if downloadStatus == playerLandingCached {
+		result.Origins.Record(origin)
+	}
+
+	matchResult := matchLandingYahooID(landing, yahooPool)
+	if err := a.upsertLandingPlayer(ctx, p.ID, landing, matchResult); err != nil {
+		errMsg := fmt.Sprintf("player %d (%s %s): upsert error: %v",
+			p.ID, landing.FirstName.Default, landing.LastName.Default, err)
+		if matchResult.Matched {
+			errMsg = fmt.Sprintf("player %d (%s %s, yahoo_id=%d): upsert error: %v",
+				p.ID, landing.FirstName.Default, landing.LastName.Default, matchResult.YahooID, err)
+		}
+		result.Errors = append(result.Errors, errMsg)
+		return 0, false
+	}
+
+	result.Imported++
+	if matchResult.Matched {
+		result.Matched++
+	}
+
+	awards, totals, err := a.upsertPlayerCareerData(ctx, landing)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("player %d career data: %v", p.ID, err))
+	} else {
+		result.AwardsImported += awards
+		result.TotalsImported += totals
+	}
+	return matchResult.YahooID, matchResult.Matched
+}
+
+// upsertLandingPlayer upserts the player of landing with its Yahoo match.
+// A matched Yahoo ID is first cleared from every player but nhlID; a failure
+// there is logged, and the upsert reports any remaining conflict.
+func (a *Activities) upsertLandingPlayer(
+	ctx context.Context,
+	nhlID int64,
+	landing *nhl.PlayerLanding,
+	matchResult matching.YahooIDMatchResult,
+) error {
+	if matchResult.Matched {
+		clearParams := sqlcdb.ClearConflictingYahooIDParams{
+			YahooID: pgtype.Int8{Int64: int64(matchResult.YahooID), Valid: true},
+			ID:      nhlID,
+		}
+		if err := a.Queries.ClearConflictingYahooID(ctx, clearParams); err != nil {
+			log.Warn().Err(err).
+				Int64("nhl_id", nhlID).
+				Int("yahoo_id", int(matchResult.YahooID)).
+				Msg("Failed to clear conflicting yahoo_id")
+		}
+	}
+	return a.Queries.UpsertPlayer(ctx, buildProcessUpsertParams(landing, matchResult))
+}
+
+// matchLandingYahooID matches a landing to a Yahoo ID from yahooPool by name,
+// current team and birth date. A matching warning is logged, not returned.
+func matchLandingYahooID(landing *nhl.PlayerLanding, yahooPool map[store.YahooPlayerID]*store.YahooPlayer) matching.YahooIDMatchResult {
+	var teamAbbrev string
+	if landing.CurrentTeamAbbrev != nil {
+		teamAbbrev = *landing.CurrentTeamAbbrev
+	}
+	var nhlBirthDate time.Time
+	if landing.BirthDate != "" {
+		nhlBirthDate = shared.ParseDate(landing.BirthDate)
+	}
+	matchResult, err := matching.MatchYahooID(landing, teamAbbrev, nhlBirthDate, yahooPool)
+	if err != nil {
+		log.Debug().
+			Err(err).
+			Int64("nhl_id", landing.PlayerID.Int64()).
+			Str("name", landing.FirstName.Default+" "+landing.LastName.Default).
+			Msg("Yahoo ID matching warning")
+	}
+	return matchResult
 }
 
 // upsertPlayerCareerData upserts awards and season totals for a single player.

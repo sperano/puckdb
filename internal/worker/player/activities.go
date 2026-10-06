@@ -46,30 +46,18 @@ func (a *Activities) FetchPlayerLandingsBatch(
 	result := shared.FetchStats{}
 
 	for _, p := range players {
-		select {
-		case <-ctx.Done():
-			return result, ctx.Err()
-		default:
-		}
-
-		activity.RecordHeartbeat(ctx, p.ID)
-		playerID := nhl.PlayerID(p.ID)
-		status, err := a.ensurePlayerLandingCached(ctx, playerID, p)
+		status, err := a.cachePlayerLanding(ctx, p)
 		if err != nil {
-			log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
 			return result, err
 		}
 
 		switch status {
 		case playerLandingCached:
 			result.CacheHits++
-			metrics.IncDownload(core.PlayerLanding, metrics.ResultHit)
 		case playerLandingDownloaded:
 			result.Downloaded++
-			metrics.IncDownload(core.PlayerLanding, metrics.ResultMiss)
 		case playerLandingMissing:
 			result.Missing++
-			metrics.IncDownload(core.PlayerLanding, metrics.ResultMissing)
 		}
 	}
 
@@ -90,6 +78,33 @@ const (
 	playerLandingCached
 	playerLandingMissing
 )
+
+// cachePlayerLanding is the per-player step shared by every batch activity
+// that needs a player's landing page in storage. It stops on cancellation,
+// records a heartbeat so a long batch stays within the activity heartbeat
+// timeout, downloads the landing if needed and counts the download metric.
+func (a *Activities) cachePlayerLanding(ctx context.Context, p store.BoxscorePlayer) (playerLandingStatus, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	activity.RecordHeartbeat(ctx, p.ID)
+
+	status, err := a.ensurePlayerLandingCached(ctx, nhl.PlayerID(p.ID), p)
+	if err != nil {
+		log.Error().Err(err).Int64("player_id", p.ID).Msg("Failed to download player landing")
+		return 0, err
+	}
+
+	switch status {
+	case playerLandingCached:
+		metrics.IncDownload(core.PlayerLanding, metrics.ResultHit)
+	case playerLandingDownloaded:
+		metrics.IncDownload(core.PlayerLanding, metrics.ResultMiss)
+	case playerLandingMissing:
+		metrics.IncDownload(core.PlayerLanding, metrics.ResultMissing)
+	}
+	return status, nil
+}
 
 // ensurePlayerLandingCached downloads player landing data if not already cached.
 // Returns a status indicating whether data was downloaded, already cached, or missing (404).
