@@ -306,6 +306,14 @@ const (
 	FlagAdminToken = "admin-token"
 )
 
+// Application session flags
+const (
+	// FlagSessionHashKey is the secret key of the HMAC under which PuckDB
+	// session cookies are stored. Empty uses a random per-process key, so
+	// sessions do not survive a restart.
+	FlagSessionHashKey = "session-hash-key"
+)
+
 // API client basic-auth flags. CLI commands that call the GraphQL API
 // through the authentik-gated public host authenticate with an authentik
 // app password over HTTP Basic (the proxy outpost intercepts the
@@ -486,6 +494,13 @@ var ProvisionerFlags = FlagGroup{
 		{FlagProvisionerHost, "", "", "PostgreSQL host for provisioner connection", false},
 		{FlagProvisionerUser, "", "", "PostgreSQL user with CREATE DATABASE privileges", false},
 		{FlagProvisionerPassword, "", "", "PostgreSQL provisioner password", true},
+	},
+}
+
+// AppSessionFlags defines the flags of PuckDB application sessions (api).
+var AppSessionFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagSessionHashKey, "", "", "Secret key for hashing PuckDB session cookies (empty: random per process, sessions do not survive a restart)", true},
 	},
 }
 
@@ -993,6 +1008,7 @@ var allFlagGroups = []*FlagGroup{
 	&TLSFlags,
 	&MauriceFlags,
 	&AdminAuthFlags,
+	&AppSessionFlags,
 	&APIBasicAuthFlags,
 	&NotifyEmailFlags,
 }

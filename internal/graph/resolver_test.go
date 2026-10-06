@@ -5,7 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/sperano/puckdb/internal/maurice"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -127,4 +129,66 @@ func TestTemporalStatusMap_CoversAllKnownStatuses(t *testing.T) {
 		_, ok := temporalStatusToGQL[s]
 		assert.True(t, ok, "status %v must be mapped", s)
 	}
+}
+
+// fakeMaurice records the user and request of each Maurice call.
+type fakeMaurice struct {
+	maurice.Service
+	chat     maurice.ChatRequest
+	listUser string
+	getUser  string
+	delUser  string
+}
+
+func (f *fakeMaurice) Chat(_ context.Context, req maurice.ChatRequest) (*maurice.ChatResponse, error) {
+	f.chat = req
+	return &maurice.ChatResponse{ConversationID: "c1", MessageID: "m1", Content: "hi"}, nil
+}
+
+func (f *fakeMaurice) ListConversations(_ context.Context, userID string, _ int) ([]*maurice.Conversation, error) {
+	f.listUser = userID
+	return nil, nil
+}
+
+func (f *fakeMaurice) GetConversation(_ context.Context, userID, id string) (*maurice.Conversation, []*maurice.Message, error) {
+	f.getUser = userID
+	return &maurice.Conversation{ID: id}, nil, nil
+}
+
+func (f *fakeMaurice) DeleteConversation(_ context.Context, userID, _ string) error {
+	f.delUser = userID
+	return nil
+}
+
+// Every Maurice operation needs the request's PuckDB user and is scoped by it.
+func TestMauriceResolvers_RequireAndScopeByUser(t *testing.T) {
+	svc := &fakeMaurice{}
+	r := &Resolver{MauriceService: svc}
+
+	_, err := r.mauriceChat(context.Background(), nil, "hi", nil)
+	require.ErrorIs(t, err, appuser.ErrUnauthenticated)
+	_, err = r.mauriceConversations(context.Background(), nil)
+	require.ErrorIs(t, err, appuser.ErrUnauthenticated)
+
+	ctx := appuser.WithUser(context.Background(), appuser.User{ID: "user-1", SessionID: "s"})
+	key := "retry-key"
+	resp, err := r.mauriceChat(ctx, nil, "hi", &key)
+	require.NoError(t, err)
+	assert.Equal(t, "hi", resp.Content)
+	assert.Equal(t, []string{}, resp.ToolsUsed)
+	assert.Equal(t, maurice.ChatRequest{UserID: "user-1", Message: "hi", IdempotencyKey: key}, svc.chat)
+
+	_, err = r.mauriceConversations(ctx, nil)
+	require.NoError(t, err)
+	_, err = r.mauriceConversation(ctx, "c1")
+	require.NoError(t, err)
+	_, err = r.mauriceDeleteConversation(ctx, "c1")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"user-1", "user-1", "user-1"}, []string{svc.listUser, svc.getUser, svc.delUser})
+}
+
+func TestMauriceResolvers_NotConfigured(t *testing.T) {
+	ctx := appuser.WithUser(context.Background(), appuser.User{ID: "user-1"})
+	_, err := (&Resolver{}).mauriceChat(ctx, nil, "hi", nil)
+	require.ErrorIs(t, err, errMauriceNotConfigured)
 }

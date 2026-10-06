@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
 	"github.com/stretchr/testify/assert"
@@ -26,22 +27,15 @@ const envTestPGURL = "PUCKDB_TEST_PG_URL"
 const testDBNameMarker = "test"
 
 // pgMigrateOnce runs the embedded migrations a single time per test process;
-// every openPgTestDB call after the first reuses the result.
+// every openPgTestPool call after the first reuses the result.
 var pgMigrateOnce struct {
 	sync.Once
 	err error
 }
 
-// openPgTestDB returns a PostgreSQL-backed DB with empty maurice tables, or
-// skips the test when envTestPGURL is unset.
-func openPgTestDB(t *testing.T) DB {
-	t.Helper()
-	return NewPgDB(openPgTestPool(t))
-}
-
-// openPgTestPool is openPgTestDB's raw counterpart, for tests that need to
-// plant rows the adapter itself would never write.
-func openPgTestPool(t *testing.T) *pgxpool.Pool {
+// openPgTestURL returns the URL of the migrated test database, or skips the
+// test when envTestPGURL is unset.
+func openPgTestURL(t *testing.T) string {
 	t.Helper()
 	dbURL := os.Getenv(envTestPGURL)
 	if dbURL == "" {
@@ -53,7 +47,16 @@ func openPgTestPool(t *testing.T) *pgxpool.Pool {
 		"%s must name a dedicated test database (URL containing %q)", envTestPGURL, testDBNameMarker)
 	pgMigrateOnce.Do(func() { pgMigrateOnce.err = database.MigrateUp(dbURL) })
 	require.NoError(t, pgMigrateOnce.err, "migrate test database")
+	return dbURL
+}
 
+// openPgTestPool returns a pool on a migrated database with empty maurice
+// tables, or skips the test when envTestPGURL is unset. app_users is left
+// alone (other packages' tests use it concurrently); every test makes its own
+// users with newPgUser.
+func openPgTestPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	dbURL := openPgTestURL(t)
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dbURL)
 	require.NoError(t, err)
@@ -64,8 +67,23 @@ func openPgTestPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+// newPgUser inserts an app_users row and returns its ID.
+func newPgUser(t *testing.T, pool *pgxpool.Pool) string {
+	t.Helper()
+	var id string
+	err := pool.QueryRow(context.Background(),
+		`INSERT INTO app_users (auth_provider, auth_subject, username) VALUES ('authentik', $1, 'tester') RETURNING id::text`,
+		uuid.NewString(),
+	).Scan(&id)
+	require.NoError(t, err)
+	return id
+}
+
 func TestPg_Contract(t *testing.T) {
-	runDBContract(t, openPgTestDB)
+	runDBContract(t, func(t *testing.T) contractEnv {
+		pool := openPgTestPool(t)
+		return contractEnv{db: NewPgDB(pool), newUser: func(t *testing.T) string { return newPgUser(t, pool) }}
+	})
 }
 
 // jsonb rejects malformed JSON at insert time, so the corruption PostgreSQL
@@ -75,16 +93,17 @@ func TestPg_GetMessages_CorruptToolCallsIsError(t *testing.T) {
 	pool := openPgTestPool(t)
 	db := NewPgDB(pool)
 	ctx := context.Background()
-	conv, err := db.CreateConversation(ctx)
-	require.NoError(t, err)
+	user := newPgUser(t, pool)
+	start := chat(t, db, user, "", "q", "a")
 
-	_, err = pool.Exec(ctx,
-		`INSERT INTO maurice_messages (conversation_id, role, tool_calls) VALUES ($1, 'assistant', '{"not":"a list"}'::jsonb)`,
-		conv.ID,
+	_, err := pool.Exec(ctx,
+		`INSERT INTO maurice_messages (conversation_id, turn_id, message_number, role, tool_calls)
+		 VALUES ($1, $2, 99, 'assistant', '{"not":"a list"}'::jsonb)`,
+		start.ConversationID, start.TurnID,
 	)
 	require.NoError(t, err)
 
-	msgs, err := db.GetMessages(ctx, conv.ID)
+	msgs, err := db.GetMessages(ctx, user, start.ConversationID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "decode tool calls")
 	assert.Nil(t, msgs)

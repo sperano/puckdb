@@ -782,7 +782,7 @@ type ComplexityRoot struct {
 		ImportPlayerLogs             func(childComplexity int, input *model.SeasonsInput) int
 		ImportSeasons                func(childComplexity int, input *model.SeasonsInput) int
 		Initialize                   func(childComplexity int) int
-		MauriceChat                  func(childComplexity int, conversationID *string, message string) int
+		MauriceChat                  func(childComplexity int, conversationID *string, message string, idempotencyKey *string) int
 		MauriceDeleteConversation    func(childComplexity int, id string) int
 		ProcessPlayers               func(childComplexity int, input *model.ProcessPlayersInput) int
 		RefreshDraftRankings         func(childComplexity int, input *model.RefreshDraftRankingsInput) int
@@ -1107,7 +1107,7 @@ type MutationResolver interface {
 	CancelFetchAssets(ctx context.Context) (bool, error)
 	RefreshNews(ctx context.Context, input *model.RefreshNewsInput) (bool, error)
 	CancelRefreshNews(ctx context.Context) (bool, error)
-	MauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error)
+	MauriceChat(ctx context.Context, conversationID *string, message string, idempotencyKey *string) (*model.MauriceChatResponse, error)
 	MauriceDeleteConversation(ctx context.Context, id string) (bool, error)
 	RefreshDraftRankings(ctx context.Context, input *model.RefreshDraftRankingsInput) (bool, error)
 	CancelRefreshDraftRankings(ctx context.Context) (bool, error)
@@ -4731,7 +4731,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.MauriceChat(childComplexity, args["conversationId"].(*string), args["message"].(string)), true
+		return e.ComplexityRoot.Mutation.MauriceChat(childComplexity, args["conversationId"].(*string), args["message"].(string), args["idempotencyKey"].(*string)), true
 	case "Mutation.mauriceDeleteConversation":
 		if e.ComplexityRoot.Mutation.MauriceDeleteConversation == nil {
 			break
@@ -7827,7 +7827,9 @@ type Mutation {
 	cancelRefreshNews: Boolean!
 
 	# Maurice AI chat
-	mauriceChat(conversationId: String, message: String!): MauriceChatResponse!
+	# idempotencyKey makes retries safe: resending the same key returns the
+	# original answer instead of running the prompt again. Omit it to never retry.
+	mauriceChat(conversationId: String, message: String!, idempotencyKey: String): MauriceChatResponse!
 	mauriceDeleteConversation(id: String!): Boolean!
 }
 `, BuiltIn: false},
@@ -10244,6 +10246,14 @@ func (ec *executionContext) field_Mutation_mauriceChat_args(ctx context.Context,
 		return nil, err
 	}
 	args["message"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "idempotencyKey",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["idempotencyKey"] = arg2
 	return args, nil
 }
 
@@ -24796,7 +24806,7 @@ func (ec *executionContext) _Mutation_mauriceChat(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().MauriceChat(ctx, fc.Args["conversationId"].(*string), fc.Args["message"].(string))
+			return ec.Resolvers.Mutation().MauriceChat(ctx, fc.Args["conversationId"].(*string), fc.Args["message"].(string), fc.Args["idempotencyKey"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceChatResponse) graphql.Marshaler {

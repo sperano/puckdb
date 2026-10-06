@@ -95,6 +95,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/newsevent/` | LLM extraction of validated player news events: prompt and strict output schema, quote/claim/chronology validation, injection defenses, deterministic lifecycle reconciliation (active/superseded/retracted/resolved), labeled evaluation corpus (`evalcorpus.yaml`) and release gate (see `docs/draft-news-events.md`) |
 | `internal/yahooaccess/` | Yahoo API access check: game key and league settings probes, AUTHORIZED / NOT AUTHORIZED / ERROR classification, email subject and report (see `docs/yahoo-access-check.md`) |
 | `internal/notify/` | Plain-text notification emails over SMTP submission (STARTTLS when offered) |
+| `internal/appuser/` | PuckDB users and application sessions: identity from the trusted `X-authentik-uid` header (the proxy must strip client copies), a random `puckdb_session` cookie stored only as an HMAC (`--session-hash-key`), lazy per-request resolution for the GraphQL route (`appuser.Current`); cookie-less callers join the user's active session (30 min idle timeout) |
 | `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
 | `internal/fixtures/draftfixtures/` | Synthetic draft ranking snapshot and in-memory store shared by the draftrank, GraphQL and CLI tests (test-only import) |
 | `internal/llm/` | LLM client (used by player enrichment / Maurice) |
@@ -231,7 +232,7 @@ Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow fol
 
 **Admin mutations:** `clearDatabase`, `dropDatabase`, `createDatabase`, `flushRedisDB`
 
-**Maurice (LLM chat) mutations:** `mauriceChat(conversationId, message)`, `mauriceDeleteConversation(id)`
+**Maurice (LLM chat) mutations:** `mauriceChat(conversationId, message, idempotencyKey)`, `mauriceDeleteConversation(id)`. Every Maurice field needs an `X-authentik-uid` and is scoped to that user's conversations; resending an `idempotencyKey` returns the original answer (a different prompt under the same key, or a second prompt while a turn runs, is an error)
 
 **Workflow queries:** for every workflow above, `<name>Result: WorkflowResult!` and `<name>Progress: ProgressReport`. `processPlayers` additionally exposes `processPlayersResultData: ProcessPlayersResultData`.
 
@@ -415,12 +416,20 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
-| `maurice_conversations` | One row per chat session (UUID PK, default `gen_random_uuid()`) | `id` (uuid), `title`, `created_at`, `updated_at` |
-| `maurice_messages` | Individual messages within a conversation. `role` ∈ `{system, user, assistant, tool}`. `tool_calls` stored as JSONB. ON DELETE CASCADE from conversations | `id` (uuid), `conversation_id`, `role`, `content`, `tool_calls` (jsonb), `tool_call_id`, `created_at` |
+| `app_users` | Local projection of an Authentik identity (UNIQUE `(auth_provider, auth_subject)`; username/display name are mutable snapshots) | `id` (uuid), `auth_provider`, `auth_subject` (`X-authentik-uid`), `username`, `display_name`, `first_seen_at`, `profile_updated_at`, `disabled_at` |
+| `app_sessions` | One PuckDB application session; only a keyed hash of the cookie is stored | `user_id`, `session_key_hash` (UNIQUE), `started_at`, `last_activity_at`, `ended_at` (idle expiry) |
+| `maurice_conversations` | One row per chat session, owned by a user (every query is scoped by `user_id`). Deleting sets `deleted_at` (hidden from the owner, rows and usage kept) | `id` (uuid), `user_id`, `title`, `created_at`, `updated_at`, `deleted_at` |
+| `maurice_turns` | One prompt and all the work behind its answer. UNIQUE `(user_id, idempotency_key)`, one `running` turn per conversation (partial unique index); a running turn older than the stale cutoff is failed as `abandoned` | `conversation_id`, `turn_number`, `idempotency_key`, `request_hash`, `status` (`running`/`succeeded`/`failed`/`cancelled`), `started_at`, `completed_at`, `error_class` (bounded label) |
+| `maurice_messages` | Messages of a turn (UNIQUE `(turn_id, message_number)`). `role` ∈ `{system, user, assistant, tool}`, `tool_calls` JSONB. The transcript (history replayed to the LLM) is only the messages of `succeeded` turns; failed/cancelled turns keep theirs as exact prompts | `id` (uuid), `conversation_id`, `turn_id`, `message_number`, `role`, `content`, `tool_calls`, `tool_call_id`, `created_at` |
+| `maurice_llm_calls` | One provider request: `chat_round`, `forced_final`, or `title_generation` (no turn). Token counts are provider-reported and NULL when not reported | `turn_id`, `conversation_id`, `call_kind`, `round_number`, `provider`, `model`, `provider_request_id`, `status`, `finish_reason`, `started_at`, `completed_at`, `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `error_class`, `system_prompt`, `instruction`, `tool_definitions` |
+| `maurice_llm_call_messages` | Ordered message references of each call's request (system prompt excluded), so every prompt can be rebuilt without copying content (PK `(llm_call_id, input_number)`) | `llm_call_id`, `input_number`, `message_id` |
+| `maurice_tool_calls` | Each tool call a response requested (UNIQUE `(llm_call_id, sequence_number)`) | `turn_id`, `llm_call_id`, `tool_name`, `arguments` (jsonb, NULL if invalid), `arguments_raw`, `result`, `status` (`succeeded`/`tool_error`/`parse_error`/`cancelled` = never ran), `started_at`, `completed_at` |
+
+A turn's messages, calls, call-message links and tool calls commit in one transaction after the tool loop (`FinishTurn`); no transaction stays open across model calls. Prompts and tool payloads are kept forever (deleting a conversation only hides it); legacy conversations without an owner were deleted by migration 000022. There is no analytics API, export or erase capability.
 
 ### Views
 
-Reporting views (definitions in migrations): `skater_season_stats`, `skater_recent_stats`, `goalie_season_stats`, `goalie_recent_stats`, `yahoo_roster_players`, `yahoo_roto_standings`, `yahoo_season_team_totals`.
+Reporting views (definitions in migrations): `skater_season_stats`, `skater_recent_stats`, `goalie_season_stats`, `goalie_recent_stats`, `yahoo_roster_players`, `yahoo_roto_standings`, `yahoo_season_team_totals`, `app_user_usage` (per user: `puckdb_session_count`, last session, turns, LLM calls, token sums including title generation, `active_seconds` = turn durations + title calls, i.e. time spent processing prompts).
 
 ### Key Relationships
 
@@ -473,7 +482,7 @@ Interactive REPL for querying hockey data via natural language. Connects to an L
 | LLM clients | `internal/llm/client.go`, `internal/llm/anthropic.go` | OpenAI-compatible (Ollama/OpenAI) and Anthropic clients |
 | Provider detection | `internal/llm/provider.go` | Auto-detects Anthropic vs OpenAI-compatible from API key/URL |
 | MCP integration | `internal/mcp/` | Connects to puckdb MCP server for database tool calls |
-| Persistence | `~/.puckdb/maurice.db` | SQLite for conversation history |
+| Persistence | `~/.puckdb/maurice.db` | SQLite for the REPL (single user `maurice.LocalUserID`; turns and transcript, no LLM-call usage); the API uses PostgreSQL (`maurice.NewPgDB`) |
 
 MCP discovery uses partial service: when at least one configured server is
 healthy, Maurice advertises and routes only that server's discovered tools and

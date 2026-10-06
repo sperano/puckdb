@@ -3,9 +3,11 @@ package maurice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -18,162 +20,89 @@ type pgDB struct {
 
 // NewPgDB wraps a pgx pool as a maurice.DB for PostgreSQL persistence. The pool
 // backs both the pool-scoped Queries used by single-statement operations and
-// the per-transaction Queries used by CreateMessages.
+// the per-transaction Queries used by BeginTurn, FinishTurn and RecordTitle.
+// User IDs are app_users UUIDs.
 func NewPgDB(pool *pgxpool.Pool) DB {
 	return &pgDB{pool: pool, q: sqlcdb.New(pool)}
 }
 
-func (db *pgDB) CreateConversation(ctx context.Context) (*Conversation, error) {
-	row, err := db.q.CreateConversation(ctx, pgtype.Text{})
+func (db *pgDB) GetConversation(ctx context.Context, userID, id string) (*Conversation, error) {
+	user, conv, err := parseOwned(userID, id)
 	if err != nil {
 		return nil, err
 	}
-	return pgConvToConv(row), nil
-}
-
-func (db *pgDB) GetConversation(ctx context.Context, id string) (*Conversation, error) {
-	uuid, err := parseUUID(id)
+	row, err := db.q.GetConversation(ctx, sqlcdb.GetConversationParams{ID: conv, UserID: user})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrConversationNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
-	row, err := db.q.GetConversation(ctx, uuid)
+	return newPgConversation(row.ID, row.Title, row.CreatedAt, row.UpdatedAt), nil
+}
+
+func (db *pgDB) ListConversations(ctx context.Context, userID string, limit int) ([]*Conversation, error) {
+	user, err := parseUUID(userID)
 	if err != nil {
 		return nil, err
 	}
-	return pgConvToConv(row), nil
-}
-
-func (db *pgDB) UpdateConversationTitle(ctx context.Context, id, title string) error {
-	uuid, err := parseUUID(id)
-	if err != nil {
-		return err
-	}
-	return db.q.UpdateConversationTitle(ctx, sqlcdb.UpdateConversationTitleParams{
-		ID:    uuid,
-		Title: pgtype.Text{String: title, Valid: true},
-	})
-}
-
-func (db *pgDB) ListConversations(ctx context.Context, limit int) ([]*Conversation, error) {
-	rows, err := db.q.ListConversations(ctx, int32(limit))
+	rows, err := db.q.ListConversations(ctx, sqlcdb.ListConversationsParams{UserID: user, Limit: int32(limit)})
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*Conversation, len(rows))
 	for i, r := range rows {
-		result[i] = pgConvToConv(r)
+		result[i] = newPgConversation(r.ID, r.Title, r.CreatedAt, r.UpdatedAt)
 	}
 	return result, nil
 }
 
-func (db *pgDB) DeleteConversation(ctx context.Context, id string) error {
-	uuid, err := parseUUID(id)
+func (db *pgDB) DeleteConversation(ctx context.Context, userID, id string) error {
+	user, conv, err := parseOwned(userID, id)
 	if err != nil {
 		return err
 	}
-	return db.q.DeleteConversation(ctx, uuid)
+	deleted, err := db.q.DeleteConversation(ctx, sqlcdb.DeleteConversationParams{ID: conv, UserID: user})
+	if err != nil {
+		return err
+	}
+	if deleted == 0 {
+		return ErrConversationNotFound
+	}
+	return nil
 }
 
-// createdAtStep is the spacing between successive messages' created_at values
-// within a turn. TIMESTAMPTZ has microsecond resolution, so a full microsecond
-// guarantees distinct, strictly increasing timestamps that ORDER BY created_at
-// can sort into turn order.
-const createdAtStep = time.Microsecond
-
-// CreateMessages inserts every message inside a single pgx transaction and
-// bumps the conversation's updated_at in that same transaction, so the turn is
-// persisted all-or-nothing and ListConversations reflects it as soon as it
-// commits. A failure on any insert, the touch, or the commit rolls back the
-// whole batch and returns the error; the returned slice matches params order
-// on success. Each message is stamped with a strictly increasing created_at
-// (see sqlcdb.CreateMessage) so turn order survives the shared commit time.
-func (db *pgDB) CreateMessages(ctx context.Context, params []CreateMessageParams) ([]*Message, error) {
-	if len(params) == 0 {
-		return nil, nil
-	}
-	convID, err := batchConversationID(params)
+func (db *pgDB) GetMessages(ctx context.Context, userID, conversationID string) ([]*Message, error) {
+	user, conv, err := parseOwned(userID, conversationID)
 	if err != nil {
 		return nil, err
 	}
-	convUUID, err := parseUUID(convID)
-	if err != nil {
-		return nil, err
-	}
-	tx, err := db.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("begin tx: %w", err)
-	}
-	// Rollback is a safe no-op after a successful Commit (documented in pgx),
-	// so this deferred call can stay unconditional.
-	defer func() { _ = tx.Rollback(ctx) }()
-	q := db.q.WithTx(tx)
-
-	base := time.Now().UTC()
-	result := make([]*Message, len(params))
-	for i, p := range params {
-		sqlcParams, err := toSQLCMessageParams(convUUID, p, base.Add(time.Duration(i)*createdAtStep))
-		if err != nil {
-			return nil, fmt.Errorf("message %d: %w", i, err)
-		}
-		row, err := q.CreateMessage(ctx, sqlcParams)
-		if err != nil {
-			return nil, fmt.Errorf("insert message %d: %w", i, err)
-		}
-		if result[i], err = pgMsgToMsg(row); err != nil {
-			return nil, err
-		}
-	}
-
-	// Inside the transaction so a failure here rolls the turn back rather than
-	// leaving messages without an activity bump.
-	if err := q.TouchConversation(ctx, convUUID); err != nil {
-		return nil, fmt.Errorf("touch conversation: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit tx: %w", err)
-	}
-	return result, nil
-}
-
-// toSQLCMessageParams converts the backend-neutral params into the sqlc insert
-// params, serializing tool calls to JSON and mapping empty strings to NULL.
-// convUUID is the already-parsed form of p.ConversationID.
-func toSQLCMessageParams(convUUID pgtype.UUID, p CreateMessageParams, createdAt time.Time) (sqlcdb.CreateMessageParams, error) {
-	params := sqlcdb.CreateMessageParams{
-		ConversationID: convUUID,
-		Role:           sqlcdb.ChatRole(p.Role),
-		Content:        p.Content,
-		CreatedAt:      pgtype.Timestamptz{Time: createdAt, Valid: true},
-	}
-	if len(p.ToolCalls) > 0 {
-		tc, err := json.Marshal(p.ToolCalls)
-		if err != nil {
-			return sqlcdb.CreateMessageParams{}, fmt.Errorf("marshal tool calls: %w", err)
-		}
-		params.ToolCalls = tc
-	}
-	if p.ToolCallID != "" {
-		params.ToolCallID = pgtype.Text{String: p.ToolCallID, Valid: true}
-	}
-	return params, nil
-}
-
-func (db *pgDB) GetMessages(ctx context.Context, conversationID string) ([]*Message, error) {
-	uuid, err := parseUUID(conversationID)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := db.q.GetMessagesByConversation(ctx, uuid)
+	rows, err := db.q.GetTranscript(ctx, sqlcdb.GetTranscriptParams{ConversationID: conv, UserID: user})
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*Message, len(rows))
 	for i, r := range rows {
-		if result[i], err = pgMsgToMsg(r); err != nil {
+		if result[i], err = newPgMessage(r.ID, r.Role, r.Content, r.ToolCalls, r.ToolCallID, r.CreatedAt); err != nil {
 			return nil, err
 		}
 	}
 	return result, nil
+}
+
+// parseOwned parses a user ID and a conversation ID. A malformed
+// conversation ID is reported as ErrConversationNotFound: it cannot name a
+// conversation the user owns.
+func parseOwned(userID, conversationID string) (pgtype.UUID, pgtype.UUID, error) {
+	user, err := parseUUID(userID)
+	if err != nil {
+		return pgtype.UUID{}, pgtype.UUID{}, err
+	}
+	conv, err := parseUUID(conversationID)
+	if err != nil {
+		return pgtype.UUID{}, pgtype.UUID{}, fmt.Errorf("%w: %w", ErrConversationNotFound, err)
+	}
+	return user, conv, nil
 }
 
 // pgtype conversion helpers
@@ -195,34 +124,49 @@ func uuidToString(u pgtype.UUID) string {
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
-func pgConvToConv(c sqlcdb.MauriceConversation) *Conversation {
-	conv := &Conversation{
-		ID:        uuidToString(c.ID),
-		CreatedAt: c.CreatedAt.Time,
-		UpdatedAt: c.UpdatedAt.Time,
+func optionalText(s string) pgtype.Text {
+	return pgtype.Text{String: s, Valid: s != ""}
+}
+
+func optionalTextPtr(s *string) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{}
 	}
-	if c.Title.Valid {
-		conv.Title = &c.Title.String
+	return pgtype.Text{String: *s, Valid: true}
+}
+
+func timestamptz(t time.Time) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: t, Valid: true}
+}
+
+func newPgConversation(id pgtype.UUID, title pgtype.Text, createdAt, updatedAt pgtype.Timestamptz) *Conversation {
+	conv := &Conversation{
+		ID:        uuidToString(id),
+		CreatedAt: createdAt.Time,
+		UpdatedAt: updatedAt.Time,
+	}
+	if title.Valid {
+		conv.Title = &title.String
 	}
 	return conv
 }
 
-// pgMsgToMsg maps a stored row to a Message. A tool_calls value that does not
-// decode is reported rather than dropped: silently returning a message without
-// its tool calls would hand the LLM a history whose tool results have no
-// matching calls.
-func pgMsgToMsg(m sqlcdb.MauriceMessage) (*Message, error) {
+// newPgMessage maps a stored row to a Message. A tool_calls value that does
+// not decode is reported rather than dropped: silently returning a message
+// without its tool calls would hand the LLM a history whose tool results have
+// no matching calls.
+func newPgMessage(id pgtype.UUID, role sqlcdb.ChatRole, content string, toolCalls []byte, toolCallID pgtype.Text, createdAt pgtype.Timestamptz) (*Message, error) {
 	msg := &Message{
-		ID:        uuidToString(m.ID),
-		Role:      string(m.Role),
-		Content:   m.Content,
-		CreatedAt: m.CreatedAt.Time,
+		ID:        uuidToString(id),
+		Role:      string(role),
+		Content:   content,
+		CreatedAt: createdAt.Time,
 	}
-	if m.ToolCallID.Valid {
-		msg.ToolCallID = m.ToolCallID.String
+	if toolCallID.Valid {
+		msg.ToolCallID = toolCallID.String
 	}
-	if len(m.ToolCalls) > 0 {
-		if err := json.Unmarshal(m.ToolCalls, &msg.ToolCalls); err != nil {
+	if len(toolCalls) > 0 {
+		if err := json.Unmarshal(toolCalls, &msg.ToolCalls); err != nil {
 			return nil, fmt.Errorf("message %s: decode tool calls: %w", msg.ID, err)
 		}
 	}

@@ -6,29 +6,70 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/google/uuid"
 )
 
+// The SQLite store backs the single-user REPL. It keeps owner-scoped
+// conversations, turns (idempotency, one running turn per conversation) and
+// the transcript, but not LLM-call or tool-call usage: that analysis belongs
+// to the multi-user PostgreSQL store.
 const sqliteSchema = `
 CREATE TABLE IF NOT EXISTS conversations (
 	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
 	title TEXT,
 	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL
+	updated_at TEXT NOT NULL,
+	deleted_at TEXT
+);
+CREATE TABLE IF NOT EXISTS turns (
+	id TEXT PRIMARY KEY,
+	conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+	user_id TEXT NOT NULL,
+	turn_number INTEGER NOT NULL,
+	idempotency_key TEXT NOT NULL,
+	request_hash BLOB NOT NULL,
+	status TEXT NOT NULL,
+	started_at TEXT NOT NULL,
+	completed_at TEXT,
+	error_class TEXT,
+	UNIQUE (conversation_id, turn_number),
+	UNIQUE (user_id, idempotency_key)
 );
 CREATE TABLE IF NOT EXISTS messages (
 	id TEXT PRIMARY KEY,
 	conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+	turn_id TEXT REFERENCES turns(id) ON DELETE CASCADE,
+	message_number INTEGER,
 	role TEXT NOT NULL,
 	content TEXT NOT NULL DEFAULT '',
 	tool_calls TEXT,
 	tool_call_id TEXT,
 	created_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updated_at DESC);
 `
+
+// sqliteIndexes run after sqliteUpgrades so the columns they cover exist in
+// databases created before those columns.
+const sqliteIndexes = `
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_turns_one_running ON turns(conversation_id) WHERE status = 'running';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_turn_number ON messages(turn_id, message_number) WHERE turn_id IS NOT NULL;
+`
+
+// sqliteUpgrade adds a column missing from a database created by an earlier
+// version. Messages written before turns existed keep a NULL turn_id and stay
+// in the transcript; their conversations belong to LocalUserID.
+type sqliteUpgrade struct {
+	table, column, definition string
+}
+
+var sqliteUpgrades = []sqliteUpgrade{
+	{"conversations", "user_id", "TEXT NOT NULL DEFAULT '" + LocalUserID + "'"},
+	{"conversations", "deleted_at", "TEXT"},
+	{"messages", "turn_id", "TEXT REFERENCES turns(id) ON DELETE CASCADE"},
+	{"messages", "message_number", "INTEGER"},
+}
 
 // sqliteTimeLayout is the fixed-width form every timestamp is stored in. It is
 // RFC 3339 with the fractional seconds always padded to nine digits, unlike
@@ -44,53 +85,63 @@ type sqliteDB struct {
 }
 
 // NewSQLiteDB wraps a *sql.DB (opened with a SQLite driver) as a maurice.DB.
-// It creates the required tables if they don't exist.
+// It creates the required tables if they don't exist and upgrades tables
+// created by earlier versions.
 func NewSQLiteDB(db *sql.DB) (DB, error) {
-	// Single connection — keeps PRAGMA foreign_keys consistent
+	// Single connection — keeps PRAGMA foreign_keys consistent and serializes
+	// every transaction, which BeginTurn relies on.
 	db.SetMaxOpenConns(1)
-	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
 		return nil, fmt.Errorf("enable foreign keys: %w", err)
 	}
-	if _, err := db.ExecContext(context.Background(), sqliteSchema); err != nil {
+	if _, err := db.ExecContext(ctx, sqliteSchema); err != nil {
 		return nil, fmt.Errorf("create schema: %w", err)
+	}
+	for _, u := range sqliteUpgrades {
+		if err := addMissingColumn(ctx, db, u); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := db.ExecContext(ctx, sqliteIndexes); err != nil {
+		return nil, fmt.Errorf("create indexes: %w", err)
 	}
 	return &sqliteDB{db: db}, nil
 }
 
-func (s *sqliteDB) CreateConversation(ctx context.Context) (*Conversation, error) {
-	id := uuid.New().String()
-	now := time.Now().UTC()
-	nowStr := now.Format(sqliteTimeLayout)
-	_, err := s.db.ExecContext(ctx,
-		"INSERT INTO conversations (id, created_at, updated_at) VALUES (?, ?, ?)",
-		id, nowStr, nowStr,
-	)
-	if err != nil {
-		return nil, err
+func addMissingColumn(ctx context.Context, db *sql.DB, u sqliteUpgrade) error {
+	var count int
+	if err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?", u.table, u.column,
+	).Scan(&count); err != nil {
+		return fmt.Errorf("inspect %s.%s: %w", u.table, u.column, err)
 	}
-	return &Conversation{ID: id, CreatedAt: now, UpdatedAt: now}, nil
+	if count > 0 {
+		return nil
+	}
+	if _, err := db.ExecContext(ctx,
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", u.table, u.column, u.definition),
+	); err != nil {
+		return fmt.Errorf("add %s.%s: %w", u.table, u.column, err)
+	}
+	return nil
 }
 
-func (s *sqliteDB) GetConversation(ctx context.Context, id string) (*Conversation, error) {
+func (s *sqliteDB) GetConversation(ctx context.Context, userID, id string) (*Conversation, error) {
 	row := s.db.QueryRowContext(ctx,
-		"SELECT id, title, created_at, updated_at FROM conversations WHERE id = ?", id,
+		"SELECT id, title, created_at, updated_at FROM conversations WHERE id = ? AND user_id = ? AND deleted_at IS NULL", id, userID,
 	)
-	return scanConversation(row)
+	conv, err := scanConversation(row)
+	if err == sql.ErrNoRows {
+		return nil, ErrConversationNotFound
+	}
+	return conv, err
 }
 
-func (s *sqliteDB) UpdateConversationTitle(ctx context.Context, id, title string) error {
-	now := time.Now().UTC().Format(sqliteTimeLayout)
-	_, err := s.db.ExecContext(ctx,
-		"UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?",
-		title, now, id,
-	)
-	return err
-}
-
-func (s *sqliteDB) ListConversations(ctx context.Context, limit int) ([]*Conversation, error) {
+func (s *sqliteDB) ListConversations(ctx context.Context, userID string, limit int) ([]*Conversation, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, title, created_at, updated_at FROM conversations ORDER BY updated_at DESC LIMIT ?",
-		limit,
+		"SELECT id, title, created_at, updated_at FROM conversations WHERE user_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?",
+		userID, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -107,107 +158,37 @@ func (s *sqliteDB) ListConversations(ctx context.Context, limit int) ([]*Convers
 	return result, rows.Err()
 }
 
-func (s *sqliteDB) DeleteConversation(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM conversations WHERE id = ?", id)
-	return err
-}
-
-// CreateMessages inserts every message inside a single transaction and bumps
-// the conversation's updated_at in that same transaction, so the turn is
-// persisted all-or-nothing and ListConversations reflects it as soon as it
-// commits. A failure on any insert, the bump, or the commit rolls the whole
-// batch back. The returned slice matches params order on success.
-//
-// Every message in the turn is stamped with the SAME created_at. Ordering is
-// then decided by the rowid tiebreaker in GetMessages' "ORDER BY created_at
-// ASC, rowid ASC", which preserves insertion (turn) order regardless of
-// timestamp resolution.
-func (s *sqliteDB) CreateMessages(ctx context.Context, params []CreateMessageParams) ([]*Message, error) {
-	if len(params) == 0 {
-		return nil, nil
-	}
-	convID, err := batchConversationID(params)
+// DeleteConversation hides the conversation; nothing is removed.
+func (s *sqliteDB) DeleteConversation(ctx context.Context, userID, id string) error {
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE conversations SET deleted_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL",
+		time.Now().UTC().Format(sqliteTimeLayout), id, userID,
+	)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	n, err := res.RowsAffected()
 	if err != nil {
-		return nil, fmt.Errorf("begin tx: %w", err)
+		return err
 	}
-	// Rollback after a successful Commit is a no-op (database/sql returns
-	// ErrTxDone, which we ignore), so this deferred call can stay unconditional.
-	defer func() { _ = tx.Rollback() }()
-
-	now := time.Now().UTC()
-	result := make([]*Message, len(params))
-	for i, p := range params {
-		msg, err := insertMessage(ctx, tx, p, now)
-		if err != nil {
-			return nil, fmt.Errorf("insert message %d: %w", i, err)
-		}
-		result[i] = msg
+	if n == 0 {
+		return ErrConversationNotFound
 	}
-
-	// Bump the conversation's updated_at once for the whole turn. Inside the
-	// transaction so a failure here rolls the turn back rather than leaving
-	// messages without an activity bump.
-	if _, err := tx.ExecContext(ctx,
-		"UPDATE conversations SET updated_at = ? WHERE id = ?",
-		now.Format(sqliteTimeLayout), convID,
-	); err != nil {
-		return nil, fmt.Errorf("touch conversation: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return nil
 }
 
-// insertMessage writes one message row inside the given transaction, stamped
-// with the given created_at, and returns the resulting Message.
-func insertMessage(ctx context.Context, tx *sql.Tx, p CreateMessageParams, now time.Time) (*Message, error) {
-	id := uuid.New().String()
-	nowStr := now.Format(sqliteTimeLayout)
-
-	var toolCallsJSON *string
-	if len(p.ToolCalls) > 0 {
-		b, err := json.Marshal(p.ToolCalls)
-		if err != nil {
-			return nil, fmt.Errorf("marshal tool calls: %w", err)
-		}
-		str := string(b)
-		toolCallsJSON = &str
-	}
-
-	var toolCallID *string
-	if p.ToolCallID != "" {
-		toolCallID = &p.ToolCallID
-	}
-
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO messages (id, conversation_id, role, content, tool_calls, tool_call_id, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, p.ConversationID, p.Role, p.Content, toolCallsJSON, toolCallID, nowStr,
-	); err != nil {
-		return nil, err
-	}
-
-	return &Message{
-		ID:         id,
-		Role:       p.Role,
-		Content:    p.Content,
-		ToolCalls:  p.ToolCalls,
-		ToolCallID: p.ToolCallID,
-		CreatedAt:  now,
-	}, nil
-}
-
-func (s *sqliteDB) GetMessages(ctx context.Context, conversationID string) ([]*Message, error) {
+// GetMessages returns messages of succeeded turns plus legacy messages written
+// before turns existed. Each turn's messages share one created_at; rowid keeps
+// their insertion (turn) order.
+func (s *sqliteDB) GetMessages(ctx context.Context, userID, conversationID string) ([]*Message, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, role, content, tool_calls, tool_call_id, created_at
-		 FROM messages WHERE conversation_id = ? ORDER BY created_at ASC, rowid ASC`,
-		conversationID,
+		`SELECT m.id, m.role, m.content, m.tool_calls, m.tool_call_id, m.created_at
+		 FROM messages m
+		 JOIN conversations c ON c.id = m.conversation_id
+		 LEFT JOIN turns t ON t.id = m.turn_id
+		 WHERE m.conversation_id = ? AND c.user_id = ? AND c.deleted_at IS NULL AND (m.turn_id IS NULL OR t.status = ?)
+		 ORDER BY m.created_at ASC, m.rowid ASC`,
+		conversationID, userID, string(TurnSucceeded),
 	)
 	if err != nil {
 		return nil, err

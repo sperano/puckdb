@@ -140,7 +140,13 @@ func RunREPL(ctx context.Context, cfg REPLConfig) error {
 		pcfg := cfg.ProviderConfigs[entry.Provider]
 		return NewService(
 			llm.NewClientForProvider(entry.Provider, pcfg, entry.ID),
-			cfg.MCPClient, cfg.DB, cfg.MaxHistory, cfg.MaxTokens, cfg.MaxToolRounds,
+			cfg.MCPClient, cfg.DB, ServiceConfig{
+				Provider:      entry.Provider.String(),
+				Model:         entry.ID,
+				MaxHistory:    cfg.MaxHistory,
+				MaxTokens:     cfg.MaxTokens,
+				MaxToolRounds: cfg.MaxToolRounds,
+			},
 		)
 	}
 
@@ -202,7 +208,7 @@ func RunREPL(ctx context.Context, cfg REPLConfig) error {
 			continue
 
 		case input == "/history":
-			convs, err := svc.ListConversations(ctx, cfg.ListLimit)
+			convs, err := svc.ListConversations(ctx, LocalUserID, cfg.ListLimit)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, styleError.Render("  Error: "+err.Error()))
 				continue
@@ -259,7 +265,7 @@ func RunREPL(ctx context.Context, cfg REPLConfig) error {
 				fmt.Println(styleHint.Render("  Usage: /load <conversation-id>"))
 				continue
 			}
-			conv, _, err := svc.GetConversation(ctx, id)
+			conv, _, err := svc.GetConversation(ctx, LocalUserID, id)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, styleError.Render("  Error: "+err.Error()))
 				continue
@@ -274,7 +280,7 @@ func RunREPL(ctx context.Context, cfg REPLConfig) error {
 		}
 
 		spin.Start("thinking...")
-		resp, err := svc.Chat(ctx, conversationID, input)
+		resp, err := svc.Chat(ctx, ChatRequest{UserID: LocalUserID, ConversationID: conversationID, Message: input})
 		spin.Stop()
 
 		if err != nil {
