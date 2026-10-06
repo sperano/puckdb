@@ -16,6 +16,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
@@ -56,6 +57,7 @@ var apiFlagGroups = []*config.FlagGroup{
 	&config.MauriceFlags,
 	&config.PostgresFlags,
 	&config.AdminAuthFlags,
+	&config.AppSessionFlags,
 	&config.YahooSeasonsFlags,
 	&config.DraftAPIFlags,
 	&config.DataPathFlags,
@@ -120,7 +122,11 @@ func cmdAPI() *cobra.Command {
 
 			listen := fmt.Sprintf(":%d", viper.GetInt(config.FlagAPIPort))
 			log.Info().Msgf("Go to %s/ to authenticate with Yahoo or to access the GraphQL console", viper.GetString(config.FlagPublicURL))
-			r := setupAPIRouter(redisClient, resolver)
+			sessions, err := newAppUserMiddleware(pool)
+			if err != nil {
+				return err
+			}
+			r := setupAPIRouter(redisClient, resolver, sessions)
 			srv := &http.Server{Addr: listen, Handler: r}
 			return runHTTPServer(cmd.Context(), srv,
 				viper.GetBool(config.FlagAPITLSEnabled),
@@ -198,7 +204,26 @@ func runHTTPServer(ctx context.Context, srv *http.Server, tlsEnabled bool, cert,
 	}
 }
 
-func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver) *chi.Mux {
+// newAppUserMiddleware resolves the PuckDB user and session of GraphQL
+// requests on demand (see appuser.Middleware).
+func newAppUserMiddleware(pool *pgxpool.Pool) (func(http.Handler) http.Handler, error) {
+	key := []byte(viper.GetString(config.FlagSessionHashKey))
+	if len(key) == 0 {
+		log.Warn().Str("flag", config.FlagSessionHashKey).
+			Msg("no session hash key configured; using a random key, so PuckDB sessions restart with the process")
+		var err error
+		if key, err = appuser.RandomHashKey(); err != nil {
+			return nil, err
+		}
+	}
+	hasher, err := appuser.NewHasher(key)
+	if err != nil {
+		return nil, err
+	}
+	return appuser.Middleware(appuser.NewPGStore(pool, appuser.SessionIdleTimeout), hasher), nil
+}
+
+func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, sessions func(http.Handler) http.Handler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(httpx.ChiLogger)
@@ -213,7 +238,7 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver) *chi.Mu
 	// GraphQL
 	r.Route(graphQLPath, func(r chi.Router) {
 		r.Get("/", playgroundHandler().ServeHTTP)
-		r.Post("/query", graphqlHandler(resolver).ServeHTTP)
+		r.With(sessions).Post("/query", graphqlHandler(resolver).ServeHTTP)
 	})
 	// Yahoo Oauth2
 	r.Route("/yahoo", func(r chi.Router) {
@@ -299,14 +324,13 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 	cfg := providerConfigs[entry.Provider]
 	llmClient := llm.NewClientForProvider(entry.Provider, cfg, entry.ID)
 
-	svc := maurice.NewService(
-		llmClient,
-		mcpClient,
-		maurice.NewPgDB(pool),
-		viper.GetInt(config.FlagMauriceMaxHistory),
-		viper.GetInt(config.FlagMauriceMaxTokens),
-		viper.GetInt(config.FlagMauriceMaxToolRounds),
-	)
+	svc := maurice.NewService(llmClient, mcpClient, maurice.NewPgDB(pool), maurice.ServiceConfig{
+		Provider:      entry.Provider.String(),
+		Model:         entry.ID,
+		MaxHistory:    viper.GetInt(config.FlagMauriceMaxHistory),
+		MaxTokens:     viper.GetInt(config.FlagMauriceMaxTokens),
+		MaxToolRounds: viper.GetInt(config.FlagMauriceMaxToolRounds),
+	})
 
 	cleanup := func() {
 		if err := svc.Close(); err != nil {

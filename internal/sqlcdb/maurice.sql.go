@@ -11,15 +11,76 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const abandonStaleTurns = `-- name: AbandonStaleTurns :exec
+UPDATE maurice_turns
+SET status = 'failed', error_class = 'abandoned', completed_at = clock_timestamp()
+WHERE conversation_id = $1 AND status = 'running'
+  AND started_at < clock_timestamp() - make_interval(secs => $2::double precision)
+`
+
+type AbandonStaleTurnsParams struct {
+	ConversationID pgtype.UUID `json:"conversation_id"`
+	StaleSeconds   float64     `json:"stale_seconds"`
+}
+
+// A running turn older than the stale cutoff belongs to a request that died
+// without finishing it; failing it frees the conversation.
+func (q *Queries) AbandonStaleTurns(ctx context.Context, arg AbandonStaleTurnsParams) error {
+	_, err := q.db.Exec(ctx, abandonStaleTurns, arg.ConversationID, arg.StaleSeconds)
+	return err
+}
+
+const abandonTurn = `-- name: AbandonTurn :exec
+UPDATE maurice_turns
+SET status = 'failed', error_class = 'abandoned', completed_at = clock_timestamp()
+WHERE id = $1 AND status = 'running'
+`
+
+func (q *Queries) AbandonTurn(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, abandonTurn, id)
+	return err
+}
+
+const completeTurn = `-- name: CompleteTurn :one
+UPDATE maurice_turns
+SET status = $2, error_class = $3, completed_at = clock_timestamp()
+WHERE id = $1 AND status = 'running'
+RETURNING conversation_id
+`
+
+type CompleteTurnParams struct {
+	ID         pgtype.UUID `json:"id"`
+	Status     string      `json:"status"`
+	ErrorClass pgtype.Text `json:"error_class"`
+}
+
+func (q *Queries) CompleteTurn(ctx context.Context, arg CompleteTurnParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, completeTurn, arg.ID, arg.Status, arg.ErrorClass)
+	var conversation_id pgtype.UUID
+	err := row.Scan(&conversation_id)
+	return conversation_id, err
+}
+
 const createConversation = `-- name: CreateConversation :one
-INSERT INTO maurice_conversations (title)
+
+INSERT INTO maurice_conversations (user_id)
 VALUES ($1)
 RETURNING id, title, created_at, updated_at
 `
 
-func (q *Queries) CreateConversation(ctx context.Context, title pgtype.Text) (MauriceConversation, error) {
-	row := q.db.QueryRow(ctx, createConversation, title)
-	var i MauriceConversation
+type CreateConversationRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	Title     pgtype.Text        `json:"title"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Every conversation query is scoped by its owner: knowing a conversation
+// UUID is not authorization. A conversation with deleted_at set is gone for
+// its owner, but its rows are kept (prompts and usage are kept forever).
+func (q *Queries) CreateConversation(ctx context.Context, userID pgtype.UUID) (CreateConversationRow, error) {
+	row := q.db.QueryRow(ctx, createConversation, userID)
+	var i CreateConversationRow
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
@@ -30,12 +91,24 @@ func (q *Queries) CreateConversation(ctx context.Context, title pgtype.Text) (Ma
 }
 
 const createMessage = `-- name: CreateMessage :one
-INSERT INTO maurice_messages (conversation_id, role, content, tool_calls, tool_call_id, created_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO maurice_messages (conversation_id, turn_id, message_number, role, content, tool_calls, tool_call_id, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, conversation_id, role, content, tool_calls, tool_call_id, created_at
 `
 
 type CreateMessageParams struct {
+	ConversationID pgtype.UUID        `json:"conversation_id"`
+	TurnID         pgtype.UUID        `json:"turn_id"`
+	MessageNumber  int32              `json:"message_number"`
+	Role           ChatRole           `json:"role"`
+	Content        string             `json:"content"`
+	ToolCalls      []byte             `json:"tool_calls"`
+	ToolCallID     pgtype.Text        `json:"tool_call_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreateMessageRow struct {
+	ID             pgtype.UUID        `json:"id"`
 	ConversationID pgtype.UUID        `json:"conversation_id"`
 	Role           ChatRole           `json:"role"`
 	Content        string             `json:"content"`
@@ -46,18 +119,19 @@ type CreateMessageParams struct {
 
 // created_at is supplied explicitly rather than left to DEFAULT NOW(): NOW()
 // is the transaction start time, so every message of a turn inserted in one
-// transaction would share it and GetMessagesByConversation could not
-// reconstruct turn order. The caller stamps a strictly increasing value.
-func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (MauriceMessage, error) {
+// transaction would share it. The caller stamps a strictly increasing value.
+func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (CreateMessageRow, error) {
 	row := q.db.QueryRow(ctx, createMessage,
 		arg.ConversationID,
+		arg.TurnID,
+		arg.MessageNumber,
 		arg.Role,
 		arg.Content,
 		arg.ToolCalls,
 		arg.ToolCallID,
 		arg.CreatedAt,
 	)
-	var i MauriceMessage
+	var i CreateMessageRow
 	err := row.Scan(
 		&i.ID,
 		&i.ConversationID,
@@ -70,25 +144,47 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 	return i, err
 }
 
-const deleteConversation = `-- name: DeleteConversation :exec
-DELETE FROM maurice_conversations
-WHERE id = $1
+const deleteConversation = `-- name: DeleteConversation :execrows
+UPDATE maurice_conversations
+SET deleted_at = clock_timestamp()
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 `
 
-func (q *Queries) DeleteConversation(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteConversation, id)
-	return err
+type DeleteConversationParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+// Hides the conversation; nothing is removed.
+func (q *Queries) DeleteConversation(ctx context.Context, arg DeleteConversationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteConversation, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getConversation = `-- name: GetConversation :one
 SELECT id, title, created_at, updated_at
 FROM maurice_conversations
-WHERE id = $1
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 `
 
-func (q *Queries) GetConversation(ctx context.Context, id pgtype.UUID) (MauriceConversation, error) {
-	row := q.db.QueryRow(ctx, getConversation, id)
-	var i MauriceConversation
+type GetConversationParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+type GetConversationRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	Title     pgtype.Text        `json:"title"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams) (GetConversationRow, error) {
+	row := q.db.QueryRow(ctx, getConversation, arg.ID, arg.UserID)
+	var i GetConversationRow
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
@@ -98,22 +194,42 @@ func (q *Queries) GetConversation(ctx context.Context, id pgtype.UUID) (MauriceC
 	return i, err
 }
 
-const getMessagesByConversation = `-- name: GetMessagesByConversation :many
-SELECT id, conversation_id, role, content, tool_calls, tool_call_id, created_at
-FROM maurice_messages
-WHERE conversation_id = $1
-ORDER BY created_at ASC
+const getTranscript = `-- name: GetTranscript :many
+SELECT m.id, m.conversation_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.created_at
+FROM maurice_messages m
+JOIN maurice_turns t ON t.id = m.turn_id
+JOIN maurice_conversations c ON c.id = m.conversation_id
+WHERE m.conversation_id = $1 AND c.user_id = $2 AND c.deleted_at IS NULL AND t.status = 'succeeded'
+ORDER BY t.turn_number, m.message_number
 `
 
-func (q *Queries) GetMessagesByConversation(ctx context.Context, conversationID pgtype.UUID) ([]MauriceMessage, error) {
-	rows, err := q.db.Query(ctx, getMessagesByConversation, conversationID)
+type GetTranscriptParams struct {
+	ConversationID pgtype.UUID `json:"conversation_id"`
+	UserID         pgtype.UUID `json:"user_id"`
+}
+
+type GetTranscriptRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	ConversationID pgtype.UUID        `json:"conversation_id"`
+	Role           ChatRole           `json:"role"`
+	Content        string             `json:"content"`
+	ToolCalls      []byte             `json:"tool_calls"`
+	ToolCallID     pgtype.Text        `json:"tool_call_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+// The replayable transcript: messages of succeeded turns only. Messages of
+// failed or cancelled turns are kept as exact provider prompts but must never
+// be replayed as history.
+func (q *Queries) GetTranscript(ctx context.Context, arg GetTranscriptParams) ([]GetTranscriptRow, error) {
+	rows, err := q.db.Query(ctx, getTranscript, arg.ConversationID, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []MauriceMessage{}
+	items := []GetTranscriptRow{}
 	for rows.Next() {
-		var i MauriceMessage
+		var i GetTranscriptRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ConversationID,
@@ -133,22 +249,277 @@ func (q *Queries) GetMessagesByConversation(ctx context.Context, conversationID 
 	return items, nil
 }
 
-const listConversations = `-- name: ListConversations :many
-SELECT id, title, created_at, updated_at
-FROM maurice_conversations
-ORDER BY updated_at DESC
-LIMIT $1
+const getTurnByKey = `-- name: GetTurnByKey :one
+SELECT t.id, t.conversation_id, t.turn_number, t.request_hash, t.status, t.error_class,
+       (t.status = 'running' AND t.started_at < clock_timestamp() - make_interval(secs => $3::double precision))::boolean AS stale,
+       (c.deleted_at IS NOT NULL)::boolean AS conversation_deleted
+FROM maurice_turns t
+JOIN maurice_conversations c ON c.id = t.conversation_id
+WHERE t.user_id = $1 AND t.idempotency_key = $2
 `
 
-func (q *Queries) ListConversations(ctx context.Context, limit int32) ([]MauriceConversation, error) {
-	rows, err := q.db.Query(ctx, listConversations, limit)
+type GetTurnByKeyParams struct {
+	UserID         pgtype.UUID `json:"user_id"`
+	IdempotencyKey string      `json:"idempotency_key"`
+	StaleSeconds   float64     `json:"stale_seconds"`
+}
+
+type GetTurnByKeyRow struct {
+	ID                  pgtype.UUID `json:"id"`
+	ConversationID      pgtype.UUID `json:"conversation_id"`
+	TurnNumber          int32       `json:"turn_number"`
+	RequestHash         []byte      `json:"request_hash"`
+	Status              string      `json:"status"`
+	ErrorClass          pgtype.Text `json:"error_class"`
+	Stale               bool        `json:"stale"`
+	ConversationDeleted bool        `json:"conversation_deleted"`
+}
+
+func (q *Queries) GetTurnByKey(ctx context.Context, arg GetTurnByKeyParams) (GetTurnByKeyRow, error) {
+	row := q.db.QueryRow(ctx, getTurnByKey, arg.UserID, arg.IdempotencyKey, arg.StaleSeconds)
+	var i GetTurnByKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.ConversationID,
+		&i.TurnNumber,
+		&i.RequestHash,
+		&i.Status,
+		&i.ErrorClass,
+		&i.Stale,
+		&i.ConversationDeleted,
+	)
+	return i, err
+}
+
+const getTurnFinalMessage = `-- name: GetTurnFinalMessage :one
+SELECT id, content
+FROM maurice_messages
+WHERE turn_id = $1
+ORDER BY message_number DESC
+LIMIT 1
+`
+
+type GetTurnFinalMessageRow struct {
+	ID      pgtype.UUID `json:"id"`
+	Content string      `json:"content"`
+}
+
+func (q *Queries) GetTurnFinalMessage(ctx context.Context, turnID pgtype.UUID) (GetTurnFinalMessageRow, error) {
+	row := q.db.QueryRow(ctx, getTurnFinalMessage, turnID)
+	var i GetTurnFinalMessageRow
+	err := row.Scan(&i.ID, &i.Content)
+	return i, err
+}
+
+const getTurnToolCallLists = `-- name: GetTurnToolCallLists :many
+SELECT tool_calls
+FROM maurice_messages
+WHERE turn_id = $1 AND tool_calls IS NOT NULL
+ORDER BY message_number
+`
+
+func (q *Queries) GetTurnToolCallLists(ctx context.Context, turnID pgtype.UUID) ([][]byte, error) {
+	rows, err := q.db.Query(ctx, getTurnToolCallLists, turnID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []MauriceConversation{}
+	items := [][]byte{}
 	for rows.Next() {
-		var i MauriceConversation
+		var tool_calls []byte
+		if err := rows.Scan(&tool_calls); err != nil {
+			return nil, err
+		}
+		items = append(items, tool_calls)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertLLMCall = `-- name: InsertLLMCall :one
+INSERT INTO maurice_llm_calls (
+    turn_id, conversation_id, call_kind, round_number, provider_request_id, provider, model,
+    status, finish_reason, started_at, completed_at, input_tokens, output_tokens,
+    cache_creation_input_tokens, cache_read_input_tokens, error_class, system_prompt,
+    instruction, tool_definitions
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+)
+RETURNING id
+`
+
+type InsertLLMCallParams struct {
+	TurnID                   pgtype.UUID        `json:"turn_id"`
+	ConversationID           pgtype.UUID        `json:"conversation_id"`
+	CallKind                 string             `json:"call_kind"`
+	RoundNumber              pgtype.Int4        `json:"round_number"`
+	ProviderRequestID        pgtype.Text        `json:"provider_request_id"`
+	Provider                 string             `json:"provider"`
+	Model                    string             `json:"model"`
+	Status                   string             `json:"status"`
+	FinishReason             pgtype.Text        `json:"finish_reason"`
+	StartedAt                pgtype.Timestamptz `json:"started_at"`
+	CompletedAt              pgtype.Timestamptz `json:"completed_at"`
+	InputTokens              pgtype.Int8        `json:"input_tokens"`
+	OutputTokens             pgtype.Int8        `json:"output_tokens"`
+	CacheCreationInputTokens pgtype.Int8        `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     pgtype.Int8        `json:"cache_read_input_tokens"`
+	ErrorClass               pgtype.Text        `json:"error_class"`
+	SystemPrompt             pgtype.Text        `json:"system_prompt"`
+	Instruction              pgtype.Text        `json:"instruction"`
+	ToolDefinitions          []byte             `json:"tool_definitions"`
+}
+
+func (q *Queries) InsertLLMCall(ctx context.Context, arg InsertLLMCallParams) (int64, error) {
+	row := q.db.QueryRow(ctx, insertLLMCall,
+		arg.TurnID,
+		arg.ConversationID,
+		arg.CallKind,
+		arg.RoundNumber,
+		arg.ProviderRequestID,
+		arg.Provider,
+		arg.Model,
+		arg.Status,
+		arg.FinishReason,
+		arg.StartedAt,
+		arg.CompletedAt,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.CacheCreationInputTokens,
+		arg.CacheReadInputTokens,
+		arg.ErrorClass,
+		arg.SystemPrompt,
+		arg.Instruction,
+		arg.ToolDefinitions,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertLLMCallMessages = `-- name: InsertLLMCallMessages :exec
+INSERT INTO maurice_llm_call_messages (llm_call_id, input_number, message_id)
+SELECT $1::bigint,
+       unnest($2::integer[]),
+       unnest($3::uuid[])
+`
+
+type InsertLLMCallMessagesParams struct {
+	LlmCallID    int64         `json:"llm_call_id"`
+	InputNumbers []int32       `json:"input_numbers"`
+	MessageIds   []pgtype.UUID `json:"message_ids"`
+}
+
+// Both arrays have one entry per input; set-returning functions in the select
+// list advance in lockstep.
+func (q *Queries) InsertLLMCallMessages(ctx context.Context, arg InsertLLMCallMessagesParams) error {
+	_, err := q.db.Exec(ctx, insertLLMCallMessages, arg.LlmCallID, arg.InputNumbers, arg.MessageIds)
+	return err
+}
+
+const insertToolCall = `-- name: InsertToolCall :exec
+INSERT INTO maurice_tool_calls (
+    turn_id, llm_call_id, sequence_number, provider_tool_call_id, tool_name, arguments,
+    arguments_raw, result, status, started_at, completed_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+)
+`
+
+type InsertToolCallParams struct {
+	TurnID             pgtype.UUID        `json:"turn_id"`
+	LlmCallID          int64              `json:"llm_call_id"`
+	SequenceNumber     int32              `json:"sequence_number"`
+	ProviderToolCallID pgtype.Text        `json:"provider_tool_call_id"`
+	ToolName           string             `json:"tool_name"`
+	Arguments          []byte             `json:"arguments"`
+	ArgumentsRaw       string             `json:"arguments_raw"`
+	Result             pgtype.Text        `json:"result"`
+	Status             string             `json:"status"`
+	StartedAt          pgtype.Timestamptz `json:"started_at"`
+	CompletedAt        pgtype.Timestamptz `json:"completed_at"`
+}
+
+func (q *Queries) InsertToolCall(ctx context.Context, arg InsertToolCallParams) error {
+	_, err := q.db.Exec(ctx, insertToolCall,
+		arg.TurnID,
+		arg.LlmCallID,
+		arg.SequenceNumber,
+		arg.ProviderToolCallID,
+		arg.ToolName,
+		arg.Arguments,
+		arg.ArgumentsRaw,
+		arg.Result,
+		arg.Status,
+		arg.StartedAt,
+		arg.CompletedAt,
+	)
+	return err
+}
+
+const insertTurn = `-- name: InsertTurn :one
+INSERT INTO maurice_turns (conversation_id, user_id, turn_number, idempotency_key, request_hash)
+VALUES ($1, $2,
+        (SELECT COALESCE(MAX(turn_number) + 1, 0) FROM maurice_turns WHERE conversation_id = $1),
+        $3, $4)
+RETURNING id, turn_number
+`
+
+type InsertTurnParams struct {
+	ConversationID pgtype.UUID `json:"conversation_id"`
+	UserID         pgtype.UUID `json:"user_id"`
+	IdempotencyKey string      `json:"idempotency_key"`
+	RequestHash    []byte      `json:"request_hash"`
+}
+
+type InsertTurnRow struct {
+	ID         pgtype.UUID `json:"id"`
+	TurnNumber int32       `json:"turn_number"`
+}
+
+func (q *Queries) InsertTurn(ctx context.Context, arg InsertTurnParams) (InsertTurnRow, error) {
+	row := q.db.QueryRow(ctx, insertTurn,
+		arg.ConversationID,
+		arg.UserID,
+		arg.IdempotencyKey,
+		arg.RequestHash,
+	)
+	var i InsertTurnRow
+	err := row.Scan(&i.ID, &i.TurnNumber)
+	return i, err
+}
+
+const listConversations = `-- name: ListConversations :many
+SELECT id, title, created_at, updated_at
+FROM maurice_conversations
+WHERE user_id = $1 AND deleted_at IS NULL
+ORDER BY updated_at DESC
+LIMIT $2
+`
+
+type ListConversationsParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Limit  int32       `json:"limit"`
+}
+
+type ListConversationsRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	Title     pgtype.Text        `json:"title"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsParams) ([]ListConversationsRow, error) {
+	rows, err := q.db.Query(ctx, listConversations, arg.UserID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListConversationsRow{}
+	for rows.Next() {
+		var i ListConversationsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
@@ -163,6 +534,47 @@ func (q *Queries) ListConversations(ctx context.Context, limit int32) ([]Maurice
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockConversation = `-- name: LockConversation :one
+SELECT id
+FROM maurice_conversations
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+FOR UPDATE
+`
+
+type LockConversationParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+// Serializes turn starts on one conversation for the rest of the transaction.
+func (q *Queries) LockConversation(ctx context.Context, arg LockConversationParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockConversation, arg.ID, arg.UserID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const lockOwnedConversation = `-- name: LockOwnedConversation :one
+SELECT id
+FROM maurice_conversations
+WHERE id = $1 AND user_id = $2
+FOR UPDATE
+`
+
+type LockOwnedConversationParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+// Ownership check that also matches a deleted conversation, for usage that
+// must be recorded even after the owner deleted it (title generation).
+func (q *Queries) LockOwnedConversation(ctx context.Context, arg LockOwnedConversationParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockOwnedConversation, arg.ID, arg.UserID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const touchConversation = `-- name: TouchConversation :exec
@@ -184,16 +596,17 @@ func (q *Queries) TouchConversation(ctx context.Context, id pgtype.UUID) error {
 
 const updateConversationTitle = `-- name: UpdateConversationTitle :exec
 UPDATE maurice_conversations
-SET title = $2, updated_at = NOW()
-WHERE id = $1
+SET title = $3, updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 `
 
 type UpdateConversationTitleParams struct {
-	ID    pgtype.UUID `json:"id"`
-	Title pgtype.Text `json:"title"`
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+	Title  pgtype.Text `json:"title"`
 }
 
 func (q *Queries) UpdateConversationTitle(ctx context.Context, arg UpdateConversationTitleParams) error {
-	_, err := q.db.Exec(ctx, updateConversationTitle, arg.ID, arg.Title)
+	_, err := q.db.Exec(ctx, updateConversationTitle, arg.ID, arg.UserID, arg.Title)
 	return err
 }

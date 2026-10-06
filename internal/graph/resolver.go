@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5"
+	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/draftboard"
@@ -380,11 +381,29 @@ func (r *Resolver) yahooTokenStatus(ctx context.Context) (*model.YahooTokenStatu
 
 var errMauriceNotConfigured = errors.New("maurice AI chat is not configured")
 
-func (r *Resolver) mauriceChat(ctx context.Context, conversationID *string, message string) (*model.MauriceChatResponse, error) {
+// scopedMaurice returns the Maurice service and the ID of the PuckDB user
+// behind the request; every Maurice operation is scoped by that user.
+func (r *Resolver) scopedMaurice(ctx context.Context) (maurice.Service, string, error) {
 	if r.MauriceService == nil {
-		return nil, errMauriceNotConfigured
+		return nil, "", errMauriceNotConfigured
 	}
-	resp, err := r.MauriceService.Chat(ctx, conversationID, message)
+	user, err := appuser.Current(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	return r.MauriceService, user.ID, nil
+}
+
+func (r *Resolver) mauriceChat(ctx context.Context, conversationID *string, message string, idempotencyKey *string) (*model.MauriceChatResponse, error) {
+	svc, userID, err := r.scopedMaurice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	req := maurice.ChatRequest{UserID: userID, ConversationID: conversationID, Message: message}
+	if idempotencyKey != nil {
+		req.IdempotencyKey = *idempotencyKey
+	}
+	resp, err := svc.Chat(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -401,24 +420,26 @@ func (r *Resolver) mauriceChat(ctx context.Context, conversationID *string, mess
 }
 
 func (r *Resolver) mauriceDeleteConversation(ctx context.Context, id string) (bool, error) {
-	if r.MauriceService == nil {
-		return false, errMauriceNotConfigured
+	svc, userID, err := r.scopedMaurice(ctx)
+	if err != nil {
+		return false, err
 	}
-	if err := r.MauriceService.DeleteConversation(ctx, id); err != nil {
+	if err := svc.DeleteConversation(ctx, userID, id); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
 func (r *Resolver) mauriceConversations(ctx context.Context, limit *int) ([]*model.MauriceConversation, error) {
-	if r.MauriceService == nil {
-		return nil, errMauriceNotConfigured
+	svc, userID, err := r.scopedMaurice(ctx)
+	if err != nil {
+		return nil, err
 	}
 	lim := 20
 	if limit != nil && *limit > 0 {
 		lim = *limit
 	}
-	convs, err := r.MauriceService.ListConversations(ctx, lim)
+	convs, err := svc.ListConversations(ctx, userID, lim)
 	if err != nil {
 		return nil, err
 	}
@@ -435,10 +456,11 @@ func (r *Resolver) mauriceConversations(ctx context.Context, limit *int) ([]*mod
 }
 
 func (r *Resolver) mauriceConversation(ctx context.Context, id string) (*model.MauriceConversationDetail, error) {
-	if r.MauriceService == nil {
-		return nil, errMauriceNotConfigured
+	svc, userID, err := r.scopedMaurice(ctx)
+	if err != nil {
+		return nil, err
 	}
-	conv, msgs, err := r.MauriceService.GetConversation(ctx, id)
+	conv, msgs, err := svc.GetConversation(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}

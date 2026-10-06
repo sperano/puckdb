@@ -289,6 +289,7 @@ func (r *anthropicResponse) toResponse() *Response {
 			TotalTokens:              r.Usage.InputTokens + r.Usage.OutputTokens,
 			CacheCreationInputTokens: r.Usage.CacheCreationInputTokens,
 			CacheReadInputTokens:     r.Usage.CacheReadInputTokens,
+			CacheReported:            true,
 		}
 	}
 
