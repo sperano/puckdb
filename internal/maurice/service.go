@@ -46,6 +46,7 @@ type ChatResponse struct {
 	MessageID      string
 	Content        string
 	ToolsUsed      []string
+	Warnings       []string
 }
 
 // Conversation represents a stored conversation.
@@ -131,11 +132,20 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 	}
 	log.Debug().Str("conversation", convID).Int("history_messages", len(history)).Msg("loaded conversation history")
 
-	// Get tool definitions
+	// Get tool definitions. Partial discovery is usable, but the model and
+	// caller must both see the degraded-data warning. If every configured
+	// server failed, do not let the model produce an ungrounded answer.
 	llmTools, err := s.toolCache.GetLLMTools(ctx)
+	var warnings []string
 	if err != nil {
-		log.Warn().Err(err).Msg("failed to load MCP tools, continuing without tools")
-		llmTools = nil
+		if len(llmTools) == 0 {
+			return nil, fmt.Errorf("discover MCP tools: %w", err)
+		}
+		warning := fmt.Sprintf("Some configured data sources are unavailable: %v", err)
+		warnings = []string{warning}
+		history[0].Content += "\n\nAvailability warning: " + warning +
+			" Use only the available tools and explicitly disclose this limitation in the answer."
+		log.Warn().Err(err).Int("tools", len(llmTools)).Msg("using partial MCP tool discovery")
 	} else {
 		log.Debug().Int("tools", len(llmTools)).Msg("loaded MCP tools for LLM")
 	}
@@ -231,6 +241,7 @@ func (s *service) Chat(ctx context.Context, conversationID *string, message stri
 		MessageID:      finalMessageID,
 		Content:        finalContent,
 		ToolsUsed:      toolsUsed,
+		Warnings:       warnings,
 	}, nil
 }
 

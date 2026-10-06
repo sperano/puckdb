@@ -193,10 +193,7 @@ func newMockMCP() *mockMCPClient {
 }
 
 func (m *mockMCPClient) ListTools(ctx context.Context) ([]mcpgo.Tool, error) {
-	if m.listToolsErr != nil {
-		return nil, m.listToolsErr
-	}
-	return m.listTools, nil
+	return m.listTools, m.listToolsErr
 }
 
 func (m *mockMCPClient) CallTool(ctx context.Context, name string, arguments json.RawMessage) (*mcp.ToolResult, error) {
@@ -453,28 +450,46 @@ func TestChat_LoadHistoryError(t *testing.T) {
 	assert.Contains(t, err.Error(), "load history")
 }
 
-// When MCP ListTools errors, Chat must continue without tools (logs a
-// warning, sets llmTools to nil) — pin that behavior so a refactor
-// can't accidentally turn it into a hard failure.
-func TestChat_ToolCacheListError_ContinuesWithoutTools(t *testing.T) {
+func TestChat_AllMCPDiscoveryFailsBeforeLLMCall(t *testing.T) {
 	db := newMockDB()
 	mcpMock := newMockMCP()
 	mcpMock.listToolsErr = errors.New("mcp unreachable")
-	llmMock := &mockLLMClient{
-		responses: []*llm.Response{{Content: "answer"}},
-	}
+	llmMock := &mockLLMClient{}
 
 	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
 	resp, err := svc.Chat(context.Background(), nil, "hi")
 
-	require.NoError(t, err)
-	// Await the detached title generation so recorded requests are stable.
-	require.NoError(t, svc.Close())
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.ErrorContains(t, err, "discover MCP tools")
+	assert.ErrorContains(t, err, "mcp unreachable")
+	assert.Zero(t, llmMock.calls)
+}
 
-	assert.Equal(t, "answer", resp.Content)
-	// Tools must be nil on the request (omitted, not empty slice).
-	require.GreaterOrEqual(t, len(llmMock.requests), 1)
-	assert.Nil(t, llmMock.requests[0].Tools)
+func TestChat_PartialMCPDiscoveryWarnsAndUsesHealthyTools(t *testing.T) {
+	db := newMockDB()
+	conv, err := db.CreateConversation(t.Context())
+	require.NoError(t, err)
+	mcpMock := newMockMCP()
+	mcpMock.listTools = []mcpgo.Tool{mcpgo.NewTool("healthy")}
+	mcpMock.listToolsErr = errors.New("fantasy server: offline")
+	llmMock := &mockLLMClient{
+		responses: []*llm.Response{{Content: "answer from healthy data"}},
+	}
+
+	svc := NewService(llmMock, mcpMock, db, DefaultMaxHistory, DefaultMaxTokens, DefaultMaxToolRounds)
+	resp, err := svc.Chat(t.Context(), &conv.ID, "hi")
+
+	require.NoError(t, err)
+	assert.Equal(t, "answer from healthy data", resp.Content)
+	require.Len(t, resp.Warnings, 1)
+	assert.Contains(t, resp.Warnings[0], "fantasy server: offline")
+	require.Len(t, llmMock.requests, 1)
+	require.Len(t, llmMock.requests[0].Tools, 1)
+	assert.Equal(t, "healthy", llmMock.requests[0].Tools[0].Function.Name)
+	require.NotEmpty(t, llmMock.requests[0].Messages)
+	assert.Contains(t, llmMock.requests[0].Messages[0].Content, "Availability warning")
+	assert.Contains(t, llmMock.requests[0].Messages[0].Content, "explicitly disclose")
 }
 
 // Forced final-completion: if the LLM keeps requesting tools for all

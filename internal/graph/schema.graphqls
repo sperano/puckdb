@@ -101,6 +101,7 @@ type MauriceChatResponse {
 	messageId: String!
 	content: String!
 	toolsUsed: [String!]!
+	warnings: [String!]!
 }
 
 type MauriceConversationDetail {

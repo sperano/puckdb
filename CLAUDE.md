@@ -475,6 +475,12 @@ Interactive REPL for querying hockey data via natural language. Connects to an L
 | MCP integration | `internal/mcp/` | Connects to puckdb MCP server for database tool calls |
 | Persistence | `~/.puckdb/maurice.db` | SQLite for conversation history |
 
+MCP discovery uses partial service: when at least one configured server is
+healthy, Maurice advertises and routes only that server's discovered tools and
+returns a warning with the chat response (the REPL prints it). Partial results
+are not cached, so failed servers are retried on the next chat. If every
+configured server fails discovery, the chat fails before calling the model.
+
 ### Configuration
 
 | Flag | Env Var | Default | Description |

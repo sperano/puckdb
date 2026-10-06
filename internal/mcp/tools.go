@@ -16,6 +16,7 @@ type ToolCache struct {
 
 	mu    sync.Mutex
 	tools []mcpgo.Tool
+	ready bool
 }
 
 // NewToolCache creates a ToolCache that lazily fetches tools from the given Client.
@@ -29,25 +30,25 @@ func (tc *ToolCache) GetTools(ctx context.Context) ([]mcpgo.Tool, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	if tc.tools != nil {
+	if tc.ready {
 		return tc.tools, nil
 	}
 
 	tools, err := tc.client.ListTools(ctx)
 	if err != nil {
-		return nil, err
+		// Preserve partial discovery results for this caller, but do not cache
+		// them: failed servers must be retried on the next request.
+		return tools, err
 	}
 	tc.tools = tools
+	tc.ready = true
 	return tc.tools, nil
 }
 
 // GetLLMTools converts MCP tools to the llm.Tool format suitable for OpenAI-compatible APIs.
 func (tc *ToolCache) GetLLMTools(ctx context.Context) ([]llm.Tool, error) {
 	mcpTools, err := tc.GetTools(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return ConvertTools(mcpTools), nil
+	return ConvertTools(mcpTools), err
 }
 
 // ConvertTools converts MCP tools to the llm.Tool format.
