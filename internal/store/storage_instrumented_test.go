@@ -97,7 +97,7 @@ func (s failingWriteStorage) Write(context.Context, string, []byte) error { retu
 type fsRecord struct {
 	operation string
 	fileType  core.FileType
-	bytes     int
+	byteCount int
 }
 
 // fsRecorder collects observed operations; labeled views share it.
@@ -106,10 +106,10 @@ type fsRecorder struct {
 	records []fsRecord
 }
 
-func (r *fsRecorder) observe(operation string, ft core.FileType, _ time.Duration, bytes int) {
+func (r *fsRecorder) observe(operation string, ft core.FileType, _ time.Duration, byteCount int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.records = append(r.records, fsRecord{operation: operation, fileType: ft, bytes: bytes})
+	r.records = append(r.records, fsRecord{operation: operation, fileType: ft, byteCount: byteCount})
 }
 
 func (r *fsRecorder) all() []fsRecord {
