@@ -705,6 +705,7 @@ type MauriceChatResponse struct {
 	MessageID      string   `json:"messageId"`
 	Content        string   `json:"content"`
 	ToolsUsed      []string `json:"toolsUsed"`
+	Warnings       []string `json:"warnings"`
 }
 
 type MauriceConversation struct {

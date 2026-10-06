@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -240,25 +242,83 @@ func TestChat_LoadHistoryError(t *testing.T) {
 	assert.Equal(t, []TurnMessage{{Role: "user", Content: "hi"}}, finished[0].Messages, "the prompt is kept")
 }
 
-// When MCP ListTools errors, Chat must continue without tools (logs a
-// warning, sets llmTools to nil) — pin that behavior so a refactor
-// can't accidentally turn it into a hard failure.
-func TestChat_ToolCacheListError_ContinuesWithoutTools(t *testing.T) {
+func TestChat_AllMCPDiscoveryFailsBeforeLLMCall(t *testing.T) {
 	mcpMock := newMockMCP()
 	mcpMock.listToolsErr = errors.New("mcp unreachable")
-	llmMock := &mockLLMClient{responses: []*llm.Response{{Content: "answer"}}}
+	llmMock := &mockLLMClient{}
 
 	svc := NewService(llmMock, mcpMock, newTestDB(t), testConfig)
 	resp, err := svc.Chat(context.Background(), ask("hi"))
 
-	require.NoError(t, err)
-	// Await the detached title generation so recorded requests are stable.
-	require.NoError(t, svc.Close())
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.ErrorContains(t, err, "discover MCP tools")
+	assert.ErrorContains(t, err, "mcp unreachable")
+	assert.Zero(t, llmMock.callCount())
+}
 
-	assert.Equal(t, "answer", resp.Content)
-	// Tools must be nil on the request (omitted, not empty slice).
-	require.GreaterOrEqual(t, len(llmMock.requests), 1)
-	assert.Nil(t, llmMock.requests[0].Tools)
+func TestChat_PartialMCPDiscoveryWarnsAndUsesHealthyTools(t *testing.T) {
+	db := newTestDB(t)
+	convID := seedConversation(t, db)
+	mcpMock := newMockMCP()
+	mcpMock.listTools = []mcpgo.Tool{mcpgo.NewTool("healthy")}
+	mcpMock.listToolsErr = errors.New("fantasy server: offline")
+	llmMock := &mockLLMClient{
+		responses: []*llm.Response{{Content: "answer from healthy data"}},
+	}
+
+	svc := NewService(llmMock, mcpMock, db, testConfig)
+	resp, err := svc.Chat(t.Context(), askIn(convID, "hi"))
+
+	require.NoError(t, err)
+	assert.Equal(t, "answer from healthy data", resp.Content)
+	require.Len(t, resp.Warnings, 1)
+	assert.Contains(t, resp.Warnings[0], "fantasy server: offline")
+	require.Len(t, llmMock.requests, 1)
+	require.Len(t, llmMock.requests[0].Tools, 1)
+	assert.Equal(t, "healthy", llmMock.requests[0].Tools[0].Function.Name)
+	require.NotEmpty(t, llmMock.requests[0].Messages)
+	assert.Contains(t, llmMock.requests[0].Messages[0].Content, "Availability warning")
+	assert.Contains(t, llmMock.requests[0].Messages[0].Content, "explicitly disclose")
+}
+
+func TestChat_PartialMCPDiscoveryWithNoAdvertisedToolsStillWarns(t *testing.T) {
+	tests := []struct {
+		name      string
+		tools     []mcpgo.Tool
+		allowList []string
+	}{
+		{name: "healthy server has no tools"},
+		{
+			name:      "healthy server tools are filtered",
+			tools:     []mcpgo.Tool{mcpgo.NewTool("hidden")},
+			allowList: []string{"allowed"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			db := newTestDB(t)
+			convID := seedConversation(t, db)
+			healthy := newMockMCP()
+			healthy.listTools = tc.tools
+			failed := newMockMCP()
+			failed.listToolsErr = errors.New("offline")
+			client := mcp.NewMultiClient(
+				mcp.MultiClientOption{Name: "healthy", Client: healthy, Tools: tc.allowList},
+				mcp.MultiClientOption{Name: "failed", Client: failed},
+			)
+			llmMock := &mockLLMClient{responses: []*llm.Response{{Content: "limited answer"}}}
+			svc := NewService(llmMock, client, db, testConfig)
+
+			resp, err := svc.Chat(t.Context(), askIn(convID, "hi"))
+
+			require.NoError(t, err)
+			require.Len(t, resp.Warnings, 1)
+			assert.Contains(t, resp.Warnings[0], "failed: offline")
+			require.Len(t, llmMock.requests, 1)
+			assert.Empty(t, llmMock.requests[0].Tools)
+		})
+	}
 }
 
 // Forced final-completion: if the LLM keeps requesting tools for all

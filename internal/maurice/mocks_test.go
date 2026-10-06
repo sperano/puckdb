@@ -176,10 +176,7 @@ func newMockMCP() *mockMCPClient {
 }
 
 func (m *mockMCPClient) ListTools(ctx context.Context) ([]mcpgo.Tool, error) {
-	if m.listToolsErr != nil {
-		return nil, m.listToolsErr
-	}
-	return m.listTools, nil
+	return m.listTools, m.listToolsErr
 }
 
 func (m *mockMCPClient) CallTool(ctx context.Context, name string, arguments json.RawMessage) (*mcp.ToolResult, error) {

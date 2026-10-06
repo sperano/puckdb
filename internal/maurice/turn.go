@@ -12,6 +12,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/llm/agentloop"
+	"github.com/sperano/puckdb/internal/mcp"
 )
 
 const (
@@ -76,6 +77,7 @@ func replayResponse(start *TurnStart) (*ChatResponse, error) {
 		MessageID:      r.MessageID,
 		Content:        r.Content,
 		ToolsUsed:      r.ToolsUsed,
+		Warnings:       r.Warnings,
 	}, nil
 }
 
@@ -83,6 +85,7 @@ func replayResponse(start *TurnStart) (*ChatResponse, error) {
 type turnAnswer struct {
 	content   string
 	toolsUsed []string
+	warnings  []string
 }
 
 func (s *service) runTurn(ctx context.Context, req ChatRequest, start *TurnStart) (*ChatResponse, error) {
@@ -120,6 +123,7 @@ func (s *service) runTurn(ctx context.Context, req ChatRequest, start *TurnStart
 		MessageID:      answerID,
 		Content:        answer.content,
 		ToolsUsed:      answer.toolsUsed,
+		Warnings:       answer.warnings,
 	}, nil
 }
 
@@ -133,15 +137,26 @@ func (s *service) executeTurn(ctx context.Context, userID, convID string, rec *t
 	rec.setHistory(historyIDs)
 	log.Debug().Str("conversation", convID).Int("history_messages", len(history)).Msg("loaded conversation history")
 
-	llmTools, err := s.toolCache.GetLLMTools(ctx)
+	// Partial discovery is usable, but the model and caller must both see the
+	// degraded-data warning. If every configured server failed, do not let the
+	// model produce an ungrounded answer.
+	toolSet, err := s.toolCache.GetLLMToolSet(ctx)
+	llmTools := toolSet.Tools
+	var warnings []string
 	if err != nil {
-		log.Warn().Err(err).Msg("failed to load MCP tools, continuing without tools")
-		llmTools = nil
+		if allMCPDiscoveryFailed(err, len(llmTools)) {
+			return nil, classify(ErrorClassInternal, fmt.Errorf("discover MCP tools: %w", err))
+		}
+		warning := fmt.Sprintf("Some configured data sources are unavailable: %v", err)
+		warnings = []string{warning}
+		history[0].Content += "\n\nAvailability warning: " + warning +
+			" Use only the available tools and explicitly disclose this limitation in the answer."
+		log.Warn().Err(err).Int("tools", len(llmTools)).Msg("using partial MCP tool discovery")
 	} else {
 		log.Debug().Int("tools", len(llmTools)).Msg("loaded MCP tools for LLM")
 	}
 
-	res, err := agentloop.Run(ctx, rec, history, s.mcpToolExecutor(convID, rec), agentloop.Config{
+	res, err := agentloop.Run(ctx, rec, history, s.mcpToolExecutor(convID, rec, toolSet.Caller), agentloop.Config{
 		Tools:         llmTools,
 		MaxToolRounds: s.maxToolRounds,
 		MaxTokens:     s.maxTokens,
@@ -152,7 +167,7 @@ func (s *service) executeTurn(ctx context.Context, userID, convID string, rec *t
 	if res.Final != nil {
 		logLLMResponse(convID, res.Rounds, res.Final)
 	}
-	answer := &turnAnswer{}
+	answer := &turnAnswer{warnings: warnings}
 	for _, a := range res.Audit {
 		answer.toolsUsed = append(answer.toolsUsed, a.Call.Function.Name)
 	}
@@ -160,6 +175,14 @@ func (s *service) executeTurn(ctx context.Context, userID, convID string, rec *t
 		return nil, err
 	}
 	return answer, nil
+}
+
+func allMCPDiscoveryFailed(err error, discoveredTools int) bool {
+	var discoveryErr *mcp.DiscoveryError
+	if errors.As(err, &discoveryErr) {
+		return discoveryErr.HealthyServers == 0
+	}
+	return discoveredTools == 0
 }
 
 // finalAnswer returns the turn's answer. A terminating response with no tool

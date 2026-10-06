@@ -52,6 +52,7 @@ type ChatResponse struct {
 	MessageID      string
 	Content        string
 	ToolsUsed      []string
+	Warnings       []string
 }
 
 // Conversation represents a stored conversation.
@@ -85,7 +86,6 @@ type ServiceConfig struct {
 
 type service struct {
 	llmClient     llm.Client
-	mcpClient     mcp.Client
 	toolCache     *mcp.ToolCache
 	db            DB
 	provider      string
@@ -124,7 +124,6 @@ func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, cfg ServiceCo
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	return &service{
 		llmClient:      llmClient,
-		mcpClient:      mcpClient,
 		toolCache:      mcp.NewToolCache(mcpClient),
 		db:             db,
 		provider:       cfg.Provider,

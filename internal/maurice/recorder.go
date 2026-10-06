@@ -10,6 +10,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/llm/agentloop"
+	"github.com/sperano/puckdb/internal/mcp"
 )
 
 // turnRecorder wraps the LLM client for one turn. It records every provider
@@ -134,6 +135,7 @@ func (r *turnRecorder) turnRecord(start *TurnStart, answer *turnAnswer, runErr e
 		record.Status = failedStatus(record.ErrorClass)
 		return record
 	}
+	record.Warnings = answer.warnings
 	record.Messages = append(record.Messages, TurnMessage{Role: "assistant", Content: answer.content})
 	return record
 }
@@ -197,13 +199,13 @@ func int64Ptr(v int) *int64 {
 // against the MCP client and records it. A tool-call error is formatted into
 // the returned result string with a nil error, so the failure is surfaced to
 // the model on the next round rather than aborting the turn.
-func (s *service) mcpToolExecutor(convID string, rec *turnRecorder) agentloop.ToolExecutor {
+func (s *service) mcpToolExecutor(convID string, rec *turnRecorder, caller mcp.ToolCaller) agentloop.ToolExecutor {
 	return func(ctx context.Context, tc llm.ToolCall) (string, error) {
 		log.Debug().Str("conversation", convID).Str("tool", tc.Function.Name).Str("call_id", tc.ID).Msg("calling MCP tool")
 		log.Trace().Str("conversation", convID).Str("tool", tc.Function.Name).Str("arguments", tc.Function.Arguments).Msg("MCP tool arguments")
 
 		started := s.now()
-		result, err := s.mcpClient.CallTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments))
+		result, err := caller.CallTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments))
 		completed := s.now()
 		if err != nil {
 			resultContent := fmt.Sprintf("Error calling tool %s: %s", tc.Function.Name, err.Error())

@@ -597,6 +597,7 @@ type ComplexityRoot struct {
 		ConversationID func(childComplexity int) int
 		MessageID      func(childComplexity int) int
 		ToolsUsed      func(childComplexity int) int
+		Warnings       func(childComplexity int) int
 	}
 
 	MauriceConversation struct {
@@ -3817,6 +3818,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MauriceChatResponse.ToolsUsed(childComplexity), true
+	case "MauriceChatResponse.warnings":
+		if e.ComplexityRoot.MauriceChatResponse.Warnings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceChatResponse.Warnings(childComplexity), true
 
 	case "MauriceConversation.createdAt":
 		if e.ComplexityRoot.MauriceConversation.CreatedAt == nil {
@@ -7687,6 +7694,7 @@ type MauriceChatResponse {
 	messageId: String!
 	content: String!
 	toolsUsed: [String!]!
+	warnings: [String!]!
 }
 
 type MauriceConversationDetail {
@@ -9191,6 +9199,8 @@ func (ec *executionContext) childFields_MauriceChatResponse(ctx context.Context,
 		return ec.fieldContext_MauriceChatResponse_content(ctx, field)
 	case "toolsUsed":
 		return ec.fieldContext_MauriceChatResponse_toolsUsed(ctx, field)
+	case "warnings":
+		return ec.fieldContext_MauriceChatResponse_warnings(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type MauriceChatResponse", field.Name)
 }
@@ -21265,6 +21275,29 @@ func (ec *executionContext) _MauriceChatResponse_toolsUsed(ctx context.Context, 
 	)
 }
 func (ec *executionContext) fieldContext_MauriceChatResponse_toolsUsed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceChatResponse", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceChatResponse_warnings(ctx context.Context, field graphql.CollectedField, obj *model.MauriceChatResponse) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceChatResponse_warnings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceChatResponse_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("MauriceChatResponse", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -36909,6 +36942,11 @@ func (ec *executionContext) _MauriceChatResponse(ctx context.Context, sel ast.Se
 			}
 		case "toolsUsed":
 			out.Values[i] = ec._MauriceChatResponse_toolsUsed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "warnings":
+			out.Values[i] = ec._MauriceChatResponse_warnings(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

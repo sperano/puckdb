@@ -106,6 +106,9 @@ func replayPgTurn(ctx context.Context, q *sqlcdb.Queries, params BeginTurnParams
 		ErrorClass: ErrorClass(row.ErrorClass.String), Stale: row.Stale,
 		ConversationDeleted: row.ConversationDeleted,
 	}
+	if err := json.Unmarshal(row.Warnings, &turn.Warnings); err != nil {
+		return nil, fmt.Errorf("decode turn warnings: %w", err)
+	}
 	abandon, err := checkKeyReuse(params, turn)
 	if err != nil {
 		return nil, err
@@ -118,7 +121,7 @@ func replayPgTurn(ctx context.Context, q *sqlcdb.Queries, params BeginTurnParams
 	}
 	start := &TurnStart{
 		TurnID: turn.ID, ConversationID: turn.ConversationID, TurnNumber: int(row.TurnNumber),
-		Replay: &TurnReplay{Status: turn.Status, ErrorClass: turn.ErrorClass},
+		Replay: &TurnReplay{Status: turn.Status, ErrorClass: turn.ErrorClass, Warnings: turn.Warnings},
 	}
 	if turn.Status != TurnSucceeded {
 		return start, nil
@@ -158,8 +161,12 @@ func (db *pgDB) FinishTurn(ctx context.Context, record TurnRecord) ([]string, er
 	}
 	var ids []pgtype.UUID
 	err = db.inTx(ctx, func(q *sqlcdb.Queries) error {
+		warnings, err := json.Marshal(record.Warnings)
+		if err != nil {
+			return fmt.Errorf("marshal turn warnings: %w", err)
+		}
 		conv, err := q.CompleteTurn(ctx, sqlcdb.CompleteTurnParams{
-			ID: turnID, Status: string(record.Status), ErrorClass: optionalText(string(record.ErrorClass)),
+			ID: turnID, Status: string(record.Status), ErrorClass: optionalText(string(record.ErrorClass)), Warnings: warnings,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrTurnNotRunning

@@ -411,11 +411,16 @@ func (r *Resolver) mauriceChat(ctx context.Context, conversationID *string, mess
 	if toolsUsed == nil {
 		toolsUsed = []string{}
 	}
+	warnings := resp.Warnings
+	if warnings == nil {
+		warnings = []string{}
+	}
 	return &model.MauriceChatResponse{
 		ConversationID: resp.ConversationID,
 		MessageID:      resp.MessageID,
 		Content:        resp.Content,
 		ToolsUsed:      toolsUsed,
+		Warnings:       warnings,
 	}, nil
 }
 

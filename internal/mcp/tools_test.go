@@ -84,6 +84,57 @@ func TestToolCache_RetriesAfterError(t *testing.T) {
 	assert.Equal(t, 2, mock.calls, "ListTools should be retried after error")
 }
 
+func TestToolCache_DoesNotCachePartialDiscoveryFailure(t *testing.T) {
+	mock := &mockClient{
+		tools: []mcpgo.Tool{mcpgo.NewTool("healthy")},
+		err:   errors.New("one server failed"),
+	}
+	cache := NewToolCache(mock)
+
+	tools, err := cache.GetTools(t.Context())
+	require.Error(t, err)
+	require.Len(t, tools, 1)
+
+	mock.tools = []mcpgo.Tool{mcpgo.NewTool("healthy"), mcpgo.NewTool("recovered")}
+	mock.err = nil
+	tools, err = cache.GetTools(t.Context())
+	require.NoError(t, err)
+	require.Len(t, tools, 2)
+
+	_, err = cache.GetTools(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 2, mock.calls, "partial discovery must retry, then cache a full success")
+}
+
+func TestToolCache_PartialDiscoveryCallersKeepTheirRouteSnapshot(t *testing.T) {
+	first := &routingClient{tools: []mcpgo.Tool{mcpgo.NewTool("first")}}
+	second := &routingClient{listErr: errors.New("second offline")}
+	cache := NewToolCache(NewMultiClient(
+		MultiClientOption{Name: "first-server", Client: first},
+		MultiClientOption{Name: "second-server", Client: second},
+	))
+
+	firstSet, err := cache.GetLLMToolSet(t.Context())
+	require.Error(t, err)
+	require.Len(t, firstSet.Tools, 1)
+
+	first.listErr = errors.New("first offline")
+	second.listErr = nil
+	second.tools = []mcpgo.Tool{mcpgo.NewTool("second")}
+	secondSet, err := cache.GetLLMToolSet(t.Context())
+	require.Error(t, err)
+	require.Len(t, secondSet.Tools, 1)
+
+	_, err = firstSet.Caller.CallTool(t.Context(), "first", nil)
+	require.NoError(t, err)
+	_, err = secondSet.Caller.CallTool(t.Context(), "second", nil)
+	require.NoError(t, err)
+	_, err = firstSet.Caller.CallTool(t.Context(), "second", nil)
+	require.EqualError(t, err, "unknown tool: second")
+	_, err = secondSet.Caller.CallTool(t.Context(), "first", nil)
+	require.EqualError(t, err, "unknown tool: first")
+}
+
 func TestToolCache_GetLLMTools(t *testing.T) {
 	mock := &mockClient{
 		tools: []mcpgo.Tool{
@@ -105,4 +156,18 @@ func TestToolCache_GetLLMTools_Error(t *testing.T) {
 
 	_, err := cache.GetLLMTools(context.Background())
 	require.Error(t, err)
+}
+
+func TestToolCache_GetLLMTools_PreservesPartialToolsWithError(t *testing.T) {
+	mock := &mockClient{
+		tools: []mcpgo.Tool{mcpgo.NewTool("healthy")},
+		err:   errors.New("partial discovery"),
+	}
+	cache := NewToolCache(mock)
+
+	tools, err := cache.GetLLMTools(t.Context())
+
+	require.Error(t, err)
+	require.Len(t, tools, 1)
+	assert.Equal(t, "healthy", tools[0].Function.Name)
 }

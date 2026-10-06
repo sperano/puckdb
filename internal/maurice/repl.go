@@ -289,6 +289,9 @@ func RunREPL(ctx context.Context, cfg REPLConfig) error {
 		}
 
 		conversationID = &resp.ConversationID
+		for _, warning := range resp.Warnings {
+			fmt.Println(styleWarning.Render("  Warning: " + warning))
+		}
 		if len(resp.ToolsUsed) > 0 {
 			fmt.Println(styleToolTag.Render("  tools: " + strings.Join(resp.ToolsUsed, ", ")))
 		}

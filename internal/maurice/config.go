@@ -71,6 +71,7 @@ func BuildMCPClient(cfgPath string) (mcp.Client, error) {
 	for i, s := range cfg.MCPServers {
 		log.Info().Str("name", s.Name).Str("url", s.URL).Strs("tools", s.Tools).Msg("connecting MCP server")
 		opts[i] = mcp.MultiClientOption{
+			Name:   s.Name,
 			Client: mcp.NewClient(s.URL),
 			Tools:  s.Tools,
 		}
