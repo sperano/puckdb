@@ -20,15 +20,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.temporal.io/sdk/testsuite"
 )
 
-// newTestGobCache creates a permissive GobCache: Get always misses, Set always succeeds.
+// newTestGobCache creates a permissive GobCache for one read: Get misses, Set succeeds.
 func newTestGobCache() *cache.GobCache {
+	return newTestGobCacheForReads(1)
+}
+
+// newTestGobCacheForReads creates a permissive GobCache for the given number
+// of reads: each Get misses and each following Set succeeds.
+func newTestGobCacheForReads(reads int) *cache.GobCache {
 	client, mockClient := redismock.NewClientMock()
 	mockClient.MatchExpectationsInOrder(false)
 	keyPattern := core.RedisResourceKeyPrefix + ".*"
-	mockClient.Regexp().ExpectGet(keyPattern).SetErr(redis.Nil)
-	mockClient.Regexp().CustomMatch(anyArgs).ExpectSet(keyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	for range reads {
+		mockClient.Regexp().ExpectGet(keyPattern).SetErr(redis.Nil)
+		mockClient.Regexp().CustomMatch(anyArgs).ExpectSet(keyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	}
 	return cache.NewGobCache(client)
 }
 
@@ -51,6 +60,46 @@ func newTestProcessActivities(
 	}
 }
 
+// runProcessPlayerBatch runs a.ProcessPlayerBatch inside a Temporal test
+// activity environment, since its per-player heartbeat needs an activity
+// context, and returns the raw result and error rather than the
+// environment's wrapped activity error. An already cancelled parent cancels
+// the activity context before the batch starts.
+func runProcessPlayerBatch(
+	t *testing.T,
+	parent context.Context,
+	a *Activities,
+	players []store.BoxscorePlayer,
+) (ProcessPlayerBatchResult, error) {
+	t.Helper()
+	var ts testsuite.WorkflowTestSuite
+	return executeProcessPlayerBatch(ts.NewTestActivityEnvironment(), parent, a, players)
+}
+
+// executeProcessPlayerBatch is runProcessPlayerBatch on a caller-configured
+// environment, e.g. one with worker interceptors.
+func executeProcessPlayerBatch(
+	env *testsuite.TestActivityEnvironment,
+	parent context.Context,
+	a *Activities,
+	players []store.BoxscorePlayer,
+) (ProcessPlayerBatchResult, error) {
+	var result ProcessPlayerBatchResult
+	var runErr error
+	run := func(ctx context.Context) error {
+		if parent.Err() != nil {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithCancel(ctx)
+			cancel()
+		}
+		result, runErr = a.ProcessPlayerBatch(ctx, players)
+		return runErr
+	}
+	env.RegisterActivity(run)
+	_, _ = env.ExecuteActivity(run)
+	return result, runErr
+}
+
 func TestProcessPlayerBatch_EmptyPlayers(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +110,7 @@ func TestProcessPlayerBatch_EmptyPlayers(t *testing.T) {
 	upserter := NewMockPlayerUpserter()
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
-	result, err := a.ProcessPlayerBatch(ctx, []store.BoxscorePlayer{})
+	result, err := runProcessPlayerBatch(t, ctx, a, []store.BoxscorePlayer{})
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
@@ -86,7 +135,7 @@ func TestProcessPlayerBatch_LoadYahooPoolError(t *testing.T) {
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 	players := []store.BoxscorePlayer{{ID: 8476453}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "load yahoo pool")
@@ -113,7 +162,7 @@ func TestProcessPlayerBatch_ContextCancellation(t *testing.T) {
 	cancel()
 
 	players := []store.BoxscorePlayer{{ID: 8476453}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	require.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
@@ -148,11 +197,11 @@ func TestProcessPlayerBatch_CacheHitAndImport(t *testing.T) {
 	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// Expect UpsertPlayer call
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
@@ -188,7 +237,7 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 	require.NoError(t, mem.Write(context.Background(), resource.MissingPlayerLanding{PlayerID: playerID}.Path(), missingData))
 
 	// Expect UpsertPlayer call with minimal info from boxscore data
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 
@@ -199,7 +248,7 @@ func TestProcessPlayerBatch_MissingPlayer(t *testing.T) {
 		LastName:  "Doe",
 		Position:  "C",
 	}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Downloaded)
@@ -237,12 +286,12 @@ func TestProcessPlayerBatch_UpsertError(t *testing.T) {
 	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// UpsertPlayer fails
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
 		Return(errors.New("database connection lost"))
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	// No error returned - errors are collected in result.Errors
 	require.NoError(t, err)
@@ -273,7 +322,7 @@ func TestProcessPlayerBatch_FileReadError(t *testing.T) {
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	// No error returned - errors are collected in result.Errors
 	require.NoError(t, err)
@@ -308,14 +357,14 @@ func TestProcessPlayerBatch_DownloadAndImport(t *testing.T) {
 		Position:  "C",
 		IsActive:  true,
 	}
-	client.On("PlayerLanding", ctx, playerID).Return(landing, nil)
+	client.On("PlayerLanding", mock.Anything, playerID).Return(landing, nil)
 
 	// Expect UpsertPlayer call
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Downloaded)
@@ -346,11 +395,11 @@ func TestProcessPlayerBatch_DownloadAPIError(t *testing.T) {
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(map[string]string{})
 
 	// API returns non-404 error
-	client.On("PlayerLanding", ctx, playerID).Return(nil, errors.New("API timeout"))
+	client.On("PlayerLanding", mock.Anything, playerID).Return(nil, errors.New("API timeout"))
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API timeout")
@@ -402,14 +451,14 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// Expect ClearConflictingYahooID call
-	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
+	upserter.On("ClearConflictingYahooID", mock.Anything, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
 
 	// Expect UpsertPlayer call
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Origins[core.OriginFileSystem])
@@ -455,15 +504,15 @@ func TestProcessPlayerBatch_ClearConflictingYahooIDError(t *testing.T) {
 	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	// ClearConflictingYahooID fails - should log warning but continue
-	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).
+	upserter.On("ClearConflictingYahooID", mock.Anything, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).
 		Return(errors.New("db error"))
 
 	// UpsertPlayer should still be called
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	// Should succeed despite ClearConflictingYahooID error
 	require.NoError(t, err)
@@ -506,15 +555,15 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
-	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
+	upserter.On("ClearConflictingYahooID", mock.Anything, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
 
 	// UpsertPlayer fails
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
 		Return(errors.New("constraint violation"))
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Imported)
@@ -581,7 +630,7 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 
 	// Capture the upsert params to verify all fields
 	var capturedParams sqlcdb.UpsertPlayerParams
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
 		Run(func(args mock.Arguments) {
 			capturedParams = args.Get(1).(sqlcdb.UpsertPlayerParams)
 		}).
@@ -589,7 +638,7 @@ func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Imported)
@@ -673,16 +722,16 @@ func TestProcessPlayerBatch_CareerDataUpserted(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
-	careerUpserter.On("UpsertPlayerAwardBatch", ctx, mock.AnythingOfType("[]sqlcdb.UpsertPlayerAwardBatchParams")).
+	careerUpserter.On("UpsertPlayerAwardBatch", mock.Anything, mock.AnythingOfType("[]sqlcdb.UpsertPlayerAwardBatchParams")).
 		Return(sqlcdb.NewUpsertPlayerAwardBatchBatchResults(&mockBatchResults{count: 1}, 1))
-	careerUpserter.On("UpsertPlayerSeasonTotalBatch", ctx, mock.AnythingOfType("[]sqlcdb.UpsertPlayerSeasonTotalBatchParams")).
+	careerUpserter.On("UpsertPlayerSeasonTotalBatch", mock.Anything, mock.AnythingOfType("[]sqlcdb.UpsertPlayerSeasonTotalBatchParams")).
 		Return(sqlcdb.NewUpsertPlayerSeasonTotalBatchBatchResults(&mockBatchResults{count: 1}, 1))
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, careerUpserter)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}
-	result, err := a.ProcessPlayerBatch(ctx, players)
+	result, err := runProcessPlayerBatch(t, ctx, a, players)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Imported)
@@ -743,15 +792,15 @@ func TestProcessPlayerBatch_PopulatesYahooImage(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
-	upserter.On("ClearConflictingYahooID", ctx, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
+	upserter.On("ClearConflictingYahooID", mock.Anything, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
 
 	var captured sqlcdb.UpsertPlayerParams
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
 		Run(func(args mock.Arguments) { captured = args.Get(1).(sqlcdb.UpsertPlayerParams) }).
 		Return(nil)
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
-	result, err := a.ProcessPlayerBatch(ctx, []store.BoxscorePlayer{{ID: int64(playerID)}})
+	result, err := runProcessPlayerBatch(t, ctx, a, []store.BoxscorePlayer{{ID: int64(playerID)}})
 	require.NoError(t, err)
 	require.Equal(t, 1, result.Matched)
 
@@ -792,12 +841,12 @@ func TestProcessPlayerBatch_UnmatchedLeavesYahooImageEmpty(t *testing.T) {
 	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: playerID}.Path(), landingJSON))
 
 	var captured sqlcdb.UpsertPlayerParams
-	upserter.On("UpsertPlayer", ctx, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
+	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).
 		Run(func(args mock.Arguments) { captured = args.Get(1).(sqlcdb.UpsertPlayerParams) }).
 		Return(nil)
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, nil)
-	result, err := a.ProcessPlayerBatch(ctx, []store.BoxscorePlayer{{ID: int64(playerID)}})
+	result, err := runProcessPlayerBatch(t, ctx, a, []store.BoxscorePlayer{{ID: int64(playerID)}})
 	require.NoError(t, err)
 	require.Equal(t, 0, result.Matched)
 
