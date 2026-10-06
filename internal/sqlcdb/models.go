@@ -1408,6 +1408,7 @@ type MauriceTurn struct {
 	StartedAt      pgtype.Timestamptz `json:"started_at"`
 	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
 	ErrorClass     pgtype.Text        `json:"error_class"`
+	Warnings       []byte             `json:"warnings"`
 }
 
 type NewsAdjustmentEvent struct {

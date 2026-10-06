@@ -22,6 +22,7 @@ type storedTurn struct {
 	// ConversationDeleted reports that the owner deleted the turn's
 	// conversation.
 	ConversationDeleted bool
+	Warnings            []string
 }
 
 // checkKeyReuse decides what a reused idempotency key means. It rejects a

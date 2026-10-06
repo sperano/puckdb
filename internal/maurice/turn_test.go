@@ -9,6 +9,7 @@ import (
 
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -203,6 +204,32 @@ func TestChat_IdempotentRetryReturnsOriginalAnswer(t *testing.T) {
 	req.Message = "a different prompt"
 	_, err = svc.Chat(context.Background(), req)
 	require.ErrorIs(t, err, ErrIdempotencyKeyReused)
+}
+
+func TestChat_IdempotentRetryPreservesDiscoveryWarnings(t *testing.T) {
+	db := newTestDB(t)
+	convID := seedConversation(t, db)
+	healthy := newMockMCP()
+	healthy.listTools = []mcpgo.Tool{mcpgo.NewTool("healthy")}
+	failed := newMockMCP()
+	failed.listToolsErr = errors.New("offline")
+	client := mcp.NewMultiClient(
+		mcp.MultiClientOption{Name: "healthy", Client: healthy},
+		mcp.MultiClientOption{Name: "failed", Client: failed},
+	)
+	llmMock := &mockLLMClient{responses: []*llm.Response{{Content: "answer"}}}
+	svc := NewService(llmMock, client, db, testConfig)
+	req := askIn(convID, "q")
+	req.IdempotencyKey = "partial-discovery-key"
+
+	first, err := svc.Chat(t.Context(), req)
+	require.NoError(t, err)
+	require.NotEmpty(t, first.Warnings)
+	retry, err := svc.Chat(t.Context(), req)
+	require.NoError(t, err)
+
+	assert.Equal(t, first, retry)
+	assert.Equal(t, 1, llmMock.callCount(), "a replay must not rediscover tools or call the LLM")
 }
 
 func TestChat_RetryOfFailedTurnIsRejected(t *testing.T) {

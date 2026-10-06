@@ -104,11 +104,12 @@ type TurnStart struct {
 type TurnReplay struct {
 	Status     TurnStatus
 	ErrorClass ErrorClass
-	// MessageID, Content and ToolsUsed describe the final answer of a
+	// MessageID, Content, ToolsUsed and Warnings describe the final answer of a
 	// succeeded turn.
 	MessageID string
 	Content   string
 	ToolsUsed []string
+	Warnings  []string
 }
 
 // TurnMessage is one message produced during a turn. Message 0 is the user
@@ -128,6 +129,7 @@ type TurnRecord struct {
 	ErrorClass     ErrorClass
 	Messages       []TurnMessage
 	Calls          []LLMCallRecord
+	Warnings       []string
 }
 
 // TitleRecord is one title generation for a conversation.

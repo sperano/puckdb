@@ -43,6 +43,7 @@ func TestMultiClientListToolsPartialDiscoveryPublishesHealthyRoutes(t *testing.T
 	require.ErrorAs(t, err, &discoveryErr)
 	require.ErrorIs(t, err, offlineErr)
 	require.Len(t, discoveryErr.Failures, 1)
+	assert.Equal(t, 1, discoveryErr.HealthyServers)
 	assert.Equal(t, "fantasy", discoveryErr.Failures[0].Server)
 	require.Len(t, tools, 1)
 	assert.Equal(t, "healthy", tools[0].Name)
@@ -89,6 +90,7 @@ func TestMultiClientListToolsReportsEveryFailedServer(t *testing.T) {
 	var discoveryErr *DiscoveryError
 	require.ErrorAs(t, err, &discoveryErr)
 	require.Len(t, discoveryErr.Failures, 2)
+	assert.Zero(t, discoveryErr.HealthyServers)
 	assert.Equal(t, "one", discoveryErr.Failures[0].Server)
 	assert.Equal(t, "two", discoveryErr.Failures[1].Server)
 }

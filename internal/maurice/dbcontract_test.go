@@ -234,11 +234,17 @@ func contractIdempotentReplay(t *testing.T, env contractEnv) {
 	params := turnParams(user, "", "key-1", "how many goals?")
 	start, err := env.db.BeginTurn(ctx, params)
 	require.NoError(t, err)
-	ids := finishTurn(t, env.db, start, "how many goals?",
+	warnings := []string{"one data source is unavailable"}
+	messages := []TurnMessage{{Role: "user", Content: "how many goals?"},
 		TurnMessage{Role: "assistant", ToolCalls: []llm.ToolCall{{ID: "c1", Type: "function", Function: llm.ToolCallFunction{Name: "goals"}}}},
 		TurnMessage{Role: "tool", Content: "42", ToolCallID: "c1"},
 		TurnMessage{Role: "assistant", Content: "42 goals"},
-	)
+	}
+	ids, err := env.db.FinishTurn(ctx, TurnRecord{
+		TurnID: start.TurnID, ConversationID: start.ConversationID, Status: TurnSucceeded,
+		Messages: messages, Warnings: warnings,
+	})
+	require.NoError(t, err)
 
 	params.ConversationID = start.ConversationID
 	replay, err := env.db.BeginTurn(ctx, params)
@@ -250,6 +256,7 @@ func contractIdempotentReplay(t *testing.T, env contractEnv) {
 	assert.Equal(t, ids[len(ids)-1], replay.Replay.MessageID)
 	assert.Equal(t, "42 goals", replay.Replay.Content)
 	assert.Equal(t, []string{"goals"}, replay.Replay.ToolsUsed)
+	assert.Equal(t, warnings, replay.Replay.Warnings)
 
 	msgs, err := env.db.GetMessages(ctx, user, start.ConversationID)
 	require.NoError(t, err)

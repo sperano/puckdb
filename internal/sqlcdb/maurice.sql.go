@@ -43,7 +43,7 @@ func (q *Queries) AbandonTurn(ctx context.Context, id pgtype.UUID) error {
 
 const completeTurn = `-- name: CompleteTurn :one
 UPDATE maurice_turns
-SET status = $2, error_class = $3, completed_at = clock_timestamp()
+SET status = $2, error_class = $3, warnings = $4, completed_at = clock_timestamp()
 WHERE id = $1 AND status = 'running'
 RETURNING conversation_id
 `
@@ -52,10 +52,16 @@ type CompleteTurnParams struct {
 	ID         pgtype.UUID `json:"id"`
 	Status     string      `json:"status"`
 	ErrorClass pgtype.Text `json:"error_class"`
+	Warnings   []byte      `json:"warnings"`
 }
 
 func (q *Queries) CompleteTurn(ctx context.Context, arg CompleteTurnParams) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, completeTurn, arg.ID, arg.Status, arg.ErrorClass)
+	row := q.db.QueryRow(ctx, completeTurn,
+		arg.ID,
+		arg.Status,
+		arg.ErrorClass,
+		arg.Warnings,
+	)
 	var conversation_id pgtype.UUID
 	err := row.Scan(&conversation_id)
 	return conversation_id, err
@@ -250,7 +256,7 @@ func (q *Queries) GetTranscript(ctx context.Context, arg GetTranscriptParams) ([
 }
 
 const getTurnByKey = `-- name: GetTurnByKey :one
-SELECT t.id, t.conversation_id, t.turn_number, t.request_hash, t.status, t.error_class,
+SELECT t.id, t.conversation_id, t.turn_number, t.request_hash, t.status, t.error_class, t.warnings,
        (t.status = 'running' AND t.started_at < clock_timestamp() - make_interval(secs => $3::double precision))::boolean AS stale,
        (c.deleted_at IS NOT NULL)::boolean AS conversation_deleted
 FROM maurice_turns t
@@ -271,6 +277,7 @@ type GetTurnByKeyRow struct {
 	RequestHash         []byte      `json:"request_hash"`
 	Status              string      `json:"status"`
 	ErrorClass          pgtype.Text `json:"error_class"`
+	Warnings            []byte      `json:"warnings"`
 	Stale               bool        `json:"stale"`
 	ConversationDeleted bool        `json:"conversation_deleted"`
 }
@@ -285,6 +292,7 @@ func (q *Queries) GetTurnByKey(ctx context.Context, arg GetTurnByKeyParams) (Get
 		&i.RequestHash,
 		&i.Status,
 		&i.ErrorClass,
+		&i.Warnings,
 		&i.Stale,
 		&i.ConversationDeleted,
 	)

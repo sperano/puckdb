@@ -12,6 +12,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/llm/agentloop"
+	"github.com/sperano/puckdb/internal/mcp"
 )
 
 const (
@@ -76,6 +77,7 @@ func replayResponse(start *TurnStart) (*ChatResponse, error) {
 		MessageID:      r.MessageID,
 		Content:        r.Content,
 		ToolsUsed:      r.ToolsUsed,
+		Warnings:       r.Warnings,
 	}, nil
 }
 
@@ -142,7 +144,7 @@ func (s *service) executeTurn(ctx context.Context, userID, convID string, rec *t
 	llmTools := toolSet.Tools
 	var warnings []string
 	if err != nil {
-		if len(llmTools) == 0 {
+		if allMCPDiscoveryFailed(err, len(llmTools)) {
 			return nil, classify(ErrorClassInternal, fmt.Errorf("discover MCP tools: %w", err))
 		}
 		warning := fmt.Sprintf("Some configured data sources are unavailable: %v", err)
@@ -173,6 +175,14 @@ func (s *service) executeTurn(ctx context.Context, userID, convID string, rec *t
 		return nil, err
 	}
 	return answer, nil
+}
+
+func allMCPDiscoveryFailed(err error, discoveredTools int) bool {
+	var discoveryErr *mcp.DiscoveryError
+	if errors.As(err, &discoveryErr) {
+		return discoveryErr.HealthyServers == 0
+	}
+	return discoveredTools == 0
 }
 
 // finalAnswer returns the turn's answer. A terminating response with no tool

@@ -10,6 +10,7 @@ import (
 
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -279,6 +280,45 @@ func TestChat_PartialMCPDiscoveryWarnsAndUsesHealthyTools(t *testing.T) {
 	require.NotEmpty(t, llmMock.requests[0].Messages)
 	assert.Contains(t, llmMock.requests[0].Messages[0].Content, "Availability warning")
 	assert.Contains(t, llmMock.requests[0].Messages[0].Content, "explicitly disclose")
+}
+
+func TestChat_PartialMCPDiscoveryWithNoAdvertisedToolsStillWarns(t *testing.T) {
+	tests := []struct {
+		name      string
+		tools     []mcpgo.Tool
+		allowList []string
+	}{
+		{name: "healthy server has no tools"},
+		{
+			name:      "healthy server tools are filtered",
+			tools:     []mcpgo.Tool{mcpgo.NewTool("hidden")},
+			allowList: []string{"allowed"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			db := newTestDB(t)
+			convID := seedConversation(t, db)
+			healthy := newMockMCP()
+			healthy.listTools = tc.tools
+			failed := newMockMCP()
+			failed.listToolsErr = errors.New("offline")
+			client := mcp.NewMultiClient(
+				mcp.MultiClientOption{Name: "healthy", Client: healthy, Tools: tc.allowList},
+				mcp.MultiClientOption{Name: "failed", Client: failed},
+			)
+			llmMock := &mockLLMClient{responses: []*llm.Response{{Content: "limited answer"}}}
+			svc := NewService(llmMock, client, db, testConfig)
+
+			resp, err := svc.Chat(t.Context(), askIn(convID, "hi"))
+
+			require.NoError(t, err)
+			require.Len(t, resp.Warnings, 1)
+			assert.Contains(t, resp.Warnings[0], "failed: offline")
+			require.Len(t, llmMock.requests, 1)
+			assert.Empty(t, llmMock.requests[0].Tools)
+		})
+	}
 }
 
 // Forced final-completion: if the LLM keeps requesting tools for all

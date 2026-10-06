@@ -36,7 +36,8 @@ type MultiClientOption struct {
 // DiscoveryError reports MCP servers whose tools could not be discovered.
 // A ListTools call may return both healthy tools and a DiscoveryError.
 type DiscoveryError struct {
-	Failures []ServerDiscoveryFailure
+	Failures       []ServerDiscoveryFailure
+	HealthyServers int
 }
 
 // ServerDiscoveryFailure identifies one MCP server that failed discovery.
@@ -108,6 +109,7 @@ func (mc *MultiClient) discoverTools(ctx context.Context) ([]mcpgo.Tool, map[str
 	routes := make(map[string]Client)
 	var all []mcpgo.Tool
 	var failures []ServerDiscoveryFailure
+	healthyServers := 0
 
 	for _, e := range mc.entries {
 		tools, err := e.client.ListTools(ctx)
@@ -115,6 +117,7 @@ func (mc *MultiClient) discoverTools(ctx context.Context) ([]mcpgo.Tool, map[str
 			failures = append(failures, ServerDiscoveryFailure{Server: e.name, Err: err})
 			continue
 		}
+		healthyServers++
 		for _, t := range tools {
 			if e.allowList != nil && !e.allowList[t.Name] {
 				continue
@@ -128,7 +131,7 @@ func (mc *MultiClient) discoverTools(ctx context.Context) ([]mcpgo.Tool, map[str
 	}
 
 	if len(failures) > 0 {
-		return all, routes, &DiscoveryError{Failures: failures}
+		return all, routes, &DiscoveryError{Failures: failures, HealthyServers: healthyServers}
 	}
 	return all, routes, nil
 }

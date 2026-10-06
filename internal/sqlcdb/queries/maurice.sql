@@ -76,7 +76,7 @@ WHERE m.conversation_id = $1 AND c.user_id = $2 AND c.deleted_at IS NULL AND t.s
 ORDER BY t.turn_number, m.message_number;
 
 -- name: GetTurnByKey :one
-SELECT t.id, t.conversation_id, t.turn_number, t.request_hash, t.status, t.error_class,
+SELECT t.id, t.conversation_id, t.turn_number, t.request_hash, t.status, t.error_class, t.warnings,
        (t.status = 'running' AND t.started_at < clock_timestamp() - make_interval(secs => sqlc.arg(stale_seconds)::double precision))::boolean AS stale,
        (c.deleted_at IS NOT NULL)::boolean AS conversation_deleted
 FROM maurice_turns t
@@ -105,7 +105,7 @@ RETURNING id, turn_number;
 
 -- name: CompleteTurn :one
 UPDATE maurice_turns
-SET status = $2, error_class = $3, completed_at = clock_timestamp()
+SET status = $2, error_class = $3, warnings = $4, completed_at = clock_timestamp()
 WHERE id = $1 AND status = 'running'
 RETURNING conversation_id;
 

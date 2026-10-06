@@ -79,16 +79,21 @@ func sqliteTurnByKey(ctx context.Context, tx *sql.Tx, params BeginTurnParams, st
 	var turn storedTurn
 	var errorClass sql.NullString
 	var startedAt string
+	var warnings string
 	err := tx.QueryRowContext(ctx,
-		`SELECT t.id, t.conversation_id, t.request_hash, t.status, t.error_class, t.started_at, c.deleted_at IS NOT NULL
+		`SELECT t.id, t.conversation_id, t.request_hash, t.status, t.error_class, t.started_at, t.warnings,
+		        c.deleted_at IS NOT NULL
 		 FROM turns t JOIN conversations c ON c.id = t.conversation_id
 		 WHERE t.user_id = ? AND t.idempotency_key = ?`,
 		params.UserID, params.IdempotencyKey,
-	).Scan(&turn.ID, &turn.ConversationID, &turn.RequestHash, &turn.Status, &errorClass, &startedAt, &turn.ConversationDeleted)
+	).Scan(&turn.ID, &turn.ConversationID, &turn.RequestHash, &turn.Status, &errorClass, &startedAt, &warnings, &turn.ConversationDeleted)
 	if err != nil {
 		return storedTurn{}, err
 	}
 	turn.ErrorClass = ErrorClass(errorClass.String)
+	if err := json.Unmarshal([]byte(warnings), &turn.Warnings); err != nil {
+		return storedTurn{}, fmt.Errorf("decode turn warnings: %w", err)
+	}
 	turn.Stale = turn.Status == TurnRunning && startedAt < staleBefore
 	return turn, nil
 }
@@ -134,7 +139,7 @@ func replaySQLiteTurn(ctx context.Context, tx *sql.Tx, params BeginTurnParams, t
 	}
 	start := &TurnStart{
 		TurnID: turn.ID, ConversationID: turn.ConversationID,
-		Replay: &TurnReplay{Status: turn.Status, ErrorClass: turn.ErrorClass},
+		Replay: &TurnReplay{Status: turn.Status, ErrorClass: turn.ErrorClass, Warnings: turn.Warnings},
 	}
 	if turn.Status != TurnSucceeded {
 		return start, nil
@@ -174,16 +179,20 @@ func (s *sqliteDB) FinishTurn(ctx context.Context, record TurnRecord) ([]string,
 	var ids []string
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
 		now := time.Now().UTC().Format(sqliteTimeLayout)
+		warnings, err := json.Marshal(record.Warnings)
+		if err != nil {
+			return fmt.Errorf("marshal turn warnings: %w", err)
+		}
 		var errorClass *string
 		if record.ErrorClass != "" {
 			ec := string(record.ErrorClass)
 			errorClass = &ec
 		}
 		var convID string
-		err := tx.QueryRowContext(ctx,
-			`UPDATE turns SET status = ?, error_class = ?, completed_at = ?
+		err = tx.QueryRowContext(ctx,
+			`UPDATE turns SET status = ?, error_class = ?, warnings = ?, completed_at = ?
 			 WHERE id = ? AND status = ? RETURNING conversation_id`,
-			record.Status, errorClass, now, record.TurnID, TurnRunning,
+			record.Status, errorClass, string(warnings), now, record.TurnID, TurnRunning,
 		).Scan(&convID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrTurnNotRunning

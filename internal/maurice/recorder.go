@@ -135,6 +135,7 @@ func (r *turnRecorder) turnRecord(start *TurnStart, answer *turnAnswer, runErr e
 		record.Status = failedStatus(record.ErrorClass)
 		return record
 	}
+	record.Warnings = answer.warnings
 	record.Messages = append(record.Messages, TurnMessage{Role: "assistant", Content: answer.content})
 	return record
 }
