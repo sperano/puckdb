@@ -39,7 +39,7 @@ func (a *ImportActivities) ImportYahooLeague(ctx context.Context, input ImportYa
 	logger := activity.GetLogger(ctx)
 
 	leagueRes := resource.League{Season: input.Season, LeagueID: input.LeagueID}
-	if !a.Storage.Exists(ctx, leagueRes.Path()) {
+	if !resource.Exists(ctx, a.Storage, leagueRes) {
 		return ImportYahooLeagueResult{}, fmt.Errorf("required Yahoo league cache is missing for season %d league %d",
 			input.Season, input.LeagueID)
 	}
@@ -83,7 +83,7 @@ func readLeagueSettings(ctx context.Context, storage store.Storage, res resource
 	if err != nil {
 		return store.League{}, time.Time{}, fmt.Errorf("read league file %d/%d: %w", res.Season, res.LeagueID, err)
 	}
-	info, err := storage.Stat(ctx, res.Path())
+	info, err := resource.Stat(ctx, storage, res)
 	if err != nil {
 		return store.League{}, time.Time{}, fmt.Errorf("stat league file %d/%d: %w", res.Season, res.LeagueID, err)
 	}

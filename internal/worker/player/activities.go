@@ -101,12 +101,12 @@ func (a *Activities) ensurePlayerLandingCached(
 	missingRes := resource.MissingPlayerLanding{PlayerID: playerID}
 	landingRes := resource.PlayerLanding{PlayerID: playerID}
 
-	if a.Storage.Exists(ctx, missingRes.Path()) {
+	if resource.Exists(ctx, a.Storage, missingRes) {
 		log.Debug().Str("player_id", playerID.String()).Msg("Player landing already marked as missing")
 		return playerLandingMissing, nil
 	}
 
-	if a.Storage.Exists(ctx, landingRes.Path()) {
+	if resource.Exists(ctx, a.Storage, landingRes) {
 		log.Debug().Str("player_id", playerID.String()).Msg("Player landing already cached")
 		return playerLandingCached, nil
 	}
@@ -286,7 +286,7 @@ type gameLogDownloadOptions struct {
 func (a *Activities) downloadPlayerGameLogToCache(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType, opts gameLogDownloadOptions) (gameLogDownloadStatus, error) {
 	gameTypeID := gameType.Int()
 	gameLogRes := resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: gameTypeID}
-	fileExists := a.Storage.Exists(ctx, gameLogRes.Path())
+	fileExists := resource.Exists(ctx, a.Storage, gameLogRes)
 
 	if fileExists {
 		if !opts.refresh {
@@ -318,7 +318,7 @@ func (a *Activities) downloadPlayerGameLogToCache(ctx context.Context, playerID 
 		return gameLogDownloaded, fmt.Errorf("marshal player %s season %s: %w", playerID, season, err)
 	}
 
-	if err := a.Storage.Write(ctx, gameLogRes.Path(), content); err != nil {
+	if err := resource.Write(ctx, a.Storage, gameLogRes, content); err != nil {
 		metrics.IncDownload(core.PlayerGameLog, metrics.ResultError)
 		return gameLogDownloaded, fmt.Errorf("save: %w", err)
 	}

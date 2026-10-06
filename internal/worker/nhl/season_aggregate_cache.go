@@ -102,7 +102,7 @@ func readCachedClubSchedule(ctx context.Context, storage store.Storage, gobCache
 // will fetch it anyway. Any other stat failure counts as unknown age, i.e.
 // stale: an extra fetch is cheap, importing a stale snapshot is not.
 func seasonAggregateNeedsRefetch(ctx context.Context, storage store.Storage, r core.Resource, schedule *nhlapi.TeamScheduleResponse, gameTypes ...nhlapi.GameType) bool {
-	info, err := storage.Stat(ctx, r.Path())
+	info, err := resource.Stat(ctx, storage, r)
 	if errors.Is(err, os.ErrNotExist) {
 		return false
 	}

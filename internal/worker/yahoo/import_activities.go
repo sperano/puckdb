@@ -40,7 +40,7 @@ func (a *ImportActivities) ImportYahooTeams(ctx context.Context, input ImportYah
 	}
 	for _, teamInfo := range input.Teams {
 		teamRes := resource.Team{Season: input.Season, LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID}
-		if !a.Storage.Exists(ctx, teamRes.Path()) {
+		if !resource.Exists(ctx, a.Storage, teamRes) {
 			return result, fmt.Errorf("required Yahoo team cache is missing for season %d league %d team %d",
 				input.Season, teamInfo.LeagueID, teamInfo.TeamID)
 		}
@@ -176,7 +176,7 @@ func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []Tea
 
 	for _, teamInfo := range teams {
 		summaryRes := resource.TeamSummary{LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID, Date: date}
-		if !a.Storage.Exists(ctx, summaryRes.Path()) {
+		if !resource.Exists(ctx, a.Storage, summaryRes) {
 			continue
 		}
 
@@ -281,7 +281,7 @@ func (a *ImportActivities) collectRosterParams(ctx context.Context, teams []Team
 
 	for _, teamInfo := range teams {
 		rosterRes := resource.Roster{LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID, Date: date}
-		if !a.Storage.Exists(ctx, rosterRes.Path()) {
+		if !resource.Exists(ctx, a.Storage, rosterRes) {
 			continue
 		}
 
@@ -351,14 +351,14 @@ func (a *ImportActivities) ImportYahooLeagueData(ctx context.Context, input Impo
 	result := ImportYahooLeagueDataResult{}
 	optionalResources := []struct {
 		name string
-		path string
+		res  core.Resource
 	}{
-		{name: "transactions", path: (resource.Transactions{Season: input.Season, LeagueID: input.LeagueID}).Path()},
-		{name: "draft results", path: (resource.DraftResults{Season: input.Season, LeagueID: input.LeagueID}).Path()},
-		{name: "matchups", path: (resource.Matchups{Season: input.Season, LeagueID: input.LeagueID, Week: 1}).Path()},
+		{name: "transactions", res: resource.Transactions{Season: input.Season, LeagueID: input.LeagueID}},
+		{name: "draft results", res: resource.DraftResults{Season: input.Season, LeagueID: input.LeagueID}},
+		{name: "matchups", res: resource.Matchups{Season: input.Season, LeagueID: input.LeagueID, Week: 1}},
 	}
 	for _, optional := range optionalResources {
-		if !a.Storage.Exists(ctx, optional.path) {
+		if !resource.Exists(ctx, a.Storage, optional.res) {
 			result.UnavailableResources = append(result.UnavailableResources, optional.name)
 		}
 	}
@@ -397,7 +397,7 @@ func (a *ImportActivities) ImportYahooLeagueData(ctx context.Context, input Impo
 // importYahooTransactions reads cached transaction data and upserts to the database.
 func (a *ImportActivities) importYahooTransactions(ctx context.Context, input ImportYahooLeagueDataInput) (int, error) {
 	res := resource.Transactions{Season: input.Season, LeagueID: input.LeagueID}
-	if !a.Storage.Exists(ctx, res.Path()) {
+	if !resource.Exists(ctx, a.Storage, res) {
 		return 0, nil
 	}
 
@@ -460,7 +460,7 @@ func (a *ImportActivities) importYahooTransactions(ctx context.Context, input Im
 // importYahooDraftResults reads cached draft result data and upserts to the database.
 func (a *ImportActivities) importYahooDraftResults(ctx context.Context, input ImportYahooLeagueDataInput) (int, error) {
 	res := resource.DraftResults{Season: input.Season, LeagueID: input.LeagueID}
-	if !a.Storage.Exists(ctx, res.Path()) {
+	if !resource.Exists(ctx, a.Storage, res) {
 		return 0, nil
 	}
 
@@ -545,7 +545,7 @@ func (a *ImportActivities) importYahooMatchups(ctx context.Context, input Import
 	// rather than stopping at the first gap, which would silently under-import.
 	for week := 1; week <= MaxMatchupWeeks; week++ {
 		res := resource.Matchups{Season: input.Season, LeagueID: input.LeagueID, Week: week}
-		if !a.Storage.Exists(ctx, res.Path()) {
+		if !resource.Exists(ctx, a.Storage, res) {
 			continue // Week not cached; later weeks may still be present
 		}
 

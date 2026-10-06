@@ -201,6 +201,12 @@ func newIndexedStorage(inner store.Storage, idx *pathIndex) *indexedStorage {
 	return &indexedStorage{inner: inner, idx: idx}
 }
 
+// WithFileType forwards the file type label to the wrapped storage, so reads
+// that pass through to it keep their metrics label.
+func (s *indexedStorage) WithFileType(ft core.FileType) store.Storage {
+	return &indexedStorage{inner: store.WithFileType(s.inner, ft), idx: s.idx}
+}
+
 func (s *indexedStorage) Read(ctx context.Context, p string) ([]byte, error) {
 	return s.inner.Read(ctx, p)
 }

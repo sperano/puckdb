@@ -185,10 +185,11 @@ func (a *Activities) processAsset(ctx context.Context, ast Asset, refreshCurrent
 	if err != nil {
 		return FetchAssetResult{Err: err.Error()}, nil
 	}
+	storage := store.WithFileType(a.Storage, ast.FileType)
 
 	// Step 3: idempotency check — skip download if the file is already cached
 	// (unless RefreshCurrent overrides this).
-	if !refreshCurrent && a.Storage.Exists(ctx, localPath) {
+	if !refreshCurrent && storage.Exists(ctx, localPath) {
 		metrics.IncDownload(ast.FileType, metrics.ResultHit)
 		return FetchAssetResult{Origin: core.OriginFileSystem}, nil
 	}
@@ -220,7 +221,7 @@ func (a *Activities) processAsset(ctx context.Context, ast Asset, refreshCurrent
 	}
 
 	// Step 6: write to storage.
-	if err := a.Storage.Write(ctx, localPath, data); err != nil {
+	if err := storage.Write(ctx, localPath, data); err != nil {
 		// Context cancellation aborts the batch; surface as the batch error.
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return FetchAssetResult{}, err

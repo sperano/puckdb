@@ -22,7 +22,7 @@ func (c Checker) cachedGameKey(ctx context.Context, season int) (int, string, er
 	path := gameKeyResource.Path()
 	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
-	data, err := c.Storage.Read(ctx, path)
+	data, err := resource.Read(ctx, c.Storage, gameKeyResource)
 	if errors.Is(err, fs.ErrNotExist) {
 		return 0, fmt.Sprintf("none: %s is not in the data path", path), nil
 	}

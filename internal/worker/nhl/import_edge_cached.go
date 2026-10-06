@@ -180,7 +180,7 @@ func (a *SeasonsActivities) importCachedEdgeDetail[T any](
 	}
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("import-edge-%s:%s", kind, subject))
 
-	if !a.Storage.Exists(ctx, res.Path()) {
+	if !resource.Exists(ctx, a.Storage, res) {
 		return 0, nil
 	}
 

@@ -174,7 +174,7 @@ func (f Fetcher) download(ctx context.Context, res Resource, strictCache bool) (
 			return nil, core.OriginUnknown, fmt.Errorf("invalidate %s Redis cache: %w", ft, err)
 		}
 	}
-	if err := f.Storage.Write(ctx, res.Path(), raw); err != nil {
+	if err := resource.Write(ctx, f.Storage, res, raw); err != nil {
 		metrics.IncDownload(ft, metrics.ResultError)
 		return nil, core.OriginUnknown, fmt.Errorf("save %s: %w", ft, err)
 	}

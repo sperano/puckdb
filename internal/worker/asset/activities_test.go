@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/fixtures/metricsfixtures"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -423,6 +424,27 @@ func TestProcessAsset_StorageWriteError(t *testing.T) {
 
 	require.NoError(t, err, "a non-context write failure must not abort the batch")
 	require.NotEmpty(t, result.Err, "write failure should produce a non-empty Err")
+}
+
+// TestProcessAsset_LabelsStorageMetricsWithAssetType verifies the cache
+// check and the write are recorded under the asset's file type. Not
+// parallel: it reads the process-wide metrics registry.
+func TestProcessAsset_LabelsStorageMetricsWithAssetType(t *testing.T) {
+	const assetURL = "https://assets.nhle.com/mugs/headshot/998.png"
+	dl := func(_ context.Context, _ string) ([]byte, error) {
+		return validPNG(), nil
+	}
+	act := &Activities{Storage: store.NewInstrumentedStorage(store.NewMemStorage()), Download: dl}
+	existsBefore := metricsfixtures.FSOpCount(t, "exists", core.PlayerHeadshot)
+	writeBefore := metricsfixtures.FSOpCount(t, "write", core.PlayerHeadshot)
+
+	ast := Asset{FileType: core.PlayerHeadshot, URL: assetURL, IDs: []int64{998}}
+	result, err := act.processAsset(context.Background(), ast, false)
+	require.NoError(t, err)
+	require.Empty(t, result.Err)
+
+	require.Equal(t, existsBefore+1, metricsfixtures.FSOpCount(t, "exists", core.PlayerHeadshot))
+	require.Equal(t, writeBefore+1, metricsfixtures.FSOpCount(t, "write", core.PlayerHeadshot))
 }
 
 // errStorage is a test double whose Write always returns an error.

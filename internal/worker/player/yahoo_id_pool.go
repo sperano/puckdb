@@ -11,6 +11,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/cache"
+	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"go.temporal.io/sdk/activity"
@@ -31,7 +32,7 @@ func (a *Activities) ListYahooPlayerFiles(ctx context.Context) ([]store.YahooPla
 
 // listYahooPlayers returns all Yahoo player IDs that have data stored.
 func listYahooPlayers(ctx context.Context, storage store.Storage) ([]store.YahooPlayerID, error) {
-	names, err := storage.List(ctx, resource.YahooPlayersDir, "html")
+	names, err := store.WithFileType(storage, core.YahooPlayer).List(ctx, resource.YahooPlayersDir, "html")
 	if err != nil {
 		return nil, err
 	}

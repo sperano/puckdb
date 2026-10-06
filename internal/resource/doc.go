@@ -22,8 +22,13 @@
 // The [ReadParsed] and [WriteParsed] functions combine storage I/O with
 // type-safe parsing in a single call:
 //
-//	schedule, err := resource.ReadParsed(storage, resource.DailySchedule{Date: day})
-//	err := resource.WriteParsed(storage, resource.SeasonStandings{Season: s}, standings)
+//	schedule, err := resource.ReadParsed(ctx, storage, resource.DailySchedule{Date: day})
+//	err := resource.WriteParsed(ctx, storage, resource.SeasonStandings{Season: s}, standings)
+//
+// [Read], [Write], [Exists], [Delete] and [Stat] do the raw operation on a
+// resource's path. Use them, rather than calling the storage with r.Path(),
+// so filesystem metrics are labeled with the resource's Type(); a storage
+// operation without a file type is counted as Unknown and logged once.
 //
 // # NHL resources (nhl.go)
 //

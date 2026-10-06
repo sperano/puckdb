@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/fixtures/metricsfixtures"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/require"
 )
@@ -118,6 +119,27 @@ func TestIndexedStorage_Exists(t *testing.T) {
 	data, err := s.Read(ctx, "new.json")
 	require.NoError(t, err)
 	require.Equal(t, []byte("data"), data)
+}
+
+// A file type given to the indexed storage reaches the instrumented storage
+// it wraps, so pass-through reads keep their metrics label. Not parallel: it
+// reads the process-wide metrics registry.
+func TestIndexedStorage_WithFileTypeLabelsWrappedStorage(t *testing.T) {
+	inner := store.NewMemStorage()
+	const path = "seasons/2024/games/2025/01/15/boxscore-3.json"
+	inner.SetFile(path, []byte("data"))
+	s := newIndexedStorage(store.NewInstrumentedStorage(inner), &pathIndex{present: map[string]struct{}{path: {}}})
+	readBefore := metricsfixtures.FSOpCount(t, "read", core.Boxscore)
+	existsBefore := metricsfixtures.FSOpCount(t, "exists", core.Boxscore)
+
+	labeled := store.WithFileType(s, core.Boxscore)
+	_, err := labeled.Read(context.Background(), path)
+	require.NoError(t, err)
+	require.True(t, labeled.Exists(context.Background(), path))
+
+	require.Equal(t, readBefore+1, metricsfixtures.FSOpCount(t, "read", core.Boxscore))
+	require.Equal(t, existsBefore, metricsfixtures.FSOpCount(t, "exists", core.Boxscore),
+		"Exists must still be answered by the index, not the wrapped storage")
 }
 
 // TestPathIndex_HasPlatformSeparators ensures lookups work even when callers

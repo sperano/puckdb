@@ -41,7 +41,7 @@ func (a *SeasonsActivities) importClubStats(ctx context.Context, queries ClubSta
 				TeamAbbrev: team.Abbrev,
 				GameType:   gameType.Int(),
 			}
-			if !a.Storage.Exists(ctx, res.Path()) {
+			if !resource.Exists(ctx, a.Storage, res) {
 				continue
 			}
 

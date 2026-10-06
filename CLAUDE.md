@@ -96,6 +96,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/yahooaccess/` | Yahoo API access check: game key and league settings probes, AUTHORIZED / NOT AUTHORIZED / ERROR classification, email subject and report (see `docs/yahoo-access-check.md`) |
 | `internal/notify/` | Plain-text notification emails over SMTP submission (STARTTLS when offered) |
 | `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
+| `internal/fixtures/metricsfixtures/` | Reads filesystem operation counts from the worker metrics registry for label assertions (test-only import) |
 | `internal/fixtures/draftfixtures/` | Synthetic draft ranking snapshot and in-memory store shared by the draftrank, GraphQL and CLI tests (test-only import) |
 | `internal/llm/` | LLM client (used by player enrichment / Maurice) |
 | `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
@@ -251,7 +252,7 @@ The Prometheus registry is split in three (see `internal/metrics/metrics.go`):
 ### Worker metrics
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `puckdb_fs_operation_duration_seconds` | Histogram | `operation`, `file_type` | Filesystem operation duration |
+| `puckdb_fs_operation_duration_seconds` | Histogram | `operation`, `file_type` | Filesystem operation duration; `file_type` is the resource's `core.FileType`, passed by the `resource.Read`/`Write`/`Exists`/`Delete`/`Stat` helpers or `store.WithFileType`, and `Unknown` (first one per operation logged as a warning) when a caller passes none |
 | `puckdb_fs_bytes` | Histogram | `operation`, `file_type` | Read/write sizes |
 | `puckdb_http_request_duration_seconds` | Histogram | `api`, `method`, `status_code` | External API request duration |
 | `puckdb_http_response_bytes` | Histogram | `api` | Response body sizes |

@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"os"
 
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/store"
@@ -23,7 +24,7 @@ func (e *ParseError) Unwrap() error { return e.Err }
 // A parse failure is returned as a *ParseError.
 func ReadParsed[T any](ctx context.Context, s store.Storage, r core.Parseable[T]) (T, error) {
 	var zero T
-	data, err := s.Read(ctx, r.Path())
+	data, err := Read(ctx, s, r)
 	if err != nil {
 		return zero, err
 	}
@@ -41,5 +42,34 @@ func WriteParsed[T any](ctx context.Context, s store.Storage, r core.Formattable
 	if err != nil {
 		return err
 	}
-	return s.Write(ctx, r.Path(), data)
+	return Write(ctx, s, r, data)
+}
+
+// The helpers below are the storage boundary for resources: each one runs
+// the operation on r's path with the storage labeled by r's file type, so
+// filesystem metrics carry r.Type() instead of guessing it from the path.
+
+// Read returns the raw contents of r's file.
+func Read(ctx context.Context, s store.Storage, r core.Resource) ([]byte, error) {
+	return store.WithFileType(s, r.Type()).Read(ctx, r.Path())
+}
+
+// Write stores data as r's file.
+func Write(ctx context.Context, s store.Storage, r core.Resource, data []byte) error {
+	return store.WithFileType(s, r.Type()).Write(ctx, r.Path(), data)
+}
+
+// Exists reports whether r's file is stored.
+func Exists(ctx context.Context, s store.Storage, r core.Resource) bool {
+	return store.WithFileType(s, r.Type()).Exists(ctx, r.Path())
+}
+
+// Delete removes r's file; a missing file is not an error.
+func Delete(ctx context.Context, s store.Storage, r core.Resource) error {
+	return store.WithFileType(s, r.Type()).Delete(ctx, r.Path())
+}
+
+// Stat returns the file information of r's file.
+func Stat(ctx context.Context, s store.Storage, r core.Resource) (os.FileInfo, error) {
+	return store.WithFileType(s, r.Type()).Stat(ctx, r.Path())
 }

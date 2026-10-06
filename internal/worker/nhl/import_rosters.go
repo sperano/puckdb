@@ -48,7 +48,7 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("import-roster:%s", team.Abbrev))
 
 		res := resource.SeasonRoster{Season: input.Season, TeamAbbrev: team.Abbrev}
-		if !a.Storage.Exists(ctx, res.Path()) {
+		if !resource.Exists(ctx, a.Storage, res) {
 			logger.Info("No roster cache for team, skipping", "team", team.Abbrev)
 			continue
 		}

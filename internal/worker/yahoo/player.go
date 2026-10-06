@@ -46,13 +46,13 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 	playerRes := resource.YahooPlayer{PlayerID: playerID}
 	missingRes := resource.MissingYahooPlayer{PlayerID: playerID}
 	// Check if missing player file already exists (most common case)
-	if storage.Exists(ctx, missingRes.Path()) {
+	if resource.Exists(ctx, storage, missingRes) {
 		log.Debug().Int("playerID", int(playerID)).Msg("Yahoo player already marked as missing")
 		metrics.IncDownload(core.YahooPlayer, metrics.ResultHit)
 		return fetchStatusMissing, nil
 	}
 	// Check if player file already exists
-	if storage.Exists(ctx, playerRes.Path()) {
+	if resource.Exists(ctx, storage, playerRes) {
 		log.Debug().Int("playerID", int(playerID)).Msg("Yahoo player already cached")
 		metrics.IncDownload(core.YahooPlayer, metrics.ResultHit)
 		return fetchStatusCached, nil

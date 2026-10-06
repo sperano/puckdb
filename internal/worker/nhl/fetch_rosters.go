@@ -64,7 +64,7 @@ func (a *SeasonsActivities) FetchSeasonRosters(ctx context.Context, input FetchS
 // roster is otherwise never refetched. A roster that is not cached, or cannot
 // be read, is left to fetchSeasonAggregate.
 func (a *SeasonsActivities) cachedRosterLacksPositions(ctx context.Context, res resource.SeasonRoster) bool {
-	if !a.Storage.Exists(ctx, res.Path()) {
+	if !resource.Exists(ctx, a.Storage, res) {
 		return false
 	}
 	roster, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res)
