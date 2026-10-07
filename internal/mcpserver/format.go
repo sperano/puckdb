@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,15 +24,28 @@ func ResultJSON(v any) (*mcp.CallToolResult, error) {
 	return mcp.NewToolResultText(string(data)), nil
 }
 
+// noResultsText is what a tool returns, or a CSV section holds, for no rows.
+const noResultsText = "no results"
+
 // ResultCSV formats a slice of structs as CSV text, using json struct tags as headers.
 // Returns a text tool result. Returns "no results" if the slice is empty.
 func ResultCSV(items any) (*mcp.CallToolResult, error) {
+	text, err := csvText(items)
+	if err != nil {
+		return nil, err
+	}
+	return mcp.NewToolResultText(text), nil
+}
+
+// csvText formats a slice of structs as CSV, using json struct tags as
+// headers, or noResultsText when the slice is empty.
+func csvText(items any) (string, error) {
 	rv := reflect.ValueOf(items)
 	if rv.Kind() != reflect.Slice {
-		return nil, fmt.Errorf("ResultCSV expects a slice, got %T", items)
+		return "", fmt.Errorf("CSV rows must be a slice, got %T", items)
 	}
 	if rv.Len() == 0 {
-		return mcp.NewToolResultText("no results"), nil
+		return noResultsText, nil
 	}
 
 	elemType := rv.Type().Elem()
@@ -46,7 +61,7 @@ func ResultCSV(items any) (*mcp.CallToolResult, error) {
 
 	// Write header row.
 	if err := w.Write(info.headers); err != nil {
-		return nil, fmt.Errorf("write CSV header: %w", err)
+		return "", fmt.Errorf("write CSV header: %w", err)
 	}
 
 	// Write data rows.
@@ -60,16 +75,54 @@ func ResultCSV(items any) (*mcp.CallToolResult, error) {
 			row[j] = formatField(elem.Field(idx))
 		}
 		if err := w.Write(row); err != nil {
-			return nil, fmt.Errorf("write CSV row %d: %w", i, err)
+			return "", fmt.Errorf("write CSV row %d: %w", i, err)
 		}
 	}
 
 	w.Flush()
 	if err := w.Error(); err != nil {
-		return nil, fmt.Errorf("flush CSV: %w", err)
+		return "", fmt.Errorf("flush CSV: %w", err)
 	}
+	return buf.String(), nil
+}
 
-	return mcp.NewToolResultText(buf.String()), nil
+const (
+	// commentPrefix starts the metadata header and section titles of a
+	// multi-section result; CSV readers skip such lines as comments.
+	commentPrefix = "# "
+	// headerQuotedChars forces a header value to be Go-quoted, so the line
+	// still splits into key=value fields on spaces.
+	headerQuotedChars = " \t\r\n\"=#"
+)
+
+// metadataHeader is the one "# key=value key=value" line a tool prints
+// before its CSV sections, so per-result metadata is not repeated on every
+// row.
+type metadataHeader struct {
+	fields []string
+}
+
+// add appends key=value; an empty value or one holding a space, quote, = or
+// # is Go-quoted.
+func (h *metadataHeader) add(key string, value any) {
+	s := fmt.Sprint(value)
+	if s == "" || strings.ContainsAny(s, headerQuotedChars) {
+		s = strconv.Quote(s)
+	}
+	h.fields = append(h.fields, key+"="+s)
+}
+
+func (h metadataHeader) String() string {
+	return commentPrefix + strings.Join(h.fields, " ")
+}
+
+// csvSection formats rows as CSV under a "# title" line.
+func csvSection(title string, rows any) (string, error) {
+	text, err := csvText(rows)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", title, err)
+	}
+	return commentPrefix + title + "\n" + strings.TrimSuffix(text, "\n") + "\n", nil
 }
 
 // typeInfo caches header names and field indices for a struct type.

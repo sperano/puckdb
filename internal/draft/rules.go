@@ -227,6 +227,29 @@ func direction(sortOrder string) Direction {
 	}
 }
 
+// Values of yahoo_league_stat_categories.sort_order: the Yahoo league
+// importer stores a category's Direction as one of these, and
+// DirectionUnknown as NULL.
+const (
+	StoredSortOrderHigher int16 = 1
+	StoredSortOrderLower  int16 = 0
+)
+
+// DirectionFromStoredSortOrder reads a stored sort_order; valid is false
+// for NULL. A value it does not know stays DirectionUnknown.
+func DirectionFromStoredSortOrder(sortOrder int16, valid bool) Direction {
+	switch {
+	case !valid:
+		return DirectionUnknown
+	case sortOrder == StoredSortOrderHigher:
+		return HigherIsBetter
+	case sortOrder == StoredSortOrderLower:
+		return LowerIsBetter
+	default:
+		return DirectionUnknown
+	}
+}
+
 // scoringPositionTypes returns the position types a stat scores for and
 // whether it is display-only everywhere: Yahoo marks display-only stats
 // either on the stat itself or per position type.
