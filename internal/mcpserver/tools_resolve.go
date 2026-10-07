@@ -2,7 +2,6 @@ package mcpserver
 
 import (
 	"context"
-	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -10,34 +9,7 @@ import (
 )
 
 func registerResolveTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
-	srv.AddTool(
-		mcp.NewTool("search_player",
-			mcp.WithDescription("Search for NHL players by name (accent-insensitive). Supports single terms ('Suzuki') or full names ('Nick Suzuki'). Results ranked by relevance: exact matches first, then prefix, then substring."),
-			mcp.WithString("name", mcp.Required(), mcp.Description("Player name or partial name to search for")),
-		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			name, err := req.RequireString("name")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			name = strings.TrimSpace(name)
-
-			var players []sqlcdb.Player
-			parts := strings.Fields(name)
-			if len(parts) >= 2 {
-				players, err = queries.SearchPlayersByFullName(ctx, sqlcdb.SearchPlayersByFullNameParams{
-					Lower:   parts[0],
-					Lower_2: strings.Join(parts[1:], " "),
-				})
-			} else {
-				players, err = queries.SearchPlayersByName(ctx, name)
-			}
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(players)
-		},
-	)
+	srv.AddTools(searchPlayerTool(queries))
 
 	srv.AddTool(
 		mcp.NewTool("find_team",
