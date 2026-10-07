@@ -20,6 +20,9 @@ type yahooQueries interface {
 	GetUnrosteredGoalies(ctx context.Context, arg sqlcdb.GetUnrosteredGoaliesParams) ([]sqlcdb.GoalieRecentStat, error)
 	GetYahooMatchupsByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.YahooMatchup, error)
 	GetYahooDraftResultsByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.YahooDraftResult, error)
+	GetYahooLeagueStatCategories(ctx context.Context, leagueID int32) ([]sqlcdb.YahooLeagueStatCategory, error)
+	GetYahooLeagueRosterPositions(ctx context.Context, leagueID int32) ([]sqlcdb.YahooLeagueRosterPosition, error)
+	GetLatestYahooLeagueRuleSnapshot(ctx context.Context, arg sqlcdb.GetLatestYahooLeagueRuleSnapshotParams) (sqlcdb.YahooLeagueRuleSnapshot, error)
 }
 
 // leagueIndependentYahooTools names the yahoo tools that take no league_id;
@@ -44,6 +47,7 @@ func yahooTools(q yahooQueries, guard leagueGuard) []server.ServerTool {
 		unrosteredGoaliesTool(q, guard),
 		yahooMatchupsTool(q, guard),
 		yahooDraftResultsTool(q, guard),
+		yahooLeagueSettingsTool(q, guard),
 	}
 }
 

@@ -64,7 +64,7 @@ func TestResultCSV_NonSlice(t *testing.T) {
 
 	_, err := ResultCSV("not a slice")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "expects a slice")
+	assert.Contains(t, err.Error(), "must be a slice")
 }
 
 func TestResultCSV_EmptySlice(t *testing.T) {
@@ -315,4 +315,38 @@ func mustCSV(t *testing.T, items any) *mcpgo.CallToolResult {
 	result, err := ResultCSV(items)
 	require.NoError(t, err)
 	return result
+}
+
+// --- metadataHeader / csvSection ---
+
+func TestMetadataHeaderQuotesOnlyWhenNeeded(t *testing.T) {
+	t.Parallel()
+
+	var h metadataHeader
+	h.add("league_key", "465.l.1001")
+	h.add("season", 20262027)
+	h.add("stand_in", false)
+	h.add("name", `Big "Hockey" League`)
+	h.add("note", "a=b")
+	h.add("empty", "")
+	assert.Equal(t, `# league_key=465.l.1001 season=20262027 stand_in=false name="Big \"Hockey\" League" note="a=b" empty=""`, h.String())
+}
+
+func TestCSVSection(t *testing.T) {
+	t.Parallel()
+
+	type row struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	text, err := csvSection("rows", []row{{1, "a"}})
+	require.NoError(t, err)
+	assert.Equal(t, "# rows\nid,name\n1,a\n", text)
+
+	text, err = csvSection("rows", []row{})
+	require.NoError(t, err)
+	assert.Equal(t, "# rows\nno results\n", text)
+
+	_, err = csvSection("rows", row{})
+	require.ErrorContains(t, err, "rows: CSV rows must be a slice")
 }
