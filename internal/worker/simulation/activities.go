@@ -120,10 +120,10 @@ func (a *Activities) getOrCreateAgent(poolID, agentID int32, cfg AgentConfig, nu
 }
 
 // evictPoolAgents drops this worker's cached agents of a pool that
-// reached a terminal status. Other workers keep theirs until the
-// maxCachedAgents bound pushes them out.
-func (a *Activities) evictPoolAgents(poolID int32) {
-	a.agents.evictPool(poolID)
+// reached a terminal status and reports how many it dropped. Other
+// workers keep theirs until the maxCachedAgents bound pushes them out.
+func (a *Activities) evictPoolAgents(poolID int32) int {
+	return a.agents.evictPool(poolID)
 }
 
 // SimQueries is the union of sqlc-generated query methods the

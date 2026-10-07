@@ -35,7 +35,7 @@ func newCacheTestActivities(builds *atomic.Int32) *Activities {
 	}
 }
 
-// The SIM-I1 regression: an agent first built for a 0-team request
+// The regression: an agent first built for a 0-team request
 // (the old team-name turn) must not serve a later 10-team request, and
 // each pool size gets its own prompt and entry.
 func TestGetOrCreateAgent_DistinctTeamCountsGetDistinctPrompts(t *testing.T) {

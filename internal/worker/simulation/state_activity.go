@@ -505,7 +505,8 @@ func (a *Activities) SetPoolStatus(ctx context.Context, in SetPoolStatusInput) e
 		return fmt.Errorf("simulation: update pool status to %s: %w", in.Status, err)
 	}
 	if in.Status.ended() {
-		a.evictPoolAgents(in.PoolID)
+		evicted := a.evictPoolAgents(in.PoolID)
+		activity.GetLogger(ctx).Debug("SetPoolStatus evicted cached agents", "pool_id", in.PoolID, "evicted", evicted)
 	}
 	return nil
 }
