@@ -16,6 +16,7 @@ type yahooQueries interface {
 	GetYahooTeamsByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.YahooTeam, error)
 	GetYahooRosterWithPlayers(ctx context.Context, arg sqlcdb.GetYahooRosterWithPlayersParams) ([]sqlcdb.YahooRosterPlayer, error)
 	GetYahooRotoStandings(ctx context.Context, leagueID int32) ([]sqlcdb.YahooRotoStanding, error)
+	GetYahooSeasonTeamTotals(ctx context.Context, leagueID int32) ([]sqlcdb.YahooSeasonTeamTotal, error)
 	GetUnrosteredSkaters(ctx context.Context, arg sqlcdb.GetUnrosteredSkatersParams) ([]sqlcdb.SkaterRecentStat, error)
 	GetUnrosteredGoalies(ctx context.Context, arg sqlcdb.GetUnrosteredGoaliesParams) ([]sqlcdb.GoalieRecentStat, error)
 	GetYahooMatchupsByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.YahooMatchup, error)
@@ -40,6 +41,7 @@ func yahooTools(q yahooQueries, guard leagueGuard) []server.ServerTool {
 		yahooTeamsTool(q, guard),
 		yahooRosterTool(q, guard),
 		yahooRotoStandingsTool(q, guard),
+		yahooSeasonTeamTotalsTool(q, guard),
 		unrosteredSkatersTool(q, guard),
 		unrosteredGoaliesTool(q, guard),
 		yahooMatchupsTool(q, guard),
@@ -108,6 +110,18 @@ func yahooRotoStandingsTool(q yahooQueries, guard leagueGuard) server.ServerTool
 		),
 		Handler: guard.scoped(func(ctx context.Context, _ mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error) {
 			return toolResult(q.GetYahooRotoStandings(ctx, leagueID))
+		}),
+	}
+}
+
+func yahooSeasonTeamTotalsTool(q yahooQueries, guard leagueGuard) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_yahoo_season_team_totals",
+			mcp.WithDescription("Get each team's season totals in a Yahoo fantasy league, summed from its daily stats: goals, assists, plus/minus, PIM, PPP, SOG, wins and goals against. Sorted by goals + assists; other league categories are not included."),
+			mcp.WithNumber(leagueIDArg, mcp.Required(), mcp.Description("Yahoo league ID")),
+		),
+		Handler: guard.scoped(func(ctx context.Context, _ mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error) {
+			return toolResult(q.GetYahooSeasonTeamTotals(ctx, leagueID))
 		}),
 	}
 }

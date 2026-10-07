@@ -1,11 +1,13 @@
 package mcpserver
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,6 +106,39 @@ func TestYahooTeamsToolUnrestrictedSkipsLookup(t *testing.T) {
 	assert.False(t, result.IsError, resultText(t, result))
 	assert.Equal(t, []int32{missingLeagueID}, q.teamCalls)
 	assert.Zero(t, q.lookups)
+}
+
+func TestYahooSeasonTeamTotalsToolReturnsTeamRows(t *testing.T) {
+	q := newFakeYahooQueries()
+	q.totals = []sqlcdb.YahooSeasonTeamTotal{
+		{LeagueID: allowedLeagueID, TeamID: 3, TeamName: "Leaders", Season: 2025, NumTeams: 12, ScoringType: "head", Goals: 210, Assists: 340, PlusMinus: 25, PIM: 400, PPP: 150, SOG: 2100, Wins: 40, Ga: 180},
+		{LeagueID: allowedLeagueID, TeamID: 7, TeamName: "Trailers", Season: 2025, NumTeams: 12, ScoringType: "head", Goals: 150, Assists: 260, PlusMinus: -12, PIM: 310, PPP: 98, SOG: 1800, Wins: 31, Ga: 205},
+	}
+	tool := yahooTestServer(q, []string{allowedLeagueKey}).GetTool("get_yahoo_season_team_totals")
+	require.NotNil(t, tool)
+
+	result := callTool(t, tool.Handler, map[string]any{leagueIDArg: float64(allowedLeagueID)})
+	require.False(t, result.IsError, resultText(t, result))
+	assert.Equal(t, []int32{allowedLeagueID}, q.totalsCalls)
+
+	rows := parseCSV(t, resultText(t, result))
+	require.Len(t, rows, len(q.totals)+1)
+	nameCol := columnIndex(t, rows[0], "team_name")
+	plusMinusCol := columnIndex(t, rows[0], "plus_minus")
+	gaCol := columnIndex(t, rows[0], "ga")
+	assert.Equal(t, []string{"Leaders", "25", "180"}, []string{rows[1][nameCol], rows[1][plusMinusCol], rows[1][gaCol]})
+	assert.Equal(t, []string{"Trailers", "-12", "205"}, []string{rows[2][nameCol], rows[2][plusMinusCol], rows[2][gaCol]})
+}
+
+func TestYahooSeasonTeamTotalsToolReportsQueryError(t *testing.T) {
+	q := newFakeYahooQueries()
+	q.totalsErr = errors.New("connection refused")
+	tool := yahooTestServer(q, nil).GetTool("get_yahoo_season_team_totals")
+	require.NotNil(t, tool)
+
+	result := callTool(t, tool.Handler, map[string]any{leagueIDArg: float64(allowedLeagueID)})
+	assert.True(t, result.IsError)
+	assert.Equal(t, "connection refused", resultText(t, result))
 }
 
 func TestRequireDate(t *testing.T) {

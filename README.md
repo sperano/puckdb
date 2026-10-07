@@ -194,7 +194,7 @@ required for the quick start.
 | Toolset | Tools | Server name |
 | --- | --- | --- |
 | `nhl` (default) | Public NHL data: players, games, stats, standings, Edge, playoffs, play-by-play | `puckdb-nhl` |
-| `yahoo` | Yahoo fantasy league data: leagues, teams, rosters, roto standings, unrostered players, matchups, draft results | `puckdb-yahoo` |
+| `yahoo` | Yahoo fantasy league data: leagues, teams, rosters, roto standings, season team totals, unrostered players, matchups, draft results | `puckdb-yahoo` |
 
 `--mcp-toolsets nhl,yahoo` serves both from one instance (`puckdb-nhl-yahoo`).
 To expose the Yahoo data only to some clients, run one instance per audience
