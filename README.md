@@ -278,3 +278,21 @@ Application packages live under `internal/`; command wiring lives in `cmd/`.
 The GraphQL schemas are in `internal/graph/`, database migrations are in
 `internal/database/migrations/`, and Temporal workflows are in
 `internal/worker/`.
+
+## License
+
+Copyright (C) 2026 Éric Spérano. PuckDB is free software under the GNU General
+Public License, version 3 or (at your option) any later version: see
+[COPYRIGHT](COPYRIGHT) for the notice and [LICENSE](LICENSE) for the license
+text. The container image carries both under `/licenses/puckdb`.
+
+Third-party material keeps its own license:
+
+- Go dependencies are not vendored. The container image, which ships them
+  compiled into the binary, carries their license, notice and patent files and
+  those of the Go standard library under `/licenses`, collected at build time
+  by `scripts/collect-licenses.sh`, which fails on a module without a license
+  file.
+- `internal/cache/testdata/yahoo-players/` holds Yahoo Sports player pages
+  saved as parser fixtures. They are Yahoo's copyrighted pages and are not
+  covered by the GPL.
