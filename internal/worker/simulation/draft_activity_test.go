@@ -290,6 +290,27 @@ func (s *DraftPickTestSuite) TestCostCap_TripsBeforeLLM() {
 	assert.Empty(t, s.signaler.calls[0].RunID, "runID empty = latest run")
 }
 
+// The cost-cap pause ends the pool, so its cached agents are dropped.
+func (s *DraftPickTestSuite) TestCostCap_EvictsPoolAgents() {
+	t := s.T()
+	in := s.validInput()
+	_, err := s.acts.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
+	require.NoError(t, err)
+	_, err = s.acts.getOrCreateAgent(in.PoolID+1, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
+	require.NoError(t, err)
+	tooMuch, err := numericFromFloat(200.01)
+	require.NoError(t, err)
+	s.queries.getPoolReturn = sqlcdb.SimPool{ID: in.PoolID, TotalLLMCostUSD: tooMuch}
+
+	future, err := s.env.ExecuteActivity(s.acts.DraftPick, in)
+	require.NoError(t, err)
+	var got DraftPickResult
+	require.NoError(t, future.Get(&got))
+	require.Equal(t, SkipReasonCostCapReached, got.SkipReason)
+
+	assert.Equal(t, 1, s.acts.agents.len(), "only the other pool's agent remains")
+}
+
 // cap=0 (or unset) is treated as "no cap" rather than "every call
 // trips" — otherwise an omitted-field config would lock the pool
 // out forever.

@@ -704,6 +704,31 @@ func (s *SimPoolWorkflowTestSuite) TestQuerySummary_PopulatesStatusAndCost() {
 		"QuerySummary must reflect accumulated LLM cost")
 }
 
+// Phase 0 builds the agent the draft and daily turns reuse, so every
+// PickTeamName call carries the pool's real size.
+func (s *SimPoolWorkflowTestSuite) TestTeamNamePhase_PassesNumTeams() {
+	t := s.T()
+	state := minState()
+	state.PoolConfig.StopAfter = StopAfterTeamName
+
+	var inputs []PickTeamNameInput
+	s.env.OnActivity(s.acts.PickTeamName, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			inputs = append(inputs, args.Get(1).(PickTeamNameInput))
+		}).
+		Return(PickTeamNameResult{Name: "Mock Team"}, nil)
+	s.stubActivityResults(state)
+
+	s.env.ExecuteWorkflow(SimPoolWorkflow, SimPoolWorkflowInput{PoolID: 1})
+	require.True(t, s.env.IsWorkflowCompleted())
+	require.NoError(t, s.env.GetWorkflowError())
+
+	require.Len(t, inputs, len(state.AgentIDs))
+	for _, in := range inputs {
+		assert.Equal(t, state.PoolConfig.NumTeams, in.NumTeams, "agent %d", in.AgentID)
+	}
+}
+
 // silence unused-import linter when sqlcdb is referenced only via the
 // activities' input/result types.
 var _ = sqlcdb.SimPool{}
