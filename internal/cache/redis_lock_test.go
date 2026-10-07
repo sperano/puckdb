@@ -72,6 +72,7 @@ func TestAcquireRedisLockRetriesWithConfiguredBackoff(t *testing.T) {
 type releaseContextClient struct {
 	redislock.RedisClient
 	err         error
+	observedAt  time.Time
 	deadline    time.Time
 	hasDeadline bool
 }
@@ -83,6 +84,7 @@ func (client *releaseContextClient) EvalSha(
 	args ...interface{},
 ) *redis.Cmd {
 	client.err = ctx.Err()
+	client.observedAt = time.Now()
 	client.deadline, client.hasDeadline = ctx.Deadline()
 	return client.RedisClient.EvalSha(ctx, sha1, keys, args...)
 }
@@ -102,7 +104,7 @@ func TestAcquireRedisLockReleaseIgnoresCancellationAndHasDeadline(t *testing.T) 
 
 	assert.NoError(t, client.err)
 	require.True(t, client.hasDeadline)
-	remaining := time.Until(client.deadline)
+	remaining := client.deadline.Sub(client.observedAt)
 	assert.Greater(t, remaining, testMinimumReleaseTimeLeft)
 	assert.LessOrEqual(t, remaining, testRedisLockReleaseTimeout)
 	require.NoError(t, mock.ExpectationsWereMet())

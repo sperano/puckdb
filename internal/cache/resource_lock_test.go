@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	resourceLockTestKey       = "resource-test-key"
-	resourceLockTestWait      = 10 * time.Millisecond
-	resourceLockReleaseResult = int64(1)
+	resourceLockTestKey         = "resource-test-key"
+	resourceLockTestWait        = 10 * time.Millisecond
+	resourceLockReleaseResult   = int64(1)
+	redisLockValueArgumentIndex = 2
 )
 
 func TestLockResourcePreservesKeyAndTTL(t *testing.T) {
@@ -33,7 +34,8 @@ func TestLockResourcePreservesKeyAndTTL(t *testing.T) {
 	assert.Contains(t, obtained, key)
 	assert.Contains(t, obtained, int64(resourceCacheLockTTL.Seconds()))
 	assert.Contains(t, released, key)
-	assert.Contains(t, released, obtained[2])
+	require.Greater(t, len(obtained), redisLockValueArgumentIndex)
+	assert.Contains(t, released, obtained[redisLockValueArgumentIndex])
 }
 
 func TestLockResourceMapsContentionWithContext(t *testing.T) {
