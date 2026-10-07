@@ -97,6 +97,7 @@ func cmdAPI() *cobra.Command {
 				return err
 			}
 			defer closeDraftBoard(draftBoard)
+			auth := apiAuth{yahoo: yahooAuthFrom(viper.GetViper()), admin: adminAuthFrom(viper.GetViper())}
 			resolver := &graph.Resolver{
 				TemporalClient: temporalClient,
 				RedisClient:    redisClient,
@@ -104,6 +105,8 @@ func cmdAPI() *cobra.Command {
 				DB:             pool,
 				Draft:          newDraftService(pool),
 				DraftBoard:     draftBoard,
+				PublicURL:      auth.yahoo.PublicURL,
+				YahooSeasons:   config.GetYahooSeasonsConfig,
 			}
 
 			// Initialize Maurice AI chat
@@ -121,7 +124,7 @@ func cmdAPI() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			r := setupAPIRouter(redisClient, yahooAuthFrom(viper.GetViper()), resolver, sessions)
+			r := setupAPIRouter(redisClient, resolver, sessions, auth)
 			srv := &http.Server{Addr: listen, Handler: r}
 			return runHTTPServer(cmd.Context(), srv,
 				viper.GetBool(config.FlagAPITLSEnabled),
@@ -218,7 +221,14 @@ func newAppUserMiddleware(pool *pgxpool.Pool) (func(http.Handler) http.Handler, 
 	return appuser.Middleware(appuser.NewPGStore(pool, appuser.SessionIdleTimeout), hasher), nil
 }
 
-func setupAPIRouter(redisClient *redis.Client, yahooAuth httpx.YahooAuth, resolver *graph.Resolver, sessions func(http.Handler) http.Handler) *chi.Mux {
+// apiAuth is how the API server authenticates to Yahoo and authorizes
+// admin GraphQL operations.
+type apiAuth struct {
+	yahoo httpx.YahooAuth
+	admin graph.AdminAuth
+}
+
+func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, sessions func(http.Handler) http.Handler, auth apiAuth) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(httpx.ChiLogger)
@@ -233,21 +243,21 @@ func setupAPIRouter(redisClient *redis.Client, yahooAuth httpx.YahooAuth, resolv
 	// GraphQL
 	r.Route(graphQLPath, func(r chi.Router) {
 		r.Get("/", playgroundHandler().ServeHTTP)
-		r.With(sessions).Post("/query", graphqlHandler(resolver).ServeHTTP)
+		r.With(sessions).Post("/query", graphqlHandler(resolver, auth.admin).ServeHTTP)
 	})
 	// Yahoo Oauth2
 	r.Route("/yahoo", func(r chi.Router) {
-		r.Get("/login", httpx.YahooLoginHandler(redisClient, yahooAuth))
-		r.Get("/authenticated", httpx.YahooAuthenticatedHandler(redisClient, yahooAuth))
+		r.Get("/login", httpx.YahooLoginHandler(redisClient, auth.yahoo))
+		r.Get("/authenticated", httpx.YahooAuthenticatedHandler(redisClient, auth.yahoo))
 		r.Get("/landed", httpx.YahooLandedHandler)
 	})
 	return r
 }
 
-func graphqlHandler(resolver *graph.Resolver) http.Handler {
+func graphqlHandler(resolver *graph.Resolver, admin graph.AdminAuth) http.Handler {
 	server := handler.New(generated.NewExecutableSchema(generated.Config{
 		Resolvers:  resolver,
-		Directives: generated.DirectiveRoot{Admin: graph.AdminDirective},
+		Directives: generated.DirectiveRoot{Admin: graph.NewAdminDirective(admin)},
 	}))
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/fixtures/draftfixtures"
 	"github.com/sperano/puckdb/internal/graph/generated"
@@ -39,7 +41,7 @@ func newDraftTestServer(t *testing.T) (*httptest.Server, *draftfixtures.Store, *
 	svc := draftrank.NewService(store, store, draftrank.ServiceOptions{Now: func() time.Time { return draftTestNow }})
 	schema := handler.New(generated.NewExecutableSchema(generated.Config{
 		Resolvers:  &Resolver{Draft: svc},
-		Directives: generated.DirectiveRoot{Admin: AdminDirective},
+		Directives: generated.DirectiveRoot{Admin: NewAdminDirective(AdminAuth{Group: config.DefaultAdminGroup})},
 	}))
 	schema.AddTransport(transport.POST{})
 	server := httptest.NewServer(httpx.HeaderContext(schema))
@@ -226,7 +228,6 @@ func TestDraftPlayerComparisonAPI_ExplainsNewsWithEvidence(t *testing.T) {
 }
 
 func TestDraftAPI_ExistingAuthenticationApplies(t *testing.T) {
-	withAdminConfig(t, "puckdb-admins", "")
 	server, store, _ := newDraftTestServer(t)
 
 	leagues := postGraphQL(t, server, nil, `{ draftLeagues(season: 2026) { league { leagueKey } status } }`, nil)
@@ -271,4 +272,28 @@ func TestDraftAPI_ErrorsAndMissingDatabase(t *testing.T) {
 
 	_, err := (&Resolver{}).draftRankings(t.Context(), model.DraftRankingsInput{League: draftfixtures.LeagueKey})
 	assert.ErrorIs(t, err, errDraftNotConfigured)
+}
+
+func TestConfiguredLeagueIDs(t *testing.T) {
+	t.Parallel()
+	const season = 2026
+	seasons := config.YahooSeasonsMap{season: {Leagues: []config.League{{LeagueID: 11}, {LeagueID: 22}}}}
+
+	tests := []struct {
+		name   string
+		loader func() (config.YahooSeasonsMap, error)
+		want   []int
+	}{
+		{name: "not configured", loader: nil, want: nil},
+		{name: "loader error falls back to imported leagues", loader: func() (config.YahooSeasonsMap, error) {
+			return nil, errors.New("can't read yahoo seasons config file")
+		}, want: nil},
+		{name: "season's leagues", loader: func() (config.YahooSeasonsMap, error) { return seasons, nil }, want: []int{11, 22}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, (&Resolver{YahooSeasons: tt.loader}).configuredLeagueIDs(season))
+		})
+	}
 }

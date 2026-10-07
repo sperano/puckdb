@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/httpx"
@@ -56,7 +55,7 @@ func (r *Resolver) draftLeagues(ctx context.Context, season *int) ([]*model.Draf
 		return nil, err
 	}
 	year := seasonOrCurrent(season)
-	summaries, err := svc.Leagues(ctx, year, configuredLeagueIDs(year))
+	summaries, err := svc.Leagues(ctx, year, r.configuredLeagueIDs(year))
 	if err != nil {
 		return nil, err
 	}
@@ -69,8 +68,11 @@ func (r *Resolver) draftLeagues(ctx context.Context, season *int) ([]*model.Draf
 
 // configuredLeagueIDs are the season's leagues in seasons.yaml; a league
 // configured there but never imported is still listed (as MISSING_RULES).
-func configuredLeagueIDs(season int) []int {
-	seasons, err := config.GetYahooSeasonsConfig()
+func (r *Resolver) configuredLeagueIDs(season int) []int {
+	if r.YahooSeasons == nil {
+		return nil
+	}
+	seasons, err := r.YahooSeasons()
 	if err != nil {
 		log.Warn().Err(err).Msg("draftLeagues: seasons config unavailable; listing leagues with imported rules only")
 		return nil

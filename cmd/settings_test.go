@@ -7,6 +7,7 @@ import (
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/graph"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/temporal"
 	flag "github.com/spf13/pflag"
@@ -101,4 +102,11 @@ func TestYahooAuthFrom(t *testing.T) {
 		"--yahoo-oauth2-client-id=id", "--yahoo-oauth2-client-secret=secret", "--public-url=https://puck.example",
 	}, &config.YahooOAuth2Flags)
 	assert.Equal(t, httpx.YahooAuth{ClientID: "id", ClientSecret: "secret", PublicURL: "https://puck.example"}, yahooAuthFrom(v))
+}
+
+func TestAdminAuthFrom(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, graph.AdminAuth{Group: "puckdb-admins"}, adminAuthFrom(boundViper(t, nil, &config.AdminAuthFlags)))
+	v := boundViper(t, []string{"--admin-group=ops", "--admin-token=s3cr3t"}, &config.AdminAuthFlags)
+	assert.Equal(t, graph.AdminAuth{Group: "ops", Token: "s3cr3t"}, adminAuthFrom(v))
 }

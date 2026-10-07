@@ -8,6 +8,7 @@ import (
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/graph"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/temporal"
@@ -72,6 +73,14 @@ func yahooAuthFrom(v *viper.Viper) httpx.YahooAuth {
 		ClientID:     v.GetString(config.FlagYahooOAuth2ClientID),
 		ClientSecret: v.GetString(config.FlagYahooOAuth2ClientSecret),
 		PublicURL:    v.GetString(config.FlagPublicURL),
+	}
+}
+
+// adminAuthFrom reads --admin-group and --admin-token.
+func adminAuthFrom(v *viper.Viper) graph.AdminAuth {
+	return graph.AdminAuth{
+		Group: v.GetString(config.FlagAdminGroup),
+		Token: v.GetString(config.FlagAdminToken),
 	}
 }
 
