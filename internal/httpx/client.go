@@ -13,7 +13,6 @@ import (
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/metrics"
-	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
 
@@ -107,8 +106,10 @@ func (c *GenericClient) Download(ctx context.Context, url string) ([]byte, error
 	return body, nil
 }
 
-func NewYahooClient(ctx context.Context, redisClient *redis.Client) (Client, error) {
-	conf, err := config.OauthConfig()
+// NewYahooClient builds an authenticated Yahoo client for the user in ctx
+// with the OAuth2 application in auth.
+func NewYahooClient(ctx context.Context, redisClient *redis.Client, auth YahooAuth) (Client, error) {
+	conf, err := auth.OAuth2Config()
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +131,8 @@ func NewYahooClientWithConfig(ctx context.Context, redisClient *redis.Client, co
 // for callers that need the response status and body of a failed request
 // (GenericClient.Download keeps only the status). The token is validated the
 // same way as in NewYahooClientWithConfig.
-func NewYahooHTTPClient(ctx context.Context, redisClient *redis.Client) (*http.Client, error) {
-	conf, err := config.OauthConfig()
+func NewYahooHTTPClient(ctx context.Context, redisClient *redis.Client, auth YahooAuth) (*http.Client, error) {
+	conf, err := auth.OAuth2Config()
 	if err != nil {
 		return nil, err
 	}
@@ -153,15 +154,18 @@ func newYahooHTTPClient(ctx context.Context, redisClient *redis.Client, conf *oa
 	return oauth2.NewClient(ctx, tokenSource), nil
 }
 
-func DownloadYahoo(ctx context.Context, redisClient *redis.Client, url string) ([]byte, error) {
+// DownloadYahoo downloads url with the stored token of the user in ctx. A
+// missing token is reported with auth.PublicURL so the error can say where
+// to log in.
+func DownloadYahoo(ctx context.Context, redisClient *redis.Client, auth YahooAuth, url string) ([]byte, error) {
 	// this can fail if no oauth2 token is found in redis
-	client, err := NewYahooClient(ctx, redisClient)
+	client, err := NewYahooClient(ctx, redisClient, auth)
 	if err != nil {
 		// Preserve the matched token error's context; only fill in the login
 		// URL when it doesn't already carry one.
 		if tokenErr, ok := errors.AsType[*cache.OAuth2TokenMissingError](err); ok {
 			if tokenErr.PublicURL == "" {
-				tokenErr.PublicURL = viper.GetString(config.FlagPublicURL)
+				tokenErr.PublicURL = auth.PublicURL
 			}
 			return nil, fmt.Errorf("%s: %w", url, tokenErr)
 		}

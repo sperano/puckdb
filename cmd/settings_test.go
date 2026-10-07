@@ -7,6 +7,7 @@ import (
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/temporal"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -92,4 +93,12 @@ func TestDataPathFrom(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, dataPathFrom(boundViper(t, nil, &config.DataPathFlags)))
 	assert.Equal(t, "/data", dataPathFrom(boundViper(t, []string{"--data-path=/data"}, &config.DataPathFlags)))
+}
+
+func TestYahooAuthFrom(t *testing.T) {
+	t.Parallel()
+	v := boundViper(t, []string{
+		"--yahoo-oauth2-client-id=id", "--yahoo-oauth2-client-secret=secret", "--public-url=https://puck.example",
+	}, &config.YahooOAuth2Flags)
+	assert.Equal(t, httpx.YahooAuth{ClientID: "id", ClientSecret: "secret", PublicURL: "https://puck.example"}, yahooAuthFrom(v))
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
 
@@ -30,10 +29,10 @@ func setNoCacheHeaders(w http.ResponseWriter) {
 	w.Header().Set("Expires", "0")
 }
 
-// YahooLoginHandler starts a Yahoo login with the OAuth2 config loaded from viper.
-func YahooLoginHandler(redisClient *redis.Client) http.HandlerFunc {
+// YahooLoginHandler starts a Yahoo login with the OAuth2 application in auth.
+func YahooLoginHandler(redisClient *redis.Client, auth YahooAuth) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		conf, err := config.OauthConfig()
+		conf, err := auth.OAuth2Config()
 		if err != nil {
 			handleError(w, http.StatusInternalServerError, err)
 			return
@@ -78,13 +77,15 @@ func YahooLandedHandler(w http.ResponseWriter, r *http.Request) {
 // never needs (or reveals problems with) the OAuth configuration.
 type callbackConfig func() (conf *oauth2.Config, successURL string, err error)
 
-func YahooAuthenticatedHandler(redisClient *redis.Client) http.HandlerFunc {
+// YahooAuthenticatedHandler completes a Yahoo login started by
+// YahooLoginHandler with the same auth, then redirects to the landed page.
+func YahooAuthenticatedHandler(redisClient *redis.Client, auth YahooAuth) http.HandlerFunc {
 	return yahooAuthenticatedHandler(redisClient, func() (*oauth2.Config, string, error) {
-		conf, err := config.OauthConfig()
+		conf, err := auth.OAuth2Config()
 		if err != nil {
 			return nil, "", err
 		}
-		return conf, viper.GetString(config.FlagPublicURL) + config.YahooLandedPath, nil
+		return conf, auth.PublicURL + config.YahooLandedPath, nil
 	})
 }
 

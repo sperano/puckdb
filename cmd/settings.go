@@ -8,8 +8,10 @@ import (
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/temporal"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/client"
 )
@@ -64,6 +66,15 @@ func redisOptionsFrom(v *viper.Viper) cache.Options {
 	}
 }
 
+// yahooAuthFrom reads the Yahoo OAuth2 application flags and --public-url.
+func yahooAuthFrom(v *viper.Viper) httpx.YahooAuth {
+	return httpx.YahooAuth{
+		ClientID:     v.GetString(config.FlagYahooOAuth2ClientID),
+		ClientSecret: v.GetString(config.FlagYahooOAuth2ClientSecret),
+		PublicURL:    v.GetString(config.FlagPublicURL),
+	}
+}
+
 // dataPathFrom reads --data-path, the root of the file cache.
 func dataPathFrom(v *viper.Viper) string {
 	return v.GetString(config.FlagDataPath)
@@ -82,6 +93,12 @@ func newTemporalClient() (client.Client, error) {
 // newRedisClient opens a Redis client with the configured settings.
 func newRedisClient() *redis.Client {
 	return cache.NewClient(redisOptionsFrom(viper.GetViper()))
+}
+
+// newYahooDownloader downloads Yahoo resources with the configured OAuth2
+// application and the token stored in redisClient.
+func newYahooDownloader(redisClient *redis.Client) shared.Downloader {
+	return shared.NewYahooDownloader(redisClient, yahooAuthFrom(viper.GetViper()))
 }
 
 // newDefaultStorage opens the file cache under the configured data path.

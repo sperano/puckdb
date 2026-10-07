@@ -29,7 +29,6 @@ import (
 	"github.com/sperano/puckdb/internal/maurice"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
-	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -122,7 +121,7 @@ func cmdAPI() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			r := setupAPIRouter(redisClient, resolver, sessions)
+			r := setupAPIRouter(redisClient, yahooAuthFrom(viper.GetViper()), resolver, sessions)
 			srv := &http.Server{Addr: listen, Handler: r}
 			return runHTTPServer(cmd.Context(), srv,
 				viper.GetBool(config.FlagAPITLSEnabled),
@@ -146,7 +145,7 @@ func newDraftBoardService(pool *pgxpool.Pool, redisClient *redis.Client) (*draft
 	repository := draftwatch.NewRepository(pool)
 	runner := draftwatch.Runner{
 		Pool: pool, Repository: repository,
-		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, shared.NewYahooDownloader(redisClient)),
+		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, newYahooDownloader(redisClient)),
 	}
 	interval := time.Duration(viper.GetInt(config.FlagDraftPollInterval)) * time.Second
 	watchOptions := draftwatch.WatchOptions{
@@ -219,7 +218,7 @@ func newAppUserMiddleware(pool *pgxpool.Pool) (func(http.Handler) http.Handler, 
 	return appuser.Middleware(appuser.NewPGStore(pool, appuser.SessionIdleTimeout), hasher), nil
 }
 
-func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, sessions func(http.Handler) http.Handler) *chi.Mux {
+func setupAPIRouter(redisClient *redis.Client, yahooAuth httpx.YahooAuth, resolver *graph.Resolver, sessions func(http.Handler) http.Handler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(httpx.ChiLogger)
@@ -238,8 +237,8 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, session
 	})
 	// Yahoo Oauth2
 	r.Route("/yahoo", func(r chi.Router) {
-		r.Get("/login", httpx.YahooLoginHandler(redisClient))
-		r.Get("/authenticated", httpx.YahooAuthenticatedHandler(redisClient))
+		r.Get("/login", httpx.YahooLoginHandler(redisClient, yahooAuth))
+		r.Get("/authenticated", httpx.YahooAuthenticatedHandler(redisClient, yahooAuth))
 		r.Get("/landed", httpx.YahooLandedHandler)
 	})
 	return r

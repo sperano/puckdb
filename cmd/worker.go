@@ -281,7 +281,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		nhlClient:       shared.NewNHLClient(),
 		gobCache:        gobCache,
 		redisClient:     redisClient,
-		yahooDownloader: shared.NewYahooDownloader(redisClient),
+		yahooDownloader: newYahooDownloader(redisClient),
 	}
 
 	registerSimulationActivities(w, pool, d.queries, tclient)

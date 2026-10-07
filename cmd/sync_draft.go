@@ -9,7 +9,6 @@ import (
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/sperano/puckdb/internal/draftwatch"
-	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -68,7 +67,7 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	repository := draftwatch.NewRepository(pool)
 	runner := draftwatch.Runner{
 		Pool: pool, Repository: repository,
-		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, shared.NewYahooDownloader(redisClient)),
+		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, newYahooDownloader(redisClient)),
 	}
 	out := cmd.OutOrStdout()
 	if !viper.GetBool(config.FlagDraftWatch) {
