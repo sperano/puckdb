@@ -652,6 +652,51 @@ func (q *Queries) GetYahooTeamManagers(ctx context.Context, arg GetYahooTeamMana
 	return items, nil
 }
 
+const getYahooTeamManagersByLeague = `-- name: GetYahooTeamManagersByLeague :many
+SELECT league_id, team_id, id, nickname, is_commissioner, is_current_login
+FROM yahoo_team_managers
+WHERE league_id = $1
+ORDER BY team_id, id
+`
+
+type GetYahooTeamManagersByLeagueRow struct {
+	LeagueID       int32  `json:"league_id"`
+	TeamID         int32  `json:"team_id"`
+	ID             int32  `json:"id"`
+	Nickname       string `json:"nickname"`
+	IsCommissioner bool   `json:"is_commissioner"`
+	IsCurrentLogin bool   `json:"is_current_login"`
+}
+
+// Explicit columns: guid and email are personal data and must stay out of
+// read paths that leave the server (the MCP get_yahoo_teams_by_league tool).
+func (q *Queries) GetYahooTeamManagersByLeague(ctx context.Context, leagueID int32) ([]GetYahooTeamManagersByLeagueRow, error) {
+	rows, err := q.db.Query(ctx, getYahooTeamManagersByLeague, leagueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetYahooTeamManagersByLeagueRow{}
+	for rows.Next() {
+		var i GetYahooTeamManagersByLeagueRow
+		if err := rows.Scan(
+			&i.LeagueID,
+			&i.TeamID,
+			&i.ID,
+			&i.Nickname,
+			&i.IsCommissioner,
+			&i.IsCurrentLogin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getYahooTeamsByLeague = `-- name: GetYahooTeamsByLeague :many
 SELECT league_id, id, team_key, name, url, logo_url, draft_position, waiver_priority, number_of_moves, number_of_trades, is_owned_by_current_login, created_at, updated_at FROM yahoo_teams WHERE league_id = $1 ORDER BY id
 `

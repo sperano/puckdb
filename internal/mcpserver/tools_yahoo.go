@@ -14,6 +14,7 @@ type yahooQueries interface {
 	leagueLookup
 	GetAllYahooLeagues(ctx context.Context) ([]sqlcdb.YahooLeague, error)
 	GetYahooTeamsByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.YahooTeam, error)
+	GetYahooTeamManagersByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.GetYahooTeamManagersByLeagueRow, error)
 	GetYahooRosterWithPlayers(ctx context.Context, arg sqlcdb.GetYahooRosterWithPlayersParams) ([]sqlcdb.YahooRosterPlayer, error)
 	GetYahooRotoStandings(ctx context.Context, leagueID int32) ([]sqlcdb.YahooRotoStanding, error)
 	GetUnrosteredSkaters(ctx context.Context, arg sqlcdb.GetUnrosteredSkatersParams) ([]sqlcdb.SkaterRecentStat, error)
@@ -59,18 +60,6 @@ func yahooLeaguesTool(q yahooQueries, guard leagueGuard) server.ServerTool {
 			}
 			return ResultCSV(guard.filter(leagues))
 		},
-	}
-}
-
-func yahooTeamsTool(q yahooQueries, guard leagueGuard) server.ServerTool {
-	return server.ServerTool{
-		Tool: mcp.NewTool("get_yahoo_teams_by_league",
-			mcp.WithDescription("List all teams in a Yahoo fantasy league."),
-			mcp.WithNumber(leagueIDArg, mcp.Required(), mcp.Description("Yahoo league ID (use get_yahoo_leagues to find IDs)")),
-		),
-		Handler: guard.scoped(func(ctx context.Context, _ mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error) {
-			return toolResult(q.GetYahooTeamsByLeague(ctx, leagueID))
-		}),
 	}
 }
 

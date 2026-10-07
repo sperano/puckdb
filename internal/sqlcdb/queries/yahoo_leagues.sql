@@ -265,6 +265,14 @@ SELECT * FROM yahoo_team_managers
 WHERE league_id = $1 AND team_id = $2
 ORDER BY id;
 
+-- name: GetYahooTeamManagersByLeague :many
+-- Explicit columns: guid and email are personal data and must stay out of
+-- read paths that leave the server (the MCP get_yahoo_teams_by_league tool).
+SELECT league_id, team_id, id, nickname, is_commissioner, is_current_login
+FROM yahoo_team_managers
+WHERE league_id = $1
+ORDER BY team_id, id;
+
 -- name: GetYahooTeamManagerByGUID :one
 SELECT * FROM yahoo_team_managers WHERE guid = $1;
 
