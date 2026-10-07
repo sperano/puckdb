@@ -5,8 +5,6 @@ import (
 	"os"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/internal/config"
-	"github.com/spf13/viper"
 )
 
 // Storage defines the low-level interface for file I/O operations.
@@ -42,10 +40,9 @@ type Storage interface {
 	Stat(ctx context.Context, path string) (os.FileInfo, error)
 }
 
-// NewDefaultStorage creates a Storage instance using the configured data path.
-// Uses instrumented storage for metrics collection.
-func NewDefaultStorage() Storage {
-	dataPath := viper.GetString(config.FlagDataPath)
+// NewDefaultStorage creates the filesystem Storage rooted at dataPath,
+// instrumented for metrics collection.
+func NewDefaultStorage(dataPath string) Storage {
 	log.Trace().Str("path", dataPath).Msg("Initializing storage")
 	return NewInstrumentedStorage(NewFSStorage(dataPath))
 }

@@ -14,31 +14,35 @@ const (
 
 // DropDatabaseWorkflow drops all database tables.
 func DropDatabaseWorkflow(ctx workflow.Context) error {
+	var a *Activities
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-	return workflow.ExecuteActivity(ctx, DropDatabaseActivity).Get(ctx, nil)
+	return workflow.ExecuteActivity(ctx, a.DropDatabaseActivity).Get(ctx, nil)
 }
 
 // MigrateDatabaseWorkflow runs database migrations.
 func MigrateDatabaseWorkflow(ctx workflow.Context) error {
+	var a *Activities
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-	return workflow.ExecuteActivity(ctx, MigrateDatabaseActivity).Get(ctx, nil)
+	return workflow.ExecuteActivity(ctx, a.MigrateDatabaseActivity).Get(ctx, nil)
 }
 
 // ResetDatabaseWorkflow drops all tables and recreates them via migrations.
 func ResetDatabaseWorkflow(ctx workflow.Context) error {
+	var a *Activities
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// Drop all tables
-	if err := workflow.ExecuteActivity(ctx, DropDatabaseActivity).Get(ctx, nil); err != nil {
+	if err := workflow.ExecuteActivity(ctx, a.DropDatabaseActivity).Get(ctx, nil); err != nil {
 		return err
 	}
 
 	// Run migrations
-	return workflow.ExecuteActivity(ctx, MigrateDatabaseActivity).Get(ctx, nil)
+	return workflow.ExecuteActivity(ctx, a.MigrateDatabaseActivity).Get(ctx, nil)
 }
 
 // FlushRedisWorkflow flushes all keys from the configured Redis database.
 func FlushRedisWorkflow(ctx workflow.Context) error {
+	var a *Activities
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-	return workflow.ExecuteActivity(ctx, FlushRedisActivity).Get(ctx, nil)
+	return workflow.ExecuteActivity(ctx, a.FlushRedisActivity).Get(ctx, nil)
 }

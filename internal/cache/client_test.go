@@ -86,3 +86,20 @@ func TestWaitReady_StopsWhenContextEnds(t *testing.T) {
 	require.ErrorIs(t, err, syscall.ECONNREFUSED)
 	require.Equal(t, 1, p.calls)
 }
+
+func TestDefaultOptions(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, Options{Addr: "localhost:6379", DB: 0}, DefaultOptions())
+}
+
+func TestNewClient_UsesOptions(t *testing.T) {
+	t.Parallel()
+	const testDB = 3
+	client := NewClient(Options{Addr: "redis.example:6380", Password: "secret", DB: testDB})
+	t.Cleanup(func() { _ = client.Close() })
+
+	got := client.Options()
+	require.Equal(t, "redis.example:6380", got.Addr)
+	require.Equal(t, "secret", got.Password)
+	require.Equal(t, testDB, got.DB)
+}

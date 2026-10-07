@@ -101,9 +101,10 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsIn
 		seasonIDs[i] = s.ID
 	}
 
+	var pa *workplayer.Activities
 	var consolidateResult workplayer.ConsolidatePlayersResult
 	consolidateInput := workplayer.ConsolidatePlayersInput{Seasons: seasonIDs}
-	if err := workflow.ExecuteActivity(ctx, workplayer.ConsolidateBoxscorePlayersActivity, consolidateInput).Get(ctx, &consolidateResult); err != nil {
+	if err := workflow.ExecuteActivity(ctx, pa.ConsolidateBoxscorePlayersActivity, consolidateInput).Get(ctx, &consolidateResult); err != nil {
 		return err
 	}
 

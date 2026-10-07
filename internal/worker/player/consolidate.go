@@ -25,14 +25,9 @@ type ConsolidatePlayersResult struct {
 
 // ConsolidateBoxscorePlayersActivity loads players from all seasons,
 // deduplicates them, and saves the consolidated set to Redis.
-func ConsolidateBoxscorePlayersActivity(ctx context.Context, input ConsolidatePlayersInput) (ConsolidatePlayersResult, error) {
+func (a *Activities) ConsolidateBoxscorePlayersActivity(ctx context.Context, input ConsolidatePlayersInput) (ConsolidatePlayersResult, error) {
 	logger := activity.GetLogger(ctx)
-	redisClient := cache.NewClient()
-	defer func() {
-		if err := redisClient.Close(); err != nil {
-			logger.Warn("failed to close redis client", "error", err)
-		}
-	}()
+	redisClient := a.RedisClient
 
 	playerMap := make(map[int64]store.BoxscorePlayer)
 	totalPlayers := 0

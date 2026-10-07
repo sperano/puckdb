@@ -17,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/appuser"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draftboard"
@@ -31,8 +30,6 @@ import (
 	"github.com/sperano/puckdb/internal/maurice"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
-	"github.com/sperano/puckdb/internal/store"
-	"github.com/sperano/puckdb/internal/temporal"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -85,11 +82,11 @@ func cmdAPI() *cobra.Command {
 			defer pool.Close()
 
 			// the oauth2 token for yahoo authentication is cached in redis
-			redisClient := cache.NewClient()
+			redisClient := newRedisClient()
 			defer func() { _ = redisClient.Close() }()
 
 			// create temporal client for GraphQL resolver
-			temporalClient, err := temporal.NewClient()
+			temporalClient, err := newTemporalClient()
 			if err != nil {
 				return err
 			}
@@ -150,7 +147,7 @@ func newDraftBoardService(pool *pgxpool.Pool, redisClient *redis.Client) (*draft
 	repository := draftwatch.NewRepository(pool)
 	runner := draftwatch.Runner{
 		Pool: pool, Repository: repository,
-		Source: draftwatch.NewYahooSource(store.NewDefaultStorage(), gobCache, shared.NewYahooDownloader(redisClient)),
+		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, shared.NewYahooDownloader(redisClient)),
 	}
 	interval := time.Duration(viper.GetInt(config.FlagDraftPollInterval)) * time.Second
 	watchOptions := draftwatch.WatchOptions{

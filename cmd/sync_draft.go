@@ -6,12 +6,10 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/sperano/puckdb/internal/draftwatch"
-	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -54,7 +52,7 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("open database pool: %w", err)
 	}
 	defer pool.Close()
-	redisClient := cache.NewClient()
+	redisClient := newRedisClient()
 	defer func() {
 		if err := redisClient.Close(); err != nil {
 			log.Warn().Err(err).Msg("close Redis after draft sync")
@@ -71,7 +69,7 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	repository := draftwatch.NewRepository(pool)
 	runner := draftwatch.Runner{
 		Pool: pool, Repository: repository,
-		Source: draftwatch.NewYahooSource(store.NewDefaultStorage(), gobCache, shared.NewYahooDownloader(redisClient)),
+		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, shared.NewYahooDownloader(redisClient)),
 	}
 	out := cmd.OutOrStdout()
 	if !viper.GetBool(config.FlagDraftWatch) {

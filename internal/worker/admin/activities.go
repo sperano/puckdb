@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/go-redis/redis/v8"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/database"
 	"go.temporal.io/sdk/activity"
@@ -24,34 +26,31 @@ func failFastIfDirty(err error) error {
 	return err
 }
 
+// Activities holds the worker's long-lived clients for the admin
+// activities. Temporal registers each method under its own name, so the
+// activity type names in workflow history are the method names.
+type Activities struct {
+	Pool  *pgxpool.Pool
+	Redis *redis.Client
+}
+
 // DropDatabaseActivity drops all database tables by running down migrations.
-func DropDatabaseActivity(ctx context.Context) error {
+func (a *Activities) DropDatabaseActivity(ctx context.Context) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("DropDatabaseActivity: dropping all tables")
-	pool, err := database.OpenPGXPool(ctx)
-	if err != nil {
-		return err
-	}
-	defer pool.Close()
-	return failFastIfDirty(database.DropEverything(ctx, pool))
+	return failFastIfDirty(database.DropEverything(ctx, a.Pool))
 }
 
 // MigrateDatabaseActivity runs database migrations.
-func MigrateDatabaseActivity(ctx context.Context) error {
+func (a *Activities) MigrateDatabaseActivity(ctx context.Context) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("MigrateDatabaseActivity: running migrations")
 	return failFastIfDirty(database.DoMigration())
 }
 
 // FlushRedisActivity flushes all keys from the configured Redis database.
-func FlushRedisActivity(ctx context.Context) error {
+func (a *Activities) FlushRedisActivity(ctx context.Context) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("FlushRedisActivity: flushing Redis DB")
-	redisClient := cache.NewClient()
-	defer func() {
-		if err := redisClient.Close(); err != nil {
-			logger.Warn("failed to close redis client", "error", err)
-		}
-	}()
-	return cache.FlushDB(ctx, redisClient)
+	return cache.FlushDB(ctx, a.Redis)
 }

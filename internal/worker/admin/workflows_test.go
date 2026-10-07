@@ -13,6 +13,7 @@ import (
 // each admin workflow is wired to the right activity and propagates
 // errors as expected. The activities themselves hit Postgres and Redis
 // and are not unit-tested here — they're exercised by integration tests.
+// The mocks name the activities by string to pin their type names.
 
 type AdminWorkflowsSuite struct {
 	suite.Suite
@@ -26,6 +27,10 @@ func (s *AdminWorkflowsSuite) SetupTest() {
 	s.env.RegisterWorkflow(MigrateDatabaseWorkflow)
 	s.env.RegisterWorkflow(ResetDatabaseWorkflow)
 	s.env.RegisterWorkflow(FlushRedisWorkflow)
+	// Registered by struct and mocked by string name below: a renamed
+	// method changes its activity type name, which breaks the histories of
+	// running workflows, so the mocks stop matching and the tests fail.
+	s.env.RegisterActivity(&Activities{})
 }
 
 func (s *AdminWorkflowsSuite) AfterTest(suiteName, testName string) {
@@ -47,7 +52,7 @@ func (s *AdminWorkflowsSuite) TestWorkflowIDConstants() {
 }
 
 func (s *AdminWorkflowsSuite) TestDropDatabaseWorkflow_CallsDropActivity() {
-	s.env.OnActivity(DropDatabaseActivity, mock.Anything).Return(nil)
+	s.env.OnActivity("DropDatabaseActivity", mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(DropDatabaseWorkflow)
 
@@ -57,7 +62,7 @@ func (s *AdminWorkflowsSuite) TestDropDatabaseWorkflow_CallsDropActivity() {
 
 func (s *AdminWorkflowsSuite) TestDropDatabaseWorkflow_PropagatesActivityError() {
 	wantErr := errors.New("drop failed")
-	s.env.OnActivity(DropDatabaseActivity, mock.Anything).Return(wantErr)
+	s.env.OnActivity("DropDatabaseActivity", mock.Anything).Return(wantErr)
 
 	s.env.ExecuteWorkflow(DropDatabaseWorkflow)
 
@@ -66,7 +71,7 @@ func (s *AdminWorkflowsSuite) TestDropDatabaseWorkflow_PropagatesActivityError()
 }
 
 func (s *AdminWorkflowsSuite) TestMigrateDatabaseWorkflow_CallsMigrateActivity() {
-	s.env.OnActivity(MigrateDatabaseActivity, mock.Anything).Return(nil)
+	s.env.OnActivity("MigrateDatabaseActivity", mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(MigrateDatabaseWorkflow)
 
@@ -76,7 +81,7 @@ func (s *AdminWorkflowsSuite) TestMigrateDatabaseWorkflow_CallsMigrateActivity()
 
 func (s *AdminWorkflowsSuite) TestMigrateDatabaseWorkflow_PropagatesActivityError() {
 	wantErr := errors.New("migrate failed")
-	s.env.OnActivity(MigrateDatabaseActivity, mock.Anything).Return(wantErr)
+	s.env.OnActivity("MigrateDatabaseActivity", mock.Anything).Return(wantErr)
 
 	s.env.ExecuteWorkflow(MigrateDatabaseWorkflow)
 
@@ -88,8 +93,8 @@ func (s *AdminWorkflowsSuite) TestMigrateDatabaseWorkflow_PropagatesActivityErro
 // return, then migrate. Each of the three branches gets its own test.
 
 func (s *AdminWorkflowsSuite) TestResetDatabaseWorkflow_DropAndMigrate() {
-	s.env.OnActivity(DropDatabaseActivity, mock.Anything).Return(nil)
-	s.env.OnActivity(MigrateDatabaseActivity, mock.Anything).Return(nil)
+	s.env.OnActivity("DropDatabaseActivity", mock.Anything).Return(nil)
+	s.env.OnActivity("MigrateDatabaseActivity", mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(ResetDatabaseWorkflow)
 
@@ -101,7 +106,7 @@ func (s *AdminWorkflowsSuite) TestResetDatabaseWorkflow_DropFailureShortCircuits
 	// When DropDatabaseActivity fails, the workflow must return without
 	// calling MigrateDatabaseActivity. AssertExpectations in AfterTest
 	// will fail if Migrate was unexpectedly invoked.
-	s.env.OnActivity(DropDatabaseActivity, mock.Anything).Return(errors.New("drop failed"))
+	s.env.OnActivity("DropDatabaseActivity", mock.Anything).Return(errors.New("drop failed"))
 
 	s.env.ExecuteWorkflow(ResetDatabaseWorkflow)
 
@@ -110,8 +115,8 @@ func (s *AdminWorkflowsSuite) TestResetDatabaseWorkflow_DropFailureShortCircuits
 }
 
 func (s *AdminWorkflowsSuite) TestResetDatabaseWorkflow_MigrateFailurePropagates() {
-	s.env.OnActivity(DropDatabaseActivity, mock.Anything).Return(nil)
-	s.env.OnActivity(MigrateDatabaseActivity, mock.Anything).Return(errors.New("migrate failed"))
+	s.env.OnActivity("DropDatabaseActivity", mock.Anything).Return(nil)
+	s.env.OnActivity("MigrateDatabaseActivity", mock.Anything).Return(errors.New("migrate failed"))
 
 	s.env.ExecuteWorkflow(ResetDatabaseWorkflow)
 
@@ -120,7 +125,7 @@ func (s *AdminWorkflowsSuite) TestResetDatabaseWorkflow_MigrateFailurePropagates
 }
 
 func (s *AdminWorkflowsSuite) TestFlushRedisWorkflow_CallsFlushActivity() {
-	s.env.OnActivity(FlushRedisActivity, mock.Anything).Return(nil)
+	s.env.OnActivity("FlushRedisActivity", mock.Anything).Return(nil)
 
 	s.env.ExecuteWorkflow(FlushRedisWorkflow)
 
@@ -130,7 +135,7 @@ func (s *AdminWorkflowsSuite) TestFlushRedisWorkflow_CallsFlushActivity() {
 
 func (s *AdminWorkflowsSuite) TestFlushRedisWorkflow_PropagatesActivityError() {
 	wantErr := errors.New("redis unreachable")
-	s.env.OnActivity(FlushRedisActivity, mock.Anything).Return(wantErr)
+	s.env.OnActivity("FlushRedisActivity", mock.Anything).Return(wantErr)
 
 	s.env.ExecuteWorkflow(FlushRedisWorkflow)
 

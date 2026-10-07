@@ -144,14 +144,14 @@ func cmdWorker() *cobra.Command {
 			defer pool.Close()
 
 			// Create shared Redis client for activities
-			redisClient := cache.NewClient()
+			redisClient := newRedisClient()
 			defer func() {
 				if err := redisClient.Close(); err != nil {
 					log.Warn().Err(err).Msg("failed to close redis client")
 				}
 			}()
 
-			tclient, err := temporal.NewClient()
+			tclient, err := newTemporalClient()
 			if err != nil {
 				return err
 			}
@@ -171,9 +171,10 @@ func cmdWorker() *cobra.Command {
 				w.RegisterWorkflow(admin.MigrateDatabaseWorkflow)
 				w.RegisterWorkflow(admin.ResetDatabaseWorkflow)
 				w.RegisterWorkflow(admin.FlushRedisWorkflow)
-				w.RegisterActivity(admin.DropDatabaseActivity)
-				w.RegisterActivity(admin.MigrateDatabaseActivity)
-				w.RegisterActivity(admin.FlushRedisActivity)
+				adminActivities := &admin.Activities{Pool: pool, Redis: redisClient}
+				w.RegisterActivity(adminActivities.DropDatabaseActivity)
+				w.RegisterActivity(adminActivities.MigrateDatabaseActivity)
+				w.RegisterActivity(adminActivities.FlushRedisActivity)
 			} else {
 				// Tasks queue: main workloads
 				registerTasksWorkflows(w)
@@ -273,7 +274,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	}
 
 	d := taskActivityDeps{
-		storage:         store.NewDefaultStorage(),
+		storage:         newDefaultStorage(),
 		pool:            pool,
 		queries:         sqlcdb.New(pool),
 		nhlClient:       shared.NewNHLClient(),
@@ -449,7 +450,6 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	}
 	w.RegisterActivity(boxscoreActivities.ExtractBoxscoreDataForSeason)
 	w.RegisterActivity(boxscoreActivities.ExtractAndSaveBoxscorePlayers)
-	w.RegisterActivity(workplayer.ConsolidateBoxscorePlayersActivity)
 }
 
 // registerPlayerActivities registers player-domain activities: landing page
@@ -468,6 +468,7 @@ func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 	w.RegisterActivity(playerActivities.DownloadPlayerGameLogsBatch)
 	w.RegisterActivity(playerActivities.LoadSeasonBoxscorePlayers)
 	w.RegisterActivity(playerActivities.LoadAllBoxscorePlayers)
+	w.RegisterActivity(playerActivities.ConsolidateBoxscorePlayersActivity)
 	w.RegisterActivity(playerActivities.CountPlayersForAllSeasons)
 	w.RegisterActivity(playerActivities.ProcessPlayerBatch)
 	w.RegisterActivity(playerActivities.ListYahooPlayerFiles)
@@ -512,7 +513,7 @@ func registerProgressActivities(w worker.Worker, redisClient *redis.Client) {
 // registerAssetActivities registers all asset download and query activities on
 // the given worker.
 func registerAssetActivities(w worker.Worker, queries *sqlcdb.Queries) {
-	storage := store.NewDefaultStorage()
+	storage := newDefaultStorage()
 	assetActivities := &asset.Activities{
 		Storage:  storage,
 		Download: asset.NewDownloader(),
