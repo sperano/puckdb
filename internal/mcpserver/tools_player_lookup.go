@@ -135,12 +135,13 @@ func playerByYahooID(ctx context.Context, q playerQueries, yahooID int64) (sqlcd
 // zero argument is not given (clients often send 0 for "none"); a negative
 // or non-numeric one is an error result.
 func optionalID(req mcp.CallToolRequest, name string) (id int64, given bool, errResult *mcp.CallToolResult) {
-	if _, ok := req.GetArguments()[name]; !ok {
+	raw, ok := req.GetArguments()[name]
+	if !ok {
 		return 0, false, nil
 	}
 	n, err := req.RequireInt(name)
 	if err != nil || n < 0 {
-		return 0, false, mcp.NewToolResultError(fmt.Sprintf("invalid %s %v: want a positive integer", name, req.GetArguments()[name]))
+		return 0, false, mcp.NewToolResultError(fmt.Sprintf("invalid %s %v: want a positive integer", name, raw))
 	}
 	return int64(n), n != 0, nil
 }
