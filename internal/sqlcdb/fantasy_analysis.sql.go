@@ -150,6 +150,62 @@ func (q *Queries) GetGoalieSeasonStats(ctx context.Context, arg GetGoalieSeasonS
 	return items, nil
 }
 
+const getGoalieSeasonStatsBySort = `-- name: GetGoalieSeasonStatsBySort :many
+SELECT player_id, first_name, last_name, yahoo_id, current_team_id, season, gp, wins, losses, ga, saves, shots_against, gaa, sv_pct FROM goalie_season_stats
+WHERE season = $1
+ORDER BY
+  CASE WHEN $2::text = 'wins' THEN wins::numeric END DESC NULLS LAST,
+  CASE WHEN $2::text = 'losses' THEN losses::numeric END DESC NULLS LAST,
+  CASE WHEN $2::text = 'gaa' THEN gaa::numeric END ASC NULLS LAST,
+  CASE WHEN $2::text = 'sv_pct' THEN sv_pct::numeric END DESC NULLS LAST,
+  CASE WHEN $2::text = 'saves' THEN saves::numeric END DESC NULLS LAST,
+  CASE WHEN $2::text = 'shots_against' THEN shots_against::numeric END DESC NULLS LAST,
+  CASE WHEN $2::text = 'gp' THEN gp::numeric END DESC NULLS LAST,
+  wins DESC NULLS LAST, last_name, first_name, player_id
+LIMIT $3
+`
+
+type GetGoalieSeasonStatsBySortParams struct {
+	Season      int32  `json:"season"`
+	SortBy      string `json:"sort_by"`
+	ResultLimit int32  `json:"result_limit"`
+}
+
+func (q *Queries) GetGoalieSeasonStatsBySort(ctx context.Context, arg GetGoalieSeasonStatsBySortParams) ([]GoalieSeasonStat, error) {
+	rows, err := q.db.Query(ctx, getGoalieSeasonStatsBySort, arg.Season, arg.SortBy, arg.ResultLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GoalieSeasonStat{}
+	for rows.Next() {
+		var i GoalieSeasonStat
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.FirstName,
+			&i.LastName,
+			&i.YahooID,
+			&i.CurrentTeamID,
+			&i.Season,
+			&i.Gp,
+			&i.Wins,
+			&i.Losses,
+			&i.Ga,
+			&i.Saves,
+			&i.ShotsAgainst,
+			&i.GAA,
+			&i.SvPct,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSkaterRecentStats = `-- name: GetSkaterRecentStats :many
 SELECT player_id, first_name, last_name, yahoo_id, position, current_team_id, season, gp, goals, assists, points, plus_minus, pim, sog, ppp, ppg, hits, blocks, avg_toi_min FROM skater_recent_stats
 ORDER BY points DESC
@@ -266,6 +322,80 @@ type GetSkaterSeasonStatsParams struct {
 // =============================================================================
 func (q *Queries) GetSkaterSeasonStats(ctx context.Context, arg GetSkaterSeasonStatsParams) ([]SkaterSeasonStat, error) {
 	rows, err := q.db.Query(ctx, getSkaterSeasonStats, arg.Season, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SkaterSeasonStat{}
+	for rows.Next() {
+		var i SkaterSeasonStat
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.FirstName,
+			&i.LastName,
+			&i.YahooID,
+			&i.Position,
+			&i.CurrentTeamID,
+			&i.Season,
+			&i.Gp,
+			&i.Goals,
+			&i.Assists,
+			&i.Points,
+			&i.PlusMinus,
+			&i.PIM,
+			&i.SOG,
+			&i.PPP,
+			&i.Ppg,
+			&i.Hits,
+			&i.Blocks,
+			&i.AvgToiMin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSkaterSeasonStatsBySort = `-- name: GetSkaterSeasonStatsBySort :many
+SELECT player_id, first_name, last_name, yahoo_id, position, current_team_id, season, gp, goals, assists, points, plus_minus, pim, sog, ppp, ppg, hits, blocks, avg_toi_min FROM skater_season_stats
+WHERE season = $1
+  AND ($2::public.player_position IS NULL
+       OR position = $2::public.player_position)
+ORDER BY
+  CASE WHEN $3::text = 'points' THEN points::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'goals' THEN goals::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'assists' THEN assists::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'plus_minus' THEN plus_minus::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'pim' THEN pim::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'sog' THEN sog::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'ppp' THEN ppp::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'ppg' THEN ppg::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'hits' THEN hits::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'blocks' THEN blocks::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'gp' THEN gp::numeric END DESC NULLS LAST,
+  CASE WHEN $3::text = 'avg_toi_min' THEN avg_toi_min::numeric END DESC NULLS LAST,
+  points DESC NULLS LAST, last_name, first_name, player_id
+LIMIT $4
+`
+
+type GetSkaterSeasonStatsBySortParams struct {
+	Season      int32              `json:"season"`
+	Position    NullPlayerPosition `json:"position"`
+	SortBy      string             `json:"sort_by"`
+	ResultLimit int32              `json:"result_limit"`
+}
+
+func (q *Queries) GetSkaterSeasonStatsBySort(ctx context.Context, arg GetSkaterSeasonStatsBySortParams) ([]SkaterSeasonStat, error) {
+	rows, err := q.db.Query(ctx, getSkaterSeasonStatsBySort,
+		arg.Season,
+		arg.Position,
+		arg.SortBy,
+		arg.ResultLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
