@@ -29,8 +29,8 @@ type yahooTeamRow struct {
 	ID                    int32              `json:"id"`
 	TeamKey               string             `json:"team_key"`
 	Name                  string             `json:"name"`
-	Url                   string             `json:"url"`
-	LogoUrl               string             `json:"logo_url"`
+	URL                   string             `json:"url"`
+	LogoURL               string             `json:"logo_url"`
 	DraftPosition         pgtype.Int4        `json:"draft_position"`
 	WaiverPriority        pgtype.Int4        `json:"waiver_priority"`
 	NumberOfMoves         int32              `json:"number_of_moves"`
@@ -60,7 +60,7 @@ func yahooTeamsTool(q yahooQueries, guard leagueGuard) server.ServerTool {
 // them by team ID.
 func yahooTeamRows(ctx context.Context, q yahooQueries, leagueID int32) ([]yahooTeamRow, error) {
 	teams, err := q.GetYahooTeamsByLeague(ctx, leagueID)
-	if err != nil {
+	if err != nil || len(teams) == 0 {
 		return nil, err
 	}
 	managers, err := q.GetYahooTeamManagersByLeague(ctx, leagueID)
@@ -84,8 +84,8 @@ func newYahooTeamRow(t sqlcdb.YahooTeam, managers string) yahooTeamRow {
 		ID:                    t.ID,
 		TeamKey:               t.TeamKey,
 		Name:                  t.Name,
-		Url:                   t.Url,
-		LogoUrl:               t.LogoUrl,
+		URL:                   t.Url,
+		LogoURL:               t.LogoUrl,
 		DraftPosition:         t.DraftPosition,
 		WaiverPriority:        t.WaiverPriority,
 		NumberOfMoves:         t.NumberOfMoves,

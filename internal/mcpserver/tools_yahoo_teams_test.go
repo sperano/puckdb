@@ -79,6 +79,20 @@ func TestYahooTeamsToolReportsManagerQueryError(t *testing.T) {
 	assert.Equal(t, "connection refused", resultText(t, result))
 }
 
+// TestYahooTeamsToolSkipsManagersForEmptyLeague: without teams the manager
+// query does not run, so its stubbed error never surfaces.
+func TestYahooTeamsToolSkipsManagersForEmptyLeague(t *testing.T) {
+	q := newFakeYahooQueries()
+	q.teams = []sqlcdb.YahooTeam{}
+	q.managerErr = errors.New("manager query ran")
+	tool := yahooTestServer(q, nil).GetTool(teamsToolName)
+	require.NotNil(t, tool)
+
+	result := callTool(t, tool.Handler, map[string]any{leagueIDArg: float64(allowedLeagueID)})
+	assert.False(t, result.IsError)
+	assert.Equal(t, "no results", resultText(t, result))
+}
+
 // TestYahooTeamRowsCarryNoPersonalData checks the types: neither the manager
 // query row nor the tool row has a guid or email field, so no code path can
 // put them in the CSV.
