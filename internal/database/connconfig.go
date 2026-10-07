@@ -6,9 +6,6 @@ import (
 	"net"
 	"net/url"
 	"strconv"
-
-	"github.com/sperano/puckdb/internal/config"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -38,19 +35,6 @@ type ConnConfig struct {
 	Database string
 	SSLMode  string
 	TimeZone string
-}
-
-// ConnConfigFromViper reads the connection settings from the global config.
-func ConnConfigFromViper() ConnConfig {
-	return ConnConfig{
-		Host:     viper.GetString(config.FlagPostgresHost),
-		Port:     viper.GetInt(config.FlagPostgresPort),
-		User:     viper.GetString(config.FlagPostgresUser),
-		Password: viper.GetString(config.FlagPostgresPassword),
-		Database: viper.GetString(config.FlagPostgresDatabase),
-		SSLMode:  viper.GetString(config.FlagPostgresSSLMode),
-		TimeZone: viper.GetString(config.FlagPostgresTimeZone),
-	}
 }
 
 // URL returns the connection URL with every component percent-encoded and

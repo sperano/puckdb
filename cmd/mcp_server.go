@@ -117,7 +117,7 @@ func resolveMCPOptions() (mcpserver.Options, error) {
 func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Options) error {
 	ctx := cmd.Context()
 
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}

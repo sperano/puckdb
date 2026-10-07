@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -137,7 +136,7 @@ func cmdWorker() *cobra.Command {
 			// pool construction (pgx does not retain it for the pool lifetime),
 			// so signal cancellation here never aborts in-flight activity
 			// queries, which carry their own Temporal activity contexts.
-			pool, err := database.OpenPGXPool(ctx)
+			pool, err := openPGXPool(ctx)
 			if err != nil {
 				return fmt.Errorf("open database pool: %w", err)
 			}
@@ -171,7 +170,9 @@ func cmdWorker() *cobra.Command {
 				w.RegisterWorkflow(admin.MigrateDatabaseWorkflow)
 				w.RegisterWorkflow(admin.ResetDatabaseWorkflow)
 				w.RegisterWorkflow(admin.FlushRedisWorkflow)
-				adminActivities := &admin.Activities{Pool: pool, Redis: redisClient}
+				adminActivities := &admin.Activities{
+					Pool: pool, Redis: redisClient, Conn: postgresConnFrom(viper.GetViper()),
+				}
 				w.RegisterActivity(adminActivities.DropDatabaseActivity)
 				w.RegisterActivity(adminActivities.MigrateDatabaseActivity)
 				w.RegisterActivity(adminActivities.FlushRedisActivity)

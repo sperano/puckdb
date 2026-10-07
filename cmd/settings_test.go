@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"testing"
+	"time"
 
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/temporal"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -27,6 +29,35 @@ func boundViper(t *testing.T, args []string, groups ...*config.FlagGroup) *viper
 		}
 	}
 	return v
+}
+
+func TestDatabaseConfigFrom(t *testing.T) {
+	t.Parallel()
+	t.Run("flag defaults keep the current pool sizing", func(t *testing.T) {
+		t.Parallel()
+		got := databaseConfigFrom(boundViper(t, nil, &config.PostgresFlags))
+		assert.Equal(t, database.DefaultPoolOptions(), got.Pool)
+		assert.Equal(t, database.PoolOptions{MaxConns: 5, MinConns: 2, MaxConnLifetime: 5 * time.Minute}, got.Pool)
+		assert.Equal(t, database.ConnConfig{
+			Host: "localhost", Port: 5432, User: "puckdb", Database: "puckdb",
+			SSLMode: "disable", TimeZone: "America/Los_Angeles",
+		}, got.Conn)
+	})
+	t.Run("flags override", func(t *testing.T) {
+		t.Parallel()
+		v := boundViper(t, []string{
+			"--postgres-host=vhost", "--postgres-port=6543", "--postgres-user=vuser",
+			"--postgres-password=v%pass", "--postgres-database=vdb", "--postgres-ssl-mode=verify-full",
+			"--postgres-time-zone=America/Toronto", "--postgres-max-open-conns=9", "--postgres-max-idle-conns=4",
+		}, &config.PostgresFlags)
+		assert.Equal(t, database.Config{
+			Conn: database.ConnConfig{
+				Host: "vhost", Port: 6543, User: "vuser", Password: "v%pass", Database: "vdb",
+				SSLMode: "verify-full", TimeZone: "America/Toronto",
+			},
+			Pool: database.PoolOptions{MaxConns: 9, MinConns: 4, MaxConnLifetime: config.DefaultDBConnMaxLifetime},
+		}, databaseConfigFrom(v))
+	})
 }
 
 func TestTemporalOptionsFrom(t *testing.T) {

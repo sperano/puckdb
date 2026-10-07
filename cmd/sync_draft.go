@@ -7,7 +7,6 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/sperano/puckdb/internal/draftwatch"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -47,7 +46,7 @@ a Yahoo pick.`,
 
 func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return fmt.Errorf("open database pool: %w", err)
 	}

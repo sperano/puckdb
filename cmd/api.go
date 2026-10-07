@@ -18,7 +18,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draftboard"
 	"github.com/sperano/puckdb/internal/draftboardui"
 	"github.com/sperano/puckdb/internal/draftrank"
@@ -75,7 +74,7 @@ func cmdAPI() *cobra.Command {
 			config.LogFlagValues()
 
 			// Open PostgreSQL pool for data queries
-			pool, err := database.OpenPGXPool(cmd.Context())
+			pool, err := openPGXPool(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("open database pool: %w", err)
 			}

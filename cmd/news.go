@@ -9,7 +9,6 @@ import (
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -113,7 +112,7 @@ func runNewsReport(ctx context.Context, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return fmt.Errorf("open database pool: %w", err)
 	}

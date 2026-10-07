@@ -10,7 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/sperano/puckdb/internal/draftwatch"
@@ -77,7 +76,7 @@ type draftSessionContext struct {
 }
 
 func loadDraftSessionContext(ctx context.Context) (draftSessionContext, error) {
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return draftSessionContext{}, fmt.Errorf("open database pool: %w", err)
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/spf13/cobra"
@@ -115,7 +114,7 @@ func splitDraftList(list string) []string {
 }
 
 func runDraftRankings(ctx context.Context, w, stderr io.Writer, request draftRankingsRequest) error {
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return fmt.Errorf("open database pool: %w", err)
 	}

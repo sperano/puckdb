@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/spf13/cobra"
@@ -93,7 +92,7 @@ func runMetrics(cmd *cobra.Command, _ []string) error {
 	// Open the Postgres pool once and share it across the cache and database
 	// collectors. The pool is expensive to construct (TLS handshakes,
 	// connection warmup) so creating it per-tick would be wasteful.
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return fmt.Errorf("open database pool: %w", err)
 	}

@@ -1,9 +1,13 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/go-redis/redis/v8"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/temporal"
 	"github.com/spf13/viper"
@@ -14,6 +18,34 @@ import (
 // out of viper: commands pass viper.GetViper(), tests a viper.New() of
 // their own. The library packages take the returned values and never read
 // viper themselves.
+
+// postgresConnFrom reads the --postgres-* connection flags.
+func postgresConnFrom(v *viper.Viper) database.ConnConfig {
+	return database.ConnConfig{
+		Host:     v.GetString(config.FlagPostgresHost),
+		Port:     v.GetInt(config.FlagPostgresPort),
+		User:     v.GetString(config.FlagPostgresUser),
+		Password: v.GetString(config.FlagPostgresPassword),
+		Database: v.GetString(config.FlagPostgresDatabase),
+		SSLMode:  v.GetString(config.FlagPostgresSSLMode),
+		TimeZone: v.GetString(config.FlagPostgresTimeZone),
+	}
+}
+
+// poolOptionsFrom reads the --postgres-max-* pool sizing flags. The
+// connection lifetime has no flag.
+func poolOptionsFrom(v *viper.Viper) database.PoolOptions {
+	return database.PoolOptions{
+		MaxConns:        v.GetInt(config.FlagPostgresMaxOpenConns),
+		MinConns:        v.GetInt(config.FlagPostgresMaxIdleConns),
+		MaxConnLifetime: config.DefaultDBConnMaxLifetime,
+	}
+}
+
+// databaseConfigFrom reads every --postgres-* flag.
+func databaseConfigFrom(v *viper.Viper) database.Config {
+	return database.Config{Conn: postgresConnFrom(v), Pool: poolOptionsFrom(v)}
+}
 
 // temporalOptionsFrom reads the --temporal-* connection flags.
 func temporalOptionsFrom(v *viper.Viper) temporal.Options {
@@ -35,6 +67,11 @@ func redisOptionsFrom(v *viper.Viper) cache.Options {
 // dataPathFrom reads --data-path, the root of the file cache.
 func dataPathFrom(v *viper.Viper) string {
 	return v.GetString(config.FlagDataPath)
+}
+
+// openPGXPool opens the PostgreSQL pool with the configured settings.
+func openPGXPool(ctx context.Context) (*pgxpool.Pool, error) {
+	return database.OpenPGXPool(ctx, databaseConfigFrom(viper.GetViper()))
 }
 
 // newTemporalClient dials Temporal with the configured settings.

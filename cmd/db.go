@@ -52,7 +52,7 @@ func cmdDBMigrate() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withRedisLock(cmd.Context(), dbMigrateLockName, config.DefaultDBInitLockTTL, func() error {
-				if err := database.DoMigration(); err != nil {
+				if err := database.DoMigration(postgresConnFrom(viper.GetViper())); err != nil {
 					return fmt.Errorf("migration failed: %w", err)
 				}
 				log.Info().Msg("Database migrations completed successfully")
@@ -84,7 +84,7 @@ a version the embedded migrations do not define. See docs/migration-recovery.md.
 				return fmt.Errorf("version must be an integer: %w", err)
 			}
 			return withRedisLock(cmd.Context(), dbMigrateLockName, config.DefaultDBInitLockTTL, func() error {
-				if err := database.ForceMigrationVersion(version); err != nil {
+				if err := database.ForceMigrationVersion(postgresConnFrom(viper.GetViper()), version); err != nil {
 					return fmt.Errorf("force version failed: %w", err)
 				}
 				log.Info().Int("version", version).Msg("Migration version forced; run `db migrate` next")

@@ -171,29 +171,21 @@ func TestConnConfig_URL_RejectsUnparseableWithoutLeakingPassword(t *testing.T) {
 // golang-migrate returns net/url parse errors verbatim, URL included, and
 // does not redact. The migration entry points must fail before reaching it.
 func TestMigrations_UnparseableConfigDoesNotLeakPassword(t *testing.T) {
-	withPostgresViperSettings(t, unparseableHost, "u", leakyPassword, "d", testPort, "disable", "UTC")
+	t.Parallel()
+	conn := testConnConfig(unparseableHost, "plain")
+	conn.Password = leakyPassword
 
 	for name, run := range map[string]func() error{
-		"up":   RunSQLMigrations,
-		"down": RunSQLMigrationsDown,
-		"pool": func() error { _, err := OpenPGXPool(context.Background()); return err },
+		"up":    func() error { return RunSQLMigrations(conn) },
+		"down":  func() error { return RunSQLMigrationsDown(conn) },
+		"force": func() error { return ForceMigrationVersion(conn, NoMigrationVersion) },
+		"pool": func() error {
+			_, err := OpenPGXPool(context.Background(), Config{Conn: conn, Pool: DefaultPoolOptions()})
+			return err
+		},
 	} {
 		err := run()
 		require.ErrorIs(t, err, ErrInvalidConnConfig, name)
 		assertNoPasswordLeak(t, err)
 	}
-}
-
-func TestConnConfigFromViper(t *testing.T) {
-	withPostgresViperSettings(t, "vhost", "vuser", "v%pass", "vdb", testPort, "verify-full", testTimeZone)
-
-	assert.Equal(t, ConnConfig{
-		Host:     "vhost",
-		Port:     testPort,
-		User:     "vuser",
-		Password: "v%pass",
-		Database: "vdb",
-		SSLMode:  "verify-full",
-		TimeZone: testTimeZone,
-	}, ConnConfigFromViper())
 }

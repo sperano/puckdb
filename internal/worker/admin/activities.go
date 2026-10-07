@@ -32,20 +32,23 @@ func failFastIfDirty(err error) error {
 type Activities struct {
 	Pool  *pgxpool.Pool
 	Redis *redis.Client
+	// Conn is where the migrations run; golang-migrate opens its own
+	// connection from it.
+	Conn database.ConnConfig
 }
 
 // DropDatabaseActivity drops all database tables by running down migrations.
 func (a *Activities) DropDatabaseActivity(ctx context.Context) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("DropDatabaseActivity: dropping all tables")
-	return failFastIfDirty(database.DropEverything(ctx, a.Pool))
+	return failFastIfDirty(database.DropEverything(ctx, a.Pool, a.Conn))
 }
 
 // MigrateDatabaseActivity runs database migrations.
 func (a *Activities) MigrateDatabaseActivity(ctx context.Context) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("MigrateDatabaseActivity: running migrations")
-	return failFastIfDirty(database.DoMigration())
+	return failFastIfDirty(database.DoMigration(a.Conn))
 }
 
 // FlushRedisActivity flushes all keys from the configured Redis database.
