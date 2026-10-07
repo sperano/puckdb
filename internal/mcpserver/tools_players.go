@@ -10,23 +10,7 @@ import (
 )
 
 func registerPlayerTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
-	srv.AddTool(
-		mcp.NewTool("get_player",
-			mcp.WithDescription("Get detailed information about a single NHL player by ID. Returns bio, position, team, draft info, etc."),
-			mcp.WithNumber("player_id", mcp.Required(), mcp.Description("Player ID (use search_player to find IDs)")),
-		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			playerID := req.GetInt("player_id", 0)
-			if playerID == 0 {
-				return mcp.NewToolResultError("player_id is required"), nil
-			}
-			player, err := queries.GetPlayer(ctx, int64(playerID))
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultJSON(player)
-		},
-	)
+	srv.AddTools(getPlayerTool(queries))
 
 	srv.AddTool(
 		mcp.NewTool("get_players_by_team",

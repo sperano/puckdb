@@ -494,7 +494,8 @@ func (a *Activities) RecordDraftOrder(ctx context.Context, in RecordDraftOrderIn
 
 // SetPoolStatus writes sim_pools.status. Idempotent (the same call
 // twice produces the same row state); errors propagate so a flaky DB
-// connection lets Temporal retry.
+// connection lets Temporal retry. Once a status that ends the pool is
+// written, this worker drops the pool's cached agents.
 func (a *Activities) SetPoolStatus(ctx context.Context, in SetPoolStatusInput) error {
 	activity.GetLogger(ctx).Debug("SetPoolStatus", "pool_id", in.PoolID, "status", in.Status)
 	if err := a.Queries.UpdateSimPoolStatus(ctx, sqlcdb.UpdateSimPoolStatusParams{
@@ -502,6 +503,10 @@ func (a *Activities) SetPoolStatus(ctx context.Context, in SetPoolStatusInput) e
 		Status: string(in.Status),
 	}); err != nil {
 		return fmt.Errorf("simulation: update pool status to %s: %w", in.Status, err)
+	}
+	if in.Status.ended() {
+		evicted := a.evictPoolAgents(in.PoolID)
+		activity.GetLogger(ctx).Debug("SetPoolStatus evicted cached agents", "pool_id", in.PoolID, "evicted", evicted)
 	}
 	return nil
 }

@@ -153,7 +153,7 @@ func TestImportYahooLeague_ReadsStorageDirectlyNotRedisCache(t *testing.T) {
 
 	ga := findStatParam(t, statParams, 22) // Goals Against: sort_order 0
 	require.True(t, ga.SortOrder.Valid)
-	assert.Equal(t, int16(sortOrderLowerIsBetter), ga.SortOrder.Int16)
+	assert.Equal(t, draft.StoredSortOrderLower, ga.SortOrder.Int16)
 
 	svPct := findStatParam(t, statParams, 26) // Save Percentage: display-only
 	assert.True(t, svPct.IsOnlyDisplayStat)
@@ -226,7 +226,7 @@ func TestStatCategoryParams(t *testing.T) {
 			category: draft.StatCategory{StatID: 6, Direction: draft.HigherIsBetter},
 			check: func(t *testing.T, p sqlcdb.UpsertYahooLeagueStatCategoryBatchParams) {
 				require.True(t, p.SortOrder.Valid)
-				assert.Equal(t, int16(sortOrderHigherIsBetter), p.SortOrder.Int16)
+				assert.Equal(t, draft.StoredSortOrderHigher, p.SortOrder.Int16)
 			},
 		},
 		{
@@ -234,7 +234,7 @@ func TestStatCategoryParams(t *testing.T) {
 			category: draft.StatCategory{StatID: 7, Direction: draft.LowerIsBetter},
 			check: func(t *testing.T, p sqlcdb.UpsertYahooLeagueStatCategoryBatchParams) {
 				require.True(t, p.SortOrder.Valid)
-				assert.Equal(t, int16(sortOrderLowerIsBetter), p.SortOrder.Int16)
+				assert.Equal(t, draft.StoredSortOrderLower, p.SortOrder.Int16)
 			},
 		},
 	}

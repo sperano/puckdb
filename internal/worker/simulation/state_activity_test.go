@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,6 +103,49 @@ func (s *StateActivityTestSuite) TestSetPoolStatus_EachStatusValueRoundtrips() {
 	for i, st := range statuses {
 		assert.Equal(t, string(st), s.queries.updatePoolStatusCalls[i].Status)
 	}
+}
+
+// A status that ends the pool drops its cached agents on this worker;
+// a status the pool keeps running in leaves them for reuse.
+func (s *StateActivityTestSuite) TestSetPoolStatus_EvictsAgentsOnlyWhenPoolEnds() {
+	t := s.T()
+	s.acts.AgentFactory = func(int32, AgentConfig, map[llm.Provider]llm.ProviderConfig, int) (*Agent, error) {
+		return &Agent{}, nil
+	}
+	statuses := []PoolStatus{
+		PoolStatusDraft, PoolStatusRunning, PoolStatusPaused,
+		PoolStatusComplete, PoolStatusCancelled,
+	}
+	for _, st := range statuses {
+		_, err := s.acts.getOrCreateAgent(1, 7, AgentConfig{Provider: "anthropic"}, 10)
+		require.NoError(t, err)
+		_, err = s.acts.getOrCreateAgent(2, 8, AgentConfig{Provider: "anthropic"}, 10)
+		require.NoError(t, err)
+
+		_, err = s.env.ExecuteActivity(s.acts.SetPoolStatus, SetPoolStatusInput{PoolID: 1, Status: st})
+		require.NoError(t, err)
+
+		want := 2
+		if st.ended() {
+			want = 1
+		}
+		assert.Equal(t, want, s.acts.agents.len(), "status=%s", st)
+	}
+}
+
+// A failed status write keeps the agents: the pool has not ended.
+func (s *StateActivityTestSuite) TestSetPoolStatus_FailedWriteKeepsAgents() {
+	t := s.T()
+	s.acts.AgentFactory = func(int32, AgentConfig, map[llm.Provider]llm.ProviderConfig, int) (*Agent, error) {
+		return &Agent{}, nil
+	}
+	_, err := s.acts.getOrCreateAgent(1, 7, AgentConfig{Provider: "anthropic"}, 10)
+	require.NoError(t, err)
+	s.queries.updatePoolStatusErr = errors.New("constraint violation")
+
+	_, err = s.env.ExecuteActivity(s.acts.SetPoolStatus, SetPoolStatusInput{PoolID: 1, Status: PoolStatusComplete})
+	require.Error(t, err)
+	assert.Equal(t, 1, s.acts.agents.len())
 }
 
 func (s *StateActivityTestSuite) TestSetPoolStatus_PropagatesError() {

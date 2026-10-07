@@ -29,6 +29,11 @@ type PickTeamNameInput struct {
 	PoolID      int32       `json:"pool_id"`
 	AgentID     int32       `json:"agent_id"`
 	AgentConfig AgentConfig `json:"agent_config"`
+	// NumTeams is PoolConfig.NumTeams. The agent built here is cached
+	// and reused by the draft and daily turns, so it must carry the
+	// real pool size in its system prompt. Zero in activities scheduled
+	// before the field existed; those get their own cache entry.
+	NumTeams int `json:"num_teams"`
 }
 
 // PickTeamNameResult carries the chosen name + cost so the workflow
@@ -192,9 +197,7 @@ type teamNameTurn struct {
 // included — rides on the teamNameTurn so the caller can persist the
 // attempt first.
 func (a *Activities) runTeamNameTurn(ctx context.Context, in PickTeamNameInput) (teamNameTurn, error) {
-	// numTeams is irrelevant to the team-name prompt (no roster or
-	// standings context yet), so the agent is built with 0.
-	agent, err := a.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, 0)
+	agent, err := a.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.NumTeams)
 	if err != nil {
 		return teamNameTurn{}, fmt.Errorf("simulation: build agent for team-name pick: %w", err)
 	}

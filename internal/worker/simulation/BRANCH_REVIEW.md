@@ -178,7 +178,7 @@ This is the meat of the runtime layer. Read in order:
 
 **File:** [`worker/simulation/activities.go`](https://github.com/sperano/puckdb/blob/feature/simulation/worker/simulation/activities.go)
 
-The `Activities` struct grows with each new activity. Initial shape: just `Queries SimQueries`. By the end of Phase 3.1 it has `Queries`, `Tx Transactor`, `Signaler WorkflowSignaler`, `ProviderConfigs`, `AgentFactory`, mutex-guarded `agentCache`. The `SimQueries` interface is narrowed (not `*sqlcdb.Queries`) so tests can inject a mock that implements only the methods their activity touches.
+The `Activities` struct grows with each new activity. Initial shape: just `Queries SimQueries`. By the end of Phase 3.1 it has `Queries`, `Tx Transactor`, `Signaler WorkflowSignaler`, `ProviderConfigs`, `AgentFactory`, a bounded agent cache. The `SimQueries` interface is narrowed (not `*sqlcdb.Queries`) so tests can inject a mock that implements only the methods their activity touches.
 
 `BuildFreeAgentPool` and `UpdateStandings` are the simple read-only activities. Read these two first; they set the testing pattern (`testsuite.TestActivityEnvironment` + `stubSimQueries`).
 
@@ -196,7 +196,7 @@ The first LLM-driven activity, plus the shared infrastructure (`Transactor`, `Wo
 
 - The 6-step flow: idempotency probe → cost-cap probe → 1 LLM attempt → 1 retry → fallback → atomic commit. Each step has a clear exit condition.
 - `Transactor.InTx` callback receives a `SimQueries` handle scoped to the open `pgx.Tx`. `*sqlcdb.Queries` structurally satisfies `SimQueries` (the interface was assembled from sqlc's signatures), so `sqlcdb.New(tx)` is passed directly without an adapter type.
-- `agentCache` keyed by `(pool_id, agent_id)` so prompt-caching markers stay byte-stable.
+- Agent cache (`agent_cache.go`) keyed by pool, agent, `numTeams` and the full `AgentConfig` so prompt-caching markers stay byte-stable; bounded LRU, emptied per pool when the pool ends.
 - Cost-cap branch's asymmetric design: DB writes atomic in one tx, signal goes out AFTER tx commits. If signal fails, retry observes cost-cap-tripped again, re-signals (workflow's pause handler is idempotent).
 
 ### ManageRosterActivity **(focus)**
