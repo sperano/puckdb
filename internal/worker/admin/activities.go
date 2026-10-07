@@ -30,7 +30,10 @@ func failFastIfDirty(err error) error {
 // activities. Temporal registers each method under its own name, so the
 // activity type names in workflow history are the method names.
 type Activities struct {
-	Pool  *pgxpool.Pool
+	// Pool is the worker's database pool.
+	Pool *pgxpool.Pool
+	// Redis is the worker's Redis client; FlushRedisActivity flushes its
+	// database.
 	Redis *redis.Client
 	// Conn is where the migrations run; golang-migrate opens its own
 	// connection from it.

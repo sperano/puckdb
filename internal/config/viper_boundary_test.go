@@ -68,7 +68,9 @@ func nonTestGoFiles(t *testing.T, dir string) []string {
 }
 
 // viperReadingFuncs returns the package-level functions of this package
-// that use viper, or call one that does.
+// that use viper, or call one that does. Methods are left out: the guard
+// matches config.<Name> selectors, which only name package-level
+// functions, so a viper-reading method would need a check of its own.
 func viperReadingFuncs(t *testing.T) map[string]bool {
 	t.Helper()
 	direct := map[string]bool{}

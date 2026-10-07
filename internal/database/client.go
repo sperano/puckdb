@@ -62,11 +62,11 @@ func (o PoolOptions) Validate() error {
 // OpenPGXPool opens a pgx connection pool for use with SQLC
 func OpenPGXPool(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
 	log.Debug().Str("host", cfg.Conn.Host).Msg("Initializing pgx pool")
-	poolConfig, err := poolConfig(cfg)
+	pgxConfig, err := poolConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	pool, err := pgxpool.NewWithConfig(ctx, pgxConfig)
 	if err != nil {
 		return nil, fmt.Errorf("create pgx pool: %w", err)
 	}
@@ -82,14 +82,14 @@ func poolConfig(cfg Config) (*pgxpool.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	poolConfig, err := pgxpool.ParseConfig(dbURL)
+	pgxConfig, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse pgx config: %w", err)
 	}
-	poolConfig.MaxConns = int32(cfg.Pool.MaxConns)
-	poolConfig.MinConns = int32(cfg.Pool.MinConns)
-	poolConfig.MaxConnLifetime = cfg.Pool.MaxConnLifetime
-	return poolConfig, nil
+	pgxConfig.MaxConns = int32(cfg.Pool.MaxConns)
+	pgxConfig.MinConns = int32(cfg.Pool.MinConns)
+	pgxConfig.MaxConnLifetime = cfg.Pool.MaxConnLifetime
+	return pgxConfig, nil
 }
 
 // NewQueries creates a new SQLC Queries instance from a pgx pool

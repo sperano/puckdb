@@ -36,7 +36,7 @@ func TestOptionsValidate(t *testing.T) {
 
 func TestClientOptions(t *testing.T) {
 	t.Parallel()
-	got := ClientOptions(Options{HostPort: "temporal.example:7233", Namespace: "puckdb-test"})
+	got := clientOptions(Options{HostPort: "temporal.example:7233", Namespace: "puckdb-test"})
 
 	assert.Equal(t, "temporal.example:7233", got.HostPort)
 	assert.Equal(t, "puckdb-test", got.Namespace)

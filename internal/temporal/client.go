@@ -44,9 +44,9 @@ func (o Options) Validate() error {
 	return nil
 }
 
-// ClientOptions maps o to the SDK client options: zerolog logging, and calls
+// clientOptions maps o to the SDK client options: zerolog logging, and calls
 // that wait for the server to become ready instead of failing fast.
-func ClientOptions(o Options) client.Options {
+func clientOptions(o Options) client.Options {
 	logger := logur.LoggerToKV(zerologadapter.New(log.Logger))
 	return client.Options{
 		HostPort:  o.HostPort,
@@ -66,7 +66,7 @@ func NewClient(o Options) (client.Client, error) {
 		return nil, err
 	}
 	log.Info().Str("host/port", o.HostPort).Str("namespace", o.Namespace).Msg("Initializing Temporal")
-	cl, err := client.Dial(ClientOptions(o))
+	cl, err := client.Dial(clientOptions(o))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create temporal client: %w", err)
 	}
