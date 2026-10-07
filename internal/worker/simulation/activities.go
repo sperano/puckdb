@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"sync"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/llm"
@@ -38,7 +37,7 @@ import (
 //
 // The struct is constructed once at worker startup and shared across
 // every activity invocation. Methods on the receiver may run
-// concurrently — agentCache access is mutex-guarded; Queries / Tx /
+// concurrently — the agent cache is mutex-guarded; Queries / Tx /
 // Signaler are themselves either stateless or already concurrency-
 // safe (pgxpool / Temporal client).
 type Activities struct {
@@ -71,16 +70,16 @@ type Activities struct {
 	// Agent.
 	AgentFactory AgentFactory
 
-	// agentCache holds one *Agent per (pool_id, agent_id) so the
-	// system prompt + tool list (and therefore the Anthropic
-	// prompt-cache marker prefix) stay byte-stable across picks for
-	// the same agent. Without this cache, every pick would be a
-	// fresh NewAgent and the prompt-cache hit rate would drop to 0.
+	// agents holds one *Agent per (pool, agent, pool size, agent
+	// config) so the system prompt + tool list stay byte-stable across
+	// the turns of one agent and the LLM client is built once. It is
+	// bounded (maxCachedAgents) and drops a pool's agents when this
+	// worker writes the pool's terminal status (evictPoolAgents).
 	//
-	// Lazy-initialized on first use to keep the zero-value Activities
-	// struct usable for tests that only exercise read-only activities.
-	agentMu    sync.Mutex
-	agentCache map[string]*Agent
+	// The zero value is ready to use, which keeps the zero-value
+	// Activities struct usable for tests that only exercise read-only
+	// activities.
+	agents agentCache
 }
 
 // AgentFactory is the constructor signature for *Agent. Production
@@ -99,44 +98,32 @@ func defaultAgentFactory(agentID int32, cfg AgentConfig, providerConfigs map[llm
 	return NewAgent(agentID, cfg, providerConfigs, numTeams)
 }
 
-// agentCacheKey is the stable key form for agentCache. pool_id +
-// agent_id uniquely identifies one fantasy manager within one sim;
-// formatting via Sprintf rather than struct-key keeps the cache map
-// printable in debug logs.
-func agentCacheKey(poolID, agentID int32) string {
-	return fmt.Sprintf("%d:%d", poolID, agentID)
-}
-
-// getOrCreateAgent returns the cached *Agent for (pool, agent), or
-// constructs and caches one on first use.
+// getOrCreateAgent returns the cached *Agent for (pool, agent) built
+// with exactly this config and pool size, or constructs and caches one.
 //
-// The cache assumes AgentConfig + numTeams are immutable for the
-// lifetime of the pool — which they are: PLAN.md "Configuration
-// Conventions" notes the pool config is locked at creation and the
-// only mutator is cancel-and-recreate. A future "edit agent strategy
-// mid-sim" would need to invalidate this cache.
+// Every value the constructor reads is part of the key, so a caller
+// passing a different numTeams or AgentConfig for the same agent gets
+// an agent built from its own inputs instead of another call's cached
+// prompt.
 func (a *Activities) getOrCreateAgent(poolID, agentID int32, cfg AgentConfig, numTeams int) (*Agent, error) {
-	a.agentMu.Lock()
-	defer a.agentMu.Unlock()
-
-	if a.agentCache == nil {
-		a.agentCache = map[string]*Agent{}
+	key, err := newAgentKey(poolID, agentID, cfg, numTeams)
+	if err != nil {
+		return nil, err
 	}
-	key := agentCacheKey(poolID, agentID)
-	if cached, ok := a.agentCache[key]; ok {
-		return cached, nil
-	}
-
 	factory := a.AgentFactory
 	if factory == nil {
 		factory = defaultAgentFactory
 	}
-	agent, err := factory(agentID, cfg, a.ProviderConfigs, numTeams)
-	if err != nil {
-		return nil, err
-	}
-	a.agentCache[key] = agent
-	return agent, nil
+	return a.agents.getOrBuild(key, func() (*Agent, error) {
+		return factory(agentID, cfg, a.ProviderConfigs, numTeams)
+	})
+}
+
+// evictPoolAgents drops this worker's cached agents of a pool that
+// reached a terminal status. Other workers keep theirs until the
+// maxCachedAgents bound pushes them out.
+func (a *Activities) evictPoolAgents(poolID int32) {
+	a.agents.evictPool(poolID)
 }
 
 // SimQueries is the union of sqlc-generated query methods the

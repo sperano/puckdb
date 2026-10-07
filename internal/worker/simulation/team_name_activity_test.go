@@ -30,6 +30,8 @@ type PickTeamNameTestSuite struct {
 	tx      *stubTransactor
 	llm     *scriptedLLMClient
 	acts    *Activities
+	// builtNumTeams records the pool size of every agent build.
+	builtNumTeams []int
 }
 
 func (s *PickTeamNameTestSuite) SetupTest() {
@@ -37,10 +39,12 @@ func (s *PickTeamNameTestSuite) SetupTest() {
 	s.queries = &stubSimQueries{}
 	s.tx = &stubTransactor{queries: s.queries}
 	s.llm = &scriptedLLMClient{t: s.T()}
+	s.builtNumTeams = nil
 	s.acts = &Activities{
 		Queries: s.queries,
 		Tx:      s.tx,
-		AgentFactory: func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
+		AgentFactory: func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, numTeams int) (*Agent, error) {
+			s.builtNumTeams = append(s.builtNumTeams, numTeams)
 			return fakeAgent(s.llm, cfg), nil
 		},
 	}
@@ -63,8 +67,12 @@ func (s *PickTeamNameTestSuite) teamNameInput() PickTeamNameInput {
 			Model:    "claude-haiku-4-5",
 			Strategy: "balanced",
 		},
+		NumTeams: teamNameTestNumTeams,
 	}
 }
+
+// teamNameTestNumTeams is the pool size of teamNameInput.
+const teamNameTestNumTeams = 10
 
 // setTeamNameToolCall builds a scripted set_team_name response. Usage
 // is deliberately large enough that the cost survives the 6-decimal
@@ -116,6 +124,25 @@ func (s *PickTeamNameTestSuite) TestSuccess_IncrementsPoolCostOnceInSameTx() {
 	assert.Equal(t, 1, s.tx.inTxCalled, "exactly one InTx call for the turn")
 	require.Len(t, s.queries.insertTurnCalls, 1)
 	assert.Equal(t, string(TurnStatusOK), s.queries.insertTurnCalls[0].Status)
+}
+
+// The team-name turn builds the agent the draft and daily turns reuse,
+// so it must build it with the pool's real size: a later same-size
+// request gets the cached agent instead of a second build.
+func (s *PickTeamNameTestSuite) TestBuildsAgentWithPoolSize() {
+	t := s.T()
+	s.llm.responses = []*llm.Response{setTeamNameToolCall("Rink Rats", "balanced")}
+	in := s.teamNameInput()
+
+	future, err := s.env.ExecuteActivity(s.acts.PickTeamName, in)
+	require.NoError(t, err)
+	require.NoError(t, future.Get(&PickTeamNameResult{}))
+	require.Equal(t, []int{teamNameTestNumTeams}, s.builtNumTeams)
+
+	_, err = s.acts.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, teamNameTestNumTeams)
+	require.NoError(t, err)
+	assert.Equal(t, []int{teamNameTestNumTeams}, s.builtNumTeams,
+		"a draft turn of the same pool size reuses the team-name agent")
 }
 
 // Committed-result probe: the turn committed but the activity response

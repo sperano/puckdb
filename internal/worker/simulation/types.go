@@ -31,6 +31,17 @@ const (
 	PoolStatusCancelled PoolStatus = "cancelled"
 )
 
+// ended reports whether no further turns run for a pool in status s.
+// Paused counts: a cost-cap pause has no resume path.
+func (s PoolStatus) ended() bool {
+	switch s {
+	case PoolStatusPaused, PoolStatusComplete, PoolStatusCancelled:
+		return true
+	default:
+		return false
+	}
+}
+
 // TransactionType is the value stored in sim_transactions.type.
 // See PLAN.md "Per-type column population" for which other columns each
 // type populates.

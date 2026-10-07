@@ -120,6 +120,7 @@ func (a *Activities) runCostCapBranch(
 	if err != nil {
 		return err
 	}
+	a.evictPoolAgents(poolID)
 
 	if a.Signaler == nil {
 		return fmt.Errorf("simulation: cost-cap tripped but no Signaler wired (cannot pause workflow %q)", workflowID)

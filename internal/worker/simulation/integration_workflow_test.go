@@ -152,9 +152,9 @@ type perAgentScript struct {
 }
 
 // perAgentMockClient wraps one agent's perAgentScript. Each Agent the
-// AgentFactory builds gets its OWN client (getOrCreateAgent caches one
-// Agent per (pool, agent), so the draftIdx/dailyIdx counters advance
-// in sync with that agent's actual turns).
+// AgentFactory builds gets its OWN client (perAgentFactory keeps one
+// client per agent id, so the draftIdx/dailyIdx counters advance in
+// sync with that agent's actual turns).
 type perAgentMockClient struct {
 	script   *perAgentScript
 	draftIdx atomic.Int32
@@ -568,7 +568,7 @@ func perAgentFactory(scripts map[int32]*perAgentScript) AgentFactory {
 		}
 		// One client per agent id, cached so each agent's daily
 		// counter persists across factory invocations (getOrCreateAgent
-		// caches per (pool, agent) today, but defensive caching is cheap).
+		// rebuilds after an eviction or for a different pool size).
 		c, ok := clients[agentID]
 		if !ok {
 			c = &perAgentMockClient{script: script}

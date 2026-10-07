@@ -414,6 +414,7 @@ func runTeamNamePhase(ctx workflow.Context, state *simState) error {
 			PoolID:      state.PoolID,
 			AgentID:     agentID,
 			AgentConfig: state.Agents[i],
+			NumTeams:    state.PoolConfig.NumTeams,
 		})
 	}
 	for i, f := range futures {
