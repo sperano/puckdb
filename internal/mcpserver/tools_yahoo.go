@@ -25,6 +25,8 @@ type yahooQueries interface {
 	GetYahooDraftResultsByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.YahooDraftResult, error)
 }
 
+const minimumPositiveInteger = 1
+
 // leagueIndependentYahooTools names the yahoo tools that take no league_id;
 // each must still honor the league allowlist on its own. Every other yahoo
 // tool must run through leagueGuard.scoped; TestYahooToolsAreLeagueGuarded
@@ -176,8 +178,10 @@ func yahooMatchupsTool(q yahooQueries, guard leagueGuard) server.ServerTool {
 		Tool: mcp.NewTool("get_yahoo_matchups",
 			mcp.WithDescription("Get head-to-head matchups for a Yahoo fantasy league (week, teams, scores), optionally filtered by week and/or team. When both filters are given, returns that team's matchup in the specified week."),
 			mcp.WithNumber(leagueIDArg, mcp.Required(), mcp.Description("Yahoo league ID")),
-			mcp.WithNumber("week", mcp.Description("Filter by matchup week")),
-			mcp.WithNumber("team_id", mcp.Description("Filter to matchups involving this Yahoo team ID")),
+			mcp.WithNumber("week", mcp.Description("Filter by matchup week"),
+				mcp.Min(minimumPositiveInteger), mcp.Max(math.MaxInt32), mcp.MultipleOf(minimumPositiveInteger)),
+			mcp.WithNumber("team_id", mcp.Description("Filter to matchups involving this Yahoo team ID"),
+				mcp.Min(minimumPositiveInteger), mcp.Max(math.MaxInt32), mcp.MultipleOf(minimumPositiveInteger)),
 		),
 		Handler: guard.scoped(func(ctx context.Context, req mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error) {
 			week, hasWeek, errResult := optionalPositiveInt32(req, "week")
@@ -212,14 +216,33 @@ func yahooMatchupsTool(q yahooQueries, guard leagueGuard) server.ServerTool {
 
 // optionalPositiveInt32 reads an optional positive integer query argument.
 func optionalPositiveInt32(req mcp.CallToolRequest, name string) (int32, bool, *mcp.CallToolResult) {
-	if _, present := req.GetArguments()[name]; !present {
+	raw, present := req.GetArguments()[name]
+	if !present {
 		return 0, false, nil
 	}
-	value := req.GetInt(name, 0)
-	if value <= 0 || value > math.MaxInt32 {
+	value, valid := integerValue(raw)
+	if !valid || value < minimumPositiveInteger || value > math.MaxInt32 {
 		return 0, false, mcp.NewToolResultError("invalid " + name)
 	}
 	return int32(value), true, nil
+}
+
+func integerValue(raw any) (int64, bool) {
+	switch value := raw.(type) {
+	case int:
+		return int64(value), true
+	case int32:
+		return int64(value), true
+	case int64:
+		return value, true
+	case float64:
+		if math.IsNaN(value) || math.IsInf(value, 0) || math.Trunc(value) != value {
+			return 0, false
+		}
+		return int64(value), true
+	default:
+		return 0, false
+	}
 }
 
 func filterYahooMatchupsByWeek(matchups []sqlcdb.YahooMatchup, week int32) []sqlcdb.YahooMatchup {

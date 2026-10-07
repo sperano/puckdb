@@ -12,9 +12,14 @@ import (
 )
 
 const (
-	firstMatchupWeek  int32 = 1
-	secondMatchupWeek int32 = 2
-	testTeamID        int32 = 20
+	firstMatchupWeek         int32 = 1
+	secondMatchupWeek        int32 = 2
+	firstFixtureTeamID       int32 = 10
+	filteredFixtureTeamID    int32 = 20
+	secondFixtureTeamID      int32 = 30
+	firstWeekMatchupCount          = 2
+	filteredTeamMatchupCount       = 3
+	allMatchupCount                = 4
 )
 
 type matchupQueryCalls struct {
@@ -33,10 +38,10 @@ func newMatchupYahooQueries() *matchupYahooQueries {
 	return &matchupYahooQueries{
 		fakeYahooQueries: newFakeYahooQueries(),
 		matchups: []sqlcdb.YahooMatchup{
-			{LeagueID: allowedLeagueID, Week: firstMatchupWeek, Team1ID: 10, Team2ID: testTeamID},
-			{LeagueID: allowedLeagueID, Week: secondMatchupWeek, Team1ID: 10, Team2ID: 30},
-			{LeagueID: allowedLeagueID, Week: firstMatchupWeek, Team1ID: 30, Team2ID: testTeamID},
-			{LeagueID: allowedLeagueID, Week: secondMatchupWeek, Team1ID: 30, Team2ID: testTeamID},
+			{LeagueID: allowedLeagueID, Week: firstMatchupWeek, Team1ID: firstFixtureTeamID, Team2ID: filteredFixtureTeamID},
+			{LeagueID: allowedLeagueID, Week: secondMatchupWeek, Team1ID: firstFixtureTeamID, Team2ID: secondFixtureTeamID},
+			{LeagueID: allowedLeagueID, Week: firstMatchupWeek, Team1ID: secondFixtureTeamID, Team2ID: filteredFixtureTeamID},
+			{LeagueID: allowedLeagueID, Week: secondMatchupWeek, Team1ID: secondFixtureTeamID, Team2ID: filteredFixtureTeamID},
 		},
 	}
 }
@@ -66,7 +71,7 @@ func TestYahooMatchupsToolFiltersByWeek(t *testing.T) {
 	assert.Equal(t, []sqlcdb.GetYahooMatchupsByWeekParams{{LeagueID: allowedLeagueID, Week: firstMatchupWeek}}, q.calls.weeks)
 	assert.Empty(t, q.calls.teams)
 	assert.Empty(t, q.calls.leagueIDs)
-	assert.Equal(t, 2, matchupCSVRows(t, result))
+	assert.Equal(t, firstWeekMatchupCount, matchupCSVRows(t, result))
 }
 
 func TestYahooMatchupsToolFiltersByTeam(t *testing.T) {
@@ -74,12 +79,12 @@ func TestYahooMatchupsToolFiltersByTeam(t *testing.T) {
 	tool := yahooTestServer(q, []string{allowedLeagueKey}).GetTool("get_yahoo_matchups")
 	require.NotNil(t, tool)
 
-	result := callTool(t, tool.Handler, matchupArgs("team_id", int(testTeamID)))
+	result := callTool(t, tool.Handler, matchupArgs("team_id", int(filteredFixtureTeamID)))
 	require.False(t, result.IsError, resultText(t, result))
-	assert.Equal(t, []sqlcdb.GetYahooMatchupsByTeamParams{{LeagueID: allowedLeagueID, Team1ID: testTeamID}}, q.calls.teams)
+	assert.Equal(t, []sqlcdb.GetYahooMatchupsByTeamParams{{LeagueID: allowedLeagueID, Team1ID: filteredFixtureTeamID}}, q.calls.teams)
 	assert.Empty(t, q.calls.weeks)
 	assert.Empty(t, q.calls.leagueIDs)
-	assert.Equal(t, 3, matchupCSVRows(t, result))
+	assert.Equal(t, filteredTeamMatchupCount, matchupCSVRows(t, result))
 }
 
 func TestYahooMatchupsToolFiltersTeamByWeek(t *testing.T) {
@@ -90,13 +95,13 @@ func TestYahooMatchupsToolFiltersTeamByWeek(t *testing.T) {
 	result := callTool(t, tool.Handler, map[string]any{
 		leagueIDArg: float64(allowedLeagueID),
 		"week":      float64(firstMatchupWeek),
-		"team_id":   float64(testTeamID),
+		"team_id":   float64(filteredFixtureTeamID),
 	})
 	require.False(t, result.IsError, resultText(t, result))
-	assert.Equal(t, []sqlcdb.GetYahooMatchupsByTeamParams{{LeagueID: allowedLeagueID, Team1ID: testTeamID}}, q.calls.teams)
+	assert.Equal(t, []sqlcdb.GetYahooMatchupsByTeamParams{{LeagueID: allowedLeagueID, Team1ID: filteredFixtureTeamID}}, q.calls.teams)
 	assert.Empty(t, q.calls.weeks)
 	assert.Empty(t, q.calls.leagueIDs)
-	assert.Equal(t, 2, matchupCSVRows(t, result))
+	assert.Equal(t, firstWeekMatchupCount, matchupCSVRows(t, result))
 }
 
 func TestYahooMatchupsToolWithoutFiltersReturnsLeague(t *testing.T) {
@@ -109,7 +114,7 @@ func TestYahooMatchupsToolWithoutFiltersReturnsLeague(t *testing.T) {
 	assert.Equal(t, []int32{allowedLeagueID}, q.calls.leagueIDs)
 	assert.Empty(t, q.calls.weeks)
 	assert.Empty(t, q.calls.teams)
-	assert.Equal(t, 4, matchupCSVRows(t, result))
+	assert.Equal(t, allMatchupCount, matchupCSVRows(t, result))
 }
 
 func TestYahooMatchupsToolArgumentsStayOptionalAndLeagueGuarded(t *testing.T) {
@@ -121,11 +126,13 @@ func TestYahooMatchupsToolArgumentsStayOptionalAndLeagueGuarded(t *testing.T) {
 	assert.NotContains(t, tool.Tool.InputSchema.Required, "week")
 	assert.NotContains(t, tool.Tool.InputSchema.Required, "team_id")
 	assert.Contains(t, tool.Tool.Description, "When both filters are given")
+	assertPositiveIntegerSchema(t, tool.Tool.InputSchema.Properties["week"])
+	assertPositiveIntegerSchema(t, tool.Tool.InputSchema.Properties["team_id"])
 
 	result := callTool(t, tool.Handler, map[string]any{
 		leagueIDArg: float64(otherLeagueID),
 		"week":      float64(firstMatchupWeek),
-		"team_id":   float64(testTeamID),
+		"team_id":   float64(filteredFixtureTeamID),
 	})
 	assert.True(t, result.IsError)
 	assert.Empty(t, q.calls.leagueIDs)
@@ -133,7 +140,7 @@ func TestYahooMatchupsToolArgumentsStayOptionalAndLeagueGuarded(t *testing.T) {
 	assert.Empty(t, q.calls.teams)
 }
 
-func TestYahooMatchupsToolRejectsNegativeFilters(t *testing.T) {
+func TestYahooMatchupsToolRejectsInvalidFilters(t *testing.T) {
 	tests := []struct {
 		name string
 		args map[string]any
@@ -143,6 +150,8 @@ func TestYahooMatchupsToolRejectsNegativeFilters(t *testing.T) {
 		{name: "zero week", args: matchupArgs("week", 0), want: "invalid week"},
 		{name: "team_id", args: matchupArgs("team_id", -1), want: "invalid team_id"},
 		{name: "zero team_id", args: matchupArgs("team_id", 0), want: "invalid team_id"},
+		{name: "fractional week", args: matchupArgs("week", 1.5), want: "invalid week"},
+		{name: "fractional team_id", args: matchupArgs("team_id", 20.5), want: "invalid team_id"},
 		{name: "week overflow", args: matchupArgs("week", math.MaxInt32+1), want: "invalid week"},
 		{name: "team_id overflow", args: matchupArgs("team_id", math.MaxInt32+1), want: "invalid team_id"},
 	}
@@ -160,8 +169,17 @@ func TestYahooMatchupsToolRejectsNegativeFilters(t *testing.T) {
 	}
 }
 
-func matchupArgs(name string, value int) map[string]any {
-	return map[string]any{leagueIDArg: float64(allowedLeagueID), name: float64(value)}
+func matchupArgs(name string, value any) map[string]any {
+	return map[string]any{leagueIDArg: float64(allowedLeagueID), name: value}
+}
+
+func assertPositiveIntegerSchema(t *testing.T, property any) {
+	t.Helper()
+	schema, ok := property.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(minimumPositiveInteger), schema["minimum"])
+	assert.Equal(t, float64(math.MaxInt32), schema["maximum"])
+	assert.Equal(t, float64(minimumPositiveInteger), schema["multipleOf"])
 }
 
 func matchupCSVRows(t *testing.T, result *mcp.CallToolResult) int {
