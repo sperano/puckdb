@@ -39,6 +39,27 @@ WHERE season = $1
 ORDER BY points DESC
 LIMIT $2;
 
+-- name: GetSkaterSeasonStatsBySort :many
+SELECT * FROM skater_season_stats
+WHERE season = sqlc.arg(season)
+  AND (sqlc.narg(position)::public.player_position IS NULL
+       OR position = sqlc.narg(position)::public.player_position)
+ORDER BY
+  CASE WHEN sqlc.arg(sort_by)::text = 'points' THEN points::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'goals' THEN goals::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'assists' THEN assists::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'plus_minus' THEN plus_minus::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'pim' THEN pim::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'sog' THEN sog::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'ppp' THEN ppp::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'ppg' THEN ppg::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'hits' THEN hits::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'blocks' THEN blocks::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'gp' THEN gp::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'avg_toi_min' THEN avg_toi_min::numeric END DESC NULLS LAST,
+  points DESC NULLS LAST, last_name, first_name, player_id
+LIMIT sqlc.arg(result_limit);
+
 -- name: GetSkaterRecentStats :many
 SELECT * FROM skater_recent_stats
 ORDER BY points DESC
@@ -59,6 +80,20 @@ SELECT * FROM goalie_season_stats
 WHERE season = $1
 ORDER BY wins DESC
 LIMIT $2;
+
+-- name: GetGoalieSeasonStatsBySort :many
+SELECT * FROM goalie_season_stats
+WHERE season = sqlc.arg(season)
+ORDER BY
+  CASE WHEN sqlc.arg(sort_by)::text = 'wins' THEN wins::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'losses' THEN losses::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'gaa' THEN gaa::numeric END ASC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'sv_pct' THEN sv_pct::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'saves' THEN saves::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'shots_against' THEN shots_against::numeric END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort_by)::text = 'gp' THEN gp::numeric END DESC NULLS LAST,
+  wins DESC NULLS LAST, last_name, first_name, player_id
+LIMIT sqlc.arg(result_limit);
 
 -- name: GetGoalieRecentStats :many
 SELECT * FROM goalie_recent_stats
