@@ -21,6 +21,9 @@ const (
 	yahooIDArg = "yahoo_id"
 	// playerNameArg is the name argument of search_player.
 	playerNameArg = "name"
+	// yahooIDSources tells where the Yahoo tools put the Yahoo player ID;
+	// the unrostered tools' player_id is the NHL ID.
+	yahooIDSources = "Yahoo player ID (not an NHL player_id): yahoo_player_id in get_yahoo_roster, player_id in get_yahoo_draft_results, yahoo_id in get_unrostered_skaters/goalies."
 )
 
 // playerQueries is what get_player and search_player read;
@@ -37,7 +40,7 @@ func getPlayerTool(q playerQueries) server.ServerTool {
 		Tool: mcp.NewTool("get_player",
 			mcp.WithDescription("Get detailed information about a single NHL player, by NHL ID or by Yahoo player ID. Returns bio, position, team, draft info, both IDs, etc. Pass exactly one of player_id and yahoo_id."),
 			mcp.WithNumber(playerIDArg, mcp.Description("NHL player ID (use search_player to find IDs)")),
-			mcp.WithNumber(yahooIDArg, mcp.Description("Yahoo player ID, as returned by the Yahoo tools (yahoo_player_id, player_id). Finds the NHL player matched to it")),
+			mcp.WithNumber(yahooIDArg, mcp.Description(yahooIDSources+" Finds the NHL player matched to it")),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			playerID, hasPlayerID, errResult := optionalID(req, playerIDArg)
@@ -75,7 +78,7 @@ func searchPlayerTool(q playerQueries) server.ServerTool {
 		Tool: mcp.NewTool("search_player",
 			mcp.WithDescription("Search for NHL players by name (accent-insensitive), or find the NHL player matched to a Yahoo player ID. Supports single terms ('Suzuki') or full names ('Nick Suzuki'). Results ranked by relevance: exact matches first, then prefix, then substring. Pass exactly one of name and yahoo_id."),
 			mcp.WithString(playerNameArg, mcp.Description("Player name or partial name to search for")),
-			mcp.WithNumber(yahooIDArg, mcp.Description("Yahoo player ID, as returned by the Yahoo tools (yahoo_player_id, player_id). Returns the one NHL player matched to it")),
+			mcp.WithNumber(yahooIDArg, mcp.Description(yahooIDSources+" Returns the one NHL player matched to it")),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			name := strings.TrimSpace(req.GetString(playerNameArg, ""))
