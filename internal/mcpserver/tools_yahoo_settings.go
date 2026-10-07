@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -13,13 +12,6 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/sqlcdb"
-)
-
-// Values of yahoo_league_stat_categories.sort_order, as the Yahoo league
-// importer stores them; NULL means Yahoo did not say.
-const (
-	sortOrderHigherIsBetter = 1
-	sortOrderLowerIsBetter  = 0
 )
 
 const (
@@ -132,7 +124,8 @@ func latestRulesSnapshot(ctx context.Context, q yahooQueries, league sqlcdb.Yaho
 	return &snapshot, nil
 }
 
-// text renders the header line and the two CSV sections.
+// text renders the header line and the two CSV sections, each section
+// ending in a newline, with no blank lines between them.
 func (s leagueSettings) text() (string, error) {
 	categories, err := csvSection(categoriesSection, s.categoryRows())
 	if err != nil {
@@ -142,7 +135,7 @@ func (s leagueSettings) text() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.Join([]string{s.header().String(), categories, slots}, "\n"), nil
+	return s.header().String() + "\n" + categories + slots, nil
 }
 
 // header identifies the league and summarizes its rules snapshot. Without
@@ -181,7 +174,7 @@ func (s leagueSettings) categoryRows() []settingsCategoryRow {
 	for _, c := range s.categories {
 		rows = append(rows, settingsCategoryRow{
 			StatID: c.StatID, Abbr: c.Abbr, Name: c.Name, Group: c.StatGroup,
-			PositionType: c.PositionType, Direction: categoryDirection(c.SortOrder),
+			PositionType: c.PositionType, Direction: draft.DirectionFromStoredSortOrder(c.SortOrder.Int16, c.SortOrder.Valid),
 			PointsWeight: c.Value, Enabled: c.Enabled, DisplayOnly: c.IsOnlyDisplayStat,
 		})
 	}
@@ -196,18 +189,4 @@ func (s leagueSettings) slotRows() []settingsSlotRow {
 		})
 	}
 	return rows
-}
-
-// categoryDirection reads a stored sort_order; unknown stays unknown.
-func categoryDirection(sortOrder pgtype.Int2) draft.Direction {
-	switch {
-	case !sortOrder.Valid:
-		return draft.DirectionUnknown
-	case sortOrder.Int16 == sortOrderHigherIsBetter:
-		return draft.HigherIsBetter
-	case sortOrder.Int16 == sortOrderLowerIsBetter:
-		return draft.LowerIsBetter
-	default:
-		return draft.DirectionUnknown
-	}
 }

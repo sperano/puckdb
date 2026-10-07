@@ -228,12 +228,6 @@ func (a *ImportActivities) upsertStatCategories(ctx context.Context, leagueID in
 	return len(statParams), nil
 }
 
-// Yahoo sort_order values stored in yahoo_league_stat_categories.sort_order.
-const (
-	sortOrderHigherIsBetter = 1
-	sortOrderLowerIsBetter  = 0
-)
-
 func statCategoryParams(leagueID int, category draft.StatCategory) sqlcdb.UpsertYahooLeagueStatCategoryBatchParams {
 	params := sqlcdb.UpsertYahooLeagueStatCategoryBatchParams{
 		LeagueID:          int32(leagueID),
@@ -253,9 +247,9 @@ func statCategoryParams(leagueID int, category draft.StatCategory) sqlcdb.Upsert
 	}
 	switch category.Direction {
 	case draft.HigherIsBetter:
-		params.SortOrder = pgtype.Int2{Int16: sortOrderHigherIsBetter, Valid: true}
+		params.SortOrder = pgtype.Int2{Int16: draft.StoredSortOrderHigher, Valid: true}
 	case draft.LowerIsBetter:
-		params.SortOrder = pgtype.Int2{Int16: sortOrderLowerIsBetter, Valid: true}
+		params.SortOrder = pgtype.Int2{Int16: draft.StoredSortOrderLower, Valid: true}
 	}
 	return params
 }

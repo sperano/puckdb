@@ -230,3 +230,22 @@ func TestRules_CrossSeasonIdentity(t *testing.T) {
 	assert.Equal(t, yahoofixtures.RotoGameKey, rules453.GameKey)
 	assert.Equal(t, yahoofixtures.PointsGameKey, rules465.GameKey)
 }
+
+func TestDirectionFromStoredSortOrder(t *testing.T) {
+	const unknownSortOrder int16 = 2
+	tests := map[string]struct {
+		sortOrder int16
+		valid     bool
+		want      Direction
+	}{
+		"null":    {0, false, DirectionUnknown},
+		"higher":  {StoredSortOrderHigher, true, HigherIsBetter},
+		"lower":   {StoredSortOrderLower, true, LowerIsBetter},
+		"unknown": {unknownSortOrder, true, DirectionUnknown},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.want, DirectionFromStoredSortOrder(tt.sortOrder, tt.valid))
+		})
+	}
+}

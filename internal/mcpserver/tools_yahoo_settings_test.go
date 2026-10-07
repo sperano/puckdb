@@ -54,10 +54,10 @@ func newFakeSettingsQueries(t *testing.T) *fakeSettingsQueries {
 		fakeYahooQueries: base,
 		categories: []sqlcdb.YahooLeagueStatCategory{
 			{LeagueID: allowedLeagueID, StatID: 1, Name: "Goals", Abbr: "G", StatGroup: "offense", Enabled: true,
-				PositionType: "P", SortOrder: pgtype.Int2{Int16: sortOrderHigherIsBetter, Valid: true},
+				PositionType: "P", SortOrder: pgtype.Int2{Int16: draft.StoredSortOrderHigher, Valid: true},
 				Value: pgtype.Float4{Float32: 1.5, Valid: true}},
 			{LeagueID: allowedLeagueID, StatID: 23, Name: "Goals Against Average", Abbr: "GAA", StatGroup: "goaltending",
-				Enabled: true, PositionType: "G", SortOrder: pgtype.Int2{Int16: sortOrderLowerIsBetter, Valid: true}},
+				Enabled: true, PositionType: "G", SortOrder: pgtype.Int2{Int16: draft.StoredSortOrderLower, Valid: true}},
 			{LeagueID: allowedLeagueID, StatID: 29, Name: "Shots Against", Abbr: "SA", StatGroup: "goaltending",
 				Enabled: true, PositionType: "G", IsOnlyDisplayStat: true},
 		},
@@ -141,7 +141,9 @@ func TestYahooLeagueSettingsReportsCategoriesSlotsAndRules(t *testing.T) {
 	q := newFakeSettingsQueries(t)
 	result := callSettingsTool(t, q, []string{allowedLeagueKey}, allowedLeagueID)
 	require.False(t, result.IsError, resultText(t, result))
-	out := parseSettingsOutput(t, resultText(t, result))
+	text := resultText(t, result)
+	assert.NotContains(t, text, "\n\n", "sections follow each other without blank lines")
+	out := parseSettingsOutput(t, text)
 
 	assert.Equal(t, fmt.Sprintf(`# league_id=%d league_key=%s season=%d name="Allowed League" format=headpoint num_teams=12 `+
 		`rules_source=yahoo_api stand_in=false rules_hash=%s fetched_at=2026-09-01T12:00:00Z last_seen_at=2026-09-30T08:30:00Z rules_issues=1`,
@@ -203,22 +205,4 @@ func TestYahooLeagueSettingsQueryErrorIsToolError(t *testing.T) {
 	result := callSettingsTool(t, q, nil, allowedLeagueID)
 	assert.True(t, result.IsError)
 	assert.Equal(t, fmt.Sprintf("load stat categories of league %d: connection reset", allowedLeagueID), resultText(t, result))
-}
-
-func TestCategoryDirection(t *testing.T) {
-	const unknownSortOrder = 2
-	tests := map[string]struct {
-		sortOrder pgtype.Int2
-		want      draft.Direction
-	}{
-		"null":    {pgtype.Int2{}, draft.DirectionUnknown},
-		"higher":  {pgtype.Int2{Int16: sortOrderHigherIsBetter, Valid: true}, draft.HigherIsBetter},
-		"lower":   {pgtype.Int2{Int16: sortOrderLowerIsBetter, Valid: true}, draft.LowerIsBetter},
-		"unknown": {pgtype.Int2{Int16: unknownSortOrder, Valid: true}, draft.DirectionUnknown},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tt.want, categoryDirection(tt.sortOrder))
-		})
-	}
 }

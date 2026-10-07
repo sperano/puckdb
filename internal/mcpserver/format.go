@@ -90,7 +90,7 @@ const (
 	// commentPrefix starts the metadata header and section titles of a
 	// multi-section result; CSV readers skip such lines as comments.
 	commentPrefix = "# "
-	// headerQuotedChars force a header value to be Go-quoted, so the line
+	// headerQuotedChars forces a header value to be Go-quoted, so the line
 	// still splits into key=value fields on spaces.
 	headerQuotedChars = " \t\r\n\"=#"
 )
