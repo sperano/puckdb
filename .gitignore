@@ -26,3 +26,5 @@ yahoo-seasons.yaml
 tls
 helm
 .mcp.json
+.claude/worktrees/
+.claude/settings.local.json
