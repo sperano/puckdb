@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/bsm/redislock"
-	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/config"
 )
 
@@ -46,21 +45,18 @@ func getRedisKeyForTokenRefreshLock(user string) string {
 // The returned release func is safe to call once and never panics.
 func LockTokenRefresh(ctx context.Context, redisClient redislock.RedisClient, user string) (release func(), err error) {
 	key := getRedisKeyForTokenRefreshLock(user)
-	opts := &redislock.Options{RetryStrategy: redislock.LinearBackoff(tokenRefreshLockRetry)}
-	lock, err := redislock.New(redisClient).Obtain(ctx, key, TokenRefreshLockTTL, opts)
-	if errors.Is(err, redislock.ErrNotObtained) {
-		return nil, fmt.Errorf("lock token refresh for %s: %w", user, ErrTokenRefreshBusy)
-	}
+	release, err = acquireRedisLock(ctx, redisClient, redisLockConfig{
+		key:             key,
+		ttl:             TokenRefreshLockTTL,
+		retry:           tokenRefreshLockRetry,
+		releaseTimeout:  tokenRefreshLockReleaseTimeout,
+		busyErr:         ErrTokenRefreshBusy,
+		releaseLogField: "user",
+		releaseLogValue: user,
+		releaseLogMsg:   "Failed to release token refresh lock",
+	})
 	if err != nil {
 		return nil, fmt.Errorf("lock token refresh for %s: %w", user, err)
 	}
-	return func() {
-		// Releasing is best effort: an unreleased lock only delays other
-		// refreshes until the TTL elapses.
-		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), tokenRefreshLockReleaseTimeout)
-		defer cancel()
-		if err := lock.Release(releaseCtx); err != nil {
-			log.Warn().Err(err).Str("user", user).Msg("Failed to release token refresh lock")
-		}
-	}, nil
+	return release, nil
 }

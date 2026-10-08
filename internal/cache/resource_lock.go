@@ -2,12 +2,10 @@ package cache
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/bsm/redislock"
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -25,19 +23,19 @@ func (cache *GobCache) LockResource(ctx context.Context, resourceKey string) (fu
 		return func() {}, nil
 	}
 	key := resourceCacheLockPrefix + resourceKey
-	options := &redislock.Options{RetryStrategy: redislock.LinearBackoff(resourceCacheLockRetry)}
-	lock, err := redislock.New(cache.client).Obtain(ctx, key, resourceCacheLockTTL, options)
-	if errors.Is(err, redislock.ErrNotObtained) {
-		return nil, fmt.Errorf("lock resource cache %s: context ended before the lock was available: %w", resourceKey, err)
-	}
+	busyErr := fmt.Errorf("context ended before the lock was available: %w", redislock.ErrNotObtained)
+	release, err := acquireRedisLock(ctx, cache.client, redisLockConfig{
+		key:             key,
+		ttl:             resourceCacheLockTTL,
+		retry:           resourceCacheLockRetry,
+		releaseTimeout:  resourceCacheLockReleaseTimeout,
+		busyErr:         busyErr,
+		releaseLogField: "resource_key",
+		releaseLogValue: resourceKey,
+		releaseLogMsg:   "failed to release resource cache lock",
+	})
 	if err != nil {
 		return nil, fmt.Errorf("lock resource cache %s: %w", resourceKey, err)
 	}
-	return func() {
-		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), resourceCacheLockReleaseTimeout)
-		defer cancel()
-		if err := lock.Release(releaseCtx); err != nil {
-			log.Warn().Err(err).Str("resource_key", resourceKey).Msg("failed to release resource cache lock")
-		}
-	}, nil
+	return release, nil
 }

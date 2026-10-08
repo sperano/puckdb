@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const oauthLockReleaseFailure = "release failed"
+
 // The lock value is random, so both the obtain (SET ... EX <s> NX) and the
 // release (EVALSHA <script> 1 <key> <value>) are matched by shape and their
 // recorded arguments inspected.
@@ -80,4 +82,21 @@ func TestLockTokenRefresh_RedisError(t *testing.T) {
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrTokenRefreshBusy)
 	assert.Nil(t, release)
+}
+
+func TestLockTokenRefresh_WarnsWhenReleaseFails(t *testing.T) {
+	logs := captureLogs(t)
+	client, mock := redismock.NewClientMock()
+	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", TokenRefreshLockTTL).SetVal(true)
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x").SetErr(errors.New(oauthLockReleaseFailure))
+
+	release, err := LockTokenRefresh(context.Background(), client, oauthTestUser)
+	require.NoError(t, err)
+	release()
+
+	require.NoError(t, mock.ExpectationsWereMet())
+	assert.Contains(t, logs.String(), `"level":"warn"`)
+	assert.Contains(t, logs.String(), `"user":"`+oauthTestUser+`"`)
+	assert.Contains(t, logs.String(), oauthLockReleaseFailure)
+	assert.Contains(t, logs.String(), "Failed to release token refresh lock")
 }
