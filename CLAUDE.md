@@ -48,21 +48,21 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `db init` | Create tables, seed NHL data |
 | `db drop` | Drop all tables |
 | `db migrate` | Run database migrations directly |
-| `db force-version <version>` | Clear a dirty migration state after inspecting the schema (see `docs/migration-recovery.md`) |
+| `db force-version <version>` | Clear a dirty migration state after inspecting the schema (see https://wiki.spe.quebec/en/puckdb/migration-recovery) |
 | `db check-teams` | Report regular-season/playoff games whose team has no `season_teams` row (such games vanish from games queries) |
 | `db provision` | Create database/user on shared PostgreSQL |
 | `draft rules` | Markdown comparison of leagues' imported rules (scoring, roster, draft, settings) with warnings; `--draft-season`, `--draft-leagues`, `--draft-output` |
 | `draft pool` | Coverage of leagues' draftable player pools (eligibility gaps, unmatched NHL players) |
-| `draft rankings` | A league's stored ranking snapshot as a table, CSV or JSON (`--draft-league`, `--draft-positions`, `--draft-format`, search/sort/pagination flags); same service and values as GraphQL (see `docs/draft-rankings-api.md`) |
-| `sync draft` | Force-refresh and reconcile one full-key Yahoo draft session; `--watch` polls with bounded backoff and final reconciliation (see `docs/yahoo-draft-watch.md`) |
+| `draft rankings` | A league's stored ranking snapshot as a table, CSV or JSON (`--draft-league`, `--draft-positions`, `--draft-format`, search/sort/pagination flags); same service and values as GraphQL (see https://wiki.spe.quebec/en/puckdb/draft/rankings-api) |
+| `sync draft` | Force-refresh and reconcile one full-key Yahoo draft session; `--watch` polls with bounded backoff and final reconciliation (see https://wiki.spe.quebec/en/puckdb/yahoo-draft-watch) |
 | `draft session` | Inspect live draft state, capability observations, and perform local add/correct/undo/conflict resolution without submitting Yahoo picks |
 | `api` → `/draft/` | Maurice live draft board: versioned polling, watch/recovery controls, roster-fit recommendations, shortlist and pick history |
-| `news report` | Markdown report of player news: source coverage (fresh/failing/stale/missing), incident candidates with attributed evidence, unattached story subjects; `--news-player-nhl-id`/`--news-player-yahoo-id` for one player (see `docs/draft-player-news.md`) |
-| `news events` | Markdown report of validated news events (evidence quotes, lifecycle history) and the extraction review queue (see `docs/draft-news-events.md`) |
+| `news report` | Markdown report of player news: source coverage (fresh/failing/stale/missing), incident candidates with attributed evidence, unattached story subjects; `--news-player-nhl-id`/`--news-player-yahoo-id` for one player (see https://wiki.spe.quebec/en/puckdb/draft/player-news) |
+| `news events` | Markdown report of validated news events (evidence quotes, lifecycle history) and the extraction review queue (see https://wiki.spe.quebec/en/puckdb/draft/news-events) |
 | `news eval` | Run the labeled news-event corpus through `--news-extract-provider`/`--news-extract-model`, print accuracy and unsupported-claim rate against the release thresholds, record the run (the gate for automatic effects) |
 | `redis flush` | Flush a Redis database |
 | `yahoo signout` | Clear OAuth2 token from Redis |
-| `yahoo check-access` | Check whether the Yahoo API serves a season's leagues (AUTHORIZED / NOT AUTHORIZED / ERROR), optionally emailing the report over SMTP; meant for a daily CronJob (see `docs/yahoo-access-check.md`) |
+| `yahoo check-access` | Check whether the Yahoo API serves a season's leagues (AUTHORIZED / NOT AUTHORIZED / ERROR), optionally emailing the report over SMTP; meant for a daily CronJob (see https://wiki.spe.quebec/en/puckdb/yahoo-access-check) |
 | `maurice` | Interactive AI hockey chat REPL |
 
 ## Package Structure
@@ -85,15 +85,15 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/metrics/` | Prometheus metrics |
 | `internal/temporal/` | Temporal client configuration |
 | `internal/matching/` | NHL ↔ Yahoo player matching |
-| `internal/draft/` | Draft helper models: normalized league rules, scoring-input validation, roster feasibility, player-pool coverage, comparison reports (see `docs/draft-league-rules.md`) |
-| `internal/draftrank/` | Draft ranking service shared by GraphQL, the CLI and exports: refresh (projection → news adjustment → rankings per scenario), immutable per-league snapshots, views (position/search/sort/pagination), explicit issue codes, CSV/JSON/table export (see `docs/draft-rankings-api.md`) |
-| `internal/draftrecommend/` | Deterministic live-draft recommendation and replay service over one ranking/session snapshot, with audited numeric reasons and PostgreSQL run storage (see `docs/draft-recommendations.md`) |
-| `internal/draftboard/` | Live-board application service: versioned Yahoo session + ranking/recommendation composition, roster feasibility, shortlist and process-scoped watch controls (see `docs/maurice-draft-board.md`) |
+| `internal/draft/` | Draft helper models: normalized league rules, scoring-input validation, roster feasibility, player-pool coverage, comparison reports (see https://wiki.spe.quebec/en/puckdb/draft/league-rules) |
+| `internal/draftrank/` | Draft ranking service shared by GraphQL, the CLI and exports: refresh (projection → news adjustment → rankings per scenario), immutable per-league snapshots, views (position/search/sort/pagination), explicit issue codes, CSV/JSON/table export (see https://wiki.spe.quebec/en/puckdb/draft/rankings-api) |
+| `internal/draftrecommend/` | Deterministic live-draft recommendation and replay service over one ranking/session snapshot, with audited numeric reasons and PostgreSQL run storage (see https://wiki.spe.quebec/en/puckdb/draft/recommendations) |
+| `internal/draftboard/` | Live-board application service: versioned Yahoo session + ranking/recommendation composition, roster feasibility, shortlist and process-scoped watch controls (see https://wiki.spe.quebec/en/puckdb/draft/maurice-board) |
 | `internal/draftboardui/` | Embedded responsive `/draft/` browser client with keyboard navigation and polling/version recovery |
-| `internal/news/` | Player news for the draft helper: source set (`sources.yaml`), RSS/Atom, NHL content and Yahoo status adapters, conditional fetch, article versions, player resolution, incident grouping, coverage and reports (see `docs/draft-player-news.md`) |
-| `internal/newsadjust/` | News adjustments for the draft helper: validated event contract, versioned loading of stored extraction events (review and release-gate holds), as-of event selection (dedupe, supersession, returns, rumors), conservative/base/optimistic scenario snapshots, manager overrides, ranking comparison, run storage and replay (see `docs/draft-news-adjustments.md`) |
-| `internal/newsevent/` | LLM extraction of validated player news events: prompt and strict output schema, quote/claim/chronology validation, injection defenses, deterministic lifecycle reconciliation (active/superseded/retracted/resolved), labeled evaluation corpus (`evalcorpus.yaml`) and release gate (see `docs/draft-news-events.md`) |
-| `internal/yahooaccess/` | Yahoo API access check: game key and league settings probes, AUTHORIZED / NOT AUTHORIZED / ERROR classification, email subject and report (see `docs/yahoo-access-check.md`) |
+| `internal/news/` | Player news for the draft helper: source set (`sources.yaml`), RSS/Atom, NHL content and Yahoo status adapters, conditional fetch, article versions, player resolution, incident grouping, coverage and reports (see https://wiki.spe.quebec/en/puckdb/draft/player-news) |
+| `internal/newsadjust/` | News adjustments for the draft helper: validated event contract, versioned loading of stored extraction events (review and release-gate holds), as-of event selection (dedupe, supersession, returns, rumors), conservative/base/optimistic scenario snapshots, manager overrides, ranking comparison, run storage and replay (see https://wiki.spe.quebec/en/puckdb/draft/news-adjustments) |
+| `internal/newsevent/` | LLM extraction of validated player news events: prompt and strict output schema, quote/claim/chronology validation, injection defenses, deterministic lifecycle reconciliation (active/superseded/retracted/resolved), labeled evaluation corpus (`evalcorpus.yaml`) and release gate (see https://wiki.spe.quebec/en/puckdb/draft/news-events) |
+| `internal/yahooaccess/` | Yahoo API access check: game key and league settings probes, AUTHORIZED / NOT AUTHORIZED / ERROR classification, email subject and report (see https://wiki.spe.quebec/en/puckdb/yahoo-access-check) |
 | `internal/notify/` | Plain-text notification emails over SMTP submission (STARTTLS when offered) |
 | `internal/appuser/` | PuckDB users and application sessions: identity from the trusted `X-authentik-uid` header (the proxy must strip client copies), a random `puckdb_session` cookie stored only as an HMAC (`--session-hash-key`), lazy per-request resolution for the GraphQL route (`appuser.Current`); cookie-less callers join the user's active session (30 min idle timeout) |
 | `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
@@ -105,7 +105,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/mcpserver/` | MCP server exposing curated read-only data tools (`mcp-server` command), split into the `nhl` and `yahoo` toolsets; `league_guard.go` refuses Yahoo leagues outside `--mcp-yahoo-leagues` (refusal = unknown league), and every league-scoped Yahoo tool must go through `leagueGuard.scoped` (enforced by `TestYahooToolsAreLeagueGuarded`) |
 | `tls/` | TLS certificates for internal services (gitignored) |
 
-Non-Go directories: `docs/` (design notes, runbooks), `examples/` (sample pool-simulation and gob-cache configs), `scripts/` (operational shell scripts), `.docker/` (compose-only config for Temporal and Grafana provisioning).
+Design notes and runbooks live on the shared wiki, not in this repository (see the `wiki` skill); this `CLAUDE.md` links the current page for each topic. Non-Go directories: `examples/` (sample pool-simulation and gob-cache configs), `scripts/` (operational shell scripts), `.docker/` (compose-only config for Temporal and Grafana provisioning).
 
 License: GPL-3.0-or-later (`LICENSE`, copyright notice in `COPYRIGHT`). A new dependency must be GPLv3-compatible (MIT, BSD, ISC, Apache-2.0, MPL-2.0 are; GPL-2.0-only, SSPL, BUSL are not). The image ships every linked module's license/NOTICE files under `/licenses` via `scripts/collect-licenses.sh`, which fails on a module without a license file.
 
@@ -241,7 +241,7 @@ Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow fol
 
 **Data queries** (in `internal/graph/data.graphqls`): `seasons`, `teams`, `players`, `games`, `standings`, `boxscore`, `skaterGameLog`, `goalieGameLog`, `playerSeasonTotals`, `edgeSkaterStats`, `edgeGoalieStats`, `edgeTeamStats`
 
-**Draft rankings** (in `internal/graph/draft.graphqls`, see `docs/draft-rankings-api.md`): `draftLeagues`, `draftRankings`, `draftPlayerComparison`, `draftOverrides`; mutations `createDraftOverride`, `resetDraftOverride`.
+**Draft rankings** (in `internal/graph/draft.graphqls`, see https://wiki.spe.quebec/en/puckdb/draft/rankings-api): `draftLeagues`, `draftRankings`, `draftPlayerComparison`, `draftOverrides`; mutations `createDraftOverride`, `resetDraftOverride`.
 
 **Other queries:** `buildNumber`, `yahooTokenStatus`, `mauriceConversations(limit)`, `mauriceConversation(id)`
 

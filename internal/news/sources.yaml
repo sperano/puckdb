@@ -1,4 +1,4 @@
-# Default player news sources (see docs/draft-player-news.md).
+# Default player news sources (see https://wiki.spe.quebec/en/puckdb/draft/player-news).
 #
 # priority: lower is more authoritative. Sources are fetched and evidence is
 #   listed in this order; priority never adds certainty to a report.

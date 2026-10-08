@@ -39,17 +39,18 @@ const (
 	// DefaultTeamEnvironmentPriorGames regresses a club's scoring, shot and
 	// power-play-opportunity rates toward the league average by this many
 	// weighted games of league-average play (four seasons; see teamenv.go).
-	// The 2024-25 and 2025-26 mover backtests (docs/projections.md) found
-	// no reliable gain from lighter regression, so the adjustment is kept
-	// small.
+	// The 2024-25 and 2025-26 mover backtests
+	// (https://wiki.spe.quebec/en/puckdb/projections) found no reliable gain
+	// from lighter regression, so the adjustment is kept small.
 	DefaultTeamEnvironmentPriorGames = 4 * DefaultMaxGames
 	// DefaultTeamEnvironmentMaxChange caps how far a team change can move a
 	// skater's team-dependent rates, as a fraction in either direction.
 	DefaultTeamEnvironmentMaxChange = 0.05
 
 	// The goalie start-share defaults are provisional: they were chosen
-	// conservatively before the v6-vs-v7 backtest (docs/projections.md) has
-	// run against production data. DefaultGoalieShareWindowGames is how many
+	// conservatively before the v6-vs-v7 backtest
+	// (https://wiki.spe.quebec/en/puckdb/projections) has run against
+	// production data. DefaultGoalieShareWindowGames is how many
 	// of a club's most recent started games the share reads,
 	// DefaultGoalieShareHalfLifeGames the recency half-life in games,
 	// DefaultGoaliePlayoffWeight the weight of a playoff start relative to a

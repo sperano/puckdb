@@ -26,7 +26,7 @@ const (
 	// has been applied". Real versions start at 1.
 	NoMigrationVersion = 0
 
-	recoveryDoc = "docs/migration-recovery.md"
+	recoveryDoc = "https://wiki.spe.quebec/en/puckdb/migration-recovery"
 )
 
 // ErrMigrationNotDirty is returned when a version is forced on a database

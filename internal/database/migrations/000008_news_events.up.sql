@@ -5,7 +5,7 @@
 -- The model only interprets supplied articles. Every event cites verbatim
 -- quotes of an article version, names a player the news resolver supplied,
 -- and never carries a value the quotes do not state (see
--- docs/draft-news-events.md). Nothing here ranks or penalizes a player.
+-- https://wiki.spe.quebec/en/puckdb/draft/news-events). Nothing here ranks or penalizes a player.
 
 -- One row per article version and extractor (provider, model, prompt and
 -- schema version). Retries update the row; a new model, prompt or schema is

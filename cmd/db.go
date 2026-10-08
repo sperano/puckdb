@@ -73,7 +73,7 @@ func cmdDBForceVersion() *cobra.Command {
 This runs no migration SQL: it only records that the schema matches <version>.
 Inspect the schema first and pass the version it actually matches; use 0 when
 no migration is applied. Refuses to act on a database that is not dirty, and on
-a version the embedded migrations do not define. See docs/migration-recovery.md.`,
+a version the embedded migrations do not define. See https://wiki.spe.quebec/en/puckdb/migration-recovery.`,
 		Args: cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return config.BindFlags(cmd.Flags(), dbMigrateFlagGroups...)
