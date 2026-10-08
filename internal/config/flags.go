@@ -539,7 +539,7 @@ var SyncBehaviorFlags = FlagGroup{
 		{FlagNewsOnly, "", DefaultNewsOnly, "refresh-news: comma-separated news source IDs to refresh (default: every enabled source)", false},
 		{FlagDraftLeagues, "", DefaultDraftLeagues, "refresh-draft-rankings: comma-separated Yahoo league IDs (default: the season's leagues in seasons.yaml)", false},
 		{FlagDraftBenchPolicy, "", DefaultDraftBenchPolicy, "refresh-draft-rankings: bench seats in draft demand, included or excluded", false},
-		{FlagDraftWorkloadCaps, "", DefaultDraftWorkloadCaps, "refresh-draft-rankings: interpret max_games_played/max_goalie_starts as per-player caps (see docs/draft-ranking.md)", false},
+		{FlagDraftWorkloadCaps, "", DefaultDraftWorkloadCaps, "refresh-draft-rankings: interpret max_games_played/max_goalie_starts as per-player caps (see https://wiki.spe.quebec/en/puckdb/draft/ranking-model)", false},
 		{FlagDraftUncertaintyPenalty, "", DefaultDraftUncertaintyPenalty, "refresh-draft-rankings: nonnegative uncertainty penalty on adjusted value (e.g. 0.5)", false},
 	},
 }
@@ -920,7 +920,7 @@ const (
 // NewsSourcesFlags selects the news source set (worker and report).
 var NewsSourcesFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagNewsSourcesFile, "", DefaultNewsSourcesFile, "YAML file of player news sources (default: the built-in set, see docs/draft-player-news.md)", false},
+		{FlagNewsSourcesFile, "", DefaultNewsSourcesFile, "YAML file of player news sources (default: the built-in set, see https://wiki.spe.quebec/en/puckdb/draft/player-news)", false},
 	},
 }
 

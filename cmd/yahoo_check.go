@@ -41,7 +41,7 @@ a control, so the report shows whether the app still reaches a season Yahoo
 already serves. Prints AUTHORIZED, NOT AUTHORIZED (Yahoo answers 403) or ERROR
 (no usable token, network or unexpected response) per season, and emails the
 report when --notify-email-to is set. Exits non-zero on ERROR or when the email
-cannot be sent. See docs/yahoo-access-check.md.`,
+cannot be sent. See https://wiki.spe.quebec/en/puckdb/yahoo-access-check.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return config.BindFlags(cmd.Flags(), yahooCheckFlagGroups...)
 		},

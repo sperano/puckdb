@@ -1014,7 +1014,7 @@ type RefreshDraftRankingsInput struct {
 	// Yahoo league IDs; the season's leagues in seasons.yaml when unset.
 	LeagueIds   []int             `json:"leagueIds,omitempty"`
 	BenchPolicy *DraftBenchPolicy `json:"benchPolicy,omitempty"`
-	// Required to rank a league with a games or starts cap (see docs/draft-ranking.md).
+	// Required to rank a league with a games or starts cap (see https://wiki.spe.quebec/en/puckdb/draft/ranking-model).
 	WorkloadCapPolicy  *DraftWorkloadCapPolicy `json:"workloadCapPolicy,omitempty"`
 	UncertaintyPenalty *float64                `json:"uncertaintyPenalty,omitempty"`
 }

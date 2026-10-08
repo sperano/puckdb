@@ -9,7 +9,7 @@ import (
 
 // Release thresholds: an extractor (provider, model, prompt, schema) may
 // feed automatic numeric effects only after its latest evaluation on the
-// current corpus meets all of them. Rationale in docs/draft-news-events.md.
+// current corpus meets all of them. Rationale: https://wiki.spe.quebec/en/puckdb/draft/news-events.
 const (
 	// MinEventRecall: labeled events the extractor finds.
 	MinEventRecall = 0.95

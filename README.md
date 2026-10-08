@@ -145,16 +145,16 @@ Run `./puckdb <command> --help` for the complete flags and subcommands.
 | `worker` | Run Temporal workflows and activities |
 | `sync [steps...]` | Fetch and import all data or selected workflow steps |
 | `db` | Migrate, provision, initialize, inspect, or drop the database |
-| `draft` | Compare imported league rules and report player-pool coverage for the draft helper ([notes](docs/draft-league-rules.md)); show or export (CSV/JSON) league rankings with `draft rankings`, refreshed by `sync refresh-draft-rankings` ([notes](docs/draft-rankings-api.md)) |
-| `news report` | Player news coverage, incident candidates and unattached stories for the draft helper; refresh with `sync refresh-news` ([notes](docs/draft-player-news.md)) |
-| `news events` | Validated news events (LLM extraction, off unless the worker runs with `--news-extract-enabled`), their evidence and lifecycle, and the review queue ([notes](docs/draft-news-events.md)) |
+| `draft` | Compare imported league rules and report player-pool coverage for the draft helper ([notes](https://wiki.spe.quebec/en/puckdb/draft/league-rules)); show or export (CSV/JSON) league rankings with `draft rankings`, refreshed by `sync refresh-draft-rankings` ([notes](https://wiki.spe.quebec/en/puckdb/draft/rankings-api)) |
+| `news report` | Player news coverage, incident candidates and unattached stories for the draft helper; refresh with `sync refresh-news` ([notes](https://wiki.spe.quebec/en/puckdb/draft/player-news)) |
+| `news events` | Validated news events (LLM extraction, off unless the worker runs with `--news-extract-enabled`), their evidence and lifecycle, and the review queue ([notes](https://wiki.spe.quebec/en/puckdb/draft/news-events)) |
 | `news eval` | Measure the extraction model on the labeled corpus against the release thresholds |
 | `redis` | Redis administration |
 | `metrics` | Export cache, Redis, and database metrics |
 | `mcp-server` | Serve curated read-only data tools over HTTP or stdio; `--mcp-toolsets` picks NHL and/or Yahoo tools ([below](#mcp-server)) |
 | `maurice` | Start the interactive AI hockey chat REPL |
 | `sim` | Create and operate fantasy-pool simulations |
-| `yahoo` | Yahoo account operations; `yahoo check-access` reports (and can email) whether the Yahoo API serves a season's leagues yet ([notes](docs/yahoo-access-check.md)) |
+| `yahoo` | Yahoo account operations; `yahoo check-access` reports (and can email) whether the Yahoo API serves a season's leagues yet ([notes](https://wiki.spe.quebec/en/puckdb/yahoo-access-check)) |
 
 `sync` accepts individual steps or groups. Common examples:
 
@@ -261,7 +261,7 @@ go vet -tags=livellm ./...
 ```
 
 Running them needs PostgreSQL, Redis, and (for `livellm`) an Ollama host; see
-[the live-model smoke runbook](docs/sim-livellm-smoke.md).
+[the live-model smoke runbook](https://wiki.spe.quebec/en/puckdb/sim-livellm-smoke).
 
 After changing a GraphQL schema, regenerate the gqlgen output:
 
@@ -271,8 +271,8 @@ go tool gqlgen generate
 
 Useful project references:
 
-- [Migration recovery](docs/migration-recovery.md)
-- [NHL Edge API notes](docs/nhl-edge-api.md)
+- [Migration recovery](https://wiki.spe.quebec/en/puckdb/migration-recovery)
+- [NHL Edge API notes](https://wiki.spe.quebec/en/puckdb/nhl-edge-api)
 
 Application packages live under `internal/`; command wiring lives in `cmd/`.
 The GraphQL schemas are in `internal/graph/`, database migrations are in

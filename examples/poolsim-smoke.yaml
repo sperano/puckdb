@@ -14,7 +14,7 @@
 # Network prerequisite for CLUSTER-side workers: pfSense must pass
 # 192.0.2.10/24 → 192.0.2.10:11434/tcp (the cluster subnet is
 # otherwise blocked from initiating into the LAN). LAN-side runs are
-# unaffected. See docs/sim-livellm-smoke.md.
+# unaffected. See https://wiki.spe.quebec/en/puckdb/sim-livellm-smoke.
 name: Ollama smoke (4x llama3.1:8b)
 season: 20242025
 categories: [G, A, +/-, PIM, PPP, SOG, W, GA, GAA]

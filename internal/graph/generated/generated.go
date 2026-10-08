@@ -6881,7 +6881,7 @@ type EdgeTeamShotDifferential {
   sogDifferentialRank: Int
 }
 `, BuiltIn: false},
-	{Name: "../draft.graphqls", Input: `# Draft helper rankings (see docs/draft-rankings-api.md).
+	{Name: "../draft.graphqls", Input: `# Draft helper rankings (see https://wiki.spe.quebec/en/puckdb/draft/rankings-api).
 #
 # Rankings are served from stored, immutable per-league snapshots computed by
 # the refreshDraftRankings workflow. Queries never rank, adjust or call an
@@ -7315,7 +7315,7 @@ input RefreshDraftRankingsInput {
   """Yahoo league IDs; the season's leagues in seasons.yaml when unset."""
   leagueIds: [Int!]
   benchPolicy: DraftBenchPolicy
-  """Required to rank a league with a games or starts cap (see docs/draft-ranking.md)."""
+  """Required to rank a league with a games or starts cap (see https://wiki.spe.quebec/en/puckdb/draft/ranking-model)."""
   workloadCapPolicy: DraftWorkloadCapPolicy
   uncertaintyPenalty: Float
 }
