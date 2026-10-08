@@ -99,6 +99,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
 | `internal/fixtures/metricsfixtures/` | Reads filesystem operation counts from the worker metrics registry for label assertions (test-only import) |
 | `internal/fixtures/draftfixtures/` | Synthetic draft ranking snapshot and in-memory store shared by the draftrank, GraphQL and CLI tests (test-only import) |
+| `internal/fixtures/projectionfixtures/` | Default projection config with the aging curve the aging model versions must store, for tests that hand-build projection snapshots (test-only import) |
 | `internal/llm/` | LLM client (used by player enrichment / Maurice) |
 | `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
 | `internal/mcp/` | MCP client (used by Maurice to call tool servers) |

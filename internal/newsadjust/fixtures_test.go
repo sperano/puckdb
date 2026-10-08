@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/internal/fixtures/projectionfixtures"
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/projection"
 	"github.com/stretchr/testify/require"
@@ -101,7 +102,7 @@ func testSkater(key string) projection.PlayerProjection {
 func testBaseline(players ...projection.PlayerProjection) projection.Snapshot {
 	return projection.Snapshot{
 		TargetSeason: testTargetSeason, AsOf: testBaselineAt, SourceDataHash: testBaselineHash,
-		Config: projection.DefaultConfig(), Players: players,
+		Config: projectionfixtures.Config(), Players: players,
 	}
 }
 
