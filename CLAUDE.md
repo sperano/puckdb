@@ -107,6 +107,8 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 
 Non-Go directories: `docs/` (design notes, runbooks), `examples/` (sample pool-simulation and gob-cache configs), `scripts/` (operational shell scripts), `.docker/` (compose-only config for Temporal and Grafana provisioning).
 
+License: GPL-3.0-or-later (`LICENSE`, copyright notice in `COPYRIGHT`). A new dependency must be GPLv3-compatible (MIT, BSD, ISC, Apache-2.0, MPL-2.0 are; GPL-2.0-only, SSPL, BUSL are not). The image ships every linked module's license/NOTICE files under `/licenses` via `scripts/collect-licenses.sh`, which fails on a module without a license file.
+
 ### Active Workflows
 
 Defined in `internal/worker/workflow/`:
