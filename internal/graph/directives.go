@@ -9,12 +9,10 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/httpx"
-	"github.com/spf13/viper"
 )
 
-// Authentik forward-auth headers consulted by AdminDirective. Authentik
+// Authentik forward-auth headers consulted by the @admin directive. Authentik
 // separates multiple group values with "|"; "," is also tolerated for
 // callers that put the header together by hand (e.g. local testing).
 const (
@@ -22,41 +20,53 @@ const (
 	headerAuthentikUsername = "X-authentik-username"
 )
 
-// errAdminAccessDenied is returned by AdminDirective when neither the
+// errAdminAccessDenied is returned by the @admin directive when neither the
 // Authentik group nor the admin token grant access.
 var errAdminAccessDenied = errors.New("access denied: admin privileges required")
 
-// AdminDirective implements the @admin GraphQL directive. It authorizes the
+// AdminAuth configures the @admin directive. The command layer reads it
+// from --admin-group and --admin-token.
+type AdminAuth struct {
+	// Group is the Authentik group whose members are admins; empty
+	// disables group authorization.
+	Group string
+	// Token is the shared secret accepted in X-Admin-Token; empty disables
+	// token authorization.
+	Token string
+}
+
+// NewAdminDirective returns the @admin GraphQL directive. It authorizes the
 // request if either:
 //   - the X-authentik-groups header (set by an Authentik forward-auth proxy)
-//     contains the configured admin group, or
-//   - the configured admin token is non-empty and the X-Admin-Token header
-//     matches it (compared in constant time).
+//     contains auth.Group, or
+//   - auth.Token is non-empty and the X-Admin-Token header matches it
+//     (compared in constant time).
 //
 // Otherwise it denies the request and logs a warning naming the requesting
 // user, when known.
-func AdminDirective(ctx context.Context, obj interface{}, next graphql.Resolver) (interface{}, error) {
-	headers := httpx.HeadersFromContext(ctx)
+func NewAdminDirective(auth AdminAuth) func(ctx context.Context, obj any, next graphql.Resolver) (any, error) {
+	return func(ctx context.Context, _ any, next graphql.Resolver) (any, error) {
+		headers := httpx.HeadersFromContext(ctx)
 
-	if hasAdminGroup(headers) || hasValidAdminToken(headers) {
-		return next(ctx)
+		if auth.hasAdminGroup(headers) || auth.hasValidAdminToken(headers) {
+			return next(ctx)
+		}
+
+		log.Warn().
+			Str("username", headers.Get(headerAuthentikUsername)).
+			Msg("admin directive: access denied")
+		return nil, errAdminAccessDenied
 	}
-
-	log.Warn().
-		Str("username", headers.Get(headerAuthentikUsername)).
-		Msg("admin directive: access denied")
-	return nil, errAdminAccessDenied
 }
 
-// hasAdminGroup reports whether headers carries the configured admin group
-// in its Authentik groups header.
-func hasAdminGroup(headers http.Header) bool {
-	adminGroup := viper.GetString(config.FlagAdminGroup)
-	if adminGroup == "" {
+// hasAdminGroup reports whether headers carries the admin group in its
+// Authentik groups header.
+func (auth AdminAuth) hasAdminGroup(headers http.Header) bool {
+	if auth.Group == "" {
 		return false
 	}
 	for _, group := range splitGroups(headers.Get(headerAuthentikGroups)) {
-		if group == adminGroup {
+		if group == auth.Group {
 			return true
 		}
 	}
@@ -66,13 +76,12 @@ func hasAdminGroup(headers http.Header) bool {
 // hasValidAdminToken reports whether the admin token feature is enabled
 // (i.e. configured with a non-empty value) and headers carries a matching
 // X-Admin-Token value.
-func hasValidAdminToken(headers http.Header) bool {
-	adminToken := viper.GetString(config.FlagAdminToken)
-	if adminToken == "" {
+func (auth AdminAuth) hasValidAdminToken(headers http.Header) bool {
+	if auth.Token == "" {
 		return false
 	}
 	provided := headers.Get(httpx.HeaderAdminToken)
-	return subtle.ConstantTimeCompare([]byte(provided), []byte(adminToken)) == 1
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(auth.Token)) == 1
 }
 
 // splitGroups splits an Authentik groups header value on "|" (Authentik's

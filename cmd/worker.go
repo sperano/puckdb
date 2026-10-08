@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -137,21 +136,21 @@ func cmdWorker() *cobra.Command {
 			// pool construction (pgx does not retain it for the pool lifetime),
 			// so signal cancellation here never aborts in-flight activity
 			// queries, which carry their own Temporal activity contexts.
-			pool, err := database.OpenPGXPool(ctx)
+			pool, err := openPGXPool(ctx)
 			if err != nil {
 				return fmt.Errorf("open database pool: %w", err)
 			}
 			defer pool.Close()
 
 			// Create shared Redis client for activities
-			redisClient := cache.NewClient()
+			redisClient := newRedisClient()
 			defer func() {
 				if err := redisClient.Close(); err != nil {
 					log.Warn().Err(err).Msg("failed to close redis client")
 				}
 			}()
 
-			tclient, err := temporal.NewClient()
+			tclient, err := newTemporalClient()
 			if err != nil {
 				return err
 			}
@@ -171,9 +170,12 @@ func cmdWorker() *cobra.Command {
 				w.RegisterWorkflow(admin.MigrateDatabaseWorkflow)
 				w.RegisterWorkflow(admin.ResetDatabaseWorkflow)
 				w.RegisterWorkflow(admin.FlushRedisWorkflow)
-				w.RegisterActivity(admin.DropDatabaseActivity)
-				w.RegisterActivity(admin.MigrateDatabaseActivity)
-				w.RegisterActivity(admin.FlushRedisActivity)
+				adminActivities := &admin.Activities{
+					Pool: pool, Redis: redisClient, Conn: postgresConnFrom(viper.GetViper()),
+				}
+				w.RegisterActivity(adminActivities.DropDatabaseActivity)
+				w.RegisterActivity(adminActivities.MigrateDatabaseActivity)
+				w.RegisterActivity(adminActivities.FlushRedisActivity)
 			} else {
 				// Tasks queue: main workloads
 				registerTasksWorkflows(w)
@@ -273,13 +275,13 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	}
 
 	d := taskActivityDeps{
-		storage:         store.NewDefaultStorage(),
+		storage:         newDefaultStorage(),
 		pool:            pool,
 		queries:         sqlcdb.New(pool),
 		nhlClient:       shared.NewNHLClient(),
 		gobCache:        gobCache,
 		redisClient:     redisClient,
-		yahooDownloader: shared.NewYahooDownloader(redisClient),
+		yahooDownloader: newYahooDownloader(redisClient),
 	}
 
 	registerSimulationActivities(w, pool, d.queries, tclient)
@@ -449,7 +451,6 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	}
 	w.RegisterActivity(boxscoreActivities.ExtractBoxscoreDataForSeason)
 	w.RegisterActivity(boxscoreActivities.ExtractAndSaveBoxscorePlayers)
-	w.RegisterActivity(workplayer.ConsolidateBoxscorePlayersActivity)
 }
 
 // registerPlayerActivities registers player-domain activities: landing page
@@ -468,6 +469,7 @@ func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 	w.RegisterActivity(playerActivities.DownloadPlayerGameLogsBatch)
 	w.RegisterActivity(playerActivities.LoadSeasonBoxscorePlayers)
 	w.RegisterActivity(playerActivities.LoadAllBoxscorePlayers)
+	w.RegisterActivity(playerActivities.ConsolidateBoxscorePlayersActivity)
 	w.RegisterActivity(playerActivities.CountPlayersForAllSeasons)
 	w.RegisterActivity(playerActivities.ProcessPlayerBatch)
 	w.RegisterActivity(playerActivities.ListYahooPlayerFiles)
@@ -512,7 +514,7 @@ func registerProgressActivities(w worker.Worker, redisClient *redis.Client) {
 // registerAssetActivities registers all asset download and query activities on
 // the given worker.
 func registerAssetActivities(w worker.Worker, queries *sqlcdb.Queries) {
-	storage := store.NewDefaultStorage()
+	storage := newDefaultStorage()
 	assetActivities := &asset.Activities{
 		Storage:  storage,
 		Download: asset.NewDownloader(),

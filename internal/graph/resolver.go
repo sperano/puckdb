@@ -21,7 +21,6 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/workflow"
-	"github.com/spf13/viper"
 	temporalEnums "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 )
@@ -54,6 +53,12 @@ type Resolver struct {
 	Draft *draftrank.Service
 	// DraftBoard composes persisted live sessions, rankings and recovery controls.
 	DraftBoard *draftboard.Service
+	// PublicURL is the server's external base URL, prefixed to the Yahoo
+	// login link; empty leaves the link relative.
+	PublicURL string
+	// YahooSeasons loads the seasons.yaml leagues listed by draftLeagues;
+	// nil lists only leagues with imported rules.
+	YahooSeasons func() (config.YahooSeasonsMap, error)
 }
 
 var temporalStatusToGQL = map[temporalEnums.WorkflowExecutionStatus]model.TemporalWorkflowStatus{
@@ -368,8 +373,8 @@ func (r *Resolver) yahooTokenStatus(ctx context.Context) (*model.YahooTokenStatu
 		return nil, err
 	}
 	loginURL := "/yahoo/login"
-	if publicURL := viper.GetString(config.FlagPublicURL); publicURL != "" {
-		loginURL = publicURL + loginURL
+	if r.PublicURL != "" {
+		loginURL = r.PublicURL + loginURL
 	}
 	return &model.YahooTokenStatus{
 		Valid:    valid,

@@ -213,6 +213,7 @@ Flags follow a strict pattern in `internal/config/`:
 3. **No magic numbers** in flag definitions
 4. Each flag has `Init*Flag()` and `Bind*Flag()` functions
 5. Cmd files only call these functions, never define flags locally
+6. **Library packages take values, not viper.** `store`, `cache`, `database`, `temporal`, `httpx` and `graph` get their settings as options (`database.Config`, `temporal.Options`, `cache.Options`, `httpx.YahooAuth`, `graph.AdminAuth`, `Resolver.PublicURL`/`YahooSeasons`, a data path). The `xxxFrom(v *viper.Viper)` readers in `cmd/settings.go` build them; `cmd/settings_test.go` checks the flag defaults still produce each package's `Default*Options()`. `TestLibraryPackagesDoNotReadViper` (`internal/config/viper_boundary_test.go`) fails on a viper import or a call to a viper-reading `config` helper in those packages
 
 Season config: `seasons.yaml` (start/end dates, game keys, league IDs, team IDs)
 

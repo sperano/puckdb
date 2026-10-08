@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/spf13/cobra"
 )
 
@@ -45,7 +44,7 @@ func cmdSimDraft() *cobra.Command {
 				return err
 			}
 			ctx := cmd.Context()
-			pool, err := database.OpenPGXPool(ctx)
+			pool, err := openPGXPool(ctx)
 			if err != nil {
 				return fmt.Errorf("open db pool: %w", err)
 			}

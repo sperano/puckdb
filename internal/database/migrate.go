@@ -74,9 +74,8 @@ type migrator interface {
 }
 
 // MigrateUp runs the embedded SQL migrations against the given
-// dbURL. Exposed for integration tests that don't go through viper
-// — they configure their connection directly via env vars rather
-// than via the puckdb global config flags.
+// dbURL. Exposed for integration tests, which get a URL from
+// PUCKDB_TEST_PG_URL rather than a ConnConfig.
 //
 // Functionally identical to RunSQLMigrations, just with the URL
 // passed in.
@@ -91,18 +90,18 @@ func MigrateDown(dbURL string) error {
 	return withMigrator(migrationsFS, dbURL, runDown)
 }
 
-// RunSQLMigrations runs the embedded SQL migrations
-func RunSQLMigrations() error {
-	dbURL, err := ConnConfigFromViper().URL()
+// RunSQLMigrations runs the embedded SQL migrations against conn.
+func RunSQLMigrations(conn ConnConfig) error {
+	dbURL, err := conn.URL()
 	if err != nil {
 		return err
 	}
 	return MigrateUp(dbURL)
 }
 
-// RunSQLMigrationsDown runs all down migrations
-func RunSQLMigrationsDown() error {
-	dbURL, err := ConnConfigFromViper().URL()
+// RunSQLMigrationsDown runs all down migrations against conn.
+func RunSQLMigrationsDown(conn ConnConfig) error {
+	dbURL, err := conn.URL()
 	if err != nil {
 		return err
 	}
@@ -113,8 +112,8 @@ func RunSQLMigrationsDown() error {
 // running any SQL. It is the explicit operator repair step: call it only
 // after confirming which version the schema really matches.
 // NoMigrationVersion records that no migration is applied.
-func ForceMigrationVersion(version int) error {
-	dbURL, err := ConnConfigFromViper().URL()
+func ForceMigrationVersion(conn ConnConfig, version int) error {
+	dbURL, err := conn.URL()
 	if err != nil {
 		return err
 	}
@@ -123,11 +122,11 @@ func ForceMigrationVersion(version int) error {
 	})
 }
 
-// DoMigration runs the embedded SQL migrations using the global config.
-func DoMigration() error {
+// DoMigration runs the embedded SQL migrations against conn.
+func DoMigration(conn ConnConfig) error {
 	log.Info().Msg("Starting database migration")
 	// Run SQL migrations (handles franchises, seasons, season_teams, players, games, stats)
-	if err := RunSQLMigrations(); err != nil {
+	if err := RunSQLMigrations(conn); err != nil {
 		return err
 	}
 	log.Info().Msg("Database migration completed")

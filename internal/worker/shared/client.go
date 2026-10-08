@@ -71,11 +71,12 @@ func NewNHLClient() *nhl.Client {
 type Downloader func(ctx context.Context, url string) ([]byte, error)
 
 // NewYahooDownloader creates a Downloader that uses the shared Redis client
-// for OAuth2 token management. The returned Downloader honors the caller's
-// context for cancellation and deadlines.
-func NewYahooDownloader(redisClient *redis.Client) Downloader {
+// for OAuth2 token management and the OAuth2 application in auth. The
+// returned Downloader honors the caller's context for cancellation and
+// deadlines.
+func NewYahooDownloader(redisClient *redis.Client, auth httpx.YahooAuth) Downloader {
 	return func(ctx context.Context, url string) ([]byte, error) {
 		ctx = context.WithValue(ctx, config.CtxUser, config.DefaultUser)
-		return httpx.DownloadYahoo(ctx, redisClient, url)
+		return httpx.DownloadYahoo(ctx, redisClient, auth, url)
 	}
 }

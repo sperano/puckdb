@@ -14,7 +14,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -304,23 +303,16 @@ func TestDownloadPublic_Error(t *testing.T) {
 
 // TestUserAgent verifies the User-Agent constant is set
 func TestDownloadYahoo_TokenMissingSetsPublicURL(t *testing.T) {
-	// Mutates process-global viper config, so this test cannot run in parallel.
+	t.Parallel()
 	const publicURL = "https://puck.example.com"
-	viper.Set(config.FlagYahooOAuth2ClientID, "test-client-id")
-	viper.Set(config.FlagYahooOAuth2ClientSecret, "test-client-secret")
-	viper.Set(config.FlagPublicURL, publicURL)
-	t.Cleanup(func() {
-		viper.Set(config.FlagYahooOAuth2ClientID, nil)
-		viper.Set(config.FlagYahooOAuth2ClientSecret, nil)
-		viper.Set(config.FlagPublicURL, nil)
-	})
+	auth := YahooAuth{ClientID: "test-client-id", ClientSecret: "test-client-secret", PublicURL: publicURL}
 
 	client, mock := redismock.NewClientMock()
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
-	_, err := DownloadYahoo(ctx, client, "https://example.com/resource")
+	_, err := DownloadYahoo(ctx, client, auth, "https://example.com/resource")
 	require.Error(t, err)
 
 	var tokenErr *cache.OAuth2TokenMissingError

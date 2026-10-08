@@ -6,7 +6,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/spf13/cobra"
 )
@@ -41,7 +40,7 @@ Exits non-zero when any are found.`,
 
 func runDBCheckTeams(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return fmt.Errorf("open database pool: %w", err)
 	}

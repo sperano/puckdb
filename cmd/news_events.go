@@ -8,7 +8,6 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/newsevent"
@@ -76,7 +75,7 @@ func runNewsEvents(ctx context.Context, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return fmt.Errorf("open database pool: %w", err)
 	}
@@ -166,7 +165,7 @@ func newsExtractorFromFlags() (newsevent.Extractor, error) {
 // recordNewsEval stores the run so the worker's gate sees it. A database
 // that cannot be reached only costs the record, not the report.
 func recordNewsEval(ctx context.Context, key string, corpus newsevent.Corpus, metrics newsevent.Metrics) {
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		log.Warn().Err(err).Msg("News extraction evaluation not recorded: database unavailable")
 		return

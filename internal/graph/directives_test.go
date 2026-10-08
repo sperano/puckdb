@@ -7,28 +7,10 @@ import (
 	"testing"
 
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/httpx"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// withAdminConfig sets the admin-group and admin-token viper values for the
-// duration of a test and restores the previous values afterward via
-// t.Cleanup. Tests that mutate viper globals must not run in parallel with
-// each other (or with anything else touching these keys).
-func withAdminConfig(t *testing.T, group, token string) {
-	t.Helper()
-	prevGroup := viper.GetString(config.FlagAdminGroup)
-	prevToken := viper.GetString(config.FlagAdminToken)
-	viper.Set(config.FlagAdminGroup, group)
-	viper.Set(config.FlagAdminToken, token)
-	t.Cleanup(func() {
-		viper.Set(config.FlagAdminGroup, prevGroup)
-		viper.Set(config.FlagAdminToken, prevToken)
-	})
-}
 
 // contextWithHeaders drives httpx.HeaderContext through a real request/
 // response round trip and returns the context it produces, so directive
@@ -54,6 +36,7 @@ func nextOK(_ context.Context) (interface{}, error) {
 }
 
 func TestAdminDirective(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		adminGroup  string
@@ -123,14 +106,14 @@ func TestAdminDirective(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			withAdminConfig(t, tt.adminGroup, tt.adminToken)
-
+			t.Parallel()
 			ctx := context.Background()
 			if !tt.noHeaders {
 				ctx = contextWithHeaders(t, tt.headers)
 			}
 
-			res, err := AdminDirective(ctx, nil, graphql.Resolver(nextOK))
+			directive := NewAdminDirective(AdminAuth{Group: tt.adminGroup, Token: tt.adminToken})
+			res, err := directive(ctx, nil, graphql.Resolver(nextOK))
 
 			if tt.wantAllowed {
 				require.NoError(t, err)
@@ -145,6 +128,7 @@ func TestAdminDirective(t *testing.T) {
 }
 
 func TestSplitGroups(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		raw  string
@@ -160,6 +144,7 @@ func TestSplitGroups(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.want, splitGroups(tt.raw))
 		})
 	}

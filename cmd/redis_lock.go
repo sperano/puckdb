@@ -8,13 +8,12 @@ import (
 
 	"github.com/bsm/redislock"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/internal/cache"
 )
 
 // withRedisLock acquires a distributed lock and executes fn, releasing on return.
 // Returns nil without calling fn if lock is not obtained (another process holds it).
 func withRedisLock(ctx context.Context, lockName string, timeout time.Duration, fn func() error) error {
-	redisClient := cache.NewClient()
+	redisClient := newRedisClient()
 	defer func() { _ = redisClient.Close() }()
 
 	locker := redislock.New(redisClient)

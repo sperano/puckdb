@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/maurice"
@@ -191,4 +193,30 @@ func TestMauriceResolvers_NotConfigured(t *testing.T) {
 	ctx := appuser.WithUser(context.Background(), appuser.User{ID: "user-1"})
 	_, err := (&Resolver{}).mauriceChat(ctx, nil, "hi", nil)
 	require.ErrorIs(t, err, errMauriceNotConfigured)
+}
+
+func TestYahooTokenStatus_LoginURL(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		publicURL string
+		want      string
+	}{
+		{name: "public URL configured", publicURL: "https://puck.example", want: "https://puck.example/yahoo/login"},
+		{name: "no public URL", want: "/yahoo/login"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			server := miniredis.RunT(t)
+			redisClient := redis.NewClient(&redis.Options{Addr: server.Addr()})
+			t.Cleanup(func() { _ = redisClient.Close() })
+
+			r := &Resolver{RedisClient: redisClient, PublicURL: tt.publicURL}
+			status, err := r.yahooTokenStatus(context.Background())
+			require.NoError(t, err)
+			assert.False(t, status.Valid, "no token is stored")
+			assert.Equal(t, tt.want, status.LoginURL)
+		})
+	}
 }

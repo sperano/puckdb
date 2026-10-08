@@ -14,7 +14,6 @@ import (
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -96,7 +95,7 @@ func TestYahooAuthenticatedHandler_MissingState(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// nil Redis: the request must be rejected before any storage access.
-	handler := YahooAuthenticatedHandler(nil)
+	handler := YahooAuthenticatedHandler(nil, YahooAuth{})
 	handler(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
@@ -113,7 +112,7 @@ func TestYahooAuthenticatedHandler_MissingCode(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: config.YahooLoginStateCookie, Value: testLoginState})
 	w := httptest.NewRecorder()
 
-	handler := YahooAuthenticatedHandler(client)
+	handler := YahooAuthenticatedHandler(client, YahooAuth{})
 	handler(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -151,7 +150,7 @@ func TestYahooAuthenticatedHandler_OAuthError(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, reqURL, nil)
 			w := httptest.NewRecorder()
 
-			handler := YahooAuthenticatedHandler(nil)
+			handler := YahooAuthenticatedHandler(nil, YahooAuth{})
 			handler(w, req)
 
 			assert.Equal(t, http.StatusForbidden, w.Code)
@@ -166,7 +165,7 @@ func TestYahooAuthenticatedHandler_SetsNoCacheHeaders(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/yahoo/callback", nil)
 	w := httptest.NewRecorder()
 
-	handler := YahooAuthenticatedHandler(nil)
+	handler := YahooAuthenticatedHandler(nil, YahooAuth{})
 	handler(w, req)
 
 	// Should set no-cache headers even when returning an error
@@ -392,43 +391,26 @@ func TestExchangeCodeWithConfig_Success(t *testing.T) {
 }
 
 // --- YahooLoginHandler (the convenience wrapper around
-//     YahooLoginHandlerWithConfig that pulls config from viper) ---
-
-// withEmptyOAuthViper temporarily clears the Yahoo OAuth2 viper keys so
-// config.OauthConfig() returns an "is empty" error. Restores originals
-// on cleanup. Cannot be t.Parallel() since viper is global state.
-func withEmptyOAuthViper(t *testing.T) {
-	t.Helper()
-	origID := viper.GetString(config.FlagYahooOAuth2ClientID)
-	origSecret := viper.GetString(config.FlagYahooOAuth2ClientSecret)
-	viper.Set(config.FlagYahooOAuth2ClientID, "")
-	viper.Set(config.FlagYahooOAuth2ClientSecret, "")
-	t.Cleanup(func() {
-		viper.Set(config.FlagYahooOAuth2ClientID, origID)
-		viper.Set(config.FlagYahooOAuth2ClientSecret, origSecret)
-	})
-}
+//     YahooLoginHandlerWithConfig that builds the config from YahooAuth) ---
 
 func TestYahooLoginHandler_MissingConfig(t *testing.T) {
-	withEmptyOAuthViper(t)
-
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/yahoo/login", nil)
 	w := httptest.NewRecorder()
 
-	YahooLoginHandler(nil)(w, req)
+	YahooLoginHandler(nil, YahooAuth{})(w, req)
 
-	// OauthConfig returns an error -> handleError writes 500.
+	// OAuth2Config returns an error -> handleError writes 500.
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // --- NewYahooClient (the convenience wrapper around
-//     NewYahooClientWithConfig that pulls config from viper) ---
+//     NewYahooClientWithConfig that builds the config from YahooAuth) ---
 
 func TestNewYahooClient_MissingConfig(t *testing.T) {
-	withEmptyOAuthViper(t)
-
+	t.Parallel()
 	client, _ := redismock.NewClientMock()
-	got, err := NewYahooClient(context.Background(), client)
+	got, err := NewYahooClient(context.Background(), client, YahooAuth{})
 
 	require.Error(t, err)
 	assert.Nil(t, got)
@@ -439,27 +421,17 @@ func TestNewYahooClient_MissingConfig(t *testing.T) {
 //     and propagates token-missing errors with a public-URL hint) ---
 
 func TestDownloadYahoo_TokenMissingWraps(t *testing.T) {
-	// Ensure viper has valid OAuth2 client config so OauthConfig() succeeds;
-	// the test failure must come from the missing token in Redis, not from
-	// missing viper config. Save and restore in case of preexisting values.
-	origID := viper.GetString(config.FlagYahooOAuth2ClientID)
-	origSecret := viper.GetString(config.FlagYahooOAuth2ClientSecret)
-	origPublic := viper.GetString(config.FlagPublicURL)
-	viper.Set(config.FlagYahooOAuth2ClientID, "id")
-	viper.Set(config.FlagYahooOAuth2ClientSecret, "secret")
-	viper.Set(config.FlagPublicURL, "http://test.example")
-	t.Cleanup(func() {
-		viper.Set(config.FlagYahooOAuth2ClientID, origID)
-		viper.Set(config.FlagYahooOAuth2ClientSecret, origSecret)
-		viper.Set(config.FlagPublicURL, origPublic)
-	})
+	t.Parallel()
+	// Valid credentials: the failure must come from the missing token in
+	// Redis, not from missing OAuth2 settings.
+	auth := YahooAuth{ClientID: "id", ClientSecret: "secret", PublicURL: "http://test.example"}
 
 	client, mock := redismock.NewClientMock()
 	// SaveToken / LoadToken use config.UserFromContext — provide one.
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	mock.ExpectGet("testuser_yahoo_oauth2_token").RedisNil()
 
-	body, err := DownloadYahoo(ctx, client, "https://api.example/path")
+	body, err := DownloadYahoo(ctx, client, auth, "https://api.example/path")
 
 	require.Error(t, err)
 	assert.Nil(t, body)
@@ -470,22 +442,16 @@ func TestDownloadYahoo_TokenMissingWraps(t *testing.T) {
 }
 
 func TestDownloadYahoo_GenericErrorWraps(t *testing.T) {
+	t.Parallel()
 	// Redis returns an unexpected error (not RedisNil) — DownloadYahoo
 	// must propagate via the second wrap branch (no PublicURL hint).
-	origID := viper.GetString(config.FlagYahooOAuth2ClientID)
-	origSecret := viper.GetString(config.FlagYahooOAuth2ClientSecret)
-	viper.Set(config.FlagYahooOAuth2ClientID, "id")
-	viper.Set(config.FlagYahooOAuth2ClientSecret, "secret")
-	t.Cleanup(func() {
-		viper.Set(config.FlagYahooOAuth2ClientID, origID)
-		viper.Set(config.FlagYahooOAuth2ClientSecret, origSecret)
-	})
+	auth := YahooAuth{ClientID: "id", ClientSecret: "secret"}
 
 	client, mock := redismock.NewClientMock()
 	ctx := context.WithValue(context.Background(), config.CtxUser, "testuser")
 	mock.ExpectGet("testuser_yahoo_oauth2_token").SetErr(errors.New("redis down"))
 
-	body, err := DownloadYahoo(ctx, client, "https://api.example/path")
+	body, err := DownloadYahoo(ctx, client, auth, "https://api.example/path")
 
 	require.Error(t, err)
 	assert.Nil(t, body)

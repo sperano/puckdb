@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/spf13/cobra"
@@ -148,7 +147,7 @@ func writeDraftReport(stdout io.Writer, path string, render func(io.Writer) erro
 }
 
 func runDraftRules(ctx context.Context, request draftReportRequest) error {
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return fmt.Errorf("open database pool: %w", err)
 	}
@@ -174,7 +173,7 @@ func loadLeagueReports(ctx context.Context, q draft.Queries, request draftReport
 }
 
 func runDraftPool(ctx context.Context, request draftReportRequest) error {
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return fmt.Errorf("open database pool: %w", err)
 	}

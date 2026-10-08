@@ -9,13 +9,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
-	"github.com/sperano/puckdb/internal/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -95,7 +92,7 @@ func runMetrics(cmd *cobra.Command, _ []string) error {
 	// Open the Postgres pool once and share it across the cache and database
 	// collectors. The pool is expensive to construct (TLS handshakes,
 	// connection warmup) so creating it per-tick would be wasteful.
-	pool, err := database.OpenPGXPool(ctx)
+	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return fmt.Errorf("open database pool: %w", err)
 	}
@@ -154,7 +151,7 @@ func runCacheCollector(ctx context.Context, interval time.Duration, pool *pgxpoo
 func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error {
 	start := time.Now()
 
-	redisClient := cache.NewClient()
+	redisClient := newRedisClient()
 	defer redisClient.Close()
 
 	queries := sqlcdb.New(pool)
@@ -170,7 +167,7 @@ func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error
 	}
 	indexDur := time.Since(indexStart)
 
-	indexedStore := newIndexedStorage(store.NewDefaultStorage(), idx)
+	indexedStore := newIndexedStorage(newDefaultStorage(), idx)
 
 	cacheData, err := getAllMetrics(ctx, redisClient, queries, indexedStore)
 	if err != nil {
