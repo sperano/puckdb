@@ -77,6 +77,7 @@ var expectedYahooTools = []string{
 	"get_yahoo_teams_by_league",
 	"get_yahoo_roster",
 	"get_yahoo_roto_standings",
+	"get_yahoo_season_team_totals",
 	"get_unrostered_skaters",
 	"get_unrostered_goalies",
 	"get_yahoo_matchups",

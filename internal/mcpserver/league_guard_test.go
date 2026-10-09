@@ -32,6 +32,10 @@ type fakeYahooQueries struct {
 	teams      []sqlcdb.YahooTeam
 	managers   []sqlcdb.GetYahooTeamManagersByLeagueRow
 	managerErr error
+	// totals is what GetYahooSeasonTeamTotals returns, or totalsErr.
+	totals      []sqlcdb.YahooSeasonTeamTotal
+	totalsErr   error
+	totalsCalls []int32
 }
 
 func newFakeYahooQueries() *fakeYahooQueries {
@@ -68,6 +72,11 @@ func (f *fakeYahooQueries) GetYahooTeamsByLeague(_ context.Context, leagueID int
 
 func (f *fakeYahooQueries) GetYahooTeamManagersByLeague(context.Context, int32) ([]sqlcdb.GetYahooTeamManagersByLeagueRow, error) {
 	return f.managers, f.managerErr
+}
+
+func (f *fakeYahooQueries) GetYahooSeasonTeamTotals(_ context.Context, leagueID int32) ([]sqlcdb.YahooSeasonTeamTotal, error) {
+	f.totalsCalls = append(f.totalsCalls, leagueID)
+	return f.totals, f.totalsErr
 }
 
 func TestLeagueGuardUnrestrictedAllowsEveryLeagueWithoutLookup(t *testing.T) {
