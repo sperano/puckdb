@@ -120,6 +120,14 @@ func TestRequireInt(t *testing.T) {
 	}
 }
 
+func TestFormatRawCapsLongValues(t *testing.T) {
+	assert.Equal(t, "20252026.9", formatRaw(20252026.9))
+	assert.Equal(t, `"abc"`, formatRaw("abc"))
+	long := formatRaw(1e308)
+	assert.Len(t, long, maxEchoedArgumentLength+len("..."))
+	assert.True(t, strings.HasSuffix(long, "..."))
+}
+
 func TestOptionalIntKeepsZeroAsGiven(t *testing.T) {
 	got, given, errResult := optionalInt[int32](requestWith(map[string]any{"limit": float64(0)}), limitParam)
 	require.Nil(t, errResult)
@@ -191,6 +199,7 @@ func TestRequireIntSlice(t *testing.T) {
 		"fractional item": {raw: []any{float64(1), 2.5}, wantErr: "invalid ids[1] 2.5: want an integer from 1 to 10"},
 		"item too large":  {raw: []any{float64(11)}, wantErr: "invalid ids[0] 11: want an integer from 1 to 10"},
 		"not an array":    {raw: float64(1), wantErr: "invalid ids 1: want an array of integers"},
+		"string":          {raw: "1,2", wantErr: `invalid ids "1,2": want an array of integers`},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

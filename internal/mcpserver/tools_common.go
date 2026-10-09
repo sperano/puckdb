@@ -45,6 +45,9 @@ const (
 	lastSeasonID = 99999999
 	// lastPlayoffRound is the Stanley Cup Final.
 	lastPlayoffRound = 4
+	// maxEchoedArgumentLength caps how much of a malformed argument an
+	// error message repeats.
+	maxEchoedArgumentLength = 40
 )
 
 // intArg is one integer tool argument: its name and the range it accepts.
@@ -126,16 +129,22 @@ func convertInteger[T sqlInteger](arg intArg, raw any) (T, *mcp.CallToolResult) 
 }
 
 // formatRaw prints a raw argument as the client sent it: plain digits for
-// a JSON number, a quoted string for a string.
+// a JSON number, a quoted string for a string. Anything longer than
+// maxEchoedArgumentLength is cut, so an error never echoes a huge value.
 func formatRaw(raw any) string {
+	var text string
 	switch v := raw.(type) {
 	case float64:
-		return strconv.FormatFloat(v, 'f', -1, 64)
+		text = strconv.FormatFloat(v, 'f', -1, 64)
 	case string:
-		return strconv.Quote(v)
+		text = strconv.Quote(v)
 	default:
-		return fmt.Sprint(v)
+		text = fmt.Sprint(v)
 	}
+	if len(text) > maxEchoedArgumentLength {
+		return text[:maxEchoedArgumentLength] + "..."
+	}
+	return text
 }
 
 // argument returns the raw value of name; a JSON null counts as absent,
@@ -208,7 +217,7 @@ func requireIntSlice[T sqlInteger](req mcp.CallToolRequest, arg intArg) ([]T, *m
 	}
 	items, isArray := raw.([]any)
 	if !isArray {
-		return nil, mcp.NewToolResultError(fmt.Sprintf("invalid %s %v: want an array of integers", arg.name, raw))
+		return nil, mcp.NewToolResultError(fmt.Sprintf("invalid %s %s: want an array of integers", arg.name, formatRaw(raw)))
 	}
 	values := make([]T, len(items))
 	for i, item := range items {
