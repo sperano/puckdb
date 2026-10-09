@@ -30,8 +30,6 @@ type yahooQueries interface {
 	GetLatestYahooLeagueRuleSnapshot(ctx context.Context, arg sqlcdb.GetLatestYahooLeagueRuleSnapshotParams) (sqlcdb.YahooLeagueRuleSnapshot, error)
 }
 
-const minimumPositiveInteger = 1
-
 // leagueIndependentYahooTools names the yahoo tools that take no league_id;
 // each must still honor the league allowlist on its own. Every other yahoo
 // tool must run through leagueGuard.scoped; TestYahooToolsAreLeagueGuarded
@@ -83,9 +81,9 @@ func yahooRosterTool(q yahooQueries, guard leagueGuard) server.ServerTool {
 			mcp.WithString("date", mcp.Required(), mcp.Description("Roster date in YYYY-MM-DD format")),
 		),
 		Handler: guard.scoped(func(ctx context.Context, req mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error) {
-			teamID := req.GetInt("team_id", 0)
-			if teamID == 0 {
-				return mcp.NewToolResultError("team_id is required"), nil
+			teamID, errResult := requireInt[int32](req, yahooTeamIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
 			d, errResult := requireDate(req)
 			if errResult != nil {
@@ -93,7 +91,7 @@ func yahooRosterTool(q yahooQueries, guard leagueGuard) server.ServerTool {
 			}
 			return toolResult(q.GetYahooRosterWithPlayers(ctx, sqlcdb.GetYahooRosterWithPlayersParams{
 				LeagueID: leagueID,
-				TeamID:   int32(teamID),
+				TeamID:   teamID,
 				Date:     d,
 			}))
 		}),
@@ -136,19 +134,23 @@ func unrosteredTool(name, players string, guard leagueGuard, query func(context.
 			mcp.WithNumber("limit", mcp.Description("Max number of "+players+" to return (default 100)")),
 		),
 		Handler: guard.scoped(func(ctx context.Context, req mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error) {
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
 			d, errResult := requireDate(req)
 			if errResult != nil {
 				return errResult, nil
 			}
+			limit, errResult := limitOrDefault(req, defaultResultLimit)
+			if errResult != nil {
+				return errResult, nil
+			}
 			return query(ctx, unrosteredArgs{
 				LeagueID: leagueID,
-				Season:   int32(season),
+				Season:   season,
 				Date:     d,
-				Limit:    int32(req.GetInt("limit", defaultResultLimit)),
+				Limit:    limit,
 			})
 		}),
 	}
@@ -180,6 +182,9 @@ func unrosteredGoaliesTool(q yahooQueries, guard leagueGuard) server.ServerTool 
 		})
 }
 
+// yahooWeekParam is the optional matchup week filter.
+var yahooWeekParam = intArg{name: "week", min: minimumPositiveInteger, max: math.MaxInt32}
+
 func yahooMatchupsTool(q yahooQueries, guard leagueGuard) server.ServerTool {
 	return server.ServerTool{
 		Tool: mcp.NewTool("get_yahoo_matchups",
@@ -191,11 +196,11 @@ func yahooMatchupsTool(q yahooQueries, guard leagueGuard) server.ServerTool {
 				mcp.Min(minimumPositiveInteger), mcp.Max(math.MaxInt32), mcp.MultipleOf(minimumPositiveInteger)),
 		),
 		Handler: guard.scoped(func(ctx context.Context, req mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error) {
-			week, hasWeek, errResult := optionalPositiveInt32(req, "week")
+			week, hasWeek, errResult := optionalInt[int32](req, yahooWeekParam)
 			if errResult != nil {
 				return errResult, nil
 			}
-			teamID, hasTeamID, errResult := optionalPositiveInt32(req, "team_id")
+			teamID, hasTeamID, errResult := optionalInt[int32](req, yahooTeamIDParam)
 			if errResult != nil {
 				return errResult, nil
 			}
@@ -221,37 +226,6 @@ func yahooMatchupsTool(q yahooQueries, guard leagueGuard) server.ServerTool {
 	}
 }
 
-// optionalPositiveInt32 reads an optional positive integer query argument.
-func optionalPositiveInt32(req mcp.CallToolRequest, name string) (int32, bool, *mcp.CallToolResult) {
-	raw, present := req.GetArguments()[name]
-	if !present {
-		return 0, false, nil
-	}
-	value, valid := integerValue(raw)
-	if !valid || value < minimumPositiveInteger || value > math.MaxInt32 {
-		return 0, false, mcp.NewToolResultError("invalid " + name)
-	}
-	return int32(value), true, nil
-}
-
-func integerValue(raw any) (int64, bool) {
-	switch value := raw.(type) {
-	case int:
-		return int64(value), true
-	case int32:
-		return int64(value), true
-	case int64:
-		return value, true
-	case float64:
-		if math.IsNaN(value) || math.IsInf(value, 0) || math.Trunc(value) != value {
-			return 0, false
-		}
-		return int64(value), true
-	default:
-		return 0, false
-	}
-}
-
 func filterYahooMatchupsByWeek(matchups []sqlcdb.YahooMatchup, week int32) []sqlcdb.YahooMatchup {
 	filtered := make([]sqlcdb.YahooMatchup, 0, len(matchups))
 	for _, matchup := range matchups {
@@ -272,26 +246,4 @@ func yahooDraftResultsTool(q yahooQueries, guard leagueGuard) server.ServerTool 
 			return toolResult(q.GetYahooDraftResultsByLeague(ctx, leagueID))
 		}),
 	}
-}
-
-// toolResult renders query rows as CSV, or the query error as a tool error.
-func toolResult[T any](rows []T, err error) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	return ResultCSV(rows)
-}
-
-// requireDate reads the required "date" argument (YYYY-MM-DD); on failure it
-// returns the tool error to send back.
-func requireDate(req mcp.CallToolRequest) (pgtype.Date, *mcp.CallToolResult) {
-	var d pgtype.Date
-	dateStr, err := req.RequireString("date")
-	if err != nil {
-		return d, mcp.NewToolResultError(err.Error())
-	}
-	if err := d.Scan(dateStr); err != nil {
-		return d, mcp.NewToolResultError("invalid date format, use YYYY-MM-DD")
-	}
-	return d, nil
 }

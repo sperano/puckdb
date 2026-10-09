@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
@@ -91,14 +90,10 @@ type leagueHandler func(ctx context.Context, req mcp.CallToolRequest, leagueID i
 // other leagues exist.
 func (g leagueGuard) scoped(h leagueHandler) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		id := req.GetInt(leagueIDArg, 0)
-		if id == 0 {
-			return mcp.NewToolResultError(leagueIDArg + " is required"), nil
+		leagueID, errResult := requireInt[int32](req, leagueIDParam)
+		if errResult != nil {
+			return errResult, nil
 		}
-		if id < 0 || id > math.MaxInt32 {
-			return mcp.NewToolResultError(fmt.Sprintf("invalid %s %d", leagueIDArg, id)), nil
-		}
-		leagueID := int32(id)
 		ok, err := g.allow(ctx, leagueID)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil

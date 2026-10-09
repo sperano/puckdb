@@ -146,14 +146,15 @@ func TestYahooMatchupsToolRejectsInvalidFilters(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{name: "week", args: matchupArgs("week", -1), want: "invalid week"},
-		{name: "zero week", args: matchupArgs("week", 0), want: "invalid week"},
-		{name: "team_id", args: matchupArgs("team_id", -1), want: "invalid team_id"},
-		{name: "zero team_id", args: matchupArgs("team_id", 0), want: "invalid team_id"},
-		{name: "fractional week", args: matchupArgs("week", 1.5), want: "invalid week"},
-		{name: "fractional team_id", args: matchupArgs("team_id", 20.5), want: "invalid team_id"},
-		{name: "week overflow", args: matchupArgs("week", math.MaxInt32+1), want: "invalid week"},
-		{name: "team_id overflow", args: matchupArgs("team_id", math.MaxInt32+1), want: "invalid team_id"},
+		{name: "week", args: matchupArgs("week", -1), want: "invalid week -1" + positiveInt4Range},
+		{name: "zero week", args: matchupArgs("week", 0), want: "invalid week 0" + positiveInt4Range},
+		{name: "team_id", args: matchupArgs("team_id", -1), want: "invalid team_id -1" + positiveInt4Range},
+		{name: "zero team_id", args: matchupArgs("team_id", 0), want: "invalid team_id 0" + positiveInt4Range},
+		{name: "fractional week", args: matchupArgs("week", 1.5), want: "invalid week 1.5" + positiveInt4Range},
+		{name: "fractional team_id", args: matchupArgs("team_id", 20.5), want: "invalid team_id 20.5" + positiveInt4Range},
+		{name: "week overflow", args: matchupArgs("week", math.MaxInt32+1), want: "invalid week 2147483648" + positiveInt4Range},
+		{name: "team_id overflow", args: matchupArgs("team_id", math.MaxInt32+1), want: "invalid team_id 2147483648" + positiveInt4Range},
+		{name: "non-numeric week", args: matchupArgs("week", "two"), want: `invalid week "two"` + positiveInt4Range},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -168,6 +169,9 @@ func TestYahooMatchupsToolRejectsInvalidFilters(t *testing.T) {
 		})
 	}
 }
+
+// positiveInt4Range ends the error for an integer outside 1..MaxInt32.
+const positiveInt4Range = ": want an integer from 1 to 2147483647"
 
 func matchupArgs(name string, value any) map[string]any {
 	return map[string]any{leagueIDArg: float64(allowedLeagueID), name: value}
