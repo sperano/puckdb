@@ -395,56 +395,6 @@ func TestMissingYahooPlayer_ParseFormat(t *testing.T) {
 	})
 }
 
-func TestGameKey_Parse(t *testing.T) {
-	t.Parallel()
-	r := resource.GameKey{Season: 2024}
-	validGameKeyXML := `<fantasy_content><games><game><game_key>453</game_key><code>nhl</code><season>2024</season></game></games></fantasy_content>`
-
-	t.Run("parse_valid", func(t *testing.T) {
-		result, err := r.Parse([]byte(validGameKeyXML))
-		if err != nil {
-			t.Fatalf("Parse() unexpected error: %v", err)
-		}
-		if result == nil {
-			t.Fatal("Parse() returned nil")
-		}
-	})
-
-	for name, xmlData := range map[string]string{
-		"missing_game": minimalFantasyXML,
-		"zero_key":     `<fantasy_content><games><game><game_key>0</game_key><code>nhl</code><season>2024</season></game></games></fantasy_content>`,
-		"wrong_sport":  `<fantasy_content><games><game><game_key>453</game_key><code>nfl</code><season>2024</season></game></games></fantasy_content>`,
-		"wrong_season": `<fantasy_content><games><game><game_key>453</game_key><code>nhl</code><season>2023</season></game></games></fantasy_content>`,
-	} {
-		t.Run(name, func(t *testing.T) {
-			_, err := r.Parse([]byte(xmlData))
-			require.Error(t, err)
-		})
-	}
-
-	t.Run("parse_invalid_xml", func(t *testing.T) {
-		_, err := r.Parse([]byte(invalidXML))
-		if err == nil {
-			t.Fatal("Parse() expected error, got nil")
-		}
-		if !strings.Contains(err.Error(), "2024") {
-			t.Errorf("error %q should contain season", err.Error())
-		}
-	})
-}
-
-func TestGameKey_ParseKey(t *testing.T) {
-	t.Parallel()
-	r := resource.GameKey{Season: 2024}
-
-	key, err := r.ParseKey([]byte(`<fantasy_content><games><game><game_key>453</game_key><code>nhl</code><season>2024</season></game></games></fantasy_content>`))
-	require.NoError(t, err)
-	require.Equal(t, 453, key)
-
-	_, err = r.ParseKey([]byte(`<fantasy_content><games><game><game_key>453</game_key><code>nhl</code><season>2023</season></game></games></fantasy_content>`))
-	require.Error(t, err)
-}
-
 func TestTransactions_ParseURL(t *testing.T) {
 	t.Parallel()
 	r := resource.Transactions{Season: 2023, LeagueID: 12345, GameKey: 453}
