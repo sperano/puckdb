@@ -2,12 +2,10 @@ package database
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +31,7 @@ func freshDatabase(t *testing.T) (*pgx.Conn, string) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), integrationDBTimeout)
 	t.Cleanup(cancel)
-	name := fmt.Sprintf("%s_%d", testDatabasePrefix, time.Now().UnixNano())
+	name := uniqueIdentifier(testDatabasePrefix)
 
 	admin, err := pgx.Connect(ctx, baseURL)
 	require.NoError(t, err)

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/draftrank"
+	"github.com/sperano/puckdb/internal/fixtures/projectionfixtures"
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/newsadjust"
 	"github.com/sperano/puckdb/internal/projection"
@@ -149,7 +150,7 @@ func Baseline() projection.Snapshot {
 		players = append(players, projected)
 	}
 	return projection.Snapshot{
-		TargetSeason: nhlSeason, AsOf: BaselineAt, SourceDataHash: "fixture-baseline", Config: projection.DefaultConfig(), Players: players,
+		TargetSeason: nhlSeason, AsOf: BaselineAt, SourceDataHash: "fixture-baseline", Config: projectionfixtures.Config(), Players: players,
 	}
 }
 

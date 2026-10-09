@@ -2,14 +2,15 @@ package database
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
 
 	migratedb "github.com/golang-migrate/migrate/v4/database"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +61,7 @@ func isolatedSchema(t *testing.T) (*pgx.Conn, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), integrationDBTimeout)
 	t.Cleanup(cancel)
 
-	schema := fmt.Sprintf("%s_%d", testSchemaPrefix, time.Now().UnixNano())
+	schema := uniqueIdentifier(testSchemaPrefix)
 	parsed, err := url.Parse(baseURL)
 	require.NoError(t, err)
 	query := parsed.Query()
@@ -82,6 +83,14 @@ func isolatedSchema(t *testing.T) (*pgx.Conn, string) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close(context.Background()) })
 	return conn, parsed.String()
+}
+
+// uniqueIdentifier returns prefix plus a random suffix, so parallel tests
+// (and concurrent runs against the same server) never share a schema or
+// database name, as a clock-based suffix can on coarse timers. It stays
+// within PostgreSQL's 63-byte identifier limit for the prefixes used here.
+func uniqueIdentifier(prefix string) string {
+	return prefix + "_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 }
 
 func tableExists(t *testing.T, conn *pgx.Conn, table string) bool {
