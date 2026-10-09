@@ -73,19 +73,33 @@ func priority(agentID, p int32) sqlcdb.SimWaiverPriority {
 	return sqlcdb.SimWaiverPriority{PoolID: 1, AgentID: agentID, Priority: p}
 }
 
+// setPriorities makes the stub pool hold exactly the agents of rows, ranked
+// as given, so the resolution's completeness check passes.
+func (s *ProcessWaiversTestSuite) setPriorities(rows ...sqlcdb.SimWaiverPriority) {
+	s.queries.listPriorityRows = rows
+	s.queries.listAgentsByPoolReturn = make([]sqlcdb.SimAgent, len(rows))
+	for i, p := range rows {
+		s.queries.listAgentsByPoolReturn[i] = sqlcdb.SimAgent{ID: p.AgentID, PoolID: p.PoolID}
+	}
+}
+
 // ----------------------------------------------------------------------------
 // No claims due → skip
 // ----------------------------------------------------------------------------
 
 func (s *ProcessWaiversTestSuite) TestNoDueClaims_Skips() {
 	t := s.T()
+	s.setPriorities(priority(1, 1), priority(2, 2))
 	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, s.input())
 	require.NoError(t, err)
 	var got ProcessWaiversResult
 	require.NoError(t, future.Get(&got))
 	assert.True(t, got.Skipped)
-	assert.Zero(t, s.tx.inTxCalled, "no commit when no claims")
-	assert.Empty(t, s.queries.listPriorityArgs, "priority not consulted when nothing to resolve")
+	assert.Equal(t, []int32{1}, s.queries.lockPoolCalls, "the pool is locked even with nothing to resolve")
+	assert.Equal(t, []int32{1}, s.queries.initPriorityCalls,
+		"the first season day initializes priority whether or not a claim is due")
+	assert.Empty(t, s.queries.resolveClaimCalls)
+	assert.Empty(t, s.queries.updatePriorityCalls, "priority unchanged when nothing resolves")
 }
 
 // ----------------------------------------------------------------------------
@@ -98,9 +112,9 @@ func (s *ProcessWaiversTestSuite) TestUncontestedClaim_Wins() {
 	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 0),
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{
+	s.setPriorities(
 		priority(1, 1), priority(2, 2),
-	}
+	)
 
 	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)
@@ -112,9 +126,9 @@ func (s *ProcessWaiversTestSuite) TestUncontestedClaim_Wins() {
 	assert.Equal(t, 0, got.ContestedGroups, "single-claimant groups are uncontested")
 
 	// Status update for the won claim.
-	require.Len(t, s.queries.updateClaimStatusCalls, 1)
-	assert.Equal(t, int32(100), s.queries.updateClaimStatusCalls[0].ID)
-	assert.Equal(t, string(WaiverClaimStatusWon), s.queries.updateClaimStatusCalls[0].Status)
+	require.Len(t, s.queries.resolveClaimCalls, 1)
+	assert.Equal(t, int32(100), s.queries.resolveClaimCalls[0].ID)
+	assert.Equal(t, string(WaiverClaimStatusWon), s.queries.resolveClaimCalls[0].Status)
 
 	// Roster: just an add (no drop).
 	require.Len(t, s.queries.insertRosterCalls, 1)
@@ -142,9 +156,9 @@ func (s *ProcessWaiversTestSuite) TestContestedClaim_HighestPriorityWins() {
 		claim(101, 2, 8478402, 0),
 		claim(102, 3, 8478402, 0),
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{
+	s.setPriorities(
 		priority(2, 1), priority(1, 2), priority(3, 3),
-	}
+	)
 
 	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)
@@ -159,9 +173,9 @@ func (s *ProcessWaiversTestSuite) TestContestedClaim_HighestPriorityWins() {
 	assert.Equal(t, int32(2), s.queries.insertRosterCalls[0].AgentID)
 
 	// Three status updates: 1 won, 2 lost.
-	require.Len(t, s.queries.updateClaimStatusCalls, 3)
+	require.Len(t, s.queries.resolveClaimCalls, 3)
 	statusByClaimID := map[int32]string{}
-	for _, c := range s.queries.updateClaimStatusCalls {
+	for _, c := range s.queries.resolveClaimCalls {
 		statusByClaimID[c.ID] = c.Status
 	}
 	assert.Equal(t, string(WaiverClaimStatusWon), statusByClaimID[101])
@@ -179,7 +193,7 @@ func (s *ProcessWaiversTestSuite) TestWinnerWithDrop_AppliesDrop() {
 	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999), // drop player 8499999
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.setPriorities(priority(1, 1))
 	// Drop player is still on the roster → the plan sees it and the
 	// stub's DeleteSimRosterRows reports 1.
 	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
@@ -215,9 +229,9 @@ func (s *ProcessWaiversTestSuite) TestPriorityDemotion_WinnerToBottom() {
 	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 0),
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{
+	s.setPriorities(
 		priority(1, 1), priority(2, 2), priority(3, 3),
-	}
+	)
 
 	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)
@@ -246,9 +260,9 @@ func (s *ProcessWaiversTestSuite) TestPriorityDemotion_MultipleWinners() {
 		claim(100, 1, 8478402, 0),
 		claim(101, 2, 8480039, 0),
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{
+	s.setPriorities(
 		priority(1, 1), priority(2, 2), priority(3, 3), priority(4, 4),
-	}
+	)
 
 	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)
@@ -276,15 +290,15 @@ func (s *ProcessWaiversTestSuite) TestMultiplePlayers_IndependentResolution() {
 		claim(101, 2, 8480039, 0),
 		claim(102, 3, 8479318, 0),
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{
+	s.setPriorities(
 		priority(1, 1), priority(2, 2), priority(3, 3),
-	}
+	)
 
 	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)
 	require.Len(t, s.queries.insertRosterCalls, 3, "each player goes to their respective claimant")
-	assert.Len(t, s.queries.updateClaimStatusCalls, 3, "all three claims marked won")
-	for _, c := range s.queries.updateClaimStatusCalls {
+	assert.Len(t, s.queries.resolveClaimCalls, 3, "all three claims marked won")
+	for _, c := range s.queries.resolveClaimCalls {
 		assert.Equal(t, string(WaiverClaimStatusWon), c.Status)
 	}
 }
@@ -391,7 +405,7 @@ func (s *ProcessWaiversTestSuite) TestListPriorityError_Aborts() {
 func (s *ProcessWaiversTestSuite) TestCommitError_Aborts() {
 	t := s.T()
 	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(1, 1, 100, 0)}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.setPriorities(priority(1, 1))
 	s.tx.commitErr = errors.New("deadlock detected")
 
 	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, s.input())
@@ -411,7 +425,7 @@ func (s *ProcessWaiversTestSuite) TestCommitError_Aborts() {
 func (s *ProcessWaiversTestSuite) TestListPriority_ReadInsideTransaction() {
 	t := s.T()
 	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.setPriorities(priority(1, 1))
 
 	var argsAtTxEntry int
 	s.tx.beforeFn = func() {
@@ -427,6 +441,28 @@ func (s *ProcessWaiversTestSuite) TestListPriority_ReadInsideTransaction() {
 	assert.Len(t, s.queries.listPriorityArgs, 1, "priority read exactly once, inside the tx callback")
 }
 
+// SIM-I7: the pool lock comes before every read of claims or priorities.
+// Reading the claims first (the old code read them before the
+// transaction) would let an overlapping attempt resolve a stale snapshot
+// after another attempt committed.
+func (s *ProcessWaiversTestSuite) TestPoolLock_PrecedesClaimAndPriorityReads() {
+	t := s.T()
+	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
+	s.setPriorities(priority(1, 1))
+
+	readsBeforeLock := -1
+	s.queries.lockPoolHook = func() {
+		readsBeforeLock = len(s.queries.listClaimsForDuePlayersArgs) +
+			len(s.queries.listPriorityArgs) + len(s.queries.initPriorityCalls)
+	}
+
+	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, s.input())
+	require.NoError(t, err)
+	assert.Equal(t, 1, s.tx.inTxCalled, "one transaction covers lock, reads and writes")
+	assert.Zero(t, readsBeforeLock, "no claim or priority read may precede LockSimPool")
+	assert.Len(t, s.queries.listClaimsForDuePlayersArgs, 1)
+}
+
 // ----------------------------------------------------------------------------
 // resolved_at threads through to the status update.
 // ----------------------------------------------------------------------------
@@ -435,12 +471,12 @@ func (s *ProcessWaiversTestSuite) TestResolvedAt_CarriesSimDate() {
 	t := s.T()
 	in := s.input()
 	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.setPriorities(priority(1, 1))
 
 	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)
-	require.Len(t, s.queries.updateClaimStatusCalls, 1)
-	assert.Equal(t, "2024-11-15", s.queries.updateClaimStatusCalls[0].ResolvedAt.Time.Format("2006-01-02"))
+	require.Len(t, s.queries.resolveClaimCalls, 1)
+	assert.Equal(t, "2024-11-15", s.queries.resolveClaimCalls[0].ResolvedAt.Time.Format("2006-01-02"))
 }
 
 // pin: input slice not mutated by the activity (the priority restamp
@@ -451,7 +487,7 @@ func (s *ProcessWaiversTestSuite) TestInputPriorities_NotMutated() {
 	originalPriorities := []sqlcdb.SimWaiverPriority{
 		priority(1, 1), priority(2, 2), priority(3, 3),
 	}
-	s.queries.listPriorityRows = originalPriorities
+	s.setPriorities(originalPriorities...)
 
 	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, s.input())
 	require.NoError(t, err)
@@ -481,7 +517,7 @@ func (s *ProcessWaiversTestSuite) TestCrossDayDuplicate_CancelsOtherPendingClaim
 	c1 := claim(100, 1, 8478402, 0)
 	c2 := claim(101, 2, 8478402, 0)
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{c1, c2}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1), priority(2, 2)}
+	s.setPriorities(priority(1, 1), priority(2, 2))
 
 	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)
@@ -507,7 +543,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_PlayerAlreadyRostered_ResolvesL
 	t := s.T()
 	in := s.input()
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.setPriorities(priority(1, 1))
 	s.queries.existsRosterPlayerByPlayer = map[int64]bool{8478402: true}
 
 	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
@@ -519,8 +555,8 @@ func (s *ProcessWaiversTestSuite) TestResolution_PlayerAlreadyRostered_ResolvesL
 	assert.Equal(t, 1, got.ClaimsLost)
 	assert.Empty(t, s.queries.insertRosterCalls, "no roster insert when player already rostered")
 	assert.Empty(t, s.queries.insertAddCalls)
-	require.Len(t, s.queries.updateClaimStatusCalls, 1)
-	assert.Equal(t, string(WaiverClaimStatusLost), s.queries.updateClaimStatusCalls[0].Status)
+	require.Len(t, s.queries.resolveClaimCalls, 1)
+	assert.Equal(t, string(WaiverClaimStatusLost), s.queries.resolveClaimCalls[0].Status)
 }
 
 // Designated drop player already left the roster (absent from the
@@ -532,7 +568,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_VanishedDropPlayer_NoPhantomDro
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999), // wants to drop a player who's gone
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.setPriorities(priority(1, 1))
 	// Roster holds someone else; 8499999 has vanished.
 	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
 		1: {rosterRow(1, 111)},
@@ -560,7 +596,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_VanishedDropAtCapacity_Resolves
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999),
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.setPriorities(priority(1, 1))
 	// Winner already holds 2 players (at capacity) and 8499999 has
 	// vanished, so nothing frees a spot; the add would make 3.
 	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
@@ -594,7 +630,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_TwoClaimsShareDropPlayer_NoDoub
 		claim(100, 1, 8478402, 8499999),
 		claim(101, 1, 8480039, 8499999),
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.setPriorities(priority(1, 1))
 	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
 		1: {rosterRow(1, 111), rosterRow(1, 8499999)},
 	}
@@ -629,7 +665,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_ValidDropButOverCapacity_Roster
 		claim(100, 1, 8478402, 8499999),
 		claim(101, 2, 8478402, 0), // in-group loser
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1), priority(2, 2)}
+	s.setPriorities(priority(1, 1), priority(2, 2))
 	// Winner holds 3 (already over the capacity of 2, e.g. capacity was
 	// lowered after filing); dropping one still leaves 2, so the add
 	// would make 3 — the claim must be rejected without touching the roster.
@@ -649,7 +685,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_ValidDropButOverCapacity_Roster
 	assert.Empty(t, s.queries.insertRosterCalls)
 	assert.Empty(t, s.queries.insertAddCalls)
 	assert.Len(t, s.queries.listFullRosterByAgent[1], 3, "roster unchanged")
-	for _, c := range s.queries.updateClaimStatusCalls {
+	for _, c := range s.queries.resolveClaimCalls {
 		assert.Equal(t, string(WaiverClaimStatusLost), c.Status)
 	}
 }
@@ -663,7 +699,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_ValidDropFreesSpot_Wins() {
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999),
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.setPriorities(priority(1, 1))
 	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
 		1: {rosterRow(1, 111), rosterRow(1, 8499999)},
 	}
@@ -690,7 +726,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_DropVanishesAfterPlan_Aborts() 
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999),
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)}
+	s.setPriorities(priority(1, 1))
 	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
 		1: {rosterRow(1, 8499999)},
 	}
@@ -759,9 +795,9 @@ func (s *ProcessWaiversTestSuite) TestContestedGroups_WinnerRotatesBeforeSecondG
 		claim(102, 1, 8480039, 0),
 		claim(103, 3, 8480039, 0),
 	}
-	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{
+	s.setPriorities(
 		priority(1, 1), priority(2, 2), priority(3, 3),
-	}
+	)
 
 	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
 	require.NoError(t, err)

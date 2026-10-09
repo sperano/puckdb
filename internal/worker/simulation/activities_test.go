@@ -172,16 +172,26 @@ type stubSimQueries struct {
 	recomputeGAAErr          error
 
 	// ProcessWaiversActivity inputs/outputs.
-	listClaimsDueArgs      []sqlcdb.ListSimWaiverClaimsDueParams
-	listClaimsDueRows      []sqlcdb.SimWaiverClaim
-	listClaimsDueErr       error
-	listPriorityArgs       []int32
-	listPriorityRows       []sqlcdb.SimWaiverPriority
-	listPriorityErr        error
-	updatePriorityCalls    []sqlcdb.UpdateSimWaiverPriorityParams
-	updatePriorityErr      error
-	updateClaimStatusCalls []sqlcdb.UpdateSimWaiverClaimStatusParams
-	updateClaimStatusErr   error
+	listClaimsDueArgs   []sqlcdb.ListSimWaiverClaimsDueParams
+	listClaimsDueRows   []sqlcdb.SimWaiverClaim
+	listClaimsDueErr    error
+	listPriorityArgs    []int32
+	listPriorityRows    []sqlcdb.SimWaiverPriority
+	listPriorityErr     error
+	updatePriorityCalls []sqlcdb.UpdateSimWaiverPriorityParams
+	updatePriorityErr   error
+	resolveClaimCalls   []sqlcdb.ResolveSimWaiverClaimParams
+	resolveClaimErr     error
+	// resolveClaimNotPending lists claim IDs the stub reports as already
+	// resolved (0 rows affected).
+	resolveClaimNotPending map[int32]bool
+	lockPoolCalls          []int32
+	lockPoolErr            error
+	// lockPoolHook, when set, runs as LockSimPool is called.
+	lockPoolHook         func()
+	initPriorityCalls    []int32
+	initPriorityInserted int64
+	initPriorityErr      error
 
 	// ListSimWaiverClaimsForDuePlayers — cross-day grouped claims. Falls
 	// back to listClaimsDueRows when the dedicated rows aren't set so
@@ -630,9 +640,34 @@ func (s *stubSimQueries) UpdateSimWaiverPriority(_ context.Context, arg sqlcdb.U
 	return s.updatePriorityErr
 }
 
-func (s *stubSimQueries) UpdateSimWaiverClaimStatus(_ context.Context, arg sqlcdb.UpdateSimWaiverClaimStatusParams) error {
-	s.updateClaimStatusCalls = append(s.updateClaimStatusCalls, arg)
-	return s.updateClaimStatusErr
+func (s *stubSimQueries) ResolveSimWaiverClaim(_ context.Context, arg sqlcdb.ResolveSimWaiverClaimParams) (int64, error) {
+	s.resolveClaimCalls = append(s.resolveClaimCalls, arg)
+	if s.resolveClaimErr != nil {
+		return 0, s.resolveClaimErr
+	}
+	if s.resolveClaimNotPending[arg.ID] {
+		return 0, nil
+	}
+	return 1, nil
+}
+
+func (s *stubSimQueries) LockSimPool(_ context.Context, id int32) (int32, error) {
+	s.lockPoolCalls = append(s.lockPoolCalls, id)
+	if s.lockPoolHook != nil {
+		s.lockPoolHook()
+	}
+	if s.lockPoolErr != nil {
+		return 0, s.lockPoolErr
+	}
+	return id, nil
+}
+
+func (s *stubSimQueries) InitSimWaiverPriority(_ context.Context, poolID int32) (int64, error) {
+	s.initPriorityCalls = append(s.initPriorityCalls, poolID)
+	if s.initPriorityErr != nil {
+		return 0, s.initPriorityErr
+	}
+	return s.initPriorityInserted, nil
 }
 
 func (s *stubSimQueries) ListSimWaiverClaimsForDuePlayers(_ context.Context, arg sqlcdb.ListSimWaiverClaimsForDuePlayersParams) ([]sqlcdb.SimWaiverClaim, error) {

@@ -108,6 +108,10 @@ Two separate player pools, modeled after Yahoo:
 
 **Waiver priority:** Starts as reverse draft order (last draft pick = highest priority). When an agent successfully wins a waiver claim, they drop to the bottom of the priority list.
 
+The first `ProcessWaivers` of a pool (season day 1, after the draft) creates one `sim_waiver_priority` row per agent from `sim_agents.draft_position` (`InitSimWaiverPriority`, a no-op once the pool has rows), and every run checks that the rows rank each agent exactly once as 1..N before resolving anything. A pool without a recorded draft order fails resolution rather than falling back to claim order.
+
+**Per-pool serialization:** `ProcessWaivers` runs as one transaction that first locks the pool row (`LockSimPool`, `FOR NO KEY UPDATE`), then reads and locks the pending claims and the priority rows. An overlapping attempt (a Temporal retry after a start-to-close timeout while the first attempt is still running) waits on that lock and then sees the first attempt's committed result. Claim status changes only from `pending` (`ResolveSimWaiverClaim`); a claim found already resolved fails the transaction instead of being rewritten.
+
 **Waiver claim flow:**
 1. Agent A drops Player X on day 5 → Player X goes on waivers until day 7
 2. During days 5-7, agents can call `claim_player(player_id, drop_player_id?)` to file a claim

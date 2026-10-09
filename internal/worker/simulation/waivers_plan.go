@@ -15,6 +15,13 @@ import (
 // case (which the plan handles by simply not dropping).
 var errWaiverDropVanished = errors.New("drop player vanished from roster mid-transaction")
 
+// errWaiverClaimNotPending reports that a claim this resolution read as
+// pending had already been resolved when its status update ran. Under
+// LockSimPool that cannot happen, so it fails the transaction: rewriting
+// the claim (won → lost) would contradict the roster another attempt
+// committed.
+var errWaiverClaimNotPending = errors.New("waiver claim is no longer pending")
+
 // waiverPlan is the read-only commit-time verdict for one resolution,
 // computed before any roster write so a rejected claim never leaves a
 // partial mutation behind.
@@ -99,13 +106,11 @@ func applyWaiverDrop(ctx context.Context, q SimQueries, in ProcessWaiversInput, 
 // resolve as a phantom uncontested win against the now-rostered player.
 func markGroupWon(ctx context.Context, q SimQueries, in ProcessWaiversInput, r claimResolution) error {
 	w := r.winner
-	if err := q.UpdateSimWaiverClaimStatus(ctx, sqlcdb.UpdateSimWaiverClaimStatusParams{
-		ID: w.ID, Status: string(WaiverClaimStatusWon), ResolvedAt: in.SimDate,
-	}); err != nil {
-		return fmt.Errorf("mark claim %d won: %w", w.ID, err)
+	if err := resolveClaim(ctx, q, in, w.ID, WaiverClaimStatusWon); err != nil {
+		return err
 	}
 	for _, l := range r.losers {
-		if err := markClaimLost(ctx, q, in, l.ID); err != nil {
+		if err := resolveClaim(ctx, q, in, l.ID, WaiverClaimStatusLost); err != nil {
 			return err
 		}
 	}
@@ -121,23 +126,29 @@ func markGroupWon(ctx context.Context, q SimQueries, in ProcessWaiversInput, r c
 // and the in-group losers — as 'lost'. Used when the plan rejects the
 // group; it performs no roster write.
 func markGroupLost(ctx context.Context, q SimQueries, in ProcessWaiversInput, r claimResolution) error {
-	if err := markClaimLost(ctx, q, in, r.winner.ID); err != nil {
+	if err := resolveClaim(ctx, q, in, r.winner.ID, WaiverClaimStatusLost); err != nil {
 		return err
 	}
 	for _, l := range r.losers {
-		if err := markClaimLost(ctx, q, in, l.ID); err != nil {
+		if err := resolveClaim(ctx, q, in, l.ID, WaiverClaimStatusLost); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// markClaimLost flips a single claim to 'lost' at the resolution date.
-func markClaimLost(ctx context.Context, q SimQueries, in ProcessWaiversInput, claimID int32) error {
-	if err := q.UpdateSimWaiverClaimStatus(ctx, sqlcdb.UpdateSimWaiverClaimStatusParams{
-		ID: claimID, Status: string(WaiverClaimStatusLost), ResolvedAt: in.SimDate,
-	}); err != nil {
-		return fmt.Errorf("mark claim %d lost: %w", claimID, err)
+// resolveClaim moves a single pending claim to status at the resolution
+// date. A claim that is no longer pending is not touched and fails the
+// transaction with errWaiverClaimNotPending.
+func resolveClaim(ctx context.Context, q SimQueries, in ProcessWaiversInput, claimID int32, status WaiverClaimStatus) error {
+	affected, err := q.ResolveSimWaiverClaim(ctx, sqlcdb.ResolveSimWaiverClaimParams{
+		ID: claimID, Status: string(status), ResolvedAt: in.SimDate,
+	})
+	if err != nil {
+		return fmt.Errorf("mark claim %d %s: %w", claimID, status, err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("mark claim %d %s: %w", claimID, status, errWaiverClaimNotPending)
 	}
 	return nil
 }

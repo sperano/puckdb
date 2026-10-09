@@ -577,6 +577,32 @@ func (q *Queries) IncrementSimPoolLLMCost(ctx context.Context, arg IncrementSimP
 	return total_llm_cost_usd, err
 }
 
+const initSimWaiverPriority = `-- name: InitSimWaiverPriority :execrows
+INSERT INTO sim_waiver_priority (pool_id, agent_id, priority)
+SELECT a.pool_id, a.id, ROW_NUMBER() OVER (ORDER BY a.draft_position DESC, a.id)
+FROM sim_agents a
+WHERE a.pool_id = $1
+  AND NOT EXISTS (SELECT 1 FROM sim_waiver_priority p WHERE p.pool_id = $1)
+  AND NOT EXISTS (
+      SELECT 1 FROM sim_agents u WHERE u.pool_id = $1 AND u.draft_position IS NULL
+  )
+`
+
+// InitSimWaiverPriority gives every agent of a pool one priority row in reverse
+// draft order (the last round-1 pick gets priority 1, PLAN.md > "Waivers"). It
+// inserts nothing when the pool already has priority rows (a retry, or a pool
+// whose order has since rotated) or when any agent has no recorded
+// draft_position yet, so it never duplicates, reorders or half-initializes.
+// The caller holds LockSimPool, which makes the NOT EXISTS check race-free,
+// and verifies completeness afterwards.
+func (q *Queries) InitSimWaiverPriority(ctx context.Context, poolID int32) (int64, error) {
+	result, err := q.db.Exec(ctx, initSimWaiverPriority, poolID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const insertSimAgent = `-- name: InsertSimAgent :one
 
 INSERT INTO sim_agents (
@@ -2291,6 +2317,7 @@ WHERE c.pool_id = $1 AND c.status = 'pending'
       WHERE d.pool_id = $1 AND d.status = 'pending' AND d.process_date <= $2
   )
 ORDER BY c.player_id, c.agent_id
+FOR UPDATE
 `
 
 type ListSimWaiverClaimsForDuePlayersParams struct {
@@ -2305,7 +2332,10 @@ type ListSimWaiverClaimsForDuePlayersParams struct {
 // agent also has a pending claim, both land in the same contested group and the
 // high-priority agent wins. Grouping only by "due today" (ListSimWaiverClaimsDue)
 // would let the earlier filer win uncontested, bypassing priority.
-// Ordered by player so ProcessWaiversActivity can group in one pass.
+// Ordered by player so ProcessWaiversActivity can group in one pass. The rows
+// are locked FOR UPDATE: ProcessWaivers reads them inside its transaction,
+// after LockSimPool, so it resolves the claims as they are now and not a
+// snapshot taken before another attempt committed.
 func (q *Queries) ListSimWaiverClaimsForDuePlayers(ctx context.Context, arg ListSimWaiverClaimsForDuePlayersParams) ([]SimWaiverClaim, error) {
 	rows, err := q.db.Query(ctx, listSimWaiverClaimsForDuePlayers, arg.PoolID, arg.ProcessDate)
 	if err != nil {
@@ -2436,12 +2466,11 @@ FOR UPDATE
 
 // ListSimWaiverPriorityByPool locks the returned rows FOR UPDATE. Its only
 // caller (ProcessWaivers) reads the priority order and later writes a
-// restamped order back to the same rows within the same transaction — the
-// lock closes the read-outside/write-inside-tx gap that otherwise permits a
-// lost update if two waiver-resolution transactions for the same pool were
-// ever in flight concurrently (see PLAN.md > "Waivers"). Must be called from
-// inside a Transactor.InTx callback; taking a row lock outside a transaction
-// has no effect beyond the statement itself.
+// restamped order back to the same rows within the same transaction. The
+// per-pool serialization itself comes from LockSimPool, taken first: these row
+// locks alone protect nothing when the pool has no rows yet. Must be called
+// from inside a Transactor.InTx callback; taking a row lock outside a
+// transaction has no effect beyond the statement itself.
 func (q *Queries) ListSimWaiverPriorityByPool(ctx context.Context, poolID int32) ([]SimWaiverPriority, error) {
 	rows, err := q.db.Query(ctx, listSimWaiverPriorityByPool, poolID)
 	if err != nil {
@@ -2460,6 +2489,25 @@ func (q *Queries) ListSimWaiverPriorityByPool(ctx context.Context, poolID int32)
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockSimPool = `-- name: LockSimPool :one
+SELECT id FROM sim_pools WHERE id = $1 FOR NO KEY UPDATE
+`
+
+// LockSimPool serializes waiver resolution per pool. It locks the pool row
+// (guaranteed to exist, unlike sim_waiver_priority rows, which a pool only
+// gets at its first ProcessWaivers) FOR NO KEY UPDATE: a second resolution
+// transaction for the same pool waits here until the first commits, then reads
+// the claims and priorities that commit left behind. NO KEY UPDATE does not
+// block the KEY SHARE locks taken by foreign-key checks, so concurrent inserts
+// into child tables (claims, transactions) are not held up. Must run inside a
+// Transactor.InTx callback.
+func (q *Queries) LockSimPool(ctx context.Context, id int32) (int32, error) {
+	row := q.db.QueryRow(ctx, lockSimPool, id)
+	var id_2 int32
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const recomputeSimAgentTotalsCounting = `-- name: RecomputeSimAgentTotalsCounting :exec
@@ -2512,6 +2560,31 @@ ON CONFLICT (pool_id, agent_id, category) DO UPDATE SET
 func (q *Queries) RecomputeSimAgentTotalsGAA(ctx context.Context, poolID int32) error {
 	_, err := q.db.Exec(ctx, recomputeSimAgentTotalsGAA, poolID)
 	return err
+}
+
+const resolveSimWaiverClaim = `-- name: ResolveSimWaiverClaim :execrows
+UPDATE sim_waiver_claims
+SET status = $2, resolved_at = $3
+WHERE id = $1 AND status = 'pending'
+`
+
+type ResolveSimWaiverClaimParams struct {
+	ID         int32       `json:"id"`
+	Status     string      `json:"status"`
+	ResolvedAt pgtype.Date `json:"resolved_at"`
+}
+
+// ResolveSimWaiverClaim moves a pending claim to a terminal status. Only a
+// pending claim changes: a claim already won, lost or cancelled is left alone
+// and the statement reports 0 rows, which the caller treats as a failed
+// transaction (a resolution working from stale claims must not rewrite a
+// won claim as lost).
+func (q *Queries) ResolveSimWaiverClaim(ctx context.Context, arg ResolveSimWaiverClaimParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resolveSimWaiverClaim, arg.ID, arg.Status, arg.ResolvedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setSimAgentDraftPosition = `-- name: SetSimAgentDraftPosition :exec
@@ -2617,23 +2690,6 @@ func (q *Queries) UpdateSimRosterSlot(ctx context.Context, arg UpdateSimRosterSl
 		arg.PlayerID,
 		arg.Slot,
 	)
-	return err
-}
-
-const updateSimWaiverClaimStatus = `-- name: UpdateSimWaiverClaimStatus :exec
-UPDATE sim_waiver_claims
-SET status = $2, resolved_at = $3
-WHERE id = $1
-`
-
-type UpdateSimWaiverClaimStatusParams struct {
-	ID         int32       `json:"id"`
-	Status     string      `json:"status"`
-	ResolvedAt pgtype.Date `json:"resolved_at"`
-}
-
-func (q *Queries) UpdateSimWaiverClaimStatus(ctx context.Context, arg UpdateSimWaiverClaimStatusParams) error {
-	_, err := q.db.Exec(ctx, updateSimWaiverClaimStatus, arg.ID, arg.Status, arg.ResolvedAt)
 	return err
 }
 
