@@ -187,9 +187,10 @@ func TestIntegrationSmallSeasonFourTeams(t *testing.T) {
 	}
 	alphaID, bravoID, charlieID, deltaID := agentIDs[0], agentIDs[1], agentIDs[2], agentIDs[3]
 
-	// Waiver priorities: production never seeds sim_waiver_priority
-	// (see seedWaiverPriority), so the test assigns Alpha the best
-	// priority to make the contested claim deterministic.
+	// Waiver priorities: production would start from the (random)
+	// reverse draft order; seeding them first (see seedWaiverPriority)
+	// gives Alpha the best priority so the contested claim is
+	// deterministic.
 	for i, id := range agentIDs {
 		seedWaiverPriority(t, ctx, pgPool, poolID, id, int32(i+1))
 	}

@@ -50,6 +50,17 @@ UPDATE sim_pools
 SET sim_date = $2, updated_at = NOW()
 WHERE id = $1;
 
+-- LockSimPool serializes waiver resolution per pool. It locks the pool row
+-- (guaranteed to exist, unlike sim_waiver_priority rows, which a pool only
+-- gets at its first ProcessWaivers) FOR NO KEY UPDATE: a second resolution
+-- transaction for the same pool waits here until the first commits, then reads
+-- the claims and priorities that commit left behind. NO KEY UPDATE does not
+-- block the KEY SHARE locks taken by foreign-key checks, so concurrent inserts
+-- into child tables (claims, transactions) are not held up. Must run inside a
+-- Transactor.InTx callback.
+-- name: LockSimPool :one
+SELECT id FROM sim_pools WHERE id = $1 FOR NO KEY UPDATE;
+
 -- IncrementSimPoolLLMCost is the cost-cap accountant. Returns the new total
 -- so the caller can check whether the cap fired in the same round-trip.
 -- name: IncrementSimPoolLLMCost :one
@@ -466,14 +477,30 @@ EXCEPT SELECT t.player_id FROM sim_transactions t
 INSERT INTO sim_waiver_priority (pool_id, agent_id, priority)
 VALUES ($1, $2, $3);
 
+-- InitSimWaiverPriority gives every agent of a pool one priority row in reverse
+-- draft order (the last round-1 pick gets priority 1, PLAN.md > "Waivers"). It
+-- inserts nothing when the pool already has priority rows (a retry, or a pool
+-- whose order has since rotated) or when any agent has no recorded
+-- draft_position yet, so it never duplicates, reorders or half-initializes.
+-- The caller holds LockSimPool, which makes the NOT EXISTS check race-free,
+-- and verifies completeness afterwards.
+-- name: InitSimWaiverPriority :execrows
+INSERT INTO sim_waiver_priority (pool_id, agent_id, priority)
+SELECT a.pool_id, a.id, ROW_NUMBER() OVER (ORDER BY a.draft_position DESC, a.id)
+FROM sim_agents a
+WHERE a.pool_id = $1
+  AND NOT EXISTS (SELECT 1 FROM sim_waiver_priority p WHERE p.pool_id = $1)
+  AND NOT EXISTS (
+      SELECT 1 FROM sim_agents u WHERE u.pool_id = $1 AND u.draft_position IS NULL
+  );
+
 -- ListSimWaiverPriorityByPool locks the returned rows FOR UPDATE. Its only
 -- caller (ProcessWaivers) reads the priority order and later writes a
--- restamped order back to the same rows within the same transaction — the
--- lock closes the read-outside/write-inside-tx gap that otherwise permits a
--- lost update if two waiver-resolution transactions for the same pool were
--- ever in flight concurrently (see PLAN.md > "Waivers"). Must be called from
--- inside a Transactor.InTx callback; taking a row lock outside a transaction
--- has no effect beyond the statement itself.
+-- restamped order back to the same rows within the same transaction. The
+-- per-pool serialization itself comes from LockSimPool, taken first: these row
+-- locks alone protect nothing when the pool has no rows yet. Must be called
+-- from inside a Transactor.InTx callback; taking a row lock outside a
+-- transaction has no effect beyond the statement itself.
 -- name: ListSimWaiverPriorityByPool :many
 SELECT pool_id, agent_id, priority
 FROM sim_waiver_priority
@@ -523,7 +550,10 @@ ORDER BY player_id, agent_id;
 -- agent also has a pending claim, both land in the same contested group and the
 -- high-priority agent wins. Grouping only by "due today" (ListSimWaiverClaimsDue)
 -- would let the earlier filer win uncontested, bypassing priority.
--- Ordered by player so ProcessWaiversActivity can group in one pass.
+-- Ordered by player so ProcessWaiversActivity can group in one pass. The rows
+-- are locked FOR UPDATE: ProcessWaivers reads them inside its transaction,
+-- after LockSimPool, so it resolves the claims as they are now and not a
+-- snapshot taken before another attempt committed.
 -- name: ListSimWaiverClaimsForDuePlayers :many
 SELECT c.id, c.pool_id, c.agent_id, c.player_id, c.drop_player_id,
        c.filed_date, c.process_date, c.status, c.resolved_at, c.created_at
@@ -533,7 +563,8 @@ WHERE c.pool_id = $1 AND c.status = 'pending'
       SELECT d.player_id FROM sim_waiver_claims d
       WHERE d.pool_id = $1 AND d.status = 'pending' AND d.process_date <= $2
   )
-ORDER BY c.player_id, c.agent_id;
+ORDER BY c.player_id, c.agent_id
+FOR UPDATE;
 
 -- ListSimWaiverClaimsPending exposes the live claim queue for context-builder.
 -- name: ListSimWaiverClaimsPending :many
@@ -565,10 +596,15 @@ UPDATE sim_waiver_claims
 SET status = 'cancelled', resolved_at = $3
 WHERE pool_id = $1 AND player_id = $2 AND status = 'pending' AND id <> $4;
 
--- name: UpdateSimWaiverClaimStatus :exec
+-- ResolveSimWaiverClaim moves a pending claim to a terminal status. Only a
+-- pending claim changes: a claim already won, lost or cancelled is left alone
+-- and the statement reports 0 rows, which the caller treats as a failed
+-- transaction (a resolution working from stale claims must not rewrite a
+-- won claim as lost).
+-- name: ResolveSimWaiverClaim :execrows
 UPDATE sim_waiver_claims
 SET status = $2, resolved_at = $3
-WHERE id = $1;
+WHERE id = $1 AND status = 'pending';
 
 -- ListSimPlayersOnWaivers lists players visible to claim_player: dropped within
 -- the last waiver_days, with no winning claim recorded yet. Returns the most

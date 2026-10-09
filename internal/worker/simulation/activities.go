@@ -195,9 +195,17 @@ type SimQueries interface {
 	// ListSimWaiverClaimsForDuePlayers groups all pending claims per player
 	// (across due dates) so the contested resolution honors waiver priority.
 	ListSimWaiverClaimsForDuePlayers(ctx context.Context, arg sqlcdb.ListSimWaiverClaimsForDuePlayersParams) ([]sqlcdb.SimWaiverClaim, error)
+	// LockSimPool serializes waiver resolution per pool (row lock on the
+	// always-present sim_pools row); taken before any other read.
+	LockSimPool(ctx context.Context, id int32) (int32, error)
+	// InitSimWaiverPriority inserts the pool's reverse-draft-order priority
+	// rows when it has none yet; returns the number of rows inserted.
+	InitSimWaiverPriority(ctx context.Context, poolID int32) (int64, error)
 	ListSimWaiverPriorityByPool(ctx context.Context, poolID int32) ([]sqlcdb.SimWaiverPriority, error)
 	UpdateSimWaiverPriority(ctx context.Context, arg sqlcdb.UpdateSimWaiverPriorityParams) error
-	UpdateSimWaiverClaimStatus(ctx context.Context, arg sqlcdb.UpdateSimWaiverClaimStatusParams) error
+	// ResolveSimWaiverClaim moves a claim out of 'pending'; 0 rows means the
+	// claim was no longer pending and nothing changed.
+	ResolveSimWaiverClaim(ctx context.Context, arg sqlcdb.ResolveSimWaiverClaimParams) (int64, error)
 	// CancelSimWaiverClaimsForPlayer voids the loser/cross-day pending claims
 	// once a player is won, so they can't resolve as phantom uncontested wins.
 	CancelSimWaiverClaimsForPlayer(ctx context.Context, arg sqlcdb.CancelSimWaiverClaimsForPlayerParams) error

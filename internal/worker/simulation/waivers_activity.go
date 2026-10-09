@@ -13,44 +13,48 @@ import (
 )
 
 // missingWaiverPriority ranks a claimant with no sim_waiver_priority row
-// behind every seeded agent, so a map miss (zero value) can't award them
-// first dibs over a seeded agent.
-//
-// In practice every pool is currently unseeded: nothing in production
-// calls InsertSimWaiverPriority (the migration says "initialized as
-// reverse draft order" but no code does it). For such pools all
-// claimants tie at this rank and resolution falls back to claim-ID
-// order — the same outcome as the old all-zero tie — and demoteWinners
-// has no rows to rotate. Seeding is the product gap; this constant only
-// makes a partially-seeded pool behave sanely.
+// behind every ranked agent, so a map miss (zero value) can't award them
+// first dibs. ProcessWaivers refuses to resolve a pool whose priority rows
+// are incomplete (checkWaiverPriorityComplete), so this only guards
+// resolveGroup against a caller that passes a partial priority list.
 const missingWaiverPriority int32 = math.MaxInt32
 
 // ============================================================================
 // ProcessWaiversActivity — resolve every claim due today.
 //
-// Lifecycle:
+// Lifecycle, all in one transaction (Transactor.InTx):
 //
-//	1. ListSimWaiverClaimsDue(pool, today) — pending claims with
-//	   process_date <= today. Empty → Skipped result; common when the
-//	   day-loop iterates a calendar day with no waiver activity.
-//	2. Group by player_id. Single-claim groups are uncontested and
-//	   the lone claimant wins. Multi-claim groups are contested; the
-//	   agent with the lowest priority NUMBER wins (PLAN.md > "Waivers"
-//	   — Yahoo convention: priority 1 = first dibs).
-//	3. Atomic commit (Transactor.InTx):
-//	     for each (player, claims) group:
-//	       - commit-time revalidation (read-only): player still free,
-//	         winner's roster fits the add after any still-valid drop;
-//	         otherwise the whole group resolves lost with no write
-//	       - winner gets the player added to BN
-//	       - winner's drop_player_id (if set) gets removed from roster
-//	       - winning claim status → 'won', losing claims → 'lost'
-//	       - sim_transactions logs an `add` (and optionally `drop`)
-//	         for the winner so the daily transaction log reflects
-//	         the resolved-claim outcome
-//	     after all groups: re-rank waiver priority — winners move to
-//	     the bottom in their original priority order; non-winners
-//	     keep relative order, compacted up.
+//	1. LockSimPool(pool) — serializes resolution per pool. A second
+//	   attempt (a Temporal retry that overlaps a still-running first
+//	   attempt after a start-to-close timeout) waits here, then sees
+//	   what the first one committed.
+//	2. loadWaiverPriority — on the pool's first run, insert one priority
+//	   row per agent in reverse draft order; then lock the rows and check
+//	   they rank every agent exactly once as 1..N.
+//	3. ListSimWaiverClaimsForDuePlayers(pool, today) — pending claims on
+//	   any player with a claim due today, read and locked after the pool
+//	   lock. Empty → Skipped result (any priority initialization from step
+//	   2 still commits); common when the day-loop iterates a calendar day
+//	   with no waiver activity.
+//	4. Group by player_id. Single-claim groups are uncontested and the
+//	   lone claimant wins. Multi-claim groups are contested; the agent
+//	   with the lowest priority NUMBER wins (PLAN.md > "Waivers" — Yahoo
+//	   convention: priority 1 = first dibs).
+//	5. For each (player, claims) group:
+//	     - commit-time revalidation (read-only): player still free,
+//	       winner's roster fits the add after any still-valid drop;
+//	       otherwise the whole group resolves lost with no roster write
+//	     - winner gets the player added to BN
+//	     - winner's drop_player_id (if set) gets removed from roster
+//	     - winning claim status → 'won', losing claims → 'lost', each
+//	       only from 'pending': a claim that is no longer pending fails
+//	       the transaction instead of being rewritten
+//	     - sim_transactions logs an `add` (and optionally `drop`)
+//	       for the winner so the daily transaction log reflects
+//	       the resolved-claim outcome
+//	   after all groups: re-rank waiver priority — winners move to
+//	   the bottom in their original priority order; non-winners
+//	   keep relative order, compacted up.
 //
 // "Unclaimed waiver players become free agents" is implicit: the
 // FA-pool query (`ListSimFreeAgentCandidates`) excludes only players
@@ -85,12 +89,15 @@ type ProcessWaiversResult struct {
 	ClaimsWon       int  `json:"claims_won"`
 	ClaimsLost      int  `json:"claims_lost"`
 	ContestedGroups int  `json:"contested_groups"`
+	// PriorityInitialized is true when this run created the pool's
+	// waiver priority rows (its first resolution).
+	PriorityInitialized bool `json:"priority_initialized"`
 }
 
 // ProcessWaivers is the Temporal-activity entry point.
 //
-// Returns nil error on the no-op path (no due claims). Only DB
-// failures abort.
+// Returns nil error on the no-op path (no due claims). DB failures and
+// an incomplete or stale priority/claim state abort, rolling back.
 func (a *Activities) ProcessWaivers(ctx context.Context, in ProcessWaiversInput) (ProcessWaiversResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("ProcessWaivers start",
@@ -98,85 +105,23 @@ func (a *Activities) ProcessWaivers(ctx context.Context, in ProcessWaiversInput)
 		"sim_date", in.SimDate.Time,
 	)
 
-	// Group ALL pending claims per player whose earliest claim is due
-	// today — cross-day claims on the same player resolve together so
-	// waiver priority is honored and a later-dated claim can't sneak
-	// through as an uncontested win after the player was already taken.
-	claims, err := a.Queries.ListSimWaiverClaimsForDuePlayers(ctx, sqlcdb.ListSimWaiverClaimsForDuePlayersParams{
-		PoolID:      in.PoolID,
-		ProcessDate: in.SimDate,
-	})
-	if err != nil {
-		return ProcessWaiversResult{}, fmt.Errorf("simulation: list waiver claims for due players: %w", err)
-	}
-	if len(claims) == 0 {
-		logger.Debug("ProcessWaivers skipped — no due claims")
-		return ProcessWaiversResult{Skipped: true}, nil
-	}
-
-	// groupedClaims groups by player_id in deterministic player_id order
-	// so the processing sequence is reproducible.
-	groupedClaims := groupClaimsByPlayer(claims)
-
 	var result ProcessWaiversResult
-	err = a.Tx.InTx(ctx, func(q SimQueries) error {
-		// Read the priority order inside the transaction — the query
-		// takes FOR UPDATE row locks, so the read-modify-write (read
-		// here, restamp-and-write below) is atomic against a concurrent
-		// ProcessWaivers transaction for the same pool. See the query's
-		// doc comment in sqlcdb/queries/sim.sql for the race this closes.
-		priorities, err := q.ListSimWaiverPriorityByPool(ctx, in.PoolID)
-		if err != nil {
-			return fmt.Errorf("simulation: list waiver priority: %w", err)
-		}
-
-		// currentPriorities tracks the live priority order as groups are
-		// resolved. Each contested win rotates the winner to the bottom
-		// before the next group resolves, so a priority-1 agent doesn't
-		// win every contested player claimed on the same day — matching
-		// the Yahoo convention cited in the migration notes.
-		currentPriorities := clonePriorities(priorities)
-
-		for _, group := range groupedClaims {
-			r := resolveGroup(group, currentPriorities)
-
-			won, err := applyWaiverResolution(ctx, q, in, r)
-			if err != nil {
-				return err
-			}
-			if won {
-				result.ClaimsWon++
-				result.ClaimsLost += len(r.losers)
-				// Rotate the winner to the bottom immediately so the
-				// next contested group sees the updated priority order.
-				currentPriorities = demoteWinners(currentPriorities, []int32{r.winner.AgentID})
-			} else {
-				// Player wasn't claimable at resolution (already
-				// rostered, or the winner's roster couldn't fit the
-				// add): every claim in the group resolves as lost.
-				result.ClaimsLost += 1 + len(r.losers)
-			}
-			result.ClaimsResolved += 1 + len(r.losers)
-			if len(r.losers) > 0 {
-				result.ContestedGroups++
-			}
-		}
-
-		// Write the final priority order to the DB. currentPriorities
-		// now reflects all per-group rotations applied during this run.
-		for _, p := range currentPriorities {
-			if err := q.UpdateSimWaiverPriority(ctx, sqlcdb.UpdateSimWaiverPriorityParams{
-				PoolID: in.PoolID, AgentID: p.AgentID, Priority: p.Priority,
-			}); err != nil {
-				return fmt.Errorf("update waiver priority for agent %d: %w", p.AgentID, err)
-			}
-		}
-		return nil
+	err := a.Tx.InTx(ctx, func(q SimQueries) error {
+		var err error
+		result, err = processDueWaivers(ctx, q, in)
+		return err
 	})
 	if err != nil {
 		return ProcessWaiversResult{}, err
 	}
 
+	if result.PriorityInitialized {
+		logger.Info("ProcessWaivers initialized waiver priority from reverse draft order", "pool_id", in.PoolID)
+	}
+	if result.Skipped {
+		logger.Debug("ProcessWaivers skipped — no due claims")
+		return result, nil
+	}
 	logger.Debug("ProcessWaivers complete",
 		"resolved", result.ClaimsResolved,
 		"won", result.ClaimsWon,
@@ -184,6 +129,93 @@ func (a *Activities) ProcessWaivers(ctx context.Context, in ProcessWaiversInput)
 		"contested", result.ContestedGroups,
 	)
 	return result, nil
+}
+
+// processDueWaivers is ProcessWaivers' transaction body; q must be scoped
+// to the open transaction. Every read happens after LockSimPool, so the
+// claims and priorities it resolves are the ones any earlier attempt for
+// this pool committed, never a snapshot taken before that commit.
+func processDueWaivers(ctx context.Context, q SimQueries, in ProcessWaiversInput) (ProcessWaiversResult, error) {
+	if _, err := q.LockSimPool(ctx, in.PoolID); err != nil {
+		return ProcessWaiversResult{}, fmt.Errorf("simulation: lock pool %d: %w", in.PoolID, err)
+	}
+	priorities, initialized, err := loadWaiverPriority(ctx, q, in.PoolID)
+	if err != nil {
+		return ProcessWaiversResult{}, err
+	}
+	result := ProcessWaiversResult{PriorityInitialized: initialized}
+
+	// Group ALL pending claims per player whose earliest claim is due
+	// today — cross-day claims on the same player resolve together so
+	// waiver priority is honored and a later-dated claim can't sneak
+	// through as an uncontested win after the player was already taken.
+	claims, err := q.ListSimWaiverClaimsForDuePlayers(ctx, sqlcdb.ListSimWaiverClaimsForDuePlayersParams{
+		PoolID:      in.PoolID,
+		ProcessDate: in.SimDate,
+	})
+	if err != nil {
+		return ProcessWaiversResult{}, fmt.Errorf("simulation: list waiver claims for due players: %w", err)
+	}
+	if len(claims) == 0 {
+		result.Skipped = true
+		return result, nil
+	}
+
+	finalPriorities, err := resolveClaimGroups(ctx, q, in, groupClaimsByPlayer(claims), priorities, &result)
+	if err != nil {
+		return ProcessWaiversResult{}, err
+	}
+	// Write the final priority order. finalPriorities reflects every
+	// per-group rotation applied during this run.
+	for _, p := range finalPriorities {
+		if err := q.UpdateSimWaiverPriority(ctx, sqlcdb.UpdateSimWaiverPriorityParams{
+			PoolID: in.PoolID, AgentID: p.AgentID, Priority: p.Priority,
+		}); err != nil {
+			return ProcessWaiversResult{}, fmt.Errorf("update waiver priority for agent %d: %w", p.AgentID, err)
+		}
+	}
+	return result, nil
+}
+
+// resolveClaimGroups applies each group's resolution in order, tallying
+// into result, and returns the priority order after the run's rotations.
+//
+// The live order is updated between groups: each win rotates the winner to
+// the bottom before the next group resolves, so a priority-1 agent doesn't
+// win every contested player claimed on the same day — matching the Yahoo
+// convention cited in the migration notes.
+func resolveClaimGroups(
+	ctx context.Context,
+	q SimQueries,
+	in ProcessWaiversInput,
+	groups [][]sqlcdb.SimWaiverClaim,
+	priorities []sqlcdb.SimWaiverPriority,
+	result *ProcessWaiversResult,
+) ([]sqlcdb.SimWaiverPriority, error) {
+	current := clonePriorities(priorities)
+	for _, group := range groups {
+		r := resolveGroup(group, current)
+
+		won, err := applyWaiverResolution(ctx, q, in, r)
+		if err != nil {
+			return nil, err
+		}
+		if won {
+			result.ClaimsWon++
+			result.ClaimsLost += len(r.losers)
+			current = demoteWinners(current, []int32{r.winner.AgentID})
+		} else {
+			// Player wasn't claimable at resolution (already
+			// rostered, or the winner's roster couldn't fit the
+			// add): every claim in the group resolves as lost.
+			result.ClaimsLost += 1 + len(r.losers)
+		}
+		result.ClaimsResolved += 1 + len(r.losers)
+		if len(r.losers) > 0 {
+			result.ContestedGroups++
+		}
+	}
+	return current, nil
 }
 
 // claimResolution is the in-memory plan for one player_id's worth of
@@ -276,8 +308,7 @@ func clonePriorities(priorities []sqlcdb.SimWaiverPriority) []sqlcdb.SimWaiverPr
 // exercise the pure grouping + priority-selection logic in isolation.
 //
 // The priority map: agent_id → priority number. An agent without a
-// row in priorities is treated as missingWaiverPriority (lowest); see
-// that constant for why this is currently the common case.
+// row in priorities is treated as missingWaiverPriority (lowest).
 func resolveClaims(claims []sqlcdb.SimWaiverClaim, priorities []sqlcdb.SimWaiverPriority) []claimResolution {
 	groups := groupClaimsByPlayer(claims)
 	resolutions := make([]claimResolution, 0, len(groups))

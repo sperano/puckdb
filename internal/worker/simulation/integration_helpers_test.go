@@ -666,13 +666,12 @@ func seedSmallSeason(t *testing.T, ctx context.Context, pool *pgxpool.Pool, cfg 
 	return data
 }
 
-// seedWaiverPriority inserts one sim_waiver_priority row. NOTE:
-// production code never populates this table (InsertSimWaiverPriority
-// has no callers — the migration comment says "initialized as reverse
-// draft order" but nothing does it), so ProcessWaivers ranks every
-// claimant at missingWaiverPriority and falls back to claim-ID order.
-// Tests seed explicit priorities so the priority-resolution path is
-// exercised deterministically.
+// seedWaiverPriority inserts one sim_waiver_priority row. Production
+// initializes the table from reverse draft order on the pool's first
+// ProcessWaivers, and skips that when rows already exist; a test that
+// seeds every agent before the workflow starts therefore fixes the
+// priority order instead of depending on the random draft shuffle.
+// Seed all agents as 1..N: resolution refuses an incomplete table.
 func seedWaiverPriority(t *testing.T, ctx context.Context, pool *pgxpool.Pool, poolID, agentID int32, priority int32) {
 	t.Helper()
 	_, err := pool.Exec(ctx, `
