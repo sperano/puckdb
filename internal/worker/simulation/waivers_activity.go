@@ -143,7 +143,6 @@ func processDueWaivers(ctx context.Context, q SimQueries, in ProcessWaiversInput
 	if err != nil {
 		return ProcessWaiversResult{}, err
 	}
-	result := ProcessWaiversResult{PriorityInitialized: initialized}
 
 	// Group ALL pending claims per player whose earliest claim is due
 	// today — cross-day claims on the same player resolve together so
@@ -157,14 +156,14 @@ func processDueWaivers(ctx context.Context, q SimQueries, in ProcessWaiversInput
 		return ProcessWaiversResult{}, fmt.Errorf("simulation: list waiver claims for due players: %w", err)
 	}
 	if len(claims) == 0 {
-		result.Skipped = true
-		return result, nil
+		return ProcessWaiversResult{Skipped: true, PriorityInitialized: initialized}, nil
 	}
 
-	finalPriorities, err := resolveClaimGroups(ctx, q, in, groupClaimsByPlayer(claims), priorities, &result)
+	result, finalPriorities, err := resolveClaimGroups(ctx, q, in, groupClaimsByPlayer(claims), priorities)
 	if err != nil {
 		return ProcessWaiversResult{}, err
 	}
+	result.PriorityInitialized = initialized
 	// Write the final priority order. finalPriorities reflects every
 	// per-group rotation applied during this run.
 	for _, p := range finalPriorities {
@@ -177,8 +176,8 @@ func processDueWaivers(ctx context.Context, q SimQueries, in ProcessWaiversInput
 	return result, nil
 }
 
-// resolveClaimGroups applies each group's resolution in order, tallying
-// into result, and returns the priority order after the run's rotations.
+// resolveClaimGroups applies each group's resolution in order and returns
+// the tally and the priority order after the run's rotations.
 //
 // The live order is updated between groups: each win rotates the winner to
 // the bottom before the next group resolves, so a priority-1 agent doesn't
@@ -190,15 +189,15 @@ func resolveClaimGroups(
 	in ProcessWaiversInput,
 	groups [][]sqlcdb.SimWaiverClaim,
 	priorities []sqlcdb.SimWaiverPriority,
-	result *ProcessWaiversResult,
-) ([]sqlcdb.SimWaiverPriority, error) {
+) (ProcessWaiversResult, []sqlcdb.SimWaiverPriority, error) {
+	var result ProcessWaiversResult
 	current := clonePriorities(priorities)
 	for _, group := range groups {
 		r := resolveGroup(group, current)
 
 		won, err := applyWaiverResolution(ctx, q, in, r)
 		if err != nil {
-			return nil, err
+			return ProcessWaiversResult{}, nil, err
 		}
 		if won {
 			result.ClaimsWon++
@@ -215,7 +214,7 @@ func resolveClaimGroups(
 			result.ContestedGroups++
 		}
 	}
-	return current, nil
+	return result, current, nil
 }
 
 // claimResolution is the in-memory plan for one player_id's worth of
