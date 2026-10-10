@@ -254,12 +254,12 @@ func jsonResult[T any](row T, err error) (*mcp.CallToolResult, error) {
 // "infinity" and a " BC" suffix and turns 2025-02-30 into March 2, so a
 // malformed date would silently query another day.
 func parseDate(name string, raw any) (pgtype.Date, *mcp.CallToolResult) {
-	text, isString := raw.(string)
-	day, err := time.Parse(time.DateOnly, text)
-	if !isString || err != nil {
-		return pgtype.Date{}, mcp.NewToolResultError(fmt.Sprintf("invalid %s %s: want a date as YYYY-MM-DD", name, formatRaw(raw)))
+	if text, isString := raw.(string); isString {
+		if day, err := time.Parse(time.DateOnly, text); err == nil {
+			return pgtype.Date{Time: day, Valid: true}, nil
+		}
 	}
-	return pgtype.Date{Time: day, Valid: true}, nil
+	return pgtype.Date{}, mcp.NewToolResultError(fmt.Sprintf("invalid %s %s: want a date as YYYY-MM-DD", name, formatRaw(raw)))
 }
 
 // requireDate reads the required "date" argument (YYYY-MM-DD); on failure it
