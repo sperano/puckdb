@@ -105,7 +105,7 @@ func draftWatchOptions(out io.Writer) (draftwatch.WatchOptions, error) {
 
 func writeDraftSyncOutcome(out io.Writer, outcome draftwatch.Outcome) error {
 	if outcome.Err != nil {
-		_, err := fmt.Fprintf(out, "draft poll failed (%s): %v\n", draftwatch.ErrorClass(outcome.Err), outcome.Err)
+		_, err := fmt.Fprintf(out, "draft poll failed (%s): %v\n", draftwatch.ClassifyError(outcome.Err), outcome.Err)
 		return err
 	}
 	manual, conflicts := draftBoardCounts(outcome.Session.State)

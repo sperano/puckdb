@@ -86,7 +86,7 @@ type Status struct {
 	LastSuccessAt       *time.Time
 	LastAuthoritativeAt *time.Time
 	LastError           string
-	Warnings            []string
+	Warnings            []draftrank.Issue
 }
 
 // Event is one ordered state-changing event returned after a client cursor.

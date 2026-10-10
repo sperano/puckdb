@@ -45,13 +45,13 @@ func Evaluate(in Input) (Result, error) {
 	}
 	if in.SessionStale {
 		result.BoardStatus = BoardStatusStale
-		result.Issues = append(result.Issues, "draft board is stale")
+		result.Issues = append(result.Issues, issueBoardStale)
 	}
 	if !in.SessionSafe || !draftsession.SafeToRecommend(in.Session) || in.SessionStale {
 		if !in.SessionStale {
 			result.BoardStatus = BoardStatusIncomplete
 		}
-		result.Issues = append(result.Issues, "draft board is incomplete or has unresolved manual conflicts")
+		result.Issues = append(result.Issues, issueBoardIncomplete)
 		result.LatencyMillis = time.Since(started).Milliseconds()
 		return result, nil
 	}
@@ -60,7 +60,7 @@ func Evaluate(in Input) (Result, error) {
 			result.LatencyMillis = time.Since(started).Milliseconds()
 			return result, nil
 		}
-		result.Issues = append(result.Issues, "verified chronological pick order is unavailable; turn estimate omitted")
+		result.Issues = append(result.Issues, issueTurnEstimateOmitted)
 	}
 	if err := validateRoster(in); err != nil {
 		return result, err
@@ -72,7 +72,7 @@ func Evaluate(in Input) (Result, error) {
 	}
 	result.Candidates = evaluateCandidates(in, refs, &result)
 	if len(result.Candidates) == 0 {
-		result.Issues = append(result.Issues, "no available player is feasible for the current roster")
+		result.Issues = append(result.Issues, issueNoFeasiblePlayer)
 	}
 	rankCandidates(result.Candidates)
 	selectRecommendations(&result)
@@ -115,7 +115,7 @@ func validateInput(in Input) error {
 	return nil
 }
 
-func selectedScenario(in Input) (draftrank.Scenario, []string) {
+func selectedScenario(in Input) (draftrank.Scenario, []draftrank.Issue) {
 	scenario := in.Scenario
 	if scenario == "" {
 		scenario = draftrank.DefaultScenario
@@ -124,12 +124,12 @@ func selectedScenario(in Input) (draftrank.Scenario, []string) {
 		return scenario, nil
 	}
 	if in.Ranking.HasScenario(draftrank.ScenarioBaseline) {
-		return draftrank.ScenarioBaseline, []string{"requested news scenario unavailable; baseline scenario used"}
+		return draftrank.ScenarioBaseline, []draftrank.Issue{issueScenarioFallback}
 	}
-	return scenario, []string{"requested scenario is unavailable; no recommendations generated"}
+	return scenario, []draftrank.Issue{issueScenarioMissing}
 }
 
-func newResult(in Input, scenario draftrank.Scenario, issues []string) Result {
+func newResult(in Input, scenario draftrank.Scenario, issues []draftrank.Issue) Result {
 	info := in.Ranking.SnapshotInfo
 	result := Result{
 		RecommendationVersion: RecommendationVersion, SessionVersion: in.Session.Version,
@@ -144,24 +144,27 @@ func newResult(in Input, scenario draftrank.Scenario, issues []string) Result {
 		result.NewsVersion = info.Adjustment.PolicyVersion + ":" + info.Adjustment.ID
 	}
 	for _, issue := range in.RankingIssues {
-		result.Issues = append(result.Issues, string(issue.Code)+": "+issue.Message)
 		if issue.Code == draftrank.IssueStalePool || issue.Code == draftrank.IssueStaleSnapshot {
 			result.BoardStatus = BoardStatusStale
 		}
 	}
-	for _, issue := range info.Unavailable {
-		result.Issues = append(result.Issues, string(issue.Code)+": "+issue.Message)
+	// Callers may pass the snapshot's own unavailable issues as ranking
+	// issues; each condition is reported once.
+	for _, issue := range slices.Concat(in.RankingIssues, info.Unavailable) {
+		if !slices.Contains(result.Issues, issue) {
+			result.Issues = append(result.Issues, issue)
+		}
 	}
 	if info.PoolSize != len(in.Ranking.Players) {
 		result.BoardStatus = BoardStatusIncomplete
-		result.Issues = append(result.Issues, "ranking pool size does not match its stored players")
+		result.Issues = append(result.Issues, issuePoolSizeMismatch)
 	}
 	return result
 }
 
 func annotateBoard(result *Result, in Input) error {
 	if len(in.Order) == 0 {
-		result.Issues = append(result.Issues, "verified chronological pick order is missing")
+		result.Issues = append(result.Issues, issuePickOrderMissing)
 		return nil
 	}
 	indexByKey := make(map[draftsession.PickKey]int, len(in.Order))
@@ -178,7 +181,7 @@ func annotateBoard(result *Result, in Input) error {
 	boardKeys := make(map[draftsession.PickKey]bool, len(board))
 	for _, entry := range board {
 		if _, exists := indexByKey[entry.Pick.Key]; !exists {
-			result.Issues = append(result.Issues, "draft board contains a pick outside the verified order")
+			result.Issues = append(result.Issues, issuePickOutsideOrder)
 			result.BoardStatus = BoardStatusIncomplete
 			return nil
 		}
@@ -193,7 +196,7 @@ func annotateBoard(result *Result, in Input) error {
 		}
 	}
 	if result.CurrentPick == nil {
-		result.Issues = append(result.Issues, "draft has no remaining picks in the verified order")
+		result.Issues = append(result.Issues, issueNoRemainingPicks)
 		return nil
 	}
 	pending := 0
@@ -209,7 +212,7 @@ func annotateBoard(result *Result, in Input) error {
 		pending++
 	}
 	if result.PicksUntilNextTurn == nil {
-		result.Issues = append(result.Issues, "our next turn is absent from the supplied draft order")
+		result.Issues = append(result.Issues, issueTurnOutsideOrder)
 	}
 	return nil
 }
@@ -261,14 +264,14 @@ func availablePlayers(in Input, scenario draftrank.Scenario, result *Result) []p
 		}
 		placement, exists := player.Placements[scenario]
 		if !exists {
-			result.Issues = append(result.Issues, "ranking player "+player.PlayerKey+" lacks requested scenario placement")
+			result.Issues = append(result.Issues, missingPlacementIssue(player.PlayerKey))
 			result.BoardStatus = BoardStatusIncomplete
 			continue
 		}
 		refs = append(refs, playerRef{player: player, place: placement})
 	}
 	if missingFullEligibility {
-		result.Issues = append(result.Issues, "ranking snapshot lacks full Yahoo roster eligibility; reserve-slot feasibility is unavailable")
+		result.Issues = append(result.Issues, issueMissingRosterEligibility)
 		result.BoardStatus = BoardStatusIncomplete
 	}
 	sort.Slice(refs, func(i, j int) bool { return refs[i].player.PlayerKey < refs[j].player.PlayerKey })

@@ -53,7 +53,7 @@ func (s *PGDataSource) ResolveIdentity(ctx context.Context, ref string, season i
 
 func (s *PGDataSource) Session(ctx context.Context, id draftwatch.Identity) (draftwatch.Session, error) {
 	session, err := s.session.Get(ctx, id.LeagueKey)
-	if draftwatch.IsNotFound(err) {
+	if errors.Is(err, draftwatch.ErrSessionNotFound) {
 		return s.session.Ensure(ctx, id)
 	}
 	return session, err
@@ -213,8 +213,11 @@ func (s *PGDataSource) SetShortlist(ctx context.Context, leagueKey, playerKey st
 	if err := tx.QueryRow(ctx, versionQuery, leagueKey).Scan(&current); err != nil {
 		return fmt.Errorf("read draft session version for shortlist: %w", err)
 	}
-	if current < 0 || uint64(current) != expectedVersion {
-		return ErrVersionConflict
+	if current < 0 {
+		return fmt.Errorf("draft session %s has invalid state version %d", leagueKey, current)
+	}
+	if uint64(current) != expectedVersion {
+		return versionConflict(&draftwatch.StaleStateVersionError{Expected: expectedVersion, Actual: uint64(current)})
 	}
 	changed, err := updateShortlist(ctx, tx, leagueKey, playerKey, selected)
 	if err != nil {

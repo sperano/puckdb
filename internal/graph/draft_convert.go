@@ -34,6 +34,17 @@ func gqlIssues(issues []draftrank.Issue) []*model.DraftIssue {
 	return out
 }
 
+// issueMessages renders board and recommendation issues for the Maurice
+// board's string lists. Their codes include ones outside the DraftIssueCode
+// enum, so they are not exposed as DraftIssue.
+func issueMessages(issues []draftrank.Issue) []string {
+	out := make([]string, 0, len(issues))
+	for _, issue := range issues {
+		out = append(out, issue.Message)
+	}
+	return out
+}
+
 func gqlPage(page draftrank.Page, now time.Time) *model.DraftRankingsPage {
 	out := &model.DraftRankingsPage{
 		League: gqlLeague(page.League), Status: model.DraftRankingStatus(page.Status),
