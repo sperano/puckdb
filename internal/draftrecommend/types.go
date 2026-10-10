@@ -128,7 +128,7 @@ type Result struct {
 	CurrentPick           *PickSlot          `json:"currentPick,omitempty"`
 	PicksUntilNextTurn    *int               `json:"picksUntilNextTurn,omitempty"`
 	BoardStatus           string             `json:"boardStatus"`
-	Issues                []string           `json:"issues,omitempty"`
+	Issues                Issues             `json:"issues,omitempty"`
 	BestValue             *Candidate         `json:"bestValue,omitempty"`
 	BestRosterFit         *Candidate         `json:"bestRosterFit,omitempty"`
 	Candidates            []Candidate        `json:"candidates"`

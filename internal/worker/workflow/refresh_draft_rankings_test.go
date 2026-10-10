@@ -102,6 +102,7 @@ func TestRefreshDraftRankings_RejectsInvalidInput(t *testing.T) {
 			env.ExecuteWorkflow(RefreshDraftRankingsWorkflow, input)
 			var appErr *temporal.ApplicationError
 			require.ErrorAs(t, env.GetWorkflowError(), &appErr)
+			assert.Equal(t, errTypeInvalidInput, appErr.Type())
 			assert.True(t, appErr.NonRetryable())
 		})
 	}

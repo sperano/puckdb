@@ -208,6 +208,10 @@ func TestRefreshNewsWorkflow_InvalidRequestedSourceFails(t *testing.T) {
 
 			require.Error(t, env.GetWorkflowError())
 			assert.Contains(t, env.GetWorkflowError().Error(), tt.request)
+			var appErr *temporal.ApplicationError
+			require.ErrorAs(t, env.GetWorkflowError(), &appErr)
+			assert.Equal(t, errTypeInvalidInput, appErr.Type())
+			assert.True(t, appErr.NonRetryable())
 		})
 	}
 }

@@ -1,6 +1,8 @@
 package draftwatch
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -43,9 +45,26 @@ func TestBuildSnapshotRequiresExplicitPredraftEvidenceForEmptyReset(t *testing.T
 	assert.False(t, buildSnapshot(testDraftIdentity, content, "predraft").Authoritative)
 }
 
-func TestErrorClassDistinguishesAuthenticationAndRateLimit(t *testing.T) {
-	assert.Equal(t, "authentication", ErrorClass(&cache.OAuth2TokenMissingError{}))
-	assert.Equal(t, "authentication", ErrorClass(fmt.Errorf("wrapped: %w", &httpx.HTTPError{StatusCode: http.StatusUnauthorized})))
-	assert.Equal(t, "rate_limited", ErrorClass(&httpx.HTTPError{StatusCode: http.StatusTooManyRequests}))
-	assert.Equal(t, "upstream", ErrorClass(&httpx.HTTPError{StatusCode: http.StatusServiceUnavailable}))
+func TestClassifyErrorDistinguishesAuthenticationAndRateLimit(t *testing.T) {
+	assert.Equal(t, ErrorClassNone, ClassifyError(nil))
+	assert.Equal(t, ErrorClassAuthentication, ClassifyError(&cache.OAuth2TokenMissingError{}))
+	assert.Equal(t, ErrorClassAuthentication, ClassifyError(fmt.Errorf("wrapped: %w", &httpx.HTTPError{StatusCode: http.StatusUnauthorized})))
+	assert.Equal(t, ErrorClassRateLimited, ClassifyError(&httpx.HTTPError{StatusCode: http.StatusTooManyRequests}))
+	assert.Equal(t, ErrorClassUpstream, ClassifyError(&httpx.HTTPError{StatusCode: http.StatusServiceUnavailable}))
+	assert.Equal(t, ErrorClassHTTP, ClassifyError(&httpx.HTTPError{StatusCode: http.StatusNotFound}))
+	assert.Equal(t, ErrorClassCanceled, ClassifyError(fmt.Errorf("poll: %w", context.DeadlineExceeded)))
+	assert.Equal(t, ErrorClassTransport, ClassifyError(errors.New("connection reset")))
+}
+
+// The stored class strings are read back by the capability report and must
+// not change with the Go constant names.
+func TestErrorClassStoredValuesAreStable(t *testing.T) {
+	stored := map[ErrorClass]string{
+		ErrorClassNone: "", ErrorClassAuthentication: "authentication", ErrorClassRateLimited: "rate_limited",
+		ErrorClassUpstream: "upstream", ErrorClassHTTP: "http", ErrorClassCanceled: "canceled",
+		ErrorClassTransport: "transport",
+	}
+	for class, want := range stored {
+		assert.Equal(t, want, string(class))
+	}
 }
