@@ -4,16 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
-
-// errWaiverDropVanished reports that a designated drop player the plan
-// saw on the roster was gone by the time the delete ran. It surfaces a
-// broken transactional invariant, not a normal "vanished since filing"
-// case (which the plan handles by simply not dropping).
-var errWaiverDropVanished = errors.New("drop player vanished from roster mid-transaction")
 
 // errWaiverClaimNotPending reports that a claim this resolution read as
 // pending had already been resolved when its status update ran. Under
@@ -27,11 +20,11 @@ var errWaiverClaimNotPending = errors.New("waiver claim is no longer pending")
 // partial mutation behind.
 type waiverPlan struct {
 	// claimable is false when the group must resolve as lost: the
-	// player is already rostered in the pool, or the winner's roster
+	// player is already rostered in the pool, or the winner's bench
 	// can't absorb the add even after a valid drop.
 	claimable bool
 	// dropPresent is true when the winner's designated drop player is
-	// still on their roster, i.e. the drop will actually free a spot.
+	// still on their roster, i.e. the drop will actually happen.
 	dropPresent bool
 }
 
@@ -42,9 +35,11 @@ type waiverPlan struct {
 //     hit UNIQUE (pool_id, player_id) — resolve the whole group lost.
 //   - The winner's designated drop may have vanished (left the roster
 //     since filing). A vanished drop frees no spot and logs no drop tx.
-//   - Prospective capacity: current roster size, minus one if the drop
-//     is present, plus the add must fit in RosterCapacity.
-func planWaiverResolution(ctx context.Context, q SimQueries, in ProcessWaiversInput, w sqlcdb.SimWaiverClaim) (waiverPlan, error) {
+//   - Prospective capacity: the winner's roster minus the drop (when
+//     present) plus the claimed player in BN must pass
+//     checkAcquisitionCapacity against the pool's per-slot limits — the
+//     same policy add_player and claim_player apply at turn time.
+func planWaiverResolution(ctx context.Context, q SimQueries, in ProcessWaiversInput, limits map[RosterSlot]int, w sqlcdb.SimWaiverClaim) (waiverPlan, error) {
 	rostered, err := q.ExistsSimRosterPlayer(ctx, sqlcdb.ExistsSimRosterPlayerParams{
 		PoolID: in.PoolID, PlayerID: w.PlayerID,
 	})
@@ -61,41 +56,35 @@ func planWaiverResolution(ctx context.Context, q SimQueries, in ProcessWaiversIn
 	if err != nil {
 		return waiverPlan{}, fmt.Errorf("list winner roster (agent %d): %w", w.AgentID, err)
 	}
-	dropPresent := w.DropPlayerID.Valid && slices.ContainsFunc(rosterRows, func(row sqlcdb.SimRoster) bool {
-		return row.PlayerID == w.DropPlayerID.Int64
-	})
-
-	prospective := int32(len(rosterRows)) + 1
-	if dropPresent {
-		prospective--
+	roster := RosterState{Placements: make(map[int64]RosterSlot, len(rosterRows)), Limits: limits}
+	for _, row := range rosterRows {
+		roster.Placements[row.PlayerID] = RosterSlot(row.Slot)
 	}
-	return waiverPlan{claimable: prospective <= in.RosterCapacity, dropPresent: dropPresent}, nil
+
+	var dropID *int64
+	dropPresent := false
+	if w.DropPlayerID.Valid {
+		dropID = &w.DropPlayerID.Int64
+		_, dropPresent = roster.Placements[*dropID]
+	}
+	return waiverPlan{
+		claimable:   checkAcquisitionCapacity(roster, dropID) == nil,
+		dropPresent: dropPresent,
+	}, nil
 }
 
 // applyWaiverDrop removes the winner's designated drop player and logs
-// the drop tx row. planWaiverResolution already saw the row inside this
+// the drop tx row through removeAndLogDrop, the same path as an
+// explicit drop. planWaiverResolution already saw the row inside this
 // transaction, so a delete that affects no rows means the roster changed
-// underneath us and the capacity verdict is void — fail the transaction
-// rather than commit an add the roster may not fit.
+// underneath us and the capacity verdict is void — removeAndLogDrop
+// fails the transaction rather than commit an add the roster may not fit.
 func applyWaiverDrop(ctx context.Context, q SimQueries, in ProcessWaiversInput, w sqlcdb.SimWaiverClaim, reasoning string) error {
-	affected, err := q.DeleteSimRosterRows(ctx, sqlcdb.DeleteSimRosterRowsParams{
-		PoolID: in.PoolID, AgentID: w.AgentID, PlayerID: w.DropPlayerID.Int64,
-	})
-	if err != nil {
-		return fmt.Errorf("delete drop player roster row: %w", err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("waiver claim %d (agent %d, drop player %d): %w",
-			w.ID, w.AgentID, w.DropPlayerID.Int64, errWaiverDropVanished)
-	}
-	if _, err := q.InsertSimTransactionDrop(ctx, sqlcdb.InsertSimTransactionDropParams{
-		PoolID:    in.PoolID,
-		AgentID:   w.AgentID,
-		Date:      in.SimDate,
-		PlayerID:  w.DropPlayerID,
-		Reasoning: reasoning,
+	if _, err := removeAndLogDrop(ctx, q, rosterDrop{
+		PoolID: in.PoolID, AgentID: w.AgentID, Date: in.SimDate,
+		PlayerID: w.DropPlayerID.Int64, Reasoning: reasoning,
 	}); err != nil {
-		return fmt.Errorf("insert waiver-drop tx: %w", err)
+		return fmt.Errorf("waiver claim %d drop: %w", w.ID, err)
 	}
 	return nil
 }

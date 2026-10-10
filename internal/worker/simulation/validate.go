@@ -29,8 +29,9 @@ var (
 	ErrPlayerNotOnRoster          = errors.New("simulation: player not on agent's roster")
 	ErrPlayerNotFreeAgent         = errors.New("simulation: player is not a free agent")
 	ErrPlayerNotOnWaivers         = errors.New("simulation: player is not on waivers")
-	ErrRosterFullNeedsDrop        = errors.New("simulation: roster is full and no drop_player_id specified")
+	ErrRosterFullNeedsDrop        = errors.New("simulation: bench (BN) is full and no drop_player_id specified")
 	ErrDropPlayerNotOnRoster      = errors.New("simulation: drop_player_id is not on the agent's roster")
+	ErrDropLeavesBenchFull        = errors.New("simulation: bench (BN) is still full after the drop; drop a BN player, or move a BN player into an open active slot first")
 	ErrSlotCapacityExceeded       = errors.New("simulation: slot capacity exceeded with no available displacement target")
 	ErrSlotNotEligibleForPosition = errors.New("simulation: slot not eligible for player's position")
 	ErrNotesTooLarge              = errors.New("simulation: notes exceed 50000 bytes")
@@ -79,9 +80,9 @@ type PlayerCatalog interface {
 
 // ValidateAddPlayer enforces the add_player invariants:
 //   - args.PlayerID is a free agent (in fa.FreeAgents).
-//   - The BN slot has remaining capacity (adds always land in BN). If BN is
-//     full, args.DropPlayerID is required to vacate a slot first.
 //   - args.DropPlayerID, when set, names a player on the agent's roster.
+//   - The roster after removing the drop and adding the player to BN
+//     keeps BN within its limit (checkAcquisitionCapacity).
 //
 // Per PLAN.md "Free agents", waiver-window players are NOT free
 // agents; the LLM must use claim_player for those. This validator
@@ -91,28 +92,21 @@ func ValidateAddPlayer(args AddPlayerArgs, roster RosterState, fa PoolFreeAgentS
 	if _, isFA := fa.FreeAgents[args.PlayerID]; !isFA {
 		return fmt.Errorf("add_player(%d): %w", args.PlayerID, ErrPlayerNotFreeAgent)
 	}
-
-	// Adds always land in BN. Enforce BN capacity directly rather than
-	// total roster capacity: rosterFull() counts IR slots in the total,
-	// so the bench can silently exceed its limit while total capacity
-	// still shows headroom (when IR has vacancies).
-	if benchFull(roster) {
-		if args.DropPlayerID == nil {
-			return fmt.Errorf("add_player(%d): %w", args.PlayerID, ErrRosterFullNeedsDrop)
-		}
+	if err := validateDropOwned(args.DropPlayerID, roster); err != nil {
+		return fmt.Errorf("add_player(%d) drop=%d: %w", args.PlayerID, *args.DropPlayerID, err)
 	}
-	if args.DropPlayerID != nil {
-		if _, owned := roster.Placements[*args.DropPlayerID]; !owned {
-			return fmt.Errorf("add_player(%d) drop=%d: %w", args.PlayerID, *args.DropPlayerID, ErrDropPlayerNotOnRoster)
-		}
+	if err := checkAcquisitionCapacity(roster, args.DropPlayerID); err != nil {
+		return fmt.Errorf("add_player(%d): %w", args.PlayerID, err)
 	}
 	return nil
 }
 
 // ValidateClaimPlayer enforces claim_player invariants. The drop is
-// applied later (when the waiver resolves), so the "roster full"
-// check considers the FUTURE state at claim resolution: full + 1
-// without a drop is rejected.
+// applied later (when the waiver resolves), so the capacity check
+// considers the roster as it would be at resolution: the drop removed
+// and the claimed player added to BN, through the same
+// checkAcquisitionCapacity policy waiver resolution re-applies on the
+// process date.
 //
 // pendingClaims is the set of players the agent already has an open
 // claim on; a second claim on the same player would violate
@@ -125,13 +119,23 @@ func ValidateClaimPlayer(args ClaimPlayerArgs, roster RosterState, fa PoolFreeAg
 	if _, dup := pendingClaims[args.PlayerID]; dup {
 		return fmt.Errorf("claim_player(%d): %w", args.PlayerID, ErrDuplicatePendingClaim)
 	}
-	if rosterFull(roster) && args.DropPlayerID == nil {
-		return fmt.Errorf("claim_player(%d): %w", args.PlayerID, ErrRosterFullNeedsDrop)
+	if err := validateDropOwned(args.DropPlayerID, roster); err != nil {
+		return fmt.Errorf("claim_player(%d) drop=%d: %w", args.PlayerID, *args.DropPlayerID, err)
 	}
-	if args.DropPlayerID != nil {
-		if _, owned := roster.Placements[*args.DropPlayerID]; !owned {
-			return fmt.Errorf("claim_player(%d) drop=%d: %w", args.PlayerID, *args.DropPlayerID, ErrDropPlayerNotOnRoster)
-		}
+	if err := checkAcquisitionCapacity(roster, args.DropPlayerID); err != nil {
+		return fmt.Errorf("claim_player(%d): %w", args.PlayerID, err)
+	}
+	return nil
+}
+
+// validateDropOwned rejects a designated drop that is not on the roster.
+// A nil dropID (no drop) passes.
+func validateDropOwned(dropID *int64, roster RosterState) error {
+	if dropID == nil {
+		return nil
+	}
+	if _, owned := roster.Placements[*dropID]; !owned {
+		return ErrDropPlayerNotOnRoster
 	}
 	return nil
 }
@@ -153,35 +157,6 @@ func ValidateUpdateNotes(args UpdateNotesArgs) error {
 		return fmt.Errorf("update_notes (%d bytes > %d): %w", len(args.Notes), MaxNotesBytes, ErrNotesTooLarge)
 	}
 	return nil
-}
-
-// rosterFull reports whether the agent's roster has no remaining
-// capacity across ALL slot types — i.e., every player slot defined in
-// Limits is filled.
-func rosterFull(r RosterState) bool {
-	total := 0
-	for _, n := range r.Limits {
-		total += n
-	}
-	return len(r.Placements) >= total
-}
-
-// benchFull reports whether the BN slot has reached its configured
-// limit. Adds always land in BN, so this is the correct capacity gate
-// for add_player (rosterFull counts IR slots in the total which allows
-// the bench to permanently exceed its own cap when IR has vacancies).
-func benchFull(r RosterState) bool {
-	limit, ok := r.Limits[SlotBN]
-	if !ok {
-		return false // no BN limit configured → unlimited
-	}
-	count := 0
-	for _, s := range r.Placements {
-		if s == SlotBN {
-			count++
-		}
-	}
-	return count >= limit
 }
 
 // ============================================================================

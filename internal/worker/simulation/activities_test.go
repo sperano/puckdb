@@ -101,10 +101,6 @@ type stubSimQueries struct {
 	insertDailyTurnDoneCalls []sqlcdb.InsertSimTransactionDailyTurnDoneParams
 	insertDailyTurnDoneErr   error
 
-	// DeleteSimRoster
-	deleteRosterCalls []sqlcdb.DeleteSimRosterParams
-	deleteRosterErr   error
-
 	// UpdateSimRosterSlot
 	updateRosterSlotCalls []sqlcdb.UpdateSimRosterSlotParams
 	updateRosterSlotErr   error
@@ -472,15 +468,6 @@ func (s *stubSimQueries) GetSimPoolRecordFullMessages(_ context.Context, id int3
 func (s *stubSimQueries) ExistsSimDailyTurnMarker(_ context.Context, arg sqlcdb.ExistsSimDailyTurnMarkerParams) (bool, error) {
 	s.existsTxArgs = append(s.existsTxArgs, arg)
 	return s.existsTxReturn, s.existsTxErr
-}
-
-func (s *stubSimQueries) DeleteSimRoster(_ context.Context, arg sqlcdb.DeleteSimRosterParams) error {
-	s.deleteRosterCalls = append(s.deleteRosterCalls, arg)
-	if s.deleteRosterErr != nil {
-		return s.deleteRosterErr
-	}
-	s.removeFromFullRoster(arg.AgentID, arg.PlayerID)
-	return nil
 }
 
 func (s *stubSimQueries) UpdateSimRosterSlot(_ context.Context, arg sqlcdb.UpdateSimRosterSlotParams) error {

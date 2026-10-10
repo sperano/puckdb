@@ -356,10 +356,10 @@ func TestIntegrationSmallSeasonFourTeams(t *testing.T) {
 	// ------------------------------------------------------------------
 	//   draft_pick:      4 agents × 8 rounds
 	//   lineup_set:      4 day-1 lineups + Alpha's day-13 activation
-	//   drop:            Alpha day 10, Charlie day 15 (Alpha's day-12
-	//                    add-with-drop logs only an `add` row with a
-	//                    drop_player_id column, not a separate drop;
-	//                    Bravo's lost claim never applies its drop)
+	//   drop:            Alpha day 10, Alpha day 12 (the add-with-drop
+	//                    logs its own drop row, the waiver marker, next
+	//                    to the add's drop_player_id), Charlie day 15
+	//                    (Bravo's lost claim never applies its drop)
 	//   add:             Alpha day 12 + Alpha's day-18 waiver win
 	//   claim:           Alpha + Bravo on day 16
 	//   daily_turn_done: 4 agents × 35 days
@@ -370,7 +370,7 @@ func TestIntegrationSmallSeasonFourTeams(t *testing.T) {
 	assertTransactionCensus(t, ctx, pgPool, poolID, map[string]int{
 		"draft_pick":      numAgents * smallSeasonDraftRounds,
 		"lineup_set":      numAgents + 1,
-		"drop":            2,
+		"drop":            3,
 		"add":             2,
 		"claim":           2,
 		"daily_turn_done": numAgents * smallSeasonTestDays,

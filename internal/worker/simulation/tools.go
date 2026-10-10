@@ -137,7 +137,7 @@ var addPlayerSchema = fmt.Sprintf(`{
     },
     "drop_player_id": {
       "type": "integer",
-      "description": "Required if roster is full (21 players). The roster player to drop to make room. If omitted while roster is full, the call fails with no retry."
+      "description": "Added players land on the bench (BN). Required when BN is full, and then it must be a BN player: dropping an active or IR player frees no bench spot. The dropped player goes on waivers for waiver_days."
     },
     %s
   },
@@ -153,7 +153,7 @@ var claimPlayerSchema = fmt.Sprintf(`{
     },
     "drop_player_id": {
       "type": "integer",
-      "description": "Required if roster is full. Drop is executed only if the claim wins."
+      "description": "Claimed players land on the bench (BN). Required when BN is full, and then it must be a BN player. Drop is executed only if the claim wins; the dropped player then goes on waivers."
     },
     %s
   },

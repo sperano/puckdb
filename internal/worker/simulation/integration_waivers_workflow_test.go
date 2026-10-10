@@ -39,8 +39,10 @@ func TestIntegrationContestedWaiverUsesReverseDraftOrder(t *testing.T) {
 	ctx := context.Background()
 
 	playerIDs := seedScenario(t, ctx, pgPool, waiverRaceSeason)
+	// Drafted players land in BN, so a two-player bench leaves each
+	// claimant the free BN spot an add without a drop needs.
 	poolID, agents := insertWaiverTestPool(t, ctx, pgPool, "integration_test_contested_waiver",
-		contestedWaiverStart, offsetDate(contestedWaiverStart, contestedWaiverDays-1))
+		contestedWaiverStart, offsetDate(contestedWaiverStart, contestedWaiverDays-1), waiverTestRoster{C: 1, BN: 2})
 	alpha, bravo, charlie := agents[0], agents[1], agents[2]
 	contested := playerIDs[2]
 

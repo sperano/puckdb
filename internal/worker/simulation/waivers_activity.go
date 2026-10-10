@@ -42,7 +42,8 @@ const missingWaiverPriority int32 = math.MaxInt32
 //	   convention: priority 1 = first dibs).
 //	5. For each (player, claims) group:
 //	     - commit-time revalidation (read-only): player still free,
-//	       winner's roster fits the add after any still-valid drop;
+//	       winner's bench fits the add after any still-valid drop
+//	       (checkAcquisitionCapacity, the pool's per-slot limits);
 //	       otherwise the whole group resolves lost with no roster write
 //	     - winner gets the player added to BN
 //	     - winner's drop_player_id (if set) gets removed from roster
@@ -69,14 +70,14 @@ const missingWaiverPriority int32 = math.MaxInt32
 // ProcessWaiversInput is the per-day payload. SimDate is "today" —
 // the day the workflow is processing. Resolution date for the
 // claim status update is the same day.
+//
+// The pool's per-slot roster limits are not part of the input:
+// resolution reads them from sim_pools under the pool lock. Inputs
+// scheduled by an older workflow still carry a roster_capacity field
+// (the total roster size the old check used), which decoding ignores.
 type ProcessWaiversInput struct {
 	PoolID  int32       `json:"pool_id"`
 	SimDate pgtype.Date `json:"sim_date"`
-	// RosterCapacity is the pool's total roster size (sum of every slot
-	// limit). Resolution re-checks the winner's roster against this — a
-	// roster grown to capacity between filing and process_date can't
-	// absorb the add unless a valid drop frees a spot.
-	RosterCapacity int32 `json:"roster_capacity"`
 }
 
 // ProcessWaiversResult summarizes the activity's effects. The
@@ -139,6 +140,11 @@ func processDueWaivers(ctx context.Context, q SimQueries, in ProcessWaiversInput
 	if _, err := q.LockSimPool(ctx, in.PoolID); err != nil {
 		return ProcessWaiversResult{}, fmt.Errorf("simulation: lock pool %d: %w", in.PoolID, err)
 	}
+	pool, err := q.GetSimPool(ctx, in.PoolID)
+	if err != nil {
+		return ProcessWaiversResult{}, fmt.Errorf("simulation: get pool %d roster limits: %w", in.PoolID, err)
+	}
+	limits := rosterLimitsFromRow(pool)
 	priorities, initialized, err := loadWaiverPriority(ctx, q, in.PoolID)
 	if err != nil {
 		return ProcessWaiversResult{}, err
@@ -159,7 +165,7 @@ func processDueWaivers(ctx context.Context, q SimQueries, in ProcessWaiversInput
 		return ProcessWaiversResult{Skipped: true, PriorityInitialized: initialized}, nil
 	}
 
-	result, finalPriorities, err := resolveClaimGroups(ctx, q, in, groupClaimsByPlayer(claims), priorities)
+	result, finalPriorities, err := resolveClaimGroups(ctx, q, in, limits, groupClaimsByPlayer(claims), priorities)
 	if err != nil {
 		return ProcessWaiversResult{}, err
 	}
@@ -187,6 +193,7 @@ func resolveClaimGroups(
 	ctx context.Context,
 	q SimQueries,
 	in ProcessWaiversInput,
+	limits map[RosterSlot]int,
 	groups [][]sqlcdb.SimWaiverClaim,
 	priorities []sqlcdb.SimWaiverPriority,
 ) (ProcessWaiversResult, []sqlcdb.SimWaiverPriority, error) {
@@ -195,7 +202,7 @@ func resolveClaimGroups(
 	for _, group := range groups {
 		r := resolveGroup(group, current)
 
-		won, err := applyWaiverResolution(ctx, q, in, r)
+		won, err := applyWaiverResolution(ctx, q, in, limits, r)
 		if err != nil {
 			return ProcessWaiversResult{}, nil, err
 		}
@@ -205,7 +212,7 @@ func resolveClaimGroups(
 			current = demoteWinners(current, []int32{r.winner.AgentID})
 		} else {
 			// Player wasn't claimable at resolution (already
-			// rostered, or the winner's roster couldn't fit the
+			// rostered, or the winner's bench couldn't fit the
 			// add): every claim in the group resolves as lost.
 			result.ClaimsLost += 1 + len(r.losers)
 		}
@@ -328,10 +335,10 @@ func resolveClaims(claims []sqlcdb.SimWaiverClaim, priorities []sqlcdb.SimWaiver
 // On a win, all other still-pending claims on the player (the losers in
 // this group plus any cross-day claim not in the due window) are voided
 // so they can't later resolve as phantom uncontested wins.
-func applyWaiverResolution(ctx context.Context, q SimQueries, in ProcessWaiversInput, r claimResolution) (bool, error) {
+func applyWaiverResolution(ctx context.Context, q SimQueries, in ProcessWaiversInput, limits map[RosterSlot]int, r claimResolution) (bool, error) {
 	w := r.winner
 
-	plan, err := planWaiverResolution(ctx, q, in, w)
+	plan, err := planWaiverResolution(ctx, q, in, limits, w)
 	if err != nil {
 		return false, err
 	}
