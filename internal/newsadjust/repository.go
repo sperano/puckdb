@@ -4,15 +4,27 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/newsevent"
 	"github.com/sperano/puckdb/internal/projection"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
+
+// ErrExclusionTarget means an exclusion does not name a stored news event
+// about its player.
+var ErrExclusionTarget = errors.New("exclusion must name a stored news event about its player")
+
+// ErrExclusionUnsupported means an exclusion names a stored news event
+// whose effect on other events it cannot undo.
+var ErrExclusionUnsupported = errors.New("exclusion cannot undo this event's effect on other events")
 
 // ErrOverrideNotResettable means the override does not exist, was already
 // reset, or the reset time precedes its creation.
@@ -43,6 +55,11 @@ func (r *Repository) CreateOverride(ctx context.Context, o Override) error {
 	if !o.ResetAt.IsZero() {
 		return fmt.Errorf("override %s: record resets with ResetOverride", o.ID)
 	}
+	if o.Kind == OverrideExcludeEvent {
+		if err := r.checkExclusionTarget(ctx, o); err != nil {
+			return err
+		}
+	}
 	err := r.queries.CreateNewsAdjustmentOverride(ctx, sqlcdb.CreateNewsAdjustmentOverrideParams{
 		ID: o.ID, PlayerKey: o.PlayerKey, LeagueKey: o.LeagueKey, Kind: string(o.Kind),
 		EventID: o.EventID, Scenario: string(o.Scenario), Input: string(o.Input), Value: o.Value,
@@ -50,6 +67,44 @@ func (r *Repository) CreateOverride(ctx context.Context, o Override) error {
 	})
 	if err != nil {
 		return fmt.Errorf("create override %s: %w", o.ID, err)
+	}
+	return nil
+}
+
+// checkExclusionTarget refuses an exclusion unless its event is a stored
+// news event about the override's player, under the same NHL and Yahoo
+// identities the adjustment maps events to players with. It also refuses
+// an event whose effect on other events extraction stores on those events
+// (the lifecycle of what it superseded or resolved): excluding it could not
+// undo that effect.
+func (r *Repository) checkExclusionTarget(ctx context.Context, o Override) error {
+	digits, stored := strings.CutPrefix(o.EventID, extractedIDPrefix)
+	eventID, err := strconv.ParseInt(digits, 10, 64)
+	if !stored || err != nil || eventID <= 0 {
+		return fmt.Errorf("override %s: event %q is not a stored news event: %w", o.ID, o.EventID, ErrExclusionTarget)
+	}
+	params := sqlcdb.GetNewsEventExclusionTargetParams{EventID: eventID, ReinstatementType: string(newsevent.TypeReinstatement)}
+	if id, isNHL := nhlPlayerID(o.PlayerKey); isNHL {
+		params.NhlPlayerID = pgtype.Int8{Int64: id, Valid: true}
+	} else if id, isYahoo := yahooPlayerID(o.PlayerKey); isYahoo && id <= math.MaxInt32 {
+		params.YahooPlayerID = pgtype.Int4{Int32: int32(id), Valid: true}
+	} else {
+		return fmt.Errorf("override %s: player key %q names neither an NHL nor a Yahoo player: %w", o.ID, o.PlayerKey, ErrExclusionTarget)
+	}
+	target, err := r.queries.GetNewsEventExclusionTarget(ctx, params)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return fmt.Errorf("override %s: news event %s does not exist: %w", o.ID, o.EventID, ErrExclusionTarget)
+	case err != nil:
+		return fmt.Errorf("override %s: check event %s: %w", o.ID, o.EventID, err)
+	case !target.AboutPlayer:
+		return fmt.Errorf("override %s: news event %s is not about %s: %w", o.ID, o.EventID, o.PlayerKey, ErrExclusionTarget)
+	case target.IsReinstatement:
+		return fmt.Errorf("override %s: news event %s is a reinstatement, whose resolution is stored on the absences it ends; "+
+			"set a missed_games override instead: %w", o.ID, o.EventID, ErrExclusionUnsupported)
+	case target.SupersedesAnother:
+		return fmt.Errorf("override %s: news event %s superseded another event, which stays superseded; "+
+			"set a missed_games or input override instead: %w", o.ID, o.EventID, ErrExclusionUnsupported)
 	}
 	return nil
 }

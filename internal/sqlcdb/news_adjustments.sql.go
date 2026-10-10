@@ -169,6 +169,49 @@ func (q *Queries) GetNewsAdjustmentRun(ctx context.Context, id pgtype.UUID) (New
 	return i, err
 }
 
+const getNewsEventExclusionTarget = `-- name: GetNewsEventExclusionTarget :one
+SELECT
+    ((ev.nhl_player_id = $1::bigint
+        OR ev.yahoo_player_id = $2::integer
+        OR ev.nhl_player_id IN (SELECT p.id FROM players p WHERE p.yahoo_id = $2::integer)
+    ) IS TRUE)::boolean AS about_player,
+    (ev.event_type = $3::text)::boolean AS is_reinstatement,
+    EXISTS (SELECT 1 FROM news_events o WHERE o.superseded_by = ev.id)::boolean AS supersedes_another
+FROM news_events ev
+WHERE ev.id = $4::bigint
+`
+
+type GetNewsEventExclusionTargetParams struct {
+	NhlPlayerID       pgtype.Int8 `json:"nhl_player_id"`
+	YahooPlayerID     pgtype.Int4 `json:"yahoo_player_id"`
+	ReinstatementType string      `json:"reinstatement_type"`
+	EventID           int64       `json:"event_id"`
+}
+
+type GetNewsEventExclusionTargetRow struct {
+	AboutPlayer       bool `json:"about_player"`
+	IsReinstatement   bool `json:"is_reinstatement"`
+	SupersedesAnother bool `json:"supersedes_another"`
+}
+
+// What storing an exclusion of news event @event_id must check: whether the
+// event is about the player (named by NHL ID, by Yahoo ID, or through the NHL
+// player matched to that Yahoo ID, the mapping a draft pool uses), and whether
+// its effect on other events is stored on those events (a reinstatement
+// resolves the absences it ends; another event names it as superseded_by). No
+// row when the event does not exist.
+func (q *Queries) GetNewsEventExclusionTarget(ctx context.Context, arg GetNewsEventExclusionTargetParams) (GetNewsEventExclusionTargetRow, error) {
+	row := q.db.QueryRow(ctx, getNewsEventExclusionTarget,
+		arg.NhlPlayerID,
+		arg.YahooPlayerID,
+		arg.ReinstatementType,
+		arg.EventID,
+	)
+	var i GetNewsEventExclusionTargetRow
+	err := row.Scan(&i.AboutPlayer, &i.IsReinstatement, &i.SupersedesAnother)
+	return i, err
+}
+
 const listNewsAdjustmentEvents = `-- name: ListNewsAdjustmentEvents :many
 SELECT run_id, event_id, version, player_key, incident_id, outcome, reason, scenarios, event FROM news_adjustment_events WHERE run_id = $1 ORDER BY player_key, event_id
 `

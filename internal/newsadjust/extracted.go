@@ -19,6 +19,10 @@ const extractedIDPrefix = "news-event:"
 // holdSeparator joins the reasons an event is held.
 const holdSeparator = "; "
 
+// nhlPlayerKeyPrefix starts the key of a player known by NHL ID only
+// ("nhl:8478402").
+const nhlPlayerKeyPrefix = "nhl:"
+
 // yahooPlayerKeyMarker separates a Yahoo player key's game key from the
 // player ID ("465.p.1234").
 const yahooPlayerKeyMarker = ".p."
@@ -178,6 +182,13 @@ func playerReport(extraction, version int64, player string) (reportKey, bool) {
 	return reportKey{step: stepKey{extraction: extraction, version: version}, player: player}, true
 }
 
+// nhlPlayerID reads the player ID of an NHL player key ("nhl:<id>").
+func nhlPlayerID(key string) (int64, bool) {
+	digits, isNHL := strings.CutPrefix(key, nhlPlayerKeyPrefix)
+	id, err := strconv.ParseInt(digits, 10, 64)
+	return id, isNHL && err == nil && id > 0
+}
+
 // yahooPlayerID reads the player ID of a Yahoo player key.
 func yahooPlayerID(key string) (int, bool) {
 	i := strings.LastIndex(key, yahooPlayerKeyMarker)
@@ -198,7 +209,7 @@ func (c *converter) playerKey(p news.Identity) string {
 		return key
 	}
 	if p.NHLPlayerID != 0 {
-		return fmt.Sprintf("nhl:%d", p.NHLPlayerID)
+		return fmt.Sprintf("%s%d", nhlPlayerKeyPrefix, p.NHLPlayerID)
 	}
 	return fmt.Sprintf("yahoo:%d", p.YahooPlayerID)
 }

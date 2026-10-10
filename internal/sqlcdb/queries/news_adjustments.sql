@@ -4,6 +4,23 @@ INSERT INTO news_adjustment_overrides (
     reason, created_by, created_at, expires_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
 
+-- name: GetNewsEventExclusionTarget :one
+-- What storing an exclusion of news event @event_id must check: whether the
+-- event is about the player (named by NHL ID, by Yahoo ID, or through the NHL
+-- player matched to that Yahoo ID, the mapping a draft pool uses), and whether
+-- its effect on other events is stored on those events (a reinstatement
+-- resolves the absences it ends; another event names it as superseded_by). No
+-- row when the event does not exist.
+SELECT
+    ((ev.nhl_player_id = sqlc.narg(nhl_player_id)::bigint
+        OR ev.yahoo_player_id = sqlc.narg(yahoo_player_id)::integer
+        OR ev.nhl_player_id IN (SELECT p.id FROM players p WHERE p.yahoo_id = sqlc.narg(yahoo_player_id)::integer)
+    ) IS TRUE)::boolean AS about_player,
+    (ev.event_type = sqlc.arg(reinstatement_type)::text)::boolean AS is_reinstatement,
+    EXISTS (SELECT 1 FROM news_events o WHERE o.superseded_by = ev.id)::boolean AS supersedes_another
+FROM news_events ev
+WHERE ev.id = sqlc.arg(event_id)::bigint;
+
 -- name: ResetNewsAdjustmentOverride :execrows
 UPDATE news_adjustment_overrides
 SET reset_at = $2, reset_reason = $3

@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/sperano/puckdb/internal/draftrank"
+	"github.com/sperano/puckdb/internal/fixtures/draftfixtures"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,6 +97,7 @@ var expectedYahooTools = []string{
 	"get_yahoo_draft_results",
 	"get_yahoo_league_settings",
 	"get_yahoo_league_players",
+	"get_draft_leagues",
 }
 
 // registeredToolNames builds a server for opts and returns its tool names.
@@ -123,7 +126,7 @@ func TestNewServer_RegistersSelectedToolsets(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			names := registeredToolNames(t, Options{Toolsets: tt.toolsets})
+			names := registeredToolNames(t, Options{Toolsets: tt.toolsets, Draft: emptyDraftService()})
 			assert.ElementsMatch(t, tt.want, names, "update expectedNHLTools/expectedYahooTools when adding tools")
 		})
 	}
@@ -144,6 +147,18 @@ func TestNewServer_RejectsInvalidOptions(t *testing.T) {
 
 	_, err = NewServer((*sqlcdb.Queries)(nil), Options{Toolsets: []Toolset{"espn"}})
 	require.ErrorContains(t, err, `unknown toolset "espn"`)
+
+	_, err = NewServer((*sqlcdb.Queries)(nil), Options{Toolsets: []Toolset{ToolsetNHL, ToolsetYahoo}})
+	require.ErrorContains(t, err, "the yahoo toolset needs a draft ranking service")
+
+	_, err = NewServer((*sqlcdb.Queries)(nil), Options{Toolsets: []Toolset{ToolsetNHL}})
+	require.NoError(t, err, "the nhl toolset alone needs no draft ranking service")
+}
+
+// emptyDraftService is a draft ranking service over a store holding only
+// the fixture league's rules.
+func emptyDraftService() *draftrank.Service {
+	return draftrank.NewService(draftfixtures.NewStore(), nil, draftrank.ServiceOptions{})
 }
 
 // capturingDB is a sqlcdb.DBTX that records every statement and answers

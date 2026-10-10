@@ -55,7 +55,7 @@ func registerToolsets(srv *server.MCPServer, queries *sqlcdb.Queries, opts Optio
 		case ToolsetNHL:
 			registerNHLTools(srv, queries)
 		case ToolsetYahoo:
-			registerYahooTools(srv, queries, newLeagueGuard(queries, opts.YahooLeagues))
+			registerYahooTools(srv, queries, newLeagueGuard(queries, opts.YahooLeagues), opts.Draft)
 		}
 	}
 }

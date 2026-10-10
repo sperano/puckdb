@@ -36,23 +36,38 @@ type Decision struct {
 	Scenarios  []Scenario `json:"scenarios,omitempty"`
 }
 
-// closure is when a later return (or the event's own end) closed an event.
+// closure is when a later return closed an event.
 type closure struct {
 	at time.Time
 	by string
 }
 
-// selector decides, for one as-of time, which event versions count.
+// selector decides, for one as-of time, which event versions count. The
+// exclusions and lifecycle links are per event ID and scenario.
 type selector struct {
 	policy       Policy
 	season       Season
 	players      map[string]projection.PlayerProjection
-	exclusions   map[string]Override
 	visible      []Event
-	supersededBy map[string]string
-	closedBy     map[string]closure
+	exclusions   map[string]map[Scenario]Override
+	supersededBy map[string]map[Scenario]string
+	closedBy     map[string]map[Scenario]closure
 	decisions    map[string]Decision
-	alerts       map[string][]string
+	// notes qualify the decision of an event removed from some scenarios.
+	notes  map[string]string
+	alerts map[string][]string
+}
+
+func newSelector(req Request, players map[string]projection.PlayerProjection, visible []Event, active []Override) *selector {
+	s := &selector{
+		policy: req.Policy, season: req.Season, players: players, visible: visible,
+		exclusions: make(map[string]map[Scenario]Override), supersededBy: make(map[string]map[Scenario]string),
+		closedBy: make(map[string]map[Scenario]closure), decisions: make(map[string]Decision),
+		notes: make(map[string]string), alerts: make(map[string][]string),
+	}
+	s.resolveExclusions(active)
+	s.linkEvents()
+	return s
 }
 
 // visibleEvents keeps the latest version of each event recorded by asOf.
@@ -108,25 +123,33 @@ func counts(e Event) bool {
 
 // linkEvents records corrections (Supersedes on a non-return event) and
 // returns, which close the availability events they name, or, when they
-// name none, every earlier open-ended absence of the player.
+// name none, every earlier open-ended absence of the player. Each link
+// holds only in the scenarios where its source event is eligible.
 func (s *selector) linkEvents() {
 	for _, e := range s.visible {
-		if !counts(e) || e.Type == EventReturn {
+		scenarios := s.linkScenarios(e)
+		if len(scenarios) == 0 || e.Type == EventReturn {
 			continue
 		}
 		for _, target := range e.Supersedes {
-			if s.samePlayer(e, target) {
-				s.supersededBy[target] = e.ID
+			if !s.samePlayer(e, target) {
+				continue
+			}
+			for _, sc := range scenarios {
+				setScenario(s.supersededBy, target, sc, e.ID)
 			}
 		}
 	}
 	for _, e := range s.visible {
-		if !counts(e) || e.Type != EventReturn || s.supersededBy[e.ID] != "" {
+		scenarios := slices.DeleteFunc(s.linkScenarios(e), func(sc Scenario) bool { return s.supersededBy[e.ID][sc] != "" })
+		if len(scenarios) == 0 || e.Type != EventReturn {
 			continue
 		}
 		for _, target := range s.returnTargets(e) {
-			if prior, closed := s.closedBy[target]; !closed || e.start().Before(prior.at) {
-				s.closedBy[target] = closure{at: e.start(), by: e.ID}
+			for _, sc := range scenarios {
+				if prior, closed := s.closedBy[target][sc]; !closed || e.start().Before(prior.at) {
+					setScenario(s.closedBy, target, sc, closure{at: e.start(), by: e.ID})
+				}
 			}
 		}
 	}
@@ -179,19 +202,22 @@ func (s *selector) samePlayer(e Event, targetID string) bool {
 }
 
 // screen returns false with a recorded decision when an event cannot
-// become a claim; it returns the scenarios where a claim applies.
+// become a claim; it returns the scenarios where a claim applies. An event
+// superseded or excluded in only some scenarios applies in the others, and
+// its decision says where it was removed.
 func (s *selector) screen(e Event) ([]Scenario, bool) {
 	player, known := s.players[e.PlayerKey]
+	open, removed := s.openScenarios(e)
+	if len(open) > 0 && removed != "" {
+		s.notes[e.ID] = removed
+	}
 	switch {
 	case e.Lifecycle == LifecycleRetracted:
 		s.decide(e, OutcomeSkipped, "retracted by its source", nil)
 	case e.Lifecycle == LifecycleSuperseded:
 		s.decide(e, OutcomeSkipped, "superseded by a later event version", nil)
-	case s.supersededBy[e.ID] != "":
-		s.decide(e, OutcomeSkipped, "superseded by event "+s.supersededBy[e.ID], nil)
-	case s.exclusions[e.ID].ID != "":
-		o := s.exclusions[e.ID]
-		s.decide(e, OutcomeSkipped, fmt.Sprintf("excluded by override %s: %s", o.ID, o.Reason), nil)
+	case len(open) == 0:
+		s.decide(e, OutcomeSkipped, removed, nil)
 	case e.Hold != "":
 		s.decide(e, OutcomeAlert, "held: "+e.Hold, nil)
 		s.alert(e.PlayerKey, fmt.Sprintf("%s event %s held without effect: %s", e.Type, e.ID, e.Hold))
@@ -199,25 +225,32 @@ func (s *selector) screen(e Event) ([]Scenario, bool) {
 		s.decide(e, OutcomeSkipped, "player is not in the baseline projection", nil)
 		s.alert(e.PlayerKey, fmt.Sprintf("event %s names a player the projection does not have", e.ID))
 	case e.Status == StatusRumor:
-		return s.screenRumor(e)
+		return s.screenRumor(e, open)
 	case incorporated(player, e):
 		s.decide(e, OutcomeSkipped, fmt.Sprintf("projection %s already incorporates news through %s",
 			sourceLabel(player), player.IncorporatesNewsThrough.UTC().Format(time.RFC3339)), nil)
-		if closed, exists := s.closedBy[e.ID]; exists && closed.at.After(player.IncorporatesNewsThrough) {
+		if closed, exists := earliestClosure(s.closedBy[e.ID]); exists && closed.at.After(player.IncorporatesNewsThrough) {
 			s.alert(e.PlayerKey, fmt.Sprintf("projection %s incorporates event %s, which return %s later closed; refresh that projection to remove its penalty",
 				sourceLabel(player), e.ID, closed.by))
 		}
 	case e.Type == EventReturn:
-		s.decide(e, OutcomeApplied, "return closes earlier availability events", nil)
+		s.decide(e, OutcomeApplied, "return closes earlier availability events", open)
 	default:
-		return slices.Clone(Scenarios), true
+		return open, true
 	}
 	return nil, false
 }
 
-func (s *selector) screenRumor(e Event) ([]Scenario, bool) {
+// screenRumor applies a rumored absence in the conservative scenario under
+// the conservative rumor policy, unless that scenario excludes it; any
+// other rumor stays an alert.
+func (s *selector) screenRumor(e Event, open []Scenario) ([]Scenario, bool) {
 	if s.policy.Rumors == RumorConservative && e.affectsAvailability() && !incorporated(s.players[e.PlayerKey], e) {
-		return []Scenario{ScenarioConservative}, true
+		if slices.Contains(open, ScenarioConservative) {
+			return []Scenario{ScenarioConservative}, true
+		}
+		s.decide(e, OutcomeSkipped, fmt.Sprintf("rumored %s applies in the conservative scenario only (rumor policy %s)", e.Type, s.policy.Rumors), nil)
+		return nil, false
 	}
 	s.decide(e, OutcomeAlert, fmt.Sprintf("unconfirmed %s kept as an alert (rumor policy %s)", e.Type, s.policy.Rumors), nil)
 	s.alert(e.PlayerKey, fmt.Sprintf("rumor: %s reported %s", e.Type, e.ReportedAt.UTC().Format(time.RFC3339)))
@@ -238,6 +271,9 @@ func sourceLabel(player projection.PlayerProjection) string {
 }
 
 func (s *selector) decide(e Event, outcome Outcome, reason string, scenarios []Scenario) {
+	if note := s.notes[e.ID]; note != "" {
+		reason += "; " + note
+	}
 	s.decisions[e.ID] = Decision{
 		EventID: e.ID, Version: e.Version, PlayerKey: e.PlayerKey, IncidentID: e.IncidentID,
 		Outcome: outcome, Reason: reason, Scenarios: scenarios,

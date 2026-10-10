@@ -17,12 +17,7 @@ type AppliedOverride struct {
 
 // inputOverride returns the most specific active override of an input.
 func (in effectInputs) inputOverride(input Input, s Scenario) (Override, bool) {
-	for _, o := range in.overrides {
-		if o.Kind == OverrideInput && o.Input == input && o.appliesTo(s) {
-			return o, true
-		}
-	}
-	return Override{}, false
+	return matchOverride(in.overrides, overrideTarget(in.player.PlayerKey, OverrideInput, "", input), s)
 }
 
 // applyInputOverrides replaces computed factors with the manager's inputs.

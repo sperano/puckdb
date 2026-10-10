@@ -7325,7 +7325,13 @@ input DraftOverrideCreateInput {
   """Limit the override to one league; every league when unset."""
   leagueKey: String
   kind: DraftOverrideKind!
-  """The event an EXCLUDE_EVENT override excludes."""
+  """
+  The event an EXCLUDE_EVENT override excludes: a stored news event about
+  playerKey. Excluded, it changes nothing in the scenarios the override covers,
+  including the events it would close. A reinstatement, or an event that
+  superseded another, is refused: its effect is stored on the events it ended,
+  so set a MISSED_GAMES or INPUT override instead.
+  """
   eventId: String
   """Limit the override to one scenario; every scenario when unset."""
   scenario: DraftScenario
