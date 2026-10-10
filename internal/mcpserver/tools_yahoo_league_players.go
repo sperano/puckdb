@@ -20,8 +20,8 @@ const (
 	// defaultLeaguePlayersLimit is the number of pool players returned
 	// without a limit argument.
 	defaultLeaguePlayersLimit = 100
-	// maxLeaguePlayersLimit caps limit: enough for a whole draftable pool
-	// (several hundred players) while bounding the result size.
+	// maxLeaguePlayersLimit caps limit to bound the result size. A whole
+	// pool can be larger; the header's matching count shows the cut.
 	maxLeaguePlayersLimit = 1000
 	// Arguments of get_yahoo_league_players besides league_id and limit.
 	leaguePositionsArg     = "positions"
@@ -72,7 +72,8 @@ func yahooLeaguePlayersTool(q yahooQueries, guard leagueGuard) server.ServerTool
 				"does not confirm the player is healthy), injury note, and nhl_player_id, the matched NHL player (empty when "+
 				"no NHL player is matched, e.g. a rookie without NHL history). A header line gives the pool size, how many "+
 				"players are unmatched, when Yahoo was fetched, how many players match the filters and how many are "+
-				"returned; rows follow as CSV ordered by Yahoo player ID. A league whose pool was never imported has pool_players=0."),
+				"returned; rows follow as CSV ordered by Yahoo player ID. A league whose pool was never imported has pool_players=0, "+
+				"as can a temporary stand-in league (see get_yahoo_league_settings), whose draft rankings use NHL rosters instead."),
 			mcp.WithNumber(leagueIDArg, mcp.Required(), mcp.Description("Yahoo league ID (use get_yahoo_leagues to find IDs)")),
 			mcp.WithString(leaguePositionsArg, mcp.Description(fmt.Sprintf(
 				"Comma-separated eligible positions, any of which must match (%s), e.g. \"C,LW\"",
