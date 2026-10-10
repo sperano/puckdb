@@ -138,6 +138,8 @@ func readLeaguePlayersFilter(req mcp.CallToolRequest) (leaguePlayersFilter, *mcp
 	if f.positions, errResult = readPositionsFilter(req); errResult != nil {
 		return f, errResult
 	}
+	// Status codes are not validated like positions: Yahoo's set is open,
+	// and a code no pool player has (nobody suspended) is a real answer.
 	status, errResult := optionalString(req, leagueStatusArg)
 	if errResult != nil {
 		return f, errResult
@@ -217,7 +219,8 @@ type leaguePlayers struct {
 // selectLeaguePlayers counts the whole pool and keeps the first filter.limit
 // players that match the filter.
 func selectLeaguePlayers(league sqlcdb.YahooLeague, pool []sqlcdb.ListYahooLeaguePlayersWithNHLRow, filter leaguePlayersFilter) leaguePlayers {
-	result := leaguePlayers{league: league, poolSize: len(pool), rows: []leaguePlayerRow{}}
+	rows := make([]leaguePlayerRow, 0, min(len(pool), int(filter.limit)))
+	result := leaguePlayers{league: league, poolSize: len(pool), rows: rows}
 	for _, p := range pool {
 		if !p.NhlPlayerID.Valid {
 			result.unmatched++
