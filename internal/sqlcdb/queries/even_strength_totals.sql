@@ -289,3 +289,63 @@ FROM player_toi toi
 LEFT JOIN player_points points
   ON points.game_id = toi.game_id
  AND points.player_id = toi.player_id;
+
+-- name: ListPlayerEvenStrengthLinemates :many
+-- The skaters one player shared even-strength ice with, most shared time
+-- first, for the get_player_linemates MCP tool. Games are filtered by
+-- season, date range and game type (NULL game type: regular season and
+-- playoffs), then the per-game totals of InsertEvenStrengthPairTOIForGame
+-- and InsertEvenStrengthSkaterGamesForGame are summed per (club,
+-- teammate), so a traded player's linemates stay with the club they shared.
+-- share_pct is the shared time as a percentage of the player's own
+-- even-strength time with that club over the same games.
+WITH player_games AS (
+    SELECT skater.game_id, skater.team_id, skater.toi_seconds, game.season
+    FROM games game
+    JOIN even_strength_skater_games skater
+      ON skater.game_id = game.id
+     AND skater.player_id = sqlc.arg(player_id)
+    WHERE (sqlc.narg('season')::int IS NULL OR game.season = sqlc.narg('season'))
+      AND (sqlc.narg('start_date')::date IS NULL OR game.game_date >= sqlc.narg('start_date'))
+      AND (sqlc.narg('end_date')::date IS NULL OR game.game_date <= sqlc.narg('end_date'))
+      AND CASE
+          WHEN sqlc.narg('game_type')::game_type IS NULL
+              THEN game.game_type IN ('regular_season', 'playoffs')
+          ELSE game.game_type = sqlc.narg('game_type')
+      END
+),
+club_totals AS (
+    SELECT team_id, sum(toi_seconds)::bigint AS toi_seconds, max(season) AS last_season
+    FROM player_games
+    GROUP BY team_id
+),
+shared AS (
+    SELECT
+        player_game.team_id,
+        pair.teammate_id,
+        count(*)::integer AS games_together,
+        sum(pair.shared_toi_seconds)::bigint AS shared_toi_seconds
+    FROM player_games player_game
+    JOIN even_strength_pair_toi pair
+      ON pair.game_id = player_game.game_id
+     AND pair.player_id = sqlc.arg(player_id)
+    GROUP BY player_game.team_id, pair.teammate_id
+)
+SELECT
+    shared.team_id,
+    club.abbrev AS team_abbrev,
+    shared.teammate_id,
+    teammate.first_name,
+    teammate.last_name,
+    teammate.position,
+    shared.games_together,
+    shared.shared_toi_seconds,
+    round(100.0 * shared.shared_toi_seconds / totals.toi_seconds, 1)::float8 AS share_pct
+FROM shared
+JOIN club_totals totals ON totals.team_id = shared.team_id
+LEFT JOIN season_teams club
+  ON club.team_id = shared.team_id
+ AND club.season = totals.last_season
+LEFT JOIN players teammate ON teammate.id = shared.teammate_id
+ORDER BY shared.shared_toi_seconds DESC, shared.team_id, shared.teammate_id
+LIMIT sqlc.arg(result_limit)::integer;
