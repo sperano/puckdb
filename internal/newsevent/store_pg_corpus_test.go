@@ -94,6 +94,10 @@ func applyInTx(t *testing.T, q *sqlcdb.Queries, pool *pgxpool.Pool, plan Plan, r
 // events on record, which the two stores list differently (the SQL by first
 // report, the memory store by ID). Apply's result does not depend on it.
 func comparablePlan(p Plan) Plan {
+	p.Evidence = slices.Clone(p.Evidence)
+	slices.SortStableFunc(p.Evidence, func(a, b EvidenceLink) int {
+		return cmp.Or(cmp.Compare(a.Ref.ID, b.Ref.ID), cmp.Compare(a.Ref.New, b.Ref.New))
+	})
 	p.Transitions = slices.Clone(p.Transitions)
 	slices.SortStableFunc(p.Transitions, func(a, b Transition) int { return cmp.Compare(a.EventID, b.EventID) })
 	p.Reviews = slices.Clone(p.Reviews)
