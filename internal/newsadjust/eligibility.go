@@ -136,23 +136,24 @@ func earliestClosure(closures map[Scenario]closure) (closure, bool) {
 }
 
 // describeClosures names the returns that closed a claim, with the
-// scenarios each one closed it in when that is not all of them.
+// scenarios each one closed it in when that is not all of them. A return
+// always closes at its own start, so its ID identifies the closure.
 func describeClosures(closures map[Scenario]closure) string {
-	var parts []string
-	byClosure := make(map[closure][]Scenario)
+	byReturn := make(map[string][]Scenario)
 	var order []closure
 	for _, sc := range Scenarios {
 		c, exists := closures[sc]
 		if !exists {
 			continue
 		}
-		if _, seen := byClosure[c]; !seen {
+		if _, seen := byReturn[c.by]; !seen {
 			order = append(order, c)
 		}
-		byClosure[c] = append(byClosure[c], sc)
+		byReturn[c.by] = append(byReturn[c.by], sc)
 	}
-	for _, c := range order {
-		parts = append(parts, inScenarios(fmt.Sprintf("closed by return %s at %s", c.by, c.at.UTC().Format(time.RFC3339)), byClosure[c]))
+	parts := make([]string, len(order))
+	for i, c := range order {
+		parts[i] = inScenarios(fmt.Sprintf("closed by return %s at %s", c.by, c.at.UTC().Format(time.RFC3339)), byReturn[c.by])
 	}
 	return strings.Join(parts, "; ")
 }

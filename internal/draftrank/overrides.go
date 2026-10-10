@@ -105,7 +105,8 @@ func (s *Service) CreateOverride(ctx context.Context, o newsadjust.Override, cre
 	err := s.overrides.CreateOverride(ctx, o)
 	if errors.Is(err, newsadjust.ErrExclusionTarget) || errors.Is(err, newsadjust.ErrExclusionUnsupported) {
 		return OverrideStatus{}, fmt.Errorf("%w: %w", ErrInvalidQuery, err)
-	} else if err != nil {
+	}
+	if err != nil {
 		return OverrideStatus{}, err
 	}
 	return OverrideStatus{Override: o, State: OverrideStateAt(o, o.CreatedAt)}, nil
