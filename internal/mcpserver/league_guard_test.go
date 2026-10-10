@@ -162,9 +162,11 @@ func TestLeagueGuardScopedRejectsBadLeagueID(t *testing.T) {
 	})
 
 	tests := map[string]map[string]any{
-		"league_id is required":        {},
-		"invalid league_id -1":         {leagueIDArg: float64(-1)},
-		"invalid league_id 4294968297": {leagueIDArg: float64(4294968297)},
+		"league_id is required":                            {},
+		"invalid league_id -1" + positiveInt4Range:         {leagueIDArg: float64(-1)},
+		"invalid league_id 0" + positiveInt4Range:          {leagueIDArg: float64(0)},
+		"invalid league_id 1001.5" + positiveInt4Range:     {leagueIDArg: 1001.5},
+		"invalid league_id 4294968297" + positiveInt4Range: {leagueIDArg: float64(4294968297)},
 	}
 	for want, args := range tests {
 		t.Run(want, func(t *testing.T) {

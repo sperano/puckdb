@@ -53,6 +53,19 @@ func TestSkaterSeasonStatsToolDefaultsLimitAndFiltersPosition(t *testing.T) {
 	assert.Equal(t, sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionLW, Valid: true}, queries.skater.Position)
 }
 
+func TestSeasonStatsToolsPassExplicitZeroLimit(t *testing.T) {
+	queries := &seasonStatsQueryFake{}
+	srv := seasonStatsTestServer(queries)
+
+	result := callTool(t, srv.GetTool("get_skater_season_stats").Handler, map[string]any{"season": float64(20252026), "limit": float64(0)})
+	require.False(t, result.IsError, resultText(t, result))
+	assert.Zero(t, queries.skater.ResultLimit)
+
+	result = callTool(t, srv.GetTool("get_goalie_season_stats").Handler, map[string]any{"season": float64(20252026), "limit": 1.5})
+	assert.True(t, result.IsError)
+	assert.Zero(t, queries.goalieCalls)
+}
+
 func TestSkaterSeasonStatsToolRejectsUnknownSortKey(t *testing.T) {
 	queries := &seasonStatsQueryFake{}
 	tool := seasonStatsTestServer(queries).GetTool("get_skater_season_stats")

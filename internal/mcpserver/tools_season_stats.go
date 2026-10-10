@@ -42,23 +42,29 @@ type seasonStatsQueries interface {
 // only, so they belong to the nhl toolset even though they are meant for
 // fantasy analysis.
 func registerSeasonStatsTools(srv *server.MCPServer, queries seasonStatsQueries) {
-	addSkaterSeasonStatsTool(srv, queries)
-	addGoalieSeasonStatsTool(srv, queries)
+	srv.AddTools(seasonStatsTools(queries)...)
 }
 
-func addSkaterSeasonStatsTool(srv *server.MCPServer, queries seasonStatsQueries) {
-	srv.AddTool(
-		mcp.NewTool("get_skater_season_stats",
+func seasonStatsTools(q seasonStatsQueries) []server.ServerTool {
+	return []server.ServerTool{
+		skaterSeasonStatsTool(q),
+		goalieSeasonStatsTool(q),
+	}
+}
+
+func skaterSeasonStatsTool(q seasonStatsQueries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_skater_season_stats",
 			mcp.WithDescription("Get fantasy-relevant regular-season stats for skaters. Sort by a supported stat key and optionally filter by NHL position. Use limit to control result size."),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 			mcp.WithString(seasonSortByArg, mcp.Description("Sort stat: points (default), goals, assists, plus_minus, pim, sog, ppp, ppg, hits, blocks, gp, avg_toi_min")),
 			mcp.WithString(seasonPositionArg, mcp.Description("Optional NHL position filter: C, LW, RW, F, or D")),
 			mcp.WithNumber("limit", mcp.Description("Max number of skaters to return (default 100)")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
 			sortBy, errResult := requireSeasonSort(req, defaultSkaterSeasonSort, skaterSeasonSortKeys)
 			if errResult != nil {
@@ -68,33 +74,33 @@ func addSkaterSeasonStatsTool(srv *server.MCPServer, queries seasonStatsQueries)
 			if errResult != nil {
 				return errResult, nil
 			}
-			stats, err := queries.GetSkaterSeasonStatsBySort(ctx, sqlcdb.GetSkaterSeasonStatsBySortParams{
-				Season:      int32(season),
+			limit, errResult := limitOrDefault(req, defaultResultLimit)
+			if errResult != nil {
+				return errResult, nil
+			}
+			return toolResult(q.GetSkaterSeasonStatsBySort(ctx, sqlcdb.GetSkaterSeasonStatsBySortParams{
+				Season:      season,
 				Position:    position,
 				SortBy:      sortBy,
-				ResultLimit: int32(req.GetInt("limit", defaultResultLimit)),
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(stats)
+				ResultLimit: limit,
+			}))
 		},
-	)
+	}
 }
 
-func addGoalieSeasonStatsTool(srv *server.MCPServer, queries seasonStatsQueries) {
-	srv.AddTool(
-		mcp.NewTool("get_goalie_season_stats",
+func goalieSeasonStatsTool(q seasonStatsQueries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_goalie_season_stats",
 			mcp.WithDescription("Get fantasy-relevant regular-season stats for goalies. Sort by a supported stat key and optionally specify goalie position G. Lower GAA ranks first. Use limit to control result size."),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 			mcp.WithString(seasonSortByArg, mcp.Description("Sort stat: wins (default), losses, gaa, sv_pct, saves, shots_against, gp")),
 			mcp.WithString(seasonPositionArg, mcp.Description("Optional NHL position filter: G")),
 			mcp.WithNumber("limit", mcp.Description("Max number of goalies to return (default 100)")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
 			sortBy, errResult := requireSeasonSort(req, defaultGoalieSeasonSort, goalieSeasonSortKeys)
 			if errResult != nil {
@@ -103,17 +109,17 @@ func addGoalieSeasonStatsTool(srv *server.MCPServer, queries seasonStatsQueries)
 			if errResult := requireGoaliePosition(req); errResult != nil {
 				return errResult, nil
 			}
-			stats, err := queries.GetGoalieSeasonStatsBySort(ctx, sqlcdb.GetGoalieSeasonStatsBySortParams{
-				Season:      int32(season),
-				SortBy:      sortBy,
-				ResultLimit: int32(req.GetInt("limit", defaultResultLimit)),
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+			limit, errResult := limitOrDefault(req, defaultResultLimit)
+			if errResult != nil {
+				return errResult, nil
 			}
-			return ResultCSV(stats)
+			return toolResult(q.GetGoalieSeasonStatsBySort(ctx, sqlcdb.GetGoalieSeasonStatsBySortParams{
+				Season:      season,
+				SortBy:      sortBy,
+				ResultLimit: limit,
+			}))
 		},
-	)
+	}
 }
 
 func requireSeasonSort(req mcp.CallToolRequest, defaultSort string, accepted []string) (string, *mcp.CallToolResult) {

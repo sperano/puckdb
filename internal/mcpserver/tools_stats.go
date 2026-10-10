@@ -9,253 +9,250 @@ import (
 )
 
 func registerStatsTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
-	srv.AddTool(
-		mcp.NewTool("get_game_skater_stats",
+	srv.AddTools(statsTools(queries)...)
+}
+
+func statsTools(q *sqlcdb.Queries) []server.ServerTool {
+	return []server.ServerTool{
+		gameSkaterStatsTool(q),
+		gameGoalieStatsTool(q),
+		gameSkaterStatsByTeamTool(q),
+		gameGoalieStatsByTeamTool(q),
+		skaterSeasonTotalsTool(q),
+		goalieSeasonTotalsTool(q),
+		skaterGameLogTool(q),
+		goalieGameLogTool(q),
+		clubSkaterStatsTool(q),
+		clubGoalieStatsTool(q),
+	}
+}
+
+func gameSkaterStatsTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_game_skater_stats",
 			mcp.WithDescription("Get skater box score stats for all players in a game (TOI, goals, assists, shots, hits, blocks, etc.)."),
 			mcp.WithNumber("game_id", mcp.Required(), mcp.Description("Game ID")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			gameID := req.GetInt("game_id", 0)
-			if gameID == 0 {
-				return mcp.NewToolResultError("game_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			gameID, errResult := requireInt[int64](req, gameIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			stats, err := queries.GetGameSkaterStatsByGame(ctx, int64(gameID))
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(stats)
+			return toolResult(q.GetGameSkaterStatsByGame(ctx, gameID))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("get_game_goalie_stats",
+func gameGoalieStatsTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_game_goalie_stats",
 			mcp.WithDescription("Get goalie box score stats for all goalies in a game (saves, shots against, GAA, save%, etc.)."),
 			mcp.WithNumber("game_id", mcp.Required(), mcp.Description("Game ID")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			gameID := req.GetInt("game_id", 0)
-			if gameID == 0 {
-				return mcp.NewToolResultError("game_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			gameID, errResult := requireInt[int64](req, gameIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			stats, err := queries.GetGameGoalieStatsByGame(ctx, int64(gameID))
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(stats)
+			return toolResult(q.GetGameGoalieStatsByGame(ctx, gameID))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("get_game_skater_stats_by_team",
+func gameSkaterStatsByTeamTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_game_skater_stats_by_team",
 			mcp.WithDescription("Get skater box score stats for a specific team in a game."),
 			mcp.WithNumber("game_id", mcp.Required(), mcp.Description("Game ID")),
 			mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			gameID := req.GetInt("game_id", 0)
-			if gameID == 0 {
-				return mcp.NewToolResultError("game_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			gameID, errResult := requireInt[int64](req, gameIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			teamID := req.GetInt("team_id", 0)
-			if teamID == 0 {
-				return mcp.NewToolResultError("team_id is required"), nil
+			teamID, errResult := requireInt[int64](req, teamIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			stats, err := queries.GetGameSkaterStatsByGameAndTeam(ctx, sqlcdb.GetGameSkaterStatsByGameAndTeamParams{
-				GameID: int64(gameID),
-				TeamID: int64(teamID),
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(stats)
+			return toolResult(q.GetGameSkaterStatsByGameAndTeam(ctx, sqlcdb.GetGameSkaterStatsByGameAndTeamParams{
+				GameID: gameID,
+				TeamID: teamID,
+			}))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("get_game_goalie_stats_by_team",
+func gameGoalieStatsByTeamTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_game_goalie_stats_by_team",
 			mcp.WithDescription("Get goalie box score stats for a specific team in a game."),
 			mcp.WithNumber("game_id", mcp.Required(), mcp.Description("Game ID")),
 			mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			gameID := req.GetInt("game_id", 0)
-			if gameID == 0 {
-				return mcp.NewToolResultError("game_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			gameID, errResult := requireInt[int64](req, gameIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			teamID := req.GetInt("team_id", 0)
-			if teamID == 0 {
-				return mcp.NewToolResultError("team_id is required"), nil
+			teamID, errResult := requireInt[int64](req, teamIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			stats, err := queries.GetGameGoalieStatsByGameAndTeam(ctx, sqlcdb.GetGameGoalieStatsByGameAndTeamParams{
-				GameID: int64(gameID),
-				TeamID: int64(teamID),
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(stats)
+			return toolResult(q.GetGameGoalieStatsByGameAndTeam(ctx, sqlcdb.GetGameGoalieStatsByGameAndTeamParams{
+				GameID: gameID,
+				TeamID: teamID,
+			}))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("get_skater_season_totals",
+func skaterSeasonTotalsTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_skater_season_totals",
 			mcp.WithDescription("Get a skater's aggregated season totals (goals, assists, points, +/-, PIM, TOI, etc.) for a specific season."),
-			mcp.WithNumber("player_id", mcp.Required(), mcp.Description("Player ID")),
+			mcp.WithNumber(playerIDArg, mcp.Required(), mcp.Description("Player ID")),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			playerID := req.GetInt("player_id", 0)
-			if playerID == 0 {
-				return mcp.NewToolResultError("player_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			playerID, errResult := requireInt[int64](req, playerIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			totals, err := queries.GetSkaterSeasonTotals(ctx, sqlcdb.GetSkaterSeasonTotalsParams{
-				PlayerID: int64(playerID),
-				Season:   int32(season),
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultJSON(totals)
+			return jsonResult(q.GetSkaterSeasonTotals(ctx, sqlcdb.GetSkaterSeasonTotalsParams{
+				PlayerID: playerID,
+				Season:   season,
+			}))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("get_goalie_season_totals",
+func goalieSeasonTotalsTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_goalie_season_totals",
 			mcp.WithDescription("Get a goalie's aggregated season totals (wins, losses, GAA, save%, shutouts, etc.) for a specific season."),
-			mcp.WithNumber("player_id", mcp.Required(), mcp.Description("Player ID")),
+			mcp.WithNumber(playerIDArg, mcp.Required(), mcp.Description("Player ID")),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			playerID := req.GetInt("player_id", 0)
-			if playerID == 0 {
-				return mcp.NewToolResultError("player_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			playerID, errResult := requireInt[int64](req, playerIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			totals, err := queries.GetGoalieSeasonTotals(ctx, sqlcdb.GetGoalieSeasonTotalsParams{
-				PlayerID: int64(playerID),
-				Season:   int32(season),
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultJSON(totals)
+			return jsonResult(q.GetGoalieSeasonTotals(ctx, sqlcdb.GetGoalieSeasonTotalsParams{
+				PlayerID: playerID,
+				Season:   season,
+			}))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("get_skater_game_log",
+func skaterGameLogTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_skater_game_log",
 			mcp.WithDescription("Get a skater's game-by-game stats log for a season (one row per game played)."),
-			mcp.WithNumber("player_id", mcp.Required(), mcp.Description("Player ID")),
+			mcp.WithNumber(playerIDArg, mcp.Required(), mcp.Description("Player ID")),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			playerID := req.GetInt("player_id", 0)
-			if playerID == 0 {
-				return mcp.NewToolResultError("player_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			playerID, errResult := requireInt[int64](req, playerIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			stats, err := queries.GetSkaterStatsByPlayerAndSeason(ctx, sqlcdb.GetSkaterStatsByPlayerAndSeasonParams{
-				PlayerID: int64(playerID),
-				Season:   int32(season),
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(stats)
+			return toolResult(q.GetSkaterStatsByPlayerAndSeason(ctx, sqlcdb.GetSkaterStatsByPlayerAndSeasonParams{
+				PlayerID: playerID,
+				Season:   season,
+			}))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("get_goalie_game_log",
+func goalieGameLogTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_goalie_game_log",
 			mcp.WithDescription("Get a goalie's game-by-game stats log for a season (one row per game played)."),
-			mcp.WithNumber("player_id", mcp.Required(), mcp.Description("Player ID")),
+			mcp.WithNumber(playerIDArg, mcp.Required(), mcp.Description("Player ID")),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			playerID := req.GetInt("player_id", 0)
-			if playerID == 0 {
-				return mcp.NewToolResultError("player_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			playerID, errResult := requireInt[int64](req, playerIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			stats, err := queries.GetGoalieStatsByPlayerAndSeason(ctx, sqlcdb.GetGoalieStatsByPlayerAndSeasonParams{
-				PlayerID: int64(playerID),
-				Season:   int32(season),
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(stats)
+			return toolResult(q.GetGoalieStatsByPlayerAndSeason(ctx, sqlcdb.GetGoalieStatsByPlayerAndSeasonParams{
+				PlayerID: playerID,
+				Season:   season,
+			}))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("get_club_skater_stats",
+func clubSkaterStatsTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_club_skater_stats",
 			mcp.WithDescription("Get season skater stats for all players on a team. Rows are per club: a traded player appears under each club he played for with only that stint's stats — use get_skater_season_totals for full-season lines. Only regular_season and playoffs are available (preseason is never fetched)."),
 			mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID")),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 			mcp.WithString("game_type", mcp.Description("Game type: regular_season (default) or playoffs")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			teamID := req.GetInt("team_id", 0)
-			if teamID == 0 {
-				return mcp.NewToolResultError("team_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			teamID, errResult := requireInt[int64](req, teamIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
 			gameType := sqlcdb.GameType(req.GetString("game_type", string(sqlcdb.GameTypeRegularSeason)))
-			stats, err := queries.GetClubSkaterStatsByTeam(ctx, sqlcdb.GetClubSkaterStatsByTeamParams{
-				TeamID:   int64(teamID),
-				Season:   int32(season),
+			return toolResult(q.GetClubSkaterStatsByTeam(ctx, sqlcdb.GetClubSkaterStatsByTeamParams{
+				TeamID:   teamID,
+				Season:   season,
 				GameType: gameType,
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(stats)
+			}))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("get_club_goalie_stats",
+func clubGoalieStatsTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_club_goalie_stats",
 			mcp.WithDescription("Get season goalie stats for all goalies on a team. Rows are per club: a traded goalie appears under each club he played for with only that stint's stats — use get_goalie_season_totals for full-season lines. Only regular_season and playoffs are available (preseason is never fetched)."),
 			mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID")),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 			mcp.WithString("game_type", mcp.Description("Game type: regular_season (default) or playoffs")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			teamID := req.GetInt("team_id", 0)
-			if teamID == 0 {
-				return mcp.NewToolResultError("team_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			teamID, errResult := requireInt[int64](req, teamIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
 			gameType := sqlcdb.GameType(req.GetString("game_type", string(sqlcdb.GameTypeRegularSeason)))
-			stats, err := queries.GetClubGoalieStatsByTeam(ctx, sqlcdb.GetClubGoalieStatsByTeamParams{
-				TeamID:   int64(teamID),
-				Season:   int32(season),
+			return toolResult(q.GetClubGoalieStatsByTeam(ctx, sqlcdb.GetClubGoalieStatsByTeamParams{
+				TeamID:   teamID,
+				Season:   season,
 				GameType: gameType,
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(stats)
+			}))
 		},
-	)
+	}
 }

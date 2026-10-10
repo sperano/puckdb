@@ -23,6 +23,9 @@ const (
 	unmatchedYahooID  int64 = 9999
 )
 
+// positiveIDRange ends the error for an ID outside 1..maxExactJSONInteger.
+const positiveIDRange = ": want an integer from 1 to 9007199254740991"
+
 var errDatabaseDown = errors.New("database down")
 
 // fakePlayerQueries holds one NHL player matched to a Yahoo ID and records
@@ -107,11 +110,15 @@ func sharedLookupErrors(alternative string, alternativeValue any) map[string]loo
 		},
 		"negative yahoo_id": {
 			args:      map[string]any{yahooIDArg: float64(-1)},
-			wantError: "invalid yahoo_id -1: want a positive integer",
+			wantError: "invalid yahoo_id -1" + positiveIDRange,
 		},
 		"non-numeric yahoo_id": {
 			args:      map[string]any{yahooIDArg: "465.p.7520"},
-			wantError: "invalid yahoo_id 465.p.7520: want a positive integer",
+			wantError: `invalid yahoo_id "465.p.7520"` + positiveIDRange,
+		},
+		"fractional yahoo_id": {
+			args:      map[string]any{yahooIDArg: 7520.5},
+			wantError: "invalid yahoo_id 7520.5" + positiveIDRange,
 		},
 	}
 }
@@ -156,7 +163,7 @@ func TestGetPlayerErrors(t *testing.T) {
 	}
 	cases["negative player_id"] = lookupCase{
 		args:      map[string]any{playerIDArg: float64(-1)},
-		wantError: "invalid player_id -1: want a positive integer",
+		wantError: "invalid player_id -1" + positiveIDRange,
 	}
 	runLookupErrorCases(t, getPlayerHandler, cases)
 }
