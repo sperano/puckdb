@@ -126,7 +126,7 @@ func TestPGProcessVersionWaitsForTheProcessingLock(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), pgLockWaitTimeout)
 	defer cancel()
 	_, err := v.process(ctx, v.row)
-	require.Error(t, err, "processing waits while another refresh holds the processing lock")
+	require.ErrorIs(t, err, context.DeadlineExceeded, "processing waits while another refresh holds the processing lock")
 	assertUntouched(t, pool, v.row.ID)
 
 	release()
