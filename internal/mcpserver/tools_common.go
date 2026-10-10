@@ -201,7 +201,13 @@ func optionalInt8Filter(req mcp.CallToolRequest, arg intArg) (pgtype.Int8, *mcp.
 // limitOrDefault reads the optional limit argument; absent is defaultLimit.
 // An explicit 0 is passed on as given.
 func limitOrDefault(req mcp.CallToolRequest, defaultLimit int32) (int32, *mcp.CallToolResult) {
-	limit, given, errResult := optionalInt[int32](req, limitParam)
+	return boundedLimitOrDefault(req, limitParam, defaultLimit)
+}
+
+// boundedLimitOrDefault is limitOrDefault for a tool whose limit has its
+// own bounds (arg); absent is defaultLimit.
+func boundedLimitOrDefault(req mcp.CallToolRequest, arg intArg, defaultLimit int32) (int32, *mcp.CallToolResult) {
+	limit, given, errResult := optionalInt[int32](req, arg)
 	if errResult != nil || !given {
 		return defaultLimit, errResult
 	}

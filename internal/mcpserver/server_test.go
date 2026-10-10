@@ -75,6 +75,8 @@ var expectedNHLTools = []string{
 	// Play events (2)
 	"get_game_play_events",
 	"get_first_matching_event_per_team",
+	// Linemates (1)
+	"get_player_linemates",
 }
 
 // expectedYahooTools lists every tool the yahoo toolset registers.
