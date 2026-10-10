@@ -86,7 +86,15 @@ type Runner struct {
 	// RetryAfter is the wait before a failed attempt is tried again; an
 	// attempt another refresh started more recently is left to it.
 	RetryAfter time.Duration
-	Now        func() time.Time
+	// Now is the clock; nil means time.Now.
+	Now func() time.Time
+}
+
+func (rn *Runner) now() time.Time {
+	if rn.Now != nil {
+		return rn.Now()
+	}
+	return time.Now()
 }
 
 // VersionResult is what extracting one version did.
@@ -160,7 +168,7 @@ func (rn *Runner) obtainReply(ctx context.Context, j *job, budget Budget) (bool,
 		j.result.Status = ExtractionDeferred
 		return false, nil
 	}
-	now := rn.Now()
+	now := rn.now()
 	started, err := rn.Queries.StartNewsExtraction(ctx, sqlcdb.StartNewsExtractionParams{
 		VersionID: j.row.ID, ExtractorKey: x.Key(), Provider: x.Provider, Model: x.Model,
 		PromptVersion: PromptVersion, SchemaVersion: SchemaVersion, InputHash: j.hash,
@@ -221,7 +229,7 @@ func (rn *Runner) reconcile(ctx context.Context, j *job) (VersionResult, error) 
 	}
 	message := fmt.Sprintf("reconcile events: %v", err)
 	noted := rn.Queries.NoteNewsExtractionReconcileFailure(ctx, sqlcdb.NoteNewsExtractionReconcileFailureParams{
-		ID: j.extractionID, LastAttemptAt: news.Timestamptz(rn.Now()), LastError: news.CleanText(message, maxRecordedErrorRunes),
+		ID: j.extractionID, LastAttemptAt: news.Timestamptz(rn.now()), LastError: news.CleanText(message, maxRecordedErrorRunes),
 	})
 	if noted != nil {
 		return j.result, fmt.Errorf("reconcile events of version %d: %w", j.row.ID, errors.Join(err, noted))
@@ -242,11 +250,11 @@ func (rn *Runner) applyEvents(ctx context.Context, q TxQueries, j *job, r Report
 		return err
 	}
 	plan := Reconcile(existing, r, v.Events, rn.Window)
-	if j.result.Events, err = Apply(ctx, q, plan, r, rn.Now()); err != nil {
+	if j.result.Events, err = Apply(ctx, q, plan, r, rn.now()); err != nil {
 		return err
 	}
 	return q.MarkNewsExtractionReconciled(ctx, sqlcdb.MarkNewsExtractionReconciledParams{
-		ID: j.extractionID, ReconciledAt: news.Timestamptz(rn.Now()),
+		ID: j.extractionID, ReconciledAt: news.Timestamptz(rn.now()),
 	})
 }
 

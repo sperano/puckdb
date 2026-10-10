@@ -199,6 +199,8 @@ func (a *Activities) inEventTx(ctx context.Context, fn func(q newsevent.TxQuerie
 	return inLockedTx(ctx, a.Pool, a.Queries, newsEventLockKey, func(q *sqlcdb.Queries) error { return fn(q) })
 }
 
+// inLockedTx runs fn in a transaction holding the advisory lock key, and
+// commits only when fn succeeds.
 func inLockedTx(ctx context.Context, pool *pgxpool.Pool, queries *sqlcdb.Queries, key int64, fn func(q *sqlcdb.Queries) error) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -208,7 +210,7 @@ func inLockedTx(ctx context.Context, pool *pgxpool.Pool, queries *sqlcdb.Queries
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := queries.WithTx(tx)
 	if err := q.LockNewsProcessing(ctx, key); err != nil {
-		return fmt.Errorf("lock news events: %w", err)
+		return fmt.Errorf("take advisory lock %#x: %w", key, err)
 	}
 	if err := fn(q); err != nil {
 		return err

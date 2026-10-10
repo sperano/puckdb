@@ -39,7 +39,7 @@ type fakeIncident struct {
 
 // fakeDB is an in-memory stand-in for every sqlc query interface the
 // newsevent package needs (RunQueries, TxQueries/StoreQueries,
-// ReportQueries, EvaluationQueries), modeled closely enough on
+// EventReportQueries, EvaluationQueries), modeled closely enough on
 // internal/sqlcdb/queries/news_events.sql that the package's own reconciling
 // logic can run against it unmodified.
 //
