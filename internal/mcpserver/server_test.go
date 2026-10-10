@@ -252,11 +252,15 @@ var nhlArgOverrides = map[string]map[string]any{
 	"get_goalie_season_stats": {seasonSortByArg: defaultGoalieSeasonSort, seasonPositionArg: string(sqlcdb.PlayerPositionG)},
 }
 
-// exclusiveNHLArgs are arguments left out of a tool's valid call because
-// the tool refuses them together with another one.
-var exclusiveNHLArgs = map[string]string{
-	"get_player":    yahooIDArg,
-	"search_player": yahooIDArg,
+// omittedNHLArgs are arguments left out of a tool's valid call: the
+// player tools refuse yahoo_id together with player_id or name, and the
+// game log tools filter season in Go, not in SQL, once a date range is
+// given.
+var omittedNHLArgs = map[string]string{
+	"get_player":          yahooIDArg,
+	"search_player":       yahooIDArg,
+	"get_skater_game_log": "season",
+	"get_goalie_game_log": "season",
 }
 
 // validNHLCall builds a valid call of tool from its schema.
@@ -264,7 +268,7 @@ func validNHLCall(t *testing.T, tool mcp.Tool) map[string]any {
 	t.Helper()
 	args := map[string]any{}
 	for name := range tool.InputSchema.Properties {
-		if exclusiveNHLArgs[tool.Name] == name {
+		if omittedNHLArgs[tool.Name] == name {
 			continue
 		}
 		value, ok := nhlArgOverrides[tool.Name][name]
