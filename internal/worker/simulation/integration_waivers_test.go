@@ -25,14 +25,12 @@ const (
 	waiverRaceSeason int32  = 20242025
 	waiverRaceDate   string = "2024-11-15"
 	// waiverRacePlayer is outside seedScenario's 5001..5004 range.
-	waiverRacePlayer int64 = 5101
-	waiverRaceAgents int32 = 3
-	// waiverRaceCapacity is C + BN of the fixture pool.
-	waiverRaceCapacity int32         = 2
-	waiverRaceDays     int32         = 2
-	lockWaitTimeout    time.Duration = 10 * time.Second
-	lockPollInterval   time.Duration = 20 * time.Millisecond
-	attemptTimeout     time.Duration = 30 * time.Second
+	waiverRacePlayer int64         = 5101
+	waiverRaceAgents int32         = 3
+	waiverRaceDays   int32         = 2
+	lockWaitTimeout  time.Duration = 10 * time.Second
+	lockPollInterval time.Duration = 20 * time.Millisecond
+	attemptTimeout   time.Duration = 30 * time.Second
 )
 
 // waiverRaceFixture is a pool of three agents with no priority rows, where
@@ -46,10 +44,18 @@ type waiverRaceFixture struct {
 	in     ProcessWaiversInput
 }
 
-// insertWaiverTestPool creates a pool of waiverRaceAgents agents (C + BN
+// waiverTestRoster is the per-slot roster of a waiver test pool; slots
+// left zero have no capacity.
+type waiverTestRoster struct{ C, BN, IR int32 }
+
+// oneBenchRoster is the default waiver test roster: one active slot and a
+// one-player bench, so a single BN player fills the bench.
+var oneBenchRoster = waiverTestRoster{C: 1, BN: 1}
+
+// insertWaiverTestPool creates a pool of waiverRaceAgents agents (the given
 // roster, one draft round) the way createSimPool does, minus the workflow
 // start. Agents have no draft position and the pool no priority rows.
-func insertWaiverTestPool(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, name, startDate, endDate string) (poolID int32, agents []int32) {
+func insertWaiverTestPool(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, name, startDate, endDate string, roster waiverTestRoster) (poolID int32, agents []int32) {
 	t.Helper()
 	q := sqlcdb.New(pgPool)
 	costCap, err := pgNumericFromFloat(200.0)
@@ -58,7 +64,7 @@ func insertWaiverTestPool(t *testing.T, ctx context.Context, pgPool *pgxpool.Poo
 		Name: name, Season: waiverRaceSeason, Status: string(PoolStatusDraft),
 		NumTeams: waiverRaceAgents, WaiverDays: waiverRaceDays, DraftRounds: 1,
 		MaxLLMCostUsdPerPool: costCap, Categories: []string{"G", "A"},
-		RosterC: 1, RosterBN: 1, StopAfter: StopAfterNever.String(),
+		RosterC: roster.C, RosterBN: roster.BN, RosterIR: roster.IR, StopAfter: StopAfterNever.String(),
 		StartDate: mustPgDate(startDate), EndDate: mustPgDate(endDate),
 	})
 	require.NoError(t, err)
@@ -78,11 +84,11 @@ func newWaiverRaceFixture(t *testing.T, ctx context.Context, pgPool *pgxpool.Poo
 	seedPlayer(t, ctx, pgPool, waiverRacePlayer, sqlcdb.PlayerPositionC)
 
 	q := sqlcdb.New(pgPool)
-	poolID, agents := insertWaiverTestPool(t, ctx, pgPool, name, "2024-10-08", "2024-12-31")
+	poolID, agents := insertWaiverTestPool(t, ctx, pgPool, name, "2024-10-08", "2024-12-31", oneBenchRoster)
 	f := waiverRaceFixture{
 		poolID: poolID,
 		agents: agents,
-		in:     ProcessWaiversInput{PoolID: poolID, SimDate: mustPgDate(waiverRaceDate), RosterCapacity: waiverRaceCapacity},
+		in:     ProcessWaiversInput{PoolID: poolID, SimDate: mustPgDate(waiverRaceDate)},
 	}
 	if recordDraftOrder {
 		acts := &Activities{Queries: q}
@@ -238,9 +244,11 @@ func TestIntegrationWaiverStaleResolutionCannotRewriteWin(t *testing.T) {
 	require.Equal(t, 1, first.result.ClaimsWon)
 
 	stale := claimResolution{playerID: waiverRacePlayer, winner: f.claims[1], losers: f.claims[:1]}
+	pool, err := sqlcdb.New(pgPool).GetSimPool(ctx, f.poolID)
+	require.NoError(t, err)
 	tx, err := pgPool.Begin(ctx)
 	require.NoError(t, err)
-	won, err := applyWaiverResolution(ctx, sqlcdb.New(tx), f.in, stale)
+	won, err := applyWaiverResolution(ctx, sqlcdb.New(tx), f.in, rosterLimitsFromRow(pool), stale)
 	require.NoError(t, tx.Rollback(ctx), "roll back before asserting so a failure leaves no open locks")
 	require.ErrorIs(t, err, errWaiverClaimNotPending)
 	assert.False(t, won)

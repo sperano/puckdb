@@ -806,17 +806,6 @@ func daysElapsed(start, current pgtype.Date) int {
 	return int(current.Time.Sub(start.Time).Hours() / hoursPerDay)
 }
 
-// totalRosterCapacity sums every slot limit in the pool config — the
-// maximum number of players one agent may roster. Waiver resolution
-// re-checks the winner's roster against this at process time.
-func totalRosterCapacity(cfg PoolConfig) int {
-	total := 0
-	for _, n := range cfg.RosterPositions {
-		total += n
-	}
-	return total
-}
-
 // processOneDay runs the activity sequence for one calendar day.
 // Order matches PLAN.md > "Day Loop":
 //
@@ -838,9 +827,8 @@ func processOneDay(
 	llmCtx := workflow.WithActivityOptions(ctx, llmActivityOptions())
 
 	if err := workflow.ExecuteActivity(dbCtx, acts.ProcessWaivers, ProcessWaiversInput{
-		PoolID:         state.PoolID,
-		SimDate:        simDate,
-		RosterCapacity: int32(totalRosterCapacity(state.PoolConfig)),
+		PoolID:  state.PoolID,
+		SimDate: simDate,
 	}).Get(ctx, nil); err != nil {
 		return fmt.Errorf("process waivers: %w", err)
 	}

@@ -31,25 +31,32 @@ func (s *ProcessWaiversTestSuite) SetupTest() {
 	s.tx = &stubTransactor{queries: s.queries}
 	s.acts = &Activities{Queries: s.queries, Tx: s.tx}
 	s.env.RegisterActivity(s.acts.ProcessWaivers)
+	s.setBenchLimit(testWaiverBenchLimit)
 }
 
 func TestProcessWaiversTestSuite(t *testing.T) {
 	suite.Run(t, new(ProcessWaiversTestSuite))
 }
 
-// testWaiverRosterCapacity is a generous default so the existing
+// testWaiverBenchLimit is a generous default BN limit so the existing
 // resolution tests (which don't populate listFullRosterByAgent, so the
 // winner's roster reads as empty) clear the capacity recheck. Tests
 // that exercise the over-capacity path set their own roster rows + a
-// tight capacity.
-const testWaiverRosterCapacity = 16
+// tight limit (setBenchLimit). rosterRow seeds BN rows, so the BN limit
+// is the binding one.
+const testWaiverBenchLimit = 16
 
 func (s *ProcessWaiversTestSuite) input() ProcessWaiversInput {
 	return ProcessWaiversInput{
-		PoolID:         1,
-		SimDate:        pgDate(s.T(), "2024-11-15"),
-		RosterCapacity: testWaiverRosterCapacity,
+		PoolID:  1,
+		SimDate: pgDate(s.T(), "2024-11-15"),
 	}
+}
+
+// setBenchLimit sets the BN limit the activity reads from the pool row
+// under the lock.
+func (s *ProcessWaiversTestSuite) setBenchLimit(n int32) {
+	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, RosterBN: n}
 }
 
 // claim builds a SimWaiverClaim with the common fields populated.
@@ -96,6 +103,7 @@ func (s *ProcessWaiversTestSuite) TestNoDueClaims_Skips() {
 	require.NoError(t, future.Get(&got))
 	assert.True(t, got.Skipped)
 	assert.Equal(t, []int32{1}, s.queries.lockPoolCalls, "the pool is locked even with nothing to resolve")
+	assert.Empty(t, s.queries.getPoolArgs, "no limits read when no claim is due")
 	assert.Equal(t, []int32{1}, s.queries.initPriorityCalls,
 		"the first season day initializes priority whether or not a claim is due")
 	assert.Empty(t, s.queries.resolveClaimCalls)
@@ -135,7 +143,7 @@ func (s *ProcessWaiversTestSuite) TestUncontestedClaim_Wins() {
 	assert.Equal(t, int64(8478402), s.queries.insertRosterCalls[0].PlayerID)
 	assert.Equal(t, string(SlotBN), s.queries.insertRosterCalls[0].Slot)
 	assert.Equal(t, string(AcquiredViaFreeAgent), s.queries.insertRosterCalls[0].AcquiredVia)
-	assert.Empty(t, s.queries.deleteRosterCalls)
+	assert.Empty(t, s.queries.deleteRosterRowsCalls)
 
 	// Tx rows: an `add`, no `drop`.
 	require.Len(t, s.queries.insertAddCalls, 1)
@@ -592,7 +600,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_VanishedDropPlayer_NoPhantomDro
 func (s *ProcessWaiversTestSuite) TestResolution_VanishedDropAtCapacity_ResolvesLost() {
 	t := s.T()
 	in := s.input()
-	in.RosterCapacity = 2
+	s.setBenchLimit(2)
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999),
 	}
@@ -625,7 +633,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_VanishedDropAtCapacity_Resolves
 func (s *ProcessWaiversTestSuite) TestResolution_TwoClaimsShareDropPlayer_NoDoubleDrop() {
 	t := s.T()
 	in := s.input()
-	in.RosterCapacity = 3
+	s.setBenchLimit(3)
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999),
 		claim(101, 1, 8480039, 8499999),
@@ -660,7 +668,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_TwoClaimsShareDropPlayer_NoDoub
 func (s *ProcessWaiversTestSuite) TestResolution_ValidDropButOverCapacity_RosterUntouched() {
 	t := s.T()
 	in := s.input()
-	in.RosterCapacity = 2
+	s.setBenchLimit(2)
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999),
 		claim(101, 2, 8478402, 0), // in-group loser
@@ -690,12 +698,79 @@ func (s *ProcessWaiversTestSuite) TestResolution_ValidDropButOverCapacity_Roster
 	}
 }
 
+// SIM-I6 at resolution: the winner's bench is full and the designated
+// drop sits in an active slot. Total roster size would allow the swap
+// (one out, one in), but the claimed player lands in BN, so the claim
+// resolves lost and the roster is untouched.
+func (s *ProcessWaiversTestSuite) TestResolution_FullBenchActiveDrop_ResolvesLost() {
+	t := s.T()
+	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, RosterC: 1, RosterBN: 1}
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
+		claim(100, 1, 8478402, 8499999),
+	}
+	s.setPriorities(priority(1, 1))
+	active := rosterRow(1, 8499999)
+	active.Slot = string(SlotC)
+	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
+		1: {rosterRow(1, 111), active},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, s.input())
+	require.NoError(t, err)
+	var got ProcessWaiversResult
+	require.NoError(t, future.Get(&got))
+
+	assert.Equal(t, 0, got.ClaimsWon)
+	assert.Equal(t, 1, got.ClaimsLost)
+	assert.Empty(t, s.queries.deleteRosterRowsCalls, "the active-slot drop is not applied")
+	assert.Empty(t, s.queries.insertDropCalls)
+	assert.Empty(t, s.queries.insertRosterCalls)
+	assert.Equal(t, []int32{1}, s.queries.getPoolArgs, "limits are read from the pool row once per run")
+}
+
+// Empty IR and active vacancies do not hold a bench add: with BN full and
+// no drop, the claim resolves lost even though the total roster has room.
+func (s *ProcessWaiversTestSuite) TestResolution_FullBenchEmptyIR_ResolvesLost() {
+	t := s.T()
+	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, RosterC: 1, RosterBN: 1, RosterIR: 1}
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
+		claim(100, 1, 8478402, 0),
+	}
+	s.setPriorities(priority(1, 1))
+	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
+		1: {rosterRow(1, 111)},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, s.input())
+	require.NoError(t, err)
+	var got ProcessWaiversResult
+	require.NoError(t, future.Get(&got))
+
+	assert.Equal(t, 0, got.ClaimsWon)
+	assert.Equal(t, 1, got.ClaimsLost)
+	assert.Empty(t, s.queries.insertRosterCalls)
+}
+
+// A failed pool read aborts before any claim is touched.
+func (s *ProcessWaiversTestSuite) TestPoolReadError_Aborts() {
+	t := s.T()
+	s.queries.getPoolErr = errors.New("connection lost")
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
+	s.setPriorities(priority(1, 1))
+
+	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, s.input())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "roster limits")
+	assert.Empty(t, s.queries.resolveClaimCalls)
+	assert.Empty(t, s.queries.insertRosterCalls)
+}
+
 // A drop that fits exactly: roster at capacity, valid drop frees the one
 // spot the add needs. Drop and add are both applied (atomic win path).
 func (s *ProcessWaiversTestSuite) TestResolution_ValidDropFreesSpot_Wins() {
 	t := s.T()
 	in := s.input()
-	in.RosterCapacity = 2
+	s.setBenchLimit(2)
 	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999),
 	}
@@ -738,7 +813,7 @@ func (s *ProcessWaiversTestSuite) TestResolution_DropVanishesAfterPlan_Aborts() 
 	// The activity test env serialises the error into a Temporal
 	// ApplicationError, which drops Go error identity, so errors.Is
 	// can't cross the boundary — match on the sentinel's message.
-	assert.ErrorContains(t, err, errWaiverDropVanished.Error())
+	assert.ErrorContains(t, err, errDropVanished.Error())
 	assert.Empty(t, s.queries.insertDropCalls, "no drop tx when the delete removed nothing")
 	assert.Empty(t, s.queries.insertRosterCalls, "add is not attempted after the invariant failure")
 }

@@ -33,19 +33,27 @@ func poolConfigFromRow(p sqlcdb.SimPool) (PoolConfig, error) {
 		WaiverDays:           int(p.WaiverDays),
 		DraftRounds:          int(p.DraftRounds),
 		MaxLLMCostUsdPerPool: maxCostUsd,
-		RosterPositions: map[RosterSlot]int{
-			SlotC:    int(p.RosterC),
-			SlotLW:   int(p.RosterLW),
-			SlotRW:   int(p.RosterRW),
-			SlotD:    int(p.RosterD),
-			SlotG:    int(p.RosterG),
-			SlotUtil: int(p.RosterUtil),
-			SlotBN:   int(p.RosterBN),
-			SlotIR:   int(p.RosterIR),
-		},
-		StopAfter:     stop,
-		MaxSeasonDays: int(p.MaxSeasonDays),
+		RosterPositions:      rosterLimitsFromRow(p),
+		StopAfter:            stop,
+		MaxSeasonDays:        int(p.MaxSeasonDays),
 	}, nil
+}
+
+// rosterLimitsFromRow projects the 8 roster_* columns onto the
+// per-slot limits map, listing each slot once. Shared by
+// poolConfigFromRow and waiver resolution, which reads the limits under
+// the pool lock instead of trusting a workflow-supplied copy.
+func rosterLimitsFromRow(p sqlcdb.SimPool) map[RosterSlot]int {
+	return map[RosterSlot]int{
+		SlotC:    int(p.RosterC),
+		SlotLW:   int(p.RosterLW),
+		SlotRW:   int(p.RosterRW),
+		SlotD:    int(p.RosterD),
+		SlotG:    int(p.RosterG),
+		SlotUtil: int(p.RosterUtil),
+		SlotBN:   int(p.RosterBN),
+		SlotIR:   int(p.RosterIR),
+	}
 }
 
 // agentConfigFromRow projects the typed sim_agents row columns onto

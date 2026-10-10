@@ -162,22 +162,6 @@ func (q *Queries) DeleteSimAgentTurnIdempotent(ctx context.Context, arg DeleteSi
 	return err
 }
 
-const deleteSimRoster = `-- name: DeleteSimRoster :exec
-DELETE FROM sim_rosters
-WHERE pool_id = $1 AND agent_id = $2 AND player_id = $3
-`
-
-type DeleteSimRosterParams struct {
-	PoolID   int32 `json:"pool_id"`
-	AgentID  int32 `json:"agent_id"`
-	PlayerID int64 `json:"player_id"`
-}
-
-func (q *Queries) DeleteSimRoster(ctx context.Context, arg DeleteSimRosterParams) error {
-	_, err := q.db.Exec(ctx, deleteSimRoster, arg.PoolID, arg.AgentID, arg.PlayerID)
-	return err
-}
-
 const deleteSimRosterRows = `-- name: DeleteSimRosterRows :execrows
 DELETE FROM sim_rosters
 WHERE pool_id = $1 AND agent_id = $2 AND player_id = $3
@@ -189,11 +173,12 @@ type DeleteSimRosterRowsParams struct {
 	PlayerID int64 `json:"player_id"`
 }
 
-// DeleteSimRosterRows is the rows-affected variant of DeleteSimRoster. Waiver
-// resolution runs it only after its read-only plan saw the drop player on the
-// roster inside the same transaction, so 0 rows affected is an invariant
-// violation that fails the transaction — a drop player who left the roster
-// since filing is detected by the plan's SELECT, not by this count.
+// DeleteSimRosterRows removes one player from an agent's roster and reports
+// the rows affected. Its only caller, removeAndLogDrop (explicit drops,
+// add_player replacements, waiver-claim drops), runs it after the player was
+// validated as rostered, so 0 rows affected is an invariant violation that
+// fails the transaction — a waiver drop player who left the roster since filing
+// is detected by the plan's SELECT, not by this count.
 func (q *Queries) DeleteSimRosterRows(ctx context.Context, arg DeleteSimRosterRowsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteSimRosterRows, arg.PoolID, arg.AgentID, arg.PlayerID)
 	if err != nil {

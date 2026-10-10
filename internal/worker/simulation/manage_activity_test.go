@@ -101,7 +101,9 @@ type ManageRosterTestSuite struct {
 
 func (s *ManageRosterTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
-	s.queries = &stubSimQueries{}
+	// Every drop removes the one row the turn validated, as in
+	// PostgreSQL; removeAndLogDrop fails the commit on 0 rows.
+	s.queries = &stubSimQueries{deleteRosterRowsDefault: 1}
 	s.tx = &stubTransactor{queries: s.queries}
 	s.signaler = &stubSignaler{}
 	s.llm = &scriptedLLMClient{t: s.T()}
@@ -294,8 +296,8 @@ func (s *ManageRosterTestSuite) TestHappyPath_DropPlayer() {
 	assert.Greater(t, got.CostUsd, 0.0)
 
 	require.Equal(t, 1, s.tx.inTxCalled)
-	require.Len(t, s.queries.deleteRosterCalls, 1)
-	assert.Equal(t, int64(8478402), s.queries.deleteRosterCalls[0].PlayerID)
+	require.Len(t, s.queries.deleteRosterRowsCalls, 1)
+	assert.Equal(t, int64(8478402), s.queries.deleteRosterRowsCalls[0].PlayerID)
 	require.Len(t, s.queries.insertDropCalls, 1)
 	assert.Equal(t, "Dropped McDavid for cap relief.", s.queries.insertDropCalls[0].Reasoning,
 		"each action's reasoning column carries the per-action Reason from its tool-call args")
@@ -349,7 +351,7 @@ func (s *ManageRosterTestSuite) TestHappyPath_ClaimPlayer() {
 	require.Len(t, s.queries.insertClaimCalls, 1)
 	// No roster mutation yet — claim is contingent on winning.
 	assert.Empty(t, s.queries.insertRosterCalls)
-	assert.Empty(t, s.queries.deleteRosterCalls)
+	assert.Empty(t, s.queries.deleteRosterRowsCalls)
 }
 
 // claimProcessOffset floors at 1 — same-day processing would race
@@ -724,11 +726,53 @@ func (s *ManageRosterTestSuite) TestAdd_WithDropThreadsThroughTx() {
 	require.NoError(t, err)
 
 	require.Len(t, s.queries.insertAddCalls, 1)
-	assert.True(t, s.queries.insertAddCalls[0].DropPlayerID.Valid)
+	assert.True(t, s.queries.insertAddCalls[0].DropPlayerID.Valid, "the add row keeps the add/drop relation")
 	assert.Equal(t, int64(8478402), s.queries.insertAddCalls[0].DropPlayerID.Int64)
 	// Drop-as-part-of-add deletes from sim_rosters too.
-	require.Len(t, s.queries.deleteRosterCalls, 1)
-	assert.Equal(t, int64(8478402), s.queries.deleteRosterCalls[0].PlayerID)
+	require.Len(t, s.queries.deleteRosterRowsCalls, 1)
+	assert.Equal(t, int64(8478402), s.queries.deleteRosterRowsCalls[0].PlayerID)
+	// SIM-I5: and logs the drop row that opens the waiver window, like a
+	// standalone drop_player. Before the fix only the add row was written.
+	require.Len(t, s.queries.insertDropCalls, 1, "replacement drop logs exactly one drop row")
+	drop := s.queries.insertDropCalls[0]
+	assert.Equal(t, pgtype.Int8{Int64: 8478402, Valid: true}, drop.PlayerID)
+	assert.Equal(t, in.SimDate, drop.Date)
+	assert.Equal(t, in.AgentID, drop.AgentID)
+}
+
+// SIM-I6 end to end: with BN full, an add that drops an active-slot
+// player is rejected at turn time and nothing is written. Before the
+// fix it committed and left two players in a one-player bench.
+func (s *ManageRosterTestSuite) TestAdd_FullBenchActiveDropRejected() {
+	t := s.T()
+	in := s.validInput()
+	limits := map[RosterSlot]int{SlotC: 1, SlotBN: 1}
+	in.PoolConfig.RosterPositions = limits
+	in.Roster = RosterState{
+		Placements: map[int64]RosterSlot{8478402: SlotBN, 8479318: SlotC},
+		Limits:     limits,
+	}
+	in.FreeAgents = []int64{8480039}
+	s.llm.responses = []*llm.Response{
+		dailyToolResponse(ToolAddPlayer, `{"player_id":8480039,"drop_player_id":8479318}`, ""),
+		finalTextResponse("..."),
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.ManageRoster, in)
+	require.NoError(t, err)
+	var got ManageRosterResult
+	require.NoError(t, future.Get(&got))
+
+	assert.Zero(t, got.ActionsApplied)
+	assert.Empty(t, s.queries.deleteRosterRowsCalls)
+	assert.Empty(t, s.queries.insertDropCalls)
+	assert.Empty(t, s.queries.insertRosterCalls)
+	assert.Empty(t, s.queries.insertAddCalls)
+	require.Len(t, s.queries.insertPassCalls, 1, "the rejected add leaves a pass turn")
+	rows := s.toolCallRows()
+	require.Len(t, rows, 1)
+	assert.Equal(t, string(ToolCallOutcomeValidationRejected), rows[0].Outcome)
+	assert.Contains(t, rows[0].FailureReason.String, ErrDropLeavesBenchFull.Error())
 }
 
 // validation pin: passing pgtype.Int8 NULL when no displacement.

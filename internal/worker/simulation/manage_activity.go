@@ -711,91 +711,6 @@ func writeMarkerRow(ctx context.Context, q SimQueries, in ManageRosterInput, out
 	return nil
 }
 
-// reviseActionsForCommitConflicts re-validates the turn's accepted
-// adds against live roster state inside the commit tx and returns the
-// actions that should actually be applied.
-//
-// The free-agent pool is built once per day and shared across agents,
-// so an add validated at turn start can collide with another agent who
-// took the same player earlier today — the UNIQUE (pool_id, player_id)
-// constraint on sim_rosters would then abort the whole tx on retry.
-// Per the add_player tool contract ("first-processed agent wins"), the
-// loser's add is dropped here and recorded as commit_rejected in the
-// telemetry capture rather than failing the turn.
-//
-// A dropped add also invalidates any set_lineup move that placed the
-// now-unowned player; those moves are stripped. A lineup action left
-// with no moves is itself dropped (and marked commit_rejected).
-func reviseActionsForCommitConflicts(
-	ctx context.Context,
-	q SimQueries,
-	in ManageRosterInput,
-	actions []recordedAction,
-	captures []ToolCallCapture,
-) ([]recordedAction, error) {
-	rejectedPlayers := make(map[int64]struct{})
-	kept := make([]recordedAction, 0, len(actions))
-
-	markRejected := func(captureIdx int, reason string) {
-		if captureIdx >= 0 && captureIdx < len(captures) {
-			captures[captureIdx].Outcome = ToolCallOutcomeCommitRejected
-			captures[captureIdx].FailureReason = reason
-			captures[captureIdx].Result = "error: " + reason
-		}
-	}
-
-	for _, act := range actions {
-		add, isAdd := act.args.(AddPlayerArgs)
-		if !isAdd {
-			kept = append(kept, act)
-			continue
-		}
-		exists, err := q.ExistsSimRosterPlayer(ctx, sqlcdb.ExistsSimRosterPlayerParams{
-			PoolID:   in.PoolID,
-			PlayerID: add.PlayerID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("commit-time roster check (player %d): %w", add.PlayerID, err)
-		}
-		if exists {
-			rejectedPlayers[add.PlayerID] = struct{}{}
-			markRejected(act.toolCaptureIndex, fmt.Sprintf(
-				"add_player(%d): player already on a roster (another agent won the add first)", add.PlayerID))
-			continue
-		}
-		kept = append(kept, act)
-	}
-
-	if len(rejectedPlayers) == 0 {
-		return kept, nil
-	}
-
-	// Strip lineup moves that reference a rejected player. A lineup
-	// action with no surviving moves is dropped entirely.
-	revised := make([]recordedAction, 0, len(kept))
-	for _, act := range kept {
-		if _, isLineup := act.args.(SetLineupArgs); !isLineup {
-			revised = append(revised, act)
-			continue
-		}
-		moves := make([]ResolvedLineupMove, 0, len(act.resolvedLineup))
-		for _, m := range act.resolvedLineup {
-			if _, rejected := rejectedPlayers[m.PlayerID]; rejected {
-				continue
-			}
-			moves = append(moves, m)
-		}
-		if len(moves) == 0 {
-			markRejected(act.toolCaptureIndex,
-				"set_lineup: all moves referenced players whose add lost the commit-time recheck")
-			continue
-		}
-		act.resolvedLineup = moves
-		revised = append(revised, act)
-	}
-	return revised, nil
-}
-
 // applyAction is the per-action commit dispatcher. The action types
 // are pairwise disjoint, so a switch fully covers the recorded set;
 // an unhandled type is a programming bug (the executor would have
@@ -818,17 +733,20 @@ func applyAction(ctx context.Context, q SimQueries, in ManageRosterInput, act re
 	}
 }
 
-// applyAdd: optional drop first, then insert the new roster row in
-// BN, then the add transaction row. Order matters within the tx —
-// the tx row's drop_player_id column references the dropped player
-// and we want that row to land last so a future query that joins
-// drop_player_id back to sim_rosters sees a consistent absence.
+// applyAdd: optional drop first (removeAndLogDrop, so the dropped
+// player enters the waiver window exactly like a standalone drop), then
+// insert the new roster row in BN, then the add transaction row. The
+// add row's drop_player_id keeps the add/drop relation for history; the
+// drop row is the waiver marker.
 func applyAdd(ctx context.Context, q SimQueries, in ManageRosterInput, reasoning string, args AddPlayerArgs) (int32, error) {
 	if args.DropPlayerID != nil {
-		if err := q.DeleteSimRoster(ctx, sqlcdb.DeleteSimRosterParams{
-			PoolID: in.PoolID, AgentID: in.AgentID, PlayerID: *args.DropPlayerID,
+		// The drop row carries the add's reasoning: the agent gave one
+		// reason for the swap.
+		if _, err := removeAndLogDrop(ctx, q, rosterDrop{
+			PoolID: in.PoolID, AgentID: in.AgentID, Date: in.SimDate,
+			PlayerID: *args.DropPlayerID, Reasoning: reasoning,
 		}); err != nil {
-			return 0, fmt.Errorf("delete dropped roster row: %w", err)
+			return 0, fmt.Errorf("add_player(%d) replacement drop: %w", args.PlayerID, err)
 		}
 	}
 	if err := q.InsertSimRoster(ctx, sqlcdb.InsertSimRosterParams{
@@ -889,27 +807,14 @@ func applyClaim(ctx context.Context, q SimQueries, in ManageRosterInput, reasoni
 	return tx.ID, nil
 }
 
-// applyDrop: delete the roster row, log the drop transaction.
-// The dropped player enters waivers via the (pool, drop_date,
-// waiver_days) chain — ProcessWaiversActivity discovers them by
-// joining sim_transactions.type='drop' rows.
+// applyDrop: delete the roster row, log the drop transaction. The
+// drop row puts the player on waivers for waiver_days (see
+// removeAndLogDrop).
 func applyDrop(ctx context.Context, q SimQueries, in ManageRosterInput, reasoning string, args DropPlayerArgs) (int32, error) {
-	if err := q.DeleteSimRoster(ctx, sqlcdb.DeleteSimRosterParams{
-		PoolID: in.PoolID, AgentID: in.AgentID, PlayerID: args.PlayerID,
-	}); err != nil {
-		return 0, fmt.Errorf("delete dropped roster row: %w", err)
-	}
-	tx, err := q.InsertSimTransactionDrop(ctx, sqlcdb.InsertSimTransactionDropParams{
-		PoolID:    in.PoolID,
-		AgentID:   in.AgentID,
-		Date:      in.SimDate,
-		PlayerID:  pgtype.Int8{Int64: args.PlayerID, Valid: true},
-		Reasoning: reasoning,
+	return removeAndLogDrop(ctx, q, rosterDrop{
+		PoolID: in.PoolID, AgentID: in.AgentID, Date: in.SimDate,
+		PlayerID: args.PlayerID, Reasoning: reasoning,
 	})
-	if err != nil {
-		return 0, fmt.Errorf("insert drop tx: %w", err)
-	}
-	return tx.ID, nil
 }
 
 // applyLineupSet: insert the parent lineup_set transaction (returns

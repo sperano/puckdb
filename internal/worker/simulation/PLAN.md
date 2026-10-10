@@ -94,7 +94,7 @@ Snake draft. 18 rounds x N teams. Order is randomized at pool creation.
 
 Free agent add/drop via waiver claims. No trades (for now). No transaction limits per day/week (V1 simplification — consider adding `max_adds_per_week` in the future).
 
-**add_player validation:** If the roster is full (21 players) and the agent omits `drop_player_id`, the action is rejected with an error logged. The agent does not get a retry.
+**add_player / claim_player capacity:** Acquired players always land in BN. The roster after removing `drop_player_id` and adding the player to BN must keep BN within its limit (`checkAcquisitionCapacity` in `validate.go`); total roster size is not the test, since IR or active vacancies cannot hold a bench add. With BN full, the drop must therefore be a BN player: an active-slot or IR drop is rejected (`ErrDropLeavesBenchFull`), and a missing drop with `ErrRosterFullNeedsDrop`. Waiver resolution re-applies the same check on the process date against the pool's per-slot limits. A rejected action is logged; the agent does not get a retry.
 
 ### Free Agents vs Waivers
 
@@ -440,7 +440,7 @@ CREATE TABLE sim_lineup_moves (
 | `type`              | populated columns                                                    | child rows in sim_lineup_moves |
 |---------------------|----------------------------------------------------------------------|--------------------------------|
 | `draft_pick`        | player_id, reasoning, round, pick                                    | —                              |
-| `add`               | player_id, reasoning, drop_player_id (NULL if roster wasn't full)    | —                              |
+| `add`               | player_id, reasoning, drop_player_id (NULL without a replacement drop; the dropped player also gets its own `drop` row, which is the waiver marker) | —                              |
 | `claim`             | player_id, reasoning, drop_player_id (NULL if roster wasn't full)    | —                              |
 | `drop`              | player_id, reasoning                                                 | —                              |
 | `lineup_set`        | reasoning                                                            | one row per move in agent's array |
@@ -1086,8 +1086,8 @@ journal: prefer terse, current strategy over long history.
 
 **Daily management:**
 - `set_lineup(moves: [{player_id: int, slot: string}])` — move players between slots. Slot is one of: C, LW, RW, D, G, Util, BN, IR
-- `add_player(player_id: int, drop_player_id: int?)` — instantly pick up a free agent. Must provide `drop_player_id` if roster is full. Only works for free agents (never owned or cleared waivers).
-- `claim_player(player_id: int, drop_player_id: int?)` — file a waiver claim on a recently-dropped player. Claim is queued and resolved after the waiver period. Must provide `drop_player_id` if roster is full (drop happens only if claim succeeds).
+- `add_player(player_id: int, drop_player_id: int?)` — instantly pick up a free agent into BN. Must provide `drop_player_id` (a BN player) if BN is full; the dropped player goes on waivers like any drop. Only works for free agents (never owned or cleared waivers).
+- `claim_player(player_id: int, drop_player_id: int?)` — file a waiver claim on a recently-dropped player. Claim is queued and resolved after the waiver period. Must provide `drop_player_id` (a BN player) if BN is full (drop happens only if claim succeeds).
 - `drop_player(player_id: int)` — release a player. They go on waivers for `waiver_days`, then become a free agent if unclaimed.
 - `update_notes(notes: string)` — replace your persistent notes. Use this to record strategy, observations, or plans that should inform future decisions. Notes persist across days. Hard cap: 50,000 bytes (DB-enforced; oversized writes are rejected and the call returns an error).
 

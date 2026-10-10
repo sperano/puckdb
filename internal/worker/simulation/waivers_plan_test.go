@@ -14,14 +14,14 @@ import (
 // must fail instead of rewriting the claim as lost.
 func TestApplyWaiverResolution_StaleClaimIsNotRewritten(t *testing.T) {
 	ctx := context.Background()
-	in := ProcessWaiversInput{PoolID: 1, SimDate: pgDate(t, "2024-11-15"), RosterCapacity: testWaiverRosterCapacity}
+	in := ProcessWaiversInput{PoolID: 1, SimDate: pgDate(t, "2024-11-15")}
 	r := claimResolution{playerID: 8478402, winner: claim(100, 1, 8478402, 0)}
 	q := &stubSimQueries{
 		existsRosterPlayerByPlayer: map[int64]bool{8478402: true},
 		resolveClaimNotPending:     map[int32]bool{100: true},
 	}
 
-	won, err := applyWaiverResolution(ctx, q, in, r)
+	won, err := applyWaiverResolution(ctx, q, in, map[RosterSlot]int{SlotBN: testWaiverBenchLimit}, r)
 	require.ErrorIs(t, err, errWaiverClaimNotPending)
 	assert.False(t, won)
 	require.Len(t, q.resolveClaimCalls, 1, "the only update is the pending-guarded one that matched no row")
@@ -58,4 +58,32 @@ func (s *ProcessWaiversTestSuite) TestStaleWinningClaim_FailsAttempt() {
 	assert.Contains(t, err.Error(), errWaiverClaimNotPending.Error())
 	assert.Empty(t, s.queries.insertRosterCalls, "no roster add after a failed won transition")
 	assert.Empty(t, s.queries.updatePriorityCalls)
+}
+
+// Waiver resolution applies the same capacity policy as add_player and
+// claim_player (replacementCases in validate_test.go), against the
+// winner's roster as it is on the process date.
+func TestPlanWaiverResolution_ReplacementCapacity(t *testing.T) {
+	ctx := context.Background()
+	const winner int32 = 1
+	in := ProcessWaiversInput{PoolID: 1, SimDate: pgDate(t, "2024-11-15")}
+	for _, tc := range replacementCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			rows := make([]sqlcdb.SimRoster, 0, len(tc.placements))
+			for id, slot := range tc.placements {
+				rows = append(rows, sqlcdb.SimRoster{PoolID: 1, AgentID: winner, PlayerID: id, Slot: string(slot)})
+			}
+			q := &stubSimQueries{listFullRosterByAgent: map[int32][]sqlcdb.SimRoster{winner: rows}}
+			var dropID int64
+			if tc.drop != nil {
+				dropID = *tc.drop
+			}
+
+			plan, err := planWaiverResolution(ctx, q, in, replacementLimits(), claim(100, winner, replacementCandidate, dropID))
+			require.NoError(t, err)
+			assert.Equal(t, tc.waiverClaimable, plan.claimable)
+			_, rostered := tc.placements[dropID]
+			assert.Equal(t, tc.drop != nil && rostered, plan.dropPresent)
+		})
+	}
 }
