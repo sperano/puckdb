@@ -260,3 +260,20 @@ func TestBoardRejectsUnavailableOwnedTeam(t *testing.T) {
 	_, err := NewService(data, nil, nil, Options{}).Board(context.Background(), Request{League: "500.l.5621"})
 	assert.True(t, errors.Is(err, ErrNoOwnedTeam))
 }
+
+func TestStatusRejectsStoredSafeFlagForDuplicatePlayer(t *testing.T) {
+	first, second := draftsession.PickKey{Round: 1, Pick: 1}, draftsession.PickKey{Round: 1, Pick: 2}
+	state := draftsession.State{
+		Upstream: map[draftsession.PickKey]draftsession.Pick{first: {Key: first, TeamID: 1, PlayerID: 101}},
+		Manual: map[draftsession.PickKey]draftsession.ManualChange{second: {Kind: draftsession.ManualAdd,
+			Pick: &draftsession.Pick{Key: second, TeamID: 2, PlayerID: 101}}},
+		UpstreamComplete: true,
+	}
+	session := draftwatch.Session{State: state, RecommendationsSafe: true}
+
+	status := statusOf(session, time.Now(), time.Minute)
+
+	assert.False(t, status.RecommendationsSafe, "a row written before the duplicate invariant must not stay safe")
+	assert.Contains(t, status.Warnings, draftrank.Issue{Code: IssueDuplicatePlayer,
+		Message: "player 101 appears in more than one slot (round 1 pick 1, round 1 pick 2)"})
+}

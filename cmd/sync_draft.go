@@ -115,7 +115,7 @@ func writeDraftSyncOutcome(out io.Writer, outcome draftwatch.Outcome) error {
 		"%s: league=%s version=%d picks=%d manual=%d conflicts=%d authoritative=%t safe=%t status=%s changed=%t skipped=%d\n",
 		label, outcome.Session.Identity.LeagueKey, outcome.Session.State.Version,
 		len(draftsession.EffectiveBoard(outcome.Session.State)), manual, conflicts,
-		outcome.Report.Complete, outcome.Session.RecommendationsSafe,
+		outcome.Report.Complete, outcome.Session.SafeToRecommend(),
 		outcome.Session.DraftStatus, outcome.Report.Changed, len(outcome.Report.Skipped)); err != nil {
 		return err
 	}

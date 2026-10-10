@@ -60,12 +60,13 @@ func TestBoardWarningsKeepIssueCodesThroughRecommendationService(t *testing.T) {
 func TestStatusCodesEverySessionCondition(t *testing.T) {
 	now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
 	lastSuccess := now.Add(-time.Hour)
-	stale := statusOf(draftwatch.Session{LastSuccessAt: &lastSuccess, RecommendationsSafe: true, SkippedPickCount: 2},
-		now, time.Minute)
+	complete := draftsession.State{UpstreamComplete: true}
+	stale := statusOf(draftwatch.Session{State: complete, LastSuccessAt: &lastSuccess, RecommendationsSafe: true,
+		SkippedPickCount: 2}, now, time.Minute)
 	assert.Equal(t, []draftrank.Issue{issueSessionStale,
 		{Code: IssueSkippedPicks, Message: "Yahoo board has 2 unresolved or malformed picks"}}, stale.Warnings)
 
-	pending := statusOf(draftwatch.Session{RecommendationsSafe: true}, now, time.Minute)
+	pending := statusOf(draftwatch.Session{State: complete, RecommendationsSafe: true}, now, time.Minute)
 	assert.Equal(t, []draftrank.Issue{issueSyncPending}, pending.Warnings)
 }
 

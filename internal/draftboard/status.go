@@ -3,10 +3,12 @@ package draftboard
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/draftrecommend"
+	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/sperano/puckdb/internal/draftwatch"
 )
 
@@ -17,6 +19,7 @@ const (
 	IssueSyncPending                draftrank.IssueCode = "SYNC_PENDING"
 	IssueSyncFailed                 draftrank.IssueCode = "SYNC_FAILED"
 	IssueSkippedPicks               draftrank.IssueCode = "SKIPPED_PICKS"
+	IssueDuplicatePlayer            draftrank.IssueCode = "DUPLICATE_PLAYER"
 	IssueRosterWarning              draftrank.IssueCode = "ROSTER_WARNING"
 	IssueRecommendationsUnavailable draftrank.IssueCode = "RECOMMENDATIONS_UNAVAILABLE"
 	IssueRecommendationsSuppressed  draftrank.IssueCode = "RECOMMENDATIONS_SUPPRESSED"
@@ -37,9 +40,10 @@ var (
 
 func statusOf(session draftwatch.Session, now time.Time, staleAfter time.Duration) Status {
 	stale := session.LastSuccessAt != nil && staleAfter > 0 && now.Sub(*session.LastSuccessAt) > staleAfter
+	safe := session.SafeToRecommend()
 	status := Status{
 		Version: session.State.Version, SyncVersion: session.SyncVersion, DraftStatus: session.DraftStatus,
-		RecommendationsSafe: session.RecommendationsSafe, Complete: session.Complete,
+		RecommendationsSafe: safe, Complete: session.Complete,
 		Stale: stale, LastPollAt: session.LastPollAt, LastSuccessAt: session.LastSuccessAt,
 		LastAuthoritativeAt: session.LastAuthoritativeAt, LastError: session.LastError,
 	}
@@ -48,8 +52,11 @@ func statusOf(session draftwatch.Session, now time.Time, staleAfter time.Duratio
 	} else if stale {
 		status.Warnings = append(status.Warnings, issueSessionStale)
 	}
-	if !session.RecommendationsSafe {
+	if !safe {
 		status.Warnings = append(status.Warnings, issueSessionIncomplete)
+	}
+	for _, duplicate := range draftsession.DuplicatePlayers(session.State) {
+		status.Warnings = append(status.Warnings, duplicateIssue(duplicate))
 	}
 	if session.LastError != "" {
 		status.Warnings = append(status.Warnings, draftrank.Issue{Code: IssueSyncFailed,
@@ -60,6 +67,15 @@ func statusOf(session draftwatch.Session, now time.Time, staleAfter time.Duratio
 			Message: fmt.Sprintf("Yahoo board has %d unresolved or malformed picks", session.SkippedPickCount)})
 	}
 	return status
+}
+
+func duplicateIssue(duplicate draftsession.DuplicatePlayer) draftrank.Issue {
+	slots := make([]string, len(duplicate.Keys))
+	for i, key := range duplicate.Keys {
+		slots[i] = fmt.Sprintf("round %d pick %d", key.Round, key.Pick)
+	}
+	return draftrank.Issue{Code: IssueDuplicatePlayer,
+		Message: fmt.Sprintf("player %d appears in more than one slot (%s)", duplicate.PlayerID, strings.Join(slots, ", "))}
 }
 
 // appendIssues appends the issues not already present. The same condition

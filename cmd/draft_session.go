@@ -178,7 +178,7 @@ func writeDraftSession(out io.Writer, session draftwatch.Session) error {
 	if _, err := fmt.Fprintf(out,
 		"league=%s version=%d status=%s complete=%t safe=%t manual=%d conflicts=%d last_poll=%s last_success=%s error=%q\n",
 		session.Identity.LeagueKey, session.State.Version, session.DraftStatus, session.Complete,
-		session.RecommendationsSafe, manual, conflicts, formatOptionalTime(session.LastPollAt),
+		session.SafeToRecommend(), manual, conflicts, formatOptionalTime(session.LastPollAt),
 		formatOptionalTime(session.LastSuccessAt), session.LastError); err != nil {
 		return err
 	}
@@ -238,7 +238,7 @@ func writeDraftCapability(out io.Writer, session draftwatch.Session, observation
 		stats.first, stats.last, len(observations), stats.successes,
 		stats.minimum, stats.median, stats.maximum, stats.changes, stats.maxChangeGap,
 		stats.partial, stats.empty, stats.authentication, stats.rateLimited, stats.otherFailures,
-		session.State.Version, session.DraftStatus, session.State.UpstreamComplete, session.RecommendationsSafe)
+		session.State.Version, session.DraftStatus, session.State.UpstreamComplete, session.SafeToRecommend())
 	return err
 }
 

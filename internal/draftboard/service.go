@@ -164,7 +164,7 @@ func (s *Service) boardRecommendation(ctx context.Context, request Request, inpu
 	status Status, now time.Time) (*draftrecommend.StoredRun, draftrecommend.Result, error) {
 	input := draftrecommend.Input{
 		Session: inputs.session.State, SessionLeagueKey: inputs.identity.LeagueKey,
-		SessionSafe: inputs.session.RecommendationsSafe, SessionStale: status.Stale,
+		SessionSafe: status.RecommendationsSafe, SessionStale: status.Stale,
 		Ranking: inputs.ranking, Scenario: request.Scenario, OurTeamID: inputs.league.TeamID,
 		Roster: roster.Players, Order: slices.Clone(request.Order), Strategy: request.Strategy,
 		Availability: request.Availability, ADP: request.ADP,
