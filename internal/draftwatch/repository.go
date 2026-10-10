@@ -46,6 +46,13 @@ type Session struct {
 	UpdatedAt           time.Time
 }
 
+// SafeToRecommend reports whether the stored safety flag and the board state
+// both allow recommendations. The flag predates stricter board invariants on
+// rows not rewritten since, so the reducer's verdict has to hold as well.
+func (s Session) SafeToRecommend() bool {
+	return s.RecommendationsSafe && draftsession.SafeToRecommend(s.State)
+}
+
 // Event is one persisted state-changing draft board event.
 type Event struct {
 	StateVersion uint64

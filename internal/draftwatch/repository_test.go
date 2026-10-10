@@ -158,6 +158,22 @@ func replayPoll(authoritative bool, expected int, picks ...draftsession.Observed
 	}}
 }
 
+func TestSessionSafeToRecommendRequiresStoredFlagAndBoardInvariants(t *testing.T) {
+	first, second := draftsession.PickKey{Round: 1, Pick: 1}, draftsession.PickKey{Round: 1, Pick: 2}
+	valid := draftsession.State{
+		Upstream: map[draftsession.PickKey]draftsession.Pick{first: {Key: first, TeamID: 1, PlayerID: 101}},
+		Manual:   map[draftsession.PickKey]draftsession.ManualChange{}, UpstreamComplete: true,
+	}
+	duplicate := valid
+	duplicate.Manual = map[draftsession.PickKey]draftsession.ManualChange{second: {Kind: draftsession.ManualAdd,
+		Pick: &draftsession.Pick{Key: second, TeamID: 2, PlayerID: 101}}}
+
+	assert.True(t, Session{State: valid, RecommendationsSafe: true}.SafeToRecommend())
+	assert.False(t, Session{State: valid}.SafeToRecommend(), "a failed poll clears the stored flag")
+	assert.False(t, Session{State: duplicate, RecommendationsSafe: true}.SafeToRecommend(),
+		"a row stored before the duplicate invariant must not stay safe")
+}
+
 func TestListEventsValidatesCursorAndLimitBeforeDatabaseAccess(t *testing.T) {
 	var repo *Repository
 	_, err := repo.ListEvents(context.Background(), "league", 0, 0)

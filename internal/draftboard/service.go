@@ -402,9 +402,7 @@ func (s *Service) Events(ctx context.Context, league string, season int, afterVe
 
 func statusOf(session draftwatch.Session, now time.Time, staleAfter time.Duration) Status {
 	stale := session.LastSuccessAt != nil && staleAfter > 0 && now.Sub(*session.LastSuccessAt) > staleAfter
-	// The stored flag predates stricter board invariants on rows not rewritten
-	// since, so the reducer's verdict on the stored state also has to hold.
-	safe := session.RecommendationsSafe && draftsession.SafeToRecommend(session.State)
+	safe := session.SafeToRecommend()
 	status := Status{
 		Version: session.State.Version, SyncVersion: session.SyncVersion, DraftStatus: session.DraftStatus,
 		RecommendationsSafe: safe, Complete: session.Complete,
