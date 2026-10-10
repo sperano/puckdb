@@ -10,8 +10,8 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
-// ReportQueries is what the events report reads.
-type ReportQueries interface {
+// EventReportQueries is what the events report reads.
+type EventReportQueries interface {
 	ListRecentNewsEvents(ctx context.Context, arg sqlcdb.ListRecentNewsEventsParams) ([]sqlcdb.NewsEvent, error)
 	ListNewsEventsForPlayer(ctx context.Context, arg sqlcdb.ListNewsEventsForPlayerParams) ([]sqlcdb.NewsEvent, error)
 	ListNewsEventEvidence(ctx context.Context, eventIDs []int64) ([]sqlcdb.ListNewsEventEvidenceRow, error)
@@ -83,7 +83,7 @@ type DigestRequest struct {
 
 // LoadEventDigest reads recent events, the requested player's events and
 // the extractions that need review.
-func LoadEventDigest(ctx context.Context, q ReportQueries, req DigestRequest, now time.Time) (EventDigest, error) {
+func LoadEventDigest(ctx context.Context, q EventReportQueries, req DigestRequest, now time.Time) (EventDigest, error) {
 	d := EventDigest{GeneratedAt: now, Since: req.Since}
 	rows, err := q.ListRecentNewsEvents(ctx, sqlcdb.ListRecentNewsEventsParams{
 		LastReportedAt: news.Timestamptz(req.Since), Limit: int32(req.Limit),
@@ -111,7 +111,7 @@ func LoadEventDigest(ctx context.Context, q ReportQueries, req DigestRequest, no
 	return d, err
 }
 
-func loadReportedEvents(ctx context.Context, q ReportQueries, rows []sqlcdb.NewsEvent) ([]ReportedEvent, error) {
+func loadReportedEvents(ctx context.Context, q EventReportQueries, rows []sqlcdb.NewsEvent) ([]ReportedEvent, error) {
 	events := make([]ReportedEvent, len(rows))
 	ids := make([]int64, len(rows))
 	index := make(map[int64]int, len(rows))
@@ -152,7 +152,7 @@ func loadReportedEvents(ctx context.Context, q ReportQueries, rows []sqlcdb.News
 	return events, nil
 }
 
-func loadReviews(ctx context.Context, q ReportQueries, req DigestRequest) ([]ExtractionReview, error) {
+func loadReviews(ctx context.Context, q EventReportQueries, req DigestRequest) ([]ExtractionReview, error) {
 	rows, err := q.ListNewsExtractionReviews(ctx, sqlcdb.ListNewsExtractionReviewsParams{
 		Since: news.Timestamptz(req.Since), MaxAttempts: int32(req.MaxAttempts), MaxRows: int32(req.Limit),
 	})

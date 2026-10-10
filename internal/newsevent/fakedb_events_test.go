@@ -174,7 +174,7 @@ func (db *fakeDB) GetNewsVersionIncident(_ context.Context, arg sqlcdb.GetNewsVe
 	return best, nil
 }
 
-// --- ReportQueries ---
+// --- EventReportQueries ---
 
 func (db *fakeDB) ListRecentNewsEvents(_ context.Context, arg sqlcdb.ListRecentNewsEventsParams) ([]sqlcdb.NewsEvent, error) {
 	db.mu.Lock()
@@ -362,5 +362,5 @@ func (db *fakeDB) GetLatestNewsExtractionEvaluation(_ context.Context, arg sqlcd
 	return *best, nil
 }
 
-var _ ReportQueries = (*fakeDB)(nil)
+var _ EventReportQueries = (*fakeDB)(nil)
 var _ EvaluationQueries = (*fakeDB)(nil)

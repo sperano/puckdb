@@ -62,28 +62,19 @@ func (a *Activities) ProcessNewsVersions(ctx context.Context, input ProcessInput
 // another refresh processed (or pruned) it since the batch was listed.
 func (a *Activities) processVersion(ctx context.Context, dir *news.Directory, row sqlcdb.ListUnprocessedNewsVersionsRow,
 	window time.Duration) (news.ProcessOutcome, error) {
-	tx, err := a.Pool.Begin(ctx)
-	if err != nil {
-		return news.ProcessOutcome{}, fmt.Errorf("begin transaction: %w", err)
-	}
-	// Rollback is a no-op once the transaction is committed.
-	defer func() { _ = tx.Rollback(ctx) }()
-	q := a.Queries.WithTx(tx)
-	if err := q.LockNewsProcessing(ctx, newsProcessingLockKey); err != nil {
-		return news.ProcessOutcome{}, fmt.Errorf("lock news processing: %w", err)
-	}
-	processedAt, err := q.GetNewsVersionProcessedAt(ctx, row.ID)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && processedAt.Valid) {
-		return news.ProcessOutcome{}, nil
-	}
-	if err != nil {
-		return news.ProcessOutcome{}, err
-	}
-	outcome, err := news.ProcessVersion(ctx, q, dir, row, window, a.now())
-	if err != nil {
-		return outcome, err
-	}
-	return outcome, tx.Commit(ctx)
+	var outcome news.ProcessOutcome
+	err := inLockedTx(ctx, a.Pool, a.Queries, newsProcessingLockKey, func(q *sqlcdb.Queries) error {
+		processedAt, err := q.GetNewsVersionProcessedAt(ctx, row.ID)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && processedAt.Valid) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		outcome, err = news.ProcessVersion(ctx, q, dir, row, window, a.now())
+		return err
+	})
+	return outcome, err
 }
 
 // PruneInput bounds how much news is kept.

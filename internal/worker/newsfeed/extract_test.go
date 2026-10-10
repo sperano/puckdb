@@ -15,6 +15,9 @@ const (
 	budgetCalls  = 3
 	budgetTokens = 1000
 	callTokens   = 600
+	// edtOffset puts the injected clock outside UTC, so the tests see the
+	// activities' clock normalize it.
+	edtOffset = -4 * time.Hour
 )
 
 func TestRunBudgetStopsAtTheCallCap(t *testing.T) {
@@ -86,4 +89,32 @@ func TestExtractRunnerNormalizesReasoningEffort(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "none", runner.Extractor.ReasoningEffort)
+}
+
+func TestExtractRunnerUsesTheActivitiesClock(t *testing.T) {
+	fixed := time.Date(2026, time.October, 1, 8, 0, 0, 0, time.FixedZone("EDT", int(edtOffset.Seconds())))
+	acts := &Activities{
+		LLM: func(llm.Provider, string, time.Duration) llm.Client { return nil },
+		Now: func() time.Time { return fixed },
+	}
+
+	runner, err := acts.extractRunner(ExtractInput{Provider: "ollama", Model: "qwen"})
+
+	require.NoError(t, err)
+	require.NotNil(t, runner.Now, "the constructor always sets the runner's clock")
+	assert.Equal(t, fixed.UTC(), runner.Now())
+}
+
+func TestExtractRunnerDefaultsToTheWallClock(t *testing.T) {
+	acts := &Activities{LLM: func(llm.Provider, string, time.Duration) llm.Client { return nil }}
+
+	runner, err := acts.extractRunner(ExtractInput{Provider: "ollama", Model: "qwen"})
+	require.NoError(t, err)
+	require.NotNil(t, runner.Now, "the constructor always sets the runner's clock")
+
+	before := time.Now()
+	now := runner.Now()
+	after := time.Now()
+	assert.False(t, now.Before(before) || now.After(after), "%s is outside [%s, %s]", now, before, after)
+	assert.Equal(t, time.UTC, now.Location())
 }
