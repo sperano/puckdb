@@ -22,6 +22,7 @@ func Reconcile(current State, snapshot Snapshot) (State, Report, error) {
 	if snapshot.Authoritative {
 		applyObserved(&next, observed, complete)
 	}
+	// Then the picks this observation added or corrected.
 	RecordUpstreamPlayers(&next)
 	// Even a non-authoritative response is evidence that this poll did not
 	// establish a complete board. Keep the prior picks, but prevent consumers
