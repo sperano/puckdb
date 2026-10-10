@@ -46,7 +46,9 @@ func (o *Outcome) countTransition(to Lifecycle) {
 }
 
 // MemoryStore keeps events in memory. The evaluation harness reconciles
-// reports with it the same way the database store does.
+// reports with it the same way the database store does; the PostgreSQL-backed
+// tests in store_pg_test.go check Near and Apply against ListNewsEventsNear
+// and the store's Apply, so a change to either side must keep them agreeing.
 type MemoryStore struct {
 	// Events holds every event; an event's ID is its index plus one.
 	Events []StoredEvent

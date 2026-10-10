@@ -115,7 +115,7 @@ func RefreshNewsWorkflow(ctx workflow.Context, input *model.RefreshNewsInput) (R
 	}
 	sources, err := news.EnabledSources(cfg.Sources, input.Sources)
 	if err != nil {
-		return RefreshNewsResult{}, temporal.NewNonRetryableApplicationError(err.Error(), "InvalidInput", err)
+		return RefreshNewsResult{}, temporal.NewNonRetryableApplicationError(err.Error(), errTypeInvalidInput, err)
 	}
 	result := RefreshNewsResult{Season: newsSeason(ctx, input)}
 	tracker, err := shared.InitTracker(ctx, &shared.ProgressReport{

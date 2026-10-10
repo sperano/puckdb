@@ -14,10 +14,10 @@ import (
 func TestSummarizeObservationsReportsReplayConditions(t *testing.T) {
 	start := time.Date(2026, time.October, 4, 1, 0, 0, 0, time.UTC)
 	observations := []draftwatch.Observation{
-		{PolledAt: start.Add(90 * time.Second), ErrorClass: "rate_limited"},
+		{PolledAt: start.Add(90 * time.Second), ErrorClass: draftwatch.ErrorClassRateLimited},
 		{PolledAt: start.Add(60 * time.Second), Duration: 3 * time.Second, Success: true, Changed: true, Authoritative: true, ParsedCount: 2},
 		{PolledAt: start.Add(30 * time.Second), Duration: 2 * time.Second, Success: true, ParsedCount: 1},
-		{PolledAt: start, ErrorClass: "authentication"},
+		{PolledAt: start, ErrorClass: draftwatch.ErrorClassAuthentication},
 	}
 
 	got := summarizeObservations(observations)

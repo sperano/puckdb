@@ -129,32 +129,49 @@ func hashSnapshot(snapshot draftsession.Snapshot) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// ErrorClass returns stable capability-report classes without exposing token
-// details. HTTP 429 is separated so watch backoff can react to throttling.
-func ErrorClass(err error) string {
+// ErrorClass is a stable capability-report class for a failed Yahoo poll,
+// stored in draft_session_observations.error_class. It never carries token
+// details.
+type ErrorClass string
+
+const (
+	// ErrorClassNone is the class of a successful poll.
+	ErrorClassNone           ErrorClass = ""
+	ErrorClassAuthentication ErrorClass = "authentication"
+	// ErrorClassRateLimited is HTTP 429, kept apart so watch backoff can
+	// react to throttling.
+	ErrorClassRateLimited ErrorClass = "rate_limited"
+	ErrorClassUpstream    ErrorClass = "upstream"
+	ErrorClassHTTP        ErrorClass = "http"
+	ErrorClassCanceled    ErrorClass = "canceled"
+	ErrorClassTransport   ErrorClass = "transport"
+)
+
+// ClassifyError returns the capability-report class of a poll error.
+func ClassifyError(err error) ErrorClass {
 	if err == nil {
-		return ""
+		return ErrorClassNone
 	}
 	var httpErr *httpx.HTTPError
 	if errors.As(err, &httpErr) {
 		switch httpErr.StatusCode {
 		case http.StatusUnauthorized, http.StatusForbidden:
-			return "authentication"
+			return ErrorClassAuthentication
 		case http.StatusTooManyRequests:
-			return "rate_limited"
+			return ErrorClassRateLimited
 		default:
 			if httpErr.StatusCode >= http.StatusInternalServerError {
-				return "upstream"
+				return ErrorClassUpstream
 			}
-			return "http"
+			return ErrorClassHTTP
 		}
 	}
 	var tokenErr *cache.OAuth2TokenMissingError
 	if errors.As(err, &tokenErr) {
-		return "authentication"
+		return ErrorClassAuthentication
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return "canceled"
+		return ErrorClassCanceled
 	}
-	return "transport"
+	return ErrorClassTransport
 }

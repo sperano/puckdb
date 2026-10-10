@@ -25,7 +25,7 @@ var expectedNHLTools = []string{
 	"list_teams",
 	"list_seasons",
 	"list_franchises",
-	// Players (9)
+	// Players (10)
 	"get_player",
 	"get_players_by_team",
 	"get_players_by_position",
@@ -35,6 +35,7 @@ var expectedNHLTools = []string{
 	"get_player_awards",
 	"get_player_roster_history",
 	"get_player_three_stars",
+	"get_season_roster",
 	// Games (7)
 	"get_game",
 	"get_games_by_date",
@@ -75,6 +76,8 @@ var expectedNHLTools = []string{
 	// Play events (2)
 	"get_game_play_events",
 	"get_first_matching_event_per_team",
+	// Linemates (1)
+	"get_player_linemates",
 }
 
 // expectedYahooTools lists every tool the yahoo toolset registers.
@@ -252,11 +255,15 @@ var nhlArgOverrides = map[string]map[string]any{
 	"get_goalie_season_stats": {seasonSortByArg: defaultGoalieSeasonSort, seasonPositionArg: string(sqlcdb.PlayerPositionG)},
 }
 
-// exclusiveNHLArgs are arguments left out of a tool's valid call because
-// the tool refuses them together with another one.
-var exclusiveNHLArgs = map[string]string{
-	"get_player":    yahooIDArg,
-	"search_player": yahooIDArg,
+// omittedNHLArgs are arguments left out of a tool's valid call: the
+// player tools refuse yahoo_id together with player_id or name, and the
+// game log tools filter season in Go, not in SQL, once a date range is
+// given.
+var omittedNHLArgs = map[string]string{
+	"get_player":          yahooIDArg,
+	"search_player":       yahooIDArg,
+	"get_skater_game_log": "season",
+	"get_goalie_game_log": "season",
 }
 
 // validNHLCall builds a valid call of tool from its schema.
@@ -264,7 +271,7 @@ func validNHLCall(t *testing.T, tool mcp.Tool) map[string]any {
 	t.Helper()
 	args := map[string]any{}
 	for name := range tool.InputSchema.Properties {
-		if exclusiveNHLArgs[tool.Name] == name {
+		if omittedNHLArgs[tool.Name] == name {
 			continue
 		}
 		value, ok := nhlArgOverrides[tool.Name][name]

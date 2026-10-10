@@ -7,6 +7,8 @@ package sqlcdb
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteEvenStrengthPairTOIForGame = `-- name: DeleteEvenStrengthPairTOIForGame :exec
@@ -329,4 +331,123 @@ func (q *Queries) InsertEvenStrengthSkaterGamesForGame(ctx context.Context, game
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const listPlayerEvenStrengthLinemates = `-- name: ListPlayerEvenStrengthLinemates :many
+WITH player_games AS (
+    SELECT skater.game_id, skater.team_id, skater.toi_seconds, game.season
+    FROM games game
+    JOIN even_strength_skater_games skater
+      ON skater.game_id = game.id
+     AND skater.player_id = $2
+    WHERE ($3::int IS NULL OR game.season = $3)
+      AND ($4::date IS NULL OR game.game_date >= $4)
+      AND ($5::date IS NULL OR game.game_date <= $5)
+      AND CASE
+          WHEN $6::game_type IS NULL
+              THEN game.game_type IN ('regular_season', 'playoffs')
+          ELSE game.game_type = $6
+      END
+),
+club_totals AS (
+    SELECT team_id, sum(toi_seconds)::bigint AS toi_seconds, max(season) AS last_season
+    FROM player_games
+    GROUP BY team_id
+),
+shared AS (
+    SELECT
+        player_game.team_id,
+        pair.teammate_id,
+        count(*)::integer AS games_together,
+        sum(pair.shared_toi_seconds)::bigint AS shared_toi_seconds
+    FROM player_games player_game
+    JOIN even_strength_pair_toi pair
+      ON pair.game_id = player_game.game_id
+     AND pair.player_id = $2
+    GROUP BY player_game.team_id, pair.teammate_id
+)
+SELECT
+    shared.team_id,
+    club.abbrev AS team_abbrev,
+    shared.teammate_id,
+    teammate.first_name,
+    teammate.last_name,
+    teammate.position,
+    shared.games_together,
+    shared.shared_toi_seconds,
+    round(100.0 * shared.shared_toi_seconds / totals.toi_seconds, 1)::float8 AS share_pct
+FROM shared
+JOIN club_totals totals ON totals.team_id = shared.team_id
+LEFT JOIN season_teams club
+  ON club.team_id = shared.team_id
+ AND club.season = totals.last_season
+LEFT JOIN players teammate ON teammate.id = shared.teammate_id
+ORDER BY shared.shared_toi_seconds DESC, shared.team_id, shared.teammate_id
+LIMIT $1::integer
+`
+
+type ListPlayerEvenStrengthLinematesParams struct {
+	ResultLimit int32        `json:"result_limit"`
+	PlayerID    int64        `json:"player_id"`
+	Season      pgtype.Int4  `json:"season"`
+	StartDate   pgtype.Date  `json:"start_date"`
+	EndDate     pgtype.Date  `json:"end_date"`
+	GameType    NullGameType `json:"game_type"`
+}
+
+type ListPlayerEvenStrengthLinematesRow struct {
+	TeamID           int64              `json:"team_id"`
+	TeamAbbrev       pgtype.Text        `json:"team_abbrev"`
+	TeammateID       int64              `json:"teammate_id"`
+	FirstName        pgtype.Text        `json:"first_name"`
+	LastName         pgtype.Text        `json:"last_name"`
+	Position         NullPlayerPosition `json:"position"`
+	GamesTogether    int32              `json:"games_together"`
+	SharedToiSeconds int64              `json:"shared_toi_seconds"`
+	SharePct         float64            `json:"share_pct"`
+}
+
+// The skaters one player shared even-strength ice with, most shared time
+// first, for the get_player_linemates MCP tool. Games are filtered by
+// season, date range and game type (NULL game type: regular season and
+// playoffs), then the per-game totals of InsertEvenStrengthPairTOIForGame
+// and InsertEvenStrengthSkaterGamesForGame are summed per (club,
+// teammate), so a traded player's linemates stay with the club they shared.
+// share_pct is the shared time as a percentage of the player's own
+// even-strength time with that club over the same games.
+func (q *Queries) ListPlayerEvenStrengthLinemates(ctx context.Context, arg ListPlayerEvenStrengthLinematesParams) ([]ListPlayerEvenStrengthLinematesRow, error) {
+	rows, err := q.db.Query(ctx, listPlayerEvenStrengthLinemates,
+		arg.ResultLimit,
+		arg.PlayerID,
+		arg.Season,
+		arg.StartDate,
+		arg.EndDate,
+		arg.GameType,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPlayerEvenStrengthLinematesRow{}
+	for rows.Next() {
+		var i ListPlayerEvenStrengthLinematesRow
+		if err := rows.Scan(
+			&i.TeamID,
+			&i.TeamAbbrev,
+			&i.TeammateID,
+			&i.FirstName,
+			&i.LastName,
+			&i.Position,
+			&i.GamesTogether,
+			&i.SharedToiSeconds,
+			&i.SharePct,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

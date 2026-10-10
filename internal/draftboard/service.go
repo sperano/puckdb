@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -20,7 +19,10 @@ import (
 )
 
 var (
-	ErrVersionConflict = errors.New("draft shortlist state version conflict")
+	// ErrVersionConflict means the caller's expected board version is no
+	// longer current. The error also wraps a *draftwatch.StaleStateVersionError
+	// carrying the expected and current versions.
+	ErrVersionConflict = errors.New("draft board state version conflict")
 	ErrNoOwnedTeam     = errors.New("owned Yahoo draft team is unavailable")
 )
 
@@ -216,17 +218,19 @@ func (s *Service) finishBoard(ctx context.Context, board Board, ranking *draftra
 	for index := range board.Available {
 		board.Available[index].IsShortlisted = shortlisted[board.Available[index].PlayerKey]
 	}
-	board.Session.Warnings = append(board.Session.Warnings, roster.Warnings...)
-	for _, issue := range ranking.Unavailable {
-		board.Session.Warnings = append(board.Session.Warnings, issue.Message)
+	warnings := board.Session.Warnings
+	for _, warning := range roster.Warnings {
+		warnings = appendIssues(warnings, draftrank.Issue{Code: IssueRosterWarning, Message: warning})
 	}
-	board.Session.Warnings = append(board.Session.Warnings, result.Issues...)
+	warnings = appendIssues(warnings, ranking.Unavailable...)
+	warnings = appendIssues(warnings, result.Issues...)
 	if s.recommendations == nil {
-		board.Session.Warnings = append(board.Session.Warnings, "draft recommendation service is unavailable")
+		warnings = appendIssues(warnings, issueRecommendationsUnavailable)
 	}
 	if recommendation == nil && s.recommendations != nil {
-		board.Session.Warnings = append(board.Session.Warnings, "recommendations are suppressed because the current roster is not feasible")
+		warnings = appendIssues(warnings, issueRecommendationsSuppressed)
 	}
+	board.Session.Warnings = warnings
 	return board, nil
 }
 
@@ -346,7 +350,7 @@ func (s *Service) SetShortlist(ctx context.Context, league string, season int, p
 		return err
 	}
 	if session.State.Version != expectedVersion {
-		return ErrVersionConflict
+		return versionConflict(&draftwatch.StaleStateVersionError{Expected: expectedVersion, Actual: session.State.Version})
 	}
 	if playerKey == "" {
 		return errors.New("shortlist player key is required")
@@ -363,7 +367,7 @@ func (s *Service) ApplyManual(ctx context.Context, league string, season int, op
 	}
 	session, report, err := s.data.ApplyManual(ctx, identity, operation, expectedVersion, at)
 	if errors.Is(err, draftwatch.ErrStaleStateVersion) {
-		return MutationResult{}, ErrVersionConflict
+		return MutationResult{}, versionConflict(err)
 	}
 	return MutationResult{Session: session, Report: report}, err
 }
@@ -377,7 +381,7 @@ func (s *Service) ResolveConflict(ctx context.Context, league string, season int
 	}
 	session, report, err := s.data.ResolveConflict(ctx, identity, key, choice, expectedVersion, at)
 	if errors.Is(err, draftwatch.ErrStaleStateVersion) {
-		return MutationResult{}, ErrVersionConflict
+		return MutationResult{}, versionConflict(err)
 	}
 	return MutationResult{Session: session, Report: report}, err
 }
@@ -398,41 +402,4 @@ func (s *Service) Events(ctx context.Context, league string, season int, afterVe
 			Details: append([]byte(nil), event.Details...), CreatedAt: event.CreatedAt}
 	}
 	return result, nil
-}
-
-func statusOf(session draftwatch.Session, now time.Time, staleAfter time.Duration) Status {
-	stale := session.LastSuccessAt != nil && staleAfter > 0 && now.Sub(*session.LastSuccessAt) > staleAfter
-	safe := session.SafeToRecommend()
-	status := Status{
-		Version: session.State.Version, SyncVersion: session.SyncVersion, DraftStatus: session.DraftStatus,
-		RecommendationsSafe: safe, Complete: session.Complete,
-		Stale: stale, LastPollAt: session.LastPollAt, LastSuccessAt: session.LastSuccessAt,
-		LastAuthoritativeAt: session.LastAuthoritativeAt, LastError: session.LastError,
-	}
-	if session.LastSuccessAt == nil {
-		status.Warnings = append(status.Warnings, "Yahoo draft board has not completed its first synchronization")
-	} else if stale {
-		status.Warnings = append(status.Warnings, "Yahoo draft board is stale; last successful sync is outside the freshness window")
-	}
-	if !safe {
-		status.Warnings = append(status.Warnings, "draft board is incomplete or has unresolved manual conflicts")
-	}
-	for _, duplicate := range draftsession.DuplicatePlayers(session.State) {
-		status.Warnings = append(status.Warnings, duplicateWarning(duplicate))
-	}
-	if session.LastError != "" {
-		status.Warnings = append(status.Warnings, "last Yahoo sync failed: "+session.LastError)
-	}
-	if session.SkippedPickCount > 0 {
-		status.Warnings = append(status.Warnings, fmt.Sprintf("Yahoo board has %d unresolved or malformed picks", session.SkippedPickCount))
-	}
-	return status
-}
-
-func duplicateWarning(duplicate draftsession.DuplicatePlayer) string {
-	slots := make([]string, len(duplicate.Keys))
-	for i, key := range duplicate.Keys {
-		slots[i] = fmt.Sprintf("round %d pick %d", key.Round, key.Pick)
-	}
-	return fmt.Sprintf("player %d appears in more than one slot (%s)", duplicate.PlayerID, strings.Join(slots, ", "))
 }

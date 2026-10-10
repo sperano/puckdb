@@ -14,7 +14,12 @@ import (
 
 const maxDraftEventPageSize = 200
 
-var ErrStaleStateVersion = errors.New("draft state version is stale")
+var (
+	ErrStaleStateVersion = errors.New("draft state version is stale")
+	// ErrSessionNotFound means no draft session row exists for a league key
+	// yet; Ensure creates one.
+	ErrSessionNotFound = errors.New("draft session not found")
+)
 
 // StaleStateVersionError reports the version expected by a mutation and the
 // current version observed after taking the session row lock.
@@ -73,7 +78,7 @@ type Observation struct {
 	ParsedCount   int
 	SkippedCount  int
 	SnapshotHash  string
-	ErrorClass    string
+	ErrorClass    ErrorClass
 	Error         string
 }
 
@@ -157,7 +162,7 @@ UPDATE draft_sessions SET last_poll_at=$2, last_error=$3,
 	}
 	observation := Observation{
 		PolledAt: at, Duration: nonNegativeDuration(duration),
-		ErrorClass: ErrorClass(pollErr), Error: pollErr.Error(),
+		ErrorClass: ClassifyError(pollErr), Error: pollErr.Error(),
 	}
 	if err := insertObservation(ctx, tx, id.LeagueKey, observation); err != nil {
 		return err
@@ -268,6 +273,9 @@ FROM draft_sessions WHERE league_key=$1`
 		&session.LastPollAt, &session.LastSuccessAt, &session.LastAuthoritativeAt, &session.LastError,
 		&syncVersion, &session.UpdatedAt,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, fmt.Errorf("load draft session %s: %w", leagueKey, ErrSessionNotFound)
+	}
 	if err != nil {
 		return Session{}, fmt.Errorf("load draft session %s: %w", leagueKey, err)
 	}
@@ -290,13 +298,13 @@ FROM draft_sessions WHERE league_key=$1`
 // ascending version order. The limit is bounded to protect reconnect polling.
 func (r *Repository) ListEvents(ctx context.Context, leagueKey string, afterVersion uint64, limit int) ([]Event, error) {
 	if limit <= 0 {
-		return nil, fmt.Errorf("draft event limit must be positive")
+		return nil, errors.New("draft event limit must be positive")
 	}
 	if limit > maxDraftEventPageSize {
 		limit = maxDraftEventPageSize
 	}
 	if afterVersion > uint64(^uint64(0)>>1) {
-		return nil, fmt.Errorf("draft event cursor exceeds PostgreSQL bigint")
+		return nil, errors.New("draft event cursor exceeds PostgreSQL bigint")
 	}
 	const query = `
 SELECT state_version, kind, details, created_at
@@ -464,6 +472,3 @@ func databaseVersion(version uint64) int64 {
 	}
 	return int64(version)
 }
-
-// IsNotFound reports that no session has been created yet.
-func IsNotFound(err error) bool { return errors.Is(err, pgx.ErrNoRows) }

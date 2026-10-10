@@ -97,7 +97,7 @@ func (r Runner) Watch(ctx context.Context, id Identity, options WatchOptions) er
 			if session.Complete {
 				return nil
 			}
-		} else if ErrorClass(pollErr) == "rate_limited" {
+		} else if ClassifyError(pollErr) == ErrorClassRateLimited {
 			// GenericClient does not retain Retry-After yet. Use the configured
 			// ceiling rather than repeatedly probing Yahoo after an explicit 429.
 			backoff = options.MaxBackoff
@@ -123,13 +123,13 @@ func (r Runner) finalReconcile(id Identity, options WatchOptions, cancellation e
 
 func validateWatchOptions(options WatchOptions) error {
 	if options.Interval <= 0 {
-		return fmt.Errorf("draft poll interval must be positive")
+		return errors.New("draft poll interval must be positive")
 	}
 	if options.MaxBackoff < options.Interval {
-		return fmt.Errorf("draft maximum backoff must be at least the poll interval")
+		return errors.New("draft maximum backoff must be at least the poll interval")
 	}
 	if options.FinalTimeout <= 0 {
-		return fmt.Errorf("draft final timeout must be positive")
+		return errors.New("draft final timeout must be positive")
 	}
 	return nil
 }
@@ -168,7 +168,7 @@ type sessionSyncLock struct {
 
 func acquireSessionSync(ctx context.Context, pool *pgxpool.Pool, leagueKey string) (*sessionSyncLock, error) {
 	if pool == nil {
-		return nil, fmt.Errorf("draft synchronization database pool is required")
+		return nil, errors.New("draft synchronization database pool is required")
 	}
 	conn, err := pool.Acquire(ctx)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -201,7 +202,13 @@ func optionalInt8Filter(req mcp.CallToolRequest, arg intArg) (pgtype.Int8, *mcp.
 // limitOrDefault reads the optional limit argument; absent is defaultLimit.
 // An explicit 0 is passed on as given.
 func limitOrDefault(req mcp.CallToolRequest, defaultLimit int32) (int32, *mcp.CallToolResult) {
-	limit, given, errResult := optionalInt[int32](req, limitParam)
+	return boundedLimitOrDefault(req, limitParam, defaultLimit)
+}
+
+// boundedLimitOrDefault is limitOrDefault for a tool whose limit has its
+// own bounds (arg); absent is defaultLimit.
+func boundedLimitOrDefault(req mcp.CallToolRequest, arg intArg, defaultLimit int32) (int32, *mcp.CallToolResult) {
+	limit, given, errResult := optionalInt[int32](req, arg)
 	if errResult != nil || !given {
 		return defaultLimit, errResult
 	}
@@ -248,30 +255,36 @@ func jsonResult[T any](row T, err error) (*mcp.CallToolResult, error) {
 	return ResultJSON(row)
 }
 
+// parseDate converts one date argument: a string holding a real calendar
+// date as YYYY-MM-DD. pgtype.Date.Scan is not used, as it also takes
+// "infinity" and a " BC" suffix and turns 2025-02-30 into March 2, so a
+// malformed date would silently query another day.
+func parseDate(name string, raw any) (pgtype.Date, *mcp.CallToolResult) {
+	if text, isString := raw.(string); isString {
+		if day, err := time.Parse(time.DateOnly, text); err == nil {
+			return pgtype.Date{Time: day, Valid: true}, nil
+		}
+	}
+	return pgtype.Date{}, mcp.NewToolResultError(fmt.Sprintf("invalid %s %s: want a date as YYYY-MM-DD", name, formatRaw(raw)))
+}
+
 // requireDate reads the required "date" argument (YYYY-MM-DD); on failure it
 // returns the tool error to send back.
 func requireDate(req mcp.CallToolRequest) (pgtype.Date, *mcp.CallToolResult) {
-	var d pgtype.Date
-	dateStr, err := req.RequireString("date")
-	if err != nil {
-		return d, mcp.NewToolResultError(err.Error())
+	const name = "date"
+	raw, present := argument(req, name)
+	if !present {
+		return pgtype.Date{}, mcp.NewToolResultError(name + " is required")
 	}
-	if err := d.Scan(dateStr); err != nil {
-		return d, mcp.NewToolResultError("invalid date format, use YYYY-MM-DD")
-	}
-	return d, nil
+	return parseDate(name, raw)
 }
 
 // optionalDate reads an optional date argument (YYYY-MM-DD); absent or
 // empty is NULL.
 func optionalDate(req mcp.CallToolRequest, name string) (pgtype.Date, *mcp.CallToolResult) {
-	var d pgtype.Date
-	s := req.GetString(name, "")
-	if s == "" {
-		return d, nil
+	raw, present := argument(req, name)
+	if !present || raw == "" {
+		return pgtype.Date{}, nil
 	}
-	if err := d.Scan(s); err != nil {
-		return d, mcp.NewToolResultError("invalid " + name + " format, use YYYY-MM-DD")
-	}
-	return d, nil
+	return parseDate(name, raw)
 }

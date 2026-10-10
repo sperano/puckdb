@@ -4,6 +4,7 @@ package draftwatch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -17,6 +18,10 @@ const (
 	teamKeyParts   = 5
 	playerKeyParts = 3
 )
+
+// ErrLeagueNotImported means no imported league-rule snapshot matches the
+// requested league (and season), so its identity cannot be resolved.
+var ErrLeagueNotImported = errors.New("no imported rule snapshot")
 
 // Identity is the season-safe identity of one Yahoo league.
 type Identity struct {
@@ -32,7 +37,7 @@ type Identity struct {
 func ResolveIdentity(ctx context.Context, pool *pgxpool.Pool, ref string, season int) (Identity, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
-		return Identity{}, fmt.Errorf("league is required")
+		return Identity{}, errors.New("league is required")
 	}
 	if strings.Contains(ref, ".") {
 		gameKey, leagueID, err := ParseLeagueKey(ref)
@@ -98,7 +103,7 @@ func ParsePlayerKey(key string, id Identity) (int, error) {
 func positiveInt(value string) (int, error) {
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed <= 0 {
-		return 0, fmt.Errorf("not a positive integer")
+		return 0, errors.New("not a positive integer")
 	}
 	return parsed, nil
 }
@@ -110,8 +115,8 @@ WHERE league_key = $1 AND ($2::integer = 0 OR season = $2)
 ORDER BY last_seen_at DESC, id DESC LIMIT 1`
 	var season int
 	if err := pool.QueryRow(ctx, query, key, requested).Scan(&season); err != nil {
-		if err == pgx.ErrNoRows {
-			return 0, fmt.Errorf("league %s has no imported rule snapshot; sync its league metadata first", key)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, fmt.Errorf("league %s: %w; sync its league metadata first", key, ErrLeagueNotImported)
 		}
 		return 0, fmt.Errorf("resolve league %s: %w", key, err)
 	}
@@ -126,8 +131,8 @@ ORDER BY last_seen_at DESC, id DESC LIMIT 1`
 	var key string
 	var season int
 	if err := pool.QueryRow(ctx, query, leagueID, requestedSeason).Scan(&key, &season); err != nil {
-		if err == pgx.ErrNoRows {
-			return Identity{}, fmt.Errorf("league ID %d has no imported rule snapshot for season %d", leagueID, requestedSeason)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Identity{}, fmt.Errorf("league ID %d season %d: %w", leagueID, requestedSeason, ErrLeagueNotImported)
 		}
 		return Identity{}, fmt.Errorf("resolve league ID %d: %w", leagueID, err)
 	}

@@ -4,14 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draftsession"
+	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -285,4 +289,35 @@ func testIdentityForRepository(t *testing.T) Identity {
 		LeagueID:  leagueID,
 		GameKey:   999,
 	}
+}
+
+func TestRepositoryGetMapsMissingSessionToPackageSentinel(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	_, err := fixture.repo.Get(fixture.ctx, fixture.identity.LeagueKey)
+	require.ErrorIs(t, err, ErrSessionNotFound)
+	assert.NotErrorIs(t, err, pgx.ErrNoRows, "callers must not depend on pgx semantics")
+	assert.ErrorContains(t, err, fixture.identity.LeagueKey)
+}
+
+func TestResolveIdentityMapsMissingRuleSnapshotToPackageSentinel(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	_, err := ResolveIdentity(fixture.ctx, fixture.repo.pool, fixture.identity.LeagueKey, fixture.identity.Season)
+	require.ErrorIs(t, err, ErrLeagueNotImported)
+	assert.NotErrorIs(t, err, pgx.ErrNoRows)
+	assert.ErrorContains(t, err, "sync its league metadata first")
+
+	_, err = ResolveIdentity(fixture.ctx, fixture.repo.pool, strconv.Itoa(fixture.identity.LeagueID), fixture.identity.Season)
+	require.ErrorIs(t, err, ErrLeagueNotImported)
+	assert.NotErrorIs(t, err, pgx.ErrNoRows)
+}
+
+func TestRecordFailureStoresTypedErrorClass(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	pollErr := fmt.Errorf("poll draft: %w", &httpx.HTTPError{StatusCode: http.StatusTooManyRequests})
+	require.NoError(t, fixture.repo.RecordFailure(fixture.ctx, fixture.identity, time.Now().UTC(), time.Second, pollErr))
+
+	observations, err := fixture.repo.ListObservations(fixture.ctx, fixture.identity.LeagueKey, 1)
+	require.NoError(t, err)
+	require.Len(t, observations, 1)
+	assert.Equal(t, ErrorClassRateLimited, observations[0].ErrorClass)
 }
