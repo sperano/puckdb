@@ -28,6 +28,7 @@ type yahooQueries interface {
 	GetYahooLeagueStatCategories(ctx context.Context, leagueID int32) ([]sqlcdb.YahooLeagueStatCategory, error)
 	GetYahooLeagueRosterPositions(ctx context.Context, leagueID int32) ([]sqlcdb.YahooLeagueRosterPosition, error)
 	GetLatestYahooLeagueRuleSnapshot(ctx context.Context, arg sqlcdb.GetLatestYahooLeagueRuleSnapshotParams) (sqlcdb.YahooLeagueRuleSnapshot, error)
+	ListYahooLeaguePlayersWithNHL(ctx context.Context, leagueKey string) ([]sqlcdb.ListYahooLeaguePlayersWithNHLRow, error)
 }
 
 // leagueIndependentYahooTools names the yahoo tools that take no league_id;
@@ -55,6 +56,7 @@ func yahooTools(q yahooQueries, guard leagueGuard, draft draftLeagueSource) []se
 		yahooMatchupsTool(q, guard),
 		yahooDraftResultsTool(q, guard),
 		yahooLeagueSettingsTool(q, guard),
+		yahooLeaguePlayersTool(q, guard),
 		draftLeaguesTool(draft, guard),
 	}
 }

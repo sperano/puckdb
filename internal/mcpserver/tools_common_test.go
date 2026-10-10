@@ -250,6 +250,40 @@ func TestOptionalDate(t *testing.T) {
 	assert.Equal(t, `invalid start_date "10/08/2025": want a date as YYYY-MM-DD`, resultText(t, errResult))
 }
 
+func TestOptionalBool(t *testing.T) {
+	const name = "unmatched_only"
+	for raw, want := range map[any]bool{true: true, false: false, "true": true, "FALSE": false, "1": true} {
+		got, errResult := optionalBool(requestWith(map[string]any{name: raw}), name)
+		require.Nil(t, errResult, "%v", raw)
+		assert.Equal(t, want, got, "%v", raw)
+	}
+	for _, args := range []map[string]any{{}, {name: nil}} {
+		got, errResult := optionalBool(requestWith(args), name)
+		require.Nil(t, errResult)
+		assert.False(t, got, "absent or null is false")
+	}
+	for _, raw := range []any{"yes", float64(1), ""} {
+		_, errResult := optionalBool(requestWith(map[string]any{name: raw}), name)
+		require.NotNil(t, errResult, "%v must be refused, not read as false", raw)
+		assert.Contains(t, resultText(t, errResult), "invalid "+name)
+	}
+}
+
+func TestOptionalString(t *testing.T) {
+	const name = "positions"
+	got, errResult := optionalString(requestWith(map[string]any{name: "C,LW"}), name)
+	require.Nil(t, errResult)
+	assert.Equal(t, "C,LW", got)
+
+	got, errResult = optionalString(requestWith(map[string]any{name: nil}), name)
+	require.Nil(t, errResult)
+	assert.Empty(t, got)
+
+	_, errResult = optionalString(requestWith(map[string]any{name: []any{"C"}}), name)
+	require.NotNil(t, errResult, "an array must be refused, not read as no filter")
+	assert.Equal(t, "invalid positions [C]: want a string", resultText(t, errResult))
+}
+
 // TestParseDateRejectsWhatPgtypeAccepts covers values pgtype.Date.Scan
 // would have taken or normalized to another day.
 func TestParseDateRejectsWhatPgtypeAccepts(t *testing.T) {

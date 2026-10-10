@@ -96,6 +96,7 @@ var expectedYahooTools = []string{
 	"get_yahoo_matchups",
 	"get_yahoo_draft_results",
 	"get_yahoo_league_settings",
+	"get_yahoo_league_players",
 	"get_draft_leagues",
 }
 
