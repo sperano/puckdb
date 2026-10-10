@@ -27,6 +27,7 @@ func edgeTools(q *sqlcdb.Queries) []server.ServerTool {
 		edgeSkaterStatsTool(q),
 		edgeGoalieStatsTool(q),
 		edgeTeamStatsTool(q),
+		edgeLeadersTool(q),
 	}
 }
 

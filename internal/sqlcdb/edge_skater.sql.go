@@ -54,6 +54,168 @@ func (q *Queries) DeleteEdgeSkaterSogSummary(ctx context.Context, arg DeleteEdge
 	return err
 }
 
+const getEdgeSkaterLeaders = `-- name: GetEdgeSkaterLeaders :many
+SELECT s.player_id, s.season, s.game_type, s.top_speed_imperial, s.top_speed_metric, s.top_speed_percentile, s.top_speed_league_avg_imperial, s.top_speed_league_avg_metric, s.bursts_over_20, s.bursts_over_20_percentile, s.bursts_over_20_league_avg, s.total_distance_imperial, s.total_distance_metric, s.total_distance_percentile, s.max_game_distance_imperial, s.max_game_distance_metric, s.max_game_distance_percentile, s.top_shot_speed_imperial, s.top_shot_speed_metric, s.top_shot_speed_percentile, s.top_shot_speed_league_avg_imperial, s.top_shot_speed_league_avg_metric, s.oz_pctg, s.oz_percentile, s.oz_league_avg, s.nz_pctg, s.nz_percentile, s.nz_league_avg, s.dz_pctg, s.dz_percentile, s.dz_league_avg, s.oz_ev_pctg, s.oz_ev_percentile, s.created_at, s.updated_at, p.first_name, p.last_name, p.position,
+       COALESCE(c.games_played, 0)::int AS games_played,
+       COALESCE(c.teams, '')::text AS teams
+FROM edge_skater_stats s
+JOIN players p ON p.id = s.player_id
+LEFT JOIN (
+  SELECT cs.player_id, SUM(cs.games_played)::int AS games_played,
+         string_agg(st.abbrev, '/' ORDER BY st.abbrev)::text AS teams
+  FROM club_skater_stats cs
+  LEFT JOIN season_teams st ON st.season = cs.season AND st.team_id = cs.team_id
+  WHERE cs.season = $1 AND cs.game_type = $2
+  GROUP BY cs.player_id
+) c ON c.player_id = s.player_id
+CROSS JOIN LATERAL (
+  SELECT CASE $3::text
+    WHEN 'top_speed' THEN s.top_speed_imperial::float8
+    WHEN 'bursts_over_20' THEN s.bursts_over_20::float8
+    WHEN 'total_distance' THEN s.total_distance_imperial::float8
+    WHEN 'max_game_distance' THEN s.max_game_distance_imperial::float8
+    WHEN 'top_shot_speed' THEN s.top_shot_speed_imperial::float8
+    WHEN 'oz_pctg' THEN s.oz_pctg::float8
+    WHEN 'oz_ev_pctg' THEN s.oz_ev_pctg::float8
+    WHEN 'nz_pctg' THEN s.nz_pctg::float8
+    WHEN 'dz_pctg' THEN s.dz_pctg::float8
+  END AS sort_value
+) m
+WHERE s.season = $1 AND s.game_type = $2
+  AND m.sort_value IS NOT NULL
+  AND COALESCE(c.games_played, 0) >= $4::int
+ORDER BY
+  CASE WHEN $5::bool THEN m.sort_value END ASC,
+  m.sort_value DESC,
+  p.last_name, p.first_name, s.player_id
+LIMIT $6
+`
+
+type GetEdgeSkaterLeadersParams struct {
+	Season      int32    `json:"season"`
+	GameType    GameType `json:"game_type"`
+	SortBy      string   `json:"sort_by"`
+	MinGames    int32    `json:"min_games"`
+	Ascending   bool     `json:"ascending"`
+	ResultLimit int32    `json:"result_limit"`
+}
+
+type GetEdgeSkaterLeadersRow struct {
+	PlayerID                      int64              `json:"player_id"`
+	Season                        int32              `json:"season"`
+	GameType                      GameType           `json:"game_type"`
+	TopSpeedImperial              pgtype.Float4      `json:"top_speed_imperial"`
+	TopSpeedMetric                pgtype.Float4      `json:"top_speed_metric"`
+	TopSpeedPercentile            pgtype.Float4      `json:"top_speed_percentile"`
+	TopSpeedLeagueAvgImperial     pgtype.Float4      `json:"top_speed_league_avg_imperial"`
+	TopSpeedLeagueAvgMetric       pgtype.Float4      `json:"top_speed_league_avg_metric"`
+	BurstsOver20                  pgtype.Int4        `json:"bursts_over_20"`
+	BurstsOver20Percentile        pgtype.Float4      `json:"bursts_over_20_percentile"`
+	BurstsOver20LeagueAvg         pgtype.Float4      `json:"bursts_over_20_league_avg"`
+	TotalDistanceImperial         pgtype.Float4      `json:"total_distance_imperial"`
+	TotalDistanceMetric           pgtype.Float4      `json:"total_distance_metric"`
+	TotalDistancePercentile       pgtype.Float4      `json:"total_distance_percentile"`
+	MaxGameDistanceImperial       pgtype.Float4      `json:"max_game_distance_imperial"`
+	MaxGameDistanceMetric         pgtype.Float4      `json:"max_game_distance_metric"`
+	MaxGameDistancePercentile     pgtype.Float4      `json:"max_game_distance_percentile"`
+	TopShotSpeedImperial          pgtype.Float4      `json:"top_shot_speed_imperial"`
+	TopShotSpeedMetric            pgtype.Float4      `json:"top_shot_speed_metric"`
+	TopShotSpeedPercentile        pgtype.Float4      `json:"top_shot_speed_percentile"`
+	TopShotSpeedLeagueAvgImperial pgtype.Float4      `json:"top_shot_speed_league_avg_imperial"`
+	TopShotSpeedLeagueAvgMetric   pgtype.Float4      `json:"top_shot_speed_league_avg_metric"`
+	OzPctg                        pgtype.Float4      `json:"oz_pctg"`
+	OzPercentile                  pgtype.Float4      `json:"oz_percentile"`
+	OzLeagueAvg                   pgtype.Float4      `json:"oz_league_avg"`
+	NzPctg                        pgtype.Float4      `json:"nz_pctg"`
+	NzPercentile                  pgtype.Float4      `json:"nz_percentile"`
+	NzLeagueAvg                   pgtype.Float4      `json:"nz_league_avg"`
+	DzPctg                        pgtype.Float4      `json:"dz_pctg"`
+	DzPercentile                  pgtype.Float4      `json:"dz_percentile"`
+	DzLeagueAvg                   pgtype.Float4      `json:"dz_league_avg"`
+	OzEvPctg                      pgtype.Float4      `json:"oz_ev_pctg"`
+	OzEvPercentile                pgtype.Float4      `json:"oz_ev_percentile"`
+	CreatedAt                     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                     pgtype.Timestamptz `json:"updated_at"`
+	FirstName                     string             `json:"first_name"`
+	LastName                      string             `json:"last_name"`
+	Position                      NullPlayerPosition `json:"position"`
+	GamesPlayed                   int32              `json:"games_played"`
+	Teams                         string             `json:"teams"`
+}
+
+// Skaters of one season and game type ordered by one Edge metric (sort_by,
+// whitelisted by the MCP get_edge_leaders tool; an unknown key matches no
+// row). Skaters without a value for the metric are left out. Games played
+// and clubs come from club_skater_stats (summed over a traded player's
+// clubs); a skater without club stats gets 0 games and no teams.
+func (q *Queries) GetEdgeSkaterLeaders(ctx context.Context, arg GetEdgeSkaterLeadersParams) ([]GetEdgeSkaterLeadersRow, error) {
+	rows, err := q.db.Query(ctx, getEdgeSkaterLeaders,
+		arg.Season,
+		arg.GameType,
+		arg.SortBy,
+		arg.MinGames,
+		arg.Ascending,
+		arg.ResultLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetEdgeSkaterLeadersRow{}
+	for rows.Next() {
+		var i GetEdgeSkaterLeadersRow
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.Season,
+			&i.GameType,
+			&i.TopSpeedImperial,
+			&i.TopSpeedMetric,
+			&i.TopSpeedPercentile,
+			&i.TopSpeedLeagueAvgImperial,
+			&i.TopSpeedLeagueAvgMetric,
+			&i.BurstsOver20,
+			&i.BurstsOver20Percentile,
+			&i.BurstsOver20LeagueAvg,
+			&i.TotalDistanceImperial,
+			&i.TotalDistanceMetric,
+			&i.TotalDistancePercentile,
+			&i.MaxGameDistanceImperial,
+			&i.MaxGameDistanceMetric,
+			&i.MaxGameDistancePercentile,
+			&i.TopShotSpeedImperial,
+			&i.TopShotSpeedMetric,
+			&i.TopShotSpeedPercentile,
+			&i.TopShotSpeedLeagueAvgImperial,
+			&i.TopShotSpeedLeagueAvgMetric,
+			&i.OzPctg,
+			&i.OzPercentile,
+			&i.OzLeagueAvg,
+			&i.NzPctg,
+			&i.NzPercentile,
+			&i.NzLeagueAvg,
+			&i.DzPctg,
+			&i.DzPercentile,
+			&i.DzLeagueAvg,
+			&i.OzEvPctg,
+			&i.OzEvPercentile,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.FirstName,
+			&i.LastName,
+			&i.Position,
+			&i.GamesPlayed,
+			&i.Teams,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEdgeSkaterShotLocations = `-- name: GetEdgeSkaterShotLocations :many
 SELECT player_id, season, game_type, area, sog, goals, shooting_pctg, sog_percentile, goals_percentile, shooting_pctg_percentile, created_at, updated_at FROM edge_skater_shot_locations
 WHERE player_id = $1 AND season = $2 AND game_type = $3

@@ -67,6 +67,7 @@ var expectedNHLTools = []string{
 	"get_edge_skater_stats",
 	"get_edge_goalie_stats",
 	"get_edge_team_stats",
+	"get_edge_leaders",
 	// Playoffs (5)
 	"list_games",
 	"get_playoff_games",
@@ -245,6 +246,9 @@ var validNHLArgs = map[string]any{
 	"birth_state_province": "Quebec",
 	"game_type":            "regular_season",
 	seasonSortByArg:        "points",
+	edgeGroupArg:           edgeGroupSkater,
+	edgeMetricArg:          "top_speed",
+	edgeMinGamesArg:        float64(1),
 	"type_desc_keys":       []any{"goal"},
 	"game_ids":             []any{float64(2025020001)},
 }

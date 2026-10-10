@@ -120,6 +120,47 @@ JOIN players p ON s.player_id = p.id
 WHERE s.season = $1 AND s.game_type = $2
 ORDER BY s.top_speed_percentile DESC NULLS LAST;
 
+-- name: GetEdgeSkaterLeaders :many
+-- Skaters of one season and game type ordered by one Edge metric (sort_by,
+-- whitelisted by the MCP get_edge_leaders tool; an unknown key matches no
+-- row). Skaters without a value for the metric are left out. Games played
+-- and clubs come from club_skater_stats (summed over a traded player's
+-- clubs); a skater without club stats gets 0 games and no teams.
+SELECT s.*, p.first_name, p.last_name, p.position,
+       COALESCE(c.games_played, 0)::int AS games_played,
+       COALESCE(c.teams, '')::text AS teams
+FROM edge_skater_stats s
+JOIN players p ON p.id = s.player_id
+LEFT JOIN (
+  SELECT cs.player_id, SUM(cs.games_played)::int AS games_played,
+         string_agg(st.abbrev, '/' ORDER BY st.abbrev)::text AS teams
+  FROM club_skater_stats cs
+  LEFT JOIN season_teams st ON st.season = cs.season AND st.team_id = cs.team_id
+  WHERE cs.season = sqlc.arg(season) AND cs.game_type = sqlc.arg(game_type)
+  GROUP BY cs.player_id
+) c ON c.player_id = s.player_id
+CROSS JOIN LATERAL (
+  SELECT CASE sqlc.arg(sort_by)::text
+    WHEN 'top_speed' THEN s.top_speed_imperial::float8
+    WHEN 'bursts_over_20' THEN s.bursts_over_20::float8
+    WHEN 'total_distance' THEN s.total_distance_imperial::float8
+    WHEN 'max_game_distance' THEN s.max_game_distance_imperial::float8
+    WHEN 'top_shot_speed' THEN s.top_shot_speed_imperial::float8
+    WHEN 'oz_pctg' THEN s.oz_pctg::float8
+    WHEN 'oz_ev_pctg' THEN s.oz_ev_pctg::float8
+    WHEN 'nz_pctg' THEN s.nz_pctg::float8
+    WHEN 'dz_pctg' THEN s.dz_pctg::float8
+  END AS sort_value
+) m
+WHERE s.season = sqlc.arg(season) AND s.game_type = sqlc.arg(game_type)
+  AND m.sort_value IS NOT NULL
+  AND COALESCE(c.games_played, 0) >= sqlc.arg(min_games)::int
+ORDER BY
+  CASE WHEN sqlc.arg(ascending)::bool THEN m.sort_value END ASC,
+  m.sort_value DESC,
+  p.last_name, p.first_name, s.player_id
+LIMIT sqlc.arg(result_limit);
+
 -- name: GetEdgeSkaterShotLocations :many
 SELECT * FROM edge_skater_shot_locations
 WHERE player_id = $1 AND season = $2 AND game_type = $3

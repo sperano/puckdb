@@ -133,6 +133,35 @@ JOIN season_teams st ON s.season = st.season AND s.team_id = st.team_id
 WHERE s.season = $1 AND s.game_type = $2
 ORDER BY s.oz_pctg DESC NULLS LAST;
 
+-- name: GetEdgeTeamLeaders :many
+-- Teams of one season and game type ordered by one Edge metric (sort_by,
+-- whitelisted by the MCP get_edge_leaders tool; an unknown key matches no
+-- row). Teams without a value for the metric are left out.
+SELECT s.*, st.abbrev, st.full_name
+FROM edge_team_stats s
+JOIN season_teams st ON st.season = s.season AND st.team_id = s.team_id
+CROSS JOIN LATERAL (
+  SELECT CASE sqlc.arg(sort_by)::text
+    WHEN 'shot_attempts_over_90' THEN s.shot_attempts_over_90::float8
+    WHEN 'top_shot_speed' THEN s.top_shot_speed_imperial::float8
+    WHEN 'bursts_over_22' THEN s.bursts_over_22::float8
+    WHEN 'bursts_over_20' THEN s.bursts_over_20::float8
+    WHEN 'top_speed' THEN s.speed_max_imperial::float8
+    WHEN 'total_distance' THEN s.total_distance::float8
+    WHEN 'oz_pctg' THEN s.oz_pctg::float8
+    WHEN 'oz_ev_pctg' THEN s.oz_ev_pctg::float8
+    WHEN 'nz_pctg' THEN s.nz_pctg::float8
+    WHEN 'dz_pctg' THEN s.dz_pctg::float8
+  END AS sort_value
+) m
+WHERE s.season = sqlc.arg(season) AND s.game_type = sqlc.arg(game_type)
+  AND m.sort_value IS NOT NULL
+ORDER BY
+  CASE WHEN sqlc.arg(ascending)::bool THEN m.sort_value END ASC,
+  m.sort_value DESC,
+  st.abbrev, s.team_id
+LIMIT sqlc.arg(result_limit);
+
 -- name: GetEdgeTeamSogSummary :many
 SELECT * FROM edge_team_sog_summary
 WHERE team_id = $1 AND season = $2 AND game_type = $3

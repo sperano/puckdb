@@ -22,6 +22,138 @@ func (q *Queries) CountEdgeTeamStats(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const getEdgeTeamLeaders = `-- name: GetEdgeTeamLeaders :many
+SELECT s.team_id, s.season, s.game_type, s.shot_attempts_over_90, s.shot_attempts_over_90_rank, s.top_shot_speed_imperial, s.top_shot_speed_metric, s.top_shot_speed_rank, s.bursts_over_22, s.bursts_over_22_rank, s.bursts_over_20, s.bursts_over_20_rank, s.speed_max_imperial, s.speed_max_metric, s.speed_max_rank, s.total_distance, s.total_distance_rank, s.oz_pctg, s.oz_rank, s.oz_league_avg, s.oz_ev_pctg, s.oz_ev_rank, s.nz_pctg, s.nz_rank, s.nz_league_avg, s.dz_pctg, s.dz_rank, s.dz_league_avg, s.created_at, s.updated_at, st.abbrev, st.full_name
+FROM edge_team_stats s
+JOIN season_teams st ON st.season = s.season AND st.team_id = s.team_id
+CROSS JOIN LATERAL (
+  SELECT CASE $1::text
+    WHEN 'shot_attempts_over_90' THEN s.shot_attempts_over_90::float8
+    WHEN 'top_shot_speed' THEN s.top_shot_speed_imperial::float8
+    WHEN 'bursts_over_22' THEN s.bursts_over_22::float8
+    WHEN 'bursts_over_20' THEN s.bursts_over_20::float8
+    WHEN 'top_speed' THEN s.speed_max_imperial::float8
+    WHEN 'total_distance' THEN s.total_distance::float8
+    WHEN 'oz_pctg' THEN s.oz_pctg::float8
+    WHEN 'oz_ev_pctg' THEN s.oz_ev_pctg::float8
+    WHEN 'nz_pctg' THEN s.nz_pctg::float8
+    WHEN 'dz_pctg' THEN s.dz_pctg::float8
+  END AS sort_value
+) m
+WHERE s.season = $2 AND s.game_type = $3
+  AND m.sort_value IS NOT NULL
+ORDER BY
+  CASE WHEN $4::bool THEN m.sort_value END ASC,
+  m.sort_value DESC,
+  st.abbrev, s.team_id
+LIMIT $5
+`
+
+type GetEdgeTeamLeadersParams struct {
+	SortBy      string   `json:"sort_by"`
+	Season      int32    `json:"season"`
+	GameType    GameType `json:"game_type"`
+	Ascending   bool     `json:"ascending"`
+	ResultLimit int32    `json:"result_limit"`
+}
+
+type GetEdgeTeamLeadersRow struct {
+	TeamID                 int64              `json:"team_id"`
+	Season                 int32              `json:"season"`
+	GameType               GameType           `json:"game_type"`
+	ShotAttemptsOver90     pgtype.Int4        `json:"shot_attempts_over_90"`
+	ShotAttemptsOver90Rank pgtype.Int4        `json:"shot_attempts_over_90_rank"`
+	TopShotSpeedImperial   pgtype.Float4      `json:"top_shot_speed_imperial"`
+	TopShotSpeedMetric     pgtype.Float4      `json:"top_shot_speed_metric"`
+	TopShotSpeedRank       pgtype.Int4        `json:"top_shot_speed_rank"`
+	BurstsOver22           pgtype.Int4        `json:"bursts_over_22"`
+	BurstsOver22Rank       pgtype.Int4        `json:"bursts_over_22_rank"`
+	BurstsOver20           pgtype.Int4        `json:"bursts_over_20"`
+	BurstsOver20Rank       pgtype.Int4        `json:"bursts_over_20_rank"`
+	SpeedMaxImperial       pgtype.Float4      `json:"speed_max_imperial"`
+	SpeedMaxMetric         pgtype.Float4      `json:"speed_max_metric"`
+	SpeedMaxRank           pgtype.Int4        `json:"speed_max_rank"`
+	TotalDistance          pgtype.Int4        `json:"total_distance"`
+	TotalDistanceRank      pgtype.Int4        `json:"total_distance_rank"`
+	OzPctg                 pgtype.Float4      `json:"oz_pctg"`
+	OzRank                 pgtype.Int4        `json:"oz_rank"`
+	OzLeagueAvg            pgtype.Float4      `json:"oz_league_avg"`
+	OzEvPctg               pgtype.Float4      `json:"oz_ev_pctg"`
+	OzEvRank               pgtype.Int4        `json:"oz_ev_rank"`
+	NzPctg                 pgtype.Float4      `json:"nz_pctg"`
+	NzRank                 pgtype.Int4        `json:"nz_rank"`
+	NzLeagueAvg            pgtype.Float4      `json:"nz_league_avg"`
+	DzPctg                 pgtype.Float4      `json:"dz_pctg"`
+	DzRank                 pgtype.Int4        `json:"dz_rank"`
+	DzLeagueAvg            pgtype.Float4      `json:"dz_league_avg"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	Abbrev                 string             `json:"abbrev"`
+	FullName               string             `json:"full_name"`
+}
+
+// Teams of one season and game type ordered by one Edge metric (sort_by,
+// whitelisted by the MCP get_edge_leaders tool; an unknown key matches no
+// row). Teams without a value for the metric are left out.
+func (q *Queries) GetEdgeTeamLeaders(ctx context.Context, arg GetEdgeTeamLeadersParams) ([]GetEdgeTeamLeadersRow, error) {
+	rows, err := q.db.Query(ctx, getEdgeTeamLeaders,
+		arg.SortBy,
+		arg.Season,
+		arg.GameType,
+		arg.Ascending,
+		arg.ResultLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetEdgeTeamLeadersRow{}
+	for rows.Next() {
+		var i GetEdgeTeamLeadersRow
+		if err := rows.Scan(
+			&i.TeamID,
+			&i.Season,
+			&i.GameType,
+			&i.ShotAttemptsOver90,
+			&i.ShotAttemptsOver90Rank,
+			&i.TopShotSpeedImperial,
+			&i.TopShotSpeedMetric,
+			&i.TopShotSpeedRank,
+			&i.BurstsOver22,
+			&i.BurstsOver22Rank,
+			&i.BurstsOver20,
+			&i.BurstsOver20Rank,
+			&i.SpeedMaxImperial,
+			&i.SpeedMaxMetric,
+			&i.SpeedMaxRank,
+			&i.TotalDistance,
+			&i.TotalDistanceRank,
+			&i.OzPctg,
+			&i.OzRank,
+			&i.OzLeagueAvg,
+			&i.OzEvPctg,
+			&i.OzEvRank,
+			&i.NzPctg,
+			&i.NzRank,
+			&i.NzLeagueAvg,
+			&i.DzPctg,
+			&i.DzRank,
+			&i.DzLeagueAvg,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Abbrev,
+			&i.FullName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEdgeTeamShotDifferential = `-- name: GetEdgeTeamShotDifferential :one
 SELECT team_id, season, game_type, shot_attempt_differential, shot_attempt_differential_rank, sog_differential, sog_differential_rank, created_at, updated_at FROM edge_team_shot_differential
 WHERE team_id = $1 AND season = $2 AND game_type = $3
