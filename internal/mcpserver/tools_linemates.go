@@ -94,21 +94,15 @@ func linemateParams(req mcp.CallToolRequest) (sqlcdb.ListPlayerEvenStrengthLinem
 	if params.GameType, errResult = linemateGameType(req); errResult != nil {
 		return params, errResult
 	}
-	limit, given, errResult := optionalInt[int32](req, linemateLimitParam)
-	if errResult != nil {
-		return params, errResult
-	}
-	params.ResultLimit = defaultLinemateLimit
-	if given {
-		params.ResultLimit = limit
-	}
-	return params, nil
+	params.ResultLimit, errResult = boundedLimitOrDefault(req, linemateLimitParam, defaultLinemateLimit)
+	return params, errResult
 }
 
 // linemateGameType reads the optional game type; absent or empty is NULL,
 // which the query reads as regular season and playoffs.
 func linemateGameType(req mcp.CallToolRequest) (sqlcdb.NullGameType, *mcp.CallToolResult) {
-	name := strings.ToLower(strings.TrimSpace(req.GetString(linemateGameTypeArg, "")))
+	raw := req.GetString(linemateGameTypeArg, "")
+	name := strings.ToLower(strings.TrimSpace(raw))
 	if name == "" {
 		return sqlcdb.NullGameType{}, nil
 	}
@@ -119,7 +113,7 @@ func linemateGameType(req mcp.CallToolRequest) (sqlcdb.NullGameType, *mcp.CallTo
 			accepted[i] = string(t)
 		}
 		return sqlcdb.NullGameType{}, mcp.NewToolResultError(fmt.Sprintf("unknown game_type %s; accepted: %s",
-			formatRaw(name), strings.Join(accepted, ", ")))
+			formatRaw(raw), strings.Join(accepted, ", ")))
 	}
 	return sqlcdb.NullGameType{GameType: gameType, Valid: true}, nil
 }

@@ -97,7 +97,7 @@ func TestLinemateToolRejectsBadArgumentsBeforeSQL(t *testing.T) {
 		{"no season or dates", map[string]any{playerIDArg: float64(matchedPlayerID)}, "pass a season, a start_date/end_date range, or both"},
 		{"reversed range", withArg(withArg(base, linemateStartArg, "2025-10-02"), linemateEndArg, "2025-10-01"), "start_date is after end_date"},
 		{"malformed date", withArg(base, linemateEndArg, "10/01/2025"), "invalid end_date format"},
-		{"unknown game type", withArg(base, linemateGameTypeArg, "all_star"), `unknown game_type "all_star"; accepted: regular_season, playoffs, preseason`},
+		{"unknown game type", withArg(base, linemateGameTypeArg, " All_Star"), `unknown game_type " All_Star"; accepted: regular_season, playoffs, preseason`},
 		{"zero limit", withArg(base, "limit", float64(0)), "invalid limit 0"},
 		{"limit above maximum", withArg(base, "limit", float64(maxLinemateLimit+1)), "invalid limit"},
 	}
