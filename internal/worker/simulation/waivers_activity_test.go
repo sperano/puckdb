@@ -103,6 +103,7 @@ func (s *ProcessWaiversTestSuite) TestNoDueClaims_Skips() {
 	require.NoError(t, future.Get(&got))
 	assert.True(t, got.Skipped)
 	assert.Equal(t, []int32{1}, s.queries.lockPoolCalls, "the pool is locked even with nothing to resolve")
+	assert.Empty(t, s.queries.getPoolArgs, "no limits read when no claim is due")
 	assert.Equal(t, []int32{1}, s.queries.initPriorityCalls,
 		"the first season day initializes priority whether or not a claim is due")
 	assert.Empty(t, s.queries.resolveClaimCalls)

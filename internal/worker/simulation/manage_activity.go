@@ -740,6 +740,8 @@ func applyAction(ctx context.Context, q SimQueries, in ManageRosterInput, act re
 // drop row is the waiver marker.
 func applyAdd(ctx context.Context, q SimQueries, in ManageRosterInput, reasoning string, args AddPlayerArgs) (int32, error) {
 	if args.DropPlayerID != nil {
+		// The drop row carries the add's reasoning: the agent gave one
+		// reason for the swap.
 		if _, err := removeAndLogDrop(ctx, q, rosterDrop{
 			PoolID: in.PoolID, AgentID: in.AgentID, Date: in.SimDate,
 			PlayerID: *args.DropPlayerID, Reasoning: reasoning,

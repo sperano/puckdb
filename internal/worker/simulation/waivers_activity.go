@@ -140,11 +140,6 @@ func processDueWaivers(ctx context.Context, q SimQueries, in ProcessWaiversInput
 	if _, err := q.LockSimPool(ctx, in.PoolID); err != nil {
 		return ProcessWaiversResult{}, fmt.Errorf("simulation: lock pool %d: %w", in.PoolID, err)
 	}
-	pool, err := q.GetSimPool(ctx, in.PoolID)
-	if err != nil {
-		return ProcessWaiversResult{}, fmt.Errorf("simulation: get pool %d roster limits: %w", in.PoolID, err)
-	}
-	limits := rosterLimitsFromRow(pool)
 	priorities, initialized, err := loadWaiverPriority(ctx, q, in.PoolID)
 	if err != nil {
 		return ProcessWaiversResult{}, err
@@ -164,6 +159,14 @@ func processDueWaivers(ctx context.Context, q SimQueries, in ProcessWaiversInput
 	if len(claims) == 0 {
 		return ProcessWaiversResult{Skipped: true, PriorityInitialized: initialized}, nil
 	}
+
+	// Read the per-slot limits under the pool lock, only when there is a
+	// claim to check against them.
+	pool, err := q.GetSimPool(ctx, in.PoolID)
+	if err != nil {
+		return ProcessWaiversResult{}, fmt.Errorf("simulation: get pool %d roster limits: %w", in.PoolID, err)
+	}
+	limits := rosterLimitsFromRow(pool)
 
 	result, finalPriorities, err := resolveClaimGroups(ctx, q, in, limits, groupClaimsByPlayer(claims), priorities)
 	if err != nil {
