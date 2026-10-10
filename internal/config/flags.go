@@ -863,7 +863,8 @@ var DraftRankingsFlags = FlagGroup{
 	},
 }
 
-// DraftAPIFlags defines the API's draft ranking settings.
+// DraftAPIFlags defines the draft ranking read settings of the API and the
+// MCP server.
 var DraftAPIFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagDraftStaleAfter, "", DefaultDraftStaleAfter, "Hours after which a ranking snapshot or player pool is reported stale", false},
