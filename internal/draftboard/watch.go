@@ -95,7 +95,8 @@ func (c *WatchController) run(ctx context.Context, identity draftwatch.Identity,
 // Refresh asks this process's running watch of a league to poll Yahoo now and
 // waits for that poll, whose failure is reported in the outcome's Err. routed
 // is false when this controller runs no watch for the league, or the watch
-// stopped before taking the request; the caller then owns the refresh.
+// stopped before taking the request; the caller then owns the refresh. A
+// non-nil err means ctx ended first and nothing should be retried for it.
 func (c *WatchController) Refresh(ctx context.Context, leagueKey string) (outcome draftwatch.Outcome, routed bool, err error) {
 	c.mu.Lock()
 	entry := c.entries[leagueKey]
@@ -111,7 +112,7 @@ func (c *WatchController) Refresh(ctx context.Context, leagueKey string) (outcom
 	case <-done:
 		return draftwatch.Outcome{}, false, nil
 	case <-ctx.Done():
-		return draftwatch.Outcome{}, true, fmt.Errorf("wait for running draft watch: %w", ctx.Err())
+		return draftwatch.Outcome{}, false, fmt.Errorf("wait for running draft watch: %w", ctx.Err())
 	}
 	select {
 	case outcome = <-reply:
