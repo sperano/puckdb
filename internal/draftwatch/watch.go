@@ -131,16 +131,20 @@ func (r Runner) watchLoop(ctx context.Context, id Identity, options WatchOptions
 		}
 		refreshes, err = waitForNextPoll(ctx, backoff, options.Refresh)
 		if err != nil {
-			return r.finalReconcile(id, options, err)
+			return r.finalReconcile(id, options, err, refreshes)
 		}
 	}
 }
 
-func (r Runner) finalReconcile(id Identity, options WatchOptions, cancellation error) error {
+// finalReconcile also answers the refresh requests taken as the watch was
+// cancelled, since its detached poll is the one they get.
+func (r Runner) finalReconcile(id Identity, options WatchOptions, cancellation error, refreshes []RefreshRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), options.FinalTimeout)
 	defer cancel()
 	session, report, err := r.syncOnce(ctx, id)
-	notifyOutcome(options.OnOutcome, Outcome{Session: session, Report: report, Err: err, Final: true})
+	outcome := Outcome{Session: session, Report: report, Err: err, Final: true}
+	notifyOutcome(options.OnOutcome, outcome)
+	answerRefreshes(refreshes, outcome)
 	if err != nil {
 		return errors.Join(cancellation, fmt.Errorf("final draft reconciliation: %w", err))
 	}
@@ -171,7 +175,8 @@ func nextBackoff(current, interval, maximum time.Duration) time.Duration {
 }
 
 // waitForNextPoll waits for the backoff delay or an owner's refresh request.
-// It returns every refresh request already queued so one poll answers them all.
+// It returns every refresh request already queued so one poll answers them all,
+// along with ctx's error when cancellation raced with the requests.
 func waitForNextPoll(ctx context.Context, delay time.Duration, refresh <-chan RefreshRequest) ([]RefreshRequest, error) {
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
@@ -181,7 +186,7 @@ func waitForNextPoll(ctx context.Context, delay time.Duration, refresh <-chan Re
 	case <-timer.C:
 		return nil, nil
 	case request := <-refresh:
-		return drainRefreshes(refresh, []RefreshRequest{request}), nil
+		return drainRefreshes(refresh, []RefreshRequest{request}), ctx.Err()
 	}
 }
 

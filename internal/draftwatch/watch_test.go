@@ -114,6 +114,28 @@ func TestWaitForNextPollCoalescesQueuedRefreshes(t *testing.T) {
 	assert.Equal(t, uint64(4), (<-second).Session.SyncVersion)
 }
 
+func TestRefreshTakenAtCancellationGetsFinalReconciliation(t *testing.T) {
+	refresh := make(chan RefreshRequest, 1)
+	reply := make(chan Outcome, 1)
+	refresh <- RefreshRequest{Reply: reply}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	requests, err := waitForNextPoll(ctx, watchTestIdle, refresh)
+	if len(requests) == 0 {
+		// The select chose cancellation; take the queued request as the loop would have.
+		requests = drainRefreshes(refresh, nil)
+	}
+	require.ErrorIs(t, err, context.Canceled)
+	runner := Runner{Repository: &countingRepository{}, Source: newCountingSource()}
+	finalErr := runner.finalReconcile(testDraftIdentity, idleWatchOptions(refresh), err, requests)
+
+	assert.ErrorIs(t, finalErr, context.Canceled)
+	outcome := awaitOutcome(t, reply)
+	require.NoError(t, outcome.Err, "the request must not see the cancelled watch context")
+	assert.True(t, outcome.Final)
+}
+
 func TestSyncOnceReportsSyncInProgressWhileWatchHoldsLock(t *testing.T) {
 	pool := openDraftWatchTestDB(t)
 	identity := testIdentityForRepository(t)
