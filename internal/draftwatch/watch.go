@@ -116,6 +116,10 @@ func (r Runner) watchLoop(ctx context.Context, id Identity, options WatchOptions
 		session, report, pollErr := r.syncOnce(ctx, id)
 		outcome := Outcome{Session: session, Report: report, Err: pollErr}
 		notifyOutcome(options.OnOutcome, outcome)
+		if pollErr != nil && ctx.Err() != nil {
+			// Cancelled mid-poll: pending refreshes get the final poll instead.
+			return r.finalReconcile(id, options, ctx.Err(), refreshes)
+		}
 		answerRefreshes(refreshes, outcome)
 		if pollErr == nil {
 			backoff = options.Interval

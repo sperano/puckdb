@@ -114,26 +114,45 @@ func TestWaitForNextPollCoalescesQueuedRefreshes(t *testing.T) {
 	assert.Equal(t, uint64(4), (<-second).Session.SyncVersion)
 }
 
-func TestRefreshTakenAtCancellationGetsFinalReconciliation(t *testing.T) {
-	refresh := make(chan RefreshRequest, 1)
-	reply := make(chan Outcome, 1)
-	refresh <- RefreshRequest{Reply: reply}
+func TestWaitForNextPollReturnsTakenRefreshesWithCancellation(t *testing.T) {
+	// select picks randomly between the cancelled context and the queued
+	// request; retry until it takes the request, the branch under test.
+	const maxAttempts = 64
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-
-	requests, err := waitForNextPoll(ctx, watchTestIdle, refresh)
-	if len(requests) == 0 {
-		// The select chose cancellation; take the queued request as the loop would have.
-		requests = drainRefreshes(refresh, nil)
+	refresh := make(chan RefreshRequest, 1)
+	for range maxAttempts {
+		refresh <- RefreshRequest{Reply: make(chan Outcome, 1)}
+		requests, err := waitForNextPoll(ctx, watchTestIdle, refresh)
+		require.ErrorIs(t, err, context.Canceled)
+		if len(requests) == 1 {
+			return
+		}
+		<-refresh
 	}
-	require.ErrorIs(t, err, context.Canceled)
-	runner := Runner{Repository: &countingRepository{}, Source: newCountingSource()}
-	finalErr := runner.finalReconcile(testDraftIdentity, idleWatchOptions(refresh), err, requests)
+	t.Fatal("waitForNextPoll never took the queued refresh")
+}
 
-	assert.ErrorIs(t, finalErr, context.Canceled)
+func TestRefreshCancelledMidPollGetsFinalReconciliation(t *testing.T) {
+	const refreshPoll = 2
+	source := newCountingSource()
+	source.blockPoll = refreshPoll
+	refresh := make(chan RefreshRequest)
+	runner := Runner{Repository: &countingRepository{}, Source: source}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runner.watchLoop(ctx, testDraftIdentity, idleWatchOptions(refresh)) }()
+	source.awaitPoll(t)
+
+	reply := make(chan Outcome, 1)
+	sendRefresh(t, refresh, RefreshRequest{Reply: reply})
+	source.awaitPoll(t)
+	cancel()
 	outcome := awaitOutcome(t, reply)
-	require.NoError(t, outcome.Err, "the request must not see the cancelled watch context")
+
+	require.NoError(t, outcome.Err, "the request must not see the cancelled poll")
 	assert.True(t, outcome.Final)
+	assert.ErrorIs(t, awaitDone(t, done), context.Canceled)
 }
 
 func TestSyncOnceReportsSyncInProgressWhileWatchHoldsLock(t *testing.T) {
@@ -198,9 +217,11 @@ func awaitDone(t *testing.T, done <-chan error) error {
 }
 
 // countingSource reports every poll on polled so tests can wait for one.
+// Poll number blockPoll, when set, waits for its context to end.
 type countingSource struct {
-	polls  atomic.Int32
-	polled chan struct{}
+	polls     atomic.Int32
+	polled    chan struct{}
+	blockPoll int32
 }
 
 func newCountingSource() *countingSource {
@@ -208,9 +229,13 @@ func newCountingSource() *countingSource {
 	return &countingSource{polled: make(chan struct{}, pollSignalBuffer)}
 }
 
-func (s *countingSource) Poll(context.Context, Identity) (PollResult, error) {
-	s.polls.Add(1)
+func (s *countingSource) Poll(ctx context.Context, _ Identity) (PollResult, error) {
+	poll := s.polls.Add(1)
 	s.polled <- struct{}{}
+	if poll == s.blockPoll {
+		<-ctx.Done()
+		return PollResult{}, ctx.Err()
+	}
 	return PollResult{PolledAt: time.Now().UTC()}, nil
 }
 
