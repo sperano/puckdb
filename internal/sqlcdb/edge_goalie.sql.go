@@ -54,6 +54,134 @@ func (q *Queries) DeleteEdgeGoalieShotLocations(ctx context.Context, arg DeleteE
 	return err
 }
 
+const getEdgeGoalieLeaders = `-- name: GetEdgeGoalieLeaders :many
+SELECT s.player_id, s.season, s.game_type, s.gaa_value, s.gaa_percentile, s.gaa_league_avg, s.games_above_900_value, s.games_above_900_percentile, s.games_above_900_league_avg, s.goal_diff_per_60_value, s.goal_diff_per_60_percentile, s.goal_diff_per_60_league_avg, s.goal_support_avg_value, s.goal_support_avg_percentile, s.goal_support_avg_league_avg, s.point_pctg_value, s.point_pctg_percentile, s.point_pctg_league_avg, s.created_at, s.updated_at, p.first_name, p.last_name, p.position,
+       COALESCE(c.games_played, 0)::int AS games_played,
+       COALESCE(c.teams, '')::text AS teams
+FROM edge_goalie_stats s
+JOIN players p ON p.id = s.player_id
+LEFT JOIN (
+  SELECT cg.player_id, SUM(cg.games_played)::int AS games_played,
+         string_agg(st.abbrev, '/' ORDER BY st.abbrev)::text AS teams
+  FROM club_goalie_stats cg
+  LEFT JOIN season_teams st ON st.season = cg.season AND st.team_id = cg.team_id
+  WHERE cg.season = $1 AND cg.game_type = $2
+  GROUP BY cg.player_id
+) c ON c.player_id = s.player_id
+CROSS JOIN LATERAL (
+  SELECT CASE $3::text
+    WHEN 'gaa' THEN s.gaa_value::float8
+    WHEN 'games_above_900' THEN s.games_above_900_value::float8
+    WHEN 'goal_diff_per_60' THEN s.goal_diff_per_60_value::float8
+    WHEN 'goal_support_avg' THEN s.goal_support_avg_value::float8
+    WHEN 'point_pctg' THEN s.point_pctg_value::float8
+  END AS sort_value
+) m
+WHERE s.season = $1 AND s.game_type = $2
+  AND m.sort_value IS NOT NULL
+  AND COALESCE(c.games_played, 0) >= $4::int
+ORDER BY
+  CASE WHEN $5::bool THEN m.sort_value END ASC,
+  m.sort_value DESC,
+  p.last_name, p.first_name, s.player_id
+LIMIT $6
+`
+
+type GetEdgeGoalieLeadersParams struct {
+	Season      int32    `json:"season"`
+	GameType    GameType `json:"game_type"`
+	SortBy      string   `json:"sort_by"`
+	MinGames    int32    `json:"min_games"`
+	Ascending   bool     `json:"ascending"`
+	ResultLimit int32    `json:"result_limit"`
+}
+
+type GetEdgeGoalieLeadersRow struct {
+	PlayerID                 int64              `json:"player_id"`
+	Season                   int32              `json:"season"`
+	GameType                 GameType           `json:"game_type"`
+	GaaValue                 pgtype.Float4      `json:"gaa_value"`
+	GaaPercentile            pgtype.Float4      `json:"gaa_percentile"`
+	GaaLeagueAvg             pgtype.Float4      `json:"gaa_league_avg"`
+	GamesAbove900Value       pgtype.Float4      `json:"games_above_900_value"`
+	GamesAbove900Percentile  pgtype.Float4      `json:"games_above_900_percentile"`
+	GamesAbove900LeagueAvg   pgtype.Float4      `json:"games_above_900_league_avg"`
+	GoalDiffPer60Value       pgtype.Float4      `json:"goal_diff_per_60_value"`
+	GoalDiffPer60Percentile  pgtype.Float4      `json:"goal_diff_per_60_percentile"`
+	GoalDiffPer60LeagueAvg   pgtype.Float4      `json:"goal_diff_per_60_league_avg"`
+	GoalSupportAvgValue      pgtype.Float4      `json:"goal_support_avg_value"`
+	GoalSupportAvgPercentile pgtype.Float4      `json:"goal_support_avg_percentile"`
+	GoalSupportAvgLeagueAvg  pgtype.Float4      `json:"goal_support_avg_league_avg"`
+	PointPctgValue           pgtype.Float4      `json:"point_pctg_value"`
+	PointPctgPercentile      pgtype.Float4      `json:"point_pctg_percentile"`
+	PointPctgLeagueAvg       pgtype.Float4      `json:"point_pctg_league_avg"`
+	CreatedAt                pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+	FirstName                string             `json:"first_name"`
+	LastName                 string             `json:"last_name"`
+	Position                 NullPlayerPosition `json:"position"`
+	GamesPlayed              int32              `json:"games_played"`
+	Teams                    string             `json:"teams"`
+}
+
+// Goalies of one season and game type ordered by one Edge metric (sort_by,
+// whitelisted by the MCP get_edge_leaders tool; an unknown key matches no
+// row). Goalies without a value for the metric are left out. Games played
+// and clubs come from club_goalie_stats (summed over a traded goalie's
+// clubs); a goalie without club stats gets 0 games and no teams.
+func (q *Queries) GetEdgeGoalieLeaders(ctx context.Context, arg GetEdgeGoalieLeadersParams) ([]GetEdgeGoalieLeadersRow, error) {
+	rows, err := q.db.Query(ctx, getEdgeGoalieLeaders,
+		arg.Season,
+		arg.GameType,
+		arg.SortBy,
+		arg.MinGames,
+		arg.Ascending,
+		arg.ResultLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetEdgeGoalieLeadersRow{}
+	for rows.Next() {
+		var i GetEdgeGoalieLeadersRow
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.Season,
+			&i.GameType,
+			&i.GaaValue,
+			&i.GaaPercentile,
+			&i.GaaLeagueAvg,
+			&i.GamesAbove900Value,
+			&i.GamesAbove900Percentile,
+			&i.GamesAbove900LeagueAvg,
+			&i.GoalDiffPer60Value,
+			&i.GoalDiffPer60Percentile,
+			&i.GoalDiffPer60LeagueAvg,
+			&i.GoalSupportAvgValue,
+			&i.GoalSupportAvgPercentile,
+			&i.GoalSupportAvgLeagueAvg,
+			&i.PointPctgValue,
+			&i.PointPctgPercentile,
+			&i.PointPctgLeagueAvg,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.FirstName,
+			&i.LastName,
+			&i.Position,
+			&i.GamesPlayed,
+			&i.Teams,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEdgeGoalieShotLocationSummary = `-- name: GetEdgeGoalieShotLocationSummary :many
 SELECT player_id, season, game_type, location_code, goals_against, goals_against_percentile, goals_against_league_avg, saves, saves_percentile, saves_league_avg, save_pctg, save_pctg_percentile, save_pctg_league_avg, created_at, updated_at FROM edge_goalie_shot_location_summary
 WHERE player_id = $1 AND season = $2 AND game_type = $3

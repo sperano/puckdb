@@ -91,6 +91,43 @@ JOIN players p ON s.player_id = p.id
 WHERE s.season = $1 AND s.game_type = $2
 ORDER BY s.gaa_value ASC NULLS LAST;
 
+-- name: GetEdgeGoalieLeaders :many
+-- Goalies of one season and game type ordered by one Edge metric (sort_by,
+-- whitelisted by the MCP get_edge_leaders tool; an unknown key matches no
+-- row). Goalies without a value for the metric are left out. Games played
+-- and clubs come from club_goalie_stats (summed over a traded goalie's
+-- clubs); a goalie without club stats gets 0 games and no teams.
+SELECT s.*, p.first_name, p.last_name, p.position,
+       COALESCE(c.games_played, 0)::int AS games_played,
+       COALESCE(c.teams, '')::text AS teams
+FROM edge_goalie_stats s
+JOIN players p ON p.id = s.player_id
+LEFT JOIN (
+  SELECT cg.player_id, SUM(cg.games_played)::int AS games_played,
+         string_agg(st.abbrev, '/' ORDER BY st.abbrev)::text AS teams
+  FROM club_goalie_stats cg
+  LEFT JOIN season_teams st ON st.season = cg.season AND st.team_id = cg.team_id
+  WHERE cg.season = sqlc.arg(season) AND cg.game_type = sqlc.arg(game_type)
+  GROUP BY cg.player_id
+) c ON c.player_id = s.player_id
+CROSS JOIN LATERAL (
+  SELECT CASE sqlc.arg(sort_by)::text
+    WHEN 'gaa' THEN s.gaa_value::float8
+    WHEN 'games_above_900' THEN s.games_above_900_value::float8
+    WHEN 'goal_diff_per_60' THEN s.goal_diff_per_60_value::float8
+    WHEN 'goal_support_avg' THEN s.goal_support_avg_value::float8
+    WHEN 'point_pctg' THEN s.point_pctg_value::float8
+  END AS sort_value
+) m
+WHERE s.season = sqlc.arg(season) AND s.game_type = sqlc.arg(game_type)
+  AND m.sort_value IS NOT NULL
+  AND COALESCE(c.games_played, 0) >= sqlc.arg(min_games)::int
+ORDER BY
+  CASE WHEN sqlc.arg(ascending)::bool THEN m.sort_value END ASC,
+  m.sort_value DESC,
+  p.last_name, p.first_name, s.player_id
+LIMIT sqlc.arg(result_limit);
+
 -- name: GetEdgeGoalieShotLocationSummary :many
 SELECT * FROM edge_goalie_shot_location_summary
 WHERE player_id = $1 AND season = $2 AND game_type = $3
