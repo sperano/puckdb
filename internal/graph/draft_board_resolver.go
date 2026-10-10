@@ -15,6 +15,7 @@ import (
 	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/sperano/puckdb/internal/draftwatch"
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
 const (
@@ -23,6 +24,10 @@ const (
 	defaultDraftEventPageSize = 50
 	maxDraftEventPageSize     = 200
 )
+
+// draftSyncBusyCode marks a refresh refused because a synchronization this
+// API process cannot signal holds the league's session lock.
+const draftSyncBusyCode = "DRAFT_SYNC_BUSY"
 
 var errDraftBoardNotConfigured = errors.New("maurice draft board is not available")
 
@@ -101,6 +106,9 @@ func (r *Resolver) refreshMauriceDraftBoard(ctx context.Context, input model.Mau
 		return nil, err
 	}
 	session, _, err := service.Refresh(ctx, input.League, seasonOrCurrent(input.Season))
+	if errors.Is(err, draftboard.ErrRefreshUnavailable) {
+		return nil, &gqlerror.Error{Message: err.Error(), Extensions: map[string]any{"code": draftSyncBusyCode}}
+	}
 	if err != nil {
 		return nil, err
 	}
