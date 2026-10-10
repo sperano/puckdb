@@ -320,11 +320,12 @@ func checkYahooSeasonCache(ctx context.Context, storage store.Storage, nhlSeason
 	}
 	teamCount := countTeamFiles(ctx, storage, seasonYear, yahooCfg)
 
+	now := time.Now()
 	expectedRosters := totalTeams * daysInSeason
-	rosterCount := countRosterFiles(ctx, storage, nhlSeason, yahooCfg)
+	rosterCount := countDailyTeamFiles(ctx, storage, nhlSeason, yahooCfg, now, rosterResource)
 
 	expectedSummaries := totalTeams * daysInSeason
-	summaryCount := countTeamSummaryFiles(ctx, storage, nhlSeason, yahooCfg)
+	summaryCount := countDailyTeamFiles(ctx, storage, nhlSeason, yahooCfg, now, teamSummaryResource)
 
 	cacheData := make([]cacheMetrics, 0, 4)
 	for _, ft := range core.AllFileTypes {
@@ -373,44 +374,35 @@ func countTeamFiles(ctx context.Context, storage store.Storage, seasonYear int, 
 	return count
 }
 
-func countRosterFiles(ctx context.Context, storage store.Storage, nhlSeason simpleSeason, cfg config.Season) int {
-	count := 0
-	current := nhlSeason.start
-	end := nhlSeason.end
-	if end.After(time.Now()) {
-		end = time.Now()
-	}
+// dailyTeamResource builds the cached file of one Yahoo team on one day.
+type dailyTeamResource func(leagueID, teamID int, date time.Time) core.Resource
 
-	for !current.After(end) {
-		for _, league := range cfg.Leagues {
-			for _, teamID := range league.TeamIDs {
-				if resource.Exists(ctx, storage, resource.Roster{LeagueID: league.LeagueID, TeamID: teamID, Date: current}) {
-					count++
-				}
-			}
-		}
-		current = current.AddDate(0, 0, 1)
-	}
-	return count
+func rosterResource(leagueID, teamID int, date time.Time) core.Resource {
+	return resource.Roster{LeagueID: leagueID, TeamID: teamID, Date: date}
 }
 
-func countTeamSummaryFiles(ctx context.Context, storage store.Storage, nhlSeason simpleSeason, cfg config.Season) int {
-	count := 0
-	current := nhlSeason.start
+func teamSummaryResource(leagueID, teamID int, date time.Time) core.Resource {
+	return resource.TeamSummary{LeagueID: leagueID, TeamID: teamID, Date: date}
+}
+
+// countDailyTeamFiles counts the files build names for every configured team
+// on each day of the season, from its start through its end or now, whichever
+// comes first (both inclusive).
+func countDailyTeamFiles(ctx context.Context, storage store.Storage, nhlSeason simpleSeason, cfg config.Season, now time.Time, build dailyTeamResource) int {
 	end := nhlSeason.end
-	if end.After(time.Now()) {
-		end = time.Now()
+	if end.After(now) {
+		end = now
 	}
 
-	for !current.After(end) {
+	count := 0
+	for current := nhlSeason.start; !current.After(end); current = current.AddDate(0, 0, 1) {
 		for _, league := range cfg.Leagues {
 			for _, teamID := range league.TeamIDs {
-				if resource.Exists(ctx, storage, resource.TeamSummary{LeagueID: league.LeagueID, TeamID: teamID, Date: current}) {
+				if resource.Exists(ctx, storage, build(league.LeagueID, teamID, current)) {
 					count++
 				}
 			}
 		}
-		current = current.AddDate(0, 0, 1)
 	}
 	return count
 }
