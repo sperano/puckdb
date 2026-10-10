@@ -229,28 +229,18 @@ func pgSelectEvents(t *testing.T, q *sqlcdb.Queries) []StoredEvent {
 	return events
 }
 
-// pgReviewState reads an event's review flag and reasons.
-func pgReviewState(t *testing.T, pool *pgxpool.Pool, id int64) (bool, string) {
-	t.Helper()
-	var needsReview bool
-	var reason string
-	require.NoError(t, pool.QueryRow(context.Background(),
-		`SELECT needs_review, review_reason FROM news_events WHERE id = $1`, id).Scan(&needsReview, &reason))
-	return needsReview, reason
-}
-
 // assertSameStore asserts that the database holds exactly the memory
 // store's events: the same IDs, facts, lifecycle, span, support and review
-// reasons.
-func assertSameStore(t *testing.T, mem *MemoryStore, q *sqlcdb.Queries, pool *pgxpool.Pool) {
+// reasons. The rows carry the review flag and reasons the memory store keeps
+// in Reviews, so pgSelectEvents (which lists them by ID) is read for both.
+func assertSameStore(t *testing.T, mem *MemoryStore, q *sqlcdb.Queries) {
 	t.Helper()
 	pg := pgSelectEvents(t, q)
 	require.Equal(t, eventIDs(mem.Events), eventIDs(pg))
 	assert.Equal(t, comparableEvents(mem.Events), comparableEvents(pg))
-	for _, ev := range mem.Events {
-		needsReview, reason := pgReviewState(t, pool, ev.ID)
+	for i, ev := range mem.Events {
 		reasons := mem.Reviews[ev.ID]
-		assert.Equal(t, len(reasons) > 0, needsReview, "event %d needs_review", ev.ID)
-		assert.Equal(t, strings.Join(reasons, reviewSeparator), reason, "event %d review_reason", ev.ID)
+		assert.Equal(t, len(reasons) > 0, pg[i].Event.NeedsReview, "event %d needs_review", ev.ID)
+		assert.Equal(t, strings.Join(reasons, reviewSeparator), pg[i].Event.ReviewReason, "event %d review_reason", ev.ID)
 	}
 }

@@ -64,7 +64,7 @@ func replayStep(t *testing.T, q *sqlcdb.Queries, pool *pgxpool.Pool, x Extractor
 	pgOut := applyInTx(t, q, pool, pgPlan, r)
 	memOut := mem.Apply(memPlan, r)
 	assert.Equal(t, memOut, pgOut, "step %d outcome", i+1)
-	assertSameStore(t, mem, q, pool)
+	assertSameStore(t, mem, q)
 }
 
 // referenceValidation validates the corpus's reference reply for an input.
