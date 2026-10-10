@@ -189,12 +189,14 @@ func (r edgeLeadersRequest) run(ctx context.Context, q edgeLeadersQueries) (any,
 			MinGames: r.minGames, Ascending: r.metric.ascending, ResultLimit: r.limit,
 		})
 		return playerLeaderRows(rows, goalieEdgeMetrics.get(r.metric.key), goalieLeaderPlayer), err
-	default:
+	case edgeGroupTeam:
 		rows, err := q.GetEdgeTeamLeaders(ctx, sqlcdb.GetEdgeTeamLeadersParams{
 			Season: r.season, GameType: r.gameType, SortBy: r.metric.key,
 			Ascending: r.metric.ascending, ResultLimit: r.limit,
 		})
 		return teamLeaderRows(rows, teamEdgeMetrics.get(r.metric.key)), err
+	default:
+		panic("edge group " + r.group + " has no leaders query")
 	}
 }
 
