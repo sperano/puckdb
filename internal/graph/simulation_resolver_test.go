@@ -304,6 +304,60 @@ func TestCreateSimPoolImpl_RequiresDB(t *testing.T) {
 	require.ErrorIs(t, err, errDatabaseNotConfigured)
 }
 
+// panicTxBeginner satisfies txBeginner so createSimPoolImpl gets past the
+// errDatabaseNotConfigured check, but panics if actually called — pricing
+// rejection must happen before any transaction is opened, let alone before
+// the season lookup (which needs Queries, deliberately left nil here).
+type panicTxBeginner struct{}
+
+func (panicTxBeginner) Begin(context.Context) (pgx.Tx, error) {
+	panic("createSimPoolImpl must reject an unpriced agent before opening a transaction")
+}
+
+// TestCreateSimPoolImpl_RejectsUnpricedModel pins SIM-U2's fix: an agent
+// whose (provider, model) has no pricing-table row must fail pool
+// creation up front, by name, instead of silently costing $0 forever.
+func TestCreateSimPoolImpl_RejectsUnpricedModel(t *testing.T) {
+	t.Parallel()
+	r := &Resolver{DB: panicTxBeginner{}}
+	input := model.CreateSimPoolInput{
+		Agents: []*model.CreateSimAgentInput{
+			{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+			{Provider: "openai", Model: "gpt-9-ultra-mystery"},
+		},
+	}
+	_, err := r.createSimPoolImpl(context.Background(), input)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, simulation.ErrUnpricedModel)
+	assert.Contains(t, err.Error(), "agent #1", "the error must identify which agent is unpriced")
+}
+
+// errSeasonLookupProbe is configured as recordingDBTX.queryRowErr so a
+// test can tell "got past pricing, failed at the season lookup" apart
+// from "failed at pricing" without a real database.
+var errSeasonLookupProbe = errors.New("season lookup probe")
+
+// An Ollama agent with an arbitrary local model tag must not be rejected
+// by the pricing gate, even though the tag has no table row. Reaching the
+// (probed) season lookup proves the pricing gate let it through, rather
+// than merely proving some later check failed for an unrelated reason.
+func TestCreateSimPoolImpl_OllamaModelPassesPricingGate(t *testing.T) {
+	t.Parallel()
+	r := &Resolver{
+		DB:      panicTxBeginner{},
+		Queries: sqlcdb.New(&recordingDBTX{queryRowErr: errSeasonLookupProbe}),
+	}
+	input := model.CreateSimPoolInput{
+		Agents: []*model.CreateSimAgentInput{
+			{Provider: "ollama", Model: "some-custom-finetune:latest"},
+		},
+	}
+	_, err := r.createSimPoolImpl(context.Background(), input)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errSeasonLookupProbe,
+		"an Ollama agent must clear the pricing gate and fail at the season lookup, not at pricing")
+}
+
 // ============================================================================
 // currentDraftAction — snake-draft "currently picking" derivation
 // ============================================================================
@@ -464,6 +518,10 @@ type recordingDBTX struct {
 	mu          sync.Mutex
 	names       []string
 	simPoolRows int
+	// queryRowErr, when set, is what every QueryRow's Scan returns —
+	// lets a test observe "the resolver reached a :one query and that
+	// query failed" without a real database.
+	queryRowErr error
 }
 
 // queryName extracts the "ListSimPools" style identifier sqlc bakes into each
@@ -510,7 +568,7 @@ func (d *recordingDBTX) Query(_ context.Context, sql string, _ ...interface{}) (
 
 func (d *recordingDBTX) QueryRow(_ context.Context, sql string, _ ...interface{}) pgx.Row {
 	d.record(sql)
-	return fakeRow{}
+	return fakeRow{err: d.queryRowErr}
 }
 
 func (d *recordingDBTX) CopyFrom(_ context.Context, _ pgx.Identifier, _ []string, _ pgx.CopyFromSource) (int64, error) {
@@ -542,11 +600,12 @@ func (r *fakeRows) Values() ([]any, error)                       { return nil, n
 func (r *fakeRows) RawValues() [][]byte                          { return nil }
 func (r *fakeRows) Conn() *pgx.Conn                              { return nil }
 
-// fakeRow is a minimal pgx.Row whose Scan leaves dest untouched — a :one
-// query decodes to a zero-value result with no error.
-type fakeRow struct{}
+// fakeRow is a minimal pgx.Row whose Scan leaves dest untouched and
+// returns err (nil by default) — a :one query decodes to a zero-value
+// result unless the test configures a failure via recordingDBTX.queryRowErr.
+type fakeRow struct{ err error }
 
-func (fakeRow) Scan(_ ...any) error { return nil }
+func (r fakeRow) Scan(_ ...any) error { return r.err }
 
 // resolverWithDB builds a graph Resolver whose Queries handle runs against the
 // given recording DBTX.

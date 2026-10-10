@@ -54,6 +54,36 @@ func TestLookupPricing_OllamaIsAlwaysFree(t *testing.T) {
 	assert.Equal(t, Pricing{}, p)
 }
 
+// "gemini" is the provider spelling Google's own docs use, and
+// resolveProvider (agent.go) already accepts it as a synonym for
+// "google" when picking the LLM transport. Pricing must agree, or an
+// agent configured with provider: gemini would look unpriced and get
+// rejected (or, before this fix, silently cost $0) despite "google"
+// having real rows in the table.
+func TestLookupPricing_GeminiAliasesToGoogle(t *testing.T) {
+	want, ok := LookupPricing(PricingProviderGoogle, "gemini-2.0-flash")
+	require.True(t, ok)
+	got, ok := LookupPricing("gemini", "gemini-2.0-flash")
+	require.True(t, ok, "the gemini provider alias must resolve to the google pricing rows")
+	assert.Equal(t, want, got)
+}
+
+func TestLookupPricing_GeminiAliasIsCaseInsensitive(t *testing.T) {
+	_, ok := LookupPricing("GEMINI", "gemini-1.5-flash")
+	assert.True(t, ok)
+}
+
+// claude-sonnet-4-7 is the model the CLI's own `sim create` help text
+// documents as its first example agent (cmd/sim.go). It must stay
+// priced, or following that example produces an agent that trips
+// ValidateModelPricing's reject path.
+func TestLookupPricing_AnthropicSonnet47(t *testing.T) {
+	p, ok := LookupPricing(PricingProviderAnthropic, "claude-sonnet-4-7")
+	require.True(t, ok, "claude-sonnet-4-7 (the CLI's documented example model) must be priced")
+	assert.InDelta(t, 3.00, p.Input, 0)
+	assert.InDelta(t, 15.00, p.Output, 0)
+}
+
 // Minimal ComputeCost — Sonnet, no caching. Pin the per-million math so
 // a future "let's normalize tokens to thousands" refactor can't silently
 // move the decimal.
@@ -134,6 +164,71 @@ func TestEstimateCost(t *testing.T) {
 		usage := llm.Usage{PromptTokens: 1_000_000, CompletionTokens: 100_000}
 		assert.Equal(t, 0.0, EstimateCost(PricingProviderOllama, "llama3.1:8b", usage))
 	})
+}
+
+// ============================================================================
+// ValidateModelPricing — the pool-creation gate (SIM-U2).
+// ============================================================================
+
+// A paid, non-Ollama provider with a model absent from pricingTable must
+// be rejected: letting it through is exactly the "unknown model is free"
+// hole that let maxLlmCostUsdPerPool never trip.
+func TestValidateModelPricing_RejectsUnpricedPaidModel(t *testing.T) {
+	err := ValidateModelPricing(PricingProviderAnthropic, "claude-imaginary-99")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrUnpricedModel)
+}
+
+func TestValidateModelPricing_RejectsUnpricedOpenAIModel(t *testing.T) {
+	err := ValidateModelPricing(PricingProviderOpenAI, "gpt-9-ultra-mystery")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrUnpricedModel)
+}
+
+// Every model actually seeded in the table — including the CLI's
+// documented claude-sonnet-4-7 — must validate clean.
+func TestValidateModelPricing_AcceptsSupportedModels(t *testing.T) {
+	cases := []struct{ provider, model string }{
+		{PricingProviderAnthropic, "claude-sonnet-4-6"},
+		{PricingProviderAnthropic, "claude-sonnet-4-7"},
+		{PricingProviderAnthropic, "claude-opus-4-8"},
+		{PricingProviderAnthropic, "claude-haiku-4-5"},
+		{PricingProviderOpenAI, "gpt-4o"},
+		{PricingProviderGoogle, "gemini-2.0-flash"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.provider+"/"+tc.model, func(t *testing.T) {
+			assert.NoError(t, ValidateModelPricing(tc.provider, tc.model))
+		})
+	}
+}
+
+// The "gemini" provider alias must validate against the same rows as
+// "google" rather than being rejected as unpriced.
+func TestValidateModelPricing_AcceptsGeminiProviderAlias(t *testing.T) {
+	assert.NoError(t, ValidateModelPricing("gemini", "gemini-2.0-flash"))
+}
+
+// A dated Anthropic model ID must validate against its base row via
+// stripDateSuffix, the same as LookupPricing.
+func TestValidateModelPricing_AcceptsDatedModelID(t *testing.T) {
+	assert.NoError(t, ValidateModelPricing(PricingProviderAnthropic, "claude-haiku-4-5-20251001"))
+}
+
+// Ollama is explicitly local: it must be accepted regardless of the
+// model tag, including one nobody could seed in advance, so self-hosted
+// users aren't forced to pre-register every model they pull.
+func TestValidateModelPricing_AcceptsAnyOllamaModel(t *testing.T) {
+	cases := []string{"llama3.1:8b", "some-custom-finetune:latest", ""}
+	for _, model := range cases {
+		t.Run(model, func(t *testing.T) {
+			assert.NoError(t, ValidateModelPricing(PricingProviderOllama, model))
+		})
+	}
+}
+
+func TestValidateModelPricing_OllamaExemptionIsCaseInsensitive(t *testing.T) {
+	assert.NoError(t, ValidateModelPricing("OLLAMA", "llama3.1:8b"))
 }
 
 // Table-driven smoke pass: every seeded row has positive Input and

@@ -736,6 +736,15 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 	if r.DB == nil {
 		return nil, errDatabaseNotConfigured
 	}
+	// Reject an agent whose model has no known pricing before touching the
+	// database: letting it through would mean maxLlmCostUsdPerPool can
+	// never trip for that agent (SIM-U2). Ollama is exempt — see
+	// ValidateModelPricing.
+	for i, a := range input.Agents {
+		if err := simulation.ValidateModelPricing(a.Provider, a.Model); err != nil {
+			return nil, fmt.Errorf("agent #%d: %w", i, err)
+		}
+	}
 	rosters := flattenRosterPositions(input.RosterPositions)
 	capNum, err := numericFromFloat(input.MaxLlmCostUsdPerPool)
 	if err != nil {
