@@ -131,6 +131,11 @@ func seasonInRange(year int, input *model.SeasonsInput) bool {
 	return input.EndSeason == nil || year <= *input.EndSeason
 }
 
+// normalizeSeasonsInput maps an omitted input (the GraphQL argument is
+// optional) to an empty one, meaning every season with the configured
+// concurrency. Every workflow taking a *model.SeasonsInput calls it
+// first: a nil dereference in workflow code panics the workflow task, which
+// Temporal retries forever.
 func normalizeSeasonsInput(input *model.SeasonsInput) *model.SeasonsInput {
 	if input == nil {
 		return &model.SeasonsInput{}

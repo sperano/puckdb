@@ -30,14 +30,15 @@ func NewFetchPlayerLogsProgressReport() *shared.ProgressReport {
 // extracted from boxscores. For the current season, files are only overwritten
 // if the --refresh-current-player-logs flag is set.
 func FetchPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
+	input = normalizeSeasonsInput(input)
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 	var playerAct *workplayer.Activities
 	// Same refresh scoping as FetchEdgeSeasonsWorkflow: an explicit season
 	// range applies the flag to every season in it; without a range it applies
 	// to the latest season only. Deliberately not IsCurrentSeason — see the
 	// July-1 rollover note there.
-	refreshFlag := input != nil && input.RefreshCurrentPlayerLogs != nil && *input.RefreshCurrentPlayerLogs
-	rangeGiven := input != nil && (input.StartSeason != nil || input.EndSeason != nil)
+	refreshFlag := input.RefreshCurrentPlayerLogs != nil && *input.RefreshCurrentPlayerLogs
+	rangeGiven := input.StartSeason != nil || input.EndSeason != nil
 	return iterateSeasons(ctx, input, NewFetchPlayerLogsProgressReport(), GroupFetchPlayerLogs,
 		func(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
 			var players []store.BoxscorePlayer
