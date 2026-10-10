@@ -3,7 +3,6 @@ package simulation
 import (
 	"testing"
 
-	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -231,47 +230,94 @@ func TestSelectAvailableByPosition_UnknownPositionSkipped(t *testing.T) {
 }
 
 // ============================================================================
+// computeSlotsRemaining
+// ============================================================================
+
+// v1Need is computeSlotsRemaining's output for the V1 roster before
+// the agent's first pick.
+func v1Need() map[string]int {
+	return computeSlotsRemaining(PoolConfig{RosterPositions: v1FixedRoster}, nil, nil)
+}
+
+func TestComputeSlotsRemaining_ConfiguredPositionsOnly(t *testing.T) {
+	cfg := PoolConfig{RosterPositions: map[RosterSlot]int{
+		SlotC: 1, SlotLW: 3, SlotRW: 1, SlotD: 4, SlotG: 1,
+		SlotUtil: 2, SlotBN: 4, SlotIR: 1,
+	}}
+	got := computeSlotsRemaining(cfg, nil, nil)
+	assert.Equal(t, map[string]int{"C": 1, "LW": 3, "RW": 1, "D": 4, "G": 1}, got,
+		"configured counts are used as-is; Util/BN/IR carry no positional need")
+}
+
+func TestComputeSlotsRemaining_PicksReduceNeedAndClampAtZero(t *testing.T) {
+	cfg := PoolConfig{RosterPositions: map[RosterSlot]int{SlotC: 1, SlotD: 2, SlotG: 1}}
+	lookup := map[int64]DraftablePlayer{
+		1: {ID: 1, Position: "C"},
+		2: {ID: 2, Position: "C"}, // second C: C is already at 0
+		3: {ID: 3, Position: "D"},
+		4: {ID: 4, Position: "LW"}, // LW is not configured
+	}
+	got := computeSlotsRemaining(cfg, []int64{1, 2, 3, 4, 999}, lookup)
+	assert.Equal(t, map[string]int{"C": 0, "D": 1, "G": 1}, got,
+		"over-drafted positions stay at 0; picks missing from the lookup are ignored")
+}
+
+// ============================================================================
 // FallbackDraftPick
 // ============================================================================
 
-func emptyRoster() RosterState {
-	return RosterState{
-		Placements: map[int64]RosterSlot{},
-		Limits:     defaultLimits(),
-	}
+func TestFallbackDraftPick_EmptyRoster_PrioritizesLargestConfiguredNeed(t *testing.T) {
+	// V1 roster, no picks yet: D (3 slots) has the largest need.
+	skaters := RankSkaters([]SkaterDraftCandidate{
+		{PlayerID: 1, Position: "C", PriorG: 50, PriorA: 50},
+		{PlayerID: 2, Position: "D", PriorG: 10, PriorA: 10},
+	})
+	got := FallbackDraftPick(v1Need(), skaters, nil, nil)
+	assert.Equal(t, int64(2), got, "D needs 3 slots, every other position 2")
 }
 
-func TestFallbackDraftPick_EmptyRoster_PrioritizesC(t *testing.T) {
+func TestFallbackDraftPick_TieBreaksInFixedOrder(t *testing.T) {
 	// All positions equally needed; the fixed tie-break order picks C
-	// first. This is the determinism guarantee — round-1 fallback
-	// always picks the top C, round-2 fallback (after a C is taken)
-	// would shift to the next-most-needed.
+	// first. This is the determinism guarantee.
+	need := map[string]int{"C": 1, "LW": 1, "RW": 1, "D": 1, "G": 1}
 	skaters := RankSkaters([]SkaterDraftCandidate{
 		{PlayerID: 1, Position: "C", PriorG: 50, PriorA: 50},
 		{PlayerID: 2, Position: "LW", PriorG: 60, PriorA: 60}, // higher score, but LW
 	})
-	got, err := FallbackDraftPick(emptyRoster(), stubCatalog{}, skaters, nil, nil)
-	require.NoError(t, err)
+	got := FallbackDraftPick(need, skaters, nil, nil)
 	assert.Equal(t, int64(1), got, "tie on positional need → fixed C-first ordering picks C")
 }
 
-func TestFallbackDraftPick_FillsMostNeededPositionFirst(t *testing.T) {
-	// Roster has 2 Cs and 0 LWs. LW has the larger deficit (2-0 vs 0
-	// for C). Fallback picks the top LW.
-	roster := RosterState{
-		Placements: map[int64]RosterSlot{1: SlotC, 2: SlotC},
-		Limits:     defaultLimits(),
+// Regression for the fallback always seeing an empty roster: the
+// agent's occupied positions must move the pick to what is still
+// needed, computed from the agent's real picks.
+func TestFallbackDraftPick_OccupiedPositionsShiftPick(t *testing.T) {
+	lookup := map[int64]DraftablePlayer{
+		1: {ID: 1, Position: "D"}, 2: {ID: 2, Position: "D"}, 3: {ID: 3, Position: "D"},
+		4: {ID: 4, Position: "C"}, 5: {ID: 5, Position: "C"},
 	}
-	catalog := stubCatalog{1: sqlcdb.PlayerPositionC, 2: sqlcdb.PlayerPositionC}
+	need := computeSlotsRemaining(PoolConfig{RosterPositions: v1FixedRoster}, []int64{1, 2, 3, 4, 5}, lookup)
 
 	skaters := RankSkaters([]SkaterDraftCandidate{
-		{PlayerID: 100, Position: "C", PriorG: 80, PriorA: 80},
+		{PlayerID: 100, Position: "D", PriorG: 90, PriorA: 90},
+		{PlayerID: 101, Position: "C", PriorG: 80, PriorA: 80},
+		{PlayerID: 102, Position: "LW", PriorG: 30, PriorA: 30},
+	})
+	got := FallbackDraftPick(need, skaters, nil, nil)
+	assert.Equal(t, int64(102), got,
+		"D and C are full; LW (need 2, first in tie order) beats better-scored D and C")
+}
+
+func TestFallbackDraftPick_EmptyPositionBeatsPartiallyFilled(t *testing.T) {
+	// PLAN.md: "prioritize positions with 0 filled slots". C has one
+	// of two slots left, LW both.
+	need := map[string]int{"C": 1, "LW": 2}
+	skaters := RankSkaters([]SkaterDraftCandidate{
+		{PlayerID: 100, Position: "C", PriorG: 99, PriorA: 99},
 		{PlayerID: 200, Position: "LW", PriorG: 30, PriorA: 30},
 	})
-
-	got, err := FallbackDraftPick(roster, catalog, skaters, nil, nil)
-	require.NoError(t, err)
-	assert.Equal(t, int64(200), got, "must pick LW (deficit 2) over C (deficit 0) even though C-candidate has a better score")
+	got := FallbackDraftPick(need, skaters, nil, nil)
+	assert.Equal(t, int64(200), got)
 }
 
 func TestFallbackDraftPick_SkipsTakenPlayers(t *testing.T) {
@@ -280,127 +326,43 @@ func TestFallbackDraftPick_SkipsTakenPlayers(t *testing.T) {
 		{PlayerID: 2, Position: "C", PriorG: 70, PriorA: 70},
 	})
 	taken := map[int64]struct{}{1: {}}
-	got, err := FallbackDraftPick(emptyRoster(), stubCatalog{}, skaters, nil, taken)
-	require.NoError(t, err)
+	got := FallbackDraftPick(map[string]int{"C": 1}, skaters, nil, taken)
 	assert.Equal(t, int64(2), got)
 }
 
-func TestFallbackDraftPick_GoaliesPickedWhenNoSkatersFitDeficit(t *testing.T) {
-	// All skater positions full; only G has deficit.
-	roster := RosterState{
-		Placements: map[int64]RosterSlot{
-			1: SlotC, 2: SlotC,
-			3: SlotLW, 4: SlotLW,
-			5: SlotRW, 6: SlotRW,
-			7: SlotD, 8: SlotD, 9: SlotD,
-		},
-		Limits: defaultLimits(),
-	}
-	catalog := stubCatalog{
-		1: sqlcdb.PlayerPositionC, 2: sqlcdb.PlayerPositionC,
-		3: sqlcdb.PlayerPositionLW, 4: sqlcdb.PlayerPositionLW,
-		5: sqlcdb.PlayerPositionRW, 6: sqlcdb.PlayerPositionRW,
-		7: sqlcdb.PlayerPositionD, 8: sqlcdb.PlayerPositionD, 9: sqlcdb.PlayerPositionD,
-	}
-
+func TestFallbackDraftPick_GoaliesPickedWhenOnlyGoalieNeedLeft(t *testing.T) {
+	need := map[string]int{"C": 0, "LW": 0, "RW": 0, "D": 0, "G": 1}
 	skaters := RankSkaters([]SkaterDraftCandidate{
 		{PlayerID: 100, Position: "C", PriorG: 80, PriorA: 80},
 	})
 	goalies := RankGoalies([]GoalieDraftCandidate{
 		{PlayerID: 999, Position: "G", PriorW: 30, PriorGA: 90},
 	})
-
-	got, err := FallbackDraftPick(roster, catalog, skaters, goalies, nil)
-	require.NoError(t, err)
-	assert.Equal(t, int64(999), got, "only goalies have deficit → pick top goalie")
+	got := FallbackDraftPick(need, skaters, goalies, nil)
+	assert.Equal(t, int64(999), got, "only goalies have need → pick top goalie")
 }
 
-func TestFallbackDraftPick_FullRosterReturnsZeroOrBPA(t *testing.T) {
-	// All positions at capacity; no one needed. Final-safety-net BPA
-	// kicks in.
-	roster := RosterState{
-		Placements: map[int64]RosterSlot{
-			1: SlotC, 2: SlotC,
-			3: SlotLW, 4: SlotLW,
-			5: SlotRW, 6: SlotRW,
-			7: SlotD, 8: SlotD, 9: SlotD,
-			10: SlotG, 11: SlotG,
-		},
-		Limits: defaultLimits(),
-	}
-	catalog := stubCatalog{
-		1: sqlcdb.PlayerPositionC, 2: sqlcdb.PlayerPositionC,
-		3: sqlcdb.PlayerPositionLW, 4: sqlcdb.PlayerPositionLW,
-		5: sqlcdb.PlayerPositionRW, 6: sqlcdb.PlayerPositionRW,
-		7: sqlcdb.PlayerPositionD, 8: sqlcdb.PlayerPositionD, 9: sqlcdb.PlayerPositionD,
-		10: sqlcdb.PlayerPositionG, 11: sqlcdb.PlayerPositionG,
-	}
+func TestFallbackDraftPick_NeededPositionWithoutCandidatesFallsThrough(t *testing.T) {
+	// D is most needed but has no candidate; the next-most-needed wins.
+	need := map[string]int{"D": 3, "RW": 1}
+	skaters := RankSkaters([]SkaterDraftCandidate{
+		{PlayerID: 100, Position: "C", PriorG: 80, PriorA: 80},
+		{PlayerID: 200, Position: "RW", PriorG: 30, PriorA: 30},
+	})
+	got := FallbackDraftPick(need, skaters, nil, nil)
+	assert.Equal(t, int64(200), got)
+}
+
+func TestFallbackDraftPick_NoNeedLeftPicksBPA(t *testing.T) {
+	need := map[string]int{"C": 0, "LW": 0, "RW": 0, "D": 0, "G": 0}
 	skaters := RankSkaters([]SkaterDraftCandidate{
 		{PlayerID: 200, Position: "C", PriorG: 40, PriorA: 40},
 	})
-
-	got, err := FallbackDraftPick(roster, catalog, skaters, nil, nil)
-	require.NoError(t, err)
+	got := FallbackDraftPick(need, skaters, nil, nil)
 	assert.Equal(t, int64(200), got, "all positions full → BPA safety net picks the available skater")
 }
 
 func TestFallbackDraftPick_NoCandidatesReturnsZero(t *testing.T) {
-	got, err := FallbackDraftPick(emptyRoster(), stubCatalog{}, nil, nil, nil)
-	require.NoError(t, err)
+	got := FallbackDraftPick(v1Need(), nil, nil, nil)
 	assert.Equal(t, int64(0), got, "no candidates anywhere → 0 (caller treats as draft-cannot-proceed)")
-}
-
-func TestFallbackDraftPick_CatalogErrorSurfaces(t *testing.T) {
-	roster := RosterState{
-		Placements: map[int64]RosterSlot{99999: SlotC},
-		Limits:     defaultLimits(),
-	}
-	skaters := RankSkaters([]SkaterDraftCandidate{
-		{PlayerID: 1, Position: "C", PriorG: 50, PriorA: 50},
-	})
-	_, err := FallbackDraftPick(roster, stubCatalog{}, skaters, nil, nil)
-	require.Error(t, err)
-}
-
-// PLAN.md requires "fill active slots first, prioritize empty
-// positions". Pin: empty-position deficit beats partial-fill deficit.
-func TestFallbackDraftPick_EmptyPositionBeatsPartiallyFilled(t *testing.T) {
-	// C is at 1/2 (deficit 1). LW is at 0/2 (deficit 2).
-	// Both are "needed" but LW is more needed.
-	roster := RosterState{
-		Placements: map[int64]RosterSlot{1: SlotC},
-		Limits:     defaultLimits(),
-	}
-	catalog := stubCatalog{1: sqlcdb.PlayerPositionC}
-
-	skaters := RankSkaters([]SkaterDraftCandidate{
-		{PlayerID: 100, Position: "C", PriorG: 99, PriorA: 99},
-		{PlayerID: 200, Position: "LW", PriorG: 30, PriorA: 30},
-	})
-
-	got, err := FallbackDraftPick(roster, catalog, skaters, nil, nil)
-	require.NoError(t, err)
-	assert.Equal(t, int64(200), got)
-}
-
-// Util-slot players still count toward their NHL position. A C in
-// Util means C is partially filled.
-func TestFallbackDraftPick_UtilPlayerCountsTowardNHLPosition(t *testing.T) {
-	// Player 1 (C) is in Util. C-deficit = 2, LW-deficit = 2.
-	// Tie → C-first ordering picks C.
-	roster := RosterState{
-		Placements: map[int64]RosterSlot{1: SlotUtil},
-		Limits:     defaultLimits(),
-	}
-	catalog := stubCatalog{1: sqlcdb.PlayerPositionC}
-
-	skaters := RankSkaters([]SkaterDraftCandidate{
-		{PlayerID: 100, Position: "LW", PriorG: 50, PriorA: 50},
-		{PlayerID: 200, Position: "C", PriorG: 50, PriorA: 50},
-	})
-	// player 1 is in Util but counts toward C: filled[C]=1, filled[LW]=0
-	// C-deficit = 2-1 = 1; LW-deficit = 2-0 = 2 → LW most-needed.
-	got, err := FallbackDraftPick(roster, catalog, skaters, nil, nil)
-	require.NoError(t, err)
-	assert.Equal(t, int64(100), got, "Util-rostered C reduces C deficit to 1; LW (deficit 2) wins")
 }

@@ -74,12 +74,12 @@ type DraftPickInput struct {
 	DraftPrompt  DraftPromptInput `json:"draft_prompt"`
 	AvailableIDs []int64          `json:"available_ids"`
 
-	// Fallback inputs — consulted only when both LLM attempts fail.
-	Roster          RosterState                     `json:"roster"`
-	RosterPositions map[int64]sqlcdb.PlayerPosition `json:"roster_positions"`
-	RankedSkaters   []SkaterDraftCandidate          `json:"ranked_skaters"`
-	RankedGoalies   []GoalieDraftCandidate          `json:"ranked_goalies"`
-	Taken           []int64                         `json:"taken"`
+	// Fallback inputs — consulted only when both LLM attempts fail,
+	// together with DraftPrompt.SlotsRemaining (the agent's remaining
+	// positional need, the same map the LLM was shown).
+	RankedSkaters []SkaterDraftCandidate `json:"ranked_skaters"`
+	RankedGoalies []GoalieDraftCandidate `json:"ranked_goalies"`
+	Taken         []int64                `json:"taken"`
 }
 
 // DraftPickResult is what the activity returns.
@@ -380,19 +380,12 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 	// No accepted draft_player landed → fallback. Uses workflow-supplied
 	// ranked candidates rather than the LLM. Failed attempts already
 	// billed and were captured as tool_calls.
-	fallbackID, err := FallbackDraftPick(
-		in.Roster,
-		mapPositionCatalog(in.RosterPositions),
+	fallbackID := FallbackDraftPick(
+		in.DraftPrompt.SlotsRemaining,
 		in.RankedSkaters,
 		in.RankedGoalies,
 		setOf(in.Taken),
 	)
-	if err != nil {
-		result.errored = true
-		result.errorKind = ErrorKindToolUseFailure
-		result.errorDetail = err.Error()
-		return result, fmt.Errorf("simulation: fallback draft pick: %w", err)
-	}
 	if fallbackID == 0 {
 		result.errored = true
 		result.errorKind = ErrorKindToolUseFailure
@@ -545,7 +538,7 @@ func setOf(ids []int64) map[int64]struct{} {
 }
 
 // mapPositionCatalog wraps a player-id-to-position map in the
-// PlayerCatalog interface FallbackDraftPick wants. The caller
+// PlayerCatalog interface the roster validators want. The caller
 // guarantees coverage for every player in roster.Placements; a miss
 // surfaces as a clean error (not a panic).
 type mapPositionCatalog map[int64]sqlcdb.PlayerPosition

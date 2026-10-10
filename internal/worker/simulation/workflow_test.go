@@ -522,6 +522,82 @@ func (s *SimPoolWorkflowTestSuite) TestDraftCostCap_StopsAfterFirstTrip() {
 }
 
 // ============================================================================
+// Draft fallback over consecutive turns: every pick goes through
+// FallbackDraftPick, so each agent's positional need must come from the
+// pool's configured roster positions and advance with its own picks.
+// ============================================================================
+
+// fallbackDraftCandidates returns perPosition ranked skaters at each of
+// C/LW/RW/D and perPosition goalies, with strictly decreasing scores so
+// the ranking is unambiguous, plus each player's position.
+func fallbackDraftCandidates(perPosition int) (LoadDraftCandidatesResult, map[int64]string) {
+	var skaters []SkaterDraftCandidate
+	var goalies []GoalieDraftCandidate
+	positions := map[int64]string{}
+	id := int64(1)
+	score := 4 * perPosition
+	for range perPosition {
+		for _, pos := range []string{"C", "LW", "RW", "D"} {
+			skaters = append(skaters, SkaterDraftCandidate{PlayerID: id, Position: pos, PriorG: score})
+			positions[id] = pos
+			id++
+			score--
+		}
+		goalies = append(goalies, GoalieDraftCandidate{PlayerID: id, Position: "G", PriorW: score})
+		positions[id] = "G"
+		id++
+	}
+	return LoadDraftCandidatesResult{Skaters: RankSkaters(skaters), Goalies: RankGoalies(goalies)}, positions
+}
+
+func (s *SimPoolWorkflowTestSuite) TestDraftFallback_FollowsConfiguredNeedAcrossTurns() {
+	t := s.T()
+	const (
+		draftRounds        = 8
+		candidatesPerGroup = 8
+	)
+	state := minState()
+	state.PoolConfig.StopAfter = StopAfterDraft
+	state.PoolConfig.DraftRounds = draftRounds
+	// Non-default counts: 4 D, one of everything else. Util/BN carry no
+	// positional need.
+	state.PoolConfig.RosterPositions = map[RosterSlot]int{
+		SlotC: 1, SlotLW: 1, SlotRW: 1, SlotD: 4, SlotG: 1, SlotUtil: 1, SlotBN: 2,
+	}
+	candidates, positionOf := fallbackDraftCandidates(candidatesPerGroup)
+
+	picked := map[int32][]string{}
+	needSeen := map[int32][]map[string]int{}
+	s.env.OnActivity(s.acts.LoadDraftCandidates, mock.Anything, mock.Anything).
+		Return(candidates, nil)
+	s.env.OnActivity(s.acts.DraftPick, mock.Anything, mock.Anything).
+		Return(func(_ context.Context, in DraftPickInput) (DraftPickResult, error) {
+			// Both LLM attempts failed: the activity runs exactly this.
+			id := FallbackDraftPick(in.DraftPrompt.SlotsRemaining, in.RankedSkaters, in.RankedGoalies, setOf(in.Taken))
+			picked[in.AgentID] = append(picked[in.AgentID], positionOf[id])
+			needSeen[in.AgentID] = append(needSeen[in.AgentID], in.DraftPrompt.SlotsRemaining)
+			return DraftPickResult{PlayerID: id, UsedFallback: true}, nil
+		})
+	s.stubActivityResults(state)
+
+	s.env.ExecuteWorkflow(SimPoolWorkflow, SimPoolWorkflowInput{PoolID: 1})
+	require.True(t, s.env.IsWorkflowCompleted())
+	require.NoError(t, s.env.GetWorkflowError())
+
+	// D leads until it ties the singles at 1; ties go C, LW, RW, D, G.
+	// An empty roster would have meant D on every turn.
+	wantFirst := []string{"D", "D", "D", "C", "LW", "RW", "D", "G"}
+	for _, agentID := range state.AgentIDs {
+		require.Len(t, picked[agentID], draftRounds, "agent %d", agentID)
+		assert.Equal(t, wantFirst, picked[agentID], "agent %d", agentID)
+		assert.Equal(t, map[string]int{"C": 1, "LW": 1, "RW": 1, "D": 4, "G": 1}, needSeen[agentID][0],
+			"agent %d: first turn sees the configured counts", agentID)
+		assert.Equal(t, map[string]int{"C": 0, "LW": 0, "RW": 0, "D": 0, "G": 1}, needSeen[agentID][draftRounds-1],
+			"agent %d: last turn sees only the goalie slot open", agentID)
+	}
+}
+
+// ============================================================================
 // T1-B: the per-agent daily loop must stop after the first cost-cap trip.
 // Before the fix, every remaining agent still ran BuildManageRosterContext
 // + ManageRoster, each re-tripping the cap → duplicate cost_cap_reached

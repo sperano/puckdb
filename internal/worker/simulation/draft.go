@@ -2,8 +2,6 @@ package simulation
 
 import (
 	"slices"
-
-	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
 // ============================================================================
@@ -234,62 +232,83 @@ func SelectAvailableByPosition(
 }
 
 // ============================================================================
+// Positional need — shared by the draft prompt and the fallback picker
+// ============================================================================
+
+// computeSlotsRemaining returns "starter slots this agent still needs
+// to fill" — PoolConfig.RosterPositions positional buckets minus what
+// the agent has already drafted at each NHL position. Util/BN/IR are
+// excluded since they're position-agnostic and don't represent a
+// strategic gap during the draft.
+//
+// This is the single positional-need calculation of the draft: the
+// workflow puts it in DraftPromptInput.SlotsRemaining, the LLM reads
+// it there, and FallbackDraftPick consumes the same map when the LLM
+// fails, so both see the pool's configured slots and the agent's real
+// picks.
+func computeSlotsRemaining(cfg PoolConfig, picks []int64, lookup map[int64]DraftablePlayer) map[string]int {
+	out := map[string]int{}
+	for slot, n := range cfg.RosterPositions {
+		switch slot {
+		case SlotC, SlotLW, SlotRW, SlotD, SlotG:
+			out[string(slot)] = n
+		}
+	}
+	for _, pid := range picks {
+		dp, ok := lookup[pid]
+		if !ok {
+			continue
+		}
+		if out[dp.Position] > 0 {
+			out[dp.Position]--
+		}
+	}
+	return out
+}
+
+// ============================================================================
 // Fallback picker — used when the LLM has failed twice on a draft turn
 // ============================================================================
 
-// activeSlotLimits is the per-PLAN.md V1 active slot composition
-// (excluding BN/IR). Fallback uses these to compute positional need.
-// Util is excluded — it's a flexible slot, not tied to a position.
-var activeSlotLimits = map[string]int{
-	string(SlotC):  2,
-	string(SlotLW): 2,
-	string(SlotRW): 2,
-	string(SlotD):  3,
-	string(SlotG):  2,
-}
+// fallbackPositionOrder is the fallback's tie-break between positions
+// with the same remaining need, so retries pick the same position.
+var fallbackPositionOrder = []string{string(SlotC), string(SlotLW), string(SlotRW), string(SlotD), string(SlotG)}
 
 // FallbackDraftPick returns a deterministic player_id when the LLM has
 // failed and the activity needs to advance the draft. Strategy
 // (PLAN.md > "Draft Fallback"):
 //
 //  1. Determine the agent's most-needed position — the position with
-//     the largest deficit (limit minus filled). Ties broken by a fixed
+//     the most starter slots still to fill. Ties broken by a fixed
 //     position ordering: C, LW, RW, D, G (so retries pick the same
 //     position).
 //  2. Pick the highest-ranked available candidate at that position.
 //  3. If the most-needed position has no available candidate, fall
-//     back to the next-most-needed; if all positions are exhausted,
-//     return 0 (caller treats as "draft cannot proceed").
+//     back to the next-most-needed; once no position has need left
+//     (or none has a candidate), pick the best available skater, then
+//     goalie; with nothing available at all, return 0 (caller treats
+//     as "draft cannot proceed").
 //
-// catalog gives NHL position for already-rostered players so we can
-// count positional fill correctly (a player in Util counts toward
-// their NHL position's total). A catalog lookup error short-circuits
-// to (0, err).
+// slotsRemaining is computeSlotsRemaining's output for the picking
+// agent (DraftPromptInput.SlotsRemaining): the pool's configured
+// starter slots minus the agent's picks so far. A position missing
+// from the map has no need.
 func FallbackDraftPick(
-	roster RosterState,
-	catalog PlayerCatalog,
+	slotsRemaining map[string]int,
 	rankedSkaters []SkaterDraftCandidate,
 	rankedGoalies []GoalieDraftCandidate,
 	taken map[int64]struct{},
-) (int64, error) {
-
-	filled, err := positionFillCounts(roster, catalog)
-	if err != nil {
-		return 0, err
-	}
-
-	// Build a deficit-ordered list of positions. Stable order across
+) int64 {
+	// Build a need-ordered list of positions. Stable order across
 	// retries — fixed position ordering is the tiebreaker.
-	positions := []string{string(SlotC), string(SlotLW), string(SlotRW), string(SlotD), string(SlotG)}
+	positions := slices.Clone(fallbackPositionOrder)
 	slices.SortStableFunc(positions, func(a, b string) int {
-		da := activeSlotLimits[a] - filled[a]
-		db := activeSlotLimits[b] - filled[b]
-		return db - da // larger deficit first
+		return slotsRemaining[b] - slotsRemaining[a] // larger need first
 	})
 
 	for _, pos := range positions {
-		// Negative or zero deficit means already at capacity; skip.
-		if activeSlotLimits[pos]-filled[pos] <= 0 {
+		// Zero need means the position's starter slots are filled.
+		if slotsRemaining[pos] <= 0 {
 			continue
 		}
 
@@ -298,7 +317,7 @@ func FallbackDraftPick(
 				if _, t := taken[g.PlayerID]; t {
 					continue
 				}
-				return g.PlayerID, nil
+				return g.PlayerID
 			}
 			continue
 		}
@@ -310,7 +329,7 @@ func FallbackDraftPick(
 			if _, t := taken[s.PlayerID]; t {
 				continue
 			}
-			return s.PlayerID, nil
+			return s.PlayerID
 		}
 	}
 
@@ -318,46 +337,13 @@ func FallbackDraftPick(
 	// As a final safety net, pick the BPA across all skaters/goalies.
 	for _, s := range rankedSkaters {
 		if _, t := taken[s.PlayerID]; !t {
-			return s.PlayerID, nil
+			return s.PlayerID
 		}
 	}
 	for _, g := range rankedGoalies {
 		if _, t := taken[g.PlayerID]; !t {
-			return g.PlayerID, nil
+			return g.PlayerID
 		}
 	}
-	return 0, nil
-}
-
-// positionFillCounts counts how many players on the roster fill each
-// position based on their NHL position (NOT their current slot). A
-// goalie in BN still counts toward "G filled"; a C in Util still
-// counts toward "C filled".
-func positionFillCounts(roster RosterState, catalog PlayerCatalog) (map[string]int, error) {
-	filled := map[string]int{
-		string(SlotC): 0, string(SlotLW): 0, string(SlotRW): 0, string(SlotD): 0, string(SlotG): 0,
-	}
-	for playerID := range roster.Placements {
-		pos, err := catalog.Position(playerID)
-		if err != nil {
-			return nil, err
-		}
-		// Translate the sqlc enum to the prompt-side string. Anything
-		// outside the 5-position table is silently ignored — this is
-		// V1 and EligibleSlots already rejects F/unknown loudly at
-		// validation time.
-		switch pos {
-		case sqlcdb.PlayerPositionC:
-			filled[string(SlotC)]++
-		case sqlcdb.PlayerPositionLW:
-			filled[string(SlotLW)]++
-		case sqlcdb.PlayerPositionRW:
-			filled[string(SlotRW)]++
-		case sqlcdb.PlayerPositionD:
-			filled[string(SlotD)]++
-		case sqlcdb.PlayerPositionG:
-			filled[string(SlotG)]++
-		}
-	}
-	return filled, nil
+	return 0
 }

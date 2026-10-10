@@ -573,31 +573,6 @@ func buildCandidateLookup(candidates LoadDraftCandidatesResult) map[int64]Drafta
 	return out
 }
 
-// computeSlotsRemaining returns "starter slots this agent still needs
-// to fill" — PoolConfig.RosterPositions positional buckets minus what
-// the agent has already drafted at each NHL position. Util/BN/IR are
-// excluded since they're position-agnostic and don't represent a
-// strategic gap during the draft.
-func computeSlotsRemaining(cfg PoolConfig, picks []int64, lookup map[int64]DraftablePlayer) map[string]int {
-	out := map[string]int{}
-	for slot, n := range cfg.RosterPositions {
-		switch slot {
-		case SlotC, SlotLW, SlotRW, SlotD, SlotG:
-			out[string(slot)] = n
-		}
-	}
-	for _, pid := range picks {
-		dp, ok := lookup[pid]
-		if !ok {
-			continue
-		}
-		if out[dp.Position] > 0 {
-			out[dp.Position]--
-		}
-	}
-	return out
-}
-
 // assembleDraftPickInput constructs the input to one DraftPickActivity
 // call. The DraftPrompt's candidate lists are computed here via
 // SelectAvailableByPosition over the workflow-loaded candidates minus
@@ -675,12 +650,10 @@ func assembleDraftPickInput(
 			BestAvailableOverall: bestAvailable,
 			Notes:                agentNotes,
 		},
-		AvailableIDs:    availableIDs,
-		Roster:          RosterState{},
-		RosterPositions: map[int64]sqlcdb.PlayerPosition{},
-		RankedSkaters:   candidates.Skaters,
-		RankedGoalies:   candidates.Goalies,
-		Taken:           takenSlice,
+		AvailableIDs:  availableIDs,
+		RankedSkaters: candidates.Skaters,
+		RankedGoalies: candidates.Goalies,
+		Taken:         takenSlice,
 	}
 }
 
