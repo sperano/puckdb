@@ -207,8 +207,8 @@ func (s *DraftPickTestSuite) validInput() DraftPickInput {
 			Provider: "anthropic", Model: "claude-haiku-4-5",
 			Strategy: "balanced",
 		},
+		DraftPrompt:  DraftPromptInput{SlotsRemaining: v1Need()},
 		AvailableIDs: []int64{8478402, 8480039, 8479318}, // McDavid, MacKinnon, Matthews
-		Roster:       RosterState{Placements: map[int64]RosterSlot{}, Limits: map[RosterSlot]int{}},
 	}
 }
 
@@ -468,13 +468,13 @@ func (s *DraftPickTestSuite) TestRetry_OnFirstFailure() {
 		"at least two LLM rounds: first attempt rejected, second succeeded")
 }
 
-// Both LLM attempts fail → fallback fires. Fallback picks the
-// highest-ranked available skater since the empty roster has every
-// position at full deficit (ties broken by C/LW/RW/D/G order, so the
-// first C in rankedSkaters wins).
+// Both LLM attempts fail → fallback fires. With the D slots filled,
+// C, LW, RW and G all have two slots left; ties break in C/LW/RW/D/G
+// order, so the first C in rankedSkaters wins.
 func (s *DraftPickTestSuite) TestFallback_AfterTwoFailures() {
 	t := s.T()
 	in := s.validInput()
+	in.DraftPrompt.SlotsRemaining = map[string]int{"C": 2, "LW": 2, "RW": 2, "D": 0, "G": 2}
 	in.RankedSkaters = []SkaterDraftCandidate{
 		{PlayerID: 9001, Position: "C", PriorG: 60, PriorA: 80, Name: "Top C"},
 		{PlayerID: 9002, Position: "LW", PriorG: 50, PriorA: 50, Name: "Top LW"},
@@ -502,6 +502,32 @@ func (s *DraftPickTestSuite) TestFallback_AfterTwoFailures() {
 	require.Len(t, s.queries.insertDraftPickCalls, 1)
 	assert.Empty(t, s.queries.insertDraftPickCalls[0].Reasoning,
 		"fallback path emits empty reasoning (no LLM-supplied text)")
+}
+
+// The fallback reads the agent's remaining positional need from
+// DraftPrompt.SlotsRemaining (what the workflow computed from the
+// pool's roster positions and the agent's picks), not an empty roster:
+// with C, LW and D occupied it takes the RW over better-ranked players.
+func (s *DraftPickTestSuite) TestFallback_UsesRemainingPositionalNeed() {
+	t := s.T()
+	in := s.validInput()
+	in.DraftPrompt.SlotsRemaining = map[string]int{"C": 0, "LW": 0, "RW": 1, "D": 0, "G": 1}
+	in.RankedSkaters = []SkaterDraftCandidate{
+		{PlayerID: 9001, Position: "D", PriorG: 30, PriorA: 70, Name: "Top D"},
+		{PlayerID: 9002, Position: "C", PriorG: 40, PriorA: 50, Name: "Top C"},
+		{PlayerID: 9004, Position: "RW", PriorG: 20, PriorA: 20, Name: "Top RW"},
+	}
+	in.RankedGoalies = []GoalieDraftCandidate{
+		{PlayerID: 9003, PriorW: 35, Name: "Top G"},
+	}
+	s.llm.responses = []*llm.Response{{Content: "..."}}
+
+	future, err := s.env.ExecuteActivity(s.acts.DraftPick, in)
+	require.NoError(t, err)
+	var got DraftPickResult
+	require.NoError(t, future.Get(&got))
+	assert.True(t, got.UsedFallback)
+	assert.Equal(t, int64(9004), got.PlayerID, "RW ties G on need and comes first in the fixed order")
 }
 
 // LLM picks an ID that's NOT in AvailableIDs → treated as a failure
