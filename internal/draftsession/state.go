@@ -42,8 +42,8 @@ func RecordUpstreamPlayers(state *State) {
 // the entry exists, so undoing a mistaken manual entry restores a keeper.
 func DraftDerivedPlayers(state State) map[int]bool {
 	derived := clonePlayerSet(state.UpstreamPlayers)
-	// A state that never went through Reconcile or the session decoder (a
-	// replayed recommendation input) has no UpstreamPlayers; use its picks.
+	// A state built without Reconcile or the session decoder (a hand-built
+	// state) has no UpstreamPlayers; use its picks.
 	for _, pick := range state.Upstream {
 		derived[pick.PlayerID] = true
 	}
