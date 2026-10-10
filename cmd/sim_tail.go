@@ -68,9 +68,7 @@ context, then follows. Ctrl-C to exit.
   puckdb sim tail --pool 3      # one pool
 
 Each turn is one summary line plus one indented line per tool call.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), simTailFlagGroups...)
-		},
+		PreRunE: bindFlagsPreRunE(simTailFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			pool, err := openPGXPool(ctx)

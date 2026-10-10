@@ -69,12 +69,10 @@ var workerFlagGroups = []*config.FlagGroup{
 
 func cmdWorker() *cobra.Command {
 	var cmd = &cobra.Command{
-		Use:   "worker",
-		Short: "Start Temporal worker",
-		Long:  `Start the Temporal worker to process import workflows`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), workerFlagGroups...)
-		},
+		Use:     "worker",
+		Short:   "Start Temporal worker",
+		Long:    `Start the Temporal worker to process import workflows`,
+		PreRunE: bindFlagsPreRunE(workerFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.LogFlagValues()
 

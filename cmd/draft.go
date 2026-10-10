@@ -42,12 +42,10 @@ the sync imported and computed; run a sync first.`,
 
 func newDraftReportCommand(use, short, long string, run func(context.Context, draftReportRequest) error) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   use,
-		Short: short,
-		Long:  long,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), draftFlagGroups...)
-		},
+		Use:     use,
+		Short:   short,
+		Long:    long,
+		PreRunE: bindFlagsPreRunE(draftFlagGroups...),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			request, err := draftRequestFromFlags()
 			if err != nil {

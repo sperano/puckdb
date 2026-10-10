@@ -33,11 +33,9 @@ replace their filesystem and Redis cache entries, and transactionally reconcile
 the full-key draft session. With --watch, poll until canceled or postdraft; only
 one draft synchronization per league key can run at a time. This never submits
 a Yahoo pick.`,
-		Args: cobra.NoArgs,
-		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			return config.BindFlags(cmd.Flags(), draftSyncFlagGroups...)
-		},
-		RunE: runSyncDraft,
+		Args:    cobra.NoArgs,
+		PreRunE: bindFlagsPreRunE(draftSyncFlagGroups...),
+		RunE:    runSyncDraft,
 	}
 	config.InitFlags(cmd.Flags(), draftSyncFlagGroups...)
 	return cmd

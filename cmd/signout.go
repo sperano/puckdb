@@ -11,12 +11,10 @@ import (
 
 func cmdSignout() *cobra.Command {
 	var cmd = &cobra.Command{
-		Use:   "signout",
-		Short: "Remove OAuth token",
-		Long:  `Remove Yahoo OAuth2 token from Redis.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.RedisFlags.Bind(cmd.Flags())
-		},
+		Use:     "signout",
+		Short:   "Remove OAuth token",
+		Long:    `Remove Yahoo OAuth2 token from Redis.`,
+		PreRunE: bindFlagsPreRunE(&config.RedisFlags),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			redisClient := newRedisClient()

@@ -44,9 +44,7 @@ player once) and never renumber overall or position ranks.
 
 Example:
   puckdb draft rankings --draft-league 465.l.1001 --draft-positions C,LW --draft-format csv`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), draftRankingsFlagGroups...)
-		},
+		PreRunE: bindFlagsPreRunE(draftRankingsFlagGroups...),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			request, err := draftRankingsRequestFromFlags()
 			if err != nil {

@@ -22,12 +22,10 @@ func cmdRedis() *cobra.Command {
 
 func cmdRedisFlush() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "flush",
-		Short: "Flush all keys in Redis DB",
-		Long:  `Flush all keys in the configured Redis database via GraphQL API.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), &config.APIServerAddrFlags, &config.AdminAuthFlags, &config.APIBasicAuthFlags)
-		},
+		Use:     "flush",
+		Short:   "Flush all keys in Redis DB",
+		Long:    `Flush all keys in the configured Redis database via GraphQL API.`,
+		PreRunE: bindFlagsPreRunE(&config.APIServerAddrFlags, &config.AdminAuthFlags, &config.APIBasicAuthFlags),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiAddr := viper.GetString(config.FlagAPIServerAddr)
 			if apiAddr == "" {

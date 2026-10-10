@@ -61,9 +61,7 @@ func cmdMCPServer() *cobra.Command {
 			"e.g. nhl on 8790 for every client and yahoo on another port for trusted ones. " +
 			"--mcp-yahoo-leagues limits the yahoo toolset to the listed league keys. " +
 			"The HTTP endpoint has no authentication: keep a Yahoo instance's port private.",
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), mcpServerFlagGroups...)
-		},
+		PreRunE: bindFlagsPreRunE(mcpServerFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			transport := resolveMCPTransport()
 			if err := transport.Validate(); err != nil {

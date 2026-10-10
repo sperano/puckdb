@@ -63,12 +63,10 @@ var apiFlagGroups = []*config.FlagGroup{
 
 func cmdAPI() *cobra.Command {
 	var cmd = &cobra.Command{
-		Use:   "api",
-		Short: "Start HTTP/GraphQL server",
-		Long:  `Start the HTTP server with GraphQL endpoint and Yahoo OAuth handlers`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), apiFlagGroups...)
-		},
+		Use:     "api",
+		Short:   "Start HTTP/GraphQL server",
+		Long:    `Start the HTTP server with GraphQL endpoint and Yahoo OAuth handlers`,
+		PreRunE: bindFlagsPreRunE(apiFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.LogFlagValues()
 
