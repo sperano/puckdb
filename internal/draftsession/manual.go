@@ -4,9 +4,14 @@ import "fmt"
 
 // ApplyManual applies one explicit local board edit. A change remains marked
 // manual until a Yahoo snapshot confirms it or the user resolves a conflict.
+// An add or correction whose player already occupies another effective slot
+// fails with ErrDuplicatePlayer.
 func ApplyManual(current State, operation ManualOperation) (State, Report, error) {
 	if !validKey(operation.Key) {
 		return current, Report{}, fmt.Errorf("%w: round and pick must be positive", ErrInvalidManual)
+	}
+	if err := rejectManualDuplicate(current, operation); err != nil {
+		return current, Report{}, err
 	}
 	next := cloneState(current)
 	upstream, upstreamExists := next.Upstream[operation.Key]
@@ -50,6 +55,9 @@ func ApplyManual(current State, operation ManualOperation) (State, Report, error
 }
 
 // ResolveConflict records the user's explicit choice for one contested slot.
+// Keeping a manual pick whose player still occupies another effective slot
+// fails with ErrDuplicatePlayer; accepting Yahoo's pick is always allowed, and
+// any manual entry it duplicates becomes a conflict.
 func ResolveConflict(current State, key PickKey, choice ConflictChoice) (State, Report, error) {
 	change, exists := current.Manual[key]
 	if !exists || !change.Conflict {
@@ -61,6 +69,11 @@ func ResolveConflict(current State, key PickKey, choice ConflictChoice) (State, 
 		change.Base = clonePickIfPresent(next.Upstream, key)
 		change.Conflict = false
 		next.Manual[key] = change
+		if pick, exists := effectiveAt(next, key); exists {
+			if err := rejectDuplicatePlayer(next, key, pick.PlayerID); err != nil {
+				return current, Report{}, err
+			}
+		}
 	case AcceptUpstream:
 		delete(next.Manual, key)
 	default:
@@ -70,6 +83,7 @@ func ResolveConflict(current State, key PickKey, choice ConflictChoice) (State, 
 }
 
 func finishManualTransition(before, after State) (State, Report, error) {
+	flagDuplicateConflicts(&after)
 	changed := !equalState(before, after)
 	if changed {
 		after.Version = before.Version + 1
@@ -117,6 +131,13 @@ func effectiveAt(state State, key PickKey) (Pick, bool) {
 	}
 	pick, exists := state.Upstream[key]
 	return pick, exists
+}
+
+func rejectManualDuplicate(state State, operation ManualOperation) error {
+	if operation.Kind == ManualUndo || operation.Pick == nil {
+		return nil
+	}
+	return rejectDuplicatePlayer(state, operation.Key, operation.Pick.PlayerID)
 }
 
 func validManualPick(pick Pick, key PickKey) bool {

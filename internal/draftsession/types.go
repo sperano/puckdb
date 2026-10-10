@@ -3,11 +3,17 @@
 // dependencies so callers can apply its results inside their own transaction.
 package draftsession
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var (
 	ErrInvalidSnapshot = errors.New("invalid draft snapshot")
 	ErrInvalidManual   = errors.New("invalid manual draft operation")
+	// ErrDuplicatePlayer rejects a manual change or conflict resolution that
+	// would place one player in two effective slots. It wraps ErrInvalidManual.
+	ErrDuplicatePlayer = fmt.Errorf("%w: player is already drafted", ErrInvalidManual)
 )
 
 // PickKey identifies a draft slot. Pick is the overall pick number within a
@@ -81,7 +87,8 @@ type ManualOperation struct {
 
 // ManualChange is a pending local intent. Base records what Yahoo showed when
 // the user made the change; Conflict is raised if Yahoo later changes that
-// slot to a third state.
+// slot to a third state, or if the change's player also occupies another
+// effective slot.
 type ManualChange struct {
 	Kind     ManualKind
 	Pick     *Pick
@@ -115,6 +122,14 @@ type Report struct {
 	Removed         int
 	Skipped         []SkippedPick
 	Conflicts       []PickKey
+	Duplicates      []DuplicatePlayer
+}
+
+// DuplicatePlayer is one player that occupies more than one effective slot.
+// Keys are in slot order.
+type DuplicatePlayer struct {
+	PlayerID int
+	Keys     []PickKey
 }
 
 // ConflictChoice is an explicit resolution for a contested manual change.

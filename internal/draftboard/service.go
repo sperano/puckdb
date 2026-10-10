@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -161,7 +162,7 @@ func (s *Service) boardRecommendation(ctx context.Context, request Request, inpu
 	status Status, now time.Time) (*draftrecommend.StoredRun, draftrecommend.Result, error) {
 	input := draftrecommend.Input{
 		Session: inputs.session.State, SessionLeagueKey: inputs.identity.LeagueKey,
-		SessionSafe: inputs.session.RecommendationsSafe, SessionStale: status.Stale,
+		SessionSafe: status.RecommendationsSafe, SessionStale: status.Stale,
 		Ranking: inputs.ranking, Scenario: request.Scenario, OurTeamID: inputs.league.TeamID,
 		Roster: roster.Players, Order: slices.Clone(request.Order), Strategy: request.Strategy,
 		Availability: request.Availability, ADP: request.ADP,
@@ -401,9 +402,12 @@ func (s *Service) Events(ctx context.Context, league string, season int, afterVe
 
 func statusOf(session draftwatch.Session, now time.Time, staleAfter time.Duration) Status {
 	stale := session.LastSuccessAt != nil && staleAfter > 0 && now.Sub(*session.LastSuccessAt) > staleAfter
+	// The stored flag predates stricter board invariants on rows not rewritten
+	// since, so the reducer's verdict on the stored state also has to hold.
+	safe := session.RecommendationsSafe && draftsession.SafeToRecommend(session.State)
 	status := Status{
 		Version: session.State.Version, SyncVersion: session.SyncVersion, DraftStatus: session.DraftStatus,
-		RecommendationsSafe: session.RecommendationsSafe, Complete: session.Complete,
+		RecommendationsSafe: safe, Complete: session.Complete,
 		Stale: stale, LastPollAt: session.LastPollAt, LastSuccessAt: session.LastSuccessAt,
 		LastAuthoritativeAt: session.LastAuthoritativeAt, LastError: session.LastError,
 	}
@@ -412,8 +416,11 @@ func statusOf(session draftwatch.Session, now time.Time, staleAfter time.Duratio
 	} else if stale {
 		status.Warnings = append(status.Warnings, "Yahoo draft board is stale; last successful sync is outside the freshness window")
 	}
-	if !session.RecommendationsSafe {
+	if !safe {
 		status.Warnings = append(status.Warnings, "draft board is incomplete or has unresolved manual conflicts")
+	}
+	for _, duplicate := range draftsession.DuplicatePlayers(session.State) {
+		status.Warnings = append(status.Warnings, duplicateWarning(duplicate))
 	}
 	if session.LastError != "" {
 		status.Warnings = append(status.Warnings, "last Yahoo sync failed: "+session.LastError)
@@ -422,4 +429,12 @@ func statusOf(session draftwatch.Session, now time.Time, staleAfter time.Duratio
 		status.Warnings = append(status.Warnings, fmt.Sprintf("Yahoo board has %d unresolved or malformed picks", session.SkippedPickCount))
 	}
 	return status
+}
+
+func duplicateWarning(duplicate draftsession.DuplicatePlayer) string {
+	slots := make([]string, len(duplicate.Keys))
+	for i, key := range duplicate.Keys {
+		slots[i] = fmt.Sprintf("round %d pick %d", key.Round, key.Pick)
+	}
+	return fmt.Sprintf("player %d appears in more than one slot (%s)", duplicate.PlayerID, strings.Join(slots, ", "))
 }

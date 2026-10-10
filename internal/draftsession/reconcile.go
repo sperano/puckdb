@@ -25,6 +25,7 @@ func Reconcile(current State, snapshot Snapshot) (State, Report, error) {
 	// from treating stale state as recommendation-safe.
 	next.UpstreamComplete = complete
 	resolveManual(&next, complete)
+	flagDuplicateConflicts(&next)
 
 	changed := !equalState(current, next)
 	if changed {
@@ -125,12 +126,13 @@ func makeReport(state State, changed bool, skipped []SkippedPick, applied, remov
 	return Report{
 		Changed: changed, Complete: state.UpstreamComplete,
 		SafeToRecommend: SafeToRecommend(state), Applied: applied, Removed: removed,
-		Skipped: skipped, Conflicts: conflicts,
+		Skipped: skipped, Conflicts: conflicts, Duplicates: DuplicatePlayers(state),
 	}
 }
 
-// SafeToRecommend reports whether the upstream board is complete and all
-// manual changes have an unambiguous relationship to Yahoo's latest board.
+// SafeToRecommend reports whether the upstream board is complete, all manual
+// changes have an unambiguous relationship to Yahoo's latest board, and no
+// player occupies two effective slots.
 func SafeToRecommend(state State) bool {
 	if !state.UpstreamComplete {
 		return false
@@ -140,7 +142,7 @@ func SafeToRecommend(state State) bool {
 			return false
 		}
 	}
-	return true
+	return len(DuplicatePlayers(state)) == 0
 }
 
 func countApplied(observed map[PickKey]Pick, before, after State) int {

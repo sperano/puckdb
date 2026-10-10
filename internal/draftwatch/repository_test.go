@@ -108,6 +108,49 @@ func TestRepositoryRestartKeepsCompleteBoardAcrossDuplicateAndPartialPolls(t *te
 	assert.Len(t, afterPartial.State.Upstream, len(complete.Snapshot.Picks), "partial replay must not delete unseen picks")
 }
 
+func TestRepositoryRejectsManualDuplicateWithoutWriting(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	first, second := draftsession.PickKey{Round: 1, Pick: 1}, draftsession.PickKey{Round: 1, Pick: 2}
+	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity,
+		replayPoll(true, 1, draftsession.ObservedPick{Key: first, TeamID: 1, PlayerID: 101}))
+	require.NoError(t, err)
+	assertSessionVersions(t, fixture, 1, 1)
+
+	_, _, err = fixture.repo.ApplyManualAtVersion(fixture.ctx, fixture.identity,
+		manualOperation(second, draftsession.ManualAdd, 101), 1, time.Now().UTC())
+
+	require.ErrorIs(t, err, draftsession.ErrDuplicatePlayer)
+	assertSessionVersions(t, fixture, 1, 1)
+	session, err := fixture.repo.Get(fixture.ctx, fixture.identity.LeagueKey)
+	require.NoError(t, err)
+	assert.Empty(t, session.State.Manual)
+	assert.True(t, session.RecommendationsSafe)
+}
+
+func TestRepositoryPersistsUpstreamDuplicateAsUnsafeConflict(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	first, second := draftsession.PickKey{Round: 1, Pick: 1}, draftsession.PickKey{Round: 1, Pick: 2}
+	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity, replayPoll(true, 0))
+	require.NoError(t, err)
+	_, _, err = fixture.repo.ApplyManualAtVersion(fixture.ctx, fixture.identity,
+		manualOperation(second, draftsession.ManualAdd, 101), 1, time.Now().UTC())
+	require.NoError(t, err)
+
+	session, report, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity,
+		replayPoll(true, 1, draftsession.ObservedPick{Key: first, TeamID: 1, PlayerID: 101}))
+
+	require.NoError(t, err)
+	assert.Len(t, report.Duplicates, 1)
+	assert.False(t, session.RecommendationsSafe, "the stored flag must reflect the duplicate")
+	assert.True(t, session.State.Manual[second].Conflict, "the conflict flag must survive the board round trip")
+
+	session, _, err = fixture.repo.ResolveConflictAtVersion(fixture.ctx, fixture.identity, second,
+		draftsession.AcceptUpstream, session.State.Version, time.Now().UTC())
+	require.NoError(t, err)
+	assert.True(t, session.RecommendationsSafe)
+	assert.Empty(t, session.State.Manual)
+}
+
 func replayPoll(authoritative bool, expected int, picks ...draftsession.ObservedPick) PollResult {
 	return PollResult{PolledAt: time.Now().UTC(), Snapshot: draftsession.Snapshot{
 		Authoritative: authoritative, HasExpectedCount: true, ExpectedCount: expected,
