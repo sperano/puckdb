@@ -40,9 +40,7 @@ each event's report status, stated duration, dates and move, lifecycle
 versions and verbatim quotes behind it. Extractions that failed, returned
 invalid output or had claims dropped are listed for review first. Events
 carry no fantasy impact.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), newsEventsFlagGroups...)
-		},
+		PreRunE: bindFlagsPreRunE(newsEventsFlagGroups...),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return writeDraftReport(cmd.OutOrStdout(), viper.GetString(config.FlagNewsOutput), func(w io.Writer) error {
 				return runNewsEvents(cmd.Context(), w)
@@ -99,9 +97,7 @@ injection resistance against the release thresholds. A run on the built-in
 corpus is recorded in the database; automatic numeric effects stay off for
 an extractor until its latest recorded run passed. The command fails when a
 threshold is missed.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), newsEvalFlagGroups...)
-		},
+		PreRunE: bindFlagsPreRunE(newsEvalFlagGroups...),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runNewsEval(cmd.Context(), cmd.OutOrStdout())
 		},

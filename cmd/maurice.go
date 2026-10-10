@@ -42,12 +42,10 @@ var mauriceFlagGroups = []*config.FlagGroup{
 
 func cmdMaurice() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "maurice",
-		Short: "Interactive AI hockey chat",
-		Long:  `Start an interactive REPL to chat with Maurice, the hockey AI assistant`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), mauriceFlagGroups...)
-		},
+		Use:     "maurice",
+		Short:   "Interactive AI hockey chat",
+		Long:    `Start an interactive REPL to chat with Maurice, the hockey AI assistant`,
+		PreRunE: bindFlagsPreRunE(mauriceFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runMaurice(cmd)
 		},

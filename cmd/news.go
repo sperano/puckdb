@@ -57,9 +57,7 @@ publication, update and retrieval times), and story subjects that could not be
 attached to one player. With --news-player-nhl-id or --news-player-yahoo-id
 the report also covers that player; a player with no incident is never
 reported as healthy.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), newsReportFlagGroups...)
-		},
+		PreRunE: bindFlagsPreRunE(newsReportFlagGroups...),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return writeDraftReport(cmd.OutOrStdout(), viper.GetString(config.FlagNewsOutput), func(w io.Writer) error {
 				return runNewsReport(cmd.Context(), w)

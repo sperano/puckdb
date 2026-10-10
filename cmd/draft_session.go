@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -51,11 +52,7 @@ func newDraftSessionCommand(use, short string, run func(*cobra.Command, draftSes
 	localGroups ...*config.FlagGroup) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: use, Short: short, Args: cobra.NoArgs,
-		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			groups := append([]*config.FlagGroup{}, draftSessionCLIFlagGroups...)
-			groups = append(groups, localGroups...)
-			return config.BindFlags(cmd.Flags(), groups...)
-		},
+		PreRunE: bindFlagsPreRunE(slices.Concat(draftSessionCLIFlagGroups, localGroups)...),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			loaded, err := loadDraftSessionContext(cmd.Context())
 			if err != nil {

@@ -44,12 +44,10 @@ var dbMigrateFlagGroups = []*config.FlagGroup{
 
 func cmdDBMigrate() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "migrate",
-		Short: "Run database migrations directly",
-		Long:  `Run database migrations directly without going through GraphQL API. Designed for init containers.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), dbMigrateFlagGroups...)
-		},
+		Use:     "migrate",
+		Short:   "Run database migrations directly",
+		Long:    `Run database migrations directly without going through GraphQL API. Designed for init containers.`,
+		PreRunE: bindFlagsPreRunE(dbMigrateFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withRedisLock(cmd.Context(), dbMigrateLockName, config.DefaultDBInitLockTTL, func() error {
 				if err := database.DoMigration(postgresConnFrom(viper.GetViper())); err != nil {
@@ -74,10 +72,8 @@ This runs no migration SQL: it only records that the schema matches <version>.
 Inspect the schema first and pass the version it actually matches; use 0 when
 no migration is applied. Refuses to act on a database that is not dirty, and on
 a version the embedded migrations do not define. See https://wiki.spe.quebec/en/puckdb/migration-recovery.`,
-		Args: cobra.ExactArgs(1),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), dbMigrateFlagGroups...)
-		},
+		Args:    cobra.ExactArgs(1),
+		PreRunE: bindFlagsPreRunE(dbMigrateFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version, err := strconv.Atoi(args[0])
 			if err != nil {
@@ -106,12 +102,10 @@ var dbInitFlagGroups = []*config.FlagGroup{
 
 func cmdDBInit() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "init",
-		Short: "Initialize database",
-		Long:  `Run database migrations via GraphQL API. Uses Redis lock to prevent concurrent migrations.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), dbInitFlagGroups...)
-		},
+		Use:     "init",
+		Short:   "Initialize database",
+		Long:    `Run database migrations via GraphQL API. Uses Redis lock to prevent concurrent migrations.`,
+		PreRunE: bindFlagsPreRunE(dbInitFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getGraphQLClient()
 			if err != nil {
@@ -136,12 +130,10 @@ func cmdDBInit() *cobra.Command {
 
 func cmdDBDrop() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "drop",
-		Short: "Drop database tables",
-		Long:  `Drop all database tables via GraphQL API. Use with caution.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), &config.AdminAuthFlags, &config.APIBasicAuthFlags)
-		},
+		Use:     "drop",
+		Short:   "Drop database tables",
+		Long:    `Drop all database tables via GraphQL API. Use with caution.`,
+		PreRunE: bindFlagsPreRunE(&config.AdminAuthFlags, &config.APIBasicAuthFlags),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getGraphQLClient()
 			if err != nil {
@@ -178,10 +170,8 @@ func cmdDBProvision() *cobra.Command {
 		Long: `Provisions the database and user on a shared PostgreSQL server.
 Uses provisioner credentials to create the target database and user.
 This command is idempotent and uses a Redis lock to prevent concurrent runs.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), dbProvisionFlagGroups...)
-		},
-		RunE: runDBProvision,
+		PreRunE: bindFlagsPreRunE(dbProvisionFlagGroups...),
+		RunE:    runDBProvision,
 	}
 	config.InitFlags(cmd.Flags(), dbProvisionFlagGroups...)
 	return cmd

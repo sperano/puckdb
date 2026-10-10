@@ -29,10 +29,8 @@ func cmdDBCheckTeams() *cobra.Command {
 season_teams row for that season. Games queries join season_teams on both
 sides, so such games are silently missing from schedules and game logs.
 Exits non-zero when any are found.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), dbCheckTeamsFlagGroups...)
-		},
-		RunE: runDBCheckTeams,
+		PreRunE: bindFlagsPreRunE(dbCheckTeamsFlagGroups...),
+		RunE:    runDBCheckTeams,
 	}
 	config.InitFlags(cmd.Flags(), dbCheckTeamsFlagGroups...)
 	return cmd

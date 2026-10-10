@@ -32,12 +32,10 @@ var simDraftFlagGroups = []*config.FlagGroup{
 func cmdSimDraft() *cobra.Command {
 	var fullReasoning bool
 	cmd := &cobra.Command{
-		Use:   "draft <pool-id>",
-		Short: "Show draft picks grouped by agent",
-		Args:  cobra.ExactArgs(1),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return config.BindFlags(cmd.Flags(), simDraftFlagGroups...)
-		},
+		Use:     "draft <pool-id>",
+		Short:   "Show draft picks grouped by agent",
+		Args:    cobra.ExactArgs(1),
+		PreRunE: bindFlagsPreRunE(simDraftFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			poolID, err := parsePoolID(args[0])
 			if err != nil {
