@@ -54,18 +54,20 @@ func picksOf(state draftsession.State, ranking *draftrank.Snapshot) []Pick {
 	return picks
 }
 
+// rosterOf lists our team: imported players the draft session has never
+// placed (keepers and other pre-draft ownership), then every effective pick
+// for our team. An imported player the session has placed is draft-derived,
+// so its membership follows the effective board: an undo, a correction to
+// another team, or a later Yahoo correction removes it even while the roster
+// import still lists it.
 func rosterOf(state draftsession.State, imported []draft.RosterPlayer, ranking *draftrank.Snapshot, slots []draft.RosterSlot, teamID int) Roster {
 	players := make([]draft.RosterPlayer, 0, len(imported)+len(state.Upstream))
+	draftDerived := draftsession.DraftDerivedPlayers(state)
 	for _, player := range imported {
-		if ranked, exists := rankingPlayerByID(ranking, player.YahooPlayerID); exists {
-			if player.Name == "" || player.Name == fmt.Sprintf("Yahoo player %d", player.YahooPlayerID) {
-				player.Name = ranked.Name
-			}
-			if len(player.EligiblePositions) == 0 {
-				player.EligiblePositions = slices.Clone(ranked.RosterEligiblePositions)
-			}
+		if draftDerived[player.YahooPlayerID] {
+			continue
 		}
-		players = appendRosterPlayer(players, player)
+		players = appendRosterPlayer(players, withRankingDetails(player, ranking))
 	}
 	seen := make(map[int]bool, len(players))
 	for _, player := range players {
@@ -85,6 +87,22 @@ func rosterOf(state draftsession.State, imported []draft.RosterPlayer, ranking *
 	feasibility := draft.CheckRoster(slots, players)
 	return Roster{Players: players, Assignments: feasibility.Assignments,
 		OpenSlots: feasibility.OpenSlots, Warnings: feasibility.Warnings(), Feasible: feasibility.Feasible()}
+}
+
+// withRankingDetails fills an imported player's missing name and eligibility
+// from the ranking snapshot.
+func withRankingDetails(player draft.RosterPlayer, ranking *draftrank.Snapshot) draft.RosterPlayer {
+	ranked, exists := rankingPlayerByID(ranking, player.YahooPlayerID)
+	if !exists {
+		return player
+	}
+	if player.Name == "" || player.Name == fmt.Sprintf("Yahoo player %d", player.YahooPlayerID) {
+		player.Name = ranked.Name
+	}
+	if len(player.EligiblePositions) == 0 {
+		player.EligiblePositions = slices.Clone(ranked.RosterEligiblePositions)
+	}
+	return player
 }
 
 func appendRosterPlayer(players []draft.RosterPlayer, player draft.RosterPlayer) []draft.RosterPlayer {

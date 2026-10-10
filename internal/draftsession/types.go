@@ -98,9 +98,17 @@ type ManualChange struct {
 
 // State is reducer state. Upstream and Manual are separate so a manual undo is
 // retained as a tombstone instead of being mistaken for an empty Yahoo slot.
+//
+// UpstreamPlayers is the set of every player Yahoo has placed in any slot of
+// this session. It only grows: a slot Yahoo later corrects or resets keeps its
+// former player here, so a stale imported roster row for that player is still
+// recognized as draft-derived (see DraftDerivedPlayers). It is derived from
+// Upstream history and never changes without an Upstream change, so it does
+// not take part in state equality or versioning.
 type State struct {
 	Upstream         map[PickKey]Pick
 	Manual           map[PickKey]ManualChange
+	UpstreamPlayers  map[int]bool
 	UpstreamComplete bool
 	Version          uint64
 }

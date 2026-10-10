@@ -17,6 +17,7 @@ func TestStateCodecRoundTripPreservesRestartState(t *testing.T) {
 		Manual: map[draftsession.PickKey]draftsession.ManualChange{
 			key: {Kind: draftsession.ManualCorrect, Pick: &manual, Base: &base, Conflict: true},
 		},
+		UpstreamPlayers:  map[int]bool{101: true, 99: true},
 		UpstreamComplete: true,
 		Version:          9,
 	}
@@ -38,4 +39,18 @@ func TestDecodeStateAcceptsInitialLegacyEmptyArray(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, state.Upstream)
 	assert.Empty(t, state.Manual)
+}
+
+func TestDecodeStateSeedsUpstreamPlayersOfLegacyBoard(t *testing.T) {
+	legacy := `{"upstream":[{"Key":{"Round":1,"Pick":1},"TeamID":3,"PlayerID":102,"Cost":null}],` +
+		`"manual":[{"key":{"Round":1,"Pick":2},"kind":"undo","base":{"Key":{"Round":1,"Pick":2},"TeamID":8,"PlayerID":105,"Cost":null},"conflict":false}],` +
+		`"upstreamComplete":true,"version":4}`
+
+	state, err := decodeState([]byte(legacy))
+
+	require.NoError(t, err)
+	assert.Equal(t, map[int]bool{102: true, 105: true}, state.UpstreamPlayers)
+	raw, _, err := encodeState(state)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"upstreamPlayers":[102,105]`)
 }

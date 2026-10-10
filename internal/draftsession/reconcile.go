@@ -14,12 +14,16 @@ func Reconcile(current State, snapshot Snapshot) (State, Report, error) {
 	}
 
 	next := cloneState(current)
+	// Record the prior picks first: a complete snapshot replaces Upstream.
+	RecordUpstreamPlayers(&next)
 	observed, skipped := validatePicks(snapshot.Picks)
 	complete := snapshot.Authoritative && snapshot.HasExpectedCount &&
 		snapshot.ExpectedCount == snapshot.RawCount && snapshot.RawCount == len(snapshot.Picks) && len(skipped) == 0
 	if snapshot.Authoritative {
 		applyObserved(&next, observed, complete)
 	}
+	// Then the picks this observation added or corrected.
+	RecordUpstreamPlayers(&next)
 	// Even a non-authoritative response is evidence that this poll did not
 	// establish a complete board. Keep the prior picks, but prevent consumers
 	// from treating stale state as recommendation-safe.
