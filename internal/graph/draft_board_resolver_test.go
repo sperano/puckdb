@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"slices"
 	"testing"
@@ -107,6 +108,89 @@ func TestMauriceRecommendationsRemainVisibleOutsideFilteredPage(t *testing.T) {
 	assert.Empty(t, data.MauriceDraftBoard.Available)
 	require.NotNil(t, data.MauriceDraftBoard.Recommendations.BestValue)
 	assert.NotEmpty(t, data.MauriceDraftBoard.Recommendations.BestValue.RecommendationReasons)
+}
+
+const refreshDraftBoardMutation = `mutation($input: MauriceDraftSessionRefInput!) {
+	refreshMauriceDraftBoard(input: $input) { syncVersion watch { state } }
+}`
+
+func TestRefreshMauriceDraftBoardReportsBusyLockWithCode(t *testing.T) {
+	refresher := graphRefresher{err: fmt.Errorf("%w for %s", draftwatch.ErrSyncInProgress, draftfixtures.LeagueKey)}
+	server := newDraftRefreshTestServer(t, refresher, nil)
+
+	response := postGraphQL(t, server, nil, refreshDraftBoardMutation, draftRefreshVariables())
+
+	require.Len(t, response.Errors, 1)
+	assert.Equal(t, draftSyncBusyCode, response.Errors[0].Extensions["code"])
+	assert.Contains(t, response.Errors[0].Message, "refresh now is unavailable")
+	assert.Contains(t, response.Errors[0].Message, draftfixtures.LeagueKey)
+}
+
+func TestRefreshMauriceDraftBoardRunsOnInProcessWatch(t *testing.T) {
+	refresher := graphRefresher{err: fmt.Errorf("%w for %s", draftwatch.ErrSyncInProgress, draftfixtures.LeagueKey)}
+	server := newDraftRefreshTestServer(t, refresher, func() draftboard.WatchRunner { return graphAnsweringWatch{} })
+
+	response := postGraphQL(t, server, nil, refreshDraftBoardMutation, draftRefreshVariables())
+
+	require.Empty(t, response.Errors)
+	var data struct {
+		Refresh struct {
+			SyncVersion int64 `json:"syncVersion"`
+			Watch       struct {
+				State string `json:"state"`
+			} `json:"watch"`
+		} `json:"refreshMauriceDraftBoard"`
+	}
+	require.NoError(t, jsonUnmarshal(response.Data, &data))
+	assert.Equal(t, int64(graphAnsweredSyncVersion), data.Refresh.SyncVersion)
+	assert.Equal(t, "RUNNING", data.Refresh.Watch.State)
+}
+
+func draftRefreshVariables() map[string]any {
+	return map[string]any{"input": map[string]any{"league": draftfixtures.LeagueKey, "season": draftfixtures.Season}}
+}
+
+// newDraftRefreshTestServer serves a board whose one-shot refresher is
+// refresher; a non-nil watch factory starts a watch of the fixture league.
+func newDraftRefreshTestServer(t *testing.T, refresher draftboard.Refresher, watch func() draftboard.WatchRunner) *httptest.Server {
+	t.Helper()
+	data := &graphBoardData{identity: draftwatch.Identity{LeagueKey: draftfixtures.LeagueKey,
+		Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID, GameKey: 465}}
+	options := draftboard.Options{}
+	if watch != nil {
+		options.Watch = draftboard.NewWatchController(data, watch, draftwatch.WatchOptions{FinalTimeout: time.Second})
+		_, err := options.Watch.Start(t.Context(), draftfixtures.LeagueKey, draftfixtures.Season)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = options.Watch.Close(context.Background()) })
+	}
+	service := draftboard.NewService(data, nil, refresher, options)
+	schema := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{DraftBoard: service}}))
+	schema.AddTransport(transport.POST{})
+	server := httptest.NewServer(schema)
+	t.Cleanup(server.Close)
+	return server
+}
+
+type graphRefresher struct{ err error }
+
+func (r graphRefresher) SyncOnce(context.Context, draftwatch.Identity) (draftwatch.Session, draftsession.Report, error) {
+	return draftwatch.Session{}, draftsession.Report{}, r.err
+}
+
+const graphAnsweredSyncVersion = 11
+
+// graphAnsweringWatch answers every refresh request until cancellation.
+type graphAnsweringWatch struct{}
+
+func (graphAnsweringWatch) Watch(ctx context.Context, identity draftwatch.Identity, options draftwatch.WatchOptions) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case request := <-options.Refresh:
+			request.Reply <- draftwatch.Outcome{Session: draftwatch.Session{Identity: identity, SyncVersion: graphAnsweredSyncVersion}}
+		}
+	}
 }
 
 func TestMauriceDraftBoardRendersEachIssueMessageOnce(t *testing.T) {

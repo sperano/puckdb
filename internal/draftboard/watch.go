@@ -31,9 +31,10 @@ type WatchStatus struct {
 }
 
 type watchEntry struct {
-	status WatchStatus
-	cancel context.CancelFunc
-	done   chan struct{}
+	status  WatchStatus
+	cancel  context.CancelFunc
+	done    chan struct{}
+	refresh chan draftwatch.RefreshRequest
 }
 
 // WatchController owns at most one active watch per full league key.
@@ -68,7 +69,7 @@ func (c *WatchController) Start(ctx context.Context, league string, season int) 
 	}
 	watchCtx, cancel := context.WithCancel(context.Background())
 	entry := &watchEntry{status: WatchStatus{LeagueKey: identity.LeagueKey, Running: true, StartedAt: time.Now().UTC()},
-		cancel: cancel, done: make(chan struct{})}
+		cancel: cancel, done: make(chan struct{}), refresh: make(chan draftwatch.RefreshRequest)}
 	c.entries[identity.LeagueKey] = entry
 	status := entry.status
 	c.mu.Unlock()
@@ -77,7 +78,9 @@ func (c *WatchController) Start(ctx context.Context, league string, season int) 
 }
 
 func (c *WatchController) run(ctx context.Context, identity draftwatch.Identity, entry *watchEntry) {
-	err := c.factory().Watch(ctx, identity, c.options)
+	options := c.options
+	options.Refresh = entry.refresh
+	err := c.factory().Watch(ctx, identity, options)
 	c.mu.Lock()
 	entry.status.Running = false
 	stopped := time.Now().UTC()
@@ -87,6 +90,36 @@ func (c *WatchController) run(ctx context.Context, identity draftwatch.Identity,
 	}
 	close(entry.done)
 	c.mu.Unlock()
+}
+
+// Refresh asks this process's running watch of a league to poll Yahoo now and
+// waits for that poll, whose failure is reported in the outcome's Err. routed
+// is false when this controller runs no watch for the league, or the watch
+// stopped before taking the request; the caller then owns the refresh. A
+// non-nil err means ctx ended first and nothing should be retried for it.
+func (c *WatchController) Refresh(ctx context.Context, leagueKey string) (outcome draftwatch.Outcome, routed bool, err error) {
+	c.mu.Lock()
+	entry := c.entries[leagueKey]
+	if entry == nil || !entry.status.Running {
+		c.mu.Unlock()
+		return draftwatch.Outcome{}, false, nil
+	}
+	requests, done := entry.refresh, entry.done
+	c.mu.Unlock()
+	reply := make(chan draftwatch.Outcome, 1)
+	select {
+	case requests <- draftwatch.RefreshRequest{Reply: reply}:
+	case <-done:
+		return draftwatch.Outcome{}, false, nil
+	case <-ctx.Done():
+		return draftwatch.Outcome{}, false, fmt.Errorf("wait for running draft watch: %w", ctx.Err())
+	}
+	select {
+	case outcome = <-reply:
+		return outcome, true, nil
+	case <-ctx.Done():
+		return draftwatch.Outcome{}, true, fmt.Errorf("wait for draft watch refresh: %w", ctx.Err())
+	}
 }
 
 // Stop cancels and waits for a watch. If ctx has no deadline, it applies the

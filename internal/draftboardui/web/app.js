@@ -6,6 +6,8 @@ const POLL_INTERVAL_MS = 2000;
 const SEARCH_DELAY_MS = 250;
 const BOARD_PAGE_SIZE = 100;
 const POSITION_OPTIONS = ["C", "LW", "RW", "D", "G"];
+const NOTICE_DURATION_MS = 15000;
+const WATCH_RUNNING = "RUNNING";
 
 const state = {
   board: null,
@@ -18,6 +20,7 @@ const state = {
   searchTimer: null,
   requestSequence: 0,
   appliedRequestSequence: 0,
+  notices: [],
 };
 
 const byId = (id) => document.getElementById(id);
@@ -108,6 +111,9 @@ function render() {
   const board = state.board;
   const sync = board.sync;
   setConnection(sync.connection, `${sync.connection.replace("_", " ")} · watch ${sync.watch.state.toLowerCase()}`);
+  byId("refresh").title = sync.watch.state === WATCH_RUNNING
+    ? "Asks this server's running watch to poll Yahoo now."
+    : "Polls Yahoo once now. Unavailable while a CLI or another server watches this league.";
   const estimate = board.turn.orderKnown ? "" : " · estimate";
   byId("current-pick").textContent = board.turn.currentPick ? `R${board.turn.currentRound} · #${board.turn.currentPick}${estimate}` : "Order unavailable";
   byId("next-turn").textContent = board.turn.picksUntilNextTurn === null ? board.turn.timingLabel : `${board.turn.picksUntilNextTurn} picks${estimate}`;
@@ -126,10 +132,17 @@ function render() {
 function renderAlerts(board) {
   const target = byId("alerts");
   target.replaceChildren();
-  const warnings = [...board.warnings];
-  if (board.sync.lastError) warnings.unshift(board.sync.lastError);
-  if (!board.sync.recommendationsSafe) warnings.unshift("Recommendations are paused until the board is complete and conflicts are resolved.");
+  const warnings = board ? [...board.warnings] : [];
+  if (board?.sync.lastError) warnings.unshift(board.sync.lastError);
+  if (board && !board.sync.recommendationsSafe) warnings.unshift("Recommendations are paused until the board is complete and conflicts are resolved.");
+  state.notices = activeNotices();
+  warnings.unshift(...state.notices.map((notice) => notice.message));
   for (const warning of [...new Set(warnings)]) target.append(node("div", "alert", warning));
+}
+
+function activeNotices() {
+  const now = Date.now();
+  return state.notices.filter((notice) => notice.expiresAt > now);
 }
 
 function renderPlayers(players) {
@@ -285,7 +298,11 @@ function formatTime(value) { return value ? new Date(value).toLocaleTimeString([
 function signed(value) { return value === 0 ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(2)}`; }
 function deltaClass(value) { return `delta ${value > 0 ? "up" : value < 0 ? "down" : ""}`; }
 function rankLabel(player) { return player.rosterFitRank ? `#${player.rosterFitRank}${player.assignedSlot ? ` · ${player.assignedSlot}` : ""}` : "—"; }
-function showTransient(message) { const target = byId("alerts"); target.prepend(node("div", "alert", message)); }
+// Notices outlive the next board poll, which redraws the alerts every POLL_INTERVAL_MS.
+function showTransient(message) {
+  state.notices = [...activeNotices(), { message, expiresAt: Date.now() + NOTICE_DURATION_MS }];
+  renderAlerts(state.board);
+}
 
 function bind() {
   POSITION_OPTIONS.forEach((position) => {

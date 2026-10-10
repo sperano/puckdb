@@ -52,7 +52,8 @@ func newDraftTestServer(t *testing.T) (*httptest.Server, *draftfixtures.Store, *
 type gqlResponse struct {
 	Data   json.RawMessage `json:"data"`
 	Errors []struct {
-		Message string `json:"message"`
+		Message    string         `json:"message"`
+		Extensions map[string]any `json:"extensions"`
 	} `json:"errors"`
 }
 

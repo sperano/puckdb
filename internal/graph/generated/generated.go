@@ -7584,6 +7584,12 @@ extend type Query {
 extend type Mutation {
   startMauriceDraftWatch(input: MauriceDraftSessionRefInput!): MauriceDraftWatchStatus!
   stopMauriceDraftWatch(input: MauriceDraftSessionRefInput!): MauriceDraftWatchStatus!
+  """
+  Polls Yahoo now. While this API process watches the league, the poll runs on
+  that watch's loop. When another sync holds the league's lock (a CLI or another
+  API process watching it, or a refresh in progress), the mutation fails with
+  extensions.code DRAFT_SYNC_BUSY and an explanation; that sync keeps updating the board.
+  """
   refreshMauriceDraftBoard(input: MauriceDraftSessionRefInput!): MauriceDraftSyncStatus!
   applyMauriceDraftPick(input: MauriceDraftManualPickInput!): MauriceDraftSyncStatus!
   undoMauriceDraftPick(input: MauriceDraftSlotInput!): MauriceDraftSyncStatus!

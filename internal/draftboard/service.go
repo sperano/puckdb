@@ -290,18 +290,6 @@ func selectedScenario(ranking *draftrank.Snapshot, requested draftrank.Scenario)
 	return draftrank.ScenarioBaseline
 }
 
-// Refresh polls Yahoo through the shared draftwatch runner.
-func (s *Service) Refresh(ctx context.Context, league string, season int) (draftwatch.Session, draftsession.Report, error) {
-	if s.refresher == nil {
-		return draftwatch.Session{}, draftsession.Report{}, errors.New("draft refresh runner is unavailable")
-	}
-	identity, err := s.data.ResolveIdentity(ctx, league, season)
-	if err != nil {
-		return draftwatch.Session{}, draftsession.Report{}, err
-	}
-	return s.refresher.SyncOnce(ctx, identity)
-}
-
 // StartWatch starts one process-scoped watcher for a league.
 func (s *Service) StartWatch(ctx context.Context, league string, season int) (WatchStatus, error) {
 	if s.watch == nil {

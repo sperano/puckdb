@@ -10,6 +10,11 @@ import (
 	"github.com/sperano/puckdb/internal/draftsession"
 )
 
+// ErrSyncInProgress reports that another synchronization of the same league
+// (a watch or a one-shot poll, in this process or another) holds its session
+// lock. Only the lock holder may poll; there is no cross-process signal.
+var ErrSyncInProgress = errors.New("draft synchronization is already running")
+
 // Source supplies one force-refreshed Yahoo observation.
 type Source interface {
 	Poll(context.Context, Identity) (PollResult, error)
@@ -35,6 +40,17 @@ type WatchOptions struct {
 	MaxBackoff   time.Duration
 	FinalTimeout time.Duration
 	OnOutcome    func(Outcome)
+	// Refresh, when set, lets the watch owner ask for an immediate poll while
+	// the loop waits between polls. Requests sent during a poll wait for it to
+	// finish, so every answer comes from a poll that started after the request.
+	Refresh <-chan RefreshRequest
+}
+
+// RefreshRequest asks a running watch to poll now. The loop sends the outcome
+// of that poll on Reply, which needs a buffer of one so an abandoned request
+// never blocks the loop.
+type RefreshRequest struct {
+	Reply chan<- Outcome
 }
 
 // Runner coordinates fetch, transactional reconciliation, persistence and
@@ -88,10 +104,23 @@ func (r Runner) Watch(ctx context.Context, id Identity, options WatchOptions) er
 		return err
 	}
 	defer syncLock.Close()
+	return r.watchLoop(ctx, id, options)
+}
+
+// watchLoop runs the polls of a watch that already holds the session lock.
+func (r Runner) watchLoop(ctx context.Context, id Identity, options WatchOptions) error {
 	backoff := options.Interval
+	var refreshes []RefreshRequest
+	var err error
 	for {
 		session, report, pollErr := r.syncOnce(ctx, id)
-		notifyOutcome(options.OnOutcome, Outcome{Session: session, Report: report, Err: pollErr})
+		outcome := Outcome{Session: session, Report: report, Err: pollErr}
+		notifyOutcome(options.OnOutcome, outcome)
+		if pollErr != nil && ctx.Err() != nil {
+			// Cancelled mid-poll: pending refreshes get the final poll instead.
+			return r.finalReconcile(id, options, ctx.Err(), refreshes)
+		}
+		answerRefreshes(refreshes, outcome)
 		if pollErr == nil {
 			backoff = options.Interval
 			if session.Complete {
@@ -104,17 +133,22 @@ func (r Runner) Watch(ctx context.Context, id Identity, options WatchOptions) er
 		} else {
 			backoff = nextBackoff(backoff, options.Interval, options.MaxBackoff)
 		}
-		if err := waitForNextPoll(ctx, backoff); err != nil {
-			return r.finalReconcile(id, options, err)
+		refreshes, err = waitForNextPoll(ctx, backoff, options.Refresh)
+		if err != nil {
+			return r.finalReconcile(id, options, err, refreshes)
 		}
 	}
 }
 
-func (r Runner) finalReconcile(id Identity, options WatchOptions, cancellation error) error {
+// finalReconcile also answers the refresh requests taken as the watch was
+// cancelled, since its detached poll is the one they get.
+func (r Runner) finalReconcile(id Identity, options WatchOptions, cancellation error, refreshes []RefreshRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), options.FinalTimeout)
 	defer cancel()
 	session, report, err := r.syncOnce(ctx, id)
-	notifyOutcome(options.OnOutcome, Outcome{Session: session, Report: report, Err: err, Final: true})
+	outcome := Outcome{Session: session, Report: report, Err: err, Final: true}
+	notifyOutcome(options.OnOutcome, outcome)
+	answerRefreshes(refreshes, outcome)
 	if err != nil {
 		return errors.Join(cancellation, fmt.Errorf("final draft reconciliation: %w", err))
 	}
@@ -144,14 +178,40 @@ func nextBackoff(current, interval, maximum time.Duration) time.Duration {
 	return current * 2
 }
 
-func waitForNextPoll(ctx context.Context, delay time.Duration) error {
+// waitForNextPoll waits for the backoff delay or an owner's refresh request.
+// It returns every refresh request already queued so one poll answers them all,
+// along with ctx's error when cancellation raced with the requests.
+func waitForNextPoll(ctx context.Context, delay time.Duration, refresh <-chan RefreshRequest) ([]RefreshRequest, error) {
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil, ctx.Err()
 	case <-timer.C:
-		return nil
+		return nil, nil
+	case request := <-refresh:
+		return drainRefreshes(refresh, []RefreshRequest{request}), ctx.Err()
+	}
+}
+
+func drainRefreshes(refresh <-chan RefreshRequest, requests []RefreshRequest) []RefreshRequest {
+	for {
+		select {
+		case request := <-refresh:
+			requests = append(requests, request)
+		default:
+			return requests
+		}
+	}
+}
+
+func answerRefreshes(requests []RefreshRequest, outcome Outcome) {
+	for _, request := range requests {
+		select {
+		case request.Reply <- outcome:
+		default:
+			// Reply is unbuffered or already answered; never stall the watch.
+		}
 	}
 }
 
@@ -182,7 +242,7 @@ func acquireSessionSync(ctx context.Context, pool *pgxpool.Pool, leagueKey strin
 	}
 	if !acquired {
 		conn.Release()
-		return nil, fmt.Errorf("draft synchronization is already running for %s", leagueKey)
+		return nil, fmt.Errorf("%w for %s", ErrSyncInProgress, leagueKey)
 	}
 	return &sessionSyncLock{conn: conn, leagueKey: leagueKey}, nil
 }
