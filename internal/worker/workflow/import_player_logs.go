@@ -25,6 +25,7 @@ func NewImportPlayerLogsProgressReport() *shared.ProgressReport {
 // ImportPlayerLogsWorkflow imports player game logs from cached files into the database.
 // Spawns ImportSeasonPlayerLogsWorkflow children for each season's player game log batches.
 func ImportPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
+	input = normalizeSeasonsInput(input)
 	logger := workflow.GetLogger(ctx)
 
 	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)

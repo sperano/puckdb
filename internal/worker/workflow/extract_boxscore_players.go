@@ -43,13 +43,10 @@ func NewExtractBoxscorePlayersProgressReport() *shared.ProgressReport {
 // and stores them in Redis. This enables downstream workflows to access player data
 // without re-extracting from files.
 func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
+	input = normalizeSeasonsInput(input)
 	logger := workflow.GetLogger(ctx)
 
-	var seasonOverride *int
-	if input != nil {
-		seasonOverride = input.SeasonConcurrency
-	}
-	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, seasonOverride)
+	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
 	if err != nil {
 		return err
 	}

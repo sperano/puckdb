@@ -33,6 +33,7 @@ func countEdgeActivities(_ workflow.Context, _ nhl.SeasonInfo) (int, error) {
 
 // FetchEdgeSeasonsWorkflow fetches Edge stats for all eligible seasons (>= 2021-2022).
 func FetchEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
+	input = normalizeSeasonsInput(input)
 	logger := workflow.GetLogger(ctx)
 
 	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)

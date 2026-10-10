@@ -21,6 +21,7 @@ func countEdgeImportActivities(_ workflow.Context, _ nhl.SeasonInfo) (int, error
 
 // ImportEdgeSeasonsWorkflow imports cached Edge stats into the database for all eligible seasons.
 func ImportEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
+	input = normalizeSeasonsInput(input)
 	logger := workflow.GetLogger(ctx)
 
 	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
