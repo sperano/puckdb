@@ -3,6 +3,7 @@ package draftboard
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -36,7 +37,8 @@ func TestBoardComposesFreshnessHistoryRosterAvailableNewsAndNoGuessedTurn(t *tes
 		Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}},
 	}}
 	engine := &fakeRecommendationEngine{result: draftrecommend.Result{
-		Scenario: draftrank.ScenarioBase, Issues: []string{"verified chronological pick order is unavailable"},
+		Scenario: draftrank.ScenarioBase, Issues: draftrecommend.Issues{{Code: draftrecommend.IssueTurnEstimateOmitted,
+			Message: "verified chronological pick order is unavailable"}},
 		Candidates: []draftrecommend.Candidate{{PlayerKey: "500.p.103", ValueRank: 1, RosterFitRank: 1}},
 	}}
 	service := NewService(data, engine, nil, Options{Now: func() time.Time { return now }, StaleAfter: time.Minute})
@@ -92,17 +94,32 @@ func TestSetShortlistRejectsStaleVersion(t *testing.T) {
 		session: draftwatch.Session{State: draftsession.State{Version: 4}}}
 	service := NewService(data, nil, nil, Options{})
 	err := service.SetShortlist(context.Background(), "500.l.5621", 2026, "500.p.103", 3, true)
-	assert.ErrorIs(t, err, ErrVersionConflict)
+	assertVersionConflict(t, err, 3, 4)
 	assert.False(t, data.shortlistChanged)
 }
 
 func TestManualMutationUsesExpectedVersionAndMapsConflict(t *testing.T) {
 	data := &fakeDataSource{identity: draftwatch.Identity{LeagueKey: "500.l.5621"},
-		applyErr: &draftwatch.StaleStateVersionError{Expected: 4, Actual: 5}}
+		applyErr: fmt.Errorf("apply: %w", &draftwatch.StaleStateVersionError{Expected: 4, Actual: 5})}
 	service := NewService(data, nil, nil, Options{})
 	_, err := service.ApplyManual(context.Background(), "500.l.5621", 2026,
 		draftsession.ManualOperation{Kind: draftsession.ManualUndo}, 4, time.Now())
-	assert.ErrorIs(t, err, ErrVersionConflict)
+	assertVersionConflict(t, err, 4, 5)
+
+	_, err = service.ResolveConflict(context.Background(), "500.l.5621", 2026,
+		draftsession.PickKey{Round: 1, Pick: 1}, draftsession.KeepManual, 4, time.Now())
+	assertVersionConflict(t, err, 4, 5)
+}
+
+func assertVersionConflict(t *testing.T, err error, expected, actual uint64) {
+	t.Helper()
+	require.ErrorIs(t, err, ErrVersionConflict)
+	assert.ErrorIs(t, err, draftwatch.ErrStaleStateVersion)
+	var stale *draftwatch.StaleStateVersionError
+	require.ErrorAs(t, err, &stale)
+	assert.Equal(t, expected, stale.Expected)
+	assert.Equal(t, actual, stale.Actual)
+	assert.ErrorContains(t, err, fmt.Sprintf("expected %d, current %d", expected, actual))
 }
 
 func TestRosterDoesNotIncludeOpponentPicks(t *testing.T) {

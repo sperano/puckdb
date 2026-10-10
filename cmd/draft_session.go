@@ -285,11 +285,11 @@ func summarizeObservations(observations []draftwatch.Observation) observationSum
 			}
 		}
 		switch observation.ErrorClass {
-		case "authentication":
+		case draftwatch.ErrorClassAuthentication:
 			summary.authentication++
-		case "rate_limited":
+		case draftwatch.ErrorClassRateLimited:
 			summary.rateLimited++
-		case "":
+		case draftwatch.ErrorClassNone:
 		default:
 			summary.otherFailures++
 		}

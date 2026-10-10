@@ -2,8 +2,8 @@ package mcpserver
 
 import (
 	"context"
+	"math"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -30,9 +30,28 @@ var playEventTypes = []string{
 	"failed-shot-attempt",
 }
 
+// playPeriodParam is the optional period filter on get_game_play_events.
+var playPeriodParam = intArg{name: "period", min: minimumPositiveInteger, max: math.MaxInt32}
+
+// gameIDsParam is the game_ids array argument of
+// get_first_matching_event_per_team; same bounds as gameIDParam, but named
+// for the plural argument so error messages reference "game_ids".
+var gameIDsParam = intArg{name: "game_ids", min: gameIDParam.min, max: gameIDParam.max}
+
 func registerPlayEventTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
-	srv.AddTool(
-		mcp.NewTool("get_game_play_events",
+	srv.AddTools(playEventTools(queries)...)
+}
+
+func playEventTools(q *sqlcdb.Queries) []server.ServerTool {
+	return []server.ServerTool{
+		gamePlayEventsTool(q),
+		firstMatchingEventPerTeamTool(q),
+	}
+}
+
+func gamePlayEventsTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_game_play_events",
 			mcp.WithDescription(
 				"Get play-by-play events for a single game, ordered chronologically by sort_order. "+
 					"Returns the full play_events row (~41 columns) so callers can reason about shots, goals, "+
@@ -49,35 +68,32 @@ func registerPlayEventTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 			mcp.WithNumber("period", mcp.Description("Optional filter: only return events from this period (1, 2, 3, 4+ for OT, 5 for shootout).")),
 			mcp.WithNumber("limit", mcp.Description("Optional cap on the number of rows returned (after filters, in sort_order). Omit for no cap.")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			gameID := req.GetInt("game_id", 0)
-			if gameID == 0 {
-				return mcp.NewToolResultError("game_id is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			gameID, errResult := requireInt[int64](req, gameIDParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			types := req.GetStringSlice("type_desc_keys", nil)
-			var period pgtype.Int4
-			if p := req.GetInt("period", 0); p != 0 {
-				period = pgtype.Int4{Int32: int32(p), Valid: true}
+			period, errResult := optionalInt4Filter(req, playPeriodParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			var limit pgtype.Int4
-			if l := req.GetInt("limit", 0); l > 0 {
-				limit = pgtype.Int4{Int32: int32(l), Valid: true}
+			limit, errResult := optionalInt4Filter(req, limitParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			events, err := queries.GetGamePlayEvents(ctx, sqlcdb.GetGamePlayEventsParams{
-				GameID:       int64(gameID),
+			return toolResult(q.GetGamePlayEvents(ctx, sqlcdb.GetGamePlayEventsParams{
+				GameID:       gameID,
 				Period:       period,
-				TypeDescKeys: types,
+				TypeDescKeys: req.GetStringSlice("type_desc_keys", nil),
 				Limit:        limit,
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(events)
+			}))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("get_first_matching_event_per_team",
+func firstMatchingEventPerTeamTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_first_matching_event_per_team",
 			mcp.WithDescription(
 				"For each (game, team) pair in the supplied list of games, return the earliest play "+
 					"event (by sort_order) whose type_desc_key matches the type_desc_keys filter. "+
@@ -98,12 +114,12 @@ func registerPlayEventTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 				mcp.WithStringEnumItems(playEventTypes),
 			),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			gameIDsInt, err := req.RequireIntSlice("game_ids")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			gameIDs, errResult := requireIntSlice[int64](req, gameIDsParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			if len(gameIDsInt) == 0 {
+			if len(gameIDs) == 0 {
 				return mcp.NewToolResultError("game_ids must be non-empty"), nil
 			}
 			types, err := req.RequireStringSlice("type_desc_keys")
@@ -113,18 +129,10 @@ func registerPlayEventTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 			if len(types) == 0 {
 				return mcp.NewToolResultError("type_desc_keys must be non-empty"), nil
 			}
-			gameIDs := make([]int64, len(gameIDsInt))
-			for i, id := range gameIDsInt {
-				gameIDs[i] = int64(id)
-			}
-			events, err := queries.GetFirstMatchingEventPerTeam(ctx, sqlcdb.GetFirstMatchingEventPerTeamParams{
+			return toolResult(q.GetFirstMatchingEventPerTeam(ctx, sqlcdb.GetFirstMatchingEventPerTeamParams{
 				GameIds:      gameIDs,
 				TypeDescKeys: types,
-			})
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(events)
+			}))
 		},
-	)
+	}
 }

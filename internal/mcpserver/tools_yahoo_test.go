@@ -1,8 +1,10 @@
 package mcpserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -59,6 +61,90 @@ func callGuardedTool(t *testing.T, handler server.ToolHandlerFunc, leagueID int3
 		}
 	}()
 	return callTool(t, handler, map[string]any{leagueIDArg: float64(leagueID)})
+}
+
+// rosterYahooQueries records the roster and unrostered queries.
+type rosterYahooQueries struct {
+	*fakeYahooQueries
+	rosters    []sqlcdb.GetYahooRosterWithPlayersParams
+	unrostered []sqlcdb.GetUnrosteredSkatersParams
+}
+
+func (q *rosterYahooQueries) GetYahooRosterWithPlayers(_ context.Context, arg sqlcdb.GetYahooRosterWithPlayersParams) ([]sqlcdb.YahooRosterPlayer, error) {
+	q.rosters = append(q.rosters, arg)
+	return nil, nil
+}
+
+func (q *rosterYahooQueries) GetUnrosteredSkaters(_ context.Context, arg sqlcdb.GetUnrosteredSkatersParams) ([]sqlcdb.SkaterRecentStat, error) {
+	q.unrostered = append(q.unrostered, arg)
+	return nil, nil
+}
+
+func TestYahooRosterToolValidatesTeamID(t *testing.T) {
+	const teamID int32 = 7
+	q := &rosterYahooQueries{fakeYahooQueries: newFakeYahooQueries()}
+	tool := yahooTestServer(q, nil).GetTool("get_yahoo_roster")
+	args := map[string]any{leagueIDArg: float64(allowedLeagueID), "team_id": float64(teamID), "date": "2025-10-08"}
+
+	result := callTool(t, tool.Handler, args)
+	require.False(t, result.IsError, resultText(t, result))
+	require.Len(t, q.rosters, 1)
+	assert.Equal(t, teamID, q.rosters[0].TeamID)
+
+	invalid := map[string]any{
+		"absent":     nil,
+		"zero":       float64(0),
+		"negative":   float64(-teamID),
+		"fractional": float64(teamID) + 0.5,
+		"overflow":   float64(int64(teamID) + 1<<32),
+	}
+	for name, value := range invalid {
+		t.Run(name, func(t *testing.T) {
+			q.rosters = nil
+			changed := maps.Clone(args)
+			delete(changed, "team_id")
+			if value != nil {
+				changed["team_id"] = value
+			}
+			result := callTool(t, tool.Handler, changed)
+			assert.True(t, result.IsError)
+			assert.Contains(t, resultText(t, result), "team_id")
+			assert.Empty(t, q.rosters)
+		})
+	}
+}
+
+func TestUnrosteredToolValidatesSeasonAndLimit(t *testing.T) {
+	q := &rosterYahooQueries{fakeYahooQueries: newFakeYahooQueries()}
+	tool := yahooTestServer(q, nil).GetTool("get_unrostered_skaters")
+	args := map[string]any{leagueIDArg: float64(allowedLeagueID), "season": float64(testSeasonID), "date": "2025-10-08"}
+
+	result := callTool(t, tool.Handler, args)
+	require.False(t, result.IsError, resultText(t, result))
+	require.Len(t, q.unrostered, 1)
+	assert.Equal(t, testSeasonID, q.unrostered[0].Season)
+	assert.Equal(t, int32(defaultResultLimit), q.unrostered[0].Limit)
+
+	q.unrostered = nil
+	result = callTool(t, tool.Handler, withArg(args, "limit", float64(0)))
+	require.False(t, result.IsError, resultText(t, result))
+	require.Len(t, q.unrostered, 1)
+	assert.Zero(t, q.unrostered[0].Limit, "an explicit 0 limit is passed on")
+
+	for name, change := range map[string][2]any{
+		"wrapped season":    {"season", float64(wrappedSeasonID)},
+		"fractional season": {"season", 20252026.9},
+		"negative limit":    {"limit", float64(-1)},
+		"fractional limit":  {"limit", 2.5},
+	} {
+		t.Run(name, func(t *testing.T) {
+			q.unrostered = nil
+			result := callTool(t, tool.Handler, withArg(args, change[0].(string), change[1]))
+			assert.True(t, result.IsError)
+			assert.Contains(t, resultText(t, result), "invalid "+change[0].(string))
+			assert.Empty(t, q.unrostered)
+		})
+	}
 }
 
 func TestYahooLeaguesToolListsOnlyServedLeagues(t *testing.T) {
@@ -139,25 +225,6 @@ func TestYahooSeasonTeamTotalsToolReportsQueryError(t *testing.T) {
 	result := callTool(t, tool.Handler, map[string]any{leagueIDArg: float64(allowedLeagueID)})
 	assert.True(t, result.IsError)
 	assert.Equal(t, "connection refused", resultText(t, result))
-}
-
-func TestRequireDate(t *testing.T) {
-	req := mcp.CallToolRequest{}
-	req.Params.Arguments = map[string]any{"date": "2025-01-15"}
-	d, errResult := requireDate(req)
-	require.Nil(t, errResult)
-	assert.True(t, d.Valid)
-	assert.Equal(t, "2025-01-15", d.Time.Format("2006-01-02"))
-
-	req.Params.Arguments = map[string]any{"date": "15/01/2025"}
-	_, errResult = requireDate(req)
-	require.NotNil(t, errResult)
-	assert.Equal(t, "invalid date format, use YYYY-MM-DD", resultText(t, errResult))
-
-	req.Params.Arguments = map[string]any{}
-	_, errResult = requireDate(req)
-	require.NotNil(t, errResult)
-	assert.True(t, errResult.IsError)
 }
 
 // columnIndex finds a CSV header column.

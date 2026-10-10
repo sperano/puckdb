@@ -9,25 +9,37 @@ import (
 )
 
 func registerResolveTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
-	srv.AddTools(searchPlayerTool(queries))
+	srv.AddTools(resolveTools(queries)...)
+}
 
-	srv.AddTool(
-		mcp.NewTool("find_team",
+func resolveTools(q *sqlcdb.Queries) []server.ServerTool {
+	return []server.ServerTool{
+		searchPlayerTool(q),
+		findTeamTool(q),
+		listTeamsTool(q),
+		listSeasonsTool(q),
+		listFranchisesTool(q),
+	}
+}
+
+func findTeamTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("find_team",
 			mcp.WithDescription("Resolve a team abbreviation (e.g. 'MTL', 'TOR') to a team ID for a given season."),
 			mcp.WithString("abbrev", mcp.Required(), mcp.Description("Team abbreviation (e.g. MTL, TOR, BOS)")),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			abbrev, err := req.RequireString("abbrev")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			teamID, err := queries.GetTeamIDByAbbrev(ctx, sqlcdb.GetTeamIDByAbbrevParams{
-				Season: int32(season),
+			teamID, err := q.GetTeamIDByAbbrev(ctx, sqlcdb.GetTeamIDByAbbrevParams{
+				Season: season,
 				Abbrev: abbrev,
 			})
 			if err != nil {
@@ -35,49 +47,43 @@ func registerResolveTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 			}
 			return ResultJSON(map[string]any{"team_id": teamID, "abbrev": abbrev, "season": season})
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("list_teams",
+func listTeamsTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("list_teams",
 			mcp.WithDescription("List all NHL teams for a season, including team IDs, abbreviations, divisions, and franchise info."),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			season := req.GetInt("season", 0)
-			if season == 0 {
-				return mcp.NewToolResultError("season is required"), nil
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
 			}
-			teams, err := queries.GetSeasonTeams(ctx, int32(season))
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(teams)
+			return toolResult(q.GetSeasonTeams(ctx, season))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("list_seasons",
+func listSeasonsTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("list_seasons",
 			mcp.WithDescription("List all available NHL seasons with their date ranges."),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			seasons, err := queries.GetAllSeasons(ctx)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(seasons)
+		Handler: func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return toolResult(q.GetAllSeasons(ctx))
 		},
-	)
+	}
+}
 
-	srv.AddTool(
-		mcp.NewTool("list_franchises",
+func listFranchisesTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("list_franchises",
 			mcp.WithDescription("List all NHL franchises with their full names and common names."),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			franchises, err := queries.GetAllFranchises(ctx)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return ResultCSV(franchises)
+		Handler: func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return toolResult(q.GetAllFranchises(ctx))
 		},
-	)
+	}
 }

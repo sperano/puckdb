@@ -30,7 +30,6 @@ const (
 	draftRankingMaxAttempts = 3
 	// draftRankingCancelTimeout bounds marking a canceled run's attempts.
 	draftRankingCancelTimeout = time.Minute
-	errTypeInvalidInput       = "InvalidInput"
 )
 
 var (

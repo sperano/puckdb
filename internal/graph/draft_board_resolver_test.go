@@ -49,6 +49,7 @@ func TestMauriceDraftBoardGraphQLQueryAndVersionedManualPick(t *testing.T) {
 	duplicate := postGraphQL(t, server, nil, mutation, map[string]any{"input": manualInput})
 	require.NotEmpty(t, duplicate.Errors)
 	assert.Contains(t, duplicate.Errors[0].Message, draftboard.ErrVersionConflict.Error())
+	assert.Contains(t, duplicate.Errors[0].Message, "expected 0, current 1", "the conflict keeps both versions")
 
 	updated := fetchGraphDraftBoard(t, server)
 	assert.Equal(t, int64(1), updated.Sync.StateVersion)
@@ -190,6 +191,43 @@ func (graphAnsweringWatch) Watch(ctx context.Context, identity draftwatch.Identi
 			request.Reply <- draftwatch.Outcome{Session: draftwatch.Session{Identity: identity, SyncVersion: graphAnsweredSyncVersion}}
 		}
 	}
+}
+
+func TestMauriceDraftBoardRendersEachIssueMessageOnce(t *testing.T) {
+	server, data := newDraftBoardTestServer(t)
+	data.session.RecommendationsSafe = false
+	newsDown := draftrank.Issue{Code: draftrank.IssueNewsAdjustmentsDown, Message: "news service unavailable"}
+	data.ranking.Meta.Unavailable = []draftrank.Issue{newsDown}
+	query := `query($input: MauriceDraftBoardInput!) { mauriceDraftBoard(input: $input) {
+		warnings recommendations { issues } } }`
+	variables := map[string]any{"input": map[string]any{"league": draftfixtures.LeagueKey, "season": draftfixtures.Season}}
+	response := postGraphQL(t, server, nil, query, variables)
+	require.Empty(t, response.Errors)
+	var view struct {
+		MauriceDraftBoard struct {
+			Warnings        []string `json:"warnings"`
+			Recommendations struct {
+				Issues []string `json:"issues"`
+			} `json:"recommendations"`
+		} `json:"mauriceDraftBoard"`
+	}
+	require.NoError(t, jsonUnmarshal(response.Data, &view))
+	board := view.MauriceDraftBoard
+	incomplete := "draft board is incomplete or has unresolved manual conflicts"
+	for _, message := range []string{newsDown.Message, incomplete} {
+		assert.Equal(t, 1, countString(board.Warnings, message), "warning %q in %v", message, board.Warnings)
+		assert.Equal(t, 1, countString(board.Recommendations.Issues, message), "issue %q in %v", message, board.Recommendations.Issues)
+	}
+}
+
+func countString(values []string, want string) int {
+	count := 0
+	for _, value := range values {
+		if value == want {
+			count++
+		}
+	}
+	return count
 }
 
 func fetchGraphDraftBoard(t *testing.T, server *httptest.Server) graphDraftBoardView {
