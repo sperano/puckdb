@@ -25,7 +25,7 @@ var expectedNHLTools = []string{
 	"list_teams",
 	"list_seasons",
 	"list_franchises",
-	// Players (9)
+	// Players (10)
 	"get_player",
 	"get_players_by_team",
 	"get_players_by_position",
@@ -35,6 +35,7 @@ var expectedNHLTools = []string{
 	"get_player_awards",
 	"get_player_roster_history",
 	"get_player_three_stars",
+	"get_season_roster",
 	// Games (7)
 	"get_game",
 	"get_games_by_date",
