@@ -233,7 +233,11 @@ type DraftOverrideCreateInput struct {
 	// Limit the override to one league; every league when unset.
 	LeagueKey *string           `json:"leagueKey,omitempty"`
 	Kind      DraftOverrideKind `json:"kind"`
-	// The event an EXCLUDE_EVENT override excludes.
+	// The event an EXCLUDE_EVENT override excludes: a stored news event about
+	// playerKey. Excluded, it changes nothing in the scenarios the override covers,
+	// including the events it would close. A reinstatement, or an event that
+	// superseded another, is refused: its effect is stored on the events it ended,
+	// so set a MISSED_GAMES or INPUT override instead.
 	EventID *string `json:"eventId,omitempty"`
 	// Limit the override to one scenario; every scenario when unset.
 	Scenario  *DraftScenario      `json:"scenario,omitempty"`

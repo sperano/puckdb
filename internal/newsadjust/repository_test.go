@@ -7,13 +7,17 @@ package newsadjust
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/newsevent"
 	"github.com/sperano/puckdb/internal/projection"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
@@ -106,4 +110,106 @@ func TestRepository_SaveRunIsIdempotentAndReplays(t *testing.T) {
 	assert.Equal(t, result.Players, loaded.Result.Players)
 	assert.Len(t, loaded.Result.Decisions, len(result.Decisions))
 	assert.Len(t, loaded.ScenarioSnapshotIDs, len(Scenarios))
+}
+
+// Players of the exclusion ownership test: one matched to a Yahoo ID
+// through players.yahoo_id, and one known to news only by Yahoo ID.
+const (
+	testMatchedNHLID   int64 = 8899001
+	testMatchedYahooID       = 99001
+	testYahooOnlyID          = 99002
+	testMissingEventID       = "news-event:999999999"
+)
+
+func insertNewsEvent(t *testing.T, pool *pgxpool.Pool, nhlID pgtype.Int8, yahooID pgtype.Int4) string {
+	t.Helper()
+	var id int64
+	require.NoError(t, pool.QueryRow(context.Background(), `INSERT INTO news_events (nhl_player_id, yahoo_player_id, player_name,
+		event_type, report_status, first_reported_at, last_reported_at) VALUES ($1, $2, 'Fixture', 'suspension', 'confirmed', $3, $3)
+		RETURNING id`, nhlID, yahooID, testReportedAt).Scan(&id))
+	return extractedID(id)
+}
+
+func TestRepository_ExclusionMustNameAStoredEventAboutItsPlayer(t *testing.T) {
+	pool := openAdjustmentTestDB(t)
+	ctx := context.Background()
+	_, err := pool.Exec(ctx, `TRUNCATE news_events CASCADE`)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `INSERT INTO players (id, yahoo_id, first_name, last_name) VALUES ($1, $2, 'Pool', 'Fixture')
+		ON CONFLICT (id) DO UPDATE SET yahoo_id = EXCLUDED.yahoo_id`, testMatchedNHLID, testMatchedYahooID)
+	require.NoError(t, err)
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM players WHERE id = $1`, testMatchedNHLID) })
+
+	goalieEvent := insertNewsEvent(t, pool, pgtype.Int8{Int64: testGoalieNHLID, Valid: true}, pgtype.Int4{})
+	matchedEvent := insertNewsEvent(t, pool, pgtype.Int8{Int64: testMatchedNHLID, Valid: true}, pgtype.Int4{})
+	yahooEvent := insertNewsEvent(t, pool, pgtype.Int8{}, pgtype.Int4{Int32: testYahooOnlyID, Valid: true})
+	matchedKey := fmt.Sprintf("465.p.%d", testMatchedYahooID)
+	yahooKey := fmt.Sprintf("465.p.%d", testYahooOnlyID)
+
+	repo := NewRepository(pool)
+	for name, tc := range map[string]struct {
+		player, event string
+		accepted      bool
+	}{
+		"NHL key":                       {player: testGoalieKey, event: goalieEvent, accepted: true},
+		"pool key through NHL match":    {player: matchedKey, event: matchedEvent, accepted: true},
+		"pool key through Yahoo ID":     {player: yahooKey, event: yahooEvent, accepted: true},
+		"another NHL player's event":    {player: testSkaterKey, event: goalieEvent},
+		"another pool player's event":   {player: matchedKey, event: goalieEvent},
+		"missing event":                 {player: testGoalieKey, event: testMissingEventID},
+		"event that is not stored":      {player: testGoalieKey, event: "susp"},
+		"key naming no player identity": {player: "someone", event: goalieEvent},
+	} {
+		t.Run(name, func(t *testing.T) {
+			exclusion := exclusionOf(NewOverrideID(), tc.event)
+			exclusion.PlayerKey = tc.player
+			err := repo.CreateOverride(ctx, exclusion)
+			if tc.accepted {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, ErrExclusionTarget)
+			}
+		})
+	}
+}
+
+func TestRepository_RefusesExclusionsOfStoredRelationships(t *testing.T) {
+	pool := openAdjustmentTestDB(t)
+	ctx := context.Background()
+	_, err := pool.Exec(ctx, `TRUNCATE news_articles, news_events CASCADE`)
+	require.NoError(t, err)
+	quote := func(text string) []newsevent.Quote { return []newsevent.Quote{{Doc: "D1", Text: text}} }
+	reconcileReport(t, pool, "suspension", testReportedAt, newsevent.Event{
+		Player: goalieIdentity(), Type: newsevent.TypeSuspension, Status: newsevent.StatusConfirmed,
+		Duration: newsevent.Duration{Kind: newsevent.DurationIndefinite}, Evidence: quote("suspended indefinitely"),
+	})
+	reconcileReport(t, pool, "reinstatement", testReinstatedAt, newsevent.Event{
+		Player: goalieIdentity(), Type: newsevent.TypeReinstatement, Status: newsevent.StatusConfirmed,
+		Duration: newsevent.Duration{Kind: newsevent.DurationUnknown}, Evidence: quote("has been reinstated"),
+	})
+	var suspension, reinstatement int64
+	require.NoError(t, pool.QueryRow(ctx, `SELECT
+		(SELECT id FROM news_events WHERE event_type = 'suspension'), (SELECT id FROM news_events WHERE event_type = 'reinstatement')`,
+	).Scan(&suspension, &reinstatement))
+	goalie := pgtype.Int8{Int64: testGoalieNHLID, Valid: true}
+	original := insertNewsEvent(t, pool, goalie, pgtype.Int4{})
+	correction := insertNewsEvent(t, pool, goalie, pgtype.Int4{})
+	_, err = pool.Exec(ctx, `UPDATE news_events SET lifecycle = 'superseded', superseded_by = $1 WHERE id = $2`,
+		strings.TrimPrefix(correction, extractedIDPrefix), strings.TrimPrefix(original, extractedIDPrefix))
+	require.NoError(t, err)
+
+	repo := NewRepository(pool)
+	for event, want := range map[string]error{
+		extractedID(reinstatement): ErrExclusionUnsupported,
+		correction:                 ErrExclusionUnsupported,
+		extractedID(suspension):    nil,
+		original:                   nil,
+	} {
+		err := repo.CreateOverride(ctx, exclusionOf(NewOverrideID(), event))
+		if want == nil {
+			assert.NoError(t, err, event)
+		} else {
+			assert.ErrorIs(t, err, want, event)
+		}
+	}
 }

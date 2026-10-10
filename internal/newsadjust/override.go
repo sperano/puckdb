@@ -123,7 +123,24 @@ func (o Override) appliesTo(s Scenario) bool {
 // target is what an override replaces; two active overrides with the same
 // target compete and only the most specific, then newest, applies.
 func (o Override) target() string {
-	return strings.Join([]string{o.PlayerKey, string(o.Kind), o.EventID, string(o.Input)}, "|")
+	return overrideTarget(o.PlayerKey, o.Kind, o.EventID, o.Input)
+}
+
+func overrideTarget(playerKey string, kind OverrideKind, eventID string, input Input) string {
+	return strings.Join([]string{playerKey, string(kind), eventID, string(input)}, "|")
+}
+
+// matchOverride returns the override that decides a target in one
+// scenario: the first match in overrides, which activeOverrides orders most
+// specific first. Every override kind is resolved through it, so league,
+// player, event and scenario scope mean the same thing for each.
+func matchOverride(overrides []Override, target string, s Scenario) (Override, bool) {
+	for _, o := range overrides {
+		if o.target() == target && o.appliesTo(s) {
+			return o, true
+		}
+	}
+	return Override{}, false
 }
 
 // activeOverrides returns the overrides in force, most specific first, and

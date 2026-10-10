@@ -18,8 +18,9 @@ type member struct {
 // availabilityClaim is one incident's availability effect. Repeated reports
 // of an incident become members of one claim, so they never compound.
 type availabilityClaim struct {
-	members     []member
-	closed      closure
+	members []member
+	// closed is the earliest return closing any member, per scenario.
+	closed      map[Scenario]closure
 	conflicting bool
 }
 
@@ -35,13 +36,13 @@ const (
 	fieldGoalieRole roleField = "goalie_role"
 )
 
-// roleClaim is a role event, the fields it decides, and when the next
-// report of each field takes over (zero while it is the latest).
+// roleClaim is a role event and, per scenario it applies in, the fields it
+// decides there and when the next report of each takes over (zero while it
+// is the latest).
 type roleClaim struct {
 	event  Event
-	fields []roleField
-	ends   map[roleField]time.Time
-	closed closure
+	ends   map[Scenario]map[roleField]time.Time
+	closed map[Scenario]closure
 }
 
 type playerClaims struct {
@@ -53,14 +54,14 @@ type playerClaims struct {
 func (s *selector) buildClaims() map[string]*playerClaims {
 	groups := make(map[string][]member)
 	var groupOrder []string
-	var roleEvents []Event
+	var roleEvents []member
 	for _, e := range s.visible {
 		scenarios, ok := s.screen(e)
 		if !ok {
 			continue
 		}
 		if !e.affectsAvailability() {
-			roleEvents = append(roleEvents, e)
+			roleEvents = append(roleEvents, member{event: e, scenarios: scenarios})
 			continue
 		}
 		key := incidentKey(e)
@@ -103,11 +104,13 @@ func incidentKey(e Event) string {
 // members that disagree about timing or duration.
 func (s *selector) availabilityClaim(members []member) availabilityClaim {
 	slices.SortFunc(members, comparePrimary)
-	claim := availabilityClaim{members: members}
+	claim := availabilityClaim{members: members, closed: make(map[Scenario]closure)}
 	primary := claim.primary()
 	for _, m := range members {
-		if closed, exists := s.closedBy[m.event.ID]; exists && (claim.closed.by == "" || closed.at.Before(claim.closed.at)) {
-			claim.closed = closed
+		for sc, closed := range s.closedBy[m.event.ID] {
+			if prior, exists := claim.closed[sc]; !exists || closed.at.Before(prior.at) {
+				claim.closed[sc] = closed
+			}
 		}
 		if !sameTiming(primary, m.event) {
 			claim.conflicting = true
@@ -144,8 +147,8 @@ func sameTiming(a, b Event) bool {
 func claimReason(claim availabilityClaim) string {
 	primary := claim.primary()
 	reason := fmt.Sprintf("%s, duration %s", primary.Type, describeDuration(primary.Duration))
-	if claim.closed.by != "" {
-		reason += fmt.Sprintf("; closed by return %s at %s", claim.closed.by, claim.closed.at.UTC().Format(time.RFC3339))
+	if closures := describeClosures(claim.closed); closures != "" {
+		reason += "; " + closures
 	}
 	if len(claim.members) > 1 {
 		reason += fmt.Sprintf("; %d reports merged", len(claim.members))
@@ -178,11 +181,32 @@ func memberIDs(members []member) string {
 	return strings.Join(ids, ", ")
 }
 
-// roleClaims splits each role field into consecutive segments: a report
-// decides the field from its effective start until the next report of that
-// field takes over. A reversed role keeps its earlier period, and a
-// repeated report never stacks on the one before it.
-func (s *selector) roleClaims(events []Event) []roleClaim {
+// roleClaims splits each role field into consecutive segments, per
+// scenario: a report decides the field from its effective start until the
+// next report of that field applying in the same scenario takes over. A
+// reversed role keeps its earlier period, a repeated report never stacks
+// on the one before it, and a report excluded from a scenario does not cut
+// short the segment before it there.
+func (s *selector) roleClaims(events []member) []roleClaim {
+	ends := make(map[string]map[Scenario]map[roleField]time.Time)
+	for _, sc := range Scenarios {
+		var inScenario []Event
+		for _, m := range events {
+			if slices.Contains(m.scenarios, sc) {
+				inScenario = append(inScenario, m.event)
+			}
+		}
+		for id, fields := range segmentEnds(inScenario) {
+			setScenario(ends, id, sc, fields)
+		}
+	}
+	return s.decideRoles(events, ends)
+}
+
+// segmentEnds returns, per event and field it decides, when the next
+// report of the field starts (zero while it is the latest). A report that
+// a newer one with the same start replaces decides nothing.
+func segmentEnds(events []Event) map[string]map[roleField]time.Time {
 	byField := make(map[string][]Event)
 	var keys []string
 	for _, e := range events {
@@ -213,15 +237,22 @@ func (s *selector) roleClaims(events []Event) []roleClaim {
 			ends[e.ID][field] = end
 		}
 	}
-	return s.decideRoles(events, ends)
+	return ends
 }
 
-func (s *selector) decideRoles(events []Event, ends map[string]map[roleField]time.Time) []roleClaim {
+func (s *selector) decideRoles(events []member, ends map[string]map[Scenario]map[roleField]time.Time) []roleClaim {
 	var claims []roleClaim
-	for _, e := range events {
+	for _, m := range events {
+		e := m.event
 		var fields []roleField
+		var scenarios []Scenario
+		for _, sc := range Scenarios {
+			if len(ends[e.ID][sc]) > 0 {
+				scenarios = append(scenarios, sc)
+			}
+		}
 		for _, field := range reportedFields(e) {
-			if _, decides := ends[e.ID][field]; decides {
+			if slices.ContainsFunc(scenarios, func(sc Scenario) bool { _, decides := ends[e.ID][sc][field]; return decides }) {
 				fields = append(fields, field)
 			}
 		}
@@ -229,8 +260,8 @@ func (s *selector) decideRoles(events []Event, ends map[string]map[roleField]tim
 			s.decide(e, OutcomeSkipped, "a newer report with the same start replaces every role it reported", nil)
 			continue
 		}
-		s.decide(e, OutcomeApplied, fmt.Sprintf("%s decides %s", e.Type, joinFields(fields)), slices.Clone(Scenarios))
-		claims = append(claims, roleClaim{event: e, fields: fields, ends: ends[e.ID], closed: s.closedBy[e.ID]})
+		s.decide(e, OutcomeApplied, fmt.Sprintf("%s decides %s", e.Type, joinFields(fields)), scenarios)
+		claims = append(claims, roleClaim{event: e, ends: ends[e.ID], closed: s.closedBy[e.ID]})
 	}
 	return claims
 }

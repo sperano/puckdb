@@ -2,6 +2,8 @@ package draftrank_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -52,6 +54,33 @@ func TestService_CreateOverrideValidates(t *testing.T) {
 	_, err := svc.CreateOverride(context.Background(), newsadjust.Override{PlayerKey: draftfixtures.TopCenter, Kind: newsadjust.OverrideMissedGames}, "")
 	assert.ErrorIs(t, err, draftrank.ErrInvalidQuery, "an override needs a reason")
 }
+
+// refusingStore is an override store that refuses every override with err.
+type refusingStore struct {
+	*draftfixtures.Store
+	err error
+}
+
+func (s refusingStore) CreateOverride(context.Context, newsadjust.Override) error { return s.err }
+
+func TestService_CreateOverrideReportsRefusedExclusionsAsInvalid(t *testing.T) {
+	exclusion := newsadjust.Override{
+		PlayerKey: draftfixtures.SuspendedKey, Kind: newsadjust.OverrideExcludeEvent, EventID: "news-event:7", Reason: "doubt it",
+	}
+	for _, refusal := range []error{newsadjust.ErrExclusionTarget, newsadjust.ErrExclusionUnsupported} {
+		store := draftfixtures.NewStore()
+		svc := draftrank.NewService(store, refusingStore{Store: store, err: fmt.Errorf("wrapped: %w", refusal)}, draftrank.ServiceOptions{})
+		_, err := svc.CreateOverride(context.Background(), exclusion, "eric")
+		assert.ErrorIs(t, err, draftrank.ErrInvalidQuery, refusal.Error())
+		assert.ErrorIs(t, err, refusal)
+	}
+	store := draftfixtures.NewStore()
+	svc := draftrank.NewService(store, refusingStore{Store: store, err: errStoreDown}, draftrank.ServiceOptions{})
+	_, err := svc.CreateOverride(context.Background(), exclusion, "eric")
+	assert.NotErrorIs(t, err, draftrank.ErrInvalidQuery, "a storage failure is not the caller's fault")
+}
+
+var errStoreDown = errors.New("store down")
 
 func TestService_WithoutOverrideStore(t *testing.T) {
 	svc := draftrank.NewService(draftfixtures.NewStore(), nil, draftrank.ServiceOptions{})
