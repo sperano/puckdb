@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -240,9 +241,42 @@ func TestOptionalDate(t *testing.T) {
 	require.Nil(t, errResult)
 	assert.True(t, d.Valid)
 
+	d, errResult = optionalDate(requestWith(map[string]any{"start_date": ""}), "start_date")
+	require.Nil(t, errResult)
+	assert.False(t, d.Valid)
+
 	_, errResult = optionalDate(requestWith(map[string]any{"start_date": "10/08/2025"}), "start_date")
 	require.NotNil(t, errResult)
-	assert.Equal(t, "invalid start_date format, use YYYY-MM-DD", resultText(t, errResult))
+	assert.Equal(t, `invalid start_date "10/08/2025": want a date as YYYY-MM-DD`, resultText(t, errResult))
+}
+
+// TestParseDateRejectsWhatPgtypeAccepts covers values pgtype.Date.Scan
+// would have taken or normalized to another day.
+func TestParseDateRejectsWhatPgtypeAccepts(t *testing.T) {
+	tests := map[string]struct {
+		raw  any
+		want string
+	}{
+		"no such day":    {raw: "2025-02-30", want: `invalid start_date "2025-02-30": want a date as YYYY-MM-DD`},
+		"infinity":       {raw: "infinity", want: `invalid start_date "infinity": want a date as YYYY-MM-DD`},
+		"BC suffix":      {raw: "2025-10-08 BC", want: `invalid start_date "2025-10-08 BC": want a date as YYYY-MM-DD`},
+		"five-digit":     {raw: "12025-10-08", want: `invalid start_date "12025-10-08": want a date as YYYY-MM-DD`},
+		"unpadded":       {raw: "2025-1-8", want: `invalid start_date "2025-1-8": want a date as YYYY-MM-DD`},
+		"with time":      {raw: "2025-10-08T00:00:00Z", want: `invalid start_date "2025-10-08T00:00:00Z": want a date as YYYY-MM-DD`},
+		"number":         {raw: float64(20251008), want: "invalid start_date 20251008: want a date as YYYY-MM-DD"},
+		"echo is capped": {raw: strings.Repeat("9", 2*maxEchoedArgumentLength), want: `invalid start_date "` + strings.Repeat("9", maxEchoedArgumentLength-1) + `...: want a date as YYYY-MM-DD`},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, errResult := parseDate("start_date", tc.raw)
+			require.NotNil(t, errResult)
+			assert.Equal(t, tc.want, resultText(t, errResult))
+		})
+	}
+
+	d, errResult := parseDate("start_date", "2024-02-29")
+	require.Nil(t, errResult)
+	assert.Equal(t, pgtype.Date{Time: time.Date(2024, time.February, 29, 0, 0, 0, 0, time.UTC), Valid: true}, d)
 }
 
 func TestRequireDate(t *testing.T) {
@@ -256,12 +290,12 @@ func TestRequireDate(t *testing.T) {
 	req.Params.Arguments = map[string]any{"date": "15/01/2025"}
 	_, errResult = requireDate(req)
 	require.NotNil(t, errResult)
-	assert.Equal(t, "invalid date format, use YYYY-MM-DD", resultText(t, errResult))
+	assert.Equal(t, `invalid date "15/01/2025": want a date as YYYY-MM-DD`, resultText(t, errResult))
 
 	req.Params.Arguments = map[string]any{}
 	_, errResult = requireDate(req)
 	require.NotNil(t, errResult)
-	assert.True(t, errResult.IsError)
+	assert.Equal(t, "date is required", resultText(t, errResult))
 }
 
 // truncatingGetters are the SDK request getters that truncate fractional

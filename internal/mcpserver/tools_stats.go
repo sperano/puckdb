@@ -155,54 +155,6 @@ func goalieSeasonTotalsTool(q *sqlcdb.Queries) server.ServerTool {
 	}
 }
 
-func skaterGameLogTool(q *sqlcdb.Queries) server.ServerTool {
-	return server.ServerTool{
-		Tool: mcp.NewTool("get_skater_game_log",
-			mcp.WithDescription("Get a skater's game-by-game stats log for a season (one row per game played)."),
-			mcp.WithNumber(playerIDArg, mcp.Required(), mcp.Description("Player ID")),
-			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
-		),
-		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			playerID, errResult := requireInt[int64](req, playerIDParam)
-			if errResult != nil {
-				return errResult, nil
-			}
-			season, errResult := requireInt[int32](req, seasonParam)
-			if errResult != nil {
-				return errResult, nil
-			}
-			return toolResult(q.GetSkaterStatsByPlayerAndSeason(ctx, sqlcdb.GetSkaterStatsByPlayerAndSeasonParams{
-				PlayerID: playerID,
-				Season:   season,
-			}))
-		},
-	}
-}
-
-func goalieGameLogTool(q *sqlcdb.Queries) server.ServerTool {
-	return server.ServerTool{
-		Tool: mcp.NewTool("get_goalie_game_log",
-			mcp.WithDescription("Get a goalie's game-by-game stats log for a season (one row per game played)."),
-			mcp.WithNumber(playerIDArg, mcp.Required(), mcp.Description("Player ID")),
-			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
-		),
-		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			playerID, errResult := requireInt[int64](req, playerIDParam)
-			if errResult != nil {
-				return errResult, nil
-			}
-			season, errResult := requireInt[int32](req, seasonParam)
-			if errResult != nil {
-				return errResult, nil
-			}
-			return toolResult(q.GetGoalieStatsByPlayerAndSeason(ctx, sqlcdb.GetGoalieStatsByPlayerAndSeasonParams{
-				PlayerID: playerID,
-				Season:   season,
-			}))
-		},
-	}
-}
-
 func clubSkaterStatsTool(q *sqlcdb.Queries) server.ServerTool {
 	return server.ServerTool{
 		Tool: mcp.NewTool("get_club_skater_stats",
