@@ -28,6 +28,7 @@ func playerTools(q *sqlcdb.Queries) []server.ServerTool {
 		playerAwardsTool(q),
 		playerRosterHistoryTool(q),
 		playerThreeStarsTool(q),
+		seasonRosterTool(q),
 	}
 }
 
@@ -173,6 +174,30 @@ func playerThreeStarsTool(q *sqlcdb.Queries) server.ServerTool {
 				return errResult, nil
 			}
 			return toolResult(q.GetPlayerThreeStarSelections(ctx, playerID))
+		},
+	}
+}
+
+func seasonRosterTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_season_roster",
+			mcp.WithDescription("Get a team's roster for a season — each player with name, position, jersey number, shoots/catches, height, weight and birth info, ordered by position then last name. Use get_players_by_team for the current assignment only."),
+			mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID (use find_team to resolve abbreviations)")),
+			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
+		),
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			teamID, errResult := requireInt[int64](req, teamIDParam)
+			if errResult != nil {
+				return errResult, nil
+			}
+			season, errResult := requireInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
+			}
+			return toolResult(q.GetSeasonRosterByTeam(ctx, sqlcdb.GetSeasonRosterByTeamParams{
+				Season: season,
+				TeamID: teamID,
+			}))
 		},
 	}
 }
