@@ -112,6 +112,38 @@ func TestRepositoryRestartKeepsCompleteBoardAcrossDuplicateAndPartialPolls(t *te
 	assert.Len(t, afterPartial.State.Upstream, len(complete.Snapshot.Picks), "partial replay must not delete unseen picks")
 }
 
+func TestRepositoryPersistsPlayersYahooCorrectedAway(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	key := draftsession.PickKey{Round: 1, Pick: 1}
+	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity,
+		replayPoll(true, 1, draftsession.ObservedPick{Key: key, TeamID: 3, PlayerID: 102}))
+	require.NoError(t, err)
+	_, _, err = fixture.repo.Reconcile(fixture.ctx, fixture.identity,
+		replayPoll(true, 1, draftsession.ObservedPick{Key: key, TeamID: 3, PlayerID: 103}))
+	require.NoError(t, err)
+
+	recovered, err := NewRepository(fixture.repo.pool).Get(fixture.ctx, fixture.identity.LeagueKey)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[int]bool{102: true, 103: true}, recovered.State.UpstreamPlayers)
+}
+
+func TestRepositorySeedsUpstreamPlayersOfLegacyBoard(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	key := draftsession.PickKey{Round: 1, Pick: 1}
+	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity,
+		replayPoll(true, 1, draftsession.ObservedPick{Key: key, TeamID: 3, PlayerID: 102}))
+	require.NoError(t, err)
+	_, err = fixture.repo.pool.Exec(fixture.ctx,
+		`UPDATE draft_sessions SET board = board - 'upstreamPlayers' WHERE league_key=$1`, fixture.identity.LeagueKey)
+	require.NoError(t, err)
+
+	session, err := fixture.repo.Get(fixture.ctx, fixture.identity.LeagueKey)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[int]bool{102: true}, session.State.UpstreamPlayers)
+}
+
 func TestRepositoryRejectsManualDuplicateWithoutWriting(t *testing.T) {
 	fixture := newRepositoryTestFixture(t)
 	first, second := draftsession.PickKey{Round: 1, Pick: 1}, draftsession.PickKey{Round: 1, Pick: 2}

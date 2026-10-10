@@ -14,6 +14,7 @@ import (
 type persistedState struct {
 	Upstream         []draftsession.Pick `json:"upstream"`
 	Manual           []persistedManual   `json:"manual"`
+	UpstreamPlayers  []int               `json:"upstreamPlayers"`
 	UpstreamComplete bool                `json:"upstreamComplete"`
 	Version          uint64              `json:"version"`
 }
@@ -32,7 +33,12 @@ func encodeState(state draftsession.State) ([]byte, string, error) {
 		Version:          state.Version,
 		Upstream:         make([]draftsession.Pick, 0, len(state.Upstream)),
 		Manual:           make([]persistedManual, 0, len(state.Manual)),
+		UpstreamPlayers:  make([]int, 0, len(state.UpstreamPlayers)),
 	}
+	for playerID := range state.UpstreamPlayers {
+		persisted.UpstreamPlayers = append(persisted.UpstreamPlayers, playerID)
+	}
+	sort.Ints(persisted.UpstreamPlayers)
 	for _, pick := range state.Upstream {
 		persisted.Upstream = append(persisted.Upstream, pick)
 	}
@@ -80,13 +86,21 @@ func decodeState(raw []byte) (draftsession.State, error) {
 			Kind: manual.Kind, Pick: manual.Pick, Base: manual.Base, Conflict: manual.Conflict,
 		}
 	}
+	for _, playerID := range persisted.UpstreamPlayers {
+		state.UpstreamPlayers[playerID] = true
+	}
+	// A board persisted before upstreamPlayers existed seeds the set from its
+	// current picks; players Yahoo had already moved out of every slot are
+	// not recoverable (events do not record picks).
+	draftsession.RecordUpstreamPlayers(&state)
 	return state, nil
 }
 
 func newState() draftsession.State {
 	return draftsession.State{
-		Upstream: make(map[draftsession.PickKey]draftsession.Pick),
-		Manual:   make(map[draftsession.PickKey]draftsession.ManualChange),
+		Upstream:        make(map[draftsession.PickKey]draftsession.Pick),
+		Manual:          make(map[draftsession.PickKey]draftsession.ManualChange),
+		UpstreamPlayers: make(map[int]bool),
 	}
 }
 
