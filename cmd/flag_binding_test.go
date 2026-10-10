@@ -94,10 +94,17 @@ func distinctFlagValue(t *testing.T, f *pflag.Flag) string {
 	return ""
 }
 
-// requireGroupsBound sets every flag of groups on flags and checks viper
-// reports the flag's value under its name.
+// requireGroupsBound checks viper holds exactly the flags of groups, then
+// sets each flag on flags and checks viper reports its value under its name.
 func requireGroupsBound(t *testing.T, flags *pflag.FlagSet, groups []*config.FlagGroup) {
 	t.Helper()
+	var names []string
+	for _, g := range groups {
+		for _, def := range g.Flags {
+			names = append(names, def.Name)
+		}
+	}
+	require.ElementsMatch(t, names, viper.AllKeys(), "bound flags differ from the expected groups")
 	for _, g := range groups {
 		for _, def := range g.Flags {
 			f := flags.Lookup(def.Name)
