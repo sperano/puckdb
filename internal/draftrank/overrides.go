@@ -88,7 +88,9 @@ func OverrideStateAt(o newsadjust.Override, now time.Time) OverrideState {
 
 // CreateOverride stores a new override created now by createdBy. It takes
 // effect at the league's next refresh; until then the served snapshot
-// reports OVERRIDES_CHANGED.
+// reports OVERRIDES_CHANGED. An exclusion the store refuses (an event that
+// is not about its player, or whose effect it cannot undo) is an invalid
+// query.
 func (s *Service) CreateOverride(ctx context.Context, o newsadjust.Override, createdBy string) (OverrideStatus, error) {
 	if s.overrides == nil {
 		return OverrideStatus{}, ErrOverridesUnavailable
@@ -100,7 +102,10 @@ func (s *Service) CreateOverride(ctx context.Context, o newsadjust.Override, cre
 	if err := o.Validate(); err != nil {
 		return OverrideStatus{}, fmt.Errorf("%w: %w", ErrInvalidQuery, err)
 	}
-	if err := s.overrides.CreateOverride(ctx, o); err != nil {
+	err := s.overrides.CreateOverride(ctx, o)
+	if errors.Is(err, newsadjust.ErrExclusionTarget) || errors.Is(err, newsadjust.ErrExclusionUnsupported) {
+		return OverrideStatus{}, fmt.Errorf("%w: %w", ErrInvalidQuery, err)
+	} else if err != nil {
 		return OverrideStatus{}, err
 	}
 	return OverrideStatus{Override: o, State: OverrideStateAt(o, o.CreatedAt)}, nil

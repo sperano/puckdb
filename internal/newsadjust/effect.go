@@ -57,12 +57,9 @@ func computeEffect(in effectInputs, s Scenario) effectResult {
 			in.applyRole(claim, s, &result)
 		}
 	}
-	for _, o := range in.overrides {
-		if o.Kind == OverrideMissedGames && o.appliesTo(s) {
-			result.applied = append(result.applied, AppliedOverride{Override: o, Scenario: s, Original: result.effect.MissedGames, Value: o.Value})
-			result.effect.MissedGames = math.Min(o.Value, in.season.Games)
-			break
-		}
+	if o, exists := matchOverride(in.overrides, overrideTarget(in.player.PlayerKey, OverrideMissedGames, "", ""), s); exists {
+		result.applied = append(result.applied, AppliedOverride{Override: o, Scenario: s, Original: result.effect.MissedGames, Value: o.Value})
+		result.effect.MissedGames = math.Min(o.Value, in.season.Games)
 	}
 	result.effect.Availability = math.Max(0, in.season.Games-result.effect.MissedGames) / in.season.Games
 	result.effect.GamesFactor = result.effect.Availability
@@ -91,7 +88,7 @@ func (in effectInputs) claimInterval(claim availabilityClaim, s Scenario, result
 		if !slices.Contains(m.scenarios, s) {
 			continue
 		}
-		span := in.memberInterval(m.event, claim.closed, s, result)
+		span := in.memberInterval(m.event, claim.closed[s], s, result)
 		switch {
 		case !found:
 			chosen, found = span, true
@@ -141,8 +138,11 @@ func (in effectInputs) memberInterval(e Event, closed closure, s Scenario, resul
 // weighted by the share of the season its segment covers and added to the
 // factor, so consecutive segments of one field blend instead of stacking.
 func (in effectInputs) applyRole(claim roleClaim, s Scenario, result *effectResult) {
-	for _, field := range claim.fields {
-		coverage := in.roleCoverage(claim, field)
+	for _, field := range reportedFields(claim.event) {
+		if _, decides := claim.ends[s][field]; !decides {
+			continue
+		}
+		coverage := in.roleCoverage(claim, field, s)
 		switch field {
 		case fieldTeam:
 			if coverage > 0 {
@@ -201,17 +201,18 @@ const (
 		"counts in the conservative scenario only"
 )
 
-// roleCoverage is the share of the season a role claim is in force.
-func (in effectInputs) roleCoverage(claim roleClaim, field roleField) float64 {
+// roleCoverage is the share of the season a role claim decides a field in
+// one scenario.
+func (in effectInputs) roleCoverage(claim roleClaim, field roleField, s Scenario) float64 {
 	from := in.season.position(claim.event.start())
 	to := in.season.Games
-	switch {
-	case claim.closed.by != "":
-		to = in.season.position(claim.closed.at)
+	switch closed := claim.closed[s]; {
+	case closed.by != "":
+		to = in.season.position(closed.at)
 	case !claim.event.EffectiveUntil.IsZero():
 		to = in.season.position(claim.event.EffectiveUntil)
 	}
-	if next := claim.ends[field]; !next.IsZero() {
+	if next := claim.ends[s][field]; !next.IsZero() {
 		to = math.Min(to, in.season.position(next))
 	}
 	return math.Max(0, to-from) / in.season.Games

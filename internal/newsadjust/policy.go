@@ -10,7 +10,9 @@ import (
 )
 
 // MethodVersion identifies the adjustment method independently of policy.
-const MethodVersion = "news-adjust-v1"
+// v2: exclusions are resolved per scenario and also remove the excluded
+// event's supersessions and closures.
+const MethodVersion = "news-adjust-v2"
 
 // Scenario is one set of assumptions about uncertain news effects.
 type Scenario string

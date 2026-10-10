@@ -71,12 +71,7 @@ func Apply(req Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	sel := &selector{
-		policy: req.Policy, season: req.Season, players: players, exclusions: exclusions(active), visible: visible,
-		supersededBy: make(map[string]string), closedBy: make(map[string]closure),
-		decisions: make(map[string]Decision), alerts: make(map[string][]string),
-	}
-	sel.linkEvents()
+	sel := newSelector(req, players, visible, active)
 	claims := sel.buildClaims()
 	result := Result{
 		MethodVersion: MethodVersion, Policy: req.Policy, PolicyHash: req.Policy.Hash(),
@@ -136,18 +131,6 @@ func indexPlayers(players []projection.PlayerProjection) (map[string]projection.
 		byKey[player.PlayerKey] = player
 	}
 	return byKey, nil
-}
-
-func exclusions(active []Override) map[string]Override {
-	out := make(map[string]Override)
-	for _, o := range active {
-		if o.Kind == OverrideExcludeEvent {
-			if _, exists := out[o.EventID]; !exists {
-				out[o.EventID] = o
-			}
-		}
-	}
-	return out
 }
 
 // adjustPlayer returns the player's projection in each scenario and, when
