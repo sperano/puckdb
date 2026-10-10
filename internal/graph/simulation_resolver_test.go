@@ -332,39 +332,10 @@ func TestCreateSimPoolImpl_RejectsUnpricedModel(t *testing.T) {
 	assert.Contains(t, err.Error(), "agent #1", "the error must identify which agent is unpriced")
 }
 
-// errSeasonLookupProbe is returned by seasonProbeDBTX.QueryRow's Scan, so
-// a test can tell "got past pricing, failed at the season lookup" apart
+// errSeasonLookupProbe is configured as recordingDBTX.queryRowErr so a
+// test can tell "got past pricing, failed at the season lookup" apart
 // from "failed at pricing" without a real database.
 var errSeasonLookupProbe = errors.New("season lookup probe")
-
-type probeRow struct{ err error }
-
-func (p probeRow) Scan(dest ...any) error { return p.err }
-
-// seasonProbeDBTX is a minimal sqlcdb.DBTX whose QueryRow always fails
-// with errSeasonLookupProbe; the other methods are unreached by
-// GetSeason and panic if ever called.
-type seasonProbeDBTX struct{}
-
-func (seasonProbeDBTX) Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error) {
-	panic("seasonProbeDBTX.Exec: not used by GetSeason")
-}
-
-func (seasonProbeDBTX) Query(context.Context, string, ...interface{}) (pgx.Rows, error) {
-	panic("seasonProbeDBTX.Query: not used by GetSeason")
-}
-
-func (seasonProbeDBTX) QueryRow(context.Context, string, ...interface{}) pgx.Row {
-	return probeRow{err: errSeasonLookupProbe}
-}
-
-func (seasonProbeDBTX) CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error) {
-	panic("seasonProbeDBTX.CopyFrom: not used by GetSeason")
-}
-
-func (seasonProbeDBTX) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults {
-	panic("seasonProbeDBTX.SendBatch: not used by GetSeason")
-}
 
 // An Ollama agent with an arbitrary local model tag must not be rejected
 // by the pricing gate, even though the tag has no table row. Reaching the
@@ -372,7 +343,10 @@ func (seasonProbeDBTX) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults {
 // than merely proving some later check failed for an unrelated reason.
 func TestCreateSimPoolImpl_OllamaModelPassesPricingGate(t *testing.T) {
 	t.Parallel()
-	r := &Resolver{DB: panicTxBeginner{}, Queries: sqlcdb.New(seasonProbeDBTX{})}
+	r := &Resolver{
+		DB:      panicTxBeginner{},
+		Queries: sqlcdb.New(&recordingDBTX{queryRowErr: errSeasonLookupProbe}),
+	}
 	input := model.CreateSimPoolInput{
 		Agents: []*model.CreateSimAgentInput{
 			{Provider: "ollama", Model: "some-custom-finetune:latest"},
@@ -544,6 +518,10 @@ type recordingDBTX struct {
 	mu          sync.Mutex
 	names       []string
 	simPoolRows int
+	// queryRowErr, when set, is what every QueryRow's Scan returns —
+	// lets a test observe "the resolver reached a :one query and that
+	// query failed" without a real database.
+	queryRowErr error
 }
 
 // queryName extracts the "ListSimPools" style identifier sqlc bakes into each
@@ -590,7 +568,7 @@ func (d *recordingDBTX) Query(_ context.Context, sql string, _ ...interface{}) (
 
 func (d *recordingDBTX) QueryRow(_ context.Context, sql string, _ ...interface{}) pgx.Row {
 	d.record(sql)
-	return fakeRow{}
+	return fakeRow{err: d.queryRowErr}
 }
 
 func (d *recordingDBTX) CopyFrom(_ context.Context, _ pgx.Identifier, _ []string, _ pgx.CopyFromSource) (int64, error) {
@@ -622,11 +600,12 @@ func (r *fakeRows) Values() ([]any, error)                       { return nil, n
 func (r *fakeRows) RawValues() [][]byte                          { return nil }
 func (r *fakeRows) Conn() *pgx.Conn                              { return nil }
 
-// fakeRow is a minimal pgx.Row whose Scan leaves dest untouched — a :one
-// query decodes to a zero-value result with no error.
-type fakeRow struct{}
+// fakeRow is a minimal pgx.Row whose Scan leaves dest untouched and
+// returns err (nil by default) — a :one query decodes to a zero-value
+// result unless the test configures a failure via recordingDBTX.queryRowErr.
+type fakeRow struct{ err error }
 
-func (fakeRow) Scan(_ ...any) error { return nil }
+func (r fakeRow) Scan(_ ...any) error { return r.err }
 
 // resolverWithDB builds a graph Resolver whose Queries handle runs against the
 // given recording DBTX.

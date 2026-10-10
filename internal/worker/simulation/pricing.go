@@ -146,19 +146,25 @@ func stripDateSuffix(model string) string {
 	return dateSuffixRE.ReplaceAllString(model, "")
 }
 
-// LookupPricing returns the rate row for (provider, model) and a found flag.
-// provider is lowercased and resolved through pricingProviderAliases (so
-// "gemini" hits the "google" rows); model is lowercased and has a trailing
-// "-YYYYMMDD" date suffix stripped before the lookup so that dated variants
-// such as "claude-haiku-4-5-20251001" resolve to the correct row. A miss
-// returns the zero Pricing{} (which implies $0 cost — see the file header
-// for why, and ValidateModelPricing for who is actually allowed to hit it).
-func LookupPricing(provider, model string) (Pricing, bool) {
-	key := pricingKey{
+// pricingLookupKey builds the pricingTable key shared by LookupPricing and
+// ValidateModelPricing: provider is lowercased and resolved through
+// pricingProviderAliases (so "gemini" hits the "google" rows); model is
+// trimmed, lowercased, and has a trailing "-YYYYMMDD" date suffix stripped
+// so that dated variants such as "claude-haiku-4-5-20251001" resolve to
+// the correct row.
+func pricingLookupKey(provider, model string) pricingKey {
+	return pricingKey{
 		provider: canonicalPricingProvider(provider),
-		model:    stripDateSuffix(strings.ToLower(model)),
+		model:    stripDateSuffix(strings.ToLower(strings.TrimSpace(model))),
 	}
-	p, ok := pricingTable[key]
+}
+
+// LookupPricing returns the rate row for (provider, model) and a found
+// flag. A miss returns the zero Pricing{} (which implies $0 cost — see the
+// file header for why, and ValidateModelPricing for who is actually
+// allowed to hit it).
+func LookupPricing(provider, model string) (Pricing, bool) {
+	p, ok := pricingTable[pricingLookupKey(provider, model)]
 	return p, ok
 }
 
@@ -179,10 +185,11 @@ var ErrUnpricedModel = errors.New("simulation: model has no known pricing")
 // endpoint — must resolve through LookupPricing; an unpriced paid model
 // would otherwise look free and never trip the pool's cost cap.
 func ValidateModelPricing(provider, model string) error {
-	if canonicalPricingProvider(provider) == PricingProviderOllama {
+	key := pricingLookupKey(provider, model)
+	if key.provider == PricingProviderOllama {
 		return nil
 	}
-	if _, ok := LookupPricing(provider, model); !ok {
+	if _, ok := pricingTable[key]; !ok {
 		return fmt.Errorf("%w: provider %q model %q", ErrUnpricedModel, provider, model)
 	}
 	return nil
