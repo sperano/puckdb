@@ -304,6 +304,86 @@ func TestCreateSimPoolImpl_RequiresDB(t *testing.T) {
 	require.ErrorIs(t, err, errDatabaseNotConfigured)
 }
 
+// panicTxBeginner satisfies txBeginner so createSimPoolImpl gets past the
+// errDatabaseNotConfigured check, but panics if actually called — pricing
+// rejection must happen before any transaction is opened, let alone before
+// the season lookup (which needs Queries, deliberately left nil here).
+type panicTxBeginner struct{}
+
+func (panicTxBeginner) Begin(context.Context) (pgx.Tx, error) {
+	panic("createSimPoolImpl must reject an unpriced agent before opening a transaction")
+}
+
+// TestCreateSimPoolImpl_RejectsUnpricedModel pins SIM-U2's fix: an agent
+// whose (provider, model) has no pricing-table row must fail pool
+// creation up front, by name, instead of silently costing $0 forever.
+func TestCreateSimPoolImpl_RejectsUnpricedModel(t *testing.T) {
+	t.Parallel()
+	r := &Resolver{DB: panicTxBeginner{}}
+	input := model.CreateSimPoolInput{
+		Agents: []*model.CreateSimAgentInput{
+			{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+			{Provider: "openai", Model: "gpt-9-ultra-mystery"},
+		},
+	}
+	_, err := r.createSimPoolImpl(context.Background(), input)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, simulation.ErrUnpricedModel)
+	assert.Contains(t, err.Error(), "agent #1", "the error must identify which agent is unpriced")
+}
+
+// errSeasonLookupProbe is returned by seasonProbeDBTX.QueryRow's Scan, so
+// a test can tell "got past pricing, failed at the season lookup" apart
+// from "failed at pricing" without a real database.
+var errSeasonLookupProbe = errors.New("season lookup probe")
+
+type probeRow struct{ err error }
+
+func (p probeRow) Scan(dest ...any) error { return p.err }
+
+// seasonProbeDBTX is a minimal sqlcdb.DBTX whose QueryRow always fails
+// with errSeasonLookupProbe; the other methods are unreached by
+// GetSeason and panic if ever called.
+type seasonProbeDBTX struct{}
+
+func (seasonProbeDBTX) Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error) {
+	panic("seasonProbeDBTX.Exec: not used by GetSeason")
+}
+
+func (seasonProbeDBTX) Query(context.Context, string, ...interface{}) (pgx.Rows, error) {
+	panic("seasonProbeDBTX.Query: not used by GetSeason")
+}
+
+func (seasonProbeDBTX) QueryRow(context.Context, string, ...interface{}) pgx.Row {
+	return probeRow{err: errSeasonLookupProbe}
+}
+
+func (seasonProbeDBTX) CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error) {
+	panic("seasonProbeDBTX.CopyFrom: not used by GetSeason")
+}
+
+func (seasonProbeDBTX) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults {
+	panic("seasonProbeDBTX.SendBatch: not used by GetSeason")
+}
+
+// An Ollama agent with an arbitrary local model tag must not be rejected
+// by the pricing gate, even though the tag has no table row. Reaching the
+// (probed) season lookup proves the pricing gate let it through, rather
+// than merely proving some later check failed for an unrelated reason.
+func TestCreateSimPoolImpl_OllamaModelPassesPricingGate(t *testing.T) {
+	t.Parallel()
+	r := &Resolver{DB: panicTxBeginner{}, Queries: sqlcdb.New(seasonProbeDBTX{})}
+	input := model.CreateSimPoolInput{
+		Agents: []*model.CreateSimAgentInput{
+			{Provider: "ollama", Model: "some-custom-finetune:latest"},
+		},
+	}
+	_, err := r.createSimPoolImpl(context.Background(), input)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errSeasonLookupProbe,
+		"an Ollama agent must clear the pricing gate and fail at the season lookup, not at pricing")
+}
+
 // ============================================================================
 // currentDraftAction — snake-draft "currently picking" derivation
 // ============================================================================
