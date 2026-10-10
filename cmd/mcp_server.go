@@ -28,6 +28,7 @@ const mcpServerShutdownTimeout = 10 * time.Second
 var mcpServerFlagGroups = []*config.FlagGroup{
 	&config.PostgresFlags,
 	&config.MCPServerFlags,
+	&config.DraftAPIFlags,
 }
 
 // mcpTransport is the resolved transport selection for the MCP server.
@@ -122,6 +123,7 @@ func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Opt
 	defer pool.Close()
 
 	queries := database.NewQueries(pool)
+	opts.Draft = newDraftService(pool)
 	srv, err := mcpserver.NewServer(queries, opts)
 	if err != nil {
 		return err

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/sperano/puckdb/internal/draftrank"
 )
 
 // Toolset names a group of tools one server instance exposes, so public NHL
@@ -15,7 +17,7 @@ const (
 	// ToolsetNHL holds the public NHL data tools.
 	ToolsetNHL Toolset = "nhl"
 	// ToolsetYahoo holds the Yahoo fantasy league tools: league names,
-	// managers, rosters, matchups and draft results.
+	// managers, rosters, matchups, draft results and draft ranking state.
 	ToolsetYahoo Toolset = "yahoo"
 )
 
@@ -39,6 +41,9 @@ type Options struct {
 	// YahooLeagues lists the Yahoo league keys the yahoo toolset serves;
 	// empty serves every league.
 	YahooLeagues []string
+	// Draft is the draft ranking read path the yahoo toolset's draft tools
+	// share with GraphQL and the CLI; required with the yahoo toolset.
+	Draft *draftrank.Service
 }
 
 // HasToolset reports whether opts registers ts.
@@ -55,6 +60,9 @@ func (o Options) validate() error {
 		if !slices.Contains(allToolsets, ts) {
 			return fmt.Errorf("unknown toolset %q (valid: %s)", ts, validToolsetNames())
 		}
+	}
+	if o.HasToolset(ToolsetYahoo) && o.Draft == nil {
+		return fmt.Errorf("the %s toolset needs a draft ranking service", ToolsetYahoo)
 	}
 	return nil
 }

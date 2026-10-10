@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -65,6 +67,12 @@ func (g leagueGuard) allow(ctx context.Context, leagueID int32) (bool, error) {
 		return false, err
 	}
 	return g.allowed[league.LeagueKey], nil
+}
+
+// leagueKeys returns the allowlisted league keys in sorted order; empty for
+// an unrestricted guard.
+func (g leagueGuard) leagueKeys() []string {
+	return slices.Sorted(maps.Keys(g.allowed))
 }
 
 // filter drops the leagues the guard does not serve.

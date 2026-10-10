@@ -35,14 +35,15 @@ type yahooQueries interface {
 // tool must run through leagueGuard.scoped; TestYahooToolsAreLeagueGuarded
 // enforces it, so a new league-scoped tool cannot skip the guard.
 var leagueIndependentYahooTools = map[string]struct{}{
-	"get_yahoo_leagues": {}, // lists leagues through leagueGuard.filter
+	"get_yahoo_leagues":  {}, // lists leagues through leagueGuard.filter
+	draftLeaguesToolName: {}, // reads only allowlisted league keys (servedDraftLeagues)
 }
 
-func registerYahooTools(srv *server.MCPServer, q yahooQueries, guard leagueGuard) {
-	srv.AddTools(yahooTools(q, guard)...)
+func registerYahooTools(srv *server.MCPServer, q yahooQueries, guard leagueGuard, draft draftLeagueSource) {
+	srv.AddTools(yahooTools(q, guard, draft)...)
 }
 
-func yahooTools(q yahooQueries, guard leagueGuard) []server.ServerTool {
+func yahooTools(q yahooQueries, guard leagueGuard, draft draftLeagueSource) []server.ServerTool {
 	return []server.ServerTool{
 		yahooLeaguesTool(q, guard),
 		yahooTeamsTool(q, guard),
@@ -54,6 +55,7 @@ func yahooTools(q yahooQueries, guard leagueGuard) []server.ServerTool {
 		yahooMatchupsTool(q, guard),
 		yahooDraftResultsTool(q, guard),
 		yahooLeagueSettingsTool(q, guard),
+		draftLeaguesTool(draft, guard),
 	}
 }
 

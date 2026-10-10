@@ -18,7 +18,7 @@ import (
 // allowlist, the same way NewServer does.
 func yahooTestServer(q yahooQueries, leagueKeys []string) *server.MCPServer {
 	srv := server.NewMCPServer("test", serverVersion)
-	registerYahooTools(srv, q, newLeagueGuard(q, leagueKeys))
+	registerYahooTools(srv, q, newLeagueGuard(q, leagueKeys), emptyDraftService())
 	return srv
 }
 
