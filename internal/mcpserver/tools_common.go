@@ -288,3 +288,38 @@ func optionalDate(req mcp.CallToolRequest, name string) (pgtype.Date, *mcp.CallT
 	}
 	return parseDate(name, raw)
 }
+
+// optionalBool reads an optional boolean argument; absent or null is false.
+// Unlike the SDK's GetBool, which falls back to the default for a value it
+// cannot read, anything but a JSON boolean or a string strconv.ParseBool
+// accepts ("true", "false", "1", "0", ...) is refused.
+func optionalBool(req mcp.CallToolRequest, name string) (bool, *mcp.CallToolResult) {
+	raw, present := argument(req, name)
+	if !present {
+		return false, nil
+	}
+	switch v := raw.(type) {
+	case bool:
+		return v, nil
+	case string:
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b, nil
+		}
+	}
+	return false, mcp.NewToolResultError(fmt.Sprintf("invalid %s %s: want true or false", name, formatRaw(raw)))
+}
+
+// optionalString reads an optional string argument; absent or null is "".
+// Unlike the SDK's GetString, a value of another type is refused instead
+// of read as "".
+func optionalString(req mcp.CallToolRequest, name string) (string, *mcp.CallToolResult) {
+	raw, present := argument(req, name)
+	if !present {
+		return "", nil
+	}
+	text, isString := raw.(string)
+	if !isString {
+		return "", mcp.NewToolResultError(fmt.Sprintf("invalid %s %s: want a string", name, formatRaw(raw)))
+	}
+	return text, nil
+}
