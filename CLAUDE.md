@@ -263,6 +263,10 @@ The Prometheus registry is split in three (see `internal/metrics/metrics.go`):
 | `puckdb_http_response_bytes` | Histogram | `api` | Response body sizes |
 | `puckdb_download_total` | Counter | `file_type`, `result` | Downloads by result (hit/miss/error) |
 | `puckdb_activity_duration_seconds` | Histogram | `activity` | Temporal activity duration |
+| `puckdb_db_query_duration_seconds` | Histogram | `query` | sqlc query duration, including row consumption; raw untagged SQL is excluded |
+| `puckdb_db_pool_connections` | Gauge | `state` | pgx pool connections (`acquired`, `constructing`, `idle`, `max`, `total`) |
+| `puckdb_db_pool_*` | Counter | optional `reason` | pgx acquire/wait/create/destroy totals and durations from `pgxpool.Stat()` |
+| `puckdb_valkey_cache_requests_total` | Counter | `cache`, `result` | Valkey-backed resource-cache reads by bounded file type and hit/miss/error result |
 
 ### API metrics
 | Metric | Type | Labels | Description |

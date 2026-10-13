@@ -139,6 +139,11 @@ func cmdWorker() *cobra.Command {
 				return fmt.Errorf("open database pool: %w", err)
 			}
 			defer pool.Close()
+			poolCollector := metrics.NewPGXPoolCollector(pool)
+			if err := metrics.WorkerRegistry.Register(poolCollector); err != nil {
+				return fmt.Errorf("register database pool metrics: %w", err)
+			}
+			defer metrics.WorkerRegistry.Unregister(poolCollector)
 
 			// Create shared Redis client for activities
 			redisClient := newRedisClient()

@@ -53,6 +53,19 @@ var (
 
 	// Bytes: 1KB to 100MB
 	bytesBuckets = []float64{1024, 10240, 102400, 1048576, 10485760, 104857600}
+
+	// Temporal activities range from milliseconds to long-running imports and
+	// downloads. The upper buckets keep multi-minute activities out of +Inf.
+	activityBuckets = []float64{
+		0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
+		1, 2.5, 5, 10, 30, 60, 120, 300, 600, 900, 1800,
+	}
+
+	// SQL statements are normally sub-second, but imports can run for minutes.
+	dbQueryBuckets = []float64{
+		0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
+		1, 2.5, 5, 10, 30, 60, 120, 300, 600,
+	}
 )
 
 // Worker metrics (filesystem, HTTP, downloads, activities)
@@ -89,8 +102,19 @@ var (
 	activityDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "puckdb_activity_duration_seconds",
 		Help:    "Duration of Temporal activities in seconds",
-		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
+		Buckets: activityBuckets,
 	}, []string{"activity"})
+
+	dbQueryDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "puckdb_db_query_duration_seconds",
+		Help:    "Duration of sqlc database queries in seconds",
+		Buckets: dbQueryBuckets,
+	}, []string{"query"})
+
+	valkeyCacheRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "puckdb_valkey_cache_requests_total",
+		Help: "Total Valkey-backed cache reads by cache and result",
+	}, []string{"cache", "result"})
 
 	// Simulation-specific worker metrics. PLAN.md > "Phase 3.3
 	// Prometheus Metrics" — three metrics covering the LLM cost
@@ -239,6 +263,8 @@ func init() {
 		httpResponseBytes,
 		downloadTotal,
 		activityDuration,
+		dbQueryDuration,
+		valkeyCacheRequests,
 		simLLMCallDuration,
 		simLLMFailures,
 		simDayDuration,
@@ -295,6 +321,18 @@ func IncDownload(fileType core.FileType, result string) {
 // ObserveActivityDuration records a Temporal activity's total duration
 func ObserveActivityDuration(activity string, duration time.Duration) {
 	activityDuration.WithLabelValues(activity).Observe(duration.Seconds())
+}
+
+// ObserveDBQueryDuration records the total time spent executing and consuming
+// one sqlc query.
+func ObserveDBQueryDuration(query string, duration time.Duration) {
+	dbQueryDuration.WithLabelValues(query).Observe(duration.Seconds())
+}
+
+// IncValkeyCacheRequest records one logical cache read. Cache names must be a
+// bounded set such as core.FileType names; never pass resource keys.
+func IncValkeyCacheRequest(cache, result string) {
+	valkeyCacheRequests.WithLabelValues(cache, result).Inc()
 }
 
 // TrackActivityDuration returns a function to be deferred for timing activities.

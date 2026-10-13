@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/internal/core"
+	metricspkg "github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,6 +197,72 @@ func (r testResource) Format(obj *testData) ([]byte, error) {
 
 // redisKey is the expected Redis key for testResource.
 const testResourceRedisKey = "puckdb:resource:test/resource.json"
+
+type metricsTestResource struct{ testResource }
+
+func (metricsTestResource) Path() string        { return "test/metrics-resource.json" }
+func (metricsTestResource) Type() core.FileType { return core.YahooLeaguePlayers }
+
+const metricsTestResourceRedisKey = "puckdb:resource:test/metrics-resource.json"
+
+func TestReadParsedCached_RecordsValkeyHitAndMiss(t *testing.T) {
+	cacheName := core.YahooLeaguePlayers.String()
+
+	t.Run("hit", func(t *testing.T) {
+		client, mock := redismock.NewClientMock()
+		cache := NewGobCache(client)
+		mock.ExpectGet(metricsTestResourceRedisKey).SetVal(string(encodeGob(t, &testData{Name: "hit"})))
+		before := valkeyRequestCount(t, cacheName, metricspkg.ResultHit)
+
+		_, origin, err := cache.ReadParsedCached(context.Background(), store.NewMemStorage(), metricsTestResource{})
+
+		require.NoError(t, err)
+		assert.Equal(t, core.OriginRedis, origin)
+		assert.Equal(t, before+1, valkeyRequestCount(t, cacheName, metricspkg.ResultHit))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("miss", func(t *testing.T) {
+		client, mock := redismock.NewClientMock()
+		cache := NewGobCache(client)
+		mem := store.NewMemStorage()
+		data, err := json.Marshal(&testData{Name: "miss"})
+		require.NoError(t, err)
+		mem.SetFile(metricsTestResource{}.Path(), data)
+		mock.ExpectGet(metricsTestResourceRedisKey).RedisNil()
+		mock.CustomMatch(func([]any, []any) error { return nil }).
+			ExpectSet(metricsTestResourceRedisKey, "x", GobCacheTTL).SetVal("OK")
+		before := valkeyRequestCount(t, cacheName, metricspkg.ResultMiss)
+
+		_, origin, err := cache.ReadParsedCached(context.Background(), mem, metricsTestResource{})
+
+		require.NoError(t, err)
+		assert.Equal(t, core.OriginFileSystem, origin)
+		assert.Equal(t, before+1, valkeyRequestCount(t, cacheName, metricspkg.ResultMiss))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func valkeyRequestCount(t *testing.T, cacheName, result string) float64 {
+	t.Helper()
+	families, err := metricspkg.WorkerRegistry.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != "puckdb_valkey_cache_requests_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			labels := make(map[string]string, len(metric.GetLabel()))
+			for _, label := range metric.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
+			}
+			if labels["cache"] == cacheName && labels["result"] == result {
+				return metric.GetCounter().GetValue()
+			}
+		}
+	}
+	return 0
+}
 
 func TestReadParsedCached_CacheHit(t *testing.T) {
 	t.Parallel()
