@@ -1,0 +1,194 @@
+package nhl
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"hash"
+	"io/fs"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/metrics"
+	"github.com/sperano/puckdb/internal/resource"
+	"github.com/sperano/puckdb/internal/sqlcdb"
+	"github.com/sperano/puckdb/internal/store"
+	"go.temporal.io/sdk/activity"
+)
+
+// DayImporterVersion identifies what ImportDay writes from a day's cached
+// files. Bump it whenever the same files would now produce different rows: a
+// new or changed column mapping, a new table filled per day, a parser
+// dependency upgrade that changes parsed values, or a migration that drops
+// or rebuilds day-level rows. The next import then re-imports every day once.
+const DayImporterVersion = 1
+
+// Reasons ImportDayIfChanged logs for importing a day.
+const (
+	dayImportReasonForced   = "forced"
+	dayImportReasonFirst    = "never imported"
+	dayImportReasonVersion  = "importer version changed"
+	dayImportReasonInputs   = "cached files changed"
+	dayImportReasonNoChange = ""
+)
+
+// DayImportStore records the days ImportDayIfChanged imported.
+type DayImportStore interface {
+	GetNHLDayImport(ctx context.Context, arg sqlcdb.GetNHLDayImportParams) (sqlcdb.GetNHLDayImportRow, error)
+	UpsertNHLDayImport(ctx context.Context, arg sqlcdb.UpsertNHLDayImportParams) error
+}
+
+// ImportDayIfChangedInput is ImportDayInput plus the full re-import switch.
+type ImportDayIfChangedInput struct {
+	ImportDayInput
+	// Force imports the day even when its cached files and the importer
+	// version match its last successful import.
+	Force bool `json:"force"`
+}
+
+// ImportDayIfChangedResult reports one day of ImportDayIfChanged.
+type ImportDayIfChangedResult struct {
+	Origins core.OriginCounts `json:"origins"`
+	// Skipped is true when the day was left alone because nothing it reads
+	// changed since its last successful import.
+	Skipped bool `json:"skipped"`
+}
+
+// dayFingerprint identifies the cached files a day import reads.
+type dayFingerprint struct {
+	Hash  string
+	Files int
+}
+
+// ImportDayIfChanged runs ImportDay unless the day's cached files and
+// DayImporterVersion are unchanged since its last successful import, then
+// records what it imported. The fingerprint is taken before the import reads
+// anything, so a file rewritten during the import leaves the older
+// fingerprint behind and the next run imports the day again.
+func (a *ImportActivities) ImportDayIfChanged(ctx context.Context, input ImportDayIfChangedInput) (ImportDayIfChangedResult, error) {
+	defer metrics.TrackActivityDuration("ImportDayIfChanged")()
+	day := input.Date.Format(config.DateFormat)
+	fingerprint, err := a.dayInputsFingerprint(ctx, input.ImportDayInput)
+	if err != nil {
+		return ImportDayIfChangedResult{}, fmt.Errorf("fingerprint cached files for %s: %w", day, err)
+	}
+	reason := dayImportReasonForced
+	if !input.Force {
+		if reason, err = a.dayImportReason(ctx, input.ImportDayInput, fingerprint); err != nil {
+			return ImportDayIfChangedResult{}, fmt.Errorf("read import record for %s: %w", day, err)
+		}
+	}
+	logger := activity.GetLogger(ctx)
+	if reason == dayImportReasonNoChange {
+		logger.Debug("Day unchanged since its last import, skipped", "date", day)
+		return ImportDayIfChangedResult{Origins: core.OriginCounts{}, Skipped: true}, nil
+	}
+	counts, err := a.importDay(ctx, input.ImportDayInput)
+	if err != nil {
+		return ImportDayIfChangedResult{Origins: counts}, err
+	}
+	if err := a.DayImports.UpsertNHLDayImport(ctx, sqlcdb.UpsertNHLDayImportParams{
+		Season:          int32(input.SeasonID),
+		Date:            dayImportDate(input.Date),
+		ImporterVersion: DayImporterVersion,
+		InputsHash:      fingerprint.Hash,
+		InputFiles:      int32(fingerprint.Files),
+	}); err != nil {
+		return ImportDayIfChangedResult{Origins: counts}, fmt.Errorf("record import of %s: %w", day, err)
+	}
+	logger.Info("Imported day", "date", day, "reason", reason, "files", fingerprint.Files)
+	return ImportDayIfChangedResult{Origins: counts}, nil
+}
+
+// dayImportReason compares the day's last import record with the current
+// fingerprint and importer version; dayImportReasonNoChange means skip.
+func (a *ImportActivities) dayImportReason(ctx context.Context, input ImportDayInput, fingerprint dayFingerprint) (string, error) {
+	record, err := a.DayImports.GetNHLDayImport(ctx, sqlcdb.GetNHLDayImportParams{
+		Season: int32(input.SeasonID),
+		Date:   dayImportDate(input.Date),
+	})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return dayImportReasonFirst, nil
+	case err != nil:
+		return "", err
+	case record.ImporterVersion != DayImporterVersion:
+		return dayImportReasonVersion, nil
+	case record.InputsHash != fingerprint.Hash:
+		return dayImportReasonInputs, nil
+	default:
+		return dayImportReasonNoChange, nil
+	}
+}
+
+func dayImportDate(day time.Time) pgtype.Date {
+	return pgtype.Date{Time: day, Valid: true}
+}
+
+// dayInputsFingerprint hashes the path, size and modification time of every
+// cached file ImportDay reads for the day, and the absence of the ones it
+// would read if they existed (a game's files appear once it is final). The
+// storage writes each file to a temporary name and renames it into place, so
+// a re-fetched file always gets a new modification time.
+func (a *ImportActivities) dayInputsFingerprint(ctx context.Context, input ImportDayInput) (dayFingerprint, error) {
+	inputs, err := a.dayInputs(ctx, input)
+	if err != nil {
+		return dayFingerprint{}, err
+	}
+	h := sha256.New()
+	for _, r := range inputs {
+		if err := writeFileFingerprint(ctx, h, a.Storage, r); err != nil {
+			return dayFingerprint{}, err
+		}
+	}
+	return dayFingerprint{Hash: hex.EncodeToString(h.Sum(nil)), Files: len(inputs)}, nil
+}
+
+func writeFileFingerprint(ctx context.Context, h hash.Hash, s store.Storage, r core.Resource) error {
+	info, err := resource.Stat(ctx, s, r)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		_, err = fmt.Fprintf(h, "%s\tmissing\n", r.Path())
+	case err != nil:
+		return fmt.Errorf("stat %s: %w", r.Path(), err)
+	default:
+		_, err = fmt.Fprintf(h, "%s\t%d\t%d\n", r.Path(), info.Size(), info.ModTime().UnixNano())
+	}
+	return err
+}
+
+// dayInputs lists the cached files ImportDay reads for the day: the daily
+// schedule, every scheduled game's five game files, the daily standings and
+// each Yahoo team's roster and summary.
+func (a *ImportActivities) dayInputs(ctx context.Context, input ImportDayInput) ([]core.Resource, error) {
+	scheduleRes := resource.DailySchedule{Date: input.Date}
+	inputs := []core.Resource{scheduleRes}
+	if resource.Exists(ctx, a.Storage, scheduleRes) {
+		schedule, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, scheduleRes)
+		if err != nil {
+			return nil, fmt.Errorf("read daily schedule: %w", err)
+		}
+		for _, game := range schedule.Games {
+			inputs = append(inputs,
+				resource.Boxscore{Date: input.Date, GameID: game.ID},
+				resource.GameStory{Date: input.Date, GameID: game.ID},
+				resource.PlayByPlay{Date: input.Date, GameID: game.ID},
+				resource.ShiftChart{Date: input.Date, GameID: game.ID},
+				resource.SeasonSeries{Date: input.Date, GameID: game.ID},
+			)
+		}
+	}
+	inputs = append(inputs, resource.DailyStandings{Date: input.Date})
+	for _, team := range input.TeamIDs {
+		inputs = append(inputs,
+			resource.Roster{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: input.Date},
+			resource.TeamSummary{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: input.Date},
+		)
+	}
+	return inputs, nil
+}

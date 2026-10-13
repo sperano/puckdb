@@ -238,6 +238,7 @@ const (
 	FlagSkipPreseason            = "skip-preseason"
 	FlagRefreshCurrentPlayerLogs = "refresh-current-player-logs"
 	FlagRefreshCurrentEdge       = "refresh-current-edge"
+	FlagReimportDays             = "reimport-days"
 	FlagSeasonConcurrency        = "season-concurrency"
 	FlagMonitor                  = "monitor"
 	FlagSeasonYear               = "season"
@@ -535,6 +536,7 @@ var SyncBehaviorFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the latest season, or for every season in an explicit --start-season/--end-season range (overwrites cached files)", false},
 		{FlagRefreshCurrentEdge, "", false, "Re-download Edge stats for the latest season, or for every season in an explicit --start-season/--end-season range (overwrites cached files)", false},
+		{FlagReimportDays, "", DefaultReimportDays, "import-seasons: re-import every NHL day, even days whose cached files and importer version are unchanged since their last import (after a schema or data repair)", false},
 		{FlagNewsForce, "", DefaultNewsForce, "refresh-news: fetch every news source now, ignoring refresh schedules (e.g. right before a draft)", false},
 		{FlagNewsOnly, "", DefaultNewsOnly, "refresh-news: comma-separated news source IDs to refresh (default: every enabled source)", false},
 		{FlagDraftLeagues, "", DefaultDraftLeagues, "refresh-draft-rankings: comma-separated Yahoo league IDs (default: the season's leagues in seasons.yaml)", false},

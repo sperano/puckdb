@@ -26,7 +26,12 @@ type ImportDayInput struct {
 // Player game logs are handled separately as a per-season batched activity.
 func (a *ImportActivities) ImportDay(ctx context.Context, input ImportDayInput) (core.OriginCounts, error) {
 	defer metrics.TrackActivityDuration("ImportDay")()
+	return a.importDay(ctx, input)
+}
 
+// importDay is ImportDay without its activity metric, shared with
+// ImportDayIfChanged.
+func (a *ImportActivities) importDay(ctx context.Context, input ImportDayInput) (core.OriginCounts, error) {
 	logger := activity.GetLogger(ctx)
 	counts := core.OriginCounts{}
 	activity.RecordHeartbeat(ctx, "boxscores")

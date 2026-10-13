@@ -169,6 +169,8 @@ input SeasonsInput {
 	refreshCurrentPlayerLogs: Boolean
 	"""Re-download Edge stats for the current season (overwrites cached files)"""
 	refreshCurrentEdge: Boolean
+	"""importSeasons: re-import every NHL day, even days whose cached files and importer version are unchanged since their last import"""
+	reimportDays: Boolean
 }
 
 input ProcessPlayersInput {

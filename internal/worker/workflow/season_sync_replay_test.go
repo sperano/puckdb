@@ -112,7 +112,7 @@ func executeLegacySeasonSync(ctx temporalworkflow.Context, tracker *shared.Repor
 	if err != nil {
 		return err
 	}
-	if err := processNHLSeasonGroup(ctx, tracker, seasons, cfg.Concurrency, rangeLabel, mode); err != nil {
+	if err := processNHLSeasonGroup(ctx, tracker, seasons, cfg.Concurrency, rangeLabel, mode, ImportNHLSeasonOptions{}); err != nil {
 		return err
 	}
 	if _, err := processUpcomingSeason(ctx, tracker, input, rangeLabel, mode); err != nil {
