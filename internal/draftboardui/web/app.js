@@ -392,9 +392,12 @@ function bind() {
 }
 
 function onPlayerKey(event) {
-  const player = displayedBoard()?.available[state.selectedIndex];
+  const board = displayedBoard();
+  const player = board?.available[state.selectedIndex];
   if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); selectPlayer(state.selectedIndex + (event.key === "ArrowDown" ? 1 : -1)); }
-  if (event.key.toLowerCase() === "s") { event.preventDefault(); void setShortlist(player); }
+  // Without a board, setShortlist explains why nothing happens; an empty
+  // filter result has nothing to shortlist.
+  if (event.key.toLowerCase() === "s") { event.preventDefault(); if (player || !board) void setShortlist(player); }
   if (event.key === "Enter" && player) showDetails(player);
 }
 

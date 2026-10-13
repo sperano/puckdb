@@ -147,6 +147,14 @@ test("versioned mutations are refused while the new league loads, then use its b
   );
 });
 
+test("shortlisting from an empty player list sends nothing and claims no loading", async () => {
+  const app = loadApp(LEAGUE_A);
+  await app.lastBoardRequest().respondBoard({ ...boardOf(LEAGUE_A, { syncVersion: OLD_LEAGUE_SYNC_VERSION }), available: [] });
+  app.pressKey("s");
+  assert.equal(app.mutationRequests().length, 0);
+  assert.doesNotMatch(app.el("alerts").text(), /Wait for the selected league's board/);
+});
+
 test("session actions while switching target the selected league", async () => {
   const app = await showingLeagueA();
   app.selectLeague(LEAGUE_B);
