@@ -64,7 +64,7 @@ type ImportYahooDataForDateResult struct {
 	SummariesImported int
 	RostersImported   int
 	// ReadFailures counts cached summary and roster files that exist but
-	// could not be read; their teams are left out of this import.
+	// could not be read; only those files' data is left out of this import.
 	ReadFailures int
 	Origins      core.OriginCounts
 }

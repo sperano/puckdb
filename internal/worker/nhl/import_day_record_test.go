@@ -1,15 +1,21 @@
 package nhl
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redismock/v8"
 	"github.com/jackc/pgx/v5"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/internal/cache"
+	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
@@ -25,6 +31,9 @@ const (
 	recordTestSeasonID = 20232024
 	// recordTestDayFiles is the schedule, five game files and the standings.
 	recordTestDayFiles = 7
+	// staleCacheReads is how many reads of the stale schedule entry the stale
+	// cache would serve; more than the fingerprint and every day importer make.
+	staleCacheReads = 20
 )
 
 // fakeDayImportStore keeps import records in memory, keyed by season and day.
@@ -241,5 +250,46 @@ func (s *ImportDayIfChangedSuite) TestDayWithSkippedRowsIsNotRecorded() {
 	s.False(result.Skipped)
 	s.Equal(1, result.SkippedRows)
 	s.Empty(s.records.records)
+	q.AssertExpectations(s.T())
+}
+
+// newStaleScheduleGobCache returns a cache whose Redis entry for the day's
+// schedule is an older schedule without games, as left by a fetch whose Redis
+// write failed after it rewrote the file. Every other read misses.
+func newStaleScheduleGobCache(t *testing.T, day time.Time) *cache.GobCache {
+	t.Helper()
+	var stale bytes.Buffer
+	require.NoError(t, gob.NewEncoder(&stale).Encode(&nhlapi.DailySchedule{Games: []nhlapi.ScheduleGame{}}))
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.MatchExpectationsInOrder(false)
+	scheduleKey := core.RedisKey(resource.DailySchedule{Date: day})
+	keyPattern := core.RedisResourceKeyPrefix + ".*"
+	for range staleCacheReads {
+		mockRedis.ExpectGet(scheduleKey).SetVal(stale.String())
+	}
+	for range staleCacheReads {
+		mockRedis.Regexp().ExpectGet(keyPattern).SetErr(redis.Nil)
+		mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(keyPattern, "x", cache.GobCacheTTL).SetVal("OK")
+	}
+	return cache.NewGobCache(redisClient)
+}
+
+// The fingerprint stats the rewritten schedule in storage; the game it lists
+// must be fingerprinted and imported, not the stale Redis entry's empty day,
+// or the record would make every later run skip the unimported game.
+func (s *ImportDayIfChangedSuite) TestStaleRedisEntryIsNotImported() {
+	q := &MockQueries{}
+	q.On("UpsertGame", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertGameParams")).Return(nil).Once()
+	act := &ImportActivities{Storage: s.mem, GobCache: newStaleScheduleGobCache(s.T(), s.day), Queries: q, DayImports: s.records}
+	env := s.NewTestActivityEnvironment()
+	env.RegisterActivity(act.ImportDayIfChanged)
+
+	future, err := env.ExecuteActivity(act.ImportDayIfChanged, s.input(false))
+
+	s.Require().NoError(err)
+	var result ImportDayIfChangedResult
+	s.Require().NoError(future.Get(&result))
+	s.False(result.Skipped)
+	s.Equal(int32(recordTestDayFiles), s.onlyRecord().InputFiles)
 	q.AssertExpectations(s.T())
 }
