@@ -254,7 +254,11 @@ func (cache *GobCache) readParsedCached[T any](
 			return obj, core.OriginRedis, nil
 		}
 	}
-	return cache.readParsedStorageAndCache(ctx, s, r, key)
+	obj, origin, err := cache.readParsedStorageAndCache(ctx, s, r, key)
+	if err != nil {
+		metricResult = metrics.ResultError
+	}
+	return obj, origin, err
 }
 
 func (cache *GobCache) readParsedStorageAndCache[T any](

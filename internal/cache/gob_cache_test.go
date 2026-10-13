@@ -241,6 +241,21 @@ func TestReadParsedCached_RecordsValkeyHitAndMiss(t *testing.T) {
 		assert.Equal(t, before+1, valkeyRequestCount(t, cacheName, metricspkg.ResultMiss))
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("storage read failure after miss records error", func(t *testing.T) {
+		client, mock := redismock.NewClientMock()
+		cache := NewGobCache(client)
+		mock.ExpectGet(metricsTestResourceRedisKey).RedisNil()
+		beforeError := valkeyRequestCount(t, cacheName, metricspkg.ResultError)
+		beforeMiss := valkeyRequestCount(t, cacheName, metricspkg.ResultMiss)
+
+		_, _, err := cache.ReadParsedCached(context.Background(), store.NewMemStorage(), metricsTestResource{})
+
+		require.Error(t, err)
+		assert.Equal(t, beforeError+1, valkeyRequestCount(t, cacheName, metricspkg.ResultError))
+		assert.Equal(t, beforeMiss, valkeyRequestCount(t, cacheName, metricspkg.ResultMiss))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func valkeyRequestCount(t *testing.T, cacheName, result string) float64 {
