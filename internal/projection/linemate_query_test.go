@@ -164,17 +164,22 @@ INSERT INTO shifts (
 
 // rebuildEvenStrengthTotals derives a game's even_strength_pair_toi and
 // even_strength_skater_games rows from its fixture shifts, as the shift
-// chart import does.
+// chart import does: in one transaction with nested loops off.
 func rebuildEvenStrengthTotals(t *testing.T, pool *pgxpool.Pool, gameID int64) {
 	t.Helper()
 	ctx := context.Background()
-	queries := sqlcdb.New(pool)
+	tx, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := sqlcdb.New(tx)
+	require.NoError(t, queries.DisableNestedLoopsForTransaction(ctx))
 	require.NoError(t, queries.DeleteEvenStrengthPairTOIForGame(ctx, gameID))
 	require.NoError(t, queries.DeleteEvenStrengthSkaterGamesForGame(ctx, gameID))
-	_, err := queries.InsertEvenStrengthPairTOIForGame(ctx, gameID)
+	_, err = queries.InsertEvenStrengthPairTOIForGame(ctx, gameID)
 	require.NoError(t, err)
 	_, err = queries.InsertEvenStrengthSkaterGamesForGame(ctx, gameID)
 	require.NoError(t, err)
+	require.NoError(t, tx.Commit(ctx))
 }
 
 // execFixture runs one fixture statement. pgx prepares parameterized SQL,

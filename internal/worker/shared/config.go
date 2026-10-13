@@ -113,6 +113,13 @@ var (
 	}
 )
 
+// YahooPoolLeagueConcurrencyParam resolves how many leagues of one season
+// FetchYahooSeasonWorkflow downloads player pools for at the same time.
+var YahooPoolLeagueConcurrencyParam = ConfigIntParam{
+	Flag:    config.FlagYahooPoolLeagueConcurrency,
+	Default: config.DefaultYahooPoolLeagueConcurrency,
+}
+
 var ProcessPlayersConcurrencyParam = ConfigIntParam{
 	Flag:    config.FlagProcessPlayersConcurrency,
 	Default: config.DefaultProcessPlayersConcurrency,

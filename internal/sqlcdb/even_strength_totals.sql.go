@@ -31,6 +31,27 @@ func (q *Queries) DeleteEvenStrengthSkaterGamesForGame(ctx context.Context, game
 	return err
 }
 
+const disableNestedLoopsForTransaction = `-- name: DisableNestedLoopsForTransaction :exec
+SET LOCAL enable_nestloop = off
+`
+
+// Turns nested-loop joins off until the current transaction ends. The
+// planner estimates 1 row for the segment-overlap join of
+// InsertEvenStrengthPairTOIForGame and InsertEvenStrengthSkaterGamesForGame
+// (two range predicates; about 5,000 rows in practice) and then nests every
+// join after it, which costs seconds of CPU per game; with nested loops off
+// it picks hash joins and both inserts take tens of milliseconds. SET LOCAL
+// reverts at COMMIT or ROLLBACK, so it never leaks to other transactions on
+// the pooled connection (safe behind a pgbouncer transaction pooler).
+// PostgreSQL does not replan a cached prepared statement when a planner
+// setting changes, so every caller of those inserts must issue this first;
+// one caller without it could leave a nested-loop generic plan cached for
+// the others on that connection.
+func (q *Queries) DisableNestedLoopsForTransaction(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, disableNestedLoopsForTransaction)
+	return err
+}
+
 const insertEvenStrengthPairTOIForGame = `-- name: InsertEvenStrengthPairTOIForGame :execrows
 WITH parsed_shifts AS (
     SELECT

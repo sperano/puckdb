@@ -74,6 +74,7 @@ const (
 	DefaultYahooPlayerActivityBatchSize = 100
 	DefaultYahooPlayersPerExecution     = 5000
 	DefaultYahooPlayerPoolMaxAge        = 12 // hours
+	DefaultYahooPoolLeagueConcurrency   = 3
 	DefaultYahooDownloadSleepMin        = 5
 	DefaultYahooDownloadSleepMax        = 15
 )
@@ -298,6 +299,10 @@ const (
 	DefaultDraftWorkloadCaps       = false
 	DefaultDraftUncertaintyPenalty = "" // no penalty
 )
+
+// DefaultReimportDays leaves NHL days whose cached files and importer
+// version are unchanged since their last import alone.
+const DefaultReimportDays = false
 
 // Player news defaults (draft helper)
 const (

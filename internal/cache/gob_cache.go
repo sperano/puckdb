@@ -33,6 +33,8 @@ type GobCache struct {
 	client *redis.Client
 	ttl    time.Duration
 	config *GobCacheConfig
+	// storageFirst makes parsed reads skip the Redis lookup (see StorageFirst).
+	storageFirst bool
 }
 
 // GobCacheOption configures a GobCache. Pass to NewGobCache.
@@ -222,6 +224,13 @@ func (cache *GobCache) readParsedCached[T any](
 	}
 
 	key := core.RedisKey(r)
+	if cache.readsStorageFirst() {
+		obj, origin, err := cache.refreshParsed(ctx, s, r, key, lockOnMiss)
+		if err != nil {
+			metricResult = metrics.ResultError
+		}
+		return obj, origin, err
+	}
 	obj, ok, err := cache.get[T](ctx, key)
 	if err != nil && !errors.Is(err, ErrNilCache) {
 		metricResult = metrics.ResultError

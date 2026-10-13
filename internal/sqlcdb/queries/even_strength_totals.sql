@@ -6,6 +6,21 @@ WHERE game_id = sqlc.arg(game_id);
 DELETE FROM even_strength_skater_games
 WHERE game_id = sqlc.arg(game_id);
 
+-- name: DisableNestedLoopsForTransaction :exec
+-- Turns nested-loop joins off until the current transaction ends. The
+-- planner estimates 1 row for the segment-overlap join of
+-- InsertEvenStrengthPairTOIForGame and InsertEvenStrengthSkaterGamesForGame
+-- (two range predicates; about 5,000 rows in practice) and then nests every
+-- join after it, which costs seconds of CPU per game; with nested loops off
+-- it picks hash joins and both inserts take tens of milliseconds. SET LOCAL
+-- reverts at COMMIT or ROLLBACK, so it never leaks to other transactions on
+-- the pooled connection (safe behind a pgbouncer transaction pooler).
+-- PostgreSQL does not replan a cached prepared statement when a planner
+-- setting changes, so every caller of those inserts must issue this first;
+-- one caller without it could leave a nested-loop generic plan cached for
+-- the others on that connection.
+SET LOCAL enable_nestloop = off;
+
 -- name: InsertEvenStrengthPairTOIForGame :execrows
 -- Split one game's shift chart into atomic half-open intervals (see
 -- InsertEvenStrengthSkaterGamesForGame for the shared derivation) and store,
