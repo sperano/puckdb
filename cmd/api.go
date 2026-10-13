@@ -145,7 +145,7 @@ func newDraftBoardService(pool *pgxpool.Pool, redisClient *redis.Client) (*draft
 	}
 	yahooLimiter, err := newYahooRateLimiter()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create Yahoo rate limiter: %w", err)
 	}
 	repository := draftwatch.NewRepository(pool)
 	runner := draftwatch.Runner{

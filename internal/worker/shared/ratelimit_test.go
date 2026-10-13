@@ -172,7 +172,7 @@ func TestYahooRateLimit_Validate(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, err := NewYahooRateLimiter(limit)
-			require.Error(t, err)
+			require.ErrorIs(t, err, ErrInvalidYahooRateLimit)
 		})
 	}
 }

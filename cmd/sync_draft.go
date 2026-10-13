@@ -60,7 +60,7 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	}
 	yahooLimiter, err := newYahooRateLimiter()
 	if err != nil {
-		return err
+		return fmt.Errorf("create Yahoo rate limiter: %w", err)
 	}
 	id, err := draftwatch.ResolveIdentity(ctx, pool, viper.GetString(config.FlagDraftSessionLeague), viper.GetInt(config.FlagDraftSeason))
 	if err != nil {

@@ -34,14 +34,20 @@ func DefaultYahooRateLimit() YahooRateLimit {
 	return YahooRateLimit{PerSecond: config.DefaultYahooRateLimit, Burst: config.DefaultYahooRateBurst}
 }
 
+// ErrInvalidYahooRateLimit reports a limit that would block or unthrottle
+// every Yahoo download.
+var ErrInvalidYahooRateLimit = errors.New("invalid Yahoo rate limit")
+
 // Validate rejects a rate that is not a positive finite number and a burst
-// below one, either of which would block or unthrottle every download.
+// below one.
 func (l YahooRateLimit) Validate() error {
-	if !(l.PerSecond > 0) || math.IsInf(l.PerSecond, 1) {
-		return fmt.Errorf("%s must be a positive number of requests per second, got %v", config.FlagYahooRateLimit, l.PerSecond)
+	if l.PerSecond <= 0 || math.IsNaN(l.PerSecond) || math.IsInf(l.PerSecond, 1) {
+		return fmt.Errorf("%w: --%s must be a positive number of requests per second, got %v",
+			ErrInvalidYahooRateLimit, config.FlagYahooRateLimit, l.PerSecond)
 	}
 	if l.Burst < 1 {
-		return fmt.Errorf("%s must be at least 1, got %d", config.FlagYahooRateBurst, l.Burst)
+		return fmt.Errorf("%w: --%s must be at least 1, got %d",
+			ErrInvalidYahooRateLimit, config.FlagYahooRateBurst, l.Burst)
 	}
 	return nil
 }
