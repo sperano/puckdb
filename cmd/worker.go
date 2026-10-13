@@ -148,7 +148,18 @@ func cmdWorker() *cobra.Command {
 				}
 			}()
 
-			tclient, err := newTemporalClient()
+			// Reports Temporal SDK metrics (schedule-to-start latency, task
+			// slot gauges, poll counts) on the same registry/endpoint as the
+			// puckdb_* worker metrics, so queueing on this worker's task
+			// queues is visible in Prometheus.
+			temporalMetricsHandler, closeTemporalMetrics := temporal.NewMetricsHandler(metrics.WorkerRegistry)
+			defer func() {
+				if err := closeTemporalMetrics.Close(); err != nil {
+					log.Warn().Err(err).Msg("failed to close temporal metrics handler")
+				}
+			}()
+
+			tclient, err := newTemporalClient(temporalMetricsHandler)
 			if err != nil {
 				return err
 			}
@@ -406,13 +417,15 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	w.RegisterActivity(seasonsActivities.ImportEdgeTeamGoalies)
 
 	importActivities := &worknhl.ImportActivities{
-		Storage:  d.storage,
-		GobCache: d.gobCache,
-		Queries:  d.queries,
-		Tx:       worknhl.NewPgxTransactor(d.pool),
-		Yahoo:    importYahooActivities,
+		Storage:    d.storage,
+		GobCache:   d.gobCache,
+		Queries:    d.queries,
+		Tx:         worknhl.NewPgxTransactor(d.pool),
+		DayImports: d.queries,
+		Yahoo:      importYahooActivities,
 	}
 	w.RegisterActivity(importActivities.ImportDay)
+	w.RegisterActivity(importActivities.ImportDayIfChanged)
 	w.RegisterActivity(importActivities.ImportBoxscoresForDate)
 	w.RegisterActivity(importActivities.ImportGameStoryForDate)
 	w.RegisterActivity(importActivities.ImportPlayByPlayForDate)

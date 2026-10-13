@@ -73,6 +73,7 @@ func executeSeasonSync(ctx workflow.Context, tracker *shared.ReportTracker, inpu
 	groups := seasonSyncGroups{
 		tracker: tracker, input: input, yahooSeasons: selectYahooSeasons(cfg.Yahoo, input),
 		concurrency: cfg.Concurrency, rangeLabel: formatSeasonRange(input), mode: mode,
+		importOpts: ImportNHLSeasonOptions{ReimportDays: input.ReimportDays != nil && *input.ReimportDays},
 	}
 	runGroups := groups.runSerially
 	if seasonGroupsRunConcurrently(ctx, mode) {
@@ -232,7 +233,7 @@ func startYahooSeasonChild(ctx workflow.Context, input YahooSeasonWorkflowInput,
 }
 
 func processNHLSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, seasons []nhl.SeasonInfo,
-	concurrency int, rangeLabel string, mode seasonSyncMode) error {
+	concurrency int, rangeLabel string, mode seasonSyncMode, importOpts ImportNHLSeasonOptions) error {
 	if len(seasons) == 0 {
 		tracker.StartGroup(ctx, groupNHLSeasons)
 		tracker.CompleteGroup(ctx, groupNHLSeasons,
@@ -245,17 +246,21 @@ func processNHLSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, 
 		CountLabel: "cache reads", CompleteOnlyOnSuccess: true,
 	}
 	_, err := processSeasonGroup(ctx, tracker, seasons, concurrency, cfg,
-		func(ctx workflow.Context, i int) workflow.Future { return startNHLSeasonChild(ctx, seasons[i], mode) })
+		func(ctx workflow.Context, i int) workflow.Future {
+			return startNHLSeasonChild(ctx, seasons[i], mode, importOpts)
+		})
 	if err != nil {
 		tracker.SetMessage(ctx, fmt.Sprintf("NHL data partially completed for %s: %v", rangeLabel, err))
 	}
 	return err
 }
 
-func startNHLSeasonChild(ctx workflow.Context, season nhl.SeasonInfo, mode seasonSyncMode) workflow.ChildWorkflowFuture {
+func startNHLSeasonChild(ctx workflow.Context, season nhl.SeasonInfo, mode seasonSyncMode,
+	importOpts ImportNHLSeasonOptions) workflow.ChildWorkflowFuture {
 	if mode == seasonSyncImport {
 		return workflow.ExecuteChildWorkflow(
-			shared.WithChildOptions(ctx, WorkflowIDImportNHLSeason(season.ID.StartYear())), ImportNHLSeasonWorkflow, season)
+			shared.WithChildOptions(ctx, WorkflowIDImportNHLSeason(season.ID.StartYear())), ImportNHLSeasonWorkflow,
+			season, importOpts)
 	}
 	return workflow.ExecuteChildWorkflow(
 		shared.WithChildOptions(ctx, WorkflowIDFetchNHLSeason(season.ID.StartYear())), FetchNHLSeasonWorkflow, season)

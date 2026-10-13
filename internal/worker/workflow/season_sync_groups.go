@@ -40,6 +40,7 @@ type seasonSyncGroups struct {
 	concurrency  int
 	rangeLabel   string
 	mode         seasonSyncMode
+	importOpts   ImportNHLSeasonOptions
 }
 
 // seasonGroupsRunConcurrently reports whether this run starts the NHL group
@@ -106,7 +107,7 @@ func (g seasonSyncGroups) runNHL(ctx workflow.Context, selectionFailure string) 
 		g.tracker.SetMessage(ctx, fmt.Sprintf("%s for %s: %v", selectionFailure, g.rangeLabel, err))
 		return 0, err
 	}
-	if err := processNHLSeasonGroup(ctx, g.tracker, seasons, g.concurrency, g.rangeLabel, g.mode); err != nil {
+	if err := processNHLSeasonGroup(ctx, g.tracker, seasons, g.concurrency, g.rangeLabel, g.mode, g.importOpts); err != nil {
 		return 0, err
 	}
 	return len(seasons), nil

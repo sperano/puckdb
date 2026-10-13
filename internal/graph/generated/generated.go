@@ -7774,6 +7774,8 @@ input SeasonsInput {
 	refreshCurrentPlayerLogs: Boolean
 	"""Re-download Edge stats for the current season (overwrites cached files)"""
 	refreshCurrentEdge: Boolean
+	"""importSeasons: re-import every NHL day, even days whose cached files and importer version are unchanged since their last import"""
+	reimportDays: Boolean
 }
 
 input ProcessPlayersInput {
@@ -33762,7 +33764,7 @@ func (ec *executionContext) unmarshalInputSeasonsInput(ctx context.Context, obj 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"startSeason", "endSeason", "seasonConcurrency", "refreshCurrentPlayerLogs", "refreshCurrentEdge"}
+	fieldsInOrder := [...]string{"startSeason", "endSeason", "seasonConcurrency", "refreshCurrentPlayerLogs", "refreshCurrentEdge", "reimportDays"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -33804,6 +33806,13 @@ func (ec *executionContext) unmarshalInputSeasonsInput(ctx context.Context, obj 
 				return it, err
 			}
 			it.RefreshCurrentEdge = data
+		case "reimportDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reimportDays"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ReimportDays = data
 		}
 	}
 	return it, nil

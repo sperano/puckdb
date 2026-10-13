@@ -1,17 +1,97 @@
 package workflow
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/resource"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"go.temporal.io/sdk/workflow"
+)
+
+// yahooPoolLeaguesChangeID gates fetching the leagues' player pools
+// concurrently. Histories recorded before it fetched them one after another
+// and carry no marker for it, so they replay the sequential loop.
+const (
+	yahooPoolLeaguesChangeID          = "yahoo-pool-concurrent-leagues"
+	yahooPoolLeaguesConcurrentVersion = 1
 )
 
 // fetchYahooPlayerPools downloads the draftable player pool of every league
 // that calls the Yahoo API (stand-in leagues make no Yahoo calls).
 func fetchYahooPlayerPools(ctx workflow.Context, startYear int, leagues []config.League,
+	progress yahooSeasonProgress) ([]string, error) {
+	version := workflow.GetVersion(ctx, yahooPoolLeaguesChangeID, workflow.DefaultVersion,
+		yahooPoolLeaguesConcurrentVersion)
+	if version == workflow.DefaultVersion {
+		return fetchYahooPlayerPoolsSequentially(ctx, startYear, leagues, progress)
+	}
+	concurrency, err := shared.SnapshotConfigInt(ctx, workflow.GetLogger(ctx), shared.YahooPoolLeagueConcurrencyParam, nil)
+	if err != nil {
+		return nil, err
+	}
+	return fetchYahooPlayerPoolsConcurrently(ctx, startYear, leagues, progress, concurrency)
+}
+
+// yahooPoolOutcome is one league's pool download result.
+type yahooPoolOutcome struct {
+	unavailable bool
+	err         error
+}
+
+// fetchYahooPlayerPoolsConcurrently downloads up to concurrency leagues'
+// pools at a time. A league's failure neither cancels nor skips the others,
+// so every other league still commits its manifest; the returned error joins
+// each failed league's error, in configuration order.
+func fetchYahooPlayerPoolsConcurrently(ctx workflow.Context, startYear int, leagues []config.League,
+	progress yahooSeasonProgress, concurrency int) ([]string, error) {
+	outcomes := make([]yahooPoolOutcome, len(leagues))
+	slots := workflow.NewSemaphore(ctx, int64(concurrency))
+	pending := workflow.NewWaitGroup(ctx)
+	var canceled error
+	for i, league := range leagues {
+		if league.UsesTemporaryMetadata() {
+			continue
+		}
+		if canceled = slots.Acquire(ctx, 1); canceled != nil {
+			break
+		}
+		pending.Add(1)
+		workflow.Go(ctx, func(ctx workflow.Context) {
+			defer pending.Done()
+			defer slots.Release(1)
+			bar := yahooLeagueBar{progress: progress, index: i}
+			outcomes[i].unavailable, outcomes[i].err = fetchYahooPlayerPool(ctx, startYear, league.LeagueID, bar)
+		})
+	}
+	pending.Wait(ctx)
+	unavailable, err := collectYahooPoolOutcomes(startYear, leagues, outcomes)
+	return unavailable, errors.Join(canceled, err)
+}
+
+// collectYahooPoolOutcomes lists, in configuration order, the leagues whose
+// pool Yahoo has not published and the error of every league that failed.
+func collectYahooPoolOutcomes(startYear int, leagues []config.League, outcomes []yahooPoolOutcome) ([]string, error) {
+	var unavailable []string
+	var errs []error
+	for i, outcome := range outcomes {
+		leagueID := leagues[i].LeagueID
+		if outcome.err != nil {
+			errs = append(errs, fmt.Errorf("fetch Yahoo player pool %d/%d: %w", startYear, leagueID, outcome.err))
+		}
+		if outcome.unavailable {
+			unavailable = append(unavailable, fmt.Sprintf("league %d player pool", leagueID))
+		}
+	}
+	return unavailable, errors.Join(errs...)
+}
+
+// fetchYahooPlayerPoolsSequentially is the loop executions recorded before
+// yahooPoolLeaguesChangeID replay: one league after another, stopping at the
+// first failure.
+func fetchYahooPlayerPoolsSequentially(ctx workflow.Context, startYear int, leagues []config.League,
 	progress yahooSeasonProgress) ([]string, error) {
 	var unavailable []string
 	for i, league := range leagues {

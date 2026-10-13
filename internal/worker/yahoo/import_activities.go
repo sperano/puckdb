@@ -140,8 +140,9 @@ func (a *ImportActivities) ImportYahooDataForDate(ctx context.Context, input Imp
 	}
 
 	// Collect params for this date across all teams
-	summaryParams := a.collectSummaryParams(ctx, input.Teams, input.Date, result.Origins)
-	rosterParams := a.collectRosterParams(ctx, input.Teams, input.Date, result.Origins)
+	summaryParams, summaryFailures := a.collectSummaryParams(ctx, input.Teams, input.Date, result.Origins)
+	rosterParams, rosterFailures := a.collectRosterParams(ctx, input.Teams, input.Date, result.Origins)
+	result.ReadFailures = summaryFailures + rosterFailures
 
 	// Batch upsert summaries (includes stats as columns)
 	if len(summaryParams) > 0 {
@@ -169,9 +170,12 @@ func (a *ImportActivities) ImportYahooDataForDate(ctx context.Context, input Imp
 	return result, nil
 }
 
-// collectSummaryParams reads team summary files and returns params for summaries with stats as columns.
-func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []TeamInfo, date time.Time, origins core.OriginCounts) []sqlcdb.UpsertYahooTeamSummaryBatchParams {
+// collectSummaryParams reads team summary files and returns params for
+// summaries with stats as columns, and how many existing files could not be
+// read.
+func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []TeamInfo, date time.Time, origins core.OriginCounts) ([]sqlcdb.UpsertYahooTeamSummaryBatchParams, int) {
 	var summaryParams []sqlcdb.UpsertYahooTeamSummaryBatchParams
+	readFailures := 0
 	pgDate := pgtype.Date{Time: date, Valid: true}
 
 	for _, teamInfo := range teams {
@@ -186,6 +190,7 @@ func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []Tea
 				Int("teamID", teamInfo.TeamID).
 				Str("date", date.Format(config.DateFormat)).
 				Msg("Failed to read summary file")
+			readFailures++
 			continue
 		}
 		origins.Record(origin)
@@ -212,7 +217,7 @@ func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []Tea
 		summaryParams = append(summaryParams, p)
 	}
 
-	return summaryParams
+	return summaryParams, readFailures
 }
 
 // parseStatValue converts a Yahoo stat value string to a nullable float.
@@ -274,9 +279,11 @@ func assignStatField(p *sqlcdb.UpsertYahooTeamSummaryBatchParams, statID int, va
 	}
 }
 
-// collectRosterParams reads team roster files and returns params for rosters.
-func (a *ImportActivities) collectRosterParams(ctx context.Context, teams []TeamInfo, date time.Time, origins core.OriginCounts) []sqlcdb.UpsertYahooTeamRosterBatchParams {
+// collectRosterParams reads team roster files and returns params for
+// rosters, and how many existing files could not be read.
+func (a *ImportActivities) collectRosterParams(ctx context.Context, teams []TeamInfo, date time.Time, origins core.OriginCounts) ([]sqlcdb.UpsertYahooTeamRosterBatchParams, int) {
 	var rosterParams []sqlcdb.UpsertYahooTeamRosterBatchParams
+	readFailures := 0
 	pgDate := pgtype.Date{Time: date, Valid: true}
 
 	for _, teamInfo := range teams {
@@ -291,6 +298,7 @@ func (a *ImportActivities) collectRosterParams(ctx context.Context, teams []Team
 				Int("teamID", teamInfo.TeamID).
 				Str("date", date.Format(config.DateFormat)).
 				Msg("Failed to read roster file")
+			readFailures++
 			continue
 		}
 		origins.Record(origin)
@@ -324,7 +332,7 @@ func (a *ImportActivities) collectRosterParams(ctx context.Context, teams []Team
 		}
 	}
 
-	return rosterParams
+	return rosterParams, readFailures
 }
 
 // upsertSummaries batch upserts team summary records.

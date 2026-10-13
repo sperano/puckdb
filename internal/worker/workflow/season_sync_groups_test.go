@@ -80,8 +80,10 @@ func newGroupsTestEnv(t *testing.T, mode seasonSyncMode, yahooErr, nhlErr error)
 	mockNoUpcomingSeason(env)
 
 	yahooChild, nhlChild := any(FetchYahooSeasonWorkflow), any(FetchNHLSeasonWorkflow)
+	nhlArgs := []any{mock.Anything, mock.Anything}
 	if mode == seasonSyncImport {
 		yahooChild, nhlChild = ImportYahooSeasonWorkflow, ImportNHLSeasonWorkflow
+		nhlArgs = append(nhlArgs, mock.Anything) // ImportNHLSeasonOptions
 	}
 	env.RegisterWorkflow(yahooChild)
 	env.RegisterWorkflow(nhlChild)
@@ -93,7 +95,7 @@ func newGroupsTestEnv(t *testing.T, mode seasonSyncMode, yahooErr, nhlErr error)
 	env.OnActivity(playoffActivities.ListSeasonTeams, mock.Anything, preseasonTestYear).Return([]string{"MTL"}, nil)
 	env.OnWorkflow(yahooChild, mock.Anything, mock.Anything).
 		After(groupsTestYahooDuration).Return(YahooSeasonSyncResult{}, yahooErr).Once()
-	env.OnWorkflow(nhlChild, mock.Anything, mock.Anything).
+	env.OnWorkflow(nhlChild, nhlArgs...).
 		After(groupsTestNHLDuration).Return(core.OriginCounts{}, nhlErr).Once()
 	return env, newGroupsTimeline(env)
 }
