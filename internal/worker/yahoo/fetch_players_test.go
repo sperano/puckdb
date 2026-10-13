@@ -106,7 +106,8 @@ func TestPlanYahooLeaguePlayerPool_OldManifest_Refreshes(t *testing.T) {
 
 func TestPlanYahooLeaguePlayerPool_SeasonPhaseCadence(t *testing.T) {
 	const (
-		manifestAge                  = 20 * time.Hour
+		freshManifestAge             = 20 * time.Hour
+		staleManifestAge             = 24*time.Hour + time.Minute
 		expectedPreseasonMaxAgeHours = 12
 		expectedInSeasonMaxAgeHours  = 24
 	)
@@ -115,19 +116,29 @@ func TestPlanYahooLeaguePlayerPool_SeasonPhaseCadence(t *testing.T) {
 	tests := []struct {
 		name        string
 		now         time.Time
+		manifestAge time.Duration
 		wantRefresh bool
 		wantMaxAge  time.Duration
 	}{
 		{
 			name:        "day_before_start_uses_preseason_max_age",
 			now:         time.Date(2026, time.October, 5, 12, 0, 0, 0, time.UTC),
+			manifestAge: freshManifestAge,
 			wantRefresh: true,
 			wantMaxAge:  expectedPreseasonMaxAgeHours * time.Hour,
 		},
 		{
 			name:        "day_after_start_uses_in_season_max_age",
 			now:         time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC),
+			manifestAge: freshManifestAge,
 			wantRefresh: false,
+			wantMaxAge:  expectedInSeasonMaxAgeHours * time.Hour,
+		},
+		{
+			name:        "in_season_manifest_older_than_max_age_refreshes",
+			now:         time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC),
+			manifestAge: staleManifestAge,
+			wantRefresh: true,
 			wantMaxAge:  expectedInSeasonMaxAgeHours * time.Hour,
 		},
 	}
@@ -139,7 +150,7 @@ func TestPlanYahooLeaguePlayerPool_SeasonPhaseCadence(t *testing.T) {
 			manifest := resource.LeaguePlayerPool{Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID}
 			require.NoError(t, resource.WriteParsed(context.Background(), mem, manifest, resource.LeaguePlayerPoolManifest{
 				LeagueKey: "465.l.77777", GameKey: yahoofixtures.PointsGameKey,
-				FetchedAt: tt.now.Add(-manifestAge), Starts: []int{0}, Players: 7,
+				FetchedAt: tt.now.Add(-tt.manifestAge), Starts: []int{0}, Players: 7,
 			}))
 			a := &FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
 
@@ -152,7 +163,7 @@ func TestPlanYahooLeaguePlayerPool_SeasonPhaseCadence(t *testing.T) {
 			if tt.wantRefresh {
 				assert.Contains(t, plan.Reason, tt.wantMaxAge.String())
 			} else {
-				assert.Contains(t, plan.Reason, "20h0m0s ago")
+				assert.Contains(t, plan.Reason, tt.manifestAge.String()+" ago")
 			}
 			assert.Equal(t, 7, plan.PreviousPlayerCount)
 		})
