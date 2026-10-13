@@ -2259,19 +2259,20 @@ SELECT ranked.turn_id, ranked.round_index, ranked.sequence, ranked.tool_name,
        ranked.failure_reason, ranked.applied_transaction_id, ranked.call_count
 FROM (
     SELECT c.turn_id, c.round_index, c.sequence, c.tool_name, c.recovered_name,
-           c.arguments_raw, c.outcome, c.failure_reason, c.applied_transaction_id,
+           substr(c.arguments_raw, 1, $1::INT)::TEXT AS arguments_raw, c.outcome, c.failure_reason, c.applied_transaction_id,
            row_number() OVER (PARTITION BY c.turn_id ORDER BY c.round_index, c.sequence) AS call_rank,
            count(*) OVER (PARTITION BY c.turn_id) AS call_count
     FROM sim_agent_tool_calls c
-    WHERE c.turn_id = ANY($1::INT[])
+    WHERE c.turn_id = ANY($2::INT[])
 ) ranked
-WHERE ranked.call_rank <= $2::BIGINT
+WHERE ranked.call_rank <= $3::BIGINT
 ORDER BY ranked.turn_id, ranked.round_index, ranked.sequence
 `
 
 type ListSimToolCallsForTurnsParams struct {
-	TurnIds    []int32 `json:"turn_ids"`
-	MaxPerTurn int64   `json:"max_per_turn"`
+	MaxArgumentsChars int32   `json:"max_arguments_chars"`
+	TurnIds           []int32 `json:"turn_ids"`
+	MaxPerTurn        int64   `json:"max_per_turn"`
 }
 
 type ListSimToolCallsForTurnsRow struct {
@@ -2290,9 +2291,11 @@ type ListSimToolCallsForTurnsRow struct {
 // ListSimToolCallsForTurns returns the first max_per_turn tool calls of
 // each listed turn in execution order, with call_count = all the turn's
 // calls so the caller can say how many it left out. Only the columns the
-// tail prints: never result, arguments (jsonb) or latency.
+// tail prints: never result, arguments (jsonb) or latency. arguments_raw is
+// cut to its first max_arguments_chars characters, so a page reads a bounded
+// amount however long a stored argument is.
 func (q *Queries) ListSimToolCallsForTurns(ctx context.Context, arg ListSimToolCallsForTurnsParams) ([]ListSimToolCallsForTurnsRow, error) {
-	rows, err := q.db.Query(ctx, listSimToolCallsForTurns, arg.TurnIds, arg.MaxPerTurn)
+	rows, err := q.db.Query(ctx, listSimToolCallsForTurns, arg.MaxArgumentsChars, arg.TurnIds, arg.MaxPerTurn)
 	if err != nil {
 		return nil, err
 	}

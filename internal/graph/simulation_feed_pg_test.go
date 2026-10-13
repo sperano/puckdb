@@ -239,6 +239,33 @@ func TestSimTurnFeed_ArgumentsCutOnRuneBoundary(t *testing.T) {
 	assert.True(t, strings.HasPrefix(strings.Join(strings.Fields(raw), " "), got))
 }
 
+// The query reads at most simTurnFeedMaxArgumentsReadChars characters (not
+// bytes) of arguments_raw: an argument of exactly that length still names its
+// player, one character more is read cut and names nobody, and both previews
+// match the full text's.
+func TestSimTurnFeed_ArgumentsReadBound(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	f.seed.Player(8478402, "Connor", "McDavid", nil)
+	const head, tail = `{"player_id":8478402,"note":"`, `"}`
+	padding := simTurnFeedMaxArgumentsReadChars - utf8.RuneCountInString(head+tail)
+	atBound := head + strings.Repeat("é", padding) + tail
+	overBound := head + strings.Repeat("é", padding+1) + tail
+	require.Equal(t, simTurnFeedMaxArgumentsReadChars, utf8.RuneCountInString(atBound))
+	for i, raw := range []string{atBound, overBound} {
+		turn := f.turn(f.pool, f.agent, i)
+		f.seed.ToolCall(simfixtures.ToolCall{TurnID: turn, ToolName: "note", ArgumentsRaw: raw, Outcome: "accepted"})
+	}
+
+	page := f.feed(t, nil, nil, simTurnFeedDefaultLimit)
+	require.Len(t, page.Turns, 2)
+	at, over := page.Turns[0].ToolCalls[0], page.Turns[1].ToolCalls[0]
+	assert.Equal(t, []string{"Connor McDavid"}, at.PlayerNames)
+	assert.Empty(t, over.PlayerNames)
+	assert.Equal(t, collapseAndCutArguments(atBound, SimTurnFeedMaxArgumentsBytes), at.Arguments)
+	assert.Equal(t, collapseAndCutArguments(overBound, SimTurnFeedMaxArgumentsBytes), over.Arguments)
+}
+
 // legacyDraftSQL is the inline query `sim draft` ran against PostgreSQL
 // before simDraftPicks; ListSimDraftPicks must return the same rows.
 const legacyDraftSQL = `

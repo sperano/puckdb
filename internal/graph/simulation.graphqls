@@ -154,12 +154,12 @@ type SimTurnToolCall {
   sequence: Int!
   toolName: String!
   recoveredName: String
-  """arguments_raw with whitespace collapsed, cut on a rune boundary at simTurnFeedMaxArgumentsBytes."""
+  """The first simTurnFeedMaxArgumentsReadChars characters of arguments_raw, whitespace collapsed, cut on a rune boundary at simTurnFeedMaxArgumentsBytes."""
   arguments: String!
   outcome: String!
   failureReason: String
   appliedTransactionId: Int
-  """Names of the integer player_id / drop_player_id values in the arguments, in first appearance, deduplicated by id; unknown ids are left out."""
+  """Names of the integer player_id / drop_player_id values in the arguments, in first appearance, deduplicated by id; unknown ids are left out, and arguments longer than simTurnFeedMaxArgumentsReadChars characters name nobody."""
   playerNames: [String!]!
 }
 

@@ -40,6 +40,13 @@ const (
 	// (with its "...") from the leading bytes it used to read from the
 	// database.
 	SimTurnFeedMaxArgumentsBytes = 512
+	// simTurnFeedMaxArgumentsReadChars bounds how much of each arguments_raw
+	// a page reads, so neither the response nor the work behind it grows with
+	// a stored argument. A full set_lineup (one ~35-byte move per roster
+	// slot) is around 1 KB. A longer argument is read cut: its preview is
+	// unchanged unless those characters collapse to SimTurnFeedMaxArgumentsBytes
+	// or less, and it names no players, since cut JSON does not parse.
+	simTurnFeedMaxArgumentsReadChars = 8192
 	// simDraftPicksMaxRows bounds simDraftPicks; a pool with more picks is an
 	// error rather than a silently cut list.
 	simDraftPicksMaxRows = 2000
@@ -149,7 +156,7 @@ func (r *Resolver) assembleSimTurnFeed(ctx context.Context, turns []sqlcdb.ListS
 		ids[i] = t.ID
 	}
 	calls, err := r.Queries.ListSimToolCallsForTurns(ctx, sqlcdb.ListSimToolCallsForTurnsParams{
-		TurnIds: ids, MaxPerTurn: simTurnFeedMaxToolCallsPerTurn,
+		TurnIds: ids, MaxPerTurn: simTurnFeedMaxToolCallsPerTurn, MaxArgumentsChars: simTurnFeedMaxArgumentsReadChars,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list sim tool calls: %w", err)

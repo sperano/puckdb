@@ -26,7 +26,8 @@ const (
 	EnvTestPGURL = "PUCKDB_TEST_PG_URL"
 	// databasePrefix keeps the "test" marker other harnesses look for.
 	databasePrefix = "puckdb_test_sim"
-	// setupTimeout bounds creating, migrating and dropping one database.
+	// setupTimeout bounds creating and migrating one database, and
+	// separately dropping it.
 	setupTimeout = 2 * time.Minute
 
 	// fixtureSeason is the season every fixture pool belongs to; Pool
@@ -65,8 +66,23 @@ func NewDatabase(t testing.TB) string {
 	parsed, err := url.Parse(baseURL)
 	require.NoError(t, err)
 	parsed.Path = "/" + name
-	require.NoError(t, database.MigrateUp(parsed.String()))
+	migrateUp(ctx, t, parsed.String())
 	return parsed.String()
+}
+
+// migrateUp migrates dbURL, failing the test when ctx ends first:
+// database.MigrateUp takes no context. The cleanup's DROP DATABASE ... WITH
+// (FORCE) then ends the abandoned migration's connection.
+func migrateUp(ctx context.Context, t testing.TB, dbURL string) {
+	t.Helper()
+	done := make(chan error, 1)
+	go func() { done <- database.MigrateUp(dbURL) }()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatalf("migrate test database: %v", context.Cause(ctx))
+	}
 }
 
 // NewPool opens a pool on dbURL that is closed at cleanup.

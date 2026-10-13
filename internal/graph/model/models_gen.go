@@ -1180,12 +1180,12 @@ type SimTurnToolCall struct {
 	Sequence      int     `json:"sequence"`
 	ToolName      string  `json:"toolName"`
 	RecoveredName *string `json:"recoveredName,omitempty"`
-	// arguments_raw with whitespace collapsed, cut on a rune boundary at simTurnFeedMaxArgumentsBytes.
+	// The first simTurnFeedMaxArgumentsReadChars characters of arguments_raw, whitespace collapsed, cut on a rune boundary at simTurnFeedMaxArgumentsBytes.
 	Arguments            string  `json:"arguments"`
 	Outcome              string  `json:"outcome"`
 	FailureReason        *string `json:"failureReason,omitempty"`
 	AppliedTransactionID *int    `json:"appliedTransactionId,omitempty"`
-	// Names of the integer player_id / drop_player_id values in the arguments, in first appearance, deduplicated by id; unknown ids are left out.
+	// Names of the integer player_id / drop_player_id values in the arguments, in first appearance, deduplicated by id; unknown ids are left out, and arguments longer than simTurnFeedMaxArgumentsReadChars characters name nobody.
 	PlayerNames []string `json:"playerNames"`
 }
 

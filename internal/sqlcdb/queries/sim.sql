@@ -889,14 +889,16 @@ LIMIT sqlc.arg(row_limit);
 -- ListSimToolCallsForTurns returns the first max_per_turn tool calls of
 -- each listed turn in execution order, with call_count = all the turn's
 -- calls so the caller can say how many it left out. Only the columns the
--- tail prints: never result, arguments (jsonb) or latency.
+-- tail prints: never result, arguments (jsonb) or latency. arguments_raw is
+-- cut to its first max_arguments_chars characters, so a page reads a bounded
+-- amount however long a stored argument is.
 -- name: ListSimToolCallsForTurns :many
 SELECT ranked.turn_id, ranked.round_index, ranked.sequence, ranked.tool_name,
        ranked.recovered_name, ranked.arguments_raw, ranked.outcome,
        ranked.failure_reason, ranked.applied_transaction_id, ranked.call_count
 FROM (
     SELECT c.turn_id, c.round_index, c.sequence, c.tool_name, c.recovered_name,
-           c.arguments_raw, c.outcome, c.failure_reason, c.applied_transaction_id,
+           substr(c.arguments_raw, 1, sqlc.arg(max_arguments_chars)::INT)::TEXT AS arguments_raw, c.outcome, c.failure_reason, c.applied_transaction_id,
            row_number() OVER (PARTITION BY c.turn_id ORDER BY c.round_index, c.sequence) AS call_rank,
            count(*) OVER (PARTITION BY c.turn_id) AS call_count
     FROM sim_agent_tool_calls c

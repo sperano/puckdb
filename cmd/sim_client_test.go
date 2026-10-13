@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,23 +16,42 @@ import (
 )
 
 // recordingGraphQLServer answers every request with `{"data": data}` (or
-// with errors when errMsg is set) and keeps the last request.
-func recordingGraphQLServer(t *testing.T, data, errMsg string) (*httptest.Server, *graphQLRequest) {
+// with errors when errMsg is set). The returned func gives the last request;
+// the handler goroutine stores it under a mutex.
+func recordingGraphQLServer(t *testing.T, data, errMsg string) (*httptest.Server, func() graphQLRequest) {
 	t.Helper()
-	var last graphQLRequest
+	var (
+		mu   sync.Mutex
+		last graphQLRequest
+	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&last))
+		var req graphQLRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			// require would call FailNow off the test goroutine.
+			t.Errorf("decode GraphQL request: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		last = req
+		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		if errMsg != "" {
 			body, err := json.Marshal(map[string]any{"data": nil, "errors": []map[string]string{{"message": errMsg}}})
-			require.NoError(t, err)
+			if err != nil {
+				t.Errorf("encode GraphQL errors: %v", err)
+			}
 			_, _ = w.Write(body)
 			return
 		}
 		_, _ = w.Write([]byte(`{"data":` + data + `}`))
 	}))
 	t.Cleanup(srv.Close)
-	return srv, &last
+	return srv, func() graphQLRequest {
+		mu.Lock()
+		defer mu.Unlock()
+		return last
+	}
 }
 
 const simTurnFeedResponse = `{"simTurnFeed": {"lastId": 42, "hasMore": true, "turns": [
@@ -49,13 +69,13 @@ const simTurnFeedResponse = `{"simTurnFeed": {"lastId": 42, "hasMore": true, "tu
 // response field by field onto the structs the formatters print.
 func TestGraphQLClient_SimTurnFeed(t *testing.T) {
 	t.Parallel()
-	srv, req := recordingGraphQLServer(t, simTurnFeedResponse, "")
+	srv, lastRequest := recordingGraphQLServer(t, simTurnFeedResponse, "")
 	pool, after := 3, 40
 	page, err := newClientForTestServer(srv).SimTurnFeed(context.Background(), &pool, &after, 100)
 	require.NoError(t, err)
 
-	assert.Contains(t, req.Query, "simTurnFeed(")
-	assert.Equal(t, map[string]any{"poolId": 3.0, "afterId": 40.0, "limit": 100.0}, req.Variables)
+	assert.Contains(t, lastRequest().Query, "simTurnFeed(")
+	assert.Equal(t, map[string]any{"poolId": 3.0, "afterId": 40.0, "limit": 100.0}, lastRequest().Variables)
 	assert.Equal(t, 42, page.LastID)
 	assert.True(t, page.HasMore)
 	require.Len(t, page.Entries, 2)
@@ -83,11 +103,11 @@ func TestGraphQLClient_SimTurnFeed(t *testing.T) {
 
 func TestGraphQLClient_SimTurnFeedAllPoolsSendsNulls(t *testing.T) {
 	t.Parallel()
-	srv, req := recordingGraphQLServer(t, `{"simTurnFeed": {"lastId": 0, "hasMore": false, "turns": []}}`, "")
+	srv, lastRequest := recordingGraphQLServer(t, `{"simTurnFeed": {"lastId": 0, "hasMore": false, "turns": []}}`, "")
 	page, err := newClientForTestServer(srv).SimTurnFeed(context.Background(), nil, nil, tailBacklog)
 	require.NoError(t, err)
 	assert.Empty(t, page.Entries)
-	assert.Equal(t, map[string]any{"poolId": nil, "afterId": nil, "limit": float64(tailBacklog)}, req.Variables)
+	assert.Equal(t, map[string]any{"poolId": nil, "afterId": nil, "limit": float64(tailBacklog)}, lastRequest().Variables)
 }
 
 // olderServerStatus is what gqlgen answers a query that fails validation
@@ -149,14 +169,14 @@ func TestGraphQLClient_SimTurnFeedOtherErrorsPassThrough(t *testing.T) {
 
 func TestGraphQLClient_SimDraftPicks(t *testing.T) {
 	t.Parallel()
-	srv, req := recordingGraphQLServer(t, `{"simDraftPicks": [
+	srv, lastRequest := recordingGraphQLServer(t, `{"simDraftPicks": [
 		{"agentId": 4, "teamName": "", "strategySummary": "", "model": "m", "draftPosition": 2,
 		 "round": 1, "pick": 3, "playerId": 8478402, "playerName": "Connor McDavid", "position": "C", "reasoning": "r"},
 		{"agentId": 5, "teamName": "T", "strategySummary": "s", "model": "", "draftPosition": null,
 		 "round": 2, "pick": 1, "playerId": 0, "playerName": "", "position": "?", "reasoning": ""}]}`, "")
 	rows, err := newClientForTestServer(srv).SimDraftPicks(context.Background(), 9)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]any{"poolId": 9.0}, req.Variables)
+	assert.Equal(t, map[string]any{"poolId": 9.0}, lastRequest().Variables)
 	pos := int32(2)
 	assert.Equal(t, []draftRow{
 		{AgentID: 4, Model: "m", DraftPosition: &pos, Round: 1, Pick: 3, PlayerID: 8478402,
