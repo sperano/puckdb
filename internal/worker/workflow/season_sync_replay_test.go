@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	historypb "go.temporal.io/api/history/v1"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/worker"
 	temporalworkflow "go.temporal.io/sdk/workflow"
@@ -30,9 +32,11 @@ const (
 	seasonReplayRunTimeout    = 30 * time.Second
 	seasonReplayFetchName     = "FetchSeasonsWorkflow"
 	seasonReplayImportName    = "ImportSeasonsWorkflow"
-	// seasonReplayYahooDelay keeps the Yahoo child running while the NHL
-	// child starts and finishes, so the recorded history interleaves them.
-	seasonReplayYahooDelay = 2 * time.Second
+	// The barrier activities hold the Yahoo child open until the NHL child
+	// has run, so the recorded history interleaves them.
+	seasonReplayAwaitNHLActivity = "ReplayAwaitNHLChild"
+	seasonReplayMarkNHLActivity  = "ReplayMarkNHLChild"
+	seasonReplayBarrierAttempts  = 1
 )
 
 func TestSeasonSyncParentsReplayLegacyHistoryWithChangedYahooConfig(t *testing.T) {
@@ -95,10 +99,12 @@ func TestFetchSeasonsReplaysConcurrentGroupsHistory(t *testing.T) {
 	taskQueue := seasonReplayName("season-sync-concurrent-replay")
 	w := worker.New(temporalClient, taskQueue, worker.Options{})
 	w.RegisterWorkflowWithOptions(FetchSeasonsWorkflow, temporalworkflow.RegisterOptions{Name: seasonReplayFetchName})
-	w.RegisterWorkflowWithOptions(replaySlowFetchYahooChild,
+	w.RegisterWorkflowWithOptions(replayBarrierFetchYahooChild,
 		temporalworkflow.RegisterOptions{Name: "FetchYahooSeasonWorkflow"})
-	w.RegisterWorkflowWithOptions(replayFetchNHLChild, temporalworkflow.RegisterOptions{Name: "FetchNHLSeasonWorkflow"})
+	w.RegisterWorkflowWithOptions(replayBarrierFetchNHLChild,
+		temporalworkflow.RegisterOptions{Name: "FetchNHLSeasonWorkflow"})
 	registerSeasonReplayActivities(w, []nhl.SeasonInfo{testSeasonW(preseasonTestYear, "2026-09-29", "2026-10-01")})
+	registerNHLChildBarrier(w)
 	w.RegisterActivityWithOptions(func(context.Context, int) ([]string, error) { return []string{"MTL"}, nil },
 		activity.RegisterOptions{Name: "ListSeasonTeams"})
 	require.NoError(t, w.Start())
@@ -125,14 +131,45 @@ func TestFetchSeasonsReplaysConcurrentGroupsHistory(t *testing.T) {
 	require.NoError(t, replayer.ReplayWorkflowHistory(nil, history))
 }
 
-func replaySlowFetchYahooChild(ctx temporalworkflow.Context, _ YahooSeasonWorkflowInput) (YahooSeasonSyncResult, error) {
-	if err := temporalworkflow.Sleep(ctx, seasonReplayYahooDelay); err != nil {
+// registerNHLChildBarrier registers the barrier activities: the Yahoo child's
+// await returns only once the NHL child's mark has run, whatever the
+// scheduling delays.
+func registerNHLChildBarrier(w worker.Worker) {
+	nhlRan := make(chan struct{})
+	var markOnce sync.Once
+	w.RegisterActivityWithOptions(func(context.Context) error {
+		markOnce.Do(func() { close(nhlRan) })
+		return nil
+	}, activity.RegisterOptions{Name: seasonReplayMarkNHLActivity})
+	w.RegisterActivityWithOptions(func(ctx context.Context) error {
+		select {
+		case <-nhlRan:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}, activity.RegisterOptions{Name: seasonReplayAwaitNHLActivity})
+}
+
+func runReplayBarrierActivity(ctx temporalworkflow.Context, name string) error {
+	ctx = temporalworkflow.WithActivityOptions(ctx, temporalworkflow.ActivityOptions{
+		StartToCloseTimeout: seasonReplayRunTimeout,
+		RetryPolicy:         &temporal.RetryPolicy{MaximumAttempts: seasonReplayBarrierAttempts},
+	})
+	return temporalworkflow.ExecuteActivity(ctx, name).Get(ctx, nil)
+}
+
+func replayBarrierFetchYahooChild(ctx temporalworkflow.Context, _ YahooSeasonWorkflowInput) (YahooSeasonSyncResult, error) {
+	if err := runReplayBarrierActivity(ctx, seasonReplayAwaitNHLActivity); err != nil {
 		return YahooSeasonSyncResult{}, err
 	}
 	return YahooSeasonSyncResult{LeagueTotals: []int{1}}, nil
 }
 
-func replayFetchNHLChild(temporalworkflow.Context, nhl.SeasonInfo) (core.OriginCounts, error) {
+func replayBarrierFetchNHLChild(ctx temporalworkflow.Context, _ nhl.SeasonInfo) (core.OriginCounts, error) {
+	if err := runReplayBarrierActivity(ctx, seasonReplayMarkNHLActivity); err != nil {
+		return nil, err
+	}
 	return core.OriginCounts{}, nil
 }
 
