@@ -160,7 +160,8 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 	tracker.StartGroup(ctx, GroupFetchYahooPlayers)
 
 	var yahooAct *yahoo.FetchActivities
-	activityCtx := workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
+	// Each batch downloads up to activityBatchSize pages behind the rate limiter.
+	activityCtx := workflow.WithActivityOptions(ctx, shared.YahooDownloadActivityOptions())
 	startActivity := func(ctx workflow.Context, batchIndex int) workflow.Future {
 		batchStartID := startID + (batchIndex * activityBatchSize)
 		batchEndID := batchStartID + activityBatchSize - 1

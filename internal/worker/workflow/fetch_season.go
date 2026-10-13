@@ -89,7 +89,7 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 
 	// Process days in parallel using RunWorkerPool
 	// FetchDayActivity needs longer timeout due to rate-limited Yahoo downloads
-	dayCtx := workflow.WithActivityOptions(ctx, shared.FetchDayActivityOptions())
+	dayCtx := workflow.WithActivityOptions(ctx, shared.YahooDownloadActivityOptions())
 	startDate := season.StandingsStart.Time
 	startSeason := season.ID.StartYear()
 	counts := core.OriginCounts{}

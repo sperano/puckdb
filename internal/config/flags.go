@@ -379,7 +379,7 @@ var TemporalRetryFlags = FlagGroup{
 		{FlagTemporalRetryMaxAttempts, "", DefaultTemporalRetryMaxAttempts, "Maximum number of activity retry attempts (0 for unlimited)", false},
 		{FlagWorkflowExecutionTimeout, "", DefaultWorkflowExecutionTimeout, "Workflow execution timeout in minutes", false},
 		{FlagActivityStartToCloseTimeout, "", DefaultActivityStartToCloseTimeout, "Activity start-to-close timeout in minutes", false},
-		{FlagFetchDayActivityTimeout, "", DefaultFetchDayActivityTimeout, "Fetch day activity timeout in minutes", false},
+		{FlagFetchDayActivityTimeout, "", DefaultFetchDayActivityTimeout, "Timeout in minutes of activities that make many rate-limited Yahoo downloads (FetchDay, FetchYahooPlayerBatch)", false},
 		{FlagActivityHeartbeatTimeout, "", DefaultActivityHeartbeatTimeout, "Activity heartbeat timeout in seconds", false},
 	},
 }
