@@ -361,6 +361,9 @@ const (
 	testDownloadLatency    = 200 * time.Millisecond
 	testRateLimitPerSecond = 100
 	testFailingTeamID      = 2
+	// testFailureDelay holds the first download back so the scheduling loop
+	// is already waiting in g.Go for its slot when it fails.
+	testFailureDelay = 50 * time.Millisecond
 )
 
 var testTeamXML = []byte(`<fantasy_content><team></team></fantasy_content>`)
@@ -483,6 +486,28 @@ func (s *FetchDayTestSuite) TestYahooTeamDownloadsPacedByRateLimiter() {
 	s.Require().NoError(err)
 	sequential := time.Duration(downloads) * testDownloadLatency
 	s.Less(elapsed, sequential/2, "a day's %d downloads should not run one after another", downloads)
+}
+
+// TestYahooTeamsStartNothingAfterFailure checks that a download whose slot
+// was freed by a failing one does not run: with a limit of 1, the second
+// download waits in g.Go until the first fails and cancels the group.
+func (s *FetchDayTestSuite) TestYahooTeamsStartNothingAfterFailure() {
+	setYahooTeamConcurrency(s.T(), 1)
+	var calls atomic.Int64
+	dl := func(context.Context, string) ([]byte, error) {
+		if calls.Add(1) == 1 {
+			time.Sleep(testFailureDelay)
+			return nil, errors.New("first download failed")
+		}
+		return testTeamXML, nil
+	}
+	a := s.newFetchDayActivities(s.newSeededMemStorage(), dl, cache.NewGobCache(nil))
+	s.env.RegisterActivity(a.FetchDay)
+
+	_, err := s.env.ExecuteActivity(a.FetchDay, FetchDayInput{Day: s.day, StartSeason: testYahooSeason, TeamIDs: testTeams(testOverlapTeams)})
+
+	s.Require().ErrorContains(err, "first download failed")
+	s.Equal(int64(1), calls.Load(), "no download should start after the first failure")
 }
 
 func TestFetchYahooTeamsReportsCancellation(t *testing.T) {

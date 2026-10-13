@@ -103,6 +103,11 @@ schedule:
 				break schedule
 			}
 			g.Go(func() error {
+				// g.Go may have waited for the slot a failing download
+				// freed after canceling gctx.
+				if err := gctx.Err(); err != nil {
+					return err
+				}
 				activity.RecordHeartbeat(gctx, nil)
 				if err := a.fetchYahooResource(gctx, res); err != nil {
 					return fmt.Errorf("league %d team %d: %w", team.LeagueID, team.TeamID, err)
