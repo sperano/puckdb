@@ -12,20 +12,34 @@ import (
 const (
 	untilTestTotal       = 10
 	untilTestConcurrency = 3
-	// untilTestStopIndex is the item whose handling stops dispatching.
-	untilTestStopIndex = 4
-	// untilTestNeverStop disables stopping.
+	// untilTestStopAfter is how many handled items stop dispatching.
+	untilTestStopAfter = 2
+	// untilTestStopAtOnce stops before the first dispatch.
+	untilTestStopAtOnce = 0
+	// untilTestNeverStop stops only once every item is handled, when nothing
+	// is left to dispatch.
 	untilTestNeverStop = untilTestTotal
 )
 
-// runActivitiesUntilWorkflow runs RunActivitiesUntil, stopping once the item
-// at stopIndex has been handled (immediately when stopIndex is negative).
-func runActivitiesUntilWorkflow(ctx workflow.Context, stopIndex int) (workerPoolResult, error) {
+// untilResult is what runActivitiesUntilWorkflow observed.
+type untilResult struct {
+	Processed  []int
+	Dispatched int
+	// DispatchedAtStop is Dispatched when the handler that made stop report
+	// true ran; -1 when stop never reported true from a handler.
+	DispatchedAtStop int
+	Err              string
+}
+
+// runActivitiesUntilWorkflow runs RunActivitiesUntil, stopping once stopAfter
+// items have been handled. Counting handled items rather than waiting for a
+// given index keeps the bounds independent of the order in which the local
+// activities complete.
+func runActivitiesUntilWorkflow(ctx workflow.Context, stopAfter int) (untilResult, error) {
 	ctx = workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
 		ScheduleToCloseTimeout: activityTestTimeout,
 	})
-	res := workerPoolResult{}
-	stopped := stopIndex < 0
+	res := untilResult{DispatchedAtStop: -1}
 	start := func(c workflow.Context, index int) workflow.Future {
 		res.Dispatched++
 		return workflow.ExecuteLocalActivity(c, workerPoolActivity, index)
@@ -36,24 +50,27 @@ func runActivitiesUntilWorkflow(ctx workflow.Context, stopIndex int) (workerPool
 			return err
 		}
 		res.Processed = append(res.Processed, index)
-		stopped = stopped || index == stopIndex
+		if len(res.Processed) == stopAfter {
+			res.DispatchedAtStop = res.Dispatched
+		}
 		return nil
 	}
-	err := RunActivitiesUntil(ctx, untilTestTotal, untilTestConcurrency, start, handler, func() bool { return stopped })
+	stop := func() bool { return len(res.Processed) >= stopAfter }
+	err := RunActivitiesUntil(ctx, untilTestTotal, untilTestConcurrency, start, handler, stop)
 	res.Err = errString(err)
 	return res, nil
 }
 
-func executeActivitiesUntil(t *testing.T, stopIndex int) workerPoolResult {
+func executeActivitiesUntil(t *testing.T, stopAfter int) untilResult {
 	t.Helper()
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(runActivitiesUntilWorkflow)
 	env.RegisterActivity(workerPoolActivity)
-	env.ExecuteWorkflow(runActivitiesUntilWorkflow, stopIndex)
+	env.ExecuteWorkflow(runActivitiesUntilWorkflow, stopAfter)
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
-	var result workerPoolResult
+	var result untilResult
 	require.NoError(t, env.GetWorkflowResult(&result))
 	require.Empty(t, result.Err)
 	return result
@@ -62,17 +79,19 @@ func executeActivitiesUntil(t *testing.T, stopIndex int) workerPoolResult {
 // Once stop reports true nothing new is dispatched, but every item already
 // in flight is still handled.
 func TestRunActivitiesUntil_StopsDispatchingAndDrainsInFlight(t *testing.T) {
-	result := executeActivitiesUntil(t, untilTestStopIndex)
+	result := executeActivitiesUntil(t, untilTestStopAfter)
 
-	assert.Greater(t, result.Dispatched, untilTestStopIndex)
-	assert.LessOrEqual(t, result.Dispatched, untilTestStopIndex+untilTestConcurrency,
-		"at most the items in flight when the stop item was handled follow it")
+	require.NotEqual(t, -1, result.DispatchedAtStop, "the stopping handler ran")
+	assert.Equal(t, result.DispatchedAtStop, result.Dispatched, "nothing is dispatched after stop")
+	// When the stopping handler runs, its own item and at most concurrency-1
+	// others are in flight besides the items already handled.
+	assert.LessOrEqual(t, result.Dispatched, untilTestStopAfter-1+untilTestConcurrency)
 	assert.Less(t, result.Dispatched, untilTestTotal)
 	assert.ElementsMatch(t, indexes(result.Dispatched), result.Processed, "no dispatched item is abandoned")
 }
 
 func TestRunActivitiesUntil_StopBeforeFirstDispatch(t *testing.T) {
-	result := executeActivitiesUntil(t, -1)
+	result := executeActivitiesUntil(t, untilTestStopAtOnce)
 
 	assert.Zero(t, result.Dispatched)
 	assert.Empty(t, result.Processed)
