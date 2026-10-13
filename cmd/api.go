@@ -81,8 +81,10 @@ func cmdAPI() *cobra.Command {
 			redisClient := newRedisClient()
 			defer func() { _ = redisClient.Close() }()
 
-			// create temporal client for GraphQL resolver
-			temporalClient, err := newTemporalClient()
+			// create temporal client for GraphQL resolver. The API process
+			// starts no Temporal workers, so there is nothing worth reporting
+			// through a metrics handler here.
+			temporalClient, err := newTemporalClient(nil)
 			if err != nil {
 				return err
 			}

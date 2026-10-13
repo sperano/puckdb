@@ -148,7 +148,18 @@ func cmdWorker() *cobra.Command {
 				}
 			}()
 
-			tclient, err := newTemporalClient()
+			// Reports Temporal SDK metrics (schedule-to-start latency, task
+			// slot gauges, poll counts) on the same registry/endpoint as the
+			// puckdb_* worker metrics, so queueing on this worker's task
+			// queues is visible in Prometheus.
+			temporalMetricsHandler, closeTemporalMetrics := temporal.NewMetricsHandler(metrics.WorkerRegistry)
+			defer func() {
+				if err := closeTemporalMetrics.Close(); err != nil {
+					log.Warn().Err(err).Msg("failed to close temporal metrics handler")
+				}
+			}()
+
+			tclient, err := newTemporalClient(temporalMetricsHandler)
 			if err != nil {
 				return err
 			}

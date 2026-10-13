@@ -74,6 +74,7 @@ const (
 	DefaultYahooPlayerActivityBatchSize = 100
 	DefaultYahooPlayersPerExecution     = 5000
 	DefaultYahooPlayerPoolMaxAge        = 12 // hours
+	DefaultYahooPoolLeagueConcurrency   = 3
 )
 
 // Yahoo request rate limit defaults. The limit is per process: 16 worker
