@@ -190,6 +190,7 @@ const (
 	FlagYahooPlayerActivityBatchSize = "yahoo-player-activity-batch-size"
 	FlagYahooPlayersPerExecution     = "yahoo-players-per-execution"
 	FlagYahooPlayerPoolMaxAge        = "yahoo-player-pool-max-age"
+	FlagYahooPoolLeagueConcurrency   = "yahoo-pool-league-concurrency"
 	FlagYahooDownloadSleepMin        = "yahoo-download-sleep-min"
 	FlagYahooDownloadSleepMax        = "yahoo-download-sleep-max"
 )
@@ -417,6 +418,7 @@ var YahooPlayerFlags = FlagGroup{
 		{FlagYahooPlayerActivityBatchSize, "", DefaultYahooPlayerActivityBatchSize, "Number of players to process per activity", false},
 		{FlagYahooPlayersPerExecution, "", DefaultYahooPlayersPerExecution, "Players to process per workflow execution before ContinueAsNew", false},
 		{FlagYahooPlayerPoolMaxAge, "", DefaultYahooPlayerPoolMaxAge, "Hours before a league's Yahoo player pool (eligibility and status) is downloaded again", false},
+		{FlagYahooPoolLeagueConcurrency, "", DefaultYahooPoolLeagueConcurrency, "Number of leagues of one season whose Yahoo player pools are downloaded concurrently", false},
 	},
 }
 
