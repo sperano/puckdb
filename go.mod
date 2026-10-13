@@ -18,6 +18,7 @@ require (
 	github.com/mark3labs/mcp-go v0.45.0
 	github.com/mattn/go-runewidth v0.0.17
 	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_model v0.6.2
 	github.com/rs/zerolog v1.34.0
 	github.com/sperano/nhl-api-go v0.0.0-20260926210731-71e3d0b803ce
 	github.com/spf13/cobra v1.2.1
@@ -95,7 +96,6 @@ require (
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

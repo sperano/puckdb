@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,13 +26,21 @@ func TestNewMetricsHandler_RegistersTemporalMetricsOnTheGivenRegistry(t *testing
 	families, err := registry.Gather()
 	require.NoError(t, err)
 
-	names := make(map[string]bool, len(families))
+	byName := make(map[string]*dto.MetricFamily, len(families))
 	for _, f := range families {
-		names[f.GetName()] = true
+		byName[f.GetName()] = f
 	}
-	assert.True(t, names["test_counter_total"], "expected counter metric, got %v", names)
-	assert.True(t, names["test_gauge"], "expected gauge metric, got %v", names)
-	assert.True(t, names["test_timer_seconds"], "expected timer metric, got %v", names)
+	assert.NotNil(t, byName["test_counter_total"], "expected counter metric, got %v", byName)
+	assert.NotNil(t, byName["test_gauge"], "expected gauge metric, got %v", byName)
+
+	// Must be a histogram, not tally/Prometheus's default summary: a
+	// summary's quantiles are computed client-side and cannot be aggregated
+	// across pods or task queues, which would defeat the point of exporting
+	// schedule-to-start latency as a fleet-wide queueing signal.
+	timer := byName["test_timer_seconds"]
+	if assert.NotNil(t, timer, "expected timer metric, got %v", byName) {
+		assert.Equal(t, dto.MetricType_HISTOGRAM, timer.GetType())
+	}
 }
 
 func TestNewMetricsHandler_WithTagsScopesSubsequentMetrics(t *testing.T) {

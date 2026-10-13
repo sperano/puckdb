@@ -264,6 +264,16 @@ The Prometheus registry is split in three (see `internal/metrics/metrics.go`):
 | `puckdb_download_total` | Counter | `file_type`, `result` | Downloads by result (hit/miss/error) |
 | `puckdb_activity_duration_seconds` | Histogram | `activity` | Temporal activity duration |
 
+The worker's `/metrics` also serves the Temporal Go SDK's own `temporal_*`
+series (`internal/temporal/metrics.go`, via `go.temporal.io/sdk/contrib/tally`),
+registered on the same `WorkerRegistry`: `temporal_activity_schedule_to_start_latency_seconds`
+and `temporal_workflow_task_schedule_to_start_latency_seconds` (time a task sits
+ready before a poller picks it up — the queueing signal this worker previously
+had no way to report), `temporal_worker_task_slots_available` /
+`temporal_worker_task_slots_used`, and `temporal_poller_start_total`. These are
+distinct from the `temporal_*` series already in Prometheus from the Temporal
+server's own internal workers.
+
 ### API metrics
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
