@@ -185,6 +185,7 @@ func TestHeartbeatInterval(t *testing.T) {
 		"no heartbeat timeout":      {timeout: 0, want: maxRateLimitHeartbeatInterval},
 		"default heartbeat timeout": {timeout: time.Minute, want: maxRateLimitHeartbeatInterval},
 		"short heartbeat timeout":   {timeout: 6 * time.Second, want: 2 * time.Second},
+		"tiny heartbeat timeout":    {timeout: time.Nanosecond, want: minRateLimitHeartbeatInterval},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

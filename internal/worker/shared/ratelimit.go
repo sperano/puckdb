@@ -21,6 +21,9 @@ const (
 	// heartbeatsPerTimeout is how many heartbeats a waiting activity sends
 	// per heartbeat timeout, so a shorter timeout gets a shorter interval.
 	heartbeatsPerTimeout = 3
+	// minRateLimitHeartbeatInterval keeps the interval positive (a ticker
+	// panics on zero) and bounds the heartbeat rate under a tiny timeout.
+	minRateLimitHeartbeatInterval = 100 * time.Millisecond
 )
 
 // YahooRateLimit is the token bucket every Yahoo request of one process
@@ -116,10 +119,11 @@ func waitForToken(ctx context.Context, limiter *rate.Limiter, maxHeartbeatEvery 
 
 // heartbeatInterval returns how often to heartbeat under timeout, the
 // activity's heartbeat timeout (zero when it has none): a fraction of the
-// timeout, at most maxEvery.
+// timeout, at most maxEvery and at least minRateLimitHeartbeatInterval
+// (unless maxEvery is shorter).
 func heartbeatInterval(timeout, maxEvery time.Duration) time.Duration {
 	if timeout <= 0 {
 		return maxEvery
 	}
-	return min(maxEvery, timeout/heartbeatsPerTimeout)
+	return min(maxEvery, max(minRateLimitHeartbeatInterval, timeout/heartbeatsPerTimeout))
 }
