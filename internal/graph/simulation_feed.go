@@ -34,9 +34,10 @@ const (
 	// simTurnFeedMaxToolCallsPerTurn bounds the tool calls returned per turn;
 	// toolCallCount reports the rest.
 	simTurnFeedMaxToolCallsPerTurn = 32
-	// SimTurnFeedMaxArgumentsBytes bounds each returned arguments preview. It
-	// must stay at or above the CLI's preview width so the CLI's own
-	// truncation sees the same leading bytes it saw when it read the
+	// SimTurnFeedMaxArgumentsBytes bounds each returned arguments preview.
+	// Less the up to utf8.UTFMax-1 bytes a rune-boundary cut gives back, it
+	// must stay longer than the CLI's preview, so the CLI still truncates
+	// (with its "...") from the leading bytes it used to read from the
 	// database.
 	SimTurnFeedMaxArgumentsBytes = 512
 	// simDraftPicksMaxRows bounds simDraftPicks; a pool with more picks is an

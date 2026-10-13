@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sperano/puckdb/internal/graph"
 	"github.com/stretchr/testify/assert"
@@ -113,11 +114,13 @@ func TestRunSimTail_FeedErrorEndsTail(t *testing.T) {
 	require.ErrorIs(t, err, boom)
 }
 
-// The API's argument preview must leave the CLI's truncation the bytes it
-// cut from when it read arguments_raw itself.
+// The API's argument preview, even after its rune-boundary cut backs off
+// up to utf8.UTFMax-1 bytes, must stay longer than the CLI's preview: then
+// every argument the server cut still gets the CLI's "..." from the same
+// leading bytes it cut when it read arguments_raw itself.
 func TestTailArgPreviewFitsServerPreview(t *testing.T) {
 	t.Parallel()
-	assert.GreaterOrEqual(t, graph.SimTurnFeedMaxArgumentsBytes, tailArgPreviewMax)
+	assert.Greater(t, graph.SimTurnFeedMaxArgumentsBytes-(utf8.UTFMax-1), tailArgPreviewMax)
 	assert.LessOrEqual(t, tailBacklog, graph.SimTurnFeedMaxLimit)
 }
 

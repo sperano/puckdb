@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/internal/graph"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,7 +90,12 @@ func TestGraphQLClient_SimTurnFeedAllPoolsSendsNulls(t *testing.T) {
 	assert.Equal(t, map[string]any{"poolId": nil, "afterId": nil, "limit": float64(tailBacklog)}, req.Variables)
 }
 
-// An API server without the field gets a message naming the fix.
+// olderServerStatus is what gqlgen answers a query that fails validation
+// with, such as a field an older server does not have.
+const olderServerStatus = http.StatusUnprocessableEntity
+
+// An API server without the field gets a message naming the fix. The
+// fake answers like gqlgen: 422 with a GraphQL error body.
 func TestGraphQLClient_SimFeedsOnOlderServer(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -106,11 +112,32 @@ func TestGraphQLClient_SimFeedsOnOlderServer(t *testing.T) {
 		}},
 	}
 	for _, tc := range cases {
-		srv, _ := recordingGraphQLServer(t, "", `Cannot query field "`+tc.field+`" on type "Query".`)
-		err := tc.call(newClientForTestServer(srv))
+		body, err := json.Marshal(map[string]any{"data": nil, "errors": []map[string]string{
+			{"message": `Cannot query field "` + tc.field + `" on type "Query".`}}})
+		require.NoError(t, err)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(olderServerStatus)
+			_, _ = w.Write(body)
+		}))
+		t.Cleanup(srv.Close)
+		err = tc.call(newClientForTestServer(srv))
 		require.ErrorContains(t, err, "predates "+tc.command+" over GraphQL; use a matching puckdb binary")
 		assert.ErrorContains(t, err, tc.field)
 	}
+}
+
+// The real handler's answer to an unknown field is what simFieldError
+// recognizes, whatever status and encoding gqlgen uses for it.
+func TestSimFieldError_RealHandlerUnknownField(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(graphqlHandler(&graph.Resolver{}, graph.AdminAuth{}))
+	t.Cleanup(srv.Close)
+	c := newClientForTestServer(srv)
+	const field = "simFieldThisServerLacks"
+	_, err := c.execute(context.Background(), "{ "+field+" }", nil)
+	require.Error(t, err)
+	err = c.simFieldError(err, field, "sim tail")
+	assert.ErrorContains(t, err, "predates sim tail over GraphQL")
 }
 
 func TestGraphQLClient_SimTurnFeedOtherErrorsPassThrough(t *testing.T) {
