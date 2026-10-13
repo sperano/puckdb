@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,11 +14,13 @@ import (
 	"github.com/go-redis/redismock/v8"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/cache"
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -37,6 +42,17 @@ func seedGameKey() {
 func mockDownloader(content []byte, err error) shared.Downloader {
 	return func(_ context.Context, _ string) ([]byte, error) {
 		return content, err
+	}
+}
+
+// downloaderFailingFor returns validXML for every URL except failURL, which
+// fails with err.
+func downloaderFailingFor(failURL string, validXML []byte, err error) shared.Downloader {
+	return func(_ context.Context, url string) ([]byte, error) {
+		if url == failURL {
+			return nil, err
+		}
+		return validXML, nil
 	}
 }
 
@@ -213,9 +229,15 @@ func (s *FetchDayTestSuite) TestRosterDownloadError() {
 
 	team := yahoo.TeamInfo{LeagueID: testLeagueID, TeamID: 1}
 	rosterRes := resource.Roster{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: s.day, GameKey: testGameKey}
+	summaryRes := resource.TeamSummary{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: s.day, GameKey: testGameKey}
 	mockRedis.ExpectGet(core.RedisKey(rosterRes)).SetErr(redis.Nil)
+	// The team summary downloads alongside the roster.
+	mockRedis.ExpectGet(core.RedisKey(summaryRes)).SetErr(redis.Nil)
+	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(summaryRes), "x", cache.GobCacheTTL).SetVal("OK")
 
-	a := s.newFetchDayActivities(mem, mockDownloader(nil, errors.New("roster fetch failed")), cache.NewGobCache(redisClient))
+	validXML := []byte(`<fantasy_content><team></team></fantasy_content>`)
+	dl := downloaderFailingFor(rosterRes.URL(), validXML, errors.New("roster fetch failed"))
+	a := s.newFetchDayActivities(mem, dl, cache.NewGobCache(redisClient))
 	s.env.RegisterActivity(a.FetchDay)
 
 	input := FetchDayInput{
@@ -301,9 +323,14 @@ func (s *FetchDayTestSuite) TestSecondTeamRosterError() {
 	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(summary1), "x", cache.GobCacheTTL).SetVal("OK")
 
 	roster2 := resource.Roster{LeagueID: testLeagueID, TeamID: 2, Date: s.day, GameKey: testGameKey}
+	summary2 := resource.TeamSummary{LeagueID: testLeagueID, TeamID: 2, Date: s.day, GameKey: testGameKey}
 	mockRedis.ExpectGet(core.RedisKey(roster2)).SetErr(redis.Nil)
+	// Team 2's summary downloads alongside its roster.
+	mockRedis.ExpectGet(core.RedisKey(summary2)).SetErr(redis.Nil)
+	mockRedis.CustomMatch(anyArgs).ExpectSet(core.RedisKey(summary2), "x", cache.GobCacheTTL).SetVal("OK")
 
-	a := s.newFetchDayActivities(mem, mockDownloader(nil, errors.New("second roster failed")), cache.NewGobCache(redisClient))
+	dl := downloaderFailingFor(roster2.URL(), validXML, errors.New("second roster failed"))
+	a := s.newFetchDayActivities(mem, dl, cache.NewGobCache(redisClient))
 	s.env.RegisterActivity(a.FetchDay)
 
 	input := FetchDayInput{
@@ -316,4 +343,156 @@ func (s *FetchDayTestSuite) TestSecondTeamRosterError() {
 
 	require.Error(s.T(), err)
 	assert.Contains(s.T(), err.Error(), "second roster failed")
+	assert.Contains(s.T(), err.Error(), fmt.Sprintf("league %d team 2", testLeagueID))
+}
+
+const (
+	// testYahooTeamConcurrency is the Yahoo team download limit the
+	// concurrency tests set; testOverlapTeams teams give twice as many
+	// downloads, so the limit is reached.
+	testYahooTeamConcurrency = 3
+	testOverlapTeams         = 3
+	// testOverlapWait bounds how long a fake download waits for the others to
+	// start; a sequential FetchDay would wait this long on every download.
+	testOverlapWait = 5 * time.Second
+	// testDownloadLatency and testRateLimitPerSecond make one download slow
+	// next to the rate limiter's spacing (10 ms), so FetchDay's duration
+	// shows whether the limiter or the loop paces the downloads.
+	testDownloadLatency    = 200 * time.Millisecond
+	testRateLimitPerSecond = 100
+	testFailingTeamID      = 2
+)
+
+var testTeamXML = []byte(`<fantasy_content><team></team></fantasy_content>`)
+
+// setYahooTeamConcurrency sets --yahoo-team-download-concurrency for one test.
+func setYahooTeamConcurrency(t *testing.T, n int) {
+	t.Helper()
+	viper.Set(config.FlagYahooTeamDownloadConcurrency, n)
+	t.Cleanup(func() { viper.Set(config.FlagYahooTeamDownloadConcurrency, 0) })
+}
+
+func testTeams(n int) []yahoo.TeamInfo {
+	teams := make([]yahoo.TeamInfo, n)
+	for i := range teams {
+		teams[i] = yahoo.TeamInfo{LeagueID: testLeagueID, TeamID: i + 1}
+	}
+	return teams
+}
+
+// overlapDownloader is a fake Yahoo client whose downloads block until limit
+// of them are in flight at once (or testOverlapWait passes), recording the
+// highest number seen in flight.
+type overlapDownloader struct {
+	limit       int64
+	inFlight    atomic.Int64
+	maxInFlight atomic.Int64
+	reached     chan struct{}
+	once        sync.Once
+}
+
+func newOverlapDownloader(limit int) *overlapDownloader {
+	return &overlapDownloader{limit: int64(limit), reached: make(chan struct{})}
+}
+
+func (d *overlapDownloader) download(ctx context.Context, _ string) ([]byte, error) {
+	n := d.inFlight.Add(1)
+	defer d.inFlight.Add(-1)
+	for {
+		m := d.maxInFlight.Load()
+		if n <= m || d.maxInFlight.CompareAndSwap(m, n) {
+			break
+		}
+	}
+	if n >= d.limit {
+		d.once.Do(func() { close(d.reached) })
+	}
+	select {
+	case <-d.reached:
+	case <-time.After(testOverlapWait):
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return testTeamXML, nil
+}
+
+func (s *FetchDayTestSuite) newSeededMemStorage() *store.MemStorage {
+	mem := store.NewMemStorage()
+	s.seedCachedSchedule(mem)
+	s.seedCachedStandings(mem)
+	return mem
+}
+
+func (s *FetchDayTestSuite) TestYahooTeamDownloadsOverlap() {
+	setYahooTeamConcurrency(s.T(), testYahooTeamConcurrency)
+	mem := s.newSeededMemStorage()
+	dl := newOverlapDownloader(testYahooTeamConcurrency)
+	a := s.newFetchDayActivities(mem, dl.download, cache.NewGobCache(nil))
+	s.env.RegisterActivity(a.FetchDay)
+	teams := testTeams(testOverlapTeams)
+
+	_, err := s.env.ExecuteActivity(a.FetchDay, FetchDayInput{Day: s.day, StartSeason: testYahooSeason, TeamIDs: teams})
+	s.Require().NoError(err)
+
+	s.Equal(int64(testYahooTeamConcurrency), dl.maxInFlight.Load(), "downloads of one day should overlap up to the limit")
+	for _, team := range teams {
+		for _, res := range yahooTeamResources(team, s.day, testGameKey) {
+			s.True(mem.Exists(context.Background(), res.Path()), "expected %s", res.Path())
+		}
+	}
+}
+
+func (s *FetchDayTestSuite) TestYahooTeamFailureNamesTeam() {
+	setYahooTeamConcurrency(s.T(), testYahooTeamConcurrency)
+	failing := resource.Roster{LeagueID: testLeagueID, TeamID: testFailingTeamID, Date: s.day, GameKey: testGameKey}
+	dl := func(_ context.Context, url string) ([]byte, error) {
+		if url == failing.URL() {
+			return nil, errors.New("roster fetch failed")
+		}
+		return testTeamXML, nil
+	}
+	a := s.newFetchDayActivities(s.newSeededMemStorage(), dl, cache.NewGobCache(nil))
+	s.env.RegisterActivity(a.FetchDay)
+
+	_, err := s.env.ExecuteActivity(a.FetchDay, FetchDayInput{Day: s.day, StartSeason: testYahooSeason, TeamIDs: testTeams(testOverlapTeams)})
+
+	s.Require().Error(err)
+	s.Contains(err.Error(), fmt.Sprintf("league %d team %d", testLeagueID, testFailingTeamID))
+	s.Contains(err.Error(), "roster fetch failed")
+}
+
+// TestYahooTeamDownloadsPacedByRateLimiter checks that, behind the shared
+// rate limiter, a day's downloads take about one download's latency plus the
+// limiter's spacing instead of the sum of every download's latency.
+func (s *FetchDayTestSuite) TestYahooTeamDownloadsPacedByRateLimiter() {
+	teams := testTeams(testOverlapTeams)
+	downloads := len(teams) * len(yahooTeamResources(teams[0], s.day, testGameKey))
+	setYahooTeamConcurrency(s.T(), downloads)
+	limiter, err := shared.NewYahooRateLimiter(shared.YahooRateLimit{PerSecond: testRateLimitPerSecond, Burst: 1})
+	s.Require().NoError(err)
+	slow := func(ctx context.Context, _ string) ([]byte, error) {
+		select {
+		case <-time.After(testDownloadLatency):
+			return testTeamXML, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	a := s.newFetchDayActivities(s.newSeededMemStorage(), shared.RateLimited(limiter, slow), cache.NewGobCache(nil))
+	s.env.RegisterActivity(a.FetchDay)
+
+	start := time.Now()
+	_, err = s.env.ExecuteActivity(a.FetchDay, FetchDayInput{Day: s.day, StartSeason: testYahooSeason, TeamIDs: teams})
+	elapsed := time.Since(start)
+
+	s.Require().NoError(err)
+	sequential := time.Duration(downloads) * testDownloadLatency
+	s.Less(elapsed, sequential/2, "a day's %d downloads should not run one after another", downloads)
+}
+
+func TestGetYahooTeamDownloadConcurrency(t *testing.T) {
+	setYahooTeamConcurrency(t, 0)
+	assert.Equal(t, config.DefaultYahooTeamDownloadConcurrency, getYahooTeamDownloadConcurrency(), "unset uses the default")
+	setYahooTeamConcurrency(t, testYahooTeamConcurrency)
+	assert.Equal(t, testYahooTeamConcurrency, getYahooTeamDownloadConcurrency())
 }

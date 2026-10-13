@@ -255,6 +255,11 @@ const (
 	FlagToSeasonYear             = "to-season"
 )
 
+// FlagYahooTeamDownloadConcurrency caps the Yahoo team downloads (roster, team
+// summary) one FetchDay activity runs at once. The per-process Yahoo rate
+// limit (FlagYahooRateLimit) still bounds the request rate.
+const FlagYahooTeamDownloadConcurrency = "yahoo-team-download-concurrency"
+
 // Cache flags
 const (
 	FlagGobCacheTTL            = "gob-cache-ttl"
@@ -654,6 +659,7 @@ var DownloadConcurrencyFlags = FlagGroup{
 		{FlagMaxSeasonConcurrency, "", DefaultMaxSeasonConcurrency, "Maximum number of seasons to download concurrently", false},
 		{FlagDayConcurrency, "", DefaultDayConcurrency, "Number of days to download concurrently within each season", false},
 		{FlagGameDownloadConcurrency, "", DefaultGameDownloadConcurrency, "Maximum concurrent game file downloads per daily schedule", false},
+		{FlagYahooTeamDownloadConcurrency, "", DefaultYahooTeamDownloadConcurrency, "Maximum concurrent Yahoo roster/team summary downloads per day (the Yahoo rate limit still caps the request rate)", false},
 		{FlagSkipPreseason, "", false, "Skip downloading and importing preseason games", false},
 	},
 }

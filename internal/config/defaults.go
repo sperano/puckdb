@@ -65,6 +65,9 @@ const (
 	DefaultMaxSeasonConcurrency    = 10
 	DefaultDayConcurrency          = 20
 	DefaultGameDownloadConcurrency = 8
+	// DefaultYahooTeamDownloadConcurrency is enough to keep a pod's Yahoo
+	// token bucket busy while earlier requests are still on the network.
+	DefaultYahooTeamDownloadConcurrency = 4
 )
 
 // Yahoo player download defaults

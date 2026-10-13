@@ -14,6 +14,7 @@ import (
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"go.temporal.io/sdk/activity"
+	"golang.org/x/sync/errgroup"
 )
 
 // fetchYahooResource fetches one Yahoo resource through the shared cache-or-download primitive.
@@ -80,20 +81,46 @@ func (a *DailyScheduleActivities) FetchDay(ctx context.Context, input FetchDayIn
 		return nil, fmt.Errorf("fetch standings for %s: %w", input.Day.Format(config.DateFormat), err)
 	}
 
-	for _, team := range input.TeamIDs {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
-		activity.RecordHeartbeat(ctx, nil)
-		if err := a.fetchYahooResource(ctx, resource.Roster{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: input.Day, GameKey: gameKey}); err != nil {
-			return nil, err
-		}
-		if err := a.fetchYahooResource(ctx, resource.TeamSummary{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: input.Day, GameKey: gameKey}); err != nil {
-			return nil, err
-		}
+	if err := a.fetchYahooTeams(ctx, input.Day, gameKey, input.TeamIDs); err != nil {
+		return nil, err
 	}
 
 	return counts, nil
+}
+
+// fetchYahooTeams fetches every team's roster and team summary for day, at
+// most getYahooTeamDownloadConcurrency downloads at a time; the process-wide
+// Yahoo rate limiter inside a.Download still paces the requests. The first
+// failure stops the rest, and its error names the team.
+func (a *DailyScheduleActivities) fetchYahooTeams(ctx context.Context, day time.Time, gameKey int, teams []yahoo.TeamInfo) error {
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(getYahooTeamDownloadConcurrency())
+schedule:
+	for _, team := range teams {
+		for _, res := range yahooTeamResources(team, day, gameKey) {
+			if gctx.Err() != nil {
+				break schedule
+			}
+			g.Go(func() error {
+				activity.RecordHeartbeat(gctx, nil)
+				if err := a.fetchYahooResource(gctx, res); err != nil {
+					return fmt.Errorf("league %d team %d: %w", team.LeagueID, team.TeamID, err)
+				}
+				return nil
+			})
+		}
+	}
+	return g.Wait()
+}
+
+// yahooTeamResources lists the Yahoo downloads FetchDay makes for one team.
+func yahooTeamResources(team yahoo.TeamInfo, day time.Time, gameKey int) []yahoo.Resource {
+	return []yahoo.Resource{
+		resource.Roster{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: day, GameKey: gameKey},
+		resource.TeamSummary{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: day, GameKey: gameKey},
+	}
+}
+
+func getYahooTeamDownloadConcurrency() int {
+	return shared.ViperIntOrDefault(config.FlagYahooTeamDownloadConcurrency, config.DefaultYahooTeamDownloadConcurrency)
 }
