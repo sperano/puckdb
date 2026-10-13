@@ -19,6 +19,8 @@ const (
 	// untilTestNeverStop stops only once every item is handled, when nothing
 	// is left to dispatch.
 	untilTestNeverStop = untilTestTotal
+	// dispatchedAtStopUnset marks that no handler made stop report true.
+	dispatchedAtStopUnset = -1
 )
 
 // untilResult is what runActivitiesUntilWorkflow observed.
@@ -26,7 +28,7 @@ type untilResult struct {
 	Processed  []int
 	Dispatched int
 	// DispatchedAtStop is Dispatched when the handler that made stop report
-	// true ran; -1 when stop never reported true from a handler.
+	// true ran; dispatchedAtStopUnset when no handler did.
 	DispatchedAtStop int
 	Err              string
 }
@@ -39,7 +41,7 @@ func runActivitiesUntilWorkflow(ctx workflow.Context, stopAfter int) (untilResul
 	ctx = workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
 		ScheduleToCloseTimeout: activityTestTimeout,
 	})
-	res := untilResult{DispatchedAtStop: -1}
+	res := untilResult{DispatchedAtStop: dispatchedAtStopUnset}
 	start := func(c workflow.Context, index int) workflow.Future {
 		res.Dispatched++
 		return workflow.ExecuteLocalActivity(c, workerPoolActivity, index)
@@ -81,11 +83,11 @@ func executeActivitiesUntil(t *testing.T, stopAfter int) untilResult {
 func TestRunActivitiesUntil_StopsDispatchingAndDrainsInFlight(t *testing.T) {
 	result := executeActivitiesUntil(t, untilTestStopAfter)
 
-	require.NotEqual(t, -1, result.DispatchedAtStop, "the stopping handler ran")
+	require.NotEqual(t, dispatchedAtStopUnset, result.DispatchedAtStop, "the stopping handler ran")
 	assert.Equal(t, result.DispatchedAtStop, result.Dispatched, "nothing is dispatched after stop")
-	// When the stopping handler runs, its own item and at most concurrency-1
-	// others are in flight besides the items already handled.
-	assert.LessOrEqual(t, result.Dispatched, untilTestStopAfter-1+untilTestConcurrency)
+	// Each handled item before the stopping one freed a slot that was refilled,
+	// so the stopping handler runs with the pool full whatever the order.
+	assert.Equal(t, untilTestStopAfter-1+untilTestConcurrency, result.Dispatched)
 	assert.Less(t, result.Dispatched, untilTestTotal)
 	assert.ElementsMatch(t, indexes(result.Dispatched), result.Processed, "no dispatched item is abandoned")
 }
