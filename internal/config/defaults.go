@@ -65,8 +65,10 @@ const (
 	DefaultMaxSeasonConcurrency    = 10
 	DefaultDayConcurrency          = 20
 	DefaultGameDownloadConcurrency = 8
-	// DefaultYahooTeamDownloadConcurrency is enough to keep a pod's Yahoo
-	// token bucket busy while earlier requests are still on the network.
+	// DefaultYahooTeamDownloadConcurrency only matters when the Yahoo rate
+	// limit exceeds what one sequential download loop can use (about one
+	// request per HTTP round trip); at the default 0.25 req/s one loop
+	// already uses every token.
 	DefaultYahooTeamDownloadConcurrency = 4
 )
 
