@@ -51,7 +51,7 @@ func TestClientOptions(t *testing.T) {
 func TestClientOptions_PropagatesMetricsHandler(t *testing.T) {
 	t.Parallel()
 	handler, closer := NewMetricsHandler(prometheus.NewRegistry())
-	defer closer.Close()
+	defer func() { _ = closer.Close() }()
 
 	got := clientOptions(Options{HostPort: "temporal.example:7233", Namespace: "puckdb-test", MetricsHandler: handler})
 

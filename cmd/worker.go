@@ -153,7 +153,11 @@ func cmdWorker() *cobra.Command {
 			// puckdb_* worker metrics, so queueing on this worker's task
 			// queues is visible in Prometheus.
 			temporalMetricsHandler, closeTemporalMetrics := temporal.NewMetricsHandler(metrics.WorkerRegistry)
-			defer func() { _ = closeTemporalMetrics.Close() }()
+			defer func() {
+				if err := closeTemporalMetrics.Close(); err != nil {
+					log.Warn().Err(err).Msg("failed to close temporal metrics handler")
+				}
+			}()
 
 			tclient, err := newTemporalClient(temporalMetricsHandler)
 			if err != nil {
