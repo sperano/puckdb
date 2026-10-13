@@ -34,8 +34,9 @@ func NewFetchSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) *
 // FetchNHLSeasonWorkflow fetches day-level data for a single season: boxscores,
 // game stories, shifts, and per-day Yahoo team data for any configured Yahoo
 // leagues. Yahoo league/team metadata itself, and league-level data
-// (transactions, draft results, matchups), are fetched independently and
-// beforehand by FetchYahooSeasonWorkflow in the parent season-sync workflow.
+// (transactions, draft results, matchups), are fetched independently by
+// FetchYahooSeasonWorkflow, which the parent season-sync workflow runs at the
+// same time (see seasonSyncGroups).
 // Each season runs in its own child workflow to isolate history.
 // A typical season (~270 days) generates ~600 history events, well under the 50K limit.
 func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
@@ -62,8 +63,8 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 
 	// Per-day Yahoo team IDs, drawn from the season's snapshotted Yahoo
 	// config. No Yahoo activities run here: league/team metadata fetch is
-	// FetchYahooSeasonWorkflow's job, and must complete before this season's
-	// day loop starts.
+	// FetchYahooSeasonWorkflow's job. The day loop does not need its files
+	// (FetchDay resolves the game key itself), so the two run concurrently.
 	yahooCfg, _ := cfg.Yahoo.Season(season.ID.StartYear())
 	teamIDs := yahooTeamIDsForSeason(yahooCfg)
 

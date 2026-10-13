@@ -57,6 +57,21 @@ const ProgressReportQueryName = "progressReport"
 // ReportTracker wraps ProgressReport and provides helper methods for workflows.
 type ReportTracker struct {
 	report *ProgressReport
+	// saving, once SerializeSaves sets it, is held by Save from encoding the
+	// report until its local activity returns.
+	saving workflow.Mutex
+}
+
+// SerializeSaves makes Save hold a workflow mutex while it writes the report,
+// for a workflow that updates one tracker from several coroutines. Each Save
+// encodes the whole report and writes it in a local activity; two in flight
+// at once could reach Redis out of order and leave an older report there.
+// An uncontended Lock never yields, so a single coroutine issues the same
+// commands as without it.
+func (t *ReportTracker) SerializeSaves(ctx workflow.Context) {
+	if t.saving == nil {
+		t.saving = workflow.NewMutex(ctx)
+	}
 }
 
 // RegisterQueryHandler registers the progressReport query handler.
@@ -79,7 +94,16 @@ func InitTracker(ctx workflow.Context, report *ProgressReport) (*ReportTracker, 
 // Save persists the current ProgressReport to Redis via a local activity.
 // Call at key structural changes (group start, group complete) so the resolver
 // can read progress without querying Temporal.
+//
+// After SerializeSaves, Save waits for the previous one to finish. When the
+// workflow is canceled while another Save holds the lock, it saves anyway:
+// the run is ending and its progress is no longer read.
 func (t *ReportTracker) Save(ctx workflow.Context) {
+	if t.saving != nil {
+		if err := t.saving.Lock(ctx); err == nil {
+			defer t.saving.Unlock()
+		}
+	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(t.report); err != nil {
 		workflow.GetLogger(ctx).Warn("Failed to encode progress report", "error", err)

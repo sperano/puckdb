@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/graph/model"
 	worknhl "github.com/sperano/puckdb/internal/worker/nhl"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -27,6 +30,9 @@ const (
 	seasonReplayRunTimeout    = 30 * time.Second
 	seasonReplayFetchName     = "FetchSeasonsWorkflow"
 	seasonReplayImportName    = "ImportSeasonsWorkflow"
+	// seasonReplayYahooDelay keeps the Yahoo child running while the NHL
+	// child starts and finishes, so the recorded history interleaves them.
+	seasonReplayYahooDelay = 2 * time.Second
 )
 
 func TestSeasonSyncParentsReplayLegacyHistoryWithChangedYahooConfig(t *testing.T) {
@@ -71,9 +77,63 @@ func newSeasonReplayWorker(t *testing.T, temporalClient client.Client, taskQueue
 		temporalworkflow.RegisterOptions{Name: "FetchYahooSeasonWorkflow"})
 	w.RegisterWorkflowWithOptions(replayImportYahooChild,
 		temporalworkflow.RegisterOptions{Name: "ImportYahooSeasonWorkflow"})
-	registerSeasonReplayActivities(w)
+	registerSeasonReplayActivities(w, nil)
 	require.NoError(t, w.Start())
 	return w
+}
+
+// A history recorded by the current FetchSeasonsWorkflow, with the Yahoo and
+// NHL groups running at the same time over one started season, carries the
+// version marker and replays without a nondeterminism error.
+func TestFetchSeasonsReplaysConcurrentGroupsHistory(t *testing.T) {
+	previousLoader := loadYahooSeasons
+	defer func() { loadYahooSeasons = previousLoader }()
+	loadYahooSeasons = func() shared.YahooSeasonsSnapshot { return replayYahooSnapshot(preseasonTestYear) }
+
+	temporalClient, stopServer := startSeasonReplayServer(t)
+	defer stopServer()
+	taskQueue := seasonReplayName("season-sync-concurrent-replay")
+	w := worker.New(temporalClient, taskQueue, worker.Options{})
+	w.RegisterWorkflowWithOptions(FetchSeasonsWorkflow, temporalworkflow.RegisterOptions{Name: seasonReplayFetchName})
+	w.RegisterWorkflowWithOptions(replaySlowFetchYahooChild,
+		temporalworkflow.RegisterOptions{Name: "FetchYahooSeasonWorkflow"})
+	w.RegisterWorkflowWithOptions(replayFetchNHLChild, temporalworkflow.RegisterOptions{Name: "FetchNHLSeasonWorkflow"})
+	registerSeasonReplayActivities(w, []nhl.SeasonInfo{testSeasonW(preseasonTestYear, "2026-09-29", "2026-10-01")})
+	w.RegisterActivityWithOptions(func(context.Context, int) ([]string, error) { return []string{"MTL"}, nil },
+		activity.RegisterOptions{Name: "ListSeasonTeams"})
+	require.NoError(t, w.Start())
+	defer w.Stop()
+
+	input := &model.SeasonsInput{StartSeason: seasonIntPointer(preseasonTestYear), EndSeason: seasonIntPointer(preseasonTestYear)}
+	history := runSeasonParentForReplay(t, temporalClient, taskQueue, seasonReplayFetchName, input)
+	require.True(t, slices.ContainsFunc(history.Events, func(event *historypb.HistoryEvent) bool {
+		return event.GetEventType() == enumspb.EVENT_TYPE_MARKER_RECORDED
+	}), "history records the %s version marker", seasonSyncConcurrentGroupsChange)
+	nhlStarted := slices.IndexFunc(history.Events, func(event *historypb.HistoryEvent) bool {
+		attrs := event.GetStartChildWorkflowExecutionInitiatedEventAttributes()
+		return attrs != nil && attrs.GetWorkflowType().GetName() == "FetchNHLSeasonWorkflow"
+	})
+	yahooCompleted := slices.IndexFunc(history.Events, func(event *historypb.HistoryEvent) bool {
+		attrs := event.GetChildWorkflowExecutionCompletedEventAttributes()
+		return attrs != nil && attrs.GetWorkflowType().GetName() == "FetchYahooSeasonWorkflow"
+	})
+	require.NotEqual(t, -1, nhlStarted)
+	require.Less(t, nhlStarted, yahooCompleted, "the NHL child starts before the Yahoo child completes")
+
+	replayer := worker.NewWorkflowReplayer()
+	replayer.RegisterWorkflowWithOptions(FetchSeasonsWorkflow, temporalworkflow.RegisterOptions{Name: seasonReplayFetchName})
+	require.NoError(t, replayer.ReplayWorkflowHistory(nil, history))
+}
+
+func replaySlowFetchYahooChild(ctx temporalworkflow.Context, _ YahooSeasonWorkflowInput) (YahooSeasonSyncResult, error) {
+	if err := temporalworkflow.Sleep(ctx, seasonReplayYahooDelay); err != nil {
+		return YahooSeasonSyncResult{}, err
+	}
+	return YahooSeasonSyncResult{LeagueTotals: []int{1}}, nil
+}
+
+func replayFetchNHLChild(temporalworkflow.Context, nhl.SeasonInfo) (core.OriginCounts, error) {
+	return core.OriginCounts{}, nil
 }
 
 func replayLegacyFetchSeasonsWorkflow(ctx temporalworkflow.Context, input *model.SeasonsInput) error {
@@ -130,7 +190,9 @@ func replayImportYahooChild(temporalworkflow.Context, YahooSeasonWorkflowInput) 
 	return YahooSeasonSyncResult{LeagueTotals: []int{1}}, nil
 }
 
-func registerSeasonReplayActivities(w worker.Worker) {
+// registerSeasonReplayActivities registers the parents' activities; the
+// manifest lists seasons as the started NHL seasons.
+func registerSeasonReplayActivities(w worker.Worker, seasons []nhl.SeasonInfo) {
 	activities := []struct {
 		name string
 		fn   any
@@ -138,7 +200,7 @@ func registerSeasonReplayActivities(w worker.Worker) {
 		{"Save", func(context.Context, string, string, []byte) error { return nil }},
 		{"DeleteBatch", func(context.Context, []string) error { return nil }},
 		{"FetchSeasonsManifest", func(context.Context, *model.SeasonsInput) (worknhl.FetchSeasonsManifestResult, error) {
-			return worknhl.FetchSeasonsManifestResult{}, nil
+			return worknhl.FetchSeasonsManifestResult{Seasons: seasons}, nil
 		}},
 		{"FetchUpcomingSeasonRosters", func(context.Context, *model.SeasonsInput) (worknhl.UpcomingSeasonRostersResult, error) {
 			return worknhl.UpcomingSeasonRostersResult{Season: preseasonTestYear}, nil

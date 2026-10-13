@@ -70,25 +70,23 @@ func runSeasonSyncWorkflow(ctx workflow.Context, input *model.SeasonsInput, mode
 
 func executeSeasonSync(ctx workflow.Context, tracker *shared.ReportTracker, input *model.SeasonsInput,
 	cfg seasonSyncConfig, mode seasonSyncMode) error {
-	rangeLabel := formatSeasonRange(input)
-	yahooSeasons := selectYahooSeasons(cfg.Yahoo, input)
-	if err := processYahooSeasonGroup(ctx, tracker, yahooSeasons, cfg.Concurrency, rangeLabel, mode); err != nil {
-		return err
+	groups := seasonSyncGroups{
+		tracker: tracker, input: input, yahooSeasons: selectYahooSeasons(cfg.Yahoo, input),
+		concurrency: cfg.Concurrency, rangeLabel: formatSeasonRange(input), mode: mode,
 	}
-
-	seasons, err := loadSeasonsManifest(ctx, workflow.GetLogger(ctx), input)
-	if err != nil {
-		tracker.SetMessage(ctx, fmt.Sprintf("Yahoo metadata finished, but NHL season selection failed for %s: %v", rangeLabel, err))
-		return err
+	runGroups := groups.runSerially
+	if seasonGroupsRunConcurrently(ctx, mode) {
+		runGroups = groups.runConcurrently
 	}
-	if err := processNHLSeasonGroup(ctx, tracker, seasons, cfg.Concurrency, rangeLabel, mode); err != nil {
-		return err
-	}
-	upcomingSeason, err := processUpcomingSeason(ctx, tracker, input, rangeLabel, mode)
+	nhlCount, err := runGroups(ctx)
 	if err != nil {
 		return err
 	}
-	setSeasonSyncOutcome(ctx, tracker, len(yahooSeasons), len(seasons), upcomingSeason, rangeLabel)
+	upcomingSeason, err := processUpcomingSeason(ctx, tracker, input, groups.rangeLabel, mode)
+	if err != nil {
+		return err
+	}
+	setSeasonSyncOutcome(ctx, tracker, len(groups.yahooSeasons), nhlCount, upcomingSeason, groups.rangeLabel)
 	return nil
 }
 

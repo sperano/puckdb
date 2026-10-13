@@ -254,6 +254,10 @@ func TestFetchSeasonsWorkflow_PartialYahooFailureKeepsFailedBarIncomplete(t *tes
 	mockNoUpcomingSeason(env)
 
 	input := preseasonInput()
+	// The NHL group runs alongside the Yahoo group; no started season here.
+	var activities *worknhl.SeasonsActivities
+	env.OnActivity(activities.FetchSeasonsManifest, mock.Anything, input).
+		Return(worknhl.FetchSeasonsManifestResult{}, nil)
 	env.OnWorkflow(FetchYahooSeasonWorkflow, mock.Anything, mock.MatchedBy(func(input YahooSeasonWorkflowInput) bool {
 		return input.StartYear == 2026
 	})).Return(YahooSeasonSyncResult{}, nil).Once()

@@ -34,7 +34,9 @@ func daysWithPlayoffTeamsCounter() shared.SeasonCounterFunc {
 
 // FetchSeasonsWorkflow downloads all data for the requested seasons: Yahoo
 // season metadata (independent of NHL day availability) via
-// FetchYahooSeasonWorkflow, then per-day NHL data via FetchNHLSeasonWorkflow.
+// FetchYahooSeasonWorkflow and, at the same time, per-day NHL data via
+// FetchNHLSeasonWorkflow (see seasonSyncGroups for why they do not depend on
+// each other).
 func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	return runSeasonSyncWorkflow(ctx, input, seasonSyncFetch)
 }
