@@ -11,6 +11,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/resource"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -27,6 +28,9 @@ const (
 	// leagues' first pages; a sequential fetch never gets there.
 	poolBarrierTimeout = 5 * time.Second
 	poolPageFailure    = "PoolPageFailure"
+	// poolSaveDuration keeps each progress save in flight long enough for
+	// another league's change to reach it if saves were not serialized.
+	poolSaveDuration = 20 * time.Millisecond
 )
 
 // poolLeagues is the three-league season the concurrency tests fetch.
@@ -44,6 +48,9 @@ type poolLeagueRun struct {
 	firstPage func(leagueID int) error
 	// failLeague and failStart name the one page that fails.
 	failLeague, failStart int
+	// saveDuration is how long each progress save takes.
+	saveDuration                    time.Duration
+	savesInFlight, maxSavesInFlight int
 }
 
 func newPoolLeagueRun() *poolLeagueRun {
@@ -91,6 +98,19 @@ func (r *poolLeagueRun) commit(_ context.Context, input yahoo.CommitYahooLeagueP
 	return nil
 }
 
+// save stands in for the progress save, counting overlapping saves.
+func (r *poolLeagueRun) save(_ context.Context, _, _ string, _ []byte) error {
+	r.mu.Lock()
+	r.savesInFlight++
+	r.maxSavesInFlight = max(r.maxSavesInFlight, r.savesInFlight)
+	r.mu.Unlock()
+	time.Sleep(r.saveDuration)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.savesInFlight--
+	return nil
+}
+
 func poolPageEvent(leagueID, start int) string {
 	return fmt.Sprintf("page %d@%d", leagueID, start)
 }
@@ -118,7 +138,8 @@ func newPoolLeaguesEnv(t *testing.T, run *poolLeagueRun) *testsuite.TestWorkflow
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(FetchYahooSeasonWorkflow)
-	mockProgressSaves(env)
+	env.OnActivity(((*shared.ProgressActivities)(nil)).Save,
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(run.save)
 	var activities *yahoo.FetchActivities
 	env.OnActivity(activities.FetchLeague, mock.Anything, mock.Anything, mock.Anything).
 		Return(yahoo.FetchLeagueResult{}, nil)
@@ -202,6 +223,20 @@ func TestFetchYahooSeasonWorkflow_PlayerPoolLeagueConcurrencyIsBounded(t *testin
 	require.NoError(t, env.GetWorkflowError())
 	assert.Equal(t, bound, run.maxInFlight, "leagues between plan and commit: %v", run.events)
 	assertPoolCommitted(t, run, poolLeagueC)
+}
+
+// Concurrent leagues must not save progress reports concurrently: a slower
+// older save would overwrite a newer report in Redis.
+func TestFetchYahooSeasonWorkflow_PlayerPoolLeaguesSaveProgressInOrder(t *testing.T) {
+	run := newPoolLeagueRun()
+	run.firstPage = newPoolBarrier(len(poolLeagues))
+	run.saveDuration = poolSaveDuration
+	env := newPoolLeaguesEnv(t, run)
+
+	env.ExecuteWorkflow(FetchYahooSeasonWorkflow, poolLeaguesInput())
+
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, 1, run.maxSavesInFlight)
 }
 
 // A history recorded before the change replays the one-league-at-a-time loop.

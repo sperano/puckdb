@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"sync"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/config"
@@ -38,8 +39,10 @@ const (
 type barPoint struct{ Current, Total int }
 
 // recordBarSaves captures every bar of the child's group on every saved report.
+// Saves run as activities on their own goroutines, hence the lock.
 func recordBarSaves(env *testsuite.TestWorkflowEnvironment) *[][]barPoint {
 	saves := &[][]barPoint{}
+	var mu sync.Mutex
 	env.OnActivity(((*shared.ProgressActivities)(nil)).Save,
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(func(_ context.Context, _, _ string, data []byte) error {
@@ -51,6 +54,8 @@ func recordBarSaves(env *testsuite.TestWorkflowEnvironment) *[][]barPoint {
 			for i, bar := range report.Groups[0].Bars {
 				points[i] = barPoint{bar.Current, bar.Total}
 			}
+			mu.Lock()
+			defer mu.Unlock()
 			*saves = append(*saves, points)
 			return nil
 		}).Maybe()
