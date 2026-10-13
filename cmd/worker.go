@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/interceptor"
 	"go.temporal.io/sdk/worker"
 )
 
@@ -170,6 +171,9 @@ func cmdWorker() *cobra.Command {
 				MaxConcurrentActivityTaskPollers:       viper.GetInt(config.FlagWorkerMaxActivityPollers),
 				MaxConcurrentWorkflowTaskExecutionSize: viper.GetInt(config.FlagWorkerMaxWorkflowExecution),
 				MaxConcurrentActivityExecutionSize:     viper.GetInt(config.FlagWorkerMaxActivityExecution),
+				// Keeps an activity's progress in the heartbeats it sends
+				// while waiting for the Yahoo rate limit.
+				Interceptors: []interceptor.WorkerInterceptor{&shared.HeartbeatDetailsInterceptor{}},
 			})
 
 			// Register workflows and activities based on queue type

@@ -12,12 +12,16 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// rateLimitHeartbeatInterval is how often an activity waiting for a Yahoo
-// request token records a heartbeat. It must stay well under the activity
-// heartbeat timeout (--activity-heartbeat-timeout, 60 s by default): a busy
-// process can queue a download for longer than that, and the wait is
-// progress, not a stall.
-const rateLimitHeartbeatInterval = 10 * time.Second
+const (
+	// maxRateLimitHeartbeatInterval is the longest gap between the heartbeats
+	// of an activity waiting for a Yahoo request token. A busy process can
+	// queue a download for longer than the activity heartbeat timeout
+	// (--activity-heartbeat-timeout), and the wait is progress, not a stall.
+	maxRateLimitHeartbeatInterval = 10 * time.Second
+	// heartbeatsPerTimeout is how many heartbeats a waiting activity sends
+	// per heartbeat timeout, so a shorter timeout gets a shorter interval.
+	heartbeatsPerTimeout = 3
+)
 
 // YahooRateLimit is the token bucket every Yahoo request of one process
 // shares. The rate a whole deployment sends to Yahoo is PerSecond times its
@@ -66,7 +70,7 @@ func NewYahooRateLimiter(l YahooRateLimit) (*rate.Limiter, error) {
 // returns its error without downloading and gives the token back.
 func RateLimited(limiter *rate.Limiter, download Downloader) Downloader {
 	return func(ctx context.Context, url string) ([]byte, error) {
-		if err := waitForToken(ctx, limiter, rateLimitHeartbeatInterval); err != nil {
+		if err := waitForToken(ctx, limiter, maxRateLimitHeartbeatInterval); err != nil {
 			return nil, fmt.Errorf("wait for Yahoo rate limit: %w", err)
 		}
 		return download(ctx, url)
@@ -74,9 +78,10 @@ func RateLimited(limiter *rate.Limiter, download Downloader) Downloader {
 }
 
 // waitForToken blocks until limiter grants a request or ctx ends. Inside a
-// Temporal activity it heartbeats every heartbeatEvery while it waits, which
-// also lets the activity see a cancellation delivered through heartbeats.
-func waitForToken(ctx context.Context, limiter *rate.Limiter, heartbeatEvery time.Duration) error {
+// Temporal activity it heartbeats while it waits (see heartbeatInterval),
+// repeating the activity's latest details, which also lets the activity see
+// a cancellation delivered through heartbeats.
+func waitForToken(ctx context.Context, limiter *rate.Limiter, maxHeartbeatEvery time.Duration) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -92,7 +97,7 @@ func waitForToken(ctx context.Context, limiter *rate.Limiter, heartbeatEvery tim
 	defer timer.Stop()
 	var heartbeat <-chan time.Time
 	if activity.IsActivity(ctx) {
-		ticker := time.NewTicker(heartbeatEvery)
+		ticker := time.NewTicker(heartbeatInterval(activity.GetInfo(ctx).HeartbeatTimeout, maxHeartbeatEvery))
 		defer ticker.Stop()
 		heartbeat = ticker.C
 	}
@@ -101,10 +106,20 @@ func waitForToken(ctx context.Context, limiter *rate.Limiter, heartbeatEvery tim
 		case <-timer.C:
 			return nil
 		case <-heartbeat:
-			activity.RecordHeartbeat(ctx)
+			RepeatHeartbeat(ctx)
 		case <-ctx.Done():
 			reservation.Cancel()
 			return ctx.Err()
 		}
 	}
+}
+
+// heartbeatInterval returns how often to heartbeat under timeout, the
+// activity's heartbeat timeout (zero when it has none): a fraction of the
+// timeout, at most maxEvery.
+func heartbeatInterval(timeout, maxEvery time.Duration) time.Duration {
+	if timeout <= 0 {
+		return maxEvery
+	}
+	return min(maxEvery, timeout/heartbeatsPerTimeout)
 }

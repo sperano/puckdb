@@ -176,3 +176,19 @@ func TestYahooRateLimit_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestHeartbeatInterval(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		timeout, want time.Duration
+	}{
+		"no heartbeat timeout":      {timeout: 0, want: maxRateLimitHeartbeatInterval},
+		"default heartbeat timeout": {timeout: time.Minute, want: maxRateLimitHeartbeatInterval},
+		"short heartbeat timeout":   {timeout: 6 * time.Second, want: 2 * time.Second},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, heartbeatInterval(tc.timeout, maxRateLimitHeartbeatInterval))
+		})
+	}
+}
