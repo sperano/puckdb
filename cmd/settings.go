@@ -15,6 +15,7 @@ import (
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/client"
+	"golang.org/x/time/rate"
 )
 
 // The readers below are the only place where library client settings come
@@ -76,6 +77,14 @@ func yahooAuthFrom(v *viper.Viper) httpx.YahooAuth {
 	}
 }
 
+// yahooRateLimitFrom reads the --yahoo-rate-* per-process limiter flags.
+func yahooRateLimitFrom(v *viper.Viper) shared.YahooRateLimit {
+	return shared.YahooRateLimit{
+		PerSecond: v.GetFloat64(config.FlagYahooRateLimit),
+		Burst:     v.GetInt(config.FlagYahooRateBurst),
+	}
+}
+
 // adminAuthFrom reads --admin-group and --admin-token.
 func adminAuthFrom(v *viper.Viper) graph.AdminAuth {
 	return graph.AdminAuth{
@@ -104,10 +113,17 @@ func newRedisClient() *redis.Client {
 	return cache.NewClient(redisOptionsFrom(viper.GetViper()))
 }
 
+// newYahooRateLimiter builds the process's Yahoo request limiter from the
+// --yahoo-rate-* flags. Call it once per process and share the result by
+// every Yahoo downloader, or the process exceeds its configured rate.
+func newYahooRateLimiter() (*rate.Limiter, error) {
+	return shared.NewYahooRateLimiter(yahooRateLimitFrom(viper.GetViper()))
+}
+
 // newYahooDownloader downloads Yahoo resources with the configured OAuth2
-// application and the token stored in redisClient.
-func newYahooDownloader(redisClient *redis.Client) shared.Downloader {
-	return shared.NewYahooDownloader(redisClient, yahooAuthFrom(viper.GetViper()))
+// application and the token stored in redisClient, at the rate limiter allows.
+func newYahooDownloader(redisClient *redis.Client, limiter *rate.Limiter) shared.Downloader {
+	return shared.NewYahooDownloader(redisClient, yahooAuthFrom(viper.GetViper()), limiter)
 }
 
 // newDefaultStorage opens the file cache under the configured data path.

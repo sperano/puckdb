@@ -17,7 +17,7 @@ import (
 type FlagDef struct {
 	Name      string
 	Short     string // optional single-char shorthand
-	Default   any    // string, int, or bool
+	Default   any    // string, int, float64, or bool
 	Usage     string
 	Sensitive bool // if true, value is redacted in logs
 }
@@ -42,6 +42,12 @@ func (g *FlagGroup) Init(flags *flag.FlagSet) {
 				flags.IntP(f.Name, f.Short, v, f.Usage)
 			} else {
 				flags.Int(f.Name, v, f.Usage)
+			}
+		case float64:
+			if f.Short != "" {
+				flags.Float64P(f.Name, f.Short, v, f.Usage)
+			} else {
+				flags.Float64(f.Name, v, f.Usage)
 			}
 		case bool:
 			if f.Short != "" {
@@ -190,8 +196,12 @@ const (
 	FlagYahooPlayerActivityBatchSize = "yahoo-player-activity-batch-size"
 	FlagYahooPlayersPerExecution     = "yahoo-players-per-execution"
 	FlagYahooPlayerPoolMaxAge        = "yahoo-player-pool-max-age"
-	FlagYahooDownloadSleepMin        = "yahoo-download-sleep-min"
-	FlagYahooDownloadSleepMax        = "yahoo-download-sleep-max"
+)
+
+// Yahoo request rate limiting flags (one token bucket per process)
+const (
+	FlagYahooRateLimit = "yahoo-rate-limit"
+	FlagYahooRateBurst = "yahoo-rate-burst"
 )
 
 // NHL player landing download flags
@@ -420,11 +430,11 @@ var YahooPlayerFlags = FlagGroup{
 	},
 }
 
-// YahooDownloadSleepFlags defines Yahoo download rate limiting flags.
-var YahooDownloadSleepFlags = FlagGroup{
+// YahooRateLimitFlags defines the per-process Yahoo request rate limit.
+var YahooRateLimitFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagYahooDownloadSleepMin, "", DefaultYahooDownloadSleepMin, "Minimum seconds to sleep after each Yahoo API download", false},
-		{FlagYahooDownloadSleepMax, "", DefaultYahooDownloadSleepMax, "Maximum seconds to sleep after each Yahoo API download", false},
+		{FlagYahooRateLimit, "", DefaultYahooRateLimit, "Yahoo requests per second for this process (the deployment's rate is this times its replica count)", false},
+		{FlagYahooRateBurst, "", DefaultYahooRateBurst, "Yahoo requests this process may start back to back after an idle period", false},
 	},
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -55,7 +56,6 @@ type fetchHarness struct {
 	mem       *store.MemStorage
 	fetcher   Fetcher
 	downloads int
-	throttled int
 }
 
 // newFetchHarness scripts the downloader to return each response in turn; the
@@ -70,7 +70,6 @@ func newFetchHarness(responses ...[]byte) *fetchHarness {
 			i := min(h.downloads-1, len(responses)-1)
 			return responses[i], nil
 		},
-		Throttle: func() { h.throttled++ },
 	}
 	return h
 }
@@ -105,7 +104,6 @@ func TestFetcher_CacheHitSkipsDownload(t *testing.T) {
 		assert.NotNil(t, content)
 		assert.Equal(t, core.OriginFileSystem, origin)
 		assert.Equal(t, 0, h.downloads)
-		assert.Equal(t, 0, h.throttled, "cache hits must not throttle")
 	})
 }
 
@@ -121,7 +119,6 @@ func TestFetcher_MissDownloadsAndStoresRawXML(t *testing.T) {
 		assert.NotNil(t, content)
 		assert.Equal(t, core.OriginRemoteYahooAPI, origin)
 		assert.Equal(t, 1, h.downloads)
-		assert.Equal(t, 1, h.throttled)
 		assert.Equal(t, validXML, h.stored(t, res), "raw XML must be stored verbatim")
 	})
 }
@@ -136,7 +133,6 @@ func TestFetcher_MalformedDownloadIsNeverStored(t *testing.T) {
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, ErrDownload, "a parse failure is not a download failure")
 		assert.False(t, h.mem.Exists(context.Background(), res.Path()), "malformed XML must not be written")
-		assert.Equal(t, 0, h.throttled, "failed fetches must not throttle")
 	})
 }
 
@@ -202,8 +198,31 @@ func TestFetcher_DownloadErrorIsErrDownload(t *testing.T) {
 		assert.ErrorIs(t, err, ErrDownload)
 		assert.ErrorIs(t, err, netErr)
 		assert.False(t, h.mem.Exists(context.Background(), res.Path()))
-		assert.Equal(t, 0, h.throttled)
 	})
+}
+
+func TestFetcher_CanceledWhileRateLimitedReturnsPromptly(t *testing.T) {
+	t.Parallel()
+	const (
+		cancelAfter  = 50 * time.Millisecond
+		promptReturn = 2 * time.Second
+	)
+	limiter := rate.NewLimiter(rate.Every(time.Hour), 1)
+	require.True(t, limiter.Allow(), "drain the bucket so the next download waits an hour")
+	h := newFetchHarness([]byte(validLeagueFetchXML))
+	h.fetcher.Download = shared.RateLimited(limiter, h.fetcher.Download)
+	res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	time.AfterFunc(cancelAfter, cancel)
+	begin := time.Now()
+	_, _, err := h.fetcher.Fetch(ctx, res)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.ErrorIs(t, err, ErrDownload)
+	assert.Less(t, time.Since(begin), promptReturn)
+	assert.Zero(t, h.downloads, "a canceled wait must not reach Yahoo")
 }
 
 func TestFetcher_Redis(t *testing.T) {
@@ -220,7 +239,6 @@ func TestFetcher_Redis(t *testing.T) {
 			Storage:  store.NewMemStorage(),
 			GobCache: cache.NewGobCache(redisClient),
 			Download: mockDownloader([]byte(validLeagueFetchXML), nil),
-			Throttle: func() {},
 		}
 		_, _, err := f.Fetch(context.Background(), res)
 
@@ -262,7 +280,6 @@ func TestFetcher_Redis(t *testing.T) {
 			Storage:  storage,
 			GobCache: cache.NewGobCache(redisClient),
 			Download: mockDownloader([]byte(validLeagueFetchXML), nil),
-			Throttle: func() {},
 		}
 
 		_, err := f.RefreshCoherent(context.Background(), res)

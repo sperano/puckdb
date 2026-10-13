@@ -71,7 +71,6 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 				}
 				log.Info().Int("playerID", int(playerID)).Msg("Saved as missing Yahoo player")
 				metrics.IncDownload(core.YahooPlayer, metrics.ResultMiss)
-				SleepAfterYahooDownload()
 				return fetchStatusMissing, nil
 			}
 		}
@@ -85,6 +84,5 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 	}
 	log.Info().Int("playerID", int(playerID)).Str("path", playerRes.Path()).Msg("Saved Yahoo player")
 	metrics.IncDownload(core.YahooPlayer, metrics.ResultMiss)
-	SleepAfterYahooDownload()
 	return fetchStatusDownloaded, nil
 }

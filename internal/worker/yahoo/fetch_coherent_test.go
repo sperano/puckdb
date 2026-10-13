@@ -55,7 +55,7 @@ func TestRefreshCoherentSerializesCacheMissRepopulation(t *testing.T) {
 	go func() {
 		fetcher := Fetcher{
 			Storage: storage, GobCache: gobCache,
-			Download: signalingDownloader(newDraftResultXML, refreshDownloaded), Throttle: func() {},
+			Download: signalingDownloader(newDraftResultXML, refreshDownloaded),
 		}
 		_, err := fetcher.RefreshCoherent(ctx, res)
 		refreshDone <- err
@@ -89,7 +89,7 @@ func TestRefreshCoherentFollowsInFlightNormalDownload(t *testing.T) {
 	oldDownloadEntered := make(chan struct{})
 	oldDownloadResume := make(chan struct{})
 	oldFetcher := Fetcher{
-		Storage: memory, GobCache: gobCache, Throttle: func() {},
+		Storage: memory, GobCache: gobCache,
 		Download: blockingDownloader(oldDraftResultXML, oldDownloadEntered, oldDownloadResume),
 	}
 
@@ -105,7 +105,7 @@ func TestRefreshCoherentFollowsInFlightNormalDownload(t *testing.T) {
 	refreshDone := make(chan error, 1)
 	go func() {
 		fetcher := Fetcher{
-			Storage: memory, GobCache: gobCache, Throttle: func() {},
+			Storage: memory, GobCache: gobCache,
 			Download: signalingDownloader(newDraftResultXML, refreshDownloaded),
 		}
 		_, err := fetcher.RefreshCoherent(ctx, res)
@@ -138,7 +138,7 @@ func TestCoherentRefreshSerializesUpstreamRequests(t *testing.T) {
 	oldDownloadEntered := make(chan struct{})
 	oldDownloadResume := make(chan struct{})
 	oldDone := runCoherentRefresh(ctx, Fetcher{
-		Storage: memory, GobCache: gobCache, Throttle: func() {},
+		Storage: memory, GobCache: gobCache,
 		Download: blockingDownloader(oldDraftResultXML, oldDownloadEntered, oldDownloadResume),
 	}, res)
 
@@ -146,7 +146,7 @@ func TestCoherentRefreshSerializesUpstreamRequests(t *testing.T) {
 	waitForLockAttempts(t, lockAttempts, 1)
 	newDownloadEntered := make(chan struct{})
 	newDone := runCoherentRefresh(ctx, Fetcher{
-		Storage: memory, GobCache: gobCache, Throttle: func() {},
+		Storage: memory, GobCache: gobCache,
 		Download: signalingDownloader(newDraftResultXML, newDownloadEntered),
 	}, res)
 	waitForLockAttempts(t, lockAttempts, 1)

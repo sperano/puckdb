@@ -10,6 +10,7 @@ import (
 	"github.com/sperano/puckdb/internal/graph"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/temporal"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -109,4 +110,19 @@ func TestAdminAuthFrom(t *testing.T) {
 	assert.Equal(t, graph.AdminAuth{Group: "puckdb-admins"}, adminAuthFrom(boundViper(t, nil, &config.AdminAuthFlags)))
 	v := boundViper(t, []string{"--admin-group=ops", "--admin-token=s3cr3t"}, &config.AdminAuthFlags)
 	assert.Equal(t, graph.AdminAuth{Group: "ops", Token: "s3cr3t"}, adminAuthFrom(v))
+}
+
+func TestYahooRateLimitFrom(t *testing.T) {
+	t.Parallel()
+	t.Run("flag defaults keep the current settings", func(t *testing.T) {
+		t.Parallel()
+		got := yahooRateLimitFrom(boundViper(t, nil, &config.YahooRateLimitFlags))
+		assert.Equal(t, shared.DefaultYahooRateLimit(), got)
+		assert.Equal(t, shared.YahooRateLimit{PerSecond: 0.25, Burst: 2}, got)
+	})
+	t.Run("flags override", func(t *testing.T) {
+		t.Parallel()
+		v := boundViper(t, []string{"--yahoo-rate-limit=1.5", "--yahoo-rate-burst=3"}, &config.YahooRateLimitFlags)
+		assert.Equal(t, shared.YahooRateLimit{PerSecond: 1.5, Burst: 3}, yahooRateLimitFrom(v))
+	})
 }

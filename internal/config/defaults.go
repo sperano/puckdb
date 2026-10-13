@@ -74,8 +74,16 @@ const (
 	DefaultYahooPlayerActivityBatchSize = 100
 	DefaultYahooPlayersPerExecution     = 5000
 	DefaultYahooPlayerPoolMaxAge        = 12 // hours
-	DefaultYahooDownloadSleepMin        = 5
-	DefaultYahooDownloadSleepMax        = 15
+)
+
+// Yahoo request rate limit defaults. The limit is per process: 16 worker
+// replicas at 0.25 req/s send at most 4 req/s to Yahoo, under the 4.4 req/s
+// the cluster sustained without being throttled (season sync, 2026-10-11);
+// the api process adds its own 0.25 req/s for live draft polls.
+// A burst of 2 lets a live draft poll (status, then results) run back to back.
+const (
+	DefaultYahooRateLimit = 0.25 // requests per second
+	DefaultYahooRateBurst = 2
 )
 
 // NHL player landing download defaults

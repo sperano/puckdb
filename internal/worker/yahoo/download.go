@@ -3,18 +3,14 @@ package yahoo
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/cache"
-	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -35,7 +31,7 @@ func GetGameKeyForSeason(ctx context.Context, storage store.Storage, gobCache *c
 	}
 	gameKeyCacheMu.RUnlock()
 
-	gameKey, err := getGameKeyImpl(ctx, storage, gobCache, season, fetcher, SleepAfterYahooDownload)
+	gameKey, err := getGameKeyImpl(ctx, storage, gobCache, season, fetcher)
 	if err != nil {
 		return 0, err
 	}
@@ -49,8 +45,8 @@ func GetGameKeyForSeason(ctx context.Context, storage store.Storage, gobCache *c
 }
 
 // getGameKeyImpl fetches the game key, using cache or downloading if needed.
-func getGameKeyImpl(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season int, fetcher shared.Downloader, postDownload func()) (int, error) {
-	f := Fetcher{Storage: storage, GobCache: gobCache, Download: fetcher, Throttle: postDownload}
+func getGameKeyImpl(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season int, fetcher shared.Downloader) (int, error) {
+	f := Fetcher{Storage: storage, GobCache: gobCache, Download: fetcher}
 	fantasy, origin, err := f.Fetch(ctx, resource.GameKey{Season: season})
 	if err != nil {
 		return 0, fmt.Errorf("fetch game key for season %d: %w", season, err)
@@ -84,24 +80,4 @@ func SetGameKeyCache(season, gameKey int) {
 	gameKeyCacheMu.Lock()
 	gameKeyCache[season] = gameKey
 	gameKeyCacheMu.Unlock()
-}
-
-// SleepAfterYahooDownload sleeps for a random duration between min and max after a Yahoo API download.
-func SleepAfterYahooDownload() {
-	minSeconds := viper.GetInt(config.FlagYahooDownloadSleepMin)
-	maxSeconds := viper.GetInt(config.FlagYahooDownloadSleepMax)
-	if maxSeconds <= 0 {
-		return
-	}
-	if minSeconds < 0 {
-		minSeconds = 0
-	}
-	if minSeconds >= maxSeconds {
-		minSeconds = maxSeconds
-	}
-	sleepSeconds := minSeconds + rand.Intn(maxSeconds-minSeconds+1)
-	if sleepSeconds > 0 {
-		log.Debug().Int("seconds", sleepSeconds).Msg("Sleeping after Yahoo download")
-		time.Sleep(time.Duration(sleepSeconds) * time.Second)
-	}
 }

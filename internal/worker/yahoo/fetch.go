@@ -34,8 +34,9 @@ var ErrDownload = errors.New("download from Yahoo failed")
 
 // Fetcher is the single cache-or-download primitive for Yahoo API resources.
 // It reads validated content from the Redis → filesystem cache and, on a miss,
-// downloads, validates, stores the raw XML verbatim, populates Redis, records
-// download metrics and throttles.
+// downloads, validates, stores the raw XML verbatim, populates Redis and records
+// download metrics. Download is expected to apply the process's Yahoo rate
+// limit (shared.NewYahooDownloader does).
 //
 // Raw XML is never written before it parses, so a malformed response cannot
 // become a cache entry. An existing file that no longer parses is reported as
@@ -44,8 +45,6 @@ type Fetcher struct {
 	Storage  store.Storage
 	GobCache *cache.GobCache
 	Download shared.Downloader
-	// Throttle runs after every successful download. Nil means SleepAfterYahooDownload.
-	Throttle func()
 }
 
 // Fetch returns the parsed resource and where it came from: OriginRedis or
@@ -194,14 +193,5 @@ func (f Fetcher) download(ctx context.Context, res Resource, strictCache bool) (
 	}
 
 	metrics.IncDownload(ft, metrics.ResultMiss)
-	f.throttle()
 	return content, core.OriginRemoteYahooAPI, nil
-}
-
-func (f Fetcher) throttle() {
-	if f.Throttle != nil {
-		f.Throttle()
-		return
-	}
-	SleepAfterYahooDownload()
 }
