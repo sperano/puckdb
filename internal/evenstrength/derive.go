@@ -16,7 +16,7 @@
 // overlap join misled the planner into nested loops that cost seconds per
 // game. It runs here over the game's few hundred shift rows instead, with
 // results identical to that SQL (checked against it in
-// legacy_sql_pg_test.go).
+// legacy_equivalence_pg_test.go).
 package evenstrength
 
 import (
