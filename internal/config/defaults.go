@@ -74,6 +74,7 @@ const (
 	DefaultYahooPlayerActivityBatchSize = 100
 	DefaultYahooPlayersPerExecution     = 5000
 	DefaultYahooPlayerPoolMaxAge        = 12 // hours
+	DefaultYahooPoolLeagueConcurrency   = 3
 	DefaultYahooDownloadSleepMin        = 5
 	DefaultYahooDownloadSleepMax        = 15
 )

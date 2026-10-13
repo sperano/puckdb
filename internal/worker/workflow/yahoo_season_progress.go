@@ -18,11 +18,29 @@ const yahooChildGroup = 0
 // follow along.
 type yahooSeasonProgress struct {
 	tracker *shared.ReportTracker
+	// saving serializes changes. Leagues fetch their player pools in
+	// concurrent coroutines and every change saves the report through a
+	// local activity; without it an older report could reach Redis after a
+	// newer one. An uncontended Lock never yields, so a single coroutine
+	// issues the same commands as without it.
+	saving workflow.Mutex
+}
+
+// serialized runs change while holding saving. When the workflow is canceled
+// while another change holds it, change runs anyway: the run is ending and
+// its progress is no longer read.
+func (p yahooSeasonProgress) serialized(ctx workflow.Context, change func()) {
+	if err := p.saving.Lock(ctx); err != nil {
+		change()
+		return
+	}
+	defer p.saving.Unlock()
+	change()
 }
 
 // advance records one completed unit of a league's bar.
 func (p yahooSeasonProgress) advance(ctx workflow.Context, bar int) {
-	p.tracker.IncrementBar(ctx, yahooChildGroup, bar)
+	p.serialized(ctx, func() { p.tracker.IncrementBar(ctx, yahooChildGroup, bar) })
 }
 
 // advanceBars records one unit shared by several leagues (a batched import).
@@ -30,7 +48,7 @@ func (p yahooSeasonProgress) advanceBars(ctx workflow.Context, bars []int) {
 	if len(bars) == 0 {
 		return
 	}
-	p.tracker.IncrementBars(ctx, yahooChildGroup, bars)
+	p.serialized(ctx, func() { p.tracker.IncrementBars(ctx, yahooChildGroup, bars) })
 }
 
 // resize grows (delta > 0) or shrinks a league's Total once an activity
@@ -39,9 +57,11 @@ func (p yahooSeasonProgress) resize(ctx workflow.Context, bar, delta int) {
 	if delta == 0 {
 		return
 	}
-	p.tracker.SetBarTotal(yahooChildGroup, bar, p.tracker.Bar(yahooChildGroup, bar).Total+delta)
-	p.tracker.RecalcTotal()
-	p.tracker.Save(ctx)
+	p.serialized(ctx, func() {
+		p.tracker.SetBarTotal(yahooChildGroup, bar, p.tracker.Bar(yahooChildGroup, bar).Total+delta)
+		p.tracker.RecalcTotal()
+		p.tracker.Save(ctx)
+	})
 }
 
 func (p yahooSeasonProgress) complete(ctx workflow.Context) {
@@ -64,7 +84,7 @@ func startYahooSeasonProgress(ctx workflow.Context, input YahooSeasonWorkflowInp
 		return yahooSeasonProgress{}, err
 	}
 	tracker.StartGroup(ctx, yahooChildGroup)
-	return yahooSeasonProgress{tracker: tracker}, nil
+	return yahooSeasonProgress{tracker: tracker, saving: workflow.NewMutex(ctx)}, nil
 }
 
 func newYahooSeasonProgressReport(input YahooSeasonWorkflowInput, mode seasonSyncMode) *shared.ProgressReport {
