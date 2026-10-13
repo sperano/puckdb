@@ -272,7 +272,10 @@ ready before a poller picks it up — the queueing signal this worker previously
 had no way to report), `temporal_worker_task_slots_available` /
 `temporal_worker_task_slots_used`, and `temporal_poller_start_total`. These are
 distinct from the `temporal_*` series already in Prometheus from the Temporal
-server's own internal workers.
+server's own internal workers. tally's Prometheus sanitizer replaces any
+non-alphanumeric character in a label value with `_`, so `task_queue` reads
+`puckdb_tasks`, not `puckdb-tasks`, on these series (unlike the server's own
+`temporal_*` series, which keep the dash) — match on the sanitized form.
 
 ### API metrics
 | Metric | Type | Labels | Description |
