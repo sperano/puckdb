@@ -490,6 +490,22 @@ func (s *FetchDayTestSuite) TestYahooTeamDownloadsPacedByRateLimiter() {
 	s.Less(elapsed, sequential/2, "a day's %d downloads should not run one after another", downloads)
 }
 
+func TestFetchYahooTeamsReportsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var calls atomic.Int64
+	dl := func(context.Context, string) ([]byte, error) {
+		calls.Add(1)
+		return testTeamXML, nil
+	}
+	a := &DailyScheduleActivities{Storage: store.NewMemStorage(), GobCache: cache.NewGobCache(nil), Download: dl}
+
+	err := a.fetchYahooTeams(ctx, time.Now(), testGameKey, testTeams(testOverlapTeams))
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Zero(t, calls.Load(), "no download should start once the activity is canceled")
+}
+
 func TestGetYahooTeamDownloadConcurrency(t *testing.T) {
 	setYahooTeamConcurrency(t, 0)
 	assert.Equal(t, config.DefaultYahooTeamDownloadConcurrency, getYahooTeamDownloadConcurrency(), "unset uses the default")
