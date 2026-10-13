@@ -100,7 +100,9 @@ func InitTracker(ctx workflow.Context, report *ProgressReport) (*ReportTracker, 
 // the run is ending and its progress is no longer read.
 func (t *ReportTracker) Save(ctx workflow.Context) {
 	if t.saving != nil {
-		if err := t.saving.Lock(ctx); err == nil {
+		if err := t.saving.Lock(ctx); err != nil {
+			workflow.GetLogger(ctx).Debug("Saving progress report without the save lock", "error", err)
+		} else {
 			defer t.saving.Unlock()
 		}
 	}

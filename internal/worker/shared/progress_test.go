@@ -262,3 +262,43 @@ func TestSerializeSaves_OneSaveAtATimeInOrder(t *testing.T) {
 	assert.IsNonDecreasing(t, serialized.saved)
 	assert.Equal(t, concurrentSaveCoroutines*concurrentSaveRounds, serialized.saved[len(serialized.saved)-1])
 }
+
+// A Save whose context is canceled while another Save holds the lock goes
+// ahead without it: it must neither unlock a mutex it never held (a panic)
+// nor wait for the holder to finish.
+func TestSerializeSaves_CanceledWaiterSavesWithoutLock(t *testing.T) {
+	t.Parallel()
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	recorder := &saveRecorder{}
+	env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(recorder.save)
+	var holderStillSaving bool
+
+	env.ExecuteWorkflow(func(ctx workflow.Context) error {
+		tracker, err := InitTracker(ctx, &ProgressReport{Groups: []ProgressGroup{{Bars: []ProgressBar{{Total: 1}}}}})
+		if err != nil {
+			return err
+		}
+		tracker.SerializeSaves(ctx)
+		holderDone := workflow.NewWaitGroup(ctx)
+		holderDone.Add(1)
+		workflow.Go(ctx, func(ctx workflow.Context) {
+			defer holderDone.Done()
+			tracker.IncrementBar(ctx, 0, 0)
+		})
+		if err := workflow.Await(ctx, tracker.saving.IsLocked); err != nil {
+			return err
+		}
+		waiterCtx, cancel := workflow.WithCancel(ctx)
+		cancel()
+		tracker.Save(waiterCtx)
+		holderStillSaving = tracker.saving.IsLocked()
+		holderDone.Wait(ctx)
+		return nil
+	})
+
+	require.NoError(t, env.GetWorkflowError())
+	assert.True(t, holderStillSaving, "the canceled Save returned while the holder still held the lock")
+	assert.Contains(t, recorder.saved, 1, "the holder's save completed")
+}
