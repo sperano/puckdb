@@ -94,9 +94,12 @@ func openPGXPool(ctx context.Context) (*pgxpool.Pool, error) {
 	return database.OpenPGXPool(ctx, databaseConfigFrom(viper.GetViper()))
 }
 
-// newTemporalClient dials Temporal with the configured settings.
-func newTemporalClient() (client.Client, error) {
-	return temporal.NewClient(temporalOptionsFrom(viper.GetViper()))
+// newTemporalClient dials Temporal with the configured settings. metricsHandler
+// is optional: a nil handler leaves Temporal SDK metrics unreported.
+func newTemporalClient(metricsHandler client.MetricsHandler) (client.Client, error) {
+	opts := temporalOptionsFrom(viper.GetViper())
+	opts.MetricsHandler = metricsHandler
+	return temporal.NewClient(opts)
 }
 
 // newRedisClient opens a Redis client with the configured settings.
