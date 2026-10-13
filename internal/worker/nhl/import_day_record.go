@@ -74,13 +74,15 @@ type dayFingerprint struct {
 // records what it imported. The fingerprint is taken before the import reads
 // anything, so a file rewritten during the import leaves the older
 // fingerprint behind and the next run imports the day again. Both read the
-// cached files from storage (see withStorageFirstReads), so the recorded
-// fingerprint never stands for an older parsed object left in Redis.
+// cached files from storage, not Redis: the fingerprint stats the files in
+// storage, and a Redis entry that outlived a rewrite of its file would let the
+// import write the old contents under the new fingerprint, so every later run
+// would skip the day.
 func (a *ImportActivities) ImportDayIfChanged(ctx context.Context, input ImportDayIfChangedInput) (ImportDayIfChangedResult, error) {
 	defer metrics.TrackActivityDuration("ImportDayIfChanged")()
-	a = a.withStorageFirstReads()
+	files := a.withStorageFirstReads()
 	dayLabel := input.Date.Format(config.DateFormat)
-	fingerprint, err := a.dayInputsFingerprint(ctx, input.ImportDayInput)
+	fingerprint, err := files.dayInputsFingerprint(ctx, input.ImportDayInput)
 	if err != nil {
 		return ImportDayIfChangedResult{}, fmt.Errorf("fingerprint cached files for %s: %w", dayLabel, err)
 	}
@@ -95,7 +97,7 @@ func (a *ImportActivities) ImportDayIfChanged(ctx context.Context, input ImportD
 		logger.Debug("Day unchanged since its last import, skipped", "date", dayLabel)
 		return ImportDayIfChangedResult{Origins: core.OriginCounts{}, Skipped: true}, nil
 	}
-	imported, err := a.importDay(ctx, input.ImportDayInput)
+	imported, err := files.importDay(ctx, input.ImportDayInput)
 	result := ImportDayIfChangedResult{Origins: imported.Origins, SkippedRows: imported.SkippedRows}
 	if err != nil {
 		return result, err
@@ -120,10 +122,7 @@ func (a *ImportActivities) ImportDayIfChanged(ctx context.Context, input ImportD
 
 // withStorageFirstReads returns a copy of a whose cached-file reads, its own
 // and its Yahoo importer's, parse storage and refresh Redis instead of trusting
-// a Redis entry (see cache.GobCache.StorageFirst). The fingerprint stats the
-// files in storage; an entry that outlived a rewrite of its file would let the
-// import write the old contents under the new fingerprint, and every later run
-// would skip the day.
+// a Redis entry (see cache.GobCache.StorageFirst and ImportDayIfChanged).
 func (a *ImportActivities) withStorageFirstReads() *ImportActivities {
 	view := *a
 	view.GobCache = a.GobCache.StorageFirst()
