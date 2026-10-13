@@ -30,8 +30,8 @@ func fetchYahooPlayerPools(ctx workflow.Context, startYear int, leagues []config
 }
 
 // fetchYahooPlayerPool downloads one page per activity (each is throttled
-// like every Yahoo download) until a short page (see fetchYahooPoolPages for
-// which pages run concurrently), then commits the manifest
+// like every Yahoo download, several run at once: see fetchYahooPoolPages)
+// until a short page, then commits the manifest
 // that makes the pages the league's current snapshot. The download ID, taken
 // from the workflow clock, keeps each download's pages apart. The plan, every
 // page, and the commit each advance the league's bar; the page estimate comes

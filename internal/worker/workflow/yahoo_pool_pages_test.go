@@ -102,10 +102,21 @@ func (p *fakePool) leave(start int) {
 	}
 }
 
-func (p *fakePool) sortedRequests() []int {
+// fakePoolStats is what a fakePool observed, copied under its lock.
+type fakePoolStats struct {
+	requested  []int
+	peak       int
+	firstAlone bool
+}
+
+func (p *fakePool) stats() fakePoolStats {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return slices.Sorted(slices.Values(p.requested))
+	return fakePoolStats{requested: slices.Clone(p.requested), peak: p.peak, firstAlone: p.firstAlone}
+}
+
+func (s fakePoolStats) sortedRequests() []int {
+	return slices.Sorted(slices.Values(s.requested))
 }
 
 // poolRun is one FetchYahooSeasonWorkflow run against a fake pool.
@@ -155,10 +166,11 @@ func TestFetchYahooPoolPages_KnownPagesRunConcurrently(t *testing.T) {
 	run := runPoolFetch(t, pool, poolTestPlayers, nil)
 
 	require.NoError(t, run.env.GetWorkflowError())
-	assert.Equal(t, yahooPoolPageConcurrency, pool.peak, "pages in flight at once")
-	assert.True(t, pool.firstAlone, "no page starts before the first one returns")
+	stats := pool.stats()
+	assert.Equal(t, yahooPoolPageConcurrency, stats.peak, "pages in flight at once")
+	assert.True(t, stats.firstAlone, "no page starts before the first one returns")
 	expected := pageStarts(yahooPoolPages(poolTestPlayers))
-	assert.Equal(t, expected, pool.sortedRequests(), "every page once, nothing past the short one")
+	assert.Equal(t, expected, stats.sortedRequests(), "every page once, nothing past the short one")
 	require.NotNil(t, run.commit)
 	assert.Equal(t, expected, run.commit.Starts)
 	assert.Equal(t, poolTestPlayers, run.commit.Players)
@@ -173,7 +185,7 @@ func TestFetchYahooPoolPages_TailWalkStopsAtFirstShortPage(t *testing.T) {
 	run := runPoolFetch(t, pool, previous, nil)
 
 	require.NoError(t, run.env.GetWorkflowError())
-	assert.Equal(t, pageStarts(5), pool.sortedRequests(), "the tail ends at the short page")
+	assert.Equal(t, pageStarts(5), pool.stats().sortedRequests(), "the tail ends at the short page")
 	require.NotNil(t, run.commit)
 	assert.Equal(t, pageStarts(5), run.commit.Starts)
 	assert.Equal(t, grown, run.commit.Players)
@@ -193,11 +205,12 @@ func TestFetchYahooPoolPages_ShrunkPoolIgnoresPagesPastTheEnd(t *testing.T) {
 	assert.Equal(t, pageStarts(3), run.commit.Starts)
 	assert.Equal(t, shrunk, run.commit.Players)
 	assert.NotContains(t, run.commit.Discarded, failing, "a failed page wrote nothing to delete")
+	stats := pool.stats()
 	for _, start := range run.commit.Discarded {
 		assert.Greater(t, start, 2*poolPageSize)
-		assert.Contains(t, pool.requested, start)
+		assert.Contains(t, stats.requested, start)
 	}
-	assert.Less(t, len(pool.requested), yahooPoolPages(poolTestPlayers), "pages past the end stop being started")
+	assert.Less(t, len(stats.requested), yahooPoolPages(poolTestPlayers), "pages past the end stop being started")
 }
 
 // A page that fails before the pool's last one fails the download.
@@ -221,7 +234,7 @@ func TestFetchYahooPoolPages_UnavailableFirstPageStopsTheDownload(t *testing.T) 
 	var result YahooSeasonSyncResult
 	require.NoError(t, run.env.GetWorkflowResult(&result))
 	assert.Equal(t, []string{"league 1001 player pool"}, result.UnavailableResources)
-	assert.Equal(t, []int{0}, pool.requested, "no other page is requested")
+	assert.Equal(t, []int{0}, pool.stats().requested, "no other page is requested")
 	assert.Nil(t, run.commit)
 }
 
@@ -234,8 +247,9 @@ func TestFetchYahooPoolPages_LegacyVersionWalksOnePageAtATime(t *testing.T) {
 	})
 
 	require.NoError(t, run.env.GetWorkflowError())
-	assert.Equal(t, 1, pool.peak)
-	assert.Equal(t, pool.sortedRequests(), pool.requested, "pages in order")
+	stats := pool.stats()
+	assert.Equal(t, 1, stats.peak)
+	assert.Equal(t, stats.sortedRequests(), stats.requested, "pages in order")
 	require.NotNil(t, run.commit)
 	assert.Equal(t, pageStarts(yahooPoolPages(poolTestPlayers)), run.commit.Starts)
 }
