@@ -89,10 +89,12 @@ type Queries interface {
 // These activities read cached data from the filesystem and upsert into the database.
 // Tx runs the multi-statement writes that must be atomic, such as the
 // per-game even-strength segment rebuild after a shift chart import.
+// DayImports records the days ImportDayIfChanged imported.
 type ImportActivities struct {
-	Storage  store.Storage
-	GobCache *cache.GobCache
-	Queries  Queries
-	Tx       Transactor
-	Yahoo    *yahoo.ImportActivities
+	Storage    store.Storage
+	GobCache   *cache.GobCache
+	Queries    Queries
+	Tx         Transactor
+	DayImports DayImportStore
+	Yahoo      *yahoo.ImportActivities
 }

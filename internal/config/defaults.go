@@ -300,6 +300,10 @@ const (
 	DefaultDraftUncertaintyPenalty = "" // no penalty
 )
 
+// DefaultReimportDays leaves NHL days whose cached files and importer
+// version are unchanged since their last import alone.
+const DefaultReimportDays = false
+
 // Player news defaults (draft helper)
 const (
 	DefaultNewsSourcesFile = "" // built-in source set
