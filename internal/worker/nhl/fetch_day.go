@@ -103,8 +103,8 @@ schedule:
 				break schedule
 			}
 			g.Go(func() error {
-				// g.Go may have waited for the slot a failing download
-				// freed after canceling gctx.
+				// A failing download cancels gctx before it frees its
+				// slot, so a task started in that slot must not run.
 				if err := gctx.Err(); err != nil {
 					return err
 				}
