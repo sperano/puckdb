@@ -42,8 +42,11 @@ type ShiftChartUpserter interface {
 
 // EvenStrengthTotalsRebuilder is the interface for rebuilding one game's
 // even_strength_pair_toi and even_strength_skater_games rows from its stored
-// shifts. All four calls must run in the same transaction; see Transactor.
+// shifts. All calls must run in the same transaction; see Transactor.
+// DisableNestedLoopsForTransaction must come before the inserts: without it
+// the planner nests their joins and each insert costs seconds of CPU.
 type EvenStrengthTotalsRebuilder interface {
+	DisableNestedLoopsForTransaction(ctx context.Context) error
 	DeleteEvenStrengthPairTOIForGame(ctx context.Context, gameID int64) error
 	DeleteEvenStrengthSkaterGamesForGame(ctx context.Context, gameID int64) error
 	InsertEvenStrengthPairTOIForGame(ctx context.Context, gameID int64) (int64, error)

@@ -117,11 +117,16 @@ func (a *ImportActivities) importGameShiftChart(ctx context.Context, date time.T
 // rebuildEvenStrengthTotals replaces a game's even_strength_pair_toi and
 // even_strength_skater_games rows in one transaction, so readers never see a
 // half-built game and a retry after a failure at any point rebuilds the same
-// rows. It returns the total rows inserted across both tables.
+// rows. Nested-loop joins are off for that transaction only (see
+// DisableNestedLoopsForTransaction). It returns the total rows inserted
+// across both tables.
 func (a *ImportActivities) rebuildEvenStrengthTotals(ctx context.Context, gameID nhlapi.GameID) (int64, error) {
 	id := int64(gameID)
 	var inserted int64
 	err := a.Tx.InTx(ctx, func(q EvenStrengthTotalsRebuilder) error {
+		if err := q.DisableNestedLoopsForTransaction(ctx); err != nil {
+			return fmt.Errorf("disable nested loops: %w", err)
+		}
 		if err := q.DeleteEvenStrengthPairTOIForGame(ctx, id); err != nil {
 			return fmt.Errorf("delete pair toi: %w", err)
 		}
