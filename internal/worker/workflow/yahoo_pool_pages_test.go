@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 	"testing"
@@ -28,15 +29,45 @@ const (
 	poolTestBarrierWait = 5 * time.Second
 )
 
+// pageBarrier makes the first hold pages that arrive at it each wait (up to
+// poolTestBarrierWait) until hold of them are in flight together, so a walk
+// that keeps fewer in flight shows a lower peak instead of passing by luck.
+// Its owner guards arrive with its own lock; wait runs outside it.
+type pageBarrier struct {
+	hold, held int
+	release    chan struct{}
+}
+
+func newPageBarrier(hold int) pageBarrier {
+	return pageBarrier{hold: hold, release: make(chan struct{})}
+}
+
+// arrive counts one page and says whether it must wait for the others.
+func (b *pageBarrier) arrive() bool {
+	if b.held >= b.hold {
+		return false
+	}
+	b.held++
+	if b.held == b.hold {
+		close(b.release)
+		return false
+	}
+	return true
+}
+
+func (b *pageBarrier) wait() {
+	select {
+	case <-b.release:
+	case <-time.After(poolTestBarrierWait):
+	}
+}
+
 // fakePool serves a league pool of players through FetchYahooLeaguePlayersPage
 // and records how the pages were requested. With hold > 0, the first hold
-// pages after the first one each wait (up to poolTestBarrierWait) until hold
-// pages are in flight together, so a walk that keeps fewer in flight shows a
-// lower peak instead of passing by luck. An unavailable pool answers its
-// first page as Yahoo does before the pool opens.
+// pages after the first one go through a pageBarrier. An unavailable pool
+// answers its first page as Yahoo does before the pool opens.
 type fakePool struct {
 	players     int
-	hold        int
 	failAt      map[int]bool
 	unavailable bool
 
@@ -44,23 +75,18 @@ type fakePool struct {
 	requested  []int
 	inFlight   int
 	peak       int
-	held       int
-	release    chan struct{}
+	barrier    pageBarrier
 	firstAlone bool
 	firstDone  bool
 }
 
 func newFakePool(players, hold int) *fakePool {
-	return &fakePool{players: players, hold: hold, failAt: map[int]bool{}, release: make(chan struct{}), firstAlone: true}
+	return &fakePool{players: players, failAt: map[int]bool{}, barrier: newPageBarrier(hold), firstAlone: true}
 }
 
 func (p *fakePool) fetch(_ context.Context, input yahoo.FetchYahooLeaguePlayersPageInput) (yahoo.FetchYahooLeaguePlayersPageResult, error) {
-	wait := p.enter(input.Start)
-	if wait {
-		select {
-		case <-p.release:
-		case <-time.After(poolTestBarrierWait):
-		}
+	if p.enter(input.Start) {
+		p.barrier.wait()
 	}
 	defer p.leave(input.Start)
 	if p.unavailable && input.Start == 0 {
@@ -83,15 +109,7 @@ func (p *fakePool) enter(start int) bool {
 	if start != 0 && !p.firstDone {
 		p.firstAlone = false
 	}
-	if start == 0 || p.held >= p.hold {
-		return false
-	}
-	p.held++
-	if p.held == p.hold {
-		close(p.release)
-		return false
-	}
-	return true
+	return start != 0 && p.barrier.arrive()
 }
 
 func (p *fakePool) leave(start int) {
@@ -279,21 +297,35 @@ func TestFetchYahooPoolPages_PoolEqualsSequentialWalk(t *testing.T) {
 }
 
 // leaguePools serves one fakePool per league and counts the pages in flight
-// across every league.
+// across every league, and the leagues between plan and commit. The first
+// hold pages after each league's first one, across all leagues, go through a
+// pageBarrier before the league's own.
 type leaguePools struct {
 	pools map[int]*fakePool
 
-	mu       sync.Mutex
-	inFlight int
-	peak     int
-	commits  map[int]yahoo.CommitYahooLeaguePlayerPoolInput
+	mu          sync.Mutex
+	inFlight    int
+	peak        int
+	leagues     int
+	leaguesPeak int
+	barrier     pageBarrier
+	commits     map[int]yahoo.CommitYahooLeaguePlayerPoolInput
+}
+
+func newLeaguePools(leagueIDs []int, hold int) *leaguePools {
+	pools := &leaguePools{
+		pools: map[int]*fakePool{}, barrier: newPageBarrier(hold), commits: map[int]yahoo.CommitYahooLeaguePlayerPoolInput{},
+	}
+	for _, leagueID := range leagueIDs {
+		pools.pools[leagueID] = newFakePool(poolTestPlayers, yahooPoolPageConcurrency)
+	}
+	return pools
 }
 
 func (l *leaguePools) fetch(ctx context.Context, input yahoo.FetchYahooLeaguePlayersPageInput) (yahoo.FetchYahooLeaguePlayersPageResult, error) {
-	l.mu.Lock()
-	l.inFlight++
-	l.peak = max(l.peak, l.inFlight)
-	l.mu.Unlock()
+	if l.enter(input.Start) {
+		l.barrier.wait()
+	}
 	defer func() {
 		l.mu.Lock()
 		defer l.mu.Unlock()
@@ -302,20 +334,55 @@ func (l *leaguePools) fetch(ctx context.Context, input yahoo.FetchYahooLeaguePla
 	return l.pools[input.LeagueID].fetch(ctx, input)
 }
 
+// enter counts a page in flight and says whether it must wait for the barrier.
+func (l *leaguePools) enter(start int) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.inFlight++
+	l.peak = max(l.peak, l.inFlight)
+	return start != 0 && l.barrier.arrive()
+}
+
+// leaguePoolsStats is what a leaguePools observed, copied under its lock.
+type leaguePoolsStats struct {
+	pagesPeak, leaguesPeak int
+	commits                map[int]yahoo.CommitYahooLeaguePlayerPoolInput
+}
+
+func (l *leaguePools) stats() leaguePoolsStats {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return leaguePoolsStats{pagesPeak: l.peak, leaguesPeak: l.leaguesPeak, commits: maps.Clone(l.commits)}
+}
+
+func (l *leaguePools) plan(context.Context, yahoo.PlanYahooLeaguePlayerPoolInput) (yahoo.YahooLeaguePlayerPoolPlan, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.leagues++
+	l.leaguesPeak = max(l.leaguesPeak, l.leagues)
+	return yahoo.YahooLeaguePlayerPoolPlan{Refresh: true, PreviousPlayerCount: poolTestPlayers}, nil
+}
+
 func (l *leaguePools) commit(_ context.Context, input yahoo.CommitYahooLeaguePlayerPoolInput) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.leagues--
 	l.commits[input.LeagueID] = input
 	return nil
 }
 
 // Leagues fetched concurrently each walk their own known pages concurrently,
-// and every league commits exactly its own pool.
+// and every league commits exactly its own pool. With more leagues than the
+// league limit, the limit's leagues fill their page slots at the same time
+// (the cross-league barrier needs all of them) and no other league starts
+// meanwhile: without the limit, every league would plan before the barrier
+// lets any of them commit.
 func TestFetchYahooPoolPages_ConcurrentLeaguesEachFetchPagesConcurrently(t *testing.T) {
-	pools := &leaguePools{pools: map[int]*fakePool{}, commits: map[int]yahoo.CommitYahooLeaguePlayerPoolInput{}}
-	for _, leagueID := range poolLeagues {
-		pools.pools[leagueID] = newFakePool(poolTestPlayers, yahooPoolPageConcurrency)
-	}
+	const leagueLimit = 2
+	require.Greater(t, len(poolLeagues), leagueLimit, "the test needs more leagues than the league limit")
+	setViperInt(t, config.FlagYahooPoolLeagueConcurrency, leagueLimit)
+	maxInFlight := leagueLimit * yahooPoolPageConcurrency
+	pools := newLeaguePools(poolLeagues, maxInFlight)
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(FetchYahooSeasonWorkflow)
@@ -323,27 +390,27 @@ func TestFetchYahooPoolPages_ConcurrentLeaguesEachFetchPagesConcurrently(t *test
 	var activities *yahoo.FetchActivities
 	env.OnActivity(activities.FetchLeague, mock.Anything, mock.Anything, mock.Anything).Return(yahoo.FetchLeagueResult{}, nil)
 	mockAnyLeagueData(env)
-	env.OnActivity(activities.PlanYahooLeaguePlayerPool, mock.Anything, mock.Anything).
-		Return(yahoo.YahooLeaguePlayerPoolPlan{Refresh: true, PreviousPlayerCount: poolTestPlayers}, nil)
+	env.OnActivity(activities.PlanYahooLeaguePlayerPool, mock.Anything, mock.Anything).Return(pools.plan)
 	env.OnActivity(activities.FetchYahooLeaguePlayersPage, mock.Anything, mock.Anything).Return(pools.fetch)
 	env.OnActivity(activities.CommitYahooLeaguePlayerPool, mock.Anything, mock.Anything).Return(pools.commit)
 
 	env.ExecuteWorkflow(FetchYahooSeasonWorkflow, poolLeaguesInput())
 
 	require.NoError(t, env.GetWorkflowError())
+	observed := pools.stats()
+	assert.Equal(t, leagueLimit, observed.leaguesPeak, "leagues between plan and commit")
+	assert.Equal(t, maxInFlight, observed.pagesPeak, "pages in flight across leagues")
 	expected := pageStarts(yahooPoolPages(poolTestPlayers))
 	for _, leagueID := range poolLeagues {
 		stats := pools.pools[leagueID].stats()
 		assert.Equal(t, yahooPoolPageConcurrency, stats.peak, "league %d pages in flight at once", leagueID)
 		assert.True(t, stats.firstAlone, "league %d starts no page before its first one returns", leagueID)
 		assert.Equal(t, expected, stats.sortedRequests(), "league %d requests every page once", leagueID)
-		commit, ok := pools.commits[leagueID]
+		commit, ok := observed.commits[leagueID]
 		require.True(t, ok, "league %d committed no manifest", leagueID)
 		assert.Equal(t, leagueID, commit.LeagueID)
 		assert.Equal(t, expected, commit.Starts)
 		assert.Equal(t, poolTestPlayers, commit.Players)
 		assert.Empty(t, commit.Discarded)
 	}
-	assert.LessOrEqual(t, pools.peak, config.DefaultYahooPoolLeagueConcurrency*yahooPoolPageConcurrency,
-		"pages in flight across leagues")
 }
