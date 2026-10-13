@@ -63,6 +63,7 @@ func GetGameKeyForSeason(ctx context.Context, storage store.Storage, gobCache *c
 	return gameKey, nil
 }
 
+// memoryGameKey returns the season's game key from the in-memory cache.
 func memoryGameKey(season int) (int, bool) {
 	gameKeyCacheMu.RLock()
 	defer gameKeyCacheMu.RUnlock()
