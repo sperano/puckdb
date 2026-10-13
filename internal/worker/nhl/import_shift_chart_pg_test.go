@@ -18,6 +18,7 @@ const (
 	nestLoopSetting = "enable_nestloop"
 	settingOn       = "on"
 	settingOff      = "off"
+	singleConn      = 1
 )
 
 // showNestLoop reads enable_nestloop through q: a connection or an open
@@ -31,13 +32,29 @@ func showNestLoop(t *testing.T, q interface {
 	return value
 }
 
+// openNestLoopOnTestDB opens a pool of at most maxConns connections whose
+// sessions start with enable_nestloop on, whatever the server, database or
+// role default: the tests below need a baseline the transaction-local
+// setting differs from, or "off inside the transaction" would prove nothing.
+func openNestLoopOnTestDB(t *testing.T, maxConns int32) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(migratedTransactorTestURL(t))
+	require.NoError(t, err)
+	cfg.ConnConfig.RuntimeParams[nestLoopSetting] = settingOn
+	cfg.MaxConns = maxConns
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	return pool
+}
+
 func TestDisableNestedLoopsForTransaction_RevertsWhenTransactionEnds(t *testing.T) {
-	pool := openTransactorTestDB(t)
+	pool := openNestLoopOnTestDB(t, singleConn)
 	ctx := context.Background()
 	conn, err := pool.Acquire(ctx)
 	require.NoError(t, err)
 	t.Cleanup(conn.Release)
-	require.Equal(t, settingOn, showNestLoop(t, conn), "server default")
+	require.Equal(t, settingOn, showNestLoop(t, conn), "session baseline")
 
 	ends := map[string]func(pgx.Tx) error{
 		"commit":   func(tx pgx.Tx) error { return tx.Commit(ctx) },
@@ -57,12 +74,9 @@ func TestDisableNestedLoopsForTransaction_RevertsWhenTransactionEnds(t *testing.
 }
 
 func TestRebuildEvenStrengthTotals_LeavesNestedLoopsOnForTheConnection(t *testing.T) {
-	cfg, err := pgxpool.ParseConfig(migratedTransactorTestURL(t))
-	require.NoError(t, err)
-	cfg.MaxConns = 1 // every statement below runs on the rebuild's connection
-	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
+	// One connection: every statement below runs on the rebuild's connection.
+	pool := openNestLoopOnTestDB(t, singleConn)
+	require.Equal(t, settingOn, showNestLoop(t, pool), "session baseline")
 	insertTransactorTestGame(t, pool)
 
 	act := &ImportActivities{Tx: NewPgxTransactor(pool)}
