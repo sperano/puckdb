@@ -185,13 +185,14 @@ const (
 
 // Yahoo player download flags
 const (
-	FlagMaxYahooPlayerID             = "max-yahoo-player-id"
-	FlagYahooPlayerBatchSize         = "yahoo-player-batch-size"
-	FlagYahooPlayerActivityBatchSize = "yahoo-player-activity-batch-size"
-	FlagYahooPlayersPerExecution     = "yahoo-players-per-execution"
-	FlagYahooPlayerPoolMaxAge        = "yahoo-player-pool-max-age"
-	FlagYahooDownloadSleepMin        = "yahoo-download-sleep-min"
-	FlagYahooDownloadSleepMax        = "yahoo-download-sleep-max"
+	FlagMaxYahooPlayerID              = "max-yahoo-player-id"
+	FlagYahooPlayerBatchSize          = "yahoo-player-batch-size"
+	FlagYahooPlayerActivityBatchSize  = "yahoo-player-activity-batch-size"
+	FlagYahooPlayersPerExecution      = "yahoo-players-per-execution"
+	FlagYahooPlayerPoolMaxAge         = "yahoo-player-pool-max-age"
+	FlagYahooPlayerPoolMaxAgeInSeason = "yahoo-player-pool-max-age-in-season"
+	FlagYahooDownloadSleepMin         = "yahoo-download-sleep-min"
+	FlagYahooDownloadSleepMax         = "yahoo-download-sleep-max"
 )
 
 // NHL player landing download flags
@@ -416,7 +417,8 @@ var YahooPlayerFlags = FlagGroup{
 		{FlagYahooPlayerBatchSize, "", DefaultYahooPlayerBatchSize, "Number of concurrent activities for downloading Yahoo players", false},
 		{FlagYahooPlayerActivityBatchSize, "", DefaultYahooPlayerActivityBatchSize, "Number of players to process per activity", false},
 		{FlagYahooPlayersPerExecution, "", DefaultYahooPlayersPerExecution, "Players to process per workflow execution before ContinueAsNew", false},
-		{FlagYahooPlayerPoolMaxAge, "", DefaultYahooPlayerPoolMaxAge, "Hours before a league's Yahoo player pool (eligibility and status) is downloaded again", false},
+		{FlagYahooPlayerPoolMaxAge, "", DefaultYahooPlayerPoolMaxAge, "Hours before a league's Yahoo player pool is downloaded again before its regular season starts", false},
+		{FlagYahooPlayerPoolMaxAgeInSeason, "", DefaultYahooPlayerPoolMaxAgeInSeason, "Hours before a league's Yahoo player pool is downloaded again during its regular season", false},
 	},
 }
 

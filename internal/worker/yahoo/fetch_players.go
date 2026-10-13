@@ -70,13 +70,16 @@ type CommitYahooLeaguePlayerPoolInput struct {
 
 // PlanYahooLeaguePlayerPool decides whether the league's pool is due for a
 // download: not once the league's season is over, nor while the last
-// complete download is younger than --yahoo-player-pool-max-age.
+// complete download is younger than the max age for its season phase.
 func (a *FetchActivities) PlanYahooLeaguePlayerPool(ctx context.Context, input PlanYahooLeaguePlayerPoolInput) (YahooLeaguePlayerPoolPlan, error) {
+	return a.planYahooLeaguePlayerPool(ctx, input, time.Now())
+}
+
+func (a *FetchActivities) planYahooLeaguePlayerPool(ctx context.Context, input PlanYahooLeaguePlayerPoolInput, now time.Time) (YahooLeaguePlayerPoolPlan, error) {
 	league, _, err := readLeagueSettings(ctx, a.Storage, resource.League{Season: input.Season, LeagueID: input.LeagueID})
 	if err != nil {
 		return YahooLeaguePlayerPoolPlan{}, err
 	}
-	now := time.Now()
 	if leagueSeasonEnded(league, now) {
 		return YahooLeaguePlayerPoolPlan{Reason: fmt.Sprintf("league season ended %s", league.EndDate)}, nil
 	}
@@ -91,7 +94,7 @@ func (a *FetchActivities) PlanYahooLeaguePlayerPool(ctx context.Context, input P
 	if err != nil {
 		return YahooLeaguePlayerPoolPlan{}, fmt.Errorf("read player pool manifest %d/%d: %w", input.Season, input.LeagueID, err)
 	}
-	maxAge := time.Duration(shared.ViperIntOrDefault(config.FlagYahooPlayerPoolMaxAge, config.DefaultYahooPlayerPoolMaxAge)) * time.Hour
+	maxAge := yahooPlayerPoolMaxAge(league, now)
 	if age := now.Sub(manifest.FetchedAt); age < maxAge {
 		return YahooLeaguePlayerPoolPlan{
 			Reason:              fmt.Sprintf("pool downloaded %s ago", age.Truncate(time.Minute)),
@@ -101,6 +104,27 @@ func (a *FetchActivities) PlanYahooLeaguePlayerPool(ctx context.Context, input P
 	return YahooLeaguePlayerPoolPlan{
 		Refresh: true, Reason: "pool older than " + maxAge.String(), PreviousPlayerCount: manifest.Players,
 	}, nil
+}
+
+// yahooPlayerPoolMaxAge keeps full pool snapshots frequent through the draft
+// window, then relaxes the cadence when eligibility changes less often. A
+// later refinement could refresh the top ownership-ranked pages daily while
+// refreshing the complete pool less often.
+func yahooPlayerPoolMaxAge(league store.League, now time.Time) time.Duration {
+	flagName := config.FlagYahooPlayerPoolMaxAge
+	fallback := config.DefaultYahooPlayerPoolMaxAge
+	if leagueRegularSeasonStarted(league, now) {
+		flagName = config.FlagYahooPlayerPoolMaxAgeInSeason
+		fallback = config.DefaultYahooPlayerPoolMaxAgeInSeason
+	}
+	return time.Duration(shared.ViperIntOrDefault(flagName, fallback)) * time.Hour
+}
+
+// leagueRegularSeasonStarted reports whether the Yahoo league's start-date
+// day has begun. Missing or invalid dates retain the preseason cadence.
+func leagueRegularSeasonStarted(league store.League, now time.Time) bool {
+	start, err := time.Parse(config.DateFormat, league.StartDate)
+	return err == nil && !now.Before(start)
 }
 
 // leagueSeasonEnded reports whether the league's last day is over. A league
