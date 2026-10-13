@@ -3,6 +3,7 @@ package temporal
 import (
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,6 +45,17 @@ func TestClientOptions(t *testing.T) {
 	// The single dial option makes calls wait for the server instead of
 	// failing while Temporal starts.
 	assert.Len(t, got.ConnectionOptions.DialOptions, 1)
+	assert.Nil(t, got.MetricsHandler)
+}
+
+func TestClientOptions_PropagatesMetricsHandler(t *testing.T) {
+	t.Parallel()
+	handler, closer := NewMetricsHandler(prometheus.NewRegistry())
+	defer closer.Close()
+
+	got := clientOptions(Options{HostPort: "temporal.example:7233", Namespace: "puckdb-test", MetricsHandler: handler})
+
+	assert.Equal(t, handler, got.MetricsHandler)
 }
 
 func TestNewClient_RejectsInvalidOptionsBeforeDialing(t *testing.T) {
