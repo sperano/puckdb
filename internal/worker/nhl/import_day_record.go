@@ -58,6 +58,9 @@ type ImportDayIfChangedResult struct {
 	// Skipped is true when the day was left alone because nothing it reads
 	// changed since its last successful import.
 	Skipped bool `json:"skipped"`
+	// SkippedRows counts rows the import skipped after an error; a day with
+	// any is not recorded, so the next run imports it again.
+	SkippedRows int `json:"skippedRows"`
 }
 
 // dayFingerprint identifies the cached files a day import reads.
@@ -89,9 +92,15 @@ func (a *ImportActivities) ImportDayIfChanged(ctx context.Context, input ImportD
 		logger.Debug("Day unchanged since its last import, skipped", "date", dayLabel)
 		return ImportDayIfChangedResult{Origins: core.OriginCounts{}, Skipped: true}, nil
 	}
-	counts, err := a.importDay(ctx, input.ImportDayInput)
+	imported, err := a.importDay(ctx, input.ImportDayInput)
+	result := ImportDayIfChangedResult{Origins: imported.Origins, SkippedRows: imported.SkippedRows}
 	if err != nil {
-		return ImportDayIfChangedResult{Origins: counts}, err
+		return result, err
+	}
+	if imported.SkippedRows > 0 {
+		logger.Warn("Imported day with skipped rows, not recorded so the next run retries it",
+			"date", dayLabel, "reason", reason, "skippedRows", imported.SkippedRows)
+		return result, nil
 	}
 	if err := a.DayImports.UpsertNHLDayImport(ctx, sqlcdb.UpsertNHLDayImportParams{
 		Season:          int32(input.SeasonID),
@@ -100,10 +109,10 @@ func (a *ImportActivities) ImportDayIfChanged(ctx context.Context, input ImportD
 		InputsHash:      fingerprint.Hash,
 		InputFiles:      int32(fingerprint.Files),
 	}); err != nil {
-		return ImportDayIfChangedResult{Origins: counts}, fmt.Errorf("record import of %s: %w", dayLabel, err)
+		return result, fmt.Errorf("record import of %s: %w", dayLabel, err)
 	}
 	logger.Info("Imported day", "date", dayLabel, "reason", reason, "files", fingerprint.Files)
-	return ImportDayIfChangedResult{Origins: counts}, nil
+	return result, nil
 }
 
 // dayImportReason compares the day's last import record with the current

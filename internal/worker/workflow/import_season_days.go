@@ -22,6 +22,9 @@ const (
 type seasonDaysResult struct {
 	origins core.OriginCounts
 	skipped int
+	// partial counts imported days that skipped rows after errors; they
+	// stay unrecorded and are imported again by the next run.
+	partial int
 }
 
 // importSeasonDays imports every day from the season's start to yesterday
@@ -69,7 +72,7 @@ func importSeasonDays(ctx workflow.Context, tracker *shared.ReportTracker, seaso
 	}
 
 	tracker.CompleteGroup(ctx, GroupImportDays,
-		daysCompletionMessage(numDays, result.skipped, season, tracker.GetElapsed(ctx, GroupImportDays)))
+		daysCompletionMessage(numDays, result, season, tracker.GetElapsed(ctx, GroupImportDays)))
 	return result.origins, nil
 }
 
@@ -83,13 +86,22 @@ func (r *seasonDaysResult) collect(ctx workflow.Context, _ int, f workflow.Futur
 	if day.Skipped {
 		r.skipped++
 	}
+	if day.SkippedRows > 0 {
+		r.partial++
+	}
 	return nil
 }
 
-func daysCompletionMessage(numDays, skipped int, season nhl.SeasonInfo, elapsed string) string {
-	if skipped == 0 {
-		return fmt.Sprintf("Imported %d days for %s in %s.", numDays, season.Label(), elapsed)
+func daysCompletionMessage(numDays int, result seasonDaysResult, season nhl.SeasonInfo, elapsed string) string {
+	var msg string
+	if result.skipped == 0 {
+		msg = fmt.Sprintf("Imported %d days for %s in %s", numDays, season.Label(), elapsed)
+	} else {
+		msg = fmt.Sprintf("Imported %d of %d days for %s in %s; %d unchanged since their last import",
+			numDays-result.skipped, numDays, season.Label(), elapsed, result.skipped)
 	}
-	return fmt.Sprintf("Imported %d of %d days for %s in %s; %d unchanged since their last import.",
-		numDays-skipped, numDays, season.Label(), elapsed, skipped)
+	if result.partial > 0 {
+		msg += fmt.Sprintf("; %d with skipped rows, retried next run", result.partial)
+	}
+	return msg + "."
 }

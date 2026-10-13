@@ -2,6 +2,7 @@ package nhl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -214,4 +215,31 @@ func TestDayInputs_ListsYahooTeamFilesWithoutSchedule(t *testing.T) {
 		resource.Roster{LeagueID: 1, TeamID: 2, Date: day}.Path(),
 		resource.TeamSummary{LeagueID: 1, TeamID: 2, Date: day}.Path(),
 	}, paths)
+}
+
+// A season-series row that fails on database state (here the game's teams)
+// is skipped by the importer without failing the day; the day must stay
+// unrecorded so the next run retries it with the same files.
+func (s *ImportDayIfChangedSuite) TestDayWithSkippedRowsIsNotRecorded() {
+	data, err := json.Marshal(&nhlapi.SeasonSeriesMatchup{})
+	s.Require().NoError(err)
+	series := resource.SeasonSeries{Date: s.day, GameID: recordTestGameID}.Path()
+	s.Require().NoError(s.mem.Write(context.Background(), series, data))
+	q := &MockQueries{}
+	q.On("UpsertGame", mock.Anything, mock.Anything).Return(nil).Once()
+	q.On("GetGameTeamIDs", mock.Anything, int64(recordTestGameID)).
+		Return(sqlcdb.GetGameTeamIDsRow{}, errors.New("game not visible yet")).Once()
+	act := &ImportActivities{Storage: s.mem, GobCache: newImportTestGobCache(), Queries: q, DayImports: s.records}
+	env := s.NewTestActivityEnvironment()
+	env.RegisterActivity(act.ImportDayIfChanged)
+
+	future, err := env.ExecuteActivity(act.ImportDayIfChanged, s.input(false))
+
+	s.Require().NoError(err)
+	var result ImportDayIfChangedResult
+	s.Require().NoError(future.Get(&result))
+	s.False(result.Skipped)
+	s.Equal(1, result.SkippedRows)
+	s.Empty(s.records.records)
+	q.AssertExpectations(s.T())
 }

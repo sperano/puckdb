@@ -50,7 +50,9 @@ func TestImportNHLSeasonWorkflow_ReportsUnchangedDays(t *testing.T) {
 		func(_ context.Context, input worknhl.ImportDayIfChangedInput) (worknhl.ImportDayIfChangedResult, error) {
 			assert.False(t, input.Force)
 			if input.Date.Equal(changedDay) {
-				return worknhl.ImportDayIfChangedResult{Origins: core.OriginCounts{core.OriginFileSystem: 2}}, nil
+				return worknhl.ImportDayIfChangedResult{
+					Origins: core.OriginCounts{core.OriginFileSystem: 2}, SkippedRows: 1,
+				}, nil
 			}
 			return worknhl.ImportDayIfChangedResult{Origins: core.OriginCounts{}, Skipped: true}, nil
 		}).Times(daysTestCount)
@@ -63,7 +65,8 @@ func TestImportNHLSeasonWorkflow_ReportsUnchangedDays(t *testing.T) {
 	assert.Equal(t, 2, counts[core.OriginFileSystem])
 	report := queryProgress(t, env)
 	assert.Contains(t, report.Groups[GroupImportDays].CompletedMsg, "Imported 1 of 3 days for 2023-24 ")
-	assert.Contains(t, report.Groups[GroupImportDays].CompletedMsg, "2 unchanged since their last import")
+	assert.Contains(t, report.Groups[GroupImportDays].CompletedMsg,
+		"2 unchanged since their last import; 1 with skipped rows, retried next run.")
 	env.AssertExpectations(t)
 }
 
