@@ -18,12 +18,19 @@ type ResultHandler func(ctx workflow.Context, index int, future workflow.Future)
 
 // workerPoolHooks are the progress-tracking callbacks the scheduler invokes.
 // onStart runs immediately before an item is dispatched; onComplete runs after
-// the item's result handler. Either may be nil. Both run on the workflow
-// goroutine, so any side effects they emit (Save local activities, etc.) are
-// recorded in deterministic order.
+// the item's result handler. stopDispatch, checked before each dispatch, ends
+// dispatching once it reports true; items already in flight still complete.
+// Any may be nil. All run on the workflow goroutine, so any side effects they
+// emit (Save local activities, etc.) are recorded in deterministic order.
 type workerPoolHooks struct {
-	onStart    func(ctx workflow.Context, index int)
-	onComplete func(ctx workflow.Context, index int)
+	onStart      func(ctx workflow.Context, index int)
+	onComplete   func(ctx workflow.Context, index int)
+	stopDispatch func() bool
+}
+
+// stopped reports whether stopDispatch asks to dispatch no further item.
+func (h workerPoolHooks) stopped() bool {
+	return h.stopDispatch != nil && h.stopDispatch()
 }
 
 // RunWorkerPool runs activities concurrently with a fixed concurrency limit.
@@ -146,7 +153,7 @@ func runWorkerPool(ctx workflow.Context, total, concurrency int, startActivity A
 	var firstErr error
 
 	dispatch := func() {
-		for len(activeIndexes) < concurrency && nextIndex < total {
+		for len(activeIndexes) < concurrency && nextIndex < total && !hooks.stopped() {
 			idx := nextIndex
 			if hooks.onStart != nil {
 				hooks.onStart(ctx, idx)

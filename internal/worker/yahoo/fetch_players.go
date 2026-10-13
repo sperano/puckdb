@@ -66,6 +66,9 @@ type CommitYahooLeaguePlayerPoolInput struct {
 	FetchedAt  time.Time `json:"fetchedAt"`
 	Starts     []int     `json:"starts"`
 	Players    int       `json:"players"`
+	// Discarded are this download's pages fetched concurrently past its last
+	// page. No manifest names them, so the commit deletes them.
+	Discarded []int `json:"discarded,omitempty"`
 }
 
 // PlanYahooLeaguePlayerPool decides whether the league's pool is due for a
@@ -139,8 +142,9 @@ func (a *FetchActivities) FetchYahooLeaguePlayersPage(ctx context.Context, input
 
 // CommitYahooLeaguePlayerPool writes the manifest that makes the downloaded
 // pages the league's current pool snapshot, then removes the pages of the
-// snapshot it replaces. Pages of downloads that failed before their commit
-// are never named by a manifest and are left in place.
+// snapshot it replaces and the download's discarded pages. Pages of
+// downloads that failed before their commit are never named by a manifest
+// and are left in place.
 func (a *FetchActivities) CommitYahooLeaguePlayerPool(ctx context.Context, input CommitYahooLeaguePlayerPoolInput) error {
 	res := resource.LeaguePlayerPool{Season: input.Season, LeagueID: input.LeagueID}
 	previous, hadPrevious := a.readPreviousManifest(ctx, res)
@@ -155,8 +159,9 @@ func (a *FetchActivities) CommitYahooLeaguePlayerPool(ctx context.Context, input
 	logger.Info("League player pool downloaded",
 		"season", input.Season, "leagueID", input.LeagueID, "players", input.Players, "pages", len(input.Starts))
 	if hadPrevious && previous.DownloadID != input.DownloadID {
-		a.deletePoolPages(ctx, input.Season, input.LeagueID, previous)
+		a.deletePoolPages(ctx, input.Season, input.LeagueID, previous.DownloadID, previous.Starts)
 	}
+	a.deletePoolPages(ctx, input.Season, input.LeagueID, input.DownloadID, input.Discarded)
 	return nil
 }
 
@@ -167,11 +172,12 @@ func (a *FetchActivities) readPreviousManifest(ctx context.Context, res resource
 	return previous, err == nil
 }
 
-// deletePoolPages removes a replaced snapshot's pages. It is best effort: a
-// leftover page wastes space but is never read again.
-func (a *FetchActivities) deletePoolPages(ctx context.Context, season, leagueID int, manifest resource.LeaguePlayerPoolManifest) {
-	for _, start := range manifest.Starts {
-		page := resource.LeaguePlayers{Season: season, LeagueID: leagueID, DownloadID: manifest.DownloadID, Start: start}
+// deletePoolPages removes pages of one download that no manifest names any
+// more. It is best effort: a leftover page wastes space but is never read
+// again.
+func (a *FetchActivities) deletePoolPages(ctx context.Context, season, leagueID int, downloadID int64, starts []int) {
+	for _, start := range starts {
+		page := resource.LeaguePlayers{Season: season, LeagueID: leagueID, DownloadID: downloadID, Start: start}
 		if err := resource.Delete(ctx, a.Storage, page); err != nil {
 			activity.GetLogger(ctx).Warn("Could not delete replaced player pool page", "path", page.Path(), "error", err)
 		}

@@ -28,13 +28,18 @@ func poolPage(downloadID int64, start int) resource.LeaguePlayers {
 
 func commitPool(t *testing.T, a *FetchActivities, downloadID int64, starts []int) {
 	t.Helper()
+	commitPoolDiscarding(t, a, downloadID, starts, nil)
+}
+
+func commitPoolDiscarding(t *testing.T, a *FetchActivities, downloadID int64, starts, discarded []int) {
+	t.Helper()
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
 	env.RegisterActivity(a.CommitYahooLeaguePlayerPool)
 	_, err := env.ExecuteActivity(a.CommitYahooLeaguePlayerPool, CommitYahooLeaguePlayerPoolInput{
 		Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID, DownloadID: downloadID,
 		LeagueKey: "465.l.77777", GameKey: yahoofixtures.PointsGameKey, FetchedAt: time.UnixMilli(downloadID).UTC(),
-		Starts: starts, Players: yahoofixtures.PlayersInPage,
+		Starts: starts, Players: yahoofixtures.PlayersInPage, Discarded: discarded,
 	})
 	require.NoError(t, err)
 }
@@ -72,4 +77,24 @@ func TestCommitYahooLeaguePlayerPool_RetryKeepsOwnPages(t *testing.T) {
 	commitPool(t, a, newDownloadID, []int{0})
 
 	assert.True(t, mem.Has(poolPage(newDownloadID, 0).Path()))
+}
+
+// Pages fetched concurrently past the pool's last page are deleted by the
+// commit; the manifest never names them.
+func TestCommitYahooLeaguePlayerPool_DeletesDiscardedPages(t *testing.T) {
+	mem := store.NewMemStorage()
+	a := &FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
+	page := yahoofixtures.Read(yahoofixtures.PlayersPage)
+	for _, start := range []int{0, secondPageStart} {
+		mem.SetFile(poolPage(newDownloadID, start).Path(), page)
+	}
+
+	commitPoolDiscarding(t, a, newDownloadID, []int{0}, []int{secondPageStart})
+
+	assert.True(t, mem.Has(poolPage(newDownloadID, 0).Path()))
+	assert.False(t, mem.Has(poolPage(newDownloadID, secondPageStart).Path()))
+	manifest, err := resource.ReadParsed(context.Background(), mem,
+		resource.LeaguePlayerPool{Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID})
+	require.NoError(t, err)
+	assert.Equal(t, []int{0}, manifest.Starts)
 }
