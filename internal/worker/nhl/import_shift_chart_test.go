@@ -134,16 +134,45 @@ func (s *ImportShiftChartSuite) TestEmptyShifts_SkipsBatchAndSegments() {
 	q.AssertNotCalled(s.T(), "UpsertShiftBatch")
 }
 
-// expectRebuild sets up the delete-then-insert call order for both
-// even-strength tables, returning pairRows/skaterGameRows from the inserts.
-func (s *ImportShiftChartSuite) expectRebuild(q *MockQueries, pairRows, skaterGameRows int64) {
-	delPair := q.On("DeleteEvenStrengthPairTOIForGame", mock.Anything, int64(shiftTestGameID)).Return(nil)
-	delSkaterGames := q.On("DeleteEvenStrengthSkaterGamesForGame", mock.Anything, int64(shiftTestGameID)).
-		Return(nil).NotBefore(delPair)
-	q.On("InsertEvenStrengthPairTOIForGame", mock.Anything, int64(shiftTestGameID)).
-		Return(pairRows, nil).NotBefore(delSkaterGames)
-	q.On("InsertEvenStrengthSkaterGamesForGame", mock.Anything, int64(shiftTestGameID)).
-		Return(skaterGameRows, nil).NotBefore(delSkaterGames)
+// rebuildErrs makes one step of evenstrength.Rebuild fail; the steps after
+// it are not expected.
+type rebuildErrs struct {
+	listShifts, listGoals, deletePair, deleteSkater, insertPair, insertSkater error
+}
+
+// expectRebuild sets up evenstrength.Rebuild's call order (load shifts and
+// goals, delete both tables, insert both) for the stored game, returning
+// pairRows/skaterGameRows from the inserts, up to the first failing step.
+// The derivation itself is covered in internal/evenstrength.
+func (s *ImportShiftChartSuite) expectRebuild(q *MockQueries, pairRows, skaterGameRows int64, errs rebuildErrs) {
+	gameID := int64(shiftTestGameID)
+	call := q.On("ListEvenStrengthShiftsForGame", mock.Anything, gameID).
+		Return([]sqlcdb.ListEvenStrengthShiftsForGameRow{}, errs.listShifts)
+	if errs.listShifts != nil {
+		return
+	}
+	call = q.On("ListEvenStrengthGoalsForGame", mock.Anything, gameID).
+		Return([]sqlcdb.ListEvenStrengthGoalsForGameRow{}, errs.listGoals).NotBefore(call)
+	if errs.listGoals != nil {
+		return
+	}
+	call = q.On("DeleteEvenStrengthPairTOIForGame", mock.Anything, gameID).Return(errs.deletePair).NotBefore(call)
+	if errs.deletePair != nil {
+		return
+	}
+	call = q.On("DeleteEvenStrengthSkaterGamesForGame", mock.Anything, gameID).Return(errs.deleteSkater).NotBefore(call)
+	if errs.deleteSkater != nil {
+		return
+	}
+	call = q.On("InsertEvenStrengthPairTOI", mock.Anything, mock.MatchedBy(func(p sqlcdb.InsertEvenStrengthPairTOIParams) bool {
+		return p.GameID == gameID
+	})).Return(pairRows, errs.insertPair).NotBefore(call)
+	if errs.insertPair != nil {
+		return
+	}
+	q.On("InsertEvenStrengthSkaterGames", mock.Anything, mock.MatchedBy(func(p sqlcdb.InsertEvenStrengthSkaterGamesParams) bool {
+		return p.GameID == gameID
+	})).Return(skaterGameRows, errs.insertSkater).NotBefore(call)
 }
 
 func (s *ImportShiftChartSuite) TestWithShifts_UpsertsThenRebuildsEvenStrengthTotals() {
@@ -151,7 +180,7 @@ func (s *ImportShiftChartSuite) TestWithShifts_UpsertsThenRebuildsEvenStrengthTo
 	q := &MockQueries{}
 	s.seedTwoShifts(mem)
 	s.expectUpsert(q, nil)
-	s.expectRebuild(q, shiftTestPairTOIRows, shiftTestSkaterGameRows)
+	s.expectRebuild(q, shiftTestPairTOIRows, shiftTestSkaterGameRows, rebuildErrs{})
 	act, tx := s.newActivities(mem, q)
 
 	result, err := s.run(act)
@@ -175,26 +204,27 @@ func (s *ImportShiftChartSuite) TestUpsertFails_DoesNotRebuildEvenStrengthTotals
 	s.Contains(err.Error(), "connection reset")
 	s.Contains(err.Error(), shiftTestGameID.String())
 	s.Zero(tx.calls)
+	q.AssertNotCalled(s.T(), "ListEvenStrengthShiftsForGame", mock.Anything, mock.Anything)
 	q.AssertNotCalled(s.T(), "DeleteEvenStrengthPairTOIForGame", mock.Anything, mock.Anything)
 	q.AssertNotCalled(s.T(), "DeleteEvenStrengthSkaterGamesForGame", mock.Anything, mock.Anything)
-	q.AssertNotCalled(s.T(), "InsertEvenStrengthPairTOIForGame", mock.Anything, mock.Anything)
-	q.AssertNotCalled(s.T(), "InsertEvenStrengthSkaterGamesForGame", mock.Anything, mock.Anything)
+	q.AssertNotCalled(s.T(), "InsertEvenStrengthPairTOI", mock.Anything, mock.Anything)
+	q.AssertNotCalled(s.T(), "InsertEvenStrengthSkaterGames", mock.Anything, mock.Anything)
 }
 
 func (s *ImportShiftChartSuite) TestRebuildFailures_ReturnErrorWithGameContext() {
+	denied := errors.New("denied")
 	cases := []struct {
-		name            string
-		deletePairErr   error
-		deleteSkaterErr error
-		insertPairErr   error
-		insertSkaterErr error
-		commitErr       error
-		want            string
+		name      string
+		errs      rebuildErrs
+		commitErr error
+		want      string
 	}{
-		{name: "delete pair toi", deletePairErr: errors.New("delete denied"), want: "delete pair toi: delete denied"},
-		{name: "delete skater games", deleteSkaterErr: errors.New("delete denied"), want: "delete skater games: delete denied"},
-		{name: "insert pair toi", insertPairErr: errors.New("insert denied"), want: "insert pair toi: insert denied"},
-		{name: "insert skater games", insertSkaterErr: errors.New("insert denied"), want: "insert skater games: insert denied"},
+		{name: "list shifts", errs: rebuildErrs{listShifts: denied}, want: "list shifts: denied"},
+		{name: "list goals", errs: rebuildErrs{listGoals: denied}, want: "list goals: denied"},
+		{name: "delete pair toi", errs: rebuildErrs{deletePair: denied}, want: "delete pair toi: denied"},
+		{name: "delete skater games", errs: rebuildErrs{deleteSkater: denied}, want: "delete skater games: denied"},
+		{name: "insert pair toi", errs: rebuildErrs{insertPair: denied}, want: "insert pair toi: denied"},
+		{name: "insert skater games", errs: rebuildErrs{insertSkater: denied}, want: "insert skater games: denied"},
 		{name: "commit", commitErr: errors.New("commit denied"), want: "commit denied"},
 	}
 	for _, tc := range cases {
@@ -204,19 +234,7 @@ func (s *ImportShiftChartSuite) TestRebuildFailures_ReturnErrorWithGameContext()
 			q := &MockQueries{}
 			s.seedTwoShifts(mem)
 			s.expectUpsert(q, nil)
-			delPair := q.On("DeleteEvenStrengthPairTOIForGame", mock.Anything, int64(shiftTestGameID)).Return(tc.deletePairErr)
-			if tc.deletePairErr == nil {
-				delSkaterGames := q.On("DeleteEvenStrengthSkaterGamesForGame", mock.Anything, int64(shiftTestGameID)).
-					Return(tc.deleteSkaterErr).NotBefore(delPair)
-				if tc.deleteSkaterErr == nil {
-					q.On("InsertEvenStrengthPairTOIForGame", mock.Anything, int64(shiftTestGameID)).
-						Return(shiftTestPairTOIRows, tc.insertPairErr).NotBefore(delSkaterGames)
-					if tc.insertPairErr == nil {
-						q.On("InsertEvenStrengthSkaterGamesForGame", mock.Anything, int64(shiftTestGameID)).
-							Return(shiftTestSkaterGameRows, tc.insertSkaterErr).NotBefore(delSkaterGames)
-					}
-				}
-			}
+			s.expectRebuild(q, shiftTestPairTOIRows, shiftTestSkaterGameRows, tc.errs)
 			act, tx := s.newActivities(mem, q)
 			tx.commitErr = tc.commitErr
 

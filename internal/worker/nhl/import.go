@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/sperano/puckdb/internal/cache"
+	"github.com/sperano/puckdb/internal/evenstrength"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
@@ -42,12 +43,10 @@ type ShiftChartUpserter interface {
 
 // EvenStrengthTotalsRebuilder is the interface for rebuilding one game's
 // even_strength_pair_toi and even_strength_skater_games rows from its stored
-// shifts. All four calls must run in the same transaction; see Transactor.
+// shifts (see evenstrength.Rebuild). All its calls must run in the same
+// transaction; see Transactor.
 type EvenStrengthTotalsRebuilder interface {
-	DeleteEvenStrengthPairTOIForGame(ctx context.Context, gameID int64) error
-	DeleteEvenStrengthSkaterGamesForGame(ctx context.Context, gameID int64) error
-	InsertEvenStrengthPairTOIForGame(ctx context.Context, gameID int64) (int64, error)
-	InsertEvenStrengthSkaterGamesForGame(ctx context.Context, gameID int64) (int64, error)
+	evenstrength.Store
 }
 
 // Transactor runs fn in one database transaction: it commits when fn returns

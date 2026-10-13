@@ -120,13 +120,23 @@ func (m *MockQueries) DeleteEvenStrengthSkaterGamesForGame(ctx context.Context, 
 	return m.Called(ctx, gameID).Error(0)
 }
 
-func (m *MockQueries) InsertEvenStrengthPairTOIForGame(ctx context.Context, gameID int64) (int64, error) {
+func (m *MockQueries) ListEvenStrengthShiftsForGame(ctx context.Context, gameID int64) ([]sqlcdb.ListEvenStrengthShiftsForGameRow, error) {
 	args := m.Called(ctx, gameID)
+	return args.Get(0).([]sqlcdb.ListEvenStrengthShiftsForGameRow), args.Error(1)
+}
+
+func (m *MockQueries) ListEvenStrengthGoalsForGame(ctx context.Context, gameID int64) ([]sqlcdb.ListEvenStrengthGoalsForGameRow, error) {
+	args := m.Called(ctx, gameID)
+	return args.Get(0).([]sqlcdb.ListEvenStrengthGoalsForGameRow), args.Error(1)
+}
+
+func (m *MockQueries) InsertEvenStrengthPairTOI(ctx context.Context, arg sqlcdb.InsertEvenStrengthPairTOIParams) (int64, error) {
+	args := m.Called(ctx, arg)
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockQueries) InsertEvenStrengthSkaterGamesForGame(ctx context.Context, gameID int64) (int64, error) {
-	args := m.Called(ctx, gameID)
+func (m *MockQueries) InsertEvenStrengthSkaterGames(ctx context.Context, arg sqlcdb.InsertEvenStrengthSkaterGamesParams) (int64, error) {
+	args := m.Called(ctx, arg)
 	return args.Get(0).(int64), args.Error(1)
 }
 

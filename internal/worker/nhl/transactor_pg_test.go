@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/evenstrength"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,18 +73,7 @@ VALUES ($1, $2, $2 + 1::bigint, 30)`, transactorTestGameID, transactorTestPlayer
 
 	// The game has no shifts, so a committed rebuild leaves it empty.
 	err = tx.InTx(ctx, func(q EvenStrengthTotalsRebuilder) error {
-		if err := q.DeleteEvenStrengthPairTOIForGame(ctx, transactorTestGameID); err != nil {
-			return err
-		}
-		if err := q.DeleteEvenStrengthSkaterGamesForGame(ctx, transactorTestGameID); err != nil {
-			return err
-		}
-		inserted, err := q.InsertEvenStrengthPairTOIForGame(ctx, transactorTestGameID)
-		require.Zero(t, inserted)
-		if err != nil {
-			return err
-		}
-		inserted, err = q.InsertEvenStrengthSkaterGamesForGame(ctx, transactorTestGameID)
+		inserted, err := evenstrength.Rebuild(ctx, q, transactorTestGameID)
 		require.Zero(t, inserted)
 		return err
 	})

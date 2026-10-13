@@ -53,8 +53,7 @@ ORDER BY s.player_id, g.season;
 -- the same eligible games. even_strength_pair_toi and
 -- even_strength_skater_games hold each game's precomputed even-strength
 -- totals (both direction pairs, and per-skater TOI/points), built at shift
--- chart import (see InsertEvenStrengthPairTOIForGame and
--- InsertEvenStrengthSkaterGamesForGame in even_strength_totals.sql); this
+-- chart import (see internal/evenstrength); this
 -- query only filters eligible games and aggregates them. Go accumulates
 -- rates in this stable order so floating-point sums cannot perturb hashes.
 WITH eligible_games AS NOT MATERIALIZED (
