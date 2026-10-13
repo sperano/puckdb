@@ -130,6 +130,7 @@ function clearBoard() {
   BOARD_TEXT_IDS.forEach((id) => { byId(id).textContent = "—"; });
   BOARD_LIST_IDS.forEach((id) => byId(id).replaceChildren());
   byId("empty").hidden = true;
+  closeDetails();
   renderAlerts(null);
   setConnection("never_synced", `Loading league ${state.selection.league}…`);
 }
@@ -278,6 +279,11 @@ function showDetails(player) {
   player.recommendationReasons.forEach((reason) => body.append(node("p", "", reason)));
   player.news.forEach((news) => body.append(node("p", "muted", `${formatTime(news.reportedAt)} · ${news.status} · ${news.scenarios.map((item) => item.toLowerCase()).join("/")} · ${news.detail}`)));
   byId("details").showModal();
+}
+
+function closeDetails() {
+  byId("details").close();
+  byId("details-body").replaceChildren();
 }
 
 async function setShortlist(player) {

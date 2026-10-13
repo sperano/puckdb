@@ -155,13 +155,35 @@ test("shortlisting from an empty player list sends nothing and claims no loading
   assert.doesNotMatch(app.el("alerts").text(), /Wait for the selected league's board/);
 });
 
-test("session actions while switching target the selected league", async () => {
+// SESSION_ACTIONS maps each session control to the mutation it sends; refresh
+// has its own handler, so every control is checked separately.
+const SESSION_ACTIONS = [
+  ["watch-start", /startMauriceDraftWatch/],
+  ["watch-stop", /stopMauriceDraftWatch/],
+  ["refresh", /refreshMauriceDraftBoard/],
+];
+
+for (const [control, mutation] of SESSION_ACTIONS) {
+  test(`${control} while switching targets the selected league`, async () => {
+    const app = await showingLeagueA();
+    app.selectLeague(LEAGUE_B);
+    app.click(control);
+    const request = app.lastMutationRequest();
+    assert.ok(request, `${control} sent no mutation`);
+    assert.match(request.query, mutation);
+    assert.equal(request.input.league, LEAGUE_B.id);
+  });
+}
+
+test("switching closes the old league's player details", async () => {
   const app = await showingLeagueA();
+  app.pressKey("Enter");
+  assert.ok(app.el("details").open);
+  assert.match(app.el("details-body").text(), new RegExp(LEAGUE_A.player));
+
   app.selectLeague(LEAGUE_B);
-  app.click("watch-start");
-  const watch = app.lastMutationRequest();
-  assert.match(watch.query, /startMauriceDraftWatch/);
-  assert.equal(watch.input.league, LEAGUE_B.id);
+  assert.equal(app.el("details").open, false);
+  assert.doesNotMatch(app.el("details-body").text(), new RegExp(LEAGUE_A.player));
 });
 
 test("a mutation in flight during the switch reloads only the new league", async () => {

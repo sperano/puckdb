@@ -29,6 +29,7 @@ class FakeElement {
     this.title = "";
     this.hidden = false;
     this.disabled = false;
+    this.open = false;
     this.tabIndex = 0;
     this.classList = { toggle() {}, add() {}, remove() {} };
   }
@@ -39,8 +40,8 @@ class FakeElement {
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   querySelector() { return null; }
   focus() {}
-  showModal() {}
-  close() {}
+  showModal() { this.open = true; }
+  close() { this.open = false; }
 
   addEventListener(type, listener) {
     if (!this.listeners.has(type)) this.listeners.set(type, []);
