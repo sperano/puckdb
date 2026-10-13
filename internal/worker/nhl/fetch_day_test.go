@@ -445,12 +445,7 @@ func (s *FetchDayTestSuite) TestYahooTeamDownloadsOverlap() {
 func (s *FetchDayTestSuite) TestYahooTeamFailureNamesTeam() {
 	setYahooTeamConcurrency(s.T(), testYahooTeamConcurrency)
 	failing := resource.Roster{LeagueID: testLeagueID, TeamID: testFailingTeamID, Date: s.day, GameKey: testGameKey}
-	dl := func(_ context.Context, url string) ([]byte, error) {
-		if url == failing.URL() {
-			return nil, errors.New("roster fetch failed")
-		}
-		return testTeamXML, nil
-	}
+	dl := downloaderFailingFor(failing.URL(), testTeamXML, errors.New("roster fetch failed"))
 	a := s.newFetchDayActivities(s.newSeededMemStorage(), dl, cache.NewGobCache(nil))
 	s.env.RegisterActivity(a.FetchDay)
 

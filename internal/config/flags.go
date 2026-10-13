@@ -242,23 +242,22 @@ const (
 
 // Download workflow flags
 const (
-	FlagGameDownloadConcurrency  = "game-download-concurrency"
-	FlagMaxSeasonConcurrency     = "max-season-concurrency"
-	FlagDayConcurrency           = "day-concurrency"
-	FlagSkipPreseason            = "skip-preseason"
-	FlagRefreshCurrentPlayerLogs = "refresh-current-player-logs"
-	FlagRefreshCurrentEdge       = "refresh-current-edge"
-	FlagSeasonConcurrency        = "season-concurrency"
-	FlagMonitor                  = "monitor"
-	FlagSeasonYear               = "season"
-	FlagFromSeasonYear           = "from-season"
-	FlagToSeasonYear             = "to-season"
+	FlagGameDownloadConcurrency = "game-download-concurrency"
+	// FlagYahooTeamDownloadConcurrency caps the Yahoo team downloads (roster,
+	// team summary) one FetchDay activity runs at once. The per-process Yahoo
+	// rate limit (FlagYahooRateLimit) still bounds the request rate.
+	FlagYahooTeamDownloadConcurrency = "yahoo-team-download-concurrency"
+	FlagMaxSeasonConcurrency         = "max-season-concurrency"
+	FlagDayConcurrency               = "day-concurrency"
+	FlagSkipPreseason                = "skip-preseason"
+	FlagRefreshCurrentPlayerLogs     = "refresh-current-player-logs"
+	FlagRefreshCurrentEdge           = "refresh-current-edge"
+	FlagSeasonConcurrency            = "season-concurrency"
+	FlagMonitor                      = "monitor"
+	FlagSeasonYear                   = "season"
+	FlagFromSeasonYear               = "from-season"
+	FlagToSeasonYear                 = "to-season"
 )
-
-// FlagYahooTeamDownloadConcurrency caps the Yahoo team downloads (roster, team
-// summary) one FetchDay activity runs at once. The per-process Yahoo rate
-// limit (FlagYahooRateLimit) still bounds the request rate.
-const FlagYahooTeamDownloadConcurrency = "yahoo-team-download-concurrency"
 
 // Cache flags
 const (
