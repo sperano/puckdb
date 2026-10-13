@@ -34,8 +34,8 @@ type ImportShiftChartForDateResult struct {
 // date. After a game's shifts are upserted, its even_strength_pair_toi and
 // even_strength_skater_games rows are rebuilt from the stored shifts, the
 // game's box-score rows and its goals, so box scores and play-by-play must
-// be imported first (ImportDay does). Every step is idempotent, so a retried activity converges on the
-// same rows.
+// be imported first (ImportDay does). Every step is idempotent, so a
+// retried activity converges on the same rows.
 func (a *ImportActivities) ImportShiftChartForDate(ctx context.Context, input ImportShiftChartForDateInput) (ImportShiftChartForDateResult, error) {
 	defer metrics.TrackActivityDuration("ImportShiftChartForDate")()
 
