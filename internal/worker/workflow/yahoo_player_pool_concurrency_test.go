@@ -31,6 +31,9 @@ const (
 	// poolSaveDuration keeps each progress save in flight long enough for
 	// another league's change to reach it if saves were not serialized.
 	poolSaveDuration = 20 * time.Millisecond
+	// poolPagesAfterUnavailable is the short second page a committed league
+	// downloads and a league with an unpublished pool never asks for.
+	poolPagesAfterUnavailable = 1
 )
 
 // poolLeagues is the three-league season the concurrency tests fetch.
@@ -48,13 +51,17 @@ type poolLeagueRun struct {
 	firstPage func(leagueID int) error
 	// failLeague and failStart name the one page that fails.
 	failLeague, failStart int
+	// unavailableLeague names the league whose pool Yahoo has not published.
+	unavailableLeague int
 	// saveDuration is how long each progress save takes.
 	saveDuration                    time.Duration
 	savesInFlight, maxSavesInFlight int
 }
 
 func newPoolLeagueRun() *poolLeagueRun {
-	return &poolLeagueRun{commits: map[int]yahoo.CommitYahooLeaguePlayerPoolInput{}, failLeague: -1}
+	return &poolLeagueRun{
+		commits: map[int]yahoo.CommitYahooLeaguePlayerPoolInput{}, failLeague: -1, unavailableLeague: -1,
+	}
 }
 
 func (r *poolLeagueRun) record(event string, delta int) {
@@ -82,6 +89,9 @@ func (r *poolLeagueRun) page(_ context.Context, input yahoo.FetchYahooLeaguePlay
 	}
 	if input.LeagueID == r.failLeague && input.Start == r.failStart {
 		return yahoo.FetchYahooLeaguePlayersPageResult{}, temporal.NewNonRetryableApplicationError("page refused", poolPageFailure, nil)
+	}
+	if input.LeagueID == r.unavailableLeague {
+		return yahoo.FetchYahooLeaguePlayersPageResult{Unavailable: true}, nil
 	}
 	players := resource.LeaguePlayersPageSize
 	if input.Start > 0 {
@@ -203,6 +213,36 @@ func TestFetchYahooSeasonWorkflow_PlayerPoolLeagueFailureKeepsOtherManifests(t *
 		assertPoolCommitted(t, run, leagueID)
 	}
 	assert.NotContains(t, run.commits, poolLeagueB, "the failed league must not commit a partial snapshot")
+}
+
+// One league's unpublished pool is reported for that league alone, while the
+// leagues fetched beside it still commit their manifests.
+func TestFetchYahooSeasonWorkflow_PlayerPoolLeagueUnavailableIsIsolated(t *testing.T) {
+	run := newPoolLeagueRun()
+	run.firstPage = newPoolBarrier(len(poolLeagues))
+	run.unavailableLeague = poolLeagueB
+	env := newPoolLeaguesEnv(t, run)
+
+	env.ExecuteWorkflow(FetchYahooSeasonWorkflow, poolLeaguesInput())
+
+	require.NoError(t, env.GetWorkflowError())
+	var result YahooSeasonSyncResult
+	require.NoError(t, env.GetWorkflowResult(&result))
+	assert.Equal(t, []string{fmt.Sprintf("league %d player pool", poolLeagueB)}, result.UnavailableResources)
+	assert.NotContains(t, run.commits, poolLeagueB, "an unpublished pool commits no manifest")
+	assert.NotContains(t, run.events, poolPageEvent(poolLeagueB, resource.LeaguePlayersPageSize))
+	for _, leagueID := range []int{preseasonTestLeagueID, poolLeagueC} {
+		assertPoolCommitted(t, run, leagueID)
+	}
+	bars := queryProgress(t, env).Groups[yahooChildGroup].Bars
+	require.Len(t, bars, len(poolLeagues))
+	committedBar := bars[slices.Index(poolLeagues, preseasonTestLeagueID)]
+	unavailableBar := bars[slices.Index(poolLeagues, poolLeagueB)]
+	assert.Equal(t, committedBar.Total-poolPagesAfterUnavailable-yahooPoolCommitUnits, unavailableBar.Total,
+		"the unavailable pool keeps its plan and first page, but drops the second page and the commit")
+	for _, bar := range bars {
+		assert.Equal(t, bar.Total, bar.Current)
+	}
 }
 
 func TestFetchYahooSeasonWorkflow_PlayerPoolLeagueConcurrencyIsBounded(t *testing.T) {
