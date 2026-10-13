@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"github.com/stretchr/testify/assert"
@@ -275,4 +276,74 @@ func TestFetchYahooPoolPages_PoolEqualsSequentialWalk(t *testing.T) {
 			})
 		}
 	}
+}
+
+// leaguePools serves one fakePool per league and counts the pages in flight
+// across every league.
+type leaguePools struct {
+	pools map[int]*fakePool
+
+	mu       sync.Mutex
+	inFlight int
+	peak     int
+	commits  map[int]yahoo.CommitYahooLeaguePlayerPoolInput
+}
+
+func (l *leaguePools) fetch(ctx context.Context, input yahoo.FetchYahooLeaguePlayersPageInput) (yahoo.FetchYahooLeaguePlayersPageResult, error) {
+	l.mu.Lock()
+	l.inFlight++
+	l.peak = max(l.peak, l.inFlight)
+	l.mu.Unlock()
+	defer func() {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		l.inFlight--
+	}()
+	return l.pools[input.LeagueID].fetch(ctx, input)
+}
+
+func (l *leaguePools) commit(_ context.Context, input yahoo.CommitYahooLeaguePlayerPoolInput) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.commits[input.LeagueID] = input
+	return nil
+}
+
+// Leagues fetched concurrently each walk their own known pages concurrently,
+// and every league commits exactly its own pool.
+func TestFetchYahooPoolPages_ConcurrentLeaguesEachFetchPagesConcurrently(t *testing.T) {
+	pools := &leaguePools{pools: map[int]*fakePool{}, commits: map[int]yahoo.CommitYahooLeaguePlayerPoolInput{}}
+	for _, leagueID := range poolLeagues {
+		pools.pools[leagueID] = newFakePool(poolTestPlayers, yahooPoolPageConcurrency)
+	}
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(FetchYahooSeasonWorkflow)
+	mockProgressSaves(env)
+	var activities *yahoo.FetchActivities
+	env.OnActivity(activities.FetchLeague, mock.Anything, mock.Anything, mock.Anything).Return(yahoo.FetchLeagueResult{}, nil)
+	mockAnyLeagueData(env)
+	env.OnActivity(activities.PlanYahooLeaguePlayerPool, mock.Anything, mock.Anything).
+		Return(yahoo.YahooLeaguePlayerPoolPlan{Refresh: true, PreviousPlayerCount: poolTestPlayers}, nil)
+	env.OnActivity(activities.FetchYahooLeaguePlayersPage, mock.Anything, mock.Anything).Return(pools.fetch)
+	env.OnActivity(activities.CommitYahooLeaguePlayerPool, mock.Anything, mock.Anything).Return(pools.commit)
+
+	env.ExecuteWorkflow(FetchYahooSeasonWorkflow, poolLeaguesInput())
+
+	require.NoError(t, env.GetWorkflowError())
+	expected := pageStarts(yahooPoolPages(poolTestPlayers))
+	for _, leagueID := range poolLeagues {
+		stats := pools.pools[leagueID].stats()
+		assert.Equal(t, yahooPoolPageConcurrency, stats.peak, "league %d pages in flight at once", leagueID)
+		assert.True(t, stats.firstAlone, "league %d starts no page before its first one returns", leagueID)
+		assert.Equal(t, expected, stats.sortedRequests(), "league %d requests every page once", leagueID)
+		commit, ok := pools.commits[leagueID]
+		require.True(t, ok, "league %d committed no manifest", leagueID)
+		assert.Equal(t, leagueID, commit.LeagueID)
+		assert.Equal(t, expected, commit.Starts)
+		assert.Equal(t, poolTestPlayers, commit.Players)
+		assert.Empty(t, commit.Discarded)
+	}
+	assert.LessOrEqual(t, pools.peak, config.DefaultYahooPoolLeagueConcurrency*yahooPoolPageConcurrency,
+		"pages in flight across leagues")
 }
