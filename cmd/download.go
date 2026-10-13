@@ -35,6 +35,10 @@ func buildSeasonsInput() *model.SeasonsInput {
 		refreshEdge := true
 		input.RefreshCurrentEdge = &refreshEdge
 	}
+	if viper.GetBool(config.FlagReimportDays) {
+		reimportDays := true
+		input.ReimportDays = &reimportDays
+	}
 
 	return input
 }

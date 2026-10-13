@@ -17,6 +17,13 @@ import (
 type Options struct {
 	HostPort  string
 	Namespace string
+
+	// MetricsHandler reports Temporal SDK metrics (activity/workflow
+	// schedule-to-start latency, worker task slot gauges, poller counts).
+	// Optional: a nil handler leaves the SDK's own no-op default in place,
+	// so metrics stay disabled unless a caller builds one (see
+	// NewMetricsHandler).
+	MetricsHandler client.MetricsHandler
 }
 
 var (
@@ -49,9 +56,10 @@ func (o Options) Validate() error {
 func clientOptions(o Options) client.Options {
 	logger := logur.LoggerToKV(zerologadapter.New(log.Logger))
 	return client.Options{
-		HostPort:  o.HostPort,
-		Namespace: o.Namespace,
-		Logger:    logger,
+		HostPort:       o.HostPort,
+		Namespace:      o.Namespace,
+		Logger:         logger,
+		MetricsHandler: o.MetricsHandler,
 		ConnectionOptions: client.ConnectionOptions{
 			DialOptions: []grpc.DialOption{
 				grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),

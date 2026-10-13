@@ -18,6 +18,7 @@ require (
 	github.com/mark3labs/mcp-go v0.45.0
 	github.com/mattn/go-runewidth v0.0.17
 	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_model v0.6.2
 	github.com/rs/zerolog v1.34.0
 	github.com/sperano/nhl-api-go v0.0.0-20260926210731-71e3d0b803ce
 	github.com/spf13/cobra v1.2.1
@@ -25,9 +26,11 @@ require (
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.11.1
 	github.com/subosito/gotenv v1.2.0
+	github.com/uber-go/tally/v4 v4.1.1
 	github.com/vektah/gqlparser/v2 v2.5.33
 	go.temporal.io/api v1.61.0
 	go.temporal.io/sdk v1.39.0
+	go.temporal.io/sdk/contrib/tally v0.2.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/term v0.45.0
@@ -91,8 +94,8 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
 	github.com/pelletier/go-toml v1.9.3 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
@@ -103,6 +106,7 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/twmb/murmur3 v1.1.5 // indirect
 	github.com/urfave/cli/v3 v3.8.0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
@@ -110,6 +114,7 @@ require (
 	github.com/yuin/goldmark v1.7.13 // indirect
 	github.com/yuin/goldmark-emoji v1.0.6 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.58.0 // indirect

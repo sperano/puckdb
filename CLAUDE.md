@@ -114,7 +114,7 @@ License: GPL-3.0-or-later (`LICENSE`, copyright notice in `COPYRIGHT`). A new de
 
 Defined in `internal/worker/workflow/`:
 - `FetchSeasonsWorkflow` / `FetchNHLSeasonWorkflow` / `FetchYahooSeasonWorkflow` — NHL season data (parent + children); the parent also fetches the upcoming (not yet started) season's camp rosters for the prior season's clubs
-- `ImportSeasonsWorkflow` / `ImportNHLSeasonWorkflow` / `ImportYahooSeasonWorkflow` — Parse cached files into Postgres; the parent also carries the prior season's clubs forward to the upcoming season (`season_teams`) and imports its camp rosters
+- `ImportSeasonsWorkflow` / `ImportNHLSeasonWorkflow` / `ImportYahooSeasonWorkflow` — Parse cached files into Postgres; the parent also carries the prior season's clubs forward to the upcoming season (`season_teams`) and imports its camp rosters. `ImportNHLSeasonWorkflow` runs `ImportDayIfChanged` per day: a day whose cached files (path, size, mtime) and `worknhl.DayImporterVersion` match its `nhl_day_imports` row is skipped (a day whose game-story/season-series rows or Yahoo files were skipped after errors is not recorded, so it is retried); bump `DayImporterVersion` whenever the same files would produce different rows, and use `sync --reimport-days` (GraphQL `SeasonsInput.reimportDays`) to force a full re-import
 - `FetchPlayerLogsWorkflow` / `FetchSeasonPlayerLogsWorkflow` — Per-player game logs
 - `ImportPlayerLogsWorkflow` / `ImportSeasonPlayerLogsWorkflow` — Import those logs
 - `FetchPlayerLandingsWorkflow` — NHL player landing pages
@@ -225,7 +225,7 @@ Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow fol
 **Workflow mutations** (each has a paired `cancel<Name>`):
 - `initialize` — Database initialization
 - `fetchSeasons(input: SeasonsInput)` — Download NHL season data
-- `importSeasons(input: SeasonsInput)` — Parse cached NHL files into Postgres
+- `importSeasons(input: SeasonsInput)` — Parse cached NHL files into Postgres (unchanged days are skipped; `reimportDays: true` imports every day)
 - `fetchPlayerLogs(input: SeasonsInput)` / `importPlayerLogs(input: SeasonsInput)`
 - `fetchPlayerLandings(input: FetchPlayerLandingsInput)`
 - `extractBoxscorePlayers(input: SeasonsInput)`
@@ -263,6 +263,19 @@ The Prometheus registry is split in three (see `internal/metrics/metrics.go`):
 | `puckdb_http_response_bytes` | Histogram | `api` | Response body sizes |
 | `puckdb_download_total` | Counter | `file_type`, `result` | Downloads by result (hit/miss/error) |
 | `puckdb_activity_duration_seconds` | Histogram | `activity` | Temporal activity duration |
+
+The worker's `/metrics` also serves the Temporal Go SDK's own `temporal_*`
+series (`internal/temporal/metrics.go`, via `go.temporal.io/sdk/contrib/tally`),
+registered on the same `WorkerRegistry`: `temporal_activity_schedule_to_start_latency_seconds`
+and `temporal_workflow_task_schedule_to_start_latency_seconds` (time a task sits
+ready before a poller picks it up — the queueing signal this worker previously
+had no way to report), `temporal_worker_task_slots_available` /
+`temporal_worker_task_slots_used`, and `temporal_poller_start_total`. These are
+distinct from the `temporal_*` series already in Prometheus from the Temporal
+server's own internal workers. tally's Prometheus sanitizer replaces any
+non-alphanumeric character in a label value with `_`, so `task_queue` reads
+`puckdb_tasks`, not `puckdb-tasks`, on these series (unlike the server's own
+`temporal_*` series, which keep the dash) — match on the sanitized form.
 
 ### API metrics
 | Metric | Type | Labels | Description |
@@ -331,6 +344,7 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `shifts` | Per-shift TOI data (largest table — ~14.5M rows) | `id` (PK), `game_id`, `player_id`, `team_id`, `period`, `start_time`, `end_time`, `duration`, `shift_number`, `event_number`, `event_description` |
 | `even_strength_pair_toi` | Per-game shared even-strength TOI between a skater and an on-ice teammate on the same club, both directions stored; derived from `shifts` + box scores and rebuilt per game in one transaction by the shift chart import, read by the projection linemate query and the `get_player_linemates` MCP tool (PK `(game_id, player_id, teammate_id)`, ON DELETE CASCADE from `games`) | `game_id`, `player_id`, `teammate_id`, `shared_toi_seconds` |
 | `even_strength_skater_games` | Per-game even-strength TOI and points for one skater; same derivation and rebuild as `even_strength_pair_toi` (PK `(game_id, player_id)`, ON DELETE CASCADE from `games`) | `game_id`, `player_id`, `team_id`, `toi_seconds`, `points` |
+| `nhl_day_imports` | One row per NHL day `ImportDayIfChanged` imported (PK `(season, date)`, `season` = full ID like 20232024): SHA-256 of the day's cached input files (path, size, mtime; absent files included) and the importer version; a matching row makes the next import skip the day | `season`, `date`, `importer_version`, `inputs_hash`, `input_files`, `imported_at` |
 | `shootout_attempts` | Shootout attempts (PK `(game_id, sequence)`) | `game_id`, `sequence`, `player_id`, `team_id`, `shot_type`, `result`, `game_winner` |
 | `goal_highlights` | Highlight clips per goal (PK `(game_id, event_id)`) | `game_id`, `event_id`, `player_id`, `period`, `time_in_period`, `goals_to_date`, `highlight_clip_id`, `highlight_clip_url`, `discrete_clip_id` |
 | `standings_snapshots` | Daily standings per team (PK `(season, date, team_abbrev)` — note `team_abbrev`, not `team_id`) | `season`, `date`, `team_abbrev`, `wins`, `losses`, `ot_losses`, `points`, `division_abbrev`, `division_name`, `conference_abbrev` |

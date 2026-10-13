@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/mattn/go-runewidth"
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -251,5 +253,17 @@ func TestRenderMultiBarGroup_AlignsMultiByteLabels(t *testing.T) {
 			want = col
 		}
 		assert.Equal(t, want, col, "bar starts at a different column: %q", plain)
+	}
+}
+
+func TestBuildSeasonsInput_ReimportDays(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	assert.Nil(t, buildSeasonsInput().ReimportDays, "omitted unless the flag is set")
+
+	viper.Set(config.FlagReimportDays, true)
+	input := buildSeasonsInput()
+	if assert.NotNil(t, input.ReimportDays) {
+		assert.True(t, *input.ReimportDays)
 	}
 }

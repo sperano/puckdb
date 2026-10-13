@@ -112,6 +112,10 @@ func (m *MockQueries) UpsertShiftBatch(ctx context.Context, arg []sqlcdb.UpsertS
 	return sqlcdb.NewUpsertShiftBatchBatchResults(zeroBatchResults{}, len(arg))
 }
 
+func (m *MockQueries) DisableNestedLoopsForTransaction(ctx context.Context) error {
+	return m.Called(ctx).Error(0)
+}
+
 func (m *MockQueries) DeleteEvenStrengthPairTOIForGame(ctx context.Context, gameID int64) error {
 	return m.Called(ctx, gameID).Error(0)
 }
