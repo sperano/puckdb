@@ -32,16 +32,17 @@ func showNestLoop(t *testing.T, q interface {
 	return value
 }
 
-// openNestLoopOnTestDB opens a pool of at most maxConns connections whose
-// sessions start with enable_nestloop on, whatever the server, database or
-// role default: the tests below need a baseline the transaction-local
-// setting differs from, or "off inside the transaction" would prove nothing.
-func openNestLoopOnTestDB(t *testing.T, maxConns int32) *pgxpool.Pool {
+// openNestLoopOnTestDB opens a single-connection pool whose session starts
+// with enable_nestloop on, whatever the server, database or role default:
+// the tests below need a baseline the transaction-local setting differs
+// from, or "off inside the transaction" would prove nothing. With one
+// connection, every statement runs on the connection under test.
+func openNestLoopOnTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	cfg, err := pgxpool.ParseConfig(migratedTransactorTestURL(t))
 	require.NoError(t, err)
 	cfg.ConnConfig.RuntimeParams[nestLoopSetting] = settingOn
-	cfg.MaxConns = maxConns
+	cfg.MaxConns = singleConn
 	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
@@ -49,7 +50,7 @@ func openNestLoopOnTestDB(t *testing.T, maxConns int32) *pgxpool.Pool {
 }
 
 func TestDisableNestedLoopsForTransaction_RevertsWhenTransactionEnds(t *testing.T) {
-	pool := openNestLoopOnTestDB(t, singleConn)
+	pool := openNestLoopOnTestDB(t)
 	ctx := context.Background()
 	conn, err := pool.Acquire(ctx)
 	require.NoError(t, err)
@@ -74,8 +75,7 @@ func TestDisableNestedLoopsForTransaction_RevertsWhenTransactionEnds(t *testing.
 }
 
 func TestRebuildEvenStrengthTotals_LeavesNestedLoopsOnForTheConnection(t *testing.T) {
-	// One connection: every statement below runs on the rebuild's connection.
-	pool := openNestLoopOnTestDB(t, singleConn)
+	pool := openNestLoopOnTestDB(t)
 	require.Equal(t, settingOn, showNestLoop(t, pool), "session baseline")
 	insertTransactorTestGame(t, pool)
 
