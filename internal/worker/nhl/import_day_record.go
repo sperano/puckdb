@@ -28,7 +28,8 @@ import (
 // or rebuilds day-level rows. The next import then re-imports every day once.
 const DayImporterVersion = 1
 
-// Reasons ImportDayIfChanged logs for importing a day.
+// Reasons ImportDayIfChanged logs for importing a day; dayImportReasonNoChange
+// is the skip verdict and never logged.
 const (
 	dayImportReasonForced   = "forced"
 	dayImportReasonFirst    = "never imported"
@@ -72,20 +73,20 @@ type dayFingerprint struct {
 // fingerprint behind and the next run imports the day again.
 func (a *ImportActivities) ImportDayIfChanged(ctx context.Context, input ImportDayIfChangedInput) (ImportDayIfChangedResult, error) {
 	defer metrics.TrackActivityDuration("ImportDayIfChanged")()
-	day := input.Date.Format(config.DateFormat)
+	dayLabel := input.Date.Format(config.DateFormat)
 	fingerprint, err := a.dayInputsFingerprint(ctx, input.ImportDayInput)
 	if err != nil {
-		return ImportDayIfChangedResult{}, fmt.Errorf("fingerprint cached files for %s: %w", day, err)
+		return ImportDayIfChangedResult{}, fmt.Errorf("fingerprint cached files for %s: %w", dayLabel, err)
 	}
 	reason := dayImportReasonForced
 	if !input.Force {
 		if reason, err = a.dayImportReason(ctx, input.ImportDayInput, fingerprint); err != nil {
-			return ImportDayIfChangedResult{}, fmt.Errorf("read import record for %s: %w", day, err)
+			return ImportDayIfChangedResult{}, fmt.Errorf("read import record for %s: %w", dayLabel, err)
 		}
 	}
 	logger := activity.GetLogger(ctx)
 	if reason == dayImportReasonNoChange {
-		logger.Debug("Day unchanged since its last import, skipped", "date", day)
+		logger.Debug("Day unchanged since its last import, skipped", "date", dayLabel)
 		return ImportDayIfChangedResult{Origins: core.OriginCounts{}, Skipped: true}, nil
 	}
 	counts, err := a.importDay(ctx, input.ImportDayInput)
@@ -99,9 +100,9 @@ func (a *ImportActivities) ImportDayIfChanged(ctx context.Context, input ImportD
 		InputsHash:      fingerprint.Hash,
 		InputFiles:      int32(fingerprint.Files),
 	}); err != nil {
-		return ImportDayIfChangedResult{Origins: counts}, fmt.Errorf("record import of %s: %w", day, err)
+		return ImportDayIfChangedResult{Origins: counts}, fmt.Errorf("record import of %s: %w", dayLabel, err)
 	}
-	logger.Info("Imported day", "date", day, "reason", reason, "files", fingerprint.Files)
+	logger.Info("Imported day", "date", dayLabel, "reason", reason, "files", fingerprint.Files)
 	return ImportDayIfChangedResult{Origins: counts}, nil
 }
 
