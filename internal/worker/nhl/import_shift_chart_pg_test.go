@@ -36,7 +36,7 @@ func TestDisableNestedLoopsForTransaction_RevertsWhenTransactionEnds(t *testing.
 	ctx := context.Background()
 	conn, err := pool.Acquire(ctx)
 	require.NoError(t, err)
-	defer conn.Release()
+	t.Cleanup(conn.Release)
 	require.Equal(t, settingOn, showNestLoop(t, conn), "server default")
 
 	ends := map[string]func(pgx.Tx) error{
