@@ -37,6 +37,23 @@ func TestSQLCQueryName(t *testing.T) {
 	}
 }
 
+func TestHomogeneousSQLCBatchName(t *testing.T) {
+	t.Parallel()
+
+	const namedQuery = "-- name: UpsertPlayers :batchexec\nINSERT INTO players"
+	batch := &pgx.Batch{}
+	batch.Queue(namedQuery)
+	batch.Queue(namedQuery)
+
+	name, ok := homogeneousSQLCBatchName(batch)
+	assert.True(t, ok)
+	assert.Equal(t, "UpsertPlayers", name)
+
+	batch.Queue("-- name: DeletePlayer :exec\nDELETE FROM players")
+	_, ok = homogeneousSQLCBatchName(batch)
+	assert.False(t, ok)
+}
+
 func TestSQLCQueryTracerObservesNamedQuery(t *testing.T) {
 	t.Parallel()
 

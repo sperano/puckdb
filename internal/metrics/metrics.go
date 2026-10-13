@@ -324,7 +324,7 @@ func ObserveActivityDuration(activity string, duration time.Duration) {
 }
 
 // ObserveDBQueryDuration records the total time spent executing and consuming
-// one sqlc query.
+// one sqlc query call, including an entire homogeneous batch when applicable.
 func ObserveDBQueryDuration(query string, duration time.Duration) {
 	dbQueryDuration.WithLabelValues(query).Observe(duration.Seconds())
 }

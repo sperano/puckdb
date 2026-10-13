@@ -32,11 +32,13 @@ type queryTrace struct {
 }
 
 type batchTrace struct {
+	name    string
 	started time.Time
 }
 
-// SQLCQueryTracer records timings for pgx queries that retain sqlc's leading
-// "-- name:" comment. Raw SQL is ignored so labels stay bounded.
+// SQLCQueryTracer records timings for pgx calls that retain sqlc's leading
+// "-- name:" comment. A homogeneous sqlc batch produces one end-to-end
+// observation; raw and mixed batches are ignored so labels stay bounded.
 type SQLCQueryTracer struct {
 	now func() time.Time
 }
@@ -68,24 +70,40 @@ func (t *SQLCQueryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.
 func (t *SQLCQueryTracer) TraceBatchStart(
 	ctx context.Context,
 	_ *pgx.Conn,
-	_ pgx.TraceBatchStartData,
+	data pgx.TraceBatchStartData,
 ) context.Context {
-	return context.WithValue(ctx, batchTraceKey{}, &batchTrace{started: t.now()})
-}
-
-func (t *SQLCQueryTracer) TraceBatchQuery(ctx context.Context, _ *pgx.Conn, data pgx.TraceBatchQueryData) {
-	trace, ok := ctx.Value(batchTraceKey{}).(*batchTrace)
+	name, ok := homogeneousSQLCBatchName(data.Batch)
 	if !ok {
-		return
+		return ctx
 	}
-	now := t.now()
-	if name, named := sqlcQueryName(data.SQL); named {
-		ObserveDBQueryDuration(name, now.Sub(trace.started))
-	}
-	trace.started = now
+	return context.WithValue(ctx, batchTraceKey{}, batchTrace{name: name, started: t.now()})
 }
 
-func (t *SQLCQueryTracer) TraceBatchEnd(context.Context, *pgx.Conn, pgx.TraceBatchEndData) {}
+func (*SQLCQueryTracer) TraceBatchQuery(context.Context, *pgx.Conn, pgx.TraceBatchQueryData) {}
+
+func (t *SQLCQueryTracer) TraceBatchEnd(ctx context.Context, _ *pgx.Conn, _ pgx.TraceBatchEndData) {
+	trace, ok := ctx.Value(batchTraceKey{}).(batchTrace)
+	if ok {
+		ObserveDBQueryDuration(trace.name, t.now().Sub(trace.started))
+	}
+}
+
+func homogeneousSQLCBatchName(batch *pgx.Batch) (string, bool) {
+	if batch == nil || len(batch.QueuedQueries) == 0 {
+		return "", false
+	}
+	name, ok := sqlcQueryName(batch.QueuedQueries[0].SQL)
+	if !ok {
+		return "", false
+	}
+	for _, query := range batch.QueuedQueries[1:] {
+		queryName, named := sqlcQueryName(query.SQL)
+		if !named || queryName != name {
+			return "", false
+		}
+	}
+	return name, true
+}
 
 func sqlcQueryName(sql string) (string, bool) {
 	firstLine, _, _ := strings.Cut(sql, "\n")
