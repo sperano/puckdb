@@ -134,11 +134,11 @@ func totalPoints(rows []sqlcdb.EvenStrengthSkaterGame) int32 {
 
 // edgeCaseGame is a synthetic game for the inputs the real games rarely
 // have. Period 1, in seconds: [0,60) 5v5, [60,90) 5v5 after a home change at
-// 60, [90,100) 4v4, [100,150) 4v3, [150,160) 4v3 with the away net empty,
-// [160,180) 4v3. Period 2 is 3v3 throughout; period 3 is 6v5 with the home
-// net empty. Rows that must be ignored: a duplicate shift, unparsable,
-// zero-length and reversed clocks, a non-517 shift and a player without a
-// box-score row. Goals sit on segment boundaries, carry unknown or
+// 60, [90,100) 4v4, [100,120) 4v3, [120,150) 3v3, [150,160) 3v3 with the away
+// net empty, [160,180) 3v3. Period 2 is 3v3 throughout; period 3 is 6v5
+// with the home net empty. Rows that must be ignored: a duplicate shift,
+// unparsable, zero-length and reversed clocks, a non-517 shift and a player
+// without a box-score row. Goals sit on segment boundaries, carry unknown or
 // non-even situation codes, credit one player twice, or omit the scorer.
 func edgeCaseGame() fixtureGame {
 	return fixtureGame{
@@ -220,7 +220,7 @@ func edgeGoals() []fixtureGoal {
 		{1, "01:00", situation(evenFiveCode), player(edgeH6), nil, nil}, // starts h6's segment
 		{1, "01:35", situation(evenFourCode), player(edgeA1), player(edgeA6), nil},
 		{1, "01:50", situation(powerPlayCode), player(edgeH1), nil, nil},           // power play
-		{1, "02:45", situation(evenFiveCode), player(edgeH2), nil, nil},            // coded even, net empty in shifts
+		{1, "02:35", situation(evenFiveCode), player(edgeH2), nil, nil},            // coded even, net empty in shifts
 		{1, "00:40", nil, player(edgeH1), nil, nil},                                // unknown situation
 		{1, "xx:yy", situation(evenFiveCode), player(edgeH1), nil, nil},            // unparsable clock
 		{1, "00:20", situation(evenFiveCode), player(edgeH2), player(edgeH2), nil}, // credited twice
