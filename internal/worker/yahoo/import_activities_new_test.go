@@ -728,7 +728,7 @@ func TestCollectSummaryParams_InvalidStatID_Skipped(t *testing.T) {
 	res := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
 	require.NoError(t, mem.Write(context.Background(), res.Path(), xml))
 
-	summaryParams := a.collectSummaryParams(
+	summaryParams, _ := a.collectSummaryParams(
 		context.Background(), teams, date, make(core.OriginCounts),
 	)
 

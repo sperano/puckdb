@@ -15,7 +15,7 @@ import (
 
 // yahooSeasonForPerDayTest reuses standInYahooInput's mixed configuration:
 // one stand-in league (no real Yahoo teams) and one real league with team 3.
-// Only the real league's teams should ever reach ImportDay/FetchDay.
+// Only the real league's teams should ever reach ImportDayIfChanged/FetchDay.
 func yahooSeasonForPerDayTest() shared.YahooSeasonsSnapshot {
 	return shared.YahooSeasonsSnapshot{
 		Seasons: config.YahooSeasonsMap{preseasonTestYear: standInYahooInput().Season},
@@ -48,11 +48,11 @@ func TestNHLSeasonWorkflows_PerDayYahooTeamIDs(t *testing.T) {
 		env.OnActivity(pa.ListSeasonTeams, mock.Anything, mock.Anything).Return([]string{}, nil)
 
 		var ia *worknhl.ImportActivities
-		env.OnActivity(ia.ImportDay, mock.Anything, mock.MatchedBy(func(input worknhl.ImportDayInput) bool {
+		env.OnActivity(ia.ImportDayIfChanged, mock.Anything, mock.MatchedBy(func(input worknhl.ImportDayIfChangedInput) bool {
 			return assert.ObjectsAreEqual(onlySecondLeagueTeams, input.TeamIDs)
-		})).Return(core.OriginCounts{}, nil).Once()
+		})).Return(worknhl.ImportDayIfChangedResult{}, nil).Once()
 
-		env.ExecuteWorkflow(ImportNHLSeasonWorkflow, season)
+		env.ExecuteWorkflow(ImportNHLSeasonWorkflow, season, ImportNHLSeasonOptions{})
 
 		require.NoError(t, env.GetWorkflowError())
 		env.AssertExpectations(t)

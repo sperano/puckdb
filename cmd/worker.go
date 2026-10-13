@@ -417,13 +417,15 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	w.RegisterActivity(seasonsActivities.ImportEdgeTeamGoalies)
 
 	importActivities := &worknhl.ImportActivities{
-		Storage:  d.storage,
-		GobCache: d.gobCache,
-		Queries:  d.queries,
-		Tx:       worknhl.NewPgxTransactor(d.pool),
-		Yahoo:    importYahooActivities,
+		Storage:    d.storage,
+		GobCache:   d.gobCache,
+		Queries:    d.queries,
+		Tx:         worknhl.NewPgxTransactor(d.pool),
+		DayImports: d.queries,
+		Yahoo:      importYahooActivities,
 	}
 	w.RegisterActivity(importActivities.ImportDay)
+	w.RegisterActivity(importActivities.ImportDayIfChanged)
 	w.RegisterActivity(importActivities.ImportBoxscoresForDate)
 	w.RegisterActivity(importActivities.ImportGameStoryForDate)
 	w.RegisterActivity(importActivities.ImportPlayByPlayForDate)

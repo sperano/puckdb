@@ -1048,6 +1048,8 @@ type SeasonsInput struct {
 	RefreshCurrentPlayerLogs *bool `json:"refreshCurrentPlayerLogs,omitempty"`
 	// Re-download Edge stats for the current season (overwrites cached files)
 	RefreshCurrentEdge *bool `json:"refreshCurrentEdge,omitempty"`
+	// importSeasons: re-import every NHL day, even days whose cached files and importer version are unchanged since their last import
+	ReimportDays *bool `json:"reimportDays,omitempty"`
 }
 
 type SimAgent struct {
