@@ -115,6 +115,71 @@ type SimLineupMove {
   displacedPlayerName: String
 }
 
+# ----- sim tail / sim draft feeds -----
+#
+# Read by `puckdb sim tail` and `puckdb sim draft`. Bounds and argument
+# checks: internal/graph/simulation_feed.go. Never exposes final_text,
+# error_detail, tool results or the turn transcript.
+
+type SimTurnFeedPage {
+  turns: [SimTurnFeedEntry!]!
+  """Highest turn id in this page, or the request's afterId (0 without one) when the page is empty. Pass it back as afterId."""
+  lastId: Int!
+  """True when the page is full and more turns follow lastId; the client asks again at once."""
+  hasMore: Boolean!
+}
+
+type SimTurnFeedEntry {
+  id: Int!
+  poolId: Int!
+  agentId: Int!
+  teamName: String!
+  strategySummary: String!
+  model: String!
+  phase: String!
+  """YYYY-MM-DD; null for the team_name phase."""
+  simDate: String
+  status: String!
+  errorKind: String
+  rounds: Int!
+  costUsd: Float!
+  completedAt: Time!
+  toolCalls: [SimTurnToolCall!]!
+  """Total tool calls of the turn; toolCalls holds the first simTurnFeedMaxToolCallsPerTurn of them."""
+  toolCallCount: Int!
+}
+
+type SimTurnToolCall {
+  roundIndex: Int!
+  sequence: Int!
+  toolName: String!
+  recoveredName: String
+  """arguments_raw with whitespace collapsed, cut on a rune boundary at simTurnFeedMaxArgumentsBytes."""
+  arguments: String!
+  outcome: String!
+  failureReason: String
+  appliedTransactionId: Int
+  """Names of the integer player_id / drop_player_id values in the arguments, in first appearance, deduplicated by id; unknown ids are left out."""
+  playerNames: [String!]!
+}
+
+type SimDraftPick {
+  agentId: Int!
+  teamName: String!
+  strategySummary: String!
+  model: String!
+  draftPosition: Int
+  round: Int!
+  pick: Int!
+  """0 when the pick has no player."""
+  playerId: Int64!
+  """Empty when the player does not resolve."""
+  playerName: String!
+  """'?' when the player or its position is unknown."""
+  position: String!
+  reasoning: String!
+}
+
 # ----- Inputs -----
 
 # CreateSimPoolInput mirrors worker/simulation.PoolConfig — the JSONB
@@ -217,6 +282,15 @@ extend type Query {
   Returns null if the workflow hasn't yet initialized its tracker.
   """
   simPoolProgress(poolId: Int!): ProgressReport
+  """
+  Turn telemetry feed for `sim tail`, oldest first. Without afterId: the
+  latest `limit` turns. With afterId: up to `limit` turns after it.
+  poolId restricts to one pool. limit defaults to 10, at most 100;
+  out-of-range arguments are rejected, not clamped.
+  """
+  simTurnFeed(poolId: Int, afterId: Int, limit: Int): SimTurnFeedPage!
+  """Draft picks of a pool in draft order; null when the pool does not exist."""
+  simDraftPicks(poolId: Int!): [SimDraftPick!]
 }
 
 # ----- Mutations -----

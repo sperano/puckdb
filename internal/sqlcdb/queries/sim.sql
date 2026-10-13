@@ -846,3 +846,79 @@ ORDER BY ordinal;
 -- whether to populate sim_agent_turn_messages.
 -- name: GetSimPoolRecordFullMessages :one
 SELECT record_full_messages FROM sim_pools WHERE id = $1;
+
+-- =============================================================================
+-- `puckdb sim tail` / `sim draft` feeds (GraphQL simTurnFeed / simDraftPicks).
+-- Every list is bounded by a caller-supplied limit; the resolver owns the
+-- named limits (internal/graph/simulation_feed.go). pool_id = 0 skips the
+-- pool filter.
+-- =============================================================================
+
+-- ListSimTurnFeedLatest returns the row_limit most recent turns, oldest
+-- first, with the agent identity the tail prints. Ordered by id, the tail's
+-- watermark.
+-- name: ListSimTurnFeedLatest :many
+SELECT latest.id, latest.pool_id, latest.agent_id, latest.team_name, latest.strategy_summary,
+       latest.model, latest.phase, latest.sim_date, latest.status, latest.error_kind,
+       latest.rounds, latest.cost_usd, latest.completed_at
+FROM (
+    SELECT t.id, t.pool_id, a.id AS agent_id, a.team_name, a.strategy_summary, a.model,
+           t.phase, t.sim_date, t.status, t.error_kind, t.rounds,
+           t.cost_usd::float8 AS cost_usd, t.completed_at
+    FROM sim_agent_turns t
+    JOIN sim_agents a ON a.id = t.agent_id
+    WHERE (sqlc.arg(pool_id)::INT = 0 OR t.pool_id = sqlc.arg(pool_id)::INT)
+    ORDER BY t.id DESC
+    LIMIT sqlc.arg(row_limit)
+) latest
+ORDER BY latest.id;
+
+-- ListSimTurnFeedAfter returns up to row_limit turns with id > after_id,
+-- oldest first.
+-- name: ListSimTurnFeedAfter :many
+SELECT t.id, t.pool_id, a.id AS agent_id, a.team_name, a.strategy_summary, a.model,
+       t.phase, t.sim_date, t.status, t.error_kind, t.rounds,
+       t.cost_usd::float8 AS cost_usd, t.completed_at
+FROM sim_agent_turns t
+JOIN sim_agents a ON a.id = t.agent_id
+WHERE t.id > sqlc.arg(after_id)::INT
+  AND (sqlc.arg(pool_id)::INT = 0 OR t.pool_id = sqlc.arg(pool_id)::INT)
+ORDER BY t.id
+LIMIT sqlc.arg(row_limit);
+
+-- ListSimToolCallsForTurns returns the first max_per_turn tool calls of
+-- each listed turn in execution order, with call_count = all the turn's
+-- calls so the caller can say how many it left out. Only the columns the
+-- tail prints: never result, arguments (jsonb) or latency.
+-- name: ListSimToolCallsForTurns :many
+SELECT ranked.turn_id, ranked.round_index, ranked.sequence, ranked.tool_name,
+       ranked.recovered_name, ranked.arguments_raw, ranked.outcome,
+       ranked.failure_reason, ranked.applied_transaction_id, ranked.call_count
+FROM (
+    SELECT c.turn_id, c.round_index, c.sequence, c.tool_name, c.recovered_name,
+           c.arguments_raw, c.outcome, c.failure_reason, c.applied_transaction_id,
+           row_number() OVER (PARTITION BY c.turn_id ORDER BY c.round_index, c.sequence) AS call_rank,
+           count(*) OVER (PARTITION BY c.turn_id) AS call_count
+    FROM sim_agent_tool_calls c
+    WHERE c.turn_id = ANY(sqlc.arg(turn_ids)::INT[])
+) ranked
+WHERE ranked.call_rank <= sqlc.arg(max_per_turn)::BIGINT
+ORDER BY ranked.turn_id, ranked.round_index, ranked.sequence;
+
+-- ListSimDraftPicks returns a pool's draft picks grouped by agent in draft
+-- order (NULL draft_position last), picks by round and pick. LEFT JOIN
+-- players so a pick whose player no longer resolves still prints, with
+-- position '?'. row_limit bounds the read.
+-- name: ListSimDraftPicks :many
+SELECT a.id AS agent_id, a.team_name, a.strategy_summary, a.model, a.draft_position,
+       t.round, t.pick, COALESCE(t.player_id, 0)::BIGINT AS player_id,
+       COALESCE(NULLIF(TRIM(BOTH FROM p.first_name || ' ' || p.last_name), ''), '')::TEXT AS player_name,
+       COALESCE(p.position::text, '?')::TEXT AS position,
+       t.reasoning
+FROM sim_transactions t
+JOIN sim_agents a ON a.id = t.agent_id
+LEFT JOIN players p ON p.id = t.player_id
+WHERE t.pool_id = sqlc.arg(pool_id)
+  AND t.type = 'draft_pick'
+ORDER BY a.draft_position NULLS LAST, a.id, t.round, t.pick
+LIMIT sqlc.arg(row_limit);

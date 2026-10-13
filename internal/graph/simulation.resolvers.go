@@ -136,6 +136,21 @@ func (r *queryResolver) SimPoolProgress(ctx context.Context, poolID int) (*model
 	return r.Resolver.queryProgressReport(ctx, simPoolWorkflowIDForPool(int32(poolID)))
 }
 
+// SimTurnFeed is the resolver for the simTurnFeed field.
+//
+// The `sim tail` feed: argument checks, bounds and query counts are in
+// simulation_feed.go.
+func (r *queryResolver) SimTurnFeed(ctx context.Context, poolID *int, afterID *int, limit *int) (*model.SimTurnFeedPage, error) {
+	return r.Resolver.simTurnFeed(ctx, poolID, afterID, limit)
+}
+
+// SimDraftPicks is the resolver for the simDraftPicks field.
+//
+// The `sim draft` listing; nil (GraphQL null) when the pool does not exist.
+func (r *queryResolver) SimDraftPicks(ctx context.Context, poolID int) ([]*model.SimDraftPick, error) {
+	return r.Resolver.simDraftPicks(ctx, poolID)
+}
+
 // Agents is the resolver for the agents field.
 //
 // Lazily assembles the pool's agents (each with roster +

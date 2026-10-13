@@ -1062,6 +1062,23 @@ type SimAgent struct {
 	TotalRotoPoints float64           `json:"totalRotoPoints"`
 }
 
+type SimDraftPick struct {
+	AgentID         int    `json:"agentId"`
+	TeamName        string `json:"teamName"`
+	StrategySummary string `json:"strategySummary"`
+	Model           string `json:"model"`
+	DraftPosition   *int   `json:"draftPosition,omitempty"`
+	Round           int    `json:"round"`
+	Pick            int    `json:"pick"`
+	// 0 when the pick has no player.
+	PlayerID int64 `json:"playerId"`
+	// Empty when the player does not resolve.
+	PlayerName string `json:"playerName"`
+	// '?' when the player or its position is unknown.
+	Position  string `json:"position"`
+	Reasoning string `json:"reasoning"`
+}
+
 type SimLineupMove struct {
 	Sequence            int     `json:"sequence"`
 	PlayerName          string  `json:"playerName"`
@@ -1128,6 +1145,48 @@ type SimTransaction struct {
 	CostUsd        *float64         `json:"costUsd,omitempty"`
 	CapUsd         *float64         `json:"capUsd,omitempty"`
 	LineupMoves    []*SimLineupMove `json:"lineupMoves"`
+}
+
+type SimTurnFeedEntry struct {
+	ID              int    `json:"id"`
+	PoolID          int    `json:"poolId"`
+	AgentID         int    `json:"agentId"`
+	TeamName        string `json:"teamName"`
+	StrategySummary string `json:"strategySummary"`
+	Model           string `json:"model"`
+	Phase           string `json:"phase"`
+	// YYYY-MM-DD; null for the team_name phase.
+	SimDate     *string            `json:"simDate,omitempty"`
+	Status      string             `json:"status"`
+	ErrorKind   *string            `json:"errorKind,omitempty"`
+	Rounds      int                `json:"rounds"`
+	CostUsd     float64            `json:"costUsd"`
+	CompletedAt time.Time          `json:"completedAt"`
+	ToolCalls   []*SimTurnToolCall `json:"toolCalls"`
+	// Total tool calls of the turn; toolCalls holds the first simTurnFeedMaxToolCallsPerTurn of them.
+	ToolCallCount int `json:"toolCallCount"`
+}
+
+type SimTurnFeedPage struct {
+	Turns []*SimTurnFeedEntry `json:"turns"`
+	// Highest turn id in this page, or the request's afterId (0 without one) when the page is empty. Pass it back as afterId.
+	LastID int `json:"lastId"`
+	// True when the page is full and more turns follow lastId; the client asks again at once.
+	HasMore bool `json:"hasMore"`
+}
+
+type SimTurnToolCall struct {
+	RoundIndex    int     `json:"roundIndex"`
+	Sequence      int     `json:"sequence"`
+	ToolName      string  `json:"toolName"`
+	RecoveredName *string `json:"recoveredName,omitempty"`
+	// arguments_raw with whitespace collapsed, cut on a rune boundary at simTurnFeedMaxArgumentsBytes.
+	Arguments            string  `json:"arguments"`
+	Outcome              string  `json:"outcome"`
+	FailureReason        *string `json:"failureReason,omitempty"`
+	AppliedTransactionID *int    `json:"appliedTransactionId,omitempty"`
+	// Names of the integer player_id / drop_player_id values in the arguments, in first appearance, deduplicated by id; unknown ids are left out.
+	PlayerNames []string `json:"playerNames"`
 }
 
 type SkaterGameLogEntry struct {

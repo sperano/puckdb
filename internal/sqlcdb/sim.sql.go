@@ -1831,6 +1831,76 @@ func (q *Queries) ListSimDayGames(ctx context.Context, arg ListSimDayGamesParams
 	return items, nil
 }
 
+const listSimDraftPicks = `-- name: ListSimDraftPicks :many
+SELECT a.id AS agent_id, a.team_name, a.strategy_summary, a.model, a.draft_position,
+       t.round, t.pick, COALESCE(t.player_id, 0)::BIGINT AS player_id,
+       COALESCE(NULLIF(TRIM(BOTH FROM p.first_name || ' ' || p.last_name), ''), '')::TEXT AS player_name,
+       COALESCE(p.position::text, '?')::TEXT AS position,
+       t.reasoning
+FROM sim_transactions t
+JOIN sim_agents a ON a.id = t.agent_id
+LEFT JOIN players p ON p.id = t.player_id
+WHERE t.pool_id = $1
+  AND t.type = 'draft_pick'
+ORDER BY a.draft_position NULLS LAST, a.id, t.round, t.pick
+LIMIT $2
+`
+
+type ListSimDraftPicksParams struct {
+	PoolID   int32 `json:"pool_id"`
+	RowLimit int32 `json:"row_limit"`
+}
+
+type ListSimDraftPicksRow struct {
+	AgentID         int32       `json:"agent_id"`
+	TeamName        string      `json:"team_name"`
+	StrategySummary string      `json:"strategy_summary"`
+	Model           string      `json:"model"`
+	DraftPosition   pgtype.Int4 `json:"draft_position"`
+	Round           pgtype.Int4 `json:"round"`
+	Pick            pgtype.Int4 `json:"pick"`
+	PlayerID        int64       `json:"player_id"`
+	PlayerName      string      `json:"player_name"`
+	Position        string      `json:"position"`
+	Reasoning       string      `json:"reasoning"`
+}
+
+// ListSimDraftPicks returns a pool's draft picks grouped by agent in draft
+// order (NULL draft_position last), picks by round and pick. LEFT JOIN
+// players so a pick whose player no longer resolves still prints, with
+// position '?'. row_limit bounds the read.
+func (q *Queries) ListSimDraftPicks(ctx context.Context, arg ListSimDraftPicksParams) ([]ListSimDraftPicksRow, error) {
+	rows, err := q.db.Query(ctx, listSimDraftPicks, arg.PoolID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSimDraftPicksRow{}
+	for rows.Next() {
+		var i ListSimDraftPicksRow
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.TeamName,
+			&i.StrategySummary,
+			&i.Model,
+			&i.DraftPosition,
+			&i.Round,
+			&i.Pick,
+			&i.PlayerID,
+			&i.PlayerName,
+			&i.Position,
+			&i.Reasoning,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSimFreeAgentCandidates = `-- name: ListSimFreeAgentCandidates :many
 
 WITH active_players AS (
@@ -2183,6 +2253,75 @@ func (q *Queries) ListSimStandingsByPool(ctx context.Context, poolID int32) ([]S
 	return items, nil
 }
 
+const listSimToolCallsForTurns = `-- name: ListSimToolCallsForTurns :many
+SELECT ranked.turn_id, ranked.round_index, ranked.sequence, ranked.tool_name,
+       ranked.recovered_name, ranked.arguments_raw, ranked.outcome,
+       ranked.failure_reason, ranked.applied_transaction_id, ranked.call_count
+FROM (
+    SELECT c.turn_id, c.round_index, c.sequence, c.tool_name, c.recovered_name,
+           c.arguments_raw, c.outcome, c.failure_reason, c.applied_transaction_id,
+           row_number() OVER (PARTITION BY c.turn_id ORDER BY c.round_index, c.sequence) AS call_rank,
+           count(*) OVER (PARTITION BY c.turn_id) AS call_count
+    FROM sim_agent_tool_calls c
+    WHERE c.turn_id = ANY($1::INT[])
+) ranked
+WHERE ranked.call_rank <= $2::BIGINT
+ORDER BY ranked.turn_id, ranked.round_index, ranked.sequence
+`
+
+type ListSimToolCallsForTurnsParams struct {
+	TurnIds    []int32 `json:"turn_ids"`
+	MaxPerTurn int64   `json:"max_per_turn"`
+}
+
+type ListSimToolCallsForTurnsRow struct {
+	TurnID               int32       `json:"turn_id"`
+	RoundIndex           int32       `json:"round_index"`
+	Sequence             int32       `json:"sequence"`
+	ToolName             string      `json:"tool_name"`
+	RecoveredName        pgtype.Text `json:"recovered_name"`
+	ArgumentsRaw         string      `json:"arguments_raw"`
+	Outcome              string      `json:"outcome"`
+	FailureReason        pgtype.Text `json:"failure_reason"`
+	AppliedTransactionID pgtype.Int4 `json:"applied_transaction_id"`
+	CallCount            int64       `json:"call_count"`
+}
+
+// ListSimToolCallsForTurns returns the first max_per_turn tool calls of
+// each listed turn in execution order, with call_count = all the turn's
+// calls so the caller can say how many it left out. Only the columns the
+// tail prints: never result, arguments (jsonb) or latency.
+func (q *Queries) ListSimToolCallsForTurns(ctx context.Context, arg ListSimToolCallsForTurnsParams) ([]ListSimToolCallsForTurnsRow, error) {
+	rows, err := q.db.Query(ctx, listSimToolCallsForTurns, arg.TurnIds, arg.MaxPerTurn)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSimToolCallsForTurnsRow{}
+	for rows.Next() {
+		var i ListSimToolCallsForTurnsRow
+		if err := rows.Scan(
+			&i.TurnID,
+			&i.RoundIndex,
+			&i.Sequence,
+			&i.ToolName,
+			&i.RecoveredName,
+			&i.ArgumentsRaw,
+			&i.Outcome,
+			&i.FailureReason,
+			&i.AppliedTransactionID,
+			&i.CallCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSimTransactions = `-- name: ListSimTransactions :many
 SELECT id, pool_id, agent_id, date, type, player_id, reasoning,
        round, pick, drop_player_id, error_kind, error_detail,
@@ -2235,6 +2374,158 @@ func (q *Queries) ListSimTransactions(ctx context.Context, arg ListSimTransactio
 			&i.CostUSD,
 			&i.CapUSD,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSimTurnFeedAfter = `-- name: ListSimTurnFeedAfter :many
+SELECT t.id, t.pool_id, a.id AS agent_id, a.team_name, a.strategy_summary, a.model,
+       t.phase, t.sim_date, t.status, t.error_kind, t.rounds,
+       t.cost_usd::float8 AS cost_usd, t.completed_at
+FROM sim_agent_turns t
+JOIN sim_agents a ON a.id = t.agent_id
+WHERE t.id > $1::INT
+  AND ($2::INT = 0 OR t.pool_id = $2::INT)
+ORDER BY t.id
+LIMIT $3
+`
+
+type ListSimTurnFeedAfterParams struct {
+	AfterID  int32 `json:"after_id"`
+	PoolID   int32 `json:"pool_id"`
+	RowLimit int32 `json:"row_limit"`
+}
+
+type ListSimTurnFeedAfterRow struct {
+	ID              int32              `json:"id"`
+	PoolID          int32              `json:"pool_id"`
+	AgentID         int32              `json:"agent_id"`
+	TeamName        string             `json:"team_name"`
+	StrategySummary string             `json:"strategy_summary"`
+	Model           string             `json:"model"`
+	Phase           string             `json:"phase"`
+	SimDate         pgtype.Date        `json:"sim_date"`
+	Status          string             `json:"status"`
+	ErrorKind       pgtype.Text        `json:"error_kind"`
+	Rounds          int32              `json:"rounds"`
+	CostUSD         float64            `json:"cost_usd"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+}
+
+// ListSimTurnFeedAfter returns up to row_limit turns with id > after_id,
+// oldest first.
+func (q *Queries) ListSimTurnFeedAfter(ctx context.Context, arg ListSimTurnFeedAfterParams) ([]ListSimTurnFeedAfterRow, error) {
+	rows, err := q.db.Query(ctx, listSimTurnFeedAfter, arg.AfterID, arg.PoolID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSimTurnFeedAfterRow{}
+	for rows.Next() {
+		var i ListSimTurnFeedAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PoolID,
+			&i.AgentID,
+			&i.TeamName,
+			&i.StrategySummary,
+			&i.Model,
+			&i.Phase,
+			&i.SimDate,
+			&i.Status,
+			&i.ErrorKind,
+			&i.Rounds,
+			&i.CostUSD,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSimTurnFeedLatest = `-- name: ListSimTurnFeedLatest :many
+
+SELECT latest.id, latest.pool_id, latest.agent_id, latest.team_name, latest.strategy_summary,
+       latest.model, latest.phase, latest.sim_date, latest.status, latest.error_kind,
+       latest.rounds, latest.cost_usd, latest.completed_at
+FROM (
+    SELECT t.id, t.pool_id, a.id AS agent_id, a.team_name, a.strategy_summary, a.model,
+           t.phase, t.sim_date, t.status, t.error_kind, t.rounds,
+           t.cost_usd::float8 AS cost_usd, t.completed_at
+    FROM sim_agent_turns t
+    JOIN sim_agents a ON a.id = t.agent_id
+    WHERE ($1::INT = 0 OR t.pool_id = $1::INT)
+    ORDER BY t.id DESC
+    LIMIT $2
+) latest
+ORDER BY latest.id
+`
+
+type ListSimTurnFeedLatestParams struct {
+	PoolID   int32 `json:"pool_id"`
+	RowLimit int32 `json:"row_limit"`
+}
+
+type ListSimTurnFeedLatestRow struct {
+	ID              int32              `json:"id"`
+	PoolID          int32              `json:"pool_id"`
+	AgentID         int32              `json:"agent_id"`
+	TeamName        string             `json:"team_name"`
+	StrategySummary string             `json:"strategy_summary"`
+	Model           string             `json:"model"`
+	Phase           string             `json:"phase"`
+	SimDate         pgtype.Date        `json:"sim_date"`
+	Status          string             `json:"status"`
+	ErrorKind       pgtype.Text        `json:"error_kind"`
+	Rounds          int32              `json:"rounds"`
+	CostUSD         float64            `json:"cost_usd"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+}
+
+// =============================================================================
+// `puckdb sim tail` / `sim draft` feeds (GraphQL simTurnFeed / simDraftPicks).
+// Every list is bounded by a caller-supplied limit; the resolver owns the
+// named limits (internal/graph/simulation_feed.go). pool_id = 0 skips the
+// pool filter.
+// =============================================================================
+// ListSimTurnFeedLatest returns the row_limit most recent turns, oldest
+// first, with the agent identity the tail prints. Ordered by id, the tail's
+// watermark.
+func (q *Queries) ListSimTurnFeedLatest(ctx context.Context, arg ListSimTurnFeedLatestParams) ([]ListSimTurnFeedLatestRow, error) {
+	rows, err := q.db.Query(ctx, listSimTurnFeedLatest, arg.PoolID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSimTurnFeedLatestRow{}
+	for rows.Next() {
+		var i ListSimTurnFeedLatestRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PoolID,
+			&i.AgentID,
+			&i.TeamName,
+			&i.StrategySummary,
+			&i.Model,
+			&i.Phase,
+			&i.SimDate,
+			&i.Status,
+			&i.ErrorKind,
+			&i.Rounds,
+			&i.CostUSD,
+			&i.CompletedAt,
 		); err != nil {
 			return nil, err
 		}

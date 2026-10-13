@@ -2,19 +2,18 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"strings"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/spf13/cobra"
 )
 
 // ============================================================================
 // `puckdb sim draft <pool-id>` — print one section per agent showing their
-// draft picks in pick order. Joins sim_transactions + sim_agents + players
-// directly against Postgres (same pattern as `sim tail`).
+// draft picks in pick order. Reads the API's simDraftPicks query (the
+// sim_transactions + sim_agents + players join runs server-side).
 //
 // Layout: agents sorted by draft_position (NULLS last for pre-shuffle); within
 // each agent, picks sorted by round + pick. Reasoning is truncated to keep
@@ -23,10 +22,13 @@ import (
 
 const draftReasoningPreviewMax = 70
 
-// simDraftFlagGroups lists every flag group `sim draft` exposes. Defined
-// once and shared by InitFlags and BindFlags so the two can never drift.
-var simDraftFlagGroups = []*config.FlagGroup{
-	&config.PostgresFlags,
+// errSimPoolNotFound is what a simDraftLister returns for a pool that does
+// not exist.
+var errSimPoolNotFound = errors.New("sim pool not found")
+
+// simDraftLister reads a pool's draft picks; *GraphQLClient implements it.
+type simDraftLister interface {
+	SimDraftPicks(ctx context.Context, poolID int) ([]draftRow, error)
 }
 
 func cmdSimDraft() *cobra.Command {
@@ -35,31 +37,29 @@ func cmdSimDraft() *cobra.Command {
 		Use:     "draft <pool-id>",
 		Short:   "Show draft picks grouped by agent",
 		Args:    cobra.ExactArgs(1),
-		PreRunE: bindFlagsPreRunE(simDraftFlagGroups...),
+		PreRunE: bindFlagsPreRunE(simClientFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			poolID, err := parsePoolID(args[0])
 			if err != nil {
 				return err
 			}
-			ctx := cmd.Context()
-			pool, err := openPGXPool(ctx)
+			client, err := getGraphQLClient()
 			if err != nil {
-				return fmt.Errorf("open db pool: %w", err)
+				return err
 			}
-			defer pool.Close()
-			return renderSimDraft(ctx, pool, cmd.OutOrStdout(), int32(poolID), fullReasoning)
+			return renderSimDraft(cmd.Context(), client, cmd.OutOrStdout(), poolID, fullReasoning)
 		},
 	}
 	cmd.Flags().BoolVar(&fullReasoning, "reasoning", false, "Show full per-pick reasoning instead of a one-line preview")
-	config.InitFlags(cmd.Flags(), simDraftFlagGroups...)
+	config.InitFlags(cmd.Flags(), simClientFlagGroups...)
 	return cmd
 }
 
-// draftRow is one row of the SQL join — one draft_pick transaction
+// draftRow is one simDraftPicks entry — one draft_pick transaction
 // projected with its agent identity and the picked player's name +
 // position. Empty player_name happens when the player FK no longer
 // resolves (player row deleted post-draft; shouldn't happen in normal
-// operation but the LEFT JOIN tolerates it).
+// operation but the server's LEFT JOIN tolerates it).
 type draftRow struct {
 	AgentID       int32
 	TeamName      string
@@ -74,17 +74,20 @@ type draftRow struct {
 	Reasoning     string
 }
 
-func renderSimDraft(ctx context.Context, pool *pgxpool.Pool, w io.Writer, poolID int32, fullReasoning bool) error {
-	rows, err := selectDraftRows(ctx, pool, poolID)
+func renderSimDraft(ctx context.Context, lister simDraftLister, w io.Writer, poolID int, fullReasoning bool) error {
+	rows, err := lister.SimDraftPicks(ctx, poolID)
+	if errors.Is(err, errSimPoolNotFound) {
+		return fmt.Errorf("pool %d not found", poolID)
+	}
 	if err != nil {
-		return err
+		return fmt.Errorf("sim draft picks: %w", err)
 	}
 	if len(rows) == 0 {
 		fmt.Fprintf(w, "Pool %d: no draft picks yet.\n", poolID)
 		return nil
 	}
 
-	// Group by agent in the order rows arrive — the SQL ORDER BY
+	// Group by agent in the order rows arrive — the server's ORDER BY
 	// guarantees agents come out in draft_position order with picks
 	// sorted within each agent.
 	type group struct {
@@ -131,46 +134,4 @@ func formatDraftPickLine(r draftRow, fullReasoning bool) string {
 		return fmt.Sprintf("  R%d.P%-2d  %-3s  %-25s  %s", r.Round, r.Pick, r.Position, playerCol, reason)
 	}
 	return fmt.Sprintf("  R%d.P%-2d  %-3s  %s", r.Round, r.Pick, r.Position, playerCol)
-}
-
-func selectDraftRows(ctx context.Context, pool *pgxpool.Pool, poolID int32) ([]draftRow, error) {
-	// LEFT JOIN to players so a deleted player row doesn't drop the
-	// whole pick from the output — the agent still made a pick, even
-	// if the name lookup fails. Position falls back to '?' for the
-	// same reason. ORDER BY agent's draft_position so the snake-order
-	// reading is intuitive (first overall pick's agent listed first).
-	const sql = `
-		SELECT
-		  a.id, a.team_name, a.strategy_summary, a.model, a.draft_position,
-		  t.round, t.pick, COALESCE(t.player_id, 0),
-		  COALESCE(NULLIF(TRIM(BOTH FROM p.first_name || ' ' || p.last_name), ''), '') AS player_name,
-		  COALESCE(p.position::text, '?') AS position,
-		  t.reasoning
-		FROM sim_transactions t
-		JOIN sim_agents a ON a.id = t.agent_id
-		LEFT JOIN players p ON p.id = t.player_id
-		WHERE t.pool_id = $1
-		  AND t.type = 'draft_pick'
-		ORDER BY a.draft_position NULLS LAST, a.id, t.round, t.pick`
-
-	rs, err := pool.Query(ctx, sql, poolID)
-	if err != nil {
-		return nil, fmt.Errorf("select draft rows: %w", err)
-	}
-	defer rs.Close()
-
-	var out []draftRow
-	for rs.Next() {
-		var r draftRow
-		var round, pick int32
-		if err := rs.Scan(&r.AgentID, &r.TeamName, &r.Summary, &r.Model, &r.DraftPosition,
-			&round, &pick, &r.PlayerID, &r.PlayerName, &r.Position, &r.Reasoning); err != nil {
-			return nil, fmt.Errorf("scan draft row: %w", err)
-		}
-		r.Round = round
-		r.Pick = pick
-		r.PlayerName = strings.TrimSpace(r.PlayerName)
-		out = append(out, r)
-	}
-	return out, rs.Err()
 }
