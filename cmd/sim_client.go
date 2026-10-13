@@ -198,7 +198,8 @@ func (c *GraphQLClient) SimDraftPicks(ctx context.Context, poolID int) ([]draftR
 }
 
 // simFieldError explains the error an API server older than this CLI
-// gives for a field it does not have.
+// gives for a field it does not have. It matches the message text because
+// execute surfaces GraphQL errors as messages only, with no code to test.
 func (c *GraphQLClient) simFieldError(err error, field, command string) error {
 	if strings.Contains(err.Error(), `Cannot query field "`+field+`"`) {
 		return fmt.Errorf("API server at %s predates %s over GraphQL; use a matching puckdb binary: %w", c.endpoint, command, err)

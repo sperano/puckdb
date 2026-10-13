@@ -96,6 +96,7 @@ func intIDs(ids []int32) []int {
 // turns interleave and retries left id gaps; the old MAX(id)-10 watermark
 // showed 4 of them here (ids 43, 45, 47 and 49).
 func TestSimTurnFeed_LatestPoolTurnsWithInterleavingAndGaps(t *testing.T) {
+	t.Parallel()
 	f := newFeedFixture(t)
 	other := f.seed.Pool("other")
 	otherAgent := f.seed.Agent(simfixtures.Agent{PoolID: other, TeamName: "Others", Model: "m"})
@@ -122,6 +123,7 @@ func TestSimTurnFeed_LatestPoolTurnsWithInterleavingAndGaps(t *testing.T) {
 }
 
 func TestSimTurnFeed_PagesAfterID(t *testing.T) {
+	t.Parallel()
 	f := newFeedFixture(t)
 	var ids []int32
 	for i := range 25 {
@@ -155,6 +157,7 @@ func TestSimTurnFeed_PagesAfterID(t *testing.T) {
 // A turn's tool calls come in execution order up to the cap, with the
 // full count; turns without calls have an empty list.
 func TestSimTurnFeed_ToolCallCapAndCount(t *testing.T) {
+	t.Parallel()
 	f := newFeedFixture(t)
 	busy, quiet, idle := f.turn(f.pool, f.agent, 0), f.turn(f.pool, f.agent, 1), f.turn(f.pool, f.agent, 2)
 	const busyCalls = simTurnFeedMaxToolCallsPerTurn + 3
@@ -188,6 +191,7 @@ func TestSimTurnFeed_ToolCallCapAndCount(t *testing.T) {
 // ids left out, a blank first name trimmed, a blank name dropped; the
 // whole page costs three queries.
 func TestSimTurnFeed_PlayerNamesAndQueryCount(t *testing.T) {
+	t.Parallel()
 	f := newFeedFixture(t)
 	f.seed.Player(8478402, "Connor", "McDavid", nil)
 	f.seed.Player(8471214, "", "Ovechkin", nil)
@@ -221,6 +225,7 @@ func TestSimTurnFeed_PlayerNamesAndQueryCount(t *testing.T) {
 // arguments_raw is collapsed and cut at the byte bound without splitting a
 // rune.
 func TestSimTurnFeed_ArgumentsCutOnRuneBoundary(t *testing.T) {
+	t.Parallel()
 	f := newFeedFixture(t)
 	turn := f.turn(f.pool, f.agent, 0)
 	raw := "{\n  \"text\": \"x" + strings.Repeat("é", SimTurnFeedMaxArgumentsBytes) + "\"\n}"
@@ -278,6 +283,7 @@ func legacyDraftPicks(t *testing.T, dbURL string, poolID int32) []*model.SimDraf
 }
 
 func TestSimDraftPicks_MatchLegacyQuery(t *testing.T) {
+	t.Parallel()
 	f := newFeedFixture(t)
 	r, seed, counter := f.r, f.seed, f.queries
 
@@ -322,6 +328,7 @@ func TestSimDraftPicks_MatchLegacyQuery(t *testing.T) {
 
 // More picks than the bound is an error, not a silently shortened list.
 func TestSimDraftPicks_RowBound(t *testing.T) {
+	t.Parallel()
 	f := newFeedFixture(t)
 	f.seed.Exec(`INSERT INTO sim_transactions (pool_id, agent_id, date, type, round, pick)
 		SELECT $1, $2, DATE '2024-10-01', 'draft_pick', n, 1 FROM generate_series(1, $3::int) AS n`,

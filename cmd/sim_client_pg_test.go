@@ -68,6 +68,7 @@ func newSimGraphQLClient(t *testing.T) (*GraphQLClient, *simfixtures.Seeder, sim
 // The CLI over GraphQL prints, byte for byte, what the direct-database
 // commands printed: backlog, a follow that needs two pages, and the draft.
 func TestSimTailAndDraftOverGraphQLMatchLegacyOutput(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	client, seeder, sc := newSimGraphQLClient(t)
 	var out bytes.Buffer
@@ -104,6 +105,7 @@ func TestSimTailAndDraftOverGraphQLMatchLegacyOutput(t *testing.T) {
 }
 
 func TestSimDraftOverGraphQLMissingPool(t *testing.T) {
+	t.Parallel()
 	client, _, sc := newSimGraphQLClient(t)
 	missing := int(sc.poolB) + 1
 	err := renderSimDraft(context.Background(), client, &bytes.Buffer{}, missing, false)
@@ -112,6 +114,7 @@ func TestSimDraftOverGraphQLMissingPool(t *testing.T) {
 
 // The server's argument checks reach the CLI as errors.
 func TestSimTurnFeedOverGraphQLRejectsOutOfRangeArguments(t *testing.T) {
+	t.Parallel()
 	client, _, _ := newSimGraphQLClient(t)
 	zero, negative := 0, -1
 	_, err := client.SimTurnFeed(context.Background(), &zero, nil, tailBacklog)
