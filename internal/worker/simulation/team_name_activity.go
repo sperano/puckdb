@@ -122,11 +122,10 @@ func (a *Activities) PickTeamName(ctx context.Context, in PickTeamNameInput) (Pi
 		return PickTeamNameResult{}, err
 	}
 	header := teamNameTurnHeader(in, turn)
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		// The activity ended mid-turn: keep only what the turn billed,
-		// never a name the retry would then adopt.
-		return PickTeamNameResult{}, a.recordAbortedTurn(ctx, teamNameTurnTelemetry(header, turn, recordMessages),
-			fmt.Errorf("simulation: team-name turn aborted: %w", ctxErr))
+	// An activity that ended mid-turn keeps only what the turn billed,
+	// never a name the retry would then adopt.
+	if err := a.abortIfDone(ctx, teamNameTurnTelemetry(header, turn, recordMessages), "team-name turn"); err != nil {
+		return PickTeamNameResult{}, err
 	}
 
 	// Persist before branching on the outcome: both failure arms

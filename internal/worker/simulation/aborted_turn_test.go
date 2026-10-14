@@ -45,6 +45,7 @@ func requireAbortedTurnSpend(t *testing.T, q *stubSimQueries, tx *stubTransactor
 	t.Helper()
 	require.Equal(t, 1, tx.inTxCalled, "one transaction for the aborted turn")
 	assert.NoError(t, tx.ctxErrs[0], "the write must not run on the done activity context")
+	assert.True(t, tx.deadlines[0], "the detached write is still bounded")
 
 	require.Len(t, q.incrementCostCalls, 1)
 	poolCost, err := NumericToFloat(q.incrementCostCalls[0].TotalLLMCostUSD)

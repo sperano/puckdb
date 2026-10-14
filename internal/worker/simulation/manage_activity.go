@@ -169,12 +169,10 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 	}
 
 	outcome := a.runDailyAgent(ctx, agent, in)
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		// The activity ended mid-turn (deadline, worker shutdown,
-		// cancellation): keep only what the turn billed. Its actions
-		// and the day marker stay unwritten, so the retry replays it.
-		return ManageRosterResult{}, a.recordAbortedTurn(ctx, dailyTurnTelemetry(in, outcome, recordMessages),
-			fmt.Errorf("simulation: daily turn aborted: %w", ctxErr))
+	// An activity that ended mid-turn keeps only what the turn billed;
+	// its actions and the day marker stay unwritten for the retry.
+	if err := a.abortIfDone(ctx, dailyTurnTelemetry(in, outcome, recordMessages), "daily turn"); err != nil {
+		return ManageRosterResult{}, err
 	}
 
 	if err := a.commitDailyTurn(ctx, in, outcome, recordMessages); err != nil {

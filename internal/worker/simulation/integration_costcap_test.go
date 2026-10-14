@@ -461,19 +461,25 @@ func TestIntegrationAbortedTurnSpendReachesPoolTotal(t *testing.T) {
 	require.Greater(t, abortedCost, 0.0)
 	assert.InDelta(t, abortedCost, poolSpend(t, ctx, pgPool, f.poolID), costDelta, "the billed round reached the pool total")
 	assert.Zero(t, dailyMarkers(t, ctx, pgPool, f.poolID), "no marker: the retry must run the day")
-	var status string
-	require.NoError(t, pgPool.QueryRow(ctx,
-		`SELECT status FROM sim_agent_turns WHERE pool_id = $1`, f.poolID).Scan(&status))
-	assert.Equal(t, string(TurnStatusErrored), status)
+	assert.Equal(t, []string{string(TurnStatusErrored)}, turnStatuses(t, ctx, pgPool, f.poolID))
 
 	f.llm.responses = []*llm.Response{usageRound(finalTextResponse("retried"), 2)}
 	managed, err := runSimActivity[ManageRosterResult](f.acts.ManageRoster, in)
 	require.NoError(t, err)
 	assert.InDelta(t, abortedCost+managed.CostUsd, poolSpend(t, ctx, pgPool, f.poolID), costDelta, "both attempts billed")
 	assert.Equal(t, 1, dailyMarkers(t, ctx, pgPool, f.poolID))
-	require.NoError(t, pgPool.QueryRow(ctx,
-		`SELECT status FROM sim_agent_turns WHERE pool_id = $1`, f.poolID).Scan(&status))
-	assert.Equal(t, string(TurnStatusOK), status, "the retry's turn row replaced the aborted one")
+	assert.Equal(t, []string{string(TurnStatusOK)}, turnStatuses(t, ctx, pgPool, f.poolID),
+		"the retry's turn row replaced the aborted one")
+}
+
+// turnStatuses lists the status of every sim_agent_turns row of the pool.
+func turnStatuses(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, poolID int32) []string {
+	t.Helper()
+	rows, err := pgPool.Query(ctx, `SELECT status FROM sim_agent_turns WHERE pool_id = $1 ORDER BY id`, poolID)
+	require.NoError(t, err)
+	statuses, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	require.NoError(t, err)
+	return statuses
 }
 
 // dailyMarkers counts the pool's daily_turn_done rows.

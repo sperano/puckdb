@@ -43,11 +43,14 @@ type stubTransactor struct {
 	commitErr  error   // injected post-fn error, simulating commit failure
 	beforeFn   func()  // optional hook to mutate queries between InTx invocations
 	ctxErrs    []error // ctx.Err() at each InTx call: a done context fails Begin in PgxTransactor
+	deadlines  []bool  // whether each InTx call's context carries a deadline
 }
 
 func (t *stubTransactor) InTx(ctx context.Context, fn func(SimQueries) error) error {
 	t.inTxCalled++
 	t.ctxErrs = append(t.ctxErrs, ctx.Err())
+	_, hasDeadline := ctx.Deadline()
+	t.deadlines = append(t.deadlines, hasDeadline)
 	if t.beforeFn != nil {
 		t.beforeFn()
 	}
