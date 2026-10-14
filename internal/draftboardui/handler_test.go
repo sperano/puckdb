@@ -34,20 +34,18 @@ func TestHandlerDoesNotServeClientTests(t *testing.T) {
 	}
 }
 
-var (
-	leagueSelectPattern = regexp.MustCompile(`(?s)<select id="league"[^>]*>(.*?)</select>`)
-	optionValuePattern  = regexp.MustCompile(`<option[^>]*\bvalue="([^"]*)"`)
-)
-
 // TestLeagueSelectorShipsNoLeagues keeps league IDs out of the embedded page:
 // the client fills the selector from draftLeagues, so the only shipped option
-// is the empty placeholder.
+// is the empty placeholder. Every option must say value="" because an option
+// without a value attribute submits its text, which could be a league ID.
 func TestLeagueSelectorShipsNoLeagues(t *testing.T) {
+	leagueSelect := regexp.MustCompile(`(?s)<select id="league"[^>]*>(.*?)</select>`)
+	option := regexp.MustCompile(`<option\b[^>]*>`)
 	page, err := assets.ReadFile("web/index.html")
 	require.NoError(t, err)
-	selector := leagueSelectPattern.FindSubmatch(page)
+	selector := leagueSelect.FindSubmatch(page)
 	require.NotNil(t, selector, "index.html has no league selector")
-	for _, option := range optionValuePattern.FindAllSubmatch(selector[1], -1) {
-		assert.Empty(t, string(option[1]), "shipped league option")
+	for _, tag := range option.FindAll(selector[1], -1) {
+		assert.Contains(t, string(tag), `value=""`, "shipped league option")
 	}
 }
