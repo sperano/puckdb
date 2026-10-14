@@ -32,14 +32,12 @@ import (
 // Wiring grows by activity: read-only activities (BuildFreeAgentPool,
 // UpdateStandings) only need Queries; LLM-driven activities
 // (DraftPickActivity, ManageRosterActivity) additionally need Tx for
-// atomic writes, Signaler for cost-cap pause signals, and
-// ProviderConfigs to construct LLM clients per agent.
+// atomic writes and ProviderConfigs to construct LLM clients per agent.
 //
 // The struct is constructed once at worker startup and shared across
 // every activity invocation. Methods on the receiver may run
-// concurrently — the agent cache is mutex-guarded; Queries / Tx /
-// Signaler are themselves either stateless or already concurrency-
-// safe (pgxpool / Temporal client).
+// concurrently — the agent cache is mutex-guarded; Queries / Tx are
+// themselves concurrency-safe (pgxpool).
 type Activities struct {
 	// Queries is the narrowed sqlc handle covering every sim query
 	// any read-only activity in this package needs. Tests inject a
@@ -50,10 +48,6 @@ type Activities struct {
 	// atomic-commit activities (DraftPickActivity, ManageRosterActivity).
 	// Read-only activities ignore it.
 	Tx Transactor
-
-	// Signaler sends signals back to the parent workflow. Used by
-	// LLM activities to fire "pause" when the cost cap is reached.
-	Signaler WorkflowSignaler
 
 	// ProviderConfigs maps llm.Provider → connection details. Each
 	// agent's NewAgent call resolves its provider via this map and
@@ -159,7 +153,9 @@ type SimQueries interface {
 	// "vanished drop" (waiver resolution's plan handles that case).
 	DeleteSimRosterRows(ctx context.Context, arg sqlcdb.DeleteSimRosterRowsParams) (int64, error)
 	InsertSimTransactionDraftPick(ctx context.Context, arg sqlcdb.InsertSimTransactionDraftPickParams) (sqlcdb.SimTransaction, error)
-	InsertSimTransactionCostCapReached(ctx context.Context, arg sqlcdb.InsertSimTransactionCostCapReachedParams) (sqlcdb.SimTransaction, error)
+	// PauseSimPoolForCostCap is the durable cost-cap transition (status
+	// paused + cost_cap_reached row, once per pool); see pauseForCostCap.
+	PauseSimPoolForCostCap(ctx context.Context, arg sqlcdb.PauseSimPoolForCostCapParams) (int64, error)
 	IncrementSimPoolLLMCost(ctx context.Context, arg sqlcdb.IncrementSimPoolLLMCostParams) (pgtype.Numeric, error)
 	UpdateSimPoolStatus(ctx context.Context, arg sqlcdb.UpdateSimPoolStatusParams) error
 	SetSimAgentDraftPosition(ctx context.Context, arg sqlcdb.SetSimAgentDraftPositionParams) error

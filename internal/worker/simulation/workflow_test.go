@@ -362,29 +362,47 @@ func (s *SimPoolWorkflowTestSuite) TestMaxSeasonDays_CapTripsAfterContinueAsNew(
 		"cap must trip 1 day after a CAN resume, not run to season end")
 }
 
-// Finding #3: a cost-cap pause during the season must NOT complete the
-// pool. The cost-cap activity already flipped status to 'paused'; the
-// workflow must exit without calling SetPoolStatus(complete), which
-// would clobber that 'paused' row.
-func (s *SimPoolWorkflowTestSuite) TestSeasonCostCapPause_DoesNotComplete() {
-	t := s.T()
-	state := minState()
-
+// recordPoolStatuses registers a SetPoolStatus mock that records every
+// status the workflow writes. Register before stubActivityResults.
+func (s *SimPoolWorkflowTestSuite) recordPoolStatuses() *[]PoolStatus {
 	var statuses []PoolStatus
 	s.env.OnActivity(s.acts.SetPoolStatus, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			in := args.Get(1).(SetPoolStatusInput)
 			statuses = append(statuses, in.Status)
 		}).Return(nil).Maybe()
-	s.stubActivityResults(state)
-	s.stubManageRosterPassThrough()
+	return &statuses
+}
 
-	// Queue the cost-cap pause signal before the first day's post-day
-	// checkPause() runs. The signal is delivered to the workflow's pause
-	// channel; checkPause()'s ReceiveAsync picks it up after day 1.
-	s.env.RegisterDelayedCallback(func() {
-		s.env.SignalWorkflow(SignalPause, nil)
-	}, time.Millisecond)
+// countActivity registers a mock for activity that counts its calls and
+// returns result. Register before stubActivityResults.
+func (s *SimPoolWorkflowTestSuite) countActivity(activity, result any) *int {
+	n := 0
+	s.env.OnActivity(activity, mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { n++ }).
+		Return(result, nil).Maybe()
+	return &n
+}
+
+// Finding #3 / SIM-G3: a cost-cap pause during the season must NOT
+// complete the pool. The cost-cap activity already flipped status to
+// 'paused' and reports it in its result alone (no signal); the workflow
+// must finish the day's telemetry, then exit without calling
+// SetPoolStatus(complete), which would clobber that 'paused' row.
+func (s *SimPoolWorkflowTestSuite) TestSeasonCostCapPause_DoesNotComplete() {
+	t := s.T()
+	state := minState()
+
+	statuses := s.recordPoolStatuses()
+	manageCount := s.countActivity(s.acts.ManageRoster,
+		ManageRosterResult{Skipped: true, SkipReason: SkipReasonCostCapReached})
+	waiverDays := s.countActivity(s.acts.ProcessWaivers, ProcessWaiversResult{Skipped: true})
+	collectCount := s.countActivity(s.acts.CollectDayStats,
+		CollectDayStatsResult{Skipped: true, SkipReason: SkipReasonNoGames})
+	dayDurations := 0
+	s.env.OnActivity(s.acts.RecordDayDuration, mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { dayDurations++ }).Return(nil).Maybe()
+	s.stubActivityResults(state)
 
 	// CAN resume input so we go straight to the season day loop.
 	s.env.ExecuteWorkflow(SimPoolWorkflow, SimPoolWorkflowInput{
@@ -393,8 +411,12 @@ func (s *SimPoolWorkflowTestSuite) TestSeasonCostCapPause_DoesNotComplete() {
 	})
 	require.True(t, s.env.IsWorkflowCompleted())
 	require.NoError(t, s.env.GetWorkflowError())
-	assert.NotContains(t, statuses, PoolStatusComplete,
+	assert.NotContains(t, *statuses, PoolStatusComplete,
 		"cost-cap season pause must not overwrite 'paused' with 'complete'")
+	assert.Equal(t, 1, *waiverDays, "the season stops after the day the cap tripped")
+	assert.Equal(t, 1, *manageCount)
+	assert.Zero(t, *collectCount, "the tripped day stops before collecting stats")
+	assert.Equal(t, 1, dayDurations, "the tripped day still records its duration before the exit")
 }
 
 // ============================================================================
@@ -506,19 +528,21 @@ func (s *SimPoolWorkflowTestSuite) TestDraftCostCap_StopsAfterFirstTrip() {
 	t := s.T()
 	state := minState()
 
-	pickCount := 0
-	s.env.OnActivity(s.acts.DraftPick, mock.Anything, mock.Anything).
-		Run(func(args mock.Arguments) { pickCount++ }).
-		Return(DraftPickResult{Skipped: true, SkipReason: SkipReasonCostCapReached}, nil).
-		Maybe()
+	statuses := s.recordPoolStatuses()
+	pickCount := s.countActivity(s.acts.DraftPick,
+		DraftPickResult{Skipped: true, SkipReason: SkipReasonCostCapReached})
+	manageCount := s.countActivity(s.acts.ManageRoster, ManageRosterResult{Passed: true})
 	s.stubActivityResults(state)
-	s.stubManageRosterPassThrough()
 
 	s.env.ExecuteWorkflow(SimPoolWorkflow, SimPoolWorkflowInput{PoolID: 1})
 	require.True(t, s.env.IsWorkflowCompleted())
 	require.NoError(t, s.env.GetWorkflowError())
-	assert.Equal(t, 1, pickCount,
+	assert.Equal(t, 1, *pickCount,
 		"cost-cap exit after pick 1 must suppress all remaining draft picks")
+	// SIM-G3: the result alone pauses the workflow — no signal is sent,
+	// and the season never starts.
+	assert.Zero(t, *manageCount, "a cost-cap draft exit must not start the season")
+	assert.NotContains(t, *statuses, PoolStatusComplete)
 }
 
 // ============================================================================
@@ -613,6 +637,7 @@ func (s *SimPoolWorkflowTestSuite) TestDailyCostCap_StopsAfterFirstAgent() {
 	state := minState()
 	state.PoolConfig.MaxSeasonDays = 1
 
+	statuses := s.recordPoolStatuses()
 	manageCount := 0
 	s.env.OnActivity(s.acts.ManageRoster, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) { manageCount++ }).
@@ -635,6 +660,8 @@ func (s *SimPoolWorkflowTestSuite) TestDailyCostCap_StopsAfterFirstAgent() {
 		"daily loop must stop after the first agent trips the cost cap")
 	assert.Equal(t, 1, contextCount,
 		"remaining agents must not build daily context after the cap trips")
+	assert.NotContains(t, *statuses, PoolStatusComplete,
+		"the pool stays paused even though the MaxSeasonDays cap is reached the same day")
 }
 
 // ============================================================================

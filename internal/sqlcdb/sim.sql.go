@@ -1032,53 +1032,6 @@ func (q *Queries) InsertSimTransactionClaim(ctx context.Context, arg InsertSimTr
 	return i, err
 }
 
-const insertSimTransactionCostCapReached = `-- name: InsertSimTransactionCostCapReached :one
-INSERT INTO sim_transactions (
-    pool_id, agent_id, date, type, cost_usd, cap_usd
-)
-VALUES ($1, $2, $3, 'cost_cap_reached', $4, $5)
-RETURNING id, pool_id, agent_id, date, type, player_id, reasoning,
-          round, pick, drop_player_id, error_kind, error_detail,
-          cost_usd, cap_usd, created_at
-`
-
-type InsertSimTransactionCostCapReachedParams struct {
-	PoolID  int32          `json:"pool_id"`
-	AgentID int32          `json:"agent_id"`
-	Date    pgtype.Date    `json:"date"`
-	CostUSD pgtype.Numeric `json:"cost_usd"`
-	CapUSD  pgtype.Numeric `json:"cap_usd"`
-}
-
-func (q *Queries) InsertSimTransactionCostCapReached(ctx context.Context, arg InsertSimTransactionCostCapReachedParams) (SimTransaction, error) {
-	row := q.db.QueryRow(ctx, insertSimTransactionCostCapReached,
-		arg.PoolID,
-		arg.AgentID,
-		arg.Date,
-		arg.CostUSD,
-		arg.CapUSD,
-	)
-	var i SimTransaction
-	err := row.Scan(
-		&i.ID,
-		&i.PoolID,
-		&i.AgentID,
-		&i.Date,
-		&i.Type,
-		&i.PlayerID,
-		&i.Reasoning,
-		&i.Round,
-		&i.Pick,
-		&i.DropPlayerID,
-		&i.ErrorKind,
-		&i.ErrorDetail,
-		&i.CostUSD,
-		&i.CapUSD,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const insertSimTransactionDailyTurnDone = `-- name: InsertSimTransactionDailyTurnDone :exec
 INSERT INTO sim_transactions (pool_id, agent_id, date, type)
 VALUES ($1, $2, $3, 'daily_turn_done')
@@ -2787,6 +2740,50 @@ func (q *Queries) LockSimPool(ctx context.Context, id int32) (int32, error) {
 	var id_2 int32
 	err := row.Scan(&id_2)
 	return id_2, err
+}
+
+const pauseSimPoolForCostCap = `-- name: PauseSimPoolForCostCap :execrows
+WITH paused AS (
+    UPDATE sim_pools
+    SET status = 'paused', updated_at = NOW()
+    WHERE sim_pools.id = $5 AND sim_pools.status <> 'paused'
+    RETURNING sim_pools.id AS paused_pool_id
+)
+INSERT INTO sim_transactions (
+    pool_id, agent_id, date, type, cost_usd, cap_usd
+)
+SELECT paused.paused_pool_id, $1::INT, $2::DATE,
+       'cost_cap_reached', $3::NUMERIC, $4::NUMERIC
+FROM paused
+`
+
+type PauseSimPoolForCostCapParams struct {
+	AgentID int32          `json:"agent_id"`
+	Date    pgtype.Date    `json:"date"`
+	CostUSD pgtype.Numeric `json:"cost_usd"`
+	CapUSD  pgtype.Numeric `json:"cap_usd"`
+	PoolID  int32          `json:"pool_id"`
+}
+
+// PauseSimPoolForCostCap is the one durable cost-cap transition: in a
+// single statement it flips the pool to 'paused' and writes the
+// cost_cap_reached audit row, both only when the pool is not paused yet.
+// The UPDATE takes the pool row lock, so an overlapping attempt waits for
+// the first one to commit, re-checks the status on the committed row and
+// writes nothing; a serial retry finds the pool already paused. Returns
+// the number of audit rows written: 1 for the transition, 0 otherwise.
+func (q *Queries) PauseSimPoolForCostCap(ctx context.Context, arg PauseSimPoolForCostCapParams) (int64, error) {
+	result, err := q.db.Exec(ctx, pauseSimPoolForCostCap,
+		arg.AgentID,
+		arg.Date,
+		arg.CostUSD,
+		arg.CapUSD,
+		arg.PoolID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const recomputeSimAgentTotalsCounting = `-- name: RecomputeSimAgentTotalsCounting :exec

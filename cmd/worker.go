@@ -26,7 +26,6 @@ import (
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/interceptor"
 	"go.temporal.io/sdk/worker"
 )
@@ -200,7 +199,7 @@ func cmdWorker() *cobra.Command {
 				if err := ensureNewsSchedule(ctx, tclient.ScheduleClient(), viper.GetInt(config.FlagNewsScheduleMinutes)); err != nil {
 					return err
 				}
-				if err := registerTasksActivities(w, pool, redisClient, tclient); err != nil {
+				if err := registerTasksActivities(w, pool, redisClient); err != nil {
 					return err
 				}
 
@@ -287,9 +286,7 @@ type taskActivityDeps struct {
 }
 
 // registerTasksActivities registers all activities for the tasks queue.
-// tclient is needed by simulation.Activities to signal the parent
-// SimPoolWorkflow when the LLM cost cap trips.
-func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *redis.Client, tclient client.Client) error {
+func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *redis.Client) error {
 	gobCache, err := newGobCache(redisClient)
 	if err != nil {
 		return err
@@ -310,7 +307,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		yahooPublicDownloader: shared.RateLimited(yahooLimiter, httpx.DownloadPublic),
 	}
 
-	registerSimulationActivities(w, pool, d.queries, tclient)
+	registerSimulationActivities(w, pool, d.queries)
 	registerProgressActivities(w, redisClient)
 	registerYahooFetchActivities(w, d)
 
@@ -326,11 +323,10 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 // registerSimulationActivities registers the simulation pool activities.
 // See worker/simulation. AgentFactory is nil so each activity falls back
 // to defaultAgentFactory (NewAgent).
-func registerSimulationActivities(w worker.Worker, pool *pgxpool.Pool, queries *sqlcdb.Queries, tclient client.Client) {
+func registerSimulationActivities(w worker.Worker, pool *pgxpool.Pool, queries *sqlcdb.Queries) {
 	simActs := &simulation.Activities{
 		Queries:         queries,
 		Tx:              simulation.NewPgxTransactor(pool),
-		Signaler:        simulation.NewTemporalSignaler(tclient),
 		ProviderConfigs: configuredLLMProviders(),
 	}
 	w.RegisterActivity(simActs.LoadPoolState)

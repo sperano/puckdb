@@ -166,21 +166,26 @@ func processWaiversAsync(pgPool *pgxpool.Pool, in ProcessWaiversInput) <-chan wa
 // attempt's open transaction (on LockSimPool, unless that lock is missing).
 func waitForLockWaiter(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool) {
 	t.Helper()
+	waitForLockWaiters(t, ctx, pgPool, 1)
+}
+
+// waitForLockWaiters blocks until at least n other sessions are waiting
+// on a lock in the test database.
+func waitForLockWaiters(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, n int) {
+	t.Helper()
 	deadline := time.Now().Add(lockWaitTimeout)
 	for time.Now().Before(deadline) {
-		var waiting bool
+		var waiting int
 		require.NoError(t, pgPool.QueryRow(ctx, `
-			SELECT EXISTS (
-			    SELECT 1 FROM pg_stat_activity
-			    WHERE datname = current_database() AND pid <> pg_backend_pid()
-			      AND wait_event_type = 'Lock'
-			)`).Scan(&waiting))
-		if waiting {
+			SELECT COUNT(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND pid <> pg_backend_pid()
+			  AND wait_event_type = 'Lock'`).Scan(&waiting))
+		if waiting >= n {
 			return
 		}
 		time.Sleep(lockPollInterval)
 	}
-	t.Fatalf("no session waited on the pool lock within %s", lockWaitTimeout)
+	t.Fatalf("fewer than %d sessions waited on a lock within %s", n, lockWaitTimeout)
 }
 
 func awaitAttempt(t *testing.T, done <-chan waiverAttempt) waiverAttempt {

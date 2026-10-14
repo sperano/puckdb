@@ -78,10 +78,10 @@ type stubSimQueries struct {
 	insertDraftPickReturn sqlcdb.SimTransaction
 	insertDraftPickErr    error
 
-	// InsertSimTransactionCostCapReached
-	insertCostCapCalls  []sqlcdb.InsertSimTransactionCostCapReachedParams
-	insertCostCapReturn sqlcdb.SimTransaction
-	insertCostCapErr    error
+	// PauseSimPoolForCostCap
+	pauseCostCapCalls []sqlcdb.PauseSimPoolForCostCapParams
+	pauseCostCapRows  int64
+	pauseCostCapErr   error
 
 	// IncrementSimPoolLLMCost
 	incrementCostCalls  []sqlcdb.IncrementSimPoolLLMCostParams
@@ -386,12 +386,12 @@ func (s *stubSimQueries) InsertSimTransactionDraftPick(_ context.Context, arg sq
 	return s.insertDraftPickReturn, nil
 }
 
-func (s *stubSimQueries) InsertSimTransactionCostCapReached(_ context.Context, arg sqlcdb.InsertSimTransactionCostCapReachedParams) (sqlcdb.SimTransaction, error) {
-	s.insertCostCapCalls = append(s.insertCostCapCalls, arg)
-	if s.insertCostCapErr != nil {
-		return sqlcdb.SimTransaction{}, s.insertCostCapErr
+func (s *stubSimQueries) PauseSimPoolForCostCap(_ context.Context, arg sqlcdb.PauseSimPoolForCostCapParams) (int64, error) {
+	s.pauseCostCapCalls = append(s.pauseCostCapCalls, arg)
+	if s.pauseCostCapErr != nil {
+		return 0, s.pauseCostCapErr
 	}
-	return s.insertCostCapReturn, nil
+	return s.pauseCostCapRows, nil
 }
 
 func (s *stubSimQueries) IncrementSimPoolLLMCost(_ context.Context, arg sqlcdb.IncrementSimPoolLLMCostParams) (pgtype.Numeric, error) {

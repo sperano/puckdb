@@ -25,7 +25,6 @@ import (
 //     the stub does NOT roll back fn's side effects, since they were
 //     applied to a stub anyway; tests assert by counting calls + the
 //     surfaced error).
-//   - stubSignaler: records SignalWorkflow calls.
 //   - stubLLMClient: scripts queued responses and errors per call.
 //
 // These stubs deliberately don't enforce ordering or build a fake DB
@@ -55,24 +54,6 @@ func (t *stubTransactor) InTx(ctx context.Context, fn func(SimQueries) error) er
 		return t.fnErr
 	}
 	return t.commitErr
-}
-
-// stubSignaler records SignalWorkflow calls.
-type stubSignaler struct {
-	calls []signalCall
-	err   error
-}
-
-type signalCall struct {
-	WorkflowID string
-	RunID      string
-	SignalName string
-	Arg        any
-}
-
-func (s *stubSignaler) SignalWorkflow(_ context.Context, workflowID, runID, signalName string, arg any) error {
-	s.calls = append(s.calls, signalCall{workflowID, runID, signalName, arg})
-	return s.err
 }
 
 // scriptedLLMClient implements llm.Client. Each Complete call pops
@@ -156,25 +137,22 @@ func fakeAgent(client llm.Client, cfg AgentConfig) *Agent {
 type DraftPickTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
-	env      *testsuite.TestActivityEnvironment
-	queries  *stubSimQueries
-	tx       *stubTransactor
-	signaler *stubSignaler
-	llm      *scriptedLLMClient
-	acts     *Activities
+	env     *testsuite.TestActivityEnvironment
+	queries *stubSimQueries
+	tx      *stubTransactor
+	llm     *scriptedLLMClient
+	acts    *Activities
 }
 
 func (s *DraftPickTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
 	s.queries = &stubSimQueries{getDraftPickErr: pgx.ErrNoRows}
 	s.tx = &stubTransactor{queries: s.queries}
-	s.signaler = &stubSignaler{}
 	s.llm = &scriptedLLMClient{t: s.T()}
 
 	s.acts = &Activities{
-		Queries:  s.queries,
-		Tx:       s.tx,
-		Signaler: s.signaler,
+		Queries: s.queries,
+		Tx:      s.tx,
 		AgentFactory: func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
 			return fakeAgent(s.llm, cfg), nil
 		},
@@ -192,12 +170,11 @@ func TestDraftPickTestSuite(t *testing.T) {
 // unless the test arranges it.
 func (s *DraftPickTestSuite) validInput() DraftPickInput {
 	return DraftPickInput{
-		PoolID:     1,
-		AgentID:    7,
-		Round:      1,
-		Pick:       3,
-		SimDate:    pgDate(s.T(), "2024-10-08"),
-		WorkflowID: "sim-pool-1",
+		PoolID:  1,
+		AgentID: 7,
+		Round:   1,
+		Pick:    3,
+		SimDate: pgDate(s.T(), "2024-10-08"),
 		PoolConfig: PoolConfig{
 			Season:               20242025,
 			NumTeams:             5,
@@ -240,7 +217,7 @@ func (s *DraftPickTestSuite) TestIdempotencyHit_SkipsLLM() {
 
 	assert.Zero(t, s.llm.calls.Load(), "idempotency hit must not invoke LLM")
 	assert.Zero(t, s.tx.inTxCalled, "no commit on idempotency hit")
-	assert.Empty(t, s.signaler.calls)
+	assert.Empty(t, s.queries.pauseCostCapCalls)
 }
 
 func (s *DraftPickTestSuite) TestIdempotencyProbeError_AbortsActivity() {
@@ -275,19 +252,42 @@ func (s *DraftPickTestSuite) TestCostCap_TripsBeforeLLM() {
 
 	assert.Zero(t, s.llm.calls.Load(), "cost-cap branch must not invoke LLM")
 
-	// Cost-cap branch fires the InTx commit (cost_cap_reached row + status update).
-	require.Equal(t, 1, s.tx.inTxCalled)
-	require.Len(t, s.queries.insertCostCapCalls, 1)
-	assert.Equal(t, int32(1), s.queries.insertCostCapCalls[0].PoolID)
-	assert.Equal(t, int32(7), s.queries.insertCostCapCalls[0].AgentID)
-	require.Len(t, s.queries.updatePoolStatusCalls, 1)
-	assert.Equal(t, string(PoolStatusPaused), s.queries.updatePoolStatusCalls[0].Status)
+	// The cost-cap branch is one statement (status=paused + the
+	// cost_cap_reached row), not a Tx block plus a separate status write.
+	assert.Zero(t, s.tx.inTxCalled)
+	assert.Empty(t, s.queries.updatePoolStatusCalls)
+	require.Len(t, s.queries.pauseCostCapCalls, 1)
+	pause := s.queries.pauseCostCapCalls[0]
+	assert.Equal(t, int32(1), pause.PoolID)
+	assert.Equal(t, int32(7), pause.AgentID)
+	assert.Equal(t, s.validInput().SimDate, pause.Date)
+	gotCost, err := NumericToFloat(pause.CostUSD)
+	require.NoError(t, err)
+	assert.InDelta(t, 200.01, gotCost, 1e-9)
+	gotCap, err := NumericToFloat(pause.CapUSD)
+	require.NoError(t, err)
+	assert.InDelta(t, s.validInput().PoolConfig.MaxLLMCostUsdPerPool, gotCap, 1e-9)
+}
 
-	// Pause signal sent to the workflow.
-	require.Len(t, s.signaler.calls, 1)
-	assert.Equal(t, "sim-pool-1", s.signaler.calls[0].WorkflowID)
-	assert.Equal(t, SignalPause, s.signaler.calls[0].SignalName)
-	assert.Empty(t, s.signaler.calls[0].RunID, "runID empty = latest run")
+// A retry after the transition committed (the pool is already paused,
+// so the statement writes no row) still reports the cost cap: the
+// workflow decides on the result, which must not depend on whether
+// this attempt or an earlier one did the transition.
+func (s *DraftPickTestSuite) TestCostCap_AlreadyPausedStillReportsCap() {
+	t := s.T()
+	tooMuch, err := numericFromFloat(250.0)
+	require.NoError(t, err)
+	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, TotalLLMCostUSD: tooMuch}
+	s.queries.pauseCostCapRows = 0
+
+	future, err := s.env.ExecuteActivity(s.acts.DraftPick, s.validInput())
+	require.NoError(t, err)
+	var got DraftPickResult
+	require.NoError(t, future.Get(&got))
+	assert.True(t, got.Skipped)
+	assert.Equal(t, SkipReasonCostCapReached, got.SkipReason)
+	assert.Zero(t, s.llm.calls.Load())
+	assert.Len(t, s.queries.pauseCostCapCalls, 1)
 }
 
 // The cost-cap pause ends the pool, so its cached agents are dropped.
@@ -329,23 +329,20 @@ func (s *DraftPickTestSuite) TestCostCap_DisabledWhenCapZero() {
 	assert.Empty(t, s.queries.getPoolArgs)
 }
 
-// Signal-back failure must surface as activity error so Temporal
-// retries — otherwise the workflow would never see the pause.
-func (s *DraftPickTestSuite) TestCostCap_SignalErrorAbortsActivity() {
+// A failed pause transition must surface as an activity error so
+// Temporal retries, and must not fall through to the LLM: reporting
+// the cap without the durable pause would leave the pool row behind.
+func (s *DraftPickTestSuite) TestCostCap_PauseErrorAbortsActivity() {
 	t := s.T()
 	tooMuch, err := numericFromFloat(250.0)
 	require.NoError(t, err)
 	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, TotalLLMCostUSD: tooMuch}
-	s.signaler.err = errors.New("temporal unavailable")
+	s.queries.pauseCostCapErr = errors.New("connection lost")
 
 	_, err = s.env.ExecuteActivity(s.acts.DraftPick, s.validInput())
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "signal workflow")
-	// The DB-side commit still happened — that's intentional. On
-	// retry the cap will trip again, the row insert duplicates (audit
-	// trail accepts duplicates), and the signal retries.
-	assert.Equal(t, 1, s.tx.inTxCalled)
-	require.Len(t, s.queries.updatePoolStatusCalls, 1)
+	assert.Contains(t, err.Error(), "pause pool for cost cap")
+	assert.Zero(t, s.llm.calls.Load())
 }
 
 // ----------------------------------------------------------------------------
@@ -596,7 +593,7 @@ func (s *DraftPickTestSuite) TestCommit_FailureSurfacesError() {
 }
 
 // One of the writes inside the tx fails → activity returns an error;
-// no signal is sent (this is not a cost-cap path).
+// the pool is not paused (this is not a cost-cap path).
 func (s *DraftPickTestSuite) TestCommit_RosterInsertFailureSurfacesError() {
 	t := s.T()
 	s.llm.responses = []*llm.Response{draftPlayerToolCall(8478402, "ok")}
@@ -605,7 +602,7 @@ func (s *DraftPickTestSuite) TestCommit_RosterInsertFailureSurfacesError() {
 	_, err := s.env.ExecuteActivity(s.acts.DraftPick, s.validInput())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "FK violation")
-	assert.Empty(t, s.signaler.calls, "no signal on commit failure")
+	assert.Empty(t, s.queries.pauseCostCapCalls, "no pause on commit failure")
 }
 
 // ----------------------------------------------------------------------------

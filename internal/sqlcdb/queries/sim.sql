@@ -368,14 +368,26 @@ RETURNING id, pool_id, agent_id, date, type, player_id, reasoning,
           round, pick, drop_player_id, error_kind, error_detail,
           cost_usd, cap_usd, created_at;
 
--- name: InsertSimTransactionCostCapReached :one
+-- PauseSimPoolForCostCap is the one durable cost-cap transition: in a
+-- single statement it flips the pool to 'paused' and writes the
+-- cost_cap_reached audit row, both only when the pool is not paused yet.
+-- The UPDATE takes the pool row lock, so an overlapping attempt waits for
+-- the first one to commit, re-checks the status on the committed row and
+-- writes nothing; a serial retry finds the pool already paused. Returns
+-- the number of audit rows written: 1 for the transition, 0 otherwise.
+-- name: PauseSimPoolForCostCap :execrows
+WITH paused AS (
+    UPDATE sim_pools
+    SET status = 'paused', updated_at = NOW()
+    WHERE sim_pools.id = sqlc.arg(pool_id) AND sim_pools.status <> 'paused'
+    RETURNING sim_pools.id AS paused_pool_id
+)
 INSERT INTO sim_transactions (
     pool_id, agent_id, date, type, cost_usd, cap_usd
 )
-VALUES ($1, $2, $3, 'cost_cap_reached', $4, $5)
-RETURNING id, pool_id, agent_id, date, type, player_id, reasoning,
-          round, pick, drop_player_id, error_kind, error_detail,
-          cost_usd, cap_usd, created_at;
+SELECT paused.paused_pool_id, sqlc.arg(agent_id)::INT, sqlc.arg(date)::DATE,
+       'cost_cap_reached', sqlc.arg(cost_usd)::NUMERIC, sqlc.arg(cap_usd)::NUMERIC
+FROM paused;
 
 -- InsertSimTransactionDailyTurnDone writes the dedicated end-of-turn marker
 -- that ExistsSimDailyTurnMarker probes. Written once per daily turn inside

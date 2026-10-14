@@ -24,9 +24,9 @@ import (
 //	   row, so unrelated rows (draft_pick, waiver add/drop,
 //	   cost_cap_reached) at the same coordinate don't trip it. Hit ⇒
 //	   Skipped result (Temporal retry must NOT re-bill the LLM).
-//	2. Cost-cap probe: shared with DraftPickActivity. Tripped ⇒ insert
-//	   cost_cap_reached row + status=paused + signal workflow with
-//	   "pause"; return Skipped.
+//	2. Cost-cap probe: shared with DraftPickActivity. Tripped ⇒ pause
+//	   the pool + cost_cap_reached row (once per pool); return the
+//	   SkipReasonCostCapReached result the workflow stops on.
 //	3. agentloop.Run: multi-round LLM tool-use conversation. Tool
 //	   executor validates each call against a working copy of the
 //	   roster + FA pool, accumulates accepted actions in memory, and
@@ -68,10 +68,9 @@ import (
 // agent loop so each tool call validates against a state that
 // reflects prior accepted actions in the same turn.
 type ManageRosterInput struct {
-	PoolID     int32       `json:"pool_id"`
-	AgentID    int32       `json:"agent_id"`
-	SimDate    pgtype.Date `json:"sim_date"`
-	WorkflowID string      `json:"workflow_id"`
+	PoolID  int32       `json:"pool_id"`
+	AgentID int32       `json:"agent_id"`
+	SimDate pgtype.Date `json:"sim_date"`
 
 	PoolConfig  PoolConfig  `json:"pool_config"`
 	AgentConfig AgentConfig `json:"agent_config"`
@@ -121,7 +120,7 @@ const SkipReasonAlreadyManaged = "already_managed"
 
 // ManageRoster is the Temporal-activity entry point. Always returns
 // nil error on the success paths (including the "agent failed but we
-// logged it" path); only DB / signal / build-agent failures abort.
+// logged it" path); only DB / build-agent failures abort.
 func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (ManageRosterResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("ManageRoster start",
@@ -148,7 +147,7 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 		return ManageRosterResult{}, err
 	}
 	if tripped {
-		if err := a.runCostCapBranch(ctx, in.PoolID, in.AgentID, in.SimDate, in.WorkflowID, currentCostUsd, capUsd); err != nil {
+		if err := a.pauseForCostCap(ctx, in.PoolID, in.AgentID, in.SimDate, currentCostUsd, capUsd); err != nil {
 			return ManageRosterResult{}, err
 		}
 		return ManageRosterResult{Skipped: true, SkipReason: SkipReasonCostCapReached}, nil

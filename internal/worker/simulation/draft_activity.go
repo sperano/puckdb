@@ -24,10 +24,10 @@ import (
 //	   round, pick). Hit ⇒ return Skipped result; the previous attempt
 //	   already landed and a Temporal retry must NOT re-invoke the LLM.
 //	2. Cost-cap probe: GetSimPool → compare TotalLLMCostUsd with the
-//	   pool's max_llm_cost_usd_per_pool. Tripped ⇒ insert
-//	   cost_cap_reached row, set status=paused, signal workflow with
-//	   "pause", return Skipped result. (Order matters; see the
-//	   runCostCapBranch comment for retry semantics.)
+//	   pool's max_llm_cost_usd_per_pool. Tripped ⇒ pause the pool and
+//	   write the cost_cap_reached row (once per pool; see
+//	   pauseForCostCap for retry semantics), return the
+//	   SkipReasonCostCapReached result the workflow stops on.
 //	3. LLM tool call: agent.Client.Complete with the draft prompt and
 //	   the draft_player tool. Single-shot — the agent's job is to
 //	   choose ONE player; multi-round agentloop is overkill here.
@@ -61,12 +61,11 @@ import (
 // them — picks are serialized in the workflow goroutine, so what the
 // workflow knows about availability IS the truth at this pick.
 type DraftPickInput struct {
-	PoolID     int32       `json:"pool_id"`
-	AgentID    int32       `json:"agent_id"`
-	Round      int32       `json:"round"`
-	Pick       int32       `json:"pick"`
-	SimDate    pgtype.Date `json:"sim_date"`
-	WorkflowID string      `json:"workflow_id"`
+	PoolID  int32       `json:"pool_id"`
+	AgentID int32       `json:"agent_id"`
+	Round   int32       `json:"round"`
+	Pick    int32       `json:"pick"`
+	SimDate pgtype.Date `json:"sim_date"`
 
 	PoolConfig  PoolConfig  `json:"pool_config"`
 	AgentConfig AgentConfig `json:"agent_config"`
@@ -151,7 +150,7 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 		return DraftPickResult{}, err
 	}
 	if tripped {
-		if err := a.runCostCapBranch(ctx, in.PoolID, in.AgentID, in.SimDate, in.WorkflowID, currentCostUsd, capUsd); err != nil {
+		if err := a.pauseForCostCap(ctx, in.PoolID, in.AgentID, in.SimDate, currentCostUsd, capUsd); err != nil {
 			return DraftPickResult{}, err
 		}
 		return DraftPickResult{Skipped: true, SkipReason: SkipReasonCostCapReached}, nil
