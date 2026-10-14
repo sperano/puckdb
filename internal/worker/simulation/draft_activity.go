@@ -176,12 +176,12 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 	logger.Debug("DraftPick complete",
 		"player_id", pick.playerID,
 		"used_fallback", pick.usedFallback,
-		"cost_usd", pick.costUsd,
+		"cost_usd", pick.spend.CostUsd,
 	)
 	return DraftPickResult{
 		PlayerID:     pick.playerID,
 		UsedFallback: pick.usedFallback,
-		CostUsd:      pick.costUsd,
+		CostUsd:      pick.spend.CostUsd,
 		Notes:        pick.notes,
 		NotesUpdated: pick.notesUpdated,
 	}, nil
@@ -224,7 +224,9 @@ type chooseResult struct {
 	playerID     int64
 	reasoning    string
 	usedFallback bool
-	costUsd      float64
+	// spend is the turn's usage and cost across every round, the
+	// fallback path's failed rounds included: the provider billed them.
+	spend TurnSpend
 
 	// notes carries the latest sim_agents.notes value if the agent
 	// emitted update_notes during the turn. notesUpdated discriminates
@@ -356,7 +358,7 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 	result.res = res
 	result.captures = recorder.Captures()
 	result.completedAt = time.Now()
-	result.costUsd = costFromAggregate(in.AgentConfig, res)
+	result.spend = turnSpendOf(in.AgentConfig, result.captures)
 	// Fill RoundIndex / Sequence on each capture from agentloop's audit
 	// trail. Without this, every capture lands at (turn_id, 0, 0) and
 	// the sim_agent_tool_calls PK fires on the second tool call of the
@@ -423,7 +425,7 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 // recordMessages is a parameter rather than a read here: DraftPick
 // fetches it before the LLM runs (see fetchRecordMessagesFlag).
 func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pick chooseResult, recordMessages bool) error {
-	costNum, err := numericFromFloat(pick.costUsd)
+	costNum, err := numericFromFloat(pick.spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode pick cost: %w", err)
 	}
@@ -519,7 +521,7 @@ func draftTurnHeader(in DraftPickInput, pick chooseResult) TurnHeader {
 		Model:       in.AgentConfig.Model,
 		Temperature: in.AgentConfig.Temperature,
 		MaxTokens:   in.AgentConfig.MaxTokens,
-		CostUsd:     pick.costUsd,
+		Spend:       pick.spend,
 		FinalText:   pick.reasoning,
 		StartedAt:   pick.startedAt,
 		CompletedAt: pick.completedAt,

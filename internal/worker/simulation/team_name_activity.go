@@ -130,10 +130,10 @@ func (a *Activities) PickTeamName(ctx context.Context, in PickTeamNameInput) (Pi
 
 	switch {
 	case turn.runErr != nil:
-		return PickTeamNameResult{CostUsd: turn.costUsd},
+		return PickTeamNameResult{CostUsd: turn.spend.CostUsd},
 			fmt.Errorf("simulation: team-name agent loop: %w", turn.runErr)
 	case turn.name == "":
-		return PickTeamNameResult{CostUsd: turn.costUsd},
+		return PickTeamNameResult{CostUsd: turn.spend.CostUsd},
 			fmt.Errorf("simulation: team-name response produced no valid name")
 	}
 
@@ -141,10 +141,10 @@ func (a *Activities) PickTeamName(ctx context.Context, in PickTeamNameInput) (Pi
 		"pool_id", in.PoolID,
 		"agent_id", in.AgentID,
 		"name", turn.name,
-		"cost_usd", turn.costUsd,
+		"cost_usd", turn.spend.CostUsd,
 		"rounds", len(turn.captures),
 	)
-	return PickTeamNameResult{Name: turn.name, CostUsd: turn.costUsd}, nil
+	return PickTeamNameResult{Name: turn.name, CostUsd: turn.spend.CostUsd}, nil
 }
 
 // committedTeamName is PickTeamName's committed-result probe: it reads
@@ -174,9 +174,9 @@ type teamNameTurn struct {
 	// when the agent never made a valid call.
 	name    string
 	summary string
-	// costUsd is the billable spend of this attempt, including the
-	// attempts that ended up rejected: the provider charged for them.
-	costUsd float64
+	// spend is the billable usage and cost of this attempt, including
+	// the attempts that ended up rejected: the provider charged for them.
+	spend TurnSpend
 
 	res          *agentloop.Result
 	captures     []roundCapture
@@ -218,12 +218,13 @@ func (a *Activities) runTeamNameTurn(ctx context.Context, in PickTeamNameInput) 
 	})
 	completedAt := time.Now()
 
+	captures := recorder.Captures()
 	turn := teamNameTurn{
 		name:         collector.name,
 		summary:      collector.summary,
-		costUsd:      costFromAggregate(in.AgentConfig, res),
+		spend:        turnSpendOf(in.AgentConfig, captures),
 		res:          res,
-		captures:     recorder.Captures(),
+		captures:     captures,
 		toolCaptures: collector.captures,
 		startedAt:    startedAt,
 		completedAt:  completedAt,
@@ -348,7 +349,7 @@ func teamNameTurnHeader(in PickTeamNameInput, turn teamNameTurn) TurnHeader {
 		Model:       in.AgentConfig.Model,
 		Temperature: in.AgentConfig.Temperature,
 		MaxTokens:   in.AgentConfig.MaxTokens,
-		CostUsd:     turn.costUsd,
+		Spend:       turn.spend,
 		StartedAt:   turn.startedAt,
 		CompletedAt: turn.completedAt,
 	}
@@ -403,7 +404,7 @@ func (a *Activities) persistTeamNameTurn(
 	turn teamNameTurn,
 	recordMessages bool,
 ) error {
-	costNum, err := numericFromFloat(turn.costUsd)
+	costNum, err := numericFromFloat(turn.spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode team-name cost: %w", err)
 	}

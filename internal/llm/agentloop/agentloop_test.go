@@ -293,6 +293,7 @@ func TestRun_AggregatesUsage(t *testing.T) {
 				Usage: &llm.Usage{
 					PromptTokens: 100, CompletionTokens: 20, TotalTokens: 120,
 					CacheCreationInputTokens: 500, CacheReadInputTokens: 0,
+					CacheReported: true,
 				},
 			},
 			{
@@ -319,6 +320,7 @@ func TestRun_AggregatesUsage(t *testing.T) {
 	assert.Equal(t, 300, res.Usage.TotalTokens)
 	assert.Equal(t, 500, res.Usage.CacheCreationInputTokens)
 	assert.Equal(t, 600, res.Usage.CacheReadInputTokens)
+	assert.True(t, res.Usage.CacheReported, "cache accounting reported by one round carries into the sum")
 }
 
 func TestRun_DefaultsMaxRoundsWhenZero(t *testing.T) {

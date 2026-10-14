@@ -177,13 +177,13 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 		"actions_applied", len(outcome.actions),
 		"passed", outcome.passed,
 		"errored", outcome.errored,
-		"cost_usd", outcome.costUsd,
+		"cost_usd", outcome.spend.CostUsd,
 	)
 	return ManageRosterResult{
 		ActionsApplied: len(outcome.actions),
 		Passed:         outcome.passed,
 		Errored:        outcome.errored,
-		CostUsd:        outcome.costUsd,
+		CostUsd:        outcome.spend.CostUsd,
 	}, nil
 }
 
@@ -202,7 +202,7 @@ type dailyOutcome struct {
 	actions     []recordedAction
 	notes       *string // pointer so "no update" is distinct from "set to empty"
 	reasoning   string
-	costUsd     float64
+	spend       TurnSpend
 	passed      bool
 	errored     bool
 	errorKind   ErrorKind
@@ -273,6 +273,9 @@ func (a *Activities) runDailyAgent(ctx context.Context, agent *Agent, in ManageR
 	})
 	outcome.completedAt = time.Now()
 	outcome.captures = recorder.Captures()
+	// Priced before the error branch: a failed loop may still have
+	// billed rounds.
+	outcome.spend = turnSpendOf(in.AgentConfig, outcome.captures)
 	outcome.res = res
 	if res != nil {
 		AssignRoundsFromAudit(outcome.toolCaptures, res.Audit)
@@ -291,12 +294,9 @@ func (a *Activities) runDailyAgent(ctx context.Context, agent *Agent, in ManageR
 		outcome.errored = true
 		outcome.errorKind = ErrorKindLLMError
 		outcome.errorDetail = err.Error()
-		// Even on failure, partial usage may have accumulated; record it.
-		outcome.costUsd = costFromAggregate(in.AgentConfig, res)
 		return outcome
 	}
 
-	outcome.costUsd = costFromAggregate(in.AgentConfig, res)
 	if res.Final != nil {
 		outcome.reasoning = res.Final.Content
 	}
@@ -310,24 +310,6 @@ func (a *Activities) runDailyAgent(ctx context.Context, agent *Agent, in ManageR
 		outcome.passed = true
 	}
 	return outcome
-}
-
-// costFromAggregate composes the agentloop aggregate usage into a
-// dollar cost via the pricing table. Defensive against a nil Result
-// (only happens when agentloop's first Complete call errored before
-// any usage was reported).
-func costFromAggregate(cfg AgentConfig, res *agentloop.Result) float64 {
-	if res == nil {
-		return 0
-	}
-	usage := llm.Usage{
-		PromptTokens:             res.Usage.PromptTokens,
-		CompletionTokens:         res.Usage.CompletionTokens,
-		TotalTokens:              res.Usage.TotalTokens,
-		CacheCreationInputTokens: res.Usage.CacheCreationInputTokens,
-		CacheReadInputTokens:     res.Usage.CacheReadInputTokens,
-	}
-	return EstimateCost(cfg.Provider, cfg.Model, usage)
 }
 
 // dailyWorkingState is the mutable copy of (roster, FA, on-waivers)
@@ -567,7 +549,7 @@ func applyLineupToWorkingState(work *dailyWorkingState, resolved []ResolvedLineu
 // up-front in ManageRoster, before the LLM runs, so a flaky read can't
 // discard a completed, paid-for turn (see ManageRoster).
 func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, outcome dailyOutcome, recordMessages bool) error {
-	costNum, err := numericFromFloat(outcome.costUsd)
+	costNum, err := numericFromFloat(outcome.spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode cost: %w", err)
 	}
@@ -674,7 +656,7 @@ func dailyTurnHeader(in ManageRosterInput, outcome dailyOutcome) TurnHeader {
 		Model:       in.AgentConfig.Model,
 		Temperature: in.AgentConfig.Temperature,
 		MaxTokens:   in.AgentConfig.MaxTokens,
-		CostUsd:     outcome.costUsd,
+		Spend:       outcome.spend,
 		FinalText:   outcome.reasoning,
 		StartedAt:   outcome.startedAt,
 		CompletedAt: outcome.completedAt,
