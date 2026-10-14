@@ -5,6 +5,11 @@ const POLL_INTERVAL_MS = 2000;
 const LEAGUE_RETRY_MS = 10000;
 const SEASON_PARAM = "season";
 const SEASON_PATTERN = /^[1-9][0-9]*$/;
+// MAX_GRAPHQL_INT is the largest value a GraphQL Int (signed 32-bit) accepts.
+const MAX_GRAPHQL_INT = 2147483647;
+// READY_STATUS is the draftLeagues status of a league with a ranking snapshot,
+// which its board needs.
+const READY_STATUS = "READY";
 const SEARCH_DELAY_MS = 250;
 const BOARD_PAGE_SIZE = 100;
 const POSITION_OPTIONS = ["C", "LW", "RW", "D", "G"];
@@ -47,7 +52,7 @@ const node = (tag, className, text) => {
 // LEAGUES_QUERY lists the leagues of one season; without a season the server
 // picks its current draft season (the one starting this calendar year from July).
 const LEAGUES_QUERY = `query DraftLeagues($season: Int) {
-  draftLeagues(season: $season) { league { season leagueId name } }
+  draftLeagues(season: $season) { league { season leagueId name } status }
 }`;
 
 const BOARD_QUERY = `query DraftBoard($input: MauriceDraftBoardInput!) {
@@ -95,7 +100,7 @@ function boardInput(selection) {
 }
 
 // loadLeagues fills the league selector from draftLeagues and opens the first
-// league's board. An empty list or a failure is reported and retried, since
+// ranked league's board. An empty list or a failure is reported and retried, since
 // leagues appear once the season's Yahoo leagues are configured or imported.
 async function loadLeagues() {
   window.clearTimeout(state.leagueTimer);
@@ -106,8 +111,8 @@ async function loadLeagues() {
   }
   try {
     const data = await graphql(LEAGUES_QUERY, { season });
-    const leagues = data.draftLeagues.map((summary) => summary.league);
-    if (leagues.length) { fillLeagues(leagues); return; }
+    const summaries = data.draftLeagues;
+    if (summaries.length) { fillLeagues(summaries); return; }
     showLeagueProblem(`No draft leagues for ${season === null ? "the current season" : `the ${season} season`}; retrying.`);
   } catch (error) {
     showLeagueProblem(`Draft leagues unavailable · ${error.message}`);
@@ -116,22 +121,32 @@ async function loadLeagues() {
 }
 
 // requestedSeason is the season start year named by ?season=, null when the
-// page names none, or undefined when the parameter is not a year.
+// page names none, or undefined when the parameter is not a year a GraphQL Int
+// can carry.
 function requestedSeason() {
   const value = new URLSearchParams(window.location.search).get(SEASON_PARAM);
   if (value === null) return null;
-  return SEASON_PATTERN.test(value) ? Number(value) : undefined;
+  if (!SEASON_PATTERN.test(value)) return undefined;
+  const season = Number(value);
+  return season <= MAX_GRAPHQL_INT ? season : undefined;
 }
 
-function fillLeagues(leagues) {
+// fillLeagues lists every league and opens the first one with a ranking
+// snapshot (its board fails without one), or the first league when none has.
+// Unranked leagues stay selectable and name their status.
+function fillLeagues(summaries) {
+  const leagues = summaries.map((summary) => summary.league);
   state.leagues = new Map(leagues.map((league) => [String(league.leagueId), league]));
   const select = byId("league");
-  select.replaceChildren(...leagues.map((league) => {
-    const option = node("option", "", `${league.season} · ${league.name || "League"} · ${league.leagueId}`);
+  select.replaceChildren(...summaries.map(({ league, status }) => {
+    const label = [league.season, league.name || "League", league.leagueId];
+    if (status !== READY_STATUS) label.push(status);
+    const option = node("option", "", label.join(" · "));
     option.value = String(league.leagueId);
     return option;
   }));
-  select.value = String(leagues[0].leagueId);
+  const initial = summaries.find((summary) => summary.status === READY_STATUS) ?? summaries[0];
+  select.value = String(initial.league.leagueId);
   select.disabled = false;
   setControlsDisabled(false);
   selectLeague(select.value);

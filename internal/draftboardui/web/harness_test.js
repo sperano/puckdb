@@ -94,8 +94,13 @@ class PendingRequest {
 
   respondBoard(board) { return this.respond({ mauriceDraftBoard: board }); }
 
+  // respondLeagues answers draftLeagues; a league is READY unless it names
+  // another status.
   respondLeagues(leagues) {
-    const summaries = leagues.map((league) => ({ league: { season: league.season, leagueId: Number(league.id), name: league.name } }));
+    const summaries = leagues.map((league) => ({
+      league: { season: league.season, leagueId: Number(league.id), name: league.name },
+      status: league.status ?? "READY",
+    }));
     return this.respond({ draftLeagues: summaries });
   }
 

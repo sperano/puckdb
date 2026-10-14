@@ -83,6 +83,43 @@ test("an invalid ?season= is reported without asking for leagues", () => {
   assertNoLeagueSelected(app);
 });
 
+// MAX_GRAPHQL_INT is the largest season a GraphQL Int variable can carry.
+const MAX_GRAPHQL_INT = 2147483647;
+
+test("a ?season= beyond a GraphQL Int is reported without asking for leagues", () => {
+  const app = startApp(`?season=${MAX_GRAPHQL_INT + 1}`);
+  assert.equal(app.requests.length, 0);
+  assert.match(app.el("connection").textContent, /\?season= parameter must be a season start year/);
+  assert.equal(app.pendingTimers(), 0);
+  assertNoLeagueSelected(app);
+});
+
+test("the largest GraphQL Int is still sent as ?season=", () => {
+  const app = startApp(`?season=${MAX_GRAPHQL_INT}`);
+  assert.equal(app.lastLeagueRequest().variables.season, MAX_GRAPHQL_INT);
+});
+
+test("the first ranked league opens and unranked ones stay listed with their status", async () => {
+  const app = startApp();
+  await app.lastLeagueRequest().respondLeagues([{ ...LEAGUE_A, status: "NOT_COMPUTED" }, LEAGUE_B]);
+  const options = app.el("league").children;
+  assert.deepEqual(options.map((option) => option.value), [LEAGUE_A.id, LEAGUE_B.id]);
+  assert.match(options[0].textContent, /NOT_COMPUTED$/);
+  assert.doesNotMatch(options[1].textContent, /READY/);
+  assert.equal(app.el("league").value, LEAGUE_B.id);
+  assert.equal(app.boardRequests().length, 1);
+  assert.equal(app.lastBoardRequest().input.league, LEAGUE_B.id);
+
+  app.selectLeague(LEAGUE_A);
+  assert.equal(app.lastBoardRequest().input.league, LEAGUE_A.id);
+});
+
+test("without a ranked league the first league opens", async () => {
+  const app = startApp();
+  await app.lastLeagueRequest().respondLeagues([{ ...LEAGUE_A, status: "FAILED" }, { ...LEAGUE_B, status: "REFRESHING" }]);
+  assert.equal(app.lastBoardRequest().input.league, LEAGUE_A.id);
+});
+
 test("an empty league list is reported, targets nothing, and is retried", async () => {
   const app = startApp();
   await app.lastLeagueRequest().respondLeagues([]);
