@@ -7,7 +7,10 @@ import (
 	"net/http"
 )
 
-//go:embed web/*
+// The assets are listed one by one so the client's Node tests (web/*_test.js)
+// are not served.
+//
+//go:embed web/index.html web/app.js web/style.css
 var assets embed.FS
 
 // Handler returns the embedded browser client. The client uses the same
