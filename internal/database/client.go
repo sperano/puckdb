@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -89,6 +90,7 @@ func poolConfig(cfg Config) (*pgxpool.Config, error) {
 	pgxConfig.MaxConns = int32(cfg.Pool.MaxConns)
 	pgxConfig.MinConns = int32(cfg.Pool.MinConns)
 	pgxConfig.MaxConnLifetime = cfg.Pool.MaxConnLifetime
+	pgxConfig.ConnConfig.Tracer = metrics.NewSQLCQueryTracer()
 	return pgxConfig, nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 )
@@ -21,6 +22,8 @@ var ErrNilCache = errors.New("nil GobCache or client")
 
 // GobCacheTTL is the default TTL for gob-encoded cache entries.
 const GobCacheTTL = 60 * time.Minute
+
+const genericGobCacheMetricName = "gob"
 
 // GobCache provides gob-encoded object caching in Redis.
 // This is more efficient than caching raw JSON bytes because:
@@ -93,6 +96,14 @@ func (cache *GobCache) shouldCache(ft core.FileType) bool {
 // Get retrieves a gob-encoded object from the cache.
 // Returns (obj, true, nil) on hit, (zero, false, nil) on miss, (zero, false, err) on error.
 func (cache *GobCache) Get[T any](ctx context.Context, key string) (T, bool, error) {
+	obj, ok, err := cache.get[T](ctx, key)
+	if !errors.Is(err, ErrNilCache) {
+		metrics.IncValkeyCacheRequest(genericGobCacheMetricName, cacheMetricResult(ok, err))
+	}
+	return obj, ok, err
+}
+
+func (cache *GobCache) get[T any](ctx context.Context, key string) (T, bool, error) {
 	var zero T
 
 	if cache == nil || cache.client == nil {
@@ -118,6 +129,17 @@ func (cache *GobCache) Get[T any](ctx context.Context, key string) (T, bool, err
 	}
 
 	return obj, true, nil
+}
+
+func cacheMetricResult(ok bool, err error) string {
+	switch {
+	case err != nil:
+		return metrics.ResultError
+	case ok:
+		return metrics.ResultHit
+	default:
+		return metrics.ResultMiss
+	}
 }
 
 // Set stores a gob-encoded object in the cache using the default TTL.
@@ -195,39 +217,57 @@ func (cache *GobCache) readParsedCached[T any](
 		}
 		return obj, core.OriginFileSystem, nil
 	}
+	metricEnabled := cache != nil && cache.client != nil
+	metricResult := metrics.ResultMiss
+	if metricEnabled {
+		defer func() { metrics.IncValkeyCacheRequest(ft.String(), metricResult) }()
+	}
 
 	key := core.RedisKey(r)
 	if cache.readsStorageFirst() {
-		return cache.refreshParsed(ctx, s, r, key, lockOnMiss)
+		obj, origin, err := cache.refreshParsed(ctx, s, r, key, lockOnMiss)
+		if err != nil {
+			metricResult = metrics.ResultError
+		}
+		return obj, origin, err
 	}
-	obj, ok, err := cache.Get[T](ctx, key)
+	obj, ok, err := cache.get[T](ctx, key)
 	if err != nil && !errors.Is(err, ErrNilCache) {
+		metricResult = metrics.ResultError
 		var zero T
 		return zero, core.OriginUnknown, fmt.Errorf("gob cache read: %w", err)
 	}
 	if ok {
+		metricResult = metrics.ResultHit
 		return obj, core.OriginRedis, nil
 	}
 
 	if lockOnMiss {
 		release, lockErr := cache.LockResource(ctx, key)
 		if lockErr != nil {
+			metricResult = metrics.ResultError
 			var zero T
 			return zero, core.OriginUnknown, lockErr
 		}
 		defer release()
-		obj, ok, err = cache.Get[T](ctx, key)
+		obj, ok, err = cache.get[T](ctx, key)
 		if err != nil {
 			if !errors.Is(err, ErrNilCache) {
+				metricResult = metrics.ResultError
 				var zero T
 				return zero, core.OriginUnknown, fmt.Errorf("gob cache re-read: %w", err)
 			}
 		}
 		if ok {
+			metricResult = metrics.ResultHit
 			return obj, core.OriginRedis, nil
 		}
 	}
-	return cache.readParsedStorageAndCache(ctx, s, r, key)
+	obj, origin, err := cache.readParsedStorageAndCache(ctx, s, r, key)
+	if err != nil {
+		metricResult = metrics.ResultError
+	}
+	return obj, origin, err
 }
 
 func (cache *GobCache) readParsedStorageAndCache[T any](

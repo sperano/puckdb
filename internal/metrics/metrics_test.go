@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -136,6 +137,56 @@ func TestObserveActivityDuration(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestActivityDurationLongSampleUsesFiniteBucket(t *testing.T) {
+	t.Parallel()
+
+	const activity = "FetchDayFiniteBucketTest"
+	duration := 170 * time.Second
+	before := histogramBuckets(t, "puckdb_activity_duration_seconds", "activity", activity)
+
+	ObserveActivityDuration(activity, duration)
+
+	after := histogramBuckets(t, "puckdb_activity_duration_seconds", "activity", activity)
+	var found bool
+	for upperBound, count := range after {
+		if upperBound >= duration.Seconds() && count == before[upperBound]+1 {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "170-second activity must increment a finite bucket")
+}
+
+func histogramBuckets(t *testing.T, name, labelName, labelValue string) map[float64]uint64 {
+	t.Helper()
+	buckets := make(map[float64]uint64)
+	families, err := WorkerRegistry.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			if metricLabel(metric.GetLabel(), labelName) != labelValue {
+				continue
+			}
+			for _, bucket := range metric.GetHistogram().GetBucket() {
+				buckets[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
+			}
+		}
+	}
+	return buckets
+}
+
+func metricLabel(labels []*dto.LabelPair, name string) string {
+	for _, label := range labels {
+		if label.GetName() == name {
+			return label.GetValue()
+		}
+	}
+	return ""
 }
 
 func TestObserveSimLLMCallDuration(t *testing.T) {

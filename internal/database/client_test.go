@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,6 +66,7 @@ func TestPoolConfig_AppliesPoolOptions(t *testing.T) {
 	assert.Equal(t, lifetime, got.MaxConnLifetime)
 	assert.Equal(t, "db.example", got.ConnConfig.Host)
 	assert.Equal(t, uint16(testPort), got.ConnConfig.Port)
+	assert.IsType(t, &metrics.SQLCQueryTracer{}, got.ConnConfig.Tracer)
 }
 
 func TestOpenPGXPool_RejectsInvalidPoolOptionsBeforeConnecting(t *testing.T) {
