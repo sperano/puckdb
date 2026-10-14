@@ -24,8 +24,9 @@ const (
 	pagesPastShrunkEnd = yahooPoolPageConcurrency - shrunkPoolLastPage
 )
 
-// pageGate holds the pages of held until open is called, or poolTestBarrierWait
-// has passed, so they are still in flight when another page ends the pool.
+// pageGate holds the pages whose starts are in held until open is called, or
+// poolTestBarrierWait has passed, so they are still in flight when another
+// page ends the pool.
 type pageGate struct {
 	held    map[int]bool
 	release chan struct{}

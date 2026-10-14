@@ -165,9 +165,7 @@ func (w *yahooPoolWalk) concurrent(ctx workflow.Context, from, to int) (yahooPoo
 // that finished downloading before the cancellation reached it still counts
 // as downloaded, and is discarded.
 func cancellablePage(ctx workflow.Context) (workflow.Context, workflow.CancelFunc) {
-	opts := workflow.GetActivityOptions(ctx)
-	opts.WaitForCancellation = true
-	return workflow.WithCancel(workflow.WithActivityOptions(ctx, opts))
+	return workflow.WithCancel(workflow.WithWaitForCancellation(ctx, true))
 }
 
 // cancelInFlight cancels the pages of outcomes still in flight.
