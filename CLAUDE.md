@@ -266,7 +266,7 @@ The Prometheus registry is split in three (see `internal/metrics/metrics.go`):
 | `puckdb_db_query_duration_seconds` | Histogram | `query` | sqlc query duration, including row consumption; raw untagged SQL is excluded |
 | `puckdb_db_pool_connections` | Gauge | `state` | pgx pool connections (`acquired`, `constructing`, `idle`, `max`, `total`) |
 | `puckdb_db_pool_*` | Counter | optional `reason` | pgx acquire/wait/create/destroy totals and durations from `pgxpool.Stat()` |
-| `puckdb_valkey_cache_requests_total` | Counter | `cache`, `result` | Valkey-backed resource-cache reads by bounded file type and hit/miss/error result |
+| `puckdb_valkey_cache_requests_total` | Counter | `cache`, `result` | Valkey-backed GobCache reads by bounded cache name (file type or `gob`) and hit/miss/error result |
 
 The worker's `/metrics` also serves the Temporal Go SDK's own `temporal_*`
 series (`internal/temporal/metrics.go`, via `go.temporal.io/sdk/contrib/tally`),
