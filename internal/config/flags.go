@@ -243,17 +243,21 @@ const (
 
 // Download workflow flags
 const (
-	FlagGameDownloadConcurrency  = "game-download-concurrency"
-	FlagMaxSeasonConcurrency     = "max-season-concurrency"
-	FlagDayConcurrency           = "day-concurrency"
-	FlagSkipPreseason            = "skip-preseason"
-	FlagRefreshCurrentPlayerLogs = "refresh-current-player-logs"
-	FlagRefreshCurrentEdge       = "refresh-current-edge"
-	FlagSeasonConcurrency        = "season-concurrency"
-	FlagMonitor                  = "monitor"
-	FlagSeasonYear               = "season"
-	FlagFromSeasonYear           = "from-season"
-	FlagToSeasonYear             = "to-season"
+	FlagGameDownloadConcurrency = "game-download-concurrency"
+	// FlagYahooTeamDownloadConcurrency caps the Yahoo team downloads (roster,
+	// team summary) one FetchDay activity runs at once. The per-process Yahoo
+	// rate limit (FlagYahooRateLimit) still bounds the request rate.
+	FlagYahooTeamDownloadConcurrency = "yahoo-team-download-concurrency"
+	FlagMaxSeasonConcurrency         = "max-season-concurrency"
+	FlagDayConcurrency               = "day-concurrency"
+	FlagSkipPreseason                = "skip-preseason"
+	FlagRefreshCurrentPlayerLogs     = "refresh-current-player-logs"
+	FlagRefreshCurrentEdge           = "refresh-current-edge"
+	FlagSeasonConcurrency            = "season-concurrency"
+	FlagMonitor                      = "monitor"
+	FlagSeasonYear                   = "season"
+	FlagFromSeasonYear               = "from-season"
+	FlagToSeasonYear                 = "to-season"
 )
 
 // Cache flags
@@ -656,6 +660,7 @@ var DownloadConcurrencyFlags = FlagGroup{
 		{FlagMaxSeasonConcurrency, "", DefaultMaxSeasonConcurrency, "Maximum number of seasons to download concurrently", false},
 		{FlagDayConcurrency, "", DefaultDayConcurrency, "Number of days to download concurrently within each season", false},
 		{FlagGameDownloadConcurrency, "", DefaultGameDownloadConcurrency, "Maximum concurrent game file downloads per daily schedule", false},
+		{FlagYahooTeamDownloadConcurrency, "", DefaultYahooTeamDownloadConcurrency, "Maximum concurrent Yahoo roster/team summary downloads per day (the Yahoo rate limit still caps the request rate)", false},
 		{FlagSkipPreseason, "", false, "Skip downloading and importing preseason games", false},
 	},
 }
