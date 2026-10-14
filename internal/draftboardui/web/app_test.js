@@ -1,11 +1,13 @@
 "use strict";
-// Overlapping-request tests for the draft board client: league switches with
-// responses completing in either order, unequal version counters between
-// leagues, failed requests for the new league, and mutations while switching.
+// Tests for the draft board client: the league selector filled from
+// draftLeagues (seasons, empty and failed lists), and overlapping requests:
+// league switches with responses completing in either order, unequal version
+// counters between leagues, failed requests for the new league, and mutations
+// while switching.
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { LEAGUE_A, LEAGUE_B, loadApp, boardOf } = require("./harness_test.js");
+const { SEASON, LEAGUE_A, LEAGUE_B, startApp, loadApp, boardOf } = require("./harness_test.js");
 
 const OLD_LEAGUE_SYNC_VERSION = 100;
 const NEW_LEAGUE_SYNC_VERSION = 1;
@@ -27,9 +29,95 @@ function assertShowsNoBoard(app) {
   assert.doesNotMatch(app.el("board-league").textContent, new RegExp(LEAGUE_A.name));
 }
 
+const OTHER_SEASON = SEASON - 1;
+const SEASON_CONTROLS = ["watch-start", "watch-stop", "refresh"];
+
+// assertNoLeagueSelected checks that nothing targets a league: no board
+// request, and session controls and filters send nothing.
+function assertNoLeagueSelected(app) {
+  SEASON_CONTROLS.forEach((control) => app.click(control));
+  app.el("scenario").dispatch("change", { target: { value: "CONSERVATIVE" } });
+  assert.equal(app.boardRequests().length, 0);
+  assert.equal(app.mutationRequests().length, 0);
+  assert.equal(app.state().selection.league, "");
+}
+
+test("the league selector lists draftLeagues and boards use each league's season", async () => {
+  const app = startApp();
+  const leagues = app.lastLeagueRequest();
+  assert.ok(leagues, "no draftLeagues request");
+  assert.equal(leagues.variables.season, null, "without ?season= the server picks the season");
+  assert.equal(app.boardRequests().length, 0, "no board before a league is known");
+
+  await leagues.respondLeagues([LEAGUE_A, LEAGUE_B]);
+  const options = app.el("league").children;
+  assert.deepEqual(options.map((option) => option.value), [LEAGUE_A.id, LEAGUE_B.id]);
+  assert.match(options[1].textContent, new RegExp(`${SEASON}.*${LEAGUE_B.name}.*${LEAGUE_B.id}`));
+  assert.equal(app.el("league").disabled, false);
+  assert.deepEqual(
+    { league: app.lastBoardRequest().input.league, season: app.lastBoardRequest().input.season },
+    { league: LEAGUE_A.id, season: SEASON },
+  );
+
+  app.selectLeague(LEAGUE_B);
+  assert.deepEqual(
+    { league: app.lastBoardRequest().input.league, season: app.lastBoardRequest().input.season },
+    { league: LEAGUE_B.id, season: SEASON },
+  );
+});
+
+test("?season= lists and opens that season's leagues", async () => {
+  const app = startApp(`?season=${OTHER_SEASON}`);
+  assert.equal(app.lastLeagueRequest().variables.season, OTHER_SEASON);
+  await app.lastLeagueRequest().respondLeagues([{ ...LEAGUE_A, season: OTHER_SEASON }]);
+  assert.equal(app.lastBoardRequest().input.season, OTHER_SEASON);
+  app.click("watch-start");
+  assert.deepEqual(app.lastMutationRequest().input, { league: LEAGUE_A.id, season: OTHER_SEASON });
+});
+
+test("an invalid ?season= is reported without asking for leagues", () => {
+  const app = startApp("?season=next");
+  assert.equal(app.requests.length, 0);
+  assert.match(app.el("connection").textContent, /\?season= parameter must be a season start year/);
+  assert.equal(app.pendingTimers(), 0, "an invalid parameter cannot fix itself, so nothing retries");
+  assertNoLeagueSelected(app);
+});
+
+test("an empty league list is reported, targets nothing, and is retried", async () => {
+  const app = startApp();
+  await app.lastLeagueRequest().respondLeagues([]);
+  assert.match(app.el("connection").textContent, /No draft leagues for the current season/);
+  assert.match(app.el("league").text(), /No leagues/);
+  assertNoLeagueSelected(app);
+
+  app.fireTimer();
+  assert.equal(app.leagueRequests().length, 2);
+  await app.lastLeagueRequest().respondLeagues([LEAGUE_B]);
+  assert.equal(app.lastBoardRequest().input.league, LEAGUE_B.id);
+  await app.lastBoardRequest().respondBoard(boardOf(LEAGUE_B, { syncVersion: NEW_LEAGUE_SYNC_VERSION }));
+  assertShows(app, LEAGUE_B, NEW_LEAGUE_SYNC_VERSION);
+});
+
+test("an empty list for a named season names it", async () => {
+  const app = startApp(`?season=${OTHER_SEASON}`);
+  await app.lastLeagueRequest().respondLeagues([]);
+  assert.match(app.el("connection").textContent, new RegExp(`No draft leagues for the ${OTHER_SEASON} season`));
+});
+
+test("a failed league list is reported, targets nothing, and is retried", async () => {
+  const app = startApp();
+  await app.lastLeagueRequest().fail("draft rankings are not available");
+  assert.match(app.el("connection").textContent, /Draft leagues unavailable · draft rankings are not available/);
+  assertNoLeagueSelected(app);
+
+  app.fireTimer();
+  await app.lastLeagueRequest().respondLeagues([LEAGUE_A]);
+  assert.equal(app.lastBoardRequest().input.league, LEAGUE_A.id);
+});
+
 // showingLeagueA returns an app that displays league A at the old versions.
 async function showingLeagueA() {
-  const app = loadApp(LEAGUE_A);
+  const app = await loadApp();
   await app.lastBoardRequest().respondBoard(boardOf(LEAGUE_A, {
     syncVersion: OLD_LEAGUE_SYNC_VERSION, stateVersion: OLD_LEAGUE_STATE_VERSION,
   }));
@@ -38,7 +126,7 @@ async function showingLeagueA() {
 }
 
 test("old league response completing first cannot replace the new league board", async () => {
-  const app = loadApp(LEAGUE_A);
+  const app = await loadApp();
   const requestA = app.lastBoardRequest();
   app.selectLeague(LEAGUE_B);
   const requestB = app.lastBoardRequest();
@@ -51,13 +139,13 @@ test("old league response completing first cannot replace the new league board",
   await requestB.respondBoard(boardOf(LEAGUE_B, { syncVersion: NEW_LEAGUE_SYNC_VERSION }));
   assertShows(app, LEAGUE_B, NEW_LEAGUE_SYNC_VERSION);
 
-  app.poll();
+  app.fireTimer();
   await app.lastBoardRequest().respondBoard(boardOf(LEAGUE_B, { syncVersion: NEW_LEAGUE_SYNC_VERSION + 1 }));
   assertShows(app, LEAGUE_B, NEW_LEAGUE_SYNC_VERSION + 1);
 });
 
 test("old league response completing last cannot replace the new league board", async () => {
-  const app = loadApp(LEAGUE_A);
+  const app = await loadApp();
   const requestA = app.lastBoardRequest();
   app.selectLeague(LEAGUE_B);
   const requestB = app.lastBoardRequest();
@@ -70,7 +158,7 @@ test("old league response completing last cannot replace the new league board", 
 });
 
 test("old league failure after the switch does not mark the new board disconnected", async () => {
-  const app = loadApp(LEAGUE_A);
+  const app = await loadApp();
   const requestA = app.lastBoardRequest();
   app.selectLeague(LEAGUE_B);
   await app.lastBoardRequest().respondBoard(boardOf(LEAGUE_B, { syncVersion: NEW_LEAGUE_SYNC_VERSION }));
@@ -101,7 +189,7 @@ test("switching back and forth keeps each league's counters apart", async () => 
 
 test("an older sync version of the same league is still discarded", async () => {
   const app = await showingLeagueA();
-  app.poll();
+  app.fireTimer();
   await app.lastBoardRequest().respondBoard(boardOf(LEAGUE_A, { syncVersion: OLD_LEAGUE_SYNC_VERSION - 1 }));
   assertShows(app, LEAGUE_A, OLD_LEAGUE_SYNC_VERSION);
 });
@@ -119,7 +207,7 @@ test("a failed new league request never shows or mutates the old board", async (
   assert.equal(app.mutationRequests().length, 0);
   assert.match(app.el("alerts").text(), /Wait for the selected league's board/);
 
-  app.poll();
+  app.fireTimer();
   const retry = app.lastBoardRequest();
   assert.equal(retry.input.league, LEAGUE_B.id);
   await retry.respondBoard(boardOf(LEAGUE_B, { syncVersion: NEW_LEAGUE_SYNC_VERSION }));
@@ -129,7 +217,7 @@ test("a failed new league request never shows or mutates the old board", async (
 test("versioned mutations are refused while the new league loads, then use its board", async () => {
   const app = await showingLeagueA();
   app.selectLeague(LEAGUE_B);
-  app.prompts.push("1", "1", "465.l.29249.t.1", LEAGUE_A.playerKey);
+  app.prompts.push("1", "1", `${LEAGUE_B.leagueKey}.t.1`, LEAGUE_A.playerKey);
   app.pressKey("s");
   app.click("manual");
   assert.equal(app.mutationRequests().length, 0);
@@ -148,7 +236,7 @@ test("versioned mutations are refused while the new league loads, then use its b
 });
 
 test("shortlisting from an empty player list sends nothing and claims no loading", async () => {
-  const app = loadApp(LEAGUE_A);
+  const app = await loadApp();
   await app.lastBoardRequest().respondBoard({ ...boardOf(LEAGUE_A, { syncVersion: OLD_LEAGUE_SYNC_VERSION }), available: [] });
   app.pressKey("s");
   assert.equal(app.mutationRequests().length, 0);

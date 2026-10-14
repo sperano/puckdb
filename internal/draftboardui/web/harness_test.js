@@ -11,9 +11,13 @@ const { webcrypto } = require("node:crypto");
 
 const APP_SOURCE = fs.readFileSync(path.join(__dirname, "app.js"), "utf8");
 const BOARD_FIELD = "mauriceDraftBoard(";
+const LEAGUES_FIELD = "draftLeagues(";
 
-const LEAGUE_A = { id: "5621", leagueKey: "465.l.5621", name: "Alpha League", player: "Alpha Skater", playerKey: "465.p.1001" };
-const LEAGUE_B = { id: "29249", leagueKey: "465.l.29249", name: "Bravo League", player: "Bravo Skater", playerKey: "465.p.2002" };
+// SEASON is deliberately not the season the client once hardcoded: the board
+// must use the season draftLeagues reports.
+const SEASON = 2031;
+const LEAGUE_A = { id: "101", season: SEASON, leagueKey: "500.l.101", name: "Alpha League", player: "Alpha Skater", playerKey: "500.p.1001" };
+const LEAGUE_B = { id: "202", season: SEASON, leagueKey: "500.l.202", name: "Bravo League", player: "Bravo Skater", playerKey: "500.p.2002" };
 
 class FakeElement {
   constructor(tagName, id = "") {
@@ -75,11 +79,13 @@ class FakeDocument {
 class PendingRequest {
   constructor(body) {
     this.query = body.query;
+    this.variables = body.variables;
     this.input = body.variables.input;
     this.promise = new Promise((resolve) => { this.resolve = resolve; });
   }
 
   get isBoard() { return this.query.includes(BOARD_FIELD); }
+  get isLeagues() { return this.query.includes(LEAGUES_FIELD); }
 
   respond(data) {
     this.resolve({ ok: true, json: async () => ({ data }) });
@@ -87,6 +93,11 @@ class PendingRequest {
   }
 
   respondBoard(board) { return this.respond({ mauriceDraftBoard: board }); }
+
+  respondLeagues(leagues) {
+    const summaries = leagues.map((league) => ({ league: { season: league.season, leagueId: Number(league.id), name: league.name } }));
+    return this.respond({ draftLeagues: summaries });
+  }
 
   fail(message) {
     this.resolve({ ok: true, json: async () => ({ errors: [{ message }] }) });
@@ -97,14 +108,18 @@ class PendingRequest {
 // settle lets every promise continuation queued by a response run.
 function settle() { return new Promise((resolve) => setImmediate(resolve)); }
 
-function loadApp(initialLeague) {
+// startApp runs app.js on a page whose query string is search; its first
+// request, the league list, is left for the test to answer.
+function startApp(search = "") {
   const document = new FakeDocument();
   const requests = [];
   const prompts = [];
-  let scheduledPoll = null;
+  const timers = new Map();
+  let lastTimer = 0;
   const window = {
-    setTimeout(callback) { scheduledPoll = callback; return 1; },
-    clearTimeout() { scheduledPoll = null; },
+    location: { search },
+    setTimeout(callback) { timers.set(++lastTimer, callback); return lastTimer; },
+    clearTimeout(id) { timers.delete(id); },
     addEventListener() {},
     prompt() { return prompts.length ? prompts.shift() : null; },
   };
@@ -113,8 +128,7 @@ function loadApp(initialLeague) {
     requests.push(request);
     return request.promise;
   };
-  document.getElementById("league").value = initialLeague.id;
-  const context = vm.createContext({ document, window, fetch, crypto: webcrypto });
+  const context = vm.createContext({ document, window, fetch, crypto: webcrypto, URLSearchParams });
   vm.runInContext(APP_SOURCE, context, { filename: "app.js" });
 
   const el = (id) => document.getElementById(id);
@@ -124,18 +138,31 @@ function loadApp(initialLeague) {
     requests,
     state: () => vm.runInContext("state", context),
     boardRequests: () => requests.filter((request) => request.isBoard),
-    mutationRequests: () => requests.filter((request) => !request.isBoard),
+    leagueRequests: () => requests.filter((request) => request.isLeagues),
+    mutationRequests: () => requests.filter((request) => !request.isBoard && !request.isLeagues),
     lastBoardRequest() { return this.boardRequests().at(-1); },
+    lastLeagueRequest() { return this.leagueRequests().at(-1); },
     lastMutationRequest() { return this.mutationRequests().at(-1); },
     selectLeague(league) { el("league").value = league.id; el("league").dispatch("change"); },
     pressKey(key) { el("available").dispatch("keydown", { key }); },
     click(id) { el(id).dispatch("click"); },
-    poll() {
-      const callback = scheduledPoll;
-      scheduledPoll = null;
+    pendingTimers: () => timers.size,
+    // fireTimer runs the most recently scheduled pending timer: the next
+    // board poll, or the league list retry before any league is selected.
+    fireTimer() {
+      const [id, callback] = [...timers].at(-1);
+      timers.delete(id);
       callback();
     },
   };
+}
+
+// loadApp returns an app whose league list (A, then B) has loaded, so it
+// shows league A's board request.
+async function loadApp() {
+  const app = startApp();
+  await app.lastLeagueRequest().respondLeagues([LEAGUE_A, LEAGUE_B]);
+  return app;
 }
 
 function boardOf(league, { syncVersion, stateVersion = syncVersion }) {
@@ -177,4 +204,4 @@ function playerOf(league) {
   };
 }
 
-module.exports = { LEAGUE_A, LEAGUE_B, loadApp, boardOf };
+module.exports = { SEASON, LEAGUE_A, LEAGUE_B, startApp, loadApp, boardOf };
