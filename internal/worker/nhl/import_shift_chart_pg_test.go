@@ -1,8 +1,8 @@
 package nhl
 
-// PostgreSQL-backed coverage for the planner setting of the even-strength
-// rebuild. It skips unless PUCKDB_TEST_PG_URL names a dedicated test
-// database.
+// PostgreSQL-backed check that the even-strength rebuild leaves the
+// connection's planner settings alone. It skips unless PUCKDB_TEST_PG_URL
+// names a dedicated test database.
 
 import (
 	"context"
@@ -10,14 +10,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
 
 const (
 	nestLoopSetting = "enable_nestloop"
 	settingOn       = "on"
-	settingOff      = "off"
 	singleConn      = 1
 )
 
@@ -33,10 +31,9 @@ func showNestLoop(t *testing.T, q interface {
 }
 
 // openNestLoopOnTestDB opens a single-connection pool whose session starts
-// with enable_nestloop on, whatever the server, database or role default:
-// the tests below need a baseline the transaction-local setting differs
-// from, or "off inside the transaction" would prove nothing. With one
-// connection, every statement runs on the connection under test.
+// with enable_nestloop on, whatever the server, database or role default, so
+// a rebuild that turned it off would show. With one connection, every
+// statement runs on the connection under test.
 func openNestLoopOnTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	cfg, err := pgxpool.ParseConfig(migratedTransactorTestURL(t))
@@ -47,31 +44,6 @@ func openNestLoopOnTestDB(t *testing.T) *pgxpool.Pool {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	return pool
-}
-
-func TestDisableNestedLoopsForTransaction_RevertsWhenTransactionEnds(t *testing.T) {
-	pool := openNestLoopOnTestDB(t)
-	ctx := context.Background()
-	conn, err := pool.Acquire(ctx)
-	require.NoError(t, err)
-	t.Cleanup(conn.Release)
-	require.Equal(t, settingOn, showNestLoop(t, conn), "session baseline")
-
-	ends := map[string]func(pgx.Tx) error{
-		"commit":   func(tx pgx.Tx) error { return tx.Commit(ctx) },
-		"rollback": func(tx pgx.Tx) error { return tx.Rollback(ctx) },
-	}
-	for name, end := range ends {
-		t.Run(name, func(t *testing.T) {
-			tx, err := conn.Begin(ctx)
-			require.NoError(t, err)
-			require.NoError(t, sqlcdb.New(tx).DisableNestedLoopsForTransaction(ctx))
-			require.Equal(t, settingOff, showNestLoop(t, tx), "inside the transaction")
-
-			require.NoError(t, end(tx))
-			require.Equal(t, settingOn, showNestLoop(t, conn), "same connection after the transaction")
-		})
-	}
 }
 
 func TestRebuildEvenStrengthTotals_LeavesNestedLoopsOnForTheConnection(t *testing.T) {

@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/evenstrength"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
@@ -164,22 +166,15 @@ INSERT INTO shifts (
 
 // rebuildEvenStrengthTotals derives a game's even_strength_pair_toi and
 // even_strength_skater_games rows from its fixture shifts, as the shift
-// chart import does: in one transaction with nested loops off.
+// chart import does.
 func rebuildEvenStrengthTotals(t *testing.T, pool *pgxpool.Pool, gameID int64) {
 	t.Helper()
 	ctx := context.Background()
-	tx, err := pool.Begin(ctx)
+	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		_, err := evenstrength.Rebuild(ctx, sqlcdb.New(tx), gameID)
+		return err
+	})
 	require.NoError(t, err)
-	defer func() { _ = tx.Rollback(ctx) }()
-	queries := sqlcdb.New(tx)
-	require.NoError(t, queries.DisableNestedLoopsForTransaction(ctx))
-	require.NoError(t, queries.DeleteEvenStrengthPairTOIForGame(ctx, gameID))
-	require.NoError(t, queries.DeleteEvenStrengthSkaterGamesForGame(ctx, gameID))
-	_, err = queries.InsertEvenStrengthPairTOIForGame(ctx, gameID)
-	require.NoError(t, err)
-	_, err = queries.InsertEvenStrengthSkaterGamesForGame(ctx, gameID)
-	require.NoError(t, err)
-	require.NoError(t, tx.Commit(ctx))
 }
 
 // execFixture runs one fixture statement. pgx prepares parameterized SQL,

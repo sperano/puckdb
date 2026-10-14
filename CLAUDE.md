@@ -85,6 +85,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/metrics/` | Prometheus metrics |
 | `internal/temporal/` | Temporal client configuration |
 | `internal/matching/` | NHL ↔ Yahoo player matching |
+| `internal/evenstrength/` | Per-game even-strength totals (`even_strength_pair_toi`, `even_strength_skater_games`) derived in Go from the stored shifts, box-score rows and goals, rebuilt by the shift chart import; `legacy_equivalence_pg_test.go` checks the output against the retired SQL derivation on real games (see https://wiki.spe.quebec/en/puckdb/season-sync-performance) |
 | `internal/draft/` | Draft helper models: normalized league rules, scoring-input validation, roster feasibility, player-pool coverage, comparison reports (see https://wiki.spe.quebec/en/puckdb/draft/league-rules) |
 | `internal/draftrank/` | Draft ranking service shared by GraphQL, the CLI and exports: refresh (projection → news adjustment → rankings per scenario), immutable per-league snapshots, views (position/search/sort/pagination), explicit issue codes, CSV/JSON/table export (see https://wiki.spe.quebec/en/puckdb/draft/rankings-api) |
 | `internal/draftrecommend/` | Deterministic live-draft recommendation and replay service over one ranking/session snapshot, with audited numeric reasons and PostgreSQL run storage (see https://wiki.spe.quebec/en/puckdb/draft/recommendations) |

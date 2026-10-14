@@ -6,311 +6,82 @@ WHERE game_id = sqlc.arg(game_id);
 DELETE FROM even_strength_skater_games
 WHERE game_id = sqlc.arg(game_id);
 
--- name: DisableNestedLoopsForTransaction :exec
--- Turns nested-loop joins off until the current transaction ends. The
--- planner estimates 1 row for the segment-overlap join of
--- InsertEvenStrengthPairTOIForGame and InsertEvenStrengthSkaterGamesForGame
--- (two range predicates; about 5,000 rows in practice) and then nests every
--- join after it, which costs seconds of CPU per game; with nested loops off
--- it picks hash joins and both inserts take tens of milliseconds. SET LOCAL
--- reverts at COMMIT or ROLLBACK, so it never leaks to other transactions on
--- the pooled connection (safe behind a pgbouncer transaction pooler).
--- PostgreSQL does not replan a cached prepared statement when a planner
--- setting changes, so every caller of those inserts must issue this first;
--- one caller without it could leave a nested-loop generic plan cached for
--- the others on that connection.
-SET LOCAL enable_nestloop = off;
+-- name: ListEvenStrengthShiftsForGame :many
+-- One game's regular shifts (type 517) of players with a box-score row on
+-- the shift's club, the input of internal/evenstrength's segment derivation.
+-- is_skater tells a skater (game_skater_stats row) from a goalie
+-- (game_goalie_stats row only); shifts of anyone else are dropped. Clock
+-- strings are returned as stored and parsed in Go.
+SELECT
+    s.player_id,
+    s.team_id,
+    s.period,
+    s.start_time,
+    s.end_time,
+    (stats.player_id IS NOT NULL)::boolean AS is_skater
+FROM shifts s
+LEFT JOIN game_skater_stats stats
+  ON stats.game_id = s.game_id
+ AND stats.player_id = s.player_id
+ AND stats.team_id = s.team_id
+LEFT JOIN game_goalie_stats goalies
+  ON goalies.game_id = s.game_id
+ AND goalies.player_id = s.player_id
+ AND goalies.team_id = s.team_id
+WHERE s.game_id = sqlc.arg(game_id)
+  AND s.type_code = '517'
+  AND (stats.player_id IS NOT NULL OR goalies.player_id IS NOT NULL);
 
--- name: InsertEvenStrengthPairTOIForGame :execrows
--- Split one game's shift chart into atomic half-open intervals (see
--- InsertEvenStrengthSkaterGamesForGame for the shared derivation) and store,
--- for every pair of skaters who shared an equal-strength 3v3 through 5v5
--- segment on the same club, their total shared seconds for the game. Both
--- directions are stored (player->teammate and teammate->player) so readers
--- never need a self-join. Callers delete the game's rows first, in the same
--- transaction (see DeleteEvenStrengthPairTOIForGame).
-WITH parsed_shifts AS (
-    SELECT
-        s.game_id,
-        s.player_id,
-        s.team_id,
-        s.period,
-        stats.player_id IS NOT NULL AS is_skater,
-        CASE WHEN s.start_time ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
-            split_part(s.start_time, ':', 1)::integer * 60
-                + split_part(s.start_time, ':', 2)::integer
-        END AS start_second,
-        CASE WHEN s.end_time ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
-            split_part(s.end_time, ':', 1)::integer * 60
-                + split_part(s.end_time, ':', 2)::integer
-        END AS end_second
-    FROM shifts s
-    LEFT JOIN game_skater_stats stats
-      ON stats.game_id = s.game_id
-     AND stats.player_id = s.player_id
-     AND stats.team_id = s.team_id
-    LEFT JOIN game_goalie_stats goalies
-      ON goalies.game_id = s.game_id
-     AND goalies.player_id = s.player_id
-     AND goalies.team_id = s.team_id
-    WHERE s.game_id = sqlc.arg(game_id)
-      AND s.type_code = '517'
-      AND (stats.player_id IS NOT NULL OR goalies.player_id IS NOT NULL)
-),
-valid_shifts AS (
-    SELECT *
-    FROM parsed_shifts
-    WHERE start_second IS NOT NULL
-      AND end_second IS NOT NULL
-      AND start_second < end_second
-),
-boundaries AS (
-    SELECT game_id, period, start_second AS second FROM valid_shifts
-    UNION
-    SELECT game_id, period, end_second AS second FROM valid_shifts
-),
-segments AS (
-    SELECT
-        game_id,
-        period,
-        second AS start_second,
-        lead(second) OVER (
-            PARTITION BY game_id, period
-            ORDER BY second
-        ) AS end_second
-    FROM boundaries
-),
-active_skaters AS (
-    SELECT DISTINCT
-        segment.game_id,
-        segment.period,
-        segment.start_second,
-        segment.end_second,
-        shift_row.team_id,
-        shift_row.player_id,
-        shift_row.is_skater
-    FROM segments segment
-    JOIN valid_shifts shift_row
-      ON shift_row.game_id = segment.game_id
-     AND shift_row.period = segment.period
-     AND shift_row.start_second < segment.end_second
-     AND shift_row.end_second > segment.start_second
-    WHERE segment.end_second > segment.start_second
-),
-team_strength AS (
-    SELECT
-        game_id,
-        period,
-        start_second,
-        end_second,
-        team_id,
-        count(*) FILTER (WHERE is_skater) AS skater_count,
-        count(*) FILTER (WHERE NOT is_skater) AS goalie_count
-    FROM active_skaters
-    GROUP BY game_id, period, start_second, end_second, team_id
-),
-even_segments AS (
-    SELECT game_id, period, start_second, end_second
-    FROM team_strength
-    GROUP BY game_id, period, start_second, end_second
-    HAVING count(*) = 2
-       AND min(skater_count) = max(skater_count)
-       AND min(skater_count) BETWEEN 3 AND 5
-       AND min(goalie_count) = 1
-       AND max(goalie_count) = 1
-),
-even_skaters AS (
-    SELECT active.game_id, active.period, active.start_second, active.end_second,
-           active.team_id, active.player_id
-    FROM active_skaters active
-    JOIN even_segments segment
-      USING (game_id, period, start_second, end_second)
-    WHERE active.is_skater
-)
+-- name: ListEvenStrengthGoalsForGame :many
+-- One game's goals with their clock, situation code and credited players,
+-- for internal/evenstrength's even-strength point credit.
+SELECT
+    period,
+    time_in_period,
+    situation_code,
+    scoring_player_id,
+    assist1_player_id,
+    assist2_player_id
+FROM play_events
+WHERE game_id = sqlc.arg(game_id)
+  AND type_desc_key = 'goal';
+
+-- name: InsertEvenStrengthPairTOI :execrows
+-- Store one game's shared even-strength TOI rows computed by
+-- internal/evenstrength, one array entry per (player, teammate) row. Callers
+-- delete the game's rows first, in the same transaction (see
+-- DeleteEvenStrengthPairTOIForGame).
 INSERT INTO even_strength_pair_toi (
     game_id, player_id, teammate_id, shared_toi_seconds
 )
-SELECT
-    player.game_id,
-    player.player_id,
-    teammate.player_id AS teammate_id,
-    sum(player.end_second - player.start_second)::integer AS shared_toi_seconds
-FROM even_skaters player
-JOIN even_skaters teammate
-  ON teammate.game_id = player.game_id
- AND teammate.period = player.period
- AND teammate.start_second = player.start_second
- AND teammate.end_second = player.end_second
- AND teammate.team_id = player.team_id
- AND teammate.player_id <> player.player_id
-GROUP BY player.game_id, player.player_id, teammate.player_id;
+-- The arrays have one entry per row; set-returning functions in the select
+-- list advance in lockstep.
+SELECT sqlc.arg(game_id)::bigint,
+       unnest(sqlc.arg(player_ids)::bigint[]),
+       unnest(sqlc.arg(teammate_ids)::bigint[]),
+       unnest(sqlc.arg(shared_toi_seconds)::integer[]);
 
--- name: InsertEvenStrengthSkaterGamesForGame :execrows
--- Same atomic-segment derivation as InsertEvenStrengthPairTOIForGame,
--- restricted to this game, aggregated into one row per skater: his total
--- even-strength seconds and his even-strength points. A point is credited
--- when the skater is the scorer, assist1, or assist2 of a goal whose
--- situation code is equal-strength 3-5 skaters with both goalies in, and
--- the skater's own even-strength segment in that period covers the goal's
--- clock time (start < t <= end). Callers delete the game's rows first, in
--- the same transaction (see DeleteEvenStrengthSkaterGamesForGame).
-WITH parsed_shifts AS (
-    SELECT
-        s.game_id,
-        s.player_id,
-        s.team_id,
-        s.period,
-        stats.player_id IS NOT NULL AS is_skater,
-        CASE WHEN s.start_time ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
-            split_part(s.start_time, ':', 1)::integer * 60
-                + split_part(s.start_time, ':', 2)::integer
-        END AS start_second,
-        CASE WHEN s.end_time ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
-            split_part(s.end_time, ':', 1)::integer * 60
-                + split_part(s.end_time, ':', 2)::integer
-        END AS end_second
-    FROM shifts s
-    LEFT JOIN game_skater_stats stats
-      ON stats.game_id = s.game_id
-     AND stats.player_id = s.player_id
-     AND stats.team_id = s.team_id
-    LEFT JOIN game_goalie_stats goalies
-      ON goalies.game_id = s.game_id
-     AND goalies.player_id = s.player_id
-     AND goalies.team_id = s.team_id
-    WHERE s.game_id = sqlc.arg(game_id)
-      AND s.type_code = '517'
-      AND (stats.player_id IS NOT NULL OR goalies.player_id IS NOT NULL)
-),
-valid_shifts AS (
-    SELECT *
-    FROM parsed_shifts
-    WHERE start_second IS NOT NULL
-      AND end_second IS NOT NULL
-      AND start_second < end_second
-),
-boundaries AS (
-    SELECT game_id, period, start_second AS second FROM valid_shifts
-    UNION
-    SELECT game_id, period, end_second AS second FROM valid_shifts
-),
-segments AS (
-    SELECT
-        game_id,
-        period,
-        second AS start_second,
-        lead(second) OVER (
-            PARTITION BY game_id, period
-            ORDER BY second
-        ) AS end_second
-    FROM boundaries
-),
-active_skaters AS (
-    SELECT DISTINCT
-        segment.game_id,
-        segment.period,
-        segment.start_second,
-        segment.end_second,
-        shift_row.team_id,
-        shift_row.player_id,
-        shift_row.is_skater
-    FROM segments segment
-    JOIN valid_shifts shift_row
-      ON shift_row.game_id = segment.game_id
-     AND shift_row.period = segment.period
-     AND shift_row.start_second < segment.end_second
-     AND shift_row.end_second > segment.start_second
-    WHERE segment.end_second > segment.start_second
-),
-team_strength AS (
-    SELECT
-        game_id,
-        period,
-        start_second,
-        end_second,
-        team_id,
-        count(*) FILTER (WHERE is_skater) AS skater_count,
-        count(*) FILTER (WHERE NOT is_skater) AS goalie_count
-    FROM active_skaters
-    GROUP BY game_id, period, start_second, end_second, team_id
-),
-even_segments AS (
-    SELECT game_id, period, start_second, end_second
-    FROM team_strength
-    GROUP BY game_id, period, start_second, end_second
-    HAVING count(*) = 2
-       AND min(skater_count) = max(skater_count)
-       AND min(skater_count) BETWEEN 3 AND 5
-       AND min(goalie_count) = 1
-       AND max(goalie_count) = 1
-),
-even_skaters AS (
-    SELECT active.game_id, active.period, active.start_second, active.end_second,
-           active.team_id, active.player_id
-    FROM active_skaters active
-    JOIN even_segments segment
-      USING (game_id, period, start_second, end_second)
-    WHERE active.is_skater
-),
-player_toi AS (
-    SELECT game_id, player_id, team_id, sum(end_second - start_second)::integer AS toi_seconds
-    FROM even_skaters
-    GROUP BY game_id, player_id, team_id
-),
-player_points AS (
-    SELECT
-        event.game_id,
-        scorer.player_id,
-        count(*)::integer AS points
-    FROM play_events event
-    CROSS JOIN LATERAL (
-        SELECT CASE WHEN event.time_in_period ~ '^[0-9]{1,2}:[0-5][0-9]$' THEN
-            split_part(event.time_in_period, ':', 1)::integer * 60
-                + split_part(event.time_in_period, ':', 2)::integer
-        END AS event_second
-    ) clock
-    CROSS JOIN LATERAL unnest(ARRAY[
-        event.scoring_player_id,
-        event.assist1_player_id,
-        event.assist2_player_id
-    ]) AS scorer(player_id)
-    JOIN even_skaters coverage
-      ON coverage.game_id = event.game_id
-     AND coverage.period = event.period
-     AND coverage.player_id = scorer.player_id
-     AND clock.event_second > coverage.start_second
-     AND clock.event_second <= coverage.end_second
-    WHERE event.game_id = sqlc.arg(game_id)
-      AND event.type_desc_key = 'goal'
-      AND scorer.player_id IS NOT NULL
-      AND clock.event_second IS NOT NULL
-      AND event.situation_code IS NOT NULL
-      AND event.situation_code / 1000 % 10 = 1
-      AND event.situation_code % 10 = 1
-      AND event.situation_code / 100 % 10 = event.situation_code / 10 % 10
-      AND event.situation_code / 100 % 10 BETWEEN 3 AND 5
-    GROUP BY event.game_id, scorer.player_id
-)
+-- name: InsertEvenStrengthSkaterGames :execrows
+-- Store one game's per-skater even-strength TOI and points computed by
+-- internal/evenstrength, one array entry per skater row. Callers delete the
+-- game's rows first, in the same transaction (see
+-- DeleteEvenStrengthSkaterGamesForGame).
 INSERT INTO even_strength_skater_games (
     game_id, player_id, team_id, toi_seconds, points
 )
-SELECT
-    toi.game_id,
-    toi.player_id,
-    toi.team_id,
-    toi.toi_seconds,
-    coalesce(points.points, 0) AS points
-FROM player_toi toi
-LEFT JOIN player_points points
-  ON points.game_id = toi.game_id
- AND points.player_id = toi.player_id;
+-- The arrays have one entry per row, as in InsertEvenStrengthPairTOI.
+SELECT sqlc.arg(game_id)::bigint,
+       unnest(sqlc.arg(player_ids)::bigint[]),
+       unnest(sqlc.arg(team_ids)::bigint[]),
+       unnest(sqlc.arg(toi_seconds)::integer[]),
+       unnest(sqlc.arg(points)::integer[]);
 
 -- name: ListPlayerEvenStrengthLinemates :many
 -- The skaters one player shared even-strength ice with, most shared time
 -- first, for the get_player_linemates MCP tool. Games are filtered by
 -- season, date range and game type (NULL game type: regular season and
--- playoffs), then the per-game totals of InsertEvenStrengthPairTOIForGame
--- and InsertEvenStrengthSkaterGamesForGame are summed per (club,
+-- playoffs), then the per-game totals stored by internal/evenstrength
+-- (even_strength_pair_toi, even_strength_skater_games) are summed per (club,
 -- teammate), so a traded player's linemates stay with the club they shared.
 -- share_pct is the shared time as a percentage of the player's own
 -- even-strength time with that club over the same games.
