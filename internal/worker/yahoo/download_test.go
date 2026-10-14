@@ -76,18 +76,34 @@ func TestGetGameKeyForSeason_CoalescesConcurrentMisses(t *testing.T) {
 	})
 }
 
-// A caller whose context ends while another load holds the season's lock
-// returns its own context error instead of waiting for that load.
+// A caller blocked on the season's load lock returns its own context error
+// when its context ends, instead of waiting for the load that holds the lock.
 func TestGetGameKeyForSeason_CanceledWaiterReturns(t *testing.T) {
 	forgetGameKey(canceledWaiterSeason)
 	t.Cleanup(func() { forgetGameKey(canceledWaiterSeason) })
 
-	unlock, err := lockGameKeyLoad(context.Background(), canceledWaiterSeason)
-	require.NoError(t, err)
-	defer unlock()
+	synctest.Test(t, func(t *testing.T) {
+		unlock, err := lockGameKeyLoad(context.Background(), canceledWaiterSeason)
+		require.NoError(t, err)
+		defer unlock()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	_, err = GetGameKeyForSeason(ctx, nil, nil, nil, canceledWaiterSeason)
-	require.ErrorIs(t, err, context.Canceled)
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() {
+			_, err := GetGameKeyForSeason(ctx, nil, nil, nil, canceledWaiterSeason)
+			done <- err
+		}()
+		// The caller is now blocked on the load lock.
+		synctest.Wait()
+		select {
+		case err := <-done:
+			t.Fatalf("returned while the load lock was held and its context live: %v", err)
+		default:
+		}
+
+		cancel()
+		// If cancellation did not wake the caller, every goroutine in the
+		// bubble is blocked and synctest fails the test as a deadlock.
+		require.ErrorIs(t, <-done, context.Canceled)
+	})
 }
