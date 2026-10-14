@@ -239,7 +239,7 @@ const (
 const (
 	DefaultWorkflowExecutionTimeout    = 180 // minutes
 	DefaultActivityStartToCloseTimeout = 10  // minutes
-	DefaultFetchDayActivityTimeout     = 60  // minutes; FetchDay and FetchYahooPlayerBatch, see shared.YahooDownloadActivityOptions
+	DefaultFetchDayActivityTimeout     = 60  // minutes; Yahoo download activities, see shared.YahooDownloadActivityOptions
 	DefaultActivityHeartbeatTimeout    = 60  // seconds
 	DefaultBackoffCoefficient          = 2.0
 	DefaultSeasonConcurrency           = 5

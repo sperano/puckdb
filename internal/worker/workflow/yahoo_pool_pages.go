@@ -16,6 +16,11 @@ const (
 	// that recorded the one-page-at-a-time walk replays it.
 	yahooPoolParallelPagesChange  = "yahoo-pool-parallel-pages"
 	yahooPoolParallelPagesVersion = 1
+	// yahooPoolCancelPastEndChange versions cancelling the pages in flight
+	// past the pool's last page: a run that recorded letting them finish
+	// replays it.
+	yahooPoolCancelPastEndChange  = "yahoo-pool-cancel-past-end"
+	yahooPoolCancelPastEndVersion = 1
 	// yahooPoolPastCap ends a one-at-a-time walk's page range just past the
 	// page cap, so a pool that never ends reaches the cap error.
 	yahooPoolPastCap = yahoo.MaxLeaguePlayerPoolPages + 1
@@ -55,6 +60,8 @@ func fetchYahooPoolPages(ctx workflow.Context, commit *yahoo.CommitYahooLeaguePl
 	}
 	step, err := walk.sequential(ctx, 0, 1)
 	if err == nil && step == yahooPoolContinue {
+		walk.cancelPastEnd = workflow.GetVersion(ctx, yahooPoolCancelPastEndChange, workflow.DefaultVersion,
+			yahooPoolCancelPastEndVersion) >= yahooPoolCancelPastEndVersion
 		step, err = walk.concurrent(ctx, 1, known)
 	}
 	if err == nil && step == yahooPoolContinue {
@@ -64,9 +71,12 @@ func fetchYahooPoolPages(ctx workflow.Context, commit *yahoo.CommitYahooLeaguePl
 }
 
 // yahooPoolWalk downloads one pool's pages into commit, advancing pages.
+// With cancelPastEnd, a concurrent walk cancels the pages in flight past the
+// pool's last page.
 type yahooPoolWalk struct {
-	commit *yahoo.CommitYahooLeaguePlayerPoolInput
-	pages  *yahooEstimate
+	commit        *yahoo.CommitYahooLeaguePlayerPoolInput
+	pages         *yahooEstimate
+	cancelPastEnd bool
 }
 
 // sequential downloads pages [from, to) one at a time until one ends the
@@ -88,11 +98,13 @@ func (w *yahooPoolWalk) sequential(ctx workflow.Context, from, to int) (yahooPoo
 	return yahooPoolContinue, nil
 }
 
-// yahooPoolPageOutcome is one concurrently downloaded page.
+// yahooPoolPageOutcome is one concurrently downloaded page; cancel cancels
+// its download while it is in flight (nil when the walk never cancels).
 type yahooPoolPageOutcome struct {
 	done   bool
 	result yahoo.FetchYahooLeaguePlayersPageResult
 	err    error
+	cancel workflow.CancelFunc
 }
 
 // endsPool reports whether a one-at-a-time walk would stop at this page.
@@ -102,17 +114,24 @@ func (o yahooPoolPageOutcome) endsPool() bool {
 
 // concurrent downloads pages [from, to) with up to yahooPoolPageConcurrency
 // in flight. Once a page that ends the pool (short, unavailable or failed)
-// is known, no later page is started; the ones in flight finish and are
-// discarded. Every page before the earliest such page was started before it
-// and has finished, so recording in page order sees the same pages, and
-// stops at the same one, as a one-at-a-time walk.
+// is known, no later page is started, and the ones in flight past it are
+// cancelled (with cancelPastEnd; before it, they finish) and discarded, so a
+// download still queued on the Yahoo rate limiter gives its token back.
+// Every page before the earliest such page was started before it and has
+// finished, so recording in page order sees the same pages, and stops at the
+// same one, as a one-at-a-time walk.
 func (w *yahooPoolWalk) concurrent(ctx workflow.Context, from, to int) (yahooPoolStep, error) {
 	if to <= from {
 		return yahooPoolContinue, nil
 	}
 	outcomes := make([]yahooPoolPageOutcome, to-from)
 	firstEnd := -1
-	start := func(ctx workflow.Context, i int) workflow.Future { return w.start(ctx, from+i) }
+	start := func(ctx workflow.Context, i int) workflow.Future {
+		if w.cancelPastEnd {
+			ctx, outcomes[i].cancel = cancellablePage(ctx)
+		}
+		return w.start(ctx, from+i)
+	}
 	handle := func(ctx workflow.Context, i int, f workflow.Future) error {
 		outcome := &outcomes[i]
 		outcome.done, outcome.err = true, f.Get(ctx, &outcome.result)
@@ -121,6 +140,7 @@ func (w *yahooPoolWalk) concurrent(ctx workflow.Context, from, to int) (yahooPoo
 		}
 		if outcome.endsPool() && (firstEnd < 0 || i < firstEnd) {
 			firstEnd = i
+			cancelInFlight(outcomes[i+1:])
 		}
 		return nil
 	}
@@ -138,6 +158,25 @@ func (w *yahooPoolWalk) concurrent(ctx workflow.Context, from, to int) (yahooPoo
 		}
 	}
 	return yahooPoolContinue, nil
+}
+
+// cancellablePage returns a context whose page download can be cancelled.
+// The page's future resolves only once its activity has ended, so a page
+// that finished downloading before the cancellation reached it still counts
+// as downloaded, and is discarded.
+func cancellablePage(ctx workflow.Context) (workflow.Context, workflow.CancelFunc) {
+	opts := workflow.GetActivityOptions(ctx)
+	opts.WaitForCancellation = true
+	return workflow.WithCancel(workflow.WithActivityOptions(ctx, opts))
+}
+
+// cancelInFlight cancels the pages of outcomes still in flight.
+func cancelInFlight(outcomes []yahooPoolPageOutcome) {
+	for _, outcome := range outcomes {
+		if !outcome.done && outcome.cancel != nil {
+			outcome.cancel()
+		}
+	}
 }
 
 // discard names in commit the pages downloaded past the pool's last page
