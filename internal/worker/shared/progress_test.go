@@ -1,10 +1,18 @@
 package shared
 
 import (
+	"bytes"
+	"context"
+	"encoding/gob"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/workflow"
 )
 
 func TestFormatDuration(t *testing.T) {
@@ -167,4 +175,130 @@ func TestSetBarLabel(t *testing.T) {
 	tracker.SetBarLabel(0, 0, "updated label")
 
 	assert.Equal(t, "updated label", report.Groups[0].Bars[0].Label)
+}
+
+const (
+	concurrentSaveCoroutines = 2
+	concurrentSaveRounds     = 3
+	// concurrentSaveDuration keeps each save in flight long enough for the
+	// other coroutine to start one.
+	concurrentSaveDuration = 20 * time.Millisecond
+)
+
+// saveRecorder records how many progress saves overlap and the bar progress
+// of each saved report, in the order the saves finished.
+type saveRecorder struct {
+	mu          sync.Mutex
+	inFlight    int
+	maxInFlight int
+	saved       []int
+}
+
+func (r *saveRecorder) save(_ context.Context, _, _ string, data []byte) error {
+	var report ProgressReport
+	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&report); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	r.inFlight++
+	r.maxInFlight = max(r.maxInFlight, r.inFlight)
+	r.mu.Unlock()
+	time.Sleep(concurrentSaveDuration)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.inFlight--
+	r.saved = append(r.saved, report.Groups[0].Bars[0].Current)
+	return nil
+}
+
+// runConcurrentSaves advances one bar from several coroutines, each
+// increment saving the report, and returns what the saves recorded.
+func runConcurrentSaves(t *testing.T, serialize bool) *saveRecorder {
+	t.Helper()
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	recorder := &saveRecorder{}
+	env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(recorder.save)
+
+	env.ExecuteWorkflow(func(ctx workflow.Context) error {
+		total := concurrentSaveCoroutines * concurrentSaveRounds
+		tracker, err := InitTracker(ctx, &ProgressReport{Groups: []ProgressGroup{{Bars: []ProgressBar{{Total: total}}}}})
+		if err != nil {
+			return err
+		}
+		if serialize {
+			tracker.SerializeSaves(ctx)
+		}
+		wg := workflow.NewWaitGroup(ctx)
+		for range concurrentSaveCoroutines {
+			wg.Add(1)
+			workflow.Go(ctx, func(ctx workflow.Context) {
+				defer wg.Done()
+				for range concurrentSaveRounds {
+					tracker.IncrementBar(ctx, 0, 0)
+				}
+			})
+		}
+		wg.Wait(ctx)
+		return nil
+	})
+	require.NoError(t, env.GetWorkflowError())
+	return recorder
+}
+
+// Without SerializeSaves, two coroutines' saves overlap, so an older report
+// can reach Redis last. With it, one save runs at a time, each saved report
+// is at least as far along as the one before, and the last is the final one.
+func TestSerializeSaves_OneSaveAtATimeInOrder(t *testing.T) {
+	t.Parallel()
+
+	unserialized := runConcurrentSaves(t, false)
+	assert.Greater(t, unserialized.maxInFlight, 1, "control: saves from two coroutines overlap")
+
+	serialized := runConcurrentSaves(t, true)
+	assert.Equal(t, 1, serialized.maxInFlight)
+	require.Len(t, serialized.saved, concurrentSaveCoroutines*concurrentSaveRounds)
+	assert.IsNonDecreasing(t, serialized.saved)
+	assert.Equal(t, concurrentSaveCoroutines*concurrentSaveRounds, serialized.saved[len(serialized.saved)-1])
+}
+
+// A Save whose context is canceled while another Save holds the lock goes
+// ahead without it: it must neither unlock a mutex it never held (a panic)
+// nor wait for the holder to finish.
+func TestSerializeSaves_CanceledWaiterSavesWithoutLock(t *testing.T) {
+	t.Parallel()
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	recorder := &saveRecorder{}
+	env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(recorder.save)
+	var holderStillSaving bool
+
+	env.ExecuteWorkflow(func(ctx workflow.Context) error {
+		tracker, err := InitTracker(ctx, &ProgressReport{Groups: []ProgressGroup{{Bars: []ProgressBar{{Total: 1}}}}})
+		if err != nil {
+			return err
+		}
+		tracker.SerializeSaves(ctx)
+		holderDone := workflow.NewWaitGroup(ctx)
+		holderDone.Add(1)
+		workflow.Go(ctx, func(ctx workflow.Context) {
+			defer holderDone.Done()
+			tracker.IncrementBar(ctx, 0, 0)
+		})
+		if err := workflow.Await(ctx, tracker.saving.IsLocked); err != nil {
+			return err
+		}
+		waiterCtx, cancel := workflow.WithCancel(ctx)
+		cancel()
+		tracker.Save(waiterCtx)
+		holderStillSaving = tracker.saving.IsLocked()
+		holderDone.Wait(ctx)
+		return nil
+	})
+
+	require.NoError(t, env.GetWorkflowError())
+	assert.True(t, holderStillSaving, "the canceled Save returned while the holder still held the lock")
+	assert.Contains(t, recorder.saved, 1, "the holder's save completed")
 }

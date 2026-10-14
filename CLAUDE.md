@@ -115,7 +115,7 @@ License: GPL-3.0-or-later (`LICENSE`, copyright notice in `COPYRIGHT`). A new de
 ### Active Workflows
 
 Defined in `internal/worker/workflow/`:
-- `FetchSeasonsWorkflow` / `FetchNHLSeasonWorkflow` / `FetchYahooSeasonWorkflow` — NHL season data (parent + children); the parent also fetches the upcoming (not yet started) season's camp rosters for the prior season's clubs
+- `FetchSeasonsWorkflow` / `FetchNHLSeasonWorkflow` / `FetchYahooSeasonWorkflow` — NHL season data (parent + children); the parent runs the Yahoo and NHL season groups concurrently (the import runs them in order: day-level Yahoo roster rows need the imported teams), then fetches the upcoming (not yet started) season's camp rosters for the prior season's clubs
 - `ImportSeasonsWorkflow` / `ImportNHLSeasonWorkflow` / `ImportYahooSeasonWorkflow` — Parse cached files into Postgres; the parent also carries the prior season's clubs forward to the upcoming season (`season_teams`) and imports its camp rosters. `ImportNHLSeasonWorkflow` runs `ImportDayIfChanged` per day: a day whose cached files (path, size, mtime) and `worknhl.DayImporterVersion` match its `nhl_day_imports` row is skipped (a day whose game-story/season-series rows or Yahoo files were skipped after errors is not recorded, so it is retried); bump `DayImporterVersion` whenever the same files would produce different rows, and use `sync --reimport-days` (GraphQL `SeasonsInput.reimportDays`) to force a full re-import
 - `FetchPlayerLogsWorkflow` / `FetchSeasonPlayerLogsWorkflow` — Per-player game logs
 - `ImportPlayerLogsWorkflow` / `ImportSeasonPlayerLogsWorkflow` — Import those logs

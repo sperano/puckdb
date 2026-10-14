@@ -20,20 +20,35 @@ import (
 var (
 	gameKeyCache   = make(map[int]int) // season year -> game key
 	gameKeyCacheMu sync.RWMutex
+	// gameKeyLoadLocks holds one single-slot semaphore (chan struct{}) per
+	// season year, so concurrent misses for a season load its game key one at
+	// a time and the callers that waited read it from memory instead of each
+	// downloading it again.
+	gameKeyLoadLocks sync.Map
 )
 
 const yahooNHLGameCode = "nhl"
 
 // GetGameKeyForSeason fetches the Yahoo Fantasy game key for a given NHL season.
 // Results are cached in memory and on disk since game keys never change.
+//
+// Misses for one season are serialized within the process: activities that
+// start together on a cold cache (the Yahoo and NHL fetch groups both need
+// the key) download it once. Each caller loads with its own context, so a
+// canceled or failed load only hands the lock to the next waiter, which then
+// tries itself.
 func GetGameKeyForSeason(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, fetcher shared.Downloader, season int) (int, error) {
-	// Check memory cache first
-	gameKeyCacheMu.RLock()
-	if key, ok := gameKeyCache[season]; ok {
-		gameKeyCacheMu.RUnlock()
+	if key, ok := memoryGameKey(season); ok {
 		return key, nil
 	}
-	gameKeyCacheMu.RUnlock()
+	unlock, err := lockGameKeyLoad(ctx, season)
+	if err != nil {
+		return 0, err
+	}
+	defer unlock()
+	if key, ok := memoryGameKey(season); ok {
+		return key, nil
+	}
 
 	gameKey, err := getGameKeyImpl(ctx, storage, gobCache, season, fetcher, SleepAfterYahooDownload)
 	if err != nil {
@@ -46,6 +61,27 @@ func GetGameKeyForSeason(ctx context.Context, storage store.Storage, gobCache *c
 	gameKeyCacheMu.Unlock()
 
 	return gameKey, nil
+}
+
+// memoryGameKey returns the season's game key from the in-memory cache.
+func memoryGameKey(season int) (int, bool) {
+	gameKeyCacheMu.RLock()
+	defer gameKeyCacheMu.RUnlock()
+	key, ok := gameKeyCache[season]
+	return key, ok
+}
+
+// lockGameKeyLoad takes the season's load lock, or returns ctx's error if
+// ctx ends first. The returned func releases the lock.
+func lockGameKeyLoad(ctx context.Context, season int) (func(), error) {
+	slot, _ := gameKeyLoadLocks.LoadOrStore(season, make(chan struct{}, 1))
+	sem := slot.(chan struct{})
+	select {
+	case sem <- struct{}{}:
+		return func() { <-sem }, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("wait for game key load for season %d: %w", season, ctx.Err())
+	}
 }
 
 // getGameKeyImpl fetches the game key, using cache or downloading if needed.
