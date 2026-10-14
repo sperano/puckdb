@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -283,7 +284,8 @@ type taskActivityDeps struct {
 	yahooDownloader shared.Downloader
 	// yahooPublicDownloader fetches public Yahoo Sports player pages. It
 	// shares yahooDownloader's rate limiter: both count against Yahoo.
-	yahooPublicDownloader shared.Downloader
+	yahooPublicDownloader  shared.Downloader
+	boxscorePlayerCacheTTL time.Duration
 }
 
 // registerTasksActivities registers all activities for the tasks queue.
@@ -300,14 +302,15 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	}
 
 	d := taskActivityDeps{
-		storage:               newDefaultStorage(),
-		pool:                  pool,
-		queries:               sqlcdb.New(pool),
-		nhlClient:             shared.NewNHLClient(),
-		gobCache:              gobCache,
-		redisClient:           redisClient,
-		yahooDownloader:       newYahooDownloader(redisClient, yahooLimiter),
-		yahooPublicDownloader: shared.RateLimited(yahooLimiter, httpx.DownloadPublic),
+		storage:                newDefaultStorage(),
+		pool:                   pool,
+		queries:                sqlcdb.New(pool),
+		nhlClient:              shared.NewNHLClient(),
+		gobCache:               gobCache,
+		redisClient:            redisClient,
+		yahooDownloader:        newYahooDownloader(redisClient, yahooLimiter),
+		yahooPublicDownloader:  shared.RateLimited(yahooLimiter, httpx.DownloadPublic),
+		boxscorePlayerCacheTTL: boxscorePlayerCacheTTLFrom(viper.GetViper()),
 	}
 
 	registerSimulationActivities(w, pool, d.queries, tclient)
@@ -473,9 +476,10 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	w.RegisterActivity(playoffActivities.ImportTeamPlayoffGames)
 
 	boxscoreActivities := &worknhl.BoxscoreActivities{
-		Storage:     d.storage,
-		GobCache:    d.gobCache,
-		RedisClient: d.redisClient,
+		Storage:                d.storage,
+		GobCache:               d.gobCache,
+		RedisClient:            d.redisClient,
+		BoxscorePlayerCacheTTL: d.boxscorePlayerCacheTTL,
 	}
 	w.RegisterActivity(boxscoreActivities.ExtractBoxscoreDataForSeason)
 	w.RegisterActivity(boxscoreActivities.ExtractAndSaveBoxscorePlayers)
@@ -486,12 +490,13 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 // Yahoo/NHL player matching.
 func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 	playerActivities := &workplayer.Activities{
-		Storage:       d.storage,
-		NHLClient:     d.nhlClient,
-		RedisClient:   d.redisClient,
-		GobCache:      d.gobCache,
-		Queries:       d.queries,
-		CareerQueries: d.queries,
+		Storage:                d.storage,
+		NHLClient:              d.nhlClient,
+		RedisClient:            d.redisClient,
+		GobCache:               d.gobCache,
+		Queries:                d.queries,
+		CareerQueries:          d.queries,
+		BoxscorePlayerCacheTTL: d.boxscorePlayerCacheTTL,
 	}
 	w.RegisterActivity(playerActivities.FetchPlayerLandingsBatch)
 	w.RegisterActivity(playerActivities.DownloadPlayerGameLogsBatch)

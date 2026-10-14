@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -83,6 +84,11 @@ func yahooRateLimitFrom(v *viper.Viper) shared.YahooRateLimit {
 		PerSecond: v.GetFloat64(config.FlagYahooRateLimit),
 		Burst:     v.GetInt(config.FlagYahooRateBurst),
 	}
+}
+
+// boxscorePlayerCacheTTLFrom reads the boxscore-player Redis lifetime.
+func boxscorePlayerCacheTTLFrom(v *viper.Viper) time.Duration {
+	return time.Duration(v.GetInt(config.FlagBoxscorePlayerCacheTTL)) * time.Minute
 }
 
 // adminAuthFrom reads --admin-group and --admin-token.

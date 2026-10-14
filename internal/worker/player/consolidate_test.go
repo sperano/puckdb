@@ -3,6 +3,7 @@ package player
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
@@ -30,7 +31,8 @@ func TestConsolidateBoxscorePlayersActivity_RegisteredNameAndDedupe(t *testing.T
 
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
-	env.RegisterActivity(&Activities{RedisClient: redisClient})
+	const cacheTTL = 17 * time.Minute
+	env.RegisterActivity(&Activities{RedisClient: redisClient, BoxscorePlayerCacheTTL: cacheTTL})
 
 	value, err := env.ExecuteActivity("ConsolidateBoxscorePlayersActivity",
 		ConsolidatePlayersInput{Seasons: []nhl.Season{first, second}})
@@ -43,4 +45,5 @@ func TestConsolidateBoxscorePlayersActivity_RegisteredNameAndDedupe(t *testing.T
 	all, err := cache.LoadAllBoxscorePlayers(ctx, redisClient)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []store.BoxscorePlayer{mcDavid, draisaitl}, all)
+	require.Equal(t, cacheTTL, server.TTL(cache.AllBoxscorePlayersKey))
 }

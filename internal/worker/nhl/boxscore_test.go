@@ -298,3 +298,34 @@ func (s *ExtractBoxscoreTestSuite) TestFutureEndDate_WorkflowCapsToYesterday() {
 	s.Require().NoError(future.Get(&result))
 	s.Empty(result.Players)
 }
+
+func TestExtractAndSaveBoxscorePlayers_EmptySeason(t *testing.T) {
+	ts := new(testsuite.WorkflowTestSuite)
+	env := ts.NewTestActivityEnvironment()
+
+	mem := store.NewMemStorage()
+	gobCache, _ := newPermissiveGobCache()
+	redisClient, mockRedis := redismock.NewClientMock()
+	const cacheTTL = 17 * time.Minute
+	mockRedis.Regexp().CustomMatch(anyArgs).ExpectSet(".*", "x", cacheTTL).SetVal("OK")
+
+	act := &BoxscoreActivities{
+		Storage:                mem,
+		GobCache:               gobCache,
+		RedisClient:            redisClient,
+		BoxscorePlayerCacheTTL: cacheTTL,
+	}
+	env.RegisterActivity(act.ExtractAndSaveBoxscorePlayers)
+	input := ExtractAndSaveInput{
+		Season: testSeason(
+			time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC),
+		),
+	}
+
+	future, err := env.ExecuteActivity(act.ExtractAndSaveBoxscorePlayers, input)
+
+	require.NoError(t, err)
+	var counts core.OriginCounts
+	require.NoError(t, future.Get(&counts))
+}
