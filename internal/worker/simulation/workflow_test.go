@@ -516,7 +516,7 @@ func contains(s, sub string) bool {
 
 // ============================================================================
 // Low-3: draft loop must stop after the first cost-cap trip. Before the
-// fix, every remaining pick independently called runCostCapBranch,
+// fix, every remaining pick independently ran the cost-cap branch,
 // flooding the audit table with duplicate cost_cap_reached rows.
 // ============================================================================
 
@@ -625,7 +625,7 @@ func (s *SimPoolWorkflowTestSuite) TestDraftFallback_FollowsConfiguredNeedAcross
 // T1-B: the per-agent daily loop must stop after the first cost-cap trip.
 // Before the fix, every remaining agent still ran BuildManageRosterContext
 // + ManageRoster, each re-tripping the cap → duplicate cost_cap_reached
-// rows + redundant pause signals.
+// rows.
 // ============================================================================
 
 // minState has 2 agents. With MaxSeasonDays=1 exactly one day runs.

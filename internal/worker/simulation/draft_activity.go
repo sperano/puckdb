@@ -119,9 +119,9 @@ const (
 // to decide whether to advance to the next pick.
 //
 // Returns an error only for unrecoverable failures:
-//   - DB read/write error in the pre-flight or commit
-//   - The cost-cap signal-back failed (ensures retry, which then
-//     observes the cost-cap branch idempotently)
+//   - DB read/write error in the pre-flight, the cost-cap pause
+//     (the retry then pauses at most once; see pauseForCostCap) or
+//     the commit
 //   - The fallback also returned 0 (truly no draftable player exists)
 func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPickResult, error) {
 	logger := activity.GetLogger(ctx)

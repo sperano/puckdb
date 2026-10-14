@@ -130,7 +130,7 @@ func fakeAgent(client llm.Client, cfg AgentConfig) *Agent {
 //   3. happy-path LLM
 //   4. fallback after 2x failure
 //   5. commit failure surfaces (atomic rollback)
-//   6. signal failure surfaces (so Temporal retries)
+//   6. cost-cap pause failure surfaces (so Temporal retries)
 //   7. transcript recording (draft_activity_transcript_test.go)
 // ============================================================================
 

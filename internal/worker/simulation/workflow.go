@@ -22,8 +22,8 @@ import (
 //	2. Season: day loop. Each iteration processes one CALENDAR day:
 //	     ProcessWaivers → BuildFreeAgentPool → ManageRoster (per agent)
 //	     → if FINAL games: CollectDayStats → UpdateStandings
-//	   The loop is signal-driven: each `advance` signal grants one
-//	   day; `auto_advance` runs continuously; `pause` blocks both.
+//	   The loop runs until the season ends, the MaxSeasonDays cap,
+//	   or a ManageRoster result reporting the cost cap reached.
 //	   Every 30 days the workflow returns ContinueAsNewError to keep
 //	   the Temporal event history bounded.
 //	3. Complete: when sim_date passes the season's standings_end,
