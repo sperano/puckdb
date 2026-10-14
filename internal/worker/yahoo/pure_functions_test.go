@@ -85,7 +85,7 @@ func TestGetGameKeyImpl_FromCache(t *testing.T) {
 	res := resource.GameKey{Season: season}
 	require.NoError(t, mem.Write(context.Background(), res.Path(), xmlContent))
 
-	key, err := getGameKeyImpl(context.Background(), mem, gobCache, season, nil, nil)
+	key, err := getGameKeyImpl(context.Background(), mem, gobCache, season, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 423, key)
@@ -102,9 +102,8 @@ func TestGetGameKeyImpl_FetcherCalled_WhenNoCache(t *testing.T) {
 <fantasy_content><games><game><game_key>423</game_key><game_id>423</game_id><code>nhl</code><season>2023</season></game></games></fantasy_content>`)
 
 	fetcher := mockDownloader(xmlContent, nil)
-	postDownload := func() {} // no-op
 
-	key, err := getGameKeyImpl(context.Background(), mem, gobCache, season, fetcher, postDownload)
+	key, err := getGameKeyImpl(context.Background(), mem, gobCache, season, fetcher)
 
 	require.NoError(t, err)
 	assert.Equal(t, 423, key)
@@ -132,7 +131,7 @@ func TestGetGameKeyImpl_FetcherError(t *testing.T) {
 
 	fetcher := mockDownloader(nil, assert.AnError)
 
-	_, err := getGameKeyImpl(context.Background(), mem, gobCache, 2023, fetcher, nil)
+	_, err := getGameKeyImpl(context.Background(), mem, gobCache, 2023, fetcher)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fetch game key")

@@ -19,7 +19,7 @@ var draftSyncFlagGroups = []*config.FlagGroup{
 	&config.YahooOAuth2Flags,
 	&config.DataPathFlags,
 	&config.GobCacheFlags,
-	&config.YahooDownloadSleepFlags,
+	&config.YahooRateLimitFlags,
 	&config.DraftSessionFlags,
 	&config.DraftWatchFlags,
 }
@@ -58,6 +58,10 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("create draft cache: %w", err)
 	}
+	yahooLimiter, err := newYahooRateLimiter()
+	if err != nil {
+		return fmt.Errorf("create Yahoo rate limiter: %w", err)
+	}
 	id, err := draftwatch.ResolveIdentity(ctx, pool, viper.GetString(config.FlagDraftSessionLeague), viper.GetInt(config.FlagDraftSeason))
 	if err != nil {
 		return err
@@ -65,7 +69,7 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	repository := draftwatch.NewRepository(pool)
 	runner := draftwatch.Runner{
 		Pool: pool, Repository: repository,
-		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, newYahooDownloader(redisClient)),
+		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, newYahooDownloader(redisClient, yahooLimiter)),
 	}
 	out := cmd.OutOrStdout()
 	if !viper.GetBool(config.FlagDraftWatch) {

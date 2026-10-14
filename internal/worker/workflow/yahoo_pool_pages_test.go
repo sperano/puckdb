@@ -65,11 +65,13 @@ func (b *pageBarrier) wait() {
 // fakePool serves a league pool of players through FetchYahooLeaguePlayersPage
 // and records how the pages were requested. With hold > 0, the first hold
 // pages after the first one go through a pageBarrier. An unavailable pool
-// answers its first page as Yahoo does before the pool opens.
+// answers its first page as Yahoo does before the pool opens. A gate, when
+// set, holds its pages until it opens.
 type fakePool struct {
 	players     int
 	failAt      map[int]bool
 	unavailable bool
+	gate        *pageGate
 
 	mu         sync.Mutex
 	requested  []int
@@ -89,6 +91,9 @@ func (p *fakePool) fetch(_ context.Context, input yahoo.FetchYahooLeaguePlayersP
 		p.barrier.wait()
 	}
 	defer p.leave(input.Start)
+	if p.gate != nil {
+		p.gate.wait(input.Start)
+	}
 	if p.unavailable && input.Start == 0 {
 		return yahoo.FetchYahooLeaguePlayersPageResult{Unavailable: true}, nil
 	}

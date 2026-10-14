@@ -17,7 +17,7 @@ import (
 type FlagDef struct {
 	Name      string
 	Short     string // optional single-char shorthand
-	Default   any    // string, int, or bool
+	Default   any    // string, int, float64, or bool
 	Usage     string
 	Sensitive bool // if true, value is redacted in logs
 }
@@ -42,6 +42,12 @@ func (g *FlagGroup) Init(flags *flag.FlagSet) {
 				flags.IntP(f.Name, f.Short, v, f.Usage)
 			} else {
 				flags.Int(f.Name, v, f.Usage)
+			}
+		case float64:
+			if f.Short != "" {
+				flags.Float64P(f.Name, f.Short, v, f.Usage)
+			} else {
+				flags.Float64(f.Name, v, f.Usage)
 			}
 		case bool:
 			if f.Short != "" {
@@ -192,8 +198,12 @@ const (
 	FlagYahooPlayerPoolMaxAge         = "yahoo-player-pool-max-age"
 	FlagYahooPlayerPoolMaxAgeInSeason = "yahoo-player-pool-max-age-in-season"
 	FlagYahooPoolLeagueConcurrency    = "yahoo-pool-league-concurrency"
-	FlagYahooDownloadSleepMin         = "yahoo-download-sleep-min"
-	FlagYahooDownloadSleepMax         = "yahoo-download-sleep-max"
+)
+
+// Yahoo request rate limiting flags (one token bucket per process)
+const (
+	FlagYahooRateLimit = "yahoo-rate-limit"
+	FlagYahooRateBurst = "yahoo-rate-burst"
 )
 
 // NHL player landing download flags
@@ -234,18 +244,22 @@ const (
 
 // Download workflow flags
 const (
-	FlagGameDownloadConcurrency  = "game-download-concurrency"
-	FlagMaxSeasonConcurrency     = "max-season-concurrency"
-	FlagDayConcurrency           = "day-concurrency"
-	FlagSkipPreseason            = "skip-preseason"
-	FlagRefreshCurrentPlayerLogs = "refresh-current-player-logs"
-	FlagRefreshCurrentEdge       = "refresh-current-edge"
-	FlagReimportDays             = "reimport-days"
-	FlagSeasonConcurrency        = "season-concurrency"
-	FlagMonitor                  = "monitor"
-	FlagSeasonYear               = "season"
-	FlagFromSeasonYear           = "from-season"
-	FlagToSeasonYear             = "to-season"
+	FlagGameDownloadConcurrency = "game-download-concurrency"
+	// FlagYahooTeamDownloadConcurrency caps the Yahoo team downloads (roster,
+	// team summary) one FetchDay activity runs at once. The per-process Yahoo
+	// rate limit (FlagYahooRateLimit) still bounds the request rate.
+	FlagYahooTeamDownloadConcurrency = "yahoo-team-download-concurrency"
+	FlagMaxSeasonConcurrency         = "max-season-concurrency"
+	FlagDayConcurrency               = "day-concurrency"
+	FlagSkipPreseason                = "skip-preseason"
+	FlagRefreshCurrentPlayerLogs     = "refresh-current-player-logs"
+	FlagRefreshCurrentEdge           = "refresh-current-edge"
+	FlagReimportDays                 = "reimport-days"
+	FlagSeasonConcurrency            = "season-concurrency"
+	FlagMonitor                      = "monitor"
+	FlagSeasonYear                   = "season"
+	FlagFromSeasonYear               = "from-season"
+	FlagToSeasonYear                 = "to-season"
 )
 
 // Cache flags
@@ -372,7 +386,7 @@ var TemporalRetryFlags = FlagGroup{
 		{FlagTemporalRetryMaxAttempts, "", DefaultTemporalRetryMaxAttempts, "Maximum number of activity retry attempts (0 for unlimited)", false},
 		{FlagWorkflowExecutionTimeout, "", DefaultWorkflowExecutionTimeout, "Workflow execution timeout in minutes", false},
 		{FlagActivityStartToCloseTimeout, "", DefaultActivityStartToCloseTimeout, "Activity start-to-close timeout in minutes", false},
-		{FlagFetchDayActivityTimeout, "", DefaultFetchDayActivityTimeout, "Fetch day activity timeout in minutes", false},
+		{FlagFetchDayActivityTimeout, "", DefaultFetchDayActivityTimeout, "Timeout in minutes of activities that make rate-limited Yahoo downloads (FetchDay, FetchYahooPlayerBatch, the Yahoo season fetch)", false},
 		{FlagActivityHeartbeatTimeout, "", DefaultActivityHeartbeatTimeout, "Activity heartbeat timeout in seconds", false},
 	},
 }
@@ -425,11 +439,11 @@ var YahooPlayerFlags = FlagGroup{
 	},
 }
 
-// YahooDownloadSleepFlags defines Yahoo download rate limiting flags.
-var YahooDownloadSleepFlags = FlagGroup{
+// YahooRateLimitFlags defines the per-process Yahoo request rate limit.
+var YahooRateLimitFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagYahooDownloadSleepMin, "", DefaultYahooDownloadSleepMin, "Minimum seconds to sleep after each Yahoo API download", false},
-		{FlagYahooDownloadSleepMax, "", DefaultYahooDownloadSleepMax, "Maximum seconds to sleep after each Yahoo API download", false},
+		{FlagYahooRateLimit, "", DefaultYahooRateLimit, "Yahoo requests per second for this process (the deployment's rate is this times its replica count)", false},
+		{FlagYahooRateBurst, "", DefaultYahooRateBurst, "Yahoo requests this process may start back to back after an idle period", false},
 	},
 }
 
@@ -650,6 +664,7 @@ var DownloadConcurrencyFlags = FlagGroup{
 		{FlagMaxSeasonConcurrency, "", DefaultMaxSeasonConcurrency, "Maximum number of seasons to download concurrently", false},
 		{FlagDayConcurrency, "", DefaultDayConcurrency, "Number of days to download concurrently within each season", false},
 		{FlagGameDownloadConcurrency, "", DefaultGameDownloadConcurrency, "Maximum concurrent game file downloads per daily schedule", false},
+		{FlagYahooTeamDownloadConcurrency, "", DefaultYahooTeamDownloadConcurrency, "Maximum concurrent Yahoo roster/team summary downloads per day (the Yahoo rate limit still caps the request rate)", false},
 		{FlagSkipPreseason, "", false, "Skip downloading and importing preseason games", false},
 	},
 }

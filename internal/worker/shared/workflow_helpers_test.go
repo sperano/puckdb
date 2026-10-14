@@ -232,29 +232,30 @@ func TestIsCurrentSeason(t *testing.T) {
 	assert.False(t, IsCurrentSeason(0))
 }
 
-// --- FetchDayActivityOptions ---
+// --- YahooDownloadActivityOptions ---
 
-// FetchDayActivityOptions returns DefaultActivityOptions with a longer
-// StartToCloseTimeout suited for FetchDayActivity (which downloads many
-// files with rate-limit pauses). Verify the timeout differs from the
-// default and respects viper overrides.
-func TestFetchDayActivityOptions_Default(t *testing.T) {
+// YahooDownloadActivityOptions returns DefaultActivityOptions with a longer
+// StartToCloseTimeout suited for activities whose many Yahoo downloads queue
+// behind the rate limiter. Verify the timeout differs from the default and
+// respects viper overrides.
+func TestYahooDownloadActivityOptions_Default(t *testing.T) {
 	// Not parallel: viper.Set is global state.
 	viper.Set(config.FlagFetchDayActivityTimeout, 0)
 	t.Cleanup(func() { viper.Set(config.FlagFetchDayActivityTimeout, 0) })
 
-	opts := FetchDayActivityOptions()
+	opts := YahooDownloadActivityOptions()
 	expected := time.Duration(config.DefaultFetchDayActivityTimeout) * time.Minute
 
 	assert.Equal(t, expected, opts.StartToCloseTimeout)
+	assert.Greater(t, opts.StartToCloseTimeout, time.Duration(config.DefaultActivityStartToCloseTimeout)*time.Minute)
 	require.NotNil(t, opts.RetryPolicy, "RetryPolicy must be inherited from DefaultActivityOptions")
 }
 
-func TestFetchDayActivityOptions_ViperOverride(t *testing.T) {
+func TestYahooDownloadActivityOptions_ViperOverride(t *testing.T) {
 	viper.Set(config.FlagFetchDayActivityTimeout, 45)
 	t.Cleanup(func() { viper.Set(config.FlagFetchDayActivityTimeout, 0) })
 
-	opts := FetchDayActivityOptions()
+	opts := YahooDownloadActivityOptions()
 	assert.Equal(t, 45*time.Minute, opts.StartToCloseTimeout)
 }
 

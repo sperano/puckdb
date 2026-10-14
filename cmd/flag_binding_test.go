@@ -17,6 +17,9 @@ import (
 // flags; it differs from every int flag default.
 const boundIntFlagValue = 4242
 
+// boundFloatFlagValue is the float64 counterpart of boundIntFlagValue.
+const boundFloatFlagValue = "42.5"
+
 // preRunEExceptions are commands with a PreRunE that is not a plain
 // bindFlagsPreRunE: metrics also binds its local port alias.
 var preRunEExceptions = []string{"puckdb metrics"}
@@ -88,6 +91,8 @@ func distinctFlagValue(t *testing.T, f *pflag.Flag) string {
 		return "bound-" + f.Name
 	case "int":
 		return strconv.Itoa(boundIntFlagValue)
+	case "float64":
+		return boundFloatFlagValue
 	case "bool":
 		current, err := strconv.ParseBool(f.Value.String())
 		require.NoError(t, err)

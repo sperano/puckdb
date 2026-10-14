@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/cache"
@@ -16,9 +14,6 @@ import (
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
 )
-
-// metricsAPIYahoo is the `api` label for HTTP metrics recorded against the Yahoo API.
-const metricsAPIYahoo = "yahoo"
 
 // Resource is a Yahoo Fantasy API resource that Fetcher can obtain: it has a
 // storage path, a remote URL, a file type for metrics, and parses to FantasyContent.
@@ -34,8 +29,9 @@ var ErrDownload = errors.New("download from Yahoo failed")
 
 // Fetcher is the single cache-or-download primitive for Yahoo API resources.
 // It reads validated content from the Redis → filesystem cache and, on a miss,
-// downloads, validates, stores the raw XML verbatim, populates Redis, records
-// download metrics and throttles.
+// downloads, validates, stores the raw XML verbatim, populates Redis and records
+// download metrics. Download is expected to apply the process's Yahoo rate
+// limit (shared.NewYahooDownloader does).
 //
 // Raw XML is never written before it parses, so a malformed response cannot
 // become a cache entry. An existing file that no longer parses is reported as
@@ -44,8 +40,6 @@ type Fetcher struct {
 	Storage  store.Storage
 	GobCache *cache.GobCache
 	Download shared.Downloader
-	// Throttle runs after every successful download. Nil means SleepAfterYahooDownload.
-	Throttle func()
 }
 
 // Fetch returns the parsed resource and where it came from: OriginRedis or
@@ -152,15 +146,13 @@ func (f Fetcher) download(ctx context.Context, res Resource, strictCache bool) (
 	}
 	defer release()
 
-	start := time.Now()
+	// The HTTP request itself is timed by httpx.GenericClient; timing it here
+	// would also count the wait for the Yahoo rate limit.
 	raw, err := f.Download(ctx, res.URL())
-	duration := time.Since(start)
 	if err != nil {
-		metrics.ObserveHTTP(metricsAPIYahoo, http.MethodGet, 0, duration, 0)
 		metrics.IncDownload(ft, metrics.ResultError)
 		return nil, core.OriginUnknown, fmt.Errorf("%w: %s: %w", ErrDownload, ft, err)
 	}
-	metrics.ObserveHTTP(metricsAPIYahoo, http.MethodGet, http.StatusOK, duration, len(raw))
 
 	// Validate before storing so a bad response never becomes a cache entry.
 	content, err := res.Parse(raw)
@@ -194,14 +186,5 @@ func (f Fetcher) download(ctx context.Context, res Resource, strictCache bool) (
 	}
 
 	metrics.IncDownload(ft, metrics.ResultMiss)
-	f.throttle()
 	return content, core.OriginRemoteYahooAPI, nil
-}
-
-func (f Fetcher) throttle() {
-	if f.Throttle != nil {
-		f.Throttle()
-		return
-	}
-	SleepAfterYahooDownload()
 }

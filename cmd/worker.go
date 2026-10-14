@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/interceptor"
 	"go.temporal.io/sdk/worker"
 )
 
@@ -53,7 +54,7 @@ var workerFlagGroups = []*config.FlagGroup{
 	&config.DownloadConcurrencyFlags,
 	&config.YahooPlayerFlags,
 	&config.GobCacheFlags,
-	&config.YahooDownloadSleepFlags,
+	&config.YahooRateLimitFlags,
 	&config.WorkerConcurrencyFlags,
 	&config.PlayerLandingFlags,
 	&config.ProcessPlayersFlags,
@@ -170,6 +171,9 @@ func cmdWorker() *cobra.Command {
 				MaxConcurrentActivityTaskPollers:       viper.GetInt(config.FlagWorkerMaxActivityPollers),
 				MaxConcurrentWorkflowTaskExecutionSize: viper.GetInt(config.FlagWorkerMaxWorkflowExecution),
 				MaxConcurrentActivityExecutionSize:     viper.GetInt(config.FlagWorkerMaxActivityExecution),
+				// Keeps an activity's progress in the heartbeats it sends
+				// while waiting for the Yahoo rate limit.
+				Interceptors: []interceptor.WorkerInterceptor{&shared.HeartbeatDetailsInterceptor{}},
 			})
 
 			// Register workflows and activities based on queue type
@@ -272,6 +276,9 @@ type taskActivityDeps struct {
 	gobCache        *cache.GobCache
 	redisClient     *redis.Client
 	yahooDownloader shared.Downloader
+	// yahooPublicDownloader fetches public Yahoo Sports player pages. It
+	// shares yahooDownloader's rate limiter: both count against Yahoo.
+	yahooPublicDownloader shared.Downloader
 }
 
 // registerTasksActivities registers all activities for the tasks queue.
@@ -282,15 +289,20 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	if err != nil {
 		return err
 	}
+	yahooLimiter, err := newYahooRateLimiter()
+	if err != nil {
+		return err
+	}
 
 	d := taskActivityDeps{
-		storage:         newDefaultStorage(),
-		pool:            pool,
-		queries:         sqlcdb.New(pool),
-		nhlClient:       shared.NewNHLClient(),
-		gobCache:        gobCache,
-		redisClient:     redisClient,
-		yahooDownloader: newYahooDownloader(redisClient),
+		storage:               newDefaultStorage(),
+		pool:                  pool,
+		queries:               sqlcdb.New(pool),
+		nhlClient:             shared.NewNHLClient(),
+		gobCache:              gobCache,
+		redisClient:           redisClient,
+		yahooDownloader:       newYahooDownloader(redisClient, yahooLimiter),
+		yahooPublicDownloader: shared.RateLimited(yahooLimiter, httpx.DownloadPublic),
 	}
 
 	registerSimulationActivities(w, pool, d.queries, tclient)
@@ -337,7 +349,7 @@ func registerYahooFetchActivities(w worker.Worker, d taskActivityDeps) {
 		Storage:          d.storage,
 		Download:         d.yahooDownloader,
 		GobCache:         d.gobCache,
-		PublicDownloader: yahoo.HTTPDownloaderFunc(httpx.DownloadPublic),
+		PublicDownloader: yahoo.HTTPDownloaderFunc(d.yahooPublicDownloader),
 	}
 	w.RegisterActivity(fetchYahooActivities.FetchLeague)
 	w.RegisterActivity(fetchYahooActivities.FetchTeams)

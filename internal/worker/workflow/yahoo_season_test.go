@@ -1,14 +1,20 @@
 package workflow
 
 import (
+	"context"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/resource"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -191,4 +197,37 @@ func TestFetchYahooSeasonWorkflow_FailedMatchupWeekLeavesBarIncomplete(t *testin
 	last := history[len(history)-1]
 	assert.Equal(t, 4, last.Current, "metadata, team, transactions, draft results")
 	assert.Equal(t, yahooLeagueUnits(singleLeagueYahooInput().Season.Leagues[0], seasonSyncFetch), last.Total)
+}
+
+// Every Yahoo download of the season fetch waits on the pod's rate limiter
+// behind other activities, so each gets YahooDownloadActivityOptions'
+// StartToClose timeout instead of the default one.
+func TestFetchYahooSeasonWorkflow_DownloadsGetTheYahooDownloadTimeout(t *testing.T) {
+	var mu sync.Mutex
+	remaining := map[string]time.Duration{}
+	pool := newFakePool(poolTestPlayers, 0)
+	run := runPoolFetch(t, pool, poolTestPlayers, func(env *testsuite.TestWorkflowEnvironment) {
+		env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, _ converter.EncodedValues) {
+			mu.Lock()
+			defer mu.Unlock()
+			left := time.Until(info.Deadline)
+			if previous, seen := remaining[info.ActivityType.Name]; !seen || left < previous {
+				remaining[info.ActivityType.Name] = left
+			}
+		})
+	})
+
+	require.NoError(t, run.env.GetWorkflowError())
+	defaultTimeout := shared.DefaultActivityOptions().StartToCloseTimeout
+	require.Greater(t, shared.YahooDownloadActivityOptions().StartToCloseTimeout, defaultTimeout)
+	downloads := []string{"FetchLeague", "FetchTeams", "FetchYahooTransactions", "FetchYahooDraftResults",
+		"FetchYahooMatchupWeek", "FetchYahooLeaguePlayersPage"}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, name := range downloads {
+		left, seen := remaining[name]
+		if assert.True(t, seen, "%s ran", name) {
+			assert.Greater(t, left, defaultTimeout, "%s StartToClose", name)
+		}
+	}
 }

@@ -21,7 +21,7 @@ func TestNewYahooDownloader_ReturnsNonNilFunc(t *testing.T) {
 
 	// Pass nil for the *redis.Client: NewYahooDownloader only captures it in a
 	// closure; the network call is not made here so nil is safe for this test.
-	downloader := NewYahooDownloader(nil, httpx.YahooAuth{})
+	downloader := NewYahooDownloader(nil, httpx.YahooAuth{}, unlimited())
 	assert.NotNil(t, downloader)
 }
 
@@ -30,7 +30,7 @@ func TestNewYahooDownloader_UsesGivenAuth(t *testing.T) {
 
 	// Empty credentials fail before Redis is touched, so nil is safe: the
 	// error proves the downloader checks the auth it was built with.
-	downloader := NewYahooDownloader(nil, httpx.YahooAuth{})
+	downloader := NewYahooDownloader(nil, httpx.YahooAuth{}, unlimited())
 	_, err := downloader(context.Background(), "https://fantasysports.yahooapis.com/fantasy/v2/game/nhl")
 	require.ErrorContains(t, err, "yahoo-oauth2-client-id is empty")
 }

@@ -57,7 +57,7 @@ var apiFlagGroups = []*config.FlagGroup{
 	&config.DraftAPIFlags,
 	&config.DataPathFlags,
 	&config.GobCacheFlags,
-	&config.YahooDownloadSleepFlags,
+	&config.YahooRateLimitFlags,
 	&config.DraftWatchFlags,
 }
 
@@ -145,10 +145,14 @@ func newDraftBoardService(pool *pgxpool.Pool, redisClient *redis.Client) (*draft
 	if err != nil {
 		return nil, fmt.Errorf("create live draft cache: %w", err)
 	}
+	yahooLimiter, err := newYahooRateLimiter()
+	if err != nil {
+		return nil, fmt.Errorf("create Yahoo rate limiter: %w", err)
+	}
 	repository := draftwatch.NewRepository(pool)
 	runner := draftwatch.Runner{
 		Pool: pool, Repository: repository,
-		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, newYahooDownloader(redisClient)),
+		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, newYahooDownloader(redisClient, yahooLimiter)),
 	}
 	interval := time.Duration(viper.GetInt(config.FlagDraftPollInterval)) * time.Second
 	watchOptions := draftwatch.WatchOptions{

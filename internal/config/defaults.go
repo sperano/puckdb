@@ -65,6 +65,11 @@ const (
 	DefaultMaxSeasonConcurrency    = 10
 	DefaultDayConcurrency          = 20
 	DefaultGameDownloadConcurrency = 8
+	// DefaultYahooTeamDownloadConcurrency only matters when the Yahoo rate
+	// limit exceeds what one sequential download loop can use (about one
+	// request per HTTP round trip); at the default 0.25 req/s one loop
+	// already uses every token.
+	DefaultYahooTeamDownloadConcurrency = 4
 )
 
 // Yahoo player download defaults
@@ -76,8 +81,16 @@ const (
 	DefaultYahooPlayerPoolMaxAge         = 12 // hours
 	DefaultYahooPlayerPoolMaxAgeInSeason = 24 // hours
 	DefaultYahooPoolLeagueConcurrency    = 3
-	DefaultYahooDownloadSleepMin         = 5
-	DefaultYahooDownloadSleepMax         = 15
+)
+
+// Yahoo request rate limit defaults. The limit is per process: 16 worker
+// replicas at 0.25 req/s send at most 4 req/s to Yahoo, under the 4.4 req/s
+// the cluster sustained without being throttled (season sync, 2026-10-11);
+// the api process adds its own 0.25 req/s for live draft polls.
+// A burst of 2 lets a live draft poll (status, then results) run back to back.
+const (
+	DefaultYahooRateLimit = 0.25 // requests per second
+	DefaultYahooRateBurst = 2
 )
 
 // NHL player landing download defaults
@@ -226,7 +239,7 @@ const (
 const (
 	DefaultWorkflowExecutionTimeout    = 180 // minutes
 	DefaultActivityStartToCloseTimeout = 10  // minutes
-	DefaultFetchDayActivityTimeout     = 10  // minutes
+	DefaultFetchDayActivityTimeout     = 60  // minutes; Yahoo download activities, see shared.YahooDownloadActivityOptions
 	DefaultActivityHeartbeatTimeout    = 60  // seconds
 	DefaultBackoffCoefficient          = 2.0
 	DefaultSeasonConcurrency           = 5
