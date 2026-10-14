@@ -41,10 +41,11 @@ func (a *Activities) abortIfDone(ctx context.Context, t TurnTelemetry, turn stri
 // The write runs on context.WithoutCancel(ctx), bounded by
 // abortedTurnWriteTimeout: on a done activity context PgxTransactor.InTx
 // would fail at Begin. A turn without a captured round made no model
-// call and writes nothing. It covers a context that ended before the
-// commit started; one ending inside the commit transaction still loses
-// the spend, since the commit may have landed and a second write could
-// count it twice.
+// call and writes nothing. It covers a context that ended by the
+// post-turn check (abortIfDone, or chooseDraftPlayer's for a draft);
+// one ending after that check, up to and inside the commit transaction,
+// still loses the spend, since the commit may have landed and a second
+// write could count it twice.
 //
 // t.Header is marked errored; a header not already errored gets
 // ErrorKindLLMError and cause as its detail. recordAbortedTurn returns
