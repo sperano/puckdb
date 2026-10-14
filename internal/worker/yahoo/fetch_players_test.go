@@ -13,6 +13,7 @@ import (
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/testsuite"
@@ -101,6 +102,88 @@ func TestPlanYahooLeaguePlayerPool_OldManifest_Refreshes(t *testing.T) {
 	assert.True(t, plan.Refresh)
 	assert.Contains(t, plan.Reason, "older than")
 	assert.Equal(t, 7, plan.PreviousPlayerCount, "the old snapshot sizes the new download")
+}
+
+func TestPlanYahooLeaguePlayerPool_SeasonPhaseCadence(t *testing.T) {
+	const (
+		freshManifestAge             = 20 * time.Hour
+		staleManifestAge             = 24*time.Hour + time.Minute
+		expectedPreseasonMaxAgeHours = 12
+		expectedInSeasonMaxAgeHours  = 24
+	)
+	assert.Equal(t, expectedPreseasonMaxAgeHours, config.DefaultYahooPlayerPoolMaxAge)
+	assert.Equal(t, expectedInSeasonMaxAgeHours, config.DefaultYahooPlayerPoolMaxAgeInSeason)
+	tests := []struct {
+		name        string
+		now         time.Time
+		manifestAge time.Duration
+		wantRefresh bool
+		wantMaxAge  time.Duration
+	}{
+		{
+			name:        "day_before_start_uses_preseason_max_age",
+			now:         time.Date(2026, time.October, 5, 12, 0, 0, 0, time.UTC),
+			manifestAge: freshManifestAge,
+			wantRefresh: true,
+			wantMaxAge:  expectedPreseasonMaxAgeHours * time.Hour,
+		},
+		{
+			name:        "day_after_start_uses_in_season_max_age",
+			now:         time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC),
+			manifestAge: freshManifestAge,
+			wantRefresh: false,
+			wantMaxAge:  expectedInSeasonMaxAgeHours * time.Hour,
+		},
+		{
+			name:        "in_season_manifest_older_than_max_age_refreshes",
+			now:         time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC),
+			manifestAge: staleManifestAge,
+			wantRefresh: true,
+			wantMaxAge:  expectedInSeasonMaxAgeHours * time.Hour,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mem := store.NewMemStorage()
+			writeLeagueXML(t, mem, yahoofixtures.PointsSeason, yahoofixtures.PointsLeagueID,
+				yahoofixtures.Read(yahoofixtures.PointsLeague))
+			manifest := resource.LeaguePlayerPool{Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID}
+			require.NoError(t, resource.WriteParsed(context.Background(), mem, manifest, resource.LeaguePlayerPoolManifest{
+				LeagueKey: "465.l.77777", GameKey: yahoofixtures.PointsGameKey,
+				FetchedAt: tt.now.Add(-tt.manifestAge), Starts: []int{0}, Players: 7,
+			}))
+			a := &FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
+
+			plan, err := a.planYahooLeaguePlayerPool(context.Background(), PlanYahooLeaguePlayerPoolInput{
+				Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID,
+			}, tt.now)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantRefresh, plan.Refresh)
+			if tt.wantRefresh {
+				assert.Contains(t, plan.Reason, tt.wantMaxAge.String())
+			} else {
+				assert.Contains(t, plan.Reason, tt.manifestAge.String()+" ago")
+			}
+			assert.Equal(t, 7, plan.PreviousPlayerCount)
+		})
+	}
+}
+
+func TestYahooPlayerPoolMaxAgeSettings(t *testing.T) {
+	const (
+		preseasonHours = 9
+		inSeasonHours  = 30
+	)
+	viper.Set(config.FlagYahooPlayerPoolMaxAge, preseasonHours)
+	viper.Set(config.FlagYahooPlayerPoolMaxAgeInSeason, inSeasonHours)
+	t.Cleanup(viper.Reset)
+
+	league := store.League{StartDate: "2026-10-06"}
+	assert.Equal(t, preseasonHours*time.Hour,
+		yahooPlayerPoolMaxAge(league, time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)))
+	assert.Equal(t, inSeasonHours*time.Hour,
+		yahooPlayerPoolMaxAge(league, time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC)))
 }
 
 func TestPlanYahooLeaguePlayerPool_UnreadableManifest_Refreshes(t *testing.T) {
@@ -272,6 +355,29 @@ func TestLeagueSeasonEnded(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.ended, leagueSeasonEnded(tt.league, tt.now))
+		})
+	}
+}
+
+func TestLeagueRegularSeasonStarted(t *testing.T) {
+	t.Parallel()
+	const startDate = "2026-10-06"
+	tests := []struct {
+		name    string
+		league  store.League
+		now     time.Time
+		started bool
+	}{
+		{"day_before_start", store.League{StartDate: startDate}, time.Date(2026, 10, 5, 23, 59, 0, 0, time.UTC), false},
+		{"start_day", store.League{StartDate: startDate}, time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC), true},
+		{"day_after_start", store.League{StartDate: startDate}, time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC), true},
+		{"unparseable_start_date", store.League{StartDate: "not-a-date"}, fetchPlayersTestNow, false},
+		{"empty_start_date", store.League{}, fetchPlayersTestNow, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.started, leagueRegularSeasonStarted(tt.league, tt.now))
 		})
 	}
 }

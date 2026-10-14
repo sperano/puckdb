@@ -69,14 +69,15 @@ const (
 
 // Yahoo player download defaults
 const (
-	DefaultMaxYahooPlayerID             = 35000
-	DefaultYahooPlayerBatchSize         = 50
-	DefaultYahooPlayerActivityBatchSize = 100
-	DefaultYahooPlayersPerExecution     = 5000
-	DefaultYahooPlayerPoolMaxAge        = 12 // hours
-	DefaultYahooPoolLeagueConcurrency   = 3
-	DefaultYahooDownloadSleepMin        = 5
-	DefaultYahooDownloadSleepMax        = 15
+	DefaultMaxYahooPlayerID              = 35000
+	DefaultYahooPlayerBatchSize          = 50
+	DefaultYahooPlayerActivityBatchSize  = 100
+	DefaultYahooPlayersPerExecution      = 5000
+	DefaultYahooPlayerPoolMaxAge         = 12 // hours
+	DefaultYahooPlayerPoolMaxAgeInSeason = 24 // hours
+	DefaultYahooPoolLeagueConcurrency    = 3
+	DefaultYahooDownloadSleepMin         = 5
+	DefaultYahooDownloadSleepMax         = 15
 )
 
 // NHL player landing download defaults
