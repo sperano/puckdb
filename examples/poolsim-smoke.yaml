@@ -5,7 +5,7 @@
 # shape, but run against the actual 20242025 season already in prod.
 #
 #   ./puckdb sim create --config examples/poolsim-smoke.yaml
-#   ./puckdb sim tail <pool-id>
+#   ./puckdb sim tail --pool <pool-id>
 #
 # Compact roster + maxSeasonDays 30 keeps a llama3.1:8b run in the
 # tens-of-minutes range instead of hours. Ollama models cost $0 in

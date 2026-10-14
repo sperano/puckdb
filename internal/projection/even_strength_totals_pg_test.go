@@ -1,7 +1,6 @@
 package projection
 
-// PostgreSQL-backed coverage for InsertEvenStrengthPairTOIForGame and
-// InsertEvenStrengthSkaterGamesForGame, the per-game build of
+// PostgreSQL-backed coverage for evenstrength.Rebuild, the per-game build of
 // even_strength_pair_toi and even_strength_skater_games run by the shift
 // chart import. The fixture (seedLinemateSegments, shared with
 // linemate_query_test.go) has three even-strength windows in period 1:

@@ -165,6 +165,13 @@ func (c *GraphQLClient) execute(ctx context.Context, query string, variables map
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		// gqlgen answers a query that fails validation (an unknown field on
+		// an older server, a bad argument type) with 422 and a GraphQL
+		// error body; surface its message like a 200 error. Other bodies
+		// (redirects, proxy pages) keep the status-based error.
+		if msg := graphQLErrorMessage(body); msg != "" {
+			return nil, fmt.Errorf("graphql error: %s", msg)
+		}
 		return nil, handleHTTPError(resp.StatusCode, resp.Header.Get("Location"), body)
 	}
 
@@ -182,6 +189,16 @@ func (c *GraphQLClient) execute(ctx context.Context, query string, variables map
 	}
 
 	return &gqlResp, nil
+}
+
+// graphQLErrorMessage returns the first error message of a GraphQL
+// response body, or "" when body is not one or carries no error.
+func graphQLErrorMessage(body []byte) string {
+	var gqlResp graphQLResponse
+	if err := json.Unmarshal(body, &gqlResp); err != nil || len(gqlResp.Errors) == 0 {
+		return ""
+	}
+	return gqlResp.Errors[0].Message
 }
 
 // WorkflowStatus combines result and progress from a workflow query

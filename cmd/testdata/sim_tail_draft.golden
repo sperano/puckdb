@@ -1,0 +1,194 @@
+== backlog all pools
+[14:04:00] pool=2 Llamas (llama3.1:8b)                             daily     2024-11-19  ok       1r  $0.048
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+           r1/0  addPlayer→add_player {"player_id":"8478402"}  validation_rejected  reason=roster_full
+           r1/1  note               {"text":"xééééééééééééééééééééééééééééééééé�...  accepted
+           r2/0  broken             {"player_id":  parse_error
+[14:05:00] pool=1 agent #2                                         team_name             ok       2r  $0.058
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+[14:06:00] pool=1 Sonnet Stars (balanced, claude-sonnet)           daily     2024-11-21  ok       3r  $0.068
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+[14:07:00] pool=2 Llamas (llama3.1:8b)                             daily     2024-11-22  ok       4r  $0.077
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+           r1/0  addPlayer→add_player {"player_id":"8478402"}  validation_rejected  reason=roster_full
+[14:08:00] pool=1 agent #2                                         daily     2024-11-23  errored  1r  $0.087  err=provider_error
+[14:09:00] pool=1 Sonnet Stars (balanced, claude-sonnet)           daily     2024-11-24  ok       2r  $0.098
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+           r1/0  addPlayer→add_player {"player_id":"8478402"}  validation_rejected  reason=roster_full
+           r1/1  note               {"text":"xééééééééééééééééééééééééééééééééé�...  accepted
+           r2/0  broken             {"player_id":  parse_error
+[14:10:00] pool=2 Llamas (llama3.1:8b)                             team_name             ok       3r  $0.007
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+[14:11:00] pool=1 agent #2                                         daily     2024-11-26  ok       4r  $0.018
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+[14:12:00] pool=1 Sonnet Stars (balanced, claude-sonnet)           daily     2024-11-27  ok       1r  $0.028
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+           r1/0  addPlayer→add_player {"player_id":"8478402"}  validation_rejected  reason=roster_full
+[14:13:00] pool=2 Llamas (llama3.1:8b)                             daily     2024-11-28  errored  2r  $0.037  err=provider_error
+== backlog of pool 1 (all of its 9 turns)
+[14:00:00] pool=1 Sonnet Stars (balanced, claude-sonnet)           team_name             ok       1r  $0.007
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+[14:02:00] pool=1 agent #2                                         daily     2024-11-17  ok       3r  $0.028
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+           r1/0  addPlayer→add_player {"player_id":"8478402"}  validation_rejected  reason=roster_full
+[14:03:00] pool=1 Sonnet Stars (balanced, claude-sonnet)           daily     2024-11-18  errored  4r  $0.037  err=provider_error
+[14:05:00] pool=1 agent #2                                         team_name             ok       2r  $0.058
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+[14:06:00] pool=1 Sonnet Stars (balanced, claude-sonnet)           daily     2024-11-21  ok       3r  $0.068
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+[14:08:00] pool=1 agent #2                                         daily     2024-11-23  errored  1r  $0.087  err=provider_error
+[14:09:00] pool=1 Sonnet Stars (balanced, claude-sonnet)           daily     2024-11-24  ok       2r  $0.098
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+           r1/0  addPlayer→add_player {"player_id":"8478402"}  validation_rejected  reason=roster_full
+           r1/1  note               {"text":"xééééééééééééééééééééééééééééééééé�...  accepted
+           r2/0  broken             {"player_id":  parse_error
+[14:11:00] pool=1 agent #2                                         daily     2024-11-26  ok       4r  $0.018
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+[14:12:00] pool=1 Sonnet Stars (balanced, claude-sonnet)           daily     2024-11-27  ok       1r  $0.028
+           r0/0  add_player         {"player_id":8478402,"drop_player_id":8477934}  accepted  tx=1  [Leon Draisaitl, Connor McDavid]
+           r0/1  set_lineup         { "slots": [{"player_id": 8471214, "slot": "C"}, {"player_id": 99999999, "slo...  accepted  [Ovechkin]
+           r1/0  addPlayer→add_player {"player_id":"8478402"}  validation_rejected  reason=roster_full
+== follow all pools
+[15:00:00] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-15  skipped  0r  $0.000
+[15:00:01] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-16  skipped  0r  $0.000
+[15:00:02] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-17  skipped  0r  $0.000
+[15:00:03] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-18  skipped  0r  $0.000
+[15:00:04] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-19  skipped  0r  $0.000
+[15:00:05] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-20  skipped  0r  $0.000
+[15:00:06] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-21  skipped  0r  $0.000
+[15:00:07] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-22  skipped  0r  $0.000
+[15:00:08] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-23  skipped  0r  $0.000
+[15:00:09] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-24  skipped  0r  $0.000
+[15:00:10] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-25  skipped  0r  $0.000
+[15:00:11] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-26  skipped  0r  $0.000
+[15:00:12] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-27  skipped  0r  $0.000
+[15:00:13] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-28  skipped  0r  $0.000
+[15:00:14] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-29  skipped  0r  $0.000
+[15:00:15] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-30  skipped  0r  $0.000
+[15:00:16] pool=2 Llamas (llama3.1:8b)                             daily     2024-12-31  skipped  0r  $0.000
+[15:00:17] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-01  skipped  0r  $0.000
+[15:00:18] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-02  skipped  0r  $0.000
+[15:00:19] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-03  skipped  0r  $0.000
+[15:00:20] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-04  skipped  0r  $0.000
+[15:00:21] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-05  skipped  0r  $0.000
+[15:00:22] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-06  skipped  0r  $0.000
+[15:00:23] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-07  skipped  0r  $0.000
+[15:00:24] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-08  skipped  0r  $0.000
+[15:00:25] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-09  skipped  0r  $0.000
+[15:00:26] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-10  skipped  0r  $0.000
+[15:00:27] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-11  skipped  0r  $0.000
+[15:00:28] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-12  skipped  0r  $0.000
+[15:00:29] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-13  skipped  0r  $0.000
+[15:00:30] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-14  skipped  0r  $0.000
+[15:00:31] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-15  skipped  0r  $0.000
+[15:00:32] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-16  skipped  0r  $0.000
+[15:00:33] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-17  skipped  0r  $0.000
+[15:00:34] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-18  skipped  0r  $0.000
+[15:00:35] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-19  skipped  0r  $0.000
+[15:00:36] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-20  skipped  0r  $0.000
+[15:00:37] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-21  skipped  0r  $0.000
+[15:00:38] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-22  skipped  0r  $0.000
+[15:00:39] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-23  skipped  0r  $0.000
+[15:00:40] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-24  skipped  0r  $0.000
+[15:00:41] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-25  skipped  0r  $0.000
+[15:00:42] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-26  skipped  0r  $0.000
+[15:00:43] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-27  skipped  0r  $0.000
+[15:00:44] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-28  skipped  0r  $0.000
+[15:00:45] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-29  skipped  0r  $0.000
+[15:00:46] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-30  skipped  0r  $0.000
+[15:00:47] pool=2 Llamas (llama3.1:8b)                             daily     2025-01-31  skipped  0r  $0.000
+[15:00:48] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-01  skipped  0r  $0.000
+[15:00:49] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-02  skipped  0r  $0.000
+[15:00:50] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-03  skipped  0r  $0.000
+[15:00:51] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-04  skipped  0r  $0.000
+[15:00:52] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-05  skipped  0r  $0.000
+[15:00:53] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-06  skipped  0r  $0.000
+[15:00:54] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-07  skipped  0r  $0.000
+[15:00:55] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-08  skipped  0r  $0.000
+[15:00:56] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-09  skipped  0r  $0.000
+[15:00:57] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-10  skipped  0r  $0.000
+[15:00:58] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-11  skipped  0r  $0.000
+[15:00:59] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-12  skipped  0r  $0.000
+[15:01:00] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-13  skipped  0r  $0.000
+[15:01:01] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-14  skipped  0r  $0.000
+[15:01:02] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-15  skipped  0r  $0.000
+[15:01:03] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-16  skipped  0r  $0.000
+[15:01:04] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-17  skipped  0r  $0.000
+[15:01:05] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-18  skipped  0r  $0.000
+[15:01:06] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-19  skipped  0r  $0.000
+[15:01:07] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-20  skipped  0r  $0.000
+[15:01:08] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-21  skipped  0r  $0.000
+[15:01:09] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-22  skipped  0r  $0.000
+[15:01:10] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-23  skipped  0r  $0.000
+[15:01:11] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-24  skipped  0r  $0.000
+[15:01:12] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-25  skipped  0r  $0.000
+[15:01:13] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-26  skipped  0r  $0.000
+[15:01:14] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-27  skipped  0r  $0.000
+[15:01:15] pool=2 Llamas (llama3.1:8b)                             daily     2025-02-28  skipped  0r  $0.000
+[15:01:16] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-01  skipped  0r  $0.000
+[15:01:17] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-02  skipped  0r  $0.000
+[15:01:18] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-03  skipped  0r  $0.000
+[15:01:19] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-04  skipped  0r  $0.000
+[15:01:20] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-05  skipped  0r  $0.000
+[15:01:21] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-06  skipped  0r  $0.000
+[15:01:22] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-07  skipped  0r  $0.000
+[15:01:23] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-08  skipped  0r  $0.000
+[15:01:24] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-09  skipped  0r  $0.000
+[15:01:25] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-10  skipped  0r  $0.000
+[15:01:26] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-11  skipped  0r  $0.000
+[15:01:27] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-12  skipped  0r  $0.000
+[15:01:28] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-13  skipped  0r  $0.000
+[15:01:29] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-14  skipped  0r  $0.000
+[15:01:30] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-15  skipped  0r  $0.000
+[15:01:31] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-16  skipped  0r  $0.000
+[15:01:32] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-17  skipped  0r  $0.000
+[15:01:33] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-18  skipped  0r  $0.000
+[15:01:34] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-19  skipped  0r  $0.000
+[15:01:35] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-20  skipped  0r  $0.000
+[15:01:36] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-21  skipped  0r  $0.000
+[15:01:37] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-22  skipped  0r  $0.000
+[15:01:38] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-23  skipped  0r  $0.000
+[15:01:39] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-24  skipped  0r  $0.000
+[15:01:40] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-25  skipped  0r  $0.000
+[15:01:41] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-26  skipped  0r  $0.000
+[15:01:42] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-27  skipped  0r  $0.000
+[15:01:43] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-28  skipped  0r  $0.000
+[15:01:44] pool=2 Llamas (llama3.1:8b)                             daily     2025-03-29  skipped  0r  $0.000
+== draft
+Pool 1 draft results — 3 teams, 5 picks
+
+agent #2
+  R1.P1   C    Ovechkin                   Goals.
+  R2.P4   ?    Pos Less
+
+Sonnet Stars (balanced, claude-sonnet)
+  R1.P2   C    Connor McDavid             Generational talent; unmatched production unmatched production unma...
+  R2.P3   ?    player #0                  no player
+
+Late (punt G)
+  R1.P9   C    Leon Draisaitl             late
+== draft --reasoning
+Pool 1 draft results — 3 teams, 5 picks
+
+agent #2
+  R1.P1   C    Ovechkin                   Goals.
+  R2.P4   ?    Pos Less
+
+Sonnet Stars (balanced, claude-sonnet)
+  R1.P2   C    Connor McDavid             Generational talent; unmatched production unmatched production unmatched production unmatched production unmatched production 
+  R2.P3   ?    player #0                  no player
+
+Late (punt G)
+  R1.P9   C    Leon Draisaitl             late
+== draft of a pool without picks
+Pool 2: no draft picks yet.

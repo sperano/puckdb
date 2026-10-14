@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/evenstrength"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +22,9 @@ const (
 	transactorTestPlayer = 9_960_001
 )
 
-func openTransactorTestDB(t *testing.T) *pgxpool.Pool {
+// migratedTransactorTestURL skips the test unless PUCKDB_TEST_PG_URL is set,
+// migrates that database and returns its URL.
+func migratedTransactorTestURL(t *testing.T) string {
 	t.Helper()
 	dbURL := os.Getenv(transactorTestPGURL)
 	if dbURL == "" {
@@ -29,10 +32,31 @@ func openTransactorTestDB(t *testing.T) *pgxpool.Pool {
 	}
 	require.Contains(t, dbURL, transactorTestMarker, "test database URL must contain %q", transactorTestMarker)
 	require.NoError(t, database.MigrateUp(dbURL))
-	pool, err := pgxpool.New(context.Background(), dbURL)
+	return dbURL
+}
+
+func openTransactorTestDB(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	pool, err := pgxpool.New(context.Background(), migratedTransactorTestURL(t))
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	return pool
+}
+
+// insertTransactorTestGame (re)creates the test game with no shifts and
+// deletes it, with its cascaded even-strength rows, when the test ends.
+func insertTransactorTestGame(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	cleanup := func() {
+		_, err := pool.Exec(context.Background(), `DELETE FROM games WHERE id = $1`, transactorTestGameID)
+		require.NoError(t, err)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+	_, err := pool.Exec(context.Background(), `
+INSERT INTO games (id, season, game_type, game_date, game_state, home_team_id, away_team_id)
+VALUES ($1, 20232024, 'regular_season', '2024-01-10', 'FINAL', 1, 2)`, transactorTestGameID)
+	require.NoError(t, err)
 }
 
 func countTransactorTestPairTOI(t *testing.T, pool *pgxpool.Pool) int {
@@ -46,17 +70,8 @@ func countTransactorTestPairTOI(t *testing.T, pool *pgxpool.Pool) int {
 func TestPgxTransactor_RollsBackRebuildOnError(t *testing.T) {
 	pool := openTransactorTestDB(t)
 	ctx := context.Background()
-	cleanup := func() {
-		_, err := pool.Exec(context.Background(), `DELETE FROM games WHERE id = $1`, transactorTestGameID)
-		require.NoError(t, err)
-	}
-	cleanup()
-	t.Cleanup(cleanup)
+	insertTransactorTestGame(t, pool)
 	_, err := pool.Exec(ctx, `
-INSERT INTO games (id, season, game_type, game_date, game_state, home_team_id, away_team_id)
-VALUES ($1, 20232024, 'regular_season', '2024-01-10', 'FINAL', 1, 2)`, transactorTestGameID)
-	require.NoError(t, err)
-	_, err = pool.Exec(ctx, `
 INSERT INTO even_strength_pair_toi (game_id, player_id, teammate_id, shared_toi_seconds)
 VALUES ($1, $2, $2 + 1::bigint, 30)`, transactorTestGameID, transactorTestPlayer)
 	require.NoError(t, err)
@@ -72,18 +87,7 @@ VALUES ($1, $2, $2 + 1::bigint, 30)`, transactorTestGameID, transactorTestPlayer
 
 	// The game has no shifts, so a committed rebuild leaves it empty.
 	err = tx.InTx(ctx, func(q EvenStrengthTotalsRebuilder) error {
-		if err := q.DeleteEvenStrengthPairTOIForGame(ctx, transactorTestGameID); err != nil {
-			return err
-		}
-		if err := q.DeleteEvenStrengthSkaterGamesForGame(ctx, transactorTestGameID); err != nil {
-			return err
-		}
-		inserted, err := q.InsertEvenStrengthPairTOIForGame(ctx, transactorTestGameID)
-		require.Zero(t, inserted)
-		if err != nil {
-			return err
-		}
-		inserted, err = q.InsertEvenStrengthSkaterGamesForGame(ctx, transactorTestGameID)
+		inserted, err := evenstrength.Rebuild(ctx, q, transactorTestGameID)
 		require.Zero(t, inserted)
 		return err
 	})

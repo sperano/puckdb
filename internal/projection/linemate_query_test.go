@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/evenstrength"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
@@ -168,12 +170,10 @@ INSERT INTO shifts (
 func rebuildEvenStrengthTotals(t *testing.T, pool *pgxpool.Pool, gameID int64) {
 	t.Helper()
 	ctx := context.Background()
-	queries := sqlcdb.New(pool)
-	require.NoError(t, queries.DeleteEvenStrengthPairTOIForGame(ctx, gameID))
-	require.NoError(t, queries.DeleteEvenStrengthSkaterGamesForGame(ctx, gameID))
-	_, err := queries.InsertEvenStrengthPairTOIForGame(ctx, gameID)
-	require.NoError(t, err)
-	_, err = queries.InsertEvenStrengthSkaterGamesForGame(ctx, gameID)
+	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		_, err := evenstrength.Rebuild(ctx, sqlcdb.New(tx), gameID)
+		return err
+	})
 	require.NoError(t, err)
 }
 

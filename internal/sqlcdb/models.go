@@ -1643,6 +1643,15 @@ type NewsMention struct {
 	Candidates    []byte      `json:"candidates"`
 }
 
+type NhlDayImport struct {
+	Season          int32              `json:"season"`
+	Date            pgtype.Date        `json:"date"`
+	ImporterVersion int32              `json:"importer_version"`
+	InputsHash      string             `json:"inputs_hash"`
+	InputFiles      int32              `json:"input_files"`
+	ImportedAt      pgtype.Timestamptz `json:"imported_at"`
+}
+
 type PlayEvent struct {
 	GameID        int64      `json:"game_id"`
 	EventID       int64      `json:"event_id"`

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"go.temporal.io/sdk/workflow"
@@ -111,7 +110,8 @@ func fetchYahooPlayerPoolsSequentially(ctx workflow.Context, startYear int, leag
 }
 
 // fetchYahooPlayerPool downloads one page per activity (each is throttled
-// like every Yahoo download) until a short page, then commits the manifest
+// like every Yahoo download, several run at once: see fetchYahooPoolPages)
+// until a short page, then commits the manifest
 // that makes the pages the league's current snapshot. The download ID, taken
 // from the workflow clock, keeps each download's pages apart. The plan, every
 // page, and the commit each advance the league's bar; the page estimate comes
@@ -135,7 +135,7 @@ func fetchYahooPlayerPool(ctx workflow.Context, startYear, leagueID int, bar yah
 	commit := yahoo.CommitYahooLeaguePlayerPoolInput{
 		Season: startYear, LeagueID: leagueID, DownloadID: fetchedAt.UnixMilli(), FetchedAt: fetchedAt,
 	}
-	unavailable, err := fetchYahooPoolPages(ctx, &commit, bar.estimate(pages))
+	unavailable, err := fetchYahooPoolPages(ctx, &commit, bar.estimate(pages), plan.PreviousPlayerCount)
 	if err != nil {
 		return false, err
 	}
@@ -147,41 +147,6 @@ func fetchYahooPlayerPool(ctx workflow.Context, startYear, leagueID int, bar yah
 	}
 	bar.advance(ctx)
 	return false, nil
-}
-
-// fetchYahooPoolPages downloads pages until a short one, recording each in
-// commit. On failure the page estimate is left as is, so the bar stays
-// incomplete.
-func fetchYahooPoolPages(ctx workflow.Context, commit *yahoo.CommitYahooLeaguePlayerPoolInput,
-	pages *yahooEstimate) (bool, error) {
-	var act *yahoo.FetchActivities
-	for page := 0; ; page++ {
-		if page == yahoo.MaxLeaguePlayerPoolPages {
-			return false, fmt.Errorf("pool has more than %d pages", yahoo.MaxLeaguePlayerPoolPages)
-		}
-		pages.beforeCall(ctx)
-		start := page * resource.LeaguePlayersPageSize
-		var result yahoo.FetchYahooLeaguePlayersPageResult
-		pageInput := yahoo.FetchYahooLeaguePlayersPageInput{
-			Season: commit.Season, LeagueID: commit.LeagueID, DownloadID: commit.DownloadID, Start: start,
-		}
-		if err := workflow.ExecuteActivity(ctx, act.FetchYahooLeaguePlayersPage, pageInput).Get(ctx, &result); err != nil {
-			return false, err
-		}
-		pages.afterCall(ctx)
-		if result.Unavailable {
-			pages.finish(ctx)
-			pages.bar.resize(ctx, -yahooPoolCommitUnits)
-			return true, nil
-		}
-		commit.LeagueKey, commit.GameKey = result.LeagueKey, result.GameKey
-		commit.Starts = append(commit.Starts, start)
-		commit.Players += result.Players
-		if result.Players < resource.LeaguePlayersPageSize {
-			pages.finish(ctx)
-			return false, nil
-		}
-	}
 }
 
 // importYahooPlayerPools imports each API league's latest pool snapshot and

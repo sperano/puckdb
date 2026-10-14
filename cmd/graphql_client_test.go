@@ -96,3 +96,36 @@ func TestNewGraphQLClient_DefaultEndpoint(t *testing.T) {
 	client := NewGraphQLClient(config.DefaultAPIServerAddr)
 	require.Equal(t, wantBaseURL+"/graphql/query", client.endpoint)
 }
+
+// A non-200 GraphQL error body (gqlgen answers a query that fails
+// validation with 422) surfaces its message; any other body keeps the
+// status-based error.
+func TestGraphQLClientNon200Errors(t *testing.T) {
+	cases := []struct {
+		name    string
+		status  int
+		body    string
+		wantErr string
+	}{
+		{"graphql error body", http.StatusUnprocessableEntity,
+			`{"errors":[{"message":"Cannot query field \"x\" on type \"Query\"."}],"data":null}`,
+			`graphql error: Cannot query field "x" on type "Query".`},
+		{"proxy page", http.StatusBadGateway, `<html>bad gateway</html>`,
+			"unexpected status code 502: <html>bad gateway</html>"},
+		{"json without errors", http.StatusInternalServerError, `{"data":null}`,
+			`unexpected status code 500: {"data":null}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer srv.Close()
+			c := NewGraphQLClient("http://placeholder")
+			c.endpoint = srv.URL
+			_, err := c.execute(context.Background(), "{ x }", nil)
+			require.EqualError(t, err, tc.wantErr)
+		})
+	}
+}

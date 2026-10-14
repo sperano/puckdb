@@ -313,7 +313,7 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_Success() {
 
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
-	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
+	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 
@@ -348,7 +348,7 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_ChildWorkflow
 
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
-	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, expectedErr)
+	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything, mock.Anything).Return(core.OriginCounts{}, expectedErr)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 
@@ -387,7 +387,7 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_MultipleSeaso
 
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
-	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
+	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 
@@ -411,7 +411,7 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_WithConcurren
 
 	var sa *worknhl.SeasonsActivities
 	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, input).Return(result, nil)
-	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
+	s.env.OnWorkflow(ImportNHLSeasonWorkflow, mock.Anything, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil)
 
 	s.env.ExecuteWorkflow(ImportSeasonsWorkflow, input)
 

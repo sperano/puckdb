@@ -146,7 +146,7 @@ func TestCollectSummaryParams_NoFiles(t *testing.T) {
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
 	teams := []TeamInfo{{LeagueID: 1, TeamID: 1}}
 
-	summaryParams := a.collectSummaryParams(
+	summaryParams, _ := a.collectSummaryParams(
 		context.Background(),
 		teams,
 		time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
@@ -180,7 +180,7 @@ func TestCollectSummaryParams_ValidFile(t *testing.T) {
 	res := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
 	require.NoError(t, mem.Write(context.Background(), res.Path(), xmlContent))
 
-	summaryParams := a.collectSummaryParams(
+	summaryParams, _ := a.collectSummaryParams(
 		context.Background(),
 		teams,
 		date,
@@ -214,7 +214,7 @@ func TestCollectSummaryParams_MultipleTeams(t *testing.T) {
 		require.NoError(t, mem.Write(context.Background(), res.Path(), xmlContent))
 	}
 
-	summaryParams := a.collectSummaryParams(
+	summaryParams, _ := a.collectSummaryParams(
 		context.Background(),
 		teams,
 		date,
@@ -234,7 +234,7 @@ func TestCollectRosterParams_NoFiles(t *testing.T) {
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
 	teams := []TeamInfo{{LeagueID: 1, TeamID: 1}}
 
-	params := a.collectRosterParams(
+	params, _ := a.collectRosterParams(
 		context.Background(),
 		teams,
 		time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
@@ -284,7 +284,7 @@ func TestCollectRosterParams_ValidFile(t *testing.T) {
 	res := resource.Roster{LeagueID: 12345, TeamID: 1, Date: date}
 	require.NoError(t, mem.Write(context.Background(), res.Path(), xmlContent))
 
-	params := a.collectRosterParams(
+	params, _ := a.collectRosterParams(
 		context.Background(),
 		teams,
 		date,
@@ -394,4 +394,24 @@ func TestAssignStatField(t *testing.T) {
 		assert.Equal(t, sqlcdb.UpsertYahooTeamSummaryBatchParams{}, p,
 			"unknown stat ID must not mutate any field")
 	})
+}
+
+func TestCollectParams_CountUnreadableFiles(t *testing.T) {
+	t.Parallel()
+
+	mem := store.NewMemStorage()
+	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
+	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	teams := []TeamInfo{{LeagueID: 1, TeamID: 1}, {LeagueID: 1, TeamID: 2}}
+	garbage := []byte("<not xml")
+	require.NoError(t, mem.Write(context.Background(), resource.Roster{LeagueID: 1, TeamID: 1, Date: date}.Path(), garbage))
+	require.NoError(t, mem.Write(context.Background(), resource.TeamSummary{LeagueID: 1, TeamID: 1, Date: date}.Path(), garbage))
+
+	rosters, rosterFailures := a.collectRosterParams(context.Background(), teams, date, make(core.OriginCounts))
+	summaries, summaryFailures := a.collectSummaryParams(context.Background(), teams, date, make(core.OriginCounts))
+
+	assert.Empty(t, rosters)
+	assert.Empty(t, summaries)
+	assert.Equal(t, 1, rosterFailures, "team 2 has no file, which is not a failure")
+	assert.Equal(t, 1, summaryFailures)
 }

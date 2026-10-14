@@ -9,6 +9,12 @@ SELECT * FROM players WHERE id = $1;
 -- needing a specific order must index the result by id themselves.
 SELECT * FROM players WHERE id = ANY(sqlc.arg('ids')::bigint[]);
 
+-- name: ListPlayerNamesByIDs :many
+-- Names only, for decorating ids found in free-form text (sim tail
+-- tool-call arguments). Ids with no player row are simply absent, which
+-- is normal there: models invent ids. Order is not guaranteed.
+SELECT id, first_name, last_name FROM players WHERE id = ANY(sqlc.arg('ids')::bigint[]);
+
 -- name: GetPlayerByYahooID :one
 SELECT * FROM players WHERE yahoo_id = $1;
 

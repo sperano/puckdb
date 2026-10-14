@@ -74,12 +74,13 @@ const (
 
 // Yahoo player download defaults
 const (
-	DefaultMaxYahooPlayerID             = 35000
-	DefaultYahooPlayerBatchSize         = 50
-	DefaultYahooPlayerActivityBatchSize = 100
-	DefaultYahooPlayersPerExecution     = 5000
-	DefaultYahooPlayerPoolMaxAge        = 12 // hours
-	DefaultYahooPoolLeagueConcurrency   = 3
+	DefaultMaxYahooPlayerID              = 35000
+	DefaultYahooPlayerBatchSize          = 50
+	DefaultYahooPlayerActivityBatchSize  = 100
+	DefaultYahooPlayersPerExecution      = 5000
+	DefaultYahooPlayerPoolMaxAge         = 12 // hours
+	DefaultYahooPlayerPoolMaxAgeInSeason = 24 // hours
+	DefaultYahooPoolLeagueConcurrency    = 3
 )
 
 // Yahoo request rate limit defaults. The limit is per process: 16 worker
@@ -312,6 +313,10 @@ const (
 	DefaultDraftWorkloadCaps       = false
 	DefaultDraftUncertaintyPenalty = "" // no penalty
 )
+
+// DefaultReimportDays leaves NHL days whose cached files and importer
+// version are unchanged since their last import alone.
+const DefaultReimportDays = false
 
 // Player news defaults (draft helper)
 const (

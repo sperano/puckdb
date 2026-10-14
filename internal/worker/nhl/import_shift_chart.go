@@ -9,6 +9,7 @@ import (
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/evenstrength"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -31,10 +32,10 @@ type ImportShiftChartForDateResult struct {
 
 // ImportShiftChartForDate imports shift chart data for all games on a given
 // date. After a game's shifts are upserted, its even_strength_pair_toi and
-// even_strength_skater_games rows are rebuilt from the stored shifts and the
-// game's box-score rows, so box scores must be imported first (ImportDay
-// does). Every step is idempotent, so a retried activity converges on the
-// same rows.
+// even_strength_skater_games rows are rebuilt from the stored shifts, the
+// game's box-score rows and its goals, so box scores and play-by-play must
+// be imported first (ImportDay does). Every step is idempotent, so a
+// retried activity converges on the same rows.
 func (a *ImportActivities) ImportShiftChartForDate(ctx context.Context, input ImportShiftChartForDateInput) (ImportShiftChartForDateResult, error) {
 	defer metrics.TrackActivityDuration("ImportShiftChartForDate")()
 
@@ -119,25 +120,11 @@ func (a *ImportActivities) importGameShiftChart(ctx context.Context, date time.T
 // half-built game and a retry after a failure at any point rebuilds the same
 // rows. It returns the total rows inserted across both tables.
 func (a *ImportActivities) rebuildEvenStrengthTotals(ctx context.Context, gameID nhlapi.GameID) (int64, error) {
-	id := int64(gameID)
 	var inserted int64
 	err := a.Tx.InTx(ctx, func(q EvenStrengthTotalsRebuilder) error {
-		if err := q.DeleteEvenStrengthPairTOIForGame(ctx, id); err != nil {
-			return fmt.Errorf("delete pair toi: %w", err)
-		}
-		if err := q.DeleteEvenStrengthSkaterGamesForGame(ctx, id); err != nil {
-			return fmt.Errorf("delete skater games: %w", err)
-		}
-		pairs, err := q.InsertEvenStrengthPairTOIForGame(ctx, id)
-		if err != nil {
-			return fmt.Errorf("insert pair toi: %w", err)
-		}
-		skaterGames, err := q.InsertEvenStrengthSkaterGamesForGame(ctx, id)
-		if err != nil {
-			return fmt.Errorf("insert skater games: %w", err)
-		}
-		inserted = pairs + skaterGames
-		return nil
+		var err error
+		inserted, err = evenstrength.Rebuild(ctx, q, int64(gameID))
+		return err
 	})
 	if err != nil {
 		return 0, fmt.Errorf("rebuild even-strength totals for game %s: %w", gameID.String(), err)
