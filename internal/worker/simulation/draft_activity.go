@@ -123,6 +123,10 @@ const (
 //     (the retry then pauses at most once; see pauseForCostCap) or
 //     the commit
 //   - The fallback also returned 0 (truly no draftable player exists)
+//   - The activity context ended during the turn
+//
+// The last two still add the rounds the model billed to the pool
+// total, without a pick (see recordAbortedTurn).
 func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPickResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("DraftPick start",
@@ -165,7 +169,8 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 
 	pick, err := a.chooseDraftPlayer(ctx, in)
 	if err != nil {
-		return DraftPickResult{}, err
+		// No pick to commit, but the rounds that ran were billed.
+		return DraftPickResult{}, a.recordAbortedTurn(ctx, draftTurnTelemetry(in, pick, recordMessages), err)
 	}
 
 	if err := a.commitDraftPick(ctx, in, pick, recordMessages); err != nil {
@@ -371,7 +376,9 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 		activity.GetLogger(ctx).Warn("DraftPick agentloop failed", "err", runErr.Error())
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return result, ctxErr
+		// The activity ended mid-turn: DraftPick records the billed
+		// rounds without a pick, and the retry replays the turn.
+		return result, fmt.Errorf("simulation: draft turn aborted: %w", ctxErr)
 	}
 
 	if result.playerID != 0 {
@@ -429,8 +436,6 @@ func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pic
 		return fmt.Errorf("simulation: encode pick cost: %w", err)
 	}
 
-	messages := transcriptForRecording(recordMessages, pick.res)
-
 	return a.Tx.InTx(ctx, func(q SimQueries) error {
 		if err := q.InsertSimRoster(ctx, sqlcdb.InsertSimRosterParams{
 			PoolID:      in.PoolID,
@@ -483,18 +488,23 @@ func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pic
 			}
 		}
 
-		header := draftTurnHeader(in, pick)
-		if _, err := RecordTurnTelemetry(ctx, q, TurnTelemetry{
-			Header:         header,
-			Captures:       pick.captures,
-			ToolCalls:      pick.toolCaptures,
-			Messages:       messages,
-			RecordMessages: recordMessages,
-		}); err != nil {
+		if _, err := RecordTurnTelemetry(ctx, q, draftTurnTelemetry(in, pick, recordMessages)); err != nil {
 			return err
 		}
 		return nil
 	})
+}
+
+// draftTurnTelemetry is the telemetry of one draft turn, shared by the
+// commit and the aborted-turn write.
+func draftTurnTelemetry(in DraftPickInput, pick chooseResult, recordMessages bool) TurnTelemetry {
+	return TurnTelemetry{
+		Header:         draftTurnHeader(in, pick),
+		Captures:       pick.captures,
+		ToolCalls:      pick.toolCaptures,
+		Messages:       transcriptForRecording(recordMessages, pick.res),
+		RecordMessages: recordMessages,
+	}
 }
 
 // draftTurnHeader builds the TurnHeader for a draft pick. Status reflects

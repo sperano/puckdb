@@ -79,7 +79,9 @@ const MaxStrategySummaryChars = 30
 //     Temporal retry paid a second time for the same name.
 //  3. Atomic commit (persistTeamNameTurn). The team_name write, the
 //     durable pool-cost increment and the telemetry trace land in one
-//     transaction — all three or none.
+//     transaction — all three or none. If the activity context ended
+//     during the turn, recordAbortedTurn writes only the increment and
+//     an errored trace instead, never the name.
 //
 // Idempotent: RecordTurnTelemetry deletes any prior sim_agent_turns row
 // at the same (pool, agent, phase=team_name) coordinate inside the
@@ -119,11 +121,17 @@ func (a *Activities) PickTeamName(ctx context.Context, in PickTeamNameInput) (Pi
 	if err != nil {
 		return PickTeamNameResult{}, err
 	}
+	header := teamNameTurnHeader(in, turn)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		// The activity ended mid-turn: keep only what the turn billed,
+		// never a name the retry would then adopt.
+		return PickTeamNameResult{}, a.recordAbortedTurn(ctx, teamNameTurnTelemetry(header, turn, recordMessages),
+			fmt.Errorf("simulation: team-name turn aborted: %w", ctxErr))
+	}
 
 	// Persist before branching on the outcome: both failure arms
 	// consumed tokens, so their cost and rejected tool calls have to
 	// reach the DB even though the activity is about to error.
-	header := teamNameTurnHeader(in, turn)
 	if err := a.persistTeamNameTurn(ctx, in, header, turn, recordMessages); err != nil {
 		return PickTeamNameResult{}, err
 	}
@@ -409,8 +417,6 @@ func (a *Activities) persistTeamNameTurn(
 		return fmt.Errorf("simulation: encode team-name cost: %w", err)
 	}
 
-	messages := transcriptForRecording(recordMessages, turn.res)
-
 	return a.Tx.InTx(ctx, func(q SimQueries) error {
 		// team_name is written ONLY on the ok path: it doubles as this
 		// activity's committed-result marker, so setting it for an
@@ -431,15 +437,21 @@ func (a *Activities) persistTeamNameTurn(
 		}); err != nil {
 			return fmt.Errorf("increment llm cost: %w", err)
 		}
-		if _, err := RecordTurnTelemetry(ctx, q, TurnTelemetry{
-			Header:         header,
-			Captures:       turn.captures,
-			ToolCalls:      turn.toolCaptures,
-			Messages:       messages,
-			RecordMessages: recordMessages,
-		}); err != nil {
+		if _, err := RecordTurnTelemetry(ctx, q, teamNameTurnTelemetry(header, turn, recordMessages)); err != nil {
 			return err
 		}
 		return nil
 	})
+}
+
+// teamNameTurnTelemetry is the telemetry of one team-name turn, shared
+// by the commit and the aborted-turn write.
+func teamNameTurnTelemetry(header TurnHeader, turn teamNameTurn, recordMessages bool) TurnTelemetry {
+	return TurnTelemetry{
+		Header:         header,
+		Captures:       turn.captures,
+		ToolCalls:      turn.toolCaptures,
+		Messages:       transcriptForRecording(recordMessages, turn.res),
+		RecordMessages: recordMessages,
+	}
 }

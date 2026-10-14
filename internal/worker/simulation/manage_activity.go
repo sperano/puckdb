@@ -120,7 +120,9 @@ const SkipReasonAlreadyManaged = "already_managed"
 
 // ManageRoster is the Temporal-activity entry point. Always returns
 // nil error on the success paths (including the "agent failed but we
-// logged it" path); only DB / build-agent failures abort.
+// logged it" path); only DB / build-agent failures and the activity
+// context ending mid-turn abort. The last still adds the billed rounds
+// to the pool total (see recordAbortedTurn).
 func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (ManageRosterResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("ManageRoster start",
@@ -167,6 +169,13 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 	}
 
 	outcome := a.runDailyAgent(ctx, agent, in)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		// The activity ended mid-turn (deadline, worker shutdown,
+		// cancellation): keep only what the turn billed. Its actions
+		// and the day marker stay unwritten, so the retry replays it.
+		return ManageRosterResult{}, a.recordAbortedTurn(ctx, dailyTurnTelemetry(in, outcome, recordMessages),
+			fmt.Errorf("simulation: daily turn aborted: %w", ctxErr))
+	}
 
 	if err := a.commitDailyTurn(ctx, in, outcome, recordMessages); err != nil {
 		return ManageRosterResult{}, err
@@ -553,8 +562,6 @@ func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, 
 		return fmt.Errorf("simulation: encode cost: %w", err)
 	}
 
-	messages := transcriptForRecording(recordMessages, outcome.res)
-
 	return a.Tx.InTx(ctx, func(q SimQueries) error {
 		// Commit-time revalidation: an add validated against the morning
 		// FA snapshot can lose to another agent who took the same player
@@ -620,18 +627,23 @@ func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, 
 
 		// Turn telemetry — landed inside the same tx as the action rows
 		// so a crash mid-commit leaves all-or-nothing state.
-		header := dailyTurnHeader(in, outcome)
-		if _, err := RecordTurnTelemetry(ctx, q, TurnTelemetry{
-			Header:         header,
-			Captures:       outcome.captures,
-			ToolCalls:      outcome.toolCaptures,
-			Messages:       messages,
-			RecordMessages: recordMessages,
-		}); err != nil {
+		if _, err := RecordTurnTelemetry(ctx, q, dailyTurnTelemetry(in, outcome, recordMessages)); err != nil {
 			return err
 		}
 		return nil
 	})
+}
+
+// dailyTurnTelemetry is the telemetry of one daily turn, shared by the
+// commit and the aborted-turn write.
+func dailyTurnTelemetry(in ManageRosterInput, outcome dailyOutcome, recordMessages bool) TurnTelemetry {
+	return TurnTelemetry{
+		Header:         dailyTurnHeader(in, outcome),
+		Captures:       outcome.captures,
+		ToolCalls:      outcome.toolCaptures,
+		Messages:       transcriptForRecording(recordMessages, outcome.res),
+		RecordMessages: recordMessages,
+	}
 }
 
 // dailyTurnHeader builds the TurnHeader for a daily ManageRoster turn.

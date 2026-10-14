@@ -259,7 +259,7 @@ func TestIntegrationCostCapOverlappingAttemptsPauseOnce(t *testing.T) {
 
 	attemptB := manageRosterAsync(f.acts, f.manageInput(f.agents[1], costCapDayOne, costCapUsd))
 	attemptC := manageRosterAsync(f.acts, f.manageInput(f.agents[2], costCapDayOne, costCapUsd))
-	waitForLockWaiters(t, ctx, pgPool, 2)
+	waitForLockWaiters(t, ctx, pgPool, txA, 2)
 	select {
 	case b := <-attemptB:
 		t.Fatalf("attempt B finished while A held the pool row: %+v", b)
@@ -292,7 +292,7 @@ func TestIntegrationCostCapOverlappingAttemptAfterRollbackPauses(t *testing.T) {
 	pauseInTx(t, ctx, txA, f.poolID, f.agents[0])
 
 	attemptB := manageRosterAsync(f.acts, f.manageInput(f.agents[1], costCapDayOne, costCapUsd))
-	waitForLockWaiter(t, ctx, pgPool)
+	waitForLockWaiter(t, ctx, pgPool, txA)
 	require.NoError(t, txA.Rollback(ctx))
 
 	b := awaitManageAttempt(t, attemptB)
@@ -435,4 +435,52 @@ func TestIntegrationTurnCostsMatchPoolTotal(t *testing.T) {
 	assert.EqualValues(t, len(teamName)+len(draft)+len(daily), f.llm.calls.Load(), "no model call once the cap is reached")
 	assertPausedOnce(t, ctx, pgPool, f.poolID, agentID, spent, spent)
 	assert.InDelta(t, spent, poolSpend(t, ctx, pgPool, f.poolID), costDelta, "a refused turn adds no spend")
+}
+
+// An attempt cut off after a billed round (StartToClose deadline, worker
+// shutdown) still adds that round to the pool total, through a real
+// transaction opened after the activity context ended, and writes no day
+// marker. The retry runs the day; the pool total then holds both
+// attempts while the retry's turn row replaces the aborted one.
+func TestIntegrationAbortedTurnSpendReachesPoolTotal(t *testing.T) {
+	pgPool := requireIntegrationEnv(t)
+	ctx := context.Background()
+	f := newCostCapFixture(t, ctx, pgPool, "costcap_aborted")
+	agentID := f.agents[0]
+	in := f.manageInput(agentID, costCapDayOne, costCapNoLimitUsd)
+
+	cutOff := usageRound(dailyToolResponse(ToolUpdateNotes, `{"notes":"cut off"}`, ""), 1)
+	env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+	aborting := &Activities{Queries: f.acts.Queries, Tx: f.acts.Tx}
+	cancelDuringTurn(t, env, aborting, cutOff)
+	env.RegisterActivity(aborting.ManageRoster)
+	_, err := env.ExecuteActivity(aborting.ManageRoster, in)
+	require.ErrorContains(t, err, "daily turn aborted")
+
+	abortedCost := EstimateCost(costCapAgent.Provider, costCapAgent.Model, *cutOff.Usage)
+	require.Greater(t, abortedCost, 0.0)
+	assert.InDelta(t, abortedCost, poolSpend(t, ctx, pgPool, f.poolID), costDelta, "the billed round reached the pool total")
+	assert.Zero(t, dailyMarkers(t, ctx, pgPool, f.poolID), "no marker: the retry must run the day")
+	var status string
+	require.NoError(t, pgPool.QueryRow(ctx,
+		`SELECT status FROM sim_agent_turns WHERE pool_id = $1`, f.poolID).Scan(&status))
+	assert.Equal(t, string(TurnStatusErrored), status)
+
+	f.llm.responses = []*llm.Response{usageRound(finalTextResponse("retried"), 2)}
+	managed, err := runSimActivity[ManageRosterResult](f.acts.ManageRoster, in)
+	require.NoError(t, err)
+	assert.InDelta(t, abortedCost+managed.CostUsd, poolSpend(t, ctx, pgPool, f.poolID), costDelta, "both attempts billed")
+	assert.Equal(t, 1, dailyMarkers(t, ctx, pgPool, f.poolID))
+	require.NoError(t, pgPool.QueryRow(ctx,
+		`SELECT status FROM sim_agent_turns WHERE pool_id = $1`, f.poolID).Scan(&status))
+	assert.Equal(t, string(TurnStatusOK), status, "the retry's turn row replaced the aborted one")
+}
+
+// dailyMarkers counts the pool's daily_turn_done rows.
+func dailyMarkers(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, poolID int32) int {
+	t.Helper()
+	var n int
+	require.NoError(t, pgPool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM sim_transactions WHERE pool_id = $1 AND type = 'daily_turn_done'`, poolID).Scan(&n))
+	return n
 }

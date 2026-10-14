@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
@@ -161,31 +162,42 @@ func processWaiversAsync(pgPool *pgxpool.Pool, in ProcessWaiversInput) <-chan wa
 	return done
 }
 
-// waitForLockWaiter blocks until some other session is waiting on a lock
-// in the test database: the second attempt, parked behind the first
-// attempt's open transaction (on LockSimPool, unless that lock is missing).
-func waitForLockWaiter(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool) {
+// waitForLockWaiter blocks until another session is queued behind the
+// blocker transaction's locks: the second attempt, parked behind the
+// first attempt's open transaction (on LockSimPool, unless that lock is
+// missing).
+func waitForLockWaiter(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, blocker pgx.Tx) {
 	t.Helper()
-	waitForLockWaiters(t, ctx, pgPool, 1)
+	waitForLockWaiters(t, ctx, pgPool, blocker, 1)
 }
 
-// waitForLockWaiters blocks until at least n other sessions are waiting
-// on a lock in the test database.
-func waitForLockWaiters(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, n int) {
+// waitForLockWaiters blocks until at least n sessions are queued behind
+// the blocker transaction's locks, directly or behind another session
+// that is: a second waiter on a row queues behind the first waiter's
+// tuple lock rather than behind the blocker itself. Sessions waiting on
+// anything else in the database do not count.
+func waitForLockWaiters(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, blocker pgx.Tx, n int) {
 	t.Helper()
+	var blockerPID int32
+	require.NoError(t, blocker.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&blockerPID))
 	deadline := time.Now().Add(lockWaitTimeout)
 	for time.Now().Before(deadline) {
 		var waiting int
 		require.NoError(t, pgPool.QueryRow(ctx, `
-			SELECT COUNT(*) FROM pg_stat_activity
-			WHERE datname = current_database() AND pid <> pg_backend_pid()
-			  AND wait_event_type = 'Lock'`).Scan(&waiting))
+			WITH RECURSIVE waiters(pid) AS (
+				SELECT pid FROM pg_stat_activity
+				WHERE $1::int = ANY (pg_blocking_pids(pid))
+				UNION
+				SELECT a.pid FROM pg_stat_activity a
+				JOIN waiters w ON w.pid = ANY (pg_blocking_pids(a.pid))
+			)
+			SELECT COUNT(*) FROM waiters`, blockerPID).Scan(&waiting))
 		if waiting >= n {
 			return
 		}
 		time.Sleep(lockPollInterval)
 	}
-	t.Fatalf("fewer than %d sessions waited on a lock within %s", n, lockWaitTimeout)
+	t.Fatalf("fewer than %d sessions waited behind backend %d within %s", n, blockerPID, lockWaitTimeout)
 }
 
 func awaitAttempt(t *testing.T, done <-chan waiverAttempt) waiverAttempt {
@@ -220,7 +232,7 @@ func TestIntegrationWaiverOverlappingAttemptKeepsWin(t *testing.T) {
 	assert.Equal(t, 1, resA.ClaimsLost)
 
 	attemptB := processWaiversAsync(pgPool, f.in)
-	waitForLockWaiter(t, ctx, pgPool)
+	waitForLockWaiter(t, ctx, pgPool, txA)
 	select {
 	case b := <-attemptB:
 		t.Fatalf("attempt B finished while A held the pool lock: %+v", b)
