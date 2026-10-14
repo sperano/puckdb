@@ -2,41 +2,37 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/graph"
 	"github.com/spf13/cobra"
 )
 
 // ============================================================================
-// `puckdb sim tail` — stream the simulation telemetry tables to stdout.
+// `puckdb sim tail` — stream the simulation turn telemetry to stdout.
 //
-// Reads `sim_agent_turns` (one row per LLM-driven turn) and prints each
-// turn followed by its `sim_agent_tool_calls` rows (indented). Default
-// behavior is tail -f-style: print the most recent N turns for context,
-// then poll every poll interval for new turns and print them as they
-// commit.
+// Reads the API's simTurnFeed query (sim_agent_turns plus their
+// sim_agent_tool_calls) and prints each turn followed by its tool calls
+// (indented). Default behavior is tail -f-style: print the most recent N
+// turns for context, then poll every poll interval for new turns and print
+// them as they commit.
 //
 // Tailing is driven by a monotonic watermark on `sim_agent_turns.id`
 // (SERIAL). Caveat: a SERIAL id is assigned at INSERT time but only
-// visible at COMMIT time, so two interleaved transactions could in
-// principle make rows appear in id-reverse order. For the simulator
-// this is exceedingly unlikely (turns commit atomically, one per agent
-// at a time) — a bulletproof tail would need logical replication or a
-// snapshot-based approach. We accept the simplification.
+// visible at COMMIT time, so a turn whose transaction commits after a
+// higher id has been printed is never shown. That is not rare: every
+// agent of a pool picks its team name concurrently, and a tail without
+// --pool sees every running pool's turns. A gap-free tail would need a
+// look-back window or logical replication; the tail accepts the gap.
 // ============================================================================
 
-// tailPollInterval is the cadence between SELECTs in follow mode. Turns
-// happen on the order of seconds (LLM latency dominates), so 1s gives
-// near-real-time updates without spamming the DB.
+// tailPollInterval is the cadence between feed requests in follow mode.
+// Turns happen on the order of seconds (LLM latency dominates), so 1s
+// gives near-real-time updates without spamming the API.
 const tailPollInterval = 1 * time.Second
 
 // tailBacklog is how many recent turns to print on startup before
@@ -46,13 +42,15 @@ const tailBacklog = 10
 
 // tailArgPreviewMax is the maximum number of characters of a tool
 // call's argument blob to print before truncating with an ellipsis.
-// Keeps lines readable while preserving the gist of small calls.
+// Keeps lines readable while preserving the gist of small calls. The
+// server's preview (graph.SimTurnFeedMaxArgumentsBytes) is longer.
 const tailArgPreviewMax = 80
 
-// simTailFlagGroups lists every flag group `sim tail` exposes. Defined
-// once and shared by InitFlags and BindFlags so the two can never drift.
-var simTailFlagGroups = []*config.FlagGroup{
-	&config.PostgresFlags,
+// simClientFlagGroups lists the flag groups every `sim` subcommand
+// exposes: they all talk to the API over GraphQL. Defined once and
+// shared by InitFlags and BindFlags so the two can never drift.
+var simClientFlagGroups = []*config.FlagGroup{
+	&config.APIBasicAuthFlags,
 }
 
 func cmdSimTail() *cobra.Command {
@@ -61,113 +59,112 @@ func cmdSimTail() *cobra.Command {
 		Use:   "tail",
 		Short: "Tail agent turn telemetry (turns + tool calls) to stdout",
 		Long: `Stream sim_agent_turns and their sim_agent_tool_calls to stdout
-as new turns commit. Prints the last ` + fmt.Sprintf("%d", tailBacklog) + ` turns for
-context, then follows. Ctrl-C to exit.
+as new turns commit, through the API server's GraphQL endpoint. Prints
+the last ` + fmt.Sprintf("%d", tailBacklog) + ` turns for context, then follows. Ctrl-C to exit.
 
   puckdb sim tail               # all pools
   puckdb sim tail --pool 3      # one pool
 
 Each turn is one summary line plus one indented line per tool call.`,
-		PreRunE: bindFlagsPreRunE(simTailFlagGroups...),
+		// No positional pool ID: `sim tail 3` would otherwise tail every pool.
+		Args:    cobra.NoArgs,
+		PreRunE: bindFlagsPreRunE(simClientFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			pool, err := openPGXPool(ctx)
-			if err != nil {
-				return fmt.Errorf("open db pool: %w", err)
+			if poolID < 0 {
+				return fmt.Errorf("--pool must be a pool ID, or 0 for all pools; got %d", poolID)
 			}
-			defer pool.Close()
-			return runSimTail(ctx, pool, cmd.OutOrStdout(), poolID, tailPollInterval)
+			client, err := getGraphQLClient()
+			if err != nil {
+				return err
+			}
+			return runSimTail(cmd.Context(), client, cmd.OutOrStdout(), poolID, tailPollInterval)
 		},
 	}
 	cmd.Flags().IntVar(&poolID, "pool", 0, "Restrict to a single pool ID (0 = all pools)")
-	config.InitFlags(cmd.Flags(), simTailFlagGroups...)
+	config.InitFlags(cmd.Flags(), simClientFlagGroups...)
 	return cmd
 }
 
-// runSimTail is the long-running loop. Split from cmdSimTail so tests
-// can drive it with a fake pool. Returns nil on graceful ctx cancel
-// (Ctrl-C); returns an error only on unrecoverable DB errors.
-func runSimTail(ctx context.Context, pool *pgxpool.Pool, w io.Writer, poolID int, interval time.Duration) error {
-	// Pre-load player names so each tool-call line can decorate raw
-	// player_id integers with a "[Connor McDavid]" suffix without an
-	// extra round trip per line. The players table is small (~9.6k rows)
-	// and grows slowly, so loading once at startup is fine — newly
-	// added players just print without a name decoration until you
-	// restart the tail.
-	playerNames, err := loadPlayerNames(ctx, pool)
-	if err != nil {
-		return fmt.Errorf("load player names: %w", err)
-	}
+// tailEntry is one turn of a feed page with the tool calls the server
+// returned for it.
+type tailEntry struct {
+	Turn  tailTurn
+	Calls []tailToolCall
+}
 
-	// Pick the starting watermark: max(id) - tailBacklog. This shows the
-	// most recent tailBacklog rows before we transition to "follow new
-	// rows only" mode. Without the subtraction we'd dump the entire
-	// table on the first tick of a long-running pool.
-	startID, err := initialTailWatermark(ctx, pool, poolID)
-	if err != nil {
-		return fmt.Errorf("initial watermark: %w", err)
+// tailPage is one simTurnFeed response.
+type tailPage struct {
+	Entries []tailEntry
+	// LastID is the watermark to pass back as afterID.
+	LastID int
+	// HasMore asks for the next page at once.
+	HasMore bool
+}
+
+// simTurnFeeder reads the turn feed; *GraphQLClient implements it. A nil
+// poolID means every pool, a nil afterID the latest limit turns.
+type simTurnFeeder interface {
+	SimTurnFeed(ctx context.Context, poolID, afterID *int, limit int) (tailPage, error)
+}
+
+// runSimTail is the long-running loop. Split from cmdSimTail so tests
+// can drive it with a fake feeder. Returns nil on graceful ctx cancel
+// (Ctrl-C), even mid-request; returns any other feed error.
+func runSimTail(ctx context.Context, feeder simTurnFeeder, w io.Writer, poolID int, interval time.Duration) error {
+	var pool *int
+	if poolID > 0 {
+		pool = &poolID
 	}
-	lastSeenID := startID
+	// The backlog prints at once, without waiting `interval`.
+	page, err := feeder.SimTurnFeed(ctx, pool, nil, tailBacklog)
+	if err != nil {
+		return tailError(ctx, err)
+	}
+	writeTailPage(w, page)
+	lastID := page.LastID
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-
-	// First pass runs immediately so the user sees the backlog without
-	// waiting `interval` for the first tick.
 	for {
-		newLastSeen, err := drainSimTail(ctx, pool, w, poolID, lastSeenID, playerNames)
-		if err != nil {
-			return err
-		}
-		lastSeenID = newLastSeen
-
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
 		}
-	}
-}
-
-// loadPlayerNames returns a "player ID → display name" map covering
-// every row in the players table. Used to decorate raw player_id
-// integers in tool-call args so a human reading the tail sees
-// "[Connor McDavid]" alongside the ID.
-func loadPlayerNames(ctx context.Context, pool *pgxpool.Pool) (map[int64]string, error) {
-	rows, err := pool.Query(ctx, `SELECT id, first_name, last_name FROM players`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	out := make(map[int64]string, 16384)
-	for rows.Next() {
-		var id int64
-		var first, last string
-		if err := rows.Scan(&id, &first, &last); err != nil {
-			return nil, err
+		if lastID, err = followSimTail(ctx, feeder, w, pool, lastID); err != nil {
+			return tailError(ctx, err)
 		}
-		out[id] = strings.TrimSpace(first + " " + last)
 	}
-	return out, rows.Err()
 }
 
-// initialTailWatermark returns max(id) - tailBacklog (clamped to 0), so
-// drainSimTail will pick up the most recent tailBacklog rows on its
-// first pass. Returns 0 on an empty table so we follow from the
-// beginning.
-func initialTailWatermark(ctx context.Context, pool *pgxpool.Pool, poolID int) (int64, error) {
-	sql := `SELECT COALESCE(MAX(id), 0) FROM sim_agent_turns`
-	args := []any{}
-	if poolID > 0 {
-		sql += ` WHERE pool_id = $1`
-		args = append(args, poolID)
+// followSimTail prints every turn after lastID, a page at a time, and
+// returns the new watermark. A steady-state poll is one empty page.
+func followSimTail(ctx context.Context, feeder simTurnFeeder, w io.Writer, pool *int, lastID int) (int, error) {
+	for {
+		page, err := feeder.SimTurnFeed(ctx, pool, &lastID, graph.SimTurnFeedMaxLimit)
+		if err != nil {
+			return lastID, err
+		}
+		writeTailPage(w, page)
+		lastID = page.LastID
+		if !page.HasMore {
+			return lastID, nil
+		}
 	}
-	var maxID int64
-	if err := pool.QueryRow(ctx, sql, args...).Scan(&maxID); err != nil {
-		return 0, err
+}
+
+// tailError hides the error a Ctrl-C causes in an in-flight request.
+func tailError(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		return nil
 	}
-	return max(maxID-int64(tailBacklog), 0), nil
+	return fmt.Errorf("sim turn feed: %w", err)
+}
+
+func writeTailPage(w io.Writer, page tailPage) {
+	for _, e := range page.Entries {
+		fmt.Fprint(w, formatTailRow(e.Turn, e.Calls))
+	}
 }
 
 // tailTurn is one sim_agent_turns row joined with the agent name. Kept
@@ -187,6 +184,9 @@ type tailTurn struct {
 	Rounds      int
 	CostUSD     float64
 	CompletedAt time.Time
+	// ToolCallCount is every tool call of the turn, including any the
+	// server left out of the page.
+	ToolCallCount int
 }
 
 // agentLabel composes the operator-visible identity for one agent
@@ -222,117 +222,37 @@ type tailToolCall struct {
 	Sequence      int
 	ToolName      string
 	RecoveredName *string
-	ArgumentsRaw  string
+	// Arguments is the server's whitespace-collapsed preview of
+	// arguments_raw.
+	Arguments     string
 	Outcome       string
 	FailureReason *string
 	AppliedTxID   *int64
-}
-
-// drainSimTail SELECTs all turns with id > lastSeenID, prints each one
-// followed by its tool calls, and returns the new high-water-mark id.
-// On a steady-state poll this returns lastSeenID unchanged with no rows
-// fetched.
-func drainSimTail(ctx context.Context, pool *pgxpool.Pool, w io.Writer, poolID int, lastSeenID int64, playerNames map[int64]string) (int64, error) {
-	turns, err := selectNewTurns(ctx, pool, poolID, lastSeenID)
-	if err != nil {
-		return lastSeenID, fmt.Errorf("select turns: %w", err)
-	}
-	for _, t := range turns {
-		calls, err := selectToolCallsForTurn(ctx, pool, t.ID)
-		if err != nil {
-			return lastSeenID, fmt.Errorf("select tool calls for turn %d: %w", t.ID, err)
-		}
-		fmt.Fprint(w, formatTailRow(t, calls, playerNames))
-		if t.ID > lastSeenID {
-			lastSeenID = t.ID
-		}
-	}
-	return lastSeenID, nil
-}
-
-func selectNewTurns(ctx context.Context, pool *pgxpool.Pool, poolID int, lastSeenID int64) ([]tailTurn, error) {
-	// Order by id ASC so we print in insertion order. Joining sim_agents
-	// keeps the rendered line independent of an extra lookup table.
-	sql := `
-		SELECT t.id, t.pool_id, a.id, a.team_name, a.strategy_summary, a.model,
-		       t.phase, t.sim_date, t.status,
-		       t.error_kind, t.rounds, t.cost_usd, t.completed_at
-		FROM sim_agent_turns t
-		JOIN sim_agents a ON a.id = t.agent_id
-		WHERE t.id > $1`
-	args := []any{lastSeenID}
-	if poolID > 0 {
-		sql += ` AND t.pool_id = $2`
-		args = append(args, poolID)
-	}
-	sql += ` ORDER BY t.id ASC`
-
-	rows, err := pool.Query(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []tailTurn
-	for rows.Next() {
-		var t tailTurn
-		if err := rows.Scan(&t.ID, &t.PoolID, &t.AgentID, &t.TeamName, &t.Summary, &t.Model,
-			&t.Phase, &t.SimDate, &t.Status,
-			&t.ErrorKind, &t.Rounds, &t.CostUSD, &t.CompletedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, t)
-	}
-	return out, rows.Err()
-}
-
-func selectToolCallsForTurn(ctx context.Context, pool *pgxpool.Pool, turnID int64) ([]tailToolCall, error) {
-	const sql = `
-		SELECT round_index, sequence, tool_name, recovered_name,
-		       arguments_raw, outcome, failure_reason, applied_transaction_id
-		FROM sim_agent_tool_calls
-		WHERE turn_id = $1
-		ORDER BY round_index, sequence`
-	rows, err := pool.Query(ctx, sql, turnID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []tailToolCall
-	for rows.Next() {
-		var c tailToolCall
-		if err := rows.Scan(&c.RoundIndex, &c.Sequence, &c.ToolName, &c.RecoveredName,
-			&c.ArgumentsRaw, &c.Outcome, &c.FailureReason, &c.AppliedTxID); err != nil {
-			return nil, err
-		}
-		out = append(out, c)
-	}
-	return out, rows.Err()
+	// PlayerNames are the names of the player ids in the arguments.
+	PlayerNames []string
 }
 
 // formatTailRow renders one turn (header) and its tool calls (indented)
 // to a string. Pure function — no DB, no I/O — so the test layer can
-// pin the exact layout. The trailing newline is included.
-//
-// playerNames may be nil; in that case no [name] decoration is appended
-// to tool-call lines.
+// pin the exact layout. The trailing newline is included. When the
+// server left calls out (ToolCallCount above len(calls)), one more
+// indented line says how many.
 //
 // Example output:
 //
 //	[14:32:01] pool=3 sonnet  daily  2024-11-15  ok  4r  $0.018
 //	           r0/0  drop_player {"player_id":8478402}  accepted  tx=10421  [Connor McDavid]
 //	           r1/0  set_lineup  {...}                  validation_rejected  reason=invalid_slot
-func formatTailRow(t tailTurn, calls []tailToolCall, playerNames map[int64]string) string {
+func formatTailRow(t tailTurn, calls []tailToolCall) string {
 	var b strings.Builder
 	b.WriteString(formatTurnHeader(t))
 	b.WriteByte('\n')
 	for _, c := range calls {
-		b.WriteString(formatToolCallLine(c, playerNames))
+		b.WriteString(formatToolCallLine(c))
 		b.WriteByte('\n')
+	}
+	if omitted := t.ToolCallCount - len(calls); omitted > 0 {
+		fmt.Fprintf(&b, "%s… %d more tool calls\n", tailCallIndent, omitted)
 	}
 	return b.String()
 }
@@ -361,10 +281,11 @@ func formatTurnHeader(t tailTurn) string {
 	)
 }
 
-func formatToolCallLine(c tailToolCall, playerNames map[int64]string) string {
-	// 11 spaces of indent lines up with the column after "[HH:MM:SS] "
-	// so tool-call lines visually nest under their turn header.
-	const indent = "           "
+// tailCallIndent is 11 spaces: it lines up with the column after
+// "[HH:MM:SS] " so tool-call lines visually nest under their turn header.
+const tailCallIndent = "           "
+
+func formatToolCallLine(c tailToolCall) string {
 	name := c.ToolName
 	if c.RecoveredName != nil && *c.RecoveredName != "" && *c.RecoveredName != c.ToolName {
 		name = fmt.Sprintf("%s→%s", c.ToolName, *c.RecoveredName)
@@ -376,110 +297,14 @@ func formatToolCallLine(c tailToolCall, playerNames map[int64]string) string {
 	if c.FailureReason != nil && *c.FailureReason != "" {
 		suffix += fmt.Sprintf("  reason=%s", *c.FailureReason)
 	}
-	if p := playerNamesFromArgs(c.ArgumentsRaw, playerNames); p != "" {
-		suffix += "  " + p
+	if len(c.PlayerNames) > 0 {
+		suffix += "  [" + strings.Join(c.PlayerNames, ", ") + "]"
 	}
 	return fmt.Sprintf("%sr%d/%d  %-18s %s  %s%s",
-		indent, c.RoundIndex, c.Sequence, name,
-		truncateArgs(c.ArgumentsRaw, tailArgPreviewMax),
+		tailCallIndent, c.RoundIndex, c.Sequence, name,
+		truncateArgs(c.Arguments, tailArgPreviewMax),
 		c.Outcome, suffix,
 	)
-}
-
-// playerNamesFromArgs walks the tool-call args JSON for player_id and
-// drop_player_id integer values, resolves them through the lookup map,
-// and returns a "[Name1, Name2]" string. Returns "" when the args have
-// no resolvable player IDs (either the map is nil, the JSON is malformed,
-// or no player_id key is present). Order matches first appearance in a
-// stable JSON walk so set_lineup's slot ordering is preserved.
-func playerNamesFromArgs(argsRaw string, playerNames map[int64]string) string {
-	if len(playerNames) == 0 || argsRaw == "" {
-		return ""
-	}
-	ids := extractPlayerIDs(argsRaw)
-	if len(ids) == 0 {
-		return ""
-	}
-	names := make([]string, 0, len(ids))
-	seen := make(map[int64]struct{}, len(ids))
-	for _, id := range ids {
-		if _, dup := seen[id]; dup {
-			continue
-		}
-		seen[id] = struct{}{}
-		if n, ok := playerNames[id]; ok && n != "" {
-			names = append(names, n)
-		}
-	}
-	if len(names) == 0 {
-		return ""
-	}
-	return "[" + strings.Join(names, ", ") + "]"
-}
-
-// extractPlayerIDs walks JSON looking for any "player_id" or
-// "drop_player_id" key whose value is a JSON number, and returns the
-// values in first-appearance order. Returns nil on malformed JSON —
-// the caller already prints the raw args, so silently skipping
-// decoration is the right failure mode.
-//
-// Walks recursively so set_lineup's nested {"slots":[{"player_id":...}]}
-// is covered without a per-tool special case.
-func extractPlayerIDs(argsRaw string) []int64 {
-	var root any
-	if err := json.Unmarshal([]byte(argsRaw), &root); err != nil {
-		return nil
-	}
-	var ids []int64
-	var walk func(any)
-	walk = func(node any) {
-		switch n := node.(type) {
-		case map[string]any:
-			// Iterate keys in a stable order so output is deterministic
-			// across Go map iteration. Go ≥1.22 randomizes map order,
-			// which would otherwise flake the test layer.
-			for _, k := range sortedKeys(n) {
-				child := n[k]
-				if k == "player_id" || k == "drop_player_id" {
-					if id, ok := numberToInt64(child); ok {
-						ids = append(ids, id)
-					}
-				}
-				walk(child)
-			}
-		case []any:
-			for _, child := range n {
-				walk(child)
-			}
-		}
-	}
-	walk(root)
-	return ids
-}
-
-func sortedKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	// Stable order so the player-name decoration is deterministic
-	// across Go map iteration (which is randomized as of 1.22).
-	slices.Sort(keys)
-	return keys
-}
-
-// numberToInt64 extracts an int64 from json-decoded value types. Default
-// encoding/json puts numbers in float64; player IDs (~8-digit ints) fit
-// in float64's 53-bit mantissa without loss, so the cast is safe.
-func numberToInt64(v any) (int64, bool) {
-	switch x := v.(type) {
-	case float64:
-		return int64(x), true
-	case json.Number:
-		n, err := x.Int64()
-		return n, err == nil
-	}
-	return 0, false
 }
 
 // truncateArgs collapses whitespace and clamps to maxLen. JSONB blobs

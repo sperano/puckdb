@@ -627,6 +627,39 @@ func (q *Queries) ListPlayerHeroImages(ctx context.Context) ([]ListPlayerHeroIma
 	return items, nil
 }
 
+const listPlayerNamesByIDs = `-- name: ListPlayerNamesByIDs :many
+SELECT id, first_name, last_name FROM players WHERE id = ANY($1::bigint[])
+`
+
+type ListPlayerNamesByIDsRow struct {
+	ID        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+}
+
+// Names only, for decorating ids found in free-form text (sim tail
+// tool-call arguments). Ids with no player row are simply absent, which
+// is normal there: models invent ids. Order is not guaranteed.
+func (q *Queries) ListPlayerNamesByIDs(ctx context.Context, ids []int64) ([]ListPlayerNamesByIDsRow, error) {
+	rows, err := q.db.Query(ctx, listPlayerNamesByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPlayerNamesByIDsRow{}
+	for rows.Next() {
+		var i ListPlayerNamesByIDsRow
+		if err := rows.Scan(&i.ID, &i.FirstName, &i.LastName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPlayerYahooImages = `-- name: ListPlayerYahooImages :many
 SELECT id, yahoo_image FROM players WHERE yahoo_image <> '' ORDER BY id
 `

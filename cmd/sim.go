@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
@@ -20,8 +21,8 @@ import (
 // `list`, `destroy`, `agent-log` are out of V1 scope (use the
 // GraphQL playground until friction warrants them).
 //
-// All commands talk to the API server via the existing GraphQL
-// client — same pattern as `puckdb db init` and friends. The CLI
+// All commands, tail and draft included, talk to the API server via
+// the existing GraphQL client — same pattern as `puckdb db init` and friends. The CLI
 // itself is thin: argument parsing, YAML-config reading, output
 // formatting. The actual behavior lives in the resolvers (Phase
 // 4.2) and the workflow (Phase 3.2).
@@ -97,6 +98,7 @@ Example config:
         inconsistency in exchange for upside, and use the waiver wire
         weekly to chase hot streaks rather than holding underperforming
         stars.`,
+		PreRunE: bindFlagsPreRunE(simClientFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			input, err := loadCreateSimPoolInputFromFile(configPath)
 			if err != nil {
@@ -120,6 +122,7 @@ Example config:
 	cmd.Flags().StringVar(&configPath, "config", "",
 		"Path to the YAML config file (required)")
 	_ = cmd.MarkFlagRequired("config")
+	config.InitFlags(cmd.Flags(), simClientFlagGroups...)
 	return cmd
 }
 
@@ -158,10 +161,11 @@ func parseCreateSimPoolInput(r io.Reader) (*model.CreateSimPoolInput, error) {
 // cmdSimCancel sends RequestCancelWorkflow to the sim's Temporal
 // execution. The workflow's deferred cleanup writes status='cancelled'.
 func cmdSimCancel() *cobra.Command {
-	return &cobra.Command{
-		Use:   "cancel <pool-id>",
-		Short: "Cancel the sim (workflow exits with status=cancelled)",
-		Args:  cobra.ExactArgs(1),
+	cmd := &cobra.Command{
+		Use:     "cancel <pool-id>",
+		Short:   "Cancel the sim (workflow exits with status=cancelled)",
+		Args:    cobra.ExactArgs(1),
+		PreRunE: bindFlagsPreRunE(simClientFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			poolID, err := parsePoolID(args[0])
 			if err != nil {
@@ -179,6 +183,8 @@ func cmdSimCancel() *cobra.Command {
 			return nil
 		},
 	}
+	config.InitFlags(cmd.Flags(), simClientFlagGroups...)
+	return cmd
 }
 
 // parsePoolID converts the positional arg to an int — extracted so
@@ -200,10 +206,11 @@ func parsePoolID(s string) (int, error) {
 // ----------------------------------------------------------------------------
 
 func cmdSimStatus() *cobra.Command {
-	return &cobra.Command{
-		Use:   "status <pool-id>",
-		Short: "Show pool summary, progress bar, and standings",
-		Args:  cobra.ExactArgs(1),
+	cmd := &cobra.Command{
+		Use:     "status <pool-id>",
+		Short:   "Show pool summary, progress bar, and standings",
+		Args:    cobra.ExactArgs(1),
+		PreRunE: bindFlagsPreRunE(simClientFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			poolID, err := parsePoolID(args[0])
 			if err != nil {
@@ -221,6 +228,8 @@ func cmdSimStatus() *cobra.Command {
 			return nil
 		},
 	}
+	config.InitFlags(cmd.Flags(), simClientFlagGroups...)
+	return cmd
 }
 
 // renderSimPoolStatus prints a four-section status block:

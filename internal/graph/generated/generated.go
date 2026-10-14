@@ -925,11 +925,13 @@ type ComplexityRoot struct {
 		SearchPlayers                  func(childComplexity int, query string) int
 		Season                         func(childComplexity int, id int) int
 		Seasons                        func(childComplexity int) int
+		SimDraftPicks                  func(childComplexity int, poolID int) int
 		SimPool                        func(childComplexity int, id int) int
 		SimPoolProgress                func(childComplexity int, poolID int) int
 		SimPools                       func(childComplexity int) int
 		SimStandingsHistory            func(childComplexity int, poolID int) int
 		SimTransactions                func(childComplexity int, poolID int, agentID *int, date *string, limit *int) int
+		SimTurnFeed                    func(childComplexity int, poolID *int, afterID *int, limit *int) int
 		SkaterGameLog                  func(childComplexity int, playerID int64, season int) int
 		Standings                      func(childComplexity int, season int, date string) int
 		Team                           func(childComplexity int, season int, teamID int64) int
@@ -951,6 +953,20 @@ type ComplexityRoot struct {
 		Roster          func(childComplexity int) int
 		TeamName        func(childComplexity int) int
 		TotalRotoPoints func(childComplexity int) int
+	}
+
+	SimDraftPick struct {
+		AgentID         func(childComplexity int) int
+		DraftPosition   func(childComplexity int) int
+		Model           func(childComplexity int) int
+		Pick            func(childComplexity int) int
+		PlayerID        func(childComplexity int) int
+		PlayerName      func(childComplexity int) int
+		Position        func(childComplexity int) int
+		Reasoning       func(childComplexity int) int
+		Round           func(childComplexity int) int
+		StrategySummary func(childComplexity int) int
+		TeamName        func(childComplexity int) int
 	}
 
 	SimLineupMove struct {
@@ -1007,6 +1023,42 @@ type ComplexityRoot struct {
 		Reasoning      func(childComplexity int) int
 		Round          func(childComplexity int) int
 		Type           func(childComplexity int) int
+	}
+
+	SimTurnFeedEntry struct {
+		AgentID         func(childComplexity int) int
+		CompletedAt     func(childComplexity int) int
+		CostUsd         func(childComplexity int) int
+		ErrorKind       func(childComplexity int) int
+		ID              func(childComplexity int) int
+		Model           func(childComplexity int) int
+		Phase           func(childComplexity int) int
+		PoolID          func(childComplexity int) int
+		Rounds          func(childComplexity int) int
+		SimDate         func(childComplexity int) int
+		Status          func(childComplexity int) int
+		StrategySummary func(childComplexity int) int
+		TeamName        func(childComplexity int) int
+		ToolCallCount   func(childComplexity int) int
+		ToolCalls       func(childComplexity int) int
+	}
+
+	SimTurnFeedPage struct {
+		HasMore func(childComplexity int) int
+		LastID  func(childComplexity int) int
+		Turns   func(childComplexity int) int
+	}
+
+	SimTurnToolCall struct {
+		AppliedTransactionID func(childComplexity int) int
+		Arguments            func(childComplexity int) int
+		FailureReason        func(childComplexity int) int
+		Outcome              func(childComplexity int) int
+		PlayerNames          func(childComplexity int) int
+		RecoveredName        func(childComplexity int) int
+		RoundIndex           func(childComplexity int) int
+		Sequence             func(childComplexity int) int
+		ToolName             func(childComplexity int) int
 	}
 
 	SkaterGameLogEntry struct {
@@ -1186,6 +1238,8 @@ type QueryResolver interface {
 	SimTransactions(ctx context.Context, poolID int, agentID *int, date *string, limit *int) ([]*model.SimTransaction, error)
 	SimStandingsHistory(ctx context.Context, poolID int) ([][]*model.SimStandingEntry, error)
 	SimPoolProgress(ctx context.Context, poolID int) (*model.ProgressReport, error)
+	SimTurnFeed(ctx context.Context, poolID *int, afterID *int, limit *int) (*model.SimTurnFeedPage, error)
+	SimDraftPicks(ctx context.Context, poolID int) ([]*model.SimDraftPick, error)
 }
 type SimPoolResolver interface {
 	Agents(ctx context.Context, obj *model.SimPool) ([]*model.SimAgent, error)
@@ -5626,6 +5680,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Seasons(childComplexity), true
+	case "Query.simDraftPicks":
+		if e.ComplexityRoot.Query.SimDraftPicks == nil {
+			break
+		}
+
+		args, err := ec.field_Query_simDraftPicks_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.SimDraftPicks(childComplexity, args["poolId"].(int)), true
 	case "Query.simPool":
 		if e.ComplexityRoot.Query.SimPool == nil {
 			break
@@ -5676,6 +5741,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SimTransactions(childComplexity, args["poolId"].(int), args["agentId"].(*int), args["date"].(*string), args["limit"].(*int)), true
+	case "Query.simTurnFeed":
+		if e.ComplexityRoot.Query.SimTurnFeed == nil {
+			break
+		}
+
+		args, err := ec.field_Query_simTurnFeed_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.SimTurnFeed(childComplexity, args["poolId"].(*int), args["afterId"].(*int), args["limit"].(*int)), true
 	case "Query.skaterGameLog":
 		if e.ComplexityRoot.Query.SkaterGameLog == nil {
 			break
@@ -5788,6 +5864,73 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SimAgent.TotalRotoPoints(childComplexity), true
+
+	case "SimDraftPick.agentId":
+		if e.ComplexityRoot.SimDraftPick.AgentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.AgentID(childComplexity), true
+	case "SimDraftPick.draftPosition":
+		if e.ComplexityRoot.SimDraftPick.DraftPosition == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.DraftPosition(childComplexity), true
+	case "SimDraftPick.model":
+		if e.ComplexityRoot.SimDraftPick.Model == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.Model(childComplexity), true
+	case "SimDraftPick.pick":
+		if e.ComplexityRoot.SimDraftPick.Pick == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.Pick(childComplexity), true
+	case "SimDraftPick.playerId":
+		if e.ComplexityRoot.SimDraftPick.PlayerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.PlayerID(childComplexity), true
+	case "SimDraftPick.playerName":
+		if e.ComplexityRoot.SimDraftPick.PlayerName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.PlayerName(childComplexity), true
+	case "SimDraftPick.position":
+		if e.ComplexityRoot.SimDraftPick.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.Position(childComplexity), true
+	case "SimDraftPick.reasoning":
+		if e.ComplexityRoot.SimDraftPick.Reasoning == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.Reasoning(childComplexity), true
+	case "SimDraftPick.round":
+		if e.ComplexityRoot.SimDraftPick.Round == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.Round(childComplexity), true
+	case "SimDraftPick.strategySummary":
+		if e.ComplexityRoot.SimDraftPick.StrategySummary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.StrategySummary(childComplexity), true
+	case "SimDraftPick.teamName":
+		if e.ComplexityRoot.SimDraftPick.TeamName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimDraftPick.TeamName(childComplexity), true
 
 	case "SimLineupMove.displacedPlayerName":
 		if e.ComplexityRoot.SimLineupMove.DisplacedPlayerName == nil {
@@ -6039,6 +6182,171 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SimTransaction.Type(childComplexity), true
+
+	case "SimTurnFeedEntry.agentId":
+		if e.ComplexityRoot.SimTurnFeedEntry.AgentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.AgentID(childComplexity), true
+	case "SimTurnFeedEntry.completedAt":
+		if e.ComplexityRoot.SimTurnFeedEntry.CompletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.CompletedAt(childComplexity), true
+	case "SimTurnFeedEntry.costUsd":
+		if e.ComplexityRoot.SimTurnFeedEntry.CostUsd == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.CostUsd(childComplexity), true
+	case "SimTurnFeedEntry.errorKind":
+		if e.ComplexityRoot.SimTurnFeedEntry.ErrorKind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.ErrorKind(childComplexity), true
+	case "SimTurnFeedEntry.id":
+		if e.ComplexityRoot.SimTurnFeedEntry.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.ID(childComplexity), true
+	case "SimTurnFeedEntry.model":
+		if e.ComplexityRoot.SimTurnFeedEntry.Model == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.Model(childComplexity), true
+	case "SimTurnFeedEntry.phase":
+		if e.ComplexityRoot.SimTurnFeedEntry.Phase == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.Phase(childComplexity), true
+	case "SimTurnFeedEntry.poolId":
+		if e.ComplexityRoot.SimTurnFeedEntry.PoolID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.PoolID(childComplexity), true
+	case "SimTurnFeedEntry.rounds":
+		if e.ComplexityRoot.SimTurnFeedEntry.Rounds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.Rounds(childComplexity), true
+	case "SimTurnFeedEntry.simDate":
+		if e.ComplexityRoot.SimTurnFeedEntry.SimDate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.SimDate(childComplexity), true
+	case "SimTurnFeedEntry.status":
+		if e.ComplexityRoot.SimTurnFeedEntry.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.Status(childComplexity), true
+	case "SimTurnFeedEntry.strategySummary":
+		if e.ComplexityRoot.SimTurnFeedEntry.StrategySummary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.StrategySummary(childComplexity), true
+	case "SimTurnFeedEntry.teamName":
+		if e.ComplexityRoot.SimTurnFeedEntry.TeamName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.TeamName(childComplexity), true
+	case "SimTurnFeedEntry.toolCallCount":
+		if e.ComplexityRoot.SimTurnFeedEntry.ToolCallCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.ToolCallCount(childComplexity), true
+	case "SimTurnFeedEntry.toolCalls":
+		if e.ComplexityRoot.SimTurnFeedEntry.ToolCalls == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedEntry.ToolCalls(childComplexity), true
+
+	case "SimTurnFeedPage.hasMore":
+		if e.ComplexityRoot.SimTurnFeedPage.HasMore == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedPage.HasMore(childComplexity), true
+	case "SimTurnFeedPage.lastId":
+		if e.ComplexityRoot.SimTurnFeedPage.LastID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedPage.LastID(childComplexity), true
+	case "SimTurnFeedPage.turns":
+		if e.ComplexityRoot.SimTurnFeedPage.Turns == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnFeedPage.Turns(childComplexity), true
+
+	case "SimTurnToolCall.appliedTransactionId":
+		if e.ComplexityRoot.SimTurnToolCall.AppliedTransactionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnToolCall.AppliedTransactionID(childComplexity), true
+	case "SimTurnToolCall.arguments":
+		if e.ComplexityRoot.SimTurnToolCall.Arguments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnToolCall.Arguments(childComplexity), true
+	case "SimTurnToolCall.failureReason":
+		if e.ComplexityRoot.SimTurnToolCall.FailureReason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnToolCall.FailureReason(childComplexity), true
+	case "SimTurnToolCall.outcome":
+		if e.ComplexityRoot.SimTurnToolCall.Outcome == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnToolCall.Outcome(childComplexity), true
+	case "SimTurnToolCall.playerNames":
+		if e.ComplexityRoot.SimTurnToolCall.PlayerNames == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnToolCall.PlayerNames(childComplexity), true
+	case "SimTurnToolCall.recoveredName":
+		if e.ComplexityRoot.SimTurnToolCall.RecoveredName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnToolCall.RecoveredName(childComplexity), true
+	case "SimTurnToolCall.roundIndex":
+		if e.ComplexityRoot.SimTurnToolCall.RoundIndex == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnToolCall.RoundIndex(childComplexity), true
+	case "SimTurnToolCall.sequence":
+		if e.ComplexityRoot.SimTurnToolCall.Sequence == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnToolCall.Sequence(childComplexity), true
+	case "SimTurnToolCall.toolName":
+		if e.ComplexityRoot.SimTurnToolCall.ToolName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SimTurnToolCall.ToolName(childComplexity), true
 
 	case "SkaterGameLogEntry.assists":
 		if e.ComplexityRoot.SkaterGameLogEntry.Assists == nil {
@@ -7964,6 +8272,71 @@ type SimLineupMove {
   displacedPlayerName: String
 }
 
+# ----- sim tail / sim draft feeds -----
+#
+# Read by ` + "`" + `puckdb sim tail` + "`" + ` and ` + "`" + `puckdb sim draft` + "`" + `. Bounds and argument
+# checks: internal/graph/simulation_feed.go. Never exposes final_text,
+# error_detail, tool results or the turn transcript.
+
+type SimTurnFeedPage {
+  turns: [SimTurnFeedEntry!]!
+  """Highest turn id in this page, or the request's afterId (0 without one) when the page is empty. Pass it back as afterId."""
+  lastId: Int!
+  """True when the page is full and more turns follow lastId; the client asks again at once."""
+  hasMore: Boolean!
+}
+
+type SimTurnFeedEntry {
+  id: Int!
+  poolId: Int!
+  agentId: Int!
+  teamName: String!
+  strategySummary: String!
+  model: String!
+  phase: String!
+  """YYYY-MM-DD; null for the team_name phase."""
+  simDate: String
+  status: String!
+  errorKind: String
+  rounds: Int!
+  costUsd: Float!
+  completedAt: Time!
+  toolCalls: [SimTurnToolCall!]!
+  """Total tool calls of the turn; toolCalls holds the first simTurnFeedMaxToolCallsPerTurn of them."""
+  toolCallCount: Int!
+}
+
+type SimTurnToolCall {
+  roundIndex: Int!
+  sequence: Int!
+  toolName: String!
+  recoveredName: String
+  """The first simTurnFeedMaxArgumentsReadChars characters of arguments_raw, whitespace collapsed, cut on a rune boundary at simTurnFeedMaxArgumentsBytes."""
+  arguments: String!
+  outcome: String!
+  failureReason: String
+  appliedTransactionId: Int
+  """Names of the integer player_id / drop_player_id values in the arguments, in first appearance, deduplicated by id; unknown ids are left out, and arguments longer than simTurnFeedMaxArgumentsReadChars characters name nobody."""
+  playerNames: [String!]!
+}
+
+type SimDraftPick {
+  agentId: Int!
+  teamName: String!
+  strategySummary: String!
+  model: String!
+  draftPosition: Int
+  round: Int!
+  pick: Int!
+  """0 when the pick has no player."""
+  playerId: Int64!
+  """Empty when the player does not resolve."""
+  playerName: String!
+  """'?' when the player or its position is unknown."""
+  position: String!
+  reasoning: String!
+}
+
 # ----- Inputs -----
 
 # CreateSimPoolInput mirrors worker/simulation.PoolConfig — the JSONB
@@ -8066,6 +8439,15 @@ extend type Query {
   Returns null if the workflow hasn't yet initialized its tracker.
   """
   simPoolProgress(poolId: Int!): ProgressReport
+  """
+  Turn telemetry feed for ` + "`" + `sim tail` + "`" + `, oldest first. Without afterId: the
+  latest ` + "`" + `limit` + "`" + ` turns. With afterId: up to ` + "`" + `limit` + "`" + ` turns after it.
+  poolId restricts to one pool. limit defaults to 10, at most 100;
+  out-of-range arguments are rejected, not clamped.
+  """
+  simTurnFeed(poolId: Int, afterId: Int, limit: Int): SimTurnFeedPage!
+  """Draft picks of a pool in draft order; null when the pool does not exist."""
+  simDraftPicks(poolId: Int!): [SimDraftPick!]
 }
 
 # ----- Mutations -----
@@ -9699,6 +10081,34 @@ func (ec *executionContext) childFields_SimAgent(ctx context.Context, field grap
 	return nil, fmt.Errorf("no field named %q was found under type SimAgent", field.Name)
 }
 
+func (ec *executionContext) childFields_SimDraftPick(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "agentId":
+		return ec.fieldContext_SimDraftPick_agentId(ctx, field)
+	case "teamName":
+		return ec.fieldContext_SimDraftPick_teamName(ctx, field)
+	case "strategySummary":
+		return ec.fieldContext_SimDraftPick_strategySummary(ctx, field)
+	case "model":
+		return ec.fieldContext_SimDraftPick_model(ctx, field)
+	case "draftPosition":
+		return ec.fieldContext_SimDraftPick_draftPosition(ctx, field)
+	case "round":
+		return ec.fieldContext_SimDraftPick_round(ctx, field)
+	case "pick":
+		return ec.fieldContext_SimDraftPick_pick(ctx, field)
+	case "playerId":
+		return ec.fieldContext_SimDraftPick_playerId(ctx, field)
+	case "playerName":
+		return ec.fieldContext_SimDraftPick_playerName(ctx, field)
+	case "position":
+		return ec.fieldContext_SimDraftPick_position(ctx, field)
+	case "reasoning":
+		return ec.fieldContext_SimDraftPick_reasoning(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SimDraftPick", field.Name)
+}
+
 func (ec *executionContext) childFields_SimLineupMove(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "sequence":
@@ -9809,6 +10219,78 @@ func (ec *executionContext) childFields_SimTransaction(ctx context.Context, fiel
 		return ec.fieldContext_SimTransaction_lineupMoves(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SimTransaction", field.Name)
+}
+
+func (ec *executionContext) childFields_SimTurnFeedEntry(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_SimTurnFeedEntry_id(ctx, field)
+	case "poolId":
+		return ec.fieldContext_SimTurnFeedEntry_poolId(ctx, field)
+	case "agentId":
+		return ec.fieldContext_SimTurnFeedEntry_agentId(ctx, field)
+	case "teamName":
+		return ec.fieldContext_SimTurnFeedEntry_teamName(ctx, field)
+	case "strategySummary":
+		return ec.fieldContext_SimTurnFeedEntry_strategySummary(ctx, field)
+	case "model":
+		return ec.fieldContext_SimTurnFeedEntry_model(ctx, field)
+	case "phase":
+		return ec.fieldContext_SimTurnFeedEntry_phase(ctx, field)
+	case "simDate":
+		return ec.fieldContext_SimTurnFeedEntry_simDate(ctx, field)
+	case "status":
+		return ec.fieldContext_SimTurnFeedEntry_status(ctx, field)
+	case "errorKind":
+		return ec.fieldContext_SimTurnFeedEntry_errorKind(ctx, field)
+	case "rounds":
+		return ec.fieldContext_SimTurnFeedEntry_rounds(ctx, field)
+	case "costUsd":
+		return ec.fieldContext_SimTurnFeedEntry_costUsd(ctx, field)
+	case "completedAt":
+		return ec.fieldContext_SimTurnFeedEntry_completedAt(ctx, field)
+	case "toolCalls":
+		return ec.fieldContext_SimTurnFeedEntry_toolCalls(ctx, field)
+	case "toolCallCount":
+		return ec.fieldContext_SimTurnFeedEntry_toolCallCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SimTurnFeedEntry", field.Name)
+}
+
+func (ec *executionContext) childFields_SimTurnFeedPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "turns":
+		return ec.fieldContext_SimTurnFeedPage_turns(ctx, field)
+	case "lastId":
+		return ec.fieldContext_SimTurnFeedPage_lastId(ctx, field)
+	case "hasMore":
+		return ec.fieldContext_SimTurnFeedPage_hasMore(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SimTurnFeedPage", field.Name)
+}
+
+func (ec *executionContext) childFields_SimTurnToolCall(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "roundIndex":
+		return ec.fieldContext_SimTurnToolCall_roundIndex(ctx, field)
+	case "sequence":
+		return ec.fieldContext_SimTurnToolCall_sequence(ctx, field)
+	case "toolName":
+		return ec.fieldContext_SimTurnToolCall_toolName(ctx, field)
+	case "recoveredName":
+		return ec.fieldContext_SimTurnToolCall_recoveredName(ctx, field)
+	case "arguments":
+		return ec.fieldContext_SimTurnToolCall_arguments(ctx, field)
+	case "outcome":
+		return ec.fieldContext_SimTurnToolCall_outcome(ctx, field)
+	case "failureReason":
+		return ec.fieldContext_SimTurnToolCall_failureReason(ctx, field)
+	case "appliedTransactionId":
+		return ec.fieldContext_SimTurnToolCall_appliedTransactionId(ctx, field)
+	case "playerNames":
+		return ec.fieldContext_SimTurnToolCall_playerNames(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SimTurnToolCall", field.Name)
 }
 
 func (ec *executionContext) childFields_SkaterGameLogEntry(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -10837,6 +11319,20 @@ func (ec *executionContext) field_Query_season_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_simDraftPicks_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "poolId",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["poolId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_simPoolProgress_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -10914,6 +11410,36 @@ func (ec *executionContext) field_Query_simTransactions_args(ctx context.Context
 		return nil, err
 	}
 	args["limit"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_simTurnFeed_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "poolId",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["poolId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "afterId",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["afterId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
 	return args, nil
 }
 
@@ -29133,6 +29659,94 @@ func (ec *executionContext) fieldContext_Query_simPoolProgress(ctx context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_simTurnFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_simTurnFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().SimTurnFeed(ctx, fc.Args["poolId"].(*int), fc.Args["afterId"].(*int), fc.Args["limit"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SimTurnFeedPage) graphql.Marshaler {
+			return ec.marshalNSimTurnFeedPage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnFeedPage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_simTurnFeed(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SimTurnFeedPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_simTurnFeed_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_simDraftPicks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_simDraftPicks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().SimDraftPicks(ctx, fc.Args["poolId"].(int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.SimDraftPick) graphql.Marshaler {
+			return ec.marshalOSimDraftPick2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimDraftPickᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_simDraftPicks(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SimDraftPick(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_simDraftPicks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -29446,6 +30060,259 @@ func (ec *executionContext) _SimAgent_totalRotoPoints(ctx context.Context, field
 }
 func (ec *executionContext) fieldContext_SimAgent_totalRotoPoints(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SimAgent", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_agentId(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_agentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AgentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_agentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_teamName(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_teamName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_teamName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_strategySummary(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_strategySummary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StrategySummary, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_strategySummary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_model(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_model(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Model, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_model(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_draftPosition(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_draftPosition(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DraftPosition, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_draftPosition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_round(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_round(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Round, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_round(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_pick(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_pick(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Pick, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_pick(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_playerId(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_playerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_playerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_playerName(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_playerName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayerName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_playerName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_position(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimDraftPick_reasoning(ctx context.Context, field graphql.CollectedField, obj *model.SimDraftPick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimDraftPick_reasoning(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Reasoning, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimDraftPick_reasoning(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimDraftPick", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _SimLineupMove_sequence(ctx context.Context, field graphql.CollectedField, obj *model.SimLineupMove) (ret graphql.Marshaler) {
@@ -30425,6 +31292,645 @@ func (ec *executionContext) fieldContext_SimTransaction_lineupMoves(_ context.Co
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_id(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_poolId(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_poolId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PoolID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_poolId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_agentId(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_agentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AgentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_agentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_teamName(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_teamName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_teamName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_strategySummary(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_strategySummary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StrategySummary, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_strategySummary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_model(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_model(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Model, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_model(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_phase(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_phase(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Phase, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_phase(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_simDate(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_simDate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SimDate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_simDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_status(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_errorKind(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_errorKind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorKind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_errorKind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_rounds(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_rounds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rounds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_rounds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_costUsd(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_costUsd(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CostUsd, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_costUsd(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_completedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_toolCalls(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_toolCalls(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolCalls, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.SimTurnToolCall) graphql.Marshaler {
+			return ec.marshalNSimTurnToolCall2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnToolCallᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_toolCalls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SimTurnFeedEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SimTurnToolCall(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SimTurnFeedEntry_toolCallCount(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedEntry_toolCallCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolCallCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedEntry_toolCallCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedEntry", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedPage_turns(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedPage_turns(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Turns, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.SimTurnFeedEntry) graphql.Marshaler {
+			return ec.marshalNSimTurnFeedEntry2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnFeedEntryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedPage_turns(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SimTurnFeedPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SimTurnFeedEntry(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SimTurnFeedPage_lastId(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedPage_lastId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedPage_lastId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedPage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnFeedPage_hasMore(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnFeedPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnFeedPage_hasMore(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HasMore, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnFeedPage_hasMore(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnFeedPage", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnToolCall_roundIndex(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnToolCall_roundIndex(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RoundIndex, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnToolCall_roundIndex(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnToolCall", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnToolCall_sequence(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnToolCall_sequence(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Sequence, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnToolCall_sequence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnToolCall", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnToolCall_toolName(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnToolCall_toolName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnToolCall_toolName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnToolCall_recoveredName(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnToolCall_recoveredName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecoveredName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnToolCall_recoveredName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnToolCall_arguments(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnToolCall_arguments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Arguments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnToolCall_arguments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnToolCall_outcome(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnToolCall_outcome(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Outcome, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnToolCall_outcome(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnToolCall_failureReason(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnToolCall_failureReason(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FailureReason, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnToolCall_failureReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnToolCall_appliedTransactionId(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnToolCall_appliedTransactionId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AppliedTransactionID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnToolCall_appliedTransactionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnToolCall", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SimTurnToolCall_playerNames(ctx context.Context, field graphql.CollectedField, obj *model.SimTurnToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SimTurnToolCall_playerNames(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayerNames, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SimTurnToolCall_playerNames(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SimTurnToolCall", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _SkaterGameLogEntry_gameId(ctx context.Context, field graphql.CollectedField, obj *model.SkaterGameLogEntry) (ret graphql.Marshaler) {
@@ -40025,6 +41531,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "simTurnFeed":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_simTurnFeed(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "simDraftPicks":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_simDraftPicks(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -40139,6 +41686,92 @@ func (ec *executionContext) _SimAgent(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "totalRotoPoints":
 			out.Values[i] = ec._SimAgent_totalRotoPoints(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var simDraftPickImplementors = []string{"SimDraftPick"}
+
+func (ec *executionContext) _SimDraftPick(ctx context.Context, sel ast.SelectionSet, obj *model.SimDraftPick) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, simDraftPickImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SimDraftPick")
+		case "agentId":
+			out.Values[i] = ec._SimDraftPick_agentId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamName":
+			out.Values[i] = ec._SimDraftPick_teamName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "strategySummary":
+			out.Values[i] = ec._SimDraftPick_strategySummary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "model":
+			out.Values[i] = ec._SimDraftPick_model(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "draftPosition":
+			out.Values[i] = ec._SimDraftPick_draftPosition(ctx, field, obj)
+		case "round":
+			out.Values[i] = ec._SimDraftPick_round(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pick":
+			out.Values[i] = ec._SimDraftPick_pick(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "playerId":
+			out.Values[i] = ec._SimDraftPick_playerId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "playerName":
+			out.Values[i] = ec._SimDraftPick_playerName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._SimDraftPick_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reasoning":
+			out.Values[i] = ec._SimDraftPick_reasoning(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -40568,6 +42201,228 @@ func (ec *executionContext) _SimTransaction(ctx context.Context, sel ast.Selecti
 			out.Values[i] = ec._SimTransaction_capUsd(ctx, field, obj)
 		case "lineupMoves":
 			out.Values[i] = ec._SimTransaction_lineupMoves(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var simTurnFeedEntryImplementors = []string{"SimTurnFeedEntry"}
+
+func (ec *executionContext) _SimTurnFeedEntry(ctx context.Context, sel ast.SelectionSet, obj *model.SimTurnFeedEntry) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, simTurnFeedEntryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SimTurnFeedEntry")
+		case "id":
+			out.Values[i] = ec._SimTurnFeedEntry_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "poolId":
+			out.Values[i] = ec._SimTurnFeedEntry_poolId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "agentId":
+			out.Values[i] = ec._SimTurnFeedEntry_agentId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamName":
+			out.Values[i] = ec._SimTurnFeedEntry_teamName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "strategySummary":
+			out.Values[i] = ec._SimTurnFeedEntry_strategySummary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "model":
+			out.Values[i] = ec._SimTurnFeedEntry_model(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "phase":
+			out.Values[i] = ec._SimTurnFeedEntry_phase(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "simDate":
+			out.Values[i] = ec._SimTurnFeedEntry_simDate(ctx, field, obj)
+		case "status":
+			out.Values[i] = ec._SimTurnFeedEntry_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errorKind":
+			out.Values[i] = ec._SimTurnFeedEntry_errorKind(ctx, field, obj)
+		case "rounds":
+			out.Values[i] = ec._SimTurnFeedEntry_rounds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "costUsd":
+			out.Values[i] = ec._SimTurnFeedEntry_costUsd(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completedAt":
+			out.Values[i] = ec._SimTurnFeedEntry_completedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toolCalls":
+			out.Values[i] = ec._SimTurnFeedEntry_toolCalls(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toolCallCount":
+			out.Values[i] = ec._SimTurnFeedEntry_toolCallCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var simTurnFeedPageImplementors = []string{"SimTurnFeedPage"}
+
+func (ec *executionContext) _SimTurnFeedPage(ctx context.Context, sel ast.SelectionSet, obj *model.SimTurnFeedPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, simTurnFeedPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SimTurnFeedPage")
+		case "turns":
+			out.Values[i] = ec._SimTurnFeedPage_turns(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastId":
+			out.Values[i] = ec._SimTurnFeedPage_lastId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hasMore":
+			out.Values[i] = ec._SimTurnFeedPage_hasMore(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var simTurnToolCallImplementors = []string{"SimTurnToolCall"}
+
+func (ec *executionContext) _SimTurnToolCall(ctx context.Context, sel ast.SelectionSet, obj *model.SimTurnToolCall) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, simTurnToolCallImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SimTurnToolCall")
+		case "roundIndex":
+			out.Values[i] = ec._SimTurnToolCall_roundIndex(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sequence":
+			out.Values[i] = ec._SimTurnToolCall_sequence(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toolName":
+			out.Values[i] = ec._SimTurnToolCall_toolName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recoveredName":
+			out.Values[i] = ec._SimTurnToolCall_recoveredName(ctx, field, obj)
+		case "arguments":
+			out.Values[i] = ec._SimTurnToolCall_arguments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "outcome":
+			out.Values[i] = ec._SimTurnToolCall_outcome(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failureReason":
+			out.Values[i] = ec._SimTurnToolCall_failureReason(ctx, field, obj)
+		case "appliedTransactionId":
+			out.Values[i] = ec._SimTurnToolCall_appliedTransactionId(ctx, field, obj)
+		case "playerNames":
+			out.Values[i] = ec._SimTurnToolCall_playerNames(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -42880,6 +44735,16 @@ func (ec *executionContext) marshalNSimAgent2ᚖgithubᚗcomᚋsperanoᚋpuckdb�
 	return ec._SimAgent(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNSimDraftPick2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimDraftPick(ctx context.Context, sel ast.SelectionSet, v *model.SimDraftPick) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SimDraftPick(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNSimLineupMove2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimLineupMoveᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SimLineupMove) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -43048,6 +44913,72 @@ func (ec *executionContext) marshalNSimTransaction2ᚖgithubᚗcomᚋsperanoᚋp
 		return graphql.Null
 	}
 	return ec._SimTransaction(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSimTurnFeedEntry2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnFeedEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SimTurnFeedEntry) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSimTurnFeedEntry2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnFeedEntry(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSimTurnFeedEntry2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnFeedEntry(ctx context.Context, sel ast.SelectionSet, v *model.SimTurnFeedEntry) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SimTurnFeedEntry(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSimTurnFeedPage2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnFeedPage(ctx context.Context, sel ast.SelectionSet, v model.SimTurnFeedPage) graphql.Marshaler {
+	return ec._SimTurnFeedPage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSimTurnFeedPage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnFeedPage(ctx context.Context, sel ast.SelectionSet, v *model.SimTurnFeedPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SimTurnFeedPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSimTurnToolCall2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnToolCallᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SimTurnToolCall) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSimTurnToolCall2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnToolCall(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSimTurnToolCall2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimTurnToolCall(ctx context.Context, sel ast.SelectionSet, v *model.SimTurnToolCall) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SimTurnToolCall(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNSkaterGameLogEntry2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSkaterGameLogEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SkaterGameLogEntry) graphql.Marshaler {
@@ -43807,6 +45738,25 @@ func (ec *executionContext) unmarshalOSeasonsInput2ᚖgithubᚗcomᚋsperanoᚋp
 	}
 	res, err := ec.unmarshalInputSeasonsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOSimDraftPick2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimDraftPickᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SimDraftPick) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSimDraftPick2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimDraftPick(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalOSimPool2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐSimPool(ctx context.Context, sel ast.SelectionSet, v *model.SimPool) graphql.Marshaler {
