@@ -1,8 +1,15 @@
 "use strict";
 
 const GRAPHQL_URL = "/graphql/query";
-const BOARD_SEASON = 2026;
 const POLL_INTERVAL_MS = 2000;
+const LEAGUE_RETRY_MS = 10000;
+const SEASON_PARAM = "season";
+const SEASON_PATTERN = /^[1-9][0-9]*$/;
+// MAX_GRAPHQL_INT is the largest value a GraphQL Int (signed 32-bit) accepts.
+const MAX_GRAPHQL_INT = 2147483647;
+// READY_STATUS is the draftLeagues status of a league with a ranking snapshot,
+// which its board needs.
+const READY_STATUS = "READY";
 const SEARCH_DELAY_MS = 250;
 const BOARD_PAGE_SIZE = 100;
 const POSITION_OPTIONS = ["C", "LW", "RW", "D", "G"];
@@ -16,7 +23,10 @@ const state = {
   // selection is the league/season the user picked. Every change starts a new
   // generation; board responses and mutation results carry the selection they
   // were made for, so nothing from an earlier one reaches the current board.
-  selection: { league: "", season: BOARD_SEASON, generation: 0 },
+  selection: { league: "", season: null, generation: 0 },
+  // leagues maps each selector value (a league ID) to its draftLeagues row.
+  leagues: new Map(),
+  leagueTimer: null,
   board: null,
   boardSelection: null,
   selectedIndex: -1,
@@ -38,6 +48,12 @@ const node = (tag, className, text) => {
   if (text !== undefined) result.textContent = text;
   return result;
 };
+
+// LEAGUES_QUERY lists the leagues of one season; without a season the server
+// picks its current draft season (the one starting this calendar year from July).
+const LEAGUES_QUERY = `query DraftLeagues($season: Int) {
+  draftLeagues(season: $season) { league { season leagueId name } status }
+}`;
 
 const BOARD_QUERY = `query DraftBoard($input: MauriceDraftBoardInput!) {
   mauriceDraftBoard(input: $input) {
@@ -83,7 +99,73 @@ function boardInput(selection) {
   };
 }
 
+// loadLeagues fills the league selector from draftLeagues and opens the first
+// ranked league's board. An empty list or a failure is reported and retried, since
+// leagues appear once the season's Yahoo leagues are configured or imported.
+async function loadLeagues() {
+  window.clearTimeout(state.leagueTimer);
+  const season = requestedSeason();
+  if (season === undefined) {
+    showLeagueProblem(`The ?${SEASON_PARAM}= parameter must be a season start year, such as ${new Date().getFullYear()}.`);
+    return;
+  }
+  try {
+    const data = await graphql(LEAGUES_QUERY, { season });
+    const summaries = data.draftLeagues;
+    if (summaries.length) { fillLeagues(summaries); return; }
+    showLeagueProblem(`No draft leagues for ${season === null ? "the current season" : `the ${season} season`}; retrying.`);
+  } catch (error) {
+    showLeagueProblem(`Draft leagues unavailable · ${error.message}`);
+  }
+  state.leagueTimer = window.setTimeout(loadLeagues, LEAGUE_RETRY_MS);
+}
+
+// requestedSeason is the season start year named by ?season=, null when the
+// page names none, or undefined when the parameter is not a year a GraphQL Int
+// can carry.
+function requestedSeason() {
+  const value = new URLSearchParams(window.location.search).get(SEASON_PARAM);
+  if (value === null) return null;
+  if (!SEASON_PATTERN.test(value)) return undefined;
+  const season = Number(value);
+  return season <= MAX_GRAPHQL_INT ? season : undefined;
+}
+
+// fillLeagues lists every league and opens the first one with a ranking
+// snapshot (its board fails without one), or the first league when none has.
+// Unranked leagues stay selectable and name their status.
+function fillLeagues(summaries) {
+  const leagues = summaries.map((summary) => summary.league);
+  state.leagues = new Map(leagues.map((league) => [String(league.leagueId), league]));
+  const select = byId("league");
+  select.replaceChildren(...summaries.map(({ league, status }) => {
+    const label = [league.season, league.name || "League", league.leagueId];
+    if (status !== READY_STATUS) label.push(status);
+    const option = node("option", "", label.join(" · "));
+    option.value = String(league.leagueId);
+    return option;
+  }));
+  const initial = summaries.find((summary) => summary.status === READY_STATUS) ?? summaries[0];
+  select.value = String(initial.league.leagueId);
+  select.disabled = false;
+  setControlsDisabled(false);
+  selectLeague(select.value);
+}
+
+function showLeagueProblem(message) {
+  byId("league").replaceChildren(node("option", "", "No leagues"));
+  setConnection("error", message);
+}
+
+// selectLeague opens the board of a league from the selector, in the season
+// draftLeagues reported for it.
+function selectLeague(value) {
+  const league = state.leagues.get(value);
+  if (league) selectBoard(value, league.season);
+}
+
 async function loadBoard() {
+  if (!state.selection.league) return;
   const request = { selection: state.selection, sequence: ++state.requestSequence };
   try {
     const data = await graphql(BOARD_QUERY, { input: boardInput(request.selection) });
@@ -357,7 +439,7 @@ function positivePrompt(label) {
 }
 
 async function mutate(query, input) {
-  if (state.pending) return;
+  if (state.pending || !state.selection.league) return;
   const selection = state.selection;
   state.pending = true; setControlsDisabled(true);
   try { await graphql(query, { input }); await loadBoard(); }
@@ -383,7 +465,7 @@ function bind() {
     button.addEventListener("click", () => { state.positions.has(position) ? state.positions.delete(position) : state.positions.add(position); button.classList.toggle("active"); button.setAttribute("aria-pressed", String(state.positions.has(position))); void loadBoard(); });
     byId("positions").append(button);
   });
-  byId("league").addEventListener("change", (event) => selectBoard(event.target.value, BOARD_SEASON));
+  byId("league").addEventListener("change", (event) => selectLeague(event.target.value));
   byId("scenario").addEventListener("change", (event) => { state.scenario = event.target.value; void loadBoard(); });
   byId("search").addEventListener("input", (event) => { window.clearTimeout(state.searchTimer); state.searchTimer = window.setTimeout(() => { state.search = event.target.value; void loadBoard(); }, SEARCH_DELAY_MS); });
   byId("watch-start").addEventListener("click", () => sessionAction("startMauriceDraftWatch"));
@@ -408,4 +490,5 @@ function onPlayerKey(event) {
 }
 
 bind();
-selectBoard(byId("league").value, BOARD_SEASON);
+setControlsDisabled(true);
+void loadLeagues();

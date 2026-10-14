@@ -3,6 +3,8 @@ package draftboardui
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,4 +33,21 @@ func TestHandlerDoesNotServeClientTests(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, response.StatusCode, path)
 		assert.NoError(t, response.Body.Close())
 	}
+}
+
+// shippedLeagueSelector is the whole body of the league <select> in
+// index.html: one empty placeholder, since the client fills the selector from
+// draftLeagues.
+const shippedLeagueSelector = `<option value="">Loading leagues…</option>`
+
+// TestLeagueSelectorShipsNoLeagues keeps league IDs out of the embedded page
+// by requiring the selector to hold exactly the placeholder: no other option,
+// and no league ID in its value or its text.
+func TestLeagueSelectorShipsNoLeagues(t *testing.T) {
+	leagueSelect := regexp.MustCompile(`(?s)<select id="league"[^>]*>(.*?)</select>`)
+	page, err := assets.ReadFile("web/index.html")
+	require.NoError(t, err)
+	selector := leagueSelect.FindSubmatch(page)
+	require.NotNil(t, selector, "index.html has no league selector")
+	assert.Equal(t, shippedLeagueSelector, strings.TrimSpace(string(selector[1])))
 }
