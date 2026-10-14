@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	worknhl "github.com/sperano/puckdb/internal/worker/nhl"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
@@ -19,6 +20,8 @@ type ImportSeasonPlayerLogsWorkflowTestSuite struct {
 func (s *ImportSeasonPlayerLogsWorkflowTestSuite) SetupTest() {
 	s.env = s.NewTestWorkflowEnvironment()
 	s.env.RegisterWorkflow(ImportSeasonPlayerLogsWorkflow)
+	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Save,
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 }
 
 func (s *ImportSeasonPlayerLogsWorkflowTestSuite) AfterTest(suiteName, testName string) {

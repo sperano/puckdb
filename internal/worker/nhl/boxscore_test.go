@@ -328,4 +328,5 @@ func TestExtractAndSaveBoxscorePlayers_EmptySeason(t *testing.T) {
 	require.NoError(t, err)
 	var counts core.OriginCounts
 	require.NoError(t, future.Get(&counts))
+	require.NoError(t, mockRedis.ExpectationsWereMet())
 }
