@@ -263,10 +263,10 @@ func (s *DraftPickTestSuite) TestCostCap_TripsBeforeLLM() {
 	assert.Equal(t, s.validInput().SimDate, pause.Date)
 	gotCost, err := NumericToFloat(pause.CostUSD)
 	require.NoError(t, err)
-	assert.InDelta(t, 200.01, gotCost, 1e-9)
+	assert.InDelta(t, 200.01, gotCost, costDelta)
 	gotCap, err := NumericToFloat(pause.CapUSD)
 	require.NoError(t, err)
-	assert.InDelta(t, s.validInput().PoolConfig.MaxLLMCostUsdPerPool, gotCap, 1e-9)
+	assert.InDelta(t, s.validInput().PoolConfig.MaxLLMCostUsdPerPool, gotCap, costDelta)
 }
 
 // A retry after the transition committed (the pool is already paused,

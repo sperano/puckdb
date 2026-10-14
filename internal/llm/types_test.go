@@ -141,7 +141,8 @@ func TestUsageJSON(t *testing.T) {
 
 // Every token class Usage carries must be summed by Add. The fields are
 // enumerated by reflection so a token class added to Usage later fails
-// here until Add accumulates it too.
+// here until Add accumulates it too; this treats every int field of
+// Usage as a token count, which is what Usage holds.
 func TestUsageAddSumsEveryTokenClass(t *testing.T) {
 	var part Usage
 	v := reflect.ValueOf(&part).Elem()

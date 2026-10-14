@@ -16,6 +16,10 @@ func capture(u llm.Usage) roundCapture {
 	return roundCapture{Response: &llm.Response{Content: "ok", Usage: &u}}
 }
 
+// costDelta bounds float rounding when comparing priced costs, including
+// a round trip through a NUMERIC column.
+const costDelta = 1e-9
+
 // telemetryTestAgent is the priced agent the telemetry tests bill against.
 var telemetryTestAgent = AgentConfig{Provider: PricingProviderAnthropic, Model: "claude-haiku-4-5"}
 
@@ -101,7 +105,7 @@ func TestRecordTurnTelemetryWritesHeaderSpend(t *testing.T) {
 
 	gotCost, err := NumericToFloat(parent.CostUSD)
 	require.NoError(t, err)
-	assert.Equal(t, spend.CostUsd, gotCost, "cost_usd is the caller's spend, not a re-pricing")
+	assert.InDelta(t, spend.CostUsd, gotCost, costDelta, "cost_usd is the caller's spend, not a re-pricing")
 	assert.EqualValues(t, spend.Usage.PromptTokens, parent.PromptTokens)
 	assert.EqualValues(t, spend.Usage.CompletionTokens, parent.CompletionTokens)
 	assert.EqualValues(t, spend.Usage.CacheCreationInputTokens, parent.CacheCreationTokens)
@@ -130,7 +134,7 @@ func TestTurnSpendOfPricesEveryTokenClass(t *testing.T) {
 			require.Positive(t, tt.rate, "sanity: the test model prices this class")
 			spend := turnSpendOf(telemetryTestAgent, []roundCapture{capture(tt.usage)})
 			assert.Equal(t, tt.usage, spend.Usage)
-			assert.InDelta(t, tt.rate, spend.CostUsd, 1e-12)
+			assert.InDelta(t, tt.rate, spend.CostUsd, costDelta)
 		})
 	}
 }
@@ -156,7 +160,7 @@ func TestTurnSpendOfSumsRounds(t *testing.T) {
 	}, spend.Usage)
 	perRound := EstimateCost(telemetryTestAgent.Provider, telemetryTestAgent.Model, first) +
 		EstimateCost(telemetryTestAgent.Provider, telemetryTestAgent.Model, second)
-	assert.InDelta(t, perRound, spend.CostUsd, 1e-12)
+	assert.InDelta(t, perRound, spend.CostUsd, costDelta)
 	assert.Equal(t, TurnSpend{}, turnSpendOf(telemetryTestAgent, nil), "no rounds, no spend")
 }
 

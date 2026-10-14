@@ -33,8 +33,6 @@ const (
 	costCapSpentUsd = 1.5
 	// costCapNoLimitUsd is a cap the spend tests never reach.
 	costCapNoLimitUsd = 200.0
-	// costDelta bounds float rounding when comparing priced costs.
-	costDelta = 1e-9
 )
 
 // costCapAgent is the priced agent every cost-cap test bills against.
@@ -108,7 +106,7 @@ func (f costCapFixture) draftInput(agentID int32, capUsd float64) DraftPickInput
 
 // runSimActivity runs one attempt of activityFn as a Temporal activity,
 // the way a worker runs it.
-func runSimActivity[R any](activityFn, in any) (R, error) {
+func runSimActivity[R any](activityFn any, in any) (R, error) {
 	var res R
 	env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
 	env.RegisterActivity(activityFn)
@@ -116,7 +114,8 @@ func runSimActivity[R any](activityFn, in any) (R, error) {
 	if err != nil {
 		return res, err
 	}
-	return res, fut.Get(&res)
+	err = fut.Get(&res)
+	return res, err
 }
 
 // manageAttempt is the outcome of one ManageRoster attempt.
@@ -299,6 +298,35 @@ func TestIntegrationCostCapOverlappingAttemptAfterRollbackPauses(t *testing.T) {
 	b := awaitManageAttempt(t, attemptB)
 	requireCostCapSkip(t, b.result, b.err)
 	assertPausedOnce(t, ctx, pgPool, f.poolID, f.agents[1], costCapSpentUsd, costCapUsd)
+}
+
+// A late attempt on a pool that already completed or was cancelled still
+// reports the cap (the workflow is done with the pool anyway) but leaves
+// the pool's status as it is and writes no audit row.
+func TestIntegrationCostCapLeavesEndedPoolAlone(t *testing.T) {
+	pgPool := requireIntegrationEnv(t)
+	ctx := context.Background()
+	for _, status := range []PoolStatus{PoolStatusComplete, PoolStatusCancelled} {
+		t.Run(string(status), func(t *testing.T) {
+			f := newCostCapFixture(t, ctx, pgPool, "costcap_ended_"+string(status))
+			setPoolSpend(t, ctx, pgPool, f.poolID, costCapSpentUsd)
+			require.NoError(t, sqlcdb.New(pgPool).UpdateSimPoolStatus(ctx, sqlcdb.UpdateSimPoolStatusParams{
+				ID: f.poolID, Status: string(status),
+			}))
+
+			res, err := runSimActivity[ManageRosterResult](f.acts.ManageRoster, f.manageInput(f.agents[0], costCapDayOne, costCapUsd))
+			requireCostCapSkip(t, res, err)
+
+			pool, err := sqlcdb.New(pgPool).GetSimPool(ctx, f.poolID)
+			require.NoError(t, err)
+			assert.Equal(t, string(status), pool.Status)
+			var capRows int
+			require.NoError(t, pgPool.QueryRow(ctx,
+				`SELECT COUNT(*) FROM sim_transactions WHERE pool_id = $1 AND type = 'cost_cap_reached'`,
+				f.poolID).Scan(&capRows))
+			assert.Zero(t, capRows)
+		})
+	}
 }
 
 // usageRound returns a response carrying every token class, scaled by n

@@ -63,12 +63,13 @@ func (a *Activities) checkCostCap(ctx context.Context, poolID int32, capUsd floa
 // the two land together or not at all). The caller then returns
 // SkipReasonCostCapReached, which is what stops the workflow.
 //
-// Retry semantics: the transition only fires while the pool is not
-// paused, so a serial retry (the activity response was lost after the
-// commit) and an overlapping attempt (a timed-out attempt still running
-// next to its retry; the second waits on the pool row lock) both write
-// nothing and still return the cost-cap result. One pause, one audit
-// row, however many attempts reach this branch.
+// Retry semantics: the transition only fires while the pool has not
+// ended (PoolStatus.ended), so a serial retry (the activity response was
+// lost after the commit) and an overlapping attempt (a timed-out attempt
+// still running next to its retry; the second waits on the pool row
+// lock) both write nothing and still return the cost-cap result. One
+// pause, one audit row, however many attempts reach this branch; a late
+// attempt never turns a completed or cancelled pool into a paused one.
 func (a *Activities) pauseForCostCap(
 	ctx context.Context,
 	poolID, agentID int32,

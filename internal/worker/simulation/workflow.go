@@ -659,13 +659,12 @@ func assembleDraftPickInput(
 // it — wrapping confuses Temporal's identity check.
 
 // runSeasonPhase is the day loop. The bool return is true when the
-// loop exited because a ManageRoster turn reported the cost cap
-// reached (processOneDay) — the caller must
-// NOT complete the pool in that case (the cost-cap activity already
-// wrote status='paused'). Returns a ContinueAsNewError when the
-// absolute-day count hits the threshold, the cancel error if the
-// workflow was cancelled, or (false, nil) when sim_date passes the
-// season's end / the MaxSeasonDays cap.
+// loop exited because a ManageRoster turn reported the cost cap reached
+// (processOneDay) — the caller must NOT complete the pool in that case
+// (the cost-cap activity already wrote status='paused'). Returns a
+// ContinueAsNewError when the absolute-day count hits the threshold,
+// the cancel error if the workflow was cancelled, or (false, nil) when
+// sim_date passes the season's end / the MaxSeasonDays cap.
 //
 // MaxSeasonDays and the ContinueAsNew threshold are both measured
 // against days elapsed from SeasonStartDate, NOT in.DayCount —

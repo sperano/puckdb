@@ -374,11 +374,11 @@ func (s *SimPoolWorkflowTestSuite) recordPoolStatuses() *[]PoolStatus {
 	return &statuses
 }
 
-// countActivity registers a mock for activity that counts its calls and
-// returns result. Register before stubActivityResults.
-func (s *SimPoolWorkflowTestSuite) countActivity(activity, result any) *int {
+// countActivity registers a mock for activityFn that counts its calls
+// and returns result. Register before stubActivityResults.
+func (s *SimPoolWorkflowTestSuite) countActivity(activityFn, result any) *int {
 	n := 0
-	s.env.OnActivity(activity, mock.Anything, mock.Anything).
+	s.env.OnActivity(activityFn, mock.Anything, mock.Anything).
 		Run(func(mock.Arguments) { n++ }).
 		Return(result, nil).Maybe()
 	return &n

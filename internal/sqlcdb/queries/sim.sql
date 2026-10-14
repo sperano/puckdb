@@ -370,16 +370,19 @@ RETURNING id, pool_id, agent_id, date, type, player_id, reasoning,
 
 -- PauseSimPoolForCostCap is the one durable cost-cap transition: in a
 -- single statement it flips the pool to 'paused' and writes the
--- cost_cap_reached audit row, both only when the pool is not paused yet.
+-- cost_cap_reached audit row, both only while the pool has not ended
+-- (the statuses PoolStatus.ended lists: paused, complete, cancelled).
 -- The UPDATE takes the pool row lock, so an overlapping attempt waits for
 -- the first one to commit, re-checks the status on the committed row and
--- writes nothing; a serial retry finds the pool already paused. Returns
+-- writes nothing; a serial retry finds the pool already paused, and a
+-- late attempt leaves a completed or cancelled pool as it is. Returns
 -- the number of audit rows written: 1 for the transition, 0 otherwise.
 -- name: PauseSimPoolForCostCap :execrows
 WITH paused AS (
     UPDATE sim_pools
     SET status = 'paused', updated_at = NOW()
-    WHERE sim_pools.id = sqlc.arg(pool_id) AND sim_pools.status <> 'paused'
+    WHERE sim_pools.id = sqlc.arg(pool_id)
+      AND sim_pools.status NOT IN ('paused', 'complete', 'cancelled')
     RETURNING sim_pools.id AS paused_pool_id
 )
 INSERT INTO sim_transactions (
