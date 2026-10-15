@@ -159,10 +159,8 @@ type TurnSpend struct {
 
 // turnSpendOf sums the usage of every captured round and prices the sum
 // once. It reads the captures rather than agentloop.Result.Usage: the
-// recorder sees every billed round even when agentloop returns no Result
-// (cancellation between rounds), and the per-round sim_agent_turn_rounds
-// rows come from the same captures, so the turn's token totals equal the
-// sum of its rounds. Captures with a nil Response (a provider error
+// per-round sim_agent_turn_rounds rows come from the same captures, so
+// the turn's token totals equal the sum of its rounds. Captures with a nil Response (a provider error
 // mid-call) contribute nothing.
 func turnSpendOf(cfg AgentConfig, captures []roundCapture) TurnSpend {
 	var usage llm.Usage
@@ -329,15 +327,9 @@ func transcriptForRecording(recordMessages bool, res *agentloop.Result) []llm.Me
 //   - len(t.Captures) != len(audit) that produced t.ToolCalls (see AssignRoundsFromAudit)
 //   - empty ToolCalls / Messages slices (no-op for that child write)
 func RecordTurnTelemetry(ctx context.Context, q SimQueries, t TurnTelemetry) (int32, error) {
-	header := t.Header
-	captures := t.Captures
-	toolCalls := t.ToolCalls
-	messages := t.Messages
-	recordMessages := t.RecordMessages
-	spend := header.Spend
-	costNum, err := numericFromFloat(spend.CostUsd)
+	parent, err := turnHeaderParams(t)
 	if err != nil {
-		return 0, fmt.Errorf("simulation: encode turn cost: %w", err)
+		return 0, err
 	}
 
 	// Idempotency: a Temporal-retried activity (PickTeamName after an
@@ -350,112 +342,22 @@ func RecordTurnTelemetry(ctx context.Context, q SimQueries, t TurnTelemetry) (in
 	// collide either. The DELETE+INSERT runs inside the caller's tx,
 	// so either both writes land or neither does.
 	if err := q.DeleteSimAgentTurnIdempotent(ctx, sqlcdb.DeleteSimAgentTurnIdempotentParams{
-		PoolID:     header.PoolID,
-		AgentID:    header.AgentID,
-		Phase:      string(header.Phase),
-		SimDate:    header.SimDate,
-		PickNumber: header.PickNumber,
+		PoolID:     parent.PoolID,
+		AgentID:    parent.AgentID,
+		Phase:      parent.Phase,
+		SimDate:    parent.SimDate,
+		PickNumber: parent.PickNumber,
 	}); err != nil {
 		return 0, fmt.Errorf("simulation: delete prior turn: %w", err)
 	}
 
-	parent := sqlcdb.InsertSimAgentTurnParams{
-		PoolID:              header.PoolID,
-		AgentID:             header.AgentID,
-		SimDate:             header.SimDate,
-		Phase:               string(header.Phase),
-		PickNumber:          header.PickNumber,
-		Status:              string(header.Status),
-		SkipReason:          textOrNull(header.SkipReason),
-		ErrorKind:           textOrNull(string(header.ErrorKind)),
-		ErrorDetail:         textOrNull(header.ErrorDetail),
-		Provider:            header.Provider,
-		Model:               header.Model,
-		Temperature:         numericOrNull(header.Temperature),
-		MaxTokens:           int4OrNull(int32(header.MaxTokens)),
-		Rounds:              clampTokenCount(len(captures)),
-		PromptTokens:        clampTokenCount(spend.Usage.PromptTokens),
-		CompletionTokens:    clampTokenCount(spend.Usage.CompletionTokens),
-		CacheCreationTokens: clampTokenCount(spend.Usage.CacheCreationInputTokens),
-		CacheReadTokens:     clampTokenCount(spend.Usage.CacheReadInputTokens),
-		CostUSD:             costNum,
-		LatencyMs:           durationToMs(sumLatency(captures)),
-		FinalText:           header.FinalText,
-		StartedAt:           pgtype.Timestamptz{Time: header.StartedAt, Valid: true},
-		CompletedAt:         pgtype.Timestamptz{Time: header.CompletedAt, Valid: true},
-	}
 	turnID, err := q.InsertSimAgentTurn(ctx, parent)
 	if err != nil {
 		return 0, fmt.Errorf("simulation: insert turn: %w", err)
 	}
-
-	if len(captures) > 0 {
-		rounds := make([]sqlcdb.InsertSimAgentTurnRoundParams, 0, len(captures))
-		for i, c := range captures {
-			var u llm.Usage
-			var text string
-			if c.Response != nil {
-				if c.Response.Usage != nil {
-					u = *c.Response.Usage
-				}
-				text = c.Response.Content
-			}
-			rounds = append(rounds, sqlcdb.InsertSimAgentTurnRoundParams{
-				TurnID:              turnID,
-				RoundIndex:          int32(i),
-				AssistantText:       text,
-				PromptTokens:        clampTokenCount(u.PromptTokens),
-				CompletionTokens:    clampTokenCount(u.CompletionTokens),
-				CacheCreationTokens: clampTokenCount(u.CacheCreationInputTokens),
-				CacheReadTokens:     clampTokenCount(u.CacheReadInputTokens),
-				LatencyMs:           durationToMs(c.Latency),
-			})
-		}
-		if _, err := q.InsertSimAgentTurnRound(ctx, rounds); err != nil {
-			return 0, fmt.Errorf("simulation: insert turn rounds: %w", err)
-		}
+	if err := recordTurnChildren(ctx, q, turnID, t); err != nil {
+		return 0, err
 	}
-
-	if len(toolCalls) > 0 {
-		calls := make([]sqlcdb.InsertSimAgentToolCallParams, 0, len(toolCalls))
-		for _, tc := range toolCalls {
-			calls = append(calls, sqlcdb.InsertSimAgentToolCallParams{
-				TurnID:               turnID,
-				RoundIndex:           int32(tc.RoundIndex),
-				Sequence:             int32(tc.Sequence),
-				ToolName:             tc.ToolName,
-				RecoveredName:        textOrNull(tc.RecoveredName),
-				ArgumentsRaw:         tc.ArgumentsRaw,
-				Arguments:            argumentsJSONB(tc.ArgumentsRaw),
-				Result:               tc.Result,
-				Outcome:              string(tc.Outcome),
-				FailureReason:        textOrNull(tc.FailureReason),
-				AppliedTransactionID: int4OrNull(tc.AppliedTransactionID),
-				LatencyMs:            durationToMs(tc.Latency),
-			})
-		}
-		if _, err := q.InsertSimAgentToolCall(ctx, calls); err != nil {
-			return 0, fmt.Errorf("simulation: insert tool calls: %w", err)
-		}
-	}
-
-	if recordMessages && len(messages) > 0 {
-		rows := make([]sqlcdb.InsertSimAgentTurnMessageParams, 0, len(messages))
-		for i, m := range messages {
-			rows = append(rows, sqlcdb.InsertSimAgentTurnMessageParams{
-				TurnID:     turnID,
-				Ordinal:    int32(i),
-				Role:       m.Role,
-				Content:    m.Content,
-				ToolCallID: textOrNull(m.ToolCallID),
-				ToolCalls:  toolCallsJSONB(m.ToolCalls),
-			})
-		}
-		if _, err := q.InsertSimAgentTurnMessage(ctx, rows); err != nil {
-			return 0, fmt.Errorf("simulation: insert turn messages: %w", err)
-		}
-	}
-
 	return turnID, nil
 }
 

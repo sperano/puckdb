@@ -228,6 +228,9 @@ type SimQueries interface {
 	// unique indexes. See worker/simulation/telemetry.go for the call site.
 	DeleteSimAgentTurnIdempotent(ctx context.Context, arg sqlcdb.DeleteSimAgentTurnIdempotentParams) error
 	InsertSimAgentTurn(ctx context.Context, arg sqlcdb.InsertSimAgentTurnParams) (int32, error)
+	// InsertSimAgentTurnIfAbsent is the aborted-turn write's header
+	// insert: it never replaces a turn a newer attempt committed.
+	InsertSimAgentTurnIfAbsent(ctx context.Context, arg sqlcdb.InsertSimAgentTurnIfAbsentParams) (int32, error)
 	InsertSimAgentTurnRound(ctx context.Context, arg []sqlcdb.InsertSimAgentTurnRoundParams) (int64, error)
 	InsertSimAgentToolCall(ctx context.Context, arg []sqlcdb.InsertSimAgentToolCallParams) (int64, error)
 	InsertSimAgentTurnMessage(ctx context.Context, arg []sqlcdb.InsertSimAgentTurnMessageParams) (int64, error)

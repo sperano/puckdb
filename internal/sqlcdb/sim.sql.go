@@ -748,6 +748,90 @@ func (q *Queries) InsertSimAgentTurn(ctx context.Context, arg InsertSimAgentTurn
 	return id, err
 }
 
+const insertSimAgentTurnIfAbsent = `-- name: InsertSimAgentTurnIfAbsent :one
+INSERT INTO sim_agent_turns (
+    pool_id, agent_id, sim_date, phase, pick_number,
+    status, skip_reason, error_kind, error_detail,
+    provider, model, temperature, max_tokens,
+    rounds, prompt_tokens, completion_tokens,
+    cache_creation_tokens, cache_read_tokens,
+    cost_usd, latency_ms, final_text,
+    started_at, completed_at
+)
+VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8, $9,
+    $10, $11, $12, $13,
+    $14, $15, $16,
+    $17, $18,
+    $19, $20, $21,
+    $22, $23
+)
+ON CONFLICT DO NOTHING
+RETURNING id
+`
+
+type InsertSimAgentTurnIfAbsentParams struct {
+	PoolID              int32              `json:"pool_id"`
+	AgentID             int32              `json:"agent_id"`
+	SimDate             pgtype.Date        `json:"sim_date"`
+	Phase               string             `json:"phase"`
+	PickNumber          int32              `json:"pick_number"`
+	Status              string             `json:"status"`
+	SkipReason          pgtype.Text        `json:"skip_reason"`
+	ErrorKind           pgtype.Text        `json:"error_kind"`
+	ErrorDetail         pgtype.Text        `json:"error_detail"`
+	Provider            string             `json:"provider"`
+	Model               string             `json:"model"`
+	Temperature         pgtype.Numeric     `json:"temperature"`
+	MaxTokens           pgtype.Int4        `json:"max_tokens"`
+	Rounds              int32              `json:"rounds"`
+	PromptTokens        int32              `json:"prompt_tokens"`
+	CompletionTokens    int32              `json:"completion_tokens"`
+	CacheCreationTokens int32              `json:"cache_creation_tokens"`
+	CacheReadTokens     int32              `json:"cache_read_tokens"`
+	CostUSD             pgtype.Numeric     `json:"cost_usd"`
+	LatencyMs           int32              `json:"latency_ms"`
+	FinalText           string             `json:"final_text"`
+	StartedAt           pgtype.Timestamptz `json:"started_at"`
+	CompletedAt         pgtype.Timestamptz `json:"completed_at"`
+}
+
+// InsertSimAgentTurnIfAbsent writes the turn header of an aborted
+// attempt only when no turn holds its coordinate yet (either partial
+// unique index), and returns no row otherwise: a late write from a
+// stale attempt must not replace the turn a newer attempt committed.
+func (q *Queries) InsertSimAgentTurnIfAbsent(ctx context.Context, arg InsertSimAgentTurnIfAbsentParams) (int32, error) {
+	row := q.db.QueryRow(ctx, insertSimAgentTurnIfAbsent,
+		arg.PoolID,
+		arg.AgentID,
+		arg.SimDate,
+		arg.Phase,
+		arg.PickNumber,
+		arg.Status,
+		arg.SkipReason,
+		arg.ErrorKind,
+		arg.ErrorDetail,
+		arg.Provider,
+		arg.Model,
+		arg.Temperature,
+		arg.MaxTokens,
+		arg.Rounds,
+		arg.PromptTokens,
+		arg.CompletionTokens,
+		arg.CacheCreationTokens,
+		arg.CacheReadTokens,
+		arg.CostUSD,
+		arg.LatencyMs,
+		arg.FinalText,
+		arg.StartedAt,
+		arg.CompletedAt,
+	)
+	var id int32
+	err := row.Scan(&id)
+	return id, err
+}
+
 type InsertSimAgentTurnMessageParams struct {
 	TurnID     int32       `json:"turn_id"`
 	Ordinal    int32       `json:"ordinal"`

@@ -396,9 +396,48 @@ func TestRun_RespectsCancelledContext(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	assert.Nil(t, res)
 	assert.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, 0, client.calls, "must not call the LLM after the context is cancelled")
+	require.NotNil(t, res, "cancellation returns a partial result like every other error path")
+	assert.Empty(t, res.Audit)
+	assert.Zero(t, res.Rounds)
+}
+
+// cancelingClient answers each request and ends the context while doing
+// so, the way a deadline lands after the provider has charged a round.
+type cancelingClient struct {
+	scriptedClient
+	cancel context.CancelFunc
+}
+
+func (c *cancelingClient) Complete(ctx context.Context, req *llm.Request) (*llm.Response, error) {
+	c.cancel()
+	return c.scriptedClient.Complete(ctx, req)
+}
+
+// A context that ends during a round stops the loop before the next one,
+// and the partial result keeps the billed usage and the audit of the
+// tools that round ran: callers record and bill them.
+func TestRun_CancelledBetweenRoundsReturnsPartialResult(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	first := toolCallResp("t", "c1")
+	first.ToolCalls = append(first.ToolCalls, toolCallResp("t", "c2").ToolCalls...)
+	client := &cancelingClient{
+		scriptedClient: scriptedClient{responses: []*llm.Response{first, textResp("never reached")}},
+		cancel:         cancel,
+	}
+
+	res, err := Run(ctx, client, []llm.Message{{Role: "user", Content: "go"}}, passThroughExec, Config{MaxToolRounds: 5})
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, 1, client.calls, "no round after the context ended")
+	require.NotNil(t, res)
+	require.Len(t, res.Audit, 2, "the tools the billed round ran are audited")
+	assert.Equal(t, []string{"c1", "c2"}, []string{res.Audit[0].Call.ID, res.Audit[1].Call.ID})
+	assert.Equal(t, *first.Usage, res.Usage)
+	assert.Same(t, first, res.Final)
+	assert.Equal(t, 1, res.Rounds)
 }
 
 // The Tools and Temperature config fields must reach the wire request

@@ -764,6 +764,32 @@ VALUES (
 )
 RETURNING id;
 
+-- InsertSimAgentTurnIfAbsent writes the turn header of an aborted
+-- attempt only when no turn holds its coordinate yet (either partial
+-- unique index), and returns no row otherwise: a late write from a
+-- stale attempt must not replace the turn a newer attempt committed.
+-- name: InsertSimAgentTurnIfAbsent :one
+INSERT INTO sim_agent_turns (
+    pool_id, agent_id, sim_date, phase, pick_number,
+    status, skip_reason, error_kind, error_detail,
+    provider, model, temperature, max_tokens,
+    rounds, prompt_tokens, completion_tokens,
+    cache_creation_tokens, cache_read_tokens,
+    cost_usd, latency_ms, final_text,
+    started_at, completed_at
+)
+VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8, $9,
+    $10, $11, $12, $13,
+    $14, $15, $16,
+    $17, $18,
+    $19, $20, $21,
+    $22, $23
+)
+ON CONFLICT DO NOTHING
+RETURNING id;
+
 -- ListSimAgentTurns is the timeline view for one pool. Pass agent_id = 0
 -- to skip the agent filter; pass phase = '' to skip the phase filter.
 -- name: ListSimAgentTurns :many

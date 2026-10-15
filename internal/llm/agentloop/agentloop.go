@@ -76,7 +76,8 @@ type Config struct {
 //  1. The model returns a response with no tool calls — return success.
 //  2. exec returns a non-nil error — abort and return the wrapped error.
 //  3. client.Complete returns an error — abort and return the wrapped error.
-//  4. The loop has executed Config.MaxToolRounds rounds — return success
+//  4. ctx ends between rounds — abort and return ctx.Err().
+//  5. The loop has executed Config.MaxToolRounds rounds — return success
 //     with the final tool-requesting response in Result.Final and the full
 //     audit trail. The caller can decide whether to coerce a final text
 //     reply (e.g. by sending a follow-up Complete with no tools).
@@ -95,9 +96,17 @@ func Run(ctx context.Context, client llm.Client, messages []llm.Message, exec To
 		// Honor cancellation between rounds. client.Complete and exec are
 		// expected to honor ctx themselves, but a misbehaving executor that
 		// ignores ctx would otherwise let the loop run unbounded once the
-		// caller cancels.
+		// caller cancels. The partial result carries the rounds already
+		// billed and the audit of the tools they ran, as on every other
+		// error path.
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return &Result{
+				Final:    lastResp,
+				Messages: history,
+				Audit:    audit,
+				Usage:    usage,
+				Rounds:   round,
+			}, err
 		}
 
 		req := &llm.Request{

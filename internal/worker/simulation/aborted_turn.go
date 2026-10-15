@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
@@ -37,6 +38,12 @@ func (a *Activities) abortIfDone(ctx context.Context, t TurnTelemetry, turn stri
 // idempotency markers stay out, so a retry replays the turn from
 // scratch; its turn row then replaces this one while the pool total
 // keeps both attempts, as after any other retry.
+//
+// The turn row is written only while its coordinate is free: Temporal
+// may start the retry before this detached write lands, and a late
+// write must not replace the turn the retry committed (with its
+// applied-transaction links) by an errored one. The spend still counts.
+// Of two aborted attempts, the first row stays.
 //
 // The write runs on context.WithoutCancel(ctx), bounded by
 // abortedTurnWriteTimeout: on a done activity context PgxTransactor.InTx
@@ -89,7 +96,26 @@ func (a *Activities) writeAbortedTurn(ctx context.Context, t TurnTelemetry) erro
 		}); err != nil {
 			return fmt.Errorf("increment llm cost: %w", err)
 		}
-		_, err := RecordTurnTelemetry(writeCtx, q, t)
-		return err
+		// The increment took the pool row lock, which every commit takes
+		// before its turn row too, so a concurrent commit has finished
+		// (or not started) by the time this insert runs.
+		return recordTurnTelemetryIfAbsent(writeCtx, q, t)
 	})
+}
+
+// recordTurnTelemetryIfAbsent writes t like RecordTurnTelemetry, but
+// only when no turn holds its coordinate: it never deletes a row.
+func recordTurnTelemetryIfAbsent(ctx context.Context, q SimQueries, t TurnTelemetry) error {
+	parent, err := turnHeaderParams(t)
+	if err != nil {
+		return err
+	}
+	turnID, err := q.InsertSimAgentTurnIfAbsent(ctx, sqlcdb.InsertSimAgentTurnIfAbsentParams(parent))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("simulation: insert aborted turn: %w", err)
+	}
+	return recordTurnChildren(ctx, q, turnID, t)
 }

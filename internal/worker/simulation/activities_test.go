@@ -251,6 +251,12 @@ type stubSimQueries struct {
 	deleteTurnCalls  []sqlcdb.DeleteSimAgentTurnIdempotentParams
 	deleteTurnErr    error
 
+	// InsertSimAgentTurnIfAbsent (the aborted-turn write). turnTaken
+	// makes it find the coordinate held by another attempt's turn.
+	insertTurnIfAbsentCalls []sqlcdb.InsertSimAgentTurnIfAbsentParams
+	insertTurnIfAbsentErr   error
+	turnTaken               bool
+
 	insertTurnRoundBatches [][]sqlcdb.InsertSimAgentTurnRoundParams
 	insertTurnRoundErr     error
 
@@ -435,6 +441,17 @@ func (s *stubSimQueries) InsertSimAgentTurn(_ context.Context, arg sqlcdb.Insert
 		s.insertTurnNextID++
 	}
 	return id, nil
+}
+
+func (s *stubSimQueries) InsertSimAgentTurnIfAbsent(_ context.Context, arg sqlcdb.InsertSimAgentTurnIfAbsentParams) (int32, error) {
+	s.insertTurnIfAbsentCalls = append(s.insertTurnIfAbsentCalls, arg)
+	if s.insertTurnIfAbsentErr != nil {
+		return 0, s.insertTurnIfAbsentErr
+	}
+	if s.turnTaken {
+		return 0, pgx.ErrNoRows
+	}
+	return int32(len(s.insertTurnIfAbsentCalls)), nil
 }
 
 func (s *stubSimQueries) InsertSimAgentTurnRound(_ context.Context, arg []sqlcdb.InsertSimAgentTurnRoundParams) (int64, error) {

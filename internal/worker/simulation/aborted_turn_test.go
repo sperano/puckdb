@@ -52,8 +52,10 @@ func requireAbortedTurnSpend(t *testing.T, q *stubSimQueries, tx *stubTransactor
 	require.NoError(t, err)
 	assert.Greater(t, poolCost, 0.0, "the billed round reaches the pool total")
 
-	require.Len(t, q.insertTurnCalls, 1)
-	turn := q.insertTurnCalls[0]
+	assert.Empty(t, q.deleteTurnCalls, "an aborted write never deletes a turn")
+	assert.Empty(t, q.insertTurnCalls)
+	require.Len(t, q.insertTurnIfAbsentCalls, 1)
+	turn := q.insertTurnIfAbsentCalls[0]
 	assert.Equal(t, string(TurnStatusErrored), turn.Status)
 	assert.Equal(t, string(wantKind), turn.ErrorKind.String)
 	assert.Equal(t, int32(1), turn.Rounds)
@@ -62,17 +64,49 @@ func requireAbortedTurnSpend(t *testing.T, q *stubSimQueries, tx *stubTransactor
 	assert.InDelta(t, poolCost, turnCost, costDelta, "turn row and pool total carry one spend")
 }
 
+// requireAcceptedToolCalls checks that the aborted turn's row records
+// the tool calls the executor accepted before the context ended, each at
+// its own (round, sequence): two at one coordinate would violate the
+// sim_agent_tool_calls primary key and roll the spend back.
+func requireAcceptedToolCalls(t *testing.T, q *stubSimQueries, wantTools ...string) {
+	t.Helper()
+	require.Len(t, q.insertToolCallBatches, 1)
+	calls := q.insertToolCallBatches[0]
+	require.Len(t, calls, len(wantTools))
+	for i, call := range calls {
+		assert.Equal(t, wantTools[i], call.ToolName)
+		assert.Equal(t, string(ToolCallOutcomeAccepted), call.Outcome, "%s was accepted in memory", call.ToolName)
+		assert.Equal(t, int32(0), call.RoundIndex)
+		assert.Equal(t, int32(i), call.Sequence)
+		assert.False(t, call.AppliedTransactionID.Valid, "nothing was applied")
+	}
+}
+
+// draftNotesThenPick is one draft round that updates the notes and then
+// drafts playerID: two accepted tool calls in round 0.
+func draftNotesThenPick(playerID int64) *llm.Response {
+	resp := draftPlayerToolCall(playerID, "best available")
+	notes := llm.ToolCall{
+		ID:       "tc_notes",
+		Type:     "function",
+		Function: llm.ToolCallFunction{Name: ToolUpdateNotes, Arguments: `{"notes":"take centers early"}`},
+	}
+	resp.ToolCalls = append([]llm.ToolCall{notes}, resp.ToolCalls...)
+	return resp
+}
+
 // A draft turn cut off after a billed round adds that round to the pool
 // total but commits nothing of the pick it had accepted in memory: the
 // retry drafts from scratch.
 func (s *DraftPickTestSuite) TestAbortedTurn_RecordsSpendWithoutPick() {
 	t := s.T()
-	cancelDuringTurn(t, s.env, s.acts, draftPlayerToolCall(8478402, "best available"))
+	cancelDuringTurn(t, s.env, s.acts, draftNotesThenPick(8478402))
 
 	_, err := s.env.ExecuteActivity(s.acts.DraftPick, s.validInput())
 	require.ErrorContains(t, err, "draft turn aborted")
 
 	requireAbortedTurnSpend(t, s.queries, s.tx, ErrorKindLLMError)
+	requireAcceptedToolCalls(t, s.queries, ToolUpdateNotes, ToolDraftPlayer)
 	assert.Empty(t, s.queries.insertRosterCalls)
 	assert.Empty(t, s.queries.insertDraftPickCalls)
 	assert.Empty(t, s.queries.updateAgentNotesCalls)
@@ -106,6 +140,7 @@ func (s *ManageRosterTestSuite) TestAbortedTurn_RecordsSpendWithoutActions() {
 	require.ErrorContains(t, err, "daily turn aborted")
 
 	requireAbortedTurnSpend(t, s.queries, s.tx, ErrorKindLLMError)
+	requireAcceptedToolCalls(t, s.queries, ToolUpdateNotes)
 	assert.Empty(t, s.queries.updateAgentNotesCalls)
 	assert.Empty(t, s.queries.insertDailyTurnDoneCalls, "no marker: the retry must run the day")
 	assert.Empty(t, s.queries.insertPassCalls)
@@ -123,6 +158,7 @@ func (s *PickTeamNameTestSuite) TestAbortedTurn_RecordsSpendWithoutName() {
 	require.ErrorContains(t, err, "team-name turn aborted")
 
 	requireAbortedTurnSpend(t, s.queries, s.tx, ErrorKindLLMError)
+	requireAcceptedToolCalls(t, s.queries, ToolSetTeamName)
 	assert.Empty(t, s.queries.setTeamNameCalls)
 }
 
@@ -140,7 +176,7 @@ func TestRecordAbortedTurnSkipsTurnWithoutRounds(t *testing.T) {
 
 // A failed write keeps the turn's own error visible next to it.
 func TestRecordAbortedTurnJoinsWriteFailure(t *testing.T) {
-	q := &stubSimQueries{insertTurnErr: errors.New("insert turn")}
+	q := &stubSimQueries{insertTurnIfAbsentErr: errors.New("insert turn")}
 	tx := &stubTransactor{queries: q}
 	acts := &Activities{Tx: tx}
 	cause := errors.New("turn aborted")
@@ -153,4 +189,26 @@ func TestRecordAbortedTurnJoinsWriteFailure(t *testing.T) {
 	require.ErrorIs(t, err, cause)
 	assert.ErrorContains(t, err, "record aborted turn spend")
 	assert.ErrorContains(t, err, "insert turn")
+}
+
+// A late write from a stale attempt, landing after the retry committed
+// its turn, still adds its spend but leaves the retry's turn row alone.
+func TestRecordAbortedTurnKeepsNewerTurn(t *testing.T) {
+	q := &stubSimQueries{turnTaken: true}
+	tx := &stubTransactor{queries: q}
+	acts := &Activities{Tx: tx}
+	cause := errors.New("turn aborted")
+
+	err := acts.recordAbortedTurn(context.Background(), TurnTelemetry{
+		Header:    TurnHeader{PoolID: 1, Phase: TurnPhaseTeamName, Spend: TurnSpend{CostUsd: 0.25}},
+		Captures:  []roundCapture{capture(llm.Usage{PromptTokens: 1})},
+		ToolCalls: []ToolCallCapture{{ToolName: ToolSetTeamName, Outcome: ToolCallOutcomeAccepted}},
+	}, cause)
+
+	assert.Same(t, cause, err, "a taken coordinate is not a write failure")
+	require.Len(t, q.incrementCostCalls, 1, "the stale attempt's spend still counts")
+	assert.Len(t, q.insertTurnIfAbsentCalls, 1)
+	assert.Empty(t, q.deleteTurnCalls)
+	assert.Empty(t, q.insertTurnRoundBatches, "no children without the turn row")
+	assert.Empty(t, q.insertToolCallBatches)
 }
