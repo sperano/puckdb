@@ -160,8 +160,8 @@ type TurnSpend struct {
 // turnSpendOf sums the usage of every captured round and prices the sum
 // once. It reads the captures rather than agentloop.Result.Usage: the
 // per-round sim_agent_turn_rounds rows come from the same captures, so
-// the turn's token totals equal the sum of its rounds. Captures with a nil Response (a provider error
-// mid-call) contribute nothing.
+// the turn's token totals equal the sum of its rounds. Captures with a
+// nil Response (a provider error mid-call) contribute nothing.
 func turnSpendOf(cfg AgentConfig, captures []roundCapture) TurnSpend {
 	var usage llm.Usage
 	for _, c := range captures {
