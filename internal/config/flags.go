@@ -101,15 +101,14 @@ func InitFlags(flags *flag.FlagSet, groups ...*FlagGroup) {
 
 // Server flags
 const (
-	FlagAPIPort           = "api-port"
-	FlagAPITLSEnabled     = "api-tls-enabled"
-	FlagAPIServerAddr     = "api-server-addr"
-	FlagWorkerPort        = "worker-port"
-	FlagWorkerTLSEnabled  = "worker-tls-enabled"
-	FlagMetricsPort       = "metrics-port"
-	FlagMetricsTLSEnabled = "metrics-tls-enabled"
-	FlagTLSCertificate    = "tls-certificate"
-	FlagTLSKey            = "tls-key"
+	FlagAPIPort          = "api-port"
+	FlagAPITLSEnabled    = "api-tls-enabled"
+	FlagAPIServerAddr    = "api-server-addr"
+	FlagWorkerPort       = "worker-port"
+	FlagWorkerTLSEnabled = "worker-tls-enabled"
+	FlagMetricsPort      = "metrics-port"
+	FlagTLSCertificate   = "tls-certificate"
+	FlagTLSKey           = "tls-key"
 )
 
 // Data and logging flags
@@ -256,7 +255,6 @@ const (
 	FlagRefreshCurrentEdge           = "refresh-current-edge"
 	FlagReimportDays                 = "reimport-days"
 	FlagSeasonConcurrency            = "season-concurrency"
-	FlagMonitor                      = "monitor"
 	FlagSeasonYear                   = "season"
 	FlagFromSeasonYear               = "from-season"
 	FlagToSeasonYear                 = "to-season"
@@ -271,10 +269,9 @@ const (
 
 // Metrics collection flags
 const (
-	FlagMetricsRefreshInterval = "metrics-refresh-interval"
-	FlagCacheIntervalSeconds   = "cache-interval-seconds"
-	FlagRedisIntervalSeconds   = "redis-interval-seconds"
-	FlagDBIntervalSeconds      = "db-interval-seconds"
+	FlagCacheIntervalSeconds = "cache-interval-seconds"
+	FlagRedisIntervalSeconds = "redis-interval-seconds"
+	FlagDBIntervalSeconds    = "db-interval-seconds"
 )
 
 // MCP server flags
@@ -287,9 +284,7 @@ const (
 
 // CLI display flags
 const (
-	FlagVerbose    = "verbose"
-	FlagIncomplete = "incomplete"
-	FlagTheme      = "theme"
+	FlagTheme = "theme"
 )
 
 // Maurice AI chat flags
@@ -585,14 +580,6 @@ var MCPServerFlags = FlagGroup{
 	},
 }
 
-// DisplayFlags defines CLI display option flags.
-var DisplayFlags = FlagGroup{
-	Flags: []FlagDef{
-		{FlagVerbose, "v", false, "Show detailed output per season", false},
-		{FlagIncomplete, "i", false, "Only show seasons with less than 100% completion", false},
-	},
-}
-
 // SpinnerFlags defines spinner display option flags.
 var SpinnerFlags = FlagGroup{
 	Flags: []FlagDef{
@@ -609,15 +596,6 @@ var TLSFlags = FlagGroup{
 }
 
 // Single-flag groups for individual flags
-
-// LoggingFlags defines logging configuration flags.
-// Note: Use InitLoggingFlags for custom defaults per command.
-var LoggingFlags = FlagGroup{
-	Flags: []FlagDef{
-		{FlagLogLevel, "L", DefaultLogLevel, fmt.Sprintf("Log Level: %s", getLogLevelsStr()), false},
-		{FlagLogFile, "", DefaultLogFile, fmt.Sprintf("Log file path (empty for stdout, 'default' for %s)", GetDefaultLogPath()), false},
-	},
-}
 
 // APIServerAddrFlags defines API server address flag.
 var APIServerAddrFlags = FlagGroup{
@@ -639,15 +617,6 @@ var WorkerPortFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagWorkerPort, "", DefaultWorkerPort, "Worker metrics port", false},
 		{FlagWorkerTLSEnabled, "", false, "Enable TLS Mode", false},
-	},
-}
-
-// MetricsPortFlags defines metrics server port flags.
-var MetricsPortFlags = FlagGroup{
-	Flags: []FlagDef{
-		{FlagMetricsPort, "", DefaultMetricsPort, "Metrics server port", false},
-		{FlagMetricsTLSEnabled, "", false, "Enable TLS Mode", false},
-		{FlagMetricsRefreshInterval, "", DefaultMetricsRefreshInterval, "Metrics refresh interval in seconds", false},
 	},
 }
 
@@ -682,13 +651,6 @@ var GobCacheFlags = FlagGroup{
 var SeasonConcurrencyFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagSeasonConcurrency, "", 0, "Number of seasons to process concurrently (0 uses server default)", false},
-	},
-}
-
-// MonitorFlags defines workflow monitor flag.
-var MonitorFlags = FlagGroup{
-	Flags: []FlagDef{
-		{FlagMonitor, "", false, "Skip triggering workflow, only monitor existing workflow", false},
 	},
 }
 
