@@ -12,6 +12,7 @@ import (
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/mcpserver"
+	"github.com/sperano/puckdb/internal/news"
 
 	mcpserversdk "github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
@@ -29,6 +30,7 @@ var mcpServerFlagGroups = []*config.FlagGroup{
 	&config.PostgresFlags,
 	&config.MCPServerFlags,
 	&config.DraftAPIFlags,
+	&config.NewsSourcesFlags,
 }
 
 // mcpTransport is the resolved transport selection for the MCP server.
@@ -124,6 +126,16 @@ func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Opt
 
 	queries := database.NewQueries(pool)
 	opts.Draft = newDraftService(pool)
+	if opts.HasToolset(mcpserver.ToolsetNHL) {
+		sources, err := news.LoadSources(viper.GetString(config.FlagNewsSourcesFile))
+		if err != nil {
+			return err
+		}
+		opts.NewsSources, err = news.EnabledSources(sources, nil)
+		if err != nil {
+			return err
+		}
+	}
 	srv, err := mcpserver.NewServer(queries, opts)
 	if err != nil {
 		return err

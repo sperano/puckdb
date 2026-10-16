@@ -261,7 +261,7 @@ func TestGameLogToolsAgainstPostgres(t *testing.T) {
 	seedGameLogFixture(t, pool)
 
 	srv := server.NewMCPServer("test", serverVersion)
-	registerNHLTools(srv, sqlcdb.New(pool))
+	registerNHLTools(srv, sqlcdb.New(pool), nil)
 	game := func(n int) string { return strconv.FormatInt(gameLogTestGames[n-1].id, 10) }
 
 	tests := map[string]struct {

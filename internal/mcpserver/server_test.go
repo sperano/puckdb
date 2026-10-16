@@ -81,6 +81,8 @@ var expectedNHLTools = []string{
 	"get_first_matching_event_per_team",
 	// Linemates (1)
 	"get_player_linemates",
+	// News (1)
+	"get_news_coverage",
 }
 
 // expectedYahooTools lists every tool the yahoo toolset registers.
@@ -229,7 +231,7 @@ func (noRows) Conn() *pgx.Conn                              { return nil }
 // nhlTestServer registers the nhl toolset over db.
 func nhlTestServer(db *capturingDB) *server.MCPServer {
 	srv := server.NewMCPServer("test", serverVersion)
-	registerNHLTools(srv, sqlcdb.New(db))
+	registerNHLTools(srv, sqlcdb.New(db), nil)
 	return srv
 }
 
@@ -278,13 +280,14 @@ var nhlArgOverrides = map[string]map[string]any{
 
 // omittedNHLArgs are arguments left out of a tool's valid call: the
 // player tools refuse yahoo_id together with player_id or name, and the
-// game log tools filter season in Go, not in SQL, once a date range is
-// given.
+// game log and news coverage tools filter season in Go, not in SQL, once a
+// date range is given (or always, for coverage).
 var omittedNHLArgs = map[string]string{
 	"get_player":          yahooIDArg,
 	"search_player":       yahooIDArg,
 	"get_skater_game_log": "season",
 	"get_goalie_game_log": "season",
+	"get_news_coverage":   "season",
 }
 
 // validNHLCall builds a valid call of tool from its schema.

@@ -135,7 +135,7 @@ func (g leagueGuard) scoped(h leagueHandler) server.ToolHandlerFunc {
 // and then checked by key. Missing and refused leagues share one response.
 func (g leagueGuard) scopedKey(resolver leagueKeyResolver, h leagueKeyHandler) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		season, errResult := requiredDraftSeason(req)
+		season, errResult := requiredSeasonYear(req)
 		if errResult != nil {
 			return errResult, nil
 		}

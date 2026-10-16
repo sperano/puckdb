@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sperano/puckdb/internal/draftrank"
+	"github.com/sperano/puckdb/internal/news"
 )
 
 // Toolset names a group of tools one server instance exposes, so public NHL
@@ -44,6 +45,10 @@ type Options struct {
 	// Draft is the draft ranking read path the yahoo toolset's draft tools
 	// share with GraphQL and the CLI; required with the yahoo toolset.
 	Draft *draftrank.Service
+	// NewsSources are the enabled news sources the nhl toolset's news
+	// coverage tool reports on; empty reports nothing (the server starts
+	// without them).
+	NewsSources []news.Source
 }
 
 // HasToolset reports whether opts registers ts.
