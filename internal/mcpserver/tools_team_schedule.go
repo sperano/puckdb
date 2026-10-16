@@ -78,7 +78,7 @@ func teamScheduleTool(q teamScheduleQueries) server.ServerTool {
 				return errResult, nil
 			}
 			nights, err := q.ListScheduleNights(ctx, sqlcdb.ListScheduleNightsParams{
-				StartDate: params.StartDate, EndDate: params.EndDate,
+				StartDate: params.StartDate, EndDate: params.EndDate, GameType: params.GameType,
 			})
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -101,6 +101,7 @@ func teamScheduleParams(req mcp.CallToolRequest) (sqlcdb.GetTeamScheduleCountsPa
 	params := sqlcdb.GetTeamScheduleCountsParams{
 		LightNightMaxGames: lightNightMaxGames,
 		HeavyNightMinGames: heavyNightMinGames,
+		GameType:           scheduleGameType,
 	}
 	var errResult *mcp.CallToolResult
 	if params.StartDate, errResult = requireNamedDate(req, scheduleStartArg); errResult != nil {
@@ -146,7 +147,7 @@ func teamScheduleText(params sqlcdb.GetTeamScheduleCountsParams, teams []sqlcdb.
 	h.add(scheduleStartArg, params.StartDate.Time.Format(time.DateOnly))
 	h.add(scheduleEndArg, params.EndDate.Time.Format(time.DateOnly))
 	h.add("days", scheduleSpanDays(params))
-	h.add("game_type", scheduleGameType)
+	h.add("game_type", params.GameType)
 	if params.TeamID.Valid {
 		h.add("team_id", params.TeamID.Int64)
 	}

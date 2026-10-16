@@ -80,9 +80,10 @@ func TestTeamScheduleToolDefaults(t *testing.T) {
 		HeavyNightMinGames: heavyNightMinGames,
 		StartDate:          scheduleDate(t, "2025-10-13"),
 		EndDate:            scheduleDate(t, "2025-10-19"),
-	}, q.teamParams, "every team")
+		GameType:           sqlcdb.GameTypeRegularSeason,
+	}, q.teamParams, "regular season, every team")
 	assert.Equal(t, sqlcdb.ListScheduleNightsParams{
-		StartDate: q.teamParams.StartDate, EndDate: q.teamParams.EndDate,
+		StartDate: q.teamParams.StartDate, EndDate: q.teamParams.EndDate, GameType: sqlcdb.GameTypeRegularSeason,
 	}, q.nightParams)
 }
 
