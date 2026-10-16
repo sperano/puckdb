@@ -3,7 +3,6 @@ package mcpserver
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -32,11 +31,11 @@ func (q *ownershipYahooQueries) GetYahooTeamRostersByPlayer(_ context.Context, a
 
 func TestYahooPlayerOwnershipCompactsConsecutiveDays(t *testing.T) {
 	q := &ownershipYahooQueries{fakeYahooQueries: newFakeYahooQueries(), rows: []sqlcdb.YahooTeamRoster{
-		ownershipRoster(3, "2025-10-01"),
-		ownershipRoster(3, "2025-10-02"),
-		ownershipRoster(3, "2025-10-04"),
-		ownershipRoster(7, "2025-10-05"),
-		ownershipRoster(7, "2025-10-06"),
+		ownershipRoster(t, 3, "2025-10-01"),
+		ownershipRoster(t, 3, "2025-10-02"),
+		ownershipRoster(t, 3, "2025-10-04"),
+		ownershipRoster(t, 7, "2025-10-05"),
+		ownershipRoster(t, 7, "2025-10-06"),
 	}}
 	tool := yahooTestServer(q, []string{allowedLeagueKey}).GetTool("get_yahoo_player_ownership")
 	result := callTool(t, tool.Handler, map[string]any{
@@ -88,7 +87,7 @@ func TestYahooPlayerOwnershipReportsQueryError(t *testing.T) {
 func TestYahooPlayerOwnershipCapsOutputRanges(t *testing.T) {
 	rows := make([]sqlcdb.YahooTeamRoster, maxYahooPlayerOwnershipRanges+1)
 	for i := range rows {
-		rows[i] = ownershipRoster(int32(i+1), "2025-10-01")
+		rows[i] = ownershipRoster(t, int32(i+1), "2025-10-01")
 		rows[i].Date.Time = rows[i].Date.Time.AddDate(0, 0, i)
 	}
 	got := compactYahooPlayerOwnership(rows)
@@ -99,10 +98,9 @@ func ownershipArgs() map[string]any {
 	return map[string]any{leagueIDArg: float64(allowedLeagueID), yahooPlayerIDArg: float64(ownershipTestPlayerID)}
 }
 
-func ownershipRoster(teamID int32, date string) sqlcdb.YahooTeamRoster {
+func ownershipRoster(t *testing.T, teamID int32, date string) sqlcdb.YahooTeamRoster {
+	t.Helper()
 	parsed, err := time.Parse(time.DateOnly, date)
-	if err != nil {
-		panic(fmt.Sprintf("parse test date %q: %v", date, err))
-	}
+	require.NoError(t, err)
 	return sqlcdb.YahooTeamRoster{TeamID: teamID, Date: pgtype.Date{Time: parsed, Valid: true}}
 }
