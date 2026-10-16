@@ -82,6 +82,8 @@ var expectedNHLTools = []string{
 	"get_first_matching_event_per_team",
 	// Linemates (1)
 	"get_player_linemates",
+	// News (1)
+	"get_recent_news_events",
 }
 
 // expectedYahooTools lists every tool the yahoo toolset registers.
@@ -270,6 +272,8 @@ var validNHLArgs = map[string]any{
 	edgeMinGamesArg:        float64(1),
 	"type_desc_keys":       []any{"goal"},
 	"game_ids":             []any{float64(2025020001)},
+	recentNewsSinceArg:     "2026-10-16T00:00:00Z",
+	recentNewsTypesArg:     []any{},
 }
 
 // nhlArgOverrides replace validNHLArgs values for tools that accept
