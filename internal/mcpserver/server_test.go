@@ -100,6 +100,12 @@ var expectedYahooTools = []string{
 	"get_draft_leagues",
 }
 
+// expectedNewsTools lists every tool the news toolset registers.
+// Update this list whenever a new news tool is added.
+var expectedNewsTools = []string{
+	"get_player_news",
+}
+
 // registeredToolNames builds a server for opts and returns its tool names.
 // NewServer accepts *sqlcdb.Queries; nil is fine here because only the
 // registrations are inspected, no tool is invoked.
@@ -122,12 +128,15 @@ func TestNewServer_RegistersSelectedToolsets(t *testing.T) {
 	}{
 		{"nhl", []Toolset{ToolsetNHL}, expectedNHLTools},
 		{"yahoo", []Toolset{ToolsetYahoo}, expectedYahooTools},
+		{"news", []Toolset{ToolsetNews}, expectedNewsTools},
 		{"nhl and yahoo", []Toolset{ToolsetNHL, ToolsetYahoo}, append(slices.Clone(expectedNHLTools), expectedYahooTools...)},
+		{"all", []Toolset{ToolsetNHL, ToolsetYahoo, ToolsetNews},
+			slices.Concat(expectedNHLTools, expectedYahooTools, expectedNewsTools)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			names := registeredToolNames(t, Options{Toolsets: tt.toolsets, Draft: emptyDraftService()})
-			assert.ElementsMatch(t, tt.want, names, "update expectedNHLTools/expectedYahooTools when adding tools")
+			assert.ElementsMatch(t, tt.want, names, "update expectedNHLTools/expectedYahooTools/expectedNewsTools when adding tools")
 		})
 	}
 }
@@ -138,6 +147,10 @@ func TestNewServer_RegistersSelectedToolsets(t *testing.T) {
 func TestToolsetsDoNotOverlap(t *testing.T) {
 	for _, name := range expectedYahooTools {
 		assert.NotContains(t, expectedNHLTools, name)
+	}
+	for _, name := range expectedNewsTools {
+		assert.NotContains(t, expectedNHLTools, name)
+		assert.NotContains(t, expectedYahooTools, name)
 	}
 }
 
@@ -153,6 +166,9 @@ func TestNewServer_RejectsInvalidOptions(t *testing.T) {
 
 	_, err = NewServer((*sqlcdb.Queries)(nil), Options{Toolsets: []Toolset{ToolsetNHL}})
 	require.NoError(t, err, "the nhl toolset alone needs no draft ranking service")
+
+	_, err = NewServer((*sqlcdb.Queries)(nil), Options{Toolsets: []Toolset{ToolsetNews}})
+	require.NoError(t, err, "the news toolset needs no draft ranking service")
 }
 
 // emptyDraftService is a draft ranking service over a store holding only

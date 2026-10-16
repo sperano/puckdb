@@ -580,7 +580,7 @@ var MCPServerFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagMCPPort, "", DefaultMCPPort, "MCP server HTTP port", false},
 		{FlagMCPStdio, "", false, "Serve over stdio instead of HTTP", false},
-		{FlagMCPToolsets, "", DefaultMCPToolsets, "Comma-separated toolsets to serve: nhl (public NHL data), yahoo (Yahoo fantasy league data), or nhl,yahoo", false},
+		{FlagMCPToolsets, "", DefaultMCPToolsets, "Comma-separated toolsets to serve: nhl (public NHL data), yahoo (Yahoo fantasy league data), news (player news events quoting third-party articles), e.g. nhl,news", false},
 		{FlagMCPYahooLeagues, "", DefaultMCPYahooLeagues, "Comma-separated Yahoo league keys the yahoo toolset serves, e.g. 465.l.1001 (default: every league)", false},
 	},
 }
