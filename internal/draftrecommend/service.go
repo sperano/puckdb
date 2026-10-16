@@ -22,8 +22,11 @@ const (
 	BoardStatusReady      = "ready"
 	BoardStatusIncomplete = "incomplete"
 	BoardStatusStale      = "stale"
-	maxCategoryReasons    = 3
-	maxCategoryWeight     = 10.0
+	// BoardStatusWithheld means the ranking was computed under rules the
+	// league no longer has (draftrank.AdviceWithheld); no candidates.
+	BoardStatusWithheld = "withheld"
+	maxCategoryReasons  = 3
+	maxCategoryWeight   = 10.0
 )
 
 type playerRef struct {
@@ -43,15 +46,7 @@ func Evaluate(in Input) (Result, error) {
 	if err := annotateBoard(&result, in); err != nil {
 		return result, err
 	}
-	if in.SessionStale {
-		result.BoardStatus = BoardStatusStale
-		result.Issues = append(result.Issues, issueBoardStale)
-	}
-	if !in.SessionSafe || !draftsession.SafeToRecommend(in.Session) || in.SessionStale {
-		if !in.SessionStale {
-			result.BoardStatus = BoardStatusIncomplete
-		}
-		result.Issues = append(result.Issues, issueBoardIncomplete)
+	if withoutCandidates(&result, in) {
 		result.LatencyMillis = time.Since(started).Milliseconds()
 		return result, nil
 	}
@@ -143,10 +138,8 @@ func newResult(in Input, scenario draftrank.Scenario, issues []draftrank.Issue) 
 	if info.Adjustment != nil {
 		result.NewsVersion = info.Adjustment.PolicyVersion + ":" + info.Adjustment.ID
 	}
-	for _, issue := range in.RankingIssues {
-		if issue.Code == draftrank.IssueStalePool || issue.Code == draftrank.IssueStaleSnapshot {
-			result.BoardStatus = BoardStatusStale
-		}
+	if draftrank.AdviceOf(in.RankingIssues) >= draftrank.AdviceOutdated {
+		result.BoardStatus = BoardStatusStale
 	}
 	// Callers may pass the snapshot's own unavailable issues as ranking
 	// issues; each condition is reported once.

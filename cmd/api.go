@@ -20,7 +20,6 @@ import (
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/draftboard"
 	"github.com/sperano/puckdb/internal/draftboardui"
-	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/draftwatch"
 	"github.com/sperano/puckdb/internal/graph"
 	"github.com/sperano/puckdb/internal/graph/generated"
@@ -92,7 +91,10 @@ func cmdAPI() *cobra.Command {
 
 			queries := sqlcdb.New(pool)
 
-			draftBoard, err := newDraftBoardService(pool, redisClient)
+			// The rankings API and the live board share one ranking service:
+			// the same dynamic issues and one snapshot cache.
+			draftService := newDraftService(pool)
+			draftBoard, err := newDraftBoardService(pool, redisClient, draftService)
 			if err != nil {
 				return err
 			}
@@ -103,7 +105,7 @@ func cmdAPI() *cobra.Command {
 				RedisClient:    redisClient,
 				Queries:        queries,
 				DB:             pool,
-				Draft:          newDraftService(pool),
+				Draft:          draftService,
 				DraftBoard:     draftBoard,
 				PublicURL:      auth.yahoo.PublicURL,
 				YahooSeasons:   config.GetYahooSeasonsConfig,
@@ -140,7 +142,7 @@ func cmdAPI() *cobra.Command {
 
 const draftBoardStalePollIntervals = 3
 
-func newDraftBoardService(pool *pgxpool.Pool, redisClient *redis.Client) (*draftboard.Service, error) {
+func newDraftBoardService(pool *pgxpool.Pool, redisClient *redis.Client, rankings draftboard.RankingReader) (*draftboard.Service, error) {
 	gobCache, err := newGobCache(redisClient)
 	if err != nil {
 		return nil, fmt.Errorf("create live draft cache: %w", err)
@@ -160,7 +162,7 @@ func newDraftBoardService(pool *pgxpool.Pool, redisClient *redis.Client) (*draft
 		MaxBackoff:   time.Duration(viper.GetInt(config.FlagDraftMaxBackoff)) * time.Second,
 		FinalTimeout: time.Duration(viper.GetInt(config.FlagDraftFinalTimeout)) * time.Second,
 	}
-	return draftboard.NewPGService(pool, draftrank.NewPGStore(pool), runner,
+	return draftboard.NewPGService(pool, rankings, runner,
 		func() draftboard.WatchRunner { return runner }, watchOptions,
 		draftboard.Options{StaleAfter: interval * draftBoardStalePollIntervals}), nil
 }

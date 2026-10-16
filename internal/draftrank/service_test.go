@@ -76,8 +76,9 @@ func TestService_ReportsEveryConditionOfAServedSnapshot(t *testing.T) {
 	assert.Equal(t, draftrank.ScenarioConservative, page.Scenario)
 	assert.ElementsMatch(t, []draftrank.IssueCode{
 		draftrank.IssueNewsSourceStale, draftrank.IssueStaleSnapshot, draftrank.IssueStalePool,
-		draftrank.IssueOverridesChanged, draftrank.IssueRulesChanged, draftrank.IssueNewerSnapshot, draftrank.IssueRefreshFailed,
-	}, issueCodes(page.Issues))
+		draftrank.IssueOverridesChanged, draftrank.IssueRulesChanged, draftrank.IssueScoringChanged,
+		draftrank.IssueNewerSnapshot, draftrank.IssueRefreshFailed,
+	}, issueCodes(page.Issues), "a changed team count changes replacement levels, so scoring changed too")
 }
 
 func TestService_StatesWithoutSnapshot(t *testing.T) {

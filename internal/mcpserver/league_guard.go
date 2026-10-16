@@ -146,25 +146,35 @@ func (g leagueGuard) scopedKey(resolver leagueKeyResolver, h leagueKeyHandler) s
 		if strings.TrimSpace(value) == "" {
 			return mcp.NewToolResultError(leagueArg + " is required"), nil
 		}
-		ref, err := draftrank.ParseLeague(value, season)
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-		if ref.LeagueKey != "" && !g.allowKey(ref.LeagueKey) {
-			return unknownLeagueRefResult(value), nil
-		}
-		ref, err = resolver.ResolveLeague(ctx, ref)
-		if errors.Is(err, draftrank.ErrUnknownLeague) {
-			return unknownLeagueRefResult(value), nil
-		}
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-		if !g.allowKey(ref.LeagueKey) {
-			return unknownLeagueRefResult(value), nil
+		ref, errResult := g.resolveKey(ctx, resolver, value, season)
+		if errResult != nil {
+			return errResult, nil
 		}
 		return h(ctx, req, ref)
 	}
+}
+
+// resolveKey resolves and authorizes one draft league reference. Callers
+// with a plural league argument use this for every requested league.
+func (g leagueGuard) resolveKey(ctx context.Context, resolver leagueKeyResolver, value string, season int) (draftrank.LeagueRef, *mcp.CallToolResult) {
+	ref, err := draftrank.ParseLeague(value, season)
+	if err != nil {
+		return draftrank.LeagueRef{}, mcp.NewToolResultError(err.Error())
+	}
+	if ref.LeagueKey != "" && !g.allowKey(ref.LeagueKey) {
+		return draftrank.LeagueRef{}, unknownLeagueRefResult(value)
+	}
+	ref, err = resolver.ResolveLeague(ctx, ref)
+	if errors.Is(err, draftrank.ErrUnknownLeague) {
+		return draftrank.LeagueRef{}, unknownLeagueRefResult(value)
+	}
+	if err != nil {
+		return draftrank.LeagueRef{}, mcp.NewToolResultError(err.Error())
+	}
+	if !g.allowKey(ref.LeagueKey) {
+		return draftrank.LeagueRef{}, unknownLeagueRefResult(value)
+	}
+	return ref, nil
 }
 
 // unknownLeagueResult is the one answer for a league the server does not

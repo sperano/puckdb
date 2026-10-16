@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/core"
@@ -185,8 +184,6 @@ func cleanupStaleChildReports(ctx workflow.Context, seasons []nhl.SeasonInfo, so
 
 // deleteStaleProgressReports best-effort deletes saved progress reports by key.
 func deleteStaleProgressReports(ctx workflow.Context, staleIDs []string) {
-	localCtx := workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
-		ScheduleToCloseTimeout: 5 * time.Second,
-	})
+	localCtx := shared.WithProgressLocalActivityOptions(ctx)
 	_ = workflow.ExecuteLocalActivity(localCtx, ((*shared.ProgressActivities)(nil)).DeleteBatch, staleIDs).Get(ctx, nil)
 }

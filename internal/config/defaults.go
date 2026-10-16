@@ -162,10 +162,9 @@ const (
 
 // Metrics collection defaults
 const (
-	DefaultMetricsRefreshInterval = 5
-	DefaultCacheIntervalSeconds   = 300
-	DefaultRedisIntervalSeconds   = 60
-	DefaultDBIntervalSeconds      = 300
+	DefaultCacheIntervalSeconds = 300
+	DefaultRedisIntervalSeconds = 60
+	DefaultDBIntervalSeconds    = 300
 )
 
 // CLI client defaults
@@ -222,6 +221,16 @@ const (
 	DefaultQueryTimeout         = 30 * time.Second
 	DefaultChildWorkflowTimeout = 5 * time.Second
 	DefaultWorkflowTaskTimeout  = 60 * time.Second
+)
+
+// Progress persistence defaults
+const (
+	// DefaultProgressLocalActivityTimeout bounds each local activity that
+	// reads, writes or deletes a workflow's ProgressReport in Redis
+	// (shared.WithProgressLocalActivityOptions). Every bar increment runs
+	// one, so an unreachable Redis costs a workflow task at most this long
+	// per progress update.
+	DefaultProgressLocalActivityTimeout = 5 * time.Second
 )
 
 // Database connection defaults

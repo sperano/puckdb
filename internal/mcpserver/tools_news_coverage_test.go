@@ -13,17 +13,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeNewsQueries serves a fixed set of news fetch states; the embedded
+// fakeCoverageQueries serves a fixed set of news fetch states; the embedded
 // ReportQueries interface is nil, so any other query panics instead of
 // silently passing.
-type fakeNewsQueries struct {
+type fakeCoverageQueries struct {
 	news.ReportQueries
 	states []sqlcdb.NewsFetchState
 	err    error
 	calls  int
 }
 
-func (f *fakeNewsQueries) ListNewsFetchStates(context.Context) ([]sqlcdb.NewsFetchState, error) {
+func (f *fakeCoverageQueries) ListNewsFetchStates(context.Context) ([]sqlcdb.NewsFetchState, error) {
 	f.calls++
 	return f.states, f.err
 }
@@ -72,7 +72,7 @@ func TestNewsCoverageTextRendersHeaderAndRows(t *testing.T) {
 }
 
 func TestNewsCoverageToolReportsMissingSource(t *testing.T) {
-	q := &fakeNewsQueries{}
+	q := &fakeCoverageQueries{}
 	sources := []news.Source{
 		{ID: "rotowire-nhl", Publisher: "RotoWire", Kind: news.KindReporting, Adapter: news.AdapterRSS, Priority: 60, RefreshMinutes: 15},
 	}
@@ -85,7 +85,7 @@ func TestNewsCoverageToolReportsMissingSource(t *testing.T) {
 }
 
 func TestNewsCoverageToolRejectsInvalidSeasonBeforeLoading(t *testing.T) {
-	q := &fakeNewsQueries{}
+	q := &fakeCoverageQueries{}
 	tool := newsCoverageTool(q, nil)
 	result := callTool(t, tool.Handler, map[string]any{"season": float64(20252026.5)})
 	assert.True(t, result.IsError)
@@ -94,7 +94,7 @@ func TestNewsCoverageToolRejectsInvalidSeasonBeforeLoading(t *testing.T) {
 }
 
 func TestNewsCoverageToolReportsLoadError(t *testing.T) {
-	q := &fakeNewsQueries{err: errors.New("db down")}
+	q := &fakeCoverageQueries{err: errors.New("db down")}
 	tool := newsCoverageTool(q, nil)
 	result := callTool(t, tool.Handler, map[string]any{"season": float64(2026)})
 	assert.True(t, result.IsError)

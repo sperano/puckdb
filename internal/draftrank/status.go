@@ -31,6 +31,8 @@ const (
 	IssueStalePool          IssueCode = "STALE_POOL"
 	IssueOverridesChanged   IssueCode = "OVERRIDES_CHANGED"
 	IssueRulesChanged       IssueCode = "RULES_CHANGED"
+	IssueRosterSlotsChanged IssueCode = "ROSTER_SLOTS_CHANGED"
+	IssueScoringChanged     IssueCode = "SCORING_CHANGED"
 	IssueNewerSnapshot      IssueCode = "NEWER_SNAPSHOT_AVAILABLE"
 	IssueScenarioFallback   IssueCode = "SCENARIO_UNAVAILABLE"
 	IssueNotComputed        IssueCode = "NOT_COMPUTED"

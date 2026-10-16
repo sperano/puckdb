@@ -66,8 +66,12 @@ func callGuardedTool(t *testing.T, tool *server.ServerTool) (result *mcp.CallToo
 		return callTool(t, tool.Handler, map[string]any{leagueIDArg: float64(otherLeagueID)}),
 			fmt.Sprintf("unknown league_id %d", otherLeagueID)
 	}
+	if slices.Contains(tool.Tool.InputSchema.Required, draftRulesLeaguesArg) {
+		args := map[string]any{draftRulesLeaguesArg: otherLeagueKey, "season": float64(draftfixtures.Season)}
+		return callTool(t, tool.Handler, args), fmt.Sprintf("unknown league %q", otherLeagueKey)
+	}
 	require.Contains(t, tool.Tool.InputSchema.Required, leagueArg,
-		"a yahoo tool must take league_id or league, or be listed in leagueIndependentYahooTools")
+		"a yahoo tool must take league_id, league, or leagues, or be listed in leagueIndependentYahooTools")
 	args := map[string]any{leagueArg: otherLeagueKey, "season": float64(draftfixtures.Season)}
 	return callTool(t, tool.Handler, args), fmt.Sprintf("unknown league %q", otherLeagueKey)
 }
