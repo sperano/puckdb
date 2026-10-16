@@ -105,9 +105,12 @@ type MutationResult struct {
 
 // Board is the composed API-facing live draft model.
 type Board struct {
-	Identity       draftwatch.Identity
-	League         draftrank.League
-	Snapshot       draftrank.SnapshotInfo
+	Identity draftwatch.Identity
+	League   draftrank.League
+	Snapshot draftrank.SnapshotInfo
+	// RankingIssues are the snapshot's conditions at read time, the same
+	// issues the rankings API reports for it.
+	RankingIssues  []draftrank.Issue
 	Scenario       draftrank.Scenario
 	DraftFormat    string
 	PickClockSecs  *int
@@ -119,9 +122,13 @@ type Board struct {
 	Roster         Roster
 	Available      []Player
 	Recommendation *draftrecommend.StoredRun
-	Shortlist      []string
-	CurrentPick    *draftrecommend.PickSlot
-	PicksUntilTurn *int
-	TurnEstimated  bool
-	GeneratedAt    time.Time
+	// RecommendationIssues are the recommendation's issues with the current
+	// ranking issues in place of the copies a cached run was evaluated with.
+	// Recommendation.Result.Issues stays as stored.
+	RecommendationIssues []draftrank.Issue
+	Shortlist            []string
+	CurrentPick          *draftrecommend.PickSlot
+	PicksUntilTurn       *int
+	TurnEstimated        bool
+	GeneratedAt          time.Time
 }

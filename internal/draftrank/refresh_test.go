@@ -55,15 +55,7 @@ func seedLeague(t *testing.T, pool *pgxpool.Pool, s seed) {
 		if s.scoringType != "" {
 			rules.ScoringType = s.scoringType
 		}
-		hash, data, err := rules.Hash()
-		require.NoError(t, err)
-		_, err = q.UpsertYahooLeagueRuleSnapshot(ctx, sqlcdb.UpsertYahooLeagueRuleSnapshotParams{
-			Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID, LeagueKey: draftfixtures.LeagueKey,
-			GameKey: pgtype.Int4{Int32: int32(rules.GameKey), Valid: true}, Source: string(draft.SourceYahooAPI),
-			SourceSeason: draftfixtures.Season, SourceLeagueKey: draftfixtures.LeagueKey,
-			FetchedAt: pgtype.Timestamptz{Time: draftfixtures.FetchedAt, Valid: true}, RulesHash: hash, Rules: data,
-		})
-		require.NoError(t, err)
+		upsertRules(t, q, rules)
 	}
 	if s.pool {
 		for i, p := range draftfixtures.Pool() {
@@ -82,6 +74,21 @@ func seedLeague(t *testing.T, pool *pgxpool.Pool, s seed) {
 			draftrank.SeasonID(draftfixtures.Season))
 		require.NoError(t, err)
 	}
+}
+
+// upsertRules imports a version of the fixture league's rules, as the Yahoo
+// import does; the latest version imported is the league's current rules.
+func upsertRules(t *testing.T, q *sqlcdb.Queries, rules draft.Rules) {
+	t.Helper()
+	hash, data, err := rules.Hash()
+	require.NoError(t, err)
+	_, err = q.UpsertYahooLeagueRuleSnapshot(context.Background(), sqlcdb.UpsertYahooLeagueRuleSnapshotParams{
+		Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID, LeagueKey: draftfixtures.LeagueKey,
+		GameKey: pgtype.Int4{Int32: int32(rules.GameKey), Valid: true}, Source: string(draft.SourceYahooAPI),
+		SourceSeason: draftfixtures.Season, SourceLeagueKey: draftfixtures.LeagueKey,
+		FetchedAt: pgtype.Timestamptz{Time: draftfixtures.FetchedAt, Valid: true}, RulesHash: hash, Rules: data,
+	})
+	require.NoError(t, err)
 }
 
 // seedHistory gives every pool player a season of completed games: skaters

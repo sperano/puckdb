@@ -220,6 +220,34 @@ func TestMauriceDraftBoardRendersEachIssueMessageOnce(t *testing.T) {
 	}
 }
 
+func TestMauriceDraftBoardReportsRankingIssuesWithCodes(t *testing.T) {
+	server, data := newDraftBoardTestServer(t)
+	stale := draftrank.Issue{Code: draftrank.IssueStaleSnapshot, Message: "snapshot was computed 26h0m0s ago"}
+	slots := draftrank.Issue{Code: draftrank.IssueRosterSlotsChanged, Message: "roster slots changed"}
+	data.rankingIssues = []draftrank.Issue{stale, slots}
+	query := `query($input: MauriceDraftBoardInput!) { mauriceDraftBoard(input: $input) {
+		rankingIssues { code message } warnings } }`
+	variables := map[string]any{"input": map[string]any{"league": draftfixtures.LeagueKey, "season": draftfixtures.Season}}
+	response := postGraphQL(t, server, nil, query, variables)
+	require.Empty(t, response.Errors)
+	var view struct {
+		MauriceDraftBoard struct {
+			RankingIssues []struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			} `json:"rankingIssues"`
+			Warnings []string `json:"warnings"`
+		} `json:"mauriceDraftBoard"`
+	}
+	require.NoError(t, jsonUnmarshal(response.Data, &view))
+	board := view.MauriceDraftBoard
+	require.Len(t, board.RankingIssues, 2)
+	assert.Equal(t, string(draftrank.IssueStaleSnapshot), board.RankingIssues[0].Code)
+	assert.Equal(t, string(draftrank.IssueRosterSlotsChanged), board.RankingIssues[1].Code)
+	assert.Equal(t, 1, countString(board.Warnings, stale.Message))
+	assert.Equal(t, 1, countString(board.Warnings, slots.Message))
+}
+
 func countString(values []string, want string) int {
 	count := 0
 	for _, value := range values {
@@ -284,11 +312,13 @@ func newDraftBoardTestServer(t *testing.T) (*httptest.Server, *graphBoardData) {
 }
 
 type graphBoardData struct {
-	identity  draftwatch.Identity
-	session   draftwatch.Session
-	ranking   *draftrank.Snapshot
-	league    draftboard.LeagueData
-	shortlist []string
+	identity draftwatch.Identity
+	session  draftwatch.Session
+	ranking  *draftrank.Snapshot
+	// rankingIssues are the read's dynamic issues.
+	rankingIssues []draftrank.Issue
+	league        draftboard.LeagueData
+	shortlist     []string
 }
 
 func (d *graphBoardData) ResolveIdentity(context.Context, string, int) (draftwatch.Identity, error) {
@@ -297,8 +327,12 @@ func (d *graphBoardData) ResolveIdentity(context.Context, string, int) (draftwat
 func (d *graphBoardData) Session(context.Context, draftwatch.Identity) (draftwatch.Session, error) {
 	return d.session, nil
 }
-func (d *graphBoardData) Ranking(context.Context, draftwatch.Identity) (*draftrank.Snapshot, error) {
-	return d.ranking, nil
+
+// Ranking answers like draftrank.Service.Read: the snapshot's unavailable
+// parts first, then the dynamic issues the test sets.
+func (d *graphBoardData) Ranking(context.Context, draftwatch.Identity) (draftrank.Read, error) {
+	issues := append(slices.Clone(d.ranking.Unavailable), d.rankingIssues...)
+	return draftrank.Read{League: d.ranking.League, Status: draftrank.StatusReady, Snapshot: d.ranking, Issues: issues}, nil
 }
 func (d *graphBoardData) LeagueData(context.Context, draftwatch.Identity) (draftboard.LeagueData, error) {
 	return d.league, nil
