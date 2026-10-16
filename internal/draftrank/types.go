@@ -239,3 +239,8 @@ func scenarioMissingIssue(requested Scenario) Issue {
 	return Issue{Code: IssueScenarioMissing,
 		Message: fmt.Sprintf("snapshot has no %s scenario and no baseline ranking", requested)}
 }
+
+// Note: draftrecommend keeps its own legacy message strings for the same two
+// codes, verbatim, to decode stored runs from before issues carried codes.
+// New results use the messages above; do not "unify" them with the legacy
+// strings or old runs would stop decoding.

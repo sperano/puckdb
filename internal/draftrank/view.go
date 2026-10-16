@@ -98,7 +98,7 @@ func (s *Snapshot) View(q Query) (View, error) {
 	}
 	view := View{Offset: q.Offset, Limit: q.Limit}
 	view.Scenario, view.Issues = s.ResolveScenario(q.Scenario)
-	rows := []Row(nil)
+	var rows []Row
 	if view.Scenario != "" {
 		rows = s.matchingRows(q, view.Scenario)
 		sortRows(rows, q)
