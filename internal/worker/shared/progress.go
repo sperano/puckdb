@@ -10,6 +10,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/cache"
+	"github.com/sperano/puckdb/internal/config"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -91,6 +92,17 @@ func InitTracker(ctx workflow.Context, report *ProgressReport) (*ReportTracker, 
 	return tracker, nil
 }
 
+// WithProgressLocalActivityOptions returns ctx with the local activity
+// options every progress persistence call shares (Save, LoadReportTracker and
+// the stale-report deletion in the workflow package): only a
+// ScheduleToCloseTimeout of config.DefaultProgressLocalActivityTimeout, so an
+// unreachable Redis delays a workflow task by at most that long per update.
+func WithProgressLocalActivityOptions(ctx workflow.Context) workflow.Context {
+	return workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
+		ScheduleToCloseTimeout: config.DefaultProgressLocalActivityTimeout,
+	})
+}
+
 // Save persists the current ProgressReport to Redis via a local activity.
 // Call at key structural changes (group start, group complete) so the resolver
 // can read progress without querying Temporal.
@@ -115,9 +127,7 @@ func (t *ReportTracker) Save(ctx workflow.Context) {
 	info := workflow.GetInfo(ctx)
 	workflowID := info.WorkflowExecution.ID
 	runID := progressRunStamp(info)
-	localCtx := workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
-		ScheduleToCloseTimeout: 5 * time.Second,
-	})
+	localCtx := WithProgressLocalActivityOptions(ctx)
 	if err := workflow.ExecuteLocalActivity(localCtx, ((*ProgressActivities)(nil)).Save, workflowID, runID, data).Get(ctx, nil); err != nil {
 		workflow.GetLogger(ctx).Warn("Failed to save progress report to Redis", "error", err)
 	}
@@ -180,9 +190,7 @@ func (t *ReportTracker) completedFromBars() int {
 // Returns an error if Redis has no report for this workflow ID.
 func LoadReportTracker(ctx workflow.Context) (*ReportTracker, error) {
 	workflowID := workflow.GetInfo(ctx).WorkflowExecution.ID
-	localCtx := workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
-		ScheduleToCloseTimeout: 5 * time.Second,
-	})
+	localCtx := WithProgressLocalActivityOptions(ctx)
 	var data []byte
 	if err := workflow.ExecuteLocalActivity(localCtx, ((*ProgressActivities)(nil)).Load, workflowID).Get(ctx, &data); err != nil {
 		return nil, fmt.Errorf("load progress report from redis: %w", err)
@@ -233,7 +241,10 @@ func (t *ReportTracker) GroupBarTotals(groupIdx int) []int {
 	return totals
 }
 
-// SetBarTotal sets the total for a specific bar.
+// SetBarTotal sets the total for a specific bar and nothing else: unlike
+// AddBar it does not refresh the report-level Total (call RecalcTotal after
+// the last SetBarTotal), and unlike IncrementBar it does not save (the next
+// saving call, or an explicit Save, writes the new size to Redis).
 func (t *ReportTracker) SetBarTotal(groupIdx, barIdx, total int) {
 	t.report.Groups[groupIdx].Bars[barIdx].Total = total
 }
