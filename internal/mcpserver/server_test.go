@@ -98,6 +98,7 @@ var expectedYahooTools = []string{
 	"get_yahoo_league_settings",
 	"get_yahoo_league_players",
 	"get_draft_leagues",
+	draftPoolToolName,
 }
 
 // registeredToolNames builds a server for opts and returns its tool names.

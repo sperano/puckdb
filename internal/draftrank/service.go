@@ -119,6 +119,32 @@ func (s *Service) Now() time.Time {
 	return s.now().UTC()
 }
 
+// StaleAfter is how old a ranking snapshot or player pool may get before
+// the service reports it stale.
+func (s *Service) StaleAfter() time.Duration {
+	return s.staleAfter
+}
+
+// ResolveLeague returns a complete reference for a league key or numeric
+// season/ID pair. Numeric references need their imported rules loaded to
+// recover the full key used by league-scoped authorization.
+func (s *Service) ResolveLeague(ctx context.Context, ref LeagueRef) (LeagueRef, error) {
+	resolved, err := s.resolve(ctx, ref)
+	if err != nil || resolved.LeagueKey != "" {
+		return resolved, err
+	}
+	rules, err := s.reader.LeagueRules(ctx, resolved.Season, resolved.LeagueID)
+	if err != nil {
+		return LeagueRef{}, err
+	}
+	if rules == nil {
+		return LeagueRef{}, fmt.Errorf("%w: season %d league %d has no imported rules",
+			ErrUnknownLeague, resolved.Season, resolved.LeagueID)
+	}
+	resolved.LeagueKey = rules.Rules.LeagueKey
+	return resolved, nil
+}
+
 func (s *Service) resolve(ctx context.Context, ref LeagueRef) (LeagueRef, error) {
 	if ref.LeagueKey == "" {
 		if !ref.resolved() {

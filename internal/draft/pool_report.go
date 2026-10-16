@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// poolReportListLimit caps how many players each gap list names; the counts
+// PoolReportListLimit caps how many players each gap list names; the counts
 // always cover every player.
-const poolReportListLimit = 50
+const PoolReportListLimit = 50
 
 // WritePoolReport renders one league's pool coverage as Markdown: counts,
 // warnings, and the players without eligibility or without an NHL mapping.
@@ -40,8 +40,8 @@ func writePlayerList(b *strings.Builder, title string, players []PoolPlayer) {
 	}
 	fmt.Fprintf(b, "\n### %s\n\n", title)
 	for i, p := range players {
-		if i == poolReportListLimit {
-			fmt.Fprintf(b, "- ... and %d more\n", len(players)-poolReportListLimit)
+		if i == PoolReportListLimit {
+			fmt.Fprintf(b, "- ... and %d more\n", len(players)-PoolReportListLimit)
 			return
 		}
 		fmt.Fprintf(b, "- %s (%s, Yahoo %d, %s)%s\n", p.Name, p.Team, p.YahooPlayerID, positionsLabel(p), statusLabel(p))

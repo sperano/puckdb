@@ -142,6 +142,33 @@ func TestService_RejectsForeignSnapshotsAndUnknownLeagues(t *testing.T) {
 	assert.ErrorIs(t, err, draftrank.ErrInvalidQuery)
 }
 
+func TestService_ResolveLeagueReturnsKeyForBothReferenceForms(t *testing.T) {
+	store := draftfixtures.NewStore()
+	svc := newService(store, serviceNow)
+
+	for name, ref := range map[string]draftrank.LeagueRef{
+		"key": {LeagueKey: draftfixtures.LeagueKey},
+		"id":  {Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resolved, err := svc.ResolveLeague(context.Background(), ref)
+			require.NoError(t, err)
+			assert.Equal(t, fixtureRef().Season, resolved.Season)
+			assert.Equal(t, fixtureRef().LeagueID, resolved.LeagueID)
+			assert.Equal(t, draftfixtures.LeagueKey, resolved.LeagueKey)
+		})
+	}
+	assert.Equal(t, serviceStaleAfter, svc.StaleAfter())
+}
+
+func TestService_ResolveLeagueRejectsNumericLeagueWithoutRules(t *testing.T) {
+	svc := newService(draftfixtures.NewStore(), serviceNow)
+	_, err := svc.ResolveLeague(context.Background(), draftrank.LeagueRef{
+		Season: draftfixtures.Season, LeagueID: draftfixtures.OtherLeague,
+	})
+	assert.ErrorIs(t, err, draftrank.ErrUnknownLeague)
+}
+
 func TestService_CachesDecodedSnapshots(t *testing.T) {
 	store := draftfixtures.NewStore()
 	store.Add(fixtureSnapshot(t))

@@ -7,11 +7,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
 // yahooQueries is what the yahoo toolset reads; *sqlcdb.Queries satisfies it.
 type yahooQueries interface {
+	draft.Queries
 	leagueLookup
 	GetAllYahooLeagues(ctx context.Context) ([]sqlcdb.YahooLeague, error)
 	GetYahooTeamsByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.YahooTeam, error)
@@ -31,20 +33,27 @@ type yahooQueries interface {
 	ListYahooLeaguePlayersWithNHL(ctx context.Context, leagueKey string) ([]sqlcdb.ListYahooLeaguePlayersWithNHLRow, error)
 }
 
-// leagueIndependentYahooTools names the yahoo tools that take no league_id;
+// leagueIndependentYahooTools names the yahoo tools that take no league ID or
+// key;
 // each must still honor the league allowlist on its own. Every other yahoo
-// tool must run through leagueGuard.scoped; TestYahooToolsAreLeagueGuarded
+// tool must run through leagueGuard.scoped or scopedKey;
+// TestYahooToolsAreLeagueGuarded
 // enforces it, so a new league-scoped tool cannot skip the guard.
 var leagueIndependentYahooTools = map[string]struct{}{
 	"get_yahoo_leagues":  {}, // lists leagues through leagueGuard.filter
 	draftLeaguesToolName: {}, // reads only allowlisted league keys (servedDraftLeagues)
 }
 
-func registerYahooTools(srv *server.MCPServer, q yahooQueries, guard leagueGuard, draft draftLeagueSource) {
+type draftToolSource interface {
+	draftLeagueSource
+	draftPoolSource
+}
+
+func registerYahooTools(srv *server.MCPServer, q yahooQueries, guard leagueGuard, draft draftToolSource) {
 	srv.AddTools(yahooTools(q, guard, draft)...)
 }
 
-func yahooTools(q yahooQueries, guard leagueGuard, draft draftLeagueSource) []server.ServerTool {
+func yahooTools(q yahooQueries, guard leagueGuard, draft draftToolSource) []server.ServerTool {
 	return []server.ServerTool{
 		yahooLeaguesTool(q, guard),
 		yahooTeamsTool(q, guard),
@@ -58,6 +67,7 @@ func yahooTools(q yahooQueries, guard leagueGuard, draft draftLeagueSource) []se
 		yahooLeagueSettingsTool(q, guard),
 		yahooLeaguePlayersTool(q, guard),
 		draftLeaguesTool(draft, guard),
+		draftPoolCoverageTool(q, guard, draft),
 	}
 }
 
