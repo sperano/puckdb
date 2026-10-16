@@ -289,7 +289,7 @@ func TestTeamSummaryFromDatabase(t *testing.T) {
 990774002,Summary,2,D,1,0,1,1,0,1,0
 # goalies
 `+wantGoalieColumns+`
-990774003,Summary,3,2,2,1,1,0,55,50,5,7200,0.909,2.5
+990774003,Summary,3,2,2,1,1,0,55,50,5,7200,0.909,2.50
 990774004,Summary,4,1,0,0,0,0,0,0,0,0,,
 `, text)
 
@@ -301,7 +301,7 @@ func TestTeamSummaryFromDatabase(t *testing.T) {
 990774001,Summary,1,C,1,2,0,2,2,5,0
 # goalies
 `+wantGoalieColumns+`
-990774005,Summary,5,1,1,1,0,0,20,20,0,3600,1,0
+990774005,Summary,5,1,1,1,0,0,20,20,0,3600,1.000,0.00
 `, text)
 
 	text, isError = callTeamSummary(t, q, teamSummaryArgsFor(summaryUnusedClub, summarySeason))

@@ -3,7 +3,6 @@ package mcpserver
 import (
 	"context"
 	"fmt"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,8 +24,8 @@ const (
 	perGameDecimals = 2
 	// savePctgDecimals rounds the save percentage (0.915).
 	savePctgDecimals = 3
-	// decimalBase scales a value before rounding it to some decimals.
-	decimalBase = 10
+	// float64Bits is the bit size strconv formats float64 values with.
+	float64Bits = 64
 )
 
 // teamSummaryGameTypes are the game types get_team_season_summary
@@ -196,36 +195,37 @@ func formatPerGame(n pgtype.Numeric) string {
 	if err != nil || !f.Valid {
 		return ""
 	}
-	return strconv.FormatFloat(f.Float64, 'f', perGameDecimals, 64)
+	return strconv.FormatFloat(f.Float64, 'f', perGameDecimals, float64Bits)
 }
 
 // teamGoalieRow is one get_team_season_summary goalie row: the query's
-// columns, with the save percentage and GAA rounded.
+// columns, with the save percentage and GAA printed with fixed decimals,
+// like the header's averages.
 type teamGoalieRow struct {
-	PlayerID          int64         `json:"player_id"`
-	FirstName         string        `json:"first_name"`
-	LastName          string        `json:"last_name"`
-	GamesPlayed       int32         `json:"games_played"`
-	Starts            int32         `json:"starts"`
-	Wins              int32         `json:"wins"`
-	Losses            int32         `json:"losses"`
-	OTL               int32         `json:"otl"`
-	TotalShotsAgainst int32         `json:"total_shots_against"`
-	TotalSaves        int32         `json:"total_saves"`
-	TotalGoalsAgainst int32         `json:"total_goals_against"`
-	TotalToiSeconds   int32         `json:"total_toi_seconds"`
-	SeasonSavePctg    pgtype.Float8 `json:"season_save_pctg"`
-	SeasonGaa         pgtype.Float8 `json:"season_gaa"`
+	PlayerID          int64  `json:"player_id"`
+	FirstName         string `json:"first_name"`
+	LastName          string `json:"last_name"`
+	GamesPlayed       int32  `json:"games_played"`
+	Starts            int32  `json:"starts"`
+	Wins              int32  `json:"wins"`
+	Losses            int32  `json:"losses"`
+	OTL               int32  `json:"otl"`
+	TotalShotsAgainst int32  `json:"total_shots_against"`
+	TotalSaves        int32  `json:"total_saves"`
+	TotalGoalsAgainst int32  `json:"total_goals_against"`
+	TotalToiSeconds   int32  `json:"total_toi_seconds"`
+	SeasonSavePctg    string `json:"season_save_pctg"`
+	SeasonGaa         string `json:"season_gaa"`
 }
 
 func teamGoalieRows(rows []sqlcdb.GetTeamGoalieSeasonTotalsRow) ([]teamGoalieRow, error) {
 	out := make([]teamGoalieRow, len(rows))
 	for i, r := range rows {
-		savePctg, err := roundedFloat(r.SeasonSavePctg, savePctgDecimals)
+		savePctg, err := fixedDecimals(r.SeasonSavePctg, savePctgDecimals)
 		if err != nil {
 			return nil, fmt.Errorf("goalie %d save percentage: %w", r.PlayerID, err)
 		}
-		gaa, err := roundedFloat(r.SeasonGaa, perGameDecimals)
+		gaa, err := fixedDecimals(r.SeasonGaa, perGameDecimals)
 		if err != nil {
 			return nil, fmt.Errorf("goalie %d GAA: %w", r.PlayerID, err)
 		}
@@ -249,16 +249,15 @@ func teamGoalieRows(rows []sqlcdb.GetTeamGoalieSeasonTotalsRow) ([]teamGoalieRow
 	return out, nil
 }
 
-// roundedFloat rounds a float8 column sqlc types as interface{} (NULL when
-// no shots or no time on ice) to decimals decimals.
-func roundedFloat(v any, decimals int) (pgtype.Float8, error) {
+// fixedDecimals prints a float8 column sqlc types as interface{} with
+// decimals decimals; NULL (no shots or no time on ice) is empty.
+func fixedDecimals(v any, decimals int) (string, error) {
 	switch f := v.(type) {
 	case nil:
-		return pgtype.Float8{}, nil
+		return "", nil
 	case float64:
-		scale := math.Pow(decimalBase, float64(decimals))
-		return pgtype.Float8{Float64: math.Round(f*scale) / scale, Valid: true}, nil
+		return strconv.FormatFloat(f, 'f', decimals, float64Bits), nil
 	default:
-		return pgtype.Float8{}, fmt.Errorf("unexpected type %T", v)
+		return "", fmt.Errorf("unexpected type %T", v)
 	}
 }
