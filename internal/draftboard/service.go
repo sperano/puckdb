@@ -253,7 +253,6 @@ func (s *Service) recommend(ctx context.Context, input draftrecommend.Input) (dr
 }
 
 func recommendationCacheKey(input draftrecommend.Input) (string, error) {
-	scenario, _ := input.Ranking.ResolveScenario(input.Scenario)
 	boundary := struct {
 		League       string
 		Version      uint64
@@ -269,7 +268,7 @@ func recommendationCacheKey(input draftrecommend.Input) (string, error) {
 		SessionStale bool
 	}{
 		League: input.SessionLeagueKey, Version: input.Session.Version,
-		Ranking: input.Ranking.Identity, Scenario: scenario,
+		Ranking: input.Ranking.Identity, Scenario: input.Scenario,
 		TeamID: input.OurTeamID, Roster: input.Roster, Order: input.Order,
 		Strategy: input.Strategy, Availability: input.Availability, ADP: input.ADP,
 		SessionSafe: input.SessionSafe, SessionStale: input.SessionStale,

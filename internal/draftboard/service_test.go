@@ -89,7 +89,7 @@ func TestRecommendationCacheKeyIncludesSessionSafetyAndFreshness(t *testing.T) {
 	assert.NotEqual(t, freshKey, unsafeKey)
 }
 
-func TestRecommendationCacheKeyUsesResolvedScenario(t *testing.T) {
+func TestRecommendationCacheKeyDistinguishesRequestedScenario(t *testing.T) {
 	input := draftrecommend.Input{
 		SessionLeagueKey: "500.l.5621",
 		Session:          draftsession.State{Version: 9},
@@ -106,12 +106,14 @@ func TestRecommendationCacheKeyUsesResolvedScenario(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, baselineKey, baseKey, "distinct scenarios must not share a cache key")
 
-	// A scenario the snapshot did not rank resolves to baseline, so its key
-	// matches an explicit baseline request rather than a distinct one.
+	// A scenario the snapshot did not rank resolves to baseline, but it is a
+	// different request (different issues) from an explicit baseline request,
+	// so its key must not collide with either.
 	input.Scenario = draftrank.ScenarioOptimistic
 	fallbackKey, err := recommendationCacheKey(input)
 	require.NoError(t, err)
-	assert.Equal(t, baselineKey, fallbackKey)
+	assert.NotEqual(t, baselineKey, fallbackKey, "a fallback request must not reuse the explicit baseline entry")
+	assert.NotEqual(t, baseKey, fallbackKey)
 }
 
 func TestBoardScenarioFallsBackConsistentlyWithoutEngine(t *testing.T) {
