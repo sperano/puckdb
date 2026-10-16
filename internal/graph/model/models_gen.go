@@ -725,9 +725,13 @@ type MauriceConversationDetail struct {
 }
 
 type MauriceDraftBoard struct {
-	League          *DraftLeague                 `json:"league"`
-	Scenario        DraftScenario                `json:"scenario"`
-	Snapshot        *DraftSnapshot               `json:"snapshot"`
+	League   *DraftLeague   `json:"league"`
+	Scenario DraftScenario  `json:"scenario"`
+	Snapshot *DraftSnapshot `json:"snapshot"`
+	// The snapshot's conditions now, as draftRankings reports them: freshness,
+	// override and rule changes, later refresh failures. ROSTER_SLOTS_CHANGED or
+	// SCORING_CHANGED withhold recommendations until a refresh.
+	RankingIssues   []*DraftIssue                `json:"rankingIssues"`
 	Sync            *MauriceDraftSyncStatus      `json:"sync"`
 	Turn            *MauriceDraftTurn            `json:"turn"`
 	Roster          *MauriceDraftRoster          `json:"roster"`
@@ -1331,6 +1335,8 @@ const (
 	DraftIssueCodeStalePool                  DraftIssueCode = "STALE_POOL"
 	DraftIssueCodeOverridesChanged           DraftIssueCode = "OVERRIDES_CHANGED"
 	DraftIssueCodeRulesChanged               DraftIssueCode = "RULES_CHANGED"
+	DraftIssueCodeRosterSlotsChanged         DraftIssueCode = "ROSTER_SLOTS_CHANGED"
+	DraftIssueCodeScoringChanged             DraftIssueCode = "SCORING_CHANGED"
 	DraftIssueCodeNewerSnapshotAvailable     DraftIssueCode = "NEWER_SNAPSHOT_AVAILABLE"
 	DraftIssueCodeScenarioUnavailable        DraftIssueCode = "SCENARIO_UNAVAILABLE"
 	DraftIssueCodeNotComputed                DraftIssueCode = "NOT_COMPUTED"
@@ -1356,6 +1362,8 @@ var AllDraftIssueCode = []DraftIssueCode{
 	DraftIssueCodeStalePool,
 	DraftIssueCodeOverridesChanged,
 	DraftIssueCodeRulesChanged,
+	DraftIssueCodeRosterSlotsChanged,
+	DraftIssueCodeScoringChanged,
 	DraftIssueCodeNewerSnapshotAvailable,
 	DraftIssueCodeScenarioUnavailable,
 	DraftIssueCodeNotComputed,
@@ -1366,7 +1374,7 @@ var AllDraftIssueCode = []DraftIssueCode{
 
 func (e DraftIssueCode) IsValid() bool {
 	switch e {
-	case DraftIssueCodeMissingRules, DraftIssueCodeUnsupportedScoring, DraftIssueCodeMissingPool, DraftIssueCodeMissingProjections, DraftIssueCodeRankingFailed, DraftIssueCodeInternalError, DraftIssueCodeRefreshCanceled, DraftIssueCodeNewsAdjustmentsUnavailable, DraftIssueCodeProvisionalRules, DraftIssueCodeNewsSourceStale, DraftIssueCodeNewsSourceFailing, DraftIssueCodeNewsSourceMissing, DraftIssueCodeStaleSnapshot, DraftIssueCodeStalePool, DraftIssueCodeOverridesChanged, DraftIssueCodeRulesChanged, DraftIssueCodeNewerSnapshotAvailable, DraftIssueCodeScenarioUnavailable, DraftIssueCodeNotComputed, DraftIssueCodeRefreshRunning, DraftIssueCodeRefreshFailed, DraftIssueCodeRefreshInterrupted:
+	case DraftIssueCodeMissingRules, DraftIssueCodeUnsupportedScoring, DraftIssueCodeMissingPool, DraftIssueCodeMissingProjections, DraftIssueCodeRankingFailed, DraftIssueCodeInternalError, DraftIssueCodeRefreshCanceled, DraftIssueCodeNewsAdjustmentsUnavailable, DraftIssueCodeProvisionalRules, DraftIssueCodeNewsSourceStale, DraftIssueCodeNewsSourceFailing, DraftIssueCodeNewsSourceMissing, DraftIssueCodeStaleSnapshot, DraftIssueCodeStalePool, DraftIssueCodeOverridesChanged, DraftIssueCodeRulesChanged, DraftIssueCodeRosterSlotsChanged, DraftIssueCodeScoringChanged, DraftIssueCodeNewerSnapshotAvailable, DraftIssueCodeScenarioUnavailable, DraftIssueCodeNotComputed, DraftIssueCodeRefreshRunning, DraftIssueCodeRefreshFailed, DraftIssueCodeRefreshInterrupted:
 		return true
 	}
 	return false

@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -56,6 +57,9 @@ func registerToolsets(srv *server.MCPServer, queries *sqlcdb.Queries, opts Optio
 			registerNHLTools(srv, queries)
 		case ToolsetYahoo:
 			registerYahooTools(srv, queries, newLeagueGuard(queries, opts.YahooLeagues), opts.Draft)
+		case ToolsetNews:
+			registerNewsCoverageTools(srv, queries, opts.NewsSources)
+			registerPlayerNewsTools(srv, queries)
 		}
 	}
 }
@@ -68,8 +72,10 @@ func registerNHLTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	registerStatsTools(srv, queries)
 	registerStandingsTools(srv, queries)
 	registerSeasonStatsTools(srv, queries)
+	registerRecentFormTools(srv, queries, time.Now)
 	registerEdgeTools(srv, queries)
 	registerPlayoffTools(srv, queries)
 	registerPlayEventTools(srv, queries)
 	registerLinemateTools(srv, queries)
+	registerNewsTools(srv, queries)
 }

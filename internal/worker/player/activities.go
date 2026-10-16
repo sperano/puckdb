@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
@@ -28,12 +29,13 @@ type PlayerCareerUpserter interface {
 
 // Activities groups player-related activities with their dependencies.
 type Activities struct {
-	Storage       store.Storage
-	NHLClient     shared.NHLClient
-	RedisClient   *redis.Client
-	GobCache      *cache.GobCache
-	Queries       PlayerUpserter
-	CareerQueries PlayerCareerUpserter
+	Storage                store.Storage
+	NHLClient              shared.NHLClient
+	RedisClient            *redis.Client
+	GobCache               *cache.GobCache
+	Queries                PlayerUpserter
+	CareerQueries          PlayerCareerUpserter
+	BoxscorePlayerCacheTTL time.Duration
 }
 
 // --- Player landing activities ---

@@ -7,10 +7,12 @@ import (
 	"strings"
 
 	"github.com/sperano/puckdb/internal/draftrank"
+	"github.com/sperano/puckdb/internal/news"
 )
 
 // Toolset names a group of tools one server instance exposes, so public NHL
-// data and private Yahoo league data can be served to different clients.
+// data, private Yahoo league data and third-party news can be served to
+// different clients.
 type Toolset string
 
 const (
@@ -19,11 +21,17 @@ const (
 	// ToolsetYahoo holds the Yahoo fantasy league tools: league names,
 	// managers, rosters, matchups, draft results and draft ranking state.
 	ToolsetYahoo Toolset = "yahoo"
+	// ToolsetNews holds the player news tools: news source coverage (which
+	// sources are fresh, failing, stale or missing) and validated news events
+	// with short quotes of the third-party articles behind them. They concern
+	// NHL players and are not league-scoped, but they are kept out of nhl so
+	// an instance serves quoted article text only when asked to.
+	ToolsetNews Toolset = "news"
 )
 
 // allToolsets lists every toolset in canonical order; registration and the
 // server name follow it whatever order the flag gave.
-var allToolsets = []Toolset{ToolsetNHL, ToolsetYahoo}
+var allToolsets = []Toolset{ToolsetNHL, ToolsetYahoo, ToolsetNews}
 
 const (
 	// toolsetListSeparator separates toolsets in --mcp-toolsets.
@@ -44,6 +52,10 @@ type Options struct {
 	// Draft is the draft ranking read path the yahoo toolset's draft tools
 	// share with GraphQL and the CLI; required with the yahoo toolset.
 	Draft *draftrank.Service
+	// NewsSources are the enabled news sources the news toolset's news
+	// coverage tool reports on; empty registers the tool with no sources,
+	// so it reports no rows.
+	NewsSources []news.Source
 }
 
 // HasToolset reports whether opts registers ts.
@@ -67,7 +79,7 @@ func (o Options) validate() error {
 	return nil
 }
 
-// ParseToolsets reads a comma-separated toolset list such as "nhl,yahoo".
+// ParseToolsets reads a comma-separated toolset list such as "nhl,news".
 // Names are case-insensitive and may repeat; the result is deduplicated and
 // in canonical order. An empty list is an error: a server without tools is
 // a misconfiguration.
@@ -96,7 +108,7 @@ func ParseToolsets(list string) ([]Toolset, error) {
 }
 
 // ServerName is the MCP server name for toolsets, e.g. "puckdb-nhl",
-// "puckdb-yahoo" or "puckdb-nhl-yahoo", so clients list instances apart.
+// "puckdb-yahoo" or "puckdb-nhl-news", so clients list instances apart.
 func ServerName(toolsets []Toolset) string {
 	parts := []string{serverNamePrefix}
 	for _, ts := range toolsets {

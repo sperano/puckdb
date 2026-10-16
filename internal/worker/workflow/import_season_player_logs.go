@@ -77,16 +77,16 @@ func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo)
 	counts := core.OriginCounts{}
 	err = tracker.RunWorkerPoolWithIncrement(ctx, GroupImportPlayerLogs, 0, numBatches, dayConcurrency,
 		func(i int) int { return len(shared.BatchSlice(playerIDs, i, playerGameLogBatchSize)) },
-		func(_ workflow.Context, i int) workflow.Future {
+		func(activityCtx workflow.Context, i int) workflow.Future {
 			batch := shared.BatchSlice(playerIDs, i, playerGameLogBatchSize)
 			input := worknhl.ImportPlayerGameLogsBatchInput{
 				Season:    season.ID,
 				PlayerIDs: batch,
 			}
-			return workflow.ExecuteActivity(ctx, ia.ImportPlayerGameLogsBatch, input)
-		}, func(_ workflow.Context, _ int, f workflow.Future) error {
+			return workflow.ExecuteActivity(activityCtx, ia.ImportPlayerGameLogsBatch, input)
+		}, func(resultCtx workflow.Context, _ int, f workflow.Future) error {
 			var batchResult worknhl.ImportPlayerGameLogsBatchResult
-			if err := f.Get(ctx, &batchResult); err != nil {
+			if err := f.Get(resultCtx, &batchResult); err != nil {
 				return err
 			}
 			counts.Add(batchResult.Origins)

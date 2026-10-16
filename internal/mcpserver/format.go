@@ -168,6 +168,11 @@ func cachedTypeInfo(t reflect.Type) *typeInfo {
 	return info
 }
 
+// formatDate prints a date as YYYY-MM-DD, or "" when it is NULL.
+func formatDate(d pgtype.Date) string {
+	return pgconv.FormatDate(d)
+}
+
 // formatField converts a struct field value to a string, handling pgtype wrappers.
 func formatField(v reflect.Value) string {
 	if !v.IsValid() {

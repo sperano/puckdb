@@ -94,11 +94,12 @@ type mockBatch struct {
 	rowCount  int
 	errOnRows []int // indices at which to inject errors
 	injected  error // the error to inject
+	rowErrors map[int]error
 }
 
 func (m *mockBatch) Exec(fn func(int, error)) {
 	for i := range m.rowCount {
-		var err error
+		err := m.rowErrors[i]
 		for _, errIdx := range m.errOnRows {
 			if i == errIdx {
 				err = m.injected
@@ -164,10 +165,40 @@ func TestExecBatch(t *testing.T) {
 		})
 		assert.NoError(t, err)
 	})
+
+	t.Run("batch close follow-ons do not obscure the primary error", func(t *testing.T) {
+		t.Parallel()
+		primary := errors.New("duplicate key")
+		b := &mockBatch{
+			rowCount: 3,
+			rowErrors: map[int]error{
+				0: primary,
+				1: errors.New(batchAlreadyClosedMessage),
+				2: errors.New(batchAlreadyClosedMessage),
+			},
+		}
+
+		err := ExecBatch(b, func(i int) string { return fmt.Sprintf("row %d", i) })
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, primary)
+		assert.Equal(t, "row 0: duplicate key", err.Error())
+		var batchErr *BatchError
+		require.ErrorAs(t, err, &batchErr)
+		assert.Equal(t, []int{0}, batchErr.Indices)
+		assert.Len(t, batchErr.Errors, 1)
+	})
 }
 
 func TestBatchError(t *testing.T) {
 	t.Parallel()
+
+	t.Run("zero value is safe", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, emptyBatchErrorMessage, (&BatchError{}).Error())
+		assert.Equal(t, emptyBatchErrorMessage, (*BatchError)(nil).Error())
+		assert.Empty(t, (*BatchError)(nil).Unwrap())
+	})
 
 	t.Run("single error shows full message", func(t *testing.T) {
 		t.Parallel()

@@ -174,20 +174,19 @@ func runWorkerPool(ctx workflow.Context, total, concurrency int, startActivity A
 		// side-effecting hook/Save commands and the firstErr choice
 		// non-deterministic across replay.
 		for _, idx := range activeIndexes {
-			capturedIdx := idx
 			selector.AddFuture(futures[idx], func(f workflow.Future) {
 				if handler != nil {
-					if err := handler(ctx, capturedIdx, f); err != nil && firstErr == nil {
+					if err := handler(ctx, idx, f); err != nil && firstErr == nil {
 						firstErr = err
 					}
 				} else if err := f.Get(ctx, nil); err != nil && firstErr == nil {
 					firstErr = err
 				}
 				if hooks.onComplete != nil {
-					hooks.onComplete(ctx, capturedIdx)
+					hooks.onComplete(ctx, idx)
 				}
-				delete(futures, capturedIdx)
-				activeIndexes = removeActiveIndex(activeIndexes, capturedIdx)
+				delete(futures, idx)
+				activeIndexes = removeActiveIndex(activeIndexes, idx)
 			})
 		}
 
