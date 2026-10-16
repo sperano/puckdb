@@ -77,5 +77,6 @@ func registerNHLTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	registerPlayoffTools(srv, queries)
 	registerPlayEventTools(srv, queries)
 	registerLinemateTools(srv, queries)
+	registerTeamScheduleTools(srv, queries)
 	registerNewsTools(srv, queries)
 }
