@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -353,4 +354,86 @@ func TestDailyTeamResourceBuilders(t *testing.T) {
 	require.Equal(t,
 		resource.TeamSummary{LeagueID: dailyLeagueA, TeamID: dailyTeamA1, Date: day},
 		teamSummaryResource(dailyLeagueA, dailyTeamA1, day))
+}
+
+// scanFixtureFirstYear is the start year of the first season scanSeasons tests
+// feed in; the others follow it year by year.
+const scanFixtureFirstYear = 2000
+
+// scanFixtureSeasons returns more seasons than there are collector workers, so
+// every worker handles several of them.
+func scanFixtureSeasons() []simpleSeason {
+	seasons := make([]simpleSeason, 3*cacheCollectorWorkers+1)
+	for i := range seasons {
+		seasons[i] = simpleSeason{startYear: scanFixtureFirstYear + i}
+	}
+	return seasons
+}
+
+// scanFixtureMetrics is what the fixture scan reports for one season: two
+// file types, so a dropped or duplicated season changes the result.
+func scanFixtureMetrics(s simpleSeason) []cacheMetrics {
+	return []cacheMetrics{
+		{seasonYear: s.startYear, fileType: core.DailySchedule, expected: s.startYear, found: 1},
+		{seasonYear: s.startYear, fileType: core.Boxscore, expected: s.startYear, found: 2},
+	}
+}
+
+// TestScanSeasons_ReportsEverySeasonInOrder checks that every season is
+// scanned exactly once and that its metrics all reach the report, in the order
+// of the seasons whatever the order the workers finish in.
+func TestScanSeasons_ReportsEverySeasonInOrder(t *testing.T) {
+	t.Parallel()
+
+	seasons := scanFixtureSeasons()
+	var mu sync.Mutex
+	scans := make(map[int]int, len(seasons))
+
+	got, err := scanSeasons(context.Background(), seasons, func(_ context.Context, s simpleSeason) []cacheMetrics {
+		mu.Lock()
+		scans[s.startYear]++
+		mu.Unlock()
+		return scanFixtureMetrics(s)
+	})
+	require.NoError(t, err)
+
+	var want []cacheMetrics
+	for _, s := range seasons {
+		want = append(want, scanFixtureMetrics(s)...)
+		require.Equal(t, 1, scans[s.startYear], "scans of season %d", s.startYear)
+	}
+	require.Equal(t, want, got)
+}
+
+// TestScanSeasons_CancelledBeforeScan checks that a cancelled context scans
+// nothing and reports the cancellation.
+func TestScanSeasons_CancelledBeforeScan(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	got, err := scanSeasons(ctx, scanFixtureSeasons(), func(_ context.Context, s simpleSeason) []cacheMetrics {
+		t.Errorf("season %d scanned after cancellation", s.startYear)
+		return nil
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, got)
+}
+
+// TestScanSeasons_CancelledDuringScan checks that a cancellation in the middle
+// of the scan aborts the report instead of returning the seasons scanned so
+// far, which would look like a cache shortfall.
+func TestScanSeasons_CancelledDuringScan(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	got, err := scanSeasons(ctx, scanFixtureSeasons(), func(_ context.Context, s simpleSeason) []cacheMetrics {
+		cancel()
+		return scanFixtureMetrics(s)
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, got)
 }

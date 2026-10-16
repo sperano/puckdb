@@ -86,6 +86,8 @@ var expectedNHLTools = []string{
 	"get_player_linemates",
 	// Team summary (1)
 	"get_team_season_summary",
+	// Team schedule (1)
+	"get_team_schedule",
 	// News (1)
 	"get_recent_news_events",
 }
@@ -96,6 +98,7 @@ var expectedYahooTools = []string{
 	"get_yahoo_leagues",
 	"get_yahoo_teams_by_league",
 	"get_yahoo_roster",
+	"get_yahoo_league_rosters",
 	"get_yahoo_player_ownership",
 	"get_yahoo_roto_standings",
 	"get_yahoo_season_team_totals",

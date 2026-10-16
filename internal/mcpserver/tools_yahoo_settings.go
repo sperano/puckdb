@@ -26,6 +26,19 @@ const (
 // errLeagueNotImported means yahoo_leagues has no row for the league ID.
 var errLeagueNotImported = errors.New("league not imported")
 
+// loadLeague reads the league row, returning errLeagueNotImported when there
+// is none.
+func loadLeague(ctx context.Context, q leagueLookup, leagueID int32) (sqlcdb.YahooLeague, error) {
+	league, err := q.GetYahooLeague(ctx, leagueID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sqlcdb.YahooLeague{}, errLeagueNotImported
+	}
+	if err != nil {
+		return sqlcdb.YahooLeague{}, fmt.Errorf("load league %d: %w", leagueID, err)
+	}
+	return league, nil
+}
+
 // leagueSettings is what get_yahoo_league_settings reports for one league.
 type leagueSettings struct {
 	league     sqlcdb.YahooLeague
@@ -84,12 +97,9 @@ func yahooLeagueSettingsTool(q yahooQueries, guard leagueGuard) server.ServerToo
 // loadLeagueSettings reads the league row, its latest rules snapshot for the
 // league's own season, its stat categories and its roster positions.
 func loadLeagueSettings(ctx context.Context, q yahooQueries, leagueID int32) (leagueSettings, error) {
-	league, err := q.GetYahooLeague(ctx, leagueID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return leagueSettings{}, errLeagueNotImported
-	}
+	league, err := loadLeague(ctx, q, leagueID)
 	if err != nil {
-		return leagueSettings{}, fmt.Errorf("load league %d: %w", leagueID, err)
+		return leagueSettings{}, err
 	}
 	settings := leagueSettings{league: league}
 	if settings.snapshot, err = latestRulesSnapshot(ctx, q, league); err != nil {
