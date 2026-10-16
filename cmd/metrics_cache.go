@@ -45,12 +45,6 @@ func (s cacheMetrics) seasonLabel() string {
 	return strconv.Itoa(s.seasonYear)
 }
 
-type seasonResult struct {
-	stats []cacheMetrics
-	err   error
-	year  int
-}
-
 // simpleSeason represents a season with just dates for NHL API-based checks
 type simpleSeason struct {
 	startYear int
@@ -150,42 +144,16 @@ func getAllMetrics(
 		log.Warn().Err(err).Msg("Yahoo seasons config unreadable; Yahoo files will be skipped")
 	}
 
-	work := make(chan simpleSeason, len(seasons))
-	results := make(chan seasonResult, len(seasons))
-	var wg sync.WaitGroup
-
 	gobCache := cache.NewGobCache(redisClient)
-	for range cacheCollectorWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for s := range work {
-				cacheData := checkNHLSeasonCache(ctx, storage, gobCache, s)
-				if yahooCfg, ok := yahooConfig[s.StartYear()]; ok {
-					cacheData = append(cacheData, checkYahooSeasonCache(ctx, storage, s, yahooCfg)...)
-				}
-				results <- seasonResult{stats: cacheData, err: nil, year: s.StartYear()}
-			}
-		}()
-	}
-
-	for _, season := range seasons {
-		work <- season
-	}
-	close(work)
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	allMetrics := make([]cacheMetrics, 0)
-	for result := range results {
-		if result.err != nil {
-			log.Warn().Err(result.err).Int("season", result.year).Msg("Error checking season")
-			continue
+	allMetrics, err := scanSeasons(ctx, seasons, func(s simpleSeason) []cacheMetrics {
+		stats := checkNHLSeasonCache(ctx, storage, gobCache, s)
+		if yahooCfg, ok := yahooConfig[s.StartYear()]; ok {
+			stats = append(stats, checkYahooSeasonCache(ctx, storage, s, yahooCfg)...)
 		}
-		allMetrics = append(allMetrics, result.stats...)
+		return stats
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Asset caches are season-independent and live outside the per-season worker
@@ -199,6 +167,44 @@ func getAllMetrics(
 		allMetrics = append(allMetrics, assetMetrics...)
 	}
 
+	return allMetrics, nil
+}
+
+// scanSeasons runs scan for every season on cacheCollectorWorkers goroutines
+// and returns the metrics of all seasons, in the order of seasons. A season
+// scan has no error to report: existence checks are booleans and unreadable
+// schedule files are logged and skipped inside it. The only failure is
+// cancellation, which aborts the whole report, like checkAssetCache, rather
+// than returning counts from a partial scan that would be indistinguishable
+// from a real cache shortfall.
+func scanSeasons(ctx context.Context, seasons []simpleSeason, scan func(simpleSeason) []cacheMetrics) ([]cacheMetrics, error) {
+	work := make(chan int, len(seasons))
+	for i := range seasons {
+		work <- i
+	}
+	close(work)
+
+	perSeason := make([][]cacheMetrics, len(seasons))
+	var wg sync.WaitGroup
+	for range cacheCollectorWorkers {
+		wg.Go(func() {
+			for i := range work {
+				if ctx.Err() != nil {
+					return
+				}
+				perSeason[i] = scan(seasons[i])
+			}
+		})
+	}
+	wg.Wait()
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	allMetrics := make([]cacheMetrics, 0)
+	for _, stats := range perSeason {
+		allMetrics = append(allMetrics, stats...)
+	}
 	return allMetrics, nil
 }
 
