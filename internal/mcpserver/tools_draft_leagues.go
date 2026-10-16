@@ -89,6 +89,19 @@ func draftSeason(req mcp.CallToolRequest) (int, *mcp.CallToolResult) {
 	if !given {
 		return nhl.Current().StartYear(), nil
 	}
+	return draftStartYear(value)
+}
+
+// requiredDraftSeason reads a required draft season as a start year.
+func requiredDraftSeason(req mcp.CallToolRequest) (int, *mcp.CallToolResult) {
+	value, errResult := requireInt[int64](req, draftSeasonParam)
+	if errResult != nil {
+		return 0, errResult
+	}
+	return draftStartYear(value)
+}
+
+func draftStartYear(value int64) (int, *mcp.CallToolResult) {
 	if value <= lastStartYear {
 		return int(value), nil
 	}
