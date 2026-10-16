@@ -45,7 +45,8 @@ const (
 // argument is shared with get_yahoo_player_ownership (yahooPlayerIDParam).
 var playerNewsLimitParam = intArg{name: "limit", min: minimumPositiveInteger, max: maxPlayerNewsLimit}
 
-// registerPlayerNewsTools adds the news toolset's player news tools.
+// registerPlayerNewsTools adds the news toolset's player news tools. The
+// nhl toolset's league-wide news tool is registered by registerNewsTools.
 func registerPlayerNewsTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	srv.AddTools(playerNewsTool(queries))
 }
