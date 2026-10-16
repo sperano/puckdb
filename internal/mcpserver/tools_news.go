@@ -162,6 +162,7 @@ type newsEvidenceRow struct {
 
 func newNewsEventRow(ev newsevent.ReportedEvent) newsEventRow {
 	e := ev.Event
+	// YahooPlayerID was read from an int4 column, so the cast cannot wrap.
 	row := newsEventRow{
 		EventID:       ev.ID,
 		NHLPlayerID:   pgtype.Int8{Int64: e.Player.NHLPlayerID, Valid: e.Player.NHLPlayerID != 0},

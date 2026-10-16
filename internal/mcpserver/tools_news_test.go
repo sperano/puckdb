@@ -196,7 +196,7 @@ func TestPlayerNewsToolIncludeInactive(t *testing.T) {
 
 func TestPlayerNewsToolSinceAndLimit(t *testing.T) {
 	header, events, evidence := newsOutput(t, callPlayerNews(t, newFakeNewsQueries(t), map[string]any{
-		yahooPlayerIDArg: float64(newsPlayerYahooID), newsSinceArg: "2026-10-03", "limit": float64(1),
+		yahooPlayerIDArg: float64(newsPlayerYahooID), newsSinceArg: "2026-10-03", playerNewsLimitParam.name: float64(1),
 		newsIncludeInactiveArg: "true",
 	}))
 
@@ -243,8 +243,8 @@ func TestPlayerNewsToolRejectsInvalidArgumentsBeforeSQL(t *testing.T) {
 		"negative yahoo id":        {map[string]any{yahooPlayerIDArg: float64(-1)}, "invalid yahoo_player_id"},
 		"yahoo id beyond int4":     {map[string]any{yahooPlayerIDArg: float64(math.MaxInt32 + 1)}, "invalid yahoo_player_id"},
 		"malformed since":          {withArg(valid, newsSinceArg, "2026-02-30"), "invalid since"},
-		"zero limit":               {withArg(valid, "limit", float64(0)), "invalid limit"},
-		"limit beyond maximum":     {withArg(valid, "limit", float64(maxPlayerNewsLimit+1)), "invalid limit"},
+		"zero limit":               {withArg(valid, playerNewsLimitParam.name, float64(0)), "invalid limit"},
+		"limit beyond maximum":     {withArg(valid, playerNewsLimitParam.name, float64(maxPlayerNewsLimit+1)), "invalid limit"},
 		"wrong include_inactive":   {withArg(valid, newsIncludeInactiveArg, float64(1)), "invalid include_inactive"},
 		"non-numeric yahoo string": {map[string]any{yahooPlayerIDArg: "abc"}, "invalid yahoo_player_id"},
 	}

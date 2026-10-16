@@ -103,3 +103,8 @@ func TestLoadPlayerEvents_MatchesEitherID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int64{f.eventA, yahooOnly}, reportedEventIDs(byBoth.Events))
 }
+
+func TestLoadPlayerEvents_RequiresAPlayerID(t *testing.T) {
+	_, err := LoadPlayerEvents(context.Background(), newFakeDB(), PlayerEventsRequest{Player: news.Identity{Name: "Nobody"}})
+	require.ErrorContains(t, err, "an NHL or Yahoo player ID is required")
+}

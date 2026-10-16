@@ -3,6 +3,7 @@ package newsevent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -120,9 +121,9 @@ func LoadEventDigest(ctx context.Context, q EventReportQueries, req DigestReques
 
 // PlayerEventsRequest selects one player's stored events.
 type PlayerEventsRequest struct {
-	// Player names the player by NHL ID, Yahoo ID or both; an event
-	// stored under either ID matches, so passing both also finds events
-	// recorded before the two IDs were matched.
+	// Player names the player by NHL ID, Yahoo ID or both (at least one
+	// is required); an event stored under either ID matches, so passing
+	// both also finds events recorded before the two IDs were matched.
 	Player news.Identity
 	// Since keeps events last reported at or after it; zero keeps all.
 	Since time.Time
@@ -144,13 +145,16 @@ type PlayerEvents struct {
 // LoadPlayerEvents reads the requested player's events, filters them and
 // loads the evidence and history of those it keeps.
 func LoadPlayerEvents(ctx context.Context, q PlayerEventQueries, req PlayerEventsRequest) (PlayerEvents, error) {
+	if req.Player.NHLPlayerID == 0 && req.Player.YahooPlayerID == 0 {
+		return PlayerEvents{}, errors.New("list news events: an NHL or Yahoo player ID is required")
+	}
 	rows, err := q.ListNewsEventsForPlayer(ctx, sqlcdb.ListNewsEventsForPlayerParams{
 		NhlPlayerID: pgInt8(req.Player.NHLPlayerID), YahooPlayerID: pgInt4(req.Player.YahooPlayerID),
 	})
 	if err != nil {
 		return PlayerEvents{}, fmt.Errorf("list news events of %s: %w", req.Player.Key(), err)
 	}
-	rows = slices.DeleteFunc(rows, func(row sqlcdb.NewsEvent) bool { return !req.keeps(row) })
+	rows = slices.DeleteFunc(slices.Clone(rows), func(row sqlcdb.NewsEvent) bool { return !req.keeps(row) })
 	selected := PlayerEvents{Matching: len(rows)}
 	if req.Limit > 0 && len(rows) > req.Limit {
 		rows = rows[len(rows)-req.Limit:]
