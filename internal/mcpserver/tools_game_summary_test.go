@@ -21,6 +21,7 @@ const (
 	summarySuzukiID   int64 = 8480018
 	summaryMatthewsID int64 = 8479318
 	summaryDachID     int64 = 8481540
+	summaryQuillanID  int64 = 8483678
 )
 
 // summaryQueryFake serves fixed rows and records which queries ran.
@@ -81,8 +82,8 @@ func centerPosition() sqlcdb.NullPlayerPosition {
 }
 
 // newSummaryQueryFake is a shootout win of the away team with a row in
-// every section; the coaches come home team first, as the query may
-// return them.
+// every section; the coaches and scratches come home team first, as the
+// queries may return them.
 func newSummaryQueryFake() *summaryQueryFake {
 	return &summaryQueryFake{
 		game: sqlcdb.GetGameRow{
@@ -116,6 +117,7 @@ func newSummaryQueryFake() *summaryQueryFake {
 		},
 		scratches: []sqlcdb.GetGameScratchesRow{
 			{GameID: summaryGameID, TeamID: summaryHomeTeamID, PlayerID: summaryDachID, FirstName: "Kirby", LastName: "Dach", Position: centerPosition()},
+			{GameID: summaryGameID, TeamID: summaryAwayTeamID, PlayerID: summaryQuillanID, FirstName: "Jacob", LastName: "Quillan", Position: centerPosition()},
 		},
 	}
 }
@@ -147,6 +149,7 @@ TOR,Craig Berube
 MTL,Martin St. Louis
 # scratches
 team_abbrev,player_id,first_name,last_name,position
+TOR,8483678,Jacob,Quillan,C
 MTL,8481540,Kirby,Dach,C
 `
 
@@ -192,7 +195,7 @@ func TestGameSummaryReportsFailedQuery(t *testing.T) {
 	q.gameErr = errSummaryQuery
 	text, isError = callGameSummary(t, q, map[string]any{"game_id": float64(summaryGameID)})
 	assert.True(t, isError)
-	assert.Equal(t, "connection reset", text)
+	assert.Equal(t, "load game 2025020001: connection reset", text)
 }
 
 func TestGameSummaryRejectsMalformedGameID(t *testing.T) {
@@ -217,6 +220,14 @@ func TestGameSummaryTeamAbbrevFallsBackToID(t *testing.T) {
 	assert.Equal(t, "99", s.teamAbbrev(99))
 }
 
+func TestGameSummaryOrdersTeamsAwayFirst(t *testing.T) {
+	s := gameSummary{game: newSummaryQueryFake().game}
+	assert.Negative(t, s.compareAwayFirst(summaryAwayTeamID, summaryHomeTeamID))
+	assert.Positive(t, s.compareAwayFirst(summaryHomeTeamID, summaryAwayTeamID))
+	assert.Negative(t, s.compareAwayFirst(summaryHomeTeamID, 99))
+	assert.Zero(t, s.compareAwayFirst(summaryHomeTeamID, summaryHomeTeamID))
+}
+
 // Fixture for the PostgreSQL-backed get_game_summary test: a season and
 // IDs no import uses.
 const (
@@ -227,6 +238,7 @@ const (
 	summaryDBHomeFwd = 97510001
 	summaryDBAwayFwd = 97510002
 	summaryDBScratch = 97510003
+	summaryDBAwaySc  = 97510004
 )
 
 // TestGameSummaryFromDatabase runs the tool against the real queries, with
@@ -265,6 +277,7 @@ AWY,Away Coach
 HOM,Home Coach
 # scratches
 team_abbrev,player_id,first_name,last_name,position
+AWY,97510004,Fixture,Benched,G
 HOM,97510003,Fixture,Scratched,D
 `, text)
 
@@ -285,8 +298,9 @@ func seedSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
 		VALUES ($1, $2, 'Home Club', 'HOM', 'Test', 'T'), ($1, $3, 'Away Club', 'AWY', 'Test', 'T')`,
 		summaryDBSeason, summaryDBHomeID, summaryDBAwayID)
 	exec(`INSERT INTO players (id, first_name, last_name, position)
-		VALUES ($1, 'Fixture', 'Home', 'C'), ($2, 'Fixture', 'Away', 'LW'), ($3, 'Fixture', 'Scratched', 'D')`,
-		summaryDBHomeFwd, summaryDBAwayFwd, summaryDBScratch)
+		VALUES ($1, 'Fixture', 'Home', 'C'), ($2, 'Fixture', 'Away', 'LW'), ($3, 'Fixture', 'Scratched', 'D'),
+		($4, 'Fixture', 'Benched', 'G')`,
+		summaryDBHomeFwd, summaryDBAwayFwd, summaryDBScratch, summaryDBAwaySc)
 	exec(`INSERT INTO games (id, season, game_type, game_date, game_state, period_type,
 		home_team_id, home_team_score, away_team_id, away_team_score)
 		VALUES ($1, $2, 'regular_season', '3005-11-02', 'FINAL', 'SO', $3, 3, $4, 4)`,
@@ -304,8 +318,8 @@ func seedSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
 		summaryDBGameID)
 	exec(`INSERT INTO game_coaches (game_id, team_id, head_coach) VALUES ($1, $2, 'Home Coach'), ($1, $3, 'Away Coach')`,
 		summaryDBGameID, summaryDBHomeID, summaryDBAwayID)
-	exec(`INSERT INTO game_scratches (game_id, team_id, player_id) VALUES ($1, $2, $3)`,
-		summaryDBGameID, summaryDBHomeID, summaryDBScratch)
+	exec(`INSERT INTO game_scratches (game_id, team_id, player_id) VALUES ($1, $2, $3), ($1, $4, $5)`,
+		summaryDBGameID, summaryDBHomeID, summaryDBScratch, summaryDBAwayID, summaryDBAwaySc)
 }
 
 // deleteSummaryFixture removes the fixture rows; deleting the game
@@ -317,7 +331,7 @@ func deleteSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
 		args []any
 	}{
 		{`DELETE FROM games WHERE id = $1`, []any{summaryDBGameID}},
-		{`DELETE FROM players WHERE id IN ($1, $2, $3)`, []any{summaryDBHomeFwd, summaryDBAwayFwd, summaryDBScratch}},
+		{`DELETE FROM players WHERE id IN ($1, $2, $3, $4)`, []any{summaryDBHomeFwd, summaryDBAwayFwd, summaryDBScratch, summaryDBAwaySc}},
 		{`DELETE FROM season_teams WHERE season = $1`, []any{summaryDBSeason}},
 		{`DELETE FROM seasons WHERE id = $1`, []any{summaryDBSeason}},
 	} {

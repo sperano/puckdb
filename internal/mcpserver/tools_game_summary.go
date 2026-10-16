@@ -6,7 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"time"
+	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -143,7 +144,7 @@ func gameNotFoundResult(gameID int64) *mcp.CallToolResult {
 func loadGameSummary(ctx context.Context, q gameSummaryQueries, gameID int64) (gameSummary, error) {
 	game, err := q.GetGame(ctx, gameID)
 	if err != nil {
-		return gameSummary{}, err
+		return gameSummary{}, fmt.Errorf("load game %d: %w", gameID, err)
 	}
 	s := gameSummary{game: game}
 	if s.threeStars, err = q.GetGameThreeStars(ctx, gameID); err != nil {
@@ -180,15 +181,16 @@ func (s gameSummary) text() (string, error) {
 		{coachesSection, s.coachRows()},
 		{scratchesSection, s.scratchRows()},
 	}
-	text := s.header().String() + "\n"
+	var b strings.Builder
+	b.WriteString(s.header().String() + "\n")
 	for _, section := range sections {
 		csv, err := csvSection(section.title, section.rows)
 		if err != nil {
 			return "", err
 		}
-		text += csv
+		b.WriteString(csv)
 	}
-	return text, nil
+	return b.String(), nil
 }
 
 // header identifies the game; period_type tells how it ended (REG, OT, SO).
@@ -198,7 +200,7 @@ func (s gameSummary) header() metadataHeader {
 	h.add("game_id", g.ID)
 	h.add("season", g.Season)
 	h.add("game_type", g.GameType)
-	h.add("game_date", dateText(g.GameDate))
+	h.add("game_date", formatDate(g.GameDate))
 	h.add("game_state", g.GameState)
 	h.add("period_type", g.PeriodType)
 	h.add("away", g.AwayTeamAbbrev)
@@ -210,14 +212,6 @@ func (s gameSummary) header() metadataHeader {
 	return h
 }
 
-// dateText prints a date as YYYY-MM-DD, or "" when it is NULL.
-func dateText(d pgtype.Date) string {
-	if !d.Valid {
-		return ""
-	}
-	return d.Time.Format(time.DateOnly)
-}
-
 // teamAbbrev names one of the game's two clubs; another team ID, which the
 // imports never write, prints as the ID.
 func (s gameSummary) teamAbbrev(teamID int64) string {
@@ -227,7 +221,7 @@ func (s gameSummary) teamAbbrev(teamID int64) string {
 	case s.game.AwayTeamID:
 		return s.game.AwayTeamAbbrev
 	}
-	return fmt.Sprint(teamID)
+	return strconv.FormatInt(teamID, 10)
 }
 
 func (s gameSummary) starRows() []summaryStarRow {
@@ -275,7 +269,7 @@ func (s gameSummary) officialRows() []summaryOfficialRow {
 func (s gameSummary) coachRows() []summaryCoachRow {
 	coaches := slices.Clone(s.coaches)
 	slices.SortStableFunc(coaches, func(a, b sqlcdb.GetGameCoachesRow) int {
-		return cmp.Compare(s.awayFirst(a.TeamID), s.awayFirst(b.TeamID))
+		return s.compareAwayFirst(a.TeamID, b.TeamID)
 	})
 	rows := make([]summaryCoachRow, 0, len(coaches))
 	for _, r := range coaches {
@@ -284,17 +278,30 @@ func (s gameSummary) coachRows() []summaryCoachRow {
 	return rows
 }
 
-// awayFirst is a sort key putting the away team before the home team.
-func (s gameSummary) awayFirst(teamID int64) int {
-	if teamID == s.game.AwayTeamID {
-		return 0
+// compareAwayFirst orders the away team before the home team (and any
+// other team ID last).
+func (s gameSummary) compareAwayFirst(a, b int64) int {
+	rank := func(teamID int64) int {
+		switch teamID {
+		case s.game.AwayTeamID:
+			return 0
+		case s.game.HomeTeamID:
+			return 1
+		}
+		return 2
 	}
-	return 1
+	return cmp.Compare(rank(a), rank(b))
 }
 
+// scratchRows lists the away team's scratches first, like coachRows; the
+// stable sort keeps GetGameScratches' last-name order within a team.
 func (s gameSummary) scratchRows() []summaryScratchRow {
-	rows := make([]summaryScratchRow, 0, len(s.scratches))
-	for _, r := range s.scratches {
+	scratches := slices.Clone(s.scratches)
+	slices.SortStableFunc(scratches, func(a, b sqlcdb.GetGameScratchesRow) int {
+		return s.compareAwayFirst(a.TeamID, b.TeamID)
+	})
+	rows := make([]summaryScratchRow, 0, len(scratches))
+	for _, r := range scratches {
 		rows = append(rows, summaryScratchRow{
 			TeamAbbrev: s.teamAbbrev(r.TeamID), PlayerID: r.PlayerID, FirstName: r.FirstName,
 			LastName: r.LastName, Position: r.Position,
