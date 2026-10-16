@@ -8,6 +8,7 @@
 package draftrank
 
 import (
+	"fmt"
 	"slices"
 	"time"
 
@@ -199,4 +200,42 @@ type Snapshot struct {
 // HasScenario reports whether the snapshot ranked a scenario.
 func (s *SnapshotInfo) HasScenario(scenario Scenario) bool {
 	return slices.Contains(s.Scenarios, scenario)
+}
+
+// ResolveScenario selects the scenario a consumer serves for a requested
+// scenario and reports any fallback as a typed issue. An empty request means
+// the default scenario: the news-adjusted base case, or the baseline when the
+// snapshot has no news scenarios (a normal outcome reported with no issue). An
+// explicit request the snapshot did not rank falls back to the baseline with a
+// scenario-unavailable issue; when neither the requested scenario nor the
+// baseline was ranked, the result has an empty scenario and a scenario-missing
+// issue. Every consumer (view, recommendations, board) resolves through this
+// method so they cannot disagree on the scenario shown.
+func (s *SnapshotInfo) ResolveScenario(requested Scenario) (Scenario, []Issue) {
+	if requested == "" {
+		if s.HasScenario(DefaultScenario) {
+			return DefaultScenario, nil
+		}
+		if s.HasScenario(ScenarioBaseline) {
+			return ScenarioBaseline, nil
+		}
+		return "", []Issue{scenarioMissingIssue(DefaultScenario)}
+	}
+	if s.HasScenario(requested) {
+		return requested, nil
+	}
+	if s.HasScenario(ScenarioBaseline) {
+		return ScenarioBaseline, []Issue{scenarioFallbackIssue(requested)}
+	}
+	return "", []Issue{scenarioMissingIssue(requested)}
+}
+
+func scenarioFallbackIssue(requested Scenario) Issue {
+	return Issue{Code: IssueScenarioFallback,
+		Message: fmt.Sprintf("snapshot has no %s scenario (news adjustments unavailable); serving the baseline ranking", requested)}
+}
+
+func scenarioMissingIssue(requested Scenario) Issue {
+	return Issue{Code: IssueScenarioMissing,
+		Message: fmt.Sprintf("snapshot has no %s scenario and no baseline ranking", requested)}
 }

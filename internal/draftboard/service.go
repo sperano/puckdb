@@ -170,7 +170,8 @@ func (s *Service) boardRecommendation(ctx context.Context, request Request, inpu
 		Availability: request.Availability, ADP: request.ADP,
 		RankingIssues: slices.Clone(inputs.ranking.Unavailable), GeneratedAt: now,
 	}
-	result := draftrecommend.Result{Scenario: selectedScenario(inputs.ranking, request.Scenario)}
+	scenario, issues := inputs.ranking.ResolveScenario(request.Scenario)
+	result := draftrecommend.Result{Scenario: scenario, Issues: draftrecommend.Issues(issues)}
 	if s.recommendations == nil {
 		return nil, result, nil
 	}
@@ -252,6 +253,7 @@ func (s *Service) recommend(ctx context.Context, input draftrecommend.Input) (dr
 }
 
 func recommendationCacheKey(input draftrecommend.Input) (string, error) {
+	scenario, _ := input.Ranking.ResolveScenario(input.Scenario)
 	boundary := struct {
 		League       string
 		Version      uint64
@@ -267,7 +269,7 @@ func recommendationCacheKey(input draftrecommend.Input) (string, error) {
 		SessionStale bool
 	}{
 		League: input.SessionLeagueKey, Version: input.Session.Version,
-		Ranking: input.Ranking.Identity, Scenario: selectedScenario(input.Ranking, input.Scenario),
+		Ranking: input.Ranking.Identity, Scenario: scenario,
 		TeamID: input.OurTeamID, Roster: input.Roster, Order: input.Order,
 		Strategy: input.Strategy, Availability: input.Availability, ADP: input.ADP,
 		SessionSafe: input.SessionSafe, SessionStale: input.SessionStale,
@@ -278,16 +280,6 @@ func recommendationCacheKey(input draftrecommend.Input) (string, error) {
 	}
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:]), nil
-}
-
-func selectedScenario(ranking *draftrank.Snapshot, requested draftrank.Scenario) draftrank.Scenario {
-	if requested == "" {
-		requested = draftrank.DefaultScenario
-	}
-	if ranking.HasScenario(requested) {
-		return requested
-	}
-	return draftrank.ScenarioBaseline
 }
 
 // StartWatch starts one process-scoped watcher for a league.

@@ -97,9 +97,12 @@ func (s *Snapshot) View(q Query) (View, error) {
 		return View{}, err
 	}
 	view := View{Offset: q.Offset, Limit: q.Limit}
-	view.Scenario, view.Issues = s.scenarioFor(q.Scenario)
-	rows := s.matchingRows(q, view.Scenario)
-	sortRows(rows, q)
+	view.Scenario, view.Issues = s.ResolveScenario(q.Scenario)
+	rows := []Row(nil)
+	if view.Scenario != "" {
+		rows = s.matchingRows(q, view.Scenario)
+		sortRows(rows, q)
+	}
 	view.Total = len(rows)
 	view.Rows = page(rows, q.Offset, q.Limit)
 	return view, nil
@@ -154,24 +157,6 @@ func normalizePositions(positions []string) ([]string, error) {
 		}
 	}
 	return out, nil
-}
-
-// scenarioFor returns the scenario to serve and an issue when the requested
-// one is not in the snapshot.
-func (s *Snapshot) scenarioFor(requested Scenario) (Scenario, []Issue) {
-	if requested == "" {
-		if s.HasScenario(DefaultScenario) {
-			return DefaultScenario, nil
-		}
-		return ScenarioBaseline, nil
-	}
-	if s.HasScenario(requested) {
-		return requested, nil
-	}
-	return ScenarioBaseline, []Issue{{
-		Code:    IssueScenarioFallback,
-		Message: fmt.Sprintf("snapshot has no %s scenario (news adjustments unavailable); serving the baseline ranking", requested),
-	}}
 }
 
 func (s *Snapshot) matchingRows(q Query, scenario Scenario) []Row {
