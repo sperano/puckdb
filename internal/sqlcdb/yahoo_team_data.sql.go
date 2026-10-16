@@ -149,6 +149,77 @@ func (q *Queries) DeleteYahooTeamSummary(ctx context.Context, arg DeleteYahooTea
 	return err
 }
 
+const getYahooLeagueRostersWithPlayers = `-- name: GetYahooLeagueRostersWithPlayers :many
+SELECT r.team_id,
+       r.selected_position,
+       r.player_id AS yahoo_player_id,
+       r.player_key,
+       COALESCE(p.first_name || ' ' || p.last_name, lp.full_name, '')::text AS name,
+       p.id AS nhl_player_id,
+       r.editorial_team_abbr,
+       r.display_position,
+       r.player_status,
+       r.injury_note
+FROM yahoo_team_rosters r
+JOIN yahoo_leagues l ON l.id = r.league_id
+LEFT JOIN players p ON p.yahoo_id = r.player_id
+LEFT JOIN yahoo_league_players lp ON lp.league_key = l.league_key AND lp.player_id = r.player_id
+WHERE r.league_id = $1 AND r.date = $2
+ORDER BY r.team_id, r.selected_position, r.player_id
+`
+
+type GetYahooLeagueRostersWithPlayersParams struct {
+	LeagueID int32       `json:"league_id"`
+	Date     pgtype.Date `json:"date"`
+}
+
+type GetYahooLeagueRostersWithPlayersRow struct {
+	TeamID            int32       `json:"team_id"`
+	SelectedPosition  string      `json:"selected_position"`
+	YahooPlayerID     int32       `json:"yahoo_player_id"`
+	PlayerKey         string      `json:"player_key"`
+	Name              string      `json:"name"`
+	NhlPlayerID       pgtype.Int8 `json:"nhl_player_id"`
+	EditorialTeamAbbr pgtype.Text `json:"editorial_team_abbr"`
+	DisplayPosition   pgtype.Text `json:"display_position"`
+	PlayerStatus      pgtype.Text `json:"player_status"`
+	InjuryNote        pgtype.Text `json:"injury_note"`
+}
+
+// The rows of GetYahooTeamRostersByDate joined to the matched NHL player.
+// name is the NHL player's, else Yahoo's from the league's imported pool
+// (yahoo_team_rosters stores no name), else empty.
+func (q *Queries) GetYahooLeagueRostersWithPlayers(ctx context.Context, arg GetYahooLeagueRostersWithPlayersParams) ([]GetYahooLeagueRostersWithPlayersRow, error) {
+	rows, err := q.db.Query(ctx, getYahooLeagueRostersWithPlayers, arg.LeagueID, arg.Date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetYahooLeagueRostersWithPlayersRow{}
+	for rows.Next() {
+		var i GetYahooLeagueRostersWithPlayersRow
+		if err := rows.Scan(
+			&i.TeamID,
+			&i.SelectedPosition,
+			&i.YahooPlayerID,
+			&i.PlayerKey,
+			&i.Name,
+			&i.NhlPlayerID,
+			&i.EditorialTeamAbbr,
+			&i.DisplayPosition,
+			&i.PlayerStatus,
+			&i.InjuryNote,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getYahooTeamRoster = `-- name: GetYahooTeamRoster :many
 
 SELECT league_id, team_id, date, player_id, coverage_type, is_editable, player_key, selected_position, is_flex, player_status, player_status_full, injury_note, on_disabled_list, position_type, display_position, primary_position, eligible_positions, uniform_number, editorial_team_abbr, created_at, updated_at FROM yahoo_team_rosters

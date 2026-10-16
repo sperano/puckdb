@@ -23,7 +23,7 @@ const (
 	playerNameArg = "name"
 	// yahooIDSources tells where the Yahoo tools put the Yahoo player ID;
 	// the unrostered tools' player_id is the NHL ID.
-	yahooIDSources = "Yahoo player ID (not an NHL player_id): yahoo_player_id in get_yahoo_roster, player_id in get_yahoo_draft_results, yahoo_id in get_unrostered_skaters/goalies."
+	yahooIDSources = "Yahoo player ID (not an NHL player_id): yahoo_player_id in get_yahoo_roster and get_yahoo_league_rosters, player_id in get_yahoo_draft_results, yahoo_id in get_unrostered_skaters/goalies."
 )
 
 // playerQueries is what get_player and search_player read;
