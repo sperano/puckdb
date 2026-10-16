@@ -60,6 +60,8 @@ var expectedNHLTools = []string{
 	// Season stats (2)
 	"get_skater_season_stats",
 	"get_goalie_season_stats",
+	// Recent form (1)
+	"get_recent_form",
 	// Standings (4)
 	"get_standings_by_date",
 	"get_standings_by_season",
@@ -266,6 +268,8 @@ var validNHLArgs = map[string]any{
 	edgeMetricArg:          "top_speed",
 	edgeMinGamesArg:        float64(1),
 	"type_desc_keys":       []any{"goal"},
+	recentFormAsOfArg:      "2025-10-31",
+	recentFormDaysArg:      float64(14),
 	"game_ids":             []any{float64(2025020001)},
 }
 
@@ -273,6 +277,7 @@ var validNHLArgs = map[string]any{
 // different ones.
 var nhlArgOverrides = map[string]map[string]any{
 	"get_goalie_season_stats": {seasonSortByArg: defaultGoalieSeasonSort, seasonPositionArg: string(sqlcdb.PlayerPositionG)},
+	recentFormToolName:        {recentFormGroupArg: recentFormSkaters},
 }
 
 // omittedNHLArgs are arguments left out of a tool's valid call: the

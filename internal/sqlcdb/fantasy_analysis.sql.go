@@ -11,6 +11,104 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getGoalieRecentForm = `-- name: GetGoalieRecentForm :many
+SELECT ggs.player_id,
+       p.first_name,
+       p.last_name,
+       p.yahoo_id,
+       (array_agg(ggs.team_id ORDER BY g.game_date DESC, g.id DESC))[1]::bigint AS last_team_id,
+       count(DISTINCT ggs.game_id) AS gp,
+       count(*) FILTER (WHERE ggs.decision = 'W') AS wins,
+       count(*) FILTER (WHERE ggs.decision = 'L') AS losses,
+       count(*) FILTER (WHERE ggs.decision = 'OTL') AS ot_losses,
+       sum(ggs.goals_against) AS ga,
+       sum(ggs.saves) AS saves,
+       sum(ggs.shots_against) AS shots_against,
+       round(sum(ggs.goals_against)::numeric / NULLIF(sum(ggs.toi_seconds), 0) * 3600, 2) AS gaa,
+       round(sum(ggs.saves)::numeric / NULLIF(sum(ggs.shots_against), 0), 3) AS sv_pct
+FROM game_goalie_stats ggs
+JOIN games g ON g.id = ggs.game_id
+JOIN players p ON p.id = ggs.player_id
+WHERE g.season = $1
+  AND g.game_type = $2::public.game_type
+  AND g.game_date > $3::date - $4::integer
+  AND g.game_date <= $3::date
+  AND ggs.toi_seconds >= $5::integer
+GROUP BY ggs.player_id, p.first_name, p.last_name, p.yahoo_id
+ORDER BY wins DESC, sv_pct DESC NULLS LAST, p.last_name, p.first_name, ggs.player_id
+LIMIT $6
+`
+
+type GetGoalieRecentFormParams struct {
+	Season        int32       `json:"season"`
+	GameType      GameType    `json:"game_type"`
+	AsOf          pgtype.Date `json:"as_of"`
+	Days          int32       `json:"days"`
+	MinToiSeconds int32       `json:"min_toi_seconds"`
+	ResultLimit   int32       `json:"result_limit"`
+}
+
+type GetGoalieRecentFormRow struct {
+	PlayerID     int64          `json:"player_id"`
+	FirstName    string         `json:"first_name"`
+	LastName     string         `json:"last_name"`
+	YahooID      pgtype.Int8    `json:"yahoo_id"`
+	LastTeamID   int64          `json:"last_team_id"`
+	Gp           int64          `json:"gp"`
+	Wins         int64          `json:"wins"`
+	Losses       int64          `json:"losses"`
+	OtLosses     int64          `json:"ot_losses"`
+	Ga           int64          `json:"ga"`
+	Saves        int64          `json:"saves"`
+	ShotsAgainst int64          `json:"shots_against"`
+	GAA          pgtype.Numeric `json:"gaa"`
+	SvPct        pgtype.Numeric `json:"sv_pct"`
+}
+
+// Appearances shorter than min_toi_seconds (relief stints) are left out, as
+// in goalie_recent_stats.
+func (q *Queries) GetGoalieRecentForm(ctx context.Context, arg GetGoalieRecentFormParams) ([]GetGoalieRecentFormRow, error) {
+	rows, err := q.db.Query(ctx, getGoalieRecentForm,
+		arg.Season,
+		arg.GameType,
+		arg.AsOf,
+		arg.Days,
+		arg.MinToiSeconds,
+		arg.ResultLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetGoalieRecentFormRow{}
+	for rows.Next() {
+		var i GetGoalieRecentFormRow
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.FirstName,
+			&i.LastName,
+			&i.YahooID,
+			&i.LastTeamID,
+			&i.Gp,
+			&i.Wins,
+			&i.Losses,
+			&i.OtLosses,
+			&i.Ga,
+			&i.Saves,
+			&i.ShotsAgainst,
+			&i.GAA,
+			&i.SvPct,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGoalieRecentStats = `-- name: GetGoalieRecentStats :many
 SELECT player_id, first_name, last_name, yahoo_id, current_team_id, season, gp, wins, losses, ga, saves, shots_against, gaa, sv_pct FROM goalie_recent_stats
 ORDER BY wins DESC
@@ -195,6 +293,123 @@ func (q *Queries) GetGoalieSeasonStatsBySort(ctx context.Context, arg GetGoalieS
 			&i.ShotsAgainst,
 			&i.GAA,
 			&i.SvPct,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSkaterRecentForm = `-- name: GetSkaterRecentForm :many
+
+SELECT gss.player_id,
+       p.first_name,
+       p.last_name,
+       p.yahoo_id,
+       p.position,
+       (array_agg(gss.team_id ORDER BY g.game_date DESC, g.id DESC))[1]::bigint AS last_team_id,
+       count(DISTINCT gss.game_id) AS gp,
+       sum(gss.goals) AS goals,
+       sum(gss.assists) AS assists,
+       sum(gss.points) AS points,
+       sum(gss.plus_minus) AS plus_minus,
+       sum(gss.penalty_minutes) AS pim,
+       sum(gss.shots_on_goal) AS sog,
+       sum(gss.power_play_points) AS ppp,
+       sum(gss.power_play_goals) AS ppg,
+       sum(gss.hits) AS hits,
+       sum(gss.blocked_shots) AS blocks,
+       round(sum(gss.toi_seconds)::numeric / count(DISTINCT gss.game_id) / 60, 1) AS avg_toi_min
+FROM game_skater_stats gss
+JOIN games g ON g.id = gss.game_id
+JOIN players p ON p.id = gss.player_id
+WHERE g.season = $1
+  AND g.game_type = $2::public.game_type
+  AND g.game_date > $3::date - $4::integer
+  AND g.game_date <= $3::date
+  AND ($5::public.player_position IS NULL
+       OR p.position = $5::public.player_position)
+GROUP BY gss.player_id, p.first_name, p.last_name, p.yahoo_id, p.position
+ORDER BY points DESC, goals DESC, p.last_name, p.first_name, gss.player_id
+LIMIT $6
+`
+
+type GetSkaterRecentFormParams struct {
+	Season      int32              `json:"season"`
+	GameType    GameType           `json:"game_type"`
+	AsOf        pgtype.Date        `json:"as_of"`
+	Days        int32              `json:"days"`
+	Position    NullPlayerPosition `json:"position"`
+	ResultLimit int32              `json:"result_limit"`
+}
+
+type GetSkaterRecentFormRow struct {
+	PlayerID   int64              `json:"player_id"`
+	FirstName  string             `json:"first_name"`
+	LastName   string             `json:"last_name"`
+	YahooID    pgtype.Int8        `json:"yahoo_id"`
+	Position   NullPlayerPosition `json:"position"`
+	LastTeamID int64              `json:"last_team_id"`
+	Gp         int64              `json:"gp"`
+	Goals      int64              `json:"goals"`
+	Assists    int64              `json:"assists"`
+	Points     int64              `json:"points"`
+	PlusMinus  int64              `json:"plus_minus"`
+	PIM        int64              `json:"pim"`
+	SOG        int64              `json:"sog"`
+	PPP        int64              `json:"ppp"`
+	Ppg        int64              `json:"ppg"`
+	Hits       int64              `json:"hits"`
+	Blocks     int64              `json:"blocks"`
+	AvgToiMin  pgtype.Numeric     `json:"avg_toi_min"`
+}
+
+// =============================================================================
+// Recent Form
+// =============================================================================
+// Per-player totals of one season and game type over the `days` calendar days ending at
+// as_of (both ends inclusive). Unlike skater_recent_stats/goalie_recent_stats,
+// whose window is fixed to the 30 days before CURRENT_DATE, the window is a
+// parameter. last_team_id is the club of the player's last game in the window.
+func (q *Queries) GetSkaterRecentForm(ctx context.Context, arg GetSkaterRecentFormParams) ([]GetSkaterRecentFormRow, error) {
+	rows, err := q.db.Query(ctx, getSkaterRecentForm,
+		arg.Season,
+		arg.GameType,
+		arg.AsOf,
+		arg.Days,
+		arg.Position,
+		arg.ResultLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetSkaterRecentFormRow{}
+	for rows.Next() {
+		var i GetSkaterRecentFormRow
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.FirstName,
+			&i.LastName,
+			&i.YahooID,
+			&i.Position,
+			&i.LastTeamID,
+			&i.Gp,
+			&i.Goals,
+			&i.Assists,
+			&i.Points,
+			&i.PlusMinus,
+			&i.PIM,
+			&i.SOG,
+			&i.PPP,
+			&i.Ppg,
+			&i.Hits,
+			&i.Blocks,
+			&i.AvgToiMin,
 		); err != nil {
 			return nil, err
 		}
