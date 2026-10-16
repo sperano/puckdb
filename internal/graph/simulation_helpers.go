@@ -5,25 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/temporal"
 	"github.com/sperano/puckdb/internal/worker/simulation"
 	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 )
-
-// timeParseISODate is a thin wrapper around time.Parse so the date
-// format is in one place — referenced from parseDateOrError.
-func timeParseISODate(s string) (time.Time, error) {
-	return time.Parse("2006-01-02", s)
-}
 
 // derefInt / derefString unwrap optional GraphQL inputs to the
 // value-type the simulation package's typed structs expect. Nil →
@@ -61,23 +55,15 @@ func derefStopAfterOrDefault(p *string) string {
 // Simulation resolver helpers — shared utilities for simulation.resolvers.go.
 //
 // Lives in a non-gqlgen-managed file so the resolver scaffolding stays
-// pristine across regens. Helpers fall into four buckets:
+// pristine across regens. Helpers fall into three buckets (the pool
+// workflow ID is simulation.WorkflowIDForPool):
 //
-//   1. ID conventions (workflow_id mapping)
-//   2. sqlcdb → model.* type adapters
-//   3. Player-name lookup (N+1 over GetPlayer; acceptable for V1
+//   1. sqlcdb → model.* type adapters
+//   2. Player-name lookup (N+1 over GetPlayer; acceptable for V1
 //      pool sizes — see assemblePlayerNameMap)
-//   4. Roto-points aggregation (SUM(roto_points) per agent for the
+//   3. Roto-points aggregation (SUM(roto_points) per agent for the
 //      latest standings snapshot)
 // ============================================================================
-
-// simPoolWorkflowIDForPool is the canonical workflow-ID convention.
-// PoolID → "sim-pool-{id}" — matches the sim_pools.workflow_id
-// generated column ('sim-pool-' || id::text), keeping resolver and
-// DB in lockstep.
-func simPoolWorkflowIDForPool(poolID int32) string {
-	return "sim-pool-" + strconv.FormatInt(int64(poolID), 10)
-}
 
 // PoolNotFoundError is returned when a sim pool lookup by ID misses.
 // Callers (and tests) can use errors.As to distinguish it from
@@ -331,8 +317,10 @@ func (r *Resolver) assemblePlayerNameMap(ctx context.Context, ids map[int64]stru
 	for _, p := range players {
 		out[p.ID] = playerSummary{
 			Name:        p.FirstName + " " + p.LastName,
-			NHLPosition: nullPositionString(p.Position),
-			NHLTeamID:   nullTeamIDString(p.TeamID),
+			NHLPosition: pgconv.FormatPlayerPosition(p.Position),
+			// The raw team ID: its abbreviation would need the pool's
+			// season to join season_teams.
+			NHLTeamID: pgconv.FormatInt8(p.TeamID),
 		}
 	}
 	// WHERE id = ANY($1) silently drops ids with no matching row —
@@ -356,52 +344,19 @@ type playerSummary struct {
 	NHLTeamID   string
 }
 
-// nullPositionString unwraps the nullable position enum into a
-// display string; empty when null.
-func nullPositionString(p sqlcdb.NullPlayerPosition) string {
-	if !p.Valid {
-		return ""
-	}
-	return string(p.PlayerPosition)
-}
-
-// nullTeamIDString turns a nullable Int8 team_id into a string for
-// display. V1 returns just the ID; a future enhancement would join
-// season_teams to surface the abbrev — but that needs the pool's
-// season for the season_teams composite key, which is more plumbing
-// than V1 warrants.
-func nullTeamIDString(t pgtype.Int8) string {
-	if !t.Valid {
-		return ""
-	}
-	return strconv.FormatInt(t.Int64, 10)
-}
-
 // sumRotoPoints aggregates an agent's standings rows into one float
 // — the headline "total roto points" the dashboard shows. Handles
 // the GAA category's NaN-protection by skipping invalid Numerics.
 func sumRotoPoints(rows []sqlcdb.SimStanding) float64 {
 	total := 0.0
 	for _, r := range rows {
-		f, err := simulation.NumericToFloat(r.RotoPoints)
+		f, err := pgconv.NumericToFloat(r.RotoPoints)
 		if err != nil {
 			continue
 		}
 		total += f
 	}
 	return total
-}
-
-// numericFromFloat is the inverse of numericToFloat — used by
-// createSimPoolImpl when projecting GraphQL input floats onto the
-// pgtype.Numeric columns sim_pools.max_llm_cost_usd_per_pool and
-// sim_agents.temperature.
-func numericFromFloat(f float64) (pgtype.Numeric, error) {
-	var n pgtype.Numeric
-	if err := n.Scan(strconv.FormatFloat(f, 'f', 6, 64)); err != nil {
-		return pgtype.Numeric{}, err
-	}
-	return n, nil
 }
 
 // flattenRosterPositions turns the GraphQL list-of-{slot,count}
@@ -424,7 +379,7 @@ func flattenRosterPositions(input []*model.SimRosterPositionInput) map[simulatio
 // decodeSimPoolBase produces the scalar-only SimPool. Callers
 // populate Agents / Standings from separate queries.
 func decodeSimPoolBase(p sqlcdb.SimPool) *model.SimPool {
-	cost, _ := simulation.NumericToFloat(p.TotalLLMCostUSD)
+	cost, _ := pgconv.NumericToFloat(p.TotalLLMCostUSD)
 	out := &model.SimPool{
 		ID:              int(p.ID),
 		Name:            p.Name,
@@ -434,35 +389,22 @@ func decodeSimPoolBase(p sqlcdb.SimPool) *model.SimPool {
 		StopAfter:       p.StopAfter,
 		MaxSeasonDays:   int(p.MaxSeasonDays),
 	}
-	if p.SimDate.Valid {
-		s := p.SimDate.Time.Format("2006-01-02")
-		out.SimDate = &s
-	}
-	if p.StartDate.Valid {
-		s := p.StartDate.Time.Format("2006-01-02")
-		out.StartDate = &s
-	}
-	if p.EndDate.Valid {
-		s := p.EndDate.Time.Format("2006-01-02")
-		out.EndDate = &s
-	}
+	out.SimDate = dateStringPtr(p.SimDate)
+	out.StartDate = dateStringPtr(p.StartDate)
+	out.EndDate = dateStringPtr(p.EndDate)
 	return out
 }
 
 // decodeSimAgentBase produces a SimAgent with scalar fields populated
 // — Roster + TotalRotoPoints come from later queries.
 func decodeSimAgentBase(a sqlcdb.SimAgent) *model.SimAgent {
-	out := &model.SimAgent{
-		ID:       int(a.ID),
-		TeamName: a.TeamName,
-		Provider: a.Provider,
-		Model:    a.Model,
+	return &model.SimAgent{
+		ID:            int(a.ID),
+		TeamName:      a.TeamName,
+		Provider:      a.Provider,
+		Model:         a.Model,
+		DraftPosition: int4Ptr(a.DraftPosition),
 	}
-	if a.DraftPosition.Valid {
-		dp := int(a.DraftPosition.Int32)
-		out.DraftPosition = &dp
-	}
-	return out
 }
 
 // decodeSimRosters maps a slice of sqlcdb.SimRoster + the prefetched
@@ -489,8 +431,8 @@ func decodeSimRosters(rows []sqlcdb.SimRoster, players map[int64]playerSummary) 
 func decodeStandings(rows []sqlcdb.SimStanding) []*model.SimStandingEntry {
 	out := make([]*model.SimStandingEntry, 0, len(rows))
 	for _, s := range rows {
-		val, _ := simulation.NumericToFloat(s.Value)
-		rp, _ := simulation.NumericToFloat(s.RotoPoints)
+		val, _ := pgconv.NumericToFloat(s.Value)
+		rp, _ := pgconv.NumericToFloat(s.RotoPoints)
 		out = append(out, &model.SimStandingEntry{
 			AgentID:    int(s.AgentID),
 			Category:   s.Category,
@@ -547,11 +489,15 @@ func (r *Resolver) decodeSimTransactions(ctx context.Context, txs []sqlcdb.SimTr
 	out := make([]*model.SimTransaction, 0, len(txs))
 	for _, t := range txs {
 		row := &model.SimTransaction{
-			ID:        int(t.ID),
-			AgentID:   int(t.AgentID),
-			Date:      formatPgDate(t.Date),
-			Type:      t.Type,
-			Reasoning: t.Reasoning,
+			ID:          int(t.ID),
+			AgentID:     int(t.AgentID),
+			Date:        pgconv.FormatDate(t.Date),
+			Type:        t.Type,
+			Round:       int4Ptr(t.Round),
+			Pick:        int4Ptr(t.Pick),
+			Reasoning:   t.Reasoning,
+			ErrorKind:   textPtr(t.ErrorKind),
+			ErrorDetail: textPtr(t.ErrorDetail),
 		}
 		if t.PlayerID.Valid {
 			name := players[t.PlayerID.Int64].Name
@@ -561,28 +507,12 @@ func (r *Resolver) decodeSimTransactions(ctx context.Context, txs []sqlcdb.SimTr
 			name := players[t.DropPlayerID.Int64].Name
 			row.DropPlayerName = ptrStringIfNotEmpty(name)
 		}
-		if t.Round.Valid {
-			v := int(t.Round.Int32)
-			row.Round = &v
-		}
-		if t.Pick.Valid {
-			v := int(t.Pick.Int32)
-			row.Pick = &v
-		}
-		if t.ErrorKind.Valid {
-			s := t.ErrorKind.String
-			row.ErrorKind = &s
-		}
-		if t.ErrorDetail.Valid {
-			s := t.ErrorDetail.String
-			row.ErrorDetail = &s
-		}
 		if t.CostUSD.Valid {
-			f, _ := simulation.NumericToFloat(t.CostUSD)
+			f, _ := pgconv.NumericToFloat(t.CostUSD)
 			row.CostUsd = &f
 		}
 		if t.CapUSD.Valid {
-			f, _ := simulation.NumericToFloat(t.CapUSD)
+			f, _ := pgconv.NumericToFloat(t.CapUSD)
 			row.CapUsd = &f
 		}
 		row.LineupMoves = decodeLineupMoves(movesByTx[t.ID], players)
@@ -612,29 +542,6 @@ func decodeLineupMoves(rows []sqlcdb.SimLineupMove, players map[int64]playerSumm
 	return out
 }
 
-// formatPgDate returns "2006-01-02" or empty string for invalid Dates.
-// Used for SimTransaction.date and SimPool.simDate display.
-func formatPgDate(d pgtype.Date) string {
-	if !d.Valid {
-		return ""
-	}
-	return d.Time.Format("2006-01-02")
-}
-
-// parseDateOrError parses a "2006-01-02" date string into pgtype.Date.
-// Empty input returns the zero (Valid=false) date with no error so
-// callers can distinguish "no filter" from "bad input".
-func parseDateOrError(s string) (pgtype.Date, error) {
-	if s == "" {
-		return pgtype.Date{}, nil
-	}
-	t, err := timeParseISODate(s)
-	if err != nil {
-		return pgtype.Date{}, fmt.Errorf("invalid date %q (expected YYYY-MM-DD): %w", s, err)
-	}
-	return pgtype.Date{Time: t, Valid: true}, nil
-}
-
 // parseSimWindow validates the optional startDate/endDate pool inputs
 // against the season's standings bounds. Nil/empty inputs return
 // Valid=false dates, meaning "use the season bound" — the workflow's
@@ -648,16 +555,16 @@ func parseSimWindow(startDate, endDate *string, seasonStart, seasonEnd time.Time
 		if p == nil || *p == "" {
 			return pgtype.Date{}, nil
 		}
-		t, err := timeParseISODate(*p)
+		d, err := parseDateInput(name, *p)
 		if err != nil {
-			return pgtype.Date{}, fmt.Errorf("invalid %s %q (expected YYYY-MM-DD): %w", name, *p, err)
+			return pgtype.Date{}, err
 		}
-		if t.Before(seasonStart) || t.After(seasonEnd) {
+		if d.Time.Before(seasonStart) || d.Time.After(seasonEnd) {
 			return pgtype.Date{}, fmt.Errorf("%s %s outside the season's standings range (%s .. %s)",
-				name, t.Format("2006-01-02"),
-				seasonStart.Format("2006-01-02"), seasonEnd.Format("2006-01-02"))
+				name, d.Time.Format(time.DateOnly),
+				seasonStart.Format(time.DateOnly), seasonEnd.Format(time.DateOnly))
 		}
-		return pgtype.Date{Time: t, Valid: true}, nil
+		return d, nil
 	}
 	if start, err = parse(startDate, "startDate"); err != nil {
 		return pgtype.Date{}, pgtype.Date{}, err
@@ -674,7 +581,7 @@ func parseSimWindow(startDate, endDate *string, seasonStart, seasonEnd time.Time
 	}
 	if effStart.After(effEnd) {
 		return pgtype.Date{}, pgtype.Date{}, fmt.Errorf("startDate %s is after endDate %s",
-			effStart.Format("2006-01-02"), effEnd.Format("2006-01-02"))
+			effStart.Format(time.DateOnly), effEnd.Format(time.DateOnly))
 	}
 	return start, end, nil
 }
@@ -694,7 +601,7 @@ func groupStandingsByDate(rows []sqlcdb.SimStanding) [][]*model.SimStandingEntry
 	byDate := map[string][]sqlcdb.SimStanding{}
 	dates := []string{}
 	for _, r := range rows {
-		key := formatPgDate(r.Date)
+		key := pgconv.FormatDate(r.Date)
 		if _, ok := byDate[key]; !ok {
 			dates = append(dates, key)
 		}
@@ -746,7 +653,7 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 		}
 	}
 	rosters := flattenRosterPositions(input.RosterPositions)
-	capNum, err := numericFromFloat(input.MaxLlmCostUsdPerPool)
+	capNum, err := pgconv.NumericFromFloat(input.MaxLlmCostUsdPerPool)
 	if err != nil {
 		return nil, fmt.Errorf("encode max_llm_cost_usd_per_pool: %w", err)
 	}
@@ -807,7 +714,7 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 	for i, a := range input.Agents {
 		var temperature pgtype.Numeric
 		if a.Temperature != nil {
-			t, err := numericFromFloat(*a.Temperature)
+			t, err := pgconv.NumericFromFloat(*a.Temperature)
 			if err != nil {
 				return nil, fmt.Errorf("encode agent #%d temperature: %w", i, err)
 			}
@@ -834,7 +741,7 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 	// Pool + agents are now durable. Start the workflow that drives the
 	// pool; only reachable after a successful commit so we never launch a
 	// workflow against a half-written pool.
-	wfID := simPoolWorkflowIDForPool(pool.ID)
+	wfID := simulation.WorkflowIDForPool(pool.ID)
 	opts := client.StartWorkflowOptions{
 		ID:                    wfID,
 		TaskQueue:             temporal.QueueTasks,

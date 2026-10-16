@@ -721,7 +721,7 @@ func runSeasonPhase(
 		// start/end here doesn't break determinism.
 		dayStart := workflow.Now(ctx)
 		if err := processOneDay(ctx, state, in.SimDate); err != nil {
-			return false, fmt.Errorf("process day %s: %w", in.SimDate.Time.Format("2006-01-02"), err)
+			return false, fmt.Errorf("process day %s: %w", in.SimDate.Time.Format(time.DateOnly), err)
 		}
 		dayDuration := workflow.Now(ctx).Sub(dayStart)
 

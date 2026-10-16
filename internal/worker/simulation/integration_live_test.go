@@ -44,6 +44,7 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -136,7 +137,7 @@ func TestLiveSmallSeasonOllama(t *testing.T) {
 	const numAgents = 4
 	seedSmallSeason(t, ctx, pgPool, cfg, numAgents*liveRounds)
 
-	capUSD, err := pgNumericFromFloat(0) // Ollama models cost $0; cap disabled
+	capUSD, err := pgconv.NumericFromFloat(0) // Ollama models cost $0; cap disabled
 	require.NoError(t, err)
 	poolRow, err := q.InsertSimPool(ctx, sqlcdb.InsertSimPoolParams{
 		Name:                 "livellm_ollama_smoke",

@@ -19,6 +19,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/llm/agentloop"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
@@ -392,7 +393,7 @@ func teamNameTurnHeader(in PickTeamNameInput, turn teamNameTurn) TurnHeader {
 // that must not undercount.
 //
 // The increment is unconditional (no `cost > 0` guard), matching
-// commitDraftPick and commitDailyTurn: numericFromFloat encodes 0
+// commitDraftPick and commitDailyTurn: pgconv.NumericFromFloat encodes 0
 // cleanly and IncrementSimPoolLLMCost adds it as a no-op, so branching
 // on the amount would only give free/unpriced models a second write
 // path to get wrong.
@@ -403,7 +404,7 @@ func (a *Activities) persistTeamNameTurn(
 	turn teamNameTurn,
 	recordMessages bool,
 ) error {
-	costNum, err := numericFromFloat(turn.costUsd)
+	costNum, err := pgconv.NumericFromFloat(turn.costUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode team-name cost: %w", err)
 	}

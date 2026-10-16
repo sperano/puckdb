@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,7 +62,7 @@ func seedRosterPlayer(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, p
 func seedDueClaim(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, poolID, agentID int32, playerID int64, drop *int64) {
 	t.Helper()
 	_, err := sqlcdb.New(pgPool).InsertSimWaiverClaim(ctx, sqlcdb.InsertSimWaiverClaimParams{
-		PoolID: poolID, AgentID: agentID, PlayerID: playerID, DropPlayerID: nullableInt8(drop),
+		PoolID: poolID, AgentID: agentID, PlayerID: playerID, DropPlayerID: pgconv.PtrToInt8(drop),
 		FiledDate: mustPgDate(offsetDate(replDropDate, -int(waiverRaceDays))), ProcessDate: mustPgDate(replDropDate),
 	})
 	require.NoError(t, err)

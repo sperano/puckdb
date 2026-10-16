@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -266,8 +267,5 @@ func f4(v pgtype.Float4) string {
 
 // i4 prints an int4 cell; NULL is empty.
 func i4(v pgtype.Int4) string {
-	if !v.Valid {
-		return ""
-	}
-	return strconv.FormatInt(int64(v.Int32), 10)
+	return pgconv.FormatInt4(v)
 }

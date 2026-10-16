@@ -1,11 +1,10 @@
-package shared
+package pgconv
 
 import (
+	"math"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPtrToInt2(t *testing.T) {
@@ -158,81 +157,46 @@ func TestPtrToTextTrimmed(t *testing.T) {
 	})
 }
 
-func TestParseDate(t *testing.T) {
+func TestPtrToBool(t *testing.T) {
 	t.Parallel()
 
-	t.Run("valid date string returns correct time", func(t *testing.T) {
-		t.Parallel()
-		result := ParseDate("2023-10-10")
-		require.False(t, result.IsZero())
-		assert.Equal(t, 2023, result.Year())
-		assert.Equal(t, time.October, result.Month())
-		assert.Equal(t, 10, result.Day())
-	})
-
-	t.Run("invalid date string returns zero value", func(t *testing.T) {
-		t.Parallel()
-		result := ParseDate("not-a-date")
-		assert.True(t, result.IsZero())
-	})
-
-	t.Run("empty string returns zero value", func(t *testing.T) {
-		t.Parallel()
-		result := ParseDate("")
-		assert.True(t, result.IsZero())
-	})
+	assert.False(t, PtrToBool(nil).Valid)
+	for _, v := range []bool{true, false} {
+		got := PtrToBool(&v)
+		assert.True(t, got.Valid)
+		assert.Equal(t, v, got.Bool)
+	}
 }
 
-func TestParseDateToPgDate(t *testing.T) {
+// TestPtrToIntBoundaries pins the column-type limits and the Go-conversion
+// narrowing past them, which callers rely on bounding their inputs first.
+func TestPtrToIntBoundaries(t *testing.T) {
 	t.Parallel()
 
-	t.Run("empty string returns invalid Date", func(t *testing.T) {
-		t.Parallel()
-		result := ParseDateToPgDate("")
-		assert.False(t, result.Valid)
-	})
+	minInt16, maxInt16 := math.MinInt16, math.MaxInt16
+	assert.Equal(t, int16(math.MinInt16), PtrToInt2(&minInt16).Int16)
+	assert.Equal(t, int16(math.MaxInt16), PtrToInt2(&maxInt16).Int16)
 
-	t.Run("valid date string returns correct pgtype.Date", func(t *testing.T) {
-		t.Parallel()
-		result := ParseDateToPgDate("2024-01-15")
-		require.True(t, result.Valid)
-		assert.Equal(t, 2024, result.Time.Year())
-		assert.Equal(t, time.January, result.Time.Month())
-		assert.Equal(t, 15, result.Time.Day())
-	})
+	minInt32, maxInt32 := math.MinInt32, math.MaxInt32
+	assert.Equal(t, int32(math.MinInt32), PtrToInt4(&minInt32).Int32)
+	assert.Equal(t, int32(math.MaxInt32), PtrToInt4(&maxInt32).Int32)
 
-	t.Run("invalid date string returns invalid Date", func(t *testing.T) {
-		t.Parallel()
-		result := ParseDateToPgDate("15/01/2024")
-		assert.False(t, result.Valid)
-	})
+	minInt64, maxInt64 := int64(math.MinInt64), int64(math.MaxInt64)
+	assert.Equal(t, int64(math.MinInt64), PtrToInt8(&minInt64).Int64)
+	assert.Equal(t, int64(math.MaxInt64), PtrToInt8(&maxInt64).Int64)
+
+	pastInt32 := math.MaxInt32 + 1
+	narrowed := PtrToInt4(&pastInt32)
+	assert.True(t, narrowed.Valid)
+	assert.Equal(t, int32(math.MinInt32), narrowed.Int32)
 }
 
-func TestParseTimestamptz(t *testing.T) {
+func TestPtrToTextNamedString(t *testing.T) {
 	t.Parallel()
 
-	const rfc3339Layout = "2006-01-02T15:04:05Z07:00"
-
-	t.Run("empty string returns invalid Timestamptz", func(t *testing.T) {
-		t.Parallel()
-		result := ParseTimestamptz(rfc3339Layout, "")
-		assert.False(t, result.Valid)
-	})
-
-	t.Run("valid timestamp returns correct Timestamptz", func(t *testing.T) {
-		t.Parallel()
-		result := ParseTimestamptz(rfc3339Layout, "2024-03-20T14:30:00Z")
-		require.True(t, result.Valid)
-		assert.Equal(t, 2024, result.Time.Year())
-		assert.Equal(t, time.March, result.Time.Month())
-		assert.Equal(t, 20, result.Time.Day())
-		assert.Equal(t, 14, result.Time.Hour())
-		assert.Equal(t, 30, result.Time.Minute())
-	})
-
-	t.Run("invalid timestamp returns invalid Timestamptz", func(t *testing.T) {
-		t.Parallel()
-		result := ParseTimestamptz(rfc3339Layout, "not-a-timestamp")
-		assert.False(t, result.Valid)
-	})
+	type code string
+	v := code("PPG")
+	got := PtrToText(&v)
+	assert.True(t, got.Valid)
+	assert.Equal(t, "PPG", got.String)
 }

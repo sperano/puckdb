@@ -7,6 +7,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/llm/agentloop"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -96,7 +97,7 @@ func TestRecordTurnTelemetryCostFromCaptures(t *testing.T) {
 	wantCost := EstimateCost(header.Provider, header.Model, wantUsage)
 	require.Greater(t, wantCost, 0.0, "sanity: known model must have nonzero cost")
 
-	gotCost, err := NumericToFloat(q.insertTurnCalls[0].CostUSD)
+	gotCost, err := pgconv.NumericToFloat(q.insertTurnCalls[0].CostUSD)
 	require.NoError(t, err)
 	assert.InDelta(t, wantCost, gotCost, 1e-9)
 	assert.NotEqualValues(t, header.CostUsd, gotCost, "cost must not come from header.CostUsd")

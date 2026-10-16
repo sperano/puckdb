@@ -1092,27 +1092,6 @@ func TestUpsertPlayerCareerData_SeasonTotalBatchError(t *testing.T) {
 }
 
 // ////////////////////////////////////////////////////////////////////////////
-// intPtrToInt4 — nil path
-// ////////////////////////////////////////////////////////////////////////////
-
-func TestIntPtrToInt4_Nil(t *testing.T) {
-	t.Parallel()
-
-	result := intPtrToInt4(nil)
-	assert.False(t, result.Valid)
-	assert.Equal(t, int32(0), result.Int32)
-}
-
-func TestIntPtrToInt4_NonNil(t *testing.T) {
-	t.Parallel()
-
-	v := 42
-	result := intPtrToInt4(&v)
-	assert.True(t, result.Valid)
-	assert.Equal(t, int32(42), result.Int32)
-}
-
-// ////////////////////////////////////////////////////////////////////////////
 // RemoveFromYahooIDPool — success path
 // ////////////////////////////////////////////////////////////////////////////
 

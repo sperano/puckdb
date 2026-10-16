@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -391,4 +392,19 @@ func TestGraphQLClient_SimPoolStatus(t *testing.T) {
 	assert.Equal(t, 7, res.Pool.ID)
 	require.NotNil(t, res.Progress)
 	assert.Equal(t, 100, res.Progress.Total)
+}
+
+// TestPrintCreatedSimPool pins the lines scripts capture after `sim
+// create`; the workflow ID is the one the API starts for the pool.
+func TestPrintCreatedSimPool(t *testing.T) {
+	t.Parallel()
+	for id, want := range map[int]string{
+		1:             "pool_id=1\nworkflow_id=sim-pool-1\n",
+		42:            "pool_id=42\nworkflow_id=sim-pool-42\n",
+		math.MaxInt32: "pool_id=2147483647\nworkflow_id=sim-pool-2147483647\n",
+	} {
+		var out bytes.Buffer
+		printCreatedSimPool(&out, id)
+		assert.Equal(t, want, out.String())
+	}
 }

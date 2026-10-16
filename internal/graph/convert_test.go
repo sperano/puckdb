@@ -92,20 +92,6 @@ func TestBoolPtr(t *testing.T) {
 	})
 }
 
-func TestDateString(t *testing.T) {
-	t.Run("valid", func(t *testing.T) {
-		d := pgtype.Date{Time: time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC), Valid: true}
-		if got := dateString(d); got != "2024-03-15" {
-			t.Errorf("expected '2024-03-15', got %q", got)
-		}
-	})
-	t.Run("null", func(t *testing.T) {
-		if got := dateString(pgtype.Date{}); got != "" {
-			t.Errorf("expected empty, got %q", got)
-		}
-	})
-}
-
 func TestDateStringPtr(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		d := pgtype.Date{Time: time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC), Valid: true}
@@ -174,77 +160,6 @@ func TestNullGoalieDecisionPtr(t *testing.T) {
 	t.Run("null", func(t *testing.T) {
 		if got := nullGoalieDecisionPtr(sqlcdb.NullGoalieDecision{}); got != nil {
 			t.Errorf("expected nil, got %v", *got)
-		}
-	})
-}
-
-func TestOptionalInt4(t *testing.T) {
-	t.Run("present", func(t *testing.T) {
-		v := 42
-		got := optionalInt4(&v)
-		if !got.Valid || got.Int32 != 42 {
-			t.Errorf("expected valid 42, got %+v", got)
-		}
-	})
-	t.Run("nil", func(t *testing.T) {
-		got := optionalInt4(nil)
-		if got.Valid {
-			t.Errorf("expected invalid, got %+v", got)
-		}
-	})
-}
-
-func TestOptionalInt8(t *testing.T) {
-	t.Run("present", func(t *testing.T) {
-		v := int64(8475786)
-		got := optionalInt8(&v)
-		if !got.Valid || got.Int64 != 8475786 {
-			t.Errorf("expected valid 8475786, got %+v", got)
-		}
-	})
-	t.Run("nil", func(t *testing.T) {
-		got := optionalInt8(nil)
-		if got.Valid {
-			t.Errorf("expected invalid, got %+v", got)
-		}
-	})
-}
-
-func TestOptionalText(t *testing.T) {
-	t.Run("present", func(t *testing.T) {
-		v := "hello"
-		got := optionalText(&v)
-		if !got.Valid || got.String != "hello" {
-			t.Errorf("expected valid 'hello', got %+v", got)
-		}
-	})
-	t.Run("nil", func(t *testing.T) {
-		got := optionalText(nil)
-		if got.Valid {
-			t.Errorf("expected invalid, got %+v", got)
-		}
-	})
-}
-
-func TestOptionalBool(t *testing.T) {
-	t.Run("true", func(t *testing.T) {
-		v := true
-		got := optionalBool(&v)
-		if !got.Valid || !got.Bool {
-			t.Errorf("expected valid true, got %+v", got)
-		}
-	})
-	t.Run("false", func(t *testing.T) {
-		v := false
-		got := optionalBool(&v)
-		if !got.Valid || got.Bool {
-			t.Errorf("expected valid false, got %+v", got)
-		}
-	})
-	t.Run("nil", func(t *testing.T) {
-		got := optionalBool(nil)
-		if got.Valid {
-			t.Errorf("expected invalid, got %+v", got)
 		}
 	})
 }

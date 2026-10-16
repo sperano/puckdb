@@ -9,9 +9,9 @@ import (
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/metrics"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
-	"github.com/sperano/puckdb/internal/worker/shared"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -137,10 +137,10 @@ func (a *ImportActivities) processGameStory(
 				TimeInPeriod: goal.TimeInPeriod,
 			}
 
-			params.GoalsToDate = shared.PtrToInt2(goal.GoalsToDate)
-			params.HighlightClipID = shared.PtrToInt8(goal.HighlightClip)
-			params.HighlightClipUrl = shared.PtrToText(goal.HighlightClipSharingURL)
-			params.DiscreteClipID = shared.PtrToInt8(goal.DiscreteClip)
+			params.GoalsToDate = pgconv.PtrToInt2(goal.GoalsToDate)
+			params.HighlightClipID = pgconv.PtrToInt8(goal.HighlightClip)
+			params.HighlightClipUrl = pgconv.PtrToText(goal.HighlightClipSharingURL)
+			params.DiscreteClipID = pgconv.PtrToInt8(goal.DiscreteClip)
 
 			if err := a.Queries.UpsertGoalHighlight(ctx, params); err != nil {
 				errors = append(errors, fmt.Sprintf("game %d: goal %d: %v", gameID, goal.EventID, err))

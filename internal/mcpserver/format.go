@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/sperano/puckdb/internal/pgconv"
 )
 
 // ResultJSON marshals a single value as JSON and returns it as a text tool result.
@@ -188,15 +189,9 @@ func formatField(v reflect.Value) string {
 		}
 		return fmt.Sprintf("%d", val.Int16)
 	case pgtype.Int4:
-		if !val.Valid {
-			return ""
-		}
-		return fmt.Sprintf("%d", val.Int32)
+		return pgconv.FormatInt4(val)
 	case pgtype.Int8:
-		if !val.Valid {
-			return ""
-		}
-		return fmt.Sprintf("%d", val.Int64)
+		return pgconv.FormatInt8(val)
 	case pgtype.Float4:
 		if !val.Valid {
 			return ""
@@ -216,10 +211,7 @@ func formatField(v reflect.Value) string {
 		}
 		return "false"
 	case pgtype.Date:
-		if !val.Valid {
-			return ""
-		}
-		return val.Time.Format("2006-01-02")
+		return pgconv.FormatDate(val)
 	case pgtype.Timestamptz:
 		if !val.Valid {
 			return ""

@@ -25,7 +25,7 @@ const (
 	markerClose   = ">>>"
 	markerReplace = "«"
 	// dateLayout is how dates travel in the input and the output.
-	dateLayout = "2006-01-02"
+	dateLayout = time.DateOnly
 	// paragraphSeparator joins an article's summary and body.
 	paragraphSeparator = "\n\n"
 )
