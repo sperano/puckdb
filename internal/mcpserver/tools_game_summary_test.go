@@ -36,6 +36,8 @@ type summaryQueryFake struct {
 	officials  []sqlcdb.GameOfficial
 	coaches    []sqlcdb.GetGameCoachesRow
 	scratches  []sqlcdb.GetGameScratchesRow
+	goalEvents []sqlcdb.PlayEvent
+	eventArgs  []sqlcdb.GetGamePlayEventsParams
 }
 
 var errSummaryQuery = errors.New("connection reset")
@@ -77,6 +79,11 @@ func (f *summaryQueryFake) GetGameScratches(context.Context, int64) ([]sqlcdb.Ge
 	return f.scratches, f.record("GetGameScratches")
 }
 
+func (f *summaryQueryFake) GetGamePlayEvents(_ context.Context, arg sqlcdb.GetGamePlayEventsParams) ([]sqlcdb.PlayEvent, error) {
+	f.eventArgs = append(f.eventArgs, arg)
+	return f.goalEvents, f.record("GetGamePlayEvents")
+}
+
 func centerPosition() sqlcdb.NullPlayerPosition {
 	return sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}
 }
@@ -102,6 +109,12 @@ func newSummaryQueryFake() *summaryQueryFake {
 				HighlightClipUrl: pgtype.Text{String: "https://nhl.com/video/c-6363", Valid: true}, FirstName: "Nick", LastName: "Suzuki"},
 			{GameID: summaryGameID, EventID: 202, PlayerID: summaryMatthewsID, Period: 2, TimeInPeriod: "10:00",
 				FirstName: "Auston", LastName: "Matthews"},
+		},
+		// Only the first goal has a play-by-play event.
+		goalEvents: []sqlcdb.PlayEvent{
+			{GameID: summaryGameID, EventID: 101, TypeDescKey: sqlcdb.PlayEventTypeGoal,
+				EventOwnerTeamID: pgtype.Int8{Int64: summaryHomeTeamID, Valid: true},
+				AwayScore:        pgtype.Int4{Int32: 0, Valid: true}, HomeScore: pgtype.Int4{Int32: 1, Valid: true}},
 		},
 		shootout: []sqlcdb.GetShootoutAttemptsRow{
 			{GameID: summaryGameID, Sequence: 1, PlayerID: summaryMatthewsID, TeamID: summaryAwayTeamID, ShotType: "wrist",
@@ -133,9 +146,9 @@ const wantFullGameSummary = `# game_id=2025020001 season=20252026 game_type=regu
 star,player_id,first_name,last_name,position
 1,8480018,Nick,Suzuki,C
 # goals
-period,time_in_period,player_id,first_name,last_name,goals_to_date,event_id,clip_url
-1,05:12,8480018,Nick,Suzuki,1,101,https://nhl.com/video/c-6363
-2,10:00,8479318,Auston,Matthews,,202,
+period,time_in_period,team_abbrev,player_id,first_name,last_name,goals_to_date,away_score,home_score,event_id,clip_url
+1,05:12,MTL,8480018,Nick,Suzuki,1,0,1,101,https://nhl.com/video/c-6363
+2,10:00,,8479318,Auston,Matthews,,,,202,
 # shootout
 sequence,team_abbrev,player_id,first_name,last_name,shot_type,result,game_winner
 1,TOR,8479318,Auston,Matthews,wrist,goal,true
@@ -159,9 +172,10 @@ func TestGameSummaryRendersEverySection(t *testing.T) {
 	require.False(t, isError, text)
 	assert.Equal(t, wantFullGameSummary, text)
 	assert.Equal(t, []string{
-		"GetGame", "GetGameThreeStars", "GetGoalHighlights", "GetShootoutAttempts",
+		"GetGame", "GetGameThreeStars", "GetGoalHighlights", "GetGamePlayEvents", "GetShootoutAttempts",
 		"GetGameOfficials", "GetGameCoaches", "GetGameScratches",
 	}, q.calls)
+	assert.Equal(t, []sqlcdb.GetGamePlayEventsParams{{GameID: summaryGameID, TypeDescKeys: []string{"goal"}}}, q.eventArgs)
 }
 
 func TestGameSummaryEmptySectionsReadNoResults(t *testing.T) {
@@ -259,9 +273,9 @@ star,player_id,first_name,last_name,position
 1,97510002,Fixture,Away,LW
 2,97510001,Fixture,Home,C
 # goals
-period,time_in_period,player_id,first_name,last_name,goals_to_date,event_id,clip_url
-1,03:15,97510002,Fixture,Away,7,11,https://example.test/clip/11
-1,14:40,97510001,Fixture,Home,,12,
+period,time_in_period,team_abbrev,player_id,first_name,last_name,goals_to_date,away_score,home_score,event_id,clip_url
+1,03:15,AWY,97510002,Fixture,Away,7,1,0,11,https://example.test/clip/11
+1,14:40,HOM,97510001,Fixture,Home,,1,1,12,
 # shootout
 sequence,team_abbrev,player_id,first_name,last_name,shot_type,result,game_winner
 1,HOM,97510001,Fixture,Home,snap,save,false
@@ -310,6 +324,13 @@ func seedSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
 	exec(`INSERT INTO goal_highlights (game_id, event_id, player_id, period, time_in_period, goals_to_date, highlight_clip_url)
 		VALUES ($1, 12, $2, 1, '14:40', NULL, NULL), ($1, 11, $3, 1, '03:15', 7, 'https://example.test/clip/11')`,
 		summaryDBGameID, summaryDBHomeFwd, summaryDBAwayFwd)
+	// A shot between the goals checks that only goal events are read.
+	exec(`INSERT INTO play_events (game_id, event_id, period, period_type, time_in_period, time_remaining,
+		type_desc_key, sort_order, event_owner_team_id, away_score, home_score)
+		VALUES ($1, 12, 1, 'REG', '14:40', '05:20', 'goal', 30, $2, 1, 1),
+		       ($1, 13, 1, 'REG', '10:00', '10:00', 'shot-on-goal', 20, $2, NULL, NULL),
+		       ($1, 11, 1, 'REG', '03:15', '16:45', 'goal', 10, $3, 1, 0)`,
+		summaryDBGameID, summaryDBHomeID, summaryDBAwayID)
 	exec(`INSERT INTO shootout_attempts (game_id, sequence, player_id, team_id, shot_type, result, game_winner)
 		VALUES ($1, 2, $2, $3, 'wrist', 'goal', true), ($1, 1, $4, $5, 'snap', 'save', false)`,
 		summaryDBGameID, summaryDBAwayFwd, summaryDBAwayID, summaryDBHomeFwd, summaryDBHomeID)
@@ -323,13 +344,14 @@ func seedSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
 }
 
 // deleteSummaryFixture removes the fixture rows; deleting the game
-// cascades to its per-game rows.
+// cascades to its per-game rows except play_events.
 func deleteSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	for _, stmt := range []struct {
 		sql  string
 		args []any
 	}{
+		{`DELETE FROM play_events WHERE game_id = $1`, []any{summaryDBGameID}},
 		{`DELETE FROM games WHERE id = $1`, []any{summaryDBGameID}},
 		{`DELETE FROM players WHERE id IN ($1, $2, $3, $4)`, []any{summaryDBHomeFwd, summaryDBAwayFwd, summaryDBScratch, summaryDBAwaySc}},
 		{`DELETE FROM season_teams WHERE season = $1`, []any{summaryDBSeason}},

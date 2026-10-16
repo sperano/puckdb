@@ -38,6 +38,7 @@ type gameSummaryQueries interface {
 	GetGameOfficials(ctx context.Context, gameID int64) ([]sqlcdb.GameOfficial, error)
 	GetGameCoaches(ctx context.Context, gameID int64) ([]sqlcdb.GetGameCoachesRow, error)
 	GetGameScratches(ctx context.Context, gameID int64) ([]sqlcdb.GetGameScratchesRow, error)
+	GetGamePlayEvents(ctx context.Context, arg sqlcdb.GetGamePlayEventsParams) ([]sqlcdb.PlayEvent, error)
 }
 
 // gameSummary is everything get_game_summary reports for one game.
@@ -45,6 +46,7 @@ type gameSummary struct {
 	game       sqlcdb.GetGameRow
 	threeStars []sqlcdb.GetGameThreeStarsRow
 	goals      []sqlcdb.GetGoalHighlightsRow
+	goalEvents map[int64]sqlcdb.PlayEvent // play-by-play goal events by event ID
 	shootout   []sqlcdb.GetShootoutAttemptsRow
 	officials  []sqlcdb.GameOfficial
 	coaches    []sqlcdb.GetGameCoachesRow
@@ -61,13 +63,19 @@ type summaryStarRow struct {
 	Position  sqlcdb.NullPlayerPosition `json:"position"`
 }
 
+// summaryGoalRow takes the scoring team and the score after the goal from
+// the play-by-play goal event with the same event ID; they are empty when
+// the game's play-by-play was not imported.
 type summaryGoalRow struct {
 	Period       int16       `json:"period"`
 	TimeInPeriod string      `json:"time_in_period"`
+	TeamAbbrev   string      `json:"team_abbrev"`
 	PlayerID     int64       `json:"player_id"`
 	FirstName    string      `json:"first_name"`
 	LastName     string      `json:"last_name"`
 	GoalsToDate  pgtype.Int2 `json:"goals_to_date"`
+	AwayScore    pgtype.Int4 `json:"away_score"`
+	HomeScore    pgtype.Int4 `json:"home_score"`
 	EventID      int64       `json:"event_id"`
 	ClipURL      pgtype.Text `json:"clip_url"`
 }
@@ -106,8 +114,8 @@ func gameSummaryTool(q gameSummaryQueries) server.ServerTool {
 	return server.ServerTool{
 		Tool: mcp.NewTool(gameSummaryToolName,
 			mcp.WithDescription("Get the story of one NHL game in one call: a header (date, teams, final score, "+
-				"how it ended), then CSV sections for the three stars, goals (scorer, period, time, season goal count, "+
-				"highlight clip URL), shootout attempts, officials, head coaches and scratched players. "+
+				"how it ended), then CSV sections for the three stars, goals (period, time, team, scorer, season goal count, "+
+				"score after the goal, highlight clip URL), shootout attempts, officials, head coaches and scratched players. "+
 				"Rows name teams by abbreviation; a section reads \"no results\" when nothing was imported for it."),
 			mcp.WithNumber("game_id", mcp.Required(), mcp.Description("Game ID (use get_games_by_date to find IDs)")),
 		),
@@ -153,6 +161,9 @@ func loadGameSummary(ctx context.Context, q gameSummaryQueries, gameID int64) (g
 	if s.goals, err = q.GetGoalHighlights(ctx, gameID); err != nil {
 		return gameSummary{}, fmt.Errorf("load goals of game %d: %w", gameID, err)
 	}
+	if s.goalEvents, err = loadGoalEvents(ctx, q, gameID); err != nil {
+		return gameSummary{}, err
+	}
 	if s.shootout, err = q.GetShootoutAttempts(ctx, gameID); err != nil {
 		return gameSummary{}, fmt.Errorf("load shootout of game %d: %w", gameID, err)
 	}
@@ -166,6 +177,23 @@ func loadGameSummary(ctx context.Context, q gameSummaryQueries, gameID int64) (g
 		return gameSummary{}, fmt.Errorf("load scratches of game %d: %w", gameID, err)
 	}
 	return s, nil
+}
+
+// loadGoalEvents reads the game's play-by-play goal events, keyed by event
+// ID, which goal_highlights shares.
+func loadGoalEvents(ctx context.Context, q gameSummaryQueries, gameID int64) (map[int64]sqlcdb.PlayEvent, error) {
+	events, err := q.GetGamePlayEvents(ctx, sqlcdb.GetGamePlayEventsParams{
+		GameID:       gameID,
+		TypeDescKeys: []string{string(sqlcdb.PlayEventTypeGoal)},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load goal events of game %d: %w", gameID, err)
+	}
+	byID := make(map[int64]sqlcdb.PlayEvent, len(events))
+	for _, e := range events {
+		byID[e.EventID] = e
+	}
+	return byID, nil
 }
 
 // text renders the header line and every section, each ending in a newline.
@@ -237,10 +265,17 @@ func (s gameSummary) starRows() []summaryStarRow {
 func (s gameSummary) goalRows() []summaryGoalRow {
 	rows := make([]summaryGoalRow, 0, len(s.goals))
 	for _, r := range s.goals {
-		rows = append(rows, summaryGoalRow{
+		row := summaryGoalRow{
 			Period: r.Period, TimeInPeriod: r.TimeInPeriod, PlayerID: r.PlayerID, FirstName: r.FirstName,
 			LastName: r.LastName, GoalsToDate: r.GoalsToDate, EventID: r.EventID, ClipURL: r.HighlightClipUrl,
-		})
+		}
+		if event, ok := s.goalEvents[r.EventID]; ok {
+			if event.EventOwnerTeamID.Valid {
+				row.TeamAbbrev = s.teamAbbrev(event.EventOwnerTeamID.Int64)
+			}
+			row.AwayScore, row.HomeScore = event.AwayScore, event.HomeScore
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
