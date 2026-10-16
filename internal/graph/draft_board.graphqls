@@ -143,6 +143,12 @@ type MauriceDraftBoard {
   league: DraftLeague!
   scenario: DraftScenario!
   snapshot: DraftSnapshot!
+  """
+  The snapshot's conditions now, as draftRankings reports them: freshness,
+  override and rule changes, later refresh failures. ROSTER_SLOTS_CHANGED or
+  SCORING_CHANGED withhold recommendations until a refresh.
+  """
+  rankingIssues: [DraftIssue!]!
   sync: MauriceDraftSyncStatus!
   turn: MauriceDraftTurn!
   roster: MauriceDraftRoster!

@@ -151,7 +151,7 @@ Run `./puckdb <command> --help` for the complete flags and subcommands.
 | `news eval` | Measure the extraction model on the labeled corpus against the release thresholds |
 | `redis` | Redis administration |
 | `metrics` | Export cache, Redis, and database metrics |
-| `mcp-server` | Serve curated read-only data tools over HTTP or stdio; `--mcp-toolsets` picks NHL and/or Yahoo tools ([below](#mcp-server)) |
+| `mcp-server` | Serve curated read-only data tools over HTTP or stdio; `--mcp-toolsets` picks NHL, Yahoo and/or news tools ([below](#mcp-server)) |
 | `maurice` | Start the interactive AI hockey chat REPL |
 | `sim` | Create and operate fantasy-pool simulations |
 | `yahoo` | Yahoo account operations; `yahoo check-access` reports (and can email) whether the Yahoo API serves a season's leagues yet ([notes](https://wiki.spe.quebec/en/puckdb/yahoo-access-check)) |
@@ -188,15 +188,19 @@ required for the quick start.
 
 ## MCP server
 
-`puckdb mcp-server` serves read-only tools in two toolsets, chosen with
+`puckdb mcp-server` serves read-only tools in three toolsets, chosen with
 `--mcp-toolsets` (`PUCKDB_MCP_TOOLSETS`):
 
 | Toolset | Tools | Server name |
 | --- | --- | --- |
 | `nhl` (default) | Public NHL data: players, games, stats, standings, Edge, playoffs, play-by-play | `puckdb-nhl` |
 | `yahoo` | Yahoo fantasy league data: leagues, teams, rosters, roto standings, season team totals, unrostered players, matchups, draft results | `puckdb-yahoo` |
+| `news` | Player news: validated news events with short quotes of the third-party articles behind them (`get_player_news`) | `puckdb-news` |
 
-`--mcp-toolsets nhl,yahoo` serves both from one instance (`puckdb-nhl-yahoo`).
+A comma-separated list serves several from one instance: `--mcp-toolsets
+nhl,yahoo` is `puckdb-nhl-yahoo`, `nhl,news` is `puckdb-nhl-news`. The `news`
+toolset is not league-scoped, but it is kept out of `nhl` so an instance
+serves quoted article text only when asked to.
 To expose the Yahoo data only to some clients, run one instance per audience
 and point each client at the URL it may use:
 

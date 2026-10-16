@@ -126,3 +126,10 @@ func TestYahooRateLimitFrom(t *testing.T) {
 		assert.Equal(t, shared.YahooRateLimit{PerSecond: 1.5, Burst: 3}, yahooRateLimitFrom(v))
 	})
 }
+
+func TestBoxscorePlayerCacheTTLFrom(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, time.Hour, boxscorePlayerCacheTTLFrom(boundViper(t, nil, &config.GobCacheFlags)))
+	assert.Equal(t, 17*time.Minute, boxscorePlayerCacheTTLFrom(boundViper(t,
+		[]string{"--boxscore-player-cache-ttl=17"}, &config.GobCacheFlags)))
+}

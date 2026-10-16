@@ -10,20 +10,19 @@ import (
 	"github.com/rs/zerolog/log"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/cache"
-	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
-	"github.com/spf13/viper"
 	"go.temporal.io/sdk/activity"
 )
 
 // BoxscoreActivities contains activities for extracting player data from boxscore files.
 type BoxscoreActivities struct {
-	Storage     store.Storage
-	GobCache    *cache.GobCache
-	RedisClient *redis.Client
+	Storage                store.Storage
+	GobCache               *cache.GobCache
+	RedisClient            *redis.Client
+	BoxscorePlayerCacheTTL time.Duration
 }
 
 // BoxscoreExtractionResult contains players extracted from boxscores for a season.
@@ -136,8 +135,7 @@ func (a *BoxscoreActivities) ExtractAndSaveBoxscorePlayers(ctx context.Context, 
 		return nil, fmt.Errorf("extract boxscore data: %w", err)
 	}
 
-	ttl := time.Duration(viper.GetInt(config.FlagBoxscorePlayerCacheTTL)) * time.Minute
-	if err := cache.SaveBoxscorePlayers(ctx, a.RedisClient, input.Season.ID, result.Players, ttl); err != nil {
+	if err := cache.SaveBoxscorePlayers(ctx, a.RedisClient, input.Season.ID, result.Players, a.BoxscorePlayerCacheTTL); err != nil {
 		return nil, fmt.Errorf("save boxscore players to redis: %w", err)
 	}
 

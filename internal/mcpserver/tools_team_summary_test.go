@@ -275,9 +275,9 @@ var summaryGoalieLines = []summaryGoalieLine{
 
 func TestTeamSummaryFromDatabase(t *testing.T) {
 	pool := openMCPTestDB(t)
-	cleanupSummaryFixture(t, pool)
-	t.Cleanup(func() { cleanupSummaryFixture(t, pool) })
-	seedSummaryFixture(t, pool)
+	cleanupTeamSummaryFixture(t, pool)
+	t.Cleanup(func() { cleanupTeamSummaryFixture(t, pool) })
+	seedTeamSummaryFixture(t, pool)
 	q := sqlcdb.New(pool)
 
 	text, isError := callTeamSummary(t, q, teamSummaryArgsFor(summaryClubA, summarySeason))
@@ -314,7 +314,7 @@ no results
 `, text)
 }
 
-func seedSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
+func seedTeamSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
 	exec := func(sql string, args ...any) {
@@ -346,9 +346,9 @@ func seedSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
 	}
 }
 
-// cleanupSummaryFixture removes the fixture; the stat rows cascade from
+// cleanupTeamSummaryFixture removes the fixture; the stat rows cascade from
 // games.
-func cleanupSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
+func cleanupTeamSummaryFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
 	_, err := pool.Exec(ctx, `DELETE FROM games WHERE id BETWEEN $1 AND $1 + 99`, summaryGameBase)

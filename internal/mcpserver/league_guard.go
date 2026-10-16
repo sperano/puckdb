@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -23,6 +24,8 @@ const (
 	leagueKeyMarker = ".l."
 	// leagueIDArg is the argument every league-scoped Yahoo tool takes.
 	leagueIDArg = "league_id"
+	// leagueArg is the key-or-ID argument used by draft tools.
+	leagueArg = "league"
 )
 
 // leagueLookup finds a league by its numeric ID; *sqlcdb.Queries satisfies it.
@@ -69,6 +72,12 @@ func (g leagueGuard) allow(ctx context.Context, leagueID int32) (bool, error) {
 	return g.allowed[league.LeagueKey], nil
 }
 
+// allowKey reports whether the guard serves leagueKey. Unlike allow, it does
+// not need a database lookup because the allowlist itself contains keys.
+func (g leagueGuard) allowKey(leagueKey string) bool {
+	return !g.restricted() || g.allowed[leagueKey]
+}
+
 // leagueKeys returns the allowlisted league keys in sorted order; empty for
 // an unrestricted guard.
 func (g leagueGuard) leagueKeys() []string {
@@ -92,6 +101,14 @@ func (g leagueGuard) filter(leagues []sqlcdb.YahooLeague) []sqlcdb.YahooLeague {
 // leagueHandler handles a tool call for a league the guard already allowed.
 type leagueHandler func(ctx context.Context, req mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error)
 
+// leagueKeyResolver resolves a full key or a season-scoped numeric ID to the
+// complete identity needed by key-based authorization.
+type leagueKeyResolver interface {
+	ResolveLeague(ctx context.Context, ref draftrank.LeagueRef) (draftrank.LeagueRef, error)
+}
+
+type leagueKeyHandler func(context.Context, mcp.CallToolRequest, draftrank.LeagueRef) (*mcp.CallToolResult, error)
+
 // scoped wraps a league-scoped handler: it reads league_id, refuses a
 // league the guard does not serve, and only then runs h. A refused league
 // gets the same answer as a missing one, so a client cannot learn which
@@ -113,10 +130,61 @@ func (g leagueGuard) scoped(h leagueHandler) server.ToolHandlerFunc {
 	}
 }
 
+// scopedKey wraps a draft tool that takes season and league. Full league keys
+// are checked before resolution; numeric IDs are resolved with their season
+// and then checked by key. Missing and refused leagues share one response.
+func (g leagueGuard) scopedKey(resolver leagueKeyResolver, h leagueKeyHandler) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		season, errResult := requiredSeasonYear(req)
+		if errResult != nil {
+			return errResult, nil
+		}
+		value, errResult := optionalString(req, leagueArg)
+		if errResult != nil {
+			return errResult, nil
+		}
+		if strings.TrimSpace(value) == "" {
+			return mcp.NewToolResultError(leagueArg + " is required"), nil
+		}
+		ref, errResult := g.resolveKey(ctx, resolver, value, season)
+		if errResult != nil {
+			return errResult, nil
+		}
+		return h(ctx, req, ref)
+	}
+}
+
+// resolveKey resolves and authorizes one draft league reference. Callers
+// with a plural league argument use this for every requested league.
+func (g leagueGuard) resolveKey(ctx context.Context, resolver leagueKeyResolver, value string, season int) (draftrank.LeagueRef, *mcp.CallToolResult) {
+	ref, err := draftrank.ParseLeague(value, season)
+	if err != nil {
+		return draftrank.LeagueRef{}, mcp.NewToolResultError(err.Error())
+	}
+	if ref.LeagueKey != "" && !g.allowKey(ref.LeagueKey) {
+		return draftrank.LeagueRef{}, unknownLeagueRefResult(value)
+	}
+	ref, err = resolver.ResolveLeague(ctx, ref)
+	if errors.Is(err, draftrank.ErrUnknownLeague) {
+		return draftrank.LeagueRef{}, unknownLeagueRefResult(value)
+	}
+	if err != nil {
+		return draftrank.LeagueRef{}, mcp.NewToolResultError(err.Error())
+	}
+	if !g.allowKey(ref.LeagueKey) {
+		return draftrank.LeagueRef{}, unknownLeagueRefResult(value)
+	}
+	return ref, nil
+}
+
 // unknownLeagueResult is the one answer for a league the server does not
 // serve, whether it is missing or outside the allowlist.
 func unknownLeagueResult(leagueID int32) *mcp.CallToolResult {
 	return mcp.NewToolResultError(fmt.Sprintf("unknown %s %d", leagueIDArg, leagueID))
+}
+
+func unknownLeagueRefResult(value string) *mcp.CallToolResult {
+	return mcp.NewToolResultError(fmt.Sprintf("unknown %s %s", leagueArg, formatRaw(value)))
 }
 
 // ParseLeagueKeys reads a comma-separated list of Yahoo league keys such as

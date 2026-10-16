@@ -231,7 +231,8 @@ func gqlDraftBoard(service *draftboard.Service, board draftboard.Board, input mo
 	offset, limit, page := draftPlayerPage(filtered, input.Offset, input.Limit)
 	return &model.MauriceDraftBoard{
 		League: gqlLeague(board.League), Scenario: gqlScenario(board.Scenario), Snapshot: gqlSnapshot(&board.Snapshot),
-		Sync: gqlDraftBoardSync(service, board), Turn: gqlDraftTurn(board), Roster: gqlDraftRoster(board),
+		RankingIssues: gqlIssues(board.RankingIssues),
+		Sync:          gqlDraftBoardSync(service, board), Turn: gqlDraftTurn(board), Roster: gqlDraftRoster(board),
 		History: gqlDraftHistory(board), Available: gqlDraftPlayers(page), Shortlist: gqlDraftPlayers(shortlist),
 		Recommendations: gqlDraftRecommendations(board), Warnings: issueMessages(board.Session.Warnings),
 		TotalAvailable: len(filtered), Offset: offset, Limit: limit,
@@ -364,7 +365,7 @@ func gqlDraftRecommendations(board draftboard.Board) *model.MauriceDraftRecommen
 	}
 	recommendation := board.Recommendation.Result
 	result.GeneratedAt = optionalTime(recommendation.GeneratedAt)
-	result.Issues = issueMessages(recommendation.Issues)
+	result.Issues = issueMessages(board.RecommendationIssues)
 	if recommendation.BestValue != nil {
 		result.BestValuePlayerKey = optionalString(recommendation.BestValue.PlayerKey)
 		result.BestValue = gqlRecommendedPlayer(board.Available, recommendation.BestValue.PlayerKey)

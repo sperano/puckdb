@@ -37,8 +37,12 @@ func NewFetchSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) *
 // (transactions, draft results, matchups), are fetched independently by
 // FetchYahooSeasonWorkflow, which the parent season-sync workflow runs at the
 // same time (see seasonSyncGroups).
-// Each season runs in its own child workflow to isolate history.
-// A typical season (~270 days) generates ~600 history events, well under the 50K limit.
+// Each season runs in its own child workflow to isolate history: a typical
+// season (~270 days, 32 clubs) records roughly 1,500-2,200 history events,
+// well under the 50K limit. Every activity costs 3 events, every progress
+// save (one per bar increment, group start and group completion) 1
+// MarkerRecorded event, and every workflow task up to 3 events (measured on
+// the dev server; see https://wiki.spe.quebec/en/puckdb/plans/typed-worker-pool-api).
 func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 

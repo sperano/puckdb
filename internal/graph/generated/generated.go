@@ -618,6 +618,7 @@ type ComplexityRoot struct {
 		League          func(childComplexity int) int
 		Limit           func(childComplexity int) int
 		Offset          func(childComplexity int) int
+		RankingIssues   func(childComplexity int) int
 		Recommendations func(childComplexity int) int
 		Roster          func(childComplexity int) int
 		Scenario        func(childComplexity int) int
@@ -3947,6 +3948,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MauriceDraftBoard.Offset(childComplexity), true
+	case "MauriceDraftBoard.rankingIssues":
+		if e.ComplexityRoot.MauriceDraftBoard.RankingIssues == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceDraftBoard.RankingIssues(childComplexity), true
 	case "MauriceDraftBoard.recommendations":
 		if e.ComplexityRoot.MauriceDraftBoard.Recommendations == nil {
 			break
@@ -7233,6 +7240,8 @@ enum DraftIssueCode {
   STALE_POOL
   OVERRIDES_CHANGED
   RULES_CHANGED
+  ROSTER_SLOTS_CHANGED
+  SCORING_CHANGED
   NEWER_SNAPSHOT_AVAILABLE
   SCENARIO_UNAVAILABLE
   NOT_COMPUTED
@@ -7815,6 +7824,12 @@ type MauriceDraftBoard {
   league: DraftLeague!
   scenario: DraftScenario!
   snapshot: DraftSnapshot!
+  """
+  The snapshot's conditions now, as draftRankings reports them: freshness,
+  override and rule changes, later refresh failures. ROSTER_SLOTS_CHANGED or
+  SCORING_CHANGED withhold recommendations until a refresh.
+  """
+  rankingIssues: [DraftIssue!]!
   sync: MauriceDraftSyncStatus!
   turn: MauriceDraftTurn!
   roster: MauriceDraftRoster!
@@ -9633,6 +9648,8 @@ func (ec *executionContext) childFields_MauriceDraftBoard(ctx context.Context, f
 		return ec.fieldContext_MauriceDraftBoard_scenario(ctx, field)
 	case "snapshot":
 		return ec.fieldContext_MauriceDraftBoard_snapshot(ctx, field)
+	case "rankingIssues":
+		return ec.fieldContext_MauriceDraftBoard_rankingIssues(ctx, field)
 	case "sync":
 		return ec.fieldContext_MauriceDraftBoard_sync(ctx, field)
 	case "turn":
@@ -22079,6 +22096,38 @@ func (ec *executionContext) fieldContext_MauriceDraftBoard_snapshot(_ context.Co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_DraftSnapshot(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceDraftBoard_rankingIssues(ctx context.Context, field graphql.CollectedField, obj *model.MauriceDraftBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceDraftBoard_rankingIssues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RankingIssues, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DraftIssue) graphql.Marshaler {
+			return ec.marshalNDraftIssue2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐDraftIssueᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceDraftBoard_rankingIssues(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceDraftBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DraftIssue(ctx, field)
 		},
 	}
 	return fc, nil
@@ -38618,6 +38667,11 @@ func (ec *executionContext) _MauriceDraftBoard(ctx context.Context, sel ast.Sele
 			}
 		case "snapshot":
 			out.Values[i] = ec._MauriceDraftBoard_snapshot(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rankingIssues":
+			out.Values[i] = ec._MauriceDraftBoard_rankingIssues(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
