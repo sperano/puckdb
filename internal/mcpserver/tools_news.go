@@ -67,8 +67,8 @@ func playerNewsTool(q newsevent.PlayerEventQueries) server.ServerTool {
 				"and an '# evidence' CSV section: per event its latest reports (relation supports, contradicts, retracts, "+
 				"resolves or withdraws; publisher; article title and URL), one row per quote. "+
 				"Pass player_id, yahoo_player_id or both: an event stored under either ID matches."),
-			mcp.WithNumber(playerIDArg, mcp.Description("NHL player ID (use search_player to find IDs)")),
-			mcp.WithNumber(yahooPlayerIDArg, mcp.Description(yahooIDSources)),
+			mcp.WithNumber(playerIDArg, mcp.Description("NHL player ID (search_player in the nhl toolset finds IDs)")),
+			mcp.WithNumber(yahooPlayerIDArg, mcp.Description("Yahoo player ID, as the yahoo toolset's tools return it")),
 			mcp.WithString(newsSinceArg, mcp.Description("Keep events last reported on or after this date (YYYY-MM-DD, UTC)")),
 			mcp.WithNumber(playerNewsLimitParam.name, mcp.Description(fmt.Sprintf(
 				"Keep the latest events by first report (default %d, max %d)", defaultPlayerNewsLimit, maxPlayerNewsLimit))),
