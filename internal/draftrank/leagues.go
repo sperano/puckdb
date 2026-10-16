@@ -54,19 +54,19 @@ func (s *Service) League(ctx context.Context, ref LeagueRef) (LeagueSummary, err
 		return LeagueSummary{}, err
 	}
 	if latestID == uuid.Nil {
-		page, err := s.emptyPage(ctx, ref, refresh, Query{})
+		read, err := s.emptyRead(ctx, ref, refresh)
 		if err != nil {
 			return LeagueSummary{}, err
 		}
-		return LeagueSummary{League: page.League, Status: page.Status, Refresh: refresh, Issues: page.Issues}, nil
+		return LeagueSummary{League: read.League, Status: read.Status, Refresh: refresh, Issues: read.Issues}, nil
 	}
 	info, err := s.reader.SnapshotInfo(ctx, latestID)
 	if err != nil {
 		return LeagueSummary{}, err
 	}
-	issues, err := s.snapshotIssues(ctx, info, latestID, refresh)
+	checked, err := s.snapshotIssues(ctx, info, latestID, refresh)
 	if err != nil {
 		return LeagueSummary{}, err
 	}
-	return LeagueSummary{League: info.League, Status: StatusReady, Snapshot: info, Refresh: refresh, Issues: issues}, nil
+	return LeagueSummary{League: info.League, Status: StatusReady, Snapshot: info, Refresh: refresh, Issues: checked.issues}, nil
 }

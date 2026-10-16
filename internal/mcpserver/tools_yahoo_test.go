@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/sperano/puckdb/internal/fixtures/draftfixtures"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,10 +24,10 @@ func yahooTestServer(q yahooQueries, leagueKeys []string) *server.MCPServer {
 	return srv
 }
 
-// TestYahooToolsAreLeagueGuarded calls every yahoo tool with a league
-// outside the allowlist. A league-scoped tool must refuse it before any
-// query runs: the fake stubs no tool query, so a tool that skipped the guard
-// panics on the nil embedded interface. Tools without league_id must be
+// TestYahooToolsAreLeagueGuarded calls every yahoo tool with a league outside
+// the allowlist. A league-scoped tool must refuse it before its data query
+// runs: the fake stubs no tool query, so a tool that skipped the guard panics
+// on the nil embedded interface. Tools without a league argument must be
 // listed in leagueIndependentYahooTools.
 func TestYahooToolsAreLeagueGuarded(t *testing.T) {
 	srv := yahooTestServer(newFakeYahooQueries(), []string{allowedLeagueKey})
@@ -40,27 +42,34 @@ func TestYahooToolsAreLeagueGuarded(t *testing.T) {
 			if _, ok := leagueIndependentYahooTools[name]; ok {
 				assert.NotContains(t, tool.Tool.InputSchema.Properties, leagueIDArg,
 					"a tool taking league_id must be guarded, not league-independent")
+				assert.NotContains(t, tool.Tool.InputSchema.Properties, leagueArg,
+					"a tool taking league must be guarded, not league-independent")
 				return
 			}
-			assert.Contains(t, tool.Tool.InputSchema.Required, leagueIDArg,
-				"a yahoo tool must take league_id or be listed in leagueIndependentYahooTools")
-			result := callGuardedTool(t, tool.Handler, otherLeagueID)
+			result, want := callGuardedTool(t, tool)
 			assert.True(t, result.IsError)
-			assert.Equal(t, fmt.Sprintf("unknown league_id %d", otherLeagueID), resultText(t, result))
+			assert.Equal(t, want, resultText(t, result))
 		})
 	}
 }
 
-// callGuardedTool calls handler for leagueID and turns a panic (a query run
-// without the guard) into a test failure naming the cause.
-func callGuardedTool(t *testing.T, handler server.ToolHandlerFunc, leagueID int32) (result *mcp.CallToolResult) {
+// callGuardedTool supplies the kind of league argument the tool declares and
+// turns a panic into a failure naming a missing guard.
+func callGuardedTool(t *testing.T, tool *server.ServerTool) (result *mcp.CallToolResult, want string) {
 	t.Helper()
 	defer func() {
 		if r := recover(); r != nil {
-			t.Fatalf("tool queried the database for a refused league (missing leagueGuard.scoped?): %v", r)
+			t.Fatalf("tool queried data for a refused league (missing league guard?): %v", r)
 		}
 	}()
-	return callTool(t, handler, map[string]any{leagueIDArg: float64(leagueID)})
+	if slices.Contains(tool.Tool.InputSchema.Required, leagueIDArg) {
+		return callTool(t, tool.Handler, map[string]any{leagueIDArg: float64(otherLeagueID)}),
+			fmt.Sprintf("unknown league_id %d", otherLeagueID)
+	}
+	require.Contains(t, tool.Tool.InputSchema.Required, leagueArg,
+		"a yahoo tool must take league_id or league, or be listed in leagueIndependentYahooTools")
+	args := map[string]any{leagueArg: otherLeagueKey, "season": float64(draftfixtures.Season)}
+	return callTool(t, tool.Handler, args), fmt.Sprintf("unknown league %q", otherLeagueKey)
 }
 
 // rosterYahooQueries records the roster and unrostered queries.

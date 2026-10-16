@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -272,6 +273,7 @@ type fakeDataSource struct {
 	identity         draftwatch.Identity
 	session          draftwatch.Session
 	ranking          *draftrank.Snapshot
+	rankingIssues    []draftrank.Issue
 	leagueData       LeagueData
 	applyErr         error
 	shortlistChanged bool
@@ -283,8 +285,9 @@ func (f *fakeDataSource) ResolveIdentity(context.Context, string, int) (draftwat
 func (f *fakeDataSource) Session(context.Context, draftwatch.Identity) (draftwatch.Session, error) {
 	return f.session, nil
 }
-func (f *fakeDataSource) Ranking(context.Context, draftwatch.Identity) (*draftrank.Snapshot, error) {
-	return f.ranking, nil
+func (f *fakeDataSource) Ranking(context.Context, draftwatch.Identity) (draftrank.Read, error) {
+	return draftrank.Read{League: f.ranking.League, Status: draftrank.StatusReady, Snapshot: f.ranking,
+		Issues: append(slices.Clone(f.ranking.Unavailable), f.rankingIssues...)}, nil
 }
 func (f *fakeDataSource) LeagueData(context.Context, draftwatch.Identity) (LeagueData, error) {
 	return f.leagueData, nil

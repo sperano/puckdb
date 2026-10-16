@@ -40,7 +40,7 @@ func TestWritePoolReport_Counts(t *testing.T) {
 
 func TestWritePoolReport_ListCap(t *testing.T) {
 	t.Parallel()
-	const total = poolReportListLimit + 7
+	const total = PoolReportListLimit + 7
 	players := make([]PoolPlayer, total)
 	for i := range players {
 		players[i] = PoolPlayer{Name: fmt.Sprintf("Player %d", i), YahooPlayerID: i}
@@ -51,8 +51,8 @@ func TestWritePoolReport_ListCap(t *testing.T) {
 	require.NoError(t, WritePoolReport(&b, poolReportTestReport(pool)))
 	out := b.String()
 
-	assert.Contains(t, out, fmt.Sprintf("... and %d more", total-poolReportListLimit))
-	assert.Equal(t, poolReportListLimit, strings.Count(out, "no positions)"), "the list stops at the cap")
+	assert.Contains(t, out, fmt.Sprintf("... and %d more", total-PoolReportListLimit))
+	assert.Equal(t, PoolReportListLimit, strings.Count(out, "no positions)"), "the list stops at the cap")
 }
 
 func TestWritePoolReport_EmptyPool(t *testing.T) {

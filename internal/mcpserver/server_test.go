@@ -38,7 +38,7 @@ var expectedNHLTools = []string{
 	"get_player_roster_history",
 	"get_player_three_stars",
 	"get_season_roster",
-	// Games (7)
+	// Games (8)
 	"get_game",
 	"get_games_by_date",
 	"get_games_by_season",
@@ -46,6 +46,7 @@ var expectedNHLTools = []string{
 	"get_games_by_team_and_season",
 	"get_game_three_stars",
 	"get_game_broadcasts",
+	"get_game_summary",
 	// Stats (10)
 	"get_game_skater_stats",
 	"get_game_goalie_stats",
@@ -60,6 +61,8 @@ var expectedNHLTools = []string{
 	// Season stats (2)
 	"get_skater_season_stats",
 	"get_goalie_season_stats",
+	// Recent form (1)
+	"get_recent_form",
 	// Standings (4)
 	"get_standings_by_date",
 	"get_standings_by_season",
@@ -81,6 +84,8 @@ var expectedNHLTools = []string{
 	"get_first_matching_event_per_team",
 	// Linemates (1)
 	"get_player_linemates",
+	// News (1)
+	"get_recent_news_events",
 }
 
 // expectedYahooTools lists every tool the yahoo toolset registers.
@@ -89,6 +94,7 @@ var expectedYahooTools = []string{
 	"get_yahoo_leagues",
 	"get_yahoo_teams_by_league",
 	"get_yahoo_roster",
+	"get_yahoo_player_ownership",
 	"get_yahoo_roto_standings",
 	"get_yahoo_season_team_totals",
 	"get_unrostered_skaters",
@@ -98,6 +104,7 @@ var expectedYahooTools = []string{
 	"get_yahoo_league_settings",
 	"get_yahoo_league_players",
 	"get_draft_leagues",
+	draftPoolToolName,
 }
 
 // registeredToolNames builds a server for opts and returns its tool names.
@@ -266,13 +273,18 @@ var validNHLArgs = map[string]any{
 	edgeMetricArg:          "top_speed",
 	edgeMinGamesArg:        float64(1),
 	"type_desc_keys":       []any{"goal"},
+	recentFormAsOfArg:      "2025-10-31",
+	recentFormDaysArg:      float64(14),
 	"game_ids":             []any{float64(2025020001)},
+	recentNewsSinceArg:     "2026-10-16T00:00:00Z",
+	recentNewsTypesArg:     []any{},
 }
 
 // nhlArgOverrides replace validNHLArgs values for tools that accept
 // different ones.
 var nhlArgOverrides = map[string]map[string]any{
 	"get_goalie_season_stats": {seasonSortByArg: defaultGoalieSeasonSort, seasonPositionArg: string(sqlcdb.PlayerPositionG)},
+	recentFormToolName:        {recentFormGroupArg: recentFormSkaters},
 }
 
 // omittedNHLArgs are arguments left out of a tool's valid call: the

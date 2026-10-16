@@ -21,6 +21,7 @@ func gameTools(q *sqlcdb.Queries) []server.ServerTool {
 		gamesByTeamAndSeasonTool(q),
 		gameThreeStarsTool(q),
 		gameBroadcastsTool(q),
+		gameSummaryTool(q),
 	}
 }
 

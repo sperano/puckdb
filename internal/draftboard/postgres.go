@@ -18,10 +18,10 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
-// RankingReader loads the latest immutable full ranking snapshot.
+// RankingReader is the status-bearing ranking read the rankings API also
+// uses (*draftrank.Service): the latest snapshot with its dynamic issues.
 type RankingReader interface {
-	LatestSnapshotID(context.Context, int, int) (uuid.UUID, error)
-	LoadSnapshot(context.Context, uuid.UUID) (*draftrank.Snapshot, error)
+	Read(context.Context, draftrank.LeagueRef, uuid.UUID) (draftrank.Read, error)
 }
 
 // NewPGService wires PostgreSQL state, immutable ranking reads, recommendation
@@ -73,15 +73,22 @@ func (s *PGDataSource) ListEvents(ctx context.Context, leagueKey string, afterVe
 	return s.session.ListEvents(ctx, leagueKey, afterVersion, limit)
 }
 
-func (s *PGDataSource) Ranking(ctx context.Context, id draftwatch.Identity) (*draftrank.Snapshot, error) {
-	latest, err := s.ranking.LatestSnapshotID(ctx, id.Season, id.LeagueID)
+func (s *PGDataSource) Ranking(ctx context.Context, id draftwatch.Identity) (draftrank.Read, error) {
+	return readRanking(ctx, s.ranking, id)
+}
+
+// readRanking reads the league's latest ranking through the shared read; a
+// league without a snapshot has no board.
+func readRanking(ctx context.Context, reader RankingReader, id draftwatch.Identity) (draftrank.Read, error) {
+	read, err := reader.Read(ctx, draftrank.LeagueRef{Season: id.Season, LeagueID: id.LeagueID}, uuid.Nil)
 	if err != nil {
-		return nil, err
+		return draftrank.Read{}, err
 	}
-	if latest == uuid.Nil {
-		return nil, fmt.Errorf("draft ranking snapshot is not available for %s", id.LeagueKey)
+	if read.Snapshot == nil {
+		return draftrank.Read{}, fmt.Errorf("draft ranking snapshot is not available for %s (ranking status %s)",
+			id.LeagueKey, read.Status)
 	}
-	return s.ranking.LoadSnapshot(ctx, latest)
+	return read, nil
 }
 
 func (s *PGDataSource) LeagueData(ctx context.Context, id draftwatch.Identity) (LeagueData, error) {

@@ -43,7 +43,7 @@ type LeagueData struct {
 type DataSource interface {
 	ResolveIdentity(context.Context, string, int) (draftwatch.Identity, error)
 	Session(context.Context, draftwatch.Identity) (draftwatch.Session, error)
-	Ranking(context.Context, draftwatch.Identity) (*draftrank.Snapshot, error)
+	Ranking(context.Context, draftwatch.Identity) (draftrank.Read, error)
 	LeagueData(context.Context, draftwatch.Identity) (LeagueData, error)
 	ListShortlist(context.Context, string) ([]string, error)
 	SetShortlist(context.Context, string, string, uint64, bool) error
@@ -123,41 +123,75 @@ func (s *Service) Board(ctx context.Context, request Request) (Board, error) {
 		return Board{}, err
 	}
 	board := newBoard(inputs, roster, status, recommendation, result, now)
-	return s.finishBoard(ctx, board, inputs.ranking, roster, result, recommendation)
+	return s.finishBoard(ctx, board, roster, result, recommendation)
 }
 
 type boardInputs struct {
 	identity draftwatch.Identity
 	session  draftwatch.Session
 	ranking  *draftrank.Snapshot
-	league   LeagueData
+	// rankingIssues are the ranking read's dynamic issues: freshness,
+	// override and rule changes, later refresh failures.
+	rankingIssues []draftrank.Issue
+	league        LeagueData
 }
 
+// boardLoadAttempts bounds the reads of one board load: a load is read again
+// once when the league's rules are re-imported between its ranking read and
+// its league read (the draft status flipping at the start of the draft is
+// such an import).
+const boardLoadAttempts = 2
+
+// errRulesChangedDuringLoad means the ranking's issues were checked against
+// other rules than the ones the roster would be checked against.
+var errRulesChangedDuringLoad = errors.New("league rules changed while the board was loading")
+
 func (s *Service) loadBoardInputs(ctx context.Context, request Request) (boardInputs, error) {
-	var inputs boardInputs
+	identity, err := s.data.ResolveIdentity(ctx, request.League, request.Season)
+	if err != nil {
+		return boardInputs{}, err
+	}
+	for attempt := 1; ; attempt++ {
+		inputs, err := s.readBoardInputs(ctx, identity)
+		if !errors.Is(err, errRulesChangedDuringLoad) || attempt == boardLoadAttempts {
+			return inputs, err
+		}
+	}
+}
+
+func (s *Service) readBoardInputs(ctx context.Context, identity draftwatch.Identity) (boardInputs, error) {
+	inputs := boardInputs{identity: identity}
 	var err error
-	inputs.identity, err = s.data.ResolveIdentity(ctx, request.League, request.Season)
+	inputs.session, err = s.data.Session(ctx, identity)
+	var read draftrank.Read
+	if err == nil {
+		read, err = s.data.Ranking(ctx, identity)
+	}
+	if err == nil {
+		inputs.league, err = s.data.LeagueData(ctx, identity)
+	}
 	if err != nil {
 		return inputs, err
 	}
-	inputs.session, err = s.data.Session(ctx, inputs.identity)
-	if err == nil {
-		inputs.ranking, err = s.data.Ranking(ctx, inputs.identity)
-	}
-	if err == nil {
-		inputs.league, err = s.data.LeagueData(ctx, inputs.identity)
-	}
-	if err != nil {
-		return inputs, err
-	}
+	inputs.ranking, inputs.rankingIssues = read.Snapshot, read.Issues
 	if inputs.league.TeamID <= 0 {
 		return inputs, ErrNoOwnedTeam
 	}
+	return inputs, checkSameLeague(inputs, read.RulesHash)
+}
+
+// checkSameLeague refuses inputs that describe different leagues, or rules
+// imported between the ranking read and the league read: the roster would
+// be checked against rules the ranking's issues were not checked against.
+func checkSameLeague(inputs boardInputs, rankingRulesHash string) error {
 	if inputs.ranking.League.LeagueKey != inputs.identity.LeagueKey {
-		return inputs, fmt.Errorf("ranking snapshot league %s differs from session %s",
+		return fmt.Errorf("ranking snapshot league %s differs from session %s",
 			inputs.ranking.League.LeagueKey, inputs.identity.LeagueKey)
 	}
-	return inputs, nil
+	if rankingRulesHash != "" && draftrank.RulesHash(inputs.league.Rules) != rankingRulesHash {
+		return fmt.Errorf("%w: %s", errRulesChangedDuringLoad, inputs.identity.LeagueKey)
+	}
+	return nil
 }
 
 func (s *Service) boardRecommendation(ctx context.Context, request Request, inputs boardInputs, roster Roster,
@@ -168,7 +202,7 @@ func (s *Service) boardRecommendation(ctx context.Context, request Request, inpu
 		Ranking: inputs.ranking, Scenario: request.Scenario, OurTeamID: inputs.league.TeamID,
 		Roster: roster.Players, Order: slices.Clone(request.Order), Strategy: request.Strategy,
 		Availability: request.Availability, ADP: request.ADP,
-		RankingIssues: slices.Clone(inputs.ranking.Unavailable), GeneratedAt: now,
+		RankingIssues: slices.Clone(inputs.rankingIssues), GeneratedAt: now,
 	}
 	scenario, issues := inputs.ranking.ResolveScenario(request.Scenario)
 	result := draftrecommend.Result{Scenario: scenario, Issues: draftrecommend.Issues(issues)}
@@ -189,7 +223,8 @@ func newBoard(inputs boardInputs, roster Roster, status Status, recommendation *
 	result draftrecommend.Result, now time.Time) Board {
 	board := Board{
 		Identity: inputs.identity, League: inputs.ranking.League, Snapshot: inputs.ranking.SnapshotInfo,
-		Scenario: result.Scenario, DraftFormat: inputs.league.DraftFormat,
+		RankingIssues: slices.Clone(inputs.rankingIssues),
+		Scenario:      result.Scenario, DraftFormat: inputs.league.DraftFormat,
 		PickClockSecs: cloneInt(inputs.league.PickClock), TeamID: inputs.league.TeamID,
 		TeamName: inputs.league.TeamName, DraftPosition: inputs.league.DraftPosition,
 		Session: status, Picks: picksOf(inputs.session.State, inputs.ranking), Roster: roster,
@@ -205,7 +240,7 @@ func newBoard(inputs boardInputs, roster Roster, status Status, recommendation *
 	return board
 }
 
-func (s *Service) finishBoard(ctx context.Context, board Board, ranking *draftrank.Snapshot, roster Roster,
+func (s *Service) finishBoard(ctx context.Context, board Board, roster Roster,
 	result draftrecommend.Result, recommendation *draftrecommend.StoredRun) (Board, error) {
 	var err error
 	board.Shortlist, err = s.data.ListShortlist(ctx, board.Identity.LeagueKey)
@@ -223,8 +258,12 @@ func (s *Service) finishBoard(ctx context.Context, board Board, ranking *draftra
 	for _, warning := range roster.Warnings {
 		warnings = appendIssues(warnings, draftrank.Issue{Code: IssueRosterWarning, Message: warning})
 	}
-	warnings = appendIssues(warnings, ranking.Unavailable...)
-	warnings = appendIssues(warnings, result.Issues...)
+	warnings = appendIssues(warnings, board.RankingIssues...)
+	recommendationIssues := recommendationOnlyIssues(result.Issues, board.RankingIssues)
+	if recommendation != nil {
+		board.RecommendationIssues = appendIssues(slices.Clone(board.RankingIssues), recommendationIssues...)
+	}
+	warnings = appendIssues(warnings, recommendationIssues...)
 	if s.recommendations == nil {
 		warnings = appendIssues(warnings, issueRecommendationsUnavailable)
 	}
@@ -233,6 +272,16 @@ func (s *Service) finishBoard(ctx context.Context, board Board, ranking *draftra
 	}
 	board.Session.Warnings = warnings
 	return board, nil
+}
+
+// recommendationOnlyIssues drops the ranking issues a recommendation copied
+// from its input. A cached recommendation keeps the messages of the read it
+// was evaluated with ("computed 26h ago"); the board shows the current read's.
+// The cache key holds the ranking issue codes, so the codes match.
+func recommendationOnlyIssues(issues, rankingIssues []draftrank.Issue) []draftrank.Issue {
+	return slices.DeleteFunc(slices.Clone(issues), func(issue draftrank.Issue) bool {
+		return slices.ContainsFunc(rankingIssues, func(ranking draftrank.Issue) bool { return ranking.Code == issue.Code })
+	})
 }
 
 func (s *Service) recommend(ctx context.Context, input draftrecommend.Input) (draftrecommend.StoredRun, error) {
@@ -266,12 +315,17 @@ func recommendationCacheKey(input draftrecommend.Input) (string, error) {
 		ADP          draftrecommend.ADPSource
 		SessionSafe  bool
 		SessionStale bool
+		// RankingIssues are the ranking read's issue codes: a change of
+		// ranking safety (stale, overrides, rules, refresh failure) must not
+		// serve a recommendation evaluated under the previous status.
+		RankingIssues []draftrank.IssueCode
 	}{
 		League: input.SessionLeagueKey, Version: input.Session.Version,
 		Ranking: input.Ranking.Identity, Scenario: input.Scenario,
 		TeamID: input.OurTeamID, Roster: input.Roster, Order: input.Order,
 		Strategy: input.Strategy, Availability: input.Availability, ADP: input.ADP,
 		SessionSafe: input.SessionSafe, SessionStale: input.SessionStale,
+		RankingIssues: issueCodes(input.RankingIssues),
 	}
 	raw, err := json.Marshal(boundary)
 	if err != nil {
@@ -279,6 +333,17 @@ func recommendationCacheKey(input draftrecommend.Input) (string, error) {
 	}
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+// issueCodes are the distinct codes of issues, sorted. Messages are left
+// out: some carry an age that changes every minute without changing safety.
+func issueCodes(issues []draftrank.Issue) []draftrank.IssueCode {
+	codes := make([]draftrank.IssueCode, 0, len(issues))
+	for _, issue := range issues {
+		codes = append(codes, issue.Code)
+	}
+	slices.Sort(codes)
+	return slices.Compact(codes)
 }
 
 // StartWatch starts one process-scoped watcher for a league.

@@ -37,7 +37,8 @@ func TestIssueCodesMatchTheSchema(t *testing.T) {
 		draftrank.IssueMissingRules, draftrank.IssueUnsupportedScoring, draftrank.IssueMissingPool, draftrank.IssueMissingProjections,
 		draftrank.IssueRankingFailed, draftrank.IssueInternalError, draftrank.IssueRefreshCanceled, draftrank.IssueNewsAdjustmentsDown,
 		draftrank.IssueProvisionalRules, draftrank.IssueNewsSourceStale, draftrank.IssueNewsSourceFailing, draftrank.IssueNewsSourceMissing,
-		draftrank.IssueStaleSnapshot, draftrank.IssueStalePool, draftrank.IssueOverridesChanged, draftrank.IssueRulesChanged, draftrank.IssueNewerSnapshot,
+		draftrank.IssueStaleSnapshot, draftrank.IssueStalePool, draftrank.IssueOverridesChanged, draftrank.IssueRulesChanged,
+		draftrank.IssueRosterSlotsChanged, draftrank.IssueScoringChanged, draftrank.IssueNewerSnapshot,
 		draftrank.IssueScenarioFallback, draftrank.IssueScenarioMissing, draftrank.IssueNotComputed, draftrank.IssueRefreshRunning, draftrank.IssueRefreshFailed,
 		draftrank.IssueRefreshInterrupted,
 	} {
