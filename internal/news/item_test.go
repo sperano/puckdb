@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/internal/matching"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -112,9 +113,41 @@ func TestCleanTextNoTruncationBelowMax(t *testing.T) {
 }
 
 func TestWords(t *testing.T) {
-	assert.Equal(t, []string{"brayden", "mcnabb"}, Words("Brayden McNabb!"))
-	assert.Equal(t, []string{"alex", "lyon"}, Words("Álex Lyón"))
-	assert.Empty(t, Words(""))
+	tests := []struct {
+		name, in string
+		want     []string
+	}{
+		{"punctuation", "Brayden McNabb!", []string{"brayden", "mcnabb"}},
+		{"diacritics", "Álex Lyón", []string{"alex", "lyon"}},
+		{"umlaut", "Tim Stützle", []string{"tim", "stutzle"}},
+		{"apostrophe", "Ryan O'Reilly", []string{"ryan", "o", "reilly"}},
+		{"typographic apostrophe", "Ryan O’Reilly", []string{"ryan", "o", "reilly"}},
+		{"numeric HTML entity", "Ryan O&#x27;Reilly", []string{"ryan", "o", "reilly"}},
+		{"named HTML entity", "Ryan O&apos;Reilly &amp; co.", []string{"ryan", "o", "reilly", "co"}},
+		{"hyphen", "Jean-Gabriel Pageau", []string{"jean", "gabriel", "pageau"}},
+		{"possessive", "McNabb's hit", []string{"mcnabb", "s", "hit"}},
+		{"digits kept", "No. 97", []string{"no", "97"}},
+		{"empty", "", []string{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, Words(tc.in))
+		})
+	}
+}
+
+// TestWordsIsDeeperThanNormalizeName pins the documented difference between
+// story-name words and the Yahoo-ID matcher's normalized names: both decode
+// entities, strip accents and lowercase, only Words drops punctuation.
+func TestWordsIsDeeperThanNormalizeName(t *testing.T) {
+	for _, name := range []string{"Ryan O'Reilly", "Ryan O’Reilly", "Ryan O&#x27;Reilly", "Jean-Gabriel Pageau", "Tim Stützle"} {
+		normalized := matching.NormalizeName(name)
+		assert.Equal(t, strings.Join(Words(name), " "), strings.Join(Words(normalized), " "),
+			"Words(%q) must start from NormalizeName", name)
+	}
+	assert.Equal(t, "ryan o'reilly", matching.NormalizeName("Ryan O&#x27;Reilly"))
+	assert.NotEqual(t, matching.NormalizeName("Ryan O’Reilly"), matching.NormalizeName("Ryan O'Reilly"))
+	assert.Equal(t, Words("Ryan O’Reilly"), Words("Ryan O'Reilly"))
 }
 
 func TestNormalizeItemExternalIDFallsBackToURL(t *testing.T) {
