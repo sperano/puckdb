@@ -162,10 +162,9 @@ const (
 
 // Metrics collection defaults
 const (
-	DefaultMetricsRefreshInterval = 5
-	DefaultCacheIntervalSeconds   = 300
-	DefaultRedisIntervalSeconds   = 60
-	DefaultDBIntervalSeconds      = 300
+	DefaultCacheIntervalSeconds = 300
+	DefaultRedisIntervalSeconds = 60
+	DefaultDBIntervalSeconds    = 300
 )
 
 // CLI client defaults
