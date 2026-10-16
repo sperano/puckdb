@@ -82,9 +82,8 @@ var expectedNHLTools = []string{
 	"get_first_matching_event_per_team",
 	// Linemates (1)
 	"get_player_linemates",
-	// News (2)
+	// News (1)
 	"get_recent_news_events",
-	"get_news_coverage",
 }
 
 // expectedYahooTools lists every tool the yahoo toolset registers.
@@ -104,6 +103,12 @@ var expectedYahooTools = []string{
 	"get_yahoo_league_players",
 	"get_draft_leagues",
 	draftPoolToolName,
+}
+
+// expectedNewsTools lists every tool the news toolset registers.
+// Update this list whenever a new news tool is added.
+var expectedNewsTools = []string{
+	"get_news_coverage",
 }
 
 // registeredToolNames builds a server for opts and returns its tool names.
@@ -128,12 +133,15 @@ func TestNewServer_RegistersSelectedToolsets(t *testing.T) {
 	}{
 		{"nhl", []Toolset{ToolsetNHL}, expectedNHLTools},
 		{"yahoo", []Toolset{ToolsetYahoo}, expectedYahooTools},
+		{"news", []Toolset{ToolsetNews}, expectedNewsTools},
 		{"nhl and yahoo", []Toolset{ToolsetNHL, ToolsetYahoo}, append(slices.Clone(expectedNHLTools), expectedYahooTools...)},
+		{"all", []Toolset{ToolsetNHL, ToolsetYahoo, ToolsetNews},
+			slices.Concat(expectedNHLTools, expectedYahooTools, expectedNewsTools)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			names := registeredToolNames(t, Options{Toolsets: tt.toolsets, Draft: emptyDraftService()})
-			assert.ElementsMatch(t, tt.want, names, "update expectedNHLTools/expectedYahooTools when adding tools")
+			assert.ElementsMatch(t, tt.want, names, "update expectedNHLTools/expectedYahooTools/expectedNewsTools when adding tools")
 		})
 	}
 }
@@ -144,6 +152,10 @@ func TestNewServer_RegistersSelectedToolsets(t *testing.T) {
 func TestToolsetsDoNotOverlap(t *testing.T) {
 	for _, name := range expectedYahooTools {
 		assert.NotContains(t, expectedNHLTools, name)
+	}
+	for _, name := range expectedNewsTools {
+		assert.NotContains(t, expectedNHLTools, name)
+		assert.NotContains(t, expectedYahooTools, name)
 	}
 }
 
@@ -159,6 +171,9 @@ func TestNewServer_RejectsInvalidOptions(t *testing.T) {
 
 	_, err = NewServer((*sqlcdb.Queries)(nil), Options{Toolsets: []Toolset{ToolsetNHL}})
 	require.NoError(t, err, "the nhl toolset alone needs no draft ranking service")
+
+	_, err = NewServer((*sqlcdb.Queries)(nil), Options{Toolsets: []Toolset{ToolsetNews}})
+	require.NoError(t, err, "the news toolset needs no draft ranking service")
 }
 
 // emptyDraftService is a draft ranking service over a store holding only
@@ -234,7 +249,7 @@ func (noRows) Conn() *pgx.Conn                              { return nil }
 // nhlTestServer registers the nhl toolset over db.
 func nhlTestServer(db *capturingDB) *server.MCPServer {
 	srv := server.NewMCPServer("test", serverVersion)
-	registerNHLTools(srv, sqlcdb.New(db), nil)
+	registerNHLTools(srv, sqlcdb.New(db))
 	return srv
 }
 
@@ -285,14 +300,13 @@ var nhlArgOverrides = map[string]map[string]any{
 
 // omittedNHLArgs are arguments left out of a tool's valid call: the
 // player tools refuse yahoo_id together with player_id or name, and the
-// game log and news coverage tools filter season in Go, not in SQL, once a
-// date range is given (or always, for coverage).
+// game log tools filter season in Go, not in SQL, once a date range is
+// given.
 var omittedNHLArgs = map[string]string{
 	"get_player":          yahooIDArg,
 	"search_player":       yahooIDArg,
 	"get_skater_game_log": "season",
 	"get_goalie_game_log": "season",
-	"get_news_coverage":   "season",
 }
 
 // validNHLCall builds a valid call of tool from its schema.

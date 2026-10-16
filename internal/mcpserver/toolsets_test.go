@@ -14,7 +14,9 @@ func TestParseToolsets(t *testing.T) {
 	}{
 		{"nhl", []Toolset{ToolsetNHL}},
 		{"yahoo", []Toolset{ToolsetYahoo}},
+		{"news", []Toolset{ToolsetNews}},
 		{"nhl,yahoo", []Toolset{ToolsetNHL, ToolsetYahoo}},
+		{"nhl,news", []Toolset{ToolsetNHL, ToolsetNews}},
 		{" Yahoo , NHL ", []Toolset{ToolsetNHL, ToolsetYahoo}},
 		{"yahoo,yahoo,", []Toolset{ToolsetYahoo}},
 	}
@@ -31,7 +33,7 @@ func TestParseToolsetsRejects(t *testing.T) {
 	tests := map[string]string{
 		"":           "no toolset selected",
 		" , ":        "no toolset selected",
-		"nhl,espn":   `unknown toolset "espn" (valid: nhl, yahoo)`,
+		"nhl,espn":   `unknown toolset "espn" (valid: nhl, yahoo, news)`,
 		"nhl;yahoo":  `unknown toolset "nhl;yahoo"`,
 		"fantasy":    `unknown toolset "fantasy"`,
 		"nhl, ,mlb ": `unknown toolset "mlb"`,
@@ -47,6 +49,7 @@ func TestParseToolsetsRejects(t *testing.T) {
 func TestServerName(t *testing.T) {
 	assert.Equal(t, "puckdb-nhl", ServerName([]Toolset{ToolsetNHL}))
 	assert.Equal(t, "puckdb-yahoo", ServerName([]Toolset{ToolsetYahoo}))
+	assert.Equal(t, "puckdb-news", ServerName([]Toolset{ToolsetNews}))
 	assert.Equal(t, "puckdb-nhl-yahoo", ServerName([]Toolset{ToolsetNHL, ToolsetYahoo}))
 }
 

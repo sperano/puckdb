@@ -6,7 +6,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/rs/zerolog/log"
-	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -54,15 +53,17 @@ func registerToolsets(srv *server.MCPServer, queries *sqlcdb.Queries, opts Optio
 	for _, ts := range opts.Toolsets {
 		switch ts {
 		case ToolsetNHL:
-			registerNHLTools(srv, queries, opts.NewsSources)
+			registerNHLTools(srv, queries)
 		case ToolsetYahoo:
 			registerYahooTools(srv, queries, newLeagueGuard(queries, opts.YahooLeagues), opts.Draft)
+		case ToolsetNews:
+			registerNewsCoverageTools(srv, queries, opts.NewsSources)
 		}
 	}
 }
 
 // registerNHLTools adds the public NHL data tools.
-func registerNHLTools(srv *server.MCPServer, queries *sqlcdb.Queries, newsSources []news.Source) {
+func registerNHLTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	registerResolveTools(srv, queries)
 	registerPlayerTools(srv, queries)
 	registerGameTools(srv, queries)
@@ -74,5 +75,4 @@ func registerNHLTools(srv *server.MCPServer, queries *sqlcdb.Queries, newsSource
 	registerPlayEventTools(srv, queries)
 	registerLinemateTools(srv, queries)
 	registerNewsTools(srv, queries)
-	registerNewsCoverageTools(srv, queries, newsSources)
 }

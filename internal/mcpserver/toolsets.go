@@ -20,11 +20,13 @@ const (
 	// ToolsetYahoo holds the Yahoo fantasy league tools: league names,
 	// managers, rosters, matchups, draft results and draft ranking state.
 	ToolsetYahoo Toolset = "yahoo"
+	// ToolsetNews holds the player news tools (news source coverage).
+	ToolsetNews Toolset = "news"
 )
 
 // allToolsets lists every toolset in canonical order; registration and the
 // server name follow it whatever order the flag gave.
-var allToolsets = []Toolset{ToolsetNHL, ToolsetYahoo}
+var allToolsets = []Toolset{ToolsetNHL, ToolsetYahoo, ToolsetNews}
 
 const (
 	// toolsetListSeparator separates toolsets in --mcp-toolsets.
@@ -45,7 +47,7 @@ type Options struct {
 	// Draft is the draft ranking read path the yahoo toolset's draft tools
 	// share with GraphQL and the CLI; required with the yahoo toolset.
 	Draft *draftrank.Service
-	// NewsSources are the enabled news sources the nhl toolset's news
+	// NewsSources are the enabled news sources the news toolset's news
 	// coverage tool reports on; empty registers the tool with no sources,
 	// so it reports no rows.
 	NewsSources []news.Source
