@@ -3,8 +3,6 @@ package mcpserver
 import (
 	"context"
 	"fmt"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -16,9 +14,8 @@ const (
 	teamScheduleToolName = "get_team_schedule"
 	scheduleStartArg     = "start_date"
 	scheduleEndArg       = "end_date"
-	scheduleGameTypeArg  = "game_type"
 	// maxScheduleSpanDays bounds the range, both dates included: a month
-	// covers a fantasy week or a two-week playoff matchup with room to spare
+	// covers a fantasy week or a two-week fantasy playoff matchup with room to spare
 	// and keeps the per-team game_dates column short.
 	maxScheduleSpanDays = 31
 	// lightNightMaxGames is the most games a light night has: at most 7
@@ -36,12 +33,13 @@ const (
 	// Section titles of get_team_schedule.
 	scheduleTeamsSection  = "teams"
 	scheduleNightsSection = "nights"
-	hoursPerDay           = 24
+	// scheduleGameType is the only game type get_team_schedule counts: the
+	// night thresholds assume all 32 clubs can play, while a playoff night
+	// has at most 8 games and would always be light.
+	scheduleGameType = sqlcdb.GameTypeRegularSeason
+	// scheduleDay is one calendar day between two parsed dates.
+	scheduleDay = 24 * time.Hour
 )
-
-// scheduleGameTypes are the game types get_team_schedule counts; the first
-// is the default.
-var scheduleGameTypes = []sqlcdb.GameType{sqlcdb.GameTypeRegularSeason, sqlcdb.GameTypePlayoffs}
 
 type teamScheduleQueries interface {
 	ListScheduleNights(context.Context, sqlcdb.ListScheduleNightsParams) ([]sqlcdb.ListScheduleNightsRow, error)
@@ -63,16 +61,16 @@ type scheduleNightRow struct {
 func teamScheduleTool(q teamScheduleQueries) server.ServerTool {
 	return server.ServerTool{
 		Tool: mcp.NewTool(teamScheduleToolName,
-			mcp.WithDescription(fmt.Sprintf("Games per NHL team in a date range, for weekly streaming: one CSV row per team with "+
-				"games, home, away, back_to_backs (games the day after another game of the team, both in the range), "+
+			mcp.WithDescription(fmt.Sprintf("Regular-season games per NHL team in a date range, for weekly streaming: one CSV row "+
+				"per team with games, home, away, back_to_backs (games the day after another game of the team, both in the range), "+
 				"light_night_games / heavy_night_games (games on nights with at most %d / at least %d games league-wide) and "+
-				"game_dates; then every date with games and its league-wide count. Most games first. For the regular season, "+
-				"clubs without a game in the range are listed with 0. Postponed and cancelled games do not count. "+
+				"game_dates; then every date with games, its league-wide game count and night class (light/normal/heavy). "+
+				"Teams are ordered by games, then light-night games (both most first), then abbreviation; clubs without a game "+
+				"in the range (bye week) are listed with 0. Postponed and cancelled games do not count. Playoffs are not covered. "+
 				"At most %d days, both dates included.", lightNightMaxGames, heavyNightMinGames, maxScheduleSpanDays)),
 			mcp.WithString(scheduleStartArg, mcp.Required(), mcp.Description("First date (YYYY-MM-DD)")),
 			mcp.WithString(scheduleEndArg, mcp.Required(), mcp.Description("Last date (YYYY-MM-DD), included")),
 			mcp.WithNumber("team_id", mcp.Description("Only this team (use find_team to resolve abbreviations); nights stay league-wide")),
-			mcp.WithString(scheduleGameTypeArg, mcp.Description("regular_season (default) or playoffs")),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			params, errResult := teamScheduleParams(req)
@@ -80,7 +78,7 @@ func teamScheduleTool(q teamScheduleQueries) server.ServerTool {
 				return errResult, nil
 			}
 			nights, err := q.ListScheduleNights(ctx, sqlcdb.ListScheduleNightsParams{
-				StartDate: params.StartDate, EndDate: params.EndDate, GameType: params.GameType,
+				StartDate: params.StartDate, EndDate: params.EndDate,
 			})
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -117,40 +115,14 @@ func teamScheduleParams(req mcp.CallToolRequest) (sqlcdb.GetTeamScheduleCountsPa
 	if days := scheduleSpanDays(params); days > maxScheduleSpanDays {
 		return params, mcp.NewToolResultError(fmt.Sprintf("the range spans %d days; at most %d are allowed", days, maxScheduleSpanDays))
 	}
-	if params.TeamID, errResult = optionalInt8Filter(req, teamIDParam); errResult != nil {
-		return params, errResult
-	}
-	params.GameType, errResult = scheduleGameType(req)
+	params.TeamID, errResult = optionalInt8Filter(req, teamIDParam)
 	return params, errResult
 }
 
 // scheduleSpanDays counts the days of the range, both dates included.
 // parseDate yields UTC midnights, so the difference is whole days.
 func scheduleSpanDays(params sqlcdb.GetTeamScheduleCountsParams) int {
-	return int(params.EndDate.Time.Sub(params.StartDate.Time).Hours()/hoursPerDay) + 1
-}
-
-// scheduleGameType reads the optional game type; absent or empty is the
-// regular season.
-func scheduleGameType(req mcp.CallToolRequest) (sqlcdb.GameType, *mcp.CallToolResult) {
-	raw, errResult := optionalString(req, scheduleGameTypeArg)
-	if errResult != nil {
-		return "", errResult
-	}
-	name := strings.ToLower(strings.TrimSpace(raw))
-	if name == "" {
-		return scheduleGameTypes[0], nil
-	}
-	gameType := sqlcdb.GameType(name)
-	if !slices.Contains(scheduleGameTypes, gameType) {
-		accepted := make([]string, len(scheduleGameTypes))
-		for i, t := range scheduleGameTypes {
-			accepted[i] = string(t)
-		}
-		return "", mcp.NewToolResultError(fmt.Sprintf("unknown game_type %s; accepted: %s",
-			formatRaw(raw), strings.Join(accepted, ", ")))
-	}
-	return gameType, nil
+	return int(params.EndDate.Time.Sub(params.StartDate.Time)/scheduleDay) + 1
 }
 
 // teamScheduleText renders the header line, the teams section and the
@@ -174,7 +146,7 @@ func teamScheduleText(params sqlcdb.GetTeamScheduleCountsParams, teams []sqlcdb.
 	h.add(scheduleStartArg, params.StartDate.Time.Format(time.DateOnly))
 	h.add(scheduleEndArg, params.EndDate.Time.Format(time.DateOnly))
 	h.add("days", scheduleSpanDays(params))
-	h.add(scheduleGameTypeArg, params.GameType)
+	h.add("game_type", scheduleGameType)
 	if params.TeamID.Valid {
 		h.add("team_id", params.TeamID.Int64)
 	}

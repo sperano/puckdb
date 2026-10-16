@@ -16,7 +16,7 @@ WITH counted AS (
     SELECT g.season, g.game_date, g.home_team_id, g.away_team_id
     FROM games g
     WHERE g.game_date BETWEEN $3::date AND $4::date
-      AND g.game_type = $5::game_type
+      AND g.game_type = 'regular_season'
       AND g.game_schedule_state NOT IN ('PPD', 'CNCL', 'DONT_PLAY')
 ),
 nights AS (
@@ -36,8 +36,7 @@ listed AS (
     SELECT st.season, st.team_id
     FROM season_teams st
     JOIN seasons s ON s.id = st.season
-    WHERE $5::game_type = 'regular_season'
-      AND st.team_kind = 'nhl'
+    WHERE st.team_kind = 'nhl'
       AND s.standings_start <= $4::date
       AND s.standings_end >= $3::date
     UNION
@@ -49,7 +48,7 @@ teams AS (
          WHERE st.team_id = l.team_id AND st.season IN (SELECT season FROM listed)
          ORDER BY st.season DESC LIMIT 1) AS team_abbrev
     FROM listed l
-    WHERE $6::bigint IS NULL OR l.team_id = $6::bigint
+    WHERE $5::bigint IS NULL OR l.team_id = $5::bigint
     GROUP BY l.team_id
 )
 SELECT t.team_id,
@@ -73,7 +72,6 @@ type GetTeamScheduleCountsParams struct {
 	HeavyNightMinGames int32       `json:"heavy_night_min_games"`
 	StartDate          pgtype.Date `json:"start_date"`
 	EndDate            pgtype.Date `json:"end_date"`
-	GameType           GameType    `json:"game_type"`
 	TeamID             pgtype.Int8 `json:"team_id"`
 }
 
@@ -89,20 +87,19 @@ type GetTeamScheduleCountsRow struct {
 	GameDates       string `json:"game_dates"`
 }
 
-// Games per team in [start_date, end_date] for one game type: home/away,
+// Regular-season games per team in [start_date, end_date]: home/away,
 // back-to-backs (games the day after another game of the team, both in the
 // range) and games on light/heavy nights (league-wide game count at most
-// light_night_max_games / at least heavy_night_min_games). For the regular
-// season, every NHL club of a season whose standings window overlaps the
-// range is listed, with 0 games when it has none (a bye week); otherwise
-// only teams with a game are. team_abbrev comes from the latest such season.
+// light_night_max_games / at least heavy_night_min_games). Every NHL club
+// of a season whose standings window overlaps the range is listed, with 0
+// games when it has none (a bye week), as is any other team with a game.
+// team_abbrev comes from the latest such season.
 func (q *Queries) GetTeamScheduleCounts(ctx context.Context, arg GetTeamScheduleCountsParams) ([]GetTeamScheduleCountsRow, error) {
 	rows, err := q.db.Query(ctx, getTeamScheduleCounts,
 		arg.LightNightMaxGames,
 		arg.HeavyNightMinGames,
 		arg.StartDate,
 		arg.EndDate,
-		arg.GameType,
 		arg.TeamID,
 	)
 	if err != nil {
@@ -138,7 +135,7 @@ const listScheduleNights = `-- name: ListScheduleNights :many
 SELECT game_date, count(*)::int AS games
 FROM games
 WHERE game_date BETWEEN $1::date AND $2::date
-  AND game_type = $3::game_type
+  AND game_type = 'regular_season'
   AND game_schedule_state NOT IN ('PPD', 'CNCL', 'DONT_PLAY')
 GROUP BY game_date
 ORDER BY game_date
@@ -147,7 +144,6 @@ ORDER BY game_date
 type ListScheduleNightsParams struct {
 	StartDate pgtype.Date `json:"start_date"`
 	EndDate   pgtype.Date `json:"end_date"`
-	GameType  GameType    `json:"game_type"`
 }
 
 type ListScheduleNightsRow struct {
@@ -158,13 +154,14 @@ type ListScheduleNightsRow struct {
 // =============================================================================
 // Team Schedule Queries (games per team in a date range, for streaming)
 // =============================================================================
-// A game counts unless it is postponed, cancelled or not to be played on
+// Only regular-season games count: the light/heavy night thresholds assume
+// the full league can play. A game counts unless it is postponed, cancelled or not to be played on
 // its date (game_schedule_state PPD, CNCL, DONT_PLAY): a postponed game
 // gets a new game_date when it is rescheduled.
-// League-wide number of games per date in [start_date, end_date] for one
-// game type; dates without a game are absent.
+// League-wide number of regular-season games per date in
+// [start_date, end_date]; dates without a game are absent.
 func (q *Queries) ListScheduleNights(ctx context.Context, arg ListScheduleNightsParams) ([]ListScheduleNightsRow, error) {
-	rows, err := q.db.Query(ctx, listScheduleNights, arg.StartDate, arg.EndDate, arg.GameType)
+	rows, err := q.db.Query(ctx, listScheduleNights, arg.StartDate, arg.EndDate)
 	if err != nil {
 		return nil, err
 	}

@@ -80,26 +80,22 @@ func TestTeamScheduleToolDefaults(t *testing.T) {
 		HeavyNightMinGames: heavyNightMinGames,
 		StartDate:          scheduleDate(t, "2025-10-13"),
 		EndDate:            scheduleDate(t, "2025-10-19"),
-		GameType:           sqlcdb.GameTypeRegularSeason,
-	}, q.teamParams, "regular season, every team")
+	}, q.teamParams, "every team")
 	assert.Equal(t, sqlcdb.ListScheduleNightsParams{
-		StartDate: q.teamParams.StartDate, EndDate: q.teamParams.EndDate, GameType: sqlcdb.GameTypeRegularSeason,
+		StartDate: q.teamParams.StartDate, EndDate: q.teamParams.EndDate,
 	}, q.nightParams)
 }
 
-func TestTeamScheduleToolPassesFilters(t *testing.T) {
+func TestTeamScheduleToolPassesTeamFilter(t *testing.T) {
 	q := &teamScheduleQueryFake{}
 	callTeamScheduleTool(t, q, map[string]any{
-		scheduleStartArg:    "2026-05-01",
-		scheduleEndArg:      "2026-05-01",
-		"team_id":           float64(8),
-		scheduleGameTypeArg: " Playoffs ",
+		scheduleStartArg: "2026-01-10",
+		scheduleEndArg:   "2026-01-10",
+		"team_id":        float64(8),
 	})
 
 	assert.Equal(t, q.teamParams.StartDate, q.teamParams.EndDate, "a one-day range is valid")
 	assert.Equal(t, pgtype.Int8{Int64: 8, Valid: true}, q.teamParams.TeamID)
-	assert.Equal(t, sqlcdb.GameTypePlayoffs, q.teamParams.GameType)
-	assert.Equal(t, sqlcdb.GameTypePlayoffs, q.nightParams.GameType)
 }
 
 func TestTeamScheduleToolTreatsZeroTeamAsEveryTeam(t *testing.T) {
@@ -127,8 +123,6 @@ func TestTeamScheduleToolRejectsBadArgumentsBeforeSQL(t *testing.T) {
 		{"impossible date", withArg(week, scheduleEndArg, "2025-02-30"), `invalid end_date "2025-02-30"`},
 		{"reversed range", withArg(week, scheduleEndArg, "2025-10-12"), "start_date is after end_date"},
 		{"span too long", map[string]any{scheduleStartArg: "2026-01-01", scheduleEndArg: "2026-02-01"}, "the range spans 32 days; at most 31 are allowed"},
-		{"unknown game type", withArg(week, scheduleGameTypeArg, "preseason"), `unknown game_type "preseason"; accepted: regular_season, playoffs`},
-		{"game type not a string", withArg(week, scheduleGameTypeArg, float64(2)), "invalid game_type 2: want a string"},
 		{"negative team", withArg(week, "team_id", float64(-1)), "invalid team_id -1"},
 	}
 	for _, tt := range tests {
@@ -198,6 +192,8 @@ const (
 	scheduleClubE            = scheduleIDBase + 5
 	scheduleClubF            = scheduleIDBase + 6
 	scheduleFillerBase       = scheduleIDBase + 50
+	// scheduleNamedClubs counts the listed named clubs A-D and F.
+	scheduleNamedClubs = 5
 	// With A-D on 10-07 and B-C on 10-08, the fillers make 10-07 just
 	// heavy and 10-08 one game over light.
 	scheduleHeavyFillerGames        = heavyNightMinGames - 1
@@ -259,8 +255,8 @@ func TestTeamScheduleQueriesAggregateAgainstPostgres(t *testing.T) {
 		{"C", "2", "0", "2", "0", "1", "0", "2097-10-06;2097-10-08"},
 		{"D", "1", "0", "1", "0", "0", "1", "2097-10-07"},
 		{"F", "0", "0", "0", "0", "0", "0", ""},
-	}, namedScheduleRows(t, teams), "E is international and not listed")
-	assert.Len(t, teams, 1+5+2*scheduleHeavyFillerGames, "header, named clubs, filler clubs")
+	}, namedScheduleRows(t, teams), "E is international and not listed; the 10-09 to 10-11 games do not count")
+	assert.Len(t, teams, 1+scheduleNamedClubs+2*scheduleHeavyFillerGames, "header, named clubs, filler clubs")
 	assert.Equal(t, [][]string{
 		{"date", "games", "night"},
 		{"2097-10-05", "1", "light"},
@@ -272,14 +268,6 @@ func TestTeamScheduleQueriesAggregateAgainstPostgres(t *testing.T) {
 	_, teams, nights = scheduleSections(t, callTeamScheduleTool(t, q, withArg(week, "team_id", float64(scheduleClubF))))
 	assert.Equal(t, [][]string{{"F", "0", "0", "0", "0", "0", "0", ""}}, namedScheduleRows(t, teams), "a bye week is a 0 row")
 	assert.Len(t, nights, 5, "nights stay league-wide with a team filter")
-
-	header, teams, nights = scheduleSections(t, callTeamScheduleTool(t, q, withArg(week, scheduleGameTypeArg, "playoffs")))
-	assert.Contains(t, header, "games=1 ")
-	assert.Equal(t, [][]string{
-		{"A", "1", "1", "0", "0", "1", "0", "2097-10-11"},
-		{"B", "1", "0", "1", "0", "1", "0", "2097-10-11"},
-	}, namedScheduleRows(t, teams), "playoffs list only teams with a game")
-	assert.Equal(t, []string{"2097-10-11", "1", "light"}, nights[1])
 }
 
 // scheduleSections splits a get_team_schedule result into its header line
