@@ -210,6 +210,11 @@ func TestBoardShowsCurrentRankingMessagesWithCachedRecommendation(t *testing.T) 
 	stale := issuesWithCode(board.Session.Warnings, draftrank.IssueStaleSnapshot)
 	require.Len(t, stale, 1, "one warning per condition")
 	assert.Equal(t, "snapshot was computed 27h0m0s ago", stale[0].Message)
+	assert.Equal(t, stale, issuesWithCode(board.RecommendationIssues, draftrank.IssueStaleSnapshot),
+		"the recommendation panel shows the current message too")
+	assert.Equal(t, "snapshot was computed 26h0m0s ago",
+		issuesWithCode(board.Recommendation.Result.Issues, draftrank.IssueStaleSnapshot)[0].Message,
+		"the stored run keeps the message it was evaluated with")
 }
 
 // importingLeagueData answers its first league reads with rules other than

@@ -258,7 +258,11 @@ func (s *Service) finishBoard(ctx context.Context, board Board, roster Roster,
 		warnings = appendIssues(warnings, draftrank.Issue{Code: IssueRosterWarning, Message: warning})
 	}
 	warnings = appendIssues(warnings, board.RankingIssues...)
-	warnings = appendIssues(warnings, recommendationOnlyIssues(result.Issues, board.RankingIssues)...)
+	if recommendation != nil {
+		board.RecommendationIssues = appendIssues(slices.Clone(board.RankingIssues),
+			recommendationOnlyIssues(result.Issues, board.RankingIssues)...)
+	}
+	warnings = appendIssues(warnings, board.RecommendationIssues...)
 	if s.recommendations == nil {
 		warnings = appendIssues(warnings, issueRecommendationsUnavailable)
 	}

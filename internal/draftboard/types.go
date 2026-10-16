@@ -122,9 +122,13 @@ type Board struct {
 	Roster         Roster
 	Available      []Player
 	Recommendation *draftrecommend.StoredRun
-	Shortlist      []string
-	CurrentPick    *draftrecommend.PickSlot
-	PicksUntilTurn *int
-	TurnEstimated  bool
-	GeneratedAt    time.Time
+	// RecommendationIssues are the recommendation's issues with the current
+	// ranking issues in place of the copies a cached run was evaluated with.
+	// Recommendation.Result.Issues stays as stored.
+	RecommendationIssues []draftrank.Issue
+	Shortlist            []string
+	CurrentPick          *draftrecommend.PickSlot
+	PicksUntilTurn       *int
+	TurnEstimated        bool
+	GeneratedAt          time.Time
 }

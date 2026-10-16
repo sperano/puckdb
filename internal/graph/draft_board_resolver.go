@@ -365,7 +365,7 @@ func gqlDraftRecommendations(board draftboard.Board) *model.MauriceDraftRecommen
 	}
 	recommendation := board.Recommendation.Result
 	result.GeneratedAt = optionalTime(recommendation.GeneratedAt)
-	result.Issues = issueMessages(recommendation.Issues)
+	result.Issues = issueMessages(board.RecommendationIssues)
 	if recommendation.BestValue != nil {
 		result.BestValuePlayerKey = optionalString(recommendation.BestValue.PlayerKey)
 		result.BestValue = gqlRecommendedPlayer(board.Available, recommendation.BestValue.PlayerKey)
