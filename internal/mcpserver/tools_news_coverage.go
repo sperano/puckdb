@@ -32,7 +32,7 @@ func newsCoverageTool(q news.ReportQueries, sources []news.Source) server.Server
 				"source with its publisher, kind, priority, scope, status, the newest good data (as_of), last attempt and "+
 				"success, consecutive failures and last error."),
 			mcp.WithNumber(seasonYearParam.name, mcp.Description(
-				"Season as a start year (2026) or a season ID (20262027); default: the current season")),
+				"Season as a start year (2025) or a season ID (20252026); default: the current season")),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			season, errResult := seasonYear(req)
