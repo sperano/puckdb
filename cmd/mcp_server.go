@@ -58,7 +58,8 @@ func cmdMCPServer() *cobra.Command {
 		Short: "Start the PuckDB MCP server",
 		Long: "Serve curated read-only data tools via the Model Context Protocol (MCP).\n\n" +
 			"--mcp-toolsets picks what one instance serves: nhl (public NHL data, the default), " +
-			"yahoo (Yahoo fantasy league data) or nhl,yahoo. Run one instance per audience, " +
+			"yahoo (Yahoo fantasy league data), news (player news events quoting third-party articles) " +
+			"or a comma-separated combination such as nhl,yahoo. Run one instance per audience, " +
 			"e.g. nhl on 8790 for every client and yahoo on another port for trusted ones. " +
 			"--mcp-yahoo-leagues limits the yahoo toolset to the listed league keys. " +
 			"The HTTP endpoint has no authentication: keep a Yahoo instance's port private.",

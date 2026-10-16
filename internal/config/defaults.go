@@ -37,7 +37,7 @@ const (
 // MCP server defaults
 const (
 	// DefaultMCPToolsets serves only the public NHL tools; the Yahoo league
-	// tools are opt-in with --mcp-toolsets yahoo or nhl,yahoo.
+	// and news tools are opt-in with --mcp-toolsets (e.g. nhl,yahoo,news).
 	DefaultMCPToolsets = "nhl"
 	// DefaultMCPYahooLeagues is empty: the yahoo toolset serves every league.
 	DefaultMCPYahooLeagues = ""
