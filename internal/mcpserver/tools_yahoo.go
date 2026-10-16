@@ -70,6 +70,7 @@ func yahooTools(q yahooQueries, guard leagueGuard, draft draftToolSource) []serv
 		yahooLeaguePlayersTool(q, guard),
 		draftLeaguesTool(draft, guard),
 		draftPoolCoverageTool(q, guard, draft),
+		draftRulesReportTool(q, guard, draft),
 	}
 }
 
