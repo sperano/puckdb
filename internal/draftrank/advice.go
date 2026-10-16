@@ -1,5 +1,7 @@
 package draftrank
 
+import "fmt"
+
 // Advice is what a ranking issue means for draft advice built on the
 // snapshot. It is the one policy the rankings API, the live board and the
 // recommendation service share.
@@ -19,24 +21,30 @@ const (
 	AdviceWithheld
 )
 
-var issueAdvice = map[IssueCode]Advice{
-	IssueStaleSnapshot:      AdviceOutdated,
-	IssueStalePool:          AdviceOutdated,
-	IssueOverridesChanged:   AdviceOutdated,
-	IssueRulesChanged:       AdviceOutdated,
-	IssueNewerSnapshot:      AdviceOutdated,
-	IssueRefreshFailed:      AdviceOutdated,
-	IssueRefreshCanceled:    AdviceOutdated,
-	IssueRefreshInterrupted: AdviceOutdated,
-	IssueRosterSlotsChanged: AdviceWithheld,
-	IssueScoringChanged:     AdviceWithheld,
-}
-
 // AdviceFor is the effect of one issue code; codes the policy does not name
 // (snapshot-time news coverage, a refresh still running, codes owned by
 // other packages) leave advice unaffected.
 func AdviceFor(code IssueCode) Advice {
-	return issueAdvice[code]
+	switch code {
+	case IssueRosterSlotsChanged, IssueScoringChanged:
+		return AdviceWithheld
+	case IssueStaleSnapshot, IssueStalePool, IssueOverridesChanged, IssueRulesChanged, IssueNewerSnapshot,
+		IssueRefreshFailed, IssueRefreshCanceled, IssueRefreshInterrupted:
+		return AdviceOutdated
+	}
+	return AdviceUnaffected
+}
+
+func (a Advice) String() string {
+	switch a {
+	case AdviceUnaffected:
+		return "unaffected"
+	case AdviceOutdated:
+		return "outdated"
+	case AdviceWithheld:
+		return "withheld"
+	}
+	return fmt.Sprintf("Advice(%d)", int(a))
 }
 
 // AdviceOf is the strongest effect among issues.

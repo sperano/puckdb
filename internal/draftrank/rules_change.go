@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	rulesChangedMessage   = "league rules were imported again with changes since this snapshot; refresh to rank under them"
-	rosterSlotsChangedMsg = "roster slots are now %s but this snapshot was ranked with %s; recommendations are withheld until a refresh"
-	scoringChangedMessage = "scoring (type, team count, categories, directions or weights) changed since this snapshot; recommendations are withheld until a refresh"
+	rulesChangedMessage       = "league rules were imported again with changes since this snapshot; refresh to rank under them"
+	rosterSlotsChangedMessage = "roster slots are now %s but this snapshot was ranked with %s; recommendations are withheld until a refresh"
+	scoringChangedMessage     = "scoring (type, team count, categories, directions or weights) changed since this snapshot; recommendations are withheld until a refresh"
 )
 
 // rulesChangeIssues compares the rules a snapshot was ranked with to the
@@ -21,14 +21,14 @@ const (
 // recorded are compared too: a difference there means the snapshot's values
 // and slot allocation no longer describe the league.
 func rulesChangeIssues(ranked League, current draft.Snapshot) []Issue {
-	if rulesHash(current) == ranked.RulesHash {
+	if RulesHash(current) == ranked.RulesHash {
 		return nil
 	}
 	issues := []Issue{{Code: IssueRulesChanged, Message: rulesChangedMessage}}
 	league := LeagueOf(current)
 	if !slices.Equal(ranked.RosterSlots, league.RosterSlots) {
 		issues = append(issues, Issue{Code: IssueRosterSlotsChanged,
-			Message: fmt.Sprintf(rosterSlotsChangedMsg, slotsLabel(league.RosterSlots), slotsLabel(ranked.RosterSlots))})
+			Message: fmt.Sprintf(rosterSlotsChangedMessage, slotsLabel(league.RosterSlots), slotsLabel(ranked.RosterSlots))})
 	}
 	if !sameScoring(ranked, league) {
 		issues = append(issues, Issue{Code: IssueScoringChanged, Message: scoringChangedMessage})

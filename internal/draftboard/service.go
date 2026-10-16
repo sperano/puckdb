@@ -136,20 +136,39 @@ type boardInputs struct {
 	league        LeagueData
 }
 
+// boardLoadAttempts bounds the reads of one board load: a load is read again
+// once when the league's rules are re-imported between its ranking read and
+// its league read (the draft status flipping at the start of the draft is
+// such an import).
+const boardLoadAttempts = 2
+
+// errRulesChangedDuringLoad means the ranking's issues were checked against
+// other rules than the ones the roster would be checked against.
+var errRulesChangedDuringLoad = errors.New("league rules changed while the board was loading")
+
 func (s *Service) loadBoardInputs(ctx context.Context, request Request) (boardInputs, error) {
-	var inputs boardInputs
-	var err error
-	inputs.identity, err = s.data.ResolveIdentity(ctx, request.League, request.Season)
+	identity, err := s.data.ResolveIdentity(ctx, request.League, request.Season)
 	if err != nil {
-		return inputs, err
+		return boardInputs{}, err
 	}
-	inputs.session, err = s.data.Session(ctx, inputs.identity)
+	for attempt := 1; ; attempt++ {
+		inputs, err := s.readBoardInputs(ctx, identity)
+		if !errors.Is(err, errRulesChangedDuringLoad) || attempt == boardLoadAttempts {
+			return inputs, err
+		}
+	}
+}
+
+func (s *Service) readBoardInputs(ctx context.Context, identity draftwatch.Identity) (boardInputs, error) {
+	inputs := boardInputs{identity: identity}
+	var err error
+	inputs.session, err = s.data.Session(ctx, identity)
 	var read draftrank.Read
 	if err == nil {
-		read, err = s.data.Ranking(ctx, inputs.identity)
+		read, err = s.data.Ranking(ctx, identity)
 	}
 	if err == nil {
-		inputs.league, err = s.data.LeagueData(ctx, inputs.identity)
+		inputs.league, err = s.data.LeagueData(ctx, identity)
 	}
 	if err != nil {
 		return inputs, err
@@ -170,7 +189,7 @@ func checkSameLeague(inputs boardInputs, rankingRulesHash string) error {
 			inputs.ranking.League.LeagueKey, inputs.identity.LeagueKey)
 	}
 	if rankingRulesHash != "" && draftrank.RulesHash(inputs.league.Rules) != rankingRulesHash {
-		return fmt.Errorf("league rules of %s changed while the board was loading; retry", inputs.identity.LeagueKey)
+		return fmt.Errorf("%w: %s", errRulesChangedDuringLoad, inputs.identity.LeagueKey)
 	}
 	return nil
 }

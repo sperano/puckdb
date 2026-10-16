@@ -212,13 +212,45 @@ func TestBoardShowsCurrentRankingMessagesWithCachedRecommendation(t *testing.T) 
 	assert.Equal(t, "snapshot was computed 27h0m0s ago", stale[0].Message)
 }
 
-func TestBoardRefusesRulesImportedBetweenReads(t *testing.T) {
+// importingLeagueData answers its first league reads with rules other than
+// the ones the ranking read saw, as a rules import between the two would.
+type importingLeagueData struct {
+	*sharedReadData
+	staleReads int
+	calls      int
+}
+
+func (d *importingLeagueData) LeagueData(ctx context.Context, id draftwatch.Identity) (LeagueData, error) {
+	d.calls++
+	data, err := d.sharedReadData.LeagueData(ctx, id)
+	if d.calls <= d.staleReads {
+		data.Rules.Rules.NumTeams++
+	}
+	return data, err
+}
+
+func TestBoardReadsAgainWhenRulesAreImportedBetweenReads(t *testing.T) {
 	b := newSharedReadBoard(t)
-	b.data.leagueData.Rules.Rules.NumTeams++
+	data := &importingLeagueData{sharedReadData: b.data, staleReads: 1}
+	b.service = NewService(data, b.engine, nil, Options{StaleAfter: sessionStaleAfter, Now: func() time.Time { return b.now }})
 
-	_, err := b.service.Board(context.Background(), Request{League: draftfixtures.LeagueKey, Season: draftfixtures.Season})
+	board := b.load(t)
 
-	assert.ErrorContains(t, err, "league rules of 465.l.1001 changed while the board was loading")
+	assert.Equal(t, boardLoadAttempts, data.calls)
+	assert.Len(t, b.engine.inputs, 1)
+	assert.NotContains(t, codesOf(board.RankingIssues), draftrank.IssueRulesChanged)
+}
+
+func TestBoardRefusesRulesThatKeepChangingBetweenReads(t *testing.T) {
+	b := newSharedReadBoard(t)
+	data := &importingLeagueData{sharedReadData: b.data, staleReads: boardLoadAttempts}
+	service := NewService(data, b.engine, nil, Options{StaleAfter: sessionStaleAfter, Now: func() time.Time { return b.now }})
+
+	_, err := service.Board(context.Background(), Request{League: draftfixtures.LeagueKey, Season: draftfixtures.Season})
+
+	assert.ErrorIs(t, err, errRulesChangedDuringLoad)
+	assert.ErrorContains(t, err, draftfixtures.LeagueKey)
+	assert.Equal(t, boardLoadAttempts, data.calls)
 	assert.Empty(t, b.engine.inputs)
 }
 

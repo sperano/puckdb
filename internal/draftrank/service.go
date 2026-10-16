@@ -152,7 +152,7 @@ func (s *Service) rulesIssues(ctx context.Context, ref LeagueRef, read *Read) ([
 	if rules == nil {
 		return []Issue{{Code: IssueMissingRules, Message: fmt.Sprintf("no rules were imported for season %d league %d; run a Yahoo sync", ref.Season, ref.LeagueID)}}, nil
 	}
-	read.League, read.RulesHash = LeagueOf(*rules), rulesHash(*rules)
+	read.League, read.RulesHash = LeagueOf(*rules), RulesHash(*rules)
 	if _, err := draft.ScoringFor(*rules); err != nil {
 		return []Issue{{Code: IssueUnsupportedScoring, Message: err.Error()}}, nil
 	}
@@ -212,7 +212,7 @@ func (s *Service) snapshotIssues(ctx context.Context, snapshot *SnapshotInfo, la
 	}
 	var currentHash string
 	if rules != nil {
-		currentHash = rulesHash(*rules)
+		currentHash = RulesHash(*rules)
 		issues = append(issues, rulesChangeIssues(snapshot.League, *rules)...)
 	}
 	if latestID != uuid.Nil && latestID != snapshot.ID {

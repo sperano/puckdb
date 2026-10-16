@@ -135,20 +135,16 @@ func buildMeta(in BuildInput, scoring draft.Scoring, rankings map[Scenario]draft
 func LeagueOf(rules draft.Snapshot) League {
 	scoring, err := draft.ScoringFor(rules)
 	if err != nil {
-		return leagueOf(rules, draft.Scoring{Provisional: rules.Source != draft.SourceYahooAPI}, rulesHash(rules))
+		return leagueOf(rules, draft.Scoring{Provisional: rules.Source != draft.SourceYahooAPI}, RulesHash(rules))
 	}
-	return leagueOf(rules, scoring, rulesHash(rules))
+	return leagueOf(rules, scoring, RulesHash(rules))
 }
 
 // RulesHash is the hash a snapshot records for rules (League.RulesHash) and
-// a ranking read reports for the current rules (Read.RulesHash).
+// a ranking read reports for the current rules (Read.RulesHash): the stored
+// hash of the rules, or their canonical hash when the snapshot carries none;
+// the two agree (BuildRanking checks it).
 func RulesHash(rules draft.Snapshot) string {
-	return rulesHash(rules)
-}
-
-// rulesHash is the stored hash of the rules, or their canonical hash when
-// the snapshot carries none; the two agree (BuildRanking checks it).
-func rulesHash(rules draft.Snapshot) string {
 	if rules.Hash != "" {
 		return rules.Hash
 	}

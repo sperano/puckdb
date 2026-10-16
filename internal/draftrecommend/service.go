@@ -46,22 +46,7 @@ func Evaluate(in Input) (Result, error) {
 	if err := annotateBoard(&result, in); err != nil {
 		return result, err
 	}
-	if in.SessionStale {
-		result.BoardStatus = BoardStatusStale
-		result.Issues = append(result.Issues, issueBoardStale)
-	}
-	if !in.SessionSafe || !draftsession.SafeToRecommend(in.Session) || in.SessionStale {
-		if !in.SessionStale {
-			result.BoardStatus = BoardStatusIncomplete
-		}
-		result.Issues = append(result.Issues, issueBoardIncomplete)
-		result.LatencyMillis = time.Since(started).Milliseconds()
-		return result, nil
-	}
-	// A withheld ranking stops here, before the roster is checked against
-	// the ranking's obsolete slots.
-	if draftrank.AdviceOf(in.RankingIssues) == draftrank.AdviceWithheld {
-		result.BoardStatus = BoardStatusWithheld
+	if withoutCandidates(&result, in) {
 		result.LatencyMillis = time.Since(started).Milliseconds()
 		return result, nil
 	}
