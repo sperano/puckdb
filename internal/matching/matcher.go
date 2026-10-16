@@ -81,15 +81,10 @@ type YahooIDMatchResult struct {
 // 4. Converting to lowercase
 //
 // Punctuation and inner spaces are kept: MatchYahooID compares two name
-// records field by field ("Sean O'Reilly" stays "sean o'reilly", and
-// "Jean-Gabriel" does not match "Jean Gabriel"). Player news tokenizes prose
-// instead, so news.Words splits this result on everything that is not a
-// letter or digit ("sean o reilly"), for story text and directory names
-// alike. The depths differ on purpose: a story names a player inside a
-// sentence, next to possessives and commas, while the Yahoo-ID matcher's
-// result is written to players.yahoo_id. A punctuation-insensitive key there
-// would match more pairs, so it needs a review of the changed matches
-// against the real Yahoo pools before it replaces this comparison.
+// records, and "Sean O'Reilly" stays "sean o'reilly" ("Jean-Gabriel" does
+// not match "Jean Gabriel"). Player news, which finds names inside prose,
+// splits this result into words (news.Words: "sean o reilly"). Loosening
+// the matcher the same way would change which Yahoo IDs players get.
 func NormalizeName(name string) string {
 	name = strings.TrimSpace(name)
 
@@ -311,7 +306,7 @@ func candidatesByName(landing *nhl.PlayerLanding, pool map[store.YahooPlayerID]*
 			splitDiffers := yahooName.first != nhlName.first || yahooName.last != nhlName.last
 			candidates = append(candidates, candidateMatch{
 				player:        yahoo,
-				fuzzyMatched:  splitDiffers || yahooName.normalized() || nhlName.normalized(),
+				fuzzyMatched:  splitDiffers || yahooName.normalized || nhlName.normalized,
 				fullNameMatch: splitDiffers,
 			})
 			continue
@@ -325,24 +320,22 @@ func candidatesByName(landing *nhl.PlayerLanding, pool map[store.YahooPlayerID]*
 	return candidates
 }
 
-// playerName is a first and last name as given and as NormalizeName
-// returns them.
+// playerName is a first and last name as NormalizeName returns them.
 type playerName struct {
-	rawFirst, rawLast string
-	first, last       string
+	first, last string
+	// normalized is true when NormalizeName changed more than the case
+	// (accent stripping, whitespace, HTML entities).
+	normalized bool
 }
 
+// newPlayerName normalizes a first and last name.
 func newPlayerName(first, last string) playerName {
-	return playerName{rawFirst: first, rawLast: last, first: NormalizeName(first), last: NormalizeName(last)}
+	n := playerName{first: NormalizeName(first), last: NormalizeName(last)}
+	n.normalized = n.first != strings.ToLower(first) || n.last != strings.ToLower(last)
+	return n
 }
 
 func (n playerName) full() string { return n.first + " " + n.last }
-
-// normalized reports whether NormalizeName changed more than the case
-// (accent stripping, whitespace, HTML entities).
-func (n playerName) normalized() bool {
-	return n.first != strings.ToLower(n.rawFirst) || n.last != strings.ToLower(n.rawLast)
-}
 
 // filterByJersey is step 2: the candidates wearing the NHL player's number,
 // none when the NHL player has no number.
@@ -382,6 +375,7 @@ func filterByTeam(candidates []candidateMatch, nhlTeamAbbrev string) []candidate
 	})
 }
 
+// filterCandidates returns the candidates whose Yahoo player keep accepts.
 func filterCandidates(candidates []candidateMatch, keep func(*store.YahooPlayer) bool) []candidateMatch {
 	var kept []candidateMatch
 	for _, c := range candidates {

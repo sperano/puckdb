@@ -22,9 +22,6 @@ type yahooTeam struct {
 	relocatedTo string
 }
 
-// nhlClubCount is the number of current NHL teams, one yahooTeams row each.
-const nhlClubCount = 32
-
 var yahooTeams = []yahooTeam{
 	// Atlantic Division
 	{nhlAbbrev: "BOS", name: "Boston"},
@@ -102,8 +99,8 @@ func yahooTeamName(nhlAbbrev string) string {
 // current team's.
 func NHLAbbrevForYahooTeam(abbrev string) string {
 	abbrev = strings.ToUpper(strings.TrimSpace(abbrev))
-	if nhl, ok := nhlAbbrevsByYahoo[abbrev]; ok {
-		return nhl
+	if mapped, ok := nhlAbbrevsByYahoo[abbrev]; ok {
+		return mapped
 	}
 	return abbrev
 }

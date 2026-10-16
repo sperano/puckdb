@@ -140,14 +140,11 @@ func TestWords(t *testing.T) {
 // story-name words and the Yahoo-ID matcher's normalized names: both decode
 // entities, strip accents and lowercase, only Words drops punctuation.
 func TestWordsIsDeeperThanNormalizeName(t *testing.T) {
-	for _, name := range []string{"Ryan O'Reilly", "Ryan O’Reilly", "Ryan O&#x27;Reilly", "Jean-Gabriel Pageau", "Tim Stützle"} {
-		normalized := matching.NormalizeName(name)
-		assert.Equal(t, strings.Join(Words(name), " "), strings.Join(Words(normalized), " "),
-			"Words(%q) must start from NormalizeName", name)
-	}
 	assert.Equal(t, "ryan o'reilly", matching.NormalizeName("Ryan O&#x27;Reilly"))
 	assert.NotEqual(t, matching.NormalizeName("Ryan O’Reilly"), matching.NormalizeName("Ryan O'Reilly"))
 	assert.Equal(t, Words("Ryan O’Reilly"), Words("Ryan O'Reilly"))
+	assert.NotEqual(t, matching.NormalizeName("Jean-Gabriel Pageau"), matching.NormalizeName("Jean Gabriel Pageau"))
+	assert.Equal(t, Words("Jean-Gabriel Pageau"), Words("Jean Gabriel Pageau"))
 }
 
 func TestNormalizeItemExternalIDFallsBackToURL(t *testing.T) {

@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nhlClubCount is the number of current NHL teams, one yahooTeams row each.
+const nhlClubCount = 32
+
 // yahooNamePrefixes expands the short forms Yahoo display names use, so a
 // display name can be compared with the start of the NHL full name.
 var yahooNamePrefixes = map[string]string{"ny ": "new york "}
@@ -73,8 +76,8 @@ func TestYahooTeamAbbrevsResolveToCurrentClubs(t *testing.T) {
 			assert.True(t, current[team.relocatedTo], "%s relocated to %s, not a current club", team.nhlAbbrev, team.relocatedTo)
 		}
 	}
-	for yahoo, nhl := range nhlAbbrevsByYahoo {
-		assert.True(t, current[nhl], "Yahoo %s resolves to %s, not a current club", yahoo, nhl)
+	for yahoo, mapped := range nhlAbbrevsByYahoo {
+		assert.True(t, current[mapped], "Yahoo %s resolves to %s, not a current club", yahoo, mapped)
 	}
 }
 
@@ -125,7 +128,10 @@ func TestNHLAbbrevForYahooTeam(t *testing.T) {
 		{"", ""},
 	}
 	for _, tc := range tests {
-		assert.Equal(t, tc.want, NHLAbbrevForYahooTeam(tc.yahoo), tc.yahoo)
+		t.Run(tc.yahoo, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, NHLAbbrevForYahooTeam(tc.yahoo))
+		})
 	}
 }
 
@@ -143,6 +149,9 @@ func TestYahooTeamName(t *testing.T) {
 		{"", ""},
 	}
 	for _, tc := range tests {
-		assert.Equal(t, tc.want, yahooTeamName(tc.nhl), tc.nhl)
+		t.Run(tc.nhl, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, yahooTeamName(tc.nhl))
+		})
 	}
 }
