@@ -1,6 +1,9 @@
 package shared
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,10 +15,16 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// progressOptionsOwner is the one file allowed to build LocalActivityOptions
-// for progress persistence; every other site goes through
-// WithProgressLocalActivityOptions.
-const progressOptionsOwner = "progress.go"
+// workerDir is internal/worker, relative to this package directory.
+const workerDir = ".."
+
+// localActivityOptionOwners lists the files under internal/worker allowed to
+// build workflow.LocalActivityOptions. Every other site applies a helper from
+// shared; a local activity with a justified different timeout adds its file
+// here with the reason.
+var localActivityOptionOwners = map[string]string{
+	filepath.Join(workerDir, "shared", "progress.go"): "WithProgressLocalActivityOptions, the progress persistence options",
+}
 
 func TestWithProgressLocalActivityOptions_SetsSharedTimeout(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
@@ -31,11 +40,9 @@ func TestWithProgressLocalActivityOptions_SetsSharedTimeout(t *testing.T) {
 }
 
 // TestLocalActivityOptionsAreCentralized fails when a worker package builds
-// its own LocalActivityOptions instead of calling
-// WithProgressLocalActivityOptions, so the timeout cannot drift between
-// sites again.
+// workflow.LocalActivityOptions outside localActivityOptionOwners, so a
+// timeout cannot be written at a call site again.
 func TestLocalActivityOptionsAreCentralized(t *testing.T) {
-	workerDir := filepath.Join("..")
 	var offenders []string
 	err := filepath.WalkDir(workerDir, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -44,18 +51,39 @@ func TestLocalActivityOptionsAreCentralized(t *testing.T) {
 		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		if filepath.Base(path) == progressOptionsOwner && filepath.Base(filepath.Dir(path)) == "shared" {
+		if _, owner := localActivityOptionOwners[filepath.Clean(path)]; owner {
 			return nil
 		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if strings.Contains(string(content), "LocalActivityOptions{") {
+		if buildsLocalActivityOptions(t, path) {
 			offenders = append(offenders, path)
 		}
 		return nil
 	})
 	require.NoError(t, err)
-	require.Empty(t, offenders, "build local activity options through shared.WithProgressLocalActivityOptions")
+	require.Empty(t, offenders,
+		"apply shared.WithProgressLocalActivityOptions (or add the file to localActivityOptionOwners with a reason)")
+}
+
+// buildsLocalActivityOptions reports whether the file contains a composite
+// literal of workflow.LocalActivityOptions.
+func buildsLocalActivityOptions(t *testing.T, path string) bool {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	require.NoError(t, err)
+	found := false
+	ast.Inspect(file, func(n ast.Node) bool {
+		lit, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+		sel, ok := lit.Type.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "LocalActivityOptions" {
+			return true
+		}
+		if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "workflow" {
+			found = true
+		}
+		return !found
+	})
+	return found
 }
