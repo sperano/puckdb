@@ -224,6 +224,16 @@ const (
 	DefaultWorkflowTaskTimeout  = 60 * time.Second
 )
 
+// Progress persistence defaults
+const (
+	// DefaultProgressLocalActivityTimeout bounds each local activity that
+	// reads, writes or deletes a workflow's ProgressReport in Redis
+	// (shared.WithProgressLocalActivityOptions). Every bar increment runs
+	// one, so an unreachable Redis costs a workflow task at most this long
+	// per progress update.
+	DefaultProgressLocalActivityTimeout = 5 * time.Second
+)
+
 // Database connection defaults
 const (
 	DefaultDBConnMaxLifetime  = 5 * time.Minute

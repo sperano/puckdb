@@ -57,7 +57,7 @@ func registerToolsets(srv *server.MCPServer, queries *sqlcdb.Queries, opts Optio
 		case ToolsetYahoo:
 			registerYahooTools(srv, queries, newLeagueGuard(queries, opts.YahooLeagues), opts.Draft)
 		case ToolsetNews:
-			registerNewsTools(srv, queries)
+			registerPlayerNewsTools(srv, queries)
 		}
 	}
 }
@@ -74,4 +74,5 @@ func registerNHLTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	registerPlayoffTools(srv, queries)
 	registerPlayEventTools(srv, queries)
 	registerLinemateTools(srv, queries)
+	registerNewsTools(srv, queries)
 }
