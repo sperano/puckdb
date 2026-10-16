@@ -46,8 +46,8 @@ type Options struct {
 	// share with GraphQL and the CLI; required with the yahoo toolset.
 	Draft *draftrank.Service
 	// NewsSources are the enabled news sources the nhl toolset's news
-	// coverage tool reports on; empty reports nothing (the server starts
-	// without them).
+	// coverage tool reports on; empty registers the tool with no sources,
+	// so it reports no rows.
 	NewsSources []news.Source
 }
 

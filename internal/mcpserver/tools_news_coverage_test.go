@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -90,4 +91,12 @@ func TestNewsCoverageToolRejectsInvalidSeasonBeforeLoading(t *testing.T) {
 	assert.True(t, result.IsError)
 	assert.Contains(t, resultText(t, result), "invalid season")
 	assert.Zero(t, q.calls)
+}
+
+func TestNewsCoverageToolReportsLoadError(t *testing.T) {
+	q := &fakeNewsQueries{err: errors.New("db down")}
+	tool := newsCoverageTool(q, nil)
+	result := callTool(t, tool.Handler, map[string]any{"season": float64(2026)})
+	assert.True(t, result.IsError)
+	assert.Contains(t, resultText(t, result), "db down")
 }

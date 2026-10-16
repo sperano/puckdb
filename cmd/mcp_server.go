@@ -129,11 +129,11 @@ func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Opt
 	if opts.HasToolset(mcpserver.ToolsetNHL) {
 		sources, err := news.LoadSources(viper.GetString(config.FlagNewsSourcesFile))
 		if err != nil {
-			return err
+			return fmt.Errorf("load news sources: %w", err)
 		}
 		opts.NewsSources, err = news.EnabledSources(sources, nil)
 		if err != nil {
-			return err
+			return fmt.Errorf("select enabled news sources: %w", err)
 		}
 	}
 	srv, err := mcpserver.NewServer(queries, opts)

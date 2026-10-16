@@ -16,8 +16,8 @@ const (
 )
 
 // registerNewsCoverageTools adds the news coverage tool of the nhl toolset.
-func registerNewsCoverageTools(srv *server.MCPServer, q news.ReportQueries, sources []news.Source) {
-	srv.AddTools(newsCoverageTool(q, sources))
+func registerNewsCoverageTools(srv *server.MCPServer, queries news.ReportQueries, sources []news.Source) {
+	srv.AddTools(newsCoverageTool(queries, sources))
 }
 
 // newsCoverageTool reports which news sources are fresh, failing, stale or
@@ -43,7 +43,7 @@ func newsCoverageTool(q news.ReportQueries, sources []news.Source) server.Server
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			now := time.Now().UTC()
+			now := time.Now()
 			coverage := news.EvaluateCoverage(sources, states, season, now)
 			text, err := newsCoverageText(season, now, coverage)
 			if err != nil {

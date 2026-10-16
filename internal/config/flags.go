@@ -939,7 +939,7 @@ const (
 	FlagNewsEvalCorpus             = "news-eval-corpus"
 )
 
-// NewsSourcesFlags selects the news source set (worker and report).
+// NewsSourcesFlags selects the news source set (worker, report and mcp-server).
 var NewsSourcesFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagNewsSourcesFile, "", DefaultNewsSourcesFile, "YAML file of player news sources (default: the built-in set, see https://wiki.spe.quebec/en/puckdb/draft/player-news)", false},
