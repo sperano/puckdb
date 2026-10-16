@@ -139,6 +139,8 @@ LIMIT $4;
 -- as_of (both ends inclusive). Unlike skater_recent_stats/goalie_recent_stats,
 -- whose window is fixed to the 30 days before CURRENT_DATE, the window is a
 -- parameter. last_team_id is the club of the player's last game in the window.
+-- positions (any of; NULL for all) filters skaters by players.position; it
+-- is text[] because pgx cannot encode an array of an unregistered enum.
 
 -- name: GetSkaterRecentForm :many
 SELECT gss.player_id,
@@ -166,8 +168,8 @@ WHERE g.season = sqlc.arg(season)
   AND g.game_type = sqlc.arg(game_type)::public.game_type
   AND g.game_date > sqlc.arg(as_of)::date - sqlc.arg(days)::integer
   AND g.game_date <= sqlc.arg(as_of)::date
-  AND (sqlc.narg(position)::public.player_position IS NULL
-       OR p.position = sqlc.narg(position)::public.player_position)
+  AND (sqlc.narg(positions)::text[] IS NULL
+       OR p.position::text = ANY(sqlc.narg(positions)::text[]))
 GROUP BY gss.player_id, p.first_name, p.last_name, p.yahoo_id, p.position
 ORDER BY points DESC, goals DESC, p.last_name, p.first_name, gss.player_id
 LIMIT sqlc.arg(result_limit);

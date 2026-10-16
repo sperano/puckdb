@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	// Embedded so the NHL schedule time zone loads in the scratch image.
+	_ "time/tzdata"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -36,12 +38,35 @@ const (
 	// recentFormGameType is the only game type counted: form is about the
 	// regular season, as in the *_recent_stats views.
 	recentFormGameType = sqlcdb.GameTypeRegularSeason
+	// nhlScheduleTimeZone is the zone of NHL schedule dates; the default
+	// as_of is today there, so a UTC server does not move to tomorrow at
+	// 8 pm Eastern while that night's games are still unplayed.
+	nhlScheduleTimeZone = "America/New_York"
 )
 
 var (
 	recentFormDaysParam  = intArg{name: recentFormDaysArg, min: minimumPositiveInteger, max: maxRecentFormDays}
 	recentFormLimitParam = intArg{name: "limit", min: minimumPositiveInteger, max: maxRecentFormLimit}
+
+	// nhlScheduleLocation is nhlScheduleTimeZone, loaded from the embedded
+	// time zone database.
+	nhlScheduleLocation = mustLoadLocation(nhlScheduleTimeZone)
+
+	// recentFormForwards is what position F selects: every forward, C, LW
+	// and RW as well as players stored as F (no specific forward position).
+	recentFormForwards = []sqlcdb.PlayerPosition{
+		sqlcdb.PlayerPositionC, sqlcdb.PlayerPositionLW, sqlcdb.PlayerPositionRW, sqlcdb.PlayerPositionF,
+	}
 )
+
+// mustLoadLocation loads a zone the embedded database is known to hold.
+func mustLoadLocation(name string) *time.Location {
+	location, err := time.LoadLocation(name)
+	if err != nil {
+		panic(err)
+	}
+	return location
+}
 
 type recentFormQueries interface {
 	GetSkaterRecentForm(context.Context, sqlcdb.GetSkaterRecentFormParams) ([]sqlcdb.GetSkaterRecentFormRow, error)
@@ -49,7 +74,7 @@ type recentFormQueries interface {
 }
 
 // registerRecentFormTools adds get_recent_form; now supplies the default
-// as_of (the server's local date).
+// as_of (its date in nhlScheduleTimeZone).
 func registerRecentFormTools(srv *server.MCPServer, queries recentFormQueries, now func() time.Time) {
 	srv.AddTools(recentFormTool(queries, now))
 }
@@ -74,9 +99,9 @@ func recentFormTool(q recentFormQueries, now func() time.Time) server.ServerTool
 				"Only games of the given season count, so a window reaching back past opening night holds fewer games."),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 			mcp.WithString(recentFormGroupArg, mcp.Required(), mcp.Description("skaters or goalies")),
-			mcp.WithString(recentFormAsOfArg, mcp.Description("Last day of the window (YYYY-MM-DD, default: the server's local date today)")),
+			mcp.WithString(recentFormAsOfArg, mcp.Description("Last day of the window (YYYY-MM-DD, default: today in "+nhlScheduleTimeZone+")")),
 			mcp.WithNumber(recentFormDaysArg, mcp.Description(fmt.Sprintf("Window length in days, as_of included (default %d, max %d)", defaultRecentFormDays, maxRecentFormDays))),
-			mcp.WithString(seasonPositionArg, mcp.Description("Optional NHL position filter: C, LW, RW, F or D for skaters, G for goalies")),
+			mcp.WithString(seasonPositionArg, mcp.Description("Optional NHL position filter: C, LW, RW, D, or F (every forward) for skaters; G for goalies")),
 			mcp.WithNumber("limit", mcp.Description(fmt.Sprintf("Max players (default %d, max %d)", defaultRecentFormLimit, maxRecentFormLimit))),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -111,7 +136,7 @@ func parseRecentFormRequest(req mcp.CallToolRequest, now func() time.Time) (rece
 		return r, errResult
 	}
 	if !r.asOf.Valid {
-		r.asOf = localDate(now())
+		r.asOf = calendarDate(now().In(nhlScheduleLocation))
 	}
 	days, given, errResult := optionalInt[int32](req, recentFormDaysParam)
 	if errResult != nil {
@@ -155,8 +180,8 @@ func recentFormPosition(req mcp.CallToolRequest, group string) (sqlcdb.NullPlaye
 	return requireSkaterPosition(req)
 }
 
-// localDate is t's calendar date in its own location, as a date argument.
-func localDate(t time.Time) pgtype.Date {
+// calendarDate is t's calendar date in its own location, as a date argument.
+func calendarDate(t time.Time) pgtype.Date {
 	year, month, day := t.Date()
 	return pgtype.Date{Time: time.Date(year, month, day, 0, 0, 0, 0, time.UTC), Valid: true}
 }
@@ -176,8 +201,25 @@ func (r recentFormRequest) run(ctx context.Context, q recentFormQueries) (any, e
 	}
 	return q.GetSkaterRecentForm(ctx, sqlcdb.GetSkaterRecentFormParams{
 		Season: r.season, GameType: recentFormGameType, AsOf: r.asOf, Days: r.days,
-		Position: r.position, ResultLimit: r.limit,
+		Positions: r.positions(), ResultLimit: r.limit,
 	})
+}
+
+// positions is the any-of skater position filter, as the query's text
+// array; nil selects every skater.
+func (r recentFormRequest) positions() []string {
+	if !r.position.Valid {
+		return nil
+	}
+	selected := []sqlcdb.PlayerPosition{r.position.PlayerPosition}
+	if r.position.PlayerPosition == sqlcdb.PlayerPositionF {
+		selected = recentFormForwards
+	}
+	names := make([]string, len(selected))
+	for i, position := range selected {
+		names[i] = string(position)
+	}
+	return names
 }
 
 // header prints the resolved window once, so a defaulted as_of is visible.

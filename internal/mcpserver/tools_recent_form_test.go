@@ -34,12 +34,9 @@ func (f *recentFormQueryFake) GetGoalieRecentForm(_ context.Context, params sqlc
 	return nil, nil
 }
 
-// recentFormTestNow is late evening in Montreal, already the next day in
-// UTC, so a default as_of taken in UTC would be a day late.
-var recentFormTestNow = time.Date(2025, 10, 31, 23, 30, 0, 0, time.FixedZone("EDT", edtOffsetSeconds))
-
-// edtOffsetSeconds is Eastern Daylight Time, UTC-4.
-const edtOffsetSeconds = -4 * 60 * 60
+// recentFormTestNow is already November 1 in UTC (the server's zone in
+// the scratch image) but still October 31 in the NHL's schedule zone.
+var recentFormTestNow = time.Date(2025, 11, 1, 3, 30, 0, 0, time.UTC)
 
 func recentFormTestTool(t *testing.T, queries recentFormQueries) server.ServerTool {
 	t.Helper()
@@ -86,12 +83,25 @@ func TestRecentFormToolPassesSkaterArguments(t *testing.T) {
 	require.False(t, result.IsError, resultText(t, result))
 	assert.Equal(t, sqlcdb.GetSkaterRecentFormParams{
 		Season: testSeasonID, GameType: sqlcdb.GameTypeRegularSeason, AsOf: testDate(t, "2025-03-01"), Days: 1,
-		Position:    sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionD, Valid: true},
+		Positions:   []string{string(sqlcdb.PlayerPositionD)},
 		ResultLimit: maxRecentFormLimit,
 	}, queries.skater)
 	assert.True(t, strings.HasPrefix(resultText(t, result),
 		"# group=skaters season=20252026 game_type=regular_season window_start=2025-03-01 as_of=2025-03-01 days=1 position=D\n"),
 		resultText(t, result))
+}
+
+func TestRecentFormToolExpandsForwards(t *testing.T) {
+	queries := &recentFormQueryFake{}
+	tool := recentFormTestTool(t, queries)
+
+	result := callTool(t, tool.Handler, map[string]any{
+		"season": float64(testSeasonID), recentFormGroupArg: recentFormSkaters, seasonPositionArg: "f",
+	})
+
+	require.False(t, result.IsError, resultText(t, result))
+	assert.Equal(t, []string{"C", "LW", "RW", "F"}, queries.skater.Positions)
+	assert.Contains(t, resultText(t, result), " position=F\n")
 }
 
 func TestRecentFormToolPassesGoalieArguments(t *testing.T) {
@@ -307,6 +317,11 @@ func TestRecentFormToolAgainstPostgres(t *testing.T) {
 		rows := call(map[string]any{recentFormGroupArg: recentFormSkaters, seasonPositionArg: "D"})
 		require.Len(t, rows, 1)
 		assert.Equal(t, "Defender", rows[0]["last_name"])
+	})
+	t.Run("F selects every forward", func(t *testing.T) {
+		rows := call(map[string]any{recentFormGroupArg: recentFormSkaters, seasonPositionArg: "F"})
+		require.Len(t, rows, 1)
+		assert.Equal(t, "Forward", rows[0]["last_name"], "a C is a forward")
 	})
 	t.Run("one-day window", func(t *testing.T) {
 		rows := call(map[string]any{recentFormGroupArg: recentFormSkaters, recentFormDaysArg: float64(1)})

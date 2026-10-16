@@ -331,20 +331,20 @@ WHERE g.season = $1
   AND g.game_type = $2::public.game_type
   AND g.game_date > $3::date - $4::integer
   AND g.game_date <= $3::date
-  AND ($5::public.player_position IS NULL
-       OR p.position = $5::public.player_position)
+  AND ($5::text[] IS NULL
+       OR p.position::text = ANY($5::text[]))
 GROUP BY gss.player_id, p.first_name, p.last_name, p.yahoo_id, p.position
 ORDER BY points DESC, goals DESC, p.last_name, p.first_name, gss.player_id
 LIMIT $6
 `
 
 type GetSkaterRecentFormParams struct {
-	Season      int32              `json:"season"`
-	GameType    GameType           `json:"game_type"`
-	AsOf        pgtype.Date        `json:"as_of"`
-	Days        int32              `json:"days"`
-	Position    NullPlayerPosition `json:"position"`
-	ResultLimit int32              `json:"result_limit"`
+	Season      int32       `json:"season"`
+	GameType    GameType    `json:"game_type"`
+	AsOf        pgtype.Date `json:"as_of"`
+	Days        int32       `json:"days"`
+	Positions   []string    `json:"positions"`
+	ResultLimit int32       `json:"result_limit"`
 }
 
 type GetSkaterRecentFormRow struct {
@@ -375,13 +375,15 @@ type GetSkaterRecentFormRow struct {
 // as_of (both ends inclusive). Unlike skater_recent_stats/goalie_recent_stats,
 // whose window is fixed to the 30 days before CURRENT_DATE, the window is a
 // parameter. last_team_id is the club of the player's last game in the window.
+// positions (any of; NULL for all) filters skaters by players.position; it
+// is text[] because pgx cannot encode an array of an unregistered enum.
 func (q *Queries) GetSkaterRecentForm(ctx context.Context, arg GetSkaterRecentFormParams) ([]GetSkaterRecentFormRow, error) {
 	rows, err := q.db.Query(ctx, getSkaterRecentForm,
 		arg.Season,
 		arg.GameType,
 		arg.AsOf,
 		arg.Days,
-		arg.Position,
+		arg.Positions,
 		arg.ResultLimit,
 	)
 	if err != nil {
