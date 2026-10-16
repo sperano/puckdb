@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +36,10 @@ func (f *recentFormQueryFake) GetGoalieRecentForm(_ context.Context, params sqlc
 
 // recentFormTestNow is late evening in Montreal, already the next day in
 // UTC, so a default as_of taken in UTC would be a day late.
-var recentFormTestNow = time.Date(2025, 10, 31, 23, 30, 0, 0, time.FixedZone("EDT", -4*60*60))
+var recentFormTestNow = time.Date(2025, 10, 31, 23, 30, 0, 0, time.FixedZone("EDT", edtOffsetSeconds))
+
+// edtOffsetSeconds is Eastern Daylight Time, UTC-4.
+const edtOffsetSeconds = -4 * 60 * 60
 
 func recentFormTestTool(t *testing.T, queries recentFormQueries) server.ServerTool {
 	t.Helper()
@@ -162,6 +166,9 @@ const (
 	recentFormTestDefender = 9_970_002
 	recentFormTestGoalie   = 9_970_003
 	recentFormTestGameBase = 9_970_000_000
+	// recentFormTestGameSpan is the range of game IDs above the base the
+	// fixture may use.
+	recentFormTestGameSpan = 100
 	// recentFormTestAsOf and recentFormTestDays give the window
 	// 2025-10-18..2025-10-31.
 	recentFormTestAsOf = "2025-10-31"
@@ -199,7 +206,7 @@ var recentFormTestGames = []recentFormTestGame{
 
 func cleanupRecentFormFixture(t *testing.T, exec func(string, ...any)) {
 	t.Helper()
-	exec(`DELETE FROM games WHERE id BETWEEN $1 AND $1 + 100`, recentFormTestGameBase)
+	exec(`DELETE FROM games WHERE id BETWEEN $1 AND $2`, recentFormTestGameBase, recentFormTestGameBase+recentFormTestGameSpan)
 	exec(`DELETE FROM players WHERE id BETWEEN $1 AND $2`, recentFormTestForward, recentFormTestGoalie)
 	exec(`DELETE FROM season_teams WHERE team_id BETWEEN $1 AND $2`, recentFormTestTeam, recentFormTestNewTeam)
 }
@@ -292,7 +299,7 @@ func TestRecentFormToolAgainstPostgres(t *testing.T) {
 		assert.Equal(t, "3", forward["gp"], "both window ends count; outside, playoff and other-season games do not")
 		assert.Equal(t, "3", forward["goals"])
 		assert.Equal(t, "3", forward["points"])
-		assert.Equal(t, "9972", forward["last_team_id"], "club of the last game in the window")
+		assert.Equal(t, strconv.Itoa(recentFormTestNewTeam), forward["last_team_id"], "club of the last game in the window")
 		assert.Equal(t, "Defender", defender["last_name"])
 		assert.Equal(t, "2", defender["points"])
 	})
@@ -305,7 +312,7 @@ func TestRecentFormToolAgainstPostgres(t *testing.T) {
 		rows := call(map[string]any{recentFormGroupArg: recentFormSkaters, recentFormDaysArg: float64(1)})
 		require.Len(t, rows, 1)
 		assert.Equal(t, "1", rows[0]["gp"])
-		assert.Equal(t, "9972", rows[0]["last_team_id"])
+		assert.Equal(t, strconv.Itoa(recentFormTestNewTeam), rows[0]["last_team_id"])
 	})
 	t.Run("goalies", func(t *testing.T) {
 		rows := call(map[string]any{recentFormGroupArg: recentFormGoalies})
@@ -318,7 +325,7 @@ func TestRecentFormToolAgainstPostgres(t *testing.T) {
 		assert.Equal(t, "5", goalie["ga"])
 		assert.Equal(t, "2.5", goalie["gaa"])
 		assert.Equal(t, "0.917", goalie["sv_pct"])
-		assert.Equal(t, "9971", goalie["last_team_id"])
+		assert.Equal(t, strconv.Itoa(recentFormTestOpponent), goalie["last_team_id"])
 	})
 	t.Run("other season", func(t *testing.T) {
 		rows := call(map[string]any{"season": float64(gameLogPriorSeasonID), recentFormGroupArg: recentFormSkaters})

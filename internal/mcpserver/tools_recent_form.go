@@ -70,7 +70,7 @@ func recentFormTool(q recentFormQueries, now func() time.Time) server.ServerTool
 			mcp.WithDescription("Recent form: per-player regular-season totals over the days calendar days ending at as_of (both ends inclusive), "+
 				"for skaters (ordered by points, then goals) or goalies (ordered by wins, then save percentage; "+
 				fmt.Sprintf("appearances under %d seconds of ice time, i.e. relief stints, are left out). ", minGoalieAppearanceSeconds)+
-				"Returns a '# key=value' header (group, season, window_start, as_of, days) and CSV rows; last_team_id is the club of the player's last game in the window. "+
+				"Returns a '# key=value' header (group, season, game_type, window_start, as_of, days, position when given) and CSV rows; last_team_id is the club of the player's last game in the window. "+
 				"Only games of the given season count, so a window reaching back past opening night holds fewer games."),
 			mcp.WithNumber("season", mcp.Required(), mcp.Description("Season ID (e.g. 20252026)")),
 			mcp.WithString(recentFormGroupArg, mcp.Required(), mcp.Description("skaters or goalies")),
