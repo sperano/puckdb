@@ -145,7 +145,7 @@ func getAllMetrics(
 	}
 
 	gobCache := cache.NewGobCache(redisClient)
-	allMetrics, err := scanSeasons(ctx, seasons, func(s simpleSeason) []cacheMetrics {
+	allMetrics, err := scanSeasons(ctx, seasons, func(ctx context.Context, s simpleSeason) []cacheMetrics {
 		stats := checkNHLSeasonCache(ctx, storage, gobCache, s)
 		if yahooCfg, ok := yahooConfig[s.StartYear()]; ok {
 			stats = append(stats, checkYahooSeasonCache(ctx, storage, s, yahooCfg)...)
@@ -177,7 +177,7 @@ func getAllMetrics(
 // cancellation, which aborts the whole report, like checkAssetCache, rather
 // than returning counts from a partial scan that would be indistinguishable
 // from a real cache shortfall.
-func scanSeasons(ctx context.Context, seasons []simpleSeason, scan func(simpleSeason) []cacheMetrics) ([]cacheMetrics, error) {
+func scanSeasons(ctx context.Context, seasons []simpleSeason, scan func(context.Context, simpleSeason) []cacheMetrics) ([]cacheMetrics, error) {
 	work := make(chan int, len(seasons))
 	for i := range seasons {
 		work <- i
@@ -192,7 +192,7 @@ func scanSeasons(ctx context.Context, seasons []simpleSeason, scan func(simpleSe
 				if ctx.Err() != nil {
 					return
 				}
-				perSeason[i] = scan(seasons[i])
+				perSeason[i] = scan(ctx, seasons[i])
 			}
 		})
 	}

@@ -389,7 +389,7 @@ func TestScanSeasons_ReportsEverySeasonInOrder(t *testing.T) {
 	var mu sync.Mutex
 	scans := make(map[int]int, len(seasons))
 
-	got, err := scanSeasons(context.Background(), seasons, func(s simpleSeason) []cacheMetrics {
+	got, err := scanSeasons(context.Background(), seasons, func(_ context.Context, s simpleSeason) []cacheMetrics {
 		mu.Lock()
 		scans[s.startYear]++
 		mu.Unlock()
@@ -413,7 +413,7 @@ func TestScanSeasons_CancelledBeforeScan(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	got, err := scanSeasons(ctx, scanFixtureSeasons(), func(s simpleSeason) []cacheMetrics {
+	got, err := scanSeasons(ctx, scanFixtureSeasons(), func(_ context.Context, s simpleSeason) []cacheMetrics {
 		t.Errorf("season %d scanned after cancellation", s.startYear)
 		return nil
 	})
@@ -430,7 +430,7 @@ func TestScanSeasons_CancelledDuringScan(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	got, err := scanSeasons(ctx, scanFixtureSeasons(), func(s simpleSeason) []cacheMetrics {
+	got, err := scanSeasons(ctx, scanFixtureSeasons(), func(_ context.Context, s simpleSeason) []cacheMetrics {
 		cancel()
 		return scanFixtureMetrics(s)
 	})
