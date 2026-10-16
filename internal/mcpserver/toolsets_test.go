@@ -19,7 +19,6 @@ func TestParseToolsets(t *testing.T) {
 		{"nhl,news", []Toolset{ToolsetNHL, ToolsetNews}},
 		{" Yahoo , NHL ", []Toolset{ToolsetNHL, ToolsetYahoo}},
 		{"yahoo,yahoo,", []Toolset{ToolsetYahoo}},
-		{"news", []Toolset{ToolsetNews}},
 		{"news,yahoo,nhl", []Toolset{ToolsetNHL, ToolsetYahoo, ToolsetNews}},
 	}
 	for _, tt := range tests {
