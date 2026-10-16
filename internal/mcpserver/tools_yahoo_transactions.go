@@ -66,7 +66,7 @@ func yahooTransactionsTool(q yahooQueries, guard leagueGuard) server.ServerTool 
 					"(which also returns the add of every add/drop)")),
 			mcp.WithString(transactionSinceArg, mcp.Description(
 				"Only transactions at or after this time: YYYY-MM-DD (midnight UTC) or an RFC 3339 timestamp")),
-			mcp.WithNumber("limit", mcp.Description(fmt.Sprintf("Max transactions (default %d, max %d)",
+			mcp.WithNumber(transactionsLimitParam.name, mcp.Description(fmt.Sprintf("Max transactions (default %d, max %d)",
 				defaultTransactionsLimit, maxTransactionsLimit))),
 		),
 		Handler: guard.scoped(func(ctx context.Context, req mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error) {
@@ -74,18 +74,33 @@ func yahooTransactionsTool(q yahooQueries, guard leagueGuard) server.ServerTool 
 			if errResult != nil {
 				return errResult, nil
 			}
-			if _, err := q.GetYahooLeague(ctx, leagueID); errors.Is(err, pgx.ErrNoRows) {
+			moves, err := loadTransactionMoves(ctx, q, params)
+			if errors.Is(err, errLeagueNotImported) {
 				return unknownLeagueResult(leagueID), nil
-			} else if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
 			}
-			moves, err := q.ListYahooTransactionMoves(ctx, params)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			return ResultCSV(transactionMoveRows(moves))
 		}),
 	}
+}
+
+// loadTransactionMoves checks the league was imported, so an unknown league
+// is not answered with "no results", then reads its moves.
+func loadTransactionMoves(ctx context.Context, q yahooQueries, params sqlcdb.ListYahooTransactionMovesParams) ([]sqlcdb.ListYahooTransactionMovesRow, error) {
+	_, err := q.GetYahooLeague(ctx, params.LeagueID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, errLeagueNotImported
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load league %d: %w", params.LeagueID, err)
+	}
+	moves, err := q.ListYahooTransactionMoves(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("load transactions of league %d: %w", params.LeagueID, err)
+	}
+	return moves, nil
 }
 
 // readTransactionsParams reads and validates the filter arguments.
@@ -111,10 +126,14 @@ func readTransactionsParams(req mcp.CallToolRequest, leagueID int32) (sqlcdb.Lis
 // is NULL. A date means midnight UTC, the zone of the time column.
 func optionalSince(req mcp.CallToolRequest) (pgtype.Int8, *mcp.CallToolResult) {
 	raw, present := argument(req, transactionSinceArg)
-	if !present || raw == "" {
+	if !present {
 		return pgtype.Int8{}, nil
 	}
 	if text, isString := raw.(string); isString {
+		text = strings.TrimSpace(text)
+		if text == "" {
+			return pgtype.Int8{}, nil
+		}
 		for _, layout := range []string{time.DateOnly, time.RFC3339} {
 			if at, err := time.Parse(layout, text); err == nil {
 				return pgtype.Int8{Int64: at.Unix(), Valid: true}, nil

@@ -193,59 +193,61 @@ func (q *Queries) GetYahooTransactionsByType(ctx context.Context, arg GetYahooTr
 }
 
 const listYahooTransactionMoves = `-- name: ListYahooTransactionMoves :many
-WITH picked AS (
-    SELECT t.league_id, t.transaction_key, t.type, t.timestamp, t.status
+WITH moves AS (
+    SELECT t.transaction_key, t.type AS transaction_type, t.timestamp, t.status,
+           tp.league_id, tp.player_id, tp.type AS move_type,
+           tp.source_type, tp.source_team_key, tp.destination_type, tp.destination_team_key
     FROM yahoo_transactions t
-    WHERE t.league_id = $2
-      AND ($3::bigint IS NULL OR t.timestamp >= $3::bigint)
-      AND EXISTS (
-          SELECT 1 FROM yahoo_transaction_players mp
-          WHERE mp.league_id = t.league_id
-            AND mp.transaction_key = t.transaction_key
-            AND ($1::text IS NULL
-                 OR t.type = $1::text
-                 OR mp.type = $1::text))
-    ORDER BY t.timestamp DESC NULLS LAST, t.transaction_key DESC
+    JOIN yahoo_transaction_players tp
+      ON tp.league_id = t.league_id AND tp.transaction_key = t.transaction_key
+    WHERE t.league_id = $1
+      AND ($2::bigint IS NULL OR t.timestamp >= $2::bigint)
+      AND ($3::text IS NULL
+           OR t.type = $3::text
+           OR tp.type = $3::text)
+),
+picked AS (
+    SELECT transaction_key, timestamp
+    FROM moves
+    GROUP BY transaction_key, timestamp
+    ORDER BY timestamp DESC NULLS LAST, length(transaction_key) DESC, transaction_key DESC
     LIMIT $4::integer
 )
 SELECT
-    p.timestamp,
-    p.transaction_key,
-    p.type AS transaction_type,
-    p.status,
-    tp.type AS move_type,
-    tp.player_id AS yahoo_player_id,
+    m.timestamp,
+    m.transaction_key,
+    m.transaction_type,
+    m.status,
+    m.move_type,
+    m.player_id AS yahoo_player_id,
     pl.id AS nhl_player_id,
     COALESCE(NULLIF(lp.full_name, ''), pl.first_name || ' ' || pl.last_name, '')::text AS player_name,
-    tp.source_type,
+    m.source_type,
     src.id AS source_team_id,
     COALESCE(src.name, '')::text AS source_team_name,
-    tp.source_team_key,
-    tp.destination_type,
+    m.source_team_key,
+    m.destination_type,
     dst.id AS destination_team_id,
     COALESCE(dst.name, '')::text AS destination_team_name,
-    tp.destination_team_key
-FROM picked p
-JOIN yahoo_transaction_players tp
-  ON tp.league_id = p.league_id AND tp.transaction_key = p.transaction_key
-JOIN yahoo_leagues l ON l.id = p.league_id
+    m.destination_team_key
+FROM moves m
+JOIN picked p ON p.transaction_key = m.transaction_key
+JOIN yahoo_leagues l ON l.id = m.league_id
 LEFT JOIN yahoo_league_players lp
-  ON lp.league_key = l.league_key AND lp.player_id = tp.player_id
-LEFT JOIN players pl ON pl.yahoo_id = tp.player_id
+  ON lp.league_key = l.league_key AND lp.player_id = m.player_id
+LEFT JOIN players pl ON pl.yahoo_id = m.player_id
 LEFT JOIN yahoo_teams src
-  ON src.league_id = tp.league_id AND src.team_key = tp.source_team_key
+  ON src.league_id = m.league_id AND src.team_key = m.source_team_key
 LEFT JOIN yahoo_teams dst
-  ON dst.league_id = tp.league_id AND dst.team_key = tp.destination_team_key
-WHERE $1::text IS NULL
-   OR p.type = $1::text
-   OR tp.type = $1::text
-ORDER BY p.timestamp DESC NULLS LAST, p.transaction_key DESC, tp.type, tp.player_id
+  ON dst.league_id = m.league_id AND dst.team_key = m.destination_team_key
+ORDER BY m.timestamp DESC NULLS LAST, length(m.transaction_key) DESC, m.transaction_key DESC,
+         m.move_type, m.player_id
 `
 
 type ListYahooTransactionMovesParams struct {
-	MoveType pgtype.Text `json:"move_type"`
 	LeagueID int32       `json:"league_id"`
 	SinceTs  pgtype.Int8 `json:"since_ts"`
+	MoveType pgtype.Text `json:"move_type"`
 	RowLimit int32       `json:"row_limit"`
 }
 
@@ -273,13 +275,15 @@ type ListYahooTransactionMovesRow struct {
 // or an add/drop is never cut in half. move_type narrows to transactions of
 // that type or players moved that way ("add" also finds the add of an
 // add/drop); since_ts (Unix seconds) drops older transactions and those
-// without a timestamp. Team names come from yahoo_teams, the player name
-// from the league's Yahoo pool, else from the matched NHL player.
+// without a timestamp. Same-second transactions order by key, the longer
+// key first so tr.10 comes before tr.9. Team names come from yahoo_teams,
+// the player name from the league's Yahoo pool, else from the matched NHL
+// player.
 func (q *Queries) ListYahooTransactionMoves(ctx context.Context, arg ListYahooTransactionMovesParams) ([]ListYahooTransactionMovesRow, error) {
 	rows, err := q.db.Query(ctx, listYahooTransactionMoves,
-		arg.MoveType,
 		arg.LeagueID,
 		arg.SinceTs,
+		arg.MoveType,
 		arg.RowLimit,
 	)
 	if err != nil {

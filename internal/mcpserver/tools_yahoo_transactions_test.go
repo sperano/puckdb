@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,9 +56,9 @@ func TestYahooTransactionsToolPassesFilters(t *testing.T) {
 		{"defaults", nil, sqlcdb.ListYahooTransactionMovesParams{RowLimit: defaultTransactionsLimit}},
 		{"type is trimmed and lower-cased", map[string]any{transactionTypeArg: " Add/Drop "},
 			sqlcdb.ListYahooTransactionMovesParams{RowLimit: defaultTransactionsLimit, MoveType: pgtype.Text{String: "add/drop", Valid: true}}},
-		{"empty type and since are no filter", map[string]any{transactionTypeArg: "  ", transactionSinceArg: ""},
+		{"blank type and since are no filter", map[string]any{transactionTypeArg: "  ", transactionSinceArg: " "},
 			sqlcdb.ListYahooTransactionMovesParams{RowLimit: defaultTransactionsLimit}},
-		{"since date is midnight UTC", map[string]any{transactionSinceArg: "2026-10-01"},
+		{"since date is midnight UTC", map[string]any{transactionSinceArg: " 2026-10-01 "},
 			sqlcdb.ListYahooTransactionMovesParams{RowLimit: defaultTransactionsLimit, SinceTs: pgtype.Int8{Int64: sinceDay.Unix(), Valid: true}}},
 		{"since timestamp keeps its offset", map[string]any{transactionSinceArg: "2026-10-01T08:30:00-04:00"},
 			sqlcdb.ListYahooTransactionMovesParams{RowLimit: defaultTransactionsLimit, SinceTs: pgtype.Int8{Int64: sinceInstant.Unix(), Valid: true}}},
@@ -145,13 +146,13 @@ func TestYahooTransactionsToolReportsErrors(t *testing.T) {
 	q.movesErr = errors.New("connection refused")
 	result := callTransactionsTool(t, q, allowedLeagueID, nil)
 	assert.True(t, result.IsError)
-	assert.Equal(t, "connection refused", resultText(t, result))
+	assert.Equal(t, "load transactions of league 1001: connection refused", resultText(t, result))
 
 	q = newFakeTransactionQueries()
 	q.lookupErr = errors.New("lookup failed")
 	result = callTransactionsTool(t, q, allowedLeagueID, nil)
 	assert.True(t, result.IsError)
-	assert.Equal(t, "lookup failed", resultText(t, result))
+	assert.Equal(t, "load league 1001: lookup failed", resultText(t, result))
 	assert.Empty(t, q.calls)
 }
 
@@ -159,7 +160,7 @@ func TestMoveSide(t *testing.T) {
 	assert.Equal(t, "Pucks Deep", moveSide(teamMoveSide, "Pucks Deep", "465.l.1.t.3"))
 	assert.Equal(t, "465.l.1.t.3", moveSide(teamMoveSide, "", "465.l.1.t.3"))
 	assert.Equal(t, "freeagents", moveSide("freeagents", "", ""))
-	assert.Equal(t, "", moveSide("", "", ""))
+	assert.Empty(t, moveSide("", "", ""))
 }
 
 // PostgreSQL fixture of TestYahooTransactionsToolReadsDatabase: league
@@ -179,6 +180,8 @@ const (
 	pgTxTradeYahooID2     = 990747004
 	pgTxAddYahooID        = 990747005
 	pgTxUndatedYahooID    = 990747006
+	pgTxDropYahooID1      = 990747007
+	pgTxDropYahooID2      = 990747008
 	pgTxNHLPlayerID       = 990747002
 )
 
@@ -211,6 +214,11 @@ func pgTxMoves() []pgTxMove {
 			srcType: teamMoveSide, srcTeamKey: pgTxTeam2Key, dstType: teamMoveSide, dstTeamKey: pgTxTeam1Key},
 		{key: "tr.3", txType: "trade", at: day(2, 11), playerID: pgTxTradeYahooID1, moveType: "trade",
 			srcType: teamMoveSide, srcTeamKey: pgTxTeam1Key, dstType: teamMoveSide, dstTeamKey: pgTxTeam2Key},
+		// Same second: tr.10 is the newer key and must come first.
+		{key: "tr.9", txType: "drop", at: day(-1, 0), playerID: pgTxDropYahooID1, moveType: "drop",
+			srcType: teamMoveSide, srcTeamKey: pgTxTeam2Key, dstType: "waivers"},
+		{key: "tr.10", txType: "drop", at: day(-1, 0), playerID: pgTxDropYahooID2, moveType: "drop",
+			srcType: teamMoveSide, srcTeamKey: pgTxTeam2Key, dstType: "waivers"},
 		{key: "tr.4", txType: "commish", playerID: pgTxUndatedYahooID, moveType: "add",
 			srcType: "freeagents", dstType: teamMoveSide, dstTeamKey: pgTxTeam2Key},
 		{key: "tr.9", txType: "trade", at: day(3, 0), playerID: pgTxTradeYahooID1, moveType: "trade",
@@ -249,6 +257,8 @@ func TestYahooTransactionsToolReadsDatabase(t *testing.T) {
 			"tr.2 add 990747001 freeagents -> Team One",
 			"tr.2 drop 990747002 Team One -> waivers",
 			"tr.1 add 990747005 freeagents -> Team Two",
+			"tr.10 drop 990747008 Team Two -> waivers",
+			"tr.9 drop 990747007 Team Two -> waivers",
 			"tr.4 add 990747006 freeagents -> Team Two",
 		}, moveSummaries(t, rows))
 		header := rows[0]
@@ -260,11 +270,11 @@ func TestYahooTransactionsToolReadsDatabase(t *testing.T) {
 		assert.Equal(t, "Pool Name", byPlayer["990747001"][name], "name from the league's Yahoo pool")
 		assert.Equal(t, "Nhl Matched", byPlayer["990747002"][name], "name from the matched NHL player")
 		assert.Equal(t, "990747002", byPlayer["990747002"][columnIndex(t, header, "nhl_player_id")])
-		assert.Equal(t, "", byPlayer["990747003"][name], "unknown player")
+		assert.Empty(t, byPlayer["990747003"][name], "unknown player")
 		assert.Equal(t, "1", byPlayer["990747003"][columnIndex(t, header, "from_team_id")])
 		assert.Equal(t, "2", byPlayer["990747003"][columnIndex(t, header, "to_team_id")])
 		assert.Equal(t, "2026-10-12T11:00:00Z", byPlayer["990747003"][columnIndex(t, header, "time")])
-		assert.Equal(t, "", byPlayer["990747006"][columnIndex(t, header, "time")])
+		assert.Empty(t, byPlayer["990747006"][columnIndex(t, header, "time")])
 	})
 	t.Run("limit counts transactions", func(t *testing.T) {
 		assert.Equal(t, []string{
@@ -308,9 +318,9 @@ func moveSummaries(t *testing.T, rows [][]string) []string {
 		columnIndex(t, header, "transaction_key"), columnIndex(t, header, "move_type"),
 		columnIndex(t, header, "yahoo_player_id"), columnIndex(t, header, "from"), columnIndex(t, header, "to"),
 	}
-	var out []string
+	out := make([]string, 0, len(rows)-1)
 	for _, row := range rows[1:] {
-		key := row[cols[0]][len(pgTxLeagueKey)+1:]
+		key := strings.TrimPrefix(row[cols[0]], pgTxLeagueKey+".")
 		out = append(out, key+" "+row[cols[1]]+" "+row[cols[2]]+" "+row[cols[3]]+" -> "+row[cols[4]])
 	}
 	return out
