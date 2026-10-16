@@ -7,6 +7,8 @@ package sqlcdb
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countYahooTransactionPlayers = `-- name: CountYahooTransactionPlayers :one
@@ -179,6 +181,131 @@ func (q *Queries) GetYahooTransactionsByType(ctx context.Context, arg GetYahooTr
 			&i.Timestamp,
 			&i.Status,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listYahooTransactionMoves = `-- name: ListYahooTransactionMoves :many
+WITH picked AS (
+    SELECT t.league_id, t.transaction_key, t.type, t.timestamp, t.status
+    FROM yahoo_transactions t
+    WHERE t.league_id = $2
+      AND ($3::bigint IS NULL OR t.timestamp >= $3::bigint)
+      AND EXISTS (
+          SELECT 1 FROM yahoo_transaction_players mp
+          WHERE mp.league_id = t.league_id
+            AND mp.transaction_key = t.transaction_key
+            AND ($1::text IS NULL
+                 OR t.type = $1::text
+                 OR mp.type = $1::text))
+    ORDER BY t.timestamp DESC NULLS LAST, t.transaction_key DESC
+    LIMIT $4::integer
+)
+SELECT
+    p.timestamp,
+    p.transaction_key,
+    p.type AS transaction_type,
+    p.status,
+    tp.type AS move_type,
+    tp.player_id AS yahoo_player_id,
+    pl.id AS nhl_player_id,
+    COALESCE(NULLIF(lp.full_name, ''), pl.first_name || ' ' || pl.last_name, '')::text AS player_name,
+    tp.source_type,
+    src.id AS source_team_id,
+    COALESCE(src.name, '')::text AS source_team_name,
+    tp.source_team_key,
+    tp.destination_type,
+    dst.id AS destination_team_id,
+    COALESCE(dst.name, '')::text AS destination_team_name,
+    tp.destination_team_key
+FROM picked p
+JOIN yahoo_transaction_players tp
+  ON tp.league_id = p.league_id AND tp.transaction_key = p.transaction_key
+JOIN yahoo_leagues l ON l.id = p.league_id
+LEFT JOIN yahoo_league_players lp
+  ON lp.league_key = l.league_key AND lp.player_id = tp.player_id
+LEFT JOIN players pl ON pl.yahoo_id = tp.player_id
+LEFT JOIN yahoo_teams src
+  ON src.league_id = tp.league_id AND src.team_key = tp.source_team_key
+LEFT JOIN yahoo_teams dst
+  ON dst.league_id = tp.league_id AND dst.team_key = tp.destination_team_key
+WHERE $1::text IS NULL
+   OR p.type = $1::text
+   OR tp.type = $1::text
+ORDER BY p.timestamp DESC NULLS LAST, p.transaction_key DESC, tp.type, tp.player_id
+`
+
+type ListYahooTransactionMovesParams struct {
+	MoveType pgtype.Text `json:"move_type"`
+	LeagueID int32       `json:"league_id"`
+	SinceTs  pgtype.Int8 `json:"since_ts"`
+	RowLimit int32       `json:"row_limit"`
+}
+
+type ListYahooTransactionMovesRow struct {
+	Timestamp           pgtype.Int8 `json:"timestamp"`
+	TransactionKey      string      `json:"transaction_key"`
+	TransactionType     string      `json:"transaction_type"`
+	Status              pgtype.Text `json:"status"`
+	MoveType            string      `json:"move_type"`
+	YahooPlayerID       int32       `json:"yahoo_player_id"`
+	NhlPlayerID         pgtype.Int8 `json:"nhl_player_id"`
+	PlayerName          string      `json:"player_name"`
+	SourceType          string      `json:"source_type"`
+	SourceTeamID        pgtype.Int4 `json:"source_team_id"`
+	SourceTeamName      string      `json:"source_team_name"`
+	SourceTeamKey       string      `json:"source_team_key"`
+	DestinationType     string      `json:"destination_type"`
+	DestinationTeamID   pgtype.Int4 `json:"destination_team_id"`
+	DestinationTeamName string      `json:"destination_team_name"`
+	DestinationTeamKey  string      `json:"destination_team_key"`
+}
+
+// One row per player moved, for the newest row_limit transactions of a
+// league that match the filters; the limit counts transactions, so a trade
+// or an add/drop is never cut in half. move_type narrows to transactions of
+// that type or players moved that way ("add" also finds the add of an
+// add/drop); since_ts (Unix seconds) drops older transactions and those
+// without a timestamp. Team names come from yahoo_teams, the player name
+// from the league's Yahoo pool, else from the matched NHL player.
+func (q *Queries) ListYahooTransactionMoves(ctx context.Context, arg ListYahooTransactionMovesParams) ([]ListYahooTransactionMovesRow, error) {
+	rows, err := q.db.Query(ctx, listYahooTransactionMoves,
+		arg.MoveType,
+		arg.LeagueID,
+		arg.SinceTs,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListYahooTransactionMovesRow{}
+	for rows.Next() {
+		var i ListYahooTransactionMovesRow
+		if err := rows.Scan(
+			&i.Timestamp,
+			&i.TransactionKey,
+			&i.TransactionType,
+			&i.Status,
+			&i.MoveType,
+			&i.YahooPlayerID,
+			&i.NhlPlayerID,
+			&i.PlayerName,
+			&i.SourceType,
+			&i.SourceTeamID,
+			&i.SourceTeamName,
+			&i.SourceTeamKey,
+			&i.DestinationType,
+			&i.DestinationTeamID,
+			&i.DestinationTeamName,
+			&i.DestinationTeamKey,
 		); err != nil {
 			return nil, err
 		}
