@@ -2,13 +2,10 @@ package player
 
 import (
 	"context"
-	"time"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/cache"
-	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/store"
-	"github.com/spf13/viper"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -50,8 +47,7 @@ func (a *Activities) ConsolidateBoxscorePlayersActivity(ctx context.Context, inp
 		uniquePlayers = append(uniquePlayers, p)
 	}
 
-	ttl := time.Duration(viper.GetInt(config.FlagBoxscorePlayerCacheTTL)) * time.Minute
-	if err := cache.SaveAllBoxscorePlayers(ctx, redisClient, uniquePlayers, ttl); err != nil {
+	if err := cache.SaveAllBoxscorePlayers(ctx, redisClient, uniquePlayers, a.BoxscorePlayerCacheTTL); err != nil {
 		return ConsolidatePlayersResult{}, err
 	}
 

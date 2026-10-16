@@ -1,6 +1,16 @@
 package shared
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+const (
+	emptyBatchErrorMessage    = "batch operation failed without an error"
+	batchAlreadyClosedMessage = "batch already closed"
+)
 
 // BatchCount returns the number of batches needed to process n items with the given batch size.
 func BatchCount(n, batchSize int) int {
@@ -19,21 +29,16 @@ func BatchSlice[T any](items []T, batchIndex, batchSize int) []T {
 
 // BatchError aggregates multiple errors from a batch operation.
 // It implements error and provides Unwrap() []error for Go 1.20+ error inspection.
-//
-// Invariant: Errors must contain at least one error. An empty BatchError is a
-// programming bug — callers never need to construct one directly; ExecBatch
-// returns nil on success and allocates a populated *BatchError on failure.
 type BatchError struct {
-	Errors  []error // All errors encountered (length ≥ 1)
+	Errors  []error // All errors encountered
 	Indices []int   // Row indices that failed
 }
 
 // Error returns a summary message. For a single failure, shows the full error.
 // For multiple failures, shows the first error plus a count.
-// Panics if Errors is empty — see the invariant on BatchError.
 func (be *BatchError) Error() string {
-	if len(be.Errors) == 0 {
-		panic("shared: BatchError.Error called with no errors (invariant violation)")
+	if be == nil || len(be.Errors) == 0 {
+		return emptyBatchErrorMessage
 	}
 	if len(be.Errors) == 1 {
 		return be.Errors[0].Error()
@@ -43,6 +48,9 @@ func (be *BatchError) Error() string {
 
 // Unwrap returns all errors for use with errors.Is/As on any constituent error.
 func (be *BatchError) Unwrap() []error {
+	if be == nil {
+		return nil
+	}
 	return be.Errors
 }
 
@@ -59,10 +67,20 @@ type Execer interface {
 // Returns nil if no errors, or a *BatchError containing all failures.
 func ExecBatch(br Execer, errContext func(i int) string) error {
 	var batchErr *BatchError
+	var primaryErr error
 	br.Exec(func(i int, err error) {
 		if err != nil {
+			// pgx does not export a sentinel for this error. After the first
+			// command fails it returns this exact message for the remaining
+			// commands, which are consequences of the primary failure rather
+			// than independent row failures. sqlc uses the same message when a
+			// generated batch wrapper has already been closed.
+			if batchErr != nil && isBatchFollowOn(primaryErr, err) {
+				return
+			}
 			if batchErr == nil {
 				batchErr = &BatchError{}
+				primaryErr = err
 			}
 			batchErr.Errors = append(batchErr.Errors, fmt.Errorf("%s: %w", errContext(i), err))
 			batchErr.Indices = append(batchErr.Indices, i)
@@ -72,4 +90,18 @@ func ExecBatch(br Execer, errContext func(i int) string) error {
 		return batchErr
 	}
 	return nil
+}
+
+// isBatchFollowOn identifies errors pgx reports for commands after the first
+// failure. Depending on where the batch stopped, pgx either repeats the same
+// error or reports that the batch is already closed; neither is a new row
+// failure worth adding to BatchError.
+func isBatchFollowOn(primary, err error) bool {
+	if err.Error() == batchAlreadyClosedMessage {
+		return true
+	}
+	var primaryPGError, currentPGError *pgconn.PgError
+	return errors.As(primary, &primaryPGError) &&
+		errors.As(err, &currentPGError) &&
+		primaryPGError == currentPGError
 }
