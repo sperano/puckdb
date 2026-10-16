@@ -23,13 +23,14 @@ const (
 	// rosterTeamEmpty has no roster rows on rosterDate.
 	rosterTeamEmpty int32 = 3
 
-	// PostgreSQL fixture of TestYahooLeagueRostersToolReadsDatabase.
-	pgRosterMatchedYahooID  = 990754001
-	pgRosterPoolYahooID     = 990754002
-	pgRosterNamelessYahooID = 990754003
-	pgRosterOtherDayYahooID = 990754004
-	pgRosterNHLPlayerID     = 990754001
-	pgRosterOtherTeamID     = 2
+	// PostgreSQL fixture of TestYahooLeagueRostersToolReadsDatabase, in the
+	// league of the pgTest* constants (tools_yahoo_teams_test.go).
+	pgRosterMatchedYahooID  int32 = 990754001
+	pgRosterPoolYahooID     int32 = 990754002
+	pgRosterNamelessYahooID int32 = 990754003
+	pgRosterOtherDayYahooID int32 = 990754004
+	pgRosterNHLPlayerID     int64 = 990754001
+	pgRosterOtherTeamID     int32 = 2
 )
 
 var rosterTeams = []sqlcdb.YahooTeam{
@@ -280,19 +281,19 @@ func seedLeagueRosters(t *testing.T, pool *pgxpool.Pool) {
 	}
 	exec(`INSERT INTO yahoo_leagues (id, league_key, name, season) VALUES ($1, $2, 'MCP test', $3)`,
 		pgTestLeagueID, pgTestLeagueKey, pgTestSeason)
-	for id, name := range map[int]string{pgTestTeamID: "Team", pgRosterOtherTeamID: "Other"} {
+	for id, name := range map[int32]string{pgTestTeamID: "Team", pgRosterOtherTeamID: "Other"} {
 		exec(`INSERT INTO yahoo_teams (league_id, id, team_key, name) VALUES ($1, $2, $3, $4)`,
 			pgTestLeagueID, id, fmt.Sprintf("%s.t.%d", pgTestLeagueKey, id), name)
 	}
 	exec(`INSERT INTO players (id, yahoo_id, first_name, last_name) VALUES ($1, $2, 'Matched', 'Player')`,
 		pgRosterNHLPlayerID, pgRosterMatchedYahooID)
-	for id, name := range map[int]string{pgRosterMatchedYahooID: "Yahoo Spelling", pgRosterPoolYahooID: "Pool Name"} {
+	for id, name := range map[int32]string{pgRosterMatchedYahooID: "Yahoo Spelling", pgRosterPoolYahooID: "Pool Name"} {
 		exec(`INSERT INTO yahoo_league_players (league_key, season, league_id, game_key, player_id, player_key, full_name,
 			 eligible_positions, fetched_at) VALUES ($1, $2, $3, 465, $4, $5, $6, '{C}', now())`,
 			pgTestLeagueKey, pgTestSeason, pgTestLeagueID, id, fmt.Sprintf("465.p.%d", id), name)
 	}
 	for _, r := range []struct {
-		team, player int
+		team, player int32
 		date, slot   string
 		status       *string
 	}{

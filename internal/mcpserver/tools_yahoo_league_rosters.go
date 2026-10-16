@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -15,9 +14,13 @@ import (
 
 const (
 	leagueRostersToolName = "get_yahoo_league_rosters"
-	// defaultLeagueRostersLimit covers a full league without a limit
-	// argument: 20 teams, Yahoo's largest league, of 30 roster rows each.
-	defaultLeagueRostersLimit = 600
+	// maxLeagueTeams is the team count of Yahoo's largest league.
+	maxLeagueTeams = 20
+	// typicalTeamRosterRows bounds one team's roster rows on a date (active
+	// slots, bench, IR and NA) in any common league setup.
+	typicalTeamRosterRows = 30
+	// defaultLeagueRostersLimit covers a full league without a limit argument.
+	defaultLeagueRostersLimit = maxLeagueTeams * typicalTeamRosterRows
 	// maxLeagueRostersLimit caps limit to bound the result size; the
 	// header's roster_rows count shows the cut.
 	maxLeagueRostersLimit = 1000
@@ -103,12 +106,9 @@ type leagueRosters struct {
 // loadLeagueRosters reads the league row, its teams and every roster row
 // of the date.
 func loadLeagueRosters(ctx context.Context, q yahooQueries, leagueID int32, date pgtype.Date) (leagueRosters, error) {
-	league, err := q.GetYahooLeague(ctx, leagueID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return leagueRosters{}, errLeagueNotImported
-	}
+	league, err := loadLeague(ctx, q, leagueID)
 	if err != nil {
-		return leagueRosters{}, fmt.Errorf("load league %d: %w", leagueID, err)
+		return leagueRosters{}, err
 	}
 	teams, err := q.GetYahooTeamsByLeague(ctx, leagueID)
 	if err != nil {
@@ -126,8 +126,9 @@ func loadLeagueRosters(ctx context.Context, q yahooQueries, leagueID int32, date
 
 // text renders the header, the teams and the first limit roster rows.
 func (r leagueRosters) text(limit int32) (string, error) {
-	rows := make([]leagueRosterRow, 0, min(len(r.rows), int(limit)))
-	for _, row := range r.rows[:min(len(r.rows), int(limit))] {
+	n := min(len(r.rows), int(limit))
+	rows := make([]leagueRosterRow, 0, n)
+	for _, row := range r.rows[:n] {
 		rows = append(rows, leagueRosterRowOf(row))
 	}
 	teams, err := csvSection(leagueRosterTeamsSection, r.teamRows())
