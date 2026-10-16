@@ -74,11 +74,11 @@ func teamSummaryTool(q teamSummaryQueries) server.ServerTool {
 			mcp.WithString(teamSummaryGameTypeArg, mcp.Description("regular_season (default) or playoffs")),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			summary, errResult := teamSummaryArgs(req)
+			args, errResult := teamSummaryArgs(req)
 			if errResult != nil {
 				return errResult, nil
 			}
-			text, err := teamSummaryText(ctx, q, summary)
+			text, err := teamSummaryText(ctx, q, args)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -89,16 +89,16 @@ func teamSummaryTool(q teamSummaryQueries) server.ServerTool {
 
 // teamSummaryArgs reads and checks every argument before any query runs.
 func teamSummaryArgs(req mcp.CallToolRequest) (teamSummaryRequest, *mcp.CallToolResult) {
-	var summary teamSummaryRequest
+	var args teamSummaryRequest
 	var errResult *mcp.CallToolResult
-	if summary.teamID, errResult = requireInt[int64](req, teamIDParam); errResult != nil {
-		return summary, errResult
+	if args.teamID, errResult = requireInt[int64](req, teamIDParam); errResult != nil {
+		return args, errResult
 	}
-	if summary.season, errResult = requireInt[int32](req, seasonParam); errResult != nil {
-		return summary, errResult
+	if args.season, errResult = requireInt[int32](req, seasonParam); errResult != nil {
+		return args, errResult
 	}
-	summary.gameType, errResult = teamSummaryGameType(req)
-	return summary, errResult
+	args.gameType, errResult = teamSummaryGameType(req)
+	return args, errResult
 }
 
 // teamSummaryGameType reads the optional game type; absent or empty is the
