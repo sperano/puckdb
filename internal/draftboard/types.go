@@ -105,9 +105,12 @@ type MutationResult struct {
 
 // Board is the composed API-facing live draft model.
 type Board struct {
-	Identity       draftwatch.Identity
-	League         draftrank.League
-	Snapshot       draftrank.SnapshotInfo
+	Identity draftwatch.Identity
+	League   draftrank.League
+	Snapshot draftrank.SnapshotInfo
+	// RankingIssues are the snapshot's conditions at read time, the same
+	// issues the rankings API reports for it.
+	RankingIssues  []draftrank.Issue
 	Scenario       draftrank.Scenario
 	DraftFormat    string
 	PickClockSecs  *int

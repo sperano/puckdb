@@ -77,39 +77,21 @@ func (s *Service) Rankings(ctx context.Context, ref LeagueRef, snapshotID uuid.U
 	if _, err := normalizeQuery(q); err != nil {
 		return Page{}, err
 	}
-	ref, err := s.resolve(ctx, ref)
+	read, err := s.Read(ctx, ref, snapshotID)
 	if err != nil {
 		return Page{}, err
 	}
-	latestID, refresh, err := s.latest(ctx, ref)
+	if read.Snapshot == nil {
+		return emptyPage(read, q), nil
+	}
+	view, err := read.Snapshot.View(q)
 	if err != nil {
 		return Page{}, err
 	}
-	target := snapshotID
-	if target == uuid.Nil {
-		target = latestID
-	}
-	if target == uuid.Nil {
-		return s.emptyPage(ctx, ref, refresh, q)
-	}
-	snapshot, err := s.load(ctx, target)
-	if err != nil {
-		return Page{}, err
-	}
-	if snapshot.League.Season != ref.Season || snapshot.League.LeagueID != ref.LeagueID {
-		return Page{}, fmt.Errorf("%w: snapshot %s belongs to league %s", ErrInvalidQuery, target, snapshot.League.LeagueKey)
-	}
-	view, err := snapshot.View(q)
-	if err != nil {
-		return Page{}, err
-	}
-	info := snapshot.SnapshotInfo
-	page := Page{League: snapshot.League, Status: StatusReady, Snapshot: &info, LatestSnapshotID: latestID, Refresh: refresh, View: view}
-	page.Issues, err = s.snapshotIssues(ctx, &info, latestID, refresh)
-	if err != nil {
-		return Page{}, err
-	}
-	page.Issues = append(page.Issues, view.Issues...)
+	info := read.Snapshot.SnapshotInfo
+	page := Page{League: read.League, Status: read.Status, Snapshot: &info, LatestSnapshotID: read.LatestSnapshotID,
+		Refresh: read.Refresh, View: view}
+	page.Issues = append(read.Issues, view.Issues...)
 	page.View.Issues = nil
 	return page, nil
 }
@@ -154,29 +136,15 @@ func (s *Service) load(ctx context.Context, id uuid.UUID) (*Snapshot, error) {
 	return snapshot, nil
 }
 
-// emptyPage answers for a league without a snapshot: why there is none,
-// from its rules and its latest refresh attempt.
-func (s *Service) emptyPage(ctx context.Context, ref LeagueRef, refresh *Refresh, q Query) (Page, error) {
-	page := Page{
-		League: League{
-			Season: ref.Season, LeagueID: ref.LeagueID, LeagueKey: ref.LeagueKey,
-			Categories: []Category{}, RosterSlots: []draft.RosterSlot{},
-		},
-		Status: StatusNotComputed, Refresh: refresh,
-		View: View{Scenario: q.Scenario, Offset: q.Offset, Limit: q.Limit, Rows: []Row{}},
-	}
-	rulesIssues, err := s.rulesIssues(ctx, ref, &page.League)
-	if err != nil {
-		return Page{}, err
-	}
-	page.Status, page.Issues = s.refreshStatus(refresh)
-	page.Issues = append(rulesIssues, page.Issues...)
-	return page, nil
+// emptyPage is the page of a league without a snapshot.
+func emptyPage(read Read, q Query) Page {
+	return Page{League: read.League, Status: read.Status, Refresh: read.Refresh, Issues: read.Issues,
+		View: View{Scenario: q.Scenario, Offset: q.Offset, Limit: q.Limit, Rows: []Row{}}}
 }
 
-// rulesIssues fills the league from its rules and reports missing or
+// rulesIssues fills the read's league from its rules and reports missing or
 // unsupported rules without computing anything.
-func (s *Service) rulesIssues(ctx context.Context, ref LeagueRef, league *League) ([]Issue, error) {
+func (s *Service) rulesIssues(ctx context.Context, ref LeagueRef, read *Read) ([]Issue, error) {
 	rules, err := s.reader.LeagueRules(ctx, ref.Season, ref.LeagueID)
 	if err != nil {
 		return nil, err
@@ -184,7 +152,7 @@ func (s *Service) rulesIssues(ctx context.Context, ref LeagueRef, league *League
 	if rules == nil {
 		return []Issue{{Code: IssueMissingRules, Message: fmt.Sprintf("no rules were imported for season %d league %d; run a Yahoo sync", ref.Season, ref.LeagueID)}}, nil
 	}
-	*league = LeagueOf(*rules)
+	read.League, read.RulesHash = LeagueOf(*rules), rulesHash(*rules)
 	if _, err := draft.ScoringFor(*rules); err != nil {
 		return []Issue{{Code: IssueUnsupportedScoring, Message: err.Error()}}, nil
 	}
@@ -220,23 +188,32 @@ func (s *Service) refreshIssue(refresh *Refresh) Issue {
 	return Issue{Code: IssueRefreshFailed, Message: fmt.Sprintf("the latest ranking refresh failed (%s): %s", refresh.Code, refresh.Error)}
 }
 
+// checkedSnapshot is a served snapshot's conditions and the hash of the
+// current rules they were checked against ("" when none are imported).
+type checkedSnapshot struct {
+	issues    []Issue
+	rulesHash string
+}
+
 // snapshotIssues lists every condition of a served snapshot.
-func (s *Service) snapshotIssues(ctx context.Context, snapshot *SnapshotInfo, latestID uuid.UUID, refresh *Refresh) ([]Issue, error) {
+func (s *Service) snapshotIssues(ctx context.Context, snapshot *SnapshotInfo, latestID uuid.UUID, refresh *Refresh) (checkedSnapshot, error) {
 	issues := slices.Clone(snapshot.Unavailable)
 	issues = append(issues, freshnessIssues(snapshot, s.now(), s.staleAfter)...)
 	changes, err := s.reader.OverrideChanges(ctx, snapshot.League.LeagueKey, snapshot.AsOf, s.now())
 	if err != nil {
-		return nil, err
+		return checkedSnapshot{}, err
 	}
 	if changes > 0 {
 		issues = append(issues, Issue{Code: IssueOverridesChanged, Message: fmt.Sprintf("%d override changes since this snapshot; refresh to apply them", changes)})
 	}
 	rules, err := s.reader.LeagueRules(ctx, snapshot.League.Season, snapshot.League.LeagueID)
 	if err != nil {
-		return nil, err
+		return checkedSnapshot{}, err
 	}
-	if rules != nil && rulesHash(*rules) != snapshot.League.RulesHash {
-		issues = append(issues, Issue{Code: IssueRulesChanged, Message: "league rules were imported again with changes since this snapshot; refresh to rank under them"})
+	var currentHash string
+	if rules != nil {
+		currentHash = rulesHash(*rules)
+		issues = append(issues, rulesChangeIssues(snapshot.League, *rules)...)
 	}
 	if latestID != uuid.Nil && latestID != snapshot.ID {
 		issues = append(issues, Issue{Code: IssueNewerSnapshot, Message: fmt.Sprintf("snapshot %s is newer than this one", latestID)})
@@ -244,7 +221,7 @@ func (s *Service) snapshotIssues(ctx context.Context, snapshot *SnapshotInfo, la
 	if refresh != nil && refresh.State != RefreshSucceeded && laterAttempt(refresh, snapshot) {
 		issues = append(issues, s.refreshIssue(refresh))
 	}
-	return issues, nil
+	return checkedSnapshot{issues: issues, rulesHash: currentHash}, nil
 }
 
 // laterAttempt reports whether a refresh attempt came after the snapshot.

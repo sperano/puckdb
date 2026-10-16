@@ -140,6 +140,12 @@ func LeagueOf(rules draft.Snapshot) League {
 	return leagueOf(rules, scoring, rulesHash(rules))
 }
 
+// RulesHash is the hash a snapshot records for rules (League.RulesHash) and
+// a ranking read reports for the current rules (Read.RulesHash).
+func RulesHash(rules draft.Snapshot) string {
+	return rulesHash(rules)
+}
+
 // rulesHash is the stored hash of the rules, or their canonical hash when
 // the snapshot carries none; the two agree (BuildRanking checks it).
 func rulesHash(rules draft.Snapshot) string {

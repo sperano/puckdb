@@ -22,8 +22,11 @@ const (
 	BoardStatusReady      = "ready"
 	BoardStatusIncomplete = "incomplete"
 	BoardStatusStale      = "stale"
-	maxCategoryReasons    = 3
-	maxCategoryWeight     = 10.0
+	// BoardStatusWithheld means the ranking was computed under rules the
+	// league no longer has (draftrank.AdviceWithheld); no candidates.
+	BoardStatusWithheld = "withheld"
+	maxCategoryReasons  = 3
+	maxCategoryWeight   = 10.0
 )
 
 type playerRef struct {
@@ -52,6 +55,13 @@ func Evaluate(in Input) (Result, error) {
 			result.BoardStatus = BoardStatusIncomplete
 		}
 		result.Issues = append(result.Issues, issueBoardIncomplete)
+		result.LatencyMillis = time.Since(started).Milliseconds()
+		return result, nil
+	}
+	// A withheld ranking stops here, before the roster is checked against
+	// the ranking's obsolete slots.
+	if draftrank.AdviceOf(in.RankingIssues) == draftrank.AdviceWithheld {
+		result.BoardStatus = BoardStatusWithheld
 		result.LatencyMillis = time.Since(started).Milliseconds()
 		return result, nil
 	}
@@ -143,10 +153,8 @@ func newResult(in Input, scenario draftrank.Scenario, issues []draftrank.Issue) 
 	if info.Adjustment != nil {
 		result.NewsVersion = info.Adjustment.PolicyVersion + ":" + info.Adjustment.ID
 	}
-	for _, issue := range in.RankingIssues {
-		if issue.Code == draftrank.IssueStalePool || issue.Code == draftrank.IssueStaleSnapshot {
-			result.BoardStatus = BoardStatusStale
-		}
+	if draftrank.AdviceOf(in.RankingIssues) >= draftrank.AdviceOutdated {
+		result.BoardStatus = BoardStatusStale
 	}
 	// Callers may pass the snapshot's own unavailable issues as ranking
 	// issues; each condition is reported once.
