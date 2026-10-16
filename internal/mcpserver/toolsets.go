@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sperano/puckdb/internal/draftrank"
+	"github.com/sperano/puckdb/internal/news"
 )
 
 // Toolset names a group of tools one server instance exposes, so public NHL
@@ -20,10 +21,11 @@ const (
 	// ToolsetYahoo holds the Yahoo fantasy league tools: league names,
 	// managers, rosters, matchups, draft results and draft ranking state.
 	ToolsetYahoo Toolset = "yahoo"
-	// ToolsetNews holds the player news tools: validated news events with
-	// short quotes of the third-party articles behind them. They concern
-	// NHL players and are not league-scoped, but they are kept out of nhl
-	// so an instance serves quoted article text only when asked to.
+	// ToolsetNews holds the player news tools: news source coverage (which
+	// sources are fresh, failing, stale or missing) and validated news events
+	// with short quotes of the third-party articles behind them. They concern
+	// NHL players and are not league-scoped, but they are kept out of nhl so
+	// an instance serves quoted article text only when asked to.
 	ToolsetNews Toolset = "news"
 )
 
@@ -50,6 +52,10 @@ type Options struct {
 	// Draft is the draft ranking read path the yahoo toolset's draft tools
 	// share with GraphQL and the CLI; required with the yahoo toolset.
 	Draft *draftrank.Service
+	// NewsSources are the enabled news sources the news toolset's news
+	// coverage tool reports on; empty registers the tool with no sources,
+	// so it reports no rows.
+	NewsSources []news.Source
 }
 
 // HasToolset reports whether opts registers ts.

@@ -12,6 +12,7 @@ import (
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/mcpserver"
+	"github.com/sperano/puckdb/internal/news"
 
 	mcpserversdk "github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
@@ -29,6 +30,7 @@ var mcpServerFlagGroups = []*config.FlagGroup{
 	&config.PostgresFlags,
 	&config.MCPServerFlags,
 	&config.DraftAPIFlags,
+	&config.NewsSourcesFlags,
 }
 
 // mcpTransport is the resolved transport selection for the MCP server.
@@ -58,7 +60,7 @@ func cmdMCPServer() *cobra.Command {
 		Short: "Start the PuckDB MCP server",
 		Long: "Serve curated read-only data tools via the Model Context Protocol (MCP).\n\n" +
 			"--mcp-toolsets picks what one instance serves: nhl (public NHL data, the default), " +
-			"yahoo (Yahoo fantasy league data), news (player news events quoting third-party articles) " +
+			"yahoo (Yahoo fantasy league data), news (player news source coverage and events quoting third-party articles) " +
 			"or a comma-separated combination such as nhl,yahoo. Run one instance per audience, " +
 			"e.g. nhl on 8790 for every client and yahoo on another port for trusted ones. " +
 			"--mcp-yahoo-leagues limits the yahoo toolset to the listed league keys. " +
@@ -125,6 +127,16 @@ func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Opt
 
 	queries := database.NewQueries(pool)
 	opts.Draft = newDraftService(pool)
+	if opts.HasToolset(mcpserver.ToolsetNews) {
+		sources, err := news.LoadSources(viper.GetString(config.FlagNewsSourcesFile))
+		if err != nil {
+			return fmt.Errorf("load news sources: %w", err)
+		}
+		opts.NewsSources, err = news.EnabledSources(sources, nil)
+		if err != nil {
+			return fmt.Errorf("select enabled news sources: %w", err)
+		}
+	}
 	srv, err := mcpserver.NewServer(queries, opts)
 	if err != nil {
 		return err

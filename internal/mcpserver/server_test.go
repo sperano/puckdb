@@ -112,6 +112,7 @@ var expectedYahooTools = []string{
 // Update this list whenever a new news tool is added.
 var expectedNewsTools = []string{
 	"get_player_news",
+	"get_news_coverage",
 }
 
 // registeredToolNames builds a server for opts and returns its tool names.

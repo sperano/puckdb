@@ -24,7 +24,7 @@ func draftRulesReportTool(q draft.Queries, guard leagueGuard, source draftPoolSo
 			mcp.WithString(draftRulesLeaguesArg, mcp.Required(), mcp.Description("Comma-separated Yahoo league keys (465.l.1001) or numeric IDs (1001); IDs are resolved within season")),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			season, errResult := requiredDraftSeason(req)
+			season, errResult := requiredSeasonYear(req)
 			if errResult != nil {
 				return errResult, nil
 			}

@@ -575,7 +575,7 @@ var MCPServerFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagMCPPort, "", DefaultMCPPort, "MCP server HTTP port", false},
 		{FlagMCPStdio, "", false, "Serve over stdio instead of HTTP", false},
-		{FlagMCPToolsets, "", DefaultMCPToolsets, "Comma-separated toolsets to serve: nhl (public NHL data), yahoo (Yahoo fantasy league data), news (player news events quoting third-party articles), e.g. nhl,news", false},
+		{FlagMCPToolsets, "", DefaultMCPToolsets, "Comma-separated toolsets to serve: nhl (public NHL data), yahoo (Yahoo fantasy league data), news (player news source coverage and events quoting third-party articles), e.g. nhl,news", false},
 		{FlagMCPYahooLeagues, "", DefaultMCPYahooLeagues, "Comma-separated Yahoo league keys the yahoo toolset serves, e.g. 465.l.1001 (default: every league)", false},
 	},
 }
@@ -901,7 +901,7 @@ const (
 	FlagNewsEvalCorpus             = "news-eval-corpus"
 )
 
-// NewsSourcesFlags selects the news source set (worker and report).
+// NewsSourcesFlags selects the news source set (worker, report and mcp-server).
 var NewsSourcesFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagNewsSourcesFile, "", DefaultNewsSourcesFile, "YAML file of player news sources (default: the built-in set, see https://wiki.spe.quebec/en/puckdb/draft/player-news)", false},

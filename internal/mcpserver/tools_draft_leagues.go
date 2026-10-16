@@ -41,9 +41,9 @@ const (
 	lastStartYear = seasonIDYearFactor - 1
 )
 
-// draftSeasonParam is a draft season: a start year or a season ID, both
-// mapped to the start year the draft tables are keyed by.
-var draftSeasonParam = intArg{name: "season", min: firstNHLStartYear, max: lastSeasonID}
+// seasonYearParam is a season given as a start year or a season ID, both
+// mapped to the start year the draft and news tables are keyed by.
+var seasonYearParam = intArg{name: "season", min: firstNHLStartYear, max: lastSeasonID}
 
 func draftLeaguesTool(source draftLeagueSource, guard leagueGuard) server.ServerTool {
 	return server.ServerTool{
@@ -56,11 +56,11 @@ func draftLeaguesTool(source draftLeagueSource, guard leagueGuard) server.Server
 				"A '# issues' CSV section then gives every issue's code and message per league (stale snapshot or pool, "+
 				"provisional rules, failing news sources, failed refresh, ...). "+
 				"A league without imported rules is not listed: run a Yahoo sync for it."),
-			mcp.WithNumber(draftSeasonParam.name, mcp.Description(
+			mcp.WithNumber(seasonYearParam.name, mcp.Description(
 				"Season as a start year (2025) or a season ID (20252026); default: the current season")),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			season, errResult := draftSeason(req)
+			season, errResult := seasonYear(req)
 			if errResult != nil {
 				return errResult, nil
 			}
@@ -77,31 +77,31 @@ func draftLeaguesTool(source draftLeagueSource, guard leagueGuard) server.Server
 	}
 }
 
-// draftSeason reads the optional season argument as a start year. The draft
-// tables are keyed by start year while every other tool takes a season ID,
-// so both forms are accepted; anything else is refused rather than
-// returning an empty list.
-func draftSeason(req mcp.CallToolRequest) (int, *mcp.CallToolResult) {
-	value, given, errResult := optionalInt[int64](req, draftSeasonParam)
+// seasonYear reads the optional season argument as a start year. The draft
+// and news tables are keyed by start year while every other tool takes a
+// season ID, so both forms are accepted; anything else is refused rather
+// than returning an empty list.
+func seasonYear(req mcp.CallToolRequest) (int, *mcp.CallToolResult) {
+	value, given, errResult := optionalInt[int64](req, seasonYearParam)
 	if errResult != nil {
 		return 0, errResult
 	}
 	if !given {
 		return nhl.Current().StartYear(), nil
 	}
-	return draftStartYear(value)
+	return seasonStartYear(value)
 }
 
-// requiredDraftSeason reads a required draft season as a start year.
-func requiredDraftSeason(req mcp.CallToolRequest) (int, *mcp.CallToolResult) {
-	value, errResult := requireInt[int64](req, draftSeasonParam)
+// requiredSeasonYear reads a required season as a start year.
+func requiredSeasonYear(req mcp.CallToolRequest) (int, *mcp.CallToolResult) {
+	value, errResult := requireInt[int64](req, seasonYearParam)
 	if errResult != nil {
 		return 0, errResult
 	}
-	return draftStartYear(value)
+	return seasonStartYear(value)
 }
 
-func draftStartYear(value int64) (int, *mcp.CallToolResult) {
+func seasonStartYear(value int64) (int, *mcp.CallToolResult) {
 	if value <= lastStartYear {
 		return int(value), nil
 	}
@@ -109,7 +109,7 @@ func draftStartYear(value int64) (int, *mcp.CallToolResult) {
 	if err != nil || value < firstNHLSeasonID {
 		example := nhl.Current()
 		return 0, mcp.NewToolResultError(fmt.Sprintf("invalid %s %d: want a start year (%d) or a season ID (%d)",
-			draftSeasonParam.name, value, example.StartYear(), example.ID()))
+			seasonYearParam.name, value, example.StartYear(), example.ID()))
 	}
 	return season.StartYear(), nil
 }
