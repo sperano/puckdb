@@ -15,8 +15,8 @@ const (
 	newsCoverageSection = "coverage"
 )
 
-// registerNewsTools adds the player news tools of the nhl toolset.
-func registerNewsTools(srv *server.MCPServer, q news.ReportQueries, sources []news.Source) {
+// registerNewsCoverageTools adds the news coverage tool of the nhl toolset.
+func registerNewsCoverageTools(srv *server.MCPServer, q news.ReportQueries, sources []news.Source) {
 	srv.AddTools(newsCoverageTool(q, sources))
 }
 
