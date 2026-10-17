@@ -140,10 +140,36 @@ type TurnHeader struct {
 	Temperature *float64
 	MaxTokens   int
 
-	CostUsd     float64
+	// Spend is the turn's usage and cost from turnSpendOf, the value the
+	// caller also added to sim_pools.total_llm_cost_usd.
+	Spend       TurnSpend
 	FinalText   string
 	StartedAt   time.Time
 	CompletedAt time.Time
+}
+
+// TurnSpend is one turn's token usage and dollar cost, computed once by
+// turnSpendOf. The same value is added to sim_pools.total_llm_cost_usd
+// and written to the sim_agent_turns token and cost_usd columns, so the
+// pool total and the turn rows cannot come from different code paths.
+type TurnSpend struct {
+	Usage   llm.Usage
+	CostUsd float64
+}
+
+// turnSpendOf sums the usage of every captured round and prices the sum
+// once. It reads the captures rather than agentloop.Result.Usage: the
+// per-round sim_agent_turn_rounds rows come from the same captures, so
+// the turn's token totals equal the sum of its rounds. Captures with a
+// nil Response (a provider error mid-call) contribute nothing.
+func turnSpendOf(cfg AgentConfig, captures []roundCapture) TurnSpend {
+	var usage llm.Usage
+	for _, c := range captures {
+		if c.Response != nil {
+			usage.Add(c.Response.Usage)
+		}
+	}
+	return TurnSpend{Usage: usage, CostUsd: EstimateCost(cfg.Provider, cfg.Model, usage)}
 }
 
 // roundCapture is one (response, duration) pair recorded by the
@@ -233,8 +259,9 @@ type TurnTelemetry struct {
 	Header TurnHeader
 
 	// Captures is the per-round (response, latency) trail the
-	// latencyRecordingClient recorded for this turn. Source of truth
-	// for both token totals and cost — see aggregateUsage.
+	// latencyRecordingClient recorded for this turn: one
+	// sim_agent_turn_rounds row each. Header.Spend must be
+	// turnSpendOf(captures) so the turn totals equal the sum of these.
 	Captures []roundCapture
 
 	// ToolCalls is the per-tool-call audit trail (accepted, rejected,
@@ -288,35 +315,21 @@ func transcriptForRecording(recordMessages bool, res *agentloop.Result) []llm.Me
 // sim_transactions writes for the same turn — otherwise a crash between
 // the two blocks leaves an idempotency-probe-failing inconsistency.
 //
-// Usage totals and cost are derived solely from t.Captures (see the
-// body comment) — the caller's agentloop.Result is not part of this
-// signature; only its Messages (already extracted into t.Messages by
-// the caller) and Audit (already folded into t.ToolCalls via
-// AssignRoundsFromAudit) are needed here.
+// Usage totals and cost come from t.Header.Spend, the value the caller
+// computed once with turnSpendOf and also added to the pool total; this
+// function never re-sums or re-prices them. The caller's
+// agentloop.Result is not part of this signature; only its Messages
+// (already extracted into t.Messages by the caller) and Audit (already
+// folded into t.ToolCalls via AssignRoundsFromAudit) are needed here.
 //
 // Defensive against:
 //   - nil response inside a capture (provider error mid-call)
 //   - len(t.Captures) != len(audit) that produced t.ToolCalls (see AssignRoundsFromAudit)
 //   - empty ToolCalls / Messages slices (no-op for that child write)
 func RecordTurnTelemetry(ctx context.Context, q SimQueries, t TurnTelemetry) (int32, error) {
-	header := t.Header
-	captures := t.Captures
-	toolCalls := t.ToolCalls
-	messages := t.Messages
-	recordMessages := t.RecordMessages
-	// Single source of truth: derive BOTH the token totals and the dollar
-	// cost from the per-round captures. The parent turn row's token
-	// columns are then guaranteed equal to the sum of its per-round child
-	// rows (also built from captures below), and cost_usd is priced off
-	// that same usage — no divergence between header.CostUsd (which the
-	// caller computed independently) and the recorded tokens. header.CostUsd
-	// is intentionally not used here; header.Provider/Model come from the
-	// same AgentConfig the caller priced against, so this reproduces the
-	// caller's cost while staying internally consistent.
-	agg := aggregateUsage(captures)
-	costNum, err := numericFromFloat(EstimateCost(header.Provider, header.Model, usageFromAggregate(agg)))
+	parent, err := turnHeaderParams(t)
 	if err != nil {
-		return 0, fmt.Errorf("simulation: encode turn cost: %w", err)
+		return 0, err
 	}
 
 	// Idempotency: a Temporal-retried activity (PickTeamName after an
@@ -329,153 +342,23 @@ func RecordTurnTelemetry(ctx context.Context, q SimQueries, t TurnTelemetry) (in
 	// collide either. The DELETE+INSERT runs inside the caller's tx,
 	// so either both writes land or neither does.
 	if err := q.DeleteSimAgentTurnIdempotent(ctx, sqlcdb.DeleteSimAgentTurnIdempotentParams{
-		PoolID:     header.PoolID,
-		AgentID:    header.AgentID,
-		Phase:      string(header.Phase),
-		SimDate:    header.SimDate,
-		PickNumber: header.PickNumber,
+		PoolID:     parent.PoolID,
+		AgentID:    parent.AgentID,
+		Phase:      parent.Phase,
+		SimDate:    parent.SimDate,
+		PickNumber: parent.PickNumber,
 	}); err != nil {
 		return 0, fmt.Errorf("simulation: delete prior turn: %w", err)
 	}
 
-	parent := sqlcdb.InsertSimAgentTurnParams{
-		PoolID:              header.PoolID,
-		AgentID:             header.AgentID,
-		SimDate:             header.SimDate,
-		Phase:               string(header.Phase),
-		PickNumber:          header.PickNumber,
-		Status:              string(header.Status),
-		SkipReason:          textOrNull(header.SkipReason),
-		ErrorKind:           textOrNull(string(header.ErrorKind)),
-		ErrorDetail:         textOrNull(header.ErrorDetail),
-		Provider:            header.Provider,
-		Model:               header.Model,
-		Temperature:         numericOrNull(header.Temperature),
-		MaxTokens:           int4OrNull(int32(header.MaxTokens)),
-		Rounds:              clampTokenCount(len(captures)),
-		PromptTokens:        clampTokenCount(agg.PromptTokens),
-		CompletionTokens:    clampTokenCount(agg.CompletionTokens),
-		CacheCreationTokens: clampTokenCount(agg.CacheCreationInputTokens),
-		CacheReadTokens:     clampTokenCount(agg.CacheReadInputTokens),
-		CostUSD:             costNum,
-		LatencyMs:           durationToMs(sumLatency(captures)),
-		FinalText:           header.FinalText,
-		StartedAt:           pgtype.Timestamptz{Time: header.StartedAt, Valid: true},
-		CompletedAt:         pgtype.Timestamptz{Time: header.CompletedAt, Valid: true},
-	}
 	turnID, err := q.InsertSimAgentTurn(ctx, parent)
 	if err != nil {
 		return 0, fmt.Errorf("simulation: insert turn: %w", err)
 	}
-
-	if len(captures) > 0 {
-		rounds := make([]sqlcdb.InsertSimAgentTurnRoundParams, 0, len(captures))
-		for i, c := range captures {
-			var u llm.Usage
-			var text string
-			if c.Response != nil {
-				if c.Response.Usage != nil {
-					u = *c.Response.Usage
-				}
-				text = c.Response.Content
-			}
-			rounds = append(rounds, sqlcdb.InsertSimAgentTurnRoundParams{
-				TurnID:              turnID,
-				RoundIndex:          int32(i),
-				AssistantText:       text,
-				PromptTokens:        clampTokenCount(u.PromptTokens),
-				CompletionTokens:    clampTokenCount(u.CompletionTokens),
-				CacheCreationTokens: clampTokenCount(u.CacheCreationInputTokens),
-				CacheReadTokens:     clampTokenCount(u.CacheReadInputTokens),
-				LatencyMs:           durationToMs(c.Latency),
-			})
-		}
-		if _, err := q.InsertSimAgentTurnRound(ctx, rounds); err != nil {
-			return 0, fmt.Errorf("simulation: insert turn rounds: %w", err)
-		}
+	if err := recordTurnChildren(ctx, q, turnID, t); err != nil {
+		return 0, err
 	}
-
-	if len(toolCalls) > 0 {
-		calls := make([]sqlcdb.InsertSimAgentToolCallParams, 0, len(toolCalls))
-		for _, tc := range toolCalls {
-			calls = append(calls, sqlcdb.InsertSimAgentToolCallParams{
-				TurnID:               turnID,
-				RoundIndex:           int32(tc.RoundIndex),
-				Sequence:             int32(tc.Sequence),
-				ToolName:             tc.ToolName,
-				RecoveredName:        textOrNull(tc.RecoveredName),
-				ArgumentsRaw:         tc.ArgumentsRaw,
-				Arguments:            argumentsJSONB(tc.ArgumentsRaw),
-				Result:               tc.Result,
-				Outcome:              string(tc.Outcome),
-				FailureReason:        textOrNull(tc.FailureReason),
-				AppliedTransactionID: int4OrNull(tc.AppliedTransactionID),
-				LatencyMs:            durationToMs(tc.Latency),
-			})
-		}
-		if _, err := q.InsertSimAgentToolCall(ctx, calls); err != nil {
-			return 0, fmt.Errorf("simulation: insert tool calls: %w", err)
-		}
-	}
-
-	if recordMessages && len(messages) > 0 {
-		rows := make([]sqlcdb.InsertSimAgentTurnMessageParams, 0, len(messages))
-		for i, m := range messages {
-			rows = append(rows, sqlcdb.InsertSimAgentTurnMessageParams{
-				TurnID:     turnID,
-				Ordinal:    int32(i),
-				Role:       m.Role,
-				Content:    m.Content,
-				ToolCallID: textOrNull(m.ToolCallID),
-				ToolCalls:  toolCallsJSONB(m.ToolCalls),
-			})
-		}
-		if _, err := q.InsertSimAgentTurnMessage(ctx, rows); err != nil {
-			return 0, fmt.Errorf("simulation: insert turn messages: %w", err)
-		}
-	}
-
 	return turnID, nil
-}
-
-// aggregateUsage sums the per-capture Usage values. The captures are the
-// single source of truth for the turn's usage: the per-round child rows
-// are built from these same captures, so summing them here keeps the
-// parent turn row's token totals identical to the sum of its children.
-//
-// agentloop's own res.Usage is NOT used, even when available: it is
-// accumulated from the same Complete responses the recorder captured, so
-// it equals this sum in every non-error path — but trusting it would let
-// the parent totals silently drift from the child rows if the two ever
-// diverged (e.g. a future change to how partial results are summed).
-// Captures with a nil Response (a provider error mid-call) contribute
-// nothing.
-func aggregateUsage(captures []roundCapture) agentloop.AggregateUsage {
-	var u agentloop.AggregateUsage
-	for _, c := range captures {
-		if c.Response == nil || c.Response.Usage == nil {
-			continue
-		}
-		u.PromptTokens += c.Response.Usage.PromptTokens
-		u.CompletionTokens += c.Response.Usage.CompletionTokens
-		u.TotalTokens += c.Response.Usage.TotalTokens
-		u.CacheCreationInputTokens += c.Response.Usage.CacheCreationInputTokens
-		u.CacheReadInputTokens += c.Response.Usage.CacheReadInputTokens
-	}
-	return u
-}
-
-// usageFromAggregate re-widens an agentloop.AggregateUsage into the
-// llm.Usage shape the pricing table consumes, so cost can be priced off
-// the same summed usage the token columns record.
-func usageFromAggregate(agg agentloop.AggregateUsage) llm.Usage {
-	return llm.Usage{
-		PromptTokens:             agg.PromptTokens,
-		CompletionTokens:         agg.CompletionTokens,
-		TotalTokens:              agg.TotalTokens,
-		CacheCreationInputTokens: agg.CacheCreationInputTokens,
-		CacheReadInputTokens:     agg.CacheReadInputTokens,
-	}
 }
 
 func sumLatency(captures []roundCapture) time.Duration {

@@ -86,6 +86,21 @@ type Usage struct {
 	CacheReported            bool `json:"-"`
 }
 
+// Add accumulates o into u: every token count is summed, and the sum
+// reports cache accounting when any part did. A nil o (a response
+// without usage) adds nothing.
+func (u *Usage) Add(o *Usage) {
+	if o == nil {
+		return
+	}
+	u.PromptTokens += o.PromptTokens
+	u.CompletionTokens += o.CompletionTokens
+	u.TotalTokens += o.TotalTokens
+	u.CacheCreationInputTokens += o.CacheCreationInputTokens
+	u.CacheReadInputTokens += o.CacheReadInputTokens
+	u.CacheReported = u.CacheReported || o.CacheReported
+}
+
 // HasToolCalls returns true if the response contains tool calls.
 func (r *Response) HasToolCalls() bool {
 	return len(r.ToolCalls) > 0

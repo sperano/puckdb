@@ -16,6 +16,25 @@ func capture(u llm.Usage) roundCapture {
 	return roundCapture{Response: &llm.Response{Content: "ok", Usage: &u}}
 }
 
+// costDelta bounds float rounding when comparing priced costs, including
+// a round trip through a NUMERIC column.
+const costDelta = 1e-9
+
+// telemetryTestAgent is the priced agent the telemetry tests bill against.
+var telemetryTestAgent = AgentConfig{Provider: PricingProviderAnthropic, Model: "claude-haiku-4-5"}
+
+// telemetryHeader returns a daily-turn header for telemetryTestAgent
+// carrying spend.
+func telemetryHeader(spend TurnSpend) TurnHeader {
+	return TurnHeader{
+		Provider: telemetryTestAgent.Provider,
+		Model:    telemetryTestAgent.Model,
+		Phase:    TurnPhaseDaily,
+		Status:   TurnStatusOK,
+		Spend:    spend,
+	}
+}
+
 // TestRecordTurnTelemetryAggregationEquality pins the B16 invariant: the
 // parent sim_agent_turns row's token totals equal the sum of its per-round
 // child rows, because both are derived from the same captures.
@@ -28,15 +47,7 @@ func TestRecordTurnTelemetryAggregationEquality(t *testing.T) {
 		{Response: nil}, // provider error mid-call: contributes nothing
 	}
 
-	header := TurnHeader{
-		Provider: PricingProviderAnthropic,
-		Model:    "claude-haiku-4-5",
-		Phase:    TurnPhaseDaily,
-		Status:   TurnStatusOK,
-		// CostUsd deliberately set to a bogus value the recorder must ignore.
-		CostUsd: 999.0,
-	}
-
+	header := telemetryHeader(turnSpendOf(telemetryTestAgent, captures))
 	_, err := RecordTurnTelemetry(context.Background(), q, TurnTelemetry{Header: header, Captures: captures})
 	require.NoError(t, err)
 
@@ -71,35 +82,86 @@ func TestRecordTurnTelemetryAggregationEquality(t *testing.T) {
 	assert.Equal(t, parent.CacheReadTokens, sumCR, "parent cache-read tokens must equal sum of child rows")
 }
 
-// TestRecordTurnTelemetryCostFromCaptures pins that cost_usd is priced off
-// the captures-derived usage (not header.CostUsd), so it stays consistent
-// with the recorded token columns.
-func TestRecordTurnTelemetryCostFromCaptures(t *testing.T) {
+// SIM-D3: RecordTurnTelemetry writes the spend its caller computed (and
+// added to the pool total) instead of re-summing and re-pricing the
+// captures. The header carries a spend that differs from what the
+// captures would price to, so a re-pricing path would be caught.
+func TestRecordTurnTelemetryWritesHeaderSpend(t *testing.T) {
 	q := &stubSimQueries{}
 
 	captures := []roundCapture{
 		capture(llm.Usage{PromptTokens: 1_000, CompletionTokens: 500, CacheCreationInputTokens: 100, CacheReadInputTokens: 200}),
 	}
-	header := TurnHeader{
-		Provider: PricingProviderAnthropic,
-		Model:    "claude-haiku-4-5",
-		Phase:    TurnPhaseDaily,
-		Status:   TurnStatusOK,
-		CostUsd:  42.0, // must be ignored
+	spend := TurnSpend{
+		Usage:   llm.Usage{PromptTokens: 7, CompletionTokens: 8, CacheCreationInputTokens: 9, CacheReadInputTokens: 10},
+		CostUsd: 0.123456,
 	}
+	require.NotEqual(t, turnSpendOf(telemetryTestAgent, captures), spend, "sanity: the probe spend differs from the captures")
 
-	_, err := RecordTurnTelemetry(context.Background(), q, TurnTelemetry{Header: header, Captures: captures})
+	_, err := RecordTurnTelemetry(context.Background(), q, TurnTelemetry{Header: telemetryHeader(spend), Captures: captures})
 	require.NoError(t, err)
 	require.Len(t, q.insertTurnCalls, 1)
+	parent := q.insertTurnCalls[0]
 
-	wantUsage := usageFromAggregate(aggregateUsage(captures))
-	wantCost := EstimateCost(header.Provider, header.Model, wantUsage)
-	require.Greater(t, wantCost, 0.0, "sanity: known model must have nonzero cost")
-
-	gotCost, err := NumericToFloat(q.insertTurnCalls[0].CostUSD)
+	gotCost, err := NumericToFloat(parent.CostUSD)
 	require.NoError(t, err)
-	assert.InDelta(t, wantCost, gotCost, 1e-9)
-	assert.NotEqualValues(t, header.CostUsd, gotCost, "cost must not come from header.CostUsd")
+	assert.InDelta(t, spend.CostUsd, gotCost, costDelta, "cost_usd is the caller's spend, not a re-pricing")
+	assert.EqualValues(t, spend.Usage.PromptTokens, parent.PromptTokens)
+	assert.EqualValues(t, spend.Usage.CompletionTokens, parent.CompletionTokens)
+	assert.EqualValues(t, spend.Usage.CacheCreationInputTokens, parent.CacheCreationTokens)
+	assert.EqualValues(t, spend.Usage.CacheReadInputTokens, parent.CacheReadTokens)
+}
+
+// turnSpendOf prices every token class at its own rate: one million
+// tokens of a single class costs exactly that class's per-million rate.
+func TestTurnSpendOfPricesEveryTokenClass(t *testing.T) {
+	const million = 1_000_000
+	p, ok := LookupPricing(telemetryTestAgent.Provider, telemetryTestAgent.Model)
+	require.True(t, ok)
+
+	tests := []struct {
+		name  string
+		usage llm.Usage
+		rate  float64
+	}{
+		{"prompt", llm.Usage{PromptTokens: million}, p.Input},
+		{"completion", llm.Usage{CompletionTokens: million}, p.Output},
+		{"cache creation", llm.Usage{CacheCreationInputTokens: million}, p.CacheCreation},
+		{"cache read", llm.Usage{CacheReadInputTokens: million}, p.CacheRead},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Positive(t, tt.rate, "sanity: the test model prices this class")
+			spend := turnSpendOf(telemetryTestAgent, []roundCapture{capture(tt.usage)})
+			assert.Equal(t, tt.usage, spend.Usage)
+			assert.InDelta(t, tt.rate, spend.CostUsd, costDelta)
+		})
+	}
+}
+
+// turnSpendOf sums every round (all token classes, cache accounting
+// flag included), skips rounds without a response or usage, and prices
+// the sum once: the result equals the sum of the per-round prices.
+func TestTurnSpendOfSumsRounds(t *testing.T) {
+	first := llm.Usage{PromptTokens: 1_200, CompletionTokens: 300, TotalTokens: 1_500, CacheCreationInputTokens: 4_000, CacheReadInputTokens: 0, CacheReported: true}
+	second := llm.Usage{PromptTokens: 800, CompletionTokens: 150, TotalTokens: 950, CacheCreationInputTokens: 0, CacheReadInputTokens: 4_000, CacheReported: true}
+	captures := []roundCapture{
+		capture(first),
+		{Response: nil},                         // provider error mid-call
+		{Response: &llm.Response{Content: "x"}}, // response without usage
+		capture(second),
+	}
+
+	spend := turnSpendOf(telemetryTestAgent, captures)
+
+	assert.Equal(t, llm.Usage{
+		PromptTokens: 2_000, CompletionTokens: 450, TotalTokens: 2_450,
+		CacheCreationInputTokens: 4_000, CacheReadInputTokens: 4_000, CacheReported: true,
+	}, spend.Usage)
+	perRound := EstimateCost(telemetryTestAgent.Provider, telemetryTestAgent.Model, first) +
+		EstimateCost(telemetryTestAgent.Provider, telemetryTestAgent.Model, second)
+	assert.InDelta(t, perRound, spend.CostUsd, costDelta)
+	assert.Equal(t, TurnSpend{}, turnSpendOf(telemetryTestAgent, nil), "no rounds, no spend")
 }
 
 // TestRecordTurnTelemetry_MessagesGatedByRecordMessages pins the
@@ -177,12 +239,7 @@ func TestRecordTurnTelemetryClampsOverflowingTokens(t *testing.T) {
 		capture(llm.Usage{PromptTokens: math.MaxInt32, CompletionTokens: math.MaxInt32}),
 		capture(llm.Usage{PromptTokens: 10, CompletionTokens: 10}),
 	}
-	header := TurnHeader{
-		Provider: PricingProviderAnthropic,
-		Model:    "claude-haiku-4-5",
-		Phase:    TurnPhaseDaily,
-		Status:   TurnStatusOK,
-	}
+	header := telemetryHeader(turnSpendOf(telemetryTestAgent, captures))
 
 	_, err := RecordTurnTelemetry(context.Background(), q, TurnTelemetry{Header: header, Captures: captures})
 	require.NoError(t, err)

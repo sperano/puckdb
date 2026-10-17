@@ -368,14 +368,29 @@ RETURNING id, pool_id, agent_id, date, type, player_id, reasoning,
           round, pick, drop_player_id, error_kind, error_detail,
           cost_usd, cap_usd, created_at;
 
--- name: InsertSimTransactionCostCapReached :one
+-- PauseSimPoolForCostCap is the one durable cost-cap transition: in a
+-- single statement it flips the pool to 'paused' and writes the
+-- cost_cap_reached audit row, both only while the pool has not ended
+-- (the statuses PoolStatus.ended lists: paused, complete, cancelled).
+-- The UPDATE takes the pool row lock, so an overlapping attempt waits for
+-- the first one to commit, re-checks the status on the committed row and
+-- writes nothing; a serial retry finds the pool already paused, and a
+-- late attempt leaves a completed or cancelled pool as it is. Returns
+-- the number of audit rows written: 1 for the transition, 0 otherwise.
+-- name: PauseSimPoolForCostCap :execrows
+WITH paused AS (
+    UPDATE sim_pools
+    SET status = 'paused', updated_at = NOW()
+    WHERE sim_pools.id = sqlc.arg(pool_id)
+      AND sim_pools.status NOT IN ('paused', 'complete', 'cancelled')
+    RETURNING sim_pools.id AS paused_pool_id
+)
 INSERT INTO sim_transactions (
     pool_id, agent_id, date, type, cost_usd, cap_usd
 )
-VALUES ($1, $2, $3, 'cost_cap_reached', $4, $5)
-RETURNING id, pool_id, agent_id, date, type, player_id, reasoning,
-          round, pick, drop_player_id, error_kind, error_detail,
-          cost_usd, cap_usd, created_at;
+SELECT paused.paused_pool_id, sqlc.arg(agent_id)::INT, sqlc.arg(date)::DATE,
+       'cost_cap_reached', sqlc.arg(cost_usd)::NUMERIC, sqlc.arg(cap_usd)::NUMERIC
+FROM paused;
 
 -- InsertSimTransactionDailyTurnDone writes the dedicated end-of-turn marker
 -- that ExistsSimDailyTurnMarker probes. Written once per daily turn inside
@@ -747,6 +762,32 @@ VALUES (
     $19, $20, $21,
     $22, $23
 )
+RETURNING id;
+
+-- InsertSimAgentTurnIfAbsent writes the turn header of an aborted
+-- attempt only when no turn holds its coordinate yet (either partial
+-- unique index), and returns no row otherwise: a late write from a
+-- stale attempt must not replace the turn a newer attempt committed.
+-- name: InsertSimAgentTurnIfAbsent :one
+INSERT INTO sim_agent_turns (
+    pool_id, agent_id, sim_date, phase, pick_number,
+    status, skip_reason, error_kind, error_detail,
+    provider, model, temperature, max_tokens,
+    rounds, prompt_tokens, completion_tokens,
+    cache_creation_tokens, cache_read_tokens,
+    cost_usd, latency_ms, final_text,
+    started_at, completed_at
+)
+VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8, $9,
+    $10, $11, $12, $13,
+    $14, $15, $16,
+    $17, $18,
+    $19, $20, $21,
+    $22, $23
+)
+ON CONFLICT DO NOTHING
 RETURNING id;
 
 -- ListSimAgentTurns is the timeline view for one pool. Pass agent_id = 0

@@ -78,10 +78,10 @@ type stubSimQueries struct {
 	insertDraftPickReturn sqlcdb.SimTransaction
 	insertDraftPickErr    error
 
-	// InsertSimTransactionCostCapReached
-	insertCostCapCalls  []sqlcdb.InsertSimTransactionCostCapReachedParams
-	insertCostCapReturn sqlcdb.SimTransaction
-	insertCostCapErr    error
+	// PauseSimPoolForCostCap
+	pauseCostCapCalls []sqlcdb.PauseSimPoolForCostCapParams
+	pauseCostCapRows  int64
+	pauseCostCapErr   error
 
 	// IncrementSimPoolLLMCost
 	incrementCostCalls  []sqlcdb.IncrementSimPoolLLMCostParams
@@ -251,6 +251,12 @@ type stubSimQueries struct {
 	deleteTurnCalls  []sqlcdb.DeleteSimAgentTurnIdempotentParams
 	deleteTurnErr    error
 
+	// InsertSimAgentTurnIfAbsent (the aborted-turn write). turnTaken
+	// makes it find the coordinate held by another attempt's turn.
+	insertTurnIfAbsentCalls []sqlcdb.InsertSimAgentTurnIfAbsentParams
+	insertTurnIfAbsentErr   error
+	turnTaken               bool
+
 	insertTurnRoundBatches [][]sqlcdb.InsertSimAgentTurnRoundParams
 	insertTurnRoundErr     error
 
@@ -386,12 +392,12 @@ func (s *stubSimQueries) InsertSimTransactionDraftPick(_ context.Context, arg sq
 	return s.insertDraftPickReturn, nil
 }
 
-func (s *stubSimQueries) InsertSimTransactionCostCapReached(_ context.Context, arg sqlcdb.InsertSimTransactionCostCapReachedParams) (sqlcdb.SimTransaction, error) {
-	s.insertCostCapCalls = append(s.insertCostCapCalls, arg)
-	if s.insertCostCapErr != nil {
-		return sqlcdb.SimTransaction{}, s.insertCostCapErr
+func (s *stubSimQueries) PauseSimPoolForCostCap(_ context.Context, arg sqlcdb.PauseSimPoolForCostCapParams) (int64, error) {
+	s.pauseCostCapCalls = append(s.pauseCostCapCalls, arg)
+	if s.pauseCostCapErr != nil {
+		return 0, s.pauseCostCapErr
 	}
-	return s.insertCostCapReturn, nil
+	return s.pauseCostCapRows, nil
 }
 
 func (s *stubSimQueries) IncrementSimPoolLLMCost(_ context.Context, arg sqlcdb.IncrementSimPoolLLMCostParams) (pgtype.Numeric, error) {
@@ -435,6 +441,17 @@ func (s *stubSimQueries) InsertSimAgentTurn(_ context.Context, arg sqlcdb.Insert
 		s.insertTurnNextID++
 	}
 	return id, nil
+}
+
+func (s *stubSimQueries) InsertSimAgentTurnIfAbsent(_ context.Context, arg sqlcdb.InsertSimAgentTurnIfAbsentParams) (int32, error) {
+	s.insertTurnIfAbsentCalls = append(s.insertTurnIfAbsentCalls, arg)
+	if s.insertTurnIfAbsentErr != nil {
+		return 0, s.insertTurnIfAbsentErr
+	}
+	if s.turnTaken {
+		return 0, pgx.ErrNoRows
+	}
+	return int32(len(s.insertTurnIfAbsentCalls)), nil
 }
 
 func (s *stubSimQueries) InsertSimAgentTurnRound(_ context.Context, arg []sqlcdb.InsertSimAgentTurnRoundParams) (int64, error) {

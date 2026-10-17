@@ -24,10 +24,10 @@ import (
 //	   round, pick). Hit ⇒ return Skipped result; the previous attempt
 //	   already landed and a Temporal retry must NOT re-invoke the LLM.
 //	2. Cost-cap probe: GetSimPool → compare TotalLLMCostUsd with the
-//	   pool's max_llm_cost_usd_per_pool. Tripped ⇒ insert
-//	   cost_cap_reached row, set status=paused, signal workflow with
-//	   "pause", return Skipped result. (Order matters; see the
-//	   runCostCapBranch comment for retry semantics.)
+//	   pool's max_llm_cost_usd_per_pool. Tripped ⇒ pause the pool and
+//	   write the cost_cap_reached row (once per pool; see
+//	   pauseForCostCap for retry semantics), return the
+//	   SkipReasonCostCapReached result the workflow stops on.
 //	3. LLM tool call: agent.Client.Complete with the draft prompt and
 //	   the draft_player tool. Single-shot — the agent's job is to
 //	   choose ONE player; multi-round agentloop is overkill here.
@@ -61,12 +61,11 @@ import (
 // them — picks are serialized in the workflow goroutine, so what the
 // workflow knows about availability IS the truth at this pick.
 type DraftPickInput struct {
-	PoolID     int32       `json:"pool_id"`
-	AgentID    int32       `json:"agent_id"`
-	Round      int32       `json:"round"`
-	Pick       int32       `json:"pick"`
-	SimDate    pgtype.Date `json:"sim_date"`
-	WorkflowID string      `json:"workflow_id"`
+	PoolID  int32       `json:"pool_id"`
+	AgentID int32       `json:"agent_id"`
+	Round   int32       `json:"round"`
+	Pick    int32       `json:"pick"`
+	SimDate pgtype.Date `json:"sim_date"`
 
 	PoolConfig  PoolConfig  `json:"pool_config"`
 	AgentConfig AgentConfig `json:"agent_config"`
@@ -120,10 +119,14 @@ const (
 // to decide whether to advance to the next pick.
 //
 // Returns an error only for unrecoverable failures:
-//   - DB read/write error in the pre-flight or commit
-//   - The cost-cap signal-back failed (ensures retry, which then
-//     observes the cost-cap branch idempotently)
+//   - DB read/write error in the pre-flight, the cost-cap pause
+//     (the retry then pauses at most once; see pauseForCostCap) or
+//     the commit
 //   - The fallback also returned 0 (truly no draftable player exists)
+//   - The activity context ended during the turn
+//
+// The last two still add the rounds the model billed to the pool
+// total, without a pick (see recordAbortedTurn).
 func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPickResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("DraftPick start",
@@ -151,7 +154,7 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 		return DraftPickResult{}, err
 	}
 	if tripped {
-		if err := a.runCostCapBranch(ctx, in.PoolID, in.AgentID, in.SimDate, in.WorkflowID, currentCostUsd, capUsd); err != nil {
+		if err := a.pauseForCostCap(ctx, in.PoolID, in.AgentID, in.SimDate, currentCostUsd, capUsd); err != nil {
 			return DraftPickResult{}, err
 		}
 		return DraftPickResult{Skipped: true, SkipReason: SkipReasonCostCapReached}, nil
@@ -166,7 +169,8 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 
 	pick, err := a.chooseDraftPlayer(ctx, in)
 	if err != nil {
-		return DraftPickResult{}, err
+		// No pick to commit, but the rounds that ran were billed.
+		return DraftPickResult{}, a.recordAbortedTurn(ctx, draftTurnTelemetry(in, pick, recordMessages), err)
 	}
 
 	if err := a.commitDraftPick(ctx, in, pick, recordMessages); err != nil {
@@ -176,12 +180,12 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 	logger.Debug("DraftPick complete",
 		"player_id", pick.playerID,
 		"used_fallback", pick.usedFallback,
-		"cost_usd", pick.costUsd,
+		"cost_usd", pick.spend.CostUsd,
 	)
 	return DraftPickResult{
 		PlayerID:     pick.playerID,
 		UsedFallback: pick.usedFallback,
-		CostUsd:      pick.costUsd,
+		CostUsd:      pick.spend.CostUsd,
 		Notes:        pick.notes,
 		NotesUpdated: pick.notesUpdated,
 	}, nil
@@ -224,7 +228,9 @@ type chooseResult struct {
 	playerID     int64
 	reasoning    string
 	usedFallback bool
-	costUsd      float64
+	// spend is the turn's usage and cost across every round, the
+	// fallback path's failed rounds included: the provider billed them.
+	spend TurnSpend
 
 	// notes carries the latest sim_agents.notes value if the agent
 	// emitted update_notes during the turn. notesUpdated discriminates
@@ -356,7 +362,7 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 	result.res = res
 	result.captures = recorder.Captures()
 	result.completedAt = time.Now()
-	result.costUsd = costFromAggregate(in.AgentConfig, res)
+	result.spend = turnSpendOf(in.AgentConfig, result.captures)
 	// Fill RoundIndex / Sequence on each capture from agentloop's audit
 	// trail. Without this, every capture lands at (turn_id, 0, 0) and
 	// the sim_agent_tool_calls PK fires on the second tool call of the
@@ -370,7 +376,9 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 		activity.GetLogger(ctx).Warn("DraftPick agentloop failed", "err", runErr.Error())
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return result, ctxErr
+		// The activity ended mid-turn: DraftPick records the billed
+		// rounds without a pick, and the retry replays the turn.
+		return result, fmt.Errorf("simulation: draft turn aborted: %w", ctxErr)
 	}
 
 	if result.playerID != 0 {
@@ -423,12 +431,10 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 // recordMessages is a parameter rather than a read here: DraftPick
 // fetches it before the LLM runs (see fetchRecordMessagesFlag).
 func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pick chooseResult, recordMessages bool) error {
-	costNum, err := numericFromFloat(pick.costUsd)
+	costNum, err := numericFromFloat(pick.spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode pick cost: %w", err)
 	}
-
-	messages := transcriptForRecording(recordMessages, pick.res)
 
 	return a.Tx.InTx(ctx, func(q SimQueries) error {
 		if err := q.InsertSimRoster(ctx, sqlcdb.InsertSimRosterParams{
@@ -482,18 +488,23 @@ func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pic
 			}
 		}
 
-		header := draftTurnHeader(in, pick)
-		if _, err := RecordTurnTelemetry(ctx, q, TurnTelemetry{
-			Header:         header,
-			Captures:       pick.captures,
-			ToolCalls:      pick.toolCaptures,
-			Messages:       messages,
-			RecordMessages: recordMessages,
-		}); err != nil {
+		if _, err := RecordTurnTelemetry(ctx, q, draftTurnTelemetry(in, pick, recordMessages)); err != nil {
 			return err
 		}
 		return nil
 	})
+}
+
+// draftTurnTelemetry is the telemetry of one draft turn, shared by the
+// commit and the aborted-turn write.
+func draftTurnTelemetry(in DraftPickInput, pick chooseResult, recordMessages bool) TurnTelemetry {
+	return TurnTelemetry{
+		Header:         draftTurnHeader(in, pick),
+		Captures:       pick.captures,
+		ToolCalls:      pick.toolCaptures,
+		Messages:       transcriptForRecording(recordMessages, pick.res),
+		RecordMessages: recordMessages,
+	}
 }
 
 // draftTurnHeader builds the TurnHeader for a draft pick. Status reflects
@@ -519,7 +530,7 @@ func draftTurnHeader(in DraftPickInput, pick chooseResult) TurnHeader {
 		Model:       in.AgentConfig.Model,
 		Temperature: in.AgentConfig.Temperature,
 		MaxTokens:   in.AgentConfig.MaxTokens,
-		CostUsd:     pick.costUsd,
+		Spend:       pick.spend,
 		FinalText:   pick.reasoning,
 		StartedAt:   pick.startedAt,
 		CompletedAt: pick.completedAt,
