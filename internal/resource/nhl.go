@@ -32,7 +32,7 @@ func (d DailySchedule) Type() core.FileType { return core.DailySchedule }
 func (d DailySchedule) Parse(data []byte) (*nhl.DailySchedule, error) {
 	var schedule nhl.DailySchedule
 	if err := json.Unmarshal(data, &schedule); err != nil {
-		return nil, fmt.Errorf("parse daily schedule for %s: %w", d.Date.Format("2006-01-02"), err)
+		return nil, fmt.Errorf("parse daily schedule for %s: %w", d.Date.Format(time.DateOnly), err)
 	}
 	return &schedule, nil
 }
@@ -347,7 +347,7 @@ func (d DailyStandings) Type() core.FileType { return core.DailyStandings }
 func (d DailyStandings) Parse(data []byte) ([]nhl.Standing, error) {
 	var standings []nhl.Standing
 	if err := json.Unmarshal(data, &standings); err != nil {
-		return nil, fmt.Errorf("parse daily standings for %s: %w", d.Date.Format("2006-01-02"), err)
+		return nil, fmt.Errorf("parse daily standings for %s: %w", d.Date.Format(time.DateOnly), err)
 	}
 	return standings, nil
 }

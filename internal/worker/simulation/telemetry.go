@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/llm/agentloop"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -314,7 +315,7 @@ func RecordTurnTelemetry(ctx context.Context, q SimQueries, t TurnTelemetry) (in
 	// same AgentConfig the caller priced against, so this reproduces the
 	// caller's cost while staying internally consistent.
 	agg := aggregateUsage(captures)
-	costNum, err := numericFromFloat(EstimateCost(header.Provider, header.Model, usageFromAggregate(agg)))
+	costNum, err := pgconv.NumericFromFloat(EstimateCost(header.Provider, header.Model, usageFromAggregate(agg)))
 	if err != nil {
 		return 0, fmt.Errorf("simulation: encode turn cost: %w", err)
 	}
@@ -520,7 +521,7 @@ func numericOrNull(p *float64) pgtype.Numeric {
 	if p == nil {
 		return pgtype.Numeric{}
 	}
-	n, err := numericFromFloat(*p)
+	n, err := pgconv.NumericFromFloat(*p)
 	if err != nil {
 		return pgtype.Numeric{}
 	}

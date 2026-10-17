@@ -10,6 +10,7 @@ import (
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/metrics"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -113,40 +114,40 @@ func playEventToParams(gameID nhlapi.GameID, play nhlapi.PlayEvent) sqlcdb.Upser
 	}
 
 	if d := play.Details; d != nil {
-		p.XCoord = shared.PtrToInt4(d.XCoord)
-		p.YCoord = shared.PtrToInt4(d.YCoord)
+		p.XCoord = pgconv.PtrToInt4(d.XCoord)
+		p.YCoord = pgconv.PtrToInt4(d.YCoord)
 		if d.ZoneCode != nil {
 			p.ZoneCode = sqlcdb.NullZoneCode{ZoneCode: sqlcdb.ZoneCode(*d.ZoneCode), Valid: true}
 		}
-		p.EventOwnerTeamID = shared.PtrToInt8(d.EventOwnerTeamID)
-		p.ShotType = shared.PtrToText(d.ShotType)
-		p.ShootingPlayerID = shared.PtrToInt8(d.ShootingPlayerID)
-		p.GoalieInNetID = shared.PtrToInt8(d.GoalieInNetID)
-		p.BlockingPlayerID = shared.PtrToInt8(d.BlockingPlayerID)
-		p.ScoringPlayerID = shared.PtrToInt8(d.ScoringPlayerID)
-		p.ScoringPlayerTotal = shared.PtrToInt4(d.ScoringPlayerTotal)
-		p.Assist1PlayerID = shared.PtrToInt8(d.Assist1PlayerID)
-		p.Assist1PlayerTotal = shared.PtrToInt4(d.Assist1PlayerTotal)
-		p.Assist2PlayerID = shared.PtrToInt8(d.Assist2PlayerID)
-		p.Assist2PlayerTotal = shared.PtrToInt4(d.Assist2PlayerTotal)
-		p.AwayScore = shared.PtrToInt4(d.AwayScore)
-		p.HomeScore = shared.PtrToInt4(d.HomeScore)
-		p.HighlightClipID = shared.PtrToInt8(d.HighlightClip)
-		p.HighlightClipUrl = shared.PtrToText(d.HighlightClipSharingURL)
-		p.DiscreteClipID = shared.PtrToInt8(d.DiscreteClip)
-		p.PenaltyTypeCode = shared.PtrToText(d.TypeCode)
-		p.PenaltyDescKey = shared.PtrToText(d.DescKey)
-		p.PenaltyDuration = shared.PtrToInt4(d.Duration)
-		p.CommittedByPlayerID = shared.PtrToInt8(d.CommittedByPlayerID)
-		p.DrawnByPlayerID = shared.PtrToInt8(d.DrawnByPlayerID)
-		p.HittingPlayerID = shared.PtrToInt8(d.HittingPlayerID)
-		p.HitteePlayerID = shared.PtrToInt8(d.HitteePlayerID)
-		p.WinningPlayerID = shared.PtrToInt8(d.WinningPlayerID)
-		p.LosingPlayerID = shared.PtrToInt8(d.LosingPlayerID)
-		p.PlayerID = shared.PtrToInt8(d.PlayerID)
-		p.Reason = shared.PtrToText(d.Reason)
-		p.AwaySog = shared.PtrToInt4(d.AwaySOG)
-		p.HomeSog = shared.PtrToInt4(d.HomeSOG)
+		p.EventOwnerTeamID = pgconv.PtrToInt8(d.EventOwnerTeamID)
+		p.ShotType = pgconv.PtrToText(d.ShotType)
+		p.ShootingPlayerID = pgconv.PtrToInt8(d.ShootingPlayerID)
+		p.GoalieInNetID = pgconv.PtrToInt8(d.GoalieInNetID)
+		p.BlockingPlayerID = pgconv.PtrToInt8(d.BlockingPlayerID)
+		p.ScoringPlayerID = pgconv.PtrToInt8(d.ScoringPlayerID)
+		p.ScoringPlayerTotal = pgconv.PtrToInt4(d.ScoringPlayerTotal)
+		p.Assist1PlayerID = pgconv.PtrToInt8(d.Assist1PlayerID)
+		p.Assist1PlayerTotal = pgconv.PtrToInt4(d.Assist1PlayerTotal)
+		p.Assist2PlayerID = pgconv.PtrToInt8(d.Assist2PlayerID)
+		p.Assist2PlayerTotal = pgconv.PtrToInt4(d.Assist2PlayerTotal)
+		p.AwayScore = pgconv.PtrToInt4(d.AwayScore)
+		p.HomeScore = pgconv.PtrToInt4(d.HomeScore)
+		p.HighlightClipID = pgconv.PtrToInt8(d.HighlightClip)
+		p.HighlightClipUrl = pgconv.PtrToText(d.HighlightClipSharingURL)
+		p.DiscreteClipID = pgconv.PtrToInt8(d.DiscreteClip)
+		p.PenaltyTypeCode = pgconv.PtrToText(d.TypeCode)
+		p.PenaltyDescKey = pgconv.PtrToText(d.DescKey)
+		p.PenaltyDuration = pgconv.PtrToInt4(d.Duration)
+		p.CommittedByPlayerID = pgconv.PtrToInt8(d.CommittedByPlayerID)
+		p.DrawnByPlayerID = pgconv.PtrToInt8(d.DrawnByPlayerID)
+		p.HittingPlayerID = pgconv.PtrToInt8(d.HittingPlayerID)
+		p.HitteePlayerID = pgconv.PtrToInt8(d.HitteePlayerID)
+		p.WinningPlayerID = pgconv.PtrToInt8(d.WinningPlayerID)
+		p.LosingPlayerID = pgconv.PtrToInt8(d.LosingPlayerID)
+		p.PlayerID = pgconv.PtrToInt8(d.PlayerID)
+		p.Reason = pgconv.PtrToText(d.Reason)
+		p.AwaySog = pgconv.PtrToInt4(d.AwaySOG)
+		p.HomeSog = pgconv.PtrToInt4(d.HomeSOG)
 	}
 
 	return p

@@ -9,6 +9,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/sperano/puckdb/internal/worker/simulation"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 )
@@ -112,10 +113,7 @@ Example config:
 			if err != nil {
 				return fmt.Errorf("create sim pool: %w", err)
 			}
-			// Print pool_id + workflow_id so scripts can capture them.
-			// Workflow ID convention is "sim-pool-{id}" — same string
-			// signal/cancel commands accept.
-			fmt.Fprintf(cmd.OutOrStdout(), "pool_id=%d\nworkflow_id=sim-pool-%d\n", pool.ID, pool.ID)
+			printCreatedSimPool(cmd.OutOrStdout(), pool.ID)
 			return nil
 		},
 	}
@@ -413,4 +411,10 @@ func repeatRune(r rune, n int) string {
 		out[i] = r
 	}
 	return string(out)
+}
+
+// printCreatedSimPool prints pool_id and workflow_id lines for scripts to
+// capture. The workflow ID is the one the API started for the pool.
+func printCreatedSimPool(w io.Writer, poolID int) {
+	fmt.Fprintf(w, "pool_id=%d\nworkflow_id=%s\n", poolID, simulation.WorkflowIDForPool(int32(poolID)))
 }

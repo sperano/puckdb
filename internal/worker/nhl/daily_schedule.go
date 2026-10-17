@@ -50,7 +50,7 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 		return FetchDailyScheduleResult{Origin: origin}, nil
 	}
 
-	log.Info().Str("day", day.Format("2006-01-02")).Msg("Daily schedule fetched from API")
+	log.Info().Str("day", day.Format(time.DateOnly)).Msg("Daily schedule fetched from API")
 
 	filtered := filterFinalNonPreseasonGames(schedule.Games)
 	g, gctx := errgroup.WithContext(ctx)

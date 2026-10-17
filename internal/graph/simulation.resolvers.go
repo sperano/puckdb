@@ -13,6 +13,7 @@ import (
 	"github.com/sperano/puckdb/internal/graph/generated"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/sqlcdb"
+	"github.com/sperano/puckdb/internal/worker/simulation"
 )
 
 // CreateSimPool is the resolver for the createSimPool field.
@@ -28,7 +29,7 @@ func (r *mutationResolver) CreateSimPool(ctx context.Context, input model.Create
 // lands), and returns the cancel error so Temporal records the
 // workflow as Cancelled rather than Failed.
 func (r *mutationResolver) CancelSimPool(ctx context.Context, poolID int) (*model.SimPool, error) {
-	wfID := simPoolWorkflowIDForPool(int32(poolID))
+	wfID := simulation.WorkflowIDForPool(int32(poolID))
 	if err := r.TemporalClient.CancelWorkflow(ctx, wfID, ""); err != nil {
 		return nil, fmt.Errorf("cancel sim pool %d: %w", poolID, err)
 	}
@@ -83,7 +84,7 @@ func (r *queryResolver) SimTransactions(ctx context.Context, poolID int, agentID
 	}
 	var dateFilter pgtype.Date
 	if date != nil && *date != "" {
-		parsed, err := parseDateOrError(*date)
+		parsed, err := parseDateInput("date", *date)
 		if err != nil {
 			return nil, err
 		}
@@ -133,7 +134,7 @@ func (r *queryResolver) SimStandingsHistory(ctx context.Context, poolID int) ([]
 // resolver). Returns nil when the workflow hasn't yet initialized
 // its tracker (fresh pool, before draft starts).
 func (r *queryResolver) SimPoolProgress(ctx context.Context, poolID int) (*model.ProgressReport, error) {
-	return r.Resolver.queryProgressReport(ctx, simPoolWorkflowIDForPool(int32(poolID)))
+	return r.Resolver.queryProgressReport(ctx, simulation.WorkflowIDForPool(int32(poolID)))
 }
 
 // SimTurnFeed is the resolver for the simTurnFeed field.

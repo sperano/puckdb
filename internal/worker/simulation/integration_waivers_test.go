@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +59,7 @@ var oneBenchRoster = waiverTestRoster{C: 1, BN: 1}
 func insertWaiverTestPool(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, name, startDate, endDate string, roster waiverTestRoster) (poolID int32, agents []int32) {
 	t.Helper()
 	q := sqlcdb.New(pgPool)
-	costCap, err := pgNumericFromFloat(200.0)
+	costCap, err := pgconv.NumericFromFloat(200.0)
 	require.NoError(t, err)
 	pool, err := q.InsertSimPool(ctx, sqlcdb.InsertSimPoolParams{
 		Name: name, Season: waiverRaceSeason, Status: string(PoolStatusDraft),

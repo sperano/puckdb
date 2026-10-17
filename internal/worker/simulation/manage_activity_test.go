@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -258,7 +259,7 @@ func (s *ManageRosterTestSuite) TestMarker_WrittenOnActionTurn() {
 
 func (s *ManageRosterTestSuite) TestCostCap_TripsBeforeLLM() {
 	t := s.T()
-	tooMuch, err := numericFromFloat(250.0)
+	tooMuch, err := pgconv.NumericFromFloat(250.0)
 	require.NoError(t, err)
 	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, TotalLLMCostUSD: tooMuch}
 
@@ -618,7 +619,7 @@ func (s *ManageRosterTestSuite) TestCost_AccumulatesAcrossRounds() {
 	require.NoError(t, future.Get(&got))
 
 	require.Len(t, s.queries.incrementCostCalls, 1)
-	costFloat, err := NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
+	costFloat, err := pgconv.NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
 	require.NoError(t, err)
 	// 3 rounds with non-zero usage (two tool rounds + one final).
 	// Pin only that the sum is strictly greater than a single round's

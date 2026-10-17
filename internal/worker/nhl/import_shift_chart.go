@@ -11,6 +11,7 @@ import (
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/evenstrength"
 	"github.com/sperano/puckdb/internal/metrics"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -148,7 +149,7 @@ func shiftEntryToParams(s nhlapi.ShiftEntry) sqlcdb.UpsertShiftBatchParams {
 		EventNumber: s.EventNumber,
 	}
 
-	p.EventDescription = shared.PtrToText(s.EventDescription)
+	p.EventDescription = pgconv.PtrToText(s.EventDescription)
 
 	return p
 }

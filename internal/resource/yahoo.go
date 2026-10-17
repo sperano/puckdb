@@ -158,7 +158,7 @@ func (r Roster) Parse(data []byte) (*store.FantasyContent, error) {
 	var content store.FantasyContent
 	if err := xml.Unmarshal(data, &content); err != nil {
 		return nil, fmt.Errorf("parse roster %d/%d for %s: %w",
-			r.LeagueID, r.TeamID, r.Date.Format("2006-01-02"), err)
+			r.LeagueID, r.TeamID, r.Date.Format(time.DateOnly), err)
 	}
 	return &content, nil
 }
@@ -189,7 +189,7 @@ func (t TeamSummary) Parse(data []byte) (*store.FantasyContent, error) {
 	var content store.FantasyContent
 	if err := xml.Unmarshal(data, &content); err != nil {
 		return nil, fmt.Errorf("parse team summary %d/%d for %s: %w",
-			t.LeagueID, t.TeamID, t.Date.Format("2006-01-02"), err)
+			t.LeagueID, t.TeamID, t.Date.Format(time.DateOnly), err)
 	}
 	return &content, nil
 }

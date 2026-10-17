@@ -11,6 +11,7 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/matching"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
@@ -265,11 +266,11 @@ func (a *Activities) upsertPlayerCareerData(ctx context.Context, landing *nhl.Pl
 			TeamID:       teamID,
 			Sequence:     sequence,
 			GamesPlayed:  int32(st.GamesPlayed),
-			Goals:        intPtrToInt4(st.Goals),
-			Assists:      intPtrToInt4(st.Assists),
-			Points:       intPtrToInt4(st.Points),
-			PlusMinus:    intPtrToInt4(st.PlusMinus),
-			PIM:          intPtrToInt4(st.PIM),
+			Goals:        pgconv.PtrToInt4(st.Goals),
+			Assists:      pgconv.PtrToInt4(st.Assists),
+			Points:       pgconv.PtrToInt4(st.Points),
+			PlusMinus:    pgconv.PtrToInt4(st.PlusMinus),
+			PIM:          pgconv.PtrToInt4(st.PIM),
 		})
 	}
 	// Ensure season_teams rows exist for any international (season, team_id)
@@ -317,10 +318,10 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match matching.YahooID
 		params.YahooImage = match.ImageURL
 	}
 
-	params.TeamID = shared.PtrToInt8(landing.CurrentTeamID)
+	params.TeamID = pgconv.PtrToInt8(landing.CurrentTeamID)
 
 	if landing.SweaterNumber != nil && *landing.SweaterNumber > 0 {
-		params.SweaterNumber = shared.PtrToInt4(landing.SweaterNumber)
+		params.SweaterNumber = pgconv.PtrToInt4(landing.SweaterNumber)
 	}
 
 	params.BirthDate = shared.ParseDateToPgDate(landing.BirthDate)
@@ -331,9 +332,9 @@ func buildProcessUpsertParams(landing *nhl.PlayerLanding, match matching.YahooID
 	if landing.BirthStateProvince != nil {
 		params.BirthStateProvince = pgtype.Text{String: strings.TrimSpace(landing.BirthStateProvince.Default), Valid: true}
 	}
-	params.BirthCountry = shared.PtrToTextTrimmed(landing.BirthCountry)
-	params.HeroImageURL = shared.PtrToTextTrimmed(landing.HeroImage)
-	params.PlayerSlug = shared.PtrToTextTrimmed(landing.PlayerSlug)
+	params.BirthCountry = pgconv.PtrToTextTrimmed(landing.BirthCountry)
+	params.HeroImageURL = pgconv.PtrToTextTrimmed(landing.HeroImage)
+	params.PlayerSlug = pgconv.PtrToTextTrimmed(landing.PlayerSlug)
 
 	if landing.DraftDetails != nil {
 		params.DraftYear = pgtype.Int4{Int32: int32(landing.DraftDetails.Year), Valid: true}
@@ -388,12 +389,4 @@ func stringToNullHandSide(s string) sqlcdb.NullHandSide {
 		return sqlcdb.NullHandSide{}
 	}
 	return sqlcdb.NullHandSide{HandSide: sqlcdb.HandSide(s), Valid: true}
-}
-
-// intPtrToInt4 converts a *int to pgtype.Int4.
-func intPtrToInt4(v *int) pgtype.Int4 {
-	if v == nil {
-		return pgtype.Int4{}
-	}
-	return pgtype.Int4{Int32: int32(*v), Valid: true}
 }

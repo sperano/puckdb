@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"encoding/csv"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -139,6 +140,31 @@ func TestResultCSV_PgtypeInt(t *testing.T) {
 	assert.Equal(t, "99", fields[1])
 	assert.Equal(t, "8480321", fields[2])
 	assert.Equal(t, "", fields[3])
+}
+
+// TestResultCSV_PgtypeIntAndDateBoundaries pins the rendering of column
+// limits and of NULL dates and integers.
+func TestResultCSV_PgtypeIntAndDateBoundaries(t *testing.T) {
+	t.Parallel()
+
+	type row struct {
+		MinI4    pgtype.Int4 `json:"min_i4"`
+		MaxI8    pgtype.Int8 `json:"max_i8"`
+		NullI8   pgtype.Int8 `json:"null_i8"`
+		Day      pgtype.Date `json:"day"`
+		NullDay  pgtype.Date `json:"null_day"`
+		EarlyDay pgtype.Date `json:"early_day"`
+	}
+	rows := []row{{
+		MinI4:    pgtype.Int4{Int32: math.MinInt32, Valid: true},
+		MaxI8:    pgtype.Int8{Int64: math.MaxInt64, Valid: true},
+		NullI8:   pgtype.Int8{Int64: 5},
+		Day:      pgtype.Date{Time: time.Date(2024, 2, 29, 0, 0, 0, 0, time.UTC), Valid: true},
+		NullDay:  pgtype.Date{Time: time.Date(2024, 2, 29, 0, 0, 0, 0, time.UTC)},
+		EarlyDay: pgtype.Date{Time: time.Date(99, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true},
+	}}
+	fields := parseCSV(t, resultText(t, mustCSV(t, rows)))[1]
+	assert.Equal(t, []string{"-2147483648", "9223372036854775807", "", "2024-02-29", "", "0099-01-01"}, fields)
 }
 
 func TestResultCSV_PgtypeFloat(t *testing.T) {

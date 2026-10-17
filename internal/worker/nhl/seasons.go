@@ -17,6 +17,7 @@ import (
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/matching"
 	"github.com/sperano/puckdb/internal/metrics"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
@@ -301,8 +302,8 @@ func (a *SeasonsActivities) upsertSeasonTeams(ctx context.Context, season nhlapi
 			LogoUrl:          pgtype.Text{String: s.TeamLogo, Valid: s.TeamLogo != ""},
 			DivisionName:     pgtype.Text{String: s.DivisionName, Valid: true},
 			DivisionAbbrev:   pgtype.Text{String: s.DivisionAbbrev, Valid: true},
-			ConferenceName:   shared.PtrToText(s.ConferenceName),
-			ConferenceAbbrev: shared.PtrToText(s.ConferenceAbbrev),
+			ConferenceName:   pgconv.PtrToText(s.ConferenceName),
+			ConferenceAbbrev: pgconv.PtrToText(s.ConferenceAbbrev),
 		}
 
 		if err := a.SeasonTeamsUpserter.UpsertSeasonTeam(ctx, params); err != nil {

@@ -43,7 +43,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -245,7 +244,7 @@ func setupWorkerWithActivities(t *testing.T, tc client.Client, pgPool *pgxpool.P
 // the season end (or PoolConfig.MaxSeasonDays / StopAfter boundary).
 func runWorkflowToCompletion(t *testing.T, ctx context.Context, tc client.Client, poolID int32, timeout time.Duration) {
 	t.Helper()
-	wfID := simPoolWorkflowIDForPoolStr(poolID)
+	wfID := WorkflowIDForPool(poolID)
 	run, err := tc.ExecuteWorkflow(ctx,
 		client.StartWorkflowOptions{ID: wfID, TaskQueue: "puckdb-tasks"},
 		SimPoolWorkflow,
@@ -257,13 +256,6 @@ func runWorkflowToCompletion(t *testing.T, ctx context.Context, tc client.Client
 	if err := run.Get(waitCtx, nil); err != nil {
 		t.Fatalf("workflow %s run.Get: %v", wfID, err)
 	}
-}
-
-// simPoolWorkflowIDForPoolStr returns "sim-pool-{id}" — duplicates
-// the helper in graph/simulation_helpers.go but accessible from
-// here without a package import.
-func simPoolWorkflowIDForPoolStr(poolID int32) string {
-	return "sim-pool-" + strconv.FormatInt(int64(poolID), 10)
 }
 
 // ============================================================================
@@ -730,36 +722,4 @@ func dumpTurnTelemetry(t *testing.T, ctx context.Context, pool *pgxpool.Pool, po
 	if n == 0 {
 		t.Logf("dumpTurnTelemetry: no non-accepted tool calls / errored turns for pool %d", poolID)
 	}
-}
-
-// ============================================================================
-// Numeric conversion helpers
-// ============================================================================
-
-// pgNumericFromFloat / pgFloatFromNumeric mirror the simulation
-// package's numericFromFloat / numericToFloat helpers but live in
-// the test namespace so integration tests can be read independently.
-func pgNumericFromFloat(f float64) (pgtype.Numeric, error) {
-	var n pgtype.Numeric
-	if err := n.Scan(formatFloat(f)); err != nil {
-		return pgtype.Numeric{}, err
-	}
-	return n, nil
-}
-
-func pgFloatFromNumeric(n pgtype.Numeric) (float64, error) {
-	if !n.Valid {
-		return 0, nil
-	}
-	f, err := n.Float64Value()
-	if err != nil {
-		return 0, err
-	}
-	return f.Float64, nil
-}
-
-// formatFloat formats f as a fixed-precision string suitable for
-// pgtype.Numeric.Scan.
-func formatFloat(f float64) string {
-	return fmt.Sprintf("%.6f", f)
 }

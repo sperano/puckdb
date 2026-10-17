@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -261,7 +262,7 @@ func (s *DraftPickTestSuite) TestIdempotencyProbeError_AbortsActivity() {
 func (s *DraftPickTestSuite) TestCostCap_TripsBeforeLLM() {
 	t := s.T()
 	// Pool already at the $200 cap.
-	tooMuch, err := numericFromFloat(200.01)
+	tooMuch, err := pgconv.NumericFromFloat(200.01)
 	require.NoError(t, err)
 	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, TotalLLMCostUSD: tooMuch}
 
@@ -298,7 +299,7 @@ func (s *DraftPickTestSuite) TestCostCap_EvictsPoolAgents() {
 	require.NoError(t, err)
 	_, err = s.acts.getOrCreateAgent(in.PoolID+1, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
 	require.NoError(t, err)
-	tooMuch, err := numericFromFloat(200.01)
+	tooMuch, err := pgconv.NumericFromFloat(200.01)
 	require.NoError(t, err)
 	s.queries.getPoolReturn = sqlcdb.SimPool{ID: in.PoolID, TotalLLMCostUSD: tooMuch}
 
@@ -333,7 +334,7 @@ func (s *DraftPickTestSuite) TestCostCap_DisabledWhenCapZero() {
 // retries — otherwise the workflow would never see the pause.
 func (s *DraftPickTestSuite) TestCostCap_SignalErrorAbortsActivity() {
 	t := s.T()
-	tooMuch, err := numericFromFloat(250.0)
+	tooMuch, err := pgconv.NumericFromFloat(250.0)
 	require.NoError(t, err)
 	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, TotalLLMCostUSD: tooMuch}
 	s.signaler.err = errors.New("temporal unavailable")
@@ -388,7 +389,7 @@ func (s *DraftPickTestSuite) TestHappyPath_WritesRosterAndTransaction() {
 
 	// Cost increment fired with a non-zero amount.
 	require.Len(t, s.queries.incrementCostCalls, 1)
-	costFloat, err := NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
+	costFloat, err := pgconv.NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
 	require.NoError(t, err)
 	assert.InDelta(t, got.CostUsd, costFloat, 1e-9)
 }

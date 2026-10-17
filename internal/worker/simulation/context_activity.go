@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
@@ -106,7 +107,7 @@ func (a *Activities) BuildManageRosterContext(ctx context.Context, in BuildManag
 	}
 
 	prompt := DailyPromptInput{
-		Day:            formatPgDateOrEmpty(in.SimDate),
+		Day:            pgconv.FormatDate(in.SimDate),
 		Standings:      standingsRows,
 		YourRoster:     rosterRows,
 		TodaysSchedule: nil, // V2 polish — see file header
@@ -171,7 +172,7 @@ func (a *Activities) loadAgentPendingClaims(ctx context.Context, poolID, agentID
 		row := PendingClaimRow{
 			Player:     p.FirstName + " " + p.LastName,
 			ID:         r.PlayerID,
-			ResolvesOn: formatPgDateOrEmpty(r.ProcessDate),
+			ResolvesOn: pgconv.FormatDate(r.ProcessDate),
 		}
 		if r.DropPlayerID.Valid {
 			dp, ok := players[r.DropPlayerID.Int64]
@@ -275,9 +276,11 @@ func (a *Activities) loadRosterAndPositions(
 		rosterRows = append(rosterRows, RosterRow{
 			Player:      p.FirstName + " " + p.LastName,
 			ID:          r.PlayerID,
-			NHLPosition: nullablePositionToString(p.Position),
+			NHLPosition: pgconv.FormatPlayerPosition(p.Position),
 			Slot:        RosterSlot(r.Slot),
-			Team:        nullableInt8ToString(p.TeamID),
+			// The raw team ID; its abbreviation needs a season_teams
+			// join (V2 polish).
+			Team: pgconv.FormatInt8(p.TeamID),
 			// Last7 / Season / PlaysToday / GamesNext7Days are V2
 			// polish — would need additional queries against game
 			// stats + schedule. Empty values are valid (the LLM
@@ -371,11 +374,11 @@ func (a *Activities) loadStandingsRows(ctx context.Context, poolID, agentID int3
 	byAgent := map[int32]map[string]catEntry{} // agent_id → category → entry
 	totalRotoPts := map[int32]float64{}
 	for _, r := range rows {
-		pts, err := NumericToFloat(r.RotoPoints)
+		pts, err := pgconv.NumericToFloat(r.RotoPoints)
 		if err != nil {
 			return nil, fmt.Errorf("simulation: decode roto_points (agent %d, category %q): %w", r.AgentID, r.Category, err)
 		}
-		val, err := NumericToFloat(r.Value)
+		val, err := pgconv.NumericToFloat(r.Value)
 		if err != nil {
 			return nil, fmt.Errorf("simulation: decode value (agent %d, category %q): %w", r.AgentID, r.Category, err)
 		}
@@ -477,32 +480,4 @@ func (a *Activities) loadStandingsRows(ctx context.Context, poolID, agentID int3
 		})
 	}
 	return out, nil
-}
-
-// nullablePositionToString unwraps NullPlayerPosition for prompt
-// display. Empty when null.
-func nullablePositionToString(p sqlcdb.NullPlayerPosition) string {
-	if !p.Valid {
-		return ""
-	}
-	return string(p.PlayerPosition)
-}
-
-// nullableInt8ToString turns a nullable Int8 (player.team_id) into
-// a display string — V1 returns the raw ID; team_abbrev resolution
-// is a V2 polish gate that needs season_teams join.
-func nullableInt8ToString(t pgtype.Int8) string {
-	if !t.Valid {
-		return ""
-	}
-	return fmt.Sprintf("%d", t.Int64)
-}
-
-// formatPgDateOrEmpty formats a Date as YYYY-MM-DD, or returns the
-// empty string for a NULL date.
-func formatPgDateOrEmpty(d pgtype.Date) string {
-	if !d.Valid {
-		return ""
-	}
-	return d.Time.Format("2006-01-02")
 }

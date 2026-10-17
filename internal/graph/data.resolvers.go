@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -100,10 +101,10 @@ func (r *queryResolver) Players(ctx context.Context, filter *model.PlayerFilter)
 	}
 	var params sqlcdb.ListPlayersParams
 	if filter != nil {
-		params.Name = optionalText(filter.Name)
-		params.TeamID = optionalInt8(filter.TeamID)
-		params.Position = optionalText(filter.Position)
-		params.IsActive = optionalBool(filter.IsActive)
+		params.Name = pgconv.PtrToText(filter.Name)
+		params.TeamID = pgconv.PtrToInt8(filter.TeamID)
+		params.Position = pgconv.PtrToText(filter.Position)
+		params.IsActive = pgconv.PtrToBool(filter.IsActive)
 	}
 	rows, err := q.ListPlayers(ctx, params)
 	if err != nil {
@@ -184,10 +185,10 @@ func (r *queryResolver) GamesByDate(ctx context.Context, date string) ([]*model.
 func (r *queryResolver) Games(ctx context.Context, filter *model.GameFilter) ([]*model.Game, error) {
 	var params sqlcdb.ListGamesParams
 	if filter != nil {
-		params.Season = optionalInt4(filter.Season)
+		params.Season = pgconv.PtrToInt4(filter.Season)
 		params.GameType = optionalGameType(filter.GameType)
 		params.GameState = optionalGameState(filter.GameState)
-		params.TeamID = optionalInt8(filter.TeamID)
+		params.TeamID = pgconv.PtrToInt8(filter.TeamID)
 		var err error
 		params.StartDate, err = parseOptionalDateInput("startDate", filter.StartDate)
 		if err != nil {
@@ -197,7 +198,7 @@ func (r *queryResolver) Games(ctx context.Context, filter *model.GameFilter) ([]
 		if err != nil {
 			return nil, err
 		}
-		params.Limit = optionalInt4(clampListLimit(filter.Limit))
+		params.Limit = pgconv.PtrToInt4(clampListLimit(filter.Limit))
 	}
 	q, err := r.Resolver.db()
 	if err != nil {
