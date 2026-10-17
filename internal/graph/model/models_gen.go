@@ -1339,6 +1339,7 @@ const (
 	DraftIssueCodeScoringChanged             DraftIssueCode = "SCORING_CHANGED"
 	DraftIssueCodeNewerSnapshotAvailable     DraftIssueCode = "NEWER_SNAPSHOT_AVAILABLE"
 	DraftIssueCodeScenarioUnavailable        DraftIssueCode = "SCENARIO_UNAVAILABLE"
+	DraftIssueCodeScenarioMissing            DraftIssueCode = "SCENARIO_MISSING"
 	DraftIssueCodeNotComputed                DraftIssueCode = "NOT_COMPUTED"
 	DraftIssueCodeRefreshRunning             DraftIssueCode = "REFRESH_RUNNING"
 	DraftIssueCodeRefreshFailed              DraftIssueCode = "REFRESH_FAILED"
@@ -1366,6 +1367,7 @@ var AllDraftIssueCode = []DraftIssueCode{
 	DraftIssueCodeScoringChanged,
 	DraftIssueCodeNewerSnapshotAvailable,
 	DraftIssueCodeScenarioUnavailable,
+	DraftIssueCodeScenarioMissing,
 	DraftIssueCodeNotComputed,
 	DraftIssueCodeRefreshRunning,
 	DraftIssueCodeRefreshFailed,
@@ -1374,7 +1376,7 @@ var AllDraftIssueCode = []DraftIssueCode{
 
 func (e DraftIssueCode) IsValid() bool {
 	switch e {
-	case DraftIssueCodeMissingRules, DraftIssueCodeUnsupportedScoring, DraftIssueCodeMissingPool, DraftIssueCodeMissingProjections, DraftIssueCodeRankingFailed, DraftIssueCodeInternalError, DraftIssueCodeRefreshCanceled, DraftIssueCodeNewsAdjustmentsUnavailable, DraftIssueCodeProvisionalRules, DraftIssueCodeNewsSourceStale, DraftIssueCodeNewsSourceFailing, DraftIssueCodeNewsSourceMissing, DraftIssueCodeStaleSnapshot, DraftIssueCodeStalePool, DraftIssueCodeOverridesChanged, DraftIssueCodeRulesChanged, DraftIssueCodeRosterSlotsChanged, DraftIssueCodeScoringChanged, DraftIssueCodeNewerSnapshotAvailable, DraftIssueCodeScenarioUnavailable, DraftIssueCodeNotComputed, DraftIssueCodeRefreshRunning, DraftIssueCodeRefreshFailed, DraftIssueCodeRefreshInterrupted:
+	case DraftIssueCodeMissingRules, DraftIssueCodeUnsupportedScoring, DraftIssueCodeMissingPool, DraftIssueCodeMissingProjections, DraftIssueCodeRankingFailed, DraftIssueCodeInternalError, DraftIssueCodeRefreshCanceled, DraftIssueCodeNewsAdjustmentsUnavailable, DraftIssueCodeProvisionalRules, DraftIssueCodeNewsSourceStale, DraftIssueCodeNewsSourceFailing, DraftIssueCodeNewsSourceMissing, DraftIssueCodeStaleSnapshot, DraftIssueCodeStalePool, DraftIssueCodeOverridesChanged, DraftIssueCodeRulesChanged, DraftIssueCodeRosterSlotsChanged, DraftIssueCodeScoringChanged, DraftIssueCodeNewerSnapshotAvailable, DraftIssueCodeScenarioUnavailable, DraftIssueCodeScenarioMissing, DraftIssueCodeNotComputed, DraftIssueCodeRefreshRunning, DraftIssueCodeRefreshFailed, DraftIssueCodeRefreshInterrupted:
 		return true
 	}
 	return false

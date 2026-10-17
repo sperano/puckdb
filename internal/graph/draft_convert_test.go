@@ -39,7 +39,7 @@ func TestIssueCodesMatchTheSchema(t *testing.T) {
 		draftrank.IssueProvisionalRules, draftrank.IssueNewsSourceStale, draftrank.IssueNewsSourceFailing, draftrank.IssueNewsSourceMissing,
 		draftrank.IssueStaleSnapshot, draftrank.IssueStalePool, draftrank.IssueOverridesChanged, draftrank.IssueRulesChanged,
 		draftrank.IssueRosterSlotsChanged, draftrank.IssueScoringChanged, draftrank.IssueNewerSnapshot,
-		draftrank.IssueScenarioFallback, draftrank.IssueNotComputed, draftrank.IssueRefreshRunning, draftrank.IssueRefreshFailed,
+		draftrank.IssueScenarioFallback, draftrank.IssueScenarioMissing, draftrank.IssueNotComputed, draftrank.IssueRefreshRunning, draftrank.IssueRefreshFailed,
 		draftrank.IssueRefreshInterrupted,
 	} {
 		assert.True(t, model.DraftIssueCode(code).IsValid(), "issue code %s is in the GraphQL enum", code)

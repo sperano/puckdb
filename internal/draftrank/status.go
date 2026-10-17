@@ -35,6 +35,7 @@ const (
 	IssueScoringChanged     IssueCode = "SCORING_CHANGED"
 	IssueNewerSnapshot      IssueCode = "NEWER_SNAPSHOT_AVAILABLE"
 	IssueScenarioFallback   IssueCode = "SCENARIO_UNAVAILABLE"
+	IssueScenarioMissing    IssueCode = "SCENARIO_MISSING"
 	IssueNotComputed        IssueCode = "NOT_COMPUTED"
 	IssueRefreshRunning     IssueCode = "REFRESH_RUNNING"
 	IssueRefreshFailed      IssueCode = "REFRESH_FAILED"

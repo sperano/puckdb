@@ -90,6 +90,78 @@ func TestRecommendationCacheKeyIncludesSessionSafetyAndFreshness(t *testing.T) {
 	assert.NotEqual(t, freshKey, unsafeKey)
 }
 
+func TestRecommendationCacheKeyDistinguishesRequestedScenario(t *testing.T) {
+	input := draftrecommend.Input{
+		SessionLeagueKey: "500.l.5621",
+		Session:          draftsession.State{Version: 9},
+		Ranking:          boardRanking("500.l.5621"),
+		OurTeamID:        3,
+	}
+
+	input.Scenario = draftrank.ScenarioBaseline
+	baselineKey, err := recommendationCacheKey(input)
+	require.NoError(t, err)
+
+	input.Scenario = draftrank.ScenarioBase
+	baseKey, err := recommendationCacheKey(input)
+	require.NoError(t, err)
+	assert.NotEqual(t, baselineKey, baseKey, "distinct scenarios must not share a cache key")
+
+	// A scenario the snapshot did not rank resolves to baseline, but it is a
+	// different request (different issues) from an explicit baseline request,
+	// so its key must not collide with either.
+	input.Scenario = draftrank.ScenarioOptimistic
+	fallbackKey, err := recommendationCacheKey(input)
+	require.NoError(t, err)
+	assert.NotEqual(t, baselineKey, fallbackKey, "a fallback request must not reuse the explicit baseline entry")
+	assert.NotEqual(t, baseKey, fallbackKey)
+}
+
+func TestBoardScenarioFallsBackConsistentlyWithoutEngine(t *testing.T) {
+	now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	identity := draftwatch.Identity{LeagueKey: "500.l.5621", Season: 2026, LeagueID: 5621, GameKey: 500}
+	state := draftsession.State{Upstream: map[draftsession.PickKey]draftsession.Pick{},
+		Manual: map[draftsession.PickKey]draftsession.ManualChange{}, UpstreamComplete: true}
+	data := &fakeDataSource{
+		identity: identity,
+		session:  draftwatch.Session{Identity: identity, State: state, RecommendationsSafe: true},
+		ranking:  boardRanking(identity.LeagueKey),
+		leagueData: LeagueData{TeamID: 3, TeamName: "My team",
+			Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}}},
+	}
+	service := NewService(data, nil, nil, Options{Now: func() time.Time { return now }, StaleAfter: time.Minute})
+
+	board, err := service.Board(context.Background(), Request{League: identity.LeagueKey, Scenario: draftrank.ScenarioOptimistic})
+	require.NoError(t, err)
+	assert.Equal(t, draftrank.ScenarioBaseline, board.Scenario)
+	assert.Contains(t, board.Session.Warnings, draftrank.Issue{Code: draftrank.IssueScenarioFallback,
+		Message: "snapshot has no optimistic scenario (news adjustments unavailable); serving the baseline ranking"})
+}
+
+func TestBoardAbsentBaselineSurfacesMissingScenarioWithoutEngine(t *testing.T) {
+	now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	identity := draftwatch.Identity{LeagueKey: "500.l.5621", Season: 2026, LeagueID: 5621, GameKey: 500}
+	state := draftsession.State{Upstream: map[draftsession.PickKey]draftsession.Pick{},
+		Manual: map[draftsession.PickKey]draftsession.ManualChange{}, UpstreamComplete: true}
+	ranking := boardRanking(identity.LeagueKey)
+	ranking.Scenarios = nil
+	ranking.Versions = nil
+	data := &fakeDataSource{
+		identity: identity,
+		session:  draftwatch.Session{Identity: identity, State: state, RecommendationsSafe: true},
+		ranking:  ranking,
+		leagueData: LeagueData{TeamID: 3, TeamName: "My team",
+			Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}}},
+	}
+	service := NewService(data, nil, nil, Options{Now: func() time.Time { return now }, StaleAfter: time.Minute})
+
+	board, err := service.Board(context.Background(), Request{League: identity.LeagueKey, Scenario: draftrank.ScenarioOptimistic})
+	require.NoError(t, err)
+	assert.Empty(t, board.Scenario)
+	assert.Contains(t, board.Session.Warnings, draftrank.Issue{Code: draftrank.IssueScenarioMissing,
+		Message: "snapshot has no optimistic scenario and no baseline ranking"})
+}
+
 func TestSetShortlistRejectsStaleVersion(t *testing.T) {
 	data := &fakeDataSource{identity: draftwatch.Identity{LeagueKey: "500.l.5621"},
 		session: draftwatch.Session{State: draftsession.State{Version: 4}}}

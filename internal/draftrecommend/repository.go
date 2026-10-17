@@ -127,7 +127,7 @@ func validateStoredRun(input Input, result Result) error {
 	if result.ProjectionVersion != input.Ranking.Projection.ModelVersion || result.RulesVersion != input.Ranking.League.RulesHash {
 		return errors.New("store draft recommendation: source version mismatch")
 	}
-	resolvedScenario, _ := selectedScenario(input)
+	resolvedScenario, _ := input.Ranking.ResolveScenario(input.Scenario)
 	if result.Scenario != resolvedScenario || !result.GeneratedAt.Equal(input.GeneratedAt) || result.LatencyMillis < 0 ||
 		!equalStrategy(result.Strategy, input.Strategy) || !equalAvailability(result.Availability, input.Availability) ||
 		!equalADP(result.ADP, input.ADP) {

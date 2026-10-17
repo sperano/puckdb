@@ -132,6 +132,53 @@ func TestView_ScenarioSelection(t *testing.T) {
 	assert.Empty(t, plain.Issues)
 }
 
+func TestSnapshotResolveScenario(t *testing.T) {
+	snapshot := fixtureSnapshot(t)
+
+	scenario, issues := snapshot.ResolveScenario(draftrank.ScenarioOptimistic)
+	assert.Equal(t, draftrank.ScenarioOptimistic, scenario)
+	assert.Empty(t, issues)
+
+	scenario, issues = snapshot.ResolveScenario("")
+	assert.Equal(t, draftrank.DefaultScenario, scenario)
+	assert.Empty(t, issues)
+
+	baselineOnly := fixtureSnapshot(t)
+	baselineOnly.Scenarios = []draftrank.Scenario{draftrank.ScenarioBaseline}
+	scenario, issues = baselineOnly.ResolveScenario(draftrank.ScenarioOptimistic)
+	assert.Equal(t, draftrank.ScenarioBaseline, scenario)
+	require.Len(t, issues, 1)
+	assert.Equal(t, draftrank.IssueScenarioFallback, issues[0].Code)
+
+	scenario, issues = baselineOnly.ResolveScenario("")
+	assert.Equal(t, draftrank.ScenarioBaseline, scenario)
+	assert.Empty(t, issues)
+
+	empty := fixtureSnapshot(t)
+	empty.Scenarios = nil
+	scenario, issues = empty.ResolveScenario(draftrank.ScenarioOptimistic)
+	assert.Empty(t, scenario)
+	require.Len(t, issues, 1)
+	assert.Equal(t, draftrank.IssueScenarioMissing, issues[0].Code)
+
+	scenario, issues = empty.ResolveScenario("")
+	assert.Empty(t, scenario)
+	require.Len(t, issues, 1)
+	assert.Equal(t, draftrank.IssueScenarioMissing, issues[0].Code)
+}
+
+func TestView_AbsentBaselineServesNoScenario(t *testing.T) {
+	snapshot := fixtureSnapshot(t)
+	snapshot.Scenarios = nil
+	view, err := snapshot.View(draftrank.Query{Scenario: draftrank.ScenarioOptimistic})
+	require.NoError(t, err)
+	assert.Empty(t, view.Scenario)
+	require.Len(t, view.Issues, 1)
+	assert.Equal(t, draftrank.IssueScenarioMissing, view.Issues[0].Code)
+	assert.Zero(t, view.Total)
+	assert.Empty(t, view.Rows)
+}
+
 func TestView_RejectsInvalidQueries(t *testing.T) {
 	snapshot := fixtureSnapshot(t)
 	for name, q := range map[string]draftrank.Query{

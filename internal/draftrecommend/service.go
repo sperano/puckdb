@@ -41,7 +41,7 @@ func Evaluate(in Input) (Result, error) {
 	if err := validateInput(in); err != nil {
 		return Result{}, err
 	}
-	scenario, issues := selectedScenario(in)
+	scenario, issues := in.Ranking.ResolveScenario(in.Scenario)
 	result := newResult(in, scenario, issues)
 	if err := annotateBoard(&result, in); err != nil {
 		return result, err
@@ -91,7 +91,7 @@ func validateInput(in Input) error {
 	if in.GeneratedAt.Before(info.AsOf) {
 		return fmt.Errorf("%w: generated-at time precedes the ranking snapshot", ErrInvalidInput)
 	}
-	scenario, _ := selectedScenario(in)
+	scenario, _ := in.Ranking.ResolveScenario(in.Scenario)
 	if in.Ranking.Versions[scenario] == "" {
 		return fmt.Errorf("%w: ranking version for scenario %q is required", ErrInvalidInput, scenario)
 	}
@@ -108,20 +108,6 @@ func validateInput(in Input) error {
 		}
 	}
 	return nil
-}
-
-func selectedScenario(in Input) (draftrank.Scenario, []draftrank.Issue) {
-	scenario := in.Scenario
-	if scenario == "" {
-		scenario = draftrank.DefaultScenario
-	}
-	if in.Ranking.HasScenario(scenario) {
-		return scenario, nil
-	}
-	if in.Ranking.HasScenario(draftrank.ScenarioBaseline) {
-		return draftrank.ScenarioBaseline, []draftrank.Issue{issueScenarioFallback}
-	}
-	return scenario, []draftrank.Issue{issueScenarioMissing}
 }
 
 func newResult(in Input, scenario draftrank.Scenario, issues []draftrank.Issue) Result {
