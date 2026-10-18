@@ -120,9 +120,73 @@ func TestResolvePromotesTheOnlyPlayerNamedInTheText(t *testing.T) {
 	}
 }
 
-func TestNHLTeamAbbrev(t *testing.T) {
-	assert.Equal(t, "NJD", NHLTeamAbbrev("nj"))
-	assert.Equal(t, "TOR", NHLTeamAbbrev("Tor"))
+// TestResolveNameSpellings pins how story spellings of a name resolve: case,
+// accents, apostrophes and HTML entities are ignored, a missing apostrophe
+// is a different name.
+func TestResolveNameSpellings(t *testing.T) {
+	const (
+		oreillyID = 8475158
+		stutzleID = 8482116
+	)
+	dir := NewDirectory([]NHLPlayer{
+		{ID: oreillyID, FirstName: "Ryan", LastName: "O'Reilly", Team: "NSH", Active: true},
+		{ID: stutzleID, FirstName: "Tim", LastName: "Stützle", Team: "OTT", Active: true},
+	}, nil, nil)
+	tests := []struct {
+		title    string
+		wantText string
+		wantID   int64
+	}{
+		{"Ryan O'Reilly: Out week-to-week", "ryan o reilly", oreillyID},
+		{"Ryan O’Reilly: Out week-to-week", "ryan o reilly", oreillyID},
+		{"Ryan O&#x27;Reilly: Out week-to-week", "ryan o reilly", oreillyID},
+		{"RYAN O'REILLY: Out week-to-week", "ryan o reilly", oreillyID},
+		{"Tim Stutzle: Scores twice", "tim stutzle", stutzleID},
+		{"Tim Stützle: Scores twice", "tim stutzle", stutzleID},
+		{"Ryan OReilly: Out week-to-week", "ryan oreilly", 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.title, func(t *testing.T) {
+			mentions := dir.Resolve(Story{Title: tc.title})
+			require.Len(t, mentions, 1)
+			m := mentions[0]
+			assert.Equal(t, tc.wantText, m.Text)
+			assert.Equal(t, RoleSubject, m.Role)
+			if tc.wantID == 0 {
+				assert.Equal(t, ResolutionUnresolved, m.Resolution)
+				assert.Equal(t, MethodTitlePrefix, m.Method)
+				return
+			}
+			assert.Equal(t, ResolutionResolved, m.Resolution)
+			assert.Equal(t, MethodName, m.Method)
+			assert.Equal(t, tc.wantID, m.Player.NHLPlayerID)
+		})
+	}
+}
+
+// TestDirectoryMapsYahooTeamAbbrevs checks that Yahoo pool teams become NHL
+// abbreviations, so the source's team hints agree with them; a player Yahoo
+// still lists under Arizona plays for Utah.
+func TestDirectoryMapsYahooTeamAbbrevs(t *testing.T) {
+	const (
+		devilsYahooID = 9201
+		utahYahooID   = 9202
+	)
+	dir := NewDirectory(nil, []YahooPlayer{
+		{YahooPlayerID: devilsYahooID, Name: "Jack Hughes", Team: "nj"},
+		{YahooPlayerID: utahYahooID, Name: "Clayton Keller", Team: "Ari"},
+	}, nil)
+	for _, tc := range []struct {
+		title, name, hint string
+	}{
+		{"Jack Hughes: Returns to practice", "jack hughes", "NJD"},
+		{"Clayton Keller: Named captain", "clayton keller", "UTA"},
+	} {
+		m := mentionByText(t, dir.Resolve(Story{Title: tc.title, TeamHints: []string{tc.hint}}), tc.name)
+		assert.Equal(t, ResolutionResolved, m.Resolution, "the hint %s agrees with the Yahoo team", tc.hint)
+		assert.Equal(t, MethodName, m.Method)
+		assert.Equal(t, tc.hint, m.Player.Team)
+	}
 }
 
 func TestResolveBodyLinkedPlayerIsASubjectOnlyWhenTheTitleNamesThem(t *testing.T) {

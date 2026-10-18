@@ -19,6 +19,7 @@ type yahooQueries interface {
 	GetYahooTeamsByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.YahooTeam, error)
 	GetYahooTeamManagersByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.GetYahooTeamManagersByLeagueRow, error)
 	GetYahooRosterWithPlayers(ctx context.Context, arg sqlcdb.GetYahooRosterWithPlayersParams) ([]sqlcdb.YahooRosterPlayer, error)
+	GetYahooLeagueRostersWithPlayers(ctx context.Context, arg sqlcdb.GetYahooLeagueRostersWithPlayersParams) ([]sqlcdb.GetYahooLeagueRostersWithPlayersRow, error)
 	GetYahooTeamRostersByPlayer(ctx context.Context, arg sqlcdb.GetYahooTeamRostersByPlayerParams) ([]sqlcdb.YahooTeamRoster, error)
 	GetYahooRotoStandings(ctx context.Context, leagueID int32) ([]sqlcdb.YahooRotoStanding, error)
 	GetYahooSeasonTeamTotals(ctx context.Context, leagueID int32) ([]sqlcdb.YahooSeasonTeamTotal, error)
@@ -32,6 +33,7 @@ type yahooQueries interface {
 	GetYahooLeagueRosterPositions(ctx context.Context, leagueID int32) ([]sqlcdb.YahooLeagueRosterPosition, error)
 	GetLatestYahooLeagueRuleSnapshot(ctx context.Context, arg sqlcdb.GetLatestYahooLeagueRuleSnapshotParams) (sqlcdb.YahooLeagueRuleSnapshot, error)
 	ListYahooLeaguePlayersWithNHL(ctx context.Context, leagueKey string) ([]sqlcdb.ListYahooLeaguePlayersWithNHLRow, error)
+	ListYahooTransactionMoves(ctx context.Context, arg sqlcdb.ListYahooTransactionMovesParams) ([]sqlcdb.ListYahooTransactionMovesRow, error)
 }
 
 // leagueIndependentYahooTools names the yahoo tools that take no league ID or
@@ -59,6 +61,7 @@ func yahooTools(q yahooQueries, guard leagueGuard, draft draftToolSource) []serv
 		yahooLeaguesTool(q, guard),
 		yahooTeamsTool(q, guard),
 		yahooRosterTool(q, guard),
+		yahooLeagueRostersTool(q, guard),
 		yahooPlayerOwnershipTool(q, guard),
 		yahooRotoStandingsTool(q, guard),
 		yahooSeasonTeamTotalsTool(q, guard),
@@ -68,6 +71,7 @@ func yahooTools(q yahooQueries, guard leagueGuard, draft draftToolSource) []serv
 		yahooDraftResultsTool(q, guard),
 		yahooLeagueSettingsTool(q, guard),
 		yahooLeaguePlayersTool(q, guard),
+		yahooTransactionsTool(q, guard),
 		draftLeaguesTool(draft, guard),
 		draftPoolCoverageTool(q, guard, draft),
 		draftRulesReportTool(q, guard, draft),

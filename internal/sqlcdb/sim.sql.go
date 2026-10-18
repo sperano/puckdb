@@ -513,7 +513,7 @@ SELECT
     ), 0)::NUMERIC AS goals_against_per_game
 FROM games
 WHERE season = $1
-  AND game_type = 'regular_season'
+  AND game_type = $4
   AND game_state IN ('OFF', 'FINAL')
   AND game_date <= $2
   AND (home_team_id = $3 OR away_team_id = $3)
@@ -523,6 +523,7 @@ type GetTeamGoalsPerGameParams struct {
 	Season     int32       `json:"season"`
 	GameDate   pgtype.Date `json:"game_date"`
 	HomeTeamID int64       `json:"home_team_id"`
+	GameType   GameType    `json:"game_type"`
 }
 
 type GetTeamGoalsPerGameRow struct {
@@ -532,10 +533,16 @@ type GetTeamGoalsPerGameRow struct {
 }
 
 // GetTeamGoalsPerGame returns the team's GF and GA averages over completed
-// regular-season games up to sim_date — used in the daily context payload to
-// give agents a coarse strength signal for opponent matchups.
+// games of one game type up to a date — used in the daily context payload
+// (regular season up to sim_date) to give agents a coarse strength signal for
+// opponent matchups, and by the get_team_season_summary MCP tool.
 func (q *Queries) GetTeamGoalsPerGame(ctx context.Context, arg GetTeamGoalsPerGameParams) (GetTeamGoalsPerGameRow, error) {
-	row := q.db.QueryRow(ctx, getTeamGoalsPerGame, arg.Season, arg.GameDate, arg.HomeTeamID)
+	row := q.db.QueryRow(ctx, getTeamGoalsPerGame,
+		arg.Season,
+		arg.GameDate,
+		arg.HomeTeamID,
+		arg.GameType,
+	)
 	var i GetTeamGoalsPerGameRow
 	err := row.Scan(&i.GamesPlayed, &i.GoalsForPerGame, &i.GoalsAgainstPerGame)
 	return i, err
@@ -719,6 +726,90 @@ type InsertSimAgentTurnParams struct {
 // using this id within the same atomic-commit block.
 func (q *Queries) InsertSimAgentTurn(ctx context.Context, arg InsertSimAgentTurnParams) (int32, error) {
 	row := q.db.QueryRow(ctx, insertSimAgentTurn,
+		arg.PoolID,
+		arg.AgentID,
+		arg.SimDate,
+		arg.Phase,
+		arg.PickNumber,
+		arg.Status,
+		arg.SkipReason,
+		arg.ErrorKind,
+		arg.ErrorDetail,
+		arg.Provider,
+		arg.Model,
+		arg.Temperature,
+		arg.MaxTokens,
+		arg.Rounds,
+		arg.PromptTokens,
+		arg.CompletionTokens,
+		arg.CacheCreationTokens,
+		arg.CacheReadTokens,
+		arg.CostUSD,
+		arg.LatencyMs,
+		arg.FinalText,
+		arg.StartedAt,
+		arg.CompletedAt,
+	)
+	var id int32
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertSimAgentTurnIfAbsent = `-- name: InsertSimAgentTurnIfAbsent :one
+INSERT INTO sim_agent_turns (
+    pool_id, agent_id, sim_date, phase, pick_number,
+    status, skip_reason, error_kind, error_detail,
+    provider, model, temperature, max_tokens,
+    rounds, prompt_tokens, completion_tokens,
+    cache_creation_tokens, cache_read_tokens,
+    cost_usd, latency_ms, final_text,
+    started_at, completed_at
+)
+VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8, $9,
+    $10, $11, $12, $13,
+    $14, $15, $16,
+    $17, $18,
+    $19, $20, $21,
+    $22, $23
+)
+ON CONFLICT DO NOTHING
+RETURNING id
+`
+
+type InsertSimAgentTurnIfAbsentParams struct {
+	PoolID              int32              `json:"pool_id"`
+	AgentID             int32              `json:"agent_id"`
+	SimDate             pgtype.Date        `json:"sim_date"`
+	Phase               string             `json:"phase"`
+	PickNumber          int32              `json:"pick_number"`
+	Status              string             `json:"status"`
+	SkipReason          pgtype.Text        `json:"skip_reason"`
+	ErrorKind           pgtype.Text        `json:"error_kind"`
+	ErrorDetail         pgtype.Text        `json:"error_detail"`
+	Provider            string             `json:"provider"`
+	Model               string             `json:"model"`
+	Temperature         pgtype.Numeric     `json:"temperature"`
+	MaxTokens           pgtype.Int4        `json:"max_tokens"`
+	Rounds              int32              `json:"rounds"`
+	PromptTokens        int32              `json:"prompt_tokens"`
+	CompletionTokens    int32              `json:"completion_tokens"`
+	CacheCreationTokens int32              `json:"cache_creation_tokens"`
+	CacheReadTokens     int32              `json:"cache_read_tokens"`
+	CostUSD             pgtype.Numeric     `json:"cost_usd"`
+	LatencyMs           int32              `json:"latency_ms"`
+	FinalText           string             `json:"final_text"`
+	StartedAt           pgtype.Timestamptz `json:"started_at"`
+	CompletedAt         pgtype.Timestamptz `json:"completed_at"`
+}
+
+// InsertSimAgentTurnIfAbsent writes the turn header of an aborted
+// attempt only when no turn holds its coordinate yet (either partial
+// unique index), and returns no row otherwise: a late write from a
+// stale attempt must not replace the turn a newer attempt committed.
+func (q *Queries) InsertSimAgentTurnIfAbsent(ctx context.Context, arg InsertSimAgentTurnIfAbsentParams) (int32, error) {
+	row := q.db.QueryRow(ctx, insertSimAgentTurnIfAbsent,
 		arg.PoolID,
 		arg.AgentID,
 		arg.SimDate,
@@ -1010,53 +1101,6 @@ func (q *Queries) InsertSimTransactionClaim(ctx context.Context, arg InsertSimTr
 		arg.PlayerID,
 		arg.Reasoning,
 		arg.DropPlayerID,
-	)
-	var i SimTransaction
-	err := row.Scan(
-		&i.ID,
-		&i.PoolID,
-		&i.AgentID,
-		&i.Date,
-		&i.Type,
-		&i.PlayerID,
-		&i.Reasoning,
-		&i.Round,
-		&i.Pick,
-		&i.DropPlayerID,
-		&i.ErrorKind,
-		&i.ErrorDetail,
-		&i.CostUSD,
-		&i.CapUSD,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const insertSimTransactionCostCapReached = `-- name: InsertSimTransactionCostCapReached :one
-INSERT INTO sim_transactions (
-    pool_id, agent_id, date, type, cost_usd, cap_usd
-)
-VALUES ($1, $2, $3, 'cost_cap_reached', $4, $5)
-RETURNING id, pool_id, agent_id, date, type, player_id, reasoning,
-          round, pick, drop_player_id, error_kind, error_detail,
-          cost_usd, cap_usd, created_at
-`
-
-type InsertSimTransactionCostCapReachedParams struct {
-	PoolID  int32          `json:"pool_id"`
-	AgentID int32          `json:"agent_id"`
-	Date    pgtype.Date    `json:"date"`
-	CostUSD pgtype.Numeric `json:"cost_usd"`
-	CapUSD  pgtype.Numeric `json:"cap_usd"`
-}
-
-func (q *Queries) InsertSimTransactionCostCapReached(ctx context.Context, arg InsertSimTransactionCostCapReachedParams) (SimTransaction, error) {
-	row := q.db.QueryRow(ctx, insertSimTransactionCostCapReached,
-		arg.PoolID,
-		arg.AgentID,
-		arg.Date,
-		arg.CostUSD,
-		arg.CapUSD,
 	)
 	var i SimTransaction
 	err := row.Scan(
@@ -2787,6 +2831,53 @@ func (q *Queries) LockSimPool(ctx context.Context, id int32) (int32, error) {
 	var id_2 int32
 	err := row.Scan(&id_2)
 	return id_2, err
+}
+
+const pauseSimPoolForCostCap = `-- name: PauseSimPoolForCostCap :execrows
+WITH paused AS (
+    UPDATE sim_pools
+    SET status = 'paused', updated_at = NOW()
+    WHERE sim_pools.id = $5
+      AND sim_pools.status NOT IN ('paused', 'complete', 'cancelled')
+    RETURNING sim_pools.id AS paused_pool_id
+)
+INSERT INTO sim_transactions (
+    pool_id, agent_id, date, type, cost_usd, cap_usd
+)
+SELECT paused.paused_pool_id, $1::INT, $2::DATE,
+       'cost_cap_reached', $3::NUMERIC, $4::NUMERIC
+FROM paused
+`
+
+type PauseSimPoolForCostCapParams struct {
+	AgentID int32          `json:"agent_id"`
+	Date    pgtype.Date    `json:"date"`
+	CostUSD pgtype.Numeric `json:"cost_usd"`
+	CapUSD  pgtype.Numeric `json:"cap_usd"`
+	PoolID  int32          `json:"pool_id"`
+}
+
+// PauseSimPoolForCostCap is the one durable cost-cap transition: in a
+// single statement it flips the pool to 'paused' and writes the
+// cost_cap_reached audit row, both only while the pool has not ended
+// (the statuses PoolStatus.ended lists: paused, complete, cancelled).
+// The UPDATE takes the pool row lock, so an overlapping attempt waits for
+// the first one to commit, re-checks the status on the committed row and
+// writes nothing; a serial retry finds the pool already paused, and a
+// late attempt leaves a completed or cancelled pool as it is. Returns
+// the number of audit rows written: 1 for the transition, 0 otherwise.
+func (q *Queries) PauseSimPoolForCostCap(ctx context.Context, arg PauseSimPoolForCostCapParams) (int64, error) {
+	result, err := q.db.Exec(ctx, pauseSimPoolForCostCap,
+		arg.AgentID,
+		arg.Date,
+		arg.CostUSD,
+		arg.CapUSD,
+		arg.PoolID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const recomputeSimAgentTotalsCounting = `-- name: RecomputeSimAgentTotalsCounting :exec

@@ -1,6 +1,11 @@
 package matching
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestLookupTeamIDByName(t *testing.T) {
 	t.Parallel()
@@ -126,4 +131,46 @@ func TestTeamErasAscending(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestLookupTeamID(t *testing.T) {
+	t.Parallel()
+
+	id, err := LookupTeamID("MTL")
+	assert.NoError(t, err)
+	assert.Equal(t, int64(8), id)
+
+	id, err = LookupTeamID("EDM")
+	assert.NoError(t, err)
+	assert.Equal(t, int64(22), id)
+
+	_, err = LookupTeamID("INVALID")
+	assert.Error(t, err)
+}
+
+func TestLookupTeamByID(t *testing.T) {
+	t.Parallel()
+
+	info, err := LookupTeamByID(8)
+	require.NoError(t, err)
+	assert.Equal(t, "MTL", info.Abbrev)
+	assert.Equal(t, "Montréal Canadiens", info.FullName)
+
+	_, err = LookupTeamByID(99999)
+	assert.Error(t, err)
+}
+
+func TestLookupTeamAbbrev(t *testing.T) {
+	t.Parallel()
+
+	abbrev, err := LookupTeamAbbrev(8)
+	assert.NoError(t, err)
+	assert.Equal(t, "MTL", abbrev)
+
+	abbrev, err = LookupTeamAbbrev(22)
+	assert.NoError(t, err)
+	assert.Equal(t, "EDM", abbrev)
+
+	_, err = LookupTeamAbbrev(99999)
+	assert.Error(t, err)
 }

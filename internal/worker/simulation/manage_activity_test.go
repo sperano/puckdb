@@ -92,12 +92,11 @@ func makeToolCall(id, name, argsJSON string) llm.ToolCall {
 type ManageRosterTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
-	env      *testsuite.TestActivityEnvironment
-	queries  *stubSimQueries
-	tx       *stubTransactor
-	signaler *stubSignaler
-	llm      *scriptedLLMClient
-	acts     *Activities
+	env     *testsuite.TestActivityEnvironment
+	queries *stubSimQueries
+	tx      *stubTransactor
+	llm     *scriptedLLMClient
+	acts    *Activities
 }
 
 func (s *ManageRosterTestSuite) SetupTest() {
@@ -106,13 +105,11 @@ func (s *ManageRosterTestSuite) SetupTest() {
 	// PostgreSQL; removeAndLogDrop fails the commit on 0 rows.
 	s.queries = &stubSimQueries{deleteRosterRowsDefault: 1}
 	s.tx = &stubTransactor{queries: s.queries}
-	s.signaler = &stubSignaler{}
 	s.llm = &scriptedLLMClient{t: s.T()}
 
 	s.acts = &Activities{
-		Queries:  s.queries,
-		Tx:       s.tx,
-		Signaler: s.signaler,
+		Queries: s.queries,
+		Tx:      s.tx,
 		AgentFactory: func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
 			return fakeAgent(s.llm, cfg), nil
 		},
@@ -130,10 +127,9 @@ func TestManageRosterTestSuite(t *testing.T) {
 // doesn't fire by accident.
 func (s *ManageRosterTestSuite) validInput() ManageRosterInput {
 	return ManageRosterInput{
-		PoolID:     1,
-		AgentID:    7,
-		SimDate:    pgDate(s.T(), "2024-11-15"),
-		WorkflowID: "sim-pool-1",
+		PoolID:  1,
+		AgentID: 7,
+		SimDate: pgDate(s.T(), "2024-11-15"),
 		PoolConfig: PoolConfig{
 			Season:               20242025,
 			NumTeams:             5,
@@ -270,8 +266,9 @@ func (s *ManageRosterTestSuite) TestCostCap_TripsBeforeLLM() {
 	assert.True(t, got.Skipped)
 	assert.Equal(t, SkipReasonCostCapReached, got.SkipReason)
 	assert.Zero(t, s.llm.calls.Load())
-	require.Len(t, s.signaler.calls, 1)
-	assert.Equal(t, SignalPause, s.signaler.calls[0].SignalName)
+	require.Len(t, s.queries.pauseCostCapCalls, 1)
+	assert.Equal(t, s.validInput().SimDate, s.queries.pauseCostCapCalls[0].Date)
+	assert.Zero(t, s.tx.inTxCalled, "a cost-cap skip commits no turn")
 }
 
 // ----------------------------------------------------------------------------
@@ -695,10 +692,9 @@ func (s *ManageRosterTestSuite) TestWorkingState_DoesNotMutateInput() {
 	assert.Equal(t, originalFA, in.FreeAgents)
 }
 
-// signal-back unused on the daily turn because we don't use the
-// signaler here — pin that no signals were sent on a normal happy
-// path (regression sentinel).
-func (s *ManageRosterTestSuite) TestNoSignal_OnHappyPath() {
+// The pause transition belongs to the cost-cap branch only — pin that
+// a normal happy path never pauses the pool (regression sentinel).
+func (s *ManageRosterTestSuite) TestNoCostCapPause_OnHappyPath() {
 	t := s.T()
 	s.llm.responses = []*llm.Response{
 		dailyToolResponse(ToolDropPlayer, `{"player_id":8478402}`, ""),
@@ -707,7 +703,7 @@ func (s *ManageRosterTestSuite) TestNoSignal_OnHappyPath() {
 
 	_, err := s.env.ExecuteActivity(s.acts.ManageRoster, s.validInput())
 	require.NoError(t, err)
-	assert.Empty(t, s.signaler.calls, "no signal back to workflow on the daily-turn happy path")
+	assert.Empty(t, s.queries.pauseCostCapCalls, "no pause on the daily-turn happy path")
 }
 
 // drop_player_id correctly threads through Add transactions when set.

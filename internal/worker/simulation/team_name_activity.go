@@ -80,7 +80,9 @@ const MaxStrategySummaryChars = 30
 //     Temporal retry paid a second time for the same name.
 //  3. Atomic commit (persistTeamNameTurn). The team_name write, the
 //     durable pool-cost increment and the telemetry trace land in one
-//     transaction — all three or none.
+//     transaction — all three or none. If the activity context ended
+//     during the turn, recordAbortedTurn writes only the increment and
+//     an errored trace instead, never the name.
 //
 // Idempotent: RecordTurnTelemetry deletes any prior sim_agent_turns row
 // at the same (pool, agent, phase=team_name) coordinate inside the
@@ -120,21 +122,26 @@ func (a *Activities) PickTeamName(ctx context.Context, in PickTeamNameInput) (Pi
 	if err != nil {
 		return PickTeamNameResult{}, err
 	}
+	header := teamNameTurnHeader(in, turn)
+	// An activity that ended mid-turn keeps only what the turn billed,
+	// never a name the retry would then adopt.
+	if err := a.abortIfDone(ctx, teamNameTurnTelemetry(header, turn, recordMessages), "team-name turn"); err != nil {
+		return PickTeamNameResult{}, err
+	}
 
 	// Persist before branching on the outcome: both failure arms
 	// consumed tokens, so their cost and rejected tool calls have to
 	// reach the DB even though the activity is about to error.
-	header := teamNameTurnHeader(in, turn)
 	if err := a.persistTeamNameTurn(ctx, in, header, turn, recordMessages); err != nil {
 		return PickTeamNameResult{}, err
 	}
 
 	switch {
 	case turn.runErr != nil:
-		return PickTeamNameResult{CostUsd: turn.costUsd},
+		return PickTeamNameResult{CostUsd: turn.spend.CostUsd},
 			fmt.Errorf("simulation: team-name agent loop: %w", turn.runErr)
 	case turn.name == "":
-		return PickTeamNameResult{CostUsd: turn.costUsd},
+		return PickTeamNameResult{CostUsd: turn.spend.CostUsd},
 			fmt.Errorf("simulation: team-name response produced no valid name")
 	}
 
@@ -142,10 +149,10 @@ func (a *Activities) PickTeamName(ctx context.Context, in PickTeamNameInput) (Pi
 		"pool_id", in.PoolID,
 		"agent_id", in.AgentID,
 		"name", turn.name,
-		"cost_usd", turn.costUsd,
+		"cost_usd", turn.spend.CostUsd,
 		"rounds", len(turn.captures),
 	)
-	return PickTeamNameResult{Name: turn.name, CostUsd: turn.costUsd}, nil
+	return PickTeamNameResult{Name: turn.name, CostUsd: turn.spend.CostUsd}, nil
 }
 
 // committedTeamName is PickTeamName's committed-result probe: it reads
@@ -175,9 +182,9 @@ type teamNameTurn struct {
 	// when the agent never made a valid call.
 	name    string
 	summary string
-	// costUsd is the billable spend of this attempt, including the
-	// attempts that ended up rejected: the provider charged for them.
-	costUsd float64
+	// spend is the billable usage and cost of this attempt, including
+	// the attempts that ended up rejected: the provider charged for them.
+	spend TurnSpend
 
 	res          *agentloop.Result
 	captures     []roundCapture
@@ -219,12 +226,13 @@ func (a *Activities) runTeamNameTurn(ctx context.Context, in PickTeamNameInput) 
 	})
 	completedAt := time.Now()
 
+	captures := recorder.Captures()
 	turn := teamNameTurn{
 		name:         collector.name,
 		summary:      collector.summary,
-		costUsd:      costFromAggregate(in.AgentConfig, res),
+		spend:        turnSpendOf(in.AgentConfig, captures),
 		res:          res,
-		captures:     recorder.Captures(),
+		captures:     captures,
 		toolCaptures: collector.captures,
 		startedAt:    startedAt,
 		completedAt:  completedAt,
@@ -349,7 +357,7 @@ func teamNameTurnHeader(in PickTeamNameInput, turn teamNameTurn) TurnHeader {
 		Model:       in.AgentConfig.Model,
 		Temperature: in.AgentConfig.Temperature,
 		MaxTokens:   in.AgentConfig.MaxTokens,
-		CostUsd:     turn.costUsd,
+		Spend:       turn.spend,
 		StartedAt:   turn.startedAt,
 		CompletedAt: turn.completedAt,
 	}
@@ -404,12 +412,10 @@ func (a *Activities) persistTeamNameTurn(
 	turn teamNameTurn,
 	recordMessages bool,
 ) error {
-	costNum, err := pgconv.NumericFromFloat(turn.costUsd)
+	costNum, err := pgconv.NumericFromFloat(turn.spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode team-name cost: %w", err)
 	}
-
-	messages := transcriptForRecording(recordMessages, turn.res)
 
 	return a.Tx.InTx(ctx, func(q SimQueries) error {
 		// team_name is written ONLY on the ok path: it doubles as this
@@ -431,15 +437,21 @@ func (a *Activities) persistTeamNameTurn(
 		}); err != nil {
 			return fmt.Errorf("increment llm cost: %w", err)
 		}
-		if _, err := RecordTurnTelemetry(ctx, q, TurnTelemetry{
-			Header:         header,
-			Captures:       turn.captures,
-			ToolCalls:      turn.toolCaptures,
-			Messages:       messages,
-			RecordMessages: recordMessages,
-		}); err != nil {
+		if _, err := RecordTurnTelemetry(ctx, q, teamNameTurnTelemetry(header, turn, recordMessages)); err != nil {
 			return err
 		}
 		return nil
 	})
+}
+
+// teamNameTurnTelemetry is the telemetry of one team-name turn, shared
+// by the commit and the aborted-turn write.
+func teamNameTurnTelemetry(header TurnHeader, turn teamNameTurn, recordMessages bool) TurnTelemetry {
+	return TurnTelemetry{
+		Header:         header,
+		Captures:       turn.captures,
+		ToolCalls:      turn.toolCaptures,
+		Messages:       transcriptForRecording(recordMessages, turn.res),
+		RecordMessages: recordMessages,
+	}
 }

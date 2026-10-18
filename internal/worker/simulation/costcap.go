@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
+	"go.temporal.io/sdk/activity"
 )
 
 // ============================================================================
@@ -15,25 +16,19 @@ import (
 // Both DraftPickActivity and ManageRosterActivity must consult
 // sim_pools.total_llm_cost_usd before billing the operator's account
 // for an LLM call (PLAN.md > "Cost cap > Enforcement"). The check
-// (cap reached?) and the tripped-branch action (insert
-// cost_cap_reached row + status=paused + workflow signal) are
-// identical across activities, so they live here as receiver methods
-// on *Activities rather than duplicated per-activity helpers.
+// (cap reached?) and the tripped-branch action (the durable pause
+// transition) are identical across activities, so they live here as
+// receiver methods on *Activities rather than duplicated per-activity
+// helpers.
 //
-// SignalPause + the runCostCapBranch retry semantics are documented
-// in draft_activity.go; this file just lifts the shared
-// implementations.
+// The workflow learns about a tripped cap from the activity result
+// alone (SkipReasonCostCapReached) and stops there; no signal is sent.
 // ============================================================================
-
-// SignalPause is the signal name LLM activities send to the parent
-// workflow when the cost cap is reached. Matches the workflow's
-// "pause" signal handler (Phase 3.2).
-const SignalPause = "pause"
 
 // checkCostCap reads sim_pools.total_llm_cost_usd and compares it to
 // capUsd. Returns whether the cap has been reached, the current
 // running total, and the cap echoed back (callers pass it on to
-// runCostCapBranch unchanged when tripped).
+// pauseForCostCap unchanged when tripped).
 //
 // capUsd <= 0 short-circuits to "no cap" — a missing-field config
 // (JSON zero value) must NOT lock the pool out forever. The intent
@@ -63,32 +58,23 @@ func (a *Activities) checkCostCap(ctx context.Context, poolID int32, capUsd floa
 	return current >= capUsd, current, capUsd, nil
 }
 
-// runCostCapBranch is the cost-cap-tripped path: insert the
-// cost_cap_reached audit row + flip sim_pools.status to paused in one
-// DB transaction, THEN signal the parent workflow with "pause".
+// pauseForCostCap is the cost-cap-tripped path: the one durable
+// transition that flips sim_pools.status to paused and writes the
+// cost_cap_reached audit row (PauseSimPoolForCostCap, one statement, so
+// the two land together or not at all). The caller then returns
+// SkipReasonCostCapReached, which is what stops the workflow.
 //
-// Order matters:
-//
-//   - DB writes are atomic — a half-applied state (row inserted but
-//     status not flipped, or vice-versa) would corrupt the next
-//     attempt's idempotency-probe + status assumptions.
-//
-//   - Signal goes out AFTER the DB tx commits. If the signal fails,
-//     the activity returns an error so Temporal retries; on retry the
-//     cap is still tripped, the row insert duplicates (audit trail
-//     accepts duplicates — the row count of cost_cap_reached events
-//     is itself a useful metric), and the signal retries. The
-//     workflow's pause-signal handler is idempotent (PLAN.md >
-//     "Signal interaction matrix"), so duplicate signals are no-ops.
-//
-// A nil Signaler is a configuration error (the production wiring in
-// cmd/worker.go must inject one); we surface that loudly rather than
-// silently dropping the pause signal.
-func (a *Activities) runCostCapBranch(
+// Retry semantics: the transition only fires while the pool has not
+// ended (PoolStatus.ended), so a serial retry (the activity response was
+// lost after the commit) and an overlapping attempt (a timed-out attempt
+// still running next to its retry; the second waits on the pool row
+// lock) both write nothing and still return the cost-cap result. One
+// pause, one audit row, however many attempts reach this branch; a late
+// attempt never turns a completed or cancelled pool into a paused one.
+func (a *Activities) pauseForCostCap(
 	ctx context.Context,
 	poolID, agentID int32,
 	simDate pgtype.Date,
-	workflowID string,
 	currentCostUsd, capUsd float64,
 ) error {
 	costNum, err := pgconv.NumericFromFloat(currentCostUsd)
@@ -99,35 +85,22 @@ func (a *Activities) runCostCapBranch(
 	if err != nil {
 		return fmt.Errorf("simulation: encode cap: %w", err)
 	}
-
-	err = a.Tx.InTx(ctx, func(q SimQueries) error {
-		if _, err := q.InsertSimTransactionCostCapReached(ctx, sqlcdb.InsertSimTransactionCostCapReachedParams{
-			PoolID:  poolID,
-			AgentID: agentID,
-			Date:    simDate,
-			CostUSD: costNum,
-			CapUSD:  capNum,
-		}); err != nil {
-			return fmt.Errorf("simulation: insert cost_cap_reached: %w", err)
-		}
-		if err := q.UpdateSimPoolStatus(ctx, sqlcdb.UpdateSimPoolStatusParams{
-			ID:     poolID,
-			Status: string(PoolStatusPaused),
-		}); err != nil {
-			return fmt.Errorf("simulation: update pool status to paused: %w", err)
-		}
-		return nil
+	written, err := a.Queries.PauseSimPoolForCostCap(ctx, sqlcdb.PauseSimPoolForCostCapParams{
+		PoolID:  poolID,
+		AgentID: agentID,
+		Date:    simDate,
+		CostUSD: costNum,
+		CapUSD:  capNum,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("simulation: pause pool for cost cap: %w", err)
 	}
+	if written > 0 {
+		activity.GetLogger(ctx).Info("Cost cap reached; pool paused",
+			"pool_id", poolID, "agent_id", agentID, "cost_usd", currentCostUsd, "cap_usd", capUsd)
+	}
+	// Paused is an ended status; drop the pool's cached agents. Also on
+	// a retry that wrote nothing: this worker may still hold them.
 	a.evictPoolAgents(poolID)
-
-	if a.Signaler == nil {
-		return fmt.Errorf("simulation: cost-cap tripped but no Signaler wired (cannot pause workflow %q)", workflowID)
-	}
-	if err := a.Signaler.SignalWorkflow(ctx, workflowID, "", SignalPause, nil); err != nil {
-		return fmt.Errorf("simulation: signal workflow %q with pause: %w", workflowID, err)
-	}
 	return nil
 }

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -108,12 +107,9 @@ func yahooLeaguePlayersTool(q yahooQueries, guard leagueGuard) server.ServerTool
 // loadLeaguePool reads the league row, whose key the pool is stored under,
 // and the league's pool with each player's NHL match.
 func loadLeaguePool(ctx context.Context, q yahooQueries, leagueID int32) (sqlcdb.YahooLeague, []sqlcdb.ListYahooLeaguePlayersWithNHLRow, error) {
-	league, err := q.GetYahooLeague(ctx, leagueID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return sqlcdb.YahooLeague{}, nil, errLeagueNotImported
-	}
+	league, err := loadLeague(ctx, q, leagueID)
 	if err != nil {
-		return sqlcdb.YahooLeague{}, nil, fmt.Errorf("load league %d: %w", leagueID, err)
+		return sqlcdb.YahooLeague{}, nil, err
 	}
 	pool, err := q.ListYahooLeaguePlayersWithNHL(ctx, league.LeagueKey)
 	if err != nil {

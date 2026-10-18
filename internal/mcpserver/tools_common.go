@@ -269,7 +269,11 @@ func parseDate(name string, raw any) (pgtype.Date, *mcp.CallToolResult) {
 // requireDate reads the required "date" argument (YYYY-MM-DD); on failure it
 // returns the tool error to send back.
 func requireDate(req mcp.CallToolRequest) (pgtype.Date, *mcp.CallToolResult) {
-	const name = "date"
+	return requireNamedDate(req, "date")
+}
+
+// requireNamedDate reads the required date argument name (YYYY-MM-DD).
+func requireNamedDate(req mcp.CallToolRequest, name string) (pgtype.Date, *mcp.CallToolResult) {
 	raw, present := argument(req, name)
 	if !present {
 		return pgtype.Date{}, mcp.NewToolResultError(name + " is required")

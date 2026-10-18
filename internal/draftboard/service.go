@@ -204,7 +204,8 @@ func (s *Service) boardRecommendation(ctx context.Context, request Request, inpu
 		Availability: request.Availability, ADP: request.ADP,
 		RankingIssues: slices.Clone(inputs.rankingIssues), GeneratedAt: now,
 	}
-	result := draftrecommend.Result{Scenario: selectedScenario(inputs.ranking, request.Scenario)}
+	scenario, issues := inputs.ranking.ResolveScenario(request.Scenario)
+	result := draftrecommend.Result{Scenario: scenario, Issues: draftrecommend.Issues(issues)}
 	if s.recommendations == nil {
 		return nil, result, nil
 	}
@@ -258,11 +259,11 @@ func (s *Service) finishBoard(ctx context.Context, board Board, roster Roster,
 		warnings = appendIssues(warnings, draftrank.Issue{Code: IssueRosterWarning, Message: warning})
 	}
 	warnings = appendIssues(warnings, board.RankingIssues...)
+	recommendationIssues := recommendationOnlyIssues(result.Issues, board.RankingIssues)
 	if recommendation != nil {
-		board.RecommendationIssues = appendIssues(slices.Clone(board.RankingIssues),
-			recommendationOnlyIssues(result.Issues, board.RankingIssues)...)
+		board.RecommendationIssues = appendIssues(slices.Clone(board.RankingIssues), recommendationIssues...)
 	}
-	warnings = appendIssues(warnings, board.RecommendationIssues...)
+	warnings = appendIssues(warnings, recommendationIssues...)
 	if s.recommendations == nil {
 		warnings = appendIssues(warnings, issueRecommendationsUnavailable)
 	}
@@ -320,7 +321,7 @@ func recommendationCacheKey(input draftrecommend.Input) (string, error) {
 		RankingIssues []draftrank.IssueCode
 	}{
 		League: input.SessionLeagueKey, Version: input.Session.Version,
-		Ranking: input.Ranking.Identity, Scenario: selectedScenario(input.Ranking, input.Scenario),
+		Ranking: input.Ranking.Identity, Scenario: input.Scenario,
 		TeamID: input.OurTeamID, Roster: input.Roster, Order: input.Order,
 		Strategy: input.Strategy, Availability: input.Availability, ADP: input.ADP,
 		SessionSafe: input.SessionSafe, SessionStale: input.SessionStale,
@@ -343,16 +344,6 @@ func issueCodes(issues []draftrank.Issue) []draftrank.IssueCode {
 	}
 	slices.Sort(codes)
 	return slices.Compact(codes)
-}
-
-func selectedScenario(ranking *draftrank.Snapshot, requested draftrank.Scenario) draftrank.Scenario {
-	if requested == "" {
-		requested = draftrank.DefaultScenario
-	}
-	if ranking.HasScenario(requested) {
-		return requested
-	}
-	return draftrank.ScenarioBaseline
 }
 
 // StartWatch starts one process-scoped watcher for a league.

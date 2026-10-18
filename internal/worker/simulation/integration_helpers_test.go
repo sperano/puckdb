@@ -208,7 +208,6 @@ func setupWorkerWithActivities(t *testing.T, tc client.Client, pgPool *pgxpool.P
 	acts := &Activities{
 		Queries:         sqlcdb.New(pgPool),
 		Tx:              NewPgxTransactor(pgPool),
-		Signaler:        NewTemporalSignaler(tc),
 		AgentFactory:    agentFactory,
 		ProviderConfigs: providers,
 	}

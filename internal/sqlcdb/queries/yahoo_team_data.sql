@@ -116,6 +116,27 @@ SELECT * FROM yahoo_team_rosters
 WHERE league_id = $1 AND date = $2
 ORDER BY team_id, player_id;
 
+-- name: GetYahooLeagueRostersWithPlayers :many
+-- The rows of GetYahooTeamRostersByDate joined to the matched NHL player.
+-- name is the NHL player's, else Yahoo's from the league's imported pool
+-- (yahoo_team_rosters stores no name), else empty.
+SELECT r.team_id,
+       r.selected_position,
+       r.player_id AS yahoo_player_id,
+       r.player_key,
+       COALESCE(p.first_name || ' ' || p.last_name, lp.full_name, '')::text AS name,
+       p.id AS nhl_player_id,
+       r.editorial_team_abbr,
+       r.display_position,
+       r.player_status,
+       r.injury_note
+FROM yahoo_team_rosters r
+JOIN yahoo_leagues l ON l.id = r.league_id
+LEFT JOIN players p ON p.yahoo_id = r.player_id
+LEFT JOIN yahoo_league_players lp ON lp.league_key = l.league_key AND lp.player_id = r.player_id
+WHERE r.league_id = $1 AND r.date = $2
+ORDER BY r.team_id, r.selected_position, r.player_id;
+
 -- name: GetYahooTeamRostersByPlayer :many
 SELECT * FROM yahoo_team_rosters
 WHERE league_id = $1 AND player_id = $2

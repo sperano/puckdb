@@ -25,9 +25,9 @@ import (
 //	   row, so unrelated rows (draft_pick, waiver add/drop,
 //	   cost_cap_reached) at the same coordinate don't trip it. Hit ⇒
 //	   Skipped result (Temporal retry must NOT re-bill the LLM).
-//	2. Cost-cap probe: shared with DraftPickActivity. Tripped ⇒ insert
-//	   cost_cap_reached row + status=paused + signal workflow with
-//	   "pause"; return Skipped.
+//	2. Cost-cap probe: shared with DraftPickActivity. Tripped ⇒ pause
+//	   the pool + cost_cap_reached row (once per pool); return the
+//	   SkipReasonCostCapReached result the workflow stops on.
 //	3. agentloop.Run: multi-round LLM tool-use conversation. Tool
 //	   executor validates each call against a working copy of the
 //	   roster + FA pool, accumulates accepted actions in memory, and
@@ -69,10 +69,9 @@ import (
 // agent loop so each tool call validates against a state that
 // reflects prior accepted actions in the same turn.
 type ManageRosterInput struct {
-	PoolID     int32       `json:"pool_id"`
-	AgentID    int32       `json:"agent_id"`
-	SimDate    pgtype.Date `json:"sim_date"`
-	WorkflowID string      `json:"workflow_id"`
+	PoolID  int32       `json:"pool_id"`
+	AgentID int32       `json:"agent_id"`
+	SimDate pgtype.Date `json:"sim_date"`
 
 	PoolConfig  PoolConfig  `json:"pool_config"`
 	AgentConfig AgentConfig `json:"agent_config"`
@@ -122,7 +121,9 @@ const SkipReasonAlreadyManaged = "already_managed"
 
 // ManageRoster is the Temporal-activity entry point. Always returns
 // nil error on the success paths (including the "agent failed but we
-// logged it" path); only DB / signal / build-agent failures abort.
+// logged it" path); only DB / build-agent failures and the activity
+// context ending mid-turn abort. The last still adds the billed rounds
+// to the pool total (see recordAbortedTurn).
 func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (ManageRosterResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("ManageRoster start",
@@ -149,7 +150,7 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 		return ManageRosterResult{}, err
 	}
 	if tripped {
-		if err := a.runCostCapBranch(ctx, in.PoolID, in.AgentID, in.SimDate, in.WorkflowID, currentCostUsd, capUsd); err != nil {
+		if err := a.pauseForCostCap(ctx, in.PoolID, in.AgentID, in.SimDate, currentCostUsd, capUsd); err != nil {
 			return ManageRosterResult{}, err
 		}
 		return ManageRosterResult{Skipped: true, SkipReason: SkipReasonCostCapReached}, nil
@@ -169,6 +170,11 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 	}
 
 	outcome := a.runDailyAgent(ctx, agent, in)
+	// An activity that ended mid-turn keeps only what the turn billed;
+	// its actions and the day marker stay unwritten for the retry.
+	if err := a.abortIfDone(ctx, dailyTurnTelemetry(in, outcome, recordMessages), "daily turn"); err != nil {
+		return ManageRosterResult{}, err
+	}
 
 	if err := a.commitDailyTurn(ctx, in, outcome, recordMessages); err != nil {
 		return ManageRosterResult{}, err
@@ -178,13 +184,13 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 		"actions_applied", len(outcome.actions),
 		"passed", outcome.passed,
 		"errored", outcome.errored,
-		"cost_usd", outcome.costUsd,
+		"cost_usd", outcome.spend.CostUsd,
 	)
 	return ManageRosterResult{
 		ActionsApplied: len(outcome.actions),
 		Passed:         outcome.passed,
 		Errored:        outcome.errored,
-		CostUsd:        outcome.costUsd,
+		CostUsd:        outcome.spend.CostUsd,
 	}, nil
 }
 
@@ -203,7 +209,7 @@ type dailyOutcome struct {
 	actions     []recordedAction
 	notes       *string // pointer so "no update" is distinct from "set to empty"
 	reasoning   string
-	costUsd     float64
+	spend       TurnSpend
 	passed      bool
 	errored     bool
 	errorKind   ErrorKind
@@ -274,6 +280,9 @@ func (a *Activities) runDailyAgent(ctx context.Context, agent *Agent, in ManageR
 	})
 	outcome.completedAt = time.Now()
 	outcome.captures = recorder.Captures()
+	// Priced before the error branch: a failed loop may still have
+	// billed rounds.
+	outcome.spend = turnSpendOf(in.AgentConfig, outcome.captures)
 	outcome.res = res
 	if res != nil {
 		AssignRoundsFromAudit(outcome.toolCaptures, res.Audit)
@@ -292,12 +301,9 @@ func (a *Activities) runDailyAgent(ctx context.Context, agent *Agent, in ManageR
 		outcome.errored = true
 		outcome.errorKind = ErrorKindLLMError
 		outcome.errorDetail = err.Error()
-		// Even on failure, partial usage may have accumulated; record it.
-		outcome.costUsd = costFromAggregate(in.AgentConfig, res)
 		return outcome
 	}
 
-	outcome.costUsd = costFromAggregate(in.AgentConfig, res)
 	if res.Final != nil {
 		outcome.reasoning = res.Final.Content
 	}
@@ -311,24 +317,6 @@ func (a *Activities) runDailyAgent(ctx context.Context, agent *Agent, in ManageR
 		outcome.passed = true
 	}
 	return outcome
-}
-
-// costFromAggregate composes the agentloop aggregate usage into a
-// dollar cost via the pricing table. Defensive against a nil Result
-// (only happens when agentloop's first Complete call errored before
-// any usage was reported).
-func costFromAggregate(cfg AgentConfig, res *agentloop.Result) float64 {
-	if res == nil {
-		return 0
-	}
-	usage := llm.Usage{
-		PromptTokens:             res.Usage.PromptTokens,
-		CompletionTokens:         res.Usage.CompletionTokens,
-		TotalTokens:              res.Usage.TotalTokens,
-		CacheCreationInputTokens: res.Usage.CacheCreationInputTokens,
-		CacheReadInputTokens:     res.Usage.CacheReadInputTokens,
-	}
-	return EstimateCost(cfg.Provider, cfg.Model, usage)
 }
 
 // dailyWorkingState is the mutable copy of (roster, FA, on-waivers)
@@ -568,12 +556,10 @@ func applyLineupToWorkingState(work *dailyWorkingState, resolved []ResolvedLineu
 // up-front in ManageRoster, before the LLM runs, so a flaky read can't
 // discard a completed, paid-for turn (see ManageRoster).
 func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, outcome dailyOutcome, recordMessages bool) error {
-	costNum, err := pgconv.NumericFromFloat(outcome.costUsd)
+	costNum, err := pgconv.NumericFromFloat(outcome.spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode cost: %w", err)
 	}
-
-	messages := transcriptForRecording(recordMessages, outcome.res)
 
 	return a.Tx.InTx(ctx, func(q SimQueries) error {
 		// Commit-time revalidation: an add validated against the morning
@@ -640,18 +626,23 @@ func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, 
 
 		// Turn telemetry — landed inside the same tx as the action rows
 		// so a crash mid-commit leaves all-or-nothing state.
-		header := dailyTurnHeader(in, outcome)
-		if _, err := RecordTurnTelemetry(ctx, q, TurnTelemetry{
-			Header:         header,
-			Captures:       outcome.captures,
-			ToolCalls:      outcome.toolCaptures,
-			Messages:       messages,
-			RecordMessages: recordMessages,
-		}); err != nil {
+		if _, err := RecordTurnTelemetry(ctx, q, dailyTurnTelemetry(in, outcome, recordMessages)); err != nil {
 			return err
 		}
 		return nil
 	})
+}
+
+// dailyTurnTelemetry is the telemetry of one daily turn, shared by the
+// commit and the aborted-turn write.
+func dailyTurnTelemetry(in ManageRosterInput, outcome dailyOutcome, recordMessages bool) TurnTelemetry {
+	return TurnTelemetry{
+		Header:         dailyTurnHeader(in, outcome),
+		Captures:       outcome.captures,
+		ToolCalls:      outcome.toolCaptures,
+		Messages:       transcriptForRecording(recordMessages, outcome.res),
+		RecordMessages: recordMessages,
+	}
 }
 
 // dailyTurnHeader builds the TurnHeader for a daily ManageRoster turn.
@@ -675,7 +666,7 @@ func dailyTurnHeader(in ManageRosterInput, outcome dailyOutcome) TurnHeader {
 		Model:       in.AgentConfig.Model,
 		Temperature: in.AgentConfig.Temperature,
 		MaxTokens:   in.AgentConfig.MaxTokens,
-		CostUsd:     outcome.costUsd,
+		Spend:       outcome.spend,
 		FinalText:   outcome.reasoning,
 		StartedAt:   outcome.startedAt,
 		CompletedAt: outcome.completedAt,

@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/sperano/puckdb/internal/matching"
 )
 
 // Role says whether a story is about a player or only names them.
@@ -56,22 +58,6 @@ const (
 	// titlePrefixSeparator ends the player name in "Name: headline" titles.
 	titlePrefixSeparator = ":"
 )
-
-// yahooTeamAbbrevs maps Yahoo's team abbreviations to NHL ones where they
-// differ.
-var yahooTeamAbbrevs = map[string]string{
-	"NJ": "NJD", "TB": "TBL", "LA": "LAK", "SJ": "SJS", "WAS": "WSH", "MON": "MTL",
-	"CLS": "CBJ", "NAS": "NSH", "CAL": "CGY", "UTAH": "UTA", "ARI": "UTA",
-}
-
-// NHLTeamAbbrev returns the NHL abbreviation of a Yahoo team abbreviation.
-func NHLTeamAbbrev(abbrev string) string {
-	abbrev = strings.ToUpper(strings.TrimSpace(abbrev))
-	if nhl, ok := yahooTeamAbbrevs[abbrev]; ok {
-		return nhl
-	}
-	return abbrev
-}
 
 // Identity is one player as known to the NHL/Yahoo mapping. Either ID may be
 // zero: a rookie Yahoo lists may have no NHL record yet.
@@ -144,7 +130,7 @@ func NewDirectory(nhlPlayers []NHLPlayer, yahooPlayers []YahooPlayer, teams []Te
 	for _, p := range yahooPlayers {
 		idx, ok := d.lookup(p.NHLPlayerID, p.YahooPlayerID)
 		if !ok {
-			idx = d.add(Identity{YahooPlayerID: p.YahooPlayerID, Name: p.Name, Team: NHLTeamAbbrev(p.Team)})
+			idx = d.add(Identity{YahooPlayerID: p.YahooPlayerID, Name: p.Name, Team: matching.NHLAbbrevForYahooTeam(p.Team)})
 		}
 		identity := &d.identities[idx]
 		if identity.YahooPlayerID == 0 {
@@ -152,7 +138,7 @@ func NewDirectory(nhlPlayers []NHLPlayer, yahooPlayers []YahooPlayer, teams []Te
 			d.byYahoo[p.YahooPlayerID] = idx
 		}
 		if identity.Team == "" {
-			identity.Team = NHLTeamAbbrev(p.Team)
+			identity.Team = matching.NHLAbbrevForYahooTeam(p.Team)
 		}
 		named[idx] = append(named[idx], identity.Name, p.Name)
 	}
