@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -297,7 +298,7 @@ func claimPlayerResponse(playerID int64, dropPlayerID *int64, reason string) *ll
 func createIntegrationPool(t *testing.T, ctx context.Context, pool *pgxpool.Pool, season int32, waiverDays int, poolName, startDate, endDate string) (poolID int32, agent1ID, agent2ID int32) {
 	t.Helper()
 	q := sqlcdb.New(pool)
-	cap, err := pgNumericFromFloat(200.0)
+	cap, err := pgconv.NumericFromFloat(200.0)
 	require.NoError(t, err)
 	row, err := q.InsertSimPool(ctx, sqlcdb.InsertSimPoolParams{
 		Name:                 poolName,

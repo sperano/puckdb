@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,7 +77,7 @@ const teamNameTestNumTeams = 10
 
 // setTeamNameToolCall builds a scripted set_team_name response. Usage
 // is deliberately large enough that the cost survives the 6-decimal
-// numeric encoding in numericFromFloat.
+// numeric encoding in pgconv.NumericFromFloat.
 func setTeamNameToolCall(name, summary string) *llm.Response {
 	return &llm.Response{
 		Content: "Naming my team " + name,
@@ -109,7 +110,7 @@ func (s *PickTeamNameTestSuite) TestSuccess_IncrementsPoolCostOnceInSameTx() {
 
 	require.Len(t, s.queries.incrementCostCalls, 1, "durable pool cost incremented exactly once")
 	assert.Equal(t, int32(1), s.queries.incrementCostCalls[0].ID)
-	costFloat, err := NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
+	costFloat, err := pgconv.NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
 	require.NoError(t, err)
 	assert.InDelta(t, got.CostUsd, costFloat, 1e-9, "the increment matches the reported cost")
 
@@ -204,7 +205,7 @@ func (s *PickTeamNameTestSuite) TestErroredTurn_StillIncrementsPoolCost() {
 	assert.Contains(t, err.Error(), "no valid name")
 
 	require.Len(t, s.queries.incrementCostCalls, 1, "a paid-but-failed attempt is still real spend")
-	costFloat, cerr := NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
+	costFloat, cerr := pgconv.NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
 	require.NoError(t, cerr)
 	assert.Greater(t, costFloat, 0.0)
 
@@ -234,7 +235,7 @@ func (s *PickTeamNameTestSuite) TestPartialTurn_AcceptedNameButLoopErrors_DoesNo
 	assert.Empty(t, s.queries.setTeamNameCalls, "accepted tool call must not commit when the loop itself errored")
 
 	require.Len(t, s.queries.incrementCostCalls, 1, "round-0 usage is still real spend")
-	costFloat, cerr := NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
+	costFloat, cerr := pgconv.NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
 	require.NoError(t, cerr)
 	assert.Greater(t, costFloat, 0.0)
 

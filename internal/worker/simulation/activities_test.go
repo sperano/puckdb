@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -906,7 +907,7 @@ func (s *ActivitiesTestSuite) TestActivities_ZeroProviderConfigs_OKForReadOnlyAc
 // numericFromInt is a tiny test helper for building pgtype.Numeric
 // row values without dragging strconv into every test case.
 func numericFromInt(t require.TestingT, v int) pgtype.Numeric {
-	n, err := numericFromFloat(float64(v))
+	n, err := pgconv.NumericFromFloat(float64(v))
 	require.NoError(t, err)
 	return n
 }
@@ -1082,11 +1083,11 @@ func (s *BuildContextTestSuite) minimalInput() BuildManageRosterContextInput {
 
 // seedStandingRow builds a SimStanding for testing.
 func seedStandingRow(agentID int32, cat string, value, rotoPts float64) (sqlcdb.SimStanding, error) {
-	v, err := numericFromFloat(value)
+	v, err := pgconv.NumericFromFloat(value)
 	if err != nil {
 		return sqlcdb.SimStanding{}, err
 	}
-	rp, err := numericFromFloat(rotoPts)
+	rp, err := pgconv.NumericFromFloat(rotoPts)
 	if err != nil {
 		return sqlcdb.SimStanding{}, err
 	}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/sperano/puckdb/internal/pgconv"
 )
 
 // ResultJSON marshals a single value as JSON and returns it as a text tool result.
@@ -169,10 +170,7 @@ func cachedTypeInfo(t reflect.Type) *typeInfo {
 
 // formatDate prints a date as YYYY-MM-DD, or "" when it is NULL.
 func formatDate(d pgtype.Date) string {
-	if !d.Valid {
-		return ""
-	}
-	return d.Time.Format(time.DateOnly)
+	return pgconv.FormatDate(d)
 }
 
 // formatField converts a struct field value to a string, handling pgtype wrappers.
@@ -196,15 +194,9 @@ func formatField(v reflect.Value) string {
 		}
 		return fmt.Sprintf("%d", val.Int16)
 	case pgtype.Int4:
-		if !val.Valid {
-			return ""
-		}
-		return fmt.Sprintf("%d", val.Int32)
+		return pgconv.FormatInt4(val)
 	case pgtype.Int8:
-		if !val.Valid {
-			return ""
-		}
-		return fmt.Sprintf("%d", val.Int64)
+		return pgconv.FormatInt8(val)
 	case pgtype.Float4:
 		if !val.Valid {
 			return ""
@@ -224,7 +216,7 @@ func formatField(v reflect.Value) string {
 		}
 		return "false"
 	case pgtype.Date:
-		return formatDate(val)
+		return pgconv.FormatDate(val)
 	case pgtype.Timestamptz:
 		if !val.Valid {
 			return ""

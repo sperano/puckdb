@@ -11,6 +11,7 @@ import (
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/llm/agentloop"
 	"github.com/sperano/puckdb/internal/metrics"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
@@ -431,7 +432,7 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 // recordMessages is a parameter rather than a read here: DraftPick
 // fetches it before the LLM runs (see fetchRecordMessagesFlag).
 func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pick chooseResult, recordMessages bool) error {
-	costNum, err := numericFromFloat(pick.spend.CostUsd)
+	costNum, err := pgconv.NumericFromFloat(pick.spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode pick cost: %w", err)
 	}

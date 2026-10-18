@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,7 +149,7 @@ func awaitManageAttempt(t *testing.T, done <-chan manageAttempt) manageAttempt {
 
 func setPoolSpend(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, poolID int32, usd float64) {
 	t.Helper()
-	spent, err := pgNumericFromFloat(usd)
+	spent, err := pgconv.NumericFromFloat(usd)
 	require.NoError(t, err)
 	_, err = pgPool.Exec(ctx, `UPDATE sim_pools SET total_llm_cost_usd = $2 WHERE id = $1`, poolID, spent)
 	require.NoError(t, err)
@@ -158,7 +159,7 @@ func poolSpend(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, poolID i
 	t.Helper()
 	pool, err := sqlcdb.New(pgPool).GetSimPool(ctx, poolID)
 	require.NoError(t, err)
-	spent, err := pgFloatFromNumeric(pool.TotalLLMCostUSD)
+	spent, err := pgconv.NumericToFloat(pool.TotalLLMCostUSD)
 	require.NoError(t, err)
 	return spent
 }
@@ -199,9 +200,9 @@ func assertPausedOnce(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool, p
 // does, so the test controls when overlapping attempts may proceed.
 func pauseInTx(t *testing.T, ctx context.Context, tx pgx.Tx, poolID, agentID int32) {
 	t.Helper()
-	spent, err := pgNumericFromFloat(costCapSpentUsd)
+	spent, err := pgconv.NumericFromFloat(costCapSpentUsd)
 	require.NoError(t, err)
-	capNum, err := pgNumericFromFloat(costCapUsd)
+	capNum, err := pgconv.NumericFromFloat(costCapUsd)
 	require.NoError(t, err)
 	written, err := sqlcdb.New(tx).PauseSimPoolForCostCap(ctx, sqlcdb.PauseSimPoolForCostCapParams{
 		PoolID: poolID, AgentID: agentID, Date: mustPgDate(costCapDayOne), CostUSD: spent, CapUSD: capNum,

@@ -44,6 +44,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,7 +151,7 @@ func TestIntegrationSmallSeasonFourTeams(t *testing.T) {
 	// year), so the day loop's start AND termination both come from the
 	// per-pool window (migration 000016).
 	// ------------------------------------------------------------------
-	capUSD, err := pgNumericFromFloat(200.0)
+	capUSD, err := pgconv.NumericFromFloat(200.0)
 	require.NoError(t, err)
 	poolRow, err := q.InsertSimPool(ctx, sqlcdb.InsertSimPoolParams{
 		Name:                 "integration_small_season",

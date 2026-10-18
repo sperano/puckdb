@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
@@ -299,7 +300,7 @@ func writePlayerCategoryRow(
 	playerID int64,
 	c categoryContribution,
 ) error {
-	value, err := numericFromFloat(c.value)
+	value, err := pgconv.NumericFromFloat(c.value)
 	if err != nil {
 		return fmt.Errorf("encode value for player %d category %s: %w", playerID, c.category, err)
 	}

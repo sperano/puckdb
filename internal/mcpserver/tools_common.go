@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/sperano/puckdb/internal/pgconv"
 )
 
 // Integer arguments
@@ -256,13 +256,11 @@ func jsonResult[T any](row T, err error) (*mcp.CallToolResult, error) {
 }
 
 // parseDate converts one date argument: a string holding a real calendar
-// date as YYYY-MM-DD. pgtype.Date.Scan is not used, as it also takes
-// "infinity" and a " BC" suffix and turns 2025-02-30 into March 2, so a
-// malformed date would silently query another day.
+// date as YYYY-MM-DD (pgconv.ParseDate).
 func parseDate(name string, raw any) (pgtype.Date, *mcp.CallToolResult) {
 	if text, isString := raw.(string); isString {
-		if day, err := time.Parse(time.DateOnly, text); err == nil {
-			return pgtype.Date{Time: day, Valid: true}, nil
+		if day, err := pgconv.ParseDate(text); err == nil {
+			return day, nil
 		}
 	}
 	return pgtype.Date{}, mcp.NewToolResultError(fmt.Sprintf("invalid %s %s: want a date as YYYY-MM-DD", name, formatRaw(raw)))

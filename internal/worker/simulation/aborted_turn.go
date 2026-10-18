@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
@@ -83,7 +84,7 @@ func (a *Activities) recordAbortedTurn(ctx context.Context, t TurnTelemetry, cau
 
 // writeAbortedTurn is recordAbortedTurn's transaction.
 func (a *Activities) writeAbortedTurn(ctx context.Context, t TurnTelemetry) error {
-	costNum, err := numericFromFloat(t.Header.Spend.CostUsd)
+	costNum, err := pgconv.NumericFromFloat(t.Header.Spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("encode cost: %w", err)
 	}

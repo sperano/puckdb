@@ -260,7 +260,7 @@ func formatTailRow(t tailTurn, calls []tailToolCall) string {
 func formatTurnHeader(t tailTurn) string {
 	simDate := "          " // 10-wide placeholder for "YYYY-MM-DD"
 	if t.SimDate != nil {
-		simDate = t.SimDate.Format("2006-01-02")
+		simDate = t.SimDate.Format(time.DateOnly)
 	}
 	// Error rows append err=<kind> so a failure is obvious at a glance
 	// without scrolling right to find the absence of tool calls.

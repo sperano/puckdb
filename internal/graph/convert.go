@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -53,18 +54,11 @@ func boolPtr(b pgtype.Bool) *bool {
 	return &b.Bool
 }
 
-func dateString(d pgtype.Date) string {
-	if !d.Valid {
-		return ""
-	}
-	return d.Time.Format(time.DateOnly)
-}
-
 func dateStringPtr(d pgtype.Date) *string {
 	if !d.Valid {
 		return nil
 	}
-	s := d.Time.Format(time.DateOnly)
+	s := pgconv.FormatDate(d)
 	return &s
 }
 
@@ -97,34 +91,6 @@ func nullGoalieDecisionPtr(d sqlcdb.NullGoalieDecision) *string {
 	}
 	s := string(d.GoalieDecision)
 	return &s
-}
-
-func optionalInt4(v *int) pgtype.Int4 {
-	if v == nil {
-		return pgtype.Int4{}
-	}
-	return pgtype.Int4{Int32: int32(*v), Valid: true}
-}
-
-func optionalInt8(v *int64) pgtype.Int8 {
-	if v == nil {
-		return pgtype.Int8{}
-	}
-	return pgtype.Int8{Int64: *v, Valid: true}
-}
-
-func optionalText(v *string) pgtype.Text {
-	if v == nil {
-		return pgtype.Text{}
-	}
-	return pgtype.Text{String: *v, Valid: true}
-}
-
-func optionalBool(v *bool) pgtype.Bool {
-	if v == nil {
-		return pgtype.Bool{}
-	}
-	return pgtype.Bool{Bool: *v, Valid: true}
 }
 
 func optionalGameType(v *string) sqlcdb.NullGameType {
@@ -202,7 +168,7 @@ func convertGetGameRow(g sqlcdb.GetGameRow) *model.Game {
 		ID:                g.ID,
 		Season:            int(g.Season),
 		GameType:          string(g.GameType),
-		GameDate:          dateString(g.GameDate),
+		GameDate:          pgconv.FormatDate(g.GameDate),
 		Venue:             g.Venue,
 		VenueLocation:     g.VenueLocation,
 		StartTimeUtc:      timestampPtr(g.StartTimeUTC),
@@ -242,7 +208,7 @@ func convertListGamesRow(g sqlcdb.ListGamesRow) *model.Game {
 func convertStandingsSnapshot(s sqlcdb.StandingsSnapshot) *model.StandingsEntry {
 	return &model.StandingsEntry{
 		Season:           int(s.Season),
-		Date:             dateString(s.Date),
+		Date:             pgconv.FormatDate(s.Date),
 		TeamID:           s.TeamID,
 		TeamAbbrev:       s.TeamAbbrev,
 		Wins:             int(s.Wins),
@@ -309,7 +275,7 @@ func convertGameGoalieStats(g sqlcdb.GetGameGoalieStatsByGameRow) *model.GameGoa
 func convertSkaterGameLogEntry(s sqlcdb.GetSkaterStatsByPlayerAndSeasonRow) *model.SkaterGameLogEntry {
 	return &model.SkaterGameLogEntry{
 		GameID:             s.GameID,
-		GameDate:           dateString(s.GameDate),
+		GameDate:           pgconv.FormatDate(s.GameDate),
 		GameType:           string(s.GameType),
 		TeamAbbrev:         s.TeamAbbrev,
 		Goals:              int(s.Goals),
@@ -330,7 +296,7 @@ func convertSkaterGameLogEntry(s sqlcdb.GetSkaterStatsByPlayerAndSeasonRow) *mod
 func convertGoalieGameLogEntry(g sqlcdb.GetGoalieStatsByPlayerAndSeasonRow) *model.GoalieGameLogEntry {
 	return &model.GoalieGameLogEntry{
 		GameID:       g.GameID,
-		GameDate:     dateString(g.GameDate),
+		GameDate:     pgconv.FormatDate(g.GameDate),
 		GameType:     string(g.GameType),
 		TeamAbbrev:   g.TeamAbbrev,
 		Decision:     nullGoalieDecisionPtr(g.Decision),

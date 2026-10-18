@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
@@ -50,7 +51,7 @@ func (a *Activities) checkCostCap(ctx context.Context, poolID int32, capUsd floa
 	if err != nil {
 		return false, 0, 0, fmt.Errorf("simulation: cost-cap probe (get pool): %w", err)
 	}
-	current, err := NumericToFloat(pool.TotalLLMCostUSD)
+	current, err := pgconv.NumericToFloat(pool.TotalLLMCostUSD)
 	if err != nil {
 		return false, 0, 0, fmt.Errorf("simulation: decode total_llm_cost_usd: %w", err)
 	}
@@ -76,11 +77,11 @@ func (a *Activities) pauseForCostCap(
 	simDate pgtype.Date,
 	currentCostUsd, capUsd float64,
 ) error {
-	costNum, err := numericFromFloat(currentCostUsd)
+	costNum, err := pgconv.NumericFromFloat(currentCostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode current cost: %w", err)
 	}
-	capNum, err := numericFromFloat(capUsd)
+	capNum, err := pgconv.NumericFromFloat(capUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode cap: %w", err)
 	}

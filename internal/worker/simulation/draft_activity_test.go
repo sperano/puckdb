@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -243,7 +244,7 @@ func (s *DraftPickTestSuite) TestIdempotencyProbeError_AbortsActivity() {
 func (s *DraftPickTestSuite) TestCostCap_TripsBeforeLLM() {
 	t := s.T()
 	// Pool already at the $200 cap.
-	tooMuch, err := numericFromFloat(200.01)
+	tooMuch, err := pgconv.NumericFromFloat(200.01)
 	require.NoError(t, err)
 	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, TotalLLMCostUSD: tooMuch}
 
@@ -266,10 +267,10 @@ func (s *DraftPickTestSuite) TestCostCap_TripsBeforeLLM() {
 	assert.Equal(t, int32(1), pause.PoolID)
 	assert.Equal(t, int32(7), pause.AgentID)
 	assert.Equal(t, s.validInput().SimDate, pause.Date)
-	gotCost, err := NumericToFloat(pause.CostUSD)
+	gotCost, err := pgconv.NumericToFloat(pause.CostUSD)
 	require.NoError(t, err)
 	assert.InDelta(t, 200.01, gotCost, costDelta)
-	gotCap, err := NumericToFloat(pause.CapUSD)
+	gotCap, err := pgconv.NumericToFloat(pause.CapUSD)
 	require.NoError(t, err)
 	assert.InDelta(t, s.validInput().PoolConfig.MaxLLMCostUsdPerPool, gotCap, costDelta)
 }
@@ -280,7 +281,7 @@ func (s *DraftPickTestSuite) TestCostCap_TripsBeforeLLM() {
 // this attempt or an earlier one did the transition.
 func (s *DraftPickTestSuite) TestCostCap_AlreadyPausedStillReportsCap() {
 	t := s.T()
-	tooMuch, err := numericFromFloat(250.0)
+	tooMuch, err := pgconv.NumericFromFloat(250.0)
 	require.NoError(t, err)
 	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, TotalLLMCostUSD: tooMuch}
 	s.queries.pauseCostCapRows = 0
@@ -303,7 +304,7 @@ func (s *DraftPickTestSuite) TestCostCap_EvictsPoolAgents() {
 	require.NoError(t, err)
 	_, err = s.acts.getOrCreateAgent(in.PoolID+1, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
 	require.NoError(t, err)
-	tooMuch, err := numericFromFloat(200.01)
+	tooMuch, err := pgconv.NumericFromFloat(200.01)
 	require.NoError(t, err)
 	s.queries.getPoolReturn = sqlcdb.SimPool{ID: in.PoolID, TotalLLMCostUSD: tooMuch}
 
@@ -339,7 +340,7 @@ func (s *DraftPickTestSuite) TestCostCap_DisabledWhenCapZero() {
 // the cap without the durable pause would leave the pool row behind.
 func (s *DraftPickTestSuite) TestCostCap_PauseErrorAbortsActivity() {
 	t := s.T()
-	tooMuch, err := numericFromFloat(250.0)
+	tooMuch, err := pgconv.NumericFromFloat(250.0)
 	require.NoError(t, err)
 	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, TotalLLMCostUSD: tooMuch}
 	s.queries.pauseCostCapErr = errors.New("connection lost")
@@ -390,7 +391,7 @@ func (s *DraftPickTestSuite) TestHappyPath_WritesRosterAndTransaction() {
 
 	// Cost increment fired with a non-zero amount.
 	require.Len(t, s.queries.incrementCostCalls, 1)
-	costFloat, err := NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
+	costFloat, err := pgconv.NumericToFloat(s.queries.incrementCostCalls[0].TotalLLMCostUSD)
 	require.NoError(t, err)
 	assert.InDelta(t, got.CostUsd, costFloat, 1e-9)
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/llm/agentloop"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -103,7 +104,7 @@ func TestRecordTurnTelemetryWritesHeaderSpend(t *testing.T) {
 	require.Len(t, q.insertTurnCalls, 1)
 	parent := q.insertTurnCalls[0]
 
-	gotCost, err := NumericToFloat(parent.CostUSD)
+	gotCost, err := pgconv.NumericToFloat(parent.CostUSD)
 	require.NoError(t, err)
 	assert.InDelta(t, spend.CostUsd, gotCost, costDelta, "cost_usd is the caller's spend, not a re-pricing")
 	assert.EqualValues(t, spend.Usage.PromptTokens, parent.PromptTokens)

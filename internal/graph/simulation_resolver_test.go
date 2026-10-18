@@ -3,7 +3,6 @@ package graph
 import (
 	"context"
 	"errors"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -13,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/worker/simulation"
 	"github.com/stretchr/testify/assert"
@@ -32,21 +32,6 @@ func (m *MockTemporalClient) SignalWorkflow(ctx context.Context, workflowID, run
 // Pure-function helper tests
 // ============================================================================
 
-func TestSimPoolWorkflowIDForPool(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		poolID   int32
-		expected string
-	}{
-		{1, "sim-pool-1"},
-		{42, "sim-pool-42"},
-		{100, "sim-pool-100"},
-	}
-	for _, tc := range cases {
-		assert.Equal(t, tc.expected, simPoolWorkflowIDForPool(tc.poolID))
-	}
-}
-
 // flattenRosterPositions is the boundary helper that turns the
 // GraphQL list-of-{slot, count} into the map form sqlc params want.
 // Pinned independently of createSimPoolImpl so a future refactor of
@@ -65,55 +50,6 @@ func TestFlattenRosterPositions(t *testing.T) {
 	// Slots not in the input default to 0 via map lookup — no
 	// zero-fill needed.
 	assert.Equal(t, 0, got[simulation.SlotG])
-}
-
-// numericFromFloat / numericToFloat round-trip — pin the precision
-// contract since the migration moved max_llm_cost_usd_per_pool +
-// temperature to NUMERIC columns and the resolver is the boundary
-// that encodes float64 input.
-func TestNumericFromFloat_RoundTrip(t *testing.T) {
-	t.Parallel()
-	cases := []float64{0.0, 0.7, 200.0, 12.345678}
-	for _, want := range cases {
-		n, err := numericFromFloat(want)
-		require.NoError(t, err)
-		got, err := simulation.NumericToFloat(n)
-		require.NoError(t, err)
-		assert.InDelta(t, want, got, 1e-6)
-	}
-}
-
-func TestParseDateOrError(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name      string
-		input     string
-		wantValid bool
-		wantErr   bool
-	}{
-		{"empty is no-filter", "", false, false},
-		{"valid date", "2024-11-15", true, false},
-		{"invalid format", "11/15/2024", false, true},
-		{"garbage", "not a date", false, true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseDateOrError(tc.input)
-			if tc.wantErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-			assert.Equal(t, tc.wantValid, got.Valid)
-		})
-	}
-}
-
-func TestFormatPgDate(t *testing.T) {
-	t.Parallel()
-	d := pgtype.Date{Time: time.Date(2024, 11, 15, 0, 0, 0, 0, time.UTC), Valid: true}
-	assert.Equal(t, "2024-11-15", formatPgDate(d))
-	assert.Empty(t, formatPgDate(pgtype.Date{}))
 }
 
 func TestSumRotoPoints(t *testing.T) {
@@ -197,15 +133,6 @@ func TestGroupStandingsByDate(t *testing.T) {
 // identical body and identical test coverage; the twin was removed as part
 // of the T3-A dedup pass.
 
-func TestNullPositionString(t *testing.T) {
-	t.Parallel()
-	assert.Empty(t, nullPositionString(sqlcdb.NullPlayerPosition{Valid: false}))
-	got := nullPositionString(sqlcdb.NullPlayerPosition{
-		PlayerPosition: sqlcdb.PlayerPositionC, Valid: true,
-	})
-	assert.Equal(t, "C", got)
-}
-
 // ============================================================================
 // Mutation resolver — signal flow via mock Temporal client.
 //
@@ -218,11 +145,10 @@ func TestNullPositionString(t *testing.T) {
 // ============================================================================
 
 // numericFromFloatForTest constructs a pgtype.Numeric from a float64
-// for fixture rows. Six fractional digits matches the precision
-// the simulation package's numericFromFloat uses on the write path.
+// for fixture rows, as the write path encodes it.
 func numericFromFloatForTest(t require.TestingT, f float64) pgtype.Numeric {
-	var n pgtype.Numeric
-	require.NoError(t, n.Scan(strconv.FormatFloat(f, 'f', 6, 64)))
+	n, err := pgconv.NumericFromFloat(f)
+	require.NoError(t, err)
 	return n
 }
 
@@ -737,13 +663,13 @@ func TestParseSimWindow(t *testing.T) {
 				assert.False(t, start.Valid, "start should be unset")
 			} else {
 				require.True(t, start.Valid)
-				assert.Equal(t, tc.wantStart, start.Time.Format("2006-01-02"))
+				assert.Equal(t, tc.wantStart, start.Time.Format(time.DateOnly))
 			}
 			if tc.wantEnd == "" {
 				assert.False(t, end.Valid, "end should be unset")
 			} else {
 				require.True(t, end.Valid)
-				assert.Equal(t, tc.wantEnd, end.Time.Format("2006-01-02"))
+				assert.Equal(t, tc.wantEnd, end.Time.Format(time.DateOnly))
 			}
 		})
 	}

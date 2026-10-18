@@ -59,3 +59,26 @@ func TestParseOptionalDateInput(t *testing.T) {
 		assert.ErrorContains(t, err, "startDate")
 	})
 }
+
+// TestParseDateInputErrorText pins the full error: argument name, quoted
+// value, expected syntax, then time.Parse's reason.
+func TestParseDateInputErrorText(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseDateInput("endDate", "2024-02-30")
+	assert.EqualError(t, err, `invalid endDate "2024-02-30" (expected YYYY-MM-DD): parsing time "2024-02-30": day out of range`)
+	var parseErr *time.ParseError
+	assert.ErrorAs(t, err, &parseErr)
+}
+
+// TestParseDateInputRejectsLooseSyntax checks the spellings a lenient
+// parser (pgtype.Date.Scan, unpadded layouts) would take.
+func TestParseDateInputRejectsLooseSyntax(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"2024-3-15", "2024-03-15T00:00:00Z", " 2024-03-15", "infinity", "2024-03-15 BC", "12024-03-15"} {
+		parsed, err := parseDateInput("date", value)
+		assert.Error(t, err, value)
+		assert.False(t, parsed.Valid, value)
+	}
+}

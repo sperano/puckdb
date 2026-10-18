@@ -10,6 +10,7 @@ import (
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/llm/agentloop"
 	"github.com/sperano/puckdb/internal/metrics"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
@@ -555,7 +556,7 @@ func applyLineupToWorkingState(work *dailyWorkingState, resolved []ResolvedLineu
 // up-front in ManageRoster, before the LLM runs, so a flaky read can't
 // discard a completed, paid-for turn (see ManageRoster).
 func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, outcome dailyOutcome, recordMessages bool) error {
-	costNum, err := numericFromFloat(outcome.spend.CostUsd)
+	costNum, err := pgconv.NumericFromFloat(outcome.spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode cost: %w", err)
 	}
@@ -756,7 +757,7 @@ func applyAdd(ctx context.Context, q SimQueries, in ManageRosterInput, reasoning
 		Date:         in.SimDate,
 		PlayerID:     pgtype.Int8{Int64: args.PlayerID, Valid: true},
 		Reasoning:    reasoning,
-		DropPlayerID: nullableInt8(args.DropPlayerID),
+		DropPlayerID: pgconv.PtrToInt8(args.DropPlayerID),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("insert add tx: %w", err)
@@ -778,7 +779,7 @@ func applyClaim(ctx context.Context, q SimQueries, in ManageRosterInput, reasoni
 		PoolID:       in.PoolID,
 		AgentID:      in.AgentID,
 		PlayerID:     args.PlayerID,
-		DropPlayerID: nullableInt8(args.DropPlayerID),
+		DropPlayerID: pgconv.PtrToInt8(args.DropPlayerID),
 		FiledDate:    in.SimDate,
 		ProcessDate:  processDate,
 	}); err != nil {
@@ -790,7 +791,7 @@ func applyClaim(ctx context.Context, q SimQueries, in ManageRosterInput, reasoni
 		Date:         in.SimDate,
 		PlayerID:     pgtype.Int8{Int64: args.PlayerID, Valid: true},
 		Reasoning:    reasoning,
-		DropPlayerID: nullableInt8(args.DropPlayerID),
+		DropPlayerID: pgconv.PtrToInt8(args.DropPlayerID),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("insert claim tx: %w", err)
@@ -857,18 +858,6 @@ func applyLineupSet(ctx context.Context, q SimQueries, in ManageRosterInput, rea
 		}
 	}
 	return parent.ID, nil
-}
-
-// nullableInt8 turns an *int64 (the args struct's drop_player_id
-// representation) into a pgtype.Int8 with Valid set to false when
-// the source is nil. Same shape DraftPickActivity uses for
-// optional-int columns; lifted here to avoid duplicating the
-// 4-line conversion in 5 places.
-func nullableInt8(p *int64) pgtype.Int8 {
-	if p == nil {
-		return pgtype.Int8{}
-	}
-	return pgtype.Int8{Int64: *p, Valid: true}
 }
 
 // claimProcessOffset is the calendar-day offset between filing a

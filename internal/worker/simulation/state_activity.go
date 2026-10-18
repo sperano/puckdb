@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
@@ -18,7 +19,7 @@ import (
 // (matches the legacy JSONB shape) — the workflow's roster validators
 // don't care; they look up by slot key.
 func poolConfigFromRow(p sqlcdb.SimPool) (PoolConfig, error) {
-	maxCostUsd, err := NumericToFloat(p.MaxLLMCostUsdPerPool)
+	maxCostUsd, err := pgconv.NumericToFloat(p.MaxLLMCostUsdPerPool)
 	if err != nil {
 		return PoolConfig{}, fmt.Errorf("decode max_llm_cost_usd_per_pool: %w", err)
 	}
@@ -71,7 +72,7 @@ func agentConfigFromRow(a sqlcdb.SimAgent) (AgentConfig, error) {
 		MaxTokens:      int(a.MaxTokens),
 	}
 	if a.Temperature.Valid {
-		f, err := NumericToFloat(a.Temperature)
+		f, err := pgconv.NumericToFloat(a.Temperature)
 		if err != nil {
 			return AgentConfig{}, fmt.Errorf("decode temperature: %w", err)
 		}
@@ -175,7 +176,7 @@ func (a *Activities) LoadPoolState(ctx context.Context, in LoadPoolStateInput) (
 		return LoadPoolStateResult{}, fmt.Errorf("simulation: get season %d: %w", cfg.Season, err)
 	}
 
-	totalCost, err := NumericToFloat(pool.TotalLLMCostUSD)
+	totalCost, err := pgconv.NumericToFloat(pool.TotalLLMCostUSD)
 	if err != nil {
 		return LoadPoolStateResult{}, fmt.Errorf("simulation: decode total_llm_cost_usd: %w", err)
 	}

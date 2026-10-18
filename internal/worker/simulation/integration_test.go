@@ -27,10 +27,10 @@ package simulation
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +62,7 @@ func TestIntegrationSchemaSmoke(t *testing.T) {
 	// and the eight roster_* INT columns are the migration's
 	// load-bearing changes; mis-projecting any of them in the sqlc
 	// layer would surface here.
-	capUSD, err := pgNumericFromFloat(200.0)
+	capUSD, err := pgconv.NumericFromFloat(200.0)
 	require.NoError(t, err)
 	pool1, err := q.InsertSimPool(ctx, sqlcdb.InsertSimPoolParams{
 		Name:                 "integration_test_pool",
@@ -86,7 +86,7 @@ func TestIntegrationSchemaSmoke(t *testing.T) {
 	require.NoError(t, err, "InsertSimPool")
 	assert.NotZero(t, pool1.ID, "auto-generated id")
 	assert.True(t, pool1.WorkflowID.Valid, "workflow_id generated column populated")
-	assert.Equal(t, fmt.Sprintf("sim-pool-%d", pool1.ID), pool1.WorkflowID.String,
+	assert.Equal(t, WorkflowIDForPool(pool1.ID), pool1.WorkflowID.String,
 		"workflow_id matches the GENERATED ALWAYS AS expression")
 
 	// Read back via GetSimPool — exercises the matching SELECT path.
@@ -101,7 +101,7 @@ func TestIntegrationSchemaSmoke(t *testing.T) {
 	assert.Equal(t, int32(2), got.RosterC)
 	assert.Equal(t, int32(3), got.RosterD)
 	assert.Equal(t, int32(5), got.RosterBN)
-	gotCap, err := pgFloatFromNumeric(got.MaxLLMCostUsdPerPool)
+	gotCap, err := pgconv.NumericToFloat(got.MaxLLMCostUsdPerPool)
 	require.NoError(t, err)
 	assert.InDelta(t, 200.0, gotCap, 0.001)
 
@@ -110,7 +110,7 @@ func TestIntegrationSchemaSmoke(t *testing.T) {
 	// params anymore: identity is team_name (written by Phase 0's
 	// PickTeamName) and draft_position stays NULL until the workflow's
 	// RecordDraftOrder persists the shuffled order.
-	temp, err := pgNumericFromFloat(0.7)
+	temp, err := pgconv.NumericFromFloat(0.7)
 	require.NoError(t, err)
 	agent1, err := q.InsertSimAgent(ctx, sqlcdb.InsertSimAgentParams{
 		PoolID:         pool1.ID,

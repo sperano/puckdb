@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/llm/agentloop"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -403,7 +404,7 @@ func numericOrNull(p *float64) pgtype.Numeric {
 	if p == nil {
 		return pgtype.Numeric{}
 	}
-	n, err := numericFromFloat(*p)
+	n, err := pgconv.NumericFromFloat(*p)
 	if err != nil {
 		return pgtype.Numeric{}
 	}

@@ -3,10 +3,10 @@ package simulation
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
 )
@@ -434,11 +434,11 @@ func (a *Activities) UpdateStandings(ctx context.Context, in UpdateStandingsInpu
 	written := 0
 	for cat, rows := range rankings {
 		for _, r := range rows {
-			value, err := numericFromFloat(r.Value)
+			value, err := pgconv.NumericFromFloat(r.Value)
 			if err != nil {
 				return UpdateStandingsResult{StandingsWritten: written}, fmt.Errorf("simulation: encode value: %w", err)
 			}
-			rotoPts, err := numericFromFloat(r.RotoPoints)
+			rotoPts, err := pgconv.NumericFromFloat(r.RotoPoints)
 			if err != nil {
 				return UpdateStandingsResult{StandingsWritten: written}, fmt.Errorf("simulation: encode roto_points: %w", err)
 			}
@@ -486,7 +486,7 @@ func (a *Activities) UpdateStandings(ctx context.Context, in UpdateStandingsInpu
 func groupTotalsByCategory(totals []sqlcdb.SimAgentTotal, agentIDs []int32) ([]CategoryStats, error) {
 	byCat := make(map[Category][]AgentCategoryStat)
 	for _, t := range totals {
-		val, err := NumericToFloat(t.Value)
+		val, err := pgconv.NumericToFloat(t.Value)
 		if err != nil {
 			return nil, fmt.Errorf("decode totals value (agent=%d, cat=%s): %w", t.AgentID, t.Category, err)
 		}
@@ -522,33 +522,4 @@ func groupTotalsByCategory(totals []sqlcdb.SimAgentTotal, agentIDs []int32) ([]C
 		out = append(out, CategoryStats{Category: cat, Stats: stats})
 	}
 	return out, nil
-}
-
-// numericFromFloat converts a float64 (from the scoring engine) to a
-// pgtype.Numeric (for the DB write). Routed through string parsing
-// so the pgtype handles the big.Int/exponent encoding correctly. Six
-// digits of fractional precision is more than enough for roto points
-// (typically integer or .5).
-func numericFromFloat(f float64) (pgtype.Numeric, error) {
-	var n pgtype.Numeric
-	if err := n.Scan(strconv.FormatFloat(f, 'f', 6, 64)); err != nil {
-		return pgtype.Numeric{}, err
-	}
-	return n, nil
-}
-
-// NumericToFloat converts a pgtype.Numeric (DB read) to float64
-// (scoring engine). NULL becomes 0 — sim_agent_totals.value is
-// NOT NULL by schema, but the helper handles invalid Numerics
-// defensively so a future loosening of the column nullability can't
-// silently NaN the scoring engine.
-func NumericToFloat(n pgtype.Numeric) (float64, error) {
-	if !n.Valid {
-		return 0, nil
-	}
-	f, err := n.Float64Value()
-	if err != nil {
-		return 0, err
-	}
-	return f.Float64, nil
 }

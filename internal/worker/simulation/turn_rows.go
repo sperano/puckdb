@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -14,7 +15,7 @@ import (
 func turnHeaderParams(t TurnTelemetry) (sqlcdb.InsertSimAgentTurnParams, error) {
 	header := t.Header
 	spend := header.Spend
-	costNum, err := numericFromFloat(spend.CostUsd)
+	costNum, err := pgconv.NumericFromFloat(spend.CostUsd)
 	if err != nil {
 		return sqlcdb.InsertSimAgentTurnParams{}, fmt.Errorf("simulation: encode turn cost: %w", err)
 	}

@@ -2,13 +2,15 @@ package graph
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/sperano/puckdb/internal/pgconv"
 )
 
+// parseDateInput parses a GraphQL date argument (pgconv.ParseDate); the
+// error names the argument and echoes the value.
 func parseDateInput(field, value string) (pgtype.Date, error) {
-	parsed, err := time.Parse(time.DateOnly, value)
+	parsed, err := pgconv.ParseDate(value)
 	if err != nil {
 		return pgtype.Date{}, fmt.Errorf(
 			"invalid %s %q (expected YYYY-MM-DD): %w",
@@ -17,7 +19,7 @@ func parseDateInput(field, value string) (pgtype.Date, error) {
 			err,
 		)
 	}
-	return pgtype.Date{Time: parsed, Valid: true}, nil
+	return parsed, nil
 }
 
 func parseOptionalDateInput(field string, value *string) (pgtype.Date, error) {

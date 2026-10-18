@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/testsuite"
@@ -48,7 +49,7 @@ func requireAbortedTurnSpend(t *testing.T, q *stubSimQueries, tx *stubTransactor
 	assert.True(t, tx.deadlines[0], "the detached write is still bounded")
 
 	require.Len(t, q.incrementCostCalls, 1)
-	poolCost, err := NumericToFloat(q.incrementCostCalls[0].TotalLLMCostUSD)
+	poolCost, err := pgconv.NumericToFloat(q.incrementCostCalls[0].TotalLLMCostUSD)
 	require.NoError(t, err)
 	assert.Greater(t, poolCost, 0.0, "the billed round reaches the pool total")
 
@@ -59,7 +60,7 @@ func requireAbortedTurnSpend(t *testing.T, q *stubSimQueries, tx *stubTransactor
 	assert.Equal(t, string(TurnStatusErrored), turn.Status)
 	assert.Equal(t, string(wantKind), turn.ErrorKind.String)
 	assert.Equal(t, int32(1), turn.Rounds)
-	turnCost, err := NumericToFloat(turn.CostUSD)
+	turnCost, err := pgconv.NumericToFloat(turn.CostUSD)
 	require.NoError(t, err)
 	assert.InDelta(t, poolCost, turnCost, costDelta, "turn row and pool total carry one spend")
 }

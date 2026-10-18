@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -162,7 +163,7 @@ func (s *DraftPickTestSuite) TestRecordFullMessages_FallbackPersistsPromptOnly()
 // idempotency probe: nothing that only the commit path needs is touched.
 func (s *DraftPickTestSuite) TestRecordFullMessages_NotReadOnCostCapTrip() {
 	t := s.T()
-	tooMuch, err := numericFromFloat(200.01)
+	tooMuch, err := pgconv.NumericFromFloat(200.01)
 	require.NoError(t, err)
 	s.queries.getPoolReturn = sqlcdb.SimPool{ID: 1, TotalLLMCostUSD: tooMuch}
 

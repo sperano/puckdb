@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/llm"
+	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -486,7 +487,7 @@ func (s *StateActivityTestSuite) TestBuildManageRosterContext_StandingsTagIsYou(
 // converts an int to pgtype.Numeric without dragging strconv into
 // the test imports section.
 func numericFromIntForTest(t require.TestingT, v int) pgtype.Numeric {
-	n, err := numericFromFloat(float64(v))
+	n, err := pgconv.NumericFromFloat(float64(v))
 	require.NoError(t, err)
 	return n
 }
