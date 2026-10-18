@@ -149,8 +149,11 @@ func hashHex(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// Words lowercases s, strips accents and splits it on everything that is
-// not a letter or a digit.
+// Words lowercases s, decodes HTML entities, strips accents
+// (matching.NormalizeName) and splits it on everything that is not a letter
+// or a digit, so "O'Reilly", "O’Reilly" and "O&#x27;Reilly" are all
+// "o reilly". Name resolution indexes directory names and scans stories with
+// it; matching.NormalizeName says why the Yahoo-ID matcher keeps punctuation.
 func Words(s string) []string {
 	return strings.FieldsFunc(matching.NormalizeName(s), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
