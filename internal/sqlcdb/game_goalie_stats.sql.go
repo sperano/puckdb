@@ -663,14 +663,15 @@ SELECT
 FROM game_goalie_stats s
 JOIN games g ON s.game_id = g.id
 JOIN players p ON s.player_id = p.id
-WHERE s.team_id = $1 AND g.season = $2
+WHERE s.team_id = $1 AND g.season = $2 AND g.game_type = $3
 GROUP BY s.player_id, p.first_name, p.last_name
 ORDER BY wins DESC, games_played DESC
 `
 
 type GetTeamGoalieSeasonTotalsParams struct {
-	TeamID int64 `json:"team_id"`
-	Season int32 `json:"season"`
+	TeamID   int64    `json:"team_id"`
+	Season   int32    `json:"season"`
+	GameType GameType `json:"game_type"`
 }
 
 type GetTeamGoalieSeasonTotalsRow struct {
@@ -690,9 +691,10 @@ type GetTeamGoalieSeasonTotalsRow struct {
 	SeasonGaa         interface{} `json:"season_gaa"`
 }
 
-// Aggregate season stats for all goalies on a team
+// Aggregate season stats for all goalies on a team, over one game type
+// (regular season and playoffs are never mixed)
 func (q *Queries) GetTeamGoalieSeasonTotals(ctx context.Context, arg GetTeamGoalieSeasonTotalsParams) ([]GetTeamGoalieSeasonTotalsRow, error) {
-	rows, err := q.db.Query(ctx, getTeamGoalieSeasonTotals, arg.TeamID, arg.Season)
+	rows, err := q.db.Query(ctx, getTeamGoalieSeasonTotals, arg.TeamID, arg.Season, arg.GameType)
 	if err != nil {
 		return nil, err
 	}

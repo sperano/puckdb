@@ -84,6 +84,8 @@ var expectedNHLTools = []string{
 	"get_first_matching_event_per_team",
 	// Linemates (1)
 	"get_player_linemates",
+	// Team summary (1)
+	"get_team_season_summary",
 	// Team schedule (1)
 	"get_team_schedule",
 	// News (1)

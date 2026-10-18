@@ -679,8 +679,9 @@ WHERE season = $1
   AND (home_team_id = $3 OR away_team_id = $3);
 
 -- GetTeamGoalsPerGame returns the team's GF and GA averages over completed
--- regular-season games up to sim_date — used in the daily context payload to
--- give agents a coarse strength signal for opponent matchups.
+-- games of one game type up to a date — used in the daily context payload
+-- (regular season up to sim_date) to give agents a coarse strength signal for
+-- opponent matchups, and by the get_team_season_summary MCP tool.
 -- name: GetTeamGoalsPerGame :one
 SELECT
     COUNT(*)::INT AS games_played,
@@ -694,7 +695,7 @@ SELECT
     ), 0)::NUMERIC AS goals_against_per_game
 FROM games
 WHERE season = $1
-  AND game_type = 'regular_season'
+  AND game_type = $4
   AND game_state IN ('OFF', 'FINAL')
   AND game_date <= $2
   AND (home_team_id = $3 OR away_team_id = $3);

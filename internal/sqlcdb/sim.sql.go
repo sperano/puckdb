@@ -513,7 +513,7 @@ SELECT
     ), 0)::NUMERIC AS goals_against_per_game
 FROM games
 WHERE season = $1
-  AND game_type = 'regular_season'
+  AND game_type = $4
   AND game_state IN ('OFF', 'FINAL')
   AND game_date <= $2
   AND (home_team_id = $3 OR away_team_id = $3)
@@ -523,6 +523,7 @@ type GetTeamGoalsPerGameParams struct {
 	Season     int32       `json:"season"`
 	GameDate   pgtype.Date `json:"game_date"`
 	HomeTeamID int64       `json:"home_team_id"`
+	GameType   GameType    `json:"game_type"`
 }
 
 type GetTeamGoalsPerGameRow struct {
@@ -532,10 +533,16 @@ type GetTeamGoalsPerGameRow struct {
 }
 
 // GetTeamGoalsPerGame returns the team's GF and GA averages over completed
-// regular-season games up to sim_date — used in the daily context payload to
-// give agents a coarse strength signal for opponent matchups.
+// games of one game type up to a date — used in the daily context payload
+// (regular season up to sim_date) to give agents a coarse strength signal for
+// opponent matchups, and by the get_team_season_summary MCP tool.
 func (q *Queries) GetTeamGoalsPerGame(ctx context.Context, arg GetTeamGoalsPerGameParams) (GetTeamGoalsPerGameRow, error) {
-	row := q.db.QueryRow(ctx, getTeamGoalsPerGame, arg.Season, arg.GameDate, arg.HomeTeamID)
+	row := q.db.QueryRow(ctx, getTeamGoalsPerGame,
+		arg.Season,
+		arg.GameDate,
+		arg.HomeTeamID,
+		arg.GameType,
+	)
 	var i GetTeamGoalsPerGameRow
 	err := row.Scan(&i.GamesPlayed, &i.GoalsForPerGame, &i.GoalsAgainstPerGame)
 	return i, err
