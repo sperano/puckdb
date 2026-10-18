@@ -43,7 +43,6 @@ type BuildManageRosterContextInput struct {
 	PoolID      int32       `json:"pool_id"`
 	AgentID     int32       `json:"agent_id"`
 	SimDate     pgtype.Date `json:"sim_date"`
-	WorkflowID  string      `json:"workflow_id"`
 	PoolConfig  PoolConfig  `json:"pool_config"`
 	AgentConfig AgentConfig `json:"agent_config"`
 	FreeAgents  []int64     `json:"free_agents"`
@@ -120,7 +119,6 @@ func (a *Activities) BuildManageRosterContext(ctx context.Context, in BuildManag
 		PoolID:        in.PoolID,
 		AgentID:       in.AgentID,
 		SimDate:       in.SimDate,
-		WorkflowID:    in.WorkflowID,
 		PoolConfig:    in.PoolConfig,
 		AgentConfig:   in.AgentConfig,
 		DailyPrompt:   prompt,

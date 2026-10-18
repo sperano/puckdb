@@ -38,17 +38,6 @@ type Audit struct {
 	Result string
 }
 
-// AggregateUsage sums per-round Usage across the whole loop. Cache fields
-// stay zero for providers that don't report cache accounting (OpenAI,
-// Ollama).
-type AggregateUsage struct {
-	PromptTokens             int
-	CompletionTokens         int
-	TotalTokens              int
-	CacheCreationInputTokens int
-	CacheReadInputTokens     int
-}
-
 // Result captures everything the loop produced.
 //
 // Final is the last *llm.Response observed — either the no-tool-call
@@ -59,11 +48,15 @@ type AggregateUsage struct {
 // every assistant message and tool-result message appended during the loop.
 // Callers that persist messages real-time can diff against the input length;
 // callers that persist post-loop can iterate the suffix.
+//
+// Usage is the sum (llm.Usage.Add) of every round's reported usage. Cache
+// fields stay zero for providers that don't report cache accounting
+// (OpenAI, Ollama).
 type Result struct {
 	Final    *llm.Response
 	Messages []llm.Message
 	Audit    []Audit
-	Usage    AggregateUsage
+	Usage    llm.Usage
 	Rounds   int
 }
 
@@ -83,7 +76,8 @@ type Config struct {
 //  1. The model returns a response with no tool calls — return success.
 //  2. exec returns a non-nil error — abort and return the wrapped error.
 //  3. client.Complete returns an error — abort and return the wrapped error.
-//  4. The loop has executed Config.MaxToolRounds rounds — return success
+//  4. ctx ends between rounds — abort and return ctx.Err().
+//  5. The loop has executed Config.MaxToolRounds rounds — return success
 //     with the final tool-requesting response in Result.Final and the full
 //     audit trail. The caller can decide whether to coerce a final text
 //     reply (e.g. by sending a follow-up Complete with no tools).
@@ -95,16 +89,24 @@ func Run(ctx context.Context, client llm.Client, messages []llm.Message, exec To
 	// Defensive copy — the caller's slice should not be mutated.
 	history := append([]llm.Message(nil), messages...)
 	var audit []Audit
-	var usage AggregateUsage
+	var usage llm.Usage
 	var lastResp *llm.Response
 
 	for round := 0; round < cfg.MaxToolRounds; round++ {
 		// Honor cancellation between rounds. client.Complete and exec are
 		// expected to honor ctx themselves, but a misbehaving executor that
 		// ignores ctx would otherwise let the loop run unbounded once the
-		// caller cancels.
+		// caller cancels. The partial result carries the rounds already
+		// billed and the audit of the tools they ran, as on every other
+		// error path.
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return &Result{
+				Final:    lastResp,
+				Messages: history,
+				Audit:    audit,
+				Usage:    usage,
+				Rounds:   round,
+			}, err
 		}
 
 		req := &llm.Request{
@@ -129,7 +131,7 @@ func Run(ctx context.Context, client llm.Client, messages []llm.Message, exec To
 			}, fmt.Errorf("LLM completion (round %d): %w", round, err)
 		}
 		lastResp = resp
-		accumulateUsage(&usage, resp.Usage)
+		usage.Add(resp.Usage)
 
 		if !resp.HasToolCalls() {
 			return &Result{
@@ -177,15 +179,4 @@ func Run(ctx context.Context, client llm.Client, messages []llm.Message, exec To
 		Usage:    usage,
 		Rounds:   cfg.MaxToolRounds,
 	}, nil
-}
-
-func accumulateUsage(agg *AggregateUsage, u *llm.Usage) {
-	if u == nil {
-		return
-	}
-	agg.PromptTokens += u.PromptTokens
-	agg.CompletionTokens += u.CompletionTokens
-	agg.TotalTokens += u.TotalTokens
-	agg.CacheCreationInputTokens += u.CacheCreationInputTokens
-	agg.CacheReadInputTokens += u.CacheReadInputTokens
 }

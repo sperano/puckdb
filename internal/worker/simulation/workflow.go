@@ -22,8 +22,8 @@ import (
 //	2. Season: day loop. Each iteration processes one CALENDAR day:
 //	     ProcessWaivers → BuildFreeAgentPool → ManageRoster (per agent)
 //	     → if FINAL games: CollectDayStats → UpdateStandings
-//	   The loop is signal-driven: each `advance` signal grants one
-//	   day; `auto_advance` runs continuously; `pause` blocks both.
+//	   The loop runs until the season ends, the MaxSeasonDays cap,
+//	   or a ManageRoster result reporting the cost cap reached.
 //	   Every 30 days the workflow returns ContinueAsNewError to keep
 //	   the Temporal event history bounded.
 //	3. Complete: when sim_date passes the season's standings_end,
@@ -131,16 +131,12 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 		return fmt.Errorf("register query handlers: %w", err)
 	}
 
-	// Cost-cap pause: when the cost-cap activity flips the pool to
-	// 'paused' in the DB, it also sends this signal so the workflow
-	// can exit cleanly between activities. Checked via ReceiveAsync
-	// at phase / day boundaries — no Selector, no blocking wait.
-	pauseCh := workflow.GetSignalChannel(ctx, SignalPause)
-	checkPause := func() bool {
-		// ReceiveAsync returns true iff a signal is queued. On true
-		// we don't need the payload (it's nil from costcap.go).
-		return pauseCh.ReceiveAsync(nil)
-	}
+	// Cost-cap pause: an LLM activity that finds the cap reached flips
+	// the pool to 'paused' in the DB (pauseForCostCap) and returns
+	// SkipReasonCostCapReached. That result, recorded in history, is the
+	// only signal the workflow acts on: the phase that saw it stops and
+	// the workflow exits at the same boundary as before, without
+	// completing the pool. The team-name phase never checks the cap.
 
 	// Phase 0: each agent picks its team name. Runs once per workflow
 	// execution (skipped on CAN resume since SimDate.Valid means we're
@@ -148,10 +144,6 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 	if !in.SimDate.Valid {
 		if err := runTeamNamePhase(ctx, &state); err != nil {
 			return fmt.Errorf("team-name phase: %w", err)
-		}
-		if checkPause() {
-			logger.Info("SimPoolWorkflow exit (cost cap reached after team-name)", "pool_id", in.PoolID)
-			return nil
 		}
 		if state.PoolConfig.StopAfter == StopAfterTeamName {
 			logger.Info("SimPoolWorkflow exit (StopAfterTeamName)", "pool_id", in.PoolID)
@@ -163,10 +155,11 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 	// Phase 1: Draft. Skipped on CAN resume.
 	if !in.SimDate.Valid {
 		state.CurrentStatus = PoolStatusDraft
-		if err := runDraftPhase(ctx, &state, tracker); err != nil {
+		paused, err := runDraftPhase(ctx, &state, tracker)
+		if err != nil {
 			return fmt.Errorf("draft phase: %w", err)
 		}
-		if checkPause() {
+		if paused {
 			state.CurrentStatus = PoolStatusPaused
 			logger.Info("SimPoolWorkflow exit (cost cap reached after draft)", "pool_id", in.PoolID)
 			return nil
@@ -181,7 +174,7 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 
 	state.CurrentStatus = PoolStatusRunning
 	// Phase 2: Season day loop.
-	paused, err := runSeasonPhase(ctx, &in, &state, tracker, checkPause)
+	paused, err := runSeasonPhase(ctx, &in, &state, tracker)
 	if err != nil {
 		// ContinueAsNew is signaled via a sentinel error from
 		// runSeasonPhase — propagate as-is so Temporal recognizes it.
@@ -249,7 +242,6 @@ type simState struct {
 	AgentNotes      []string
 	SeasonStartDate pgtype.Date
 	SeasonEndDate   pgtype.Date
-	WorkflowID      string
 	TotalDays       int
 	// CurrentStatus mirrors sim_pools.status for QuerySummary.
 	// Updated whenever the workflow writes a new status to the DB.
@@ -265,7 +257,7 @@ type simState struct {
 }
 
 // loadSimState calls LoadPoolStateActivity and computes derived
-// quantities (TotalDays, WorkflowID).
+// quantities (TotalDays).
 func loadSimState(ctx workflow.Context, in SimPoolWorkflowInput) (simState, error) {
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 	var acts *Activities
@@ -295,7 +287,6 @@ func loadSimState(ctx workflow.Context, in SimPoolWorkflowInput) (simState, erro
 		AgentNotes:      res.AgentNotes,
 		SeasonStartDate: res.SeasonStartDate,
 		SeasonEndDate:   res.SeasonEndDate,
-		WorkflowID:      workflow.GetInfo(ctx).WorkflowExecution.ID,
 		TotalDays:       totalDays,
 		CurrentStatus:   res.PoolStatus,
 		TotalLLMCostUsd: res.TotalLLMCostUsd,
@@ -432,18 +423,19 @@ func runTeamNamePhase(ctx workflow.Context, state *simState) error {
 
 // runDraftPhase runs the snake-order draft for every roster spot.
 // Sequential per-pick (LLM agents take turns, snake order); cancel
-// is observed between picks via ctx.Err().
+// is observed between picks via ctx.Err(). paused reports that a pick
+// returned SkipReasonCostCapReached and the draft stopped there.
 func runDraftPhase(
 	ctx workflow.Context,
 	state *simState,
 	tracker *shared.ReportTracker,
-) error {
+) (bool, error) {
 	logger := workflow.GetLogger(ctx)
 	tracker.StartGroup(ctx, 0)
 
 	candidates, err := loadDraftCandidates(ctx, *state)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// Randomize draft order via SideEffect-captured seed. SideEffect
@@ -452,14 +444,14 @@ func runDraftPhase(
 	// deterministic.
 	round1 := append([]int32(nil), state.AgentIDs...)
 	if err := shuffleAgents(ctx, round1, "draft-order"); err != nil {
-		return err
+		return false, err
 	}
 	// Persist the shuffled order to sim_agents.draft_position so the
 	// API/CLI can show "currently picking" without querying the workflow.
 	var actsForOrder *Activities
 	recordCtx := workflow.WithActivityOptions(ctx, defaultActivityOptions())
 	if err := workflow.ExecuteActivity(recordCtx, actsForOrder.RecordDraftOrder, RecordDraftOrderInput{AgentIDs: round1}).Get(ctx, nil); err != nil {
-		return fmt.Errorf("record draft order: %w", err)
+		return false, fmt.Errorf("record draft order: %w", err)
 	}
 
 	rounds := state.PoolConfig.DraftRounds
@@ -468,7 +460,7 @@ func runDraftPhase(
 		// but we don't want to deadlock — log + skip.
 		logger.Warn("DraftRounds is zero — skipping Phase 1")
 		tracker.CompleteGroup(ctx, 0, "Draft skipped (no rounds configured)")
-		return nil
+		return false, nil
 	}
 
 	taken := map[int64]struct{}{}
@@ -492,7 +484,7 @@ func runDraftPhase(
 	var acts *Activities
 	for _, agentID64 := range pickOrder {
 		if err := ctx.Err(); err != nil {
-			return err
+			return false, err
 		}
 
 		pickNumber++
@@ -504,7 +496,7 @@ func runDraftPhase(
 		ctx2 := workflow.WithActivityOptions(ctx, llmActivityOptions())
 		var res DraftPickResult
 		if err := workflow.ExecuteActivity(ctx2, acts.DraftPick, input).Get(ctx, &res); err != nil {
-			return fmt.Errorf("draft pick %d (agent %d): %w", pickNumber, agentID64, err)
+			return false, fmt.Errorf("draft pick %d (agent %d): %w", pickNumber, agentID64, err)
 		}
 		if res.PlayerID > 0 {
 			taken[res.PlayerID] = struct{}{}
@@ -519,19 +511,17 @@ func runDraftPhase(
 		state.TotalLLMCostUsd += res.CostUsd
 		tracker.IncrementBar(ctx, 0, 0)
 
-		// Cost-cap exit: the first tripped pick already wrote the
-		// cost_cap_reached row and sent the pause signal. Mirror the
-		// season loop's pattern — stop executing picks so subsequent
-		// picks don't each independently re-run runCostCapBranch and
-		// flood the audit table with duplicate rows.
+		// Cost-cap exit: the tripped pick already paused the pool.
+		// Stop executing picks — every later pick would only find the
+		// cap reached again — and tell the caller to exit paused.
 		if res.SkipReason == SkipReasonCostCapReached {
 			logger.Info("Draft phase exit (cost cap reached)", "pick_number", pickNumber)
-			return nil
+			return true, nil
 		}
 	}
 
 	tracker.CompleteGroup(ctx, 0, fmt.Sprintf("Draft complete in %s", tracker.GetElapsed(ctx, 0)))
-	return nil
+	return false, nil
 }
 
 // loadDraftCandidates fetches the V1-stub candidate lists. See
@@ -632,7 +622,6 @@ func assembleDraftPickInput(
 		Round:       round,
 		Pick:        pick,
 		SimDate:     state.SeasonStartDate,
-		WorkflowID:  state.WorkflowID,
 		PoolConfig:  state.PoolConfig,
 		AgentConfig: agentCfg,
 		DraftPrompt: DraftPromptInput{
@@ -670,12 +659,12 @@ func assembleDraftPickInput(
 // it — wrapping confuses Temporal's identity check.
 
 // runSeasonPhase is the day loop. The bool return is true when the
-// loop exited because a cost-cap pause was signaled — the caller must
-// NOT complete the pool in that case (the cost-cap activity already
-// wrote status='paused'). Returns a ContinueAsNewError when the
-// absolute-day count hits the threshold, the cancel error if the
-// workflow was cancelled, or (false, nil) when sim_date passes the
-// season's end / the MaxSeasonDays cap.
+// loop exited because a ManageRoster turn reported the cost cap reached
+// (processOneDay) — the caller must NOT complete the pool in that case
+// (the cost-cap activity already wrote status='paused'). Returns a
+// ContinueAsNewError when the absolute-day count hits the threshold,
+// the cancel error if the workflow was cancelled, or (false, nil) when
+// sim_date passes the season's end / the MaxSeasonDays cap.
 //
 // MaxSeasonDays and the ContinueAsNew threshold are both measured
 // against days elapsed from SeasonStartDate, NOT in.DayCount —
@@ -686,7 +675,6 @@ func runSeasonPhase(
 	in *SimPoolWorkflowInput,
 	state *simState,
 	tracker *shared.ReportTracker,
-	checkPause func() bool,
 ) (bool, error) {
 	logger := workflow.GetLogger(ctx)
 	tracker.StartGroup(ctx, 1)
@@ -720,7 +708,8 @@ func runSeasonPhase(
 		// across replay (recorded in event history), so capturing
 		// start/end here doesn't break determinism.
 		dayStart := workflow.Now(ctx)
-		if err := processOneDay(ctx, state, in.SimDate); err != nil {
+		costCapReached, err := processOneDay(ctx, state, in.SimDate)
+		if err != nil {
 			return false, fmt.Errorf("process day %s: %w", in.SimDate.Time.Format("2006-01-02"), err)
 		}
 		dayDuration := workflow.Now(ctx).Sub(dayStart)
@@ -746,11 +735,14 @@ func runSeasonPhase(
 		in.DayCount++
 		tracker.IncrementBar(ctx, 1, 0)
 
-		// Cost-cap exit between days. The cost-cap activity already
-		// flipped sim_pools.status to 'paused' in the DB; we just
-		// need to stop running — and signal the caller NOT to
-		// complete the pool (which would clobber 'paused').
-		if checkPause() {
+		// Cost-cap exit between days, after the day's telemetry and
+		// progress, the same point the old pause-signal check used, so
+		// histories recorded before this change replay with the same
+		// commands. The cost-cap activity already flipped
+		// sim_pools.status to 'paused' in the DB; we just need to stop
+		// running — and tell the caller NOT to complete the pool (which
+		// would clobber 'paused').
+		if costCapReached {
 			logger.Info("Season phase exit (cost cap reached)", "sim_date", in.SimDate.Time)
 			return true, nil
 		}
@@ -790,11 +782,15 @@ func daysElapsed(start, current pgtype.Date) int {
 //
 // V1 simplification: ManageRosterActivity inputs are stubbed
 // minimally; the full daily-context builder is a follow-up commit.
+//
+// The bool return is true when an agent's ManageRoster reported the
+// cost cap reached: the day stops right there (steps 4-5 are skipped)
+// and the caller exits paused.
 func processOneDay(
 	ctx workflow.Context,
 	state *simState,
 	simDate pgtype.Date,
-) error {
+) (bool, error) {
 	var acts *Activities
 	dbCtx := workflow.WithActivityOptions(ctx, defaultActivityOptions())
 	llmCtx := workflow.WithActivityOptions(ctx, llmActivityOptions())
@@ -803,7 +799,7 @@ func processOneDay(
 		PoolID:  state.PoolID,
 		SimDate: simDate,
 	}).Get(ctx, nil); err != nil {
-		return fmt.Errorf("process waivers: %w", err)
+		return false, fmt.Errorf("process waivers: %w", err)
 	}
 
 	var faRes BuildFreeAgentPoolResult
@@ -813,7 +809,7 @@ func processOneDay(
 		SimDate:    simDate,
 		WaiverDays: int32(state.PoolConfig.WaiverDays),
 	}).Get(ctx, &faRes); err != nil {
-		return fmt.Errorf("build free agent pool: %w", err)
+		return false, fmt.Errorf("build free agent pool: %w", err)
 	}
 
 	// Randomize agent processing order — same SideEffect mechanism
@@ -821,7 +817,7 @@ func processOneDay(
 	// event history from the draft-order one.
 	order := append([]int32(nil), state.AgentIDs...)
 	if err := shuffleAgents(ctx, order, "daily-agent-order"); err != nil {
-		return err
+		return false, err
 	}
 
 	for _, agentID := range order {
@@ -831,30 +827,27 @@ func processOneDay(
 			PoolID:      state.PoolID,
 			AgentID:     agentID,
 			SimDate:     simDate,
-			WorkflowID:  state.WorkflowID,
 			PoolConfig:  state.PoolConfig,
 			AgentConfig: agentCfg,
 			FreeAgents:  faRes.PlayerIDs,
 		}).Get(ctx, &input); err != nil {
-			return fmt.Errorf("build daily context (agent %d): %w", agentID, err)
+			return false, fmt.Errorf("build daily context (agent %d): %w", agentID, err)
 		}
 		var res ManageRosterResult
 		if err := workflow.ExecuteActivity(llmCtx, acts.ManageRoster, input).Get(ctx, &res); err != nil {
-			return fmt.Errorf("manage roster (agent %d): %w", agentID, err)
+			return false, fmt.Errorf("manage roster (agent %d): %w", agentID, err)
 		}
 		state.TotalLLMCostUsd += res.CostUsd
 
-		// Cost-cap exit: the first agent to trip the cap already wrote
-		// the cost_cap_reached row and sent the pause signal
-		// (runCostCapBranch). Mirror the draft loop — stop processing
-		// the remaining agents so they don't each independently re-run
-		// runCostCapBranch and flood the audit table with duplicate rows
-		// + redundant pause signals. The pause signal is picked up by
-		// checkPause() at the end of the day's iteration.
+		// Cost-cap exit: the first agent to trip the cap already paused
+		// the pool (pauseForCostCap). Mirror the draft loop — stop
+		// processing the remaining agents, which would only find the
+		// cap reached again, and let runSeasonPhase exit paused at the
+		// end of the day's iteration.
 		if res.SkipReason == SkipReasonCostCapReached {
 			workflow.GetLogger(ctx).Info("Daily loop exit (cost cap reached)",
 				"sim_date", simDate.Time, "agent_id", agentID)
-			return nil
+			return true, nil
 		}
 	}
 
@@ -870,7 +863,7 @@ func processOneDay(
 		SimDate:  simDate,
 		AgentIDs: state.AgentIDs,
 	}).Get(ctx, &collectRes); err != nil {
-		return fmt.Errorf("collect day stats: %w", err)
+		return false, fmt.Errorf("collect day stats: %w", err)
 	}
 	if !collectRes.Skipped {
 		if err := workflow.ExecuteActivity(dbCtx, acts.UpdateStandings, UpdateStandingsInput{
@@ -878,10 +871,10 @@ func processOneDay(
 			SimDate:  simDate,
 			AgentIDs: state.AgentIDs,
 		}).Get(ctx, nil); err != nil {
-			return fmt.Errorf("update standings: %w", err)
+			return false, fmt.Errorf("update standings: %w", err)
 		}
 	}
-	return nil
+	return false, nil
 }
 
 // assembleManageRosterInput was the V1 in-memory stub; replaced by

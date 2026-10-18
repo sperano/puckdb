@@ -2,6 +2,7 @@ package llm
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -136,4 +137,47 @@ func TestUsageJSON(t *testing.T) {
 	var decoded Usage
 	require.NoError(t, json.Unmarshal(data, &decoded))
 	assert.Equal(t, usage, decoded)
+}
+
+// Every token class Usage carries must be summed by Add. The fields are
+// enumerated by reflection so a token class added to Usage later fails
+// here until Add accumulates it too; this treats every int field of
+// Usage as a token count, which is what Usage holds.
+func TestUsageAddSumsEveryTokenClass(t *testing.T) {
+	var part Usage
+	v := reflect.ValueOf(&part).Elem()
+	tokenFields := 0
+	for i := range v.NumField() {
+		if f := v.Field(i); f.Kind() == reflect.Int {
+			tokenFields++
+			f.SetInt(int64(tokenFields))
+		}
+	}
+	require.Positive(t, tokenFields)
+
+	var sum Usage
+	sum.Add(&part)
+	sum.Add(&part)
+
+	got := reflect.ValueOf(sum)
+	for i := range got.NumField() {
+		if f := got.Field(i); f.Kind() == reflect.Int {
+			name := got.Type().Field(i).Name
+			assert.Equal(t, 2*v.Field(i).Int(), f.Int(), "Add must sum %s", name)
+		}
+	}
+}
+
+func TestUsageAddCacheReportedAndNil(t *testing.T) {
+	var sum Usage
+	sum.Add(nil)
+	assert.Equal(t, Usage{}, sum, "a response without usage adds nothing")
+
+	sum.Add(&Usage{PromptTokens: 1})
+	assert.False(t, sum.CacheReported)
+	sum.Add(&Usage{PromptTokens: 1, CacheReported: true})
+	assert.True(t, sum.CacheReported, "one part reporting cache accounting makes the sum report it")
+	sum.Add(&Usage{PromptTokens: 1})
+	assert.True(t, sum.CacheReported, "a later part without cache accounting does not clear it")
+	assert.Equal(t, 3, sum.PromptTokens)
 }
