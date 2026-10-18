@@ -14,7 +14,6 @@ import (
 const (
 	IssueBoardStale               draftrank.IssueCode = "BOARD_STALE"
 	IssueBoardIncomplete          draftrank.IssueCode = "BOARD_INCOMPLETE"
-	IssueScenarioMissing          draftrank.IssueCode = "SCENARIO_MISSING"
 	IssuePoolSizeMismatch         draftrank.IssueCode = "POOL_SIZE_MISMATCH"
 	IssuePickOrderMissing         draftrank.IssueCode = "PICK_ORDER_MISSING"
 	IssuePickOutsideOrder         draftrank.IssueCode = "PICK_OUTSIDE_ORDER"
@@ -29,15 +28,17 @@ const (
 	IssueUnclassified draftrank.IssueCode = "UNCLASSIFIED"
 )
 
-// The fixed issues Evaluate reports. Their messages are the exact strings
-// draft-recommendation-v1 results stored before issues carried codes.
+// The fixed issues Evaluate reports, plus the legacy scenario-selection
+// issues that only decode old stored runs. Their messages are the exact
+// strings draft-recommendation-v1 results stored before issues carried codes;
+// scenario selection now resolves through draftrank.Snapshot.ResolveScenario.
 var (
 	issueBoardStale      = draftrank.Issue{Code: IssueBoardStale, Message: "draft board is stale"}
 	issueBoardIncomplete = draftrank.Issue{Code: IssueBoardIncomplete,
 		Message: "draft board is incomplete or has unresolved manual conflicts"}
 	issueScenarioFallback = draftrank.Issue{Code: draftrank.IssueScenarioFallback,
 		Message: "requested news scenario unavailable; baseline scenario used"}
-	issueScenarioMissing = draftrank.Issue{Code: IssueScenarioMissing,
+	issueScenarioMissing = draftrank.Issue{Code: draftrank.IssueScenarioMissing,
 		Message: "requested scenario is unavailable; no recommendations generated"}
 	issuePoolSizeMismatch = draftrank.Issue{Code: IssuePoolSizeMismatch,
 		Message: "ranking pool size does not match its stored players"}

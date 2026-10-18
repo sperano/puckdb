@@ -39,8 +39,36 @@ func TestEvaluate_ScenarioFallbackUsesRankingIssueCode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(result.Issues, issueScenarioFallback) || result.Issues[0].Code != draftrank.IssueScenarioFallback {
+	if !slices.ContainsFunc(result.Issues, func(issue draftrank.Issue) bool {
+		return issue.Code == draftrank.IssueScenarioFallback
+	}) {
 		t.Fatalf("scenario fallback issue = %+v", result.Issues)
+	}
+}
+
+func TestEvaluate_ExplicitScenarioServesWithoutFallbackIssue(t *testing.T) {
+	in := recommendationInput(t)
+	in.Scenario = draftrank.ScenarioBaseline
+	result, err := Evaluate(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scenario != draftrank.ScenarioBaseline {
+		t.Fatalf("scenario = %q, want baseline", result.Scenario)
+	}
+	for _, issue := range result.Issues {
+		if issue.Code == draftrank.IssueScenarioFallback || issue.Code == draftrank.IssueScenarioMissing {
+			t.Fatalf("unexpected scenario issue %+v", issue)
+		}
+	}
+}
+
+func TestEvaluate_AbsentBaselineRejected(t *testing.T) {
+	in := recommendationInput(t)
+	in.Ranking.Scenarios = nil
+	in.Ranking.Versions = nil
+	if _, err := Evaluate(in); err == nil {
+		t.Fatal("expected an absent-baseline snapshot to be rejected")
 	}
 }
 
