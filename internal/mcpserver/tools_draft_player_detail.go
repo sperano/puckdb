@@ -20,7 +20,9 @@ const (
 	draftSnapshotIDArg        = "snapshot_id"
 
 	maxDraftPlayerDetailPlayers = 10
-	draftDetailFloatDecimals    = 4
+	draftDetailFloatFormat      = 'g'
+	draftDetailFloatDigits      = -1
+	draftDetailFloatBitSize     = 64
 	maxDraftDetailQuoteRunes    = 240
 	maxDraftDetailOutputBytes   = 256 * 1024
 )
@@ -43,7 +45,7 @@ func draftPlayerDetailTool(source draftPlayerDetailSource, guard leagueGuard) se
 				mcp.WithStringItems()),
 		),
 		Handler: guard.scopedKey(source, func(ctx context.Context, req mcp.CallToolRequest, ref draftrank.LeagueRef) (*mcp.CallToolResult, error) {
-			keys, errResult := requiredDraftPlayerKeys(req)
+			keys, errResult := requiredDraftPlayerKeys(req, ref.LeagueKey)
 			if errResult != nil {
 				return errResult, nil
 			}
@@ -71,34 +73,6 @@ func draftPlayerDetailResult(page draftrank.Page, requested []string) (*mcp.Call
 			len(text), maxDraftDetailOutputBytes)), nil
 	}
 	return mcp.NewToolResultText(text), nil
-}
-
-func requiredDraftPlayerKeys(req mcp.CallToolRequest) ([]string, *mcp.CallToolResult) {
-	raw, present := argument(req, draftPlayerKeysArg)
-	if !present {
-		return nil, mcp.NewToolResultError(draftPlayerKeysArg + " is required")
-	}
-	items, ok := raw.([]any)
-	if !ok {
-		return nil, mcp.NewToolResultError(fmt.Sprintf("invalid %s %s: want an array of strings", draftPlayerKeysArg, formatRaw(raw)))
-	}
-	if len(items) == 0 || len(items) > maxDraftPlayerDetailPlayers {
-		return nil, mcp.NewToolResultError(fmt.Sprintf("invalid %s length %d: want 1 to %d player keys", draftPlayerKeysArg, len(items), maxDraftPlayerDetailPlayers))
-	}
-	keys := make([]string, 0, len(items))
-	seen := make(map[string]bool, len(items))
-	for i, item := range items {
-		key, isString := item.(string)
-		key = strings.TrimSpace(key)
-		if !isString || key == "" {
-			return nil, mcp.NewToolResultError(fmt.Sprintf("invalid %s[%d] %s: want a non-empty string", draftPlayerKeysArg, i, formatRaw(item)))
-		}
-		if !seen[key] {
-			seen[key] = true
-			keys = append(keys, key)
-		}
-	}
-	return keys, nil
 }
 
 func optionalDraftSnapshotID(req mcp.CallToolRequest) (uuid.UUID, *mcp.CallToolResult) {
@@ -475,12 +449,7 @@ func draftPositionRanks(eligible []string, ranks map[string]int) string {
 }
 
 func draftDetailFloat(value float64) string {
-	text := strconv.FormatFloat(value, 'f', draftDetailFloatDecimals, 64)
-	text = strings.TrimRight(strings.TrimRight(text, "0"), ".")
-	if text == "-0" {
-		return "0"
-	}
-	return text
+	return strconv.FormatFloat(value, draftDetailFloatFormat, draftDetailFloatDigits, draftDetailFloatBitSize)
 }
 
 func timeCell(value time.Time) string {

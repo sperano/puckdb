@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -170,6 +171,10 @@ func TestDraftPlayerDetailValidatesPlayerKeysBeforeRanking(t *testing.T) {
 		"empty":         {[]any{}, "want 1 to 10 player keys"},
 		"blank":         {[]any{"  "}, "want a non-empty string"},
 		"non string":    {[]any{float64(1)}, "want a non-empty string"},
+		"wrong marker":  {[]any{"465.x.2"}, "invalid Yahoo player key"},
+		"foreign game":  {[]any{"464.p.2"}, "does not belong to game 465"},
+		"zero player":   {[]any{"465.p.0"}, "does not belong to game 465"},
+		"extra part":    {[]any{"465.p.2.extra"}, "invalid Yahoo player key"},
 		"above maximum": {repeatPlayerKeys(maxDraftPlayerDetailPlayers + 1), "want 1 to 10 player keys"},
 	}
 	for name, test := range tests {
@@ -185,6 +190,26 @@ func TestDraftPlayerDetailValidatesPlayerKeysBeforeRanking(t *testing.T) {
 			assert.True(t, result.IsError)
 			assert.Contains(t, resultText(t, result), test.want)
 			assert.Empty(t, source.queries)
+		})
+	}
+}
+
+func TestDraftDetailFloatPreservesExactValue(t *testing.T) {
+	tests := map[string]struct {
+		value float64
+		want  string
+	}{
+		"fraction":      {0.123456, "0.123456"},
+		"small":         {0.0000001, "1e-07"},
+		"negative zero": {math.Copysign(0, -1), "-0"},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			text := draftDetailFloat(test.value)
+			assert.Equal(t, test.want, text)
+			parsed, err := strconv.ParseFloat(text, draftDetailFloatBitSize)
+			require.NoError(t, err)
+			assert.Equal(t, math.Float64bits(test.value), math.Float64bits(parsed))
 		})
 	}
 }
