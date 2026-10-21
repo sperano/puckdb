@@ -95,7 +95,6 @@ const (
 	awardsTestStartYear      = 3000
 	awardsTestOtherStartYear = 3001
 	awardsTestSeasonID       = awardsTestStartYear*10000 + awardsTestStartYear + 1
-	awardsTestOtherSeasonID  = awardsTestOtherStartYear*10000 + awardsTestOtherStartYear + 1
 	awardsTestPlayerID       = 9704001
 	awardsTestOtherID        = 9704002
 	awardsTestTrophy         = "Fixture Memorial Trophy"
